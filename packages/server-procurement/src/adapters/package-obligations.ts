@@ -8,6 +8,7 @@ import {supplyCommerceSettlementSources as commerce,supplyCommerceSettlementSour
 import {recordAttachmentVersionSteps,recordAttachmentVersionSourceReadLocks} from "@erpx/server-files/public/record-version-receipts";
 import {tableRead} from './read-tail-r19';
 import {jsonbAggBy} from './read-tail-r21';
+import {billReceiptBinding} from './read-tail-r23';
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
 const sources=new WeakMap<SqlDatabase,string>();
 export async function lockSupplyProcurementPackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){
@@ -68,7 +69,7 @@ export async function supplyProcurementPackageObligations(owner:PostgresDatabase
  OR EXISTS(SELECT 1 FROM procurement_open_promise_lines pending WHERE pending.promise_id=promise.id AND pending.remaining_milli>0)
  FROM procurement_delivery_promises promise CROSS JOIN scope LEFT JOIN orders original ON original.id=promise.order_id WHERE promise.company_id=scope.company_id
  UNION ALL SELECT 'supplier-bill',bill.id,jsonb_build_array(to_jsonb(bill),${jsonbAggBy("procurement_bill_match_lines","line","match_id","bill.id","line.id")},${jsonbAggBy("procurement_bill_match_events","event","match_id","bill.id","event.id")},${jsonbAggBy("procurement_bill_match_receipts","binding","match_id","bill.id","binding.fulfillment_id")})::text,original.id IS NULL OR original.party_id IS DISTINCT FROM bill.supplier_id OR original.currency IS DISTINCT FROM bill.currency OR bill.status NOT IN ('posted','returned')
- OR NOT EXISTS(SELECT 1 FROM procurement_bill_match_receipts binding WHERE binding.match_id=bill.id AND binding.fulfillment_id=bill.fulfillment_id)
+ OR ${billReceiptBinding(true,"binding","bill")}
  OR EXISTS(SELECT 1 FROM procurement_bill_match_receipts binding LEFT JOIN (${commerce.receipts}) receipt ON receipt.id=binding.fulfillment_id LEFT JOIN orders parent ON parent.id=receipt.order_id
   WHERE binding.match_id=bill.id AND (parent.id IS NULL OR parent.party_id IS DISTINCT FROM bill.supplier_id OR parent.currency IS DISTINCT FROM bill.currency))
  OR NOT EXISTS(SELECT 1 FROM procurement_bill_match_events event JOIN command_receipts command ON event.id='bill-event-'||command.command_id

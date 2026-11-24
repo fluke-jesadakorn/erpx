@@ -5,6 +5,7 @@ import { type Filters } from "@erpx/feature-shared/lib/executive/canvas";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { SupplierBillEvidenceRow } from '@erpx/server-runtime/public/executive/evidence-contract';
+import { returnedWithoutReplacement } from './read-tail-r23';
 async function supplierBillEvidenceRows(db: SqlDatabase, actor: WorkContext, filters: Filters, query: string, cursor?: {
     invoiceDate: string;
     id: string;
@@ -31,12 +32,7 @@ function supplierBillConditions(actor: WorkContext, filters: Filters, query: str
         "latest.invoice_date BETWEEN ? AND ?",
         "latest.currency=?",
         `((latest.status='review' AND (NOT latest.quantity_matches OR latest.subtotal_minor<>latest.expected_subtotal_minor))
-      OR (latest.status='returned' AND NOT EXISTS(
-        SELECT 1 FROM procurement_bill_match_receipts returned_receipt
-        JOIN procurement_bill_match_receipts replacement_receipt
-          ON replacement_receipt.fulfillment_id=returned_receipt.fulfillment_id AND replacement_receipt.active=TRUE
-        WHERE returned_receipt.match_id=latest.id AND replacement_receipt.match_id<>latest.id
-      )))`,
+      OR ${returnedWithoutReplacement("latest")})`,
     ];
     const values: unknown[] = [actor.companyId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId, filters.from, filters.to, filters.currency];
     if (query) {

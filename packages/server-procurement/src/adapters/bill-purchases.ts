@@ -14,6 +14,7 @@ import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packa
 import {supplierBillSchema,requestedBillReceipts} from "@erpx/server-procurement/domain/supplier-bills";
 import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 import {workforceActorScopeColumns,commandReplayGuard,branchDepartmentScope} from './read-tail-sql';
+import {billReceiptBinding} from './read-tail-r23';
 
 const capability="supply.purchasing",foundations=[capability,"supply.receiving","finance.inventory-valuation"] as const;
 export type SupplierBillPurchase={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
@@ -26,7 +27,7 @@ export async function withSupplierBillPurchasedRead<Result>(actor:WorkContext,ru
 export {supplierBillOwnerPredicate} from "@erpx/server-procurement/adapters/bill-source-sql";
 const scoped=branchDepartmentScope("m");
 async function image(database:SqlDatabase,actor:WorkContext,id:string){
- return database.prepare(`SELECT jsonb_build_object('bill',to_jsonb(m),'receipts',${receiptImage("m.id")})::text image FROM procurement_bill_matches m JOIN commerce_fulfillments primary_receipt ON primary_receipt.id=m.fulfillment_id AND primary_receipt.order_id=m.order_id JOIN commerce_orders primary_order ON primary_order.id=m.order_id AND primary_order.company_id=m.company_id AND primary_order.kind='purchase' WHERE m.id=? AND ${scoped} AND EXISTS(SELECT 1 FROM procurement_bill_match_receipts br WHERE br.match_id=m.id AND br.fulfillment_id=m.fulfillment_id) AND NOT EXISTS(SELECT 1 FROM procurement_bill_match_receipts br LEFT JOIN commerce_fulfillments f ON f.id=br.fulfillment_id LEFT JOIN commerce_orders o ON o.id=f.order_id WHERE br.match_id=m.id AND (o.id IS NULL OR o.kind<>'purchase' OR o.company_id<>m.company_id OR o.party_id<>m.supplier_id OR o.currency<>m.currency))`).bind(id,actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId).first<string>("image");
+ return database.prepare(`SELECT jsonb_build_object('bill',to_jsonb(m),'receipts',${receiptImage("m.id")})::text image FROM procurement_bill_matches m JOIN commerce_fulfillments primary_receipt ON primary_receipt.id=m.fulfillment_id AND primary_receipt.order_id=m.order_id JOIN commerce_orders primary_order ON primary_order.id=m.order_id AND primary_order.company_id=m.company_id AND primary_order.kind='purchase' WHERE m.id=? AND ${scoped} AND ${billReceiptBinding(false,"br","m")} AND NOT EXISTS(SELECT 1 FROM procurement_bill_match_receipts br LEFT JOIN commerce_fulfillments f ON f.id=br.fulfillment_id LEFT JOIN commerce_orders o ON o.id=f.order_id WHERE br.match_id=m.id AND (o.id IS NULL OR o.kind<>'purchase' OR o.company_id<>m.company_id OR o.party_id<>m.supplier_id OR o.currency<>m.currency))`).bind(id,actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId).first<string>("image");
 }
 /** Bill matching discharges actual received Purchase obligations. It cannot
  * authorize a standalone AP invoice or a Sales/foreign receipt by its label. */
