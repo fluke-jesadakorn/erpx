@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10256,
+    "revision": 10260,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -161035,6 +161035,57 @@
         "owner": "assets",
         "title": "assets TS read tail native cutover (round 22)",
         "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-assets/src/**",
+          "tests/unit/assets/**",
+          "tests/integration/assets/**"
+        ],
+        "resources": [
+          "owner:assets"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-assets/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "34c414b81",
+            "owner": "assets",
+            "before": 24,
+            "after": 23,
+            "note": "Physical lineage and finance visible asset link reads share assetFinanceLinkReadSql; prior families and native mount WIP untouched."
+          },
+          {
+            "command": "vitest assets native transport (32) + tsc assets",
+            "result": "passed",
+            "sourceSha": "34c414b81"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-n",
+          "agentId": "wGCMast4",
+          "at": "2026-11-24T07:18:14.380Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.assets.read-tail-r23",
+        "goalId": "G4",
+        "owner": "assets",
+        "title": "assets TS read tail native cutover (round 23)",
+        "kind": "migration",
         "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
@@ -161049,10 +161100,10 @@
         ],
         "claim": {
           "runId": "run-20261123-n",
-          "agentId": "wGCMast4",
-          "claimedAt": "2026-11-24T07:17:44.931Z",
-          "heartbeatAt": "2026-11-24T07:17:44.931Z",
-          "expiresAt": "2026-11-24T07:47:44.931Z",
+          "agentId": "wGCMast5",
+          "claimedAt": "2026-11-24T07:18:14.727Z",
+          "heartbeatAt": "2026-11-24T07:18:14.727Z",
+          "expiresAt": "2026-11-24T07:48:14.728Z",
           "generation": 166
         },
         "baseSha": null,
@@ -161061,15 +161112,8 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=24.",
-        "handoff": {
-          "runId": "run-20261123-m",
-          "agentId": "wGCMast4",
-          "at": "2026-11-24T07:17:38.838Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during long cargo/mount integration; WIP reviewed, same agents re-claimed under gen 166",
-          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=24."
-        },
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=23.",
+        "handoff": null,
         "scopeRefinementRequired": false
       }
     ],
@@ -161079,7 +161123,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1342,
+      "totalPackets": 1343,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -161087,13 +161131,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 963,
+        "blocked": 964,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 166,
-    "updatedAt": "2026-11-24T07:17:44.939Z",
+    "updatedAt": "2026-11-24T07:18:14.736Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
