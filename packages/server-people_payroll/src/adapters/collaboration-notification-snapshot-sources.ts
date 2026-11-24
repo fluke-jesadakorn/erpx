@@ -1,4 +1,5 @@
 import 'server-only';
+import {PP_RD16_HR_PEOPLE_P_JOIN_SQL} from './pp-read-tail-r16-sources';
 /** Closed, named source clauses for the supplied notification statement snapshot.
  * No table, SQL, predicate or alias is accepted from a caller. */
 export function collaborationNotificationSnapshotSources(){return {
@@ -8,5 +9,5 @@ export function collaborationNotificationSnapshotSources(){return {
   "people_roster_position_notifications_people_roster_requests_r_from": "FROM (SELECT \"id\", \"company_id\", \"department_id\", \"kind\", \"requester_person_id\", \"coworker_person_id\", \"source_assignment_id\", \"source_version\", \"target_shift_id\", \"target_assignment_id\", \"target_version\", \"state\", \"reason\", \"decision_note\", \"accepted_by\", \"decided_by\", \"version\", \"created_by\", \"created_at\", \"updated_at\" FROM people_roster_requests) r",
   "people_roster_position_notifications_hr_engagements_from": "FROM (SELECT \"id\", \"person_id\", \"company_id\", \"branch_id\", \"department_id\", \"worker_type\", \"employment_type\", \"status\", \"start_date\", \"end_date\", \"manager_person_id\", \"job_title\", \"currency\", \"version\", \"created_by\", \"created_at\", \"updated_at\", \"pay_group_id\", \"level_id\", \"position_id\", \"self_service_top_level\" FROM hr_engagements) hr_engagements",
   "people_roster_position_notifications_people_roster_assignments_from": "FROM (SELECT \"id\", \"shift_id\", \"person_id\", \"engagement_id\", \"state\", \"version\" FROM people_roster_assignments) people_roster_assignments",
-  "people_roster_position_notifications_hr_people_p_join": "JOIN (SELECT \"id\", \"user_id\", \"company_id\", \"legal_name\", \"preferred_name\", \"email\", \"phone\", \"country_code\", \"status\", \"version\", \"created_by\", \"created_at\", \"updated_at\", \"merged_into_id\", \"work_email\", \"work_phone\" FROM hr_people) p"
+  "people_roster_position_notifications_hr_people_p_join": PP_RD16_HR_PEOPLE_P_JOIN_SQL
 } as const;}
