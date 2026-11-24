@@ -81,8 +81,8 @@ describe('pms read-tail r26 byte-identical id-source dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(361);
-    expect(bare).toBe(363);
+    expect(spaced).toBeLessThanOrEqual(358);
+    expect(bare).toBeLessThanOrEqual(360);
     expect(spaced).toBeLessThan(414);
     expect(bare).toBeLessThan(416);
   });
