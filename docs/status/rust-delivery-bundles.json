@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9745,
+    "revision": 9747,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -154405,7 +154405,7 @@
         "owner": "runtime",
         "title": "runtime TS read tail native cutover (r10)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -154417,22 +154417,37 @@
         "resources": [
           "owner:runtime"
         ],
-        "claim": {
-          "runId": "run-20261123-k",
-          "agentId": "wGCNrun",
-          "claimedAt": "2026-11-24T05:42:30.251Z",
-          "heartbeatAt": "2026-11-24T05:42:30.251Z",
-          "expiresAt": "2026-11-24T06:12:30.251Z",
-          "generation": 163
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-runtime/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "107d6d09b",
+            "owner": "runtime",
+            "before": 44,
+            "after": 43,
+            "note": "Executive report revisions reads share executiveReportRevisionsSql; r5-r9 and control-plane locks/migrations untouched."
+          },
+          {
+            "command": "vitest runtime r10 + r5-r9 + executive services (79) + tsc runtime",
+            "result": "passed",
+            "sourceSha": "107d6d09b"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=44.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-k",
+          "agentId": "wGCNrun",
+          "at": "2026-11-24T05:53:13.660Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -155400,17 +155415,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 24,
+        "in_progress": 23,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 859,
+        "blocked": 860,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 163,
-    "updatedAt": "2026-11-24T05:52:58.058Z",
+    "updatedAt": "2026-11-24T05:53:13.667Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
