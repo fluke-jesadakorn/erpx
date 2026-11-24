@@ -47,7 +47,8 @@ describe('pms read-tail r19 byte-identical projection-fragment dedupe', () => {
   it('lowers the pms owner SELECT KPI strictly below the r18 after=487 baseline', async () => {
     let count = 0;
     for (const file of await tsFiles(dir)) count += (await readFile(file, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(481);
+    // r20 deduped the 3x pms_properties and 3x pms_records projections below r19 after=481.
+    expect(count).toBe(477);
     expect(count).toBeLessThan(487);
   });
 });
