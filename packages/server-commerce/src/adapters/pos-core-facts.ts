@@ -4,16 +4,22 @@ import { commercialOwnerProjectionSources as inventoryProjectionSources } from "
 import "server-only";
 import {one,all,run} from '@erpx/server-runtime/public/runtime/sql';
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
+import {COMMERCE_CURRENCY_BY_COMPANY_SQL} from './settings-dedupe-sql';
+
+/** Byte-identical text deduped; every call site still prepares and executes it. */
+const COMMERCE_STOCK_FOR_UPDATE_SQL = `SELECT * FROM (${inventoryProjectionSources.commerce_stock}) commerce_stock WHERE warehouse_id=? AND product_id=? FOR UPDATE`;
+const COMMERCE_PRODUCT_POINT_SQL = "SELECT id FROM commerce_products WHERE id=? AND company_id=? AND status='active'";
+
 export function posCoreCommerceFacts(db: SqlDatabase) {
     return {
         readCommerceStock1: (facts: {
             warehouse_id: string | number | boolean | null;
             productId: string;
-        }) => one(db, `SELECT * FROM (${inventoryProjectionSources.commerce_stock}) commerce_stock WHERE warehouse_id=? AND product_id=? FOR UPDATE`, facts.warehouse_id, facts.productId),
+        }) => one(db, COMMERCE_STOCK_FOR_UPDATE_SQL, facts.warehouse_id, facts.productId),
         readCommerceStock2: (facts: {
             warehouse_id: string | number | boolean | null;
             productId: string;
-        }) => one(db, `SELECT * FROM (${inventoryProjectionSources.commerce_stock}) commerce_stock WHERE warehouse_id=? AND product_id=? FOR UPDATE`, facts.warehouse_id, facts.productId),
+        }) => one(db, COMMERCE_STOCK_FOR_UPDATE_SQL, facts.warehouse_id, facts.productId),
         writeCommerceStock1: (facts: {
             quantityMilli: number;
             value: number;
@@ -33,22 +39,22 @@ export function posCoreCommerceFacts(db: SqlDatabase) {
         }) => all(db, "SELECT id,branch_id,name FROM commerce_warehouses WHERE company_id=? AND status='active' ORDER BY name,id FOR SHARE", facts.company),
         readCommerceSettings2: (facts: {
             company: string;
-        }) => one(db, 'SELECT currency FROM commerce_settings WHERE company_id=?', facts.company),
+        }) => one(db, COMMERCE_CURRENCY_BY_COMPANY_SQL, facts.company),
         readCommerceWarehouses3: (facts: {
             warehouseId: string;
         }) => one(db, "SELECT * FROM commerce_warehouses WHERE id=? AND status='active'", facts.warehouseId),
         readCommerceProducts1: (facts: {
             productId: string;
             company: string;
-        }) => one(db, "SELECT id FROM commerce_products WHERE id=? AND company_id=? AND status='active'", facts.productId, facts.company),
+        }) => one(db, COMMERCE_PRODUCT_POINT_SQL, facts.productId, facts.company),
         readCommerceProducts2: (facts: {
             productId: string;
             company: string;
-        }) => one(db, "SELECT id FROM commerce_products WHERE id=? AND company_id=? AND status='active'", facts.productId, facts.company),
+        }) => one(db, COMMERCE_PRODUCT_POINT_SQL, facts.productId, facts.company),
         readCommerceStock3: (facts: {
             warehouse_id: string | number | boolean | null;
             product_id: string | number | boolean | null;
-        }) => one(db, `SELECT * FROM (${inventoryProjectionSources.commerce_stock}) commerce_stock WHERE warehouse_id=? AND product_id=? FOR UPDATE`, facts.warehouse_id, facts.product_id),
+        }) => one(db, COMMERCE_STOCK_FOR_UPDATE_SQL, facts.warehouse_id, facts.product_id),
         writeCommerceStock2: (facts: {
             quantity_milli: string | number | boolean | null;
             cost: number;

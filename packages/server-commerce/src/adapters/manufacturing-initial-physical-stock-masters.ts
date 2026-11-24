@@ -17,6 +17,7 @@ import {holdingResources} from '../../../../packages/server-runtime/src/public/r
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {BusinessRuleError} from '@erpx/server-shared/index';
+import {MFG_POS_LOCK_COMMAND_RECEIPTS,MFG_POS_LOCK_PRODUCTS_WAREHOUSES,MFG_POS_LOCK_SETTINGS_SHARE} from './settings-dedupe-sql';
 import {manufacturingInitialPhysicalStockCommerceSource} from '@erpx/server-commerce/adapters/manufacturing-initial-physical-stock-sources';
 import {createManufacturingInitialPhysicalStockMasterInTransaction} from '@erpx/server-commerce/adapters/commerce';
 import {manufacturingInitialPhysicalStockProductSchema,manufacturingInitialPhysicalStockWarehouseSchema,type ManufacturingInitialPhysicalStockProductInput,type ManufacturingInitialPhysicalStockWarehouseInput,type ManufacturingInitialPhysicalStockMasterResult} from '@erpx/server-commerce/domain/manufacturing-initial-physical-stock-masters';
@@ -37,9 +38,9 @@ async function leases(database:SqlDatabase,actor:WorkContext){
  await lockPackageSettlementSources(database);
  // Original generic masters take their receipt before business effects, even
  // with legacy enforcement disabled. Acquire this exclusion before any source.
- await database.prepare('LOCK TABLE command_receipts IN SHARE ROW EXCLUSIVE MODE').run();
- await database.prepare('LOCK TABLE commerce_products,commerce_warehouses IN SHARE ROW EXCLUSIVE MODE').run();
- await database.prepare('LOCK TABLE commerce_settings IN SHARE MODE').run();
+ await database.prepare(MFG_POS_LOCK_COMMAND_RECEIPTS).run();
+ await database.prepare(MFG_POS_LOCK_PRODUCTS_WAREHOUSES).run();
+ await database.prepare(MFG_POS_LOCK_SETTINGS_SHARE).run();
  await database.batch(manufacturingInitialPhysicalStockMasterFinanceLeases(database));
  await lockQueuedCommandAuthority(database);await lockScheduledFeatureSources(database);await database.batch(purchase.slice(1));
 }
