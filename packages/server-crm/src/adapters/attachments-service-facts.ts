@@ -4,6 +4,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { salesRecipientEligibility } from "@erpx/server-sales/public/sales-recipient";
+import { crmAccountCreatedByScopeSql } from "@erpx/server-crm/adapters/purchases";
 const allowedTargets = new Set<string>(["crm_account", "crm_opportunity"]);
 const recordVersionTables: Record<string, {
     table: string;
@@ -22,10 +23,7 @@ function ownerVersionGuard(db: SqlDatabase, commandId: string, targetType: strin
     }
     if (targetType === "crm_account")
         return assertion(db, commandId, `attachment-owner-${index}`, `EXISTS(SELECT 1 FROM crm_accounts account
-    WHERE account.id=? AND account.company_id=? AND account.version=? AND (
-      ?::text IS NULL OR account.created_by=? OR EXISTS(SELECT 1 FROM crm_leads lead
-        WHERE lead.account_id=account.id AND lead.company_id=account.company_id AND lead.branch_id=?
-          AND (?::text IS NULL OR lead.department_id=?))))`, [targetId, companyId, version, actor.branchId, actor.userId, actor.branchId, actor.departmentId, actor.departmentId]);
+    WHERE account.id=? AND account.company_id=? AND account.version=? AND ${crmAccountCreatedByScopeSql})`, [targetId, companyId, version, actor.branchId, actor.userId, actor.branchId, actor.departmentId, actor.departmentId]);
     const aliases: Record<string, {
         table: string;
         extra?: string;
