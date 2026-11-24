@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8634,
+    "revision": 8635,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -142601,6 +142601,35 @@
         "nextAction": "Next: service-repository shared-tail pairs (count(*) variants over same joins) if byte-identical, else scan other adapters. Advisory lock excluded. BEFORE=349.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.inventory.read-tail-r12",
+        "goalId": "G4",
+        "owner": "inventory",
+        "title": "inventory TS read tail native cutover (round 12)",
+        "kind": "migration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-inventory/src/**",
+          "tests/unit/inventory/**",
+          "tests/integration/inventory/**"
+        ],
+        "resources": [
+          "owner:inventory"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: remaining byte-identical groups in commerce-facts/attachment-read-sources/inventory-transit/production-command-sources; text-only, no registry parity witnesses. BEFORE=500 (committed basis).",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -142609,10 +142638,10 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 983,
+      "totalPackets": 984,
       "migratedPackets": 329,
       "statusCounts": {
-        "pending": 15,
+        "pending": 16,
         "in_progress": 33,
         "ready_for_integration": 0,
         "integrating": 0,
@@ -142623,7 +142652,7 @@
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T02:37:28.680Z",
+    "updatedAt": "2026-11-24T02:37:52.827Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
