@@ -20,3 +20,6 @@ export const benefitScopePrefix = "WITH scope AS(SELECT ?::text company_id,";
 /** Byte-identical owner-local window fact projection prefix shared by the
  * Benefits and People package-settlement fact unions; generated SQL is unchanged. */
 export const benefitWindowFactPrefix = "UNION ALL SELECT 'window',w.id,w.version,w.status,to_jsonb(w),";
+/** Byte-identical owner-local dependent fact projection prefix shared by the
+ * Benefits and People package-settlement fact unions; generated SQL is unchanged. */
+export const benefitDependentFactPrefix = "UNION ALL SELECT 'dependent',d.id,d.version,d.status,to_jsonb(d),d.status='pending'";
