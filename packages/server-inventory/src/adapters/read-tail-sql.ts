@@ -327,3 +327,10 @@ export const lotBalanceRowsHeadSql = 'SELECT l.*,b.warehouse_id,b.quantity_milli
  *  attachment and record purchase reads; only the relation alias varies. */
 export const countAuthorityScopeSql = (alias: string) =>
   `(SELECT id,company_id,branch_id,NULL::text department_id FROM inventory_counts) ${alias}`;
+
+/** r45: the completed-transit receipt and loss-approval guards project the
+ *  same byte-identical transit-event quantity aggregate; only the event kind
+ *  varies. Each caller keeps its own statement and binds. Locks, count
+ *  sources/adapters, native transport and r11-r44 helpers stay untouched. */
+export const transitEventQuantitySumSql = (kind: string) =>
+  `SELECT sum(event.quantity_milli) FROM inventory_transit_events event WHERE event.line_id=line.id AND event.kind='${kind}'`;

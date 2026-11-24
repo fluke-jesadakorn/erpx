@@ -10,7 +10,7 @@ import type {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgre
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/server-commercial/public/package-settlement-sources";
 import {qualityPurchaseSourceRows,qualityPurchaseSourceReadLocks} from "@erpx/server-quality/public/purchase-sources";
-import {allInitialPhysicalStockMarkedRowsSql,childJsonAggSql,childJoinJsonAggSql,scopeExistsSql,terminalReceiptMatchSql,transitLossDecisionPendingSql} from './read-tail-sql';
+import {allInitialPhysicalStockMarkedRowsSql,childJsonAggSql,childJoinJsonAggSql,scopeExistsSql,terminalReceiptMatchSql,transitEventQuantitySumSql,transitLossDecisionPendingSql} from './read-tail-sql';
 
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
 const sources=new WeakMap<SqlDatabase,string>();
@@ -80,8 +80,8 @@ export async function supplyInventoryPackageObligations(owner:PostgresDatabase,d
  AND ${scopeExistsSql('inventory_transit_events','event','transit_id','t.id','kind',"'cancel'")})
  OR(t.status='completed' AND EXISTS(SELECT 1 FROM inventory_transit_lines line WHERE line.transit_id=t.id)
  AND NOT EXISTS(SELECT 1 FROM inventory_transit_lines line WHERE line.transit_id=t.id AND (line.received_milli+line.lost_milli<>line.quantity_milli OR line.settled_value_minor<>line.value_minor
- OR line.received_milli<>COALESCE((SELECT sum(event.quantity_milli) FROM inventory_transit_events event WHERE event.line_id=line.id AND event.kind='receipt'),0)
- OR line.lost_milli<>COALESCE((SELECT sum(event.quantity_milli) FROM inventory_transit_events event WHERE event.line_id=line.id AND event.kind='loss_approved'),0)))
+ OR line.received_milli<>COALESCE((${transitEventQuantitySumSql('receipt')}),0)
+ OR line.lost_milli<>COALESCE((${transitEventQuantitySumSql('loss_approved')}),0)))
  AND NOT EXISTS(SELECT 1 FROM inventory_transit_events proposal WHERE proposal.transit_id=t.id AND proposal.kind='loss_requested'
  AND ${transitLossDecisionPendingSql('decision','proposal.id')}))),false)
  FROM inventory_transit t,scope WHERE scope.full AND t.company_id=scope.company_id
