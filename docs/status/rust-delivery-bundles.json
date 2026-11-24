@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8780,
+    "revision": 8784,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -144019,7 +144019,7 @@
         "owner": "operations",
         "title": "operations TS read tail native cutover",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -144031,22 +144031,37 @@
         "resources": [
           "owner:operations"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGCAope",
-          "claimedAt": "2026-11-24T03:06:19.954Z",
-          "heartbeatAt": "2026-11-24T03:10:12.951Z",
-          "expiresAt": "2026-11-24T03:40:12.951Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-operations/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "e1b5d18ff",
+            "owner": "operations",
+            "before": 145,
+            "after": 144,
+            "note": "Staff task delegation window reuses r31 helper; rendered SQL 373 bytes identical."
+          },
+          {
+            "command": "vitest operations services (86) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "e1b5d18ff"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=145.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCAope",
+          "at": "2026-11-24T03:14:44.241Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -144459,6 +144474,42 @@
         "nextAction": "Next: remaining count=2 pairs from scout (assignment prefix, lead-activity exists, account lead prefix, marketing candidate rows, lead version projection); INSERTs are tests-only. BEFORE=182.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.operations.read-tail-r33",
+        "goalId": "G4",
+        "owner": "operations",
+        "title": "operations TS read tail native cutover (round 33)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-operations/src/**",
+          "tests/unit/operations/**",
+          "tests/integration/operations/**"
+        ],
+        "resources": [
+          "owner:operations"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCBope",
+          "claimedAt": "2026-11-24T03:14:45.032Z",
+          "heartbeatAt": "2026-11-24T03:14:45.032Z",
+          "expiresAt": "2026-11-24T03:44:45.032Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: multi-line delegation window is not byte-identical under default sep; find a new 2+ occurrence alias family or report blocked. BEFORE=144.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -144467,7 +144518,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1020,
+      "totalPackets": 1021,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -144475,13 +144526,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 639,
+        "blocked": 640,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T03:14:05.754Z",
+    "updatedAt": "2026-11-24T03:14:45.046Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
