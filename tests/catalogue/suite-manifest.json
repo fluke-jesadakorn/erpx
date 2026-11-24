@@ -76174,9 +76174,9 @@
     {
       "id": "runtime.control-plane-read-port-postgres.integration",
       "lane": "integration",
-      "owner": "runtime",
+      "owner": "shared.runtime",
       "modules": [
-        "runtime"
+        "operations"
       ],
       "files": [
         "tests/integration/runtime/rust-control-plane-read-port-postgres.test.rs"
