@@ -602,3 +602,26 @@ describe('Maintenance upstream source witness fixed SQL',()=>{
    expect(source).toContain('LOCK TABLE maintenance_work_orders,maintenance_work_events,maintenance_preventive_plans,maintenance_preventive_events,maintenance_preventive_occurrences IN SHARE MODE');
   });
 });
+
+/** Fixed-SQL read-tail oracle for the Maintenance breakdown projection family
+ * (r11). The open-work/blocked count and the asset-downtime sum share one
+ * owner-local statement skeleton; both callers pass only fixed owner metric
+ * fragments and a closed row alias, both composed projections keep their
+ * pre-dedupe tokens and no duplicate TS query literal remains. */
+describe('Maintenance breakdown projection fixed SQL',()=>{
+  const file='../../../packages/server-maintenance/src/adapters/executive-metric-projections.ts';
+  it('single-sources the breakdown projection and keeps both metric callers intact',async()=>{
+   const {readFile}=await import('node:fs/promises');
+   const source=await readFile(new URL(file,import.meta.url),'utf8');
+   expect(source.match(/const breakdownProjection = \(alias: string, label: string, value: string, from: string, where: string\) =>/g)).toHaveLength(1);
+   expect(source.match(/`SELECT \$\{label\} label,\$\{value\} value FROM \$\{from\} \$\{alias\} WHERE \$\{where\} GROUP BY 1 ORDER BY 1`/g)).toHaveLength(1);
+   // r2 left one orgLabel image; r11 shared the two outer breakdown SELECTs (8 -> 7).
+   expect(source.match(/SELECT/g)).toHaveLength(7);
+   expect(source).toContain('breakdownProjection("w", label, "count(*)::text", `(${source.sql})`');
+   expect(source).toContain('breakdownProjection("s", label, "sum(segment_end-segment_start)::text", "monthly_segments", "segment_end>segment_start")');
+   expect(source).not.toContain('label,count(*)::text value FROM (${source.sql}) w WHERE');
+   expect(source).not.toContain('label,sum(segment_end-segment_start)::text value FROM monthly_segments s');
+   expect(source).toContain('COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=w.${col}');
+   expect(source).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|LOCK\s+TABLE/i);
+  });
+});

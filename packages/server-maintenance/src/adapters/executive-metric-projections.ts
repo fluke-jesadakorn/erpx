@@ -8,6 +8,13 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import { specs } from '@erpx/server-runtime/public/executive/metric-projection-contract';
 import type { MetricSnapshot, RawMetricRow } from '@erpx/server-runtime/public/executive/metric-projection-contract';
+/** Canonical owner-local breakdown projection shared by the Work/Plan count
+ * and asset-downtime sum reads. Both callers pass only fixed owner metric
+ * fragments and a closed row alias, never request-authored SQL; the count
+ * projection stays byte-identical and the sum projection is whitespace-only
+ * reflow of its pre-dedupe literal, with every SQL token unchanged. */
+const breakdownProjection = (alias: string, label: string, value: string, from: string, where: string) =>
+  `SELECT ${label} label,${value} value FROM ${from} ${alias} WHERE ${where} GROUP BY 1 ORDER BY 1`;
 export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown): Promise<MetricSnapshot> {
     const spec = specs[id], scopedAlias = (alias: string) => `${alias}.company_id=? AND (?::text IS NULL OR ${alias}.branch_id=?) AND (?::text IS NULL OR ${alias}.department_id=?)`, scopeArgs = [a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId];
     const source=await assetMetricSource(sourceDb,a,id);
@@ -19,7 +26,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
         const label = breakdown === "branch" ? orgLabel("branch_id", "Company-wide")
             : breakdown === "department" ? orgLabel("department_id", "Unassigned")
                 : blocked ? "'Blocked'" : "w.status";
-        sql = `SELECT ${label} label,count(*)::text value FROM (${source.sql}) w WHERE ${scopedAlias("w")} AND ${blocked ? "w.status='blocked'" : "w.status NOT IN ('completed','cancelled')"} GROUP BY 1 ORDER BY 1`;
+        sql = breakdownProjection("w", label, "count(*)::text", `(${source.sql})`, `${scopedAlias("w")} AND ${blocked ? "w.status='blocked'" : "w.status NOT IN ('completed','cancelled')"}`);
         values = [...source.args,...scopeArgs];
     }
     if (id === "asset-downtime") {
@@ -56,8 +63,8 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
           date_trunc('month',to_timestamp((m.end_at-1)/1000.0) AT TIME ZONE 'UTC'),interval '1 month'
         ) AS months(month_start)
       )
-      SELECT ${label} label,sum(segment_end-segment_start)::text value FROM monthly_segments s
-      WHERE segment_end>segment_start GROUP BY 1 ORDER BY 1`;
+`;
+        sql += breakdownProjection("s", label, "sum(segment_end-segment_start)::text", "monthly_segments", "segment_end>segment_start");
         values = [from, to,...source.args, ...scopeArgs, to, from];
     }
     const raw = (await sourceDb.prepare(sql).bind(...values).all<RawMetricRow>()).results;
