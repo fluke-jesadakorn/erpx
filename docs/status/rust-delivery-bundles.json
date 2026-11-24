@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12615,
+    "revision": 12616,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -185383,7 +185383,7 @@
         "owner": "finance",
         "title": "finance read slice",
         "kind": "migration",
-        "status": "blocked",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -185394,13 +185394,20 @@
         "resources": [
           "owner:finance"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261125-c",
+          "agentId": "wH4n136",
+          "claimedAt": "2026-11-24T21:44:28.358Z",
+          "heartbeatAt": "2026-11-24T21:44:28.358Z",
+          "expiresAt": "2026-11-24T22:14:28.358Z",
+          "generation": 173
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
+        "blocker": null,
         "nextAction": "Column-by-id point reads reuse/extend r49 tableByIdSql (-10): 1764->1754. BEFORE=1764.",
         "handoff": {
           "runId": "run-20261125-a",
@@ -185878,17 +185885,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 0,
+        "in_progress": 1,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1491,
+        "blocked": 1490,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 173,
-    "updatedAt": "2026-11-24T21:44:15.760Z",
+    "updatedAt": "2026-11-24T21:44:28.361Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
