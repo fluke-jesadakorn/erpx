@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7714,
+    "revision": 7716,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -114502,7 +114502,7 @@
         "owner": "planning",
         "title": "Retire planning executive-evidence cross-owner projections (retained search)",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -114521,7 +114521,14 @@
           "owner:planning",
           "owner:manufacturing"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG42pln",
+          "claimedAt": "2026-11-24T00:58:06.926Z",
+          "heartbeatAt": "2026-11-24T00:58:06.926Z",
+          "expiresAt": "2026-11-24T01:28:06.926Z",
+          "generation": 161
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -116313,7 +116320,7 @@
         "owner": "commerce",
         "title": "Mount Commerce quality receipt-origin read router",
         "kind": "integration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -116323,7 +116330,14 @@
         "resources": [
           "resource:composition"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG43cor",
+          "claimedAt": "2026-11-24T00:58:07.060Z",
+          "heartbeatAt": "2026-11-24T00:58:07.060Z",
+          "expiresAt": "2026-11-24T01:28:07.060Z",
+          "generation": 161
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -130841,8 +130855,8 @@
       "totalPackets": 763,
       "migratedPackets": 329,
       "statusCounts": {
-        "pending": 17,
-        "in_progress": 32,
+        "pending": 16,
+        "in_progress": 33,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
@@ -130852,7 +130866,7 @@
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T00:56:50.646Z",
+    "updatedAt": "2026-11-24T00:58:07.065Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
