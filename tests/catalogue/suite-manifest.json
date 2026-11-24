@@ -74419,6 +74419,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "procurement",
+      "modules": [
+        "procurement"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Procurement invoice policy version guard must stay one helper."
+      },
+      "apps": [
+        "supply"
+      ],
+      "packages": [
+        "@erpx/server-procurement"
+      ],
+      "id": "procurement.read-tail-r29-dedupe.unit",
+      "files": [
+        "tests/unit/procurement/read-tail-r29-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "procurement.rust-portal-commerce-locks-postgres.integration",
       "lane": "integration",
       "owner": "procurement",

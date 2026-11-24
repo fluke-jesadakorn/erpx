@@ -32,6 +32,7 @@ import {branchDepartmentScope,orderedRead} from './read-tail-sql';
 import {receiptCount,expenseAccountBy} from './read-tail-r20';
 import {memberScopeExclusion} from './read-tail-r24';
 import {fulfillmentLinesBy} from './read-tail-r26';
+import {policyVersionGuard} from './read-tail-r29';
 import {settingsRead} from './read-tail-r27';
 export {supplierBillSchema,supplierBillDecisionSchema,supplierInvoicePolicySchema,matchedBillLines} from "@erpx/server-procurement/domain/supplier-bills";
 const scope=branchDepartmentScope("m");
@@ -172,7 +173,7 @@ async function commit<Result>(write:SqlDatabase,actor:WorkContext,m:BillMutation
  }
  if(m.kind==='policy'){const input=m.input;return executeCommand(write,actor,key,operation,input,id,m.version,result,[
  authorityGuard(write,key,actor,'finance.approve'),
- assertion(write,key,'policy-version',input.expectedVersion===0?'NOT EXISTS(SELECT 1 FROM procurement_invoice_policies WHERE company_id=?)':'EXISTS(SELECT 1 FROM procurement_invoice_policies WHERE company_id=? AND version=?)',input.expectedVersion===0?[actor.companyId]:[actor.companyId,input.expectedVersion]),
+ assertion(write,key,'policy-version',policyVersionGuard(input.expectedVersion===0),input.expectedVersion===0?[actor.companyId]:[actor.companyId,input.expectedVersion]),
  nativeProcurementStatement('procurement_stmt_7', { now: Date.now() }).bind(actor.companyId,input.matchingMode,m.version,actor.userId,now),
  nativeProcurementStatement('procurement_stmt_8', { now: Date.now() }).bind(`supplier-policy-${key}`,actor.companyId,m.version,m.previous,input.matchingMode,actor.userId,input.reason,now),
  ],{companyId:actor.companyId,branchId:null,departmentId:null});}
