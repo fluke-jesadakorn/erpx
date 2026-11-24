@@ -186,4 +186,52 @@ describe('Agent read-tail r7 fixed SQL dedupe', () => {
     expect(locks.match(/SELECT/g)).toHaveLength(4);
     expect(locks).toContain("'settings',(SELECT to_jsonb(s) FROM ai_company_settings s WHERE s.company_id=?)");
   });
+
+  /** Verbatim pre-dedupe parameterized company-settings projection. */
+  const companySettingsTemplate = 'SELECT ${cols} FROM ai_company_settings WHERE company_id=?';
+  const companySettingsRendered = (col: string) =>
+    `SELECT ${col} FROM ai_company_settings WHERE company_id=?`;
+
+  it('r13: authors the parameterized company-settings projection once', async () => {
+    const rt = await src('adapters/ai-runtime.ts');
+    const def = rt.match(/const aiCompanySettingsSql = \(cols: string\) =>\s*`(SELECT [^`]*?)`;/)?.[1];
+    expect(def).toBe(companySettingsTemplate);
+    expect(rt.match(/SELECT \$\{cols\} FROM ai_company_settings WHERE company_id=\?/g)).toHaveLength(1);
+    expect(rt.match(/aiCompanySettingsSql\(/g)).toHaveLength(3);
+  });
+
+  it('r13: all three consumers render the exact pre-dedupe SQL with unchanged binds', async () => {
+    const rt = await src('adapters/ai-runtime.ts');
+    const def = rt.match(/const aiCompanySettingsSql = \(cols: string\) =>\s*`(SELECT [^`]*?)`;/)?.[1]!;
+    const args = [...rt.matchAll(/aiCompanySettingsSql\('([^']+)'\)/g)].map((m) => m[1]);
+    expect(args).toEqual(['*', 'version', 'mode']);
+    expect(args.map((col) => def.replace('${cols}', col))).toEqual([
+      companySettingsRendered('*'),
+      companySettingsRendered('version'),
+      companySettingsRendered('mode'),
+    ]);
+    // currentSelection keeps its single companyId bind.
+    expect(rt).toContain(".prepare(aiCompanySettingsSql('*'))\n    .bind(companyId)");
+    // The two guard reads keep the same COALESCE wrappers and bind order.
+    expect(rt).toContain("`COALESCE((${aiCompanySettingsSql('version')}),0)=?`");
+    expect(rt).toContain('" AND COALESCE((" + aiCompanySettingsSql(\'mode\') + "),\'deployment\')=\'deployment\'"');
+    expect(rt).toContain('snapshot.companyId,\n        snapshot.settingsVersion,');
+    expect(rt).toContain(': [snapshot.companyId]),');
+  });
+
+  it('r13: the r7-r12 constants, translation guard and source locks stay untouched', async () => {
+    const gov = await src('adapters/agent-governance.ts');
+    const helper = await src('adapters/assistant-quota-sql.ts');
+    const assistant = await src('adapters/workspace-assistant.ts');
+    const locks = await src('adapters/social-ai-source-locks.ts');
+    const rt = await src('adapters/ai-runtime.ts');
+    expect(gov).toContain(`const agentPoolMemberAccessSql = '${poolMemberAccess}';`);
+    expect(gov).toContain(`const privateSessionSelectSql = '${privateSessionSelect}';`);
+    expect(helper).toContain(quotaExpression);
+    expect(rt).toContain(`const aiConnectionSelectSql = '${runtimeConnectionSelect}';`);
+    expect(assistant).toContain('guardTranslationQuota(id:string,companyId:string,value:number,month:string){return assertion(db,id,"translation-quota"');
+    expect(assistant).toContain(') calls WHERE company_id=? AND created_at>=?');
+    expect(locks.match(/SELECT/g)).toHaveLength(4);
+    expect(locks).toContain("'settings',(SELECT to_jsonb(s) FROM ai_company_settings s WHERE s.company_id=?)");
+  });
 });

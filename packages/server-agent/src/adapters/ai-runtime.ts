@@ -31,6 +31,11 @@ const roles = ['holding_owner', 'it_admin'];
 /** Byte-identical Agent connection projection shared by connection() and aiProviderOverview().
  * Each call site keeps its own WHERE predicate and binds; the native provider owner remains the authority. */
 const aiConnectionSelectSql = 'SELECT * FROM ai_connections WHERE';
+/** Parameterized Agent company-settings projection shared by currentSelection and both
+ * aiSnapshotGuard settings reads (version and mode). The selected column is the only
+ * variation; each call site keeps its own binds; the native settings owner remains the authority. */
+const aiCompanySettingsSql = (cols: string) =>
+  `SELECT ${cols} FROM ai_company_settings WHERE company_id=?`;
 
 async function exposed<T>(action: () => Promise<T>): Promise<T> {
   try {
@@ -98,7 +103,7 @@ async function revision(
 }
 async function currentSelection(db: SqlDatabase, companyId: string) {
   return db
-    .prepare('SELECT * FROM ai_company_settings WHERE company_id=?')
+    .prepare(aiCompanySettingsSql('*'))
     .bind(companyId)
     .first<Selection>();
 }
@@ -365,12 +370,12 @@ export function aiSnapshotGuard(
     const simulationSnapshot =
       snapshot.deploymentDigest?.startsWith('simulation:') ?? false;
     const settings =
-      'COALESCE((SELECT version FROM ai_company_settings WHERE company_id=?),0)=?';
+      `COALESCE((${aiCompanySettingsSql('version')}),0)=?`;
     return assertion(
       db,
       key,
       label,
-      `${settings}${snapshot.connectionId ? ' AND EXISTS(SELECT 1 FROM ai_connections c JOIN ai_connection_revisions r ON r.connection_id=c.id AND r.revision=c.active_revision WHERE c.id=? AND c.company_id=? AND c.active_revision=? AND c.disabled=0 AND c.deleted_at IS NULL AND r.text_verified=1 AND (?=\'text\' OR r.image_verified=1))' : simulationSnapshot ? '' : " AND COALESCE((SELECT mode FROM ai_company_settings WHERE company_id=?),'deployment')='deployment'"}`,
+      `${settings}${snapshot.connectionId ? ' AND EXISTS(SELECT 1 FROM ai_connections c JOIN ai_connection_revisions r ON r.connection_id=c.id AND r.revision=c.active_revision WHERE c.id=? AND c.company_id=? AND c.active_revision=? AND c.disabled=0 AND c.deleted_at IS NULL AND r.text_verified=1 AND (?=\'text\' OR r.image_verified=1))' : simulationSnapshot ? '' : " AND COALESCE((" + aiCompanySettingsSql('mode') + "),'deployment')='deployment'"}`,
       [
         snapshot.companyId,
         snapshot.settingsVersion,
