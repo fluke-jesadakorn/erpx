@@ -42,6 +42,11 @@ const crmAssignmentAllowedSql=(alias:string,permission:string)=>`SELECT ${assign
  * the inner scope projection, the scope alias and the permission; rendered
  * text stays byte-identical to the retired inline literals. */
 export const crmAssignmentScopeExistsSql=(columns:string,alias:string,permission:string)=>`EXISTS(SELECT 1 FROM (SELECT ${columns}) ${alias} WHERE ${assignmentReadSql(alias,permission)})`;
+/** r23: one parameterized existence-probe renderer shared by the CRM campaign
+ * and form-candidate reference checks. Callers pass only the owned source, its
+ * alias and any scope tail; rendered text stays byte-identical to the retired
+ * inline literals. */
+const crmSourceExistsSql=(source:string,alias:string,tail='')=>`SELECT 1 FROM (${source}) ${alias} WHERE id=? AND company_id=?${tail}`;
 export const crmMarketingCandidateRows=`SELECT * FROM (${crmMarketingCandidateSources}) candidate WHERE id=? AND company_id=?`;
 export const crmLeadActivityExists=`SELECT 1 FROM crm_lead_activities c JOIN crm_leads l ON l.id=c.lead_id AND l.company_id=c.company_id WHERE c.id=`;
 export const crmAssignmentModuleExists=`EXISTS(SELECT 1 FROM assignments selected WHERE selected.id=? AND (jsonb_array_length(selected.modules_json::jsonb)=0 OR selected.modules_json::jsonb @> jsonb_build_array(`;
@@ -210,8 +215,8 @@ export async function crmMarketingCandidateTransaction<Result>(actor:WorkContext
  * authority; sourceKind labels never select a broader grant. */
 export async function crmLeadCreateReferences(database:SqlDatabase,actor:WorkContext,input:CRMLeadInput){
  if(await commercePackageEnforcementMode()==='disabled')return;
- if(input.campaignId&&!await database.prepare(`SELECT 1 FROM (${crmMarketingCampaignSources}) campaign WHERE id=? AND company_id=?`).bind(input.campaignId,actor.companyId).first())throw new ApiError(404,"CRM_CAMPAIGN_NOT_FOUND","Campaign not found in this Company.");
- if(input.sourceKind==="form"&&!await database.prepare(`SELECT 1 FROM (${crmMarketingCandidateSources}) candidate WHERE id=? AND company_id=? AND branch_id=? AND (?::text IS NULL OR department_id=?)`).bind(input.sourceId??"",actor.companyId,input.branchId,actor.departmentId,actor.departmentId).first())throw new ApiError(404,"MARKETING_CANDIDATE_NOT_FOUND","The actual form candidate is required.");
+ if(input.campaignId&&!await database.prepare(crmSourceExistsSql(crmMarketingCampaignSources,'campaign')).bind(input.campaignId,actor.companyId).first())throw new ApiError(404,"CRM_CAMPAIGN_NOT_FOUND","Campaign not found in this Company.");
+ if(input.sourceKind==="form"&&!await database.prepare(crmSourceExistsSql(crmMarketingCandidateSources,'candidate',' AND branch_id=? AND (?::text IS NULL OR department_id=?)')).bind(input.sourceId??"",actor.companyId,input.branchId,actor.departmentId,actor.departmentId).first())throw new ApiError(404,"MARKETING_CANDIDATE_NOT_FOUND","The actual form candidate is required.");
  if(input.sourceKind==="pms"){await requireCRMCurrentAuthority(database,actor,["pms.read"],`crm-hotel-reference:${randomUUID()}`);if(!await database.prepare(`${crmHotelReservationProbeSql} WHERE id=? AND company_id=? AND branch_id=?`).bind(input.sourceId??"",actor.companyId,input.branchId).first())throw new ApiError(404,"CRM_RESERVATION_NOT_FOUND","The actual Hotel reservation is required.");}
 }
 

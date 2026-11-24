@@ -383,7 +383,7 @@ describe('crm read-tail r19 parameterized projection families', () => {
   });
 
   it('keeps the owner SELECT KPI strictly below the r18 AFTER=158 baseline', () => {
-    expect(totalSelects()).toBe(146);
+    expect(totalSelects()).toBe(144);
     expect(totalSelects()).toBeLessThan(158);
   });
 });
@@ -429,7 +429,7 @@ describe('crm read-tail r20 parameterized history families', () => {
   });
 
   it('keeps the owner SELECT KPI strictly below the r19 AFTER=153 baseline', () => {
-    expect(totalSelects()).toBe(146);
+    expect(totalSelects()).toBe(144);
     expect(totalSelects()).toBeLessThan(153);
   });
 });
@@ -475,7 +475,7 @@ describe('crm read-tail r21 parameterized branch option family', () => {
   });
 
   it('keeps the owner SELECT KPI strictly below the r20 BEFORE=151 baseline', () => {
-    expect(totalSelects()).toBe(146);
+    expect(totalSelects()).toBe(144);
     expect(totalSelects()).toBeLessThan(151);
   });
 });
@@ -533,7 +533,51 @@ describe('crm read-tail r22 assignment-scope EXISTS family', () => {
   });
 
   it('keeps the owner SELECT KPI strictly below the r21 BEFORE=150 baseline', () => {
-    expect(totalSelects()).toBe(146);
+    expect(totalSelects()).toBe(144);
     expect(totalSelects()).toBeLessThan(150);
+  });
+});
+
+describe('crm read-tail r23 reference-existence and account-scope families', () => {
+  const owner = fileURLToPath(new URL('../../../packages/server-crm/src/', import.meta.url));
+  const src = (name: string) => readFileSync(resolve(owner, 'adapters', name), 'utf8');
+  const totalSelects = () => {
+    let total = 0;
+    for (const rel of readdirSync(owner, { recursive: true })) {
+      if (!String(rel).endsWith('.ts')) continue;
+      total += readFileSync(resolve(owner, String(rel)), 'utf8').match(/SELECT /g)?.length ?? 0;
+    }
+    return total;
+  };
+
+  it('renders both reference-existence probes byte-identically from one parameterized helper', () => {
+    const purchases = src('purchases.ts');
+    const line = purchases.split('\n').find(value => value.includes('const crmSourceExistsSql=')) ?? '';
+    const body = line.slice(line.indexOf('`') + 1, line.lastIndexOf('`'));
+    const render = (source: string, alias: string, tail: string) => body
+      .replace('${source}', source)
+      .replace('${alias}', alias)
+      .replace('${tail}', tail);
+    expect(render('crmMarketingCampaignSources', 'campaign', '')).toBe('SELECT 1 FROM (crmMarketingCampaignSources) campaign WHERE id=? AND company_id=?');
+    expect(render('crmMarketingCandidateSources', 'candidate', ' AND branch_id=? AND (?::text IS NULL OR department_id=?)')).toBe('SELECT 1 FROM (crmMarketingCandidateSources) candidate WHERE id=? AND company_id=? AND branch_id=? AND (?::text IS NULL OR department_id=?)');
+    expect(purchases.match(/const crmSourceExistsSql=/g)).toHaveLength(1);
+  });
+
+  it('composes the existence probe at both reference checks and the account scope at the policy fact', () => {
+    const purchases = src('purchases.ts'), policy = src('attachments-policy-facts.ts');
+    expect(purchases.match(/crmSourceExistsSql\(/g)).toHaveLength(2);
+    expect(purchases).toContain("crmSourceExistsSql(crmMarketingCampaignSources,'campaign')");
+    expect(purchases).toContain("crmSourceExistsSql(crmMarketingCandidateSources,'candidate',' AND branch_id=? AND (?::text IS NULL OR department_id=?)')");
+    expect(purchases).not.toContain('`SELECT 1 FROM (${crmMarketingCampaignSources})');
+    expect(purchases).not.toContain('`SELECT 1 FROM (${crmMarketingCandidateSources})');
+    expect(policy).toContain('${crmAccountCreatedByScopeSql}');
+    expect(policy).not.toMatch(/EXISTS\(\s*SELECT 1 FROM crm_leads lead/);
+    for (const token of ['crmAssignmentScopeExistsSql', 'crmAccountCreatedByScopeSql', 'crmAssignmentAllowedSql', 'opportunityWitnessSql', 'crmClockCteSql', 'crmOpportunityLeadSql', 'crmHotelReservationProbeSql', 'crmCaseEventReceiptWitnessSql', 'crmBranchOptionsSql'])
+      expect(purchases).toContain(token);
+  });
+
+  it('keeps the owner SELECT KPI strictly below the r22 BEFORE=146 baseline', () => {
+    expect(totalSelects()).toBe(144);
+    expect(totalSelects()).toBeLessThan(146);
   });
 });
