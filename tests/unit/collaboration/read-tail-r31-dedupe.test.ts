@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { messagingTeamAccessSql, messagingTeamMemberExists } from '../../../packages/server-collaboration/src/adapters/read-tail-sql';
+import { messagingTeamAccessSql, messagingMemberExists } from '../../../packages/server-collaboration/src/adapters/read-tail-sql';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-collaboration/src');
 const adapters = resolve(srcRoot, 'adapters');
@@ -15,8 +15,9 @@ const messagingPurchases = src('messaging-purchases.ts');
 // predicate, the managed-team SQL and the trailing ORDER BY vary; the fixed
 // company scope, bind order and lock semantics stay unchanged.
 const MANAGED = 'MANAGED_SQL';
-const TEAM_BY_ID = 'SELECT t.* FROM messaging_teams t WHERE t.id=? AND t.company_id=? AND ((NOT t.organization_managed AND ' + messagingTeamMemberExists + ') OR (t.organization_managed AND MANAGED_SQL))';
-const TEAM_LIST = 'SELECT t.* FROM messaging_teams t WHERE t.company_id=? AND ((NOT t.organization_managed AND ' + messagingTeamMemberExists + ') OR (t.organization_managed AND MANAGED_SQL)) ORDER BY t.name,t.id';
+const TEAM_MEMBER = messagingMemberExists('messaging_team_members','team_id','t.id');
+const TEAM_BY_ID = 'SELECT t.* FROM messaging_teams t WHERE t.id=? AND t.company_id=? AND ((NOT t.organization_managed AND ' + TEAM_MEMBER + ') OR (t.organization_managed AND MANAGED_SQL))';
+const TEAM_LIST = 'SELECT t.* FROM messaging_teams t WHERE t.company_id=? AND ((NOT t.organization_managed AND ' + TEAM_MEMBER + ') OR (t.organization_managed AND MANAGED_SQL)) ORDER BY t.name,t.id';
 
 describe('Collaboration read-tail r31 parameterized family', () => {
   test('messagingTeamAccessSql renders both readers byte-identically', () => {

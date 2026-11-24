@@ -118,7 +118,7 @@ describe('Collaboration read-tail r37 isolation of protected SQL', () => {
     expect(taskSource).toContain('LOCK TABLE social_posts,social_comments,social_post_sources,social_post_revisions,social_task_origins IN SHARE ROW EXCLUSIVE MODE');
     expect(taskSource).toContain('LOCK TABLE messaging_teams,messaging_team_members IN SHARE MODE');
     expect(socialPurchases).toContain('.bind(JSON.stringify(picked))');
-    expect(sourcePolicy).toContain('${messagingRoomMemberExists}');
+    expect(sourcePolicy).toContain("${messagingMemberExists('messaging_room_members','room_id','r.id')}");
   });
 
   test('no helper added a lock, write or notification statement', () => {
@@ -136,7 +136,7 @@ describe('Collaboration read-tail r37 isolation of protected SQL', () => {
 });
 
 describe('Collaboration read-tail r37 KPI pins', () => {
-  test('retirement:ts-statements is pinned at 355 after r40, below the r37 BEFORE=370 baseline', () => {
+  test('retirement:ts-statements is pinned at 352 after r41, below the r37 BEFORE=370 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -150,7 +150,9 @@ describe('Collaboration read-tail r37 KPI pins', () => {
     // r38 refreshed it after the 364 -> 360 settlement/AI-draft/post-head dedupe;
     // r39 refreshed it after the 360 -> 356 queued-guard/actor-CTE/requested-select dedupe.
     // r40 refreshed it after the 356 -> 355 source-rows absence guard dedupe.
-    expect(total).toBe(355);
+    // r41 refreshed it after the 355 -> 352 task-origin/by-key, AI-usage row and
+    // team/room member-existence dedupe.
+    expect(total).toBe(352);
     expect(total).toBeLessThan(370);
   });
 });

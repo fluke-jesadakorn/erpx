@@ -1,7 +1,9 @@
 /** Collaboration read-tail fragments shared across owner adapters. Text only: binds and locks are unchanged. */
 export const socialTaskOriginPostExists=`EXISTS(SELECT 1 FROM social_task_origins origin WHERE origin.task_id=t.id AND origin.post_id=post.id)`;
-export const socialTaskOriginByTask=`SELECT post_id FROM social_task_origins WHERE task_id=?`;
-export const socialTaskOriginByPost=`SELECT task_id FROM social_task_origins WHERE post_id=?`;
+/** Byte-identical task-origin by-key read shared by the task, beta and people
+ * entrypoint readers. Only the projected column and key column vary; the fixed
+ * table head, single bind and lock semantics stay unchanged. */
+export const socialTaskOriginBy=(cols:string,keyCol:string)=>`SELECT ${cols} FROM social_task_origins WHERE ${keyCol}=?`;
 /** Byte-identical Task-origin existence guard shared by the queued read sources,
  * Task read policy and purchase source readers. Only the quantifier, origin alias
  * and joined tail vary; the fixed task-origin existence head, bind order and
@@ -10,7 +12,11 @@ export const socialTaskOriginByPost=`SELECT task_id FROM social_task_origins WHE
 export const socialTaskOriginGuard=(quantifier:string,alias:string,tail:string)=>`${quantifier}SELECT 1 FROM social_task_origins ${alias}${tail}`;
 export const messagingRoomMembersAgg=`(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.user_id) FROM messaging_room_members m WHERE m.room_id=r.id)`;
 export const socialFollowPostExists=(targetType:string,targetId:string)=>`EXISTS(SELECT 1 FROM social_follows f WHERE f.principal_id=? AND f.target_type=${targetType} AND f.target_id=${targetId})`;
-export const messagingTeamMemberExists=`EXISTS(SELECT 1 FROM messaging_team_members m WHERE m.team_id=t.id AND m.user_id=?)`;
+/** Byte-identical team/room member existence guard shared by the team access,
+ * room access and Social team readers. Only the closed team/room scope and the
+ * group reference vary; the fixed alias, single user bind and lock semantics
+ * stay unchanged. */
+export const messagingMemberExists=(table:'messaging_team_members'|'messaging_room_members',groupCol:'team_id'|'room_id',groupRef:string)=>`EXISTS(SELECT 1 FROM ${table} m WHERE m.${groupCol}=${groupRef} AND m.user_id=?)`;
 /** Byte-identical team-member existence guard shared by the team owner projection,
  * the room access policy and the command member assertion. Only the alias, team
  * reference and user reference vary; the empty-alias branch renders the original
@@ -20,7 +26,7 @@ export const messagingTeamMemberGuard=(alias:string,teamRef:string,userRef:strin
  * team-list readers in messaging.ts. Only the leading id predicate, the managed
  * team SQL and the trailing ORDER BY vary; the fixed company scope, bind order
  * and lock semantics stay unchanged. */
-export const messagingTeamAccessSql=(prefix:string,managedSql:string,suffix:string)=>`SELECT t.* FROM messaging_teams t WHERE ${prefix}t.company_id=? AND ((NOT t.organization_managed AND ${messagingTeamMemberExists}) OR (t.organization_managed AND ${managedSql}))${suffix}`;
+export const messagingTeamAccessSql=(prefix:string,managedSql:string,suffix:string)=>`SELECT t.* FROM messaging_teams t WHERE ${prefix}t.company_id=? AND ((NOT t.organization_managed AND ${messagingMemberExists('messaging_team_members','team_id','t.id')}) OR (t.organization_managed AND ${managedSql}))${suffix}`;
 export const legacyNativeUnion=`(SELECT * FROM legacy_rows UNION ALL SELECT * FROM native_rows)`;
 export const workforceActorScopeColumns=`(SELECT ?::text company_id,?::text branch_id,?::text department_id)`;
 export const messagingTeamMembersAgg=(teamId:string)=>`(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.user_id) FROM messaging_team_members m WHERE m.team_id=${teamId})`;
@@ -30,8 +36,11 @@ export const workSocialSourcesAgg=`(SELECT jsonb_agg(to_jsonb(s) ORDER BY s.post
 export const requestedSourcesJsonb=`(SELECT kind,id FROM jsonb_to_recordset(?::jsonb) AS r(kind text,id text))`;
 export const jsonbTextIds=`(SELECT jsonb_array_elements_text(?::jsonb))`;
 export const workforceActorScopeExists=(where:string)=>`EXISTS(SELECT 1 FROM ${workforceActorScopeColumns} workforce_actor_scope WHERE ${where})`;
-export const messagingRoomMemberExists=`EXISTS(SELECT 1 FROM messaging_room_members m WHERE m.room_id=r.id AND m.user_id=?)`;
 export const messagingRoomTeamId=`(SELECT team_id FROM messaging_rooms WHERE id=?)`;
+/** Byte-identical AI-usage row projection shared by the agent and hospitality
+ * owner readers. Only the projected column list varies; the fixed table head,
+ * zero binds and lock semantics stay unchanged. */
+export const socialAiUsageProjection=(cols:string)=>`SELECT ${cols} FROM social_ai_usage`;
 /** Byte-identical monthly AI-usage projection shared by the budget, records and
  * agent readers. Only the projected column list varies; the fixed company/month
  * bind order, lock semantics and notification helpers stay unchanged. */

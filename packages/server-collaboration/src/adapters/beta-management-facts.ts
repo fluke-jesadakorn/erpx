@@ -1,5 +1,5 @@
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
-import {socialTaskOriginByPost} from './read-tail-sql';
+import {socialTaskOriginBy} from './read-tail-sql';
 export function betaManagementFacts(db:SqlDatabase){return {async postDrafts(userId:string,companyId:string){return (await db
                 .prepare(
                   "SELECT id,body,branch_id,department_id,audience_kind,audience_id,participants_json,sources_json,purpose,version,mentions_json,content_json,rich_content_json FROM social_post_drafts WHERE author_id=? AND company_id=? AND published_post_id IS NULL AND comment_parent_post_id IS NULL AND edit_post_id IS NULL ORDER BY updated_at DESC LIMIT 20",
@@ -13,12 +13,12 @@ async reports(companyId:string){return (await db
                 .bind(companyId)
                 .all()).results;},
 async postTask(id:string | undefined){return db
-            .prepare(socialTaskOriginByPost)
+            .prepare(socialTaskOriginBy('task_id','post_id'))
             .bind(id)
             .first<{ task_id: string }>();},
 async recoverPostTask(id:string | undefined){return db
                 .prepare(
-                  socialTaskOriginByPost,
+                  socialTaskOriginBy('task_id','post_id'),
                 )
                 .bind(id)
                 .first<{ task_id: string }>();}};}

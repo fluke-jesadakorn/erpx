@@ -112,7 +112,7 @@ describe('Collaboration read-tail r40 floor evidence', () => {
 });
 
 describe('Collaboration read-tail r40 KPI pins', () => {
-  test('retirement:ts-statements is pinned at 355, below the r40 BEFORE=356 baseline', () => {
+  test('retirement:ts-statements is pinned at 352 after r41, below the r40 BEFORE=356 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -123,7 +123,8 @@ describe('Collaboration read-tail r40 KPI pins', () => {
     };
     walk(srcRoot);
     // Two inline source-rows absence heads -> one renderer: 356 -> 355.
-    expect(total).toBe(355);
+    // r41 deduped task-origin/by-key, AI-usage row and member guards: 355 -> 352.
+    expect(total).toBe(352);
     expect(total).toBeLessThan(356);
   });
 });

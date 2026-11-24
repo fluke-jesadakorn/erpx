@@ -37,7 +37,7 @@ import { collaborationHomeSources as operations } from '@erpx/server-operations/
 import {handoverAcknowledgements} from '@erpx/server-operations/public/handover-acknowledgement-read';
 import {workSocialReadScope,workSocialPresentation} from '@erpx/server-collaboration/public/work-social-read-policy';
 import {withWorkSocialCommand} from '@erpx/server-collaboration/adapters/work-social-purchases';
-import {socialFollowPostExists,messagingTeamMemberExists,publishedCommentRead,socialPostDraftById,socialPostTopicExists,socialCommentTopicExists,socialCommentAncestorStep,socialPostDraftExists,socialPostDraftFieldGuard,socialPostByIdPredicate,readablePostHead} from './read-tail-sql';
+import {socialFollowPostExists,messagingMemberExists,publishedCommentRead,socialPostDraftById,socialPostTopicExists,socialCommentTopicExists,socialCommentAncestorStep,socialPostDraftExists,socialPostDraftFieldGuard,socialPostByIdPredicate,readablePostHead} from './read-tail-sql';
 const draftVersionGuardSql = socialPostDraftExists('version=? AND published_post_id IS NULL');
 async function inward<T>(action: () => Promise<T>) {
     try {
@@ -62,7 +62,7 @@ async function exposed<T>(action: () => Promise<T>) {
 function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSocialReadScope>>={prefix:'',where:'TRUE',args:[]},audienceProjects?:Awaited<ReturnType<typeof socialProjectAudienceOptions>>) {
     const repository: SocialHomeRepository<SqlStatement> = { async teams(companyId: string, userId: string) {
             return db.prepare(`SELECT t.id,t.name FROM messaging_teams t WHERE t.company_id=? AND NOT t.organization_managed
-      AND ${messagingTeamMemberExists} ORDER BY t.name,t.id LIMIT 100`)
+      AND ${messagingMemberExists('messaging_team_members','team_id','t.id')} ORDER BY t.name,t.id LIMIT 100`)
                 .bind(companyId, userId).all<{
                 id: string;
                 name: string;

@@ -1,4 +1,4 @@
-export const socialAiUsageSql="SELECT company_id,month FROM social_ai_usage";
+import {socialAiMonthlyUsageCount,socialAiUsageProjection} from './read-tail-sql';
+export const socialAiUsageSql=socialAiUsageProjection('company_id,month');
 export const agentSocialMonthlyUsage=()=>socialAiUsageSql;
-import {socialAiMonthlyUsageCount} from './read-tail-sql';
 export const agentSocialMonthlyCount=()=>socialAiMonthlyUsageCount('count(*)');
