@@ -74,6 +74,6 @@ describe('People Payroll read-tail r32 two-column projection family dedupe', () 
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(1409);
-    expect(total).toBe(1306);
+    expect(total).toBe(1303);
   });
 });

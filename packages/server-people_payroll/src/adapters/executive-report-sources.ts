@@ -1,3 +1,4 @@
+import {ppRd42ActivePersonPoint} from './pp-read-tail-r42-sources';
 import {peoplePayrollFinalOwnerProjections as identityaccessFinalOwnerProjections} from "@erpx/server-identity_access/public/people-payroll-final-owner-projections";
 const identityaccessFinalSources=identityaccessFinalOwnerProjections();
 import {peoplePayrollFinalOwnerProjections as organizationFinalOwnerProjections} from "@erpx/server-organization/public/people-payroll-final-owner-projections";
@@ -37,7 +38,7 @@ export function executiveReportSources(database: SqlDatabase) {
       AND e.start_date<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND (e.end_date IS NULL OR e.end_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD'))
       AND iam_principal_active(p.user_id,p.company_id,?) LIMIT 1`).bind(companyId, recipientId, now).first();
         }, readRecipientPreviewContextRecipient(companyId: string, recipientId: string) {
-            return database.prepare("SELECT legal_name FROM hr_people WHERE company_id=? AND user_id=? AND status='active' AND merged_into_id IS NULL").bind(companyId, recipientId).first<{
+            return database.prepare(ppRd42ActivePersonPoint("legal_name","hr_people","company_id","user_id")).bind(companyId, recipientId).first<{
                 legal_name: string;
             }>();
         }, readOwnershipCandidatesRows(companyId: string, userId: string, now: number, now2: number, now3: number, now4: number) {
