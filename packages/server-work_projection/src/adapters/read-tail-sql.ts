@@ -42,3 +42,8 @@ export const appointmentAttendeeSeriesSql = (columns: string, where: string) =>
 /** Nested child-image projection keyed by appointment and company. Only the projection expression, source table and aliases vary across the calendar image and reminder configuration builders. */
 export const appointmentChildImageSql = (expression: string, table: string, alias: string, row: string) =>
     `(SELECT ${expression} FROM ${table} ${alias} WHERE ${alias}.appointment_id=${row}.id AND ${alias}.company_id=${row}.company_id)`;
+/** Command receipt existence by command id, actor, operation and company. The alias and the extra predicates before/after the company check are the only variation between the calendar purchase and reminder binding callers. */
+export const commandReceiptSql = (beforeCompany = '', afterCompany = '', alias = '') => {
+    const p = alias ? `${alias}.` : '';
+    return `SELECT 1 FROM command_receipts${alias ? ` ${alias}` : ''} WHERE ${p}command_id=? AND ${p}actor_id=? AND ${p}operation=?${beforeCompany} AND ${p}authority_json::jsonb->>'companyId'=?${afterCompany}`;
+};

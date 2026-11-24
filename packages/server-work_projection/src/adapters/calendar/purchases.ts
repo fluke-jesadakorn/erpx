@@ -18,7 +18,7 @@ import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-fea
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {captureCalendarReminderAuthority} from '@erpx/server-work_projection/adapters/calendar/reminder-authority';
-import {appointmentChildImageSql,appointmentProbe,calendarImageSql,invitedAttendeeSql,versionById} from '../read-tail-sql';
+import {appointmentChildImageSql,appointmentProbe,calendarImageSql,commandReceiptSql,invitedAttendeeSql,versionById} from '../read-tail-sql';
 const actorScopeSql=(where:string)=>`SELECT 1 FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) workforce_actor_scope WHERE ${where}`;
 const roleAllowsSql=(permission:string)=>`SELECT iam_role_allows(?,?,'${permission}') allowed`;
 
@@ -92,7 +92,7 @@ export async function withCalendarPurchasedTransaction<Result>(owner:SqlDatabase
  const mode=await appsPackageEnforcementMode();if(mode==='disabled')return owner.transaction(run);
  try{return await owner.transaction(async database=>{
   await calendarManualSourceReadLocks(database,actor.companyId);
-  const id='id'in input&&input.id?input.id:`calendar-${key}`,operation=`calendar.${input.action}`,receipt=await database.prepare("SELECT 1 FROM command_receipts WHERE command_id=? AND actor_id=? AND operation=? AND record_id=? AND authority_json::jsonb->>'companyId'=?").bind(key,actor.userId,operation,id,actor.companyId).first(),purpose=receipt?'history' as const:calendarCommandPurpose(input),scope={companyId:actor.companyId,capability:'work.calendar',purpose},guard=`calendar-purchase:${randomUUID()}`,boundary=purchaseCommandBoundary(database,mode,guard,scope)!;
+  const id='id'in input&&input.id?input.id:`calendar-${key}`,operation=`calendar.${input.action}`,receipt=await database.prepare(commandReceiptSql(' AND record_id=?')).bind(key,actor.userId,operation,id,actor.companyId).first(),purpose=receipt?'history' as const:calendarCommandPurpose(input),scope={companyId:actor.companyId,capability:'work.calendar',purpose},guard=`calendar-purchase:${randomUUID()}`,boundary=purchaseCommandBoundary(database,mode,guard,scope)!;
   await current(database,actor,guard,true);await ready(database,actor);await checkPurchasedCapability(database,mode,scope);await recordAuthority(database,actor,input,id,!!('id'in input&&input.id)||!!receipt);await database.batch(boundary.before);
   const result=await run(database);
   if(!result||typeof result!=='object'||!('id'in result)||typeof result.id!=='string'||!('version'in result)||typeof result.version!=='number')throw new ApiError(503,'CALENDAR_RESULT_REQUIRED','The normal Calendar owner acknowledgement is unavailable.');
