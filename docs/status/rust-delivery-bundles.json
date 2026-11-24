@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12215,
+    "revision": 12219,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -181243,7 +181243,7 @@
         "owner": "sales",
         "title": "sales TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -181254,22 +181254,37 @@
         "resources": [
           "owner:sales"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n25",
-          "claimedAt": "2026-11-24T13:47:29.752Z",
-          "heartbeatAt": "2026-11-24T13:56:34.987Z",
-          "expiresAt": "2026-11-24T14:26:34.987Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-sales/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "7a03633a8",
+            "owner": "sales",
+            "before": 50,
+            "after": 47,
+            "note": "Followup order-join tail variant, byKey via pointRead and purchase extra join shared; LOCK TABLE/authority/native untouched."
+          },
+          {
+            "command": "vitest sales (254) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "7a03633a8"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Followup order-join head (-1), byKey via pointRead (-1), followup purchases extraJoin (-1): 50->47. BEFORE=50.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n25",
+          "at": "2026-11-24T14:04:15.959Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -181549,7 +181564,7 @@
         "owner": "people_payroll",
         "title": "payroll expense guards and claim invoice read",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -181560,22 +181575,37 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n32",
-          "claimedAt": "2026-11-24T13:55:29.298Z",
-          "heartbeatAt": "2026-11-24T13:56:34.987Z",
-          "expiresAt": "2026-11-24T14:26:34.987Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-people_payroll/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "7a03633a8",
+            "owner": "people_payroll",
+            "before": 1245,
+            "after": 1240,
+            "note": "Finance expense version guards, status pair guard and expense claim invoice read shared; locks/advisory/native/cross-owner untouched."
+          },
+          {
+            "command": "vitest payroll (144) + scoped tsc + 8 byte oracles",
+            "result": "passed",
+            "sourceSha": "7a03633a8"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Finance expense version guards (-3), status guard pairs (-1), expense claim invoice read (-1): 1245->1240.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n32",
+          "at": "2026-11-24T14:04:16.338Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -181765,17 +181795,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 10,
+        "in_progress": 8,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1397,
+        "blocked": 1399,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T14:03:48.258Z",
+    "updatedAt": "2026-11-24T14:04:16.341Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
