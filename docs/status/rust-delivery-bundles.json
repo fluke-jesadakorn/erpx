@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12294,
+    "revision": 12296,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -182562,6 +182562,41 @@
           "nextAction": "Blocked with AST evidence; claim released"
         },
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.billing.read-tail-r35",
+        "goalId": "G4",
+        "owner": "billing",
+        "title": "billing point-read head consolidation",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-billing/src/**",
+          "tests/unit/billing/**"
+        ],
+        "resources": [
+          "owner:billing"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n51",
+          "claimedAt": "2026-11-24T14:52:08.943Z",
+          "heartbeatAt": "2026-11-24T14:52:08.943Z",
+          "expiresAt": "2026-11-24T15:22:08.943Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Nine single-SELECT heads absorb into r29 head (-9), two SELECT-1 guards (-2), projection heads (-1): 36->24.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -182570,11 +182605,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1771,
+      "totalPackets": 1772,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 0,
+        "in_progress": 1,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -182584,7 +182619,7 @@
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T14:47:20.504Z",
+    "updatedAt": "2026-11-24T14:52:08.948Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
