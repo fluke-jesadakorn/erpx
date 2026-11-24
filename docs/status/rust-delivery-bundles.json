@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12409,
+    "revision": 12411,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -183727,7 +183727,7 @@
         "owner": "people_payroll",
         "title": "payroll attachment lists and chart guard",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -183738,22 +183738,37 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "claim": {
-          "runId": "run-20261124-d",
-          "agentId": "wH4n79",
-          "claimedAt": "2026-11-24T15:48:14.159Z",
-          "heartbeatAt": "2026-11-24T15:55:31.303Z",
-          "expiresAt": "2026-11-24T16:25:31.303Z",
-          "generation": 170
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-people_payroll/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "05ba490dc",
+            "owner": "people_payroll",
+            "before": 1228,
+            "after": 1224,
+            "note": "4 attachment list literals -> 2 builders; 3 chart guards -> 1 builder. Binds 5/3/4 and ORDER BY preserved; locks/advisory/native untouched."
+          },
+          {
+            "command": "vitest payroll (23 targeted; 156 dedupe; 643 owner) + scoped tsc + 9 byte oracles",
+            "result": "passed",
+            "sourceSha": "05ba490dc"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Attachment list V2/V1 builders (-2) and accounting-category chart guard (-2): 1228->1224. BEFORE=1228.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-d",
+          "agentId": "wH4n79",
+          "at": "2026-11-24T16:06:33.763Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -183942,17 +183957,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 18,
+        "in_progress": 17,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1435,
+        "blocked": 1436,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 170,
-    "updatedAt": "2026-11-24T16:04:35.708Z",
+    "updatedAt": "2026-11-24T16:06:33.766Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
