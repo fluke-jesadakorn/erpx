@@ -54030,6 +54030,31 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "manufacturing",
+      "modules": [
+        "manufacturing"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Manufacturing settlement-fact UNION branches must stay byte-identical."
+      },
+      "apps": "manufacturing",
+      "packages": [
+        "@erpx/server-manufacturing"
+      ],
+      "id": "manufacturing.read-tail-r17-dedupe.unit",
+      "files": [
+        "tests/unit/manufacturing/read-tail-r17-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "manufacturing.rust-manufacturing-bom-http.unit",
       "lane": "unit",
       "owner": "manufacturing",
@@ -107504,6 +107529,33 @@
       "id": "workflow.read-tail-r36-dedupe.unit",
       "files": [
         "tests/unit/workflow/read-tail-r36-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "workflow",
+      "modules": [
+        "operations"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Workflow json each base generator must stay one literal."
+      },
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-workflow"
+      ],
+      "id": "workflow.read-tail-r37-dedupe.unit",
+      "files": [
+        "tests/unit/workflow/read-tail-r37-dedupe.test.ts"
       ],
       "framework": "vitest"
     },

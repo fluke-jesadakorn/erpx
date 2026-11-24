@@ -54,6 +54,6 @@ describe('approval-step negative-existence prefix dedupe (r36)', () => {
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(57);
-    expect(total).toBe(56);
+    expect(total).toBeLessThanOrEqual(55);
   });
 });

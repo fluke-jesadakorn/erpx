@@ -25,7 +25,7 @@ import { BusinessRuleError } from '@erpx/server-shared/index';
 import {createApprovalPlanningApplication,type ApprovalPlanningPorts}from '@erpx/server-workflow/application/approvals';
 import {workflowWave3Statement} from './native-workflow-wave3';
 import {approvalInstancesStarWhereSql} from './approval-projection-sources';
-import {jsonEachApproverPoolSql} from './json-each-sources';
+import {jsonEachApproverPoolSql,jsonEachSql} from './json-each-sources';
 const peoplepayrollFinalSources=peoplepayrollFinalOwnerProjections();
 const approvalStepsApproverSql = `SELECT s.*,COALESCE(p.legal_name,s.approver_user_id) approver_name FROM approval_steps s LEFT ${peoplepayrollFinalSources.approvals_hr_people_p_join} ON p.user_id=s.approver_user_id AND p.company_id=? AND p.merged_into_id IS NULL WHERE s.instance_id`;
 /** Byte-identical span shared by the previous/approver name lookups; emitted SQL is unchanged. */
@@ -42,7 +42,7 @@ const noApprovalStepExistsPrefix = "NOT EXISTS(SELECT 1 FROM approval_steps";
  * and route-version (guard49) guards; emitted SQL and bind order stay unchanged. */
 const approvalRecordVersionExists = (table: string, column: string, versionFirst = false) =>
     `EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND ${versionFirst ? `version=? AND ${column}=?` : `${column}=? AND version=?`})`;
-const jsonEachBindSql = "(SELECT value FROM erpx_json_each(?))";
+const jsonEachBindSql = `(${jsonEachSql('?')})`;
 export { participantSql } from '@erpx/server-workflow/adapters/approval-participant-projection';
 export type { ApprovalKind } from '@erpx/server-workflow/domain/approvals';
 export type { ApprovalPhase } from '@erpx/server-workflow/domain/approvals';
