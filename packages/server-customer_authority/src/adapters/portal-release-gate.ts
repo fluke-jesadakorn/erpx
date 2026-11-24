@@ -3,9 +3,12 @@ import {scheduledFeaturePredicate} from '@erpx/server-pms/public/feature-availab
 
 const gateAlias='portal_release_gate';
 const predicate=()=>scheduledFeaturePredicate(`${gateAlias}.company_id`,'customer_authority');
+/** One canonical source so the gate Company alias cannot drift between the
+ * purchase/access read and its wrapped command-assertion form. */
+const gateSource=`(SELECT ?::text company_id) ${gateAlias}`;
 
 /** Aliased release-gate read shared by portal purchase/support/file commands. */
-export const portalReleaseGateSql=()=>`SELECT ${predicate()} allowed FROM (SELECT ?::text company_id) ${gateAlias}`;
+export const portalReleaseGateSql=()=>`SELECT ${predicate()} allowed FROM ${gateSource}`;
 
 /** Wrapped scalar form for command assertions; keeps the gate inside the assertion. */
-export const portalReleaseAssertionSql=()=>`(SELECT ${predicate()} FROM (SELECT ?::text company_id) ${gateAlias})`;
+export const portalReleaseAssertionSql=()=>`(SELECT ${predicate()} FROM ${gateSource})`;

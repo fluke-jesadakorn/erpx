@@ -274,3 +274,18 @@ describe('customer authority access reviewer eligible CASE dedupe', () => {
     expect(src).toContain('SELECT COUNT(DISTINCT m.user_id) FROM (${identity_accessProjectionSources.assignments}) m WHERE ${reviewers}) reviewers');
   });
 });
+
+describe('customer authority portal release gate dedupe', () => {
+  const gate = () => new URL('../../../packages/server-customer_authority/src/adapters/portal-release-gate.ts', import.meta.url);
+
+  it('keeps one aliased gate source shared by the read and wrapped assertion forms', async () => {
+    const src = await readFile(gate(), 'utf8');
+    // Attachment purchases, portal purchases/access and support commands all
+    // reach the gate through these two helpers; one source literal prevents the
+    // Company alias from drifting and drops a duplicate SELECT from the KPI.
+    expect(src.match(/SELECT \?::text company_id/g)).toHaveLength(1);
+    expect(src).toContain('const gateSource=`(SELECT ?::text company_id) ${gateAlias}`;');
+    expect(src).toContain('`SELECT ${predicate()} allowed FROM ${gateSource}`');
+    expect(src).toContain('`(SELECT ${predicate()} FROM ${gateSource})`');
+  });
+});
