@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11389,
+    "revision": 11393,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -173207,7 +173207,7 @@
         "owner": "legal",
         "title": "legal TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -173219,22 +173219,37 @@
         "resources": [
           "owner:legal"
         ],
-        "claim": {
-          "runId": "run-20261124-b",
-          "agentId": "wGCMlegi",
-          "claimedAt": "2026-11-24T10:31:37.475Z",
-          "heartbeatAt": "2026-11-24T10:34:05.000Z",
-          "expiresAt": "2026-11-24T11:04:05.000Z",
-          "generation": 168
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-legal/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "64e56b92c",
+            "owner": "legal",
+            "before": 206,
+            "after": 203,
+            "note": "Four legal_items by id+company reads share one head; corpus/citation, advisory locks, FOR UPDATE and r9-r44 untouched."
+          },
+          {
+            "command": "vitest legal r45 (7) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "64e56b92c"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=206.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMlegi",
+          "at": "2026-11-24T11:00:31.399Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -173920,6 +173935,42 @@
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=50.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.legal.read-tail-r46",
+        "goalId": "G4",
+        "owner": "legal",
+        "title": "legal destruction guard and executive spine dedupe",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-legal/src/**",
+          "tests/unit/legal/**",
+          "tests/integration/legal/**"
+        ],
+        "resources": [
+          "owner:legal"
+        ],
+        "claim": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMlegj",
+          "claimedAt": "2026-11-24T11:00:32.033Z",
+          "heartbeatAt": "2026-11-24T11:00:32.033Z",
+          "expiresAt": "2026-11-24T11:30:32.033Z",
+          "generation": 168
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Destruction guard 3 sites -> 1 (-2) and executive obligation/hold spine heads 2x2 -> 2 (-2). BEFORE=203.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -173928,7 +173979,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1606,
+      "totalPackets": 1607,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 19,
@@ -173936,13 +173987,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1230,
+        "blocked": 1231,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 168,
-    "updatedAt": "2026-11-24T10:44:17.108Z",
+    "updatedAt": "2026-11-24T11:00:32.040Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
