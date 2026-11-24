@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12102,
+    "revision": 12106,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -179756,7 +179756,7 @@
         "owner": "operations",
         "title": "operations TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -179768,22 +179768,37 @@
         "resources": [
           "owner:operations"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4m01",
-          "claimedAt": "2026-11-24T13:14:30.871Z",
-          "heartbeatAt": "2026-11-24T13:26:46.050Z",
-          "expiresAt": "2026-11-24T13:56:46.050Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-operations/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "aab4017d5",
+            "owner": "operations",
+            "before": 105,
+            "after": 94,
+            "note": "Project source exists widened to 8 sites; join source exists and delegation window shared; LOCK TABLE/command_receipts/native untouched."
+          },
+          {
+            "command": "vitest operations (141) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "aab4017d5"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "widen operationsProjectSourceExists (-8), join head (-2), delegation (-1): 105->94. BEFORE=105.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4m01",
+          "at": "2026-11-24T13:33:13.094Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -180190,7 +180205,7 @@
         "owner": "legal",
         "title": "legal ordered, point and destruction guard heads",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -180202,22 +180217,37 @@
         "resources": [
           "owner:legal"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n05",
-          "claimedAt": "2026-11-24T13:23:05.216Z",
-          "heartbeatAt": "2026-11-24T13:26:46.050Z",
-          "expiresAt": "2026-11-24T13:56:46.050Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-legal/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "aab4017d5",
+            "owner": "legal",
+            "before": 186,
+            "after": 178,
+            "note": "Ordered item reads, fixed point heads and destruction guards delegate to existing r32/r36 heads; advisory/FOR UPDATE OF locks untouched."
+          },
+          {
+            "command": "vitest legal (166) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "aab4017d5"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Rank1 ordered item reads (-3), Rank2 fixed point heads (-3), Rank3 destruction guard (-2): 186->180.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n05",
+          "at": "2026-11-24T13:33:13.377Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -180417,17 +180447,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 9,
+        "in_progress": 7,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1370,
+        "blocked": 1372,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T13:32:45.215Z",
+    "updatedAt": "2026-11-24T13:33:13.380Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
