@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12413,
+    "revision": 12435,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -183083,10 +183083,10 @@
         ],
         "claim": {
           "runId": "run-20261124-d",
-          "agentId": "lead-opencode",
-          "claimedAt": "2026-11-24T15:37:58.028Z",
-          "heartbeatAt": "2026-11-24T15:55:31.303Z",
-          "expiresAt": "2026-11-24T16:25:31.303Z",
+          "agentId": "wH4n90",
+          "claimedAt": "2026-11-24T16:09:11.995Z",
+          "heartbeatAt": "2026-11-24T16:09:11.995Z",
+          "expiresAt": "2026-11-24T16:39:11.995Z",
           "generation": 170
         },
         "baseSha": null,
@@ -183097,11 +183097,11 @@
         "blocker": null,
         "nextAction": "Reservation relation arm union (-3), chosen kind point heads (-2), record+property join anchor (-1): 292->286. BEFORE=292.",
         "handoff": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n61",
-          "at": "2026-11-24T15:07:42.843Z",
+          "runId": "run-20261124-d",
+          "agentId": "lead-opencode",
+          "at": "2026-11-24T16:09:11.863Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: lease expired; same operator resumes with reviewed WIP",
+          "reason": "released with work preserved",
           "nextAction": "Reservation relation arm union (-3), chosen kind point heads (-2), record+property join anchor (-1): 292->286. BEFORE=292."
         },
         "scopeRefinementRequired": false
@@ -183125,10 +183125,10 @@
         ],
         "claim": {
           "runId": "run-20261124-d",
-          "agentId": "lead-opencode",
-          "claimedAt": "2026-11-24T15:37:59.089Z",
-          "heartbeatAt": "2026-11-24T15:55:31.303Z",
-          "expiresAt": "2026-11-24T16:25:31.303Z",
+          "agentId": "wH4n92",
+          "claimedAt": "2026-11-24T16:09:12.523Z",
+          "heartbeatAt": "2026-11-24T16:09:12.523Z",
+          "expiresAt": "2026-11-24T16:39:12.523Z",
           "generation": 170
         },
         "baseSha": null,
@@ -183139,11 +183139,11 @@
         "blocker": null,
         "nextAction": "Ordered-list tail reuse (-3), opportunity-lead join anchor (-1): 95->91. BEFORE=95.",
         "handoff": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n62",
-          "at": "2026-11-24T15:07:42.843Z",
+          "runId": "run-20261124-d",
+          "agentId": "lead-opencode",
+          "at": "2026-11-24T16:09:12.396Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: lease expired; same operator resumes with reviewed WIP",
+          "reason": "released with work preserved",
           "nextAction": "Ordered-list tail reuse (-3), opportunity-lead join anchor (-1): 95->91. BEFORE=95."
         },
         "scopeRefinementRequired": false
@@ -183167,10 +183167,10 @@
         ],
         "claim": {
           "runId": "run-20261124-d",
-          "agentId": "lead-opencode",
-          "claimedAt": "2026-11-24T15:37:58.240Z",
-          "heartbeatAt": "2026-11-24T15:55:31.303Z",
-          "expiresAt": "2026-11-24T16:25:31.303Z",
+          "agentId": "wH4n86",
+          "claimedAt": "2026-11-24T16:09:10.946Z",
+          "heartbeatAt": "2026-11-24T16:09:10.946Z",
+          "expiresAt": "2026-11-24T16:39:10.946Z",
           "generation": 170
         },
         "baseSha": null,
@@ -183181,11 +183181,11 @@
         "blocker": null,
         "nextAction": "Workflow role node probes (-3), iam service node subquery (-2), iam member version probe (-4): 468->459. BEFORE=468.",
         "handoff": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n63",
-          "at": "2026-11-24T15:07:42.843Z",
+          "runId": "run-20261124-d",
+          "agentId": "lead-opencode",
+          "at": "2026-11-24T16:09:10.815Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: lease expired; same operator resumes with reviewed WIP",
+          "reason": "released with work preserved",
           "nextAction": "Workflow role node probes (-3), iam service node subquery (-2), iam member version probe (-4): 468->459. BEFORE=468."
         },
         "scopeRefinementRequired": false
@@ -183209,10 +183209,10 @@
         ],
         "claim": {
           "runId": "run-20261124-d",
-          "agentId": "lead-opencode",
-          "claimedAt": "2026-11-24T15:37:58.407Z",
-          "heartbeatAt": "2026-11-24T15:55:31.303Z",
-          "expiresAt": "2026-11-24T16:25:31.303Z",
+          "agentId": "wH4n91",
+          "claimedAt": "2026-11-24T16:09:12.268Z",
+          "heartbeatAt": "2026-11-24T16:09:12.268Z",
+          "expiresAt": "2026-11-24T16:39:12.268Z",
           "generation": 170
         },
         "baseSha": null,
@@ -183223,11 +183223,11 @@
         "blocker": null,
         "nextAction": "Node existence branch guard (-2), active position lookup (-2): 234->230. BEFORE=234.",
         "handoff": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n64",
-          "at": "2026-11-24T15:07:42.843Z",
+          "runId": "run-20261124-d",
+          "agentId": "lead-opencode",
+          "at": "2026-11-24T16:09:12.141Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: lease expired; same operator resumes with reviewed WIP",
+          "reason": "released with work preserved",
           "nextAction": "Node existence branch guard (-2), active position lookup (-2): 234->230. BEFORE=234."
         },
         "scopeRefinementRequired": false
@@ -183252,10 +183252,10 @@
         ],
         "claim": {
           "runId": "run-20261124-d",
-          "agentId": "lead-opencode",
-          "claimedAt": "2026-11-24T15:37:58.562Z",
-          "heartbeatAt": "2026-11-24T15:55:31.303Z",
-          "expiresAt": "2026-11-24T16:25:31.303Z",
+          "agentId": "wH4n85",
+          "claimedAt": "2026-11-24T16:09:10.683Z",
+          "heartbeatAt": "2026-11-24T16:09:10.683Z",
+          "expiresAt": "2026-11-24T16:39:10.683Z",
           "generation": 170
         },
         "baseSha": null,
@@ -183266,11 +183266,11 @@
         "blocker": null,
         "nextAction": "Law point guard family (-6), hold spine (-2 safe), counsel entry reads (-2): 163->153. BEFORE=163.",
         "handoff": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n65",
-          "at": "2026-11-24T15:07:42.843Z",
+          "runId": "run-20261124-d",
+          "agentId": "lead-opencode",
+          "at": "2026-11-24T16:09:10.543Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: lease expired; same operator resumes with reviewed WIP",
+          "reason": "released with work preserved",
           "nextAction": "Law point guard family (-6), hold spine (-2 safe), counsel entry reads (-2): 163->153. BEFORE=163."
         },
         "scopeRefinementRequired": false
@@ -183295,10 +183295,10 @@
         ],
         "claim": {
           "runId": "run-20261124-d",
-          "agentId": "lead-opencode",
-          "claimedAt": "2026-11-24T15:37:58.735Z",
-          "heartbeatAt": "2026-11-24T15:55:31.303Z",
-          "expiresAt": "2026-11-24T16:25:31.303Z",
+          "agentId": "wH4n89",
+          "claimedAt": "2026-11-24T16:09:11.732Z",
+          "heartbeatAt": "2026-11-24T16:09:11.732Z",
+          "expiresAt": "2026-11-24T16:39:11.732Z",
           "generation": 170
         },
         "baseSha": null,
@@ -183309,11 +183309,11 @@
         "blocker": null,
         "nextAction": "Service-team members named native kind, registry 38->39: 42->41. BEFORE=42.",
         "handoff": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n66",
-          "at": "2026-11-24T15:07:42.843Z",
+          "runId": "run-20261124-d",
+          "agentId": "lead-opencode",
+          "at": "2026-11-24T16:09:11.596Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: lease expired; same operator resumes with reviewed WIP",
+          "reason": "released with work preserved",
           "nextAction": "Service-team members named native kind, registry 38->39: 42->41. BEFORE=42."
         },
         "scopeRefinementRequired": false
@@ -183337,10 +183337,10 @@
         ],
         "claim": {
           "runId": "run-20261124-d",
-          "agentId": "lead-opencode",
-          "claimedAt": "2026-11-24T15:37:58.921Z",
-          "heartbeatAt": "2026-11-24T15:55:31.303Z",
-          "expiresAt": "2026-11-24T16:25:31.303Z",
+          "agentId": "wH4n88",
+          "claimedAt": "2026-11-24T16:09:11.467Z",
+          "heartbeatAt": "2026-11-24T16:09:11.467Z",
+          "expiresAt": "2026-11-24T16:39:11.467Z",
           "generation": 170
         },
         "baseSha": null,
@@ -183351,11 +183351,11 @@
         "blocker": null,
         "nextAction": "Table exists extras (-3): 89->86. BEFORE=89.",
         "handoff": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n67",
-          "at": "2026-11-24T15:07:42.843Z",
+          "runId": "run-20261124-d",
+          "agentId": "lead-opencode",
+          "at": "2026-11-24T16:09:11.336Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: lease expired; same operator resumes with reviewed WIP",
+          "reason": "released with work preserved",
           "nextAction": "Table exists extras (-3): 89->86. BEFORE=89."
         },
         "scopeRefinementRequired": false
@@ -183414,10 +183414,10 @@
         ],
         "claim": {
           "runId": "run-20261124-d",
-          "agentId": "wH4n69",
-          "claimedAt": "2026-11-24T15:36:26.760Z",
-          "heartbeatAt": "2026-11-24T15:55:31.303Z",
-          "expiresAt": "2026-11-24T16:25:31.303Z",
+          "agentId": "wH4n87",
+          "claimedAt": "2026-11-24T16:09:11.207Z",
+          "heartbeatAt": "2026-11-24T16:09:11.207Z",
+          "expiresAt": "2026-11-24T16:39:11.207Z",
           "generation": 170
         },
         "baseSha": null,
@@ -183427,7 +183427,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Projection family (-4), point-read family (-2): 24->18; r16 guard excluded pending authorization. BEFORE=24.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-d",
+          "agentId": "wH4n69",
+          "at": "2026-11-24T16:09:11.078Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Projection family (-4), point-read family (-2): 24->18; r16 guard excluded pending authorization. BEFORE=24."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -183449,10 +183456,10 @@
         ],
         "claim": {
           "runId": "run-20261124-d",
-          "agentId": "wH4n70",
-          "claimedAt": "2026-11-24T15:36:39.576Z",
-          "heartbeatAt": "2026-11-24T15:55:31.303Z",
-          "expiresAt": "2026-11-24T16:25:31.303Z",
+          "agentId": "wH4n95",
+          "claimedAt": "2026-11-24T16:09:13.289Z",
+          "heartbeatAt": "2026-11-24T16:09:13.289Z",
+          "expiresAt": "2026-11-24T16:39:13.289Z",
           "generation": 170
         },
         "baseSha": null,
@@ -183462,7 +183469,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Source-row guard head (-6), actor-scope guard (-3), union frame (-1): 48->38. BEFORE=48.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-d",
+          "agentId": "wH4n70",
+          "at": "2026-11-24T16:09:13.165Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Source-row guard head (-6), actor-scope guard (-3), union frame (-1): 48->38. BEFORE=48."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -183484,10 +183498,10 @@
         ],
         "claim": {
           "runId": "run-20261124-d",
-          "agentId": "wH4n71",
-          "claimedAt": "2026-11-24T15:36:52.400Z",
-          "heartbeatAt": "2026-11-24T15:55:31.303Z",
-          "expiresAt": "2026-11-24T16:25:31.303Z",
+          "agentId": "wH4n94",
+          "claimedAt": "2026-11-24T16:09:13.034Z",
+          "heartbeatAt": "2026-11-24T16:09:13.034Z",
+          "expiresAt": "2026-11-24T16:39:13.034Z",
           "generation": 170
         },
         "baseSha": null,
@@ -183497,7 +183511,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Origin-by pair (-1), ai usage projection (-1), messaging member exists (-1): 355->352. BEFORE=355.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-d",
+          "agentId": "wH4n71",
+          "at": "2026-11-24T16:09:12.903Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Origin-by pair (-1), ai usage projection (-1), messaging member exists (-1): 355->352. BEFORE=355."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -183519,10 +183540,10 @@
         ],
         "claim": {
           "runId": "run-20261124-d",
-          "agentId": "wH4n72",
-          "claimedAt": "2026-11-24T15:37:05.082Z",
-          "heartbeatAt": "2026-11-24T15:55:31.303Z",
-          "expiresAt": "2026-11-24T16:25:31.303Z",
+          "agentId": "wH4n93",
+          "claimedAt": "2026-11-24T16:09:12.776Z",
+          "heartbeatAt": "2026-11-24T16:09:12.776Z",
+          "expiresAt": "2026-11-24T16:39:12.776Z",
           "generation": 170
         },
         "baseSha": null,
@@ -183532,7 +183553,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "attachment_events head (-1): 242->241. BEFORE=242.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-d",
+          "agentId": "wH4n72",
+          "at": "2026-11-24T16:09:12.650Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "attachment_events head (-1): 242->241. BEFORE=242."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -183982,7 +184010,7 @@
       }
     },
     "lastCoordinatorGeneration": 170,
-    "updatedAt": "2026-11-24T16:06:46.617Z",
+    "updatedAt": "2026-11-24T16:09:13.292Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
