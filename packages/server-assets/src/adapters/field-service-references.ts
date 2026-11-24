@@ -5,8 +5,9 @@ import {
   nativeAssetsReadConfigured,
   nativeAssetsReadFirst,
 } from "./native-assets-read";
+import {assetOperationalRowsSql} from "./asset-operational-rows-sql";
 
-export const fieldServiceAssetSourceRows = "SELECT id,company_id,branch_id,department_id,lifecycle_status,warranty_end,version FROM operational_assets";
+export const fieldServiceAssetSourceRows = assetOperationalRowsSql("id,company_id,branch_id,department_id,lifecycle_status,warranty_end,version");
 /** Private access-audit effects can write a source; lease before its snapshot. */
 export function fieldServiceAssetAttachmentSourceLocks(database:SqlDatabase){return database.prepare('LOCK TABLE operational_assets IN SHARE ROW EXCLUSIVE MODE');}
 export async function fieldServiceAssetAttachmentSourceImage(database:SqlDatabase,companyId:string,id:string){

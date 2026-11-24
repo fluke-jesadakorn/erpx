@@ -532,9 +532,9 @@ describe('Assets read-tail r17 byte-identical family dedupe',()=>{
   walk(srcRoot);
   expect(selects).toBeLessThan(32);
   // r20 retired the image-witness literal; r21 shares the keyed-row read;
-  // r22 shares the Finance-link keyed reads; r23 shares the all-rows projection
-  // across the metric and Finance-link sources (24->23->22).
-  expect(selects).toBe(22);
+  // r22 shares the Finance-link keyed reads; r23 shares the all-rows projection;
+  // r24 shares the fixed operational_assets projection (24->23->22->21).
+  expect(selects).toBe(21);
   const financial=readFileSync(resolve(srcRoot,'adapters/financial-workflow-sources.ts'),'utf8');
   expect(financial).toContain("LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links,maintenance_work_orders IN SHARE MODE");
   const purchases=readFileSync(resolve(srcRoot,'adapters/purchases.ts'),'utf8');
@@ -578,8 +578,8 @@ describe('Assets read-tail r21 id+company keyed-row family',()=>{
    }
   };
   walk(srcRoot);
-  // r23 shares the all-rows projection across the metric and Finance-link sources.
-  expect(selects).toBe(22);
+  // r23 shares the all-rows projection; r24 shares the fixed operational_assets projection.
+  expect(selects).toBe(21);
   // r2-r20 lock/cascade families are untouched.
   expect(readFileSync(resolve(srcRoot,'adapters/financial-workflow-sources.ts'),'utf8'))
    .toContain("LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links,maintenance_work_orders IN SHARE MODE");
@@ -695,5 +695,52 @@ describe('Assets read-tail r23 all-rows projection family',()=>{
   const native=src('native-assets-read.ts');
   expect(native).toContain('ASSETS_RD_PKG_LINKS');
   expect(native).not.toContain('SELECT * FROM');
+ });
+});
+
+describe('Assets read-tail r24 fixed operational_assets projection family',()=>{
+ const base=new URL('../../../packages/server-assets/src/adapters/',import.meta.url);
+ const src=(file:string)=>readFileSync(new URL(file,base),'utf8');
+ const readOnly=(sql:string)=>{
+  expect(sql).toContain('SELECT ');
+  expect(sql).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
+ };
+ it('renders byte-identically to both pre-dedupe operational_assets projections',async()=>{
+  const {assetOperationalRowsSql}=await import('../../../packages/server-assets/src/adapters/asset-operational-rows-sql');
+  const preField='SELECT id,company_id,branch_id,department_id,lifecycle_status,warranty_end,version FROM operational_assets';
+  const preRoot='SELECT "id","company_id","branch_id","department_id","code","name","category","currency","cost_minor","condition","lifecycle_status","placement","custodian_id","acquired_date","warranty_end","retirement_reason","version","created_by","created_at","updated_at","finance_asset_id","finance_asset_version" FROM operational_assets';
+  expect(assetOperationalRowsSql('id,company_id,branch_id,department_id,lifecycle_status,warranty_end,version')).toBe(preField);
+  expect(assetOperationalRowsSql('"id","company_id","branch_id","department_id","code","name","category","currency","cost_minor","condition","lifecycle_status","placement","custodian_id","acquired_date","warranty_end","retirement_reason","version","created_by","created_at","updated_at","finance_asset_id","finance_asset_version"')).toBe(preRoot);
+  readOnly(preField);
+  readOnly(preRoot);
+ });
+ it('keeps one owner literal and routes both callers through it',async()=>{
+  const {fieldServiceAssetSourceRows}=await import('../../../packages/server-assets/src/adapters/field-service-references');
+  const {finalRootOwnerProjectionSources}=await import('../../../packages/server-assets/src/adapters/final-root-owner-projection-sources');
+  const helper=src('asset-operational-rows-sql.ts');
+  const field=src('field-service-references.ts');
+  const root=src('final-root-owner-projection-sources.ts');
+  expect((helper.match(/SELECT/g)??[])).toHaveLength(1);
+  expect(helper).toContain('export const assetOperationalRowsSql = (columns: string) =>');
+  expect(field).toContain('import {assetOperationalRowsSql} from "./asset-operational-rows-sql"');
+  expect(field).toContain('assetOperationalRowsSql("id,company_id,branch_id,department_id,lifecycle_status,warranty_end,version")');
+  expect(field).not.toContain('= "SELECT id,company_id,branch_id,department_id');
+  expect(root).toContain('import {assetOperationalRowsSql} from "./asset-operational-rows-sql"');
+  expect(root).toContain('operational_assets: assetOperationalRowsSql(');
+  expect(root).not.toMatch(/operational_assets: "SELECT/);
+  expect((root.match(/SELECT/g)??[])).toHaveLength(0);
+  expect((field.match(/SELECT/g)??[])).toHaveLength(1);
+  expect(fieldServiceAssetSourceRows).toContain(' FROM operational_assets');
+  expect(finalRootOwnerProjectionSources.operational_assets).toContain('"finance_asset_version" FROM operational_assets');
+ });
+ it('leaves r11-r23 families, locks and the native read transport untouched',async()=>{
+  expect((src('record-purchases.ts').match(/SELECT/g)??[])).toHaveLength(2);
+  expect((src('financial-workflow-sources.ts').match(/SELECT/g)??[])).toHaveLength(3);
+  expect((src('attachments-policy-facts.ts').match(/SELECT/g)??[])).toHaveLength(1);
+  expect((src('asset-all-rows-sql.ts').match(/SELECT/g)??[])).toHaveLength(1);
+  const native=src('native-assets-read.ts');
+  expect(native).toContain('ASSETS_RD_PKG_LINKS');
+  expect(native).not.toContain('SELECT * FROM');
+  expect(native).toContain('ASSETS_RD_FS_ASSET_ATTACHMENT_IMAGE');
  });
 });
