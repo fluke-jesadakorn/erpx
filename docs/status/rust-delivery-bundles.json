@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9072,
+    "revision": 9078,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -140854,7 +140854,7 @@
         "owner": "assets",
         "title": "assets native read ports",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -140866,28 +140866,37 @@
         "resources": [
           "owner:assets"
         ],
-        "claim": {
-          "runId": "run-20261123-j",
-          "agentId": "wGCwas",
-          "claimedAt": "2026-11-24T03:57:22.829Z",
-          "heartbeatAt": "2026-11-24T04:26:55.017Z",
-          "expiresAt": "2026-11-24T04:56:55.017Z",
-          "generation": 162
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-assets --tests",
+            "result": "passed",
+            "sourceSha": "8e4ab0b3b"
+          },
+          {
+            "command": "cargo test assets lib 10/10 + native read parity 3/3 (live PG)",
+            "result": "passed",
+            "sourceSha": "8e4ab0b3b"
+          },
+          {
+            "command": "tsc server-assets",
+            "result": "passed",
+            "sourceSha": "8e4ab0b3b"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Build owner-local native read ports for field-service references and package-obligation source reads (32 TS SELECTs remaining); PG parity tests; no composition or TS deletion yet.",
+        "blocker": "handoff",
+        "nextAction": "Port integrated; cutover queued.",
         "handoff": {
-          "runId": "run-20261123-i",
+          "runId": "run-20261123-j",
           "agentId": "wGCwas",
-          "at": "2026-11-24T03:57:20.238Z",
+          "at": "2026-11-24T04:37:51.422Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during long cargo queue; WIP reviewed, all owner claims preserved and re-issued.",
-          "nextAction": "Build owner-local native read ports for field-service references and package-obligation source reads (32 TS SELECTs remaining); PG parity tests; no composition or TS deletion yet."
+          "reason": "handoff",
+          "nextAction": "Port integrated; cutover queued."
         },
         "scopeRefinementRequired": false
       },
@@ -144800,7 +144809,7 @@
         "owner": "pos",
         "title": "pos TS read tail native cutover (round 20)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -144812,28 +144821,36 @@
         "resources": [
           "owner:pos"
         ],
-        "claim": {
-          "runId": "run-20261123-j",
-          "agentId": "wGC1pos",
-          "claimedAt": "2026-11-24T03:57:24.768Z",
-          "heartbeatAt": "2026-11-24T04:26:55.017Z",
-          "expiresAt": "2026-11-24T04:56:55.017Z",
-          "generation": 162
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pos/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "8e4ab0b3b",
+            "owner": "pos",
+            "before": 252,
+            "after": 251,
+            "note": "pos_connections company read uses existing native kind stripe_readposconnections_526; locks/refund reads untouched."
+          },
+          {
+            "command": "cargo pos owner_writes 23 + vitest pos (241) + tsc pos",
+            "result": "passed",
+            "sourceSha": "8e4ab0b3b"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: only cross-owner fragments, lock-bearing reads or refund-flow reads remain; re-scan carefully. BEFORE=252.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-i",
+          "runId": "run-20261123-j",
           "agentId": "wGC1pos",
-          "at": "2026-11-24T03:57:20.238Z",
+          "at": "2026-11-24T04:37:51.737Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during long cargo queue; WIP reviewed, all owner claims preserved and re-issued.",
-          "nextAction": "Next: only cross-owner fragments, lock-bearing reads or refund-flow reads remain; re-scan carefully. BEFORE=252."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -147405,7 +147422,7 @@
         "owner": "inventory",
         "title": "inventory TS read tail native cutover (r18)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -147417,22 +147434,37 @@
         "resources": [
           "owner:inventory"
         ],
-        "claim": {
-          "runId": "run-20261123-j",
-          "agentId": "wGCJinv",
-          "claimedAt": "2026-11-24T04:26:56.379Z",
-          "heartbeatAt": "2026-11-24T04:26:56.379Z",
-          "expiresAt": "2026-11-24T04:56:56.379Z",
-          "generation": 162
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-inventory/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "8e4ab0b3b",
+            "owner": "inventory",
+            "before": 408,
+            "after": 402,
+            "note": "Active quality hold EXISTS and pending loss SUM families shared; registry untouched; r11-r17 unchanged."
+          },
+          {
+            "command": "vitest inventory r11-r18 (35) + tsc inventory/tests",
+            "result": "passed",
+            "sourceSha": "8e4ab0b3b"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=408.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-j",
+          "agentId": "wGCJinv",
+          "at": "2026-11-24T04:37:52.073Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       }
     ],
@@ -147446,17 +147478,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 15,
+        "in_progress": 12,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 709,
+        "blocked": 712,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 162,
-    "updatedAt": "2026-11-24T04:33:45.851Z",
+    "updatedAt": "2026-11-24T04:37:52.076Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",

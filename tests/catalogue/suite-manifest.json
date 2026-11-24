@@ -1313,6 +1313,41 @@
       ]
     },
     {
+      "id": "assets.native-read-parity-postgres.integration",
+      "lane": "integration",
+      "owner": "assets",
+      "modules": [
+        "assets"
+      ],
+      "files": [
+        "tests/integration/assets/rust-native-read-parity-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Assets native read plans must match retained TS and PG rows."
+      },
+      "apps": "assets",
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-assets",
+        "targets": [
+          "asset_native_read_parity_postgres"
+        ],
+        "features": []
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-assets/Cargo.toml"
+      ]
+    },
+    {
       "id": "assets.rust-asset-cost-composition-postgres.integration",
       "lane": "integration",
       "owner": "assets",
@@ -44535,6 +44570,31 @@
       "id": "inventory.read-tail-r17-dedupe.unit",
       "files": [
         "tests/unit/inventory/read-tail-r17-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "inventory",
+      "modules": [
+        "inventory"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Inventory r18 quality hold and pending loss families must stay byte-identical."
+      },
+      "apps": "supply",
+      "packages": [
+        "@erpx/server-inventory"
+      ],
+      "id": "inventory.read-tail-r18-dedupe.unit",
+      "files": [
+        "tests/unit/inventory/read-tail-r18-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
