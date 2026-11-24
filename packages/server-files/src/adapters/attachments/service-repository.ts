@@ -6,6 +6,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { AttachmentSourceState, AttachmentComponentKind } from "@erpx/server-files/domain/attachments/types";
 import type { SetRow, LinkRow } from "@erpx/server-files/domain/attachments/service-models";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
+const setByIdSql = "SELECT * FROM attachment_sets WHERE id=? AND company_id=?";
 export function repository(db: SqlDatabase) {
     return {
         readAttachmentSetAlias: (facts:{id:string;companyId:string;userId:string}) => db.prepare(`SELECT source.* FROM attachment_events receipt JOIN attachment_sets source ON source.id=receipt.set_id AND source.company_id=receipt.company_id AND source.created_by=receipt.actor_id
@@ -14,7 +15,7 @@ export function repository(db: SqlDatabase) {
         readAttachmentSets1: (facts: {
             id: string;
             companyId: string;
-        }) => { return db.prepare("SELECT * FROM attachment_sets WHERE id=? AND company_id=?").bind(facts.id, facts.companyId).first<SetRow>(); },
+        }) => { return db.prepare(setByIdSql).bind(facts.id, facts.companyId).first<SetRow>(); },
         readAttachmentLinks5: (facts: {
             id: string;
             companyId: string;
@@ -77,7 +78,7 @@ export function repository(db: SqlDatabase) {
         readAttachmentSets9: (facts: {
             id: string;
             companyId: string;
-        }) => { return db.prepare("SELECT * FROM attachment_sets WHERE id=? AND company_id=?").bind(facts.id, facts.companyId).first<SetRow>(); },
+        }) => { return db.prepare(setByIdSql).bind(facts.id, facts.companyId).first<SetRow>(); },
         readAttachmentEvents10: (facts: {
             id: string;
             companyId: string;
