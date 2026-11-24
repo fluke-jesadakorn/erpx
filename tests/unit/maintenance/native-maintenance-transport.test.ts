@@ -624,4 +624,66 @@ describe('Maintenance breakdown projection fixed SQL',()=>{
    expect(source).toContain('COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=w.${col}');
    expect(source).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|LOCK\s+TABLE/i);
   });
+ });
+
+/** Fixed-SQL read-tail oracle for the Maintenance record-image family (r12).
+ * The attachment target image and the Work/Plan purchase-source image share one
+ * owner-local jsonb record-image projection; both composed strings stay
+ * byte-identical to their pre-dedupe literals, no duplicate TS query literal
+ * remains in either consumer and the purchase-source lock is untouched. */
+describe('Maintenance record-image fixed SQL',()=>{
+ const dir='../../../packages/server-maintenance/src/adapters/';
+ it('single-sources the record-image projection and keeps both composed images intact',async()=>{
+  const {readFileSync}=await import('node:fs');
+  const helper=readFileSync(new URL(`${dir}record-image-sources.ts`,import.meta.url),'utf8');
+  const attachment=readFileSync(new URL(`${dir}attachment-read-sources.ts`,import.meta.url),'utf8');
+  const purchase=readFileSync(new URL(`${dir}purchase-sources.ts`,import.meta.url),'utf8');
+  expect(helper.match(/export const recordImageSql = \(fields: string, source: string\): string =>/g)).toHaveLength(1);
+  expect(helper.match(/SELECT/g)).toHaveLength(1);
+  expect(attachment.match(/SELECT/g)).toBeNull();
+  // Purchase keeps only its pre-existing eligibility EXISTS witness (r10/r11 untouched).
+  expect(purchase.match(/SELECT/g)).toHaveLength(1);
+  expect(attachment).toContain('recordImageSql(');
+  expect(purchase).toContain('recordImageSql(');
+  expect(purchase).toContain('LOCK TABLE maintenance_work_orders,maintenance_preventive_plans,maintenance_preventive_occurrences IN SHARE ROW EXCLUSIVE MODE');
+  expect(attachment).not.toContain("jsonb_build_object('work',to_jsonb(work),'asset',to_jsonb(asset))::text image\n");
+  expect(purchase).not.toContain('::text image FROM ${kind===');
+
+  const {finalRootOwnerProjectionSources:proj}=await import('../../../packages/server-assets/src/public/final-root-owner-projection-sources');
+  const {recordImageSql}=await import('../../../packages/server-maintenance/src/adapters/record-image-sources');
+  const {maintenanceAttachmentReadSourceImage}=await import('../../../packages/server-maintenance/src/adapters/attachment-read-sources');
+  const {maintenancePurchaseSourceQuery}=await import('../../../packages/server-maintenance/src/adapters/purchase-sources');
+  expect(recordImageSql('x',' FROM t')).toBe('SELECT jsonb_build_object(x)::text image FROM t');
+  let captured='';
+  const db={prepare(sql:string){captured=sql;return {bind(){return this;},first(){return null;}};}} as unknown as import('@erpx/server-runtime/public/runtime/types').SqlDatabase;
+  await maintenanceAttachmentReadSourceImage(db,'company','work');
+  expect(captured).toBe(`SELECT jsonb_build_object('work',to_jsonb(work),'asset',to_jsonb(asset))::text image
+ FROM maintenance_work_orders work LEFT JOIN (${proj.operational_assets}) asset ON asset.id=work.asset_id AND asset.company_id=work.company_id
+ WHERE work.id=? AND work.company_id=?`);
+  for(const kind of ['work','plan'] as const){
+   for(const file of [false,true]){
+    const sql=maintenancePurchaseSourceQuery(kind,file);
+    expect(sql.startsWith(`SELECT jsonb_build_object('record',${file?"to_jsonb(r)-'version'-'updated_at'":"to_jsonb(r)"},'asset',to_jsonb(a),'ownerEligible',EXISTS(SELECT 1 FROM assignments assignment`)).toBe(true);
+    expect(sql).toContain('::text image FROM maintenance_');
+    expect(sql.endsWith('WHERE r.id=? AND r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?)')).toBe(true);
+   }
+  }
+ });
+
+ it('retirement:ts-statements stays strictly below the r12 BEFORE=41 baseline',async()=>{
+  const {readdirSync,readFileSync}=await import('node:fs');
+  const {resolve}=await import('node:path');
+  let total=0;
+  const srcRoot=resolve(__dirname,'../../../packages/server-maintenance/src');
+  const walk=(d:string)=>{
+   for(const entry of readdirSync(d,{withFileTypes:true})){
+    const p=resolve(d,entry.name);
+    if(entry.isDirectory())walk(p);
+    else if(entry.name.endsWith('.ts'))total+=(readFileSync(p,'utf8').match(/SELECT/g)??[]).length;
+   }
+  };
+  walk(srcRoot);
+  expect(total).toBe(40);
+  expect(total).toBeLessThan(41);
+ });
 });
