@@ -4,6 +4,7 @@ import { PMS_BOOKING_PAYMENT_BY_ID_SQL } from "./pms-read-tail-r18-sql";
 import { PMS_PURCHASE_CLOCK_CTE_SQL } from "./pms-read-tail-r27-sql";
 import { pmsRefundPaymentJoinHeadSql } from "./pms-read-tail-r34-sql";
 import { PMS_PROPERTY_POINT_HEAD_SQL } from "./pms-read-tail-r36-sql";
+import { PMS_BOOKING_PAYMENT_ID_HEAD_SQL } from "./pms-read-tail-r37-sql";
 import {holdingRoutingEnabled,holdingHosts} from '@erpx/contracts/holding-hosts';
 import {bookingEmailDeliveryPayload} from "@erpx/server-pms/adapters/booking-email-delivery";
 import "server-only";
@@ -349,10 +350,10 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase, companyId = '')
             fact1: number;
         }) => rows<{
             id: string;
-        }>(db, "SELECT id FROM pms_booking_payments WHERE status='payment_pending' OR (status='expired' AND checkout_id IS NOT NULL AND updated_at<? AND expires_at>?) ORDER BY updated_at LIMIT 20", facts.fact0, facts.fact1),
+        }>(db, `${PMS_BOOKING_PAYMENT_ID_HEAD_SQL} status='payment_pending' OR (status='expired' AND checkout_id IS NOT NULL AND updated_at<? AND expires_at>?) ORDER BY updated_at LIMIT 20`, facts.fact0, facts.fact1),
         readPmsBookingPayments7: () => rows<{
             id: string;
-        }>(db, "SELECT id FROM pms_booking_payments WHERE id IN (SELECT payment_id FROM pms_booking_refund_requests WHERE state IN ('approved','processing','requires_action')) ORDER BY updated_at LIMIT 20"),
+        }>(db, `${PMS_BOOKING_PAYMENT_ID_HEAD_SQL} id IN (SELECT payment_id FROM pms_booking_refund_requests WHERE state IN ('approved','processing','requires_action')) ORDER BY updated_at LIMIT 20`),
         readPmsRecords3: (facts: {
             number: string;
             email: string;

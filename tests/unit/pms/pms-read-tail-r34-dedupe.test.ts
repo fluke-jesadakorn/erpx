@@ -89,8 +89,8 @@ describe('pms read-tail r34 refund/payment join-head dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(328);
-    expect(bare).toBe(330);
+    expect(spaced).toBe(323);
+    expect(bare).toBe(325);
     expect(spaced).toBeLessThan(344);
   });
 });

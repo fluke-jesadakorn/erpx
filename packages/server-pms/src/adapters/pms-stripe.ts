@@ -1,6 +1,7 @@
 import { assertPmsProviderAuthority } from "@erpx/server-pms/adapters/provider-authority";
 import { PMS_WRITE_CONTEXT_SQL } from "./pms-read-tail-r17-sql";
 import { PMS_STRIPE_REFUND_COLUMNS_SQL } from "./pms-read-tail-r22-sql";
+import { PMS_STRIPE_PAYMENT_ID_HEAD_SQL } from "./pms-read-tail-r37-sql";
 import 'server-only';
 import { createHash, randomUUID } from 'node:crypto';
 import { type Snapshot } from "@erpx/server-pms/public/rules/pms";
@@ -109,7 +110,7 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase, companyId = ''
         readPmsStripePayments7: (facts: {
             fact0: number;
             fact1: number;
-        }) => db.prepare("SELECT id FROM pms_stripe_payments WHERE state IN ('requested','pending') OR (state='cancelled' AND provider_id IS NOT NULL AND updated_at<? AND expires_at>?) ORDER BY updated_at LIMIT 20").bind(facts.fact0, facts.fact1).all<{
+        }) => db.prepare(`${PMS_STRIPE_PAYMENT_ID_HEAD_SQL} state IN ('requested','pending') OR (state='cancelled' AND provider_id IS NOT NULL AND updated_at<? AND expires_at>?) ORDER BY updated_at LIMIT 20`).bind(facts.fact0, facts.fact1).all<{
             id: string;
         }>(),
         updatePmsStripePayments8: (facts: {
@@ -119,7 +120,7 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase, companyId = ''
             fact0: string;
             id: string;
         }) => write('pms_w059', [facts.fact0, facts.id]),
-        readPmsStripePayments8: () => db.prepare("SELECT id FROM pms_stripe_payments WHERE refund_state IN ('approved','processing','requires_action') ORDER BY updated_at LIMIT 20").bind().all<{
+        readPmsStripePayments8: () => db.prepare(`${PMS_STRIPE_PAYMENT_ID_HEAD_SQL} refund_state IN ('approved','processing','requires_action') ORDER BY updated_at LIMIT 20`).bind().all<{
             id: string;
         }>(),
         updatePmsStripePayments11: (facts: {
