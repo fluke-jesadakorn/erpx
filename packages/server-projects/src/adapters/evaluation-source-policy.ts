@@ -7,12 +7,15 @@ import {projectsPackageEnforcementMode,readPurchasedAccess} from "@erpx/server-c
 import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
 import {projectTaskRecordPolicy} from "@erpx/server-operations/public/project-task-record-policy";
 
+/** Byte-identical source identity projection shared by the native source arms;
+ * one definition keeps every UNION column list identical. */
+const nativeSourceColumns=`SELECT id,project_id,company_id,`;
 export const nativeSources=`SELECT id,id project_id,company_id,'project' kind,'projects.wbs' capability,NULL::text source_user_id FROM staff_projects
- UNION ALL SELECT id,project_id,company_id,'milestone','projects.wbs',NULL::text FROM staff_project_milestones
- UNION ALL SELECT id,project_id,company_id,'work_log','projects.time',user_id FROM staff_project_work_logs
- UNION ALL SELECT id,project_id,company_id,'allocation','projects.costs',NULL::text FROM staff_project_cost_allocations
- UNION ALL SELECT id,project_id,company_id,'handoff','projects.handover',NULL::text FROM staff_project_handoffs
- UNION ALL SELECT id,project_id,company_id,'task','projects.tasks',NULL::text FROM staff_tasks WHERE project_id IS NOT NULL`;
+ UNION ALL ${nativeSourceColumns}'milestone','projects.wbs',NULL::text FROM staff_project_milestones
+ UNION ALL ${nativeSourceColumns}'work_log','projects.time',user_id FROM staff_project_work_logs
+ UNION ALL ${nativeSourceColumns}'allocation','projects.costs',NULL::text FROM staff_project_cost_allocations
+ UNION ALL ${nativeSourceColumns}'handoff','projects.handover',NULL::text FROM staff_project_handoffs
+ UNION ALL ${nativeSourceColumns}'task','projects.tasks',NULL::text FROM staff_tasks WHERE project_id IS NOT NULL`;
 export function visibleSource(actor:WorkContext,id:string,company:string,kind?:'project'|'task'){
  const viewer='project_source_viewer',taskPolicy=projectTaskRecordPolicy('native.id','native.company_id',viewer);
  const current=`EXISTS(SELECT 1 FROM assignments g WHERE g.id=${viewer}.assignment_id AND g.user_id=${viewer}.user_id AND g.role=${viewer}.role AND g.company_id=native.company_id
