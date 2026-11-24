@@ -76,7 +76,7 @@ describe('Projects read-tail r30 visible project rows select-head dedupe', () =>
     };
     walk(srcRoot);
     expect(total).toBeLessThan(113);
-    expect(total).toBe(112); // r29 left 113; r30 visible-project-rows head 113->112.
+    expect(total).toBe(110); // r29 left 113; r30 visible-project-rows head 113->112; r31 receipt-event proof 112->111; r31 owner-or-member column 111->110.
   });
 });
 

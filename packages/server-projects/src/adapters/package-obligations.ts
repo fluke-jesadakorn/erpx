@@ -32,6 +32,12 @@ export const projectAssignmentScopeSql=(alias:string)=>`(SELECT ?::text company_
  * copies. The two gap parameters preserve the original newline position. */
 export const projectPackageActualProof=(kind:string,alias:string,measure:string,kindGap:string,idGap:string)=>
  `NOT EXISTS(SELECT 1 FROM staff_project_package_actuals actual WHERE actual.source_kind='${kind}'${kindGap}AND actual.source_id=${alias}.id${idGap}AND actual.source_version=${alias}.version AND actual.company_id=${alias}.company_id AND actual.project_id=${alias}.project_id AND actual.${measure}=${alias}.${measure})`;
+/** Byte-identical receipt-event proof arm shared by the work-log and
+ * cost-allocation arms of projectPackageObligations. Only the event table, row
+ * alias, operation prefix and the two FK columns vary; newlines, indentation
+ * and bind order stay exactly as in the former inline copies. */
+export const projectReceiptEventProof=(table:string,alias:string,op:string,fkId:string,fkVer:string)=>
+  `(SELECT 1 FROM ${table} event JOIN command_receipts command ON command.record_id=${alias}.id\n AND command.operation='${op}'||CASE WHEN ${alias}.state='approved' THEN 'approve' ELSE 'reject' END\n AND command.actor_id=event.actor_id AND command.authority_json::jsonb->>'companyId'=${alias}.company_id\n AND command.result_json::jsonb->>'id'=${alias}.id AND command.result_json::jsonb->>'version'=${alias}.version::text\n AND command.result_json::jsonb->>'state'=${alias}.state WHERE event.${fkId}=${alias}.id AND event.${fkVer}=${alias}.version AND event.action=${alias}.state)`;
 export const projectPackageSettlementSources={
  projects:projectRowsSql,members:`${tableRowsSql}staff_project_members`,milestones:`${tableRowsSql}staff_project_milestones`,
  workLogs:`${tableRowsSql}staff_project_work_logs`,costs:`${tableRowsSql}staff_project_cost_allocations`,actuals:`${tableRowsSql}staff_project_package_actuals`,handoffs:`${tableRowsSql}staff_project_handoffs`,
@@ -66,19 +72,11 @@ export async function projectPackageObligations(owner:PostgresDatabase,database:
  FROM (${operations.schedules}) s JOIN (${operations.templates}) t ON t.id=s.template_id CROSS JOIN scope LEFT JOIN projects p ON p.id=t.project_id
  WHERE scope.is_base AND s.company_id=scope.company_id AND t.project_id IS NOT NULL
  UNION ALL SELECT 'work-log',l.id,l.version,l.state,p.id IS NULL OR l.state='submitted' OR NOT EXISTS
- (SELECT 1 FROM staff_project_work_log_events event JOIN command_receipts command ON command.record_id=l.id
- AND command.operation='project.actual-time.'||CASE WHEN l.state='approved' THEN 'approve' ELSE 'reject' END
- AND command.actor_id=event.actor_id AND command.authority_json::jsonb->>'companyId'=l.company_id
- AND command.result_json::jsonb->>'id'=l.id AND command.result_json::jsonb->>'version'=l.version::text
- AND command.result_json::jsonb->>'state'=l.state WHERE event.work_log_id=l.id AND event.work_log_version=l.version AND event.action=l.state)
+ ${projectReceiptEventProof('staff_project_work_log_events','l','project.actual-time.','work_log_id','work_log_version')}
  OR (l.state='approved' AND ${projectPackageActualProof('work_log','l','minutes',' ','\n ')})
  FROM staff_project_work_logs l CROSS JOIN scope LEFT JOIN projects p ON p.id=l.project_id WHERE scope.is_base AND l.company_id=scope.company_id
  UNION ALL SELECT 'cost-allocation',c.id,c.version,c.state,p.id IS NULL OR c.state='draft' OR NOT EXISTS
- (SELECT 1 FROM staff_project_cost_allocation_events event JOIN command_receipts command ON command.record_id=c.id
- AND command.operation='project.cost-allocation.'||CASE WHEN c.state='approved' THEN 'approve' ELSE 'reject' END
- AND command.actor_id=event.actor_id AND command.authority_json::jsonb->>'companyId'=c.company_id
- AND command.result_json::jsonb->>'id'=c.id AND command.result_json::jsonb->>'version'=c.version::text
- AND command.result_json::jsonb->>'state'=c.state WHERE event.allocation_id=c.id AND event.allocation_version=c.version AND event.action=c.state)
+ ${projectReceiptEventProof('staff_project_cost_allocation_events','c','project.cost-allocation.','allocation_id','allocation_version')}
  OR (scope.is_base AND c.state='approved' AND ${projectPackageActualProof('cost_allocation','c','amount_minor','\n ',' ')})
  FROM staff_project_cost_allocations c CROSS JOIN scope LEFT JOIN projects p ON p.id=c.project_id WHERE c.company_id=scope.company_id
  UNION ALL SELECT 'package-actual',a.id,a.source_version,a.source_kind,p.id IS NULL OR m.id IS NULL OR m.project_id<>a.project_id OR m.company_id<>a.company_id

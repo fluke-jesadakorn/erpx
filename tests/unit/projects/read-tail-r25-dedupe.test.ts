@@ -81,6 +81,6 @@ describe('Projects read-tail r25 byte-identical FROM/JOIN family dedupe', () => 
     };
     walk(srcRoot);
     expect(total).toBeLessThan(122);
-    expect(total).toBe(112); // r25 left 119; r26 proof guards 119->118; r27 member EXISTS 118->117; r28 viewer 117->115; r29 image head 115->113; r30 visible-project-rows head 113->112.
+    expect(total).toBe(110); // r25 left 119; r26 proof guards 119->118; r27 member EXISTS 118->117; r28 viewer 117->115; r29 image head 115->113; r30 visible-project-rows head 113->112; r31 receipt-event proof 112->111; r31 owner-or-member column 111->110.
   });
 });

@@ -84,7 +84,7 @@ describe('Projects read-tail r29 ordered image aggregate head dedupe', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(115);
-    expect(total).toBe(112); // r28 left 115; r29 ordered-image select-head family 115->113; r30 visible-project-rows head 113->112.
+    expect(total).toBe(110); // r28 left 115; r29 ordered-image select-head family 115->113; r30 visible-project-rows head 113->112; r31 receipt-event proof 112->111; r31 owner-or-member column 111->110.
   });
 });
 

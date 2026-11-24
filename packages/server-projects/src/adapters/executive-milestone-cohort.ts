@@ -1,13 +1,13 @@
 import "server-only";
 import type { Filters } from "@erpx/feature-shared/lib/executive/canvas";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import { projectOwnerOrMemberSql } from "@erpx/server-projects/adapters/project-read-projections";
+import { projectOwnerOrMemberColumnSql, projectOwnerOrMemberSql } from "@erpx/server-projects/adapters/project-read-projections";
 
 /** Shared current membership and due-time cohort for metric, search, and detail reads. */
 export function projectMilestoneOverdueCohort(actor: WorkContext, filters: Filters, referenceAt: number, milestone = "m", project = "p") {
   return {
     sql: `${project}.company_id=? AND (?::text IS NULL OR ${project}.branch_id=?) AND (?::text IS NULL OR ${project}.department_id=?)
-      AND (${project}.owner_user_id=? OR EXISTS(SELECT 1 FROM staff_project_members member WHERE member.project_id=${project}.id AND member.user_id=?))
+      AND ${projectOwnerOrMemberColumnSql(project,'?','member')}
       AND ${milestone}.company_id=${project}.company_id AND ${milestone}.state IN ('planned','in_progress')
       AND ${milestone}.due_at<? AND ${milestone}.due_at>=? AND ${milestone}.due_at<?`,
     values: [actor.companyId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId,
