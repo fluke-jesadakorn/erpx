@@ -1,6 +1,7 @@
 import "server-only";
 import { commercialPackages, type CapabilityPurpose } from "@erpx/server-commercial/domain/packages";
 import { packageSourceProbe } from "./commercial-read-tail-r10-sources";
+import { packageSourceProjection } from "./commercial-read-tail-r11-sources";
 
 const identifier = /^[a-z_][a-z_0-9]*(?:\.[a-z_][a-z_0-9]*)?$/;
 const literal = (value: string) => `'${value.replaceAll("'", "''")}'`;
@@ -14,9 +15,9 @@ export function purchasedCapabilityPredicate(company: string, capability: string
   if (!["new-work", "settle-existing", "history"].includes(purpose)) throw new Error("CAPABILITY_PURPOSE_REQUIRED");
   const candidates = commercialPackages.filter(definition => [...definition.visibleCapabilities, ...definition.includedCapabilities].includes(capability));
   if (purpose === "history") {
-    const sources = `SELECT package_id,package_version FROM company_package_grants WHERE company_id=${company} AND starts_at<=${now} AND state<>'inactive'
-      UNION SELECT package_id,package_version FROM company_package_history_rights WHERE company_id=${company} AND retained_at<=${now}
-        AND retained_at>=0 AND retained_at<=9007199254740991 AND source_grant_version>0 AND source_event_id<>''`;
+    const sources = `${packageSourceProjection("company_package_grants", company, `starts_at<=${now} AND state<>'inactive'`)}
+      UNION ${packageSourceProjection("company_package_history_rights", company, `retained_at<=${now}
+        AND retained_at>=0 AND retained_at<=9007199254740991 AND source_grant_version>0 AND source_event_id<>''`)}`;
     return candidates.length ? `(${candidates.map(definition => `(${packageSourceProbe(`(${sources})`, "purchase", `purchase.package_id=${literal(definition.id)} AND purchase.package_version`, `=${definition.version}`, "")}${definition.dependencies.map(id => {
       const versions = commercialPackages.filter(parent => parent.id === id).map(parent => parent.version);
       return ` AND ${packageSourceProbe(`(${sources})`, "parent", `parent.package_id=${literal(id)} AND parent.package_version`, ` IN (${versions.join(",")})`, "")}`;
