@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11953,
+    "revision": 11955,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -177352,7 +177352,7 @@
         "owner": "projects",
         "title": "projects TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -177364,22 +177364,37 @@
         "resources": [
           "owner:projects"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4g02",
-          "claimedAt": "2026-11-24T12:27:43.513Z",
-          "heartbeatAt": "2026-11-24T12:37:13.270Z",
-          "expiresAt": "2026-11-24T13:07:13.270Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-projects/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ea2fb4945",
+            "owner": "projects",
+            "before": 105,
+            "after": 96,
+            "note": "staff_tasks point head 4->1 and staff_projects by-ref head 7->1; locks/spaced JOINs untouched; read-tail-r34 export added."
+          },
+          {
+            "command": "vitest projects read-tail (54) + unit lane (200) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "ea2fb4945"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "staff_tasks point head 4->1 (-3) and staff_projects by-ref head (-6): 105->102/99.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4g02",
+          "at": "2026-11-24T12:46:16.327Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -178536,17 +178551,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 3,
+        "in_progress": 2,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1337,
+        "blocked": 1338,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T12:45:57.211Z",
+    "updatedAt": "2026-11-24T12:46:16.330Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
