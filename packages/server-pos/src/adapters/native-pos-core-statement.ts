@@ -207,3 +207,20 @@ export async function nativePosStripeEntrypointJobsStatement<T = SqlValueRow>(
 ): Promise<SqlResult<T>> {
   return (await nativePosStatement(db, String(companyId ?? ''), 'stripe_readposjobsentrypoint_529', [companyId])).all<T>();
 }
+
+/**
+ * Owner-issued POS presentation movement-sale projection. The read lives in
+ * the native POS owner registry (`erpx-server-pos::adapters::owner_writes`,
+ * kind `pos_readposmovementsale_530`) and is byte-identical to the retired
+ * literal in `movement-presentation-query.ts`. This bridge sends only the kind
+ * and the movement/Company/Branch values; the caller executes the registry
+ * statement on its own unit, so no local SQL, mirror or fallback reader remains.
+ */
+export async function nativePosMovementSaleStatement<T = SqlValueRow>(
+  db: SqlDatabase,
+  movementId: string,
+  companyId: string,
+  branchId: string | null,
+): Promise<T | null> {
+  return nativePosOne<T>(db, companyId, 'pos_readposmovementsale_530', [movementId, companyId, branchId, branchId]);
+}

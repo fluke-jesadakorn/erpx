@@ -14,6 +14,7 @@ import {
   nativePosPaymentByIdStatement,
   nativePosBookingConnectionStatement,
   nativePosStripeEntrypointJobsStatement,
+  nativePosMovementSaleStatement,
 } from '../../../packages/server-pos/src/adapters/native-pos-core-statement';
 import { pmsHospitalitySetupPosFacts } from '../../../packages/server-pos/src/adapters/pms-hospitality-setup-facts';
 import { pmsBookingChangeFacts } from '../../../packages/server-pos/src/adapters/pms-booking-change-facts';
@@ -682,5 +683,54 @@ describe('native POS core workspace read bridge (shifts family)', () => {
     expect(source).not.toContain('SELECT id,kind,state,last_error,payload_json FROM pos_jobs');
     expect(source).toContain('nativePosConnectionsStatement');
     expect(source).toContain('nativePosStripeEntrypointJobsStatement');
+  });
+
+  it('requests the presentation movement-sale projection from the native owner registry only', async () => {
+    process.env.ERPX_NATIVE_POS_OWNER_CONFIG = config();
+    const sql = 'SELECT l.sale_id FROM pos_stock_moves m JOIN pos_lines l ON l.fulfillment_id=m.fulfillment_id JOIN pos_sales s ON s.id=l.sale_id WHERE m.id=? AND s.company_id=? AND (?::text IS NULL OR s.branch_id=?) ORDER BY s.created_at LIMIT 1';
+    const values = ['movement', 'company', null, null];
+    const rows = [{ sale_id: 'sale' }];
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: { sql, values } }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    );
+    vi.stubGlobal('fetch', fetch);
+    const seen: { sql?: string; values?: unknown[] } = {};
+    const db = {
+      prepare: (text: string) => ({
+        bind: (...bound: unknown[]) => {
+          seen.sql = text;
+          seen.values = bound;
+          return { first: async () => rows[0] };
+        },
+      }),
+    };
+    const prepare = vi.spyOn(db, 'prepare');
+    const result = await nativePosMovementSaleStatement(db as never, 'movement', 'company', null);
+    expect(result).toEqual(rows[0]);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const [url, init] = fetch.mock.calls[0];
+    expect(url).toBe('http://127.0.0.1:44994/api/v1/companies/company/pos/owner-write');
+    expect(JSON.parse(init.body)).toEqual({ company: 'company', kind: 'pos_readposmovementsale_530', values });
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(seen.sql).toBe(sql);
+    expect(seen.values).toEqual(values);
+  });
+
+  it('fails closed for the movement-sale read when the native owner service is unconfigured', async () => {
+    delete process.env.ERPX_NATIVE_POS_OWNER_CONFIG;
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    await expect(nativePosMovementSaleStatement({} as never, 'movement', 'company', null)).rejects.toMatchObject({
+      code: 'NATIVE_POS_OWNER_UNAVAILABLE',
+      status: 503,
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('keeps no byte-identical movement-sale SQL literal in the TS adapter', async () => {
+    const { readFileSync } = await import('node:fs');
+    const source = readFileSync(new URL('../../../packages/server-pos/src/adapters/movement-presentation-query.ts', import.meta.url), 'utf8');
+    expect(source).not.toContain('SELECT l.sale_id FROM pos_stock_moves');
+    expect(source).toContain('nativePosMovementSaleStatement');
   });
 });

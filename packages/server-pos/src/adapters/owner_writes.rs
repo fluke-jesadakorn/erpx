@@ -125,6 +125,12 @@ pub const STRIPE_READPOSBOOKINGCONNECTION_528: &str = "stripe_readposbookingconn
 /// scoped by Company; no TypeScript mirror remains. The companion connection
 /// read reuses the byte-identical `stripe_readposconnections_526` kind.
 pub const STRIPE_READPOSJOBSENTRYPOINT_529: &str = "stripe_readposjobsentrypoint_529";
+/// POS presentation movement-sale projection retired from the literal in
+/// `movement-presentation-query.ts`. Resolves the original sale for a stock
+/// movement within the caller's Company and optional Branch fence, preserving
+/// the first-sale ordering. Read-only caller-transaction read scoped by
+/// movement id, Company and optional Branch; no TypeScript mirror remains.
+pub const POS_READPOSMOVEMENTSALE_530: &str = "pos_readposmovementsale_530";
 pub const STRIPE_WRITEPOSSTRIPEEVENTS1_49: &str = "stripe_writeposstripeevents1_49";
 pub const STRIPE_WRITEPOSSTRIPEEVENTS2_53: &str = "stripe_writeposstripeevents2_53";
 pub const STRIPE_WRITEPOSCONNECTIONHISTORY1_58: &str = "stripe_writeposconnectionhistory1_58";
@@ -231,6 +237,7 @@ pub const KINDS: &[&str] = &[
     STRIPE_READPOSPAYMENTSBYID_527,
     STRIPE_READPOSBOOKINGCONNECTION_528,
     STRIPE_READPOSJOBSENTRYPOINT_529,
+    POS_READPOSMOVEMENTSALE_530,
     STRIPE_WRITEPOSSTRIPEEVENTS1_49,
     STRIPE_WRITEPOSSTRIPEEVENTS2_53,
     STRIPE_WRITEPOSCONNECTIONHISTORY1_58,
@@ -380,6 +387,7 @@ fn sql(kind: &str) -> Option<&'static str> {
         STRIPE_READPOSPAYMENTSBYID_527 => r#"SELECT * FROM pos_payments WHERE id=? FOR UPDATE"#,
         STRIPE_READPOSBOOKINGCONNECTION_528 => r#"SELECT * FROM pos_connections WHERE company_id=? AND state='ready' AND charges_enabled=true AND payouts_enabled=true"#,
         STRIPE_READPOSJOBSENTRYPOINT_529 => r#"SELECT id,kind,state,last_error,payload_json FROM pos_jobs WHERE company_id=? AND kind IN ('connect','connect_refresh') ORDER BY created_at DESC LIMIT 10"#,
+        POS_READPOSMOVEMENTSALE_530 => r#"SELECT l.sale_id FROM pos_stock_moves m JOIN pos_lines l ON l.fulfillment_id=m.fulfillment_id JOIN pos_sales s ON s.id=l.sale_id WHERE m.id=? AND s.company_id=? AND (?::text IS NULL OR s.branch_id=?) ORDER BY s.created_at LIMIT 1"#,
         STRIPE_WRITEPOSSTRIPEEVENTS1_49 => r#"INSERT INTO pos_stripe_events(id,account_id,livemode,company_id,event_type,payload_json,received_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING"#,
         STRIPE_WRITEPOSSTRIPEEVENTS2_53 => r#"UPDATE pos_stripe_events SET provider_created_at=COALESCE(provider_created_at,?) WHERE id=?"#,
         STRIPE_WRITEPOSCONNECTIONHISTORY1_58 => r#"INSERT INTO pos_connection_history VALUES(?,?,?) ON CONFLICT DO NOTHING"#,
@@ -480,7 +488,7 @@ mod tests {
     use super::*;
     #[test]
     fn every_kind_is_allow_listed_with_parameterized_owner_sql() {
-        assert_eq!(KINDS.len(), 123);
+        assert_eq!(KINDS.len(), 124);
         for kind in KINDS {
             assert!(supported(kind), "kind must be allow listed: {kind}");
             let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
@@ -729,6 +737,26 @@ mod tests {
         assert_eq!(
             stmt,
             "SELECT id,kind,state,last_error,payload_json FROM pos_jobs WHERE company_id=? AND kind IN ('connect','connect_refresh') ORDER BY created_at DESC LIMIT 10"
+        );
+    }
+
+    /// The retired POS presentation movement-sale read is a read-only owner
+    /// statement. Its SQL is byte-identical to the deleted literal in
+    /// `movement-presentation-query.ts`; this kind is the sole authority and the
+    /// TypeScript copy was removed. Caller-transaction read scoped by movement
+    /// id, Company and optional Branch.
+    #[test]
+    fn pos_movement_sale_read_kind_is_select_only() {
+        assert!(supported(POS_READPOSMOVEMENTSALE_530));
+        let stmt = sql(POS_READPOSMOVEMENTSALE_530).unwrap();
+        assert!(stmt.starts_with("SELECT "), "movement sale read must be SELECT-only");
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";"] {
+            assert!(!stmt.contains(forbidden), "movement sale read must not mutate: {forbidden}");
+        }
+        assert_eq!(stmt.matches('?').count(), 4, "movement sale read carries movement, Company and optional Branch");
+        assert_eq!(
+            stmt,
+            "SELECT l.sale_id FROM pos_stock_moves m JOIN pos_lines l ON l.fulfillment_id=m.fulfillment_id JOIN pos_sales s ON s.id=l.sale_id WHERE m.id=? AND s.company_id=? AND (?::text IS NULL OR s.branch_id=?) ORDER BY s.created_at LIMIT 1"
         );
     }
 

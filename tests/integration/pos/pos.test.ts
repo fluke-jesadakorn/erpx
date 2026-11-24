@@ -1415,6 +1415,16 @@ it('drills a POS report group into exactly its completed source receipts with Co
 
 describe('POS presentation movement query',()=>{
  it('resolves the original sale only within its Company and optional Branch without mutating owner records',async()=>{
+  // The read is served by the native POS owner statement registry. Stand in
+  // for the private native owner service with its authoritative statement so
+  // the oracle still executes the real SQL against the live test database.
+  vi.stubEnv('ERPX_NATIVE_POS_OWNER_CONFIG',JSON.stringify({privateBaseUrl:'http://127.0.0.1:44994',timeoutMs:1000}));
+  const movementSql='SELECT l.sale_id FROM pos_stock_moves m JOIN pos_lines l ON l.fulfillment_id=m.fulfillment_id JOIN pos_sales s ON s.id=l.sale_id WHERE m.id=? AND s.company_id=? AND (?::text IS NULL OR s.branch_id=?) ORDER BY s.created_at LIMIT 1';
+  vi.stubGlobal('fetch',vi.fn((_url:string|URL|Request,init?:RequestInit)=>{
+   const body=JSON.parse(String(init?.body)) as {kind:string;values:unknown[]};
+   expect(body.kind).toBe('pos_readposmovementsale_530');
+   return Promise.resolve(new Response(JSON.stringify({data:{sql:movementSql,values:body.values}}),{status:200,headers:{'content-type':'application/json'}}));
+  }));
   const {findPosMovementSale}=await import("@erpx/server-pos/public/movement-presentation-query");
   const sale=await createSale();await add(sale);await pay(sale);await change('sale.complete',sale);
   const movement=await one(db,'SELECT m.id FROM pos_stock_moves m JOIN pos_lines l ON l.fulfillment_id=m.fulfillment_id WHERE l.sale_id=? ORDER BY m.created_at LIMIT 1',sale);
