@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10622,
+    "revision": 10626,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -159269,7 +159269,7 @@
         "owner": "projects",
         "title": "projects TS read tail native cutover (round 21)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -159281,28 +159281,36 @@
         "resources": [
           "owner:projects"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMprj2",
-          "claimedAt": "2026-11-24T07:54:19.765Z",
-          "heartbeatAt": "2026-11-24T08:15:48.647Z",
-          "expiresAt": "2026-11-24T08:45:48.647Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-projects/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "4031195cc",
+            "owner": "projects",
+            "before": 129,
+            "after": 126,
+            "note": "Local member scope, members json image and assignment scope switch to existing helpers; clock CTE kept due to spacing; locks and r2-r20 untouched."
+          },
+          {
+            "command": "vitest projects project-services/presentation (120) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "4031195cc"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=129.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-n",
+          "runId": "run-20261124-a",
           "agentId": "wGCMprj2",
-          "at": "2026-11-24T07:53:21.211Z",
+          "at": "2026-11-24T08:25:46.319Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during long worker integration; WIP reviewed by lead; all live claims re-claimed with the same agents under a new generation",
-          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=129."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -164788,6 +164796,42 @@
         "nextAction": "Exact duplicate two-site literals: finance-reporting/pos-core-facts, accounting-profiles/finance-invoice-read, record-presentation/refund-bank-evidence, payroll remittance images. BEFORE=1970.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.projects.read-tail-r22",
+        "goalId": "G4",
+        "owner": "projects",
+        "title": "projects id title options prefix family (round 22)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-projects/src/**",
+          "tests/unit/projects/**",
+          "tests/integration/projects/**"
+        ],
+        "resources": [
+          "owner:projects"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMprj3",
+          "claimedAt": "2026-11-24T08:25:47.146Z",
+          "heartbeatAt": "2026-11-24T08:25:47.146Z",
+          "expiresAt": "2026-11-24T08:55:47.146Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "The id,title options prefix at collaboration-home-sources.ts:37 and :75 can share one constant. BEFORE=126.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -164796,7 +164840,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1424,
+      "totalPackets": 1425,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 19,
@@ -164804,13 +164848,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1053,
+        "blocked": 1054,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T08:25:29.681Z",
+    "updatedAt": "2026-11-24T08:25:47.166Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
