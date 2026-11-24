@@ -6,4 +6,7 @@ export async function portalSupportInstalled(database:SqlDatabase){return !!awai
 /** No query before these leases. Native response/ack writers must enter a fresh
  * owned transaction and retain this same closed source chain until commit. */
 export function portalSupportSourceReadLocks(database:SqlDatabase){return [database.prepare('LOCK TABLE customer_portal_support_responses,customer_portal_support_acknowledgements,customer_portal_support_closures IN SHARE ROW EXCLUSIVE MODE')];}
-export const portalSupportSettlementSources={responses:'SELECT * FROM customer_portal_support_responses',acknowledgements:'SELECT * FROM customer_portal_support_acknowledgements',closures:'SELECT * FROM customer_portal_support_closures'} as const;
+/** One canonical responses source shared by the settlement fact map and the
+ * portal support thread LATERAL so the table literal cannot drift. */
+export const portalSupportResponsesSource='SELECT * FROM customer_portal_support_responses';
+export const portalSupportSettlementSources={responses:portalSupportResponsesSource,acknowledgements:'SELECT * FROM customer_portal_support_acknowledgements',closures:'SELECT * FROM customer_portal_support_closures'} as const;

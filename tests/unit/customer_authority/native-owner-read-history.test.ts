@@ -289,3 +289,22 @@ describe('customer authority portal release gate dedupe', () => {
     expect(src).toContain('`(SELECT ${predicate()} FROM ${gateSource})`');
   });
 });
+
+describe('customer authority portal support responses source dedupe', () => {
+  const sources = () => new URL('../../../packages/server-customer_authority/src/adapters/portal-support-sources.ts', import.meta.url);
+  const support = () => new URL('../../../packages/server-customer_authority/src/adapters/portal-support.ts', import.meta.url);
+
+  it('keeps one responses source literal shared by settlement facts and the thread lateral', async () => {
+    const src = await readFile(sources(), 'utf8');
+    const consumer = await readFile(support(), 'utf8');
+    // The settlement map and the portal thread LATERAL must read the same
+    // customer_portal_support_responses source; one literal prevents drift and
+    // drops a duplicate SELECT from the owner KPI.
+    expect(src).toContain("export const portalSupportResponsesSource='SELECT * FROM customer_portal_support_responses';");
+    expect(src).toContain('responses:portalSupportResponsesSource');
+    expect(src.match(/SELECT \* FROM customer_portal_support_responses/g)).toHaveLength(1);
+    expect(consumer).toContain('portalSupportInstalled,portalSupportResponsesSource,portalSupportSourceReadLocks');
+    expect(consumer).toContain('LEFT JOIN LATERAL(${portalSupportResponsesSource} response WHERE');
+    expect(consumer).not.toContain('SELECT * FROM customer_portal_support_responses');
+  });
+});
