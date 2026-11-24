@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8306,
+    "revision": 8310,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -122554,7 +122554,7 @@
         "owner": "manufacturing",
         "title": "manufacturing TS read tail native cutover (round 4)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -122566,14 +122566,7 @@
         "resources": [
           "owner:manufacturing"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGCcman",
-          "claimedAt": "2026-11-24T01:58:19.416Z",
-          "heartbeatAt": "2026-11-24T01:58:28.736Z",
-          "expiresAt": "2026-11-24T02:28:28.736Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -122596,18 +122589,32 @@
             "command": "vitest manufacturing native transport (20)",
             "result": "passed",
             "sourceSha": "9510e549e"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-manufacturing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b91ed1f59",
+            "owner": "manufacturing",
+            "before": 138,
+            "after": 137,
+            "note": "Complete-routing and operation-sequence guards share operationEventDoneGuardSql; binds unchanged."
+          },
+          {
+            "command": "vitest manufacturing BOM (26) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "b91ed1f59"
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Integrated; claim released; records/procurement tsc mismatch to owner",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-g",
-          "agentId": "wBV1man",
-          "at": "2026-11-23T22:34:02.568Z",
+          "runId": "run-20261123-i",
+          "agentId": "wGCcman",
+          "at": "2026-11-24T02:04:53.156Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Integrated; claim released; records/procurement tsc mismatch to owner"
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -138595,6 +138602,42 @@
         "nextAction": "Next: to_regclass('attachment_orphan_preservations') pair (attachments/migration.ts + runtime-preservation-sources.ts) or another byte-identical pair. BEFORE=360.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.manufacturing.read-tail-r5",
+        "goalId": "G4",
+        "owner": "manufacturing",
+        "title": "manufacturing TS read tail native cutover (round 5)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-manufacturing/src/**",
+          "tests/unit/manufacturing/**",
+          "tests/integration/manufacturing/**"
+        ],
+        "resources": [
+          "owner:manufacturing"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCxman",
+          "claimedAt": "2026-11-24T02:04:53.510Z",
+          "heartbeatAt": "2026-11-24T02:04:53.510Z",
+          "expiresAt": "2026-11-24T02:34:53.510Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: scan all remaining manufacturing adapters (not just production-command-sources) for byte-identical groups; if none, report blocked. BEFORE=137.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -138603,7 +138646,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 903,
+      "totalPackets": 904,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -138611,13 +138654,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 524,
+        "blocked": 525,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T02:04:08.171Z",
+    "updatedAt": "2026-11-24T02:04:53.518Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
