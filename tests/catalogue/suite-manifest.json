@@ -16652,6 +16652,44 @@
       ]
     },
     {
+      "id": "customer_authority.portal-read-parity-postgres.integration",
+      "lane": "integration",
+      "owner": "customer_authority",
+      "modules": [
+        "customer_authority"
+      ],
+      "files": [
+        "tests/integration/customer_authority/rust-portal-read-parity-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Customer authority portal support/binding native plans must match retained TS and PG rows."
+      },
+      "apps": "portal",
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-customer-authority",
+        "targets": [
+          "portal_read_parity_postgres"
+        ],
+        "features": []
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/erpx-server-customer-authority/Cargo.toml"
+      ],
+      "packages": [
+        "@erpx/server-customer-authority"
+      ]
+    },
+    {
       "id": "customer_authority.portal-workspace-smoke.e2e",
       "lane": "e2e",
       "owner": "customer_authority",
@@ -54121,6 +54159,44 @@
       "framework": "vitest"
     },
     {
+      "id": "marketing.native-read-parity-postgres.integration",
+      "lane": "integration",
+      "owner": "marketing",
+      "modules": [
+        "marketing"
+      ],
+      "files": [
+        "tests/integration/marketing/rust-native-read-parity-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Marketing native read plans must match retained TS and PG rows."
+      },
+      "apps": "forms",
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-marketing",
+        "targets": [
+          "marketing_native_read_parity_postgres"
+        ],
+        "features": []
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/erpx-server-marketing/Cargo.toml"
+      ],
+      "packages": [
+        "@erpx/server-marketing"
+      ]
+    },
+    {
       "lane": "unit",
       "owner": "marketing",
       "modules": [
@@ -64839,6 +64915,44 @@
         ],
         "migratedSlots": []
       }
+    },
+    {
+      "id": "platform_administration.engineering-verification-read-parity.integration",
+      "lane": "integration",
+      "owner": "platform_administration",
+      "modules": [
+        "platform_administration"
+      ],
+      "files": [
+        "tests/integration/platform_administration/rust-engineering-verification-read-parity-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Platform engineering verification native reads must match retained TS and PG rows."
+      },
+      "apps": "admin",
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-platform-administration",
+        "targets": [
+          "engineering_verification_read_parity"
+        ],
+        "features": []
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/erpx-server-platform-administration/Cargo.toml"
+      ],
+      "packages": [
+        "@erpx/server-platform-administration"
+      ]
     },
     {
       "lane": "unit",
