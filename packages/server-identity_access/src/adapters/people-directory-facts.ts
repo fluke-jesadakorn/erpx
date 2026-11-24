@@ -5,6 +5,7 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { runtimeEnv } from "../../../../packages/server-runtime/src/public/runtime";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {userAttributeByIdSql} from './identity-user-projection-family-r18';
+import {assignmentUserScopeProbeSql} from './read-tail-family-r29';
 export function peopleDirectoryIdentityFacts(database: SqlDatabase) {
     return { async readSaveDirectoryPersonAccount(linkedMemberUserId: string) {
             const env = await runtimeEnv();
@@ -16,7 +17,7 @@ export function peopleDirectoryIdentityFacts(database: SqlDatabase) {
             }>();
         },
         guard7(commandId: string, value: "member-link", id: string, companyId: string, now: number, now2: number, id2: string, companyId2: string, id3: string) {
-            return assertion(database, commandId, value, `EXISTS(SELECT 1 FROM assignments WHERE user_id=? AND company_id=? AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_from<=? AND valid_until>?) AND NOT EXISTS(SELECT 1 ${peoplepayrollSources.people_directory_facts_hr_people_from} WHERE user_id=? AND company_id=? AND id!=? AND merged_into_id IS NULL)`, [
+            return assertion(database, commandId, value, `EXISTS(${assignmentUserScopeProbeSql(`revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_from<=? AND valid_until>?) AND NOT EXISTS(SELECT 1 ${peoplepayrollSources.people_directory_facts_hr_people_from} WHERE user_id=? AND company_id=? AND id!=? AND merged_into_id IS NULL`)})`, [
                 id,
                 companyId,
                 now,

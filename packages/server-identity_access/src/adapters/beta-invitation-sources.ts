@@ -1,9 +1,10 @@
 import { nativePrepare } from '@erpx/server-identity_access/public/native-identity-write';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
+import {assignmentActiveProbeSql,assignmentUserScopeProbeSql} from './read-tail-family-r29';
 export function betaInvitationSources(db:SqlDatabase){return {async acceptedAssignment(value:string,id:string,now:number){return db
         .prepare(
-          "SELECT 1 FROM assignments WHERE id=? AND user_id=? AND revoked_at IS NULL AND valid_until>?",
+          assignmentActiveProbeSql("revoked_at IS NULL AND valid_until>?"),
         )
         .bind(value, id, now)
         .first();},
@@ -28,7 +29,7 @@ guardInviter(key:string,value:"inviter-still-authorized",invited_by:string,compa
         db,
         key,
         value,
-        "EXISTS(SELECT 1 FROM assignments WHERE user_id=? AND company_id=? AND iam_role_allows(role,company_id,'company.owner') AND scope_kind='holding' AND revoked_at IS NULL AND valid_from<=? AND valid_until>?)",
+        `EXISTS(${assignmentUserScopeProbeSql("iam_role_allows(role,company_id,'company.owner') AND scope_kind='holding' AND revoked_at IS NULL AND valid_from<=? AND valid_until>?")})`,
         [invited_by, company_id, now, now2],
       );},
 guardReviewedParent(key:string,value:"reviewed-parent",parentId:string,now:number,id:string,company_id:string,now2:number){return assertion(

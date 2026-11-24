@@ -4,6 +4,7 @@ const peoplepayrollSources=peoplepayrollSnapshotSources();
 const organizationSources=organizationSnapshotSources();
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
+import {assignmentUserScopeProbeSql,distinctAssigneeSql} from './read-tail-family-r29';
 import { type StaffPerson } from '@erpx/server-operations/public/staff-policy-contract';
 const staffSelect = (datePredicate: string) => `SELECT p.id person_id,p.user_id,p.legal_name,e.id engagement_id,e.version engagement_version,
   e.company_id,e.branch_id,e.department_id,e.worker_type,e.start_date,e.end_date,e.manager_person_id,e.level_id,l.name level_name,l.rank level_rank,l.level_number,e.position_id,pos.is_ceo,pos.roster_required,e.self_service_top_level
@@ -37,13 +38,13 @@ export function StaffPolicyIdentityAccessFacts(database: SqlDatabase) {
             return assertion(database, key, value, `EXISTS(SELECT 1 FROM assignments WHERE id=? AND company_id=? AND iam_role_allows(role,company_id,?) AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND scope_kind='holding' AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_from<=? AND valid_until>?)`, [assignmentId, companyId, value2, now, now2]);
         },
         readEligibleRoleUsersResults(company_id: string, role: "hr_admin" | "holding_owner", now: number, now2: number, role2: "hr_admin" | "holding_owner", branch_id: string | null, department_id: string | null) {
-            return database.prepare(`SELECT DISTINCT user_id FROM assignments WHERE company_id=? AND iam_role_allows(role,company_id,'workflow.'||?) AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
+            return database.prepare(distinctAssigneeSql(`iam_role_allows(role,company_id,'workflow.'||?) AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
     AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_from<=? AND valid_until>?
-    AND (scope_kind='holding' OR (?='hr_admin' AND ((scope_kind='branch' AND scope_node_id=?) OR (scope_kind='department' AND scope_node_id=?)))) ORDER BY user_id`)
+    AND (scope_kind='holding' OR (?='hr_admin' AND ((scope_kind='branch' AND scope_node_id=?) OR (scope_kind='department' AND scope_node_id=?)))) ORDER BY user_id`))
                 .bind(company_id, role, now, now2, role2, branch_id, department_id)
                 .all<{
                 user_id: string;
             }>();
         },
-        readRequestRouteEffect(user_id: string, companyId: string, now: number, now2: number, now3: number, branch_id: string | null, department_id: string | null) { return database.prepare(`SELECT 1 FROM assignments WHERE user_id=? AND company_id=? AND iam_role_allows(role,company_id,'workflow.people_manager') AND revoked_at IS NULL AND valid_from<=? AND valid_until>? AND iam_assignment_active(id,?) AND (scope_kind='holding' OR scope_kind='branch' AND scope_node_id=? OR scope_kind='department' AND scope_node_id=?)`).bind(user_id, companyId, now, now2, now3, branch_id, department_id).first(); } };
+        readRequestRouteEffect(user_id: string, companyId: string, now: number, now2: number, now3: number, branch_id: string | null, department_id: string | null) { return database.prepare(assignmentUserScopeProbeSql("iam_role_allows(role,company_id,'workflow.people_manager') AND revoked_at IS NULL AND valid_from<=? AND valid_until>? AND iam_assignment_active(id,?) AND (scope_kind='holding' OR scope_kind='branch' AND scope_node_id=? OR scope_kind='department' AND scope_node_id=?)")).bind(user_id, companyId, now, now2, now3, branch_id, department_id).first(); } };
 }

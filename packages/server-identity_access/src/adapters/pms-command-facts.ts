@@ -1,5 +1,6 @@
 import {identitySnapshotSources as peoplepayrollSnapshotSources} from '@erpx/server-people_payroll/public/identity-snapshot-sources';
 import {pmsRecipientProjectionSql} from './pms-recipient-projection-family-r26';
+import {assignmentUserScopeProbeSql} from './read-tail-family-r29';
 const peoplepayrollSources=peoplepayrollSnapshotSources();
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
@@ -24,6 +25,6 @@ export function pmsIdentityAccessFacts(db: SqlDatabase) {
             fact2: number;
             fact3: number;
             branchId: string;
-        }) => db.prepare("SELECT 1 FROM assignments WHERE user_id=? AND company_id=? AND revoked_at IS NULL AND valid_from<=? AND valid_until>? AND (scope_kind='holding' OR (scope_kind='branch' AND scope_node_id=?))").bind(facts.assigneeId, facts.companyId, facts.fact2, facts.fact3, facts.branchId).first()
+        }) => db.prepare(assignmentUserScopeProbeSql("revoked_at IS NULL AND valid_from<=? AND valid_until>? AND (scope_kind='holding' OR (scope_kind='branch' AND scope_node_id=?))")).bind(facts.assigneeId, facts.companyId, facts.fact2, facts.fact3, facts.branchId).first()
     };
 }

@@ -96,7 +96,7 @@ describe('Identity access read-tail r28 seven parameterized families', () => {
     // Lock statements keep their byte identity.
     expect(hash('adapters/product-sso-store.ts')).toBe('967b754535bb65e0196bf47fa0c0292c65b30276291e137c926d22579a3f3441');
     expect(hash('adapters/payroll-cancellation-grant.ts')).toBe('eae4d8d3f2eacc4839676d3fcf7cd2da7edc3bb5a6a875e71b2787cf9e26e5ee');
-    expect(hash('adapters/workflow-command-authority.ts')).toBe('e90999b7b107adf75838dea69b2f95807624799f6c3519d705566632b0d04275');
+    expect(hash('adapters/workflow-command-authority.ts')).toBe('812f5e85cb404d8500749f3697469688ecf69eb35154133475763ecdbef286f5');
     expect(read('adapters/iam-migrations.ts')).toContain('SELECT * FROM iam_connections WHERE id=$1 AND company_id=$2 AND status=\'active\' AND last_sync_at>$3 FOR SHARE');
     // Session authority families keep their byte identity.
     expect(hash('adapters/iam-probe-sql.ts')).toBe('e9966b74188ce0763c43a50ddc0f98c6c113646d21296c75188dd158d742a172');
@@ -112,7 +112,7 @@ describe('Identity access read-tail r28 seven parameterized families', () => {
 });
 
 describe('Identity access read-tail r28 retirement check', () => {
-  test('retirement:ts-statements is strictly lower than BEFORE=508 (expected 499)', () => {
+  test('retirement:ts-statements is strictly lower than BEFORE=508 (r29 lowered 499 to 485)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -123,6 +123,6 @@ describe('Identity access read-tail r28 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(508);
-    expect(total).toBeLessThanOrEqual(500);
+    expect(total).toBeLessThanOrEqual(485);
   });
 });

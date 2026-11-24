@@ -41560,6 +41560,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "identity_access",
+      "modules": [
+        "identity_access"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "IAM assignment probe heads must stay canonical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-identity_access"
+      ],
+      "id": "identity_access.read-tail-r29-dedupe.unit",
+      "files": [
+        "tests/unit/identity_access/read-tail-r29-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "identity_access.remembered-workspace.e2e",
       "lane": "e2e",
       "owner": "identity_access",
@@ -51864,6 +51891,33 @@
       "id": "learning.read-tail-r15-dedupe.unit",
       "files": [
         "tests/unit/learning/read-tail-r15-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "learning",
+      "modules": [
+        "learning"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Learning jsonb image and scope rows must stay canonical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-learning"
+      ],
+      "id": "learning.read-tail-r16-dedupe.unit",
+      "files": [
+        "tests/unit/learning/read-tail-r16-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
@@ -88110,6 +88164,33 @@
       "id": "sales.read-tail-r26-dedupe.unit",
       "files": [
         "tests/unit/sales/read-tail-r26-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "sales",
+      "modules": [
+        "sales"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Sales order scope must stay one generator."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-sales"
+      ],
+      "id": "sales.read-tail-r27-dedupe.unit",
+      "files": [
+        "tests/unit/sales/read-tail-r27-dedupe.test.ts"
       ],
       "framework": "vitest"
     },

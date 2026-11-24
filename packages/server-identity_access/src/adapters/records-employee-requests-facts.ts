@@ -4,9 +4,10 @@ import {identitySnapshotSources as supportSnapshotSources} from '@erpx/server-su
 const supportSources=supportSnapshotSources();
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { type EmployeeRequest } from '@erpx/server-records/public/employee-requests-contract';
+import {distinctAssigneeSql} from './read-tail-family-r29';
 export function EmployeeRequestsIdentityAccessFacts(database: SqlDatabase) {
     return { readActOnEmployeeRequestEffect(company_id: string) {
-            return database.prepare("SELECT DISTINCT user_id FROM assignments WHERE company_id=? AND iam_role_allows(role,company_id,'company.owner') AND scope_kind='holding' AND revoked_at IS NULL AND valid_from<=(floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_until>(floor(extract(epoch FROM clock_timestamp())*1000)::bigint)")
+            return database.prepare(distinctAssigneeSql("iam_role_allows(role,company_id,'company.owner') AND scope_kind='holding' AND revoked_at IS NULL AND valid_from<=(floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_until>(floor(extract(epoch FROM clock_timestamp())*1000)::bigint)"))
                 .bind(company_id)
                 .all<{
                 user_id: string;
