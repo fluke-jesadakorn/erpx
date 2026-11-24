@@ -103,7 +103,7 @@ describe('Collaboration read-tail r38 isolation of protected SQL', () => {
 });
 
 describe('Collaboration read-tail r38 KPI pins', () => {
-  test('retirement:ts-statements is pinned at 356, below the r38 BEFORE=364 baseline', () => {
+  test('retirement:ts-statements is pinned at 355 after r40, below the r38 BEFORE=364 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -115,7 +115,8 @@ describe('Collaboration read-tail r38 KPI pins', () => {
     walk(srcRoot);
     // 3->1 settlement (-2), 2->1 AI draft (-1), 2->1 post head (-1): 364 -> 360.
     // r39 refreshed this pin after the 360 -> 356 queued-guard/actor-CTE/requested-select dedupe.
-    expect(total).toBe(356);
+    // r40 refreshed it after the 356 -> 355 source-rows absence guard dedupe.
+    expect(total).toBe(355);
     expect(total).toBeLessThan(364);
   });
 });

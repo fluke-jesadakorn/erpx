@@ -67,7 +67,7 @@ describe('Collaboration read-tail r34 lock/notification isolation', () => {
 });
 
 describe('Collaboration read-tail r34 KPI pins', () => {
-  test('retirement:ts-statements is pinned at 356 after r39, below the r34 BEFORE=375 baseline', () => {
+  test('retirement:ts-statements is pinned at 355 after r40, below the r34 BEFORE=375 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -84,7 +84,8 @@ describe('Collaboration read-tail r34 KPI pins', () => {
     // r37 refreshed it again after the 370 -> 364 revisions/messaging/PMS dedupe;
     // r38 refreshed it after the 364 -> 360 settlement/AI-draft/post-head dedupe;
     // r39 refreshed it after the 360 -> 356 queued-guard/actor-CTE/requested-select dedupe.
-    expect(total).toBeLessThanOrEqual(356);
+    // r40 refreshed it after the 356 -> 355 source-rows absence guard dedupe.
+    expect(total).toBeLessThanOrEqual(355);
     expect(total).toBeLessThan(375);
   });
 });
