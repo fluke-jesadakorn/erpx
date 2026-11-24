@@ -880,7 +880,8 @@ describe('workflow export receipt result_json dedupe (r32)', () => {
     ]);
     expect(financeSource).toContain('exportReceiptResultSql');
     expect(financeSource).not.toContain("AND operation='finance.refund.export'");
-    expect(sharedSource.match(/SELECT result_json FROM command_receipts/g)).toHaveLength(1);
+    expect(sharedSource).toContain("commandReceiptsProjectionSql(['result_json'], ',', ' WHERE command_id=? AND operation=?')");
+    expect(sharedSource.match(/SELECT/g) ?? []).toHaveLength(0);
   });
 
   it('leaves no orphan adapter/barrel or dangling export entry', async () => {

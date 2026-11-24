@@ -135,7 +135,7 @@ describe('r48 source retirement pins', () => {
     }
   });
 
-  it('retirement:ts-statements is 33 after the r48 cut (37->33)', async () => {
+  it('retirement:ts-statements is 32 after the r48 cut and r49 receipt dedupe (37->33->32)', async () => {
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -145,6 +145,6 @@ describe('r48 source retirement pins', () => {
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(33);
+    expect(total).toBe(32);
   });
 });
