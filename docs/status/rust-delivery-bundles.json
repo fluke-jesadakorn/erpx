@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8286,
+    "revision": 8290,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -137537,7 +137537,7 @@
         "owner": "benefits",
         "title": "benefits TS read tail dedupe (round 2)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -137550,22 +137550,37 @@
         "resources": [
           "owner:benefits"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGBTben",
-          "claimedAt": "2026-11-24T01:50:38.446Z",
-          "heartbeatAt": "2026-11-24T01:58:28.736Z",
-          "expiresAt": "2026-11-24T02:28:28.736Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-benefits/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "380c7acd6",
+            "owner": "benefits",
+            "before": 75,
+            "after": 71,
+            "note": "Actor-scope probe and assignment module predicate shared; SQL/binds/aliases unchanged; writes 0."
+          },
+          {
+            "command": "vitest benefits targeted (48) + tsc benefits",
+            "result": "passed",
+            "sourceSha": "380c7acd6"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: remaining benefits statement groups or native read kinds; if none, report blocked. BEFORE=75.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGBTben",
+          "at": "2026-11-24T02:00:14.585Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -138338,6 +138353,43 @@
         "nextAction": "Next: access.ts/manager-eligibility.ts assignment-projection core or another byte-identical family; avoid proof/digest and portal unit projections. BEFORE=82.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.benefits.read-tail-dedupe-3",
+        "goalId": "G4",
+        "owner": "benefits",
+        "title": "benefits TS read tail dedupe (round 3)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-benefits/src/**",
+          "packages/server-benefits/package.json",
+          "tests/unit/benefits/**",
+          "tests/integration/benefits/**"
+        ],
+        "resources": [
+          "owner:benefits"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCsben",
+          "claimedAt": "2026-11-24T02:00:14.885Z",
+          "heartbeatAt": "2026-11-24T02:00:14.885Z",
+          "expiresAt": "2026-11-24T02:30:14.885Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: remaining scope predicates or native benefit reads; if none, report blocked. BEFORE=71.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -138346,7 +138398,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 898,
+      "totalPackets": 899,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -138354,13 +138406,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 519,
+        "blocked": 520,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:59:48.335Z",
+    "updatedAt": "2026-11-24T02:00:14.892Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
