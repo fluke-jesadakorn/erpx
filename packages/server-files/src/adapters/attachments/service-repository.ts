@@ -7,6 +7,8 @@ import type { AttachmentSourceState, AttachmentComponentKind } from "@erpx/serve
 import type { SetRow, LinkRow } from "@erpx/server-files/domain/attachments/service-models";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 const setByIdSql = "SELECT * FROM attachment_sets WHERE id=? AND company_id=?";
+export const usedStorageSql = "SELECT COALESCE(sum(bytes),0) FROM attachment_storage_ledger WHERE company_id=? AND state IN ('reserved','stored')";
+export const pendingStorageSql = "SELECT COALESCE(sum(declared_bytes),0) FROM upload_intents WHERE company_id=? AND status='pending' AND expires_at>?";
 const advisoryLockSql = "SELECT pg_advisory_xact_lock(hashtextextended(?,0))";
 const attachmentChecksumSql = "SELECT checksum_sha256,source_state FROM attachments WHERE id=? AND company_id=?";
 const setLockSql = "SELECT state FROM attachment_sets WHERE id=? AND company_id=? FOR UPDATE";
@@ -172,11 +174,11 @@ export function repository(db: SqlDatabase) {
         }) => { return db.prepare("SELECT count(*) AS count FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.set_id=? AND s.company_id=? AND l.state IN ('draft','bound')").bind(facts.setId, facts.companyId).first("count"); },
         readAttachmentStorageLedger18: (facts: {
             companyId: string;
-        }) => { return db.prepare("SELECT COALESCE(sum(bytes),0) FROM attachment_storage_ledger WHERE company_id=? AND state IN ('reserved','stored')").bind(facts.companyId).first("coalesce"); },
+        }) => { return db.prepare(usedStorageSql).bind(facts.companyId).first("coalesce"); },
         readUploadIntents19: (facts: {
             companyId: string;
             now: number;
-        }) => { return db.prepare("SELECT COALESCE(sum(declared_bytes),0) FROM upload_intents WHERE company_id=? AND status='pending' AND expires_at>?").bind(facts.companyId, facts.now).first("coalesce"); },
+        }) => { return db.prepare(pendingStorageSql).bind(facts.companyId, facts.now).first("coalesce"); },
         stepAttachmentLinks21: (facts: {
             linkId: string;
             setId: string;

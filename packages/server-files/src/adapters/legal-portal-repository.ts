@@ -5,6 +5,7 @@ import {legalPortalStorageAllowance} from "@erpx/server-manage_erpx/public/legal
 import type {PortalAttachmentWrite,PortalAttachmentUnit,PortalAttachmentRepository,PortalAttachmentStageScope,PortalAttachmentRecoverySource} from "@erpx/server-legal/public/portal-attachment-contracts";
 import { legalAccessEvents } from '@erpx/server-collaboration/adapters/native-legal-access-events';
 import { legalPortalStagedStatements } from '@erpx/server-collaboration/adapters/native-legal-portal-staged';
+import {usedStorageSql,pendingStorageSql} from './attachments/service-repository';
 function unit(db:SqlDatabase):PortalAttachmentUnit{const nativeAccess=legalAccessEvents(db),nativeStaged=legalPortalStagedStatements(db);const writes=new WeakMap<PortalAttachmentWrite,SqlStatement>();function stage(statement:SqlStatement):PortalAttachmentWrite{const write:PortalAttachmentWrite={owner:"files"};writes.set(write,statement);return write;}
 function stagedSource(facts:PortalAttachmentStageScope){return db.prepare(`SELECT a.object_key,a.checksum_sha256,a.media_type,a.bytes,s.expected_target_version,
  CASE WHEN s.state='draft' AND l.state='draft' AND i.status='ready' AND a.source_state='available' AND a.revoked_at IS NULL THEN 1 ELSE 0 END recovery_draft,
@@ -23,8 +24,8 @@ function stagedSource(facts:PortalAttachmentStageScope){return db.prepare(`SELEC
 return {
 existing:stagedSource,
 recoverySource:stagedSource,
-usedStorage:(facts:{companyId:string;})=>db.prepare("SELECT COALESCE(sum(bytes),0) FROM attachment_storage_ledger WHERE company_id=? AND state IN ('reserved','stored')").bind(facts.companyId).first<number>("coalesce"),
-pendingStorage:(facts:{companyId:string;now:number;})=>db.prepare("SELECT COALESCE(sum(declared_bytes),0) FROM upload_intents WHERE company_id=? AND status='pending' AND expires_at>?").bind(facts.companyId,facts.now).first<number>("coalesce"),
+usedStorage:(facts:{companyId:string;})=>db.prepare(usedStorageSql).bind(facts.companyId).first<number>("coalesce"),
+pendingStorage:(facts:{companyId:string;now:number;})=>db.prepare(pendingStorageSql).bind(facts.companyId,facts.now).first<number>("coalesce"),
 storageAllowance:facts=>legalPortalStorageAllowance(db,facts.companyId),
 raced:stagedSource,
 async draftSet(facts){return stage(await nativeStaged.draftSet(facts));},
