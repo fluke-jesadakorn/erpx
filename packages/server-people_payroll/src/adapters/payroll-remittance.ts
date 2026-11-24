@@ -1,3 +1,4 @@
+import { ppRd21IdCompanyStatusVersionGuard } from './pp-read-tail-r21-sources';
 import { withPayrollPurchasedCommand, withPayrollPurchasedRead } from "@erpx/server-people_payroll/adapters/payroll-purchases";
 import { nativePeopleBatchC } from '@erpx/server-collaboration/adapters/native-people-batch-c';
 import "server-only";
@@ -31,7 +32,7 @@ function application(provided?: SqlDatabase) {
         bankAccount(...args) { return payrollRemittanceSources(database).bankAccount(...args); },
         periods(...args) { return payrollRemittanceSources(database).periods(...args); },
         lockRun(runId: string, companyId: string) { return database.prepare("SELECT id FROM hr_payroll_runs WHERE id=? AND company_id=? FOR UPDATE").bind(runId, companyId); },
-        guard8(key: string, value: "payroll-posted", runId: string, companyId: string, expectedRunVersion: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_payroll_runs WHERE id=? AND company_id=? AND status='posted' AND version=?)", [runId, companyId, expectedRunVersion]); },
+        guard8(key: string, value: "payroll-posted", runId: string, companyId: string, expectedRunVersion: number) { return assertion(database, key, value, ppRd21IdCompanyStatusVersionGuard('hr_payroll_runs', 'posted'), [runId, companyId, expectedRunVersion]); },
         guard9(...args) { return payrollRemittanceSources(database).guard9(...args); },
         guard10(...args) { return payrollRemittanceSources(database).guard10(...args); },
         insertRemittance(remittanceId: string, companyId: string, runId: string, kind: "withholding_tax" | "social_security", amountMinor: number, accountId: string, bankAccountId: string, bankTransactionId: string, id: string, bankReference: string, userId: string, now: number) {

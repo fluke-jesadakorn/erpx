@@ -1,3 +1,4 @@
+import { PP_RD21_SCOPE_COMPANY_SQL } from './pp-read-tail-r21-sources';
 import { PP_RD20_PAYROLL_RUNS_SQL, PP_RD20_PAYROLL_POSTINGS_SQL } from './pp-read-tail-r20-sources';
 import "server-only";
 import {createHash} from "node:crypto";
@@ -23,7 +24,7 @@ export const benefitPayrollSettlementSources={
 export async function benefitPeoplePackageObligations(owner:PostgresDatabase,database:SqlDatabase,input:Input){
  assertBenefitPeoplePackageObligationSources(owner,database,input.companyId);
  if(input.moduleId!=="people_payroll"||input.packageId!=="people-benefits"||input.packageVersion!==1||!Number.isSafeInteger(input.now)||input.now<0)throw Error("BENEFIT_PEOPLE_PACKAGE_OBLIGATION_SCOPE_REQUIRED");
- const facts=(await database.prepare(`WITH scope AS(SELECT ?::text company_id),elections AS MATERIALIZED(SELECT e.* FROM (${benefits.elections}) e,scope WHERE e.company_id=scope.company_id)
+ const facts=(await database.prepare(`${PP_RD21_SCOPE_COMPANY_SQL}),elections AS MATERIALIZED(SELECT e.* FROM (${benefits.elections}) e,scope WHERE e.company_id=scope.company_id)
  SELECT 'worker' kind,e.id,e.version,e.status state,jsonb_build_object('election',to_jsonb(e),'person',jsonb_build_object('id',p.id,'companyId',p.company_id,'status',p.status,'version',p.version,'userId',p.user_id),'engagement',to_jsonb(engagement)) image,
  p.id IS NULL OR engagement.id IS NULL OR engagement.person_id IS DISTINCT FROM e.person_id OR NOT e.terminal_proven pending
  FROM elections e LEFT JOIN hr_people p ON p.id=e.person_id AND p.company_id=e.company_id LEFT JOIN hr_engagements engagement ON engagement.id=e.engagement_id AND engagement.company_id=e.company_id

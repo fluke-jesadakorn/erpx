@@ -1,3 +1,4 @@
+import { PP_RD21_CLOCK_NOW_MS_SQL } from './pp-read-tail-r21-sources';
 import 'server-only';
 import {createHash} from 'node:crypto';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
@@ -5,7 +6,7 @@ import {ApiError} from '@erpx/server-runtime/public/http';
 import {loadIamAuthority} from '@erpx/server-identity_access/public/iam-store';
 import {assignmentReadSql} from '@erpx/server-identity_access/public/record-source-authority';
 import {readPurchasedAccesses} from '@erpx/server-commercial/public/purchase-command-boundary';
-import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
+import {purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {workerStartupSourcePolicy,workerStartupMarkedRows,type WorkerStartupConsumer} from '@erpx/server-people_payroll/adapters/project-worker-startup-source-sql';
 export type ProjectWorkerProductScope={companyId:string;branchId:string|null;departmentId:string|null;userId:string;assignmentId:string;assignmentVersion:number;role:string;sessionId:string;beta?:boolean};
@@ -17,7 +18,7 @@ export async function workerStartupProductEntry(database:SqlDatabase,scope:Proje
  let iam:Awaited<ReturnType<typeof loadIamAuthority>>;try{iam=await loadIamAuthority(database,scope.companyId,scope.userId,scope.role,scope.sessionId);}catch(error){if(error instanceof ApiError&&[401,403].includes(error.status))return null;throw error;}
  if(!iam.permissions.includes('people.manage')||!iam.permissions.includes('organization.manage'))return null;
  const access=await readPurchasedAccesses(database,'enforced',scope.companyId,projectWorkerCapabilities);if(!projectWorkerCapabilities.every(cap=>access[cap].history))return null;
- const current=await database.prepare(`WITH project_worker_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms)
+ const current=await database.prepare(`WITH project_worker_clock AS MATERIALIZED${PP_RD21_CLOCK_NOW_MS_SQL}
  SELECT a.id FROM assignments a CROSS JOIN (SELECT ?::text company_id,NULL::text branch_id,NULL::text department_id) project_worker_scope CROSS JOIN project_worker_clock
  WHERE a.id=? AND a.user_id=? AND a.company_id=project_worker_scope.company_id AND a.role=? AND a.version=? AND a.scope_kind='holding' AND NOT EXISTS(SELECT 1 FROM iam_revoked_sessions revoked WHERE revoked.company_id=a.company_id AND revoked.user_id=a.user_id AND revoked.session_id=?)
  AND ${assignmentReadSql('project_worker_scope','people.manage')} AND ${assignmentReadSql('project_worker_scope','organization.manage')}

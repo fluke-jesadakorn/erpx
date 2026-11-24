@@ -1,3 +1,4 @@
+import { PP_RD21_CLOCK_NOW_MS_SQL } from './pp-read-tail-r21-sources';
 import {rosterNotificationReadScope} from '@erpx/server-people_payroll/adapters/roster-notification-purchases';
 import 'server-only';
 import {randomUUID} from 'node:crypto';
@@ -12,7 +13,7 @@ import {ApiError} from '@erpx/server-runtime/public/http';
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {peoplePackageEnforcementMode,checkPurchasedCapability,readPurchasedAccess,purchaseCommandBoundary,purchaseCommandFailure,companyPurchaseReadLocks} from '@erpx/server-commercial/public/purchase-command-boundary';
 import type {CapabilityPurpose} from '@erpx/server-commercial/public/rules/packages';
-import {purchasedCapabilityPredicate,packageClockSql} from '@erpx/server-commercial/public/purchased-capability-sql';
+import {purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
 import {workforceSourceReadLocks} from '@erpx/server-people_payroll/adapters/workforce-purchases';
 import type {WorkItem} from '@erpx/feature-work_projection/lib/work-item';
 import type {FlowView} from '@erpx/feature-shared/lib/flow';
@@ -42,7 +43,7 @@ function source(actor:StaffActor,kind:Kind,id:string,company:string,purchased=tr
  args:[...(time?[actor.userId,actor.userId]:[]),actor.branchId,actor.branchId,actor.departmentId,actor.departmentId,...current.args,...policy.args],purpose};
 }
 const kinds=Object.keys(tables) as Kind[];
-function queries(actor:StaffActor,selected:Kind[],id:string,company:string,purchased=true){const values=selected.map(kind=>source(actor,kind,id,company,purchased));return {sql:`WITH workforce_source_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms) ${values.map(value=>value.sql).join(' UNION ALL ')}`,args:values.flatMap(value=>value.args)};}
+function queries(actor:StaffActor,selected:Kind[],id:string,company:string,purchased=true){const values=selected.map(kind=>source(actor,kind,id,company,purchased));return {sql:`WITH workforce_source_clock AS MATERIALIZED${PP_RD21_CLOCK_NOW_MS_SQL} ${values.map(value=>value.sql).join(' UNION ALL ')}`,args:values.flatMap(value=>value.args)};}
 function actual(id:string){return kinds.map(kind=>`EXISTS(SELECT 1 FROM ${tables[kind]} actual_workforce WHERE actual_workforce.id=${id})`).join(' OR ');}
 /** Exact persisted owner IDs only; unrelated People, Projects worker and
  * Learning learner foundations retain their original contracts. */

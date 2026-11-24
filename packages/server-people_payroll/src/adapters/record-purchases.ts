@@ -1,3 +1,4 @@
+import { PP_RD21_CLOCK_NOW_MS_SQL } from './pp-read-tail-r21-sources';
 import {expenseSourceReadScope,requireExpenseWorkspaceRecordRead} from '@erpx/server-people_payroll/adapters/expense-record-purchases';
 import "server-only";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
@@ -42,7 +43,7 @@ function sourceQuery(actor:WorkContext,kind:SourceKind,id:string,company:string,
 }
 function visible(actor:WorkContext,kinds:readonly SourceKind[],id:string,company:string,purchased:boolean){
  const queries=kinds.map(kind=>sourceQuery(actor,kind,id,company,purchased));
- return {sql:`WITH payroll_source_clock AS MATERIALIZED (SELECT ${packageClockSql} now_ms) ${queries.map(query=>query.sql).join(" UNION ALL ")}`,args:queries.flatMap(query=>query.args)};
+ return {sql:`WITH payroll_source_clock AS MATERIALIZED ${PP_RD21_CLOCK_NOW_MS_SQL} ${queries.map(query=>query.sql).join(" UNION ALL ")}`,args:queries.flatMap(query=>query.args)};
 }
 const allKinds=Object.keys(tables) as SourceKind[];
 const actualSource=(id:string)=>allKinds.map(kind=>`EXISTS(SELECT 1 FROM ${tables[kind]} s WHERE s.id=${id}${kind==="payment"?" AND s.source_type='payroll'":""})`).join(" OR ");
@@ -99,7 +100,7 @@ function baseSourceQuery(actor:WorkContext,kind:PeopleSourceKind,id:string,compa
  const purchase=purchased?purchasedCapabilityPredicate(ownerCompany,capability,"history","people_source_clock.now_ms"):"TRUE";
  return {sql:`SELECT s.id target_id FROM ${from} CROSS JOIN people_source_clock WHERE s.id=${id} AND ${ownerCompany}=${company} AND (${policy.where}) AND ${purchase}`,args:policy.args};
 }
-function baseVisible(actor:WorkContext,kinds:readonly PeopleSourceKind[],id:string,company:string,purchased:boolean,work=false){const queries=kinds.map(kind=>baseSourceQuery(actor,kind,id,company,purchased,work));return {sql:`WITH people_source_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms) ${queries.map(q=>q.sql).join(" UNION ALL ")}`,args:queries.flatMap(q=>q.args)};}
+function baseVisible(actor:WorkContext,kinds:readonly PeopleSourceKind[],id:string,company:string,purchased:boolean,work=false){const queries=kinds.map(kind=>baseSourceQuery(actor,kind,id,company,purchased,work));return {sql:`WITH people_source_clock AS MATERIALIZED${PP_RD21_CLOCK_NOW_MS_SQL} ${queries.map(q=>q.sql).join(" UNION ALL ")}`,args:queries.flatMap(q=>q.args)};}
 /** Actual People identities only. Generic imported records and Organization,
  * Projects worker and Learning learner foundation references retain owners. */
 export async function peopleSourceReadScope(database:SqlDatabase,actor:WorkContext,surface:"records"|"staff"|"inbox"){
@@ -130,7 +131,7 @@ export async function peopleWorkSourceAccess(database:SqlDatabase,actor:WorkCont
  const preparation=`SELECT s.id target_id,CASE WHEN s.case_id IS NULL THEN ${foundationSettle} WHEN c.kind IN ('offboarding','suspend') THEN ${purchasedCapabilityPredicate("s.company_id","people.lifecycle","settle-existing",now)} ELSE ${lifecycleNew} END can_act FROM people_preparation_tasks s LEFT JOIN people_lifecycle_cases c ON c.id=s.case_id AND c.company_id=s.company_id LEFT JOIN organization_positions p ON p.id=s.position_id AND p.company_id=s.company_id LEFT JOIN hr_engagements ce ON ce.id=c.engagement_id AND ce.company_id=c.company_id CROSS JOIN people_source_clock WHERE s.id=people_work_input.id AND s.company_id=people_work_input.company_id AND s.clearance_type IS NULL AND ((s.case_id IS NULL AND ${foundationHistory}) OR (c.id IS NOT NULL AND ${lifecycleHistory})) AND ((${foundation.where}) OR (${hr.where}) OR (${organization.where}))`;
  const reviews=`SELECT s.id target_id,CASE WHEN c.kind IN ('offboarding','suspend') THEN ${purchasedCapabilityPredicate("s.company_id","people.lifecycle","settle-existing",now)} ELSE ${lifecycleNew} END can_act FROM iam_reviews s JOIN people_lifecycle_cases c ON c.id=s.payload->>'caseId' AND c.company_id=s.company_id CROSS JOIN people_source_clock WHERE s.id=people_work_input.id AND s.company_id=people_work_input.company_id AND s.kind LIKE 'people.lifecycle.%' AND ${review.where} AND ${lifecycleHistory}`;
  const operations=`SELECT s.id target_id,${foundationSettle} can_act FROM people_directory_operations s CROSS JOIN people_source_clock WHERE s.id=people_work_input.id AND s.company_id=people_work_input.company_id AND ${directory.where} AND ${foundationHistory}`;
- const rows=await database.prepare(`WITH people_source_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms),people_work_input AS(SELECT jsonb_array_elements_text(?::jsonb) id,?::text company_id) SELECT permitted.target_id,bool_or(permitted.can_act) can_act FROM people_work_input JOIN LATERAL(${[lifecycle.sql,clearance.sql,preparation,reviews,operations].join(" UNION ALL ")})permitted ON TRUE GROUP BY permitted.target_id`).bind(JSON.stringify([...new Set(ids)]),actor.companyId,...lifecycle.args,...clearance.args,...foundation.args,...hr.args,...organization.args,...review.args,...directory.args).all<{target_id:string;can_act:boolean}>();
+ const rows=await database.prepare(`WITH people_source_clock AS MATERIALIZED${PP_RD21_CLOCK_NOW_MS_SQL},people_work_input AS(SELECT jsonb_array_elements_text(?::jsonb) id,?::text company_id) SELECT permitted.target_id,bool_or(permitted.can_act) can_act FROM people_work_input JOIN LATERAL(${[lifecycle.sql,clearance.sql,preparation,reviews,operations].join(" UNION ALL ")})permitted ON TRUE GROUP BY permitted.target_id`).bind(JSON.stringify([...new Set(ids)]),actor.companyId,...lifecycle.args,...clearance.args,...foundation.args,...hr.args,...organization.args,...review.args,...directory.args).all<{target_id:string;can_act:boolean}>();
  return new Map(rows.results.map(row=>[row.target_id,{history:true,canAct:row.can_act}]));
 }
 export async function filterPeopleLifecycleWork(database:SqlDatabase,actor:WorkContext,items:import("@erpx/feature-work_projection/lib/work-item").WorkItem[]){

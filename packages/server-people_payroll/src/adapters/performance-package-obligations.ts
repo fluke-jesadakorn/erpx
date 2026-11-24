@@ -1,3 +1,4 @@
+import { PP_RD21_SCOPE_COMPANY_SQL } from './pp-read-tail-r21-sources';
 import 'server-only';
 import {createHash} from 'node:crypto';
 import type {PostgresDatabase} from '@erpx/server-runtime/public/runtime/postgres';
@@ -18,7 +19,7 @@ export async function lockPerformancePackageObligationSources(owner:PostgresData
 export async function performancePackageObligations(owner:PostgresDatabase,database:SqlDatabase,input:Input){
  owner.assertActiveTransaction(database);if(sources.get(database)!==input.companyId)throw Error('PERFORMANCE_PACKAGE_OBLIGATION_SOURCE_REQUIRED');
  if(input.packageId!=='people-performance'||input.packageVersion!==1||input.moduleId!=='people_payroll'||!Number.isSafeInteger(input.now)||input.now<0)throw Error('PERFORMANCE_PACKAGE_OBLIGATION_SCOPE_REQUIRED');
- const facts=(await database.prepare(`WITH scope AS(SELECT ?::text company_id),
+ const facts=(await database.prepare(`${PP_RD21_SCOPE_COMPANY_SQL}),
  definitions AS MATERIALIZED(SELECT d.* FROM hr_evaluation_definitions d,scope WHERE d.company_id=scope.company_id),
  assessments AS MATERIALIZED(SELECT a.* FROM hr_evaluation_assessments a,scope WHERE a.company_id=scope.company_id),
  drafts AS MATERIALIZED(SELECT d.* FROM hr_evaluation_compensation_drafts d,scope WHERE d.company_id=scope.company_id),

@@ -1,3 +1,4 @@
+import { PP_RD21_SCOPE_COMPANY_SQL } from './pp-read-tail-r21-sources';
 import {learningWorkerSourceRows,learningWorkerMarkedRows,learningWorkerPlacementRows,learningWorkerPlacementMarkedRows,projectWorkerPlacementTerminalRows} from '@erpx/server-people_payroll/adapters/project-worker-startup-source-sql';
 import "server-only";
 import {createHash} from "node:crypto";
@@ -21,7 +22,7 @@ export async function learningPeoplePackageObligations(owner:PostgresDatabase,da
  assertLearningPackageObligationSources(owner,database,input.companyId);
  if(input.moduleId!=="people_payroll"||input.packageId!=="learn"||input.packageVersion!==1||!Number.isSafeInteger(input.now)||input.now<0)
   throw Error("LEARNING_PEOPLE_PACKAGE_OBLIGATION_SCOPE_REQUIRED");
- const facts=(await database.prepare(`WITH scope AS(SELECT ?::text company_id),
+ const facts=(await database.prepare(`${PP_RD21_SCOPE_COMPANY_SQL}),
  assignments AS MATERIALIZED(SELECT a.* FROM (${learning.assignments}) a,scope WHERE a.company_id=scope.company_id),
  handoffs AS MATERIALIZED(SELECT h.* FROM (${learning.handoffs}) h,scope WHERE h.company_id=scope.company_id),
  certificates AS MATERIALIZED(SELECT c.* FROM (${learning.certificates}) c,scope WHERE c.company_id=scope.company_id)

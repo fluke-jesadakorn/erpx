@@ -1,3 +1,4 @@
+import { ppRd21IdVersionStatusGuard } from './pp-read-tail-r21-sources';
 import {peoplePackageEnforcementMode,checkPurchasedCapability,readPurchasedAccess} from "@erpx/server-commercial/public/purchase-command-boundary";
 import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packages";
 import { hospitalityOwnerProjectionSources as filesProjectionSources } from "@erpx/server-files/public/hospitality-owner-projection-sources";
@@ -93,7 +94,7 @@ export async function expenseAiSource(
               db,
               key,
               "ai-payment-source",
-              "EXISTS(SELECT 1 FROM expense_payment_drafts WHERE id=? AND version=? AND status='draft')",
+              ppRd21IdVersionStatusGuard('expense_payment_drafts', 'draft'),
               [paymentId, Number(payment.version)],
             ),
           ]

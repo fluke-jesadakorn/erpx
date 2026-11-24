@@ -1,12 +1,13 @@
+import { PP_RD21_CLOCK_NOW_MS_SQL } from './pp-read-tail-r21-sources';
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { peoplePackageEnforcementMode } from "@erpx/server-commercial/public/purchase-command-boundary";
-import { packageClockSql, purchasedCapabilityPredicate } from "@erpx/server-commercial/public/purchased-capability-sql";
+import { purchasedCapabilityPredicate } from "@erpx/server-commercial/public/purchased-capability-sql";
 import { ppRd19InList as inList } from './pp-read-tail-r19-sources';
 async function purchasedRosterSql() {
     const mode = await peoplePackageEnforcementMode();
     return mode === "enforced" ? {
-        clock: `WITH roster_purchase_clock AS MATERIALIZED (SELECT ${packageClockSql} now_ms) `,
+        clock: `WITH roster_purchase_clock AS MATERIALIZED ${PP_RD21_CLOCK_NOW_MS_SQL} `,
         where: ` AND (SELECT ${purchasedCapabilityPredicate("w.company_id", "people.workforce", "history", "roster_purchase_clock.now_ms")} FROM roster_purchase_clock)`,
     } : {clock: "", where: ""};
 }

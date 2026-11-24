@@ -1,3 +1,4 @@
+import { PP_RD21_CLOCK_NOW_MS_SQL } from './pp-read-tail-r21-sources';
 import 'server-only';
 import {createHash} from 'node:crypto';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
@@ -6,7 +7,7 @@ import {loadIamAuthority} from '@erpx/server-identity_access/public/iam-store';
 import {currentAssignmentReadScope} from '@erpx/server-identity_access/public/record-source-authority';
 import {effectiveWorkModules} from '@erpx/server-identity_access/public/rules/work-modules';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
-import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
+import {purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
 import {readPurchasedAccess} from '@erpx/server-commercial/public/purchase-command-boundary';
 import type {StaffActor} from '@erpx/server-operations/public/staff-policy';
 import {expenseVisibleRecordIds} from '@erpx/server-people_payroll/adapters/expense-read';
@@ -25,7 +26,7 @@ export async function peopleFinancialProductEntry(database:SqlDatabase,scope:Peo
  if(!purchase.history)return null;
  const actor:StaffActor={userId:scope.userId,assignmentId:scope.assignmentId,role:scope.role,companyId:scope.companyId,branchId:null,departmentId:null,iam};
  const current=currentAssignmentReadScope(actor,'workforce_actor_scope');
- const query=`WITH people_financial_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms)
+ const query=`WITH people_financial_clock AS MATERIALIZED${PP_RD21_CLOCK_NOW_MS_SQL}
  SELECT a.modules_json FROM assignments a CROSS JOIN(SELECT ?::text company_id,NULL::text branch_id,NULL::text department_id)workforce_actor_scope CROSS JOIN people_financial_clock
  WHERE a.id=? AND a.user_id=? AND a.role=? AND a.company_id=workforce_actor_scope.company_id AND a.scope_kind='holding' AND a.version=?
  AND (${current.where})

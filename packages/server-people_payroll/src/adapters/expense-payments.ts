@@ -1,3 +1,4 @@
+import { ppRd21IdVersionStatusGuard } from './pp-read-tail-r21-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import{paymentDraft,nativeExpensePaymentReader,paymentFromDatabase}from '@erpx/server-people_payroll/adapters/expense-payment-read';
 export{paymentDraft,nativeExpensePaymentReader,paymentFromDatabase};
@@ -158,7 +159,7 @@ function originalNativeExpensePaymentPreparation(write: SqlDatabase) {
         write,
         key,
         "payment-draft-version",
-        "EXISTS(SELECT 1 FROM expense_payment_drafts WHERE id=? AND version=? AND status='draft')",
+        ppRd21IdVersionStatusGuard('expense_payment_drafts', 'draft'),
         [id, input.expectedVersion],
       ),
       nativePpStatement('pp_expense_payments_stmt_1')
@@ -190,7 +191,7 @@ function originalNativeExpensePaymentSlipRemoval(write: SqlDatabase) {
         write,
         key,
         "payment-draft-version",
-        "EXISTS(SELECT 1 FROM expense_payment_drafts WHERE id=? AND version=? AND status='draft')",
+        ppRd21IdVersionStatusGuard('expense_payment_drafts', 'draft'),
         [id, expectedVersion],
       ),
       assertion(

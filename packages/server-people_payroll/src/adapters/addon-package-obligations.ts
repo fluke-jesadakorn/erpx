@@ -1,3 +1,4 @@
+import { PP_RD21_SCOPE_COMPANY_SQL } from './pp-read-tail-r21-sources';
 import { PP_RD20_PAYROLL_RUNS_SQL, PP_RD20_PAYROLL_POSTINGS_SQL, PP_RD20_STATUTORY_REMITTANCES_SQL, PP_RD20_PAYROLL_ITEMS_SQL, PP_RD20_PAYMENT_BATCHES_SQL, PP_RD20_PAYMENT_BATCH_ITEMS_SQL, PP_RD20_PAYROLL_PAYMENT_SETTLEMENTS_SQL, PP_RD20_PAYROLL_RECOVERIES_SQL, PP_RD20_PAYROLL_ADVANCES_SQL, PP_RD20_PAYROLL_ADVANCE_REPAYMENTS_SQL } from './pp-read-tail-r20-sources';
 import {finalPayCancellationTerminalRows,finalPayCancellationTerminalSourceReadLocks} from '@erpx/server-people_payroll/adapters/final-pay-cancellation-terminal-sources';
 import 'server-only';
@@ -38,7 +39,7 @@ export const peopleAddonSettlementSources={
  settlements:PP_RD20_PAYROLL_PAYMENT_SETTLEMENTS_SQL,remittances:PP_RD20_STATUTORY_REMITTANCES_SQL,
  recoveries:PP_RD20_PAYROLL_RECOVERIES_SQL,advances:PP_RD20_PAYROLL_ADVANCES_SQL,repayments:PP_RD20_PAYROLL_ADVANCE_REPAYMENTS_SQL,
 } as const;
-const payrollFacts=`WITH scope AS(SELECT ?::text company_id),
+const payrollFacts=`${PP_RD21_SCOPE_COMPANY_SQL}),
  runs AS MATERIALIZED(SELECT r.* FROM hr_payroll_runs r,scope WHERE r.company_id=scope.company_id),
  final_pay_terminals AS MATERIALIZED(${finalPayCancellationTerminalRows}),
  facts AS(
@@ -83,7 +84,7 @@ const payrollFacts=`WITH scope AS(SELECT ?::text company_id),
  OR (r.status='cancelled' AND (a.active OR EXISTS(SELECT 1 FROM hr_payroll_adjustment_time_claims claim WHERE claim.run_id=a.run_id AND claim.active)))
  FROM hr_payroll_adjustments a CROSS JOIN scope LEFT JOIN runs r ON r.id=a.run_id LEFT JOIN runs origin ON origin.id=a.original_run_id WHERE a.company_id=scope.company_id
  ) SELECT kind,id,version,state,image,COALESCE(pending,true) pending FROM facts ORDER BY kind,id`;
-const expenseFacts=`WITH scope AS(SELECT ?::text company_id),
+const expenseFacts=`${PP_RD21_SCOPE_COMPANY_SQL}),
  terminals AS MATERIALIZED(SELECT e.id,e.company_id,e.version,(receipt.result_json::jsonb->>'version')::bigint terminal_version
  FROM finance_expenses e CROSS JOIN scope JOIN command_receipts receipt ON receipt.record_id=e.id AND receipt.authority_json::jsonb->>'companyId'=e.company_id
  WHERE e.company_id=scope.company_id AND e.status='rejected' AND receipt.result_json::jsonb->>'id'=e.id AND receipt.result_json::jsonb->>'version'~'^[1-9][0-9]*$'

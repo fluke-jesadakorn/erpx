@@ -1,3 +1,4 @@
+import { ppRd21IdCompanyStatusVersionGuard } from './pp-read-tail-r21-sources';
 import { withPayrollPurchasedCommand, withPayrollPurchasedRead } from "@erpx/server-people_payroll/adapters/payroll-purchases";
 import { nativePeopleBatchA } from '@erpx/server-collaboration/adapters/native-people-batch-a';
 import "server-only";
@@ -36,7 +37,7 @@ function application(provided?: SqlDatabase) {
             }>();
         },
         posting(...args) { return postingSource(database).posting(...args); },
-        guard12(commandId: string, value: "payslip-source", runId: string, companyId: string, expectedVersion: number) { return assertion(database, commandId, value, "EXISTS(SELECT 1 FROM hr_payroll_runs WHERE id=? AND company_id=? AND status='posted' AND version=?)", [runId, companyId, expectedVersion]); },
+        guard12(commandId: string, value: "payslip-source", runId: string, companyId: string, expectedVersion: number) { return assertion(database, commandId, value, ppRd21IdCompanyStatusVersionGuard('hr_payroll_runs', 'posted'), [runId, companyId, expectedVersion]); },
         guard13(commandId: string, value: "payslips-not-issued", runId: string) { return assertion(database, commandId, value, "NOT EXISTS(SELECT 1 FROM hr_issued_payslips WHERE run_id=?)", [runId]); } };
     return createPayrollPayslipApplication({ repository, clock: { now: Date.now }, hash: sha256, authorize: requirePermission, prepare: async (holding) => { database = provided ?? (await holdingResources(holding)).write; }, commands: { replay: (...args) => replayCommand(database, ...args), commit: (...args) => executeCommand(database, ...args) } });
 }

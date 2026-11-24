@@ -1,9 +1,10 @@
+import { PP_RD21_CLOCK_NOW_MS_SQL } from './pp-read-tail-r21-sources';
 import 'server-only';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {currentAssignmentReadScope} from '@erpx/server-identity_access/public/record-source-authority';
 import {activeStaffSelect} from '@erpx/server-operations/public/staff-policy';
 import {rosterCoverageGapSql,rosterNotificationDepartmentScope,rosterNotificationDepartmentSource} from '@erpx/server-organization/public/roster-source-scope';
-import {purchasedCapabilityPredicate,packageClockSql} from '@erpx/server-commercial/public/purchased-capability-sql';
+import {purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
 type Kind='week'|'request'|'coverage';
 function source(actor:WorkContext,kind:Kind,id:string,company:string,coverageAsOf?:number){
  const department=rosterNotificationDepartmentScope(actor),current=currentAssignmentReadScope(actor,'workforce_actor_scope'),permissions=(['roster.read','roster.manage','roster.approve'] as const).map(permission=>currentAssignmentReadScope(actor,'workforce_actor_scope',permission));
@@ -11,7 +12,7 @@ function source(actor:WorkContext,kind:Kind,id:string,company:string,coverageAsO
  // Original activeStaff selection and uniqueness are retained. Its validity
  // clocks use this statement; manager access does not require an engagement.
  let parameter=0;const staff=activeStaffSelect.replace(/\?/g,()=>parameter++===0?'?':'(SELECT now_ms FROM roster_source_clock)');
- const cte=`WITH roster_source_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms),roster_actor_candidates AS MATERIALIZED(${staff} AND p.user_id=?),roster_self AS(SELECT person_id,department_id FROM roster_actor_candidates WHERE (SELECT count(*) FROM roster_actor_candidates)=1)`;
+ const cte=`WITH roster_source_clock AS MATERIALIZED${PP_RD21_CLOCK_NOW_MS_SQL},roster_actor_candidates AS MATERIALIZED(${staff} AND p.user_id=?),roster_self AS(SELECT person_id,department_id FROM roster_actor_candidates WHERE (SELECT count(*) FROM roster_actor_candidates)=1)`;
  let from:string,policy:string,policyArgs:(string|number|null)[];
  if(kind==='coverage'){
   const manage=currentAssignmentReadScope(actor,'workforce_actor_scope','roster.manage');

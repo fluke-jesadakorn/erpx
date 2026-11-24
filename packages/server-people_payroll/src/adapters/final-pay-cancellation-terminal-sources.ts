@@ -1,3 +1,4 @@
+import { PP_RD21_SCOPE_COMPANY_SQL } from './pp-read-tail-r21-sources';
 import 'server-only';
 import {recordAttachmentVersionSteps,recordAttachmentVersionSourceReadLocks} from '@erpx/server-files/public/record-version-receipts';
 import {payrollFinalPayCancellationJournalSources,payrollFinalPayCancellationFinanceSourceLocks} from '@erpx/server-finance/public/payroll-final-pay-cancellation-sources';
@@ -65,4 +66,4 @@ export async function finalPayCancellationTerminalSourceReadLocks(database:SqlDa
  await database.prepare('LOCK TABLE command_receipts,hr_payroll_final_pay_events,hr_issued_payslips,hr_payroll_deduction_consumptions,audit_events,outbox_events IN SHARE MODE').run();
  await database.batch([...recordAttachmentVersionSourceReadLocks(database),...payrollFinalPayCancellationFinanceSourceLocks(database)]);
 }
-export async function finalPayCancellationTerminal(database:SqlDatabase,companyId:string,preparationId:string){return !!await database.prepare(`WITH scope AS(SELECT ?::text company_id) SELECT 1 FROM (${finalPayCancellationTerminalRows}) terminal WHERE terminal.preparation_id=? AND terminal.company_id=?`).bind(companyId,preparationId,companyId).first();}
+export async function finalPayCancellationTerminal(database:SqlDatabase,companyId:string,preparationId:string){return !!await database.prepare(`${PP_RD21_SCOPE_COMPANY_SQL}) SELECT 1 FROM (${finalPayCancellationTerminalRows}) terminal WHERE terminal.preparation_id=? AND terminal.company_id=?`).bind(companyId,preparationId,companyId).first();}

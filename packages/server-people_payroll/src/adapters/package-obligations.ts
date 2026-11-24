@@ -1,3 +1,4 @@
+import { PP_RD21_SCOPE_COMPANY_SQL } from './pp-read-tail-r21-sources';
 import { PP_RD20_PAYROLL_RUNS_SQL, PP_RD20_PAYROLL_POSTINGS_SQL, PP_RD20_STATUTORY_REMITTANCES_SQL, PP_RD20_PAYROLL_ITEMS_SQL, PP_RD20_PAYMENT_BATCHES_SQL, PP_RD20_PAYMENT_BATCH_ITEMS_SQL, PP_RD20_PAYROLL_PAYMENT_SETTLEMENTS_SQL, PP_RD20_PAYROLL_RECOVERIES_SQL, PP_RD20_PAYROLL_ADVANCES_SQL, PP_RD20_PAYROLL_ADVANCE_REPAYMENTS_SQL } from './pp-read-tail-r20-sources';
 import {PP_RD15_PEOPLE_SNAPSHOT_SQL} from './pp-read-tail-r15-sources';
 import {finalPayCancellationTerminalRows,finalPayCancellationTerminalSourceReadLocks} from '@erpx/server-people_payroll/adapters/final-pay-cancellation-terminal-sources';
@@ -40,7 +41,7 @@ export function assertPeoplePackageObligationSources(owner:PostgresDatabase,data
 export async function peoplePackageObligations(owner:PostgresDatabase,database:SqlDatabase,input:Input){
  assertPeoplePackageObligationSources(owner,database,input.companyId);
  if(input.moduleId!=="people_payroll"||!["people","people-workforce"].includes(input.packageId)||input.packageVersion!==1||!Number.isSafeInteger(input.now)||input.now<0)throw Error("PEOPLE_PACKAGE_OBLIGATION_SCOPE_REQUIRED");
- const facts=(await database.prepare(`WITH scope AS(SELECT ?::text company_id,?::boolean is_base,?::bigint now_ms),
+ const facts=(await database.prepare(`${PP_RD21_SCOPE_COMPANY_SQL},?::boolean is_base,?::bigint now_ms),
  people AS MATERIALIZED(SELECT p.* FROM hr_people p,scope WHERE p.company_id=scope.company_id),
  engagements AS MATERIALIZED(SELECT e.* FROM hr_engagements e,scope WHERE e.company_id=scope.company_id),
  cases AS MATERIALIZED(SELECT c.* FROM people_lifecycle_cases c,scope WHERE c.company_id=scope.company_id),

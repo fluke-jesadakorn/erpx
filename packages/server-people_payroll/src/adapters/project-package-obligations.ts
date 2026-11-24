@@ -1,3 +1,4 @@
+import { PP_RD21_SCOPE_COMPANY_SQL } from './pp-read-tail-r21-sources';
 import {projectWorkerSourceRows,projectWorkerMarkedRows,projectWorkerPlacementRows,projectWorkerPlacementMarkedRows,projectWorkerPlacementTerminalRows} from '@erpx/server-people_payroll/adapters/project-worker-startup-source-sql';
 import "server-only";
 import {createHash} from "node:crypto";
@@ -12,7 +13,7 @@ export async function lockProjectPeoplePackageObligationSources(owner:PostgresDa
 export async function projectPeoplePackageObligations(owner:PostgresDatabase,database:SqlDatabase,input:Input){
  owner.assertActiveTransaction(database);if(sources.get(database)!==input.companyId)throw Error("PROJECT_PEOPLE_PACKAGE_OBLIGATION_SOURCE_REQUIRED");assertProjectPackageObligationSources(owner,database,input.companyId);
  if(input.moduleId!=="people_payroll"||!["projects","projects-costs"].includes(input.packageId)||input.packageVersion!==1||!Number.isSafeInteger(input.now)||input.now<0)throw Error("PROJECT_PEOPLE_PACKAGE_OBLIGATION_SCOPE_REQUIRED");
- const facts=(await database.prepare(`WITH scope AS(SELECT ?::text company_id,?::boolean is_base),
+ const facts=(await database.prepare(`${PP_RD21_SCOPE_COMPANY_SQL},?::boolean is_base),
  projects AS MATERIALIZED(SELECT p.* FROM (${projects.projects}) p,scope WHERE p.company_id=scope.company_id),
  refs AS(SELECT 'project-owner' kind,p.id,p.owner_user_id user_id,p.company_id,p.lifecycle_status<>'completed' pending_reference FROM projects p,scope WHERE scope.is_base
  UNION ALL SELECT 'work-log',l.id,l.user_id,l.company_id,l.state='submitted' FROM (${projects.workLogs}) l,scope WHERE scope.is_base AND l.company_id=scope.company_id

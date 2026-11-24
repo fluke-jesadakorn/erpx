@@ -1,9 +1,10 @@
+import { PP_RD21_CLOCK_NOW_MS_SQL } from './pp-read-tail-r21-sources';
 import 'server-only';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {currentAssignmentReadScope} from '@erpx/server-identity_access/public/record-source-authority';
 import {peoplePackageEnforcementMode,readPurchasedAccess} from '@erpx/server-commercial/public/purchase-command-boundary';
-import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
+import {purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
 import {requireExpensePurchasedHistory,expenseCurrentAuthorityImage} from '@erpx/server-people_payroll/adapters/expense-purchases';
 import {lockQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
 import {lockPackageSettlementSources} from '@erpx/server-commercial/public/package-locks';
@@ -22,7 +23,7 @@ export async function expenseSourceReadScope(database:SqlDatabase,actor:WorkCont
  const id=surface==='records'?'workspace_records.id':surface==='staff'?'staff_notifications.record_id':'e.source_id',company=surface==='records'?'workspace_records.company_id':surface==='staff'?'staff_notifications.company_id':'e.company_id';
  const unit=surface==='records'?recordReadUnits.get(database):undefined,recordScope=surface==='records'?{where:unit?.actor===recordActor(actor)&&unit.companyId===actor.companyId?'workspace_records.id IN(SELECT value FROM erpx_json_each(?))':'FALSE',args:unit?.actor===recordActor(actor)&&unit.companyId===actor.companyId?[JSON.stringify(unit.ids)]:[]}: {where:'TRUE',args:[]};
  const current=currentAssignmentReadScope(actor,'workforce_actor_scope'),purchase=purchasedCapabilityPredicate('expense_source.company_id','people.expenses','history','expense_source_clock.now_ms');
- return {where:`(NOT EXISTS(${actual(id,company)}) OR EXISTS(WITH expense_source_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms) SELECT 1 FROM (${actual(id,company)}) expense_source CROSS JOIN expense_source_clock CROSS JOIN LATERAL(SELECT expense_source.company_id,expense_source.branch_id,expense_source.department_id) workforce_actor_scope WHERE ${purchase} AND ${current.where} AND ${recordScope.where}))`,args:[...current.args,...recordScope.args]};
+ return {where:`(NOT EXISTS(${actual(id,company)}) OR EXISTS(WITH expense_source_clock AS MATERIALIZED${PP_RD21_CLOCK_NOW_MS_SQL} SELECT 1 FROM (${actual(id,company)}) expense_source CROSS JOIN expense_source_clock CROSS JOIN LATERAL(SELECT expense_source.company_id,expense_source.branch_id,expense_source.department_id) workforce_actor_scope WHERE ${purchase} AND ${current.where} AND ${recordScope.where}))`,args:[...current.args,...recordScope.args]};
 }
 export async function requireExpenseWorkspaceRecordRead(database:SqlDatabase,actor:WorkContext,_moduleId:string,id:string){
  if(await peoplePackageEnforcementMode()==='disabled')return;
