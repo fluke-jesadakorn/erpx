@@ -10,7 +10,7 @@ import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commerc
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {benefitAttachmentPeopleSources as people} from "@erpx/server-people_payroll/public/benefits-owner-facts";
 import {ApiError} from "@erpx/server-runtime/public/http";
-import {benefitPurchaseControls,benefitAssignmentModulePredicate} from "@erpx/server-benefits/adapters/purchases";
+import {benefitPurchaseControls,benefitAssignmentSelectSql} from "@erpx/server-benefits/adapters/purchases";
 import {workforceActorScopeProbe} from "@erpx/server-benefits/adapters/benefits-read-sql";
 const activeEngagementScope=`EXISTS(SELECT 1 FROM (${people.engagements}) e WHERE e.person_id=p.id AND e.company_id=p.company_id AND e.status='active')`;
 const nativeSources=`SELECT r.id,r.company_id,'plan' kind,NULL::text person_user_id,TRUE current_person FROM benefit_plans r
@@ -21,7 +21,7 @@ const benefitActualProbe=`SELECT 1 FROM (${nativeSources}) benefit_actual WHERE`
 function visible(actor:WorkContext,id:string,company:string,purchased=true,electionOnly=false){
  const current=currentAssignmentReadScope(actor,"workforce_actor_scope"),read=hasModuleAccess(actor.modules,"benefits")&&hasPermission(actor,"records.read"),review=hasPermission(actor,"benefits.review")?"iam_role_allows(?,?,'benefits.review')":"FALSE",reviewArgs=hasPermission(actor,"benefits.review")?[actor.role,actor.companyId]:[];
  return {sql:`EXISTS(WITH benefit_source_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms) SELECT 1 FROM (${nativeSources}) benefit_source CROSS JOIN benefit_source_clock CROSS JOIN LATERAL(SELECT benefit_source.company_id,?::text branch_id,?::text department_id)workforce_actor_scope
- WHERE benefit_source.id=${id} AND benefit_source.company_id=${company} AND ${electionOnly?"benefit_source.kind='election'":"TRUE"} AND ${read?'TRUE':'FALSE'} AND ${current.where} AND iam_role_allows(?,?,'records.read') AND EXISTS(SELECT 1 FROM assignments selected WHERE selected.id=? AND ${benefitAssignmentModulePredicate})
+ WHERE benefit_source.id=${id} AND benefit_source.company_id=${company} AND ${electionOnly?"benefit_source.kind='election'":"TRUE"} AND ${read?'TRUE':'FALSE'} AND ${current.where} AND iam_role_allows(?,?,'records.read') AND EXISTS(${benefitAssignmentSelectSql})
  AND (benefit_source.kind IN ('plan','window') OR (benefit_source.person_user_id=? AND benefit_source.current_person) OR (benefit_source.kind='election' AND ${review}))
  AND ${purchased?purchasedCapabilityPredicate('benefit_source.company_id','people.benefits','history','benefit_source_clock.now_ms'):'TRUE'} AND ${scheduledFeaturePredicate('benefit_source.company_id','benefits')})`,args:[actor.branchId,actor.departmentId,...current.args,actor.role,actor.companyId,actor.assignmentId,actor.userId,...reviewArgs]};
 }
@@ -58,7 +58,7 @@ export async function benefitMetricHistoryAccess(database:SqlDatabase,actor:Work
 export async function benefitMetricSourceScope(actor:WorkContext){
  if(await peoplePackageEnforcementMode()!=="enforced")return {where:"TRUE",args:[] as (string|number|null)[]};
  const current=currentAssignmentReadScope(actor,"workforce_actor_scope"),permitted=hasModuleAccess(actor.modules,"benefits")&&hasPermission(actor,"records.read");
- return {where:`EXISTS(${workforceActorScopeProbe},${packageClockSql} now_ms)workforce_actor_scope WHERE ${permitted?'TRUE':'FALSE'} AND ${current.where} AND iam_role_allows(?,?,'records.read') AND EXISTS(SELECT 1 FROM assignments selected WHERE selected.id=? AND ${benefitAssignmentModulePredicate}) AND ${purchasedCapabilityPredicate('workforce_actor_scope.company_id','people.benefits','history','workforce_actor_scope.now_ms')} AND ${scheduledFeaturePredicate('workforce_actor_scope.company_id','benefits')})`,args:[actor.companyId,actor.branchId,actor.departmentId,...current.args,actor.role,actor.companyId,actor.assignmentId]};
+ return {where:`EXISTS(${workforceActorScopeProbe},${packageClockSql} now_ms)workforce_actor_scope WHERE ${permitted?'TRUE':'FALSE'} AND ${current.where} AND iam_role_allows(?,?,'records.read') AND EXISTS(${benefitAssignmentSelectSql}) AND ${purchasedCapabilityPredicate('workforce_actor_scope.company_id','people.benefits','history','workforce_actor_scope.now_ms')} AND ${scheduledFeaturePredicate('workforce_actor_scope.company_id','benefits')})`,args:[actor.companyId,actor.branchId,actor.departmentId,...current.args,actor.role,actor.companyId,actor.assignmentId]};
 }
 
 /** Aggregate counts are the original coarse Company facts. Drilldown and

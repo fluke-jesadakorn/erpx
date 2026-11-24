@@ -16,10 +16,11 @@ export type BenefitPurchaseControls={newWork:boolean;settleExisting:boolean;hist
 const permission=(review:boolean)=>review?"benefits.review":"records.write";
 
 export const benefitAssignmentModulePredicate="((selected.role LIKE 'custom_%' AND iam_role_allows(selected.role,selected.company_id,'module.benefits')) OR (selected.role NOT LIKE 'custom_%' AND (jsonb_array_length(selected.modules_json::jsonb)=0 OR selected.modules_json::jsonb @> jsonb_build_array('benefits'::text))))";
+export const benefitAssignmentSelectSql=`SELECT 1 FROM assignments selected WHERE selected.id=? AND ${benefitAssignmentModulePredicate}`;
 async function current(database:SqlDatabase,actor:WorkContext,key:string,write:boolean,review=false){
  if(!hasModuleAccess(actor.modules,"benefits"))throw new ApiError(403,"MODULE_FORBIDDEN","Your current role cannot access Benefits.");
  await requirePeopleCurrentAuthority(database,actor,key,write?"records.write":"records.read");
- if(!await database.prepare(`SELECT 1 FROM assignments selected WHERE selected.id=? AND ${benefitAssignmentModulePredicate}`).bind(actor.assignmentId).first())throw new ApiError(403,"BENEFIT_ACCESS_CHANGED","The current assignment no longer includes Benefits.");
+ if(!await database.prepare(benefitAssignmentSelectSql).bind(actor.assignmentId).first())throw new ApiError(403,"BENEFIT_ACCESS_CHANGED","The current assignment no longer includes Benefits.");
  if(review)await requirePeopleCurrentAuthority(database,actor,key,permission(true));
 }
 export function benefitSourceReadLocks(database:SqlDatabase){
