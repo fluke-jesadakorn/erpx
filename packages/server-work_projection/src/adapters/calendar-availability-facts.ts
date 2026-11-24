@@ -2,6 +2,8 @@ import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { type RecurrenceRule } from "@erpx/feature-work_projection/lib/calendar-recurrence";
 
+export const occurrenceResponseSql="SELECT response FROM calendar_occurrence_responses WHERE appointment_id=? AND company_id=? AND occurrence_key=? AND user_id=?";
+
 // Fixed occurrence reads shared by the availability and reminders fact units.
 // One implementation serves the series, moved-exception and reminder paths.
 export function readOccurrenceResponse(db: SqlDatabase, facts: {
@@ -10,7 +12,7 @@ export function readOccurrenceResponse(db: SqlDatabase, facts: {
         value3: string;
         value4: string;
     }) {
-    return db.prepare("SELECT response FROM calendar_occurrence_responses WHERE appointment_id=? AND company_id=? AND occurrence_key=? AND user_id=?").bind(facts.value1, facts.value2, facts.value3, facts.value4).first<{
+    return db.prepare(occurrenceResponseSql).bind(facts.value1, facts.value2, facts.value3, facts.value4).first<{
         response: string;
     }>();
 }
