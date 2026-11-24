@@ -1332,6 +1332,7 @@
 @source "../../../../packages/server-pms/src/adapters/pms-booking.ts";
 @source "../../../../packages/server-pms/src/adapters/pms-read-tail-r17-sql.ts";
 @source "../../../../packages/server-pms/src/adapters/pms-read-tail-r18-sql.ts";
+@source "../../../../packages/server-pms/src/adapters/pms-read-tail-r19-sql.ts";
 @source "../../../../packages/server-pms/src/adapters/pms.ts";
 @source "../../../../packages/server-pms/src/adapters/pms/guest-document.ts";
 @source "../../../../packages/server-pms/src/adapters/pms/home.ts";

@@ -1996,6 +1996,7 @@
 @source "../../../../packages/server-legal/src/adapters/legal-read-tail-r16-sources.ts";
 @source "../../../../packages/server-legal/src/adapters/legal-read-tail-r18-sources.ts";
 @source "../../../../packages/server-legal/src/adapters/legal-read-tail-r19-sources.ts";
+@source "../../../../packages/server-legal/src/adapters/legal-read-tail-r20-sources.ts";
 @source "../../../../packages/server-legal/src/adapters/legal-read-tail-r9-sources.ts";
 @source "../../../../packages/server-legal/src/adapters/legal-signer-access-sources.ts";
 @source "../../../../packages/server-legal/src/adapters/legal/access.ts";
@@ -2693,6 +2694,7 @@
 @source "../../../../packages/server-people_payroll/src/adapters/pp-read-tail-r24-sources.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/pp-read-tail-r25-sources.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/pp-read-tail-r26-sources.ts";
+@source "../../../../packages/server-people_payroll/src/adapters/pp-read-tail-r27-sources.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/private-file-denial-sources.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/profile-work.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/project-worker-references.ts";
@@ -2983,6 +2985,7 @@
 @source "../../../../packages/server-pms/src/adapters/native-pms-read.ts";
 @source "../../../../packages/server-pms/src/adapters/platform-owner-projection-sources.ts";
 @source "../../../../packages/server-pms/src/adapters/pms-read-tail-r17-sql.ts";
+@source "../../../../packages/server-pms/src/adapters/pms-read-tail-r19-sql.ts";
 @source "../../../../packages/server-pms/src/adapters/pms.ts";
 @source "../../../../packages/server-pms/src/adapters/pms/home.ts";
 @source "../../../../packages/server-pms/src/adapters/pms/read-repository.ts";
