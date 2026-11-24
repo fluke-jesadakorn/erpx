@@ -62,3 +62,6 @@ export const commandReceiptSql = (beforeCompany = '', afterCompany = '', alias =
 /** Membership probe over a derived source. The source, alias and predicate are the only variation between the people-identity check and the engagement-scope check. */
 export const derivedProbeSql = (source: string, alias: string, predicate: string) =>
     `SELECT 1 FROM (${source}) ${alias} WHERE ${predicate}`;
+/** Bound derived scope row. The scope columns are the only variation between the workforce actor and calendar release probes. */
+export const scopeRowSql = (columns: string) =>
+    `SELECT ?::text ${columns}`;

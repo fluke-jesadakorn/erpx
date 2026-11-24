@@ -18,15 +18,15 @@ import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-fea
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {captureCalendarReminderAuthority} from '@erpx/server-work_projection/adapters/calendar/reminder-authority';
-import {appointmentChildImageSql,appointmentProbe,calendarImageSql,commandReceiptSql,derivedProbeSql,invitedAttendeeSql,versionById} from '../read-tail-sql';
-const actorScopeSql=(where:string)=>`SELECT 1 FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) workforce_actor_scope WHERE ${where}`;
+import {appointmentChildImageSql,appointmentProbe,calendarImageSql,commandReceiptSql,derivedProbeSql,invitedAttendeeSql,scopeRowSql,versionById} from '../read-tail-sql';
+const actorScopeSql=(where:string)=>derivedProbeSql(scopeRowSql('company_id,?::text branch_id,?::text department_id'),'workforce_actor_scope',where);
 const roleAllowsSql=(permission:string)=>`SELECT iam_role_allows(?,?,'${permission}') allowed`;
 
 // Calendar historically has no separate Module ID/readiness rule. Its manual
 // Work-core events now use the existing Work landing's Operations readiness.
 // Roster/Leave/lifecycle and all other owner projections keep their own gates.
 export const manualCalendarReleaseModule='operations';
-const calendarReleaseSql=`SELECT ${scheduledFeaturePredicate('calendar_release.company_id',manualCalendarReleaseModule)} allowed FROM (SELECT ?::text company_id) calendar_release`;
+const calendarReleaseSql=`SELECT ${scheduledFeaturePredicate('calendar_release.company_id',manualCalendarReleaseModule)} allowed FROM (${scopeRowSql('company_id')}) calendar_release`;
 export const isManualCalendarCommand=(input:CalendarCommand)=>input.action.startsWith('appointment.')||input.action.startsWith('announcement.');
 export function calendarCommandPurpose(input:CalendarCommand):CapabilityPurpose{
  if(input.action==='appointment.save'||input.action==='announcement.save'||input.action==='announcement.status'&&input.status==='published'||input.action==='appointment.reminder.set'&&input.minutes!==null)return 'new-work';

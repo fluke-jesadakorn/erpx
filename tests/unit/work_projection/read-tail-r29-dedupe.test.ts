@@ -49,7 +49,7 @@ describe('work_projection read-tail r29 dedupe', () => {
     }
 
     const purchases = await readFile(src('calendar/purchases.ts'), 'utf8');
-    expect(purchases.match(/SELECT 1 FROM \(SELECT \?::text company_id,\?::text branch_id,\?::text department_id\) workforce_actor_scope WHERE \$\{where\}/g)).toHaveLength(1);
+    expect(purchases).toContain("derivedProbeSql(scopeRowSql('company_id,?::text branch_id,?::text department_id'),'workforce_actor_scope',where)");
     expect(purchases).toContain(
       'LOCK TABLE calendar_appointments,calendar_announcements,calendar_appointment_participants,calendar_attendees,calendar_series,calendar_occurrence_exceptions,calendar_occurrence_responses,calendar_reminder_deliveries,calendar_history,calendar_reminder_execution_authorizations IN SHARE ROW EXCLUSIVE MODE',
     );

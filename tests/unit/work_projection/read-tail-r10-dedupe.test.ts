@@ -23,7 +23,7 @@ describe('work_projection read-tail r10 dedupe', () => {
 
   it('keeps one canonical actor-scope and role-allows builder in purchases', async () => {
     const purchases = await readFile(src('calendar/purchases.ts'), 'utf8');
-    expect(purchases.match(/SELECT 1 FROM \(SELECT \?::text company_id,\?::text branch_id,\?::text department_id\) workforce_actor_scope WHERE \$\{where\}/g)).toHaveLength(1);
+    expect(purchases).toContain("derivedProbeSql(scopeRowSql('company_id,?::text branch_id,?::text department_id'),'workforce_actor_scope',where)");
     expect(purchases.match(/SELECT iam_role_allows\(\?,\?,'\$\{permission\}'\) allowed/g)).toHaveLength(1);
     expect(purchases).toContain('actorScopeSql(scope.where)');
     expect(purchases).toContain('actorScopeSql(placement.where)');
@@ -32,13 +32,13 @@ describe('work_projection read-tail r10 dedupe', () => {
   });
 
   it('emits the original byte-identical SQL for every parameterized caller', async () => {
-    const { versionById } = await import(
+    const { versionById, derivedProbeSql, scopeRowSql } = await import(
       '../../../packages/server-work_projection/src/adapters/read-tail-sql.ts'
     );
     expect(versionById('calendar_appointments')).toBe(original.versionAppointments);
     expect(versionById('calendar_announcements')).toBe(original.versionAnnouncements);
-    expect(original.actorScope('scope.where')).toBe(
-      'SELECT 1 FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) workforce_actor_scope WHERE scope.where',
+    expect(derivedProbeSql(scopeRowSql('company_id,?::text branch_id,?::text department_id'), 'workforce_actor_scope', 'scope.where')).toBe(
+      original.actorScope('scope.where'),
     );
     expect(original.roleAllows('calendar.announcements.publish')).toBe(
       "SELECT iam_role_allows(?,?,'calendar.announcements.publish') allowed",
