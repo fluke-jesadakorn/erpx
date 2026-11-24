@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12441,
+    "revision": 12443,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -183331,7 +183331,7 @@
         "owner": "operations",
         "title": "operations TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -183342,28 +183342,36 @@
         "resources": [
           "owner:operations"
         ],
-        "claim": {
-          "runId": "run-20261124-d",
-          "agentId": "wH4n88",
-          "claimedAt": "2026-11-24T16:09:11.467Z",
-          "heartbeatAt": "2026-11-24T16:11:53.559Z",
-          "expiresAt": "2026-11-24T16:41:53.559Z",
-          "generation": 170
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-operations/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "f2151d75d",
+            "owner": "operations",
+            "before": 89,
+            "after": 84,
+            "note": "Three EXISTS through operationsTableExists (-3); viewer CTE head (-1); clock CTE bound flag (-1). Byte oracles pass; locks/receipts/native untouched."
+          },
+          {
+            "command": "vitest operations (18) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "f2151d75d"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Table exists extras (-3): 89->86. BEFORE=89.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
           "runId": "run-20261124-d",
-          "agentId": "lead-opencode",
-          "at": "2026-11-24T16:09:11.336Z",
+          "agentId": "wH4n88",
+          "at": "2026-11-24T16:17:06.884Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
-          "nextAction": "Table exists extras (-3): 89->86. BEFORE=89."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -184057,17 +184065,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 17,
+        "in_progress": 16,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1437,
+        "blocked": 1438,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 170,
-    "updatedAt": "2026-11-24T16:14:34.466Z",
+    "updatedAt": "2026-11-24T16:17:06.888Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
