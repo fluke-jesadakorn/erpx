@@ -1,6 +1,6 @@
 import {commerceProductionCommandSourcesStockEffects} from '@erpx/server-inventory/public/commerce-stock-owner-effects';
 import { commercialOwnerProjectionSources as inventoryProjectionSources } from "@erpx/server-inventory/public/commercial-owner-projection-sources";
-import { COMMERCE_STOCK_BY_WAREHOUSE_PRODUCT_SQL } from "./stock-source-dedupe-sql";
+import { COMMERCE_STOCK_BY_WAREHOUSE_PRODUCT_SQL, COMMERCE_STOCK_WAREHOUSE_FOR_UPDATE_SQL } from "./stock-source-dedupe-sql";
 import { COMMERCE_ACTIVE_WAREHOUSES_SQL, COMMERCE_WAREHOUSE_ACTIVE_SQL, COMMERCE_PRODUCT_COMPANY_ACTIVE_GUARD_SQL } from "./guarded-source-dedupe-sql";
 import { productionReadProjection as productioninventoryProjection } from '@erpx/server-inventory/public/production-read-projections';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
@@ -54,7 +54,7 @@ export function productionCommandSources(db: SqlDatabase) {
         AND o.state IN ('confirmed','partially_fulfilled') AND o.due_date<=? AND l.product_id=? AND l.quantity_milli>l.fulfilled_milli ORDER BY o.due_date,o.id`)
                 .bind(companyId, warehouseId, dueDate, product_id).all<Row>();
         },
-        lockReserveStock(warehouse_id: string | number | null, product_id: string | number | null) { return db.prepare(`SELECT warehouse_id FROM (${inventoryProjectionSources.commerce_stock}) commerce_stock WHERE warehouse_id=? AND product_id=? FOR UPDATE`).bind(warehouse_id, product_id); },
+        lockReserveStock(warehouse_id: string | number | null, product_id: string | number | null) { return db.prepare(COMMERCE_STOCK_WAREHOUSE_FOR_UPDATE_SQL).bind(warehouse_id, product_id); },
         guardReserveAvailability(key: string, value: string, warehouse_id: string | number | null, product_id: string | number | null, warehouse_id2: string | number | null, product_id2: string | number | null, required: number) {
             return assertion(db, key, value, `COALESCE((SELECT quantity_milli FROM (${inventoryProjectionSources.commerce_stock}) commerce_stock WHERE warehouse_id=? AND product_id=?),0)-${productioninventoryProjection.reservedAvailability}>=?`, [
                 warehouse_id,
@@ -70,7 +70,7 @@ export function productionCommandSources(db: SqlDatabase) {
                 .bind(warehouse_id, product_id)
                 .first<Row>();
         },
-        lockIssueStock(warehouse_id: string | number | null, product_id: string | number | null) { return db.prepare(`SELECT warehouse_id FROM (${inventoryProjectionSources.commerce_stock}) commerce_stock WHERE warehouse_id=? AND product_id=? FOR UPDATE`).bind(warehouse_id, product_id); },
+        lockIssueStock(warehouse_id: string | number | null, product_id: string | number | null) { return db.prepare(COMMERCE_STOCK_WAREHOUSE_FOR_UPDATE_SQL).bind(warehouse_id, product_id); },
         guardIssueStock(key: string, value: string, warehouse_id: string | number | null, product_id: string | number | null, value2: number, amount: number, value3: number) { return assertion(db, key, value, `EXISTS(SELECT 1 FROM (${inventoryProjectionSources.commerce_stock}) commerce_stock WHERE warehouse_id=? AND product_id=? AND version=? AND quantity_milli>=? AND value_minor>=?)`, [warehouse_id, product_id, value2, amount, value3]); },
         prepareStockIssue(amount: number, value: number, warehouse_id: string | number | null, product_id: string | number | null) {
             return commerceProductionCommandSourcesStockEffects(db).prepareStockIssue(amount, value, warehouse_id, product_id);

@@ -22,8 +22,9 @@ import {
   COMMERCE_WAREHOUSE_IDENTITY_SQL,
 } from '../../../packages/server-commerce/src/adapters/guarded-source-dedupe-sql';
 import { COMMERCE_BRANCH_LABEL_SQL } from '../../../packages/server-commerce/src/adapters/projection-source-dedupe-sql';
-import { COMMERCE_STOCK_PRODUCT_FOR_UPDATE_SQL } from '../../../packages/server-commerce/src/adapters/stock-source-dedupe-sql';
+import { COMMERCE_STOCK_PRODUCT_FOR_UPDATE_SQL, COMMERCE_STOCK_WAREHOUSE_FOR_UPDATE_SQL } from '../../../packages/server-commerce/src/adapters/stock-source-dedupe-sql';
 import { COMMERCE_POSTING_MAPPING_STATE_SQL } from '../../../packages/server-commerce/src/adapters/settings-dedupe-sql';
+import { commercialOwnerProjectionSources } from '@erpx/server-inventory/public/commercial-owner-projection-sources';
 
 const host = 'acme.example.com';
 const origin = `https://${host}`;
@@ -266,5 +267,29 @@ describe('commerce read-tail r11 warehouse/product guard dedupe', () => {
       expect(text.split('SELECT ${fields.map(').length - 1, file).toBe(0);
     }
     await expect(readFile(adapters('finance-supplier-payment-source-facts.ts'), 'utf8')).rejects.toThrow();
+  });
+});
+
+describe('commerce read-tail r12 stock warehouse lock dedupe', () => {
+  const lockLiteral = 'SELECT warehouse_id FROM (';
+
+  it('keeps one byte-identical FOR UPDATE literal behind the shared constant', async () => {
+    // Runtime value is byte-identical to the two original inline literals.
+    expect(COMMERCE_STOCK_WAREHOUSE_FOR_UPDATE_SQL).toBe(
+      `SELECT warehouse_id FROM (${commercialOwnerProjectionSources.commerce_stock}) commerce_stock WHERE warehouse_id=? AND product_id=? FOR UPDATE`,
+    );
+    const shared = await readFile(adapters('stock-source-dedupe-sql.ts'), 'utf8');
+    expect(shared.split(lockLiteral).length - 1).toBe(1);
+    expect(COMMERCE_STOCK_WAREHOUSE_FOR_UPDATE_SQL).toContain('FOR UPDATE');
+  });
+
+  it('backs both lock call sites with the constant and no inline literal or shared statement', async () => {
+    const text = await readFile(adapters('production-command-sources.ts'), 'utf8');
+    expect(text.split(lockLiteral).length - 1).toBe(0);
+    expect(text.split('COMMERCE_STOCK_WAREHOUSE_FOR_UPDATE_SQL').length - 1).toBe(3); // import + 2 prepares
+    expect(text).toContain('lockReserveStock');
+    expect(text).toContain('lockIssueStock');
+    // Every site still prepares its own statement in its own transaction.
+    expect(text).toContain('db.prepare(COMMERCE_STOCK_WAREHOUSE_FOR_UPDATE_SQL)');
   });
 });
