@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12336,
+    "revision": 12339,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -182619,17 +182619,32 @@
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-ecommerce/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d54c3b066",
+            "owner": "ecommerce",
+            "before": 19,
+            "after": 11,
+            "note": "Keyed rows via ordered list, CTE frames optional where, scalar body head; locks/native untouched."
+          },
+          {
+            "command": "vitest ecommerce (138) + scoped tsc + 17/17 byte oracle",
+            "result": "passed",
+            "sourceSha": "d54c3b066"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: lease expired; same operator resumes with reviewed WIP",
-        "nextAction": "Keyed row reads via ordered list (-3), CTE source frame (-2), scalar body head (-3): 19->14 (or 11 with residual folds).",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n52",
-          "at": "2026-11-24T15:07:42.843Z",
+          "runId": "run-20261124-d",
+          "agentId": "lead-opencode",
+          "at": "2026-11-24T15:09:27.986Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: lease expired; same operator resumes with reviewed WIP",
-          "nextAction": "Keyed row reads via ordered list (-3), CTE source frame (-2), scalar body head (-3): 19->14 (or 11 with residual folds)."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -183212,7 +183227,7 @@
       }
     },
     "lastCoordinatorGeneration": 170,
-    "updatedAt": "2026-11-24T15:08:21.184Z",
+    "updatedAt": "2026-11-24T15:09:27.990Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
