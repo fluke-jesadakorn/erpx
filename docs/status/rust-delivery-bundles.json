@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9757,
+    "revision": 9761,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -155086,7 +155086,7 @@
         "owner": "crm",
         "title": "crm TS read tail native cutover (r20)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -155098,22 +155098,37 @@
         "resources": [
           "owner:crm"
         ],
-        "claim": {
-          "runId": "run-20261123-k",
-          "agentId": "wGCOcrm",
-          "claimedAt": "2026-11-24T05:48:14.349Z",
-          "heartbeatAt": "2026-11-24T05:48:14.349Z",
-          "expiresAt": "2026-11-24T06:18:14.349Z",
-          "generation": 163
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-crm/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "15422472d",
+            "owner": "crm",
+            "before": 153,
+            "after": 151,
+            "note": "Lead, activity and guest sharing history facts share historyFactSql; r8-r19 and locks untouched."
+          },
+          {
+            "command": "vitest crm witness dedupe (27) + tsc crm/tests",
+            "result": "passed",
+            "sourceSha": "15422472d"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=153.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-k",
+          "agentId": "wGCOcrm",
+          "at": "2026-11-24T05:55:14.531Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -155520,6 +155535,42 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=35.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.crm.read-tail-r21",
+        "goalId": "G4",
+        "owner": "crm",
+        "title": "crm TS read tail native cutover (round 21)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-crm/src/**",
+          "tests/unit/crm/**",
+          "tests/integration/crm/**"
+        ],
+        "resources": [
+          "owner:crm"
+        ],
+        "claim": {
+          "runId": "run-20261123-k",
+          "agentId": "wGCPcrm",
+          "claimedAt": "2026-11-24T05:55:14.994Z",
+          "heartbeatAt": "2026-11-24T05:55:14.994Z",
+          "expiresAt": "2026-11-24T06:25:14.994Z",
+          "generation": 163
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=151.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -155528,7 +155579,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1231,
+      "totalPackets": 1232,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -155536,13 +155587,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 863,
+        "blocked": 864,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 163,
-    "updatedAt": "2026-11-24T05:54:48.912Z",
+    "updatedAt": "2026-11-24T05:55:15.000Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
