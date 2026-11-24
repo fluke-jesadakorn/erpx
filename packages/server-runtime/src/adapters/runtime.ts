@@ -6,6 +6,7 @@ import { getRuntime, type RuntimeEnv } from "@erpx/server-runtime/adapters/runti
 
 export async function runtimeEnv(): Promise<RuntimeEnv> { return getRuntime(); }
 
+const HOLDING_BINDINGS_SELECT = 'SELECT holding_id, slug, display_name FROM holding_bindings';
 
 export type HoldingBinding = {
   id: HoldingId;
@@ -28,7 +29,7 @@ export async function holdingBindingBySlug(
 ): Promise<HoldingBinding> {
   const env = await runtimeEnv();
   const row = await env.CONTROL_DB.prepare(
-    `SELECT holding_id, slug, display_name FROM holding_bindings
+    `${HOLDING_BINDINGS_SELECT}
      WHERE slug = ? AND status = 'active'`,
   )
     .bind(slug)
@@ -40,7 +41,7 @@ export async function holdingBindingBySlug(
 export async function defaultHoldingBinding(): Promise<HoldingBinding> {
   const env = await runtimeEnv();
   const row = await env.CONTROL_DB.prepare(
-    `SELECT holding_id, slug, display_name FROM holding_bindings
+    `${HOLDING_BINDINGS_SELECT}
      WHERE status = 'active' ORDER BY holding_id LIMIT 1`,
   ).first<{ holding_id: string; slug: string; display_name: string }>();
   if (!row || !resourceSlots(env).some(s => s.id === row.holding_id)) throw new Error("HOLDING_NOT_FOUND");
@@ -50,7 +51,7 @@ export async function defaultHoldingBinding(): Promise<HoldingBinding> {
 export async function activeHoldingBindings(): Promise<HoldingBinding[]> {
   const env = await runtimeEnv();
   const result = await env.CONTROL_DB.prepare(
-    `SELECT holding_id, slug, display_name FROM holding_bindings
+    `${HOLDING_BINDINGS_SELECT}
      WHERE status = 'active' ORDER BY holding_id`,
   ).all<{ holding_id: string; slug: string; display_name: string }>();
   return result.results
