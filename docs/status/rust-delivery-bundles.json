@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8115,
+    "revision": 8123,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -132771,7 +132771,7 @@
         "owner": "pos",
         "title": "pos TS read tail native cutover (round 17)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -132783,22 +132783,42 @@
         "resources": [
           "owner:pos"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG69pos",
-          "claimedAt": "2026-11-24T01:14:33.689Z",
-          "heartbeatAt": "2026-11-24T01:42:53.920Z",
-          "expiresAt": "2026-11-24T02:12:53.920Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pos/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "987cf4496",
+            "owner": "pos",
+            "before": 260,
+            "after": 256,
+            "note": "PMS and counter connection SELECT-only reads via kinds 533-536; no FOR UPDATE/SHARE moved."
+          },
+          {
+            "command": "cargo check/lib pos (31) + vitest pos (51)",
+            "result": "passed",
+            "sourceSha": "987cf4496"
+          },
+          {
+            "command": "tsc pos",
+            "result": "passed",
+            "sourceSha": "987cf4496"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next scout batch: pms-command connection probes, counter-payment readiness, hospitality setup settings/registers, startup settings/registers; avoid FOR UPDATE/SHARE. BEFORE=260.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG69pos",
+          "at": "2026-11-24T01:43:50.153Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -134199,8 +134219,8 @@
             "sourceSha": "823abefec",
             "owner": "commerce",
             "before": 549,
-            "after": 531,
-            "note": "Seven duplicated projection fragments shared via projection-source-dedupe-sql; decoded SQL values identical for all contracts."
+            "after": 528,
+            "note": "Projection-source strings dedupe; measured 531->528 on committed HEAD (earlier 531 after-count included untracked new-file offset)."
           },
           {
             "command": "vitest commerce units (136)",
@@ -135452,9 +135472,9 @@
             "result": "passed",
             "sourceSha": "171be7b1b",
             "owner": "commerce",
-            "before": 531,
-            "after": 521,
-            "note": "Seven same-file duplicate groups in finance-owned snapshots share local constants; map values byte-identical."
+            "before": 528,
+            "after": 518,
+            "note": "Seven same-file duplicate groups in finance-owned snapshots; measured 528->518 on HEAD."
           },
           {
             "command": "vitest commerce targeted (19)",
@@ -135634,7 +135654,7 @@
         "owner": "collaboration",
         "title": "collaboration TS read tail native cutover (r6)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -135646,22 +135666,42 @@
         "resources": [
           "owner:collaboration"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGAQcol",
-          "claimedAt": "2026-11-24T01:37:58.372Z",
-          "heartbeatAt": "2026-11-24T01:42:53.920Z",
-          "expiresAt": "2026-11-24T02:12:53.920Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-collaboration/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "987cf4496",
+            "owner": "collaboration",
+            "before": 461,
+            "after": 460,
+            "note": "editDraft delegates to nativeSocialUploadReadRepository.draft; duplicate literal removed."
+          },
+          {
+            "command": "vitest collaboration targeted (167)",
+            "result": "passed",
+            "sourceSha": "987cf4496"
+          },
+          {
+            "command": "tsc collaboration",
+            "result": "passed",
+            "sourceSha": "987cf4496"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=461.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGAQcol",
+          "at": "2026-11-24T01:43:50.748Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -136168,6 +136208,78 @@
         "nextAction": "Next: target next-lowest-count commerce tail files for byte-identical dedupe; keep each statement independent. BEFORE=521.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.pos.read-tail-r18",
+        "goalId": "G4",
+        "owner": "pos",
+        "title": "pos TS read tail native cutover (r18)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-pos/src/**",
+          "tests/unit/pos/**",
+          "tests/integration/pos/**"
+        ],
+        "resources": [
+          "owner:pos"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGB9pos",
+          "claimedAt": "2026-11-24T01:43:51.136Z",
+          "heartbeatAt": "2026-11-24T01:43:51.136Z",
+          "expiresAt": "2026-11-24T02:13:51.136Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe native read or byte-identical dedupe; if none, report blocked. BEFORE=256.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.collaboration.read-tail-r7",
+        "goalId": "G4",
+        "owner": "collaboration",
+        "title": "collaboration TS read tail native cutover (r7)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-collaboration/src/**",
+          "tests/unit/collaboration/**",
+          "tests/integration/collaboration/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGBAcol",
+          "claimedAt": "2026-11-24T01:43:51.659Z",
+          "heartbeatAt": "2026-11-24T01:43:51.659Z",
+          "expiresAt": "2026-11-24T02:13:51.659Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe native read or byte-identical dedupe; if none, report blocked. BEFORE=460.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -136176,7 +136288,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 857,
+      "totalPackets": 859,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
@@ -136184,13 +136296,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 481,
+        "blocked": 483,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:43:21.315Z",
+    "updatedAt": "2026-11-24T01:43:51.683Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
