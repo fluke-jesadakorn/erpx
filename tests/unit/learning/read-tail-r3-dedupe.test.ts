@@ -44,8 +44,8 @@ describe('Learning read-tail r3 byte-identical / parameterized family dedupe', (
     const text = src('record-purchases.ts');
     expect(text).not.toContain('SELECT 1 FROM (${nativeSources})');
     expect(text.match(/nativeSourceProbe\(/g) ?? []).toHaveLength(3);
-    // r7 composes the actor-scope probe, so only the record probes remain inline.
-    expect(text.match(/SELECT /g) ?? []).toHaveLength(2);
+    // r7 composes the actor-scope probe and r16 composes the scope row, so only one record probe remains inline.
+    expect(text.match(/SELECT /g) ?? []).toHaveLength(1);
   });
 
   test('overdue evidence head is byte-identical at its two call sites', () => {

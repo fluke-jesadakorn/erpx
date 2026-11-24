@@ -1,11 +1,11 @@
 import "server-only";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
-import {benefitConsumptionHead} from "./learning-read-sql";
+import {benefitConsumptionHead,jsonbAggImageHead} from "./learning-read-sql";
 
 /** Owner-local byte-identical consumption witness shared by the private source
  * witness and the settlement source; one text source keeps both revocation
  * snapshots equal. */
-const consumptionImage=`jsonb_build_object('receipt',to_jsonb(r),'certificate',to_jsonb(c),'handoff',to_jsonb(h),'assignment',to_jsonb(a),'revocations',(SELECT jsonb_agg(to_jsonb(v) ORDER BY v.id) FROM learning_certificate_revocations v WHERE v.certificate_id=c.id))`;
+const consumptionImage=`jsonb_build_object('receipt',to_jsonb(r),'certificate',to_jsonb(c),'handoff',to_jsonb(h),'assignment',to_jsonb(a),'revocations',(${jsonbAggImageHead('v')} FROM learning_certificate_revocations v WHERE v.certificate_id=c.id))`;
 
 /** Benefits consumes reviewed evidence through its original included contract.
  * These private source facts never confer Learning management authority. */

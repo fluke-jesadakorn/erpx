@@ -4,9 +4,20 @@
 import {packageClockSql} from "@erpx/server-commercial/public/purchased-capability-sql";
 import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
 
+/** r16 — JSONB image aggregate head. The course, revocation and learner-assignment
+ * images share the same to_jsonb(alias) ORDER BY alias.id head; only the alias
+ * varies. Tails and binds stay with the callers, so every rendered image keeps
+ * its exact pre-dedupe bytes. */
+export const jsonbAggImageHead = (alias: string) => `SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id)`;
+
+/** r16 — scope row. The actor-scope, source-record and settlement-scope rows
+ * share the same parenthesized column list; only the columns vary. Binds stay
+ * with the callers, so every rendered row keeps its exact pre-dedupe bytes. */
+export const scopeRow = (columns: string) => `(SELECT ${columns})`;
+
 export const actorScopeProbe = "(SELECT ?::text company_id,?::text branch_id,?::text department_id";
 export const clockProbe = `MATERIALIZED (SELECT ${packageClockSql} now_ms)`;
-export const coursesImage = "(SELECT jsonb_agg(to_jsonb(c) ORDER BY c.id) FROM learning_courses c WHERE c.company_id=?)";
+export const coursesImage = `(${jsonbAggImageHead('c')} FROM learning_courses c WHERE c.company_id=?)`;
 
 /** The Learning source-union rows are emitted byte-identically by every ownership
  * probe; one text source keeps the native source and all callers equal. */
@@ -36,7 +47,7 @@ export const moduleGrantAssignmentProbe = (alias: string, conditions: string) =>
 
 /** r7 — actor-scope existence probe. The spacing parameter preserves the two
  * byte-identical renderings already emitted by the read tail. */
-export const actorScopeExistsProbe = (columns: string, spacing = '') => `EXISTS(SELECT 1 FROM${spacing}(SELECT ${columns})${spacing}learning_actor_scope WHERE ${assignmentReadSql('learning_actor_scope','records.read')})`;
+export const actorScopeExistsProbe = (columns: string, spacing = '') => `EXISTS(SELECT 1 FROM${spacing}${scopeRow(columns)}${spacing}learning_actor_scope WHERE ${assignmentReadSql('learning_actor_scope','records.read')})`;
 
 /** r7 — assignments image subquery, parameterized only by the projected JSON
  * expression so the guarded and unguarded images keep identical source bytes. */

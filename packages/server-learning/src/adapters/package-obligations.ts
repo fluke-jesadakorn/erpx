@@ -3,7 +3,7 @@ import {createHash} from "node:crypto";
 import type {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgres";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/server-commercial/public/package-settlement-sources";
-import {certificateConsistencyProbe,latestEventLateral,obligationFactHead,packageScopeCte,sourceLiteral} from "./learning-read-sql";
+import {certificateConsistencyProbe,latestEventLateral,obligationFactHead,packageScopeCte,scopeRow,sourceLiteral} from "./learning-read-sql";
 
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
 const sources=new WeakMap<SqlDatabase,string>();
@@ -39,7 +39,7 @@ export async function learningPackageObligations(owner:PostgresDatabase,database
  assertLearningPackageObligationSources(owner,database,input.companyId);
  if(input.moduleId!=="learning"||input.packageId!=="learn"||input.packageVersion!==1||!Number.isSafeInteger(input.now)||input.now<0)
   throw Error("LEARNING_PACKAGE_OBLIGATION_SCOPE_REQUIRED");
- const facts=(await database.prepare(`WITH scope AS(SELECT ?::text company_id),
+ const facts=(await database.prepare(`WITH scope AS${scopeRow('?::text company_id')},
  assignments AS ${packageScopeCte('a',`(${learningPackageSettlementSources.assignments})`)},
  handoffs AS ${packageScopeCte('h','learning_eligibility_handoffs')},
  certificates AS ${packageScopeCte('c','learning_certificates')}
