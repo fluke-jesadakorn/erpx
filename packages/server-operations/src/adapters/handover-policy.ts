@@ -5,6 +5,7 @@ import {approverJsonExistsSql} from './task-approver-access-source';
 import {operationsSocialTaskOriginExists} from './social-task-origin-exists';
 import {operationsProjectSourceExists} from './project-source-exists';
 import {operationsActiveDelegationSql} from './task-delegation-source';
+import {operationsStaffTaskExists} from './operations-staff-task-exists';
 
 /** Same task-participant categories used by task reads, with an SQL user expression. */
 export function handoverTaskAccessSql(task: string, user: string) {
@@ -21,10 +22,9 @@ export function handoverTaskAccessSql(task: string, user: string) {
 /** Handover text is hidden as soon as any linked source is no longer readable. */
 export function handoverSourcesReadableSql(post: string, user: string) {
   return `(${post}.purpose<>'handover' OR NOT ${operationsProjectSourceExists(collaborationProjectionSources.social_post_sources,'hs',`hs.post_id=${post}.id AND (
-      (hs.source_kind='staff_task' AND NOT EXISTS(
-        SELECT 1 FROM staff_tasks ht WHERE ht.id=hs.source_id AND ht.company_id=${post}.company_id
+      (hs.source_kind='staff_task' AND NOT ${operationsStaffTaskExists('ht','hs.source_id',`ht.company_id=${post}.company_id
           AND NOT ${operationsSocialTaskOriginExists('ho','ht.id')}
-          AND ${handoverTaskAccessSql("ht", user)}))
+          AND ${handoverTaskAccessSql("ht", user)}`,'\n        ')})
       OR (hs.source_kind='staff_project' AND NOT EXISTS(${projectHandoverSourceSql(post, user)}))
     )`,' ','\n    ')})`;
 }

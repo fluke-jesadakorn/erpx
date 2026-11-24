@@ -10,15 +10,19 @@ import {operationsReceiptVersionExists} from './operations-receipt-version-exist
 import {operationsProjectSourceExists} from './project-source-exists';
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
 const sources=new WeakMap<SqlDatabase,string>();
+/** Renders the exact retired bytes of the three materialized CTE source heads.
+ *  `sep` preserves the `)t` vs `) t` distinction and `columns` the `t.*`/`s.*`. */
+export const obligationSourceHead = (source: string, alias: string, columns: string, sep = '') =>
+  `SELECT ${columns} FROM (${source})${sep}${alias}`;
 export async function lockWorkOperationsPackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){const {database,companyId}=packageSettlementSource(owner,lock);await lockWorkOperationsSettlementSources(database);await lockWorkApprovalSettlementSources(database);await lockWorkSocialSettlementSources(database);await database.prepare('LOCK TABLE command_receipts IN SHARE MODE').run();sources.set(database,companyId);}
 export async function workOperationsPackageObligations(owner:PostgresDatabase,database:SqlDatabase,input:Input){
  owner.assertActiveTransaction(database);if(sources.get(database)!==input.companyId)throw Error('WORK_OPERATIONS_OBLIGATION_SOURCE_REQUIRED');
  if(input.moduleId!=='operations'||!['work','work-routines','work-social'].includes(input.packageId)||input.packageVersion!==1||!Number.isSafeInteger(input.now)||input.now<0)throw Error('WORK_OPERATIONS_OBLIGATION_SCOPE_REQUIRED');
  const facts=(await database.prepare(`WITH scope AS(SELECT ?::text company_id,?::text package_id,?::bigint now_ms,to_char(to_timestamp(?::bigint/1000.0) AT TIME ZONE 'UTC','YYYY-MM-DD') today),
- tasks AS MATERIALIZED(SELECT t.* FROM (${operations.tasks})t CROSS JOIN scope WHERE t.company_id=scope.company_id AND t.project_id IS NULL
+ tasks AS MATERIALIZED(${obligationSourceHead(operations.tasks,'t','t.*')} CROSS JOIN scope WHERE t.company_id=scope.company_id AND t.project_id IS NULL
  AND (scope.package_id='work' OR scope.package_id='work-routines' AND t.template_id IS NOT NULL OR scope.package_id='work-social' AND ${operationsProjectSourceExists(social.origins,'o','o.task_id=t.id')})),
- templates AS MATERIALIZED(SELECT t.* FROM (${operations.templates}) t CROSS JOIN scope WHERE t.company_id=scope.company_id AND t.project_id IS NULL AND scope.package_id IN ('work','work-routines')),
- schedules AS MATERIALIZED(SELECT s.* FROM (${operations.schedules})s CROSS JOIN scope LEFT JOIN (${operations.templates})t ON t.id=s.template_id AND t.company_id=s.company_id WHERE s.company_id=scope.company_id AND (t.id IS NULL OR t.project_id IS NULL) AND scope.package_id IN ('work','work-routines')),
+ templates AS MATERIALIZED(${obligationSourceHead(operations.templates,'t','t.*',' ')} CROSS JOIN scope WHERE t.company_id=scope.company_id AND t.project_id IS NULL AND scope.package_id IN ('work','work-routines')),
+ schedules AS MATERIALIZED(${obligationSourceHead(operations.schedules,'s','s.*')} CROSS JOIN scope LEFT JOIN (${operations.templates})t ON t.id=s.template_id AND t.company_id=s.company_id WHERE s.company_id=scope.company_id AND (t.id IS NULL OR t.project_id IS NULL) AND scope.package_id IN ('work','work-routines')),
  facts AS(
  SELECT 'task' kind,t.id,t.version,t.state,to_jsonb(t) image,t.state NOT IN ('completed','cancelled') OR NOT ${operationsReceiptVersionExists("receipt.record_id=t.id AND receipt.operation IN ('task.complete','task.approve','task.cancel')",'t.company_id'," AND receipt.result_json::jsonb->>'id'=t.id",'t.state','t.version')} OR t.template_id IS NOT NULL AND NOT ${operationsProjectSourceExists(operations.templates,'template','template.id=t.template_id AND template.company_id=t.company_id AND template.project_id IS NULL AND template.version>=t.template_version','')} pending FROM tasks t
  UNION ALL SELECT 'template',t.id,t.version,CASE WHEN t.published=1 THEN 'published' ELSE 'draft' END,to_jsonb(t),t.published=1 FROM templates t

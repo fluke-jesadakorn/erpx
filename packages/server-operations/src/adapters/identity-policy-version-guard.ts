@@ -8,4 +8,9 @@ export const operationsOwnerVersionExists = (
   tail = '',
   predicate = 'id=? AND company_id=? AND version=?',
 ) => `EXISTS(SELECT 1 FROM ${from} WHERE ${predicate}${tail})`;
+/** Thin read-only alias over the canonical owner-version guard for table
+ *  existence probes. It delegates the rendering, so the family keeps a single
+ *  definition and every r47 caller stays byte-identical. */
+export const operationsTableExists = (from: string, predicate: string) =>
+  operationsOwnerVersionExists(from, '', predicate);
 export function operationsPolicyVersionGuard(db:SqlDatabase,key:string,step:"policy-review",id:string,companyId:string,version:number,status:"published"|"draft",creatorArgs:string[]){return assertion(db,key,step,operationsOwnerVersionExists('operations_queue_policies',` AND status=? ${status!=="published"?"AND NOT iam_same_person(created_by,?,company_id)":""}`),[id,companyId,version,status,...creatorArgs]);}
