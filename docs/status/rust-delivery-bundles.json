@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11793,
+    "revision": 11797,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -167711,7 +167711,7 @@
         "owner": "pos",
         "title": "POS list reads native port (round 31)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -167723,22 +167723,37 @@
         "resources": [
           "owner:pos"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4b17",
-          "claimedAt": "2026-11-24T11:49:30.819Z",
-          "heartbeatAt": "2026-11-24T12:04:33.299Z",
-          "expiresAt": "2026-11-24T12:34:33.299Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pos/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ea03d7925",
+            "owner": "pos",
+            "before": 195,
+            "after": 191,
+            "note": "Four POS list reads now native kinds (6/5/1/1 binds); locks/day-report/stripe registries untouched."
+          },
+          {
+            "command": "cargo test -p erpx-server-pos --lib (64) + vitest pos (14) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "ea03d7925"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Port sales, refunds, sale documents and settlements list reads into pos_list_reads; locks excluded. BEFORE=199.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4b17",
+          "at": "2026-11-24T12:09:28.152Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -175603,7 +175618,7 @@
         "owner": "pms",
         "title": "pms TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -175615,22 +175630,37 @@
         "resources": [
           "owner:pms"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4b14",
-          "claimedAt": "2026-11-24T11:48:40.984Z",
-          "heartbeatAt": "2026-11-24T12:04:33.299Z",
-          "expiresAt": "2026-11-24T12:34:33.299Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pms/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ea03d7925",
+            "owner": "pms",
+            "before": 328,
+            "after": 323,
+            "note": "Stripe and booking payment id heads shared; predicates/tails/binds/locks untouched."
+          },
+          {
+            "command": "vitest pms (152) + scoped tsc + 7/7 byte oracle",
+            "result": "passed",
+            "sourceSha": "ea03d7925"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=328.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4b14",
+          "at": "2026-11-24T12:09:28.655Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -176779,17 +176809,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 20,
-        "in_progress": 22,
+        "in_progress": 20,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1288,
+        "blocked": 1290,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T12:08:09.040Z",
+    "updatedAt": "2026-11-24T12:09:28.659Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
