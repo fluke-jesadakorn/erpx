@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10130,
+    "revision": 10134,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -157577,7 +157577,7 @@
         "owner": "ecommerce",
         "title": "ecommerce TS read tail native cutover (r10)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -157589,28 +157589,36 @@
         "resources": [
           "owner:ecommerce"
         ],
-        "claim": {
-          "runId": "run-20261123-m",
-          "agentId": "wGCWeco",
-          "claimedAt": "2026-11-24T06:38:41.801Z",
-          "heartbeatAt": "2026-11-24T06:38:41.801Z",
-          "expiresAt": "2026-11-24T07:08:41.801Z",
-          "generation": 165
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-ecommerce/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "f20a1596c",
+            "owner": "ecommerce",
+            "before": 62,
+            "after": 61,
+            "note": "Listing and cart active projection guards share activeProjectionAssertion; r1-r9 and checkout locks untouched."
+          },
+          {
+            "command": "vitest ecommerce r4-r10 (34) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "f20a1596c"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=62.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-l",
+          "runId": "run-20261123-m",
           "agentId": "wGCWeco",
-          "at": "2026-11-24T06:38:39.589Z",
+          "at": "2026-11-24T06:56:17.070Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired after cargo/disk remediation; WIP reviewed, no claims lost, re-claiming same agents under gen 165",
-          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=62."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -159656,6 +159664,42 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=132.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.ecommerce.read-tail-r11",
+        "goalId": "G4",
+        "owner": "ecommerce",
+        "title": "ecommerce TS read tail native cutover (round 11)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-ecommerce/src/**",
+          "tests/unit/ecommerce/**",
+          "tests/integration/ecommerce/**"
+        ],
+        "resources": [
+          "owner:ecommerce"
+        ],
+        "claim": {
+          "runId": "run-20261123-m",
+          "agentId": "wGCMeco2",
+          "claimedAt": "2026-11-24T06:56:17.559Z",
+          "heartbeatAt": "2026-11-24T06:56:17.559Z",
+          "expiresAt": "2026-11-24T07:26:17.559Z",
+          "generation": 165
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=61.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -159664,7 +159708,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1316,
+      "totalPackets": 1317,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -159672,13 +159716,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 943,
+        "blocked": 944,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 165,
-    "updatedAt": "2026-11-24T06:56:00.050Z",
+    "updatedAt": "2026-11-24T06:56:17.565Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
