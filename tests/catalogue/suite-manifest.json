@@ -2500,6 +2500,33 @@
       },
       "ci": {
         "critical": true,
+        "reason": "Benefits learning fact union arm family must stay one generator."
+      },
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-benefits"
+      ],
+      "id": "benefits.read-tail-r19-dedupe.unit",
+      "files": [
+        "tests/unit/benefits/read-tail-r19-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "benefits",
+      "modules": [
+        "benefits"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
         "reason": "Benefits scope CTE prefix must exist once and stay byte-identical."
       },
       "apps": [

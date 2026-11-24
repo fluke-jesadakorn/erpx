@@ -34,3 +34,7 @@ export const benefitMetricCountSql = (label: string, table: string, alias: strin
  *  and People package-settlement fact unions; generated SQL is unchanged. */
 export const benefitFactFinalSelect = (pending: string, tail: string) =>
   `) SELECT kind,id,version,state,image,${pending} pending FROM facts${tail}`;
+/** Parameterized owner-local learning fact projection shared by the two
+ *  Benefits learning-consumption settlement UNION arms; generated SQL is unchanged. */
+export const benefitLearningFactArm = (kind: string, id: string, version: string, state: string, image: string, tail: string) =>
+  `UNION ALL SELECT '${kind}',${id},${version},${state},${image},${tail}`;
