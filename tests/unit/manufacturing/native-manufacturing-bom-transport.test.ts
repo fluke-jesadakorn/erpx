@@ -268,7 +268,8 @@ describe('Manufacturing specification-source guard dedupe',()=>{
   const sql="EXISTS(SELECT 1 FROM manufacturing_specifications WHERE id=? AND company_id=? AND version=? AND status='approved')";
   it('keeps one fixed-SQL definition and switches both specification-source guards to it',()=>{
     expect(source).toContain('const approvedSpecGuardSql');
-    expect(source.split(sql)).toHaveLength(2);
+    expect(source).toContain('manufacturingExistsGuard("manufacturing_specifications","id=? AND company_id=? AND version=? AND status=\'approved\'")');
+    expect(source.split(sql)).toHaveLength(1); // r20 routed both guards through the exists helper.
     for(const [method,args] of [['guardScenarioSpecification','[specificationId, companyId, specificationVersion]'],['guardRecommendationSpecification','[value2, companyId, value3]']] as const){
       const at=source.indexOf(method);
       const body=source.slice(at,at+320);
@@ -297,7 +298,8 @@ describe('Manufacturing independent-QC guard dedupe',()=>{
   const sql="EXISTS(SELECT 1 FROM manufacturing_order_events WHERE order_id=? AND action='report' AND version=? AND actor_id<>?)";
   it('keeps one fixed-SQL definition and switches both independent-QC guards to it',()=>{
     expect(source).toContain('const independentQcGuardSql');
-    expect(source.split(sql)).toHaveLength(2);
+    expect(source).toContain('manufacturingExistsGuard("manufacturing_order_events","order_id=? AND action=\'report\' AND version=? AND actor_id<>?")');
+    expect(source.split(sql)).toHaveLength(1); // r20 routed both guards through the exists helper.
     for(const method of ['guardIndependentPass','guardIndependentFail']){
       const at=source.indexOf(method);
       const body=source.slice(at,at+280);
@@ -382,10 +384,10 @@ describe('Manufacturing posting-source aggregate dedupe',()=>{
   const source=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/adapters/posting-setup-sources.ts',import.meta.url),'utf8');
   const profile='(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.id) FROM manufacturing_accounting_profiles p,scope WHERE p.company_id=scope.company_id)';
   it('keeps one aggregate definition and derives the scoped profile image from it',()=>{
-    expect(source).toContain('const productionAgg=(table:string,alias:string,scope="")=>');
+    expect(source).toContain('const productionAgg=(table:string,alias:string,scope="")=>manufacturingJsonbAggSql(');
     expect(source).not.toContain(`const profileImage='${profile}'`);
     expect(source).toContain("profileImage=productionAgg('manufacturing_accounting_profiles','p',',scope WHERE p.company_id=scope.company_id')");
-    expect(source.split('jsonb_agg(to_jsonb(')).toHaveLength(2);
+    expect(source.split('jsonb_agg(to_jsonb(')).toHaveLength(1); // r25 leaves zero inline aggregates here.
   });
   it('emits the former profile image text byte for byte',()=>{
     const productionAgg=(table:string,alias:string,scope="")=>`(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM ${table} ${alias}${scope})`;
@@ -484,7 +486,8 @@ describe('Manufacturing read-tail text-only fragment dedupe', () => {
   });
   it('keeps one text-only definition and routes every caller through it', () => {
     const fragment = adapter('manufacturing-read-sql-fragments.ts');
-    expect(fragment.match(/\bSELECT\b/g)).toHaveLength(12);
+    expect(fragment.match(/\bSELECT\b/g)).toHaveLength(10); // r25 unifies the three local jsonb_agg wrappers into one helper.
+    expect(fragment).toContain('export const manufacturingJsonbAggSql');
     expect(fragment).not.toMatch(/^import /m);
     expect(fragment).not.toMatch(/compositionRoot|registerRead|readPlanRegistry/);
     for (const [name, old, helper] of [

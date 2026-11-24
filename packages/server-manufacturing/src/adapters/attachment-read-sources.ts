@@ -3,7 +3,7 @@ import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {planningAttachmentScenarioSourceRows,planningAttachmentRecommendationSourceRows} from '@erpx/server-planning/public/attachment-read-sources';
 import {manufacturingPurchaseSourceReadLocks} from '@erpx/server-manufacturing/adapters/purchases';
 import {manufacturingProductSources,manufacturingWarehouseSources} from '@erpx/server-commerce/public/manufacturing-purchase-sources';
-import {manufacturingOperationAggSql,manufacturingSpecificationLineAggSql,manufacturingSpecificationProductsAggSql} from './manufacturing-read-sql-fragments';
+import {manufacturingJsonbAggSql,manufacturingOperationAggSql,manufacturingSpecificationLineAggSql,manufacturingSpecificationProductsAggSql} from './manufacturing-read-sql-fragments';
 import {manufacturingAttachmentImageSelect} from './manufacturing-read-tail-r21-sql';
 
 /** Text-only order-lineage aggregate shared by the production-run attachment
@@ -11,7 +11,7 @@ import {manufacturingAttachmentImageSelect} from './manufacturing-read-tail-r21-
  * byte-identical apart from the table/alias and the optional company predicate;
  * the helper emits each one's SQL verbatim on the caller's prepared statement
  * and stays outside the RD_* read registry. */
-const manufacturingOrderLineageAgg=(alias:string,table:string,extra="")=>`(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM ${table} ${alias} WHERE ${alias}.order_id=record.id${extra})`;
+const manufacturingOrderLineageAgg=(alias:string,table:string,extra="")=>manufacturingJsonbAggSql(`to_jsonb(${alias})`,`${alias}.id`,`${table} ${alias}`,` WHERE ${alias}.order_id=record.id${extra}`);
 
 export function isManufacturingAttachmentReadTarget(target:string){return target==='manufacturing_spec'||target==='production_run'||target==='planning_scenario';}
 const specificationRows=`SELECT specification.id,specification.company_id,
@@ -35,7 +35,7 @@ export function manufacturingAttachmentReadSourceImage(database:SqlDatabase,comp
  'genealogy',${manufacturingOrderLineageAgg("genealogy","manufacturing_genealogy")},
  'costSnapshot',(SELECT to_jsonb(snapshot) FROM manufacturing_cost_snapshots snapshot WHERE snapshot.order_id=record.id),
  'costMovements',${manufacturingOrderLineageAgg("movement","manufacturing_cost_movements"," AND movement.company_id=record.company_id")},
- 'postings',(SELECT jsonb_agg(jsonb_build_object('posting',to_jsonb(posting),'profile',to_jsonb(profile)) ORDER BY posting.id) FROM manufacturing_order_postings posting LEFT JOIN manufacturing_accounting_profiles profile ON profile.id=posting.profile_id AND profile.company_id=posting.company_id WHERE posting.order_id=record.id AND posting.company_id=record.company_id),
+ 'postings',${manufacturingJsonbAggSql("jsonb_build_object('posting',to_jsonb(posting),'profile',to_jsonb(profile))","posting.id","manufacturing_order_postings posting LEFT JOIN manufacturing_accounting_profiles profile ON profile.id=posting.profile_id AND profile.company_id=posting.company_id"," WHERE posting.order_id=record.id AND posting.company_id=record.company_id")},
  'operations',${manufacturingOperationAggSql("manufacturing_operation_events operation","WHERE operation.order_id=record.id")})`,`\n FROM manufacturing_orders`,` LEFT JOIN (${specificationRows}) specification ON specification.id=record.specification_id AND specification.company_id=record.company_id\n LEFT JOIN (${planningAttachmentRecommendationSourceRows}) recommendation ON recommendation.id=record.recommendation_id AND recommendation.company_id=record.company_id LEFT JOIN (${manufacturingWarehouseSources}) warehouse ON warehouse.id=record.warehouse_id AND warehouse.company_id=record.company_id`);
  return database.prepare(query).bind(id,companyId).first<string>('image');
 }

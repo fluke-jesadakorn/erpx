@@ -1,9 +1,9 @@
 import 'server-only';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
-import {manufacturingScopedCte} from './manufacturing-read-sql-fragments';
+import {manufacturingJsonbAggSql,manufacturingScopedCte} from './manufacturing-read-sql-fragments';
 export {manufacturingPurchaseSourceReadLocks as manufacturingPostingSourceReadLocks} from '@erpx/server-manufacturing/adapters/purchases';
-const productionAgg=(table:string,alias:string,scope="")=>`(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM ${table} ${alias}${scope})`;
+const productionAgg=(table:string,alias:string,scope="")=>manufacturingJsonbAggSql(`to_jsonb(${alias})`,`${alias}.id`,`${table} ${alias}`,scope);
 const profileImage=productionAgg('manufacturing_accounting_profiles','p',',scope WHERE p.company_id=scope.company_id');
 /** Text-only economics guard shared by the posting setup source state. The
  * three EXISTS were byte-identical apart from the source table and the optional

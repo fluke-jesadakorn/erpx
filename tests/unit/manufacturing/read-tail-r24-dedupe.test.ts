@@ -98,7 +98,7 @@ describe('manufacturing read-tail r24 purchased-scope select family', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(70); // r23 left 72; r24 lowers 72->70 (three scoped selects -> one helper).
-    expect(total).toBeLessThan(72);
+    expect(total).toBe(65); // r23 left 72; r24 72->70; r25 unifies six jsonb_agg definitions -> 65.
+    expect(total).toBeLessThan(70);
   });
 });
