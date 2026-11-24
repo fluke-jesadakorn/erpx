@@ -1,6 +1,7 @@
+import { activeAccountListSql } from './finance-read-tail-r51-sql';
 import { tableByIdSql } from './finance-read-tail-r49-sql';
 import {childBillingRunExistsSql} from './finance-read-tail-r43-sql';
-import { billingCorrectionPointSql, chartPointSql } from './finance-read-tail-r42-sql';
+import { billingCorrectionPointSql, chartPointSql, financeReferenceListSql } from './finance-read-tail-r42-sql';
 import { BILLING_RUN_CHILD_EXISTS_SQL, BILLING_RUN_POINT_SQL, BUSINESS_CONTRACT_POINT_SQL, BILLING_RUN_ROOT_WINDOW_SQL } from './finance-read-tail-r38-sql';
 import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
 import { INVOICE_EXISTS_PREFIX } from './finance-read-tail-r30-sql';
@@ -259,7 +260,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async workspaceContracts(companyId: string) {
             const db = read();
             return db
-                .prepare("SELECT * FROM finance_business_contracts WHERE company_id=? ORDER BY created_at DESC LIMIT 200")
+                .prepare(financeReferenceListSql('finance_business_contracts','company_id=?','created_at DESC LIMIT 200'))
                 .bind(companyId)
                 .all<Row>();
         }, async workspaceBills(companyId: string) {
@@ -271,13 +272,13 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async workspaceRecognitions(companyId: string) {
             const db = read();
             return db
-                .prepare("SELECT * FROM finance_recognition_runs WHERE company_id=? ORDER BY created_at DESC LIMIT 500")
+                .prepare(financeReferenceListSql('finance_recognition_runs','company_id=?','created_at DESC LIMIT 500'))
                 .bind(companyId)
                 .all<Row>();
         }, async workspaceAccounts(companyId: string) {
             const db = read();
             return db
-                .prepare("SELECT id,chart_id,code,name,category,currency,control_kind FROM finance_accounts WHERE company_id=? AND status='active' ORDER BY code")
+                .prepare(activeAccountListSql('id,chart_id,code,name,category,currency,control_kind','code'))
                 .bind(companyId)
                 .all<Row>();
         }, async workspaceCustomers(companyId: string) {
@@ -298,7 +299,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
                 .prepare(OPEN_PERIOD_LIST_SQL)
                 .bind(companyId)
                 .all<Row>();
-        }, async workspaceCorrections(companyId: string) { const db = read(); return db.prepare('SELECT * FROM finance_billing_corrections WHERE company_id=? ORDER BY created_at DESC LIMIT 500').bind(companyId).all<Row>(); }, contractDecisionEvidence(value: string, key: string, id: string, op: string, userId: string, assignmentId: string, expectedVersion: number, value2: string, now: number) { return financeBusinessContractEffects(read()).contractDecisionEvidence(value, key, id, op, userId, assignmentId, expectedVersion, value2, now); }, recognitionDecisionEvidence(value: string, key: string, id: string, op: string, userId: string, assignmentId: string, expectedVersion: number, value2: string, now: number) { return financeBusinessContractEffects(read()).recognitionDecisionEvidence(value, key, id, op, userId, assignmentId, expectedVersion, value2, now); } };
+        }, async workspaceCorrections(companyId: string) { const db = read(); return db.prepare(financeReferenceListSql('finance_billing_corrections','company_id=?','created_at DESC LIMIT 500')).bind(companyId).all<Row>(); }, contractDecisionEvidence(value: string, key: string, id: string, op: string, userId: string, assignmentId: string, expectedVersion: number, value2: string, now: number) { return financeBusinessContractEffects(read()).contractDecisionEvidence(value, key, id, op, userId, assignmentId, expectedVersion, value2, now); }, recognitionDecisionEvidence(value: string, key: string, id: string, op: string, userId: string, assignmentId: string, expectedVersion: number, value2: string, now: number) { return financeBusinessContractEffects(read()).recognitionDecisionEvidence(value, key, id, op, userId, assignmentId, expectedVersion, value2, now); } };
     return { repository, prepare, clock: { now: () => Date.now() }, identifiers: { next: () => crypto.randomUUID() }, hash: sha256, requirePermission: (actor, permission) => {
             try {
                 return requirePermission(actor, permission);

@@ -1,5 +1,5 @@
 import { AI_USAGE_MONTH_SQL } from './finance-read-tail-r44-sql';
-import { financeAiProposalPointSql } from './finance-read-tail-r42-sql';
+import { financeAiProposalPointSql, financeReferenceListSql } from './finance-read-tail-r42-sql';
 import { clearWorkflowCommandAssertions } from "@erpx/server-workflow/public/command-assertion-effects";
 import { nativeFinanceOwnerWriteSystem } from './native-finance-owner-write';
 import {financeAiAgentUsageSql} from '@erpx/server-agent/public/finance-ai-quota-sources';
@@ -90,7 +90,7 @@ exhausted:async(now)=>{return db.batch([
     await nativeFinanceOwnerWriteSystem(db, 'system', 'ai_stmt_12', [now, now]),
     await nativeFinanceOwnerWriteSystem(db, 'system', 'ai_stmt_18', [])
   ]);},
-proposals:async(actor)=>(await db.prepare("SELECT * FROM finance_ai_proposals WHERE company_id=? ORDER BY updated_at DESC,id LIMIT 30").bind(actor.companyId).all<FinanceAiProposal>()).results,
+proposals:async(actor)=>(await db.prepare(financeReferenceListSql('finance_ai_proposals','company_id=?','updated_at DESC,id LIMIT 30')).bind(actor.companyId).all<FinanceAiProposal>()).results,
 events:async(actor)=>(await db.prepare("SELECT proposal_id,action,evidence_json,created_at FROM finance_ai_events WHERE company_id=? AND proposal_id IS NOT NULL ORDER BY created_at DESC LIMIT 120").bind(actor.companyId).all<{proposal_id:string;action:string;evidence_json:string;created_at:number}>()).results,
 proposal:async(actor,id)=>db.prepare(financeAiProposalPointSql('')).bind(id, actor.companyId).first<FinanceAiProposal>(),
 dismiss:async(facts)=>{const {actor,key,input,id,row}=facts;return executeCommand(db, actor, key, "finance.ai.dismiss", input, id, input.expectedVersion + 1, { id, state: "dismissed", version: input.expectedVersion + 1 }, [

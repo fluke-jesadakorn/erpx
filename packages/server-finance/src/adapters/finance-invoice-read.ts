@@ -1,3 +1,5 @@
+import { activeAccountListSql } from './finance-read-tail-r51-sql';
+import { financeReferenceListSql } from './finance-read-tail-r42-sql';
 import { UNMATCHED_BANK_TXN_COUNT_SQL } from './finance-read-tail-r44-sql';
 
 
@@ -62,7 +64,7 @@ export function financeReadService(provided?:SqlDatabase,historyOnly=false) {
             }
             const rows = await write.prepare(`SELECT a.id,a.code,a.name,a.category,COALESCE(SUM(l.base_debit_minor),0) AS debit,COALESCE(SUM(l.base_credit_minor),0) AS credit FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id JOIN finance_accounts a ON a.id=l.account_id WHERE ${clauses.join(" AND ")} GROUP BY a.id,a.code,a.name,a.category ORDER BY a.code`).bind(...args).all<FinanceRow>();
             return rows.results;
-        }, charts: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare("SELECT * FROM finance_charts WHERE company_id=? ORDER BY name").bind(actor.companyId).all<FinanceRow>()).results; },
+        }, charts: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare(financeReferenceListSql('finance_charts','company_id=?','name')).bind(actor.companyId).all<FinanceRow>()).results; },
         accounts: async (facts) => { const { actor, chartId } = facts; const write = await db(actor); return (await write.prepare("SELECT * FROM finance_accounts WHERE company_id=? AND chart_id=? ORDER BY code").bind(actor.companyId, chartId).all<FinanceRow>()).results; },
         invoices: async (facts) => {
             const { actor, limit } = facts;
@@ -138,7 +140,7 @@ export function financeReadService(provided?:SqlDatabase,historyOnly=false) {
       WHERE bank.id=? AND bank.company_id=? AND a.company_id=bank.company_id AND a.status='active' AND a.currency=c.base_currency AND a.category IN ('other_income','other_expense')
       ORDER BY a.code`).bind(payment.bank_account, actor.companyId).all<FinanceRow>()).results;
         },
-        workspaceAccounts: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare("SELECT * FROM finance_accounts WHERE company_id=? AND status='active' ORDER BY code").bind(actor.companyId).all<FinanceRow>()).results; },
+        workspaceAccounts: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare(financeReferenceListSql('finance_accounts',"company_id=? AND status='active'",'code')).bind(actor.companyId).all<FinanceRow>()).results; },
         workspaceParties: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare("SELECT * FROM finance_parties WHERE company_id=? AND status='active' AND kind IN ('customer','supplier') AND person_id IS NULL ORDER BY name").bind(actor.companyId).all<FinanceRow>()).results; },
         workspacePeriods: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare("SELECT * FROM finance_periods WHERE company_id=? AND state='open' ORDER BY start_date DESC").bind(actor.companyId).all<FinanceRow>()).results; },
         statement: async (facts) => { const { id, actor } = facts; const write = await db(actor); return write.prepare("SELECT s.*,a.currency,a.code,a.name,c.base_currency FROM finance_bank_statements s JOIN finance_accounts a ON a.id=s.bank_account AND a.company_id=s.company_id JOIN finance_charts c ON c.id=a.chart_id AND c.company_id=s.company_id WHERE s.id=? AND s.company_id=?").bind(id, actor.companyId).first<FinanceRow>(); },

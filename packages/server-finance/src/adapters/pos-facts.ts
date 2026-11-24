@@ -1,3 +1,4 @@
+import { activeAccountListSql } from './finance-read-tail-r51-sql';
 import "server-only";
 import {all} from '@erpx/server-runtime/public/runtime/sql';
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
@@ -9,6 +10,6 @@ readFinanceBankTransactions1:(facts:{company:string;fact1:unknown;currency:strin
   AND t.external_id=? AND t.transaction_date>=? AND t.match_status IN ('unmatched','proposed')
   ORDER BY t.transaction_date DESC,t.id LIMIT 10`,facts.company,facts.fact1,facts.currency,facts.amount_minor,facts.reference,facts.business_date),
 readFinanceBankTransactions2:(facts:{company:string;})=>all(db,"SELECT id,transaction_date,description,amount_minor,currency,version FROM finance_bank_transactions WHERE company_id=? AND match_status IN ('unmatched','proposed') ORDER BY transaction_date DESC LIMIT 200",facts.company),
-readFinanceAccounts2:(facts:{company:string;})=>all(db,"SELECT id,code,name,chart_id,category,currency,control_kind FROM finance_accounts WHERE company_id=? AND status='active' ORDER BY code",facts.company),
+readFinanceAccounts2:(facts:{company:string;})=>all(db,activeAccountListSql('id,code,name,chart_id,category,currency,control_kind','code'),facts.company),
 readFinanceCharts1:(facts:{company:string;})=>all(db,'SELECT id,name,base_currency,status FROM finance_charts WHERE company_id=? ORDER BY name',facts.company)
 };}

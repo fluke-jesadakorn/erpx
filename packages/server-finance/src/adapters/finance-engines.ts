@@ -1,3 +1,4 @@
+import { financeReferenceListSql } from './finance-read-tail-r42-sql';
 import { CALCULATION_RUN_POINT_SQL } from './finance-read-tail-r38-sql';
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
 import { PERIOD_BY_ID_SQL } from './finance-read-tail-r33-sql';
@@ -49,7 +50,7 @@ function engineService(provided?: SqlDatabase) {
                 values.push({ key: check.key, count, status: count ? "block" : "pass" });
             }
             return values.map(({ key, count }) => ({ key, count }));
-        }, runs: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare("SELECT * FROM finance_calculation_runs WHERE company_id=? ORDER BY created_at DESC LIMIT 50").bind(actor.companyId).all<Row>()).results; },
+        }, runs: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare(financeReferenceListSql('finance_calculation_runs','company_id=?','created_at DESC LIMIT 50')).bind(actor.companyId).all<Row>()).results; },
         counts: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare("SELECT kind,status,count(*) count FROM finance_calculation_runs WHERE company_id=? GROUP BY kind,status ORDER BY kind,status").bind(actor.companyId).all<Row>()).results; },
         periods: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare("SELECT id,name,start_date,end_date,state FROM finance_periods WHERE company_id=? ORDER BY start_date DESC LIMIT 24").bind(actor.companyId).all<Row>()).results; },
         periodExists: async (facts) => { const { parsed, actor } = facts; const write = await db(actor); return !!await write.prepare(PERIOD_EXISTS_BY_ID_SQL).bind(parsed.periodId, actor.companyId).first(); },

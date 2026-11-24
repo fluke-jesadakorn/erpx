@@ -1,3 +1,4 @@
+import { financeReferenceListSql } from './finance-read-tail-r42-sql';
 import { tableByIdSql } from './finance-read-tail-r49-sql';
 import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
@@ -24,7 +25,7 @@ const bookAdjustmentByIdSql = tableByIdSql('finance_book_adjustments');
 async function nativeBookAdjustmentWorkspace(write:SqlDatabase,actor:WorkContext){  return (
     await write
       .prepare(
-        "SELECT * FROM finance_book_adjustments WHERE company_id=? ORDER BY created_at DESC LIMIT 200",
+        financeReferenceListSql('finance_book_adjustments','company_id=?','created_at DESC LIMIT 200'),
       )
       .bind(actor.companyId)
       .all<Row>()

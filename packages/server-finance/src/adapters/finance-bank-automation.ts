@@ -1,3 +1,4 @@
+import { financeReferenceListSql } from './finance-read-tail-r42-sql';
 import { tableByIdSql } from './finance-read-tail-r49-sql';
 import { bankCashLinesSql } from './finance-read-tail-r39-sql';
 import { bankTxnGuardSql } from './finance-read-tail-r48-sql';
@@ -183,7 +184,7 @@ picker:async(actor,query,chart,search,cashSearch)=>{  const bankSql = `SELECT t.
   const [mappings, groups, rows, targets] = await Promise.all([
     write
       .prepare(
-        "SELECT * FROM finance_bank_csv_mappings WHERE company_id=? ORDER BY name",
+        financeReferenceListSql('finance_bank_csv_mappings','company_id=?','name'),
       )
       .bind(actor.companyId)
       .all(),

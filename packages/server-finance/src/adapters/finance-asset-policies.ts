@@ -1,3 +1,4 @@
+import { financeReferenceListSql } from './finance-read-tail-r42-sql';
 import { tableByIdSql } from './finance-read-tail-r49-sql';
 import { ASSET_DRAFT_DISPOSAL_SQL } from './finance-read-tail-r39-sql';
 import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
@@ -174,13 +175,13 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async workspacePolicies(companyId: string) {
             const db = read();
             return db
-                .prepare("SELECT * FROM finance_asset_policy_editions WHERE company_id=? ORDER BY created_at DESC LIMIT 500")
+                .prepare(financeReferenceListSql('finance_asset_policy_editions','company_id=?','created_at DESC LIMIT 500'))
                 .bind(companyId)
                 .all<Row>();
         }, async workspaceRuns(companyId: string) {
             const db = read();
             return db
-                .prepare("SELECT * FROM finance_asset_policy_runs WHERE company_id=? ORDER BY created_at DESC LIMIT 500")
+                .prepare(financeReferenceListSql('finance_asset_policy_runs','company_id=?','created_at DESC LIMIT 500'))
                 .bind(companyId)
                 .all<Row>();
         }, async workspaceAssets(companyId: string) {

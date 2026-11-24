@@ -1,3 +1,4 @@
+import { financeReferenceListSql } from './finance-read-tail-r42-sql';
 import { UNMATCHED_BANK_TXN_COUNT_SQL } from './finance-read-tail-r44-sql';
 import "server-only";
 import { requireFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
@@ -118,7 +119,7 @@ periods:async(actor)=>(await write
     .bind(actor.companyId)
     .all<ClosePeriodSource>()).results,
 pendingTax:async(actor,endDate)=>write.prepare(pendingVatReviewSql).bind(endDate,actor.companyId).first("value"),
-charts:async(actor)=>(await write.prepare("SELECT * FROM finance_charts WHERE company_id=? ORDER BY created_at").bind(actor.companyId).all<Record<string, string | number | null>>()).results,
+charts:async(actor)=>(await write.prepare(financeReferenceListSql('finance_charts','company_id=?','created_at')).bind(actor.companyId).all<Record<string, string | number | null>>()).results,
 accountCount:async(actor)=>write.prepare("SELECT count(*) count FROM finance_accounts WHERE company_id=? AND status='active'").bind(actor.companyId).first<{ count: number }>(),
 periodCount:async(actor)=>write.prepare("SELECT count(*) count FROM finance_periods WHERE company_id=?").bind(actor.companyId).first<{ count: number }>(),
 taxCount:async(actor)=>write.prepare("SELECT count(*) count FROM finance_tax_codes WHERE company_id=? AND status='active'").bind(actor.companyId).first<{ count: number }>(),

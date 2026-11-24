@@ -1,3 +1,5 @@
+import { activeAccountListSql } from './finance-read-tail-r51-sql';
+import { financeReferenceListSql } from './finance-read-tail-r42-sql';
 import { tableByIdSql } from './finance-read-tail-r49-sql';
 import { openingBalanceSql } from './finance-read-tail-r39-sql';
 import { OPEN_PERIOD_GUARD_SQL, OPEN_PERIOD_IDS_SQL } from './finance-read-tail-r16-sql';
@@ -144,13 +146,13 @@ function nativeBooks(provided?:SqlDatabase){let write:SqlDatabase;return createF
     await Promise.all([
       write
         .prepare(
-          "SELECT * FROM finance_dimension_definitions WHERE company_id=? ORDER BY code",
+          financeReferenceListSql('finance_dimension_definitions','company_id=?','code'),
         )
         .bind(actor.companyId)
         .all(),
       write
         .prepare(
-          "SELECT * FROM finance_dimension_values WHERE company_id=? ORDER BY dimension_id,code",
+          financeReferenceListSql('finance_dimension_values','company_id=?','dimension_id,code'),
         )
         .bind(actor.companyId)
         .all(),
@@ -174,7 +176,7 @@ function nativeBooks(provided?:SqlDatabase){let write:SqlDatabase;return createF
         .all(),
       write
         .prepare(
-          "SELECT id,chart_id,code,name FROM finance_accounts WHERE company_id=? AND status='active' ORDER BY chart_id,code",
+          activeAccountListSql('id,chart_id,code,name','chart_id,code'),
         )
         .bind(actor.companyId)
         .all(),

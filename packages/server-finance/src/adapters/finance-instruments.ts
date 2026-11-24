@@ -1,5 +1,5 @@
 import { tableByIdSql } from './finance-read-tail-r49-sql';
-import { chartPointSql } from './finance-read-tail-r42-sql';
+import { chartPointSql, financeReferenceListSql } from './finance-read-tail-r42-sql';
 import { bankTxnGuardSql } from './finance-read-tail-r48-sql';
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
 import { APPROVED_SECONDARY_CHART_RULE_SQL } from './finance-read-tail-r15-sql';
@@ -216,13 +216,13 @@ reverseRunCommit:async(facts)=>{const {actor,id,input,key,op,row,run,reversalId,
 function nativeInstruments(ownedTransaction?:SqlDatabase,readDatabase?:SqlDatabase){return createFinanceInstruments({error:(...args)=>new ApiError(...args),permission:requirePermission,samePerson,now:Date.now,hash:sha256,transaction:async(actor,run)=>ownedTransaction?run(nativeInstrumentRepository(ownedTransaction)):financeTransaction((await holdingResources(actor.holdingId)).write,db=>run(nativeInstrumentRepository(db))),ownedTransaction:async(actor,run)=>financeOwnedTransaction((await holdingResources(actor.holdingId)).write,ownedTransaction,db=>run(nativeInstrumentRepository(db))),workspace:async actor=>{const write=readDatabase??(await holdingResources(actor.holdingId)).write;  const [editions, runs, accounts, periods, bank] = await Promise.all([
     write
       .prepare(
-        "SELECT * FROM finance_instrument_editions WHERE company_id=? ORDER BY created_at DESC,id LIMIT 500",
+        financeReferenceListSql('finance_instrument_editions','company_id=?','created_at DESC,id LIMIT 500'),
       )
       .bind(actor.companyId)
       .all<Row>(),
     write
       .prepare(
-        "SELECT * FROM finance_instrument_runs WHERE company_id=? ORDER BY created_at DESC,id LIMIT 500",
+        financeReferenceListSql('finance_instrument_runs','company_id=?','created_at DESC,id LIMIT 500'),
       )
       .bind(actor.companyId)
       .all<Row>(),

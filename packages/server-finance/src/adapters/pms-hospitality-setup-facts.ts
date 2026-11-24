@@ -1,3 +1,4 @@
+import { activeAccountListSql } from './finance-read-tail-r51-sql';
 import { OPEN_PERIOD_GUARD_SQL, OPEN_PERIOD_IDS_SQL } from './finance-read-tail-r16-sql';
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
@@ -14,6 +15,6 @@ export function pmsHospitalitySetupFinanceFacts(db: SqlDatabase) {
         }) => all(db, "SELECT id,name,base_currency FROM finance_charts WHERE company_id=? AND status='active'", facts.company),
         accounts: (facts: {
             company: string;
-        }) => all(db, "SELECT id,code,name,category,currency,chart_id FROM finance_accounts WHERE company_id=? AND status='active' ORDER BY code", facts.company)
+        }) => all(db, activeAccountListSql('id,code,name,category,currency,chart_id','code'), facts.company)
     };
 }
