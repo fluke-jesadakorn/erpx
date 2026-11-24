@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12187,
+    "revision": 12189,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -180976,7 +180976,7 @@
         "owner": "pms",
         "title": "pms stay exists, correction and selected records heads",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -180987,22 +180987,37 @@
         "resources": [
           "owner:pms"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n20",
-          "claimedAt": "2026-11-24T13:44:54.710Z",
-          "heartbeatAt": "2026-11-24T13:56:34.987Z",
-          "expiresAt": "2026-11-24T14:26:34.987Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pms/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "7176b42b6",
+            "owner": "pms",
+            "before": 305,
+            "after": 302,
+            "note": "Stay EXISTS field union, correction fact head and selected records order head shared; locks/feature/native untouched."
+          },
+          {
+            "command": "vitest PMS dedupe (124) + scoped tsc + byte oracle",
+            "result": "passed",
+            "sourceSha": "7176b42b6"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Stay EXISTS head (-1), correction fact head (-1), selected records order head (-1): 305->302.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n20",
+          "at": "2026-11-24T13:57:28.883Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -181474,17 +181489,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 16,
+        "in_progress": 15,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1387,
+        "blocked": 1388,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T13:57:04.887Z",
+    "updatedAt": "2026-11-24T13:57:28.890Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
