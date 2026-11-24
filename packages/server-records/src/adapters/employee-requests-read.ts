@@ -21,6 +21,7 @@ import { requestActorNameSql } from '@erpx/server-people_payroll/public/records-
 
 import{createEmployeeRequestRead,type createEmployeeRequestReadPorts}from '@erpx/server-records/application/employee-requests';
 import { selectAllWhereSql } from './read-tail-select-all';
+import { employeeRequestColumnsSql } from './read-tail-employee-request-columns';
 
 /** Records-owned canonical native employee-request read. The single-row
  * selection is fixed SQL admitted once and shared by both caller-named ports;
@@ -41,7 +42,7 @@ export function nativeEmployeeRequestReadRepository(database:SqlDatabase):create
                 created_at: number;
             }>();
         },readEmployeeRequestDetailTeam(...args) { return EmployeeRequestsSupportOwnedFacts(database).readEmployeeRequestDetailTeam(...args); },readEmployeeRequestDetailChildren(id: string, companyId: string) {
-            return database.prepare("SELECT id,title,kind,state FROM employee_requests WHERE parent_request_id=? AND company_id=? ORDER BY created_at LIMIT 50")
+            return database.prepare(employeeRequestColumnsSql('id,title,kind,state','parent_request_id=? AND company_id=? ORDER BY created_at LIMIT 50'))
                 .bind(id, companyId)
                 .all<{
                 id: string;
