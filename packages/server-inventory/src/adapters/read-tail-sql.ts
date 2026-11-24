@@ -257,3 +257,12 @@ export const executivePositionPointSql = (positions: string, condition: string) 
  *  r11-r35 helpers above are left unchanged. */
 export const stockSourceColumnsSql = (column: string, table: string) =>
   `SELECT id,company_id,${column} FROM ${table}`;
+/** r37: parameterized attachment-owner version guard. The operational and
+ *  service attachment facts share one byte-identical EXISTS guard on the backing
+ *  Inventory document's id, company and version; only the relation and an
+ *  optional extra predicate vary. Every caller keeps its own binds and
+ *  independent assertion statement. The UPDATE version-step statements, locks,
+ *  count sources/adapters and native registry stay untouched. r11-r36 helpers
+ *  above are left unchanged. */
+export const attachmentOwnerVersionGuardSql = (table: string, extra = '') =>
+  `EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND version=?${extra ? ` AND ${extra}` : ''})`;

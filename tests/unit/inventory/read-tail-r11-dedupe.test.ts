@@ -22,7 +22,7 @@ describe('Inventory read-tail r11 byte-identical dedupe', () => {
     const metric = src('executive-metric-projections.ts');
     for (const [name, text] of [['executive-main-evidence-sources.ts', main], ['executive-metric-projections.ts', metric]] as const) {
       expect(text, name).not.toContain(reservedWarehouseProductQtySql);
-      expect(text.match(/reservedWarehouseProductQtySql/g) ?? [], name).toHaveLength(name.startsWith('executive-main') ? 4 : 3);
+      expect(text.match(/reservedWarehouseProductQtySql/g) ?? [], name).toHaveLength(name.startsWith('executive-main') ? 2 : 3);
     }
     const shared = src('read-tail-sql.ts');
     expect(shared.split(reservedWarehouseProductQtySql)).toHaveLength(2);

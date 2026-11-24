@@ -3,6 +3,7 @@ import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import type {TargetRow} from "@erpx/server-files/public/contracts/attachments-operational";
 import {nativeInventoryReadFirst,INVENTORY_RD_ATTACHMENT_OPERATIONAL_TRANSFER} from './native-inventory-read';
+import {attachmentOwnerVersionGuardSql} from './read-tail-sql';
 const versionOwners:Record<string,string>={};
 const allowedTargets=new Set<string>([]);
 function remainingOperationalAttachmentTargetVersionGuard(
@@ -21,7 +22,7 @@ if(!allowedTargets.has(targetType))return null;
     db,
     commandId,
     `attachment-owner-${index}`,
-    `EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND version=?)`,
+    attachmentOwnerVersionGuardSql(table),
     [targetId, companyId, version],
   );
 }

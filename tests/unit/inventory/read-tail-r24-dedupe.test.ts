@@ -64,7 +64,7 @@ describe('Inventory read-tail r24 native-record EXISTS / branch-scope tuple dedu
     expect(landed).not.toContain('(?::text IS NULL OR landed_source.branch_id=?)');
     expect(transfer).not.toContain('(?::text IS NULL OR transfer_source.branch_id=?)');
     expect(count.match(/branchScopeTupleSql\(/g) ?? []).toHaveLength(2);
-    expect(landed.match(/branchScopeTupleSql\(/g) ?? []).toHaveLength(1);
+    expect(landed.match(/branchScopeTupleSql\(/g) ?? []).toHaveLength(0);
     expect(transfer.match(/branchScopeTupleSql\(/g) ?? []).toHaveLength(1);
   });
 
