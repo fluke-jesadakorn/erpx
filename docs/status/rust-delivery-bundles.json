@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12606,
+    "revision": 12609,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -158747,17 +158747,32 @@
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-customer_360/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "26914cdfc",
+            "owner": "customer_360",
+            "before": 14,
+            "after": 13,
+            "note": "Removed orphaned customer_portal_actions final-root projection and dead customer_authority import/barrel/export; no dynamic importer remains. Timeline/portal blockers untouched."
+          },
+          {
+            "command": "vitest customer_360 (73 incl. transport)",
+            "result": "passed",
+            "sourceSha": "26914cdfc"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
-        "nextAction": "Blocked with evidence; claim released",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261125-a",
-          "agentId": "wH4n121",
-          "at": "2026-11-24T19:56:46.702Z",
+          "runId": "run-20261125-b",
+          "agentId": "lead-opencode",
+          "at": "2026-11-24T20:03:57.752Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
-          "nextAction": "Blocked with evidence; claim released"
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -185863,7 +185878,7 @@
       }
     },
     "lastCoordinatorGeneration": 172,
-    "updatedAt": "2026-11-24T20:03:57.070Z",
+    "updatedAt": "2026-11-24T20:03:57.755Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
