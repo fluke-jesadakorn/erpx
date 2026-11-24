@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10993,
+    "revision": 10997,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -169096,7 +169096,7 @@
         "owner": "collaboration",
         "title": "collaboration TS read tail native cutover (round 27)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -169108,22 +169108,37 @@
         "resources": [
           "owner:collaboration"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMcol7",
-          "claimedAt": "2026-11-24T09:25:42.298Z",
-          "heartbeatAt": "2026-11-24T09:29:40.847Z",
-          "expiresAt": "2026-11-24T09:59:40.847Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-collaboration/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "87de8995e",
+            "owner": "collaboration",
+            "before": 403,
+            "after": 399,
+            "note": "Raw and redacted social AI phase image reads share socialAiPhaseImageSql; LOCK TABLE, FOR UPDATE SKIP LOCKED and notification files untouched."
+          },
+          {
+            "command": "vitest collaboration r16-r27 (58) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "87de8995e"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized SELECT-head family; if none, report blocked. BEFORE=403.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMcol7",
+          "at": "2026-11-24T09:33:07.354Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -169450,6 +169465,42 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=30.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.collaboration.read-tail-r28",
+        "goalId": "G4",
+        "owner": "collaboration",
+        "title": "collaboration TS read tail native cutover (round 28)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-collaboration/src/**",
+          "tests/unit/collaboration/**",
+          "tests/integration/collaboration/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMcol8",
+          "claimedAt": "2026-11-24T09:33:07.954Z",
+          "heartbeatAt": "2026-11-24T09:33:07.954Z",
+          "expiresAt": "2026-11-24T10:03:07.954Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical/parameterized head or fragment family; if none, report blocked. BEFORE=399.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -169458,7 +169509,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1520,
+      "totalPackets": 1521,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 24,
@@ -169466,13 +169517,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1135,
+        "blocked": 1136,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T09:32:42.634Z",
+    "updatedAt": "2026-11-24T09:33:07.969Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
