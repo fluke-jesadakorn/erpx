@@ -3,7 +3,7 @@ import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { AvailableStockEvidenceRow, InventoryShortageEvidenceRow, InventoryMovementEvidenceRow } from '@erpx/server-runtime/public/executive/evidence-contract';
-import { reservedWarehouseProductQtySql } from './read-tail-sql';
+import { evidencePositionRowsSql, reservedWarehouseProductQtySql } from './read-tail-sql';
 const availableStockPositions = `WITH reservations AS (
     ${reservedWarehouseProductQtySql}
     FROM inventory_active_reservations GROUP BY warehouse_id,product_id
@@ -73,7 +73,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
                 conditions.push("(warehouse_id,product_id)>(?,?)");
                 values.push(cursor.warehouseId, cursor.productId);
             }
-            const rows = (await db.prepare(`SELECT * FROM (${availableStockPositions}) stock WHERE ${conditions.join(" AND ")} ORDER BY warehouse_id,product_id LIMIT ?`)
+            const rows = (await db.prepare(evidencePositionRowsSql(availableStockPositions, 'stock', conditions.join(" AND ")))
                 .bind(...values, input.limit + 1).all<AvailableStockEvidenceRow>()).results;
             return { rows };
         }, async factsReadAvailableStockEvidence(actor: WorkContext, ids: {
@@ -111,7 +111,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
                 conditions.push("(warehouse_id,product_id)>(?,?)");
                 values.push(cursor.warehouseId, cursor.productId);
             }
-            const rows = (await db.prepare(`SELECT * FROM (${inventoryShortagePositions}) shortages WHERE ${conditions.join(" AND ")} ORDER BY warehouse_id,product_id LIMIT ?`)
+            const rows = (await db.prepare(evidencePositionRowsSql(inventoryShortagePositions, 'shortages', conditions.join(" AND ")))
                 .bind(...values, input.limit + 1).all<InventoryShortageEvidenceRow>()).results;
             return { rows };
         }, async factsReadInventoryShortageEvidence(actor: WorkContext, ids: {
@@ -150,7 +150,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
                 conditions.push("(warehouse_id,product_id)>(?,?)");
                 values.push(cursor.warehouseId, cursor.productId);
             }
-            const rows = (await db.prepare(`SELECT * FROM (${stockedLocationPositions}) stock WHERE ${conditions.join(" AND ")} ORDER BY warehouse_id,product_id LIMIT ?`)
+            const rows = (await db.prepare(evidencePositionRowsSql(stockedLocationPositions, 'stock', conditions.join(" AND ")))
                 .bind(...values, input.limit + 1).all<AvailableStockEvidenceRow>()).results;
             return { rows };
         }, async factsReadStockedLocationEvidence(actor: WorkContext, ids: {
