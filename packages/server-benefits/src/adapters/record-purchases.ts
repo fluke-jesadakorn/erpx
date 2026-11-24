@@ -12,6 +12,10 @@ import {benefitAttachmentPeopleSources as people} from "@erpx/server-people_payr
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {benefitPurchaseControls,benefitAssignmentSelectSql} from "@erpx/server-benefits/adapters/purchases";
 import {workforceActorScopeProbe} from "@erpx/server-benefits/adapters/benefits-read-sql";
+/** Byte-identical owner-local source clock projection shared by the generic
+ * records read scope and the private employee/reviewer read scope; generated
+ * SQL is unchanged. */
+const benefitSourceClock=`(SELECT ${packageClockSql} now_ms)`;
 const activeEngagementScope=`EXISTS(SELECT 1 FROM (${people.engagements}) e WHERE e.person_id=p.id AND e.company_id=p.company_id AND e.status='active')`;
 const nativeSources=`SELECT r.id,r.company_id,'plan' kind,NULL::text person_user_id,TRUE current_person FROM benefit_plans r
  UNION ALL SELECT r.id,r.company_id,'window',NULL::text,TRUE FROM benefit_enrollment_windows r
@@ -20,7 +24,7 @@ const nativeSources=`SELECT r.id,r.company_id,'plan' kind,NULL::text person_user
 const benefitActualProbe=`SELECT 1 FROM (${nativeSources}) benefit_actual WHERE`;
 function visible(actor:WorkContext,id:string,company:string,purchased=true,electionOnly=false){
  const current=currentAssignmentReadScope(actor,"workforce_actor_scope"),read=hasModuleAccess(actor.modules,"benefits")&&hasPermission(actor,"records.read"),review=hasPermission(actor,"benefits.review")?"iam_role_allows(?,?,'benefits.review')":"FALSE",reviewArgs=hasPermission(actor,"benefits.review")?[actor.role,actor.companyId]:[];
- return {sql:`EXISTS(WITH benefit_source_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms) SELECT 1 FROM (${nativeSources}) benefit_source CROSS JOIN benefit_source_clock CROSS JOIN LATERAL(SELECT benefit_source.company_id,?::text branch_id,?::text department_id)workforce_actor_scope
+ return {sql:`EXISTS(WITH benefit_source_clock AS MATERIALIZED${benefitSourceClock} SELECT 1 FROM (${nativeSources}) benefit_source CROSS JOIN benefit_source_clock CROSS JOIN LATERAL(SELECT benefit_source.company_id,?::text branch_id,?::text department_id)workforce_actor_scope
  WHERE benefit_source.id=${id} AND benefit_source.company_id=${company} AND ${electionOnly?"benefit_source.kind='election'":"TRUE"} AND ${read?'TRUE':'FALSE'} AND ${current.where} AND iam_role_allows(?,?,'records.read') AND EXISTS(${benefitAssignmentSelectSql})
  AND (benefit_source.kind IN ('plan','window') OR (benefit_source.person_user_id=? AND benefit_source.current_person) OR (benefit_source.kind='election' AND ${review}))
  AND ${purchased?purchasedCapabilityPredicate('benefit_source.company_id','people.benefits','history','benefit_source_clock.now_ms'):'TRUE'} AND ${scheduledFeaturePredicate('benefit_source.company_id','benefits')})`,args:[actor.branchId,actor.departmentId,...current.args,actor.role,actor.companyId,actor.assignmentId,actor.userId,...reviewArgs]};
@@ -33,7 +37,7 @@ export async function benefitSourceReadScope(database:SqlDatabase,actor:WorkCont
  if(surface!=="records")return {where:`(${type}<>'benefit_election' OR ${source.sql})`,args:source.args};
  // Unknown legacy generic rows retain their original record policy, but are
  // not a bypass around purchasing their actual Benefits module.
- return {where:`(NOT EXISTS(${benefitActualProbe} benefit_actual.id=${id}) OR ${source.sql}) AND (module_id<>'benefits' OR EXISTS(SELECT 1 FROM(SELECT ${packageClockSql} now_ms)benefit_generic_clock WHERE ${purchasedCapabilityPredicate(company,'people.benefits','history','benefit_generic_clock.now_ms')}))`,args:source.args};
+ return {where:`(NOT EXISTS(${benefitActualProbe} benefit_actual.id=${id}) OR ${source.sql}) AND (module_id<>'benefits' OR EXISTS(SELECT 1 FROM${benefitSourceClock}benefit_generic_clock WHERE ${purchasedCapabilityPredicate(company,'people.benefits','history','benefit_generic_clock.now_ms')}))`,args:source.args};
 }
 export async function requireBenefitWorkspaceRecordRead(database:SqlDatabase,actor:WorkContext,moduleId:string,id:string){
  const mode=await peoplePackageEnforcementMode();if(mode==="disabled")return;
