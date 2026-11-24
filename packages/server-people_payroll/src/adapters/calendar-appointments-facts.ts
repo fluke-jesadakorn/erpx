@@ -1,6 +1,7 @@
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { ppRd19InList as inList } from './pp-read-tail-r19-sources';
+import { ppRd27CalendarAbsenceSql } from './pp-read-tail-r27-sources';
 export function calendarAppointmentsPeoplePayrollFacts(db: SqlDatabase) {
     return { read7: (facts: {
             value1: string;
@@ -9,9 +10,6 @@ export function calendarAppointmentsPeoplePayrollFacts(db: SqlDatabase) {
             value4: string;
             value5: number;
         }) => {
-            return db.prepare(`SELECT 1 FROM leave_requests l LEFT JOIN employees e ON e.id=l.employee_id AND e.company_id=l.company_id WHERE l.company_id=? AND l.state='approved' AND ${inList("coalesce(l.person_id,e.person_id)")} AND EXISTS(SELECT 1 FROM (
- SELECT s.leave_date::date absence_date FROM leave_day_segments s WHERE s.request_id=l.id AND s.company_id=l.company_id
- UNION ALL SELECT generate_series(l.start_date::date,coalesce(l.end_date::date,l.start_date::date+l.days::int-1),interval '1 day')::date WHERE NOT EXISTS(SELECT 1 FROM leave_day_segments s WHERE s.request_id=l.id)
- ) absence WHERE absence_date<=(to_timestamp((?::bigint-1)/1000.0) AT TIME ZONE ?)::date AND absence_date>=(to_timestamp(?::bigint/1000.0) AT TIME ZONE ?)::date) LIMIT 1`).bind(facts.value1, facts.value2, facts.value3, facts.value4, facts.value5, facts.value4).first<Record<string, unknown>>();
+            return db.prepare(ppRd27CalendarAbsenceSql(inList("coalesce(l.person_id,e.person_id)"))).bind(facts.value1, facts.value2, facts.value3, facts.value4, facts.value5, facts.value4).first<Record<string, unknown>>();
         } };
 }

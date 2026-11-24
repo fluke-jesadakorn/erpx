@@ -1,4 +1,5 @@
 import { PP_RD23_HR_COMP_REVISIONS_SQL, PP_RD23_HR_PAYROLL_COST_ASSIGNMENTS_SQL, PP_RD23_HR_PAY_GROUPS_IMAGE_SQL, PP_RD23_HR_TIME_ENTRIES_OVERTIME_SQL, PP_RD23_OVERTIME_PAYROLL_HANDOFFS_SQL } from './pp-read-tail-r23-sources';
+import { ppRd27IdVersionStatusInGuard } from './pp-read-tail-r27-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import {PP_RD15_ACTIVE_PAYEE_SQL} from './pp-read-tail-r15-sources';
 import { payrollItemSourceRows } from './payroll-item-source-read';
@@ -122,7 +123,7 @@ function context(provided?: SqlDatabase, mode: PackageEnforcementMode = "disable
         guard29(...args) { return payrollBenefitSources(database).guard29(...args); },
         guard30(...args) { return payrollBenefitSources(database).guard30(...args); },
         guard31(key: string, value: string, company_id: string, engagement_id: string, period_end: string, period_start: string, runId: string, length: number) { return assertion(database, key, value, "(SELECT COUNT(*) FROM hr_payroll_advance_repayments r JOIN hr_payroll_advances a ON a.id=r.advance_id WHERE r.company_id=? AND a.engagement_id=? AND a.status='approved' AND r.status IN ('open','reserved') AND r.due_period_start<=? AND r.due_period_end>=? AND (r.payroll_run_id IS NULL OR r.payroll_run_id=?))=?", [company_id, engagement_id, period_end, period_start, runId, length]); },
-        guard32(key: string, value: string, id: string, version: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_payroll_advance_repayments WHERE id=? AND version=? AND status IN ('open','reserved'))", [id, version]); },
+        guard32(key: string, value: string, id: string, version: number) { return assertion(database, key, value, ppRd27IdVersionStatusInGuard('hr_payroll_advance_repayments', "'open','reserved'"), [id, version]); },
         readPayrollReadinessRun(runId: string, companyId: string) { return database.prepare("SELECT id,company_id,pay_group_id,country_pack_id,scope_engagement_id,period_start,period_end,pay_date,currency,mode,status,version,revision,input_digest,submitted_by,submitted_digest,adjustment_of_run_id FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(runId, companyId).first<Run>(); },
         readPayrollReadinessToday(pay_group_id: string, companyId: string) {
             return database.prepare("SELECT timezone FROM hr_pay_groups WHERE id=? AND company_id=?").bind(pay_group_id, companyId).first<{

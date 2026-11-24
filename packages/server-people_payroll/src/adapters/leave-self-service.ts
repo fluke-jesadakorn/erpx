@@ -1,4 +1,5 @@
 import { PP_RD23_HR_ENGAGEMENTS_ID_COMPANY_EXISTS, PP_RD23_LEAVE_TYPES_ID_COMPANY_EXISTS } from './pp-read-tail-r23-sources';
+import { ppRd27LeaveRequestListSql, ppRd27IdByIdCompanySql } from './pp-read-tail-r27-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import {peoplePackageEnforcementMode} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {workforcePurchaseControls,withWorkforcePurchasedRead,withWorkforcePurchasedCommand,withWorkforceAccrualTransaction} from "@erpx/server-people_payroll/adapters/workforce-purchases";
@@ -113,9 +114,7 @@ function serviceContext(provided?: SqlDatabase,providedOwned=false): LeaveSelfSe
             }>(database, "SELECT h.holiday_date,h.name FROM leave_holidays h WHERE h.calendar_id=? AND h.holiday_date>=to_char(current_date,'YYYY-MM-DD') ORDER BY h.holiday_date LIMIT 8", holiday_calendar_id);
         },
         readListOwnLeavePagePage(args: unknown[], value: number, clauses: string[]) {
-            return rows<LeaveListRow>(database, `SELECT r.id,r.number,r.start_date,r.end_date,r.start_segment,r.end_segment,r.calculated_units,r.days,r.state,r.cancellation_state,r.version,r.created_at,r.updated_at,r.decision_note,t.name leave_type_name
-      FROM leave_requests r LEFT JOIN leave_types t ON t.id=r.leave_type_id
-      WHERE ${clauses.join(" AND ")} ORDER BY r.created_at DESC,r.id DESC LIMIT ?`, ...args, value);
+            return rows<LeaveListRow>(database, ppRd27LeaveRequestListSql(clauses.join(" AND ")), ...args, value);
         },
         readLeaveCalendarMonthRequestsholidays(companyId: string, engagement_id: string, userId: string, end: string, start: string) {
             return rows<LeaveListRow>(database, `SELECT r.id,r.number,r.start_date,r.end_date,r.start_segment,r.end_segment,r.calculated_units,r.days,r.state,r.cancellation_state,r.version,r.created_at,r.updated_at,r.decision_note,t.name leave_type_name
@@ -188,7 +187,7 @@ function serviceContext(provided?: SqlDatabase,providedOwned=false): LeaveSelfSe
             }>(database, `SELECT a.id,p.policy_key,a.effective_from FROM leave_policy_assignments a JOIN leave_policy_versions p ON p.id=a.policy_version_id WHERE a.company_id=? AND a.engagement_id=? AND a.effective_from<=? AND coalesce(a.effective_to,'9999-12-31')>=?`, companyId, engagementId, value, effectiveFrom);
         },
         stageAdministerLeaveEffect6(value: string, id: string) { return nativePpStatement('leave_ss_stmt_11').bind(value, id).run(); },
-        readAdministerLeaveEffect6(policyVersionId: string, companyId: string) { return database.prepare('SELECT id FROM leave_policy_versions WHERE id=? AND company_id=?').bind(policyVersionId, companyId).first(); },
+        readAdministerLeaveEffect6(policyVersionId: string, companyId: string) { return database.prepare(ppRd27IdByIdCompanySql('leave_policy_versions')).bind(policyVersionId, companyId).first(); },
         stageAdministerLeaveEffect7(id: string, companyId: string, engagementId: string, policyVersionId: string, calendarId: string | null, effectiveFrom: string, effectiveTo: string | null, userId: string, now: number, engagementId2: string, companyId2: string) { return nativePpStatement('leave_ss_stmt_12').bind(id, companyId, engagementId, policyVersionId, calendarId, effectiveFrom, effectiveTo, userId, now, engagementId2, companyId2).run(); },
         readAdministerLeaveRow(id: string, companyId: string) {
             return database.prepare('SELECT effective_from,version FROM leave_policy_assignments WHERE id=? AND company_id=? FOR UPDATE').bind(id, companyId).first<{
@@ -292,9 +291,7 @@ function serviceContext(provided?: SqlDatabase,providedOwned=false): LeaveSelfSe
                 clauses.push("(r.created_at<? OR (r.created_at=? AND r.id<?))");
                 args.push(cursor.at, cursor.at, cursor.id);
             }
-            const page = await rows<LeaveListRow>(database, `SELECT r.id,r.number,r.start_date,r.end_date,r.start_segment,r.end_segment,r.calculated_units,r.days,r.state,r.cancellation_state,r.version,r.created_at,r.updated_at,r.decision_note,t.name leave_type_name
-      FROM leave_requests r LEFT JOIN leave_types t ON t.id=r.leave_type_id
-      WHERE ${clauses.join(" AND ")} ORDER BY r.created_at DESC,r.id DESC LIMIT ?`, ...args, input.limit + 1);
+            const page = await rows<LeaveListRow>(database, ppRd27LeaveRequestListSql(clauses.join(" AND ")), ...args, input.limit + 1);
             return page;
         }, activeStaff: (...args) => fromNative(() => activeStaff(database, ...args)), requireCompanyAuthority: (...args) => fromNative(() => requireCompanyAuthority(database, ...args)), openApproval: (...args) => fromNative(() => openApproval(database, ...args)), peopleRequestRoute: (...args) => fromNative(() => peopleRequestRoute(database, ...args)), availableLeaveEvidence: (...args) => fromNative(() => availableLeaveEvidence(database, ...args)), transaction: run => {
             if(providedOwned)return run(serviceContext(database,true));

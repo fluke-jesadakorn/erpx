@@ -1,4 +1,5 @@
 import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
+import { ppRd27IdCompanyEngagementApprovedVersionGuard } from './pp-read-tail-r27-sources';
 import { payrollStatutory } from '@erpx/server-collaboration/adapters/native-payroll-statutory';
 import { withPayrollPurchasedCommand, withPayrollPurchasedRead } from "@erpx/server-people_payroll/adapters/payroll-purchases";
 import {payrollStatutoryDecisionEffects} from '@erpx/server-workflow/public/payroll-statutory-decision-effects';
@@ -44,7 +45,7 @@ function application(provided?: SqlDatabase) {
         },
         lockYtd(value: string) { return database.prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))").bind(value); },
         guardEffectivePack(key: string, value: string, id: string, recordVersion: number, sourceDigest: string, rulesJson: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_country_packs WHERE id=? AND status='active' AND record_version=? AND source_digest=? AND rules_json=?)", [id, recordVersion, sourceDigest, rulesJson]); },
-        guardApprovedProfile(key: string, value: string, id: string, company_id: string, engagementId: string, version: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_thai_payroll_profiles WHERE id=? AND company_id=? AND engagement_id=? AND status='approved' AND version=?)", [id, company_id, engagementId, version]); },
+        guardApprovedProfile(key: string, value: string, id: string, company_id: string, engagementId: string, version: number) { return assertion(database, key, value, ppRd27IdCompanyEngagementApprovedVersionGuard('hr_thai_payroll_profiles'), [id, company_id, engagementId, version]); },
         guardRetainedYtdCount(key: string, value: string, company_id: string, engagementId: string, opening_through_date: string, value2: string, id: string, value3: string, length: number) { return assertion(database, key, value, "(SELECT COUNT(*) FROM hr_payroll_items i JOIN hr_payroll_runs r ON r.id=i.run_id WHERE r.company_id=? AND i.engagement_id=? AND r.status='posted' AND r.currency='THB' AND r.pay_date>? AND r.pay_date<=? AND r.id<>? AND r.pay_date>=?)=?", [company_id, engagementId, opening_through_date, value2, id, value3, length]); },
         guardRetainedYtdItem(key: string, value: string, id: string, run_id: string, run_version: number, input_digest: string, result_json: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_payroll_items i JOIN hr_payroll_runs r ON r.id=i.run_id WHERE i.id=? AND i.run_id=? AND r.version=? AND r.status='posted' AND r.input_digest=? AND i.result_json=?)", [id, run_id, run_version, input_digest, result_json]); },
         run(runId: string) { return database.prepare("SELECT mode,country_pack_id,currency FROM hr_payroll_runs WHERE id=?").bind(runId).first<{

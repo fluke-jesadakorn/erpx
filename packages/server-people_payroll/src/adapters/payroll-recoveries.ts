@@ -1,5 +1,6 @@
 import { PP_RD23_RECOVERY_FIRST_PERIOD_GUARD } from './pp-read-tail-r23-sources';
 import { ppRd26IdCompanyVersionStatusGuard } from './pp-read-tail-r26-sources';
+import { ppRd27IdCompanyVersionStatusLiteralGuard } from './pp-read-tail-r27-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import { withPayrollPurchasedCommand, withPayrollPurchasedRead } from "@erpx/server-people_payroll/adapters/payroll-purchases";
 import "server-only";
@@ -57,7 +58,7 @@ function application(provided?: SqlDatabase) {
         stageRecognizePayrollRecoverySteps(value: string) { return database.prepare('SELECT pg_advisory_xact_lock(hashtextextended(?,0))').bind(value); },
         stageRecognizePayrollRecoverySteps2(id: string) { return database.prepare('SELECT id FROM hr_payroll_recoveries WHERE id=? FOR UPDATE').bind(id); },
         guard20(key: string, value: "recovery-recognition-version", id: string, companyId: string, expectedVersion: number, value2: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_payroll_recoveries WHERE id=? AND company_id=? AND version=? AND status='approved' AND consent_sha256=?)", [id, companyId, expectedVersion, value2]); },
-        guard21(key: string, value: "recovery-current-mapping", id: string, companyId: string, version: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_payroll_account_mappings WHERE id=? AND company_id=? AND version=? AND status='approved')", [id, companyId, version]); },
+        guard21(key: string, value: "recovery-current-mapping", id: string, companyId: string, version: number) { return assertion(database, key, value, ppRd27IdCompanyVersionStatusLiteralGuard('hr_payroll_account_mappings','approved'), [id, companyId, version]); },
         guard22(key: string, value: "recovery-current-schedule", companyId: string, value2: string, value3: string, value4: string) { return assertion(database, key, value, PP_RD23_RECOVERY_FIRST_PERIOD_GUARD, [companyId, value2, value3, value4]); },
         stageRecognizePayrollRecoverySteps3(advanceId: string, companyId: string, engagement_id: unknown, person_id: unknown, amount: number, count: number, first_deduction_period: unknown, value: string, employee_user_id: unknown, reviewed_by: unknown, legal_basis_ref: unknown, now: number, now2: number, now3: number, id: string) { return nativePpStatement('pp_payroll_recoveries_stmt_5').bind(advanceId, companyId, engagement_id, person_id, amount, count, first_deduction_period, value, employee_user_id, reviewed_by, legal_basis_ref, now, now2, now3, id); },
         stageRecognizePayrollRecoverySteps4(id: string, advanceId: string, userId: string, now: number, id2: string) { return nativePpStatement('pp_payroll_recoveries_stmt_6').bind(id, advanceId, userId, now, id2); },

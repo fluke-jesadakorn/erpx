@@ -1,5 +1,6 @@
 import { PP_RD23_HR_COMP_REVISIONS_SQL, PP_RD23_HR_PAYROLL_COST_ASSIGNMENTS_SQL, PP_RD23_HR_PAY_GROUPS_ACTIVE_CURRENCY_GUARD, PP_RD23_HR_TIME_ENTRIES_OVERTIME_SQL, PP_RD23_OVERTIME_PAYROLL_HANDOFFS_SQL, PP_RD23_POSTED_PAYROLL_RUN_GUARD } from './pp-read-tail-r23-sources';
 import { ppRd26IdCompanyVersionStatusGuard, ppRd26CommandReceiptPriorSql, ppRd26RunIdGuard } from './pp-read-tail-r26-sources';
+import { ppRd27IdByIdCompanySql } from './pp-read-tail-r27-sources';
 import { PP_RD24_TIME_ENTRY_REVIEWABLE_GUARD, PP_RD24_STATUTORY_PACK_GUARD, PP_RD24_APPROVED_RUN_EVIDENCE_GUARD } from './pp-read-tail-r24-sources';
 import { ppRd21IdCompanyStatusVersionGuard } from './pp-read-tail-r21-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
@@ -52,7 +53,7 @@ export { payrollCancelSchema } from "@erpx/server-people_payroll/domain/payroll-
 export { createPayrollAdjustment, editPayrollAdjustment, payrollAdjustmentCreateSchema, payrollAdjustmentEditSchema } from "@erpx/server-people_payroll/adapters/payroll-adjustments";
 function context(provided?: SqlDatabase, actor?: WorkContext): PeoplePayrollPorts<SqlStatement> {
     let database = provided!, files: FileStore;
-    const repository: PeoplePayrollRepository<SqlStatement> = { readPayrollCostAssignmentsEngagement(engagementId: string, companyId: string) { return database.prepare("SELECT id FROM hr_engagements WHERE id=? AND company_id=?").bind(engagementId, companyId).first(); },
+    const repository: PeoplePayrollRepository<SqlStatement> = { readPayrollCostAssignmentsEngagement(engagementId: string, companyId: string) { return database.prepare(ppRd27IdByIdCompanySql('hr_engagements')).bind(engagementId, companyId).first(); },
         readPayrollCostAssignmentsEffect(engagementId: string, companyId: string) {
             return database.prepare(`SELECT a.id,a.effective_from,a.effective_to,a.branch_id,a.department_id,a.evidence_status,a.source,a.version,
     v.evidence_ref,v.verified_by,v.created_at verified_at FROM hr_payroll_cost_assignments a

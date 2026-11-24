@@ -1,4 +1,5 @@
 import { ppRd21IdVersionStatusGuard } from './pp-read-tail-r21-sources';
+import { ppRd27IdCompanyVersionStatusLiteralGuard } from './pp-read-tail-r27-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import{paymentDraft,nativeExpensePaymentReader,paymentFromDatabase}from '@erpx/server-people_payroll/adapters/expense-payment-read';
 export{paymentDraft,nativeExpensePaymentReader,paymentFromDatabase};
@@ -262,7 +263,7 @@ function originalNativeExpensePayments(write: SqlDatabase) {
         write,
         key,
         "payment-draft-version",
-        "EXISTS(SELECT 1 FROM expense_payment_drafts WHERE id=? AND company_id=? AND version=? AND status='draft')",
+        ppRd27IdCompanyVersionStatusLiteralGuard('expense_payment_drafts','draft'),
         [id, actor.companyId, input.expectedVersion],
       ),
       assertion(

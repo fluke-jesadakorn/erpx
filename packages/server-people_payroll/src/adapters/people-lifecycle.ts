@@ -1,4 +1,5 @@
 import { PP_RD23_HR_ENGAGEMENTS_ACTIVE_FOR_PERSON_NOT_EXISTS } from './pp-read-tail-r23-sources';
+import { ppRd27IdVersionStatusInGuard } from './pp-read-tail-r27-sources';
 import { PP_RD24_PEOPLE_PERSON_USER_SAME_SQL, PP_RD24_PEOPLE_PERSON_USER_OK_SQL } from './pp-read-tail-r24-sources';
 import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
 import { nativePpStatement, nativePpQuery } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
@@ -233,7 +234,7 @@ function applicationPorts(raw: SqlDatabase, client?: PoolClient, actor?: WorkCon
         ...peopleLifecycleAuditEffects(database),
         guard37(key: string, value: "case-version", value2: (string | number)[], current: boolean) {
             return assertion(database, key, value, current
-                ? "EXISTS(SELECT 1 FROM people_lifecycle_cases WHERE id=? AND version=? AND status IN ('draft','waiting_it'))"
+                ? ppRd27IdVersionStatusInGuard('people_lifecycle_cases', "'draft','waiting_it'")
                 : "?=0", value2);
         },
         stageSaveLifecycleEffect6(id: string, companyId: string, personId: string, engagementId: string, kind: "onboarding" | "transfer" | "offboarding" | "suspend", state: "draft" | "scheduled" | "pending_review" | "waiting_it", version: number, effectiveAt: number, value: string | null, value2: number | null, value3: string, userId: string, now: number) {

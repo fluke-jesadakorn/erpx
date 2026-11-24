@@ -1,4 +1,5 @@
 import { PP_RD22_ACTIVE_PERSON_VERSION_GUARD } from './pp-read-tail-r22-sources';
+import { ppRd27IdCompanyEngagementApprovedVersionGuard } from './pp-read-tail-r27-sources';
 import { ppRd21IdCompanyStatusVersionGuard } from './pp-read-tail-r21-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import {PP_RD15_ACTIVE_PAYEE_SQL} from './pp-read-tail-r15-sources';
@@ -38,7 +39,7 @@ function application(provided?: SqlDatabase) {
         stageRevisionStatementsEffect2(runId: string, revision: number, timeId: string) { return nativePpStatement('pp_payroll_adjustments_stmt_2').bind(runId, revision, timeId); },
         stageCreatePayrollAdjustmentEffect(value: string) { return database.prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))").bind(value); },
         guard8(key: string, value: "adjustment-original", originalRunId: string, companyId: string, expectedVersion: number) { return assertion(database, key, value, ppRd21IdCompanyStatusVersionGuard('hr_payroll_runs', 'posted'), [originalRunId, companyId, expectedVersion]); },
-        guard9(key: string, value: string, value2: string, companyId: string, value3: string, value4: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_time_entries WHERE id=? AND company_id=? AND engagement_id=? AND status='approved' AND version=?)", [value2, companyId, value3, value4]); },
+        guard9(key: string, value: string, value2: string, companyId: string, value3: string, value4: number) { return assertion(database, key, value, ppRd27IdCompanyEngagementApprovedVersionGuard('hr_time_entries'), [value2, companyId, value3, value4]); },
         stageCreatePayrollAdjustmentEffect2(id: string, companyId: string, pay_group_id: string, countryPackId: string, engagement_id: unknown, period_start: string, period_end: string, payDate: string, originalRunId: string, userId: string, now: number, now2: number) { return nativePpStatement('pp_payroll_adjustments_stmt_3').bind(id, companyId, pay_group_id, countryPackId, engagement_id, period_start, period_end, payDate, originalRunId, userId, now, now2); },
         stageCreatePayrollAdjustmentEffect3(id: string, companyId: string, originalRunId: string, originalItemId: string, engagement_id: unknown, sourceRef: string, source: string, value: string, userId: string, now: number) { return nativePpStatement('pp_payroll_adjustments_stmt_4').bind(id, companyId, originalRunId, originalItemId, engagement_id, sourceRef, source, value, userId, now); },
         readEditPayrollAdjustmentRow(runId: string, companyId: string) { return database.prepare("SELECT a.*,r.status,r.submitted_by,r.created_by preparer,r.version,r.pay_date FROM hr_payroll_adjustments a JOIN hr_payroll_runs r ON r.id=a.run_id WHERE a.run_id=? AND a.company_id=?").bind(runId, companyId).first<Row>(); },
