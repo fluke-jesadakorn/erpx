@@ -288,5 +288,6 @@ describe('native Customer 360 timeline transport',()=>{
   expect(customerVisiblePredicate(true,true,true).match(/SELECT /g)).toHaveLength(6);
   const source=await (await import('node:fs/promises')).readFile(new URL('../../../packages/server-customer_360/src/adapters/timeline.ts',import.meta.url),'utf8');
   expect(source.match(/customerVisiblePredicate\(serviceVisible, financeVisible, legalVisible\)/g)).toHaveLength(2);
+  expect(source.match(/SELECT p\.id,p\.name,p\.code/g)).toHaveLength(1);
  });
 });
