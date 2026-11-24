@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9297,
+    "revision": 9300,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -148581,7 +148581,7 @@
         "owner": "quality",
         "title": "quality TS read tail native cutover (r10)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -148593,22 +148593,37 @@
         "resources": [
           "owner:quality"
         ],
-        "claim": {
-          "runId": "run-20261123-j",
-          "agentId": "wGCuqua",
-          "claimedAt": "2026-11-24T04:58:52.249Z",
-          "heartbeatAt": "2026-11-24T04:58:52.249Z",
-          "expiresAt": "2026-11-24T05:28:52.249Z",
-          "generation": 162
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-quality/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "37d835d6d",
+            "owner": "quality",
+            "before": 105,
+            "after": 100,
+            "note": "Six hold_id jsonb_agg child aggregates share qualityChildAggSql; locks and spec metric aggregates untouched."
+          },
+          {
+            "command": "vitest quality 4 suites (37) + tsc quality",
+            "result": "passed",
+            "sourceSha": "37d835d6d"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=105.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-j",
+          "agentId": "wGCuqua",
+          "at": "2026-11-24T05:11:46.722Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -150179,7 +150194,7 @@
         "owner": "marketing",
         "title": "marketing TS read tail native cutover (r27)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -150191,22 +150206,22 @@
         "resources": [
           "owner:marketing"
         ],
-        "claim": {
-          "runId": "run-20261123-j",
-          "agentId": "wGCNmar",
-          "claimedAt": "2026-11-24T05:11:25.114Z",
-          "heartbeatAt": "2026-11-24T05:11:25.114Z",
-          "expiresAt": "2026-11-24T05:41:25.114Z",
-          "generation": 162
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "released with work preserved",
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=83.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261123-j",
+          "agentId": "wGCNmar",
+          "at": "2026-11-24T05:11:46.123Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=83."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -150328,17 +150343,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
-        "in_progress": 34,
+        "in_progress": 32,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 751,
+        "blocked": 753,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 162,
-    "updatedAt": "2026-11-24T05:11:26.507Z",
+    "updatedAt": "2026-11-24T05:11:46.733Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
