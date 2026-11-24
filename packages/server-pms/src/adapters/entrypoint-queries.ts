@@ -1,13 +1,13 @@
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-import { nativePmsReadFirst, PMS_RD_DOCUMENT_BY_ID } from "./native-pms-read";
+import { nativePmsReadAll, nativePmsReadFirst, PMS_RD_DOCUMENT_BY_ID, PMS_RD_DOCUMENT_RELATED_POSTINGS } from "./native-pms-read";
 export type PmsDocumentRow = { property_id: string; guest_account_id: string; kind: string; snapshot_json: string; created_at: number; finance_id: string | null };
 
 /** Document reads retain their order around the existing loadPms authorization. */
 export function pmsDocumentQueries(db: SqlDatabase) {
   return {
     document: (id: string) => nativePmsReadFirst<PmsDocumentRow>(PMS_RD_DOCUMENT_BY_ID, [id], db),
-    relatedPostings: async (propertyId: string, documentId: string) => (await db.prepare(`SELECT DISTINCT pp.journal_id FROM pms_postings pp JOIN pms_records r ON r.id=pp.record_id AND r.property_id=pp.property_id
-    WHERE pp.property_id=? AND r.kind='entry' AND r.data_json::jsonb->>'guestAccountId'=(SELECT guest_account_id FROM pms_documents WHERE id=?)`).bind(propertyId, documentId).all<{ journal_id: string }>()).results,
+    relatedPostings: async (propertyId: string, documentId: string) =>
+      (await nativePmsReadAll<{ journal_id: string }>(PMS_RD_DOCUMENT_RELATED_POSTINGS, [propertyId, documentId], db)).results,
   };
 }

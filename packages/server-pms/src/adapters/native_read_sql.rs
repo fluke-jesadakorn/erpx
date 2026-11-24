@@ -71,6 +71,10 @@ pub const PMS_RD_HOSPITALITY_SETUP_PROPERTIES: &str = "pms_rd_hospitality_setup_
 /// separate `LOCK TABLE` lease stays on the caller's connection.
 pub const PMS_RD_ATTACHMENT_PROPERTY_IMAGE: &str = "pms_rd_attachment_property_image";
 pub const PMS_RD_ATTACHMENT_RECORD_IMAGE: &str = "pms_rd_attachment_record_image";
+/// Native successor of the owner-local `pmsDocumentQueries.relatedPostings`
+/// fixed SQL. Fixed SQL with two positional binds, no ledger/receipt/outbox and
+/// no lock/refund path; the caller runs it on its already-open read unit.
+pub const PMS_RD_DOCUMENT_RELATED_POSTINGS: &str = "pms_rd_document_related_postings";
 const SQL_INVENTORY_COMMAND: &str = "SELECT id,kind,data_json,version,updated_at FROM pms_records \
 WHERE property_id=? AND kind IN ('room_type','room','rate','block','item','credit') \
 UNION ALL SELECT id,kind,data_json,version,updated_at FROM pms_records \
@@ -210,7 +214,16 @@ const READ_ATTACHMENT_RECORD_IMAGE: NativeReadStatement = NativeReadStatement {
     bind_count: 2,
 };
 
-const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG, READ_PENDING_HOTEL_TRANSFERS, READ_UNPOSTED_BOOKING_RECEIPTS, READ_UNPOSTED_COUNTER_RECEIPTS, READ_HOSPITALITY_SETUP_PROPERTIES, READ_ATTACHMENT_PROPERTY_IMAGE, READ_ATTACHMENT_RECORD_IMAGE];
+/// Retired TypeScript literal (newline and four-space indentation preserved):
+/// `SELECT DISTINCT pp.journal_id FROM pms_postings pp JOIN pms_records r ON r.id=pp.record_id AND r.property_id=pp.property_id\n    WHERE pp.property_id=? AND r.kind='entry' AND r.data_json::jsonb->>'guestAccountId'=(SELECT guest_account_id FROM pms_documents WHERE id=?)`
+const SQL_DOCUMENT_RELATED_POSTINGS: &str = "SELECT DISTINCT pp.journal_id FROM pms_postings pp JOIN pms_records r ON r.id=pp.record_id AND r.property_id=pp.property_id\n    WHERE pp.property_id=? AND r.kind='entry' AND r.data_json::jsonb->>'guestAccountId'=(SELECT guest_account_id FROM pms_documents WHERE id=?)";
+const READ_DOCUMENT_RELATED_POSTINGS: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_DOCUMENT_RELATED_POSTINGS,
+    sql: SQL_DOCUMENT_RELATED_POSTINGS,
+    bind_count: 2,
+};
+
+const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG, READ_PENDING_HOTEL_TRANSFERS, READ_UNPOSTED_BOOKING_RECEIPTS, READ_UNPOSTED_COUNTER_RECEIPTS, READ_HOSPITALITY_SETUP_PROPERTIES, READ_ATTACHMENT_PROPERTY_IMAGE, READ_ATTACHMENT_RECORD_IMAGE, READ_DOCUMENT_RELATED_POSTINGS];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
 pub fn is_read(kind: &str) -> bool {
@@ -452,5 +465,23 @@ ORDER BY id"
             assert_eq!(read.bind_count, 2);
             assert!(is_read(read.kind));
         }
+    }
+
+    #[test]
+    fn document_related_postings_read_matches_retired_typescript_literal() {
+        let read = read_statement(PMS_RD_DOCUMENT_RELATED_POSTINGS).expect("related postings read");
+        assert_eq!(read.sql, "SELECT DISTINCT pp.journal_id FROM pms_postings pp JOIN pms_records r ON r.id=pp.record_id AND r.property_id=pp.property_id\n    WHERE pp.property_id=? AND r.kind='entry' AND r.data_json::jsonb->>'guestAccountId'=(SELECT guest_account_id FROM pms_documents WHERE id=?)");
+        let upper = read.sql.to_ascii_uppercase();
+        assert!(upper.starts_with("SELECT"));
+        assert!(!upper.contains("INSERT INTO"));
+        assert!(!upper.contains("UPDATE "));
+        assert!(!upper.contains("DELETE FROM"));
+        assert!(!upper.contains("FOR UPDATE"));
+        assert!(!upper.contains("FOR SHARE"));
+        assert!(!upper.contains("LOCK TABLE"));
+        assert!(!upper.contains("REFUND"));
+        assert_eq!(read.sql.matches('?').count(), read.bind_count);
+        assert_eq!(read.bind_count, 2);
+        assert!(is_read(read.kind));
     }
 }

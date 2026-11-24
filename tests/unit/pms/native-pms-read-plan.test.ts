@@ -22,6 +22,7 @@ import {
   PMS_RD_HOSPITALITY_SETUP_PROPERTIES,
   PMS_RD_ATTACHMENT_PROPERTY_IMAGE,
   PMS_RD_ATTACHMENT_RECORD_IMAGE,
+  PMS_RD_DOCUMENT_RELATED_POSTINGS,
 } from '../../../packages/server-pms/src/adapters/native-pms-read';
 import { readPmsInventoryCommand } from '../../../packages/server-pms/src/adapters/pms/read-repository';
 import { pmsAttachmentReadSourceImage } from '../../../packages/server-pms/src/adapters/attachment-read-sources';
@@ -586,6 +587,50 @@ describe('native PMS attachment read-source image retirement', () => {
     expect(bodies.map(b => b.values)).toEqual([['property-1', 'company-1'], ['guest-1', 'company-1']]);
     expect(bound).toEqual([['property-1', 'company-1'], ['guest-1', 'company-1']]);
     expect(prepared).toEqual([attachmentPropertyImageSql, attachmentRecordImageSql]);
+    for (const body of bodies) expect(JSON.stringify(body)).not.toContain('SELECT');
+  });
+});
+
+const relatedPostingsSql = "SELECT DISTINCT pp.journal_id FROM pms_postings pp JOIN pms_records r ON r.id=pp.record_id AND r.property_id=pp.property_id\n    WHERE pp.property_id=? AND r.kind='entry' AND r.data_json::jsonb->>'guestAccountId'=(SELECT guest_account_id FROM pms_documents WHERE id=?)";
+
+describe('native PMS document related-postings read retirement', () => {
+  it('exposes a fixed related-postings read kind with no SQL on the wire', () => {
+    expect(PMS_RD_DOCUMENT_RELATED_POSTINGS).toBe('pms_rd_document_related_postings');
+    expect(PMS_RD_DOCUMENT_RELATED_POSTINGS).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
+  });
+
+  it('removes the TypeScript related-postings SELECT literal', async () => {
+    const entrypoint = await readFile(new URL('../../../packages/server-pms/src/adapters/entrypoint-queries.ts', import.meta.url), 'utf8');
+    const call = entrypoint.split('\n').find(line => line.includes('PMS_RD_DOCUMENT_RELATED_POSTINGS,')) ?? '';
+    expect(call).toContain('nativePmsReadAll');
+    expect(call).not.toContain('db.prepare');
+    expect(entrypoint).not.toContain(relatedPostingsSql);
+    expect(entrypoint).toContain('PMS_RD_DOCUMENT_BY_ID');
+  });
+
+  it('plans the related-postings read in Rust and runs it on the caller unit', async () => {
+    const bodies: { kind: string; values: unknown[] }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      bodies.push(body);
+      return new Response(JSON.stringify({ data: { statements: [{ sql: relatedPostingsSql, values: body.values }] } }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      });
+    }));
+    const prepared: string[] = [], bound: unknown[][] = [];
+    const db = {
+      prepare(sql: string) { prepared.push(sql); return { bind(...values: unknown[]) { bound.push(values); return this; } }; },
+      async batch<T>() { return [{ results: [{ journal_id: 'journal-1' }], success: true, meta: { changes: 0, duration: 0 } }] as unknown as { results: T[]; success: boolean; meta: { changes: number; duration: number } }[]; },
+      async exec() { return { count: 0, duration: 0 }; },
+    };
+    const { pmsDocumentQueries } = await import('../../../packages/server-pms/src/adapters/entrypoint-queries');
+    const postings = await pmsDocumentQueries(db as never).relatedPostings('property-1', 'doc-1');
+
+    expect(postings).toMatchObject([{ journal_id: 'journal-1' }]);
+    expect(bodies.map(b => b.kind)).toEqual([PMS_RD_DOCUMENT_RELATED_POSTINGS]);
+    expect(bodies.map(b => b.values)).toEqual([['property-1', 'doc-1']]);
+    expect(bound).toEqual([['property-1', 'doc-1']]);
+    expect(prepared).toEqual([relatedPostingsSql]);
     for (const body of bodies) expect(JSON.stringify(body)).not.toContain('SELECT');
   });
 });
