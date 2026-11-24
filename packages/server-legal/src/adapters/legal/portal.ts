@@ -19,7 +19,7 @@ import type {DocumentVersion} from "@erpx/server-legal/domain/model";
 import {legalPortalActor,type PortalActor} from "@erpx/server-legal/domain/portal";
 import {createLegalPortalApplication,type LegalPortalWrite,type LegalPortalUnit,type LegalPortalRepository,type LegalPortalShare,type LegalPortalShareFacts} from "@erpx/server-legal/application/portal";
 import { legalPortalWrites } from '@erpx/server-collaboration/adapters/native-legal-portal-writes';
-import {legalSettingsEnabledSql,legalDocumentByIdSql} from '../legal-read-tail-r9-sources';
+import {legalSettingsEnabledSql,legalDocumentByIdSql,legalDestructionActiveSql} from '../legal-read-tail-r9-sources';
 export type {PortalActor} from "@erpx/server-legal/domain/portal";
 /** Shared read of a portal idempotency receipt by key and actor; both upload
  * repository methods assert the same authority-bound row. */
@@ -32,7 +32,7 @@ shares:async(facts:{email:string;actorId:string;now:number;})=>db.prepare(`SELEC
 share:facts=>shareRecord(db,facts),
 uploadRecoveryShare:facts=>shareRecord(db,facts,true),
 uploadRecoverySource:facts=>legalPortalRepository(db).recoverySource(facts),
-retentionFrozen:(facts:{item_id:string;})=>db.prepare("SELECT 1 FROM legal_destructions WHERE item_id=? AND state IN ('executing','completed')").bind(facts.item_id).first(),
+retentionFrozen:(facts:{item_id:string;})=>db.prepare(legalDestructionActiveSql).bind(facts.item_id).first(),
 documentSummary:(facts:{document_id:string;})=>db.prepare("SELECT id,name,body,version,checksum,media_type FROM legal_documents WHERE id=?").bind(facts.document_id).first(),
 comments:(facts:{item_id:string;document_id:string;})=>db.prepare("SELECT body,created_at,created_by FROM legal_comments WHERE item_id=? AND document_id=? AND visibility='external' ORDER BY created_at LIMIT 100").bind(facts.item_id,facts.document_id).all(),
 envelopes:(facts:{item_id:string;document_id:string;actorId:string;})=>db.prepare("SELECT e.id,e.state,e.consent,e.expires_at,s.state signer_state,s.viewed_at FROM legal_envelopes e JOIN legal_signers s ON s.envelope_id=e.id WHERE e.item_id=? AND e.document_id=? AND s.user_id=? ORDER BY e.created_at DESC LIMIT 10").bind(facts.item_id,facts.document_id,facts.actorId).all(),

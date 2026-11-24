@@ -10,7 +10,7 @@ import type { LegalItem, LegalKind } from "@erpx/server-legal/public/rules/model
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { productionFeatureGuard } from "@erpx/server-pms/public/feature-availability";
 import { legalEvent } from '@erpx/server-collaboration/adapters/native-legal-event';
-import {legalCompanyAdvisoryLockSql,legalFilesAdvisoryLockSql} from '../legal-read-tail-r9-sources';
+import {legalCompanyAdvisoryLockSql,legalFilesAdvisoryLockSql,legalDestructionActiveSql} from '../legal-read-tail-r9-sources';
 export const tables: Record<LegalKind, string> = {
   request: "legal_requests",
   matter: "legal_matters",
@@ -89,7 +89,7 @@ export function guards(
             db,
             key,
             "legal-content-available",
-            "NOT EXISTS(SELECT 1 FROM legal_destructions WHERE item_id=? AND state IN ('executing','completed'))",
+            `NOT EXISTS(${legalDestructionActiveSql})`,
             [id],
           ),
         ]
