@@ -3,6 +3,7 @@ import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-p
 import { PP_RD24_UNCLAIMED_EXPENSE_GUARD } from './pp-read-tail-r24-sources';
 import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
 import { ppRd29OpenFinancePeriodSql, ppRd29FinanceExpenseTreasurySql, ppRd29FinancePartySupplierSql } from './pp-read-tail-r29-sources';
+import { ppRd48ExpenseClaimInvoice } from './pp-read-tail-r48-sources';
 import{canAccountExpenses,canPostExpenses,visibility,currentExpenseReader,approvalFields,expenseSelect,originalNativeExpenseReads,listExpenses,getExpense,expenseFromDatabase,canEditExpense,canReviewExpense,nativeExpenseReads,expensePresentationRows,expenseVisibleRecordIds,type ExpenseRow}from '@erpx/server-people_payroll/adapters/expense-read';
 export{canAccountExpenses,canPostExpenses,visibility,currentExpenseReader,approvalFields,expenseSelect,originalNativeExpenseReads,listExpenses,getExpense,expenseFromDatabase,canEditExpense,canReviewExpense,nativeExpenseReads,expensePresentationRows,expenseVisibleRecordIds};
 export type{ExpenseRow};
@@ -478,7 +479,7 @@ function originalNativeExpenseReversal(write: SqlDatabase) {
     ...expenseCommandPort(write),
     authorize: actor => requirePermission(actor, "expense.approve"),
     expense: (actor, id) => expenseFromDatabase(write, actor, id),
-    invoice: (actor, id, claim) => write.prepare(`SELECT * FROM (${financeProjectionSources.finance_invoices}) finance_invoices WHERE id=? AND company_id=? AND source_type='expense_claim' AND source_id=?`).bind(claim.invoice_id, actor.companyId, id).first<ExpenseRow>(),
+    invoice: (actor, id, claim) => write.prepare(ppRd48ExpenseClaimInvoice()).bind(claim.invoice_id, actor.companyId, id).first<ExpenseRow>(),
     journal: (actor, id, claim) => write.prepare(`SELECT * FROM (${financeProjectionSources.finance_journals}) finance_journals WHERE id=? AND company_id=? AND source_type='expense_claim' AND source_id=? AND status='posted'`).bind(claim.journal_id, actor.companyId, id).first<ExpenseRow>(),
     async prepareReversal(actor, id, input, key, claim, invoice, journal) {
       const reversal = `expense-reversal-${key}`, now = Date.now();

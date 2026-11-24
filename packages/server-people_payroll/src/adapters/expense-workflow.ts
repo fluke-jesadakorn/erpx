@@ -1,5 +1,6 @@
 import { PP_RD23_FINANCE_EXPENSE_DRAFT_REJECTED_GUARD } from './pp-read-tail-r23-sources';
 import { ppRd29OpenFinancePeriodSql } from './pp-read-tail-r29-sources';
+import { ppRd48FinanceExpenseVersionGuard } from './pp-read-tail-r48-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import{nativeExpensePayers,expensePayers,nativeExpenseWorkflowFields,expenseWorkflowFields}from '@erpx/server-people_payroll/adapters/expense-workflow-read';
 export{nativeExpensePayers,expensePayers,nativeExpenseWorkflowFields,expenseWorkflowFields};
@@ -73,7 +74,7 @@ function originalNativeExpenseAccounting(write: SqlDatabase) {
         write,
         key,
         "accounting-version",
-        "EXISTS(SELECT 1 FROM finance_expenses WHERE id=? AND company_id=? AND version=? AND workflow_stage='accounts_review' AND cancelled_at IS NULL)",
+        ppRd48FinanceExpenseVersionGuard("workflow_stage='accounts_review' AND cancelled_at IS NULL"),
         [id, actor.companyId, input.expectedVersion],
       ),
       assertion(
@@ -217,7 +218,7 @@ function originalNativeExpenseTransitions(write: SqlDatabase) {
     async prepareGlReturn(actor, key, id, input, row, now) {
 
       return expenseMutation({id,status:"rejected",stage:"draft",version:input.expectedVersion+1}, [
-      assertion(write,key,"expense-version","EXISTS(SELECT 1 FROM finance_expenses WHERE id=? AND company_id=? AND version=? AND status='approved' AND workflow_stage='gl_posting' AND journal_id IS NULL)",[id,actor.companyId,input.expectedVersion]),
+      assertion(write,key,"expense-version",ppRd48FinanceExpenseVersionGuard("status='approved' AND workflow_stage='gl_posting' AND journal_id IS NULL"),[id,actor.companyId,input.expectedVersion]),
       nativePpStatement('pp_expense_workflow_stmt_4').bind(input.reason,now,id),
       await notification(write,scope(row),String(row.created_by),"expense",id,input.expectedVersion+1,"GL reviewer returned this claim for correction."),
     ]);
@@ -225,7 +226,7 @@ function originalNativeExpenseTransitions(write: SqlDatabase) {
     async prepareAccountingApproval(actor, key, id, input, row, capturedDecision, now) {
       const decision = capturedDecision.native as Awaited<ReturnType<typeof prepareDecision>>;
       return expenseMutation({ id, status: "approved", stage: "gl_posting", version: input.expectedVersion + 1 }, [
-        assertion(write, key, "expense-version", "EXISTS(SELECT 1 FROM finance_expenses WHERE id=? AND company_id=? AND version=? AND status='in_review' AND workflow_stage='accounts_approval' AND cancelled_at IS NULL)", [id, actor.companyId, input.expectedVersion]),
+        assertion(write, key, "expense-version", ppRd48FinanceExpenseVersionGuard("status='in_review' AND workflow_stage='accounts_approval' AND cancelled_at IS NULL"), [id, actor.companyId, input.expectedVersion]),
         ...decision.statements,
         nativePpStatement('pp_expense_workflow_stmt_5').bind(actor.userId, now, id),
         await notification(write, scope(row), actor.userId, "expense", id, input.expectedVersion + 1, "Accounting approved. Review Debit / Credit and post GL before payment."),
@@ -243,7 +244,7 @@ function originalNativeExpenseTransitions(write: SqlDatabase) {
         write,
         key,
         "expense-version",
-        "EXISTS(SELECT 1 FROM finance_expenses WHERE id=? AND company_id=? AND version=? AND status='in_review' AND cancelled_at IS NULL)",
+        ppRd48FinanceExpenseVersionGuard("status='in_review' AND cancelled_at IS NULL"),
         [id, actor.companyId, input.expectedVersion],
       ),
       ...decision.statements,

@@ -1,12 +1,12 @@
 import { ppRd21IdVersionStatusGuard } from './pp-read-tail-r21-sources';
 import { ppRd27IdCompanyVersionStatusLiteralGuard } from './pp-read-tail-r27-sources';
+import { ppRd48IdCompanyVersionPairGuard, ppRd48ExpenseClaimInvoice } from './pp-read-tail-r48-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import{paymentDraft,nativeExpensePaymentReader,paymentFromDatabase}from '@erpx/server-people_payroll/adapters/expense-payment-read';
 export{paymentDraft,nativeExpensePaymentReader,paymentFromDatabase};
 
 import { withExpensePurchasedCommand } from "@erpx/server-people_payroll/adapters/expense-purchases";
 import { hospitalityOwnerProjectionSources as filesProjectionSources } from "@erpx/server-files/public/hospitality-owner-projection-sources";
-import { hospitalityOwnerProjectionSources as financeProjectionSources } from "@erpx/server-finance/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as identity_accessProjectionSources } from "@erpx/server-identity_access/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as organizationProjectionSources } from "@erpx/server-organization/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as workflowProjectionSources } from "@erpx/server-workflow/public/hospitality-owner-projection-sources";
@@ -241,7 +241,7 @@ function originalNativeExpensePayments(write: SqlDatabase) {
         write,
         key,
         "payment-claim-version",
-        "EXISTS(SELECT 1 FROM finance_expenses WHERE id=? AND company_id=? AND version=? AND status='posted' AND workflow_stage='payment')",
+        ppRd48IdCompanyVersionPairGuard('finance_expenses', "status='posted'", "workflow_stage='payment'"),
         [id, actor.companyId, expectedVersion],
       ),
       nativePpStatement('pp_expense_payments_stmt_3')
@@ -249,7 +249,7 @@ function originalNativeExpensePayments(write: SqlDatabase) {
     ]);
     },
     payment: (actor, id) => paymentFromDatabase(write, actor, id, true),
-    payable: (actor, expense) => write.prepare(`SELECT * FROM (${financeProjectionSources.finance_invoices}) finance_invoices WHERE id=? AND company_id=? AND source_type='expense_claim' AND source_id=?`).bind(expense.invoice_id, actor.companyId, expense.id).first<ExpenseRow>(),
+    payable: (actor, expense) => write.prepare(ppRd48ExpenseClaimInvoice()).bind(expense.invoice_id, actor.companyId, expense.id).first<ExpenseRow>(),
     paymentEvidence: (actor, id, version, key) => preparePaymentEvidence(write, actor, id, version, key, "expense_payment_confirmation"),
     async hasPaymentSlip(id) { return Boolean(await write.prepare(`SELECT 1 WHERE ${paymentSlipExistsSql()}`).bind(id).first()); },
     async prepareConfirmation(actor, key, id, input, expense, draft, invoice, capturedEvidence) {

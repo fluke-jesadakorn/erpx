@@ -4,6 +4,7 @@ import { ppRd34ActivePayGroupProjection } from './pp-read-tail-r34-sources';
 import { ppRd35PayrollItemsByRun } from './pp-read-tail-r35-sources';
 import { ppRd30Exists4Guard } from './pp-read-tail-r30-sources';
 import { ppRd27IdCompanyEngagementApprovedVersionGuard } from './pp-read-tail-r27-sources';
+import { ppRd48IdCompanyVersionPairGuard } from './pp-read-tail-r48-sources';
 import { payrollStatutory } from '@erpx/server-collaboration/adapters/native-payroll-statutory';
 import { withPayrollPurchasedCommand, withPayrollPurchasedRead } from "@erpx/server-people_payroll/adapters/payroll-purchases";
 import {payrollStatutoryDecisionEffects} from '@erpx/server-workflow/public/payroll-statutory-decision-effects';
@@ -30,7 +31,7 @@ function application(provided?: SqlDatabase) {
             currency: string;
             frequency: string;
         }>(); },
-        guardEmployeeEngagement(key: string, value: "engagement", engagementId: string, companyId: string, expectedEngagementVersion: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_engagements WHERE id=? AND company_id=? AND version=? AND currency='THB' AND worker_type='employee')", [engagementId, companyId, expectedEngagementVersion]); },
+        guardEmployeeEngagement(key: string, value: "engagement", engagementId: string, companyId: string, expectedEngagementVersion: number) { return assertion(database, key, value, ppRd48IdCompanyVersionPairGuard('hr_engagements', "currency='THB'", "worker_type='employee'"), [engagementId, companyId, expectedEngagementVersion]); },
         insertProfile(id: string, companyId: string, engagementId: string, taxYear: number, effectiveFrom: string, effectiveTo: string, verifiedAnnualDeductionsMinor: number, scheduledPaysInYear: number, socialSecurityEligible: boolean, value: string | null, openingThroughDate: string, openingTaxableMinor: number, openingIrregularMinor: number, openingWithheldMinor: number, priorIncomeComplete: boolean, evidenceRef: string, userId: string, now: number, now2: number) {
             return payrollStatutory(database).insertProfile({ id, companyId, engagementId, taxYear, effectiveFrom, effectiveTo, annualDeductionsMinor: verifiedAnnualDeductionsMinor, scheduledPaysInYear, socialSecurityEligible, exemptionEvidence: value, openingThroughDate, openingTaxableMinor, openingIrregularMinor, openingWithheldMinor, priorIncomeComplete, evidenceRef, userId, now, now2 });
         },
