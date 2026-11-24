@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12544,
+    "revision": 12546,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -184380,7 +184380,7 @@
         "owner": "finance",
         "title": "finance read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -184391,22 +184391,37 @@
         "resources": [
           "owner:finance"
         ],
-        "claim": {
-          "runId": "run-20261125-a",
-          "agentId": "wH4n101",
-          "claimedAt": "2026-11-24T17:09:12.701Z",
-          "heartbeatAt": "2026-11-24T17:15:31.032Z",
-          "expiresAt": "2026-11-24T17:45:31.032Z",
-          "generation": 171
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "3da83dd4a",
+            "owner": "finance",
+            "before": 1783,
+            "after": 1764,
+            "note": "Version/status EXISTS guards through versionStatusGuardSql; version-before-status, binds and rendered bytes preserved. Locks/tax/native untouched."
+          },
+          {
+            "command": "vitest finance r52 + scoped tsc",
+            "result": "passed",
+            "sourceSha": "3da83dd4a"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Version/status EXISTS guards via new versionStatusGuardSql (-19): 1783->1764; preserve version-before-status and bind order. BEFORE=1783.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261125-a",
+          "agentId": "wH4n101",
+          "at": "2026-11-24T17:24:36.906Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -185160,17 +185175,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 16,
+        "in_progress": 15,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1461,
+        "blocked": 1462,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 171,
-    "updatedAt": "2026-11-24T17:22:43.121Z",
+    "updatedAt": "2026-11-24T17:24:36.910Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
