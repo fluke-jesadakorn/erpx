@@ -1,5 +1,5 @@
 import{visibleTask,authority}from '@erpx/server-operations/adapters/evaluation-source-policy';
-import {workforceActorScopeSql,OPERATIONS_CLOCK_CTE_SQL,OPERATIONS_VIEWER_CLOCK_SQL,OPERATIONS_TASK_SCOPE_SQL} from './workforce-actor-scope-source';
+import {workforceActorScopeSql,OPERATIONS_VIEWER_CLOCK_SQL,OPERATIONS_TASK_SCOPE_SQL,operationsClockProbe} from './workforce-actor-scope-source';
 import {nativeOperationsReadFirst,OPERATIONS_RD_RECORD_TASK_PROJECT} from './native-operations-read';
 import 'server-only';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
@@ -29,7 +29,7 @@ import {currentAssignmentReadScope} from '@erpx/server-identity_access/public/re
 async function handbookReadScope(actor:WorkContext){
  if(await appsPackageEnforcementMode()!=='enforced')return {where:'TRUE',args:[] as (string|number|null)[]};
  const current=currentAssignmentReadScope(actor,'workforce_actor_scope');
- return {where:`EXISTS(WITH handbook_clock AS MATERIALIZED${OPERATIONS_CLOCK_CTE_SQL} SELECT 1 FROM handbook_clock CROSS JOIN LATERAL(SELECT a.company_id,?::text branch_id,?::text department_id)workforce_actor_scope WHERE ${current.where} AND ${scheduledFeaturePredicate('a.company_id','collaboration')} AND ${purchasedCapabilityPredicate('a.company_id','work.handbook','history','handbook_clock.now_ms')})`,args:[actor.branchId,actor.departmentId,...current.args]};
+ return {where:`EXISTS(${operationsClockProbe("handbook_clock")} CROSS JOIN LATERAL(SELECT a.company_id,?::text branch_id,?::text department_id)workforce_actor_scope WHERE ${current.where} AND ${scheduledFeaturePredicate('a.company_id','collaboration')} AND ${purchasedCapabilityPredicate('a.company_id','work.handbook','history','handbook_clock.now_ms')})`,args:[actor.branchId,actor.departmentId,...current.args]};
 }
 async function handbookSourceReadScope(actor:WorkContext,surface:'records'|'staff'|'inbox'){
  if(await appsPackageEnforcementMode()!=='enforced')return {where:'TRUE',args:[] as (string|number|null)[]};
