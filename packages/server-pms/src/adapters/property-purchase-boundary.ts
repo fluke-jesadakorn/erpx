@@ -9,6 +9,7 @@ import { companyPurchaseReadLocks, readPurchasedAccess, readPurchasedAccesses, p
 import type { CapabilityPurpose } from "@erpx/server-commercial/public/rules/packages";
 import type { PmsPropertyPurchase, PmsPropertyPurchaseRequest } from "@erpx/server-pms/domain/property-purchases";
 import { assertPmsProviderAuthority } from "@erpx/server-pms/adapters/provider-authority";
+import { pmsBookingReplaySql } from "./pms-read-tail-r40-sql";
 
 const capabilities = ["pms.reservations", "pms.rooms", "pms.guest-accounts", "finance.hotel-posting"] as const;
 async function checkScopes(database: SqlDatabase, mode: Awaited<ReturnType<typeof pmsPackageEnforcementMode>>, companyId: string, purpose: CapabilityPurpose) {
@@ -64,7 +65,7 @@ export async function withPmsPropertyPurchasedTransaction<Result>(owner: Transac
       };
       await identity();
       const replay = input.receipt && !!await transaction.prepare(input.receipt.kind === "reservation"
-        ? "SELECT 1 FROM pms_booking_receipts WHERE id=? AND property_id=?" : "SELECT 1 FROM pms_booking_changes WHERE id=? AND property_id=?")
+        ? pmsBookingReplaySql("receipt") : pmsBookingReplaySql("change"))
         .bind(input.receipt.id, input.propertyId).first();
       const scopes = capabilities.map(capability => ({ companyId, capability, purpose: replay ? "history" as const : input.purpose }));
       await checkScopes(transaction, mode, companyId, replay ? "history" : input.purpose);

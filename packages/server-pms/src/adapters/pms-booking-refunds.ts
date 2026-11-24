@@ -18,6 +18,7 @@ import type { BookingEnv } from "@erpx/server-pms/public/pms-booking";
 import { createPmsBookingRefund, type PmsBookingRefundUnit, type PmsBookingRefundRepository, type Request } from "@erpx/server-pms/application/pms-booking-refunds";
 import { holdingResources as resolveResources } from "../../../../packages/server-runtime/src/public/runtime";
 import { requirePmsPropertyPurchase, requirePmsFinancialRead, withPmsPropertyPurchasedTransaction } from "@erpx/server-pms/adapters/property-purchase-boundary";
+import { PMS_REFUND_NON_LOCK_HEAD_SQL } from "./pms-read-tail-r40-sql";
 function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase, companyId = ''): PmsBookingRefundUnit {
         const write = (kind: string, values: unknown[]): any => nativePmsOwnerWrite(companyId, kind, values);
     void _whole;
@@ -30,7 +31,7 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase, companyId = ''
         }) => db.prepare('SELECT * FROM pms_booking_payments WHERE id=? AND property_id=? FOR UPDATE').bind(facts.paymentId, facts.id).first<BookingPaymentRow>(),
         readPmsBookingRefundRequests: (facts: {
             requestId: `${string}-${string}-${string}-${string}-${string}`;
-        }) => db.prepare('SELECT * FROM pms_booking_refund_requests WHERE id=?').bind(facts.requestId).first<Request>(),
+        }) => db.prepare(`${PMS_REFUND_NON_LOCK_HEAD_SQL}id=?`).bind(facts.requestId).first<Request>(),
         readPmsBookingAllocations: (facts: {
             paymentId: string;
         }) => db.prepare('SELECT stay_id,guest_account_id,entry_id,amount_minor FROM pms_booking_allocations WHERE payment_id=? ORDER BY stay_id').bind(facts.paymentId).all<{
@@ -116,7 +117,7 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase, companyId = ''
         readPmsBookingRefundRequests5: (facts: {
             id: string;
             id2: string;
-        }) => db.prepare("SELECT * FROM pms_booking_refund_requests WHERE (id=? OR payment_id=?) AND state IN ('approved','processing','requires_action') ORDER BY created_at").bind(facts.id, facts.id2).all<Request>(),
+        }) => db.prepare(`${PMS_REFUND_NON_LOCK_HEAD_SQL}(id=? OR payment_id=?) AND state IN ('approved','processing','requires_action') ORDER BY created_at`).bind(facts.id, facts.id2).all<Request>(),
         readPmsBookingPayments4: (facts: {
             payment_id: string;
         }) => db.prepare(PMS_BOOKING_PAYMENT_BY_ID_SQL).bind(facts.payment_id).first<BookingPaymentRow>(),
