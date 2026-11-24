@@ -7,6 +7,7 @@ import {socialPostScope} from '@erpx/server-collaboration/public/social-source-p
 import {OPERATIONS_TASK_START_APPROVER_SQL,OPERATIONS_TASK_COMPLETION_APPROVER_SQL} from './task-approver-access-source';
 import {operationsActiveDelegationSql} from './task-delegation-source';
 import {operationsSocialTaskOriginExists} from './social-task-origin-exists';
+import {operationsProjectSourceExists} from './project-source-exists';
 
 /** Canonical overdue-alert notification probe shared by the cohort visibility
  * and executive evidence readers. Projection/alias/separator text is
@@ -38,9 +39,9 @@ export function operationsTaskVisibility(actor: WorkContext, referenceAt = Date.
     iam_same_person(t.creator_user_id,?,t.company_id)
     OR iam_same_person(t.assignee_user_id,?,t.company_id)
     OR iam_same_person((${operationsActiveDelegationSql('sd.delegate_user_id','sd','t.id','t.company_id','?','\n      ORDER BY sd.created_at DESC,sd.id DESC LIMIT 1','\n      ')},?,t.company_id)
-    OR EXISTS(SELECT 1 FROM (${projectsProjectionSources.staff_projects}) sp WHERE sp.id=t.project_id AND sp.company_id=t.company_id
-      AND iam_same_person(sp.owner_user_id,?,t.company_id))
-    OR EXISTS(SELECT 1 FROM (${projectsProjectionSources.staff_project_members}) pm WHERE pm.project_id=t.project_id AND pm.user_id=?)
+    OR ${operationsProjectSourceExists(projectsProjectionSources.staff_projects,'sp',`sp.id=t.project_id AND sp.company_id=t.company_id
+      AND iam_same_person(sp.owner_user_id,?,t.company_id)`)}
+    OR ${operationsProjectSourceExists(projectsProjectionSources.staff_project_members,'pm','pm.project_id=t.project_id AND pm.user_id=?')}
     OR ${OPERATIONS_TASK_START_APPROVER_SQL}
     OR ${OPERATIONS_TASK_COMPLETION_APPROVER_SQL}
     OR ${participantSql("task", "t")}

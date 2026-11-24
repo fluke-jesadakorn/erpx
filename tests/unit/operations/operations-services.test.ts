@@ -495,6 +495,7 @@ import {workCacheOperationsDeadlines} from '../../../packages/server-operations/
 import {operationsSocialTaskOriginExists} from '../../../packages/server-operations/src/adapters/social-task-origin-exists';
 import {operationsReceiptVersionExists} from '../../../packages/server-operations/src/adapters/operations-receipt-version-exists';
 import {operationsStaffTaskExists} from '../../../packages/server-operations/src/adapters/operations-staff-task-exists';
+import {operationsProjectSourceExists} from '../../../packages/server-operations/src/adapters/project-source-exists';
 import {finalRootOwnerProjectionSources as collaborationProjectionSources} from '@erpx/server-collaboration/public/final-root-owner-projection-sources';
 describe('Operations task delegation source dedupe',()=>{
  const fragment='(SELECT jsonb_agg(to_jsonb(delegation) ORDER BY delegation.id) FROM staff_task_delegations delegation WHERE delegation.task_id=t.id AND delegation.company_id=t.company_id)';
@@ -889,7 +890,7 @@ describe('Operations read-tail r41 retirement',()=>{
     walk(root);
     // r42 deduped the social task-origin EXISTS family and r43 deduped the
     // command-receipt version guard; the r41 BEFORE=110 baseline is unchanged.
-    expect(space).toBe(107);
+    expect(space).toBe(106);
     expect(space).toBeLessThan(110);
   });
 });
@@ -928,7 +929,7 @@ describe('Operations read-tail r42 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(107);
+    expect(space).toBe(106);
     expect(space).toBeLessThan(110);
   });
 });
@@ -973,7 +974,7 @@ describe('Operations read-tail r43 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(107);
+    expect(space).toBe(106);
     expect(space).toBeLessThan(109);
   });
 });
@@ -1017,7 +1018,55 @@ describe('Operations read-tail r44 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(107);
+    expect(space).toBe(106);
     expect(space).toBeLessThan(108);
+  });
+});
+
+describe('Operations read-tail r45 retirement',()=>{
+  const source=(name:string)=>readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+  const probe=(source:string,alias:string,predicate:string)=>`EXISTS(SELECT 1 FROM (${source}) ${alias} WHERE ${predicate})`;
+  const ownerPredicate=`sp.id=t.project_id AND sp.company_id=t.company_id
+      AND iam_same_person(sp.owner_user_id,?,t.company_id)`;
+  const memberPredicate='pm.project_id=t.project_id AND pm.user_id=?';
+  test('the project-owner and project-member probes render byte-identically',()=>{
+    expect(operationsProjectSourceExists('§staff_projects','sp',ownerPredicate)).toBe(probe('§staff_projects','sp',ownerPredicate));
+    expect(operationsProjectSourceExists('§staff_project_members','pm',memberPredicate)).toBe("EXISTS(SELECT 1 FROM (§staff_project_members) pm WHERE pm.project_id=t.project_id AND pm.user_id=?)");
+    expect(operationsProjectSourceExists('§staff_projects','sp',ownerPredicate)).toBe("EXISTS(SELECT 1 FROM (§staff_projects) sp WHERE sp.id=t.project_id AND sp.company_id=t.company_id\n      AND iam_same_person(sp.owner_user_id,?,t.company_id))");
+    expect(operationsProjectSourceExists('s','a','p').match(/SELECT /g)).toHaveLength(1);
+  });
+  test('the family keeps one canonical literal and no local SELECT at its call sites',()=>{
+    const cohort=source('executive-task-cohort.ts');
+    expect(cohort).toContain("operationsProjectSourceExists(projectsProjectionSources.staff_projects,'sp',");
+    expect(cohort).toContain("operationsProjectSourceExists(projectsProjectionSources.staff_project_members,'pm',");
+    expect(cohort.match(/operationsProjectSourceExists\(/g)).toHaveLength(2);
+    expect(cohort).not.toContain('EXISTS(SELECT 1 FROM (${projectsProjectionSources.staff_projects}) sp WHERE');
+    expect(cohort).not.toContain('EXISTS(SELECT 1 FROM (${projectsProjectionSources.staff_project_members}) pm WHERE');
+    expect(source('project-source-exists.ts').match(/SELECT /g)).toHaveLength(1);
+  });
+  test('LOCK TABLE and the r29-r44 helpers remain untouched',()=>{
+    expect(source('work-package-obligation-sources.ts')).toContain('LOCK TABLE');
+    expect(source('project-package-obligation-sources.ts')).toContain('LOCK TABLE');
+    expect(source('work-package-obligations.ts')).toContain('LOCK TABLE command_receipts IN SHARE MODE');
+    expect(source('task-delegation-source.ts')).toContain('operationsActiveDelegationSql');
+    expect(source('social-task-origin-exists.ts')).toContain('operationsSocialTaskOriginExists');
+    expect(source('executive-task-cohort.ts')).toContain('operationsOverdueAlertSql');
+    expect(source('operations-receipt-version-exists.ts')).toContain('operationsReceiptVersionExists');
+    expect(source('work-cache-deadlines.ts')).toContain('activeDelegationDeadline');
+    expect(source('operations-staff-task-exists.ts')).toContain('operationsStaffTaskExists');
+  });
+  test('retirement:ts-statements stays strictly below the r45 BEFORE=107 baseline',()=>{
+    const root=resolve(__dirname,'../../../packages/server-operations/src');
+    let space=0;
+    const walk=(dir:string)=>{
+      for(const entry of readdirSync(dir,{withFileTypes:true})){
+        const path=resolve(dir,entry.name);
+        if(entry.isDirectory())walk(path);
+        else if(entry.name.endsWith('.ts'))space+=(readFileSync(path,'utf8').match(/SELECT /g)??[]).length;
+      }
+    };
+    walk(root);
+    expect(space).toBe(106);
+    expect(space).toBeLessThan(107);
   });
 });
