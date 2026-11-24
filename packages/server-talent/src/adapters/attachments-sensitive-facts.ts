@@ -1,7 +1,7 @@
 import "server-only";
 import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import {nativeTalentReadFirst} from "./native-talent-read";
+import {nativeTalentReadFirst} from "./native-talent-read";import {existsVersionRow} from "./talent-read-tail-r27-sources";
 const sensitiveTables:Record<string,string>={talent_candidate:"talent_candidates",talent_offer:"talent_offers"};
 // A document bind advances the Offer version. Keep the immutable accepted
 // source exact until its original HR delivery has actually been consumed.
@@ -36,7 +36,7 @@ function sensitiveAttachmentTargetVersionGuard(
     db,
     commandId,
     `sensitive-attachment-owner-${index}`,
-    `EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND version=?${targetType==="talent_offer"?` AND ${offerFilesMutable(table)}`:""})`,
+    existsVersionRow(table,targetType==="talent_offer"?` AND ${offerFilesMutable(table)}`:""),
     [targetId, companyId, version],
   );
 }

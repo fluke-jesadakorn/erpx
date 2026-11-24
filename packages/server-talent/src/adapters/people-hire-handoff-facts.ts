@@ -1,4 +1,4 @@
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {Source} from '@erpx/server-people_payroll/public/people-handoff-contract';import {assertion} from "@erpx/server-workflow/public/command-assertions";import {ApiError} from "@erpx/server-runtime/public/http";import {nativeTalentReadAll,nativeTalentReadFirst} from "./native-talent-read";
+import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {Source} from '@erpx/server-people_payroll/public/people-handoff-contract';import {assertion} from "@erpx/server-workflow/public/command-assertions";import {ApiError} from "@erpx/server-runtime/public/http";import {nativeTalentReadAll,nativeTalentReadFirst} from "./native-talent-read";import {existsVersionRow} from "./talent-read-tail-r27-sources";
 // Wave 3: the four retained write effects below execute only in native owner
 // routes (Talent candidate privacy in talent_lifecycle; hire-consumption in the
 // People Payroll handoff port). No TypeScript SQL writer remains here; the
@@ -18,7 +18,7 @@ guard10(key:string,value:"hire-not-consumed",id:string){return assertion(databas
 stageConsumeHireHandoffEffect6(..._args:unknown[]):never{return nativeWriteUnavailable();},
 readChangeCandidatePrivacyRow(candidateId:string,companyId:string){return nativeTalentReadFirst<{id:string;status:string;privacy_hold:boolean;privacy_requested_by:string|null;version:number;retention_until:string}>('talent_rd_change_candidate_privacy_row',[candidateId,companyId],database);},
 stageChangeCandidatePrivacyEffect(candidateId:string){return database.prepare(candidateLockSql("UPDATE")).bind(candidateId);},
-guard21(key:string,value:"candidate-privacy",candidateId:string,companyId:string,version:number,status:string,value2:0 | 1){return assertion(database,key,value,"EXISTS(SELECT 1 FROM talent_candidates WHERE id=? AND company_id=? AND version=? AND status=? AND privacy_hold::int=?)",[candidateId,companyId,version,status,value2]);},
+guard21(key:string,value:"candidate-privacy",candidateId:string,companyId:string,version:number,status:string,value2:0 | 1){return assertion(database,key,value,existsVersionRow("talent_candidates"," AND status=? AND privacy_hold::int=?"),[candidateId,companyId,version,status,value2]);},
 stageChangeCandidatePrivacyEffect2(..._args:unknown[]):never{return nativeWriteUnavailable();},
 stageChangeCandidatePrivacyEffect3(..._args:unknown[]):never{return nativeWriteUnavailable();},
 stageChangeCandidatePrivacyEffect4(..._args:unknown[]):never{return nativeWriteUnavailable();}};}
