@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7759,
+    "revision": 7763,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -131167,7 +131167,7 @@
         "owner": "marketing",
         "title": "marketing TS read tail native cutover (r16)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -131179,22 +131179,42 @@
         "resources": [
           "owner:marketing"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG47mar",
-          "claimedAt": "2026-11-24T01:03:21.783Z",
-          "heartbeatAt": "2026-11-24T01:03:59.988Z",
-          "expiresAt": "2026-11-24T01:33:59.988Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-marketing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "3ab096714",
+            "owner": "marketing",
+            "before": 107,
+            "after": 105,
+            "note": "Current-authority and handoff allowed probes share marketingAssignmentAllowedSql; aliases/binds byte-identical."
+          },
+          {
+            "command": "vitest marketing units (56)",
+            "result": "passed",
+            "sourceSha": "3ab096714"
+          },
+          {
+            "command": "tsc marketing",
+            "result": "passed",
+            "sourceSha": "3ab096714"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local family; record a strictly lower spaced count (BEFORE=107).",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG47mar",
+          "at": "2026-11-24T01:07:28.461Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -131442,6 +131462,42 @@
         "nextAction": "Pick the smallest remaining owner-local dedupe; BEFORE=93.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.marketing.read-tail-r17",
+        "goalId": "G4",
+        "owner": "marketing",
+        "title": "marketing TS read tail native cutover (round 17)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-marketing/src/**",
+          "tests/unit/marketing/**",
+          "tests/integration/marketing/**"
+        ],
+        "resources": [
+          "owner:marketing"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG55mar",
+          "claimedAt": "2026-11-24T01:07:28.733Z",
+          "heartbeatAt": "2026-11-24T01:07:28.733Z",
+          "expiresAt": "2026-11-24T01:37:28.733Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next TS-only dedupe: record-scope authority witness pair (record-purchases L17 + analytics-sources L21), or active-form point read; BEFORE=105.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -131450,7 +131506,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 773,
+      "totalPackets": 774,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
@@ -131458,13 +131514,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 395,
+        "blocked": 396,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:06:01.926Z",
+    "updatedAt": "2026-11-24T01:07:28.741Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
