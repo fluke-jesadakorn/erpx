@@ -20,6 +20,13 @@ export function releaseRevisionShareLockSql(scope: ReleaseScopeVersion) {
   return `SELECT revision FROM ${releaseRevisionTable(scope)} WHERE company_id=? FOR SHARE`;
 }
 
+/** The single latest-acceptance subquery shared by release acceptance guards and
+ * the native release predicate. Kept here once so the "latest acceptance per
+ * company and scope" rule has one owner-local definition. */
+export function latestReleaseIdSql(companyExpression: string, scopeExpression: string) {
+  return `(SELECT latest.id FROM company_release_acceptances latest WHERE latest.company_id=${companyExpression} AND latest.scope_version=${scopeExpression} ORDER BY latest.created_at DESC,latest.id DESC LIMIT 1)`;
+}
+
 export function releaseCurrencyPredicate(companyExpression: string) {
   // The scalar wrapper uses a parameter expression exactly once.
   return `(SELECT NOT EXISTS(SELECT 1 FROM (${financePlatformSources.finance_charts}) c WHERE c.company_id=scope_company.id AND c.base_currency<>'THB')
@@ -40,7 +47,7 @@ export function acceptedReleasePredicate(companyExpression: string, scope: Relea
     WHERE release.company_id=${companyExpression} AND release.revoked_at IS NULL
     AND release.scope_version=${literal(scope)} AND release.software_version=${literal(artifact.softwareVersion)}
     AND release.configuration_revision=revision.revision AND setup.status='accepted' AND setup.version=release.setup_version
-    AND release.id=(SELECT latest.id FROM company_release_acceptances latest WHERE latest.company_id=release.company_id AND latest.scope_version=release.scope_version ORDER BY latest.created_at DESC,latest.id DESC LIMIT 1)
+    AND release.id=${latestReleaseIdSql('release.company_id', 'release.scope_version')}
     ${scope === productionScope.version ? `AND (SELECT count(*) FROM (${organizationPlatformSources.organization_nodes}) branch WHERE branch.company_id=release.company_id AND branch.kind='branch' AND branch.status='active')=1 AND ${releaseCurrencyPredicate('release.company_id')}` : ''}
     AND NOT EXISTS(SELECT 1 FROM (VALUES ${criteria}) AS required(id,permission) WHERE NOT EXISTS(
       SELECT 1 FROM company_release_gate_reviews gate JOIN (${identity_accessPlatformSources.assignments}) reviewer ON reviewer.id=gate.assignment_id

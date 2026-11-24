@@ -47,4 +47,14 @@ describe('platform administration native owner-write no-op dedupe', () => {
     }
     expect(source('public/release-predicate.ts')).toContain('releaseRevisionShareLockSql');
   });
+
+  it('keeps one canonical latest-release-id subquery and reuses it in release guards and predicate', () => {
+    const latestBody = 'SELECT latest.id FROM company_release_acceptances latest WHERE latest.company_id=';
+    const predicate = source('adapters/release-predicate.ts');
+    const acceptance = source('adapters/release-acceptance.ts');
+    expect(`${predicate}\n${acceptance}`.split(latestBody).length - 1).toBe(1);
+    expect(predicate).toContain("latestReleaseIdSql('release.company_id', 'release.scope_version')");
+    expect(acceptance).toContain("latestReleaseIdSql('?', '?')");
+    expect(acceptance).not.toContain('WHERE latest.company_id=?');
+  });
 });

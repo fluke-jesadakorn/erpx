@@ -1,4 +1,4 @@
-import {releaseRevisionTable,releaseCurrencyPredicate,releaseRevisionShareLockSql} from "@erpx/server-platform_administration/adapters/release-predicate";
+import {releaseRevisionTable,releaseCurrencyPredicate,releaseRevisionShareLockSql,latestReleaseIdSql} from "@erpx/server-platform_administration/adapters/release-predicate";
 import { platformOwnerProjectionSources as identity_accessPlatformSources } from "@erpx/server-identity_access/public/platform-owner-projection-sources";
 import { platformOwnerProjectionSources as organizationPlatformSources } from "@erpx/server-organization/public/platform-owner-projection-sources";
 import "server-only";
@@ -70,7 +70,7 @@ function repository(db:SqlDatabase,companyId:string,work?:WorkContext):ReleaseRe
     ...(await inputsGuard(db, actor, key, inputs.configurationRevision, inputs.setupVersion, scope)),
     db.prepare(RELEASE_ROW_LOCK_SQL).bind(actor.companyId, id),
     assertion(db, key, 'release-version', RELEASE_VERSION_GUARD_SQL, [actor.companyId, id, input.expectedVersion]),
-    assertion(db, key, 'release-latest', 'EXISTS(SELECT 1 FROM company_release_acceptances WHERE company_id=? AND id=? AND id=(SELECT latest.id FROM company_release_acceptances latest WHERE latest.company_id=? AND latest.scope_version=? ORDER BY latest.created_at DESC,latest.id DESC LIMIT 1))', [actor.companyId, id, actor.companyId, scope]),
+    assertion(db, key, 'release-latest', `EXISTS(SELECT 1 FROM company_release_acceptances WHERE company_id=? AND id=? AND id=${latestReleaseIdSql('?', '?')})`, [actor.companyId, id, actor.companyId, scope]),
     assertion(db, key, 'release-independent', 'NOT iam_same_person(?,?,?)', [actor.userId, row.requested_by, actor.companyId]),
     await nativeOwnerWrite('pl_release_gate_review_upsert',[
       actor.companyId,id,input.criterionId,input.state,actor.userId,actor.assignmentId,criterion.permission,input.reason,now,
