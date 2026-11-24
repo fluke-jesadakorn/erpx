@@ -1,6 +1,6 @@
 import { nativePosOne, nativePosRun } from './native-owner-write';
 import { nativePosAuditChargeToRoomStatement, nativePosAuditKitchenStartStatement } from './native-pos-audit-reads';
-import { nativePosKeyedPendingReversalStatement, nativePosKeyedPreparedDayCloseStatement, nativePosKeyedReceiptByIdStatement, nativePosKeyedReversalBySaleStatement, nativePosKeyedSettingsStatement, nativePosOpenShiftByIdStatement, nativePosOpenShiftByRegisterStatement, nativePosPaymentByIdPlainStatement, nativePosPostingJournalStatement, nativePosRegisterByIdStatement, nativePosRegisterByNameStatement, nativePosRegisterCatalogStatement, nativePosRegistersByKindStatement, nativePosRestaurantRegisterPropertyStatement, nativePosSaleByIdStatement, nativePosTableByNameStatement } from './native-pos-core-statement';
+import { nativePosKeyedPendingReversalStatement, nativePosKeyedPreparedDayCloseStatement, nativePosKeyedReceiptByIdStatement, nativePosKeyedReversalBySaleStatement, nativePosKeyedSettingsStatement, nativePosOpenShiftByIdStatement, nativePosOpenShiftByRegisterStatement, nativePosPaymentByIdPlainStatement, nativePosPaymentByIdStatement, nativePosPostingJournalStatement, nativePosRegisterByIdStatement, nativePosRegisterByNameStatement, nativePosRegisterCatalogStatement, nativePosRegistersByKindStatement, nativePosRestaurantRegisterPropertyStatement, nativePosSaleByIdStatement, nativePosTableByNameStatement } from './native-pos-core-statement';
 import { nativePosFulfilledLinesStatement, nativePosFirstPaymentIdStatement, nativePosLinesBySaleStatement, nativePosLinesTotalStatement, nativePosOpenPaymentIdStatement, nativePosPaymentIdBySaleStatement, nativePosPendingPaymentIdStatement, nativePosRefundablePaymentsStatement, nativePosSucceededPaymentTotalStatement } from './native-pos-sale-child';
 import { nativePosChildTailCompletedLineStatement, nativePosChildTailCreatedByStatement, nativePosChildTailLinesSumStatement, nativePosChildTailRefundPaymentStatement } from './native-pos-child-tail';
 import { nativePosFulfillmentPropertyStatement, nativePosRegisterPropertyStatement } from './native-pos-hotel-reads';
@@ -416,7 +416,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         readFinanceBankTransactions1: facts => posCoreFinanceFacts(db).readFinanceBankTransactions1(facts),
         readPosPayments13: (facts: {
             id: string;
-        }) => one(db, 'SELECT * FROM pos_payments WHERE id=? FOR UPDATE', facts.id),
+        }) => nativePosPaymentByIdStatement<PosRow>(db, facts.id),
         readPosJobs1: (facts: {
             id: string | number | boolean | null;
         }) => one(db, "SELECT state FROM pos_jobs WHERE record_id=? AND kind='checkout' FOR UPDATE", facts.id),
