@@ -1,5 +1,6 @@
 import "server-only";
 import { commercialChangeSetReceiptSql } from "./commercial-read-tail-r1-sources";
+import { purchaseFactAgg } from "./commercial-read-tail-r4-sources";
 import { createHash } from "node:crypto";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
@@ -27,8 +28,8 @@ const historyFromRow = (row: HistoryRow): CompanyPackageHistoryRight => ({ compa
 /** One presentation snapshot. Audit/history bodies stay inside Commercial. */
 export async function readCompanyPurchaseFacts(database: SqlDatabase, companyId: string) {
   const row = await database.prepare(`SELECT
-    COALESCE((SELECT jsonb_agg(to_jsonb(g) ORDER BY package_id) FROM company_package_grants g WHERE company_id=?),'[]'::jsonb) grants,
-    COALESCE((SELECT jsonb_agg(to_jsonb(h) ORDER BY package_id,package_version) FROM company_package_history_rights h WHERE company_id=?),'[]'::jsonb) history`)
+    COALESCE((${purchaseFactAgg("company_package_grants","g","package_id")}),'[]'::jsonb) grants,
+    COALESCE((${purchaseFactAgg("company_package_history_rights","h","package_id,package_version")}),'[]'::jsonb) history`)
     .bind(companyId, companyId).first<{ grants: Row[] | string; history: HistoryRow[] | string }>();
   if (!row) throw new Error("COMPANY_PURCHASE_FACTS_REQUIRED");
   const grants = typeof row.grants === "string" ? JSON.parse(row.grants) as Row[] : row.grants;

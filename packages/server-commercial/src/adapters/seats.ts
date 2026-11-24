@@ -3,6 +3,7 @@ import {commercialSeatAccounts} from '@erpx/server-identity_access/public/commer
 import {commercialSeatCandidates} from '@erpx/server-identity_access/public/commercial-seat-facts';
 import 'server-only';
 import {seatHistorySql} from './commercial-read-tail-r3-sources';
+import {coverageProbe} from './commercial-read-tail-r4-sources';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {createSeatMeterApplication,type SeatMeterRepository} from '@erpx/server-commercial/application/seats';
 import type {AssignmentEvent,MemberEvent,RoleEvent} from '@erpx/server-commercial/domain/seats';
@@ -10,7 +11,7 @@ export {canonicalSeatIntervals,deriveHoldingSeatIntervals} from '@erpx/server-co
 export type {SeatInterval,HoldingSeatMeter,ActiveSeatSnapshot,MonthlySeatSummary} from '@erpx/server-commercial/domain/seats';
 function repository(db:SqlDatabase,control:SqlDatabase):SeatMeterRepository{return {
 async history(start,end){const [coverage,assignments,members,roles,cutoffs]=await Promise.all([
-    db.prepare("SELECT started_at FROM billing_seat_history_coverage WHERE singleton=1").first<{started_at:number}>(),
+    db.prepare(coverageProbe("started_at","billing_seat_history_coverage","1")).first<{started_at:number}>(),
     db.prepare(seatHistorySql("assignment_id","assignment","assignment_id"))
       .bind(end).all<AssignmentEvent>(),
     db.prepare(seatHistorySql("company_id,user_id","member","company_id,user_id"))

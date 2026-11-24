@@ -1,4 +1,5 @@
 import {commercialSeatProjectionAccounts} from '@erpx/server-identity_access/public/commercial-seat-facts';
+import {coverageProbe} from './commercial-read-tail-r4-sources';
 
 import { nativeCommercialOwnerWrite, NativeCommercialOwnerWriteError } from "@erpx/server-commercial/adapters/native-owner-write";
 async function ownerWrite(kind: any, values: readonly unknown[], recordId: string, key: string) {
@@ -16,7 +17,7 @@ import type {Binding,Snapshot,SnapshotHeader,MeterRow} from '@erpx/server-commer
 import {readHoldingUsage} from '@erpx/server-commercial/adapters/usage';
 import {readControlSeatSummary} from '@erpx/server-commercial/adapters/seats';
 function transaction(tx:SqlDatabase):UsageProjectionTransaction{return {
- principalCoverage:()=>tx.prepare("SELECT since_at FROM billing_principal_status_coverage WHERE singleton=TRUE")
+ principalCoverage:()=>tx.prepare(coverageProbe("since_at","billing_principal_status_coverage","TRUE"))
     .first<{since_at:number}>(),principalAccounts:async ids=>{return (await commercialSeatProjectionAccounts(tx,ids)).results;},principalEvents:async(end,ids)=>{const billablePlaceholders=ids.map(()=>'?').join(','),billableIds=ids;return (await tx.prepare(`SELECT id,user_id,status,effective_at
     FROM billing_principal_status_events WHERE effective_at<? AND user_id IN (${billablePlaceholders})
     ORDER BY user_id,effective_at,id`)
