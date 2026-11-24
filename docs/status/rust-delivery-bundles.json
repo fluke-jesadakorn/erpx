@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11711,
+    "revision": 11715,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -173791,7 +173791,7 @@
         "owner": "talent",
         "title": "talent TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -173803,28 +173803,36 @@
         "resources": [
           "owner:talent"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wF4a09",
-          "claimedAt": "2026-11-24T11:32:51.459Z",
-          "heartbeatAt": "2026-11-24T11:37:13.004Z",
-          "expiresAt": "2026-11-24T12:07:13.004Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-talent/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "49714d251",
+            "owner": "talent",
+            "before": 44,
+            "after": 39,
+            "note": "Universal projection head owns the literal; six helpers delegate; locks/owner boundary/native untouched."
+          },
+          {
+            "command": "vitest talent r37 (52) + scoped tsc + 14/14 byte oracle",
+            "result": "passed",
+            "sourceSha": "49714d251"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=44.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a09",
-          "at": "2026-11-24T11:32:49.939Z",
+          "at": "2026-11-24T11:51:51.629Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
-          "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=44."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -174888,7 +174896,7 @@
         "owner": "identity_access",
         "title": "identity_access TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -174900,28 +174908,36 @@
         "resources": [
           "owner:identity_access"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wF4a31",
-          "claimedAt": "2026-11-24T11:32:55.278Z",
-          "heartbeatAt": "2026-11-24T11:37:13.004Z",
-          "expiresAt": "2026-11-24T12:07:13.004Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-identity_access/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "49714d251",
+            "owner": "identity_access",
+            "before": 508,
+            "after": 499,
+            "note": "Seven parameterized families shared across 14 adapters; session authority/native/locks untouched."
+          },
+          {
+            "command": "vitest identity r27+r28 (8) + scoped tsc + 16/16 byte oracle",
+            "result": "passed",
+            "sourceSha": "49714d251"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=508.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a31",
-          "at": "2026-11-24T11:32:49.939Z",
+          "at": "2026-11-24T11:51:51.894Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
-          "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=508."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -175836,17 +175852,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 29,
+        "in_progress": 27,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1265,
+        "blocked": 1267,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T11:51:23.835Z",
+    "updatedAt": "2026-11-24T11:51:51.898Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
