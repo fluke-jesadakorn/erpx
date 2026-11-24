@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12279,
+    "revision": 12281,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -182219,7 +182219,7 @@
         "owner": "collaboration",
         "title": "collaboration queued guard, actor CTE and requested head",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -182230,22 +182230,37 @@
         "resources": [
           "owner:collaboration"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n45",
-          "claimedAt": "2026-11-24T14:20:12.802Z",
-          "heartbeatAt": "2026-11-24T14:20:12.802Z",
-          "expiresAt": "2026-11-24T14:50:12.802Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-collaboration/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "331cf3932",
+            "owner": "collaboration",
+            "before": 360,
+            "after": 356,
+            "note": "Queued source absence guard, social purchase actor CTE (3 sites) and requested sources select shared; locks/notification targets untouched."
+          },
+          {
+            "command": "vitest collaboration r32-r39 (47) + scoped tsc + 14/14 byte harness",
+            "result": "passed",
+            "sourceSha": "331cf3932"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Queued source absence guard (-1), social purchase actor CTE 3 sites (-2), requested sources select (-1): 360->356.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n45",
+          "at": "2026-11-24T14:29:48.376Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -182469,17 +182484,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 7,
+        "in_progress": 6,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1414,
+        "blocked": 1415,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T14:26:38.675Z",
+    "updatedAt": "2026-11-24T14:29:48.382Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
