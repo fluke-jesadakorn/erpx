@@ -83215,6 +83215,33 @@
     },
     {
       "lane": "unit",
+      "owner": "runtime",
+      "modules": [
+        "manage_erpx"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Runtime report guards, share jsonb and holding bindings must compose existing helpers."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-runtime"
+      ],
+      "id": "runtime.read-tail-r15-dedupe.unit",
+      "files": [
+        "tests/unit/runtime/read-tail-r15-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
       "owner": "shared.runtime",
       "modules": [
         "operations"

@@ -83,7 +83,7 @@ describe('Runtime read-tail r14 executive_generation_jobs generation.ts five rea
     expect(shared.split('`SELECT ${columns} FROM executive_reports${suffix}`')).toHaveLength(2);
   });
 
-  test('retirement:ts-statements records BEFORE=41 strictly lower to 36', () => {
+  test('retirement:ts-statements stays strictly below the r14 AFTER=36 pin', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -93,7 +93,7 @@ describe('Runtime read-tail r14 executive_generation_jobs generation.ts five rea
       }
     };
     walk(srcRoot);
-    expect(total).toBe(36);
-    expect(total).toBeLessThan(41);
+    expect(total).toBe(30);
+    expect(total).toBeLessThan(36);
   });
 });

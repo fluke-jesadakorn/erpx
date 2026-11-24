@@ -14,9 +14,9 @@ const readOnly = (sql: string) => {
 
 // Pre-dedupe literal copied from HEAD, used only as a byte-identity oracle.
 // It is a multiline executive_reports read whose nested share EXISTS predicate
-// carries the r9 share-literal shape and alias; the whole read is rebuilt from
-// the existing canonical executive_reports builder, so the nested literal is
-// preserved verbatim rather than re-deduped into the r9 family.
+// carries the r9 share-literal shape and alias; r12 rebuilt the whole read from
+// the canonical executive_reports builder and r15 composes the nested share
+// from the executive_report_shares builder. The literal below is the oracle.
 const pre = [
   'SELECT r.id FROM executive_reports r WHERE r.company_id=? AND r.id>?\n      AND (r.owner_id=? OR EXISTS(SELECT 1 FROM executive_report_shares s WHERE s.report_id=r.id AND s.company_id=r.company_id AND s.recipient_id=? AND s.revoked_at IS NULL AND (s.expires_at IS NULL OR s.expires_at>?)))\n      ORDER BY r.id LIMIT ?',
 ];
@@ -43,8 +43,9 @@ describe('Runtime read-tail r12 executive_reports mcp dashboards read', () => {
     for (const [name, count] of callers) {
       const text = src(name);
       expect(text, `${name} :: pre literal`).not.toContain(pre[0]);
-      expect(text).toContain(nestedShare);
+      expect(text).not.toContain(nestedShare);
       expect(text.match(/executiveReportsSql\(/g) ?? []).toHaveLength(count);
+      expect(text.match(/executiveReportSharesSql\(/g) ?? []).toHaveLength(1);
       uses += count;
     }
     expect(uses).toBe(1);

@@ -1,5 +1,5 @@
 import { nativeRuntimeStatement } from '@erpx/feature-runtime/adapters/server/native-runtime-command';
-import { executiveReportsSql } from '../read-tail-sql';
+import { executiveReportSharesSql, executiveReportsSql } from '../read-tail-sql';
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import "server-only";
 import { randomUUID } from "node:crypto";
@@ -22,7 +22,7 @@ const annotations = { readOnlyHint: true, destructiveHint: false, idempotentHint
 function executiveMcpUnit(db: SqlDatabase): ExecutiveMcpUnit {
     return {
         dashboards: (actor, cursor, now, limit) => db.prepare(executiveReportsSql('r.id', ` r WHERE r.company_id=? AND r.id>?
-      AND (r.owner_id=? OR EXISTS(SELECT 1 FROM executive_report_shares s WHERE s.report_id=r.id AND s.company_id=r.company_id AND s.recipient_id=? AND s.revoked_at IS NULL AND (s.expires_at IS NULL OR s.expires_at>?)))
+      AND (r.owner_id=? OR ${executiveReportSharesSql('1', ' s WHERE s.report_id=r.id AND s.company_id=r.company_id AND s.recipient_id=? AND s.revoked_at IS NULL AND (s.expires_at IS NULL OR s.expires_at>?)')}))
       ORDER BY r.id LIMIT ?`)).bind(actor.companyId, cursor, actor.userId, actor.userId, now, limit).all<{
             id: string;
         }>(),

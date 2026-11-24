@@ -19,7 +19,7 @@ const pre = [
 ];
 
 const callers = [
-  ['executive/reports.ts', 2],
+  ['executive/reports.ts', 3],
 ] as const;
 
 describe('Runtime read-tail r11 executive_reports parameterized family', () => {
@@ -41,7 +41,7 @@ describe('Runtime read-tail r11 executive_reports parameterized family', () => {
       expect(text.match(/executiveReportsSql\(/g) ?? []).toHaveLength(count);
       uses += count;
     }
-    expect(uses).toBe(2);
+    expect(uses).toBe(3);
   });
 
   test('control-plane lock and migration SQL is untouched', () => {

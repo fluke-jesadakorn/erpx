@@ -28,9 +28,9 @@ const pre = [
 
 const callers = [
   ['runtime.ts', 1],
-  ['runtime/jobs.ts', 1],
+  ['runtime/jobs.ts', 2],
   ['platform-owner-projection-sources.ts', 1],
-  ['billing-holding-facts.ts', 2],
+  ['billing-holding-facts.ts', 3],
   ['pos-stripe-binding-facts.ts', 1],
   ['identity-management-binding-facts.ts', 2],
   ['app-native-sources.ts', 1],
@@ -64,7 +64,7 @@ describe('Runtime read-tail r5 holding_bindings parameterized family', () => {
       expect(text.match(/holdingBindingsSql\(/g) ?? []).toHaveLength(count);
       uses += count;
     }
-    expect(uses).toBe(10);
+    expect(uses).toBe(12);
   });
 
   test('retirement:ts-statements stays strictly below the r5 BEFORE=62 baseline', () => {

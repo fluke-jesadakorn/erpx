@@ -117,8 +117,7 @@ export async function billingWork(env: JobEnv) {
   await (await import("@erpx/server-billing/public/billing-attachments")).drainBillingEvidenceScans(env as import("@erpx/server-runtime/adapters/runtime/env").RuntimeEnv);
   if(Date.now()>=usageProjectionNextAt) {
     try {
-      const bindings=(await env.CONTROL_DB.prepare(`SELECT holding_id id,slug,display_name "displayName"
-        FROM holding_bindings WHERE status='active' ORDER BY holding_id`)
+      const bindings=(await env.CONTROL_DB.prepare(holdingBindingsSql('holding_id id,slug,display_name "displayName"', " WHERE status='active' ORDER BY holding_id"))
         .all<{id:string;slug:string;displayName:string}>()).results
         .filter(binding=>resourceSlots(env).some(slot=>slot.id===binding.id));
       const projection=await import("@erpx/server-commercial/public/usage-projection");

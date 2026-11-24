@@ -21,7 +21,7 @@ const pre = [
 ];
 
 const callers = [
-  ['executive/reports.ts', 3],
+  ['executive/reports.ts', 5],
   ['executive/access.ts', 1],
 ] as const;
 
@@ -46,7 +46,7 @@ describe('Runtime read-tail r9 executive_report_shares parameterized family', ()
       expect(text.match(/executiveReportSharesSql\(/g) ?? []).toHaveLength(count);
       uses += count;
     }
-    expect(uses).toBe(4);
+    expect(uses).toBe(6);
   });
 
   test('control-plane lock and migration SQL is untouched', () => {
