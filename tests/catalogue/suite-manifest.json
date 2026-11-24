@@ -1340,6 +1340,31 @@
       }
     },
     {
+      "lane": "unit",
+      "owner": "assets",
+      "modules": [
+        "assets"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Assets owner read plan transport must fail closed and never send SQL."
+      },
+      "apps": "assets",
+      "packages": [
+        "@erpx/server-assets"
+      ],
+      "id": "assets.native-assets-read-transport.unit",
+      "files": [
+        "tests/unit/assets/native-assets-read-transport.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "assets.native-assets-transport.unit",
       "lane": "unit",
       "owner": "assets",
@@ -56590,6 +56615,31 @@
       "id": "marketing.native-marketing-campaigns-read-tail.unit",
       "files": [
         "tests/unit/marketing/native-marketing-campaigns-read-tail.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "marketing",
+      "modules": [
+        "marketing"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Marketing owner read plan transport must fail closed and never send SQL."
+      },
+      "apps": "marketing",
+      "packages": [
+        "@erpx/server-marketing"
+      ],
+      "id": "marketing.native-marketing-read-transport.unit",
+      "files": [
+        "tests/unit/marketing/native-marketing-read-transport.test.ts"
       ],
       "framework": "vitest"
     },

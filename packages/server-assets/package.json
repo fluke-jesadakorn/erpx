@@ -17,6 +17,7 @@
     "./adapters/metric-purchases": "./src/adapters/metric-purchases.ts",
     "./adapters/attachments-operational-facts": "./src/adapters/attachments-operational-facts.ts",
     "./adapters/package-obligations": "./src/adapters/package-obligations.ts",
+    "./adapters/native-assets-read": "./src/adapters/native-assets-read.ts",
     "./public/financial-workflow-sources": "./src/public/financial-workflow-sources.ts",
     "./public/field-service-references": "./src/public/field-service-references.ts",
     "./public/final-root-owner-projection-sources": "./src/public/final-root-owner-projection-sources.ts",

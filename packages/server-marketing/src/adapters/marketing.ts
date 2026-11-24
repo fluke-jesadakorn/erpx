@@ -22,6 +22,14 @@ import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import {marketingFormReadiness,marketingPresentationAssertions} from "@erpx/server-marketing/adapters/public-form";
 import {activeFormSql} from "./active-form-sql";
 import {marketingLocalPointReadSql} from "./marketing-local-point-read-sql";
+import {
+  MARKETING_RD_ASSET_LIST,
+  MARKETING_RD_ASSET_POINT,
+  MARKETING_RD_FORM_SOURCE,
+  nativeMarketingReadAll,
+  nativeMarketingReadConfigured,
+  nativeMarketingReadFirst,
+} from "./native-marketing-read";
 import {listAttachmentPublications} from "@erpx/server-files/public/attachments/service";
 import {attachmentsV2Readable} from "@erpx/server-files/public/attachments/feature";
 import {isTransactionalSqlDatabase} from "@erpx/server-runtime/public/runtime/types";
@@ -47,7 +55,9 @@ function access(a: WorkContext, write = false) {
 
 function repository(write:SqlDatabase,a:WorkContext,startTransaction:boolean):MarketingRepository<SqlStatement[]>{return {
 ...(startTransaction&&isTransactionalSqlDatabase(write)?{transaction:<Result>(action:(r:MarketingRepository<SqlStatement[]>)=>Promise<Result>)=>write.transaction(tx=>action(repository(tx,a,false)))}:{}),
-async assets(){return (await write
+async assets(){
+      if(nativeMarketingReadConfigured())return (await nativeMarketingReadAll<Row>(MARKETING_RD_ASSET_LIST,{companyId:a.companyId},write)).results;
+      return (await write
         .prepare(
           "SELECT * FROM marketing_assets WHERE company_id=? ORDER BY updated_at DESC",
         )
@@ -91,11 +101,15 @@ async campaignSummary(){return (await write
           a.departmentId,
         )
         .all<Row>()).results;},
-sourceForm:(formId,formVersion)=>write.prepare(activeFormSql('source',true,true)).bind(formId,a.companyId,formVersion).first<{configuration_json:string}>(),
-asset:id=>write
-      .prepare(marketingLocalPointReadSql('asset'))
-      .bind(id, a.companyId)
-      .first<Row>(),
+async sourceForm(formId,formVersion){
+      if(nativeMarketingReadConfigured())return nativeMarketingReadFirst<{configuration_json:string}>(MARKETING_RD_FORM_SOURCE,{assetId:formId,companyId:a.companyId,version:formVersion},write);
+      return write.prepare(activeFormSql('source',true,true)).bind(formId,a.companyId,formVersion).first<{configuration_json:string}>();},
+async asset(id){
+      if(nativeMarketingReadConfigured())return nativeMarketingReadFirst<Row>(MARKETING_RD_ASSET_POINT,{assetId:id,companyId:a.companyId},write);
+      return write
+        .prepare(marketingLocalPointReadSql('asset'))
+        .bind(id, a.companyId)
+        .first<Row>();},
 candidate:(id,lock=false)=>write
     .prepare(
       marketingLocalPointReadSql('candidate',lock),

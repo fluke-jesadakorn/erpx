@@ -3507,6 +3507,10 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut manufacturing_read_targets: Vec<(String, String, String)> = Vec::new();
         #[cfg(feature = "existing-business")]
+        let mut marketing_read_targets: Vec<(String, String, String)> = Vec::new();
+        #[cfg(feature = "existing-business")]
+        let mut assets_read_targets: Vec<(String, String, String)> = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut marketing_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut marketing_lead_targets = Vec::new();
@@ -4005,6 +4009,16 @@ async fn assemble_checked(
                     },
                 );
                 manufacturing_read_targets.push((
+                    holding.host.clone(),
+                    holding.registration.slug.clone(),
+                    format!("https://{}", holding.host),
+                ));
+                marketing_read_targets.push((
+                    holding.host.clone(),
+                    holding.registration.slug.clone(),
+                    format!("https://{}", holding.host),
+                ));
+                assets_read_targets.push((
                     holding.host.clone(),
                     holding.registration.slug.clone(),
                     format!("https://{}", holding.host),
@@ -7789,6 +7803,20 @@ async fn assemble_checked(
             );
         }
         #[cfg(feature = "existing-business")]
+        if !marketing_read_targets.is_empty() {
+            router = router.merge(
+                crate::marketing_read::marketing_read_all_composed_router(marketing_read_targets)
+                    .map_err(|_| "PRIVATE_API_MARKETING_READ_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !assets_read_targets.is_empty() {
+            router = router.merge(
+                crate::assets_read::assets_read_all_composed_router(assets_read_targets)
+                    .map_err(|_| "PRIVATE_API_ASSETS_READ_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
         if !planning_targets.is_empty() {
             router = router.merge(
                 erpx_server_planning::public::planning_http::planning_router(planning_targets)
@@ -9692,6 +9720,10 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
                 && path.ends_with("/commercial/owner-read")
             || path.starts_with("/api/v1/holdings/")
                 && path.ends_with("/manufacturing/read-plan")
+            || path.starts_with("/api/v1/holdings/")
+                && path.ends_with("/marketing/read-plan")
+            || path.starts_with("/api/v1/holdings/")
+                && path.ends_with("/assets/read-plan")
             || path.ends_with("/pos/owner-write")
             || path.ends_with("/organization/owner-write"));
     if state.policy.audience(host).is_none()
@@ -12416,6 +12448,42 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             .is_some_and(|_| !slug.is_empty()),
         _ => false,
     };
+    let marketing_owner_read = match (
+        request.method(),
+        request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice(),
+    ) {
+        (
+            &axum::http::Method::POST,
+            ["", "api", "v1", "holdings", slug, "marketing", "read-plan"],
+        ) => state
+            .policy
+            .audience(host)
+            .is_some_and(|_| !slug.is_empty()),
+        _ => false,
+    };
+    let assets_owner_read = match (
+        request.method(),
+        request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice(),
+    ) {
+        (
+            &axum::http::Method::POST,
+            ["", "api", "v1", "holdings", slug, "assets", "read-plan"],
+        ) => state
+            .policy
+            .audience(host)
+            .is_some_and(|_| !slug.is_empty()),
+        _ => false,
+    };
     let talent = match (
         request.method(),
         request
@@ -12751,6 +12819,8 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || commercial_owner_write
         || commercial_owner_read
         || manufacturing_owner_read
+        || marketing_owner_read
+        || assets_owner_read
         || organization_owner_write
         || pos_owner_write
         || customer_access

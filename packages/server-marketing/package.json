@@ -25,6 +25,7 @@
     "./adapters/commercial-owner-projection-sources": "./src/adapters/commercial-owner-projection-sources.ts",
     "./adapters/metric-purchases": "./src/adapters/metric-purchases.ts",
     "./adapters/marketing": "./src/adapters/marketing.ts",
+    "./adapters/native-marketing-read": "./src/adapters/native-marketing-read.ts",
     "./adapters/attachments-operational-facts": "./src/adapters/attachments-operational-facts.ts",
     "./adapters/public-submission": "./src/adapters/public-submission.ts",
     "./adapters/public-form": "./src/adapters/public-form.ts",

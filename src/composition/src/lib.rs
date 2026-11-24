@@ -60,6 +60,8 @@ pub mod workflow_projection_worker;
 pub mod asset_purchase_image;
 #[cfg(feature = "existing-business")]
 pub mod asset_retirement_work;
+#[cfg(feature = "existing-business")]
+pub mod assets_read;
 pub mod benefits;
 pub mod billing;
 // Wave-1 native axum command composition (mounted by private_development_api).
@@ -152,6 +154,8 @@ pub mod workflow_wave3;
 pub mod manufacturing_wave3;
 #[cfg(feature = "existing-business")]
 pub mod marketing;
+#[cfg(feature = "existing-business")]
+pub mod marketing_read;
 #[cfg(feature = "existing-business")]
 pub mod member_profile_http;
 pub mod operations;

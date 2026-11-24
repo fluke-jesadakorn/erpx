@@ -8,6 +8,13 @@ import {assetsSettlementFinancialAssets,assetsSettlementFinancialAssetReadLocks}
 import {maintenanceAssetSettlementRefs,maintenanceAssetSettlementRefReadLocks} from "@erpx/server-maintenance/public/asset-settlement-refs";
 import {maintenanceSettlementInventoryReadLocks} from "@erpx/server-inventory/public/maintenance-settlement-sources";
 import {assetSourceProbeSql} from "./record-purchases";
+import {
+  ASSETS_RD_OBLIGATIONS_BASE,
+  ASSETS_RD_OBLIGATIONS_PARTS,
+  ASSETS_RD_OBLIGATIONS_PREVENTIVE,
+  nativeAssetsReadAll,
+  nativeAssetsReadConfigured,
+} from "./native-assets-read";
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};const sources=new WeakMap<SqlDatabase,string>();
 /** Canonical owner-local EXISTS wrapper. It reuses the owner-local source probe
  * so the row-existence literal is defined once in this owner; callers pass only
@@ -24,7 +31,10 @@ export async function lockAssetPackageObligationSources(owner:PostgresDatabase,l
 export function assertAssetPackageObligationSources(owner:PostgresDatabase,database:SqlDatabase,companyId:string){owner.assertActiveTransaction(database);if(sources.get(database)!==companyId)throw Error("ASSETS_PACKAGE_OBLIGATION_SOURCE_REQUIRED");}
 export async function assetPackageObligations(owner:PostgresDatabase,database:SqlDatabase,input:Input){
  assertAssetPackageObligationSources(owner,database,input.companyId);if(input.moduleId!=="assets"||!["assets","assets-preventive","assets-parts-costs"].includes(input.packageId)||input.packageVersion!==1||!Number.isSafeInteger(input.now)||input.now<0)throw Error("ASSETS_PACKAGE_OBLIGATION_SCOPE_REQUIRED");const full=input.packageId==="assets",refs=input.packageId==="assets-preventive"?maintenanceAssetSettlementRefs.preventive:maintenanceAssetSettlementRefs.parts;
- const facts=(await database.prepare(`WITH scope AS(SELECT ?::text company_id,?::boolean is_base),assets AS MATERIALIZED(SELECT asset.* FROM (${assetPackageSettlementSources.assets}) asset,scope WHERE asset.company_id=scope.company_id AND (scope.is_base OR ${assetSourceExistsSql(refs,"source","source.asset_id=asset.id AND source.company_id=asset.company_id")}))
+ const kind=full?ASSETS_RD_OBLIGATIONS_BASE:input.packageId==="assets-preventive"?ASSETS_RD_OBLIGATIONS_PREVENTIVE:ASSETS_RD_OBLIGATIONS_PARTS;
+ const facts=nativeAssetsReadConfigured()
+   ? (await nativeAssetsReadAll<{kind:string;id:string;version:number;state:string;pending:boolean}>(kind,{companyId:input.companyId,isBase:full},database)).results
+   : (await database.prepare(`WITH scope AS(SELECT ?::text company_id,?::boolean is_base),assets AS MATERIALIZED(SELECT asset.* FROM (${assetPackageSettlementSources.assets}) asset,scope WHERE asset.company_id=scope.company_id AND (scope.is_base OR ${assetSourceExistsSql(refs,"source","source.asset_id=asset.id AND source.company_id=asset.company_id")}))
  SELECT 'asset' kind,asset.id,asset.version,asset.lifecycle_status state,NOT asset.source_valid OR (SELECT is_base FROM scope) AND (asset.lifecycle_status IN ('maintenance','retirement_pending') OR asset.cost_minor>0 AND NOT ${assetExistsSql(`(${assetsSettlementFinancialAssets}) financial JOIN (${assetPackageSettlementSources.links}) link ON link.asset_id=asset.id AND link.finance_asset_id=financial.id`, `financial.id=asset.finance_asset_id AND financial.company_id=asset.company_id AND financial.currency=asset.currency AND financial.cost_minor=asset.cost_minor AND link.cost_minor=asset.cost_minor AND link.currency=asset.currency AND link.asset_version<=asset.version AND link.finance_asset_version<=financial.version AND financial.activation_journal_id IS NOT NULL AND (asset.lifecycle_status='retired' AND financial.status='retired' OR asset.lifecycle_status<>'retired' AND financial.status='in_service')`)}) pending FROM assets asset
  UNION ALL SELECT 'asset-link',link.id,link.asset_version,'ambiguous-source',true FROM (${assetPackageSettlementSources.links}) link JOIN assets asset ON asset.id=link.asset_id LEFT JOIN (${assetsSettlementFinancialAssets}) financial ON financial.id=link.finance_asset_id AND financial.company_id=asset.company_id WHERE financial.id IS NULL OR link.currency<>asset.currency OR link.cost_minor<>asset.cost_minor OR financial.cost_minor<>link.cost_minor OR financial.currency<>link.currency OR link.asset_version>asset.version OR link.finance_asset_version>financial.version
  ORDER BY kind,id`).bind(input.companyId,full).all<{kind:string;id:string;version:number;state:string;pending:boolean}>()).results;
