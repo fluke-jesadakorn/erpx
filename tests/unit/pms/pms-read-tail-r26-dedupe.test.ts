@@ -37,8 +37,8 @@ describe('pms read-tail r26 byte-identical id-source dedupe', () => {
     const social = await src(SOCIAL);
     // imports + uses
     expect(pms.split('PMS_IDS_JSONB_MEMBER_SQL').length - 1).toBe(2); // import + 1 use
-    expect(pms.split('PMS_GUEST_ID_FROM_ACCOUNTS_SQL').length - 1).toBe(5); // import + 4 uses
-    expect(pms.split('PMS_GUEST_ID_FROM_STAYS_SQL').length - 1).toBe(3); // import + 2 uses
+    expect(pms.split('PMS_GUEST_ID_FROM_ACCOUNTS_SQL').length - 1).toBe(0); // r28 native port removed all uses and the import
+    expect(pms.split('PMS_GUEST_ID_FROM_STAYS_SQL').length - 1).toBe(0); // r28 native port removed all uses and the import
     expect(repo.split('PMS_CHOSEN_RECORDS_SQL').length - 1).toBe(3); // import + 2 uses
     expect(social.split('PMS_IDS_JSONB_MEMBER_SQL').length - 1).toBe(3); // import + 2 uses
     for (const [text, literals] of [
@@ -81,8 +81,8 @@ describe('pms read-tail r26 byte-identical id-source dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(404);
-    expect(bare).toBe(406);
+    expect(spaced).toBe(367);
+    expect(bare).toBe(369);
     expect(spaced).toBeLessThan(414);
     expect(bare).toBeLessThan(416);
   });

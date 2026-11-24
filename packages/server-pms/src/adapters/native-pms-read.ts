@@ -52,6 +52,13 @@ export const PMS_RD_POS_BOOKING_PAYMENT = 'pms_rd_pos_booking_payment';
 export const PMS_RD_STRIPE_PAYMENT_BY_ID = 'pms_rd_stripe_payment_by_id';
 export const PMS_RD_STRIPE_PAYMENT_BY_ID_COMPANY = 'pms_rd_stripe_payment_by_id_company';
 export const PMS_RD_STRIPE_PAYMENT_PROPERTY = 'pms_rd_stripe_payment_property';
+/** Native successors of the owner-local scoped-records command readers. The
+ * retired template literals are expanded byte-identically in the Rust registry;
+ * six/five/three/three positional binds and no lock, refund or ledger path. */
+export const PMS_RD_STAY_COMMAND = 'pms_rd_stay_command';
+export const PMS_RD_CASHIER_COMMAND = 'pms_rd_cashier_command';
+export const PMS_RD_POS_COMMAND = 'pms_rd_pos_command';
+export const PMS_RD_NIGHT_COMMAND = 'pms_rd_night_command';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'PMS_NATIVE_READ_UNAVAILABLE', 'The native PMS read service is unavailable.');

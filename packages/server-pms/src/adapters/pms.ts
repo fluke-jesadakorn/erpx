@@ -2,9 +2,7 @@ import {decodePmsRecord,type PmsStoredRecord} from "@erpx/server-pms/domain/stor
 import { PMS_WRITE_CONTEXT_SQL } from "./pms-read-tail-r17-sql";
 import { PMS_STRIPE_REFUND_COLUMNS_SQL } from "./pms-read-tail-r22-sql";
 import { PMS_RECORDS_PROJECTION_PREFIX_SQL } from "./pms-read-tail-r24-sql";
-import { PMS_SCOPED_RECORDS_SQL } from "./pms-read-tail-r23-sql";
-import { PMS_GUEST_ACCOUNT_ID_MEMBER_SQL, PMS_GUEST_ACCOUNT_CASHIER_MEMBER_SQL, PMS_RESERVATION_ID_MEMBER_SQL } from "./pms-read-tail-r25-sql";
-import { PMS_IDS_JSONB_MEMBER_SQL, PMS_GUEST_ID_FROM_ACCOUNTS_SQL, PMS_GUEST_ID_FROM_STAYS_SQL } from "./pms-read-tail-r26-sql";
+import { PMS_IDS_JSONB_MEMBER_SQL } from "./pms-read-tail-r26-sql";
 import { roomChargeReversalWork } from "@erpx/server-pos/public/room-charge-reversal-queue";
 import { withPmsPurchasedCommand } from "@erpx/server-pms/adapters/purchase-boundary";
 import { readPurchasedAccesses, pmsPackageEnforcementMode, type PurchasedAccess } from "@erpx/server-commercial/public/purchase-command-boundary";
@@ -52,7 +50,7 @@ import { pmsPosFacts } from "@erpx/server-pos/public/pms-command-facts";
 import { pmsWorkflowFacts } from "@erpx/server-workflow/public/pms-command-facts";
 import { pmsFilesFacts } from "@erpx/server-files/public/pms-command-facts";
 import { nativePmsOwnerWrite } from "@erpx/feature-pms/public/native-pms";
-import { nativePmsReadAll, nativePmsReadFirst, PMS_RD_POSTING_CHARGE, PMS_RD_POSTING_BY_RECORD, PMS_RD_CHARGE_CORRECTION_PENDING, PMS_RD_GUEST_COMMAND_RECORD } from "./native-pms-read";
+import { nativePmsReadAll, nativePmsReadFirst, PMS_RD_POSTING_CHARGE, PMS_RD_POSTING_BY_RECORD, PMS_RD_CHARGE_CORRECTION_PENDING, PMS_RD_GUEST_COMMAND_RECORD, PMS_RD_STAY_COMMAND, PMS_RD_CASHIER_COMMAND, PMS_RD_POS_COMMAND, PMS_RD_NIGHT_COMMAND } from "./native-pms-read";
 function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
         const write = (kind: string, values: unknown[]): any => nativePmsOwnerWrite(companyId, kind, values);
     const identity_access = pmsIdentityAccessFacts(db);
@@ -522,146 +520,14 @@ function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
           (r.kind='room' AND r.id=t.room_id) OR (r.kind='task' AND r.data_json::jsonb->>'roomId'=t.room_id)
           OR (r.kind='stay' AND r.data_json::jsonb->>'roomId'=t.room_id AND r.data_json::jsonb->>'state'='in_house')
           WHERE r.property_id=? ORDER BY r.id`).bind(propertyId,targetKind,targetId,propertyId).all<PmsStoredRecord>().then(rows=>rows.results.map(decodePmsRecord)),
-        readPmsStayCommand: (propertyId, targetId, targetKind, guestId, guestAccountId, roomId) => db.prepare(`WITH scope AS (
-          SELECT ?::text property_id, ?::text target_id, ?::text target_kind,
-            ?::text guest_id, ?::text account_id, ?::text room_id
-        ), target AS MATERIALIZED (
-          ${PMS_SCOPED_RECORDS_SQL}
-          WHERE r.property_id=q.property_id AND r.kind=q.target_kind AND r.id=q.target_id
-        ), booking_ids AS (
-          SELECT CASE WHEN kind='reservation' THEN id ELSE data_json::jsonb->>'reservationId' END id FROM target
-        ), siblings AS MATERIALIZED (
-          ${PMS_SCOPED_RECORDS_SQL}
-          WHERE r.property_id=q.property_id AND r.kind='stay'
-            ${PMS_RESERVATION_ID_MEMBER_SQL}
-        ), account_candidates AS MATERIALIZED (
-          ${PMS_SCOPED_RECORDS_SQL}
-          WHERE r.property_id=q.property_id AND r.kind='guest_account'
-            ${PMS_RESERVATION_ID_MEMBER_SQL}
-          UNION ${PMS_SCOPED_RECORDS_SQL}
-            WHERE r.property_id=q.property_id AND r.kind='guest_account'
-              AND r.id IN (SELECT data_json::jsonb->>'guestAccountId' FROM siblings)
-          UNION ${PMS_SCOPED_RECORDS_SQL}
-            WHERE r.property_id=q.property_id AND r.kind='guest_account' AND r.id=q.account_id
-        ), accounts AS MATERIALIZED (
-          SELECT * FROM account_candidates
-          UNION ${PMS_SCOPED_RECORDS_SQL}
-            WHERE r.property_id=q.property_id AND r.kind='guest_account' AND r.data_json::jsonb->>'state'='credit'
-              AND r.data_json::jsonb->>'partyId' IN (SELECT data_json::jsonb->>'partyId' FROM account_candidates WHERE data_json::jsonb->>'state'='credit')
-        ), affected_rooms AS (
-          SELECT data_json::jsonb->>'roomId' id FROM target WHERE kind='stay'
-          UNION SELECT room_id FROM scope
-        ), selected AS (
-          SELECT * FROM target
-          UNION SELECT * FROM siblings
-          UNION SELECT * FROM accounts
-          UNION ${PMS_SCOPED_RECORDS_SQL}
-            WHERE r.property_id=q.property_id AND r.kind IN ('room_type','room','rate','block','item','credit')
-          UNION ${PMS_SCOPED_RECORDS_SQL}
-            WHERE r.property_id=q.property_id AND r.kind='stay' AND r.data_json::jsonb->>'state' IN ('reserved','in_house')
-          UNION ${PMS_SCOPED_RECORDS_SQL}
-            WHERE r.property_id=q.property_id AND r.kind='reservation' AND r.id IN (SELECT id FROM booking_ids)
-          UNION ${PMS_SCOPED_RECORDS_SQL}
-            WHERE r.property_id=q.property_id AND r.kind IN ('entry','refund') AND r.data_json::jsonb->>'guestAccountId' IN (SELECT id FROM accounts)
-          UNION ${PMS_SCOPED_RECORDS_SQL}
-            WHERE r.property_id=q.property_id AND r.kind='guest' AND (r.id=q.guest_id
-              OR r.id IN (SELECT data_json::jsonb->>'guestId' FROM siblings)
-              OR r.id IN (${PMS_GUEST_ID_FROM_ACCOUNTS_SQL})
-              OR r.id IN (SELECT data_json::jsonb->>'guestId' FROM pms_records WHERE property_id=q.property_id AND kind='reservation' AND id IN (SELECT id FROM booking_ids)))
-          UNION ${PMS_SCOPED_RECORDS_SQL}
-            WHERE r.property_id=q.property_id AND r.kind='task' AND r.data_json::jsonb->>'roomId' IN (SELECT id FROM affected_rooms)
-        ) SELECT * FROM selected ORDER BY updated_at,id`).bind(propertyId,targetId,targetKind,guestId,guestAccountId,roomId)
-            .all<PmsStoredRecord>().then(rows=>rows.results.map(decodePmsRecord)),
-        readPmsCashierCommand: (propertyId, targetId, targetKind, shiftId, userId) => db.prepare(`WITH scope AS (
-          SELECT ?::text property_id, ?::text target_id, ?::text target_kind, ?::text shift_id, ?::text user_id
-        ), target AS MATERIALIZED (
-          ${PMS_SCOPED_RECORDS_SQL}
-          WHERE r.property_id=q.property_id AND r.kind=CASE WHEN q.target_kind='account_close' THEN 'guest_account' ELSE q.target_kind END AND r.id=q.target_id
-        ), account_ids AS (
-          SELECT CASE WHEN kind='refund' THEN data_json::jsonb->>'guestAccountId' ELSE id END id
-          FROM target WHERE kind IN ('guest_account','refund')
-        ), accounts AS MATERIALIZED (
-          ${PMS_SCOPED_RECORDS_SQL}
-          ${PMS_GUEST_ACCOUNT_CASHIER_MEMBER_SQL}
-        ), selected AS (
-          SELECT * FROM target
-          UNION SELECT * FROM accounts
-          UNION ${PMS_SCOPED_RECORDS_SQL}
-            WHERE r.property_id=q.property_id AND r.kind IN ('rate','credit','item')
-          UNION ${PMS_SCOPED_RECORDS_SQL}
-            WHERE r.property_id=q.property_id AND r.kind IN ('entry','refund')
-              ${PMS_GUEST_ACCOUNT_ID_MEMBER_SQL}
-          UNION ${PMS_SCOPED_RECORDS_SQL}
-            WHERE r.property_id=q.property_id AND r.kind='guest'
-              AND r.id IN (${PMS_GUEST_ID_FROM_ACCOUNTS_SQL})
-          UNION ${PMS_SCOPED_RECORDS_SQL}
-            WHERE r.property_id=q.property_id AND q.target_kind='account_close' AND r.kind='stay'
-              ${PMS_GUEST_ACCOUNT_ID_MEMBER_SQL}
-          UNION ${PMS_SCOPED_RECORDS_SQL}
-            WHERE r.property_id=q.property_id AND r.kind='shift' AND (r.id=q.shift_id OR
-              (q.target_kind='new_shift' AND r.data_json::jsonb->>'userId'=q.user_id AND r.data_json::jsonb->>'state'='open'))
-        ) SELECT * FROM selected ORDER BY updated_at,id`)
-          .bind(propertyId,targetId,targetKind,shiftId,userId).all<PmsStoredRecord>().then(rows => rows.results.map(decodePmsRecord)),
-        readPmsPosCommand: (propertyId,stayId,sourceKey) => db.prepare(`WITH scope AS (
-          SELECT ?::text property_id,?::text stay_id,?::text source_key
-        ), source AS MATERIALIZED (
-          ${PMS_SCOPED_RECORDS_SQL}
-            WHERE r.property_id=q.property_id AND r.kind='entry' AND r.data_json::jsonb->>'sourceKey'=q.source_key
-        ), stays AS MATERIALIZED (
-          ${PMS_SCOPED_RECORDS_SQL}
-            WHERE r.property_id=q.property_id AND r.kind='stay' AND r.id=q.stay_id
-        ), account_ids AS (
-          SELECT data_json::jsonb->>'guestAccountId' id FROM source
-          UNION SELECT data_json::jsonb->>'guestAccountId' id FROM stays
-        ), accounts AS MATERIALIZED (
-          ${PMS_SCOPED_RECORDS_SQL}
-            ${PMS_GUEST_ACCOUNT_CASHIER_MEMBER_SQL}
-        ), selected AS (
-          SELECT * FROM source UNION SELECT * FROM stays UNION SELECT * FROM accounts
-          UNION ${PMS_SCOPED_RECORDS_SQL}
-            WHERE r.property_id=q.property_id AND r.kind IN ('entry','refund')
-              ${PMS_GUEST_ACCOUNT_ID_MEMBER_SQL}
-          UNION ${PMS_SCOPED_RECORDS_SQL}
-            WHERE r.property_id=q.property_id AND r.kind='entry'
-              AND r.data_json::jsonb->>'originalId' IN (SELECT id FROM source)
-          UNION ${PMS_SCOPED_RECORDS_SQL}
-            WHERE r.property_id=q.property_id AND r.kind='guest'
-              AND r.id IN (${PMS_GUEST_ID_FROM_ACCOUNTS_SQL} UNION ${PMS_GUEST_ID_FROM_STAYS_SQL})
-        ) SELECT * FROM selected ORDER BY updated_at,id`).bind(propertyId,stayId,sourceKey)
-          .all<PmsStoredRecord>().then(rows=>rows.results.map(decodePmsRecord)),
-        readPmsNightCommand: (propertyId, businessDate, targetId) => db.prepare(`WITH scope AS (
-          SELECT ?::text property_id,?::text business_date,?::text target_id
-        ), stays AS MATERIALIZED (
-          ${PMS_SCOPED_RECORDS_SQL}
-            WHERE r.property_id=q.property_id AND r.kind='stay' AND r.data_json::jsonb->>'state' IN ('reserved','in_house')
-          UNION ${PMS_SCOPED_RECORDS_SQL}
-            WHERE r.property_id=q.property_id AND r.kind='stay'
-              AND r.data_json::jsonb->>'departure'>q.business_date AND r.data_json::jsonb->>'arrival'<=q.business_date
-        ), accounts AS MATERIALIZED (
-          ${PMS_SCOPED_RECORDS_SQL}
-            WHERE r.property_id=q.property_id AND r.kind='guest_account'
-              AND r.id IN (SELECT data_json::jsonb->>'guestAccountId' FROM stays)
-        ), selected AS (
-          SELECT * FROM stays UNION SELECT * FROM accounts
-          UNION ${PMS_SCOPED_RECORDS_SQL}
-            WHERE r.property_id=q.property_id AND r.kind IN ('room_type','room','rate','block','item','credit')
-          UNION ${PMS_SCOPED_RECORDS_SQL}
-            WHERE r.property_id=q.property_id AND r.kind IN ('entry','refund')
-              AND r.data_json::jsonb->>'guestAccountId' IN (SELECT id FROM accounts)
-          UNION ${PMS_SCOPED_RECORDS_SQL}
-            WHERE r.property_id=q.property_id AND r.kind='guest' AND r.id IN (
-              ${PMS_GUEST_ID_FROM_STAYS_SQL} UNION ${PMS_GUEST_ID_FROM_ACCOUNTS_SQL})
-          UNION ${PMS_SCOPED_RECORDS_SQL}
-            WHERE r.property_id=q.property_id AND r.kind='night' AND (r.id=q.target_id OR r.data_json::jsonb->>'date'=q.business_date)
-          UNION ${PMS_SCOPED_RECORDS_SQL}
-            WHERE r.property_id=q.property_id AND r.kind='shift' AND (
-              r.data_json::jsonb->>'state'='open' OR (r.data_json::jsonb->>'state'='closed' AND r.data_json::jsonb->'variance' IS DISTINCT FROM '0'::jsonb))
-          UNION ${PMS_SCOPED_RECORDS_SQL}
-            WHERE r.property_id=q.property_id AND r.kind='task' AND r.data_json::jsonb->>'type'='stayover'
-              AND r.data_json::jsonb->>'date'=(q.business_date::date+1)::text
-              AND r.data_json::jsonb->>'roomId' IN (SELECT data_json::jsonb->>'roomId' FROM stays)
-        ) SELECT * FROM selected ORDER BY updated_at,id`).bind(propertyId,businessDate,targetId)
-          .all<PmsStoredRecord>().then(rows=>rows.results.map(decodePmsRecord)),
+        readPmsStayCommand: (propertyId, targetId, targetKind, guestId, guestAccountId, roomId) => nativePmsReadAll<PmsStoredRecord>(PMS_RD_STAY_COMMAND, [propertyId, targetId, targetKind, guestId, guestAccountId, roomId], db)
+            .then(rows => rows.results.map(decodePmsRecord)),
+        readPmsCashierCommand: (propertyId, targetId, targetKind, shiftId, userId) => nativePmsReadAll<PmsStoredRecord>(PMS_RD_CASHIER_COMMAND, [propertyId, targetId, targetKind, shiftId, userId], db)
+            .then(rows => rows.results.map(decodePmsRecord)),
+        readPmsPosCommand: (propertyId, stayId, sourceKey) => nativePmsReadAll<PmsStoredRecord>(PMS_RD_POS_COMMAND, [propertyId, stayId, sourceKey], db)
+            .then(rows => rows.results.map(decodePmsRecord)),
+        readPmsNightCommand: (propertyId, businessDate, targetId) => nativePmsReadAll<PmsStoredRecord>(PMS_RD_NIGHT_COMMAND, [propertyId, businessDate, targetId], db)
+            .then(rows => rows.results.map(decodePmsRecord)),
         readPmsGuestCommandRecord: (propertyId: string, guestId: string) => nativePmsReadAll<PmsStoredRecord>(PMS_RD_GUEST_COMMAND_RECORD, [propertyId, guestId], db).then(rows => rows.results.map(decodePmsRecord)),
         readPmsChoices: (id,selection) => readPmsChoices(db,id,selection),
         readPmsSetupFacts: (arg0: string) => readPmsSetupFacts(db, arg0),

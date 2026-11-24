@@ -96,6 +96,16 @@ pub const PMS_RD_POS_BOOKING_PAYMENT: &str = "pms_rd_pos_booking_payment";
 pub const PMS_RD_STRIPE_PAYMENT_BY_ID: &str = "pms_rd_stripe_payment_by_id";
 pub const PMS_RD_STRIPE_PAYMENT_BY_ID_COMPANY: &str = "pms_rd_stripe_payment_by_id_company";
 pub const PMS_RD_STRIPE_PAYMENT_PROPERTY: &str = "pms_rd_stripe_payment_property";
+/// Native successors of the owner-local scoped-records command readers. Each
+/// expands the retired TypeScript template literal byte-for-byte (the scoped
+/// projection and member-predicate fragments are inlined at generation time).
+/// No ledger/receipt/outbox and no lock/refund path; the caller runs the exact
+/// statement on its already-open read unit. Any FOR UPDATE/FOR SHARE/LOCK TABLE
+/// read stays inline in the caller's TypeScript unit.
+pub const PMS_RD_STAY_COMMAND: &str = "pms_rd_stay_command";
+pub const PMS_RD_CASHIER_COMMAND: &str = "pms_rd_cashier_command";
+pub const PMS_RD_POS_COMMAND: &str = "pms_rd_pos_command";
+pub const PMS_RD_NIGHT_COMMAND: &str = "pms_rd_night_command";
 const SQL_INVENTORY_COMMAND: &str = "SELECT id,kind,data_json,version,updated_at FROM pms_records \
 WHERE property_id=? AND kind IN ('room_type','room','rate','block','item','credit') \
 UNION ALL SELECT id,kind,data_json,version,updated_at FROM pms_records \
@@ -303,7 +313,43 @@ const READ_STRIPE_PAYMENT_PROPERTY: NativeReadStatement = NativeReadStatement {
     bind_count: 2,
 };
 
-const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG, READ_PENDING_HOTEL_TRANSFERS, READ_UNPOSTED_BOOKING_RECEIPTS, READ_UNPOSTED_COUNTER_RECEIPTS, READ_HOSPITALITY_SETUP_PROPERTIES, READ_ATTACHMENT_PROPERTY_IMAGE, READ_ATTACHMENT_RECORD_IMAGE, READ_DOCUMENT_RELATED_POSTINGS, READ_POS_GUEST_HOTELS, READ_POS_GUEST_CHOICES, READ_POS_STRIPE_PAYMENT, READ_POS_BOOKING_PAYMENT, READ_STRIPE_PAYMENT_BY_ID, READ_STRIPE_PAYMENT_BY_ID_COMPANY, READ_STRIPE_PAYMENT_PROPERTY];
+/// Retired TypeScript literal (`readPmsStayCommand`) with every shared fragment
+/// expanded byte-identically; six positional binds.
+const SQL_STAY_COMMAND: &str = "WITH scope AS (\n          SELECT ?::text property_id, ?::text target_id, ?::text target_kind,\n            ?::text guest_id, ?::text account_id, ?::text room_id\n        ), target AS MATERIALIZED (\n          SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q\n          WHERE r.property_id=q.property_id AND r.kind=q.target_kind AND r.id=q.target_id\n        ), booking_ids AS (\n          SELECT CASE WHEN kind='reservation' THEN id ELSE data_json::jsonb->>'reservationId' END id FROM target\n        ), siblings AS MATERIALIZED (\n          SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q\n          WHERE r.property_id=q.property_id AND r.kind='stay'\n            AND r.data_json::jsonb->>'reservationId' IN (SELECT id FROM booking_ids)\n        ), account_candidates AS MATERIALIZED (\n          SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q\n          WHERE r.property_id=q.property_id AND r.kind='guest_account'\n            AND r.data_json::jsonb->>'reservationId' IN (SELECT id FROM booking_ids)\n          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q\n            WHERE r.property_id=q.property_id AND r.kind='guest_account'\n              AND r.id IN (SELECT data_json::jsonb->>'guestAccountId' FROM siblings)\n          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q\n            WHERE r.property_id=q.property_id AND r.kind='guest_account' AND r.id=q.account_id\n        ), accounts AS MATERIALIZED (\n          SELECT * FROM account_candidates\n          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q\n            WHERE r.property_id=q.property_id AND r.kind='guest_account' AND r.data_json::jsonb->>'state'='credit'\n              AND r.data_json::jsonb->>'partyId' IN (SELECT data_json::jsonb->>'partyId' FROM account_candidates WHERE data_json::jsonb->>'state'='credit')\n        ), affected_rooms AS (\n          SELECT data_json::jsonb->>'roomId' id FROM target WHERE kind='stay'\n          UNION SELECT room_id FROM scope\n        ), selected AS (\n          SELECT * FROM target\n          UNION SELECT * FROM siblings\n          UNION SELECT * FROM accounts\n          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q\n            WHERE r.property_id=q.property_id AND r.kind IN ('room_type','room','rate','block','item','credit')\n          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q\n            WHERE r.property_id=q.property_id AND r.kind='stay' AND r.data_json::jsonb->>'state' IN ('reserved','in_house')\n          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q\n            WHERE r.property_id=q.property_id AND r.kind='reservation' AND r.id IN (SELECT id FROM booking_ids)\n          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q\n            WHERE r.property_id=q.property_id AND r.kind IN ('entry','refund') AND r.data_json::jsonb->>'guestAccountId' IN (SELECT id FROM accounts)\n          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q\n            WHERE r.property_id=q.property_id AND r.kind='guest' AND (r.id=q.guest_id\n              OR r.id IN (SELECT data_json::jsonb->>'guestId' FROM siblings)\n              OR r.id IN (SELECT data_json::jsonb->>'guestId' FROM accounts)\n              OR r.id IN (SELECT data_json::jsonb->>'guestId' FROM pms_records WHERE property_id=q.property_id AND kind='reservation' AND id IN (SELECT id FROM booking_ids)))\n          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q\n            WHERE r.property_id=q.property_id AND r.kind='task' AND r.data_json::jsonb->>'roomId' IN (SELECT id FROM affected_rooms)\n        ) SELECT * FROM selected ORDER BY updated_at,id";
+const READ_STAY_COMMAND: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_STAY_COMMAND,
+    sql: SQL_STAY_COMMAND,
+    bind_count: 6,
+};
+
+/// Retired TypeScript literal (`readPmsCashierCommand`) with every shared fragment
+/// expanded byte-identically; five positional binds.
+const SQL_CASHIER_COMMAND: &str = "WITH scope AS (\n          SELECT ?::text property_id, ?::text target_id, ?::text target_kind, ?::text shift_id, ?::text user_id\n        ), target AS MATERIALIZED (\n          SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q\n          WHERE r.property_id=q.property_id AND r.kind=CASE WHEN q.target_kind='account_close' THEN 'guest_account' ELSE q.target_kind END AND r.id=q.target_id\n        ), account_ids AS (\n          SELECT CASE WHEN kind='refund' THEN data_json::jsonb->>'guestAccountId' ELSE id END id\n          FROM target WHERE kind IN ('guest_account','refund')\n        ), accounts AS MATERIALIZED (\n          SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q\n          WHERE r.property_id=q.property_id AND r.kind='guest_account' AND r.id IN (SELECT id FROM account_ids)\n        ), selected AS (\n          SELECT * FROM target\n          UNION SELECT * FROM accounts\n          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q\n            WHERE r.property_id=q.property_id AND r.kind IN ('rate','credit','item')\n          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q\n            WHERE r.property_id=q.property_id AND r.kind IN ('entry','refund')\n              AND r.data_json::jsonb->>'guestAccountId' IN (SELECT id FROM account_ids)\n          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q\n            WHERE r.property_id=q.property_id AND r.kind='guest'\n              AND r.id IN (SELECT data_json::jsonb->>'guestId' FROM accounts)\n          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q\n            WHERE r.property_id=q.property_id AND q.target_kind='account_close' AND r.kind='stay'\n              AND r.data_json::jsonb->>'guestAccountId' IN (SELECT id FROM account_ids)\n          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q\n            WHERE r.property_id=q.property_id AND r.kind='shift' AND (r.id=q.shift_id OR\n              (q.target_kind='new_shift' AND r.data_json::jsonb->>'userId'=q.user_id AND r.data_json::jsonb->>'state'='open'))\n        ) SELECT * FROM selected ORDER BY updated_at,id";
+const READ_CASHIER_COMMAND: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_CASHIER_COMMAND,
+    sql: SQL_CASHIER_COMMAND,
+    bind_count: 5,
+};
+
+/// Retired TypeScript literal (`readPmsPosCommand`) with every shared fragment
+/// expanded byte-identically; three positional binds.
+const SQL_POS_COMMAND: &str = "WITH scope AS (\n          SELECT ?::text property_id,?::text stay_id,?::text source_key\n        ), source AS MATERIALIZED (\n          SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q\n            WHERE r.property_id=q.property_id AND r.kind='entry' AND r.data_json::jsonb->>'sourceKey'=q.source_key\n        ), stays AS MATERIALIZED (\n          SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q\n            WHERE r.property_id=q.property_id AND r.kind='stay' AND r.id=q.stay_id\n        ), account_ids AS (\n          SELECT data_json::jsonb->>'guestAccountId' id FROM source\n          UNION SELECT data_json::jsonb->>'guestAccountId' id FROM stays\n        ), accounts AS MATERIALIZED (\n          SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q\n            WHERE r.property_id=q.property_id AND r.kind='guest_account' AND r.id IN (SELECT id FROM account_ids)\n        ), selected AS (\n          SELECT * FROM source UNION SELECT * FROM stays UNION SELECT * FROM accounts\n          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q\n            WHERE r.property_id=q.property_id AND r.kind IN ('entry','refund')\n              AND r.data_json::jsonb->>'guestAccountId' IN (SELECT id FROM account_ids)\n          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q\n            WHERE r.property_id=q.property_id AND r.kind='entry'\n              AND r.data_json::jsonb->>'originalId' IN (SELECT id FROM source)\n          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q\n            WHERE r.property_id=q.property_id AND r.kind='guest'\n              AND r.id IN (SELECT data_json::jsonb->>'guestId' FROM accounts UNION SELECT data_json::jsonb->>'guestId' FROM stays)\n        ) SELECT * FROM selected ORDER BY updated_at,id";
+const READ_POS_COMMAND: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_POS_COMMAND,
+    sql: SQL_POS_COMMAND,
+    bind_count: 3,
+};
+
+/// Retired TypeScript literal (`readPmsNightCommand`) with every shared fragment
+/// expanded byte-identically; three positional binds.
+const SQL_NIGHT_COMMAND: &str = "WITH scope AS (\n          SELECT ?::text property_id,?::text business_date,?::text target_id\n        ), stays AS MATERIALIZED (\n          SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q\n            WHERE r.property_id=q.property_id AND r.kind='stay' AND r.data_json::jsonb->>'state' IN ('reserved','in_house')\n          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q\n            WHERE r.property_id=q.property_id AND r.kind='stay'\n              AND r.data_json::jsonb->>'departure'>q.business_date AND r.data_json::jsonb->>'arrival'<=q.business_date\n        ), accounts AS MATERIALIZED (\n          SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q\n            WHERE r.property_id=q.property_id AND r.kind='guest_account'\n              AND r.id IN (SELECT data_json::jsonb->>'guestAccountId' FROM stays)\n        ), selected AS (\n          SELECT * FROM stays UNION SELECT * FROM accounts\n          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q\n            WHERE r.property_id=q.property_id AND r.kind IN ('room_type','room','rate','block','item','credit')\n          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q\n            WHERE r.property_id=q.property_id AND r.kind IN ('entry','refund')\n              AND r.data_json::jsonb->>'guestAccountId' IN (SELECT id FROM accounts)\n          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q\n            WHERE r.property_id=q.property_id AND r.kind='guest' AND r.id IN (\n              SELECT data_json::jsonb->>'guestId' FROM stays UNION SELECT data_json::jsonb->>'guestId' FROM accounts)\n          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q\n            WHERE r.property_id=q.property_id AND r.kind='night' AND (r.id=q.target_id OR r.data_json::jsonb->>'date'=q.business_date)\n          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q\n            WHERE r.property_id=q.property_id AND r.kind='shift' AND (\n              r.data_json::jsonb->>'state'='open' OR (r.data_json::jsonb->>'state'='closed' AND r.data_json::jsonb->'variance' IS DISTINCT FROM '0'::jsonb))\n          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q\n            WHERE r.property_id=q.property_id AND r.kind='task' AND r.data_json::jsonb->>'type'='stayover'\n              AND r.data_json::jsonb->>'date'=(q.business_date::date+1)::text\n              AND r.data_json::jsonb->>'roomId' IN (SELECT data_json::jsonb->>'roomId' FROM stays)\n        ) SELECT * FROM selected ORDER BY updated_at,id";
+const READ_NIGHT_COMMAND: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_NIGHT_COMMAND,
+    sql: SQL_NIGHT_COMMAND,
+    bind_count: 3,
+};
+
+const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG, READ_PENDING_HOTEL_TRANSFERS, READ_UNPOSTED_BOOKING_RECEIPTS, READ_UNPOSTED_COUNTER_RECEIPTS, READ_HOSPITALITY_SETUP_PROPERTIES, READ_ATTACHMENT_PROPERTY_IMAGE, READ_ATTACHMENT_RECORD_IMAGE, READ_DOCUMENT_RELATED_POSTINGS, READ_POS_GUEST_HOTELS, READ_POS_GUEST_CHOICES, READ_POS_STRIPE_PAYMENT, READ_POS_BOOKING_PAYMENT, READ_STRIPE_PAYMENT_BY_ID, READ_STRIPE_PAYMENT_BY_ID_COMPANY, READ_STRIPE_PAYMENT_PROPERTY, READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
 pub fn is_read(kind: &str) -> bool {
@@ -644,5 +690,33 @@ ORDER BY id"
             assert_eq!(read.sql.matches('?').count(), read.bind_count);
             assert!(is_read(read.kind));
         }
+    }
+
+    #[test]
+    fn scoped_records_reads_match_retired_typescript_literals() {
+        let cases = [
+            (PMS_RD_STAY_COMMAND, 6usize),
+            (PMS_RD_CASHIER_COMMAND, 5),
+            (PMS_RD_POS_COMMAND, 3),
+            (PMS_RD_NIGHT_COMMAND, 3),
+        ];
+        for (kind, binds) in cases {
+            let read = read_statement(kind).expect("scoped records read kind");
+            let upper = read.sql.to_ascii_uppercase();
+            assert!(upper.starts_with("WITH SCOPE AS ("));
+            assert!(upper.ends_with(") SELECT * FROM SELECTED ORDER BY UPDATED_AT,ID"));
+            assert!(upper.contains("FROM PMS_RECORDS R,SCOPE Q"));
+            assert!(!upper.contains("INSERT INTO"));
+            assert!(!upper.contains("UPDATE "));
+            assert!(!upper.contains("DELETE FROM"));
+            assert!(!upper.contains("FOR UPDATE"));
+            assert!(!upper.contains("FOR SHARE"));
+            assert!(!upper.contains("LOCK TABLE"));
+            assert!(!upper.contains("PG_ADVISORY"));
+            assert_eq!(read.sql.matches('?').count(), binds);
+            assert_eq!(read.bind_count, binds);
+            assert!(is_read(kind));
+        }
+        assert!(!is_read("pms_rd_stay_command_v2"));
     }
 }

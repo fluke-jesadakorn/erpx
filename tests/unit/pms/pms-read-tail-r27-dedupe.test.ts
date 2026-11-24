@@ -61,8 +61,8 @@ describe('pms read-tail r27 purchase-clock CTE dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(404);
-    expect(bare).toBe(406);
+    expect(spaced).toBe(367);
+    expect(bare).toBe(369);
     expect(spaced).toBeLessThan(405);
     expect(bare).toBeLessThan(407);
   });

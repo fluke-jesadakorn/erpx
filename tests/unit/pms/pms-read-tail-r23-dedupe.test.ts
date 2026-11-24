@@ -24,7 +24,7 @@ describe('pms read-tail r23 byte-identical scope-read fragment dedupe', () => {
 
   it('routes every scoped records reader through the shared fragment with no inline literal', async () => {
     const text = await src(CALL_SITE);
-    expect(text.split('PMS_SCOPED_RECORDS_SQL').length - 1).toBe(35); // import + 34 uses
+    expect(text.split('PMS_SCOPED_RECORDS_SQL').length - 1).toBe(0); // r28 native port removed all 34 uses and the import
     expect(text).not.toContain(SCOPE_SELECT);
   });
 
@@ -49,7 +49,7 @@ describe('pms read-tail r23 byte-identical scope-read fragment dedupe', () => {
   it('lowers the pms owner SELECT KPI strictly below the r22 after=468 baseline', async () => {
     let count = 0;
     for (const file of await tsFiles(dir)) count += (await readFile(file, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(404);
+    expect(count).toBe(367);
     expect(count).toBeLessThan(468);
   });
 });
