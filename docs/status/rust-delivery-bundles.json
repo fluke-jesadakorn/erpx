@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12564,
+    "revision": 12566,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -184915,7 +184915,7 @@
         "owner": "marketing",
         "title": "marketing read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -184926,22 +184926,37 @@
         "resources": [
           "owner:marketing"
         ],
-        "claim": {
-          "runId": "run-20261125-a",
-          "agentId": "wH4n112",
-          "claimedAt": "2026-11-24T17:11:30.516Z",
-          "heartbeatAt": "2026-11-24T17:15:31.032Z",
-          "expiresAt": "2026-11-24T17:45:31.032Z",
-          "generation": 171
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-marketing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "cd4004067",
+            "owner": "marketing",
+            "before": 38,
+            "after": 36,
+            "note": "Remaining byte-identical heads folded; FOR SHARE/settlement/native untouched."
+          },
+          {
+            "command": "vitest marketing r44 (5)",
+            "result": "passed",
+            "sourceSha": "cd4004067"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Remaining safe head families or floor evidence: 38->36/floor. BEFORE=38.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261125-a",
+          "agentId": "wH4n112",
+          "at": "2026-11-24T17:27:43.127Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -185310,17 +185325,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 6,
+        "in_progress": 5,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1471,
+        "blocked": 1472,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 171,
-    "updatedAt": "2026-11-24T17:27:30.284Z",
+    "updatedAt": "2026-11-24T17:27:43.130Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
