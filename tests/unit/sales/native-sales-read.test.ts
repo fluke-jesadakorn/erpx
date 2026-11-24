@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 
 import {
+  SALES_RD_NOTIFICATION_ATTEMPT,
   SALES_RD_PRICE_LIST_ACTIVE,
   SALES_RD_PRICE_LIST_ITEMS_ACTIVE,
   nativeSalesReadAll,
@@ -137,6 +138,25 @@ describe('native Sales command-plan read transport', () => {
     ).resolves.toEqual({ one: 1 });
     // The owner-planned statement is prepared on the caller unit and run by batch.
     expect(calls).toEqual([{ sql, values: [company], first: false }]);
+  });
+
+  it('supports the three-bind notification attempt read on the caller unit', async () => {
+    const sql = "SELECT attempt.id,attempt.source_hash,attempt.provider_message_id,authority.actor_id FROM sales_notification_execution_attempts attempt JOIN sales_notification_execution_authorizations authority ON authority.command_id=attempt.authorization_command_id AND authority.company_id=attempt.company_id AND authority.notification_id=attempt.notification_id WHERE attempt.notification_id=? AND attempt.company_id=? AND attempt.attempt=? AND attempt.state='unknown'";
+    let request: { body: string } | undefined;
+    const base = await listen(req => {
+      request = req;
+      return { status: 200, value: { data: { statements: [{ sql, values: ['notice', company, 2] }] } } };
+    });
+    process.env.ERPX_NATIVE_SALES_DOCUMENTS_CONFIG = config(base);
+    const calls: Call[] = [];
+    await expect(
+      nativeSalesReadFirst(SALES_RD_NOTIFICATION_ATTEMPT, ['notice', company, 2], database(calls)),
+    ).resolves.toEqual({ one: 1 });
+    expect(JSON.parse(request!.body)).toMatchObject({
+      kind: SALES_RD_NOTIFICATION_ATTEMPT,
+      values: ['notice', company, 2],
+    });
+    expect(calls).toEqual([{ sql, values: ['notice', company, 2], first: false }]);
   });
 
   it('fails closed on a malformed native plan reply', async () => {

@@ -44,7 +44,25 @@ const READ_PRICE_LIST_ITEMS_ACTIVE: NativeSalesReadStatement = NativeSalesReadSt
     scope: "holding",
 };
 
-const READS: &[NativeSalesReadStatement] = &[READ_PRICE_LIST_ACTIVE, READ_PRICE_LIST_ITEMS_ACTIVE];
+/// Native successor of the TypeScript notification-purchases
+/// `customerNotificationReconciliationControls` unknown-attempt read. The caller
+/// binds `[notification_id, company_id, attempt]`; the SQL is byte-identical to
+/// the retired owner literal.
+pub const RD_NOTIFICATION_ATTEMPT: &str = "sales_rd_notification_attempt";
+const SQL_NOTIFICATION_ATTEMPT: &str =
+    "SELECT attempt.id,attempt.source_hash,attempt.provider_message_id,authority.actor_id FROM sales_notification_execution_attempts attempt JOIN sales_notification_execution_authorizations authority ON authority.command_id=attempt.authorization_command_id AND authority.company_id=attempt.company_id AND authority.notification_id=attempt.notification_id WHERE attempt.notification_id=? AND attempt.company_id=? AND attempt.attempt=? AND attempt.state='unknown'";
+const READ_NOTIFICATION_ATTEMPT: NativeSalesReadStatement = NativeSalesReadStatement {
+    kind: RD_NOTIFICATION_ATTEMPT,
+    sql: SQL_NOTIFICATION_ATTEMPT,
+    bind_count: 3,
+    scope: "holding",
+};
+
+const READS: &[NativeSalesReadStatement] = &[
+    READ_PRICE_LIST_ACTIVE,
+    READ_PRICE_LIST_ITEMS_ACTIVE,
+    READ_NOTIFICATION_ATTEMPT,
+];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
 pub fn is_read(kind: &str) -> bool {
@@ -109,8 +127,32 @@ mod tests {
     }
 
     #[test]
+    fn notification_attempt_read_plan_is_holding_scoped_with_three_binds() {
+        let read = read_statement(RD_NOTIFICATION_ATTEMPT).expect("read kind");
+        let upper = read.sql.to_ascii_uppercase();
+        assert!(upper.starts_with("SELECT"), "{}", read.kind);
+        assert!(!upper.contains("INSERT"));
+        assert!(!upper.contains("UPDATE"));
+        assert!(!upper.contains("DELETE"));
+        assert_eq!(read.bind_count, 3);
+        assert_eq!(read.sql.matches('?').count(), 3);
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_NOTIFICATION_ATTEMPT));
+    }
+
+    #[test]
+    fn notification_attempt_read_sql_matches_retired_typescript_literal() {
+        let read = read_statement(RD_NOTIFICATION_ATTEMPT).expect("read kind");
+        assert_eq!(
+            read.sql,
+            "SELECT attempt.id,attempt.source_hash,attempt.provider_message_id,authority.actor_id FROM sales_notification_execution_attempts attempt JOIN sales_notification_execution_authorizations authority ON authority.command_id=attempt.authorization_command_id AND authority.company_id=attempt.company_id AND authority.notification_id=attempt.notification_id WHERE attempt.notification_id=? AND attempt.company_id=? AND attempt.attempt=? AND attempt.state='unknown'"
+        );
+        assert_eq!(read.sql.len(), 456);
+    }
+
+    #[test]
     fn only_owner_read_kinds_are_registered() {
-        assert_eq!(READS.len(), 2);
+        assert_eq!(READS.len(), 3);
         assert!(READS.iter().all(|read| is_read(read.kind)));
         assert!(!is_read("sales_price_lists"));
         assert!(!is_read("SELECT 1"));

@@ -19,6 +19,7 @@ type Settings = Readonly<{ privateBaseUrl: string; timeoutMs: number; holdings: 
 /** Read-kind ids shared with the Rust read registry in `native_sales_read_sql.rs`. */
 export const SALES_RD_PRICE_LIST_ACTIVE = 'sales_rd_price_list_active';
 export const SALES_RD_PRICE_LIST_ITEMS_ACTIVE = 'sales_rd_price_list_items_active';
+export const SALES_RD_NOTIFICATION_ATTEMPT = 'sales_rd_notification_attempt';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'SALES_NATIVE_READ_UNAVAILABLE', 'The native Sales read service is unavailable.');
