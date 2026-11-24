@@ -1,4 +1,5 @@
 import { PP_RD23_HR_ENGAGEMENTS_ACTIVE_FOR_PERSON_NOT_EXISTS } from './pp-read-tail-r23-sources';
+import { PP_RD24_PEOPLE_PERSON_USER_SAME_SQL, PP_RD24_PEOPLE_PERSON_USER_OK_SQL } from './pp-read-tail-r24-sources';
 import { nativePpStatement, nativePpQuery } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import {projectWorkerNativeCommands,requireProjectWorkerNativeCommand,requireProjectWorkerUnit} from '@erpx/server-people_payroll/adapters/project-worker-startup-binding';
 import {filterPeopleLifecycleWork} from "@erpx/server-people_payroll/adapters/record-purchases";
@@ -382,13 +383,13 @@ function applicationPorts(raw: SqlDatabase, client?: PoolClient, actor?: WorkCon
         applyApplyLifecycleReviewEffect4(companyId: unknown, person_id: unknown, userId: unknown) { return client!.query<{
             same: boolean;
             ok: boolean;
-        }>("SELECT people_person_user($1,$2,$3) same", [companyId, person_id, userId]); },
+        }>(PP_RD24_PEOPLE_PERSON_USER_SAME_SQL, [companyId, person_id, userId]); },
         applyApplyLifecycleReviewEffect5(...args) { return peopleLifecycleIdentityAccessFacts(database, client).applyApplyLifecycleReviewEffect5(...args); },
         readApplyLifecycleReviewg(grantId: unknown, companyId: unknown, id: unknown) { return client!.query<LifecycleGrantFact>("SELECT * FROM people_lifecycle_grants WHERE id=$1 AND company_id=$2 AND case_id=$3 FOR UPDATE", [grantId, companyId, id]); },
         applyApplyLifecycleReviewEffect6(companyId: unknown, person_id: unknown, userId: unknown) { return client!.query<{
             same: boolean;
             ok: boolean;
-        }>("SELECT people_person_user($1,$2,$3) ok", [companyId, person_id, userId]); },
+        }>(PP_RD24_PEOPLE_PERSON_USER_OK_SQL, [companyId, person_id, userId]); },
         applyApplyLifecycleReviewEffect7(...args) { return peopleLifecycleIdentityAccessFacts(database, client).applyApplyLifecycleReviewEffect7(...args); },
         applyApplyLifecycleReviewEffect8(id: unknown, assignment: unknown) { return nativePpQuery<Record<string, unknown>>('people_lifecycle_stmt_24', [id, assignment]); },
         applyApplyLifecycleReviewEffect9(id: unknown) { return client!.query<Record<string, unknown>>("SELECT 1 FROM people_lifecycle_grants WHERE case_id=$1 AND assignment_id IS NULL", [id]); },

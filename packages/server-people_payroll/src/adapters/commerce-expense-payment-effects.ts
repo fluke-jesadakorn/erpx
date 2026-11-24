@@ -1,3 +1,4 @@
+import { PP_RD24_UNCLAIMED_EXPENSE_GUARD } from './pp-read-tail-r24-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import "server-only";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
@@ -9,5 +10,5 @@ export function commerceExpensePaymentEffects(db:SqlDatabase){return {
  stage:(facts:{remainingMinor:number;stageRemainingMinor:number;reimbursedRemainingMinor:number;reimbursedAt:number;updatedAt:number;id:string|number|null})=>nativePpStatement('pp_commerce_expense_payment_effects_stmt_1').bind(facts.remainingMinor,facts.stageRemainingMinor,facts.reimbursedRemainingMinor,facts.reimbursedAt,facts.updatedAt,facts.id),
  independentClaimant:(key:string,label:string,values:string[])=>assertion(db,key,label,"EXISTS(SELECT 1 FROM hr_people WHERE id=? AND user_id IS DISTINCT FROM ?)",values),
  version:(key:string,label:string,values:(string|number)[],states:string[])=>assertion(db,key,label,`EXISTS(SELECT 1 FROM finance_expenses WHERE id=? AND version=? AND status IN (${states.map(()=>"?").join(",")}))`,values),
- unclaimed:(key:string,label:string,values:(string|number|null)[])=>assertion(db,key,label,"NOT EXISTS(SELECT 1 FROM hr_payment_batches WHERE source_type='expense' AND source_id=? AND status!='cancelled')",values),
+ unclaimed:(key:string,label:string,values:(string|number|null)[])=>assertion(db,key,label,PP_RD24_UNCLAIMED_EXPENSE_GUARD,values),
 };}

@@ -1,4 +1,5 @@
 import { nativePpQuery } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
+import { PP_RD24_PEOPLE_PERSON_USER_SAME_SQL, PP_RD24_PEOPLE_PERSON_USER_OK_SQL } from './pp-read-tail-r24-sources';
 import 'server-only';import type {PoolClient} from 'pg';import type {TechnologyStore} from '@erpx/server-identity_access/public/technology-contracts';import type {TechnologyData,AppliedPackageFact,ProvisionEngagement,ProvisionGrant,ProvisionOperation} from '@erpx/server-identity_access/public/technology-contracts';
 import {technologyPendingReviewProjection} from '@erpx/server-identity_access/public/technology-provisioning-projection';export function technologyProvisioningFacts(c:PoolClient):Pick<TechnologyStore,'applications'|'operations'|'activeApplications'|'engagement'|'accessCutoff'|'restorationPlacement'|'positionPackage'|'packageRevision'|'personInProgress'|'createOperation'|'applyPackage'|'createGrant'|'saveSteps'|'lockedGrant'|'reviewerIsPerson'|'grantUserIsPerson'|'bindGrant'|'dueOperations'|'lockedOperation'|'recordChildrenState'|'lockedPlacement'|'effectiveCutoff'|'restoredPlacement'|'endPriorPackages'|'restoreCutoff'|'completeAccessPreparation'|'endNewApplication'|'endReplacedApplications'|'createPreparationTask'|'completeOperation'|'recordBlockedOperation'|'retryOperation'|'queueRetry'>{return {applications:async(facts)=>{const{actor,observedNow}=facts;return (await c.query<AppliedPackageFact>(
       "SELECT ap.*,people_application_active(ap.id,$2) active FROM people_applied_packages ap WHERE company_id=$1 ORDER BY created_at DESC",
@@ -80,12 +81,12 @@ lockedGrant:async(facts)=>{const{p,actor}=facts;return (await c.query<ProvisionG
       "SELECT g.*,ap.person_id,ap.company_id,ap.ended_at,op.status FROM people_provision_grants g JOIN people_applied_packages ap ON ap.id=g.application_id JOIN people_provision_operations op ON op.id=g.operation_id WHERE g.id=$1 AND ap.company_id=$2 FOR UPDATE OF g",
       [p.grantId, actor.companyId],
     )).rows[0];},
-reviewerIsPerson:async(facts)=>{const{actor,g}=facts;return (await c.query<{same:boolean}>("SELECT people_person_user($1,$2,$3) same", [
+reviewerIsPerson:async(facts)=>{const{actor,g}=facts;return (await c.query<{same:boolean}>(PP_RD24_PEOPLE_PERSON_USER_SAME_SQL, [
         actor.companyId,
         g.person_id,
         actor.userId,
       ])).rows[0];},
-grantUserIsPerson:async(facts)=>{const{actor,g,grant}=facts;return (await c.query<{ok:boolean}>("SELECT people_person_user($1,$2,$3) ok", [
+grantUserIsPerson:async(facts)=>{const{actor,g,grant}=facts;return (await c.query<{ok:boolean}>(PP_RD24_PEOPLE_PERSON_USER_OK_SQL, [
         actor.companyId,
         g.person_id,
         grant.userId,

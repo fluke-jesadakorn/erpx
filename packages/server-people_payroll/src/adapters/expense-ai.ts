@@ -1,4 +1,5 @@
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
+import { PP_RD24_EXPENSE_AI_JOB_LEASE_GUARD } from './pp-read-tail-r24-sources';
 import {peoplePackageEnforcementMode,readPurchasedAccess} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {captureExpenseQueueActor,withExpensePurchasedRead,withExpensePurchasedCommand,expenseFinalRead} from "@erpx/server-people_payroll/adapters/expense-purchases";
 import {withExpenseAiPurchasedClaim,withExpenseAiPurchasedMutation,expenseJobUnavailable} from "@erpx/server-people_payroll/adapters/expense-ai-purchases";
@@ -330,7 +331,7 @@ export function nativeExpenseAiWorker(db: SqlDatabase, files: FileStore, env: Be
         db,
         lease,
         "job-lease",
-        "EXISTS(SELECT 1 FROM expense_ai_proposals WHERE id=? AND state='running' AND lease_token=?)",
+        PP_RD24_EXPENSE_AI_JOB_LEASE_GUARD,
         [id, lease],
       ),
       authority.guard(lease),
@@ -363,7 +364,7 @@ export function nativeExpenseAiWorker(db: SqlDatabase, files: FileStore, env: Be
         db,
         lease,
         "failed-job-lease",
-        "EXISTS(SELECT 1 FROM expense_ai_proposals WHERE id=? AND state='running' AND lease_token=?)",
+        PP_RD24_EXPENSE_AI_JOB_LEASE_GUARD,
         [id, lease],
       ),
       nativePpStatement('pp_expense_ai_stmt_8')

@@ -1,4 +1,5 @@
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
+import { PP_RD24_UNCLAIMED_EXPENSE_GUARD } from './pp-read-tail-r24-sources';
 import{canAccountExpenses,canPostExpenses,visibility,currentExpenseReader,approvalFields,expenseSelect,originalNativeExpenseReads,listExpenses,getExpense,expenseFromDatabase,canEditExpense,canReviewExpense,nativeExpenseReads,expensePresentationRows,expenseVisibleRecordIds,type ExpenseRow}from '@erpx/server-people_payroll/adapters/expense-read';
 export{canAccountExpenses,canPostExpenses,visibility,currentExpenseReader,approvalFields,expenseSelect,originalNativeExpenseReads,listExpenses,getExpense,expenseFromDatabase,canEditExpense,canReviewExpense,nativeExpenseReads,expensePresentationRows,expenseVisibleRecordIds};
 export type{ExpenseRow};
@@ -501,7 +502,7 @@ function originalNativeExpenseReversal(write: SqlDatabase) {
         write,
         key,
         "no-export",
-        "NOT EXISTS(SELECT 1 FROM hr_payment_batches WHERE source_type='expense' AND source_id=? AND status!='cancelled')",
+        PP_RD24_UNCLAIMED_EXPENSE_GUARD,
         [id],
       ),
       assertion(
