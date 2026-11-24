@@ -2,6 +2,7 @@ import "server-only";
 import { commercialChangeSetReceiptSql } from "./commercial-read-tail-r1-sources";
 import { purchaseFactAgg } from "./commercial-read-tail-r4-sources";
 import { receiptProbe } from "./commercial-read-tail-r5-sources";
+import { companyScopedStarSql } from "./commercial-read-tail-r8-sources";
 import { createHash } from "node:crypto";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
@@ -40,7 +41,7 @@ export async function readCompanyPurchaseFacts(database: SqlDatabase, companyId:
 
 /** Commands call on the same Company-locked owner transaction as grant reads. */
 export async function readCompanyPackageHistoryRights(database: SqlDatabase, companyId: string) {
-  return (await database.prepare("SELECT * FROM company_package_history_rights WHERE company_id=? ORDER BY package_id,package_version")
+  return (await database.prepare(companyScopedStarSql("company_package_history_rights", " ORDER BY package_id,package_version"))
     .bind(companyId).all<HistoryRow>()).results.map(historyFromRow);
 }
 
@@ -62,7 +63,7 @@ export function packageGrantStore(db: PostgresDatabase, ports: {
       authorize: companyId => ports.authorize(database, companyId),
       lock: async key => { await database.prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))").bind(`commercial.package:${key}`).run(); },
       current: async (companyId, packageId) => {
-        const row = await database.prepare("SELECT * FROM company_package_grants WHERE company_id=? AND package_id=?").bind(companyId, packageId).first<Row>();
+        const row = await database.prepare(companyScopedStarSql("company_package_grants", " AND package_id=?")).bind(companyId, packageId).first<Row>();
         return row ? grantFromRow(row) : null;
       },
       receipt: async key => {
@@ -160,7 +161,7 @@ export async function companyPackageGrants(context: WorkContext): Promise<Compan
 
 /** Reads on the supplied owner unit; commands must supply their protected transaction. */
 export async function readCompanyPackageGrants(database: SqlDatabase, companyId: string, forShare = false): Promise<CompanyPackageGrant[]> {
-  return (await database.prepare(`SELECT * FROM company_package_grants WHERE company_id=? ORDER BY package_id${forShare ? " FOR SHARE" : ""}`).bind(companyId).all<Row>()).results.map(grantFromRow);
+  return (await database.prepare(companyScopedStarSql("company_package_grants", ` ORDER BY package_id${forShare ? " FOR SHARE" : ""}`)).bind(companyId).all<Row>()).results.map(grantFromRow);
 }
 
 /** Optimistic Company revision binds every persisted grant, including unchanged packages. */
