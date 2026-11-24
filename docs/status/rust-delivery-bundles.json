@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11929,
+    "revision": 11933,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -177853,7 +177853,7 @@
         "owner": "talent",
         "title": "talent TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -177865,22 +177865,37 @@
         "resources": [
           "owner:talent"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4f11",
-          "claimedAt": "2026-11-24T12:23:40.247Z",
-          "heartbeatAt": "2026-11-24T12:37:13.270Z",
-          "expiresAt": "2026-11-24T13:07:13.270Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-talent/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "e6fc59b4f",
+            "owner": "talent",
+            "before": 27,
+            "after": 19,
+            "note": "Eight stragglers route through selectProjection; locks/owner boundary/native untouched."
+          },
+          {
+            "command": "vitest talent (60) + scoped tsc + 10/10 byte oracle",
+            "result": "passed",
+            "sourceSha": "e6fc59b4f"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "remaining stragglers through selectProjection or blocked. BEFORE=27.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4f11",
+          "at": "2026-11-24T12:40:20.972Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -178012,7 +178027,7 @@
         "owner": "customer_authority",
         "title": "customer_authority TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -178024,22 +178039,37 @@
         "resources": [
           "owner:customer_authority"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4f15",
-          "claimedAt": "2026-11-24T12:24:32.474Z",
-          "heartbeatAt": "2026-11-24T12:37:13.270Z",
-          "expiresAt": "2026-11-24T13:07:13.270Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-customer_authority/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "e6fc59b4f",
+            "owner": "customer_authority",
+            "before": 26,
+            "after": 22,
+            "note": "Four helper heads delegate to selectProjection; locks/native/eligibility untouched."
+          },
+          {
+            "command": "vitest CA (55) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "e6fc59b4f"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "new family or hard floor. BEFORE=26.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4f15",
+          "at": "2026-11-24T12:40:21.380Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -178356,17 +178386,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 15,
+        "in_progress": 13,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1325,
+        "blocked": 1327,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T12:38:08.120Z",
+    "updatedAt": "2026-11-24T12:40:21.389Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
