@@ -51,8 +51,8 @@ describe('pms read-tail r32 parameterized family dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(345);
-    expect(bare).toBe(347);
+    expect(spaced).toBe(344);
+    expect(bare).toBe(346);
     expect(spaced).toBeLessThan(347);
   });
 });

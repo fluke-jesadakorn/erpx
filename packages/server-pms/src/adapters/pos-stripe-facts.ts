@@ -3,6 +3,7 @@ import {one} from '@erpx/server-runtime/public/runtime/sql';
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {nativePmsOwnerWrite} from "@erpx/feature-pms/public/native-pms";
 import {nativePmsReadFirst, PMS_RD_POS_STRIPE_PAYMENT, PMS_RD_POS_BOOKING_PAYMENT} from './native-pms-read';
+import {pmsPosPropertyConfigSql} from './pms-read-tail-r33-sql';
 
 export function posStripePmsFacts(db:SqlDatabase,companyId = ''){return {
 readPmsStripePayments1:(facts:{counterId:string;company_id:string | number | boolean | null;account_id:string | number | boolean | null;livemode:string | number | boolean | null;})=>nativePmsReadFirst<Record<string,string|number|boolean|null>>(PMS_RD_POS_STRIPE_PAYMENT,[facts.counterId,facts.company_id,facts.account_id,facts.livemode],db),
@@ -15,6 +16,6 @@ readPmsBookingPayments3:(facts:{bookingId:string;company_id:string | number | bo
 readPmsStripePayments3:(facts:{counterId:string;company_id:string | number | boolean | null;account_id:string | number | boolean | null;livemode:string | number | boolean | null;})=>one(db,"SELECT id FROM pms_stripe_payments WHERE id=? AND company_id=? AND account_id=? AND livemode=? AND state='succeeded'",facts.counterId,facts.company_id,facts.account_id,facts.livemode),
 readPmsBookingRefundRequests1:(facts:{source:string;company_id:string | number | boolean | null;account_id:string | number | boolean | null;livemode:string | number | boolean | null;})=>one(db,"SELECT r.id FROM pms_booking_refund_requests r JOIN pms_booking_payments p ON p.id=r.payment_id WHERE r.provider_id=? AND p.company_id=? AND p.account_id=? AND p.livemode=?",facts.source,facts.company_id,facts.account_id,facts.livemode),
 readPmsStripePayments4:(facts:{source:string;company_id:string | number | boolean | null;account_id:string | number | boolean | null;livemode:string | number | boolean | null;})=>one(db,"SELECT id FROM pms_stripe_payments WHERE refund_id=? AND company_id=? AND account_id=? AND livemode=? AND state='succeeded'",facts.source,facts.company_id,facts.account_id,facts.livemode),
-readPmsProperties1:(facts:{companyId:string;})=>one(db,"SELECT p.config_json FROM pms_properties p JOIN pms_booking_payments b ON b.property_id=p.id WHERE b.company_id=? ORDER BY b.created_at LIMIT 1",facts.companyId),
-readPmsProperties2:(facts:{companyId:string;})=>one(db,"SELECT p.config_json FROM pms_properties p JOIN pms_stripe_payments m ON m.property_id=p.id WHERE m.company_id=? ORDER BY m.created_at LIMIT 1",facts.companyId)
+readPmsProperties1:(facts:{companyId:string;})=>one(db,pmsPosPropertyConfigSql('booking'),facts.companyId),
+readPmsProperties2:(facts:{companyId:string;})=>one(db,pmsPosPropertyConfigSql('stripe'),facts.companyId)
 };}
