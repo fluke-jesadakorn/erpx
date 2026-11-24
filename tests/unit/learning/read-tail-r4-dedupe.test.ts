@@ -59,3 +59,43 @@ describe('Learning read-tail r4 retirement check', () => {
     expect(total).toBeLessThan(82);
   });
 });
+
+// Pre-dedupe assignment-child literals copied verbatim from the r4 baseline;
+// byte-identity oracles only, never live query sources.
+const preChildImage = [
+  `(SELECT jsonb_agg(to_jsonb(p)-'updated_at' ORDER BY p.id) \${peoplepayrollSources.learning_adapters_learning_hr_people_p_from} WHERE p.company_id=a.company_id AND p.user_id=a.learner_id) people,`,
+  `(SELECT jsonb_agg(to_jsonb(e)-'updated_at' ORDER BY e.id) \${peoplepayrollSources.learning_adapters_learning_hr_people_p_from} \${peoplepayrollSources.learning_adapters_learning_hr_engagements_e_join} ON e.person_id=p.id AND e.company_id=p.company_id WHERE p.company_id=a.company_id AND p.user_id=a.learner_id) engagements,`,
+  `(SELECT jsonb_agg(to_jsonb(h) ORDER BY h.id) FROM learning_eligibility_handoffs h WHERE h.assignment_id=a.id AND h.company_id=a.company_id) handoffs,`,
+  `(SELECT jsonb_agg(to_jsonb(certificate) ORDER BY certificate.id) FROM learning_certificates certificate WHERE certificate.assignment_id=a.id AND certificate.company_id=a.company_id) certificates,`,
+];
+
+describe('Learning read-tail r5 parameterized assignment-child family dedupe', () => {
+  test('one parameterized source replaces the four inlined child-image statements', () => {
+    const text = src('learning.ts');
+    for (const literal of preChildImage) expect(text).not.toContain(literal);
+    expect(text).toContain('const assignmentChildImage = (aggregate: string, source: string, label: string) => `(SELECT ${aggregate} ${source}) ${label}`;');
+    expect(text.match(/assignmentChildImage\(/g) ?? []).toHaveLength(4);
+  });
+
+  test('r3/r4 helper files and every lock statement stay untouched', () => {
+    const r3 = src('learning-read-sql.ts');
+    expect(r3.match(/export const learningNativeSources=/g) ?? []).toHaveLength(1);
+    expect(r3.match(/export const overdueEvidenceColumns =/g) ?? []).toHaveLength(1);
+    expect(r3.match(/export const learningModuleGrantProbe =/g) ?? []).toHaveLength(1);
+    expect(src('learning-completion-evidence.ts').match(/export const completionEvidenceColumns =/g) ?? []).toHaveLength(1);
+    expect(src('learning.ts')).not.toMatch(/LOCK TABLE|FOR UPDATE|FOR SHARE|pg_advisory/i);
+  });
+
+  test('retirement:ts-statements stays strictly below the r5 BEFORE=81 baseline', () => {
+    let total = 0;
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith('.ts')) total += selectCount(readFileSync(path, 'utf8'));
+      }
+    };
+    walk(srcRoot);
+    expect(total).toBeLessThan(81);
+  });
+});

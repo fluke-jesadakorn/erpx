@@ -45,12 +45,17 @@ function commandPorts(database: () => Promise<SqlDatabase>): LearningCommandPort
 /* Native learning workspace/detail reads are owned by the mounted axum port
  * (@erpx/server-learning/public/native-learning). The TypeScript workspace and
  * detail readers were read-only and are retired; no TS fallback remains. */
+/* r5 read-tail family: the four assignment-child images below share byte-identical
+ * subquery framing and differ only by aggregate, source tail and output label.
+ * One parameterized source replaces four inlined statements; r3/r4 helper files
+ * and every lock statement stay untouched. */
+const assignmentChildImage = (aggregate: string, source: string, label: string) => `(SELECT ${aggregate} ${source}) ${label}`;
 function assignmentWitness(actor:WorkContext,id:string){return async(write:SqlDatabase)=>{
  const row=await write.prepare(`SELECT a.course_id,a.course_version,c.company_id course_company,c.required_for,
- (SELECT jsonb_agg(to_jsonb(p)-'updated_at' ORDER BY p.id) ${peoplepayrollSources.learning_adapters_learning_hr_people_p_from} WHERE p.company_id=a.company_id AND p.user_id=a.learner_id) people,
- (SELECT jsonb_agg(to_jsonb(e)-'updated_at' ORDER BY e.id) ${peoplepayrollSources.learning_adapters_learning_hr_people_p_from} ${peoplepayrollSources.learning_adapters_learning_hr_engagements_e_join} ON e.person_id=p.id AND e.company_id=p.company_id WHERE p.company_id=a.company_id AND p.user_id=a.learner_id) engagements,
- (SELECT jsonb_agg(to_jsonb(h) ORDER BY h.id) FROM learning_eligibility_handoffs h WHERE h.assignment_id=a.id AND h.company_id=a.company_id) handoffs,
- (SELECT jsonb_agg(to_jsonb(certificate) ORDER BY certificate.id) FROM learning_certificates certificate WHERE certificate.assignment_id=a.id AND certificate.company_id=a.company_id) certificates,
+ ${assignmentChildImage("jsonb_agg(to_jsonb(p)-'updated_at' ORDER BY p.id)", `${peoplepayrollSources.learning_adapters_learning_hr_people_p_from} WHERE p.company_id=a.company_id AND p.user_id=a.learner_id`, "people")},
+ ${assignmentChildImage("jsonb_agg(to_jsonb(e)-'updated_at' ORDER BY e.id)", `${peoplepayrollSources.learning_adapters_learning_hr_people_p_from} ${peoplepayrollSources.learning_adapters_learning_hr_engagements_e_join} ON e.person_id=p.id AND e.company_id=p.company_id WHERE p.company_id=a.company_id AND p.user_id=a.learner_id`, "engagements")},
+ ${assignmentChildImage("jsonb_agg(to_jsonb(h) ORDER BY h.id)", "FROM learning_eligibility_handoffs h WHERE h.assignment_id=a.id AND h.company_id=a.company_id", "handoffs")},
+ ${assignmentChildImage("jsonb_agg(to_jsonb(certificate) ORDER BY certificate.id)", "FROM learning_certificates certificate WHERE certificate.assignment_id=a.id AND certificate.company_id=a.company_id", "certificates")},
  CASE WHEN ${learnerEligible} THEN 1 ELSE 0 END learner_eligible
  FROM learning_assignments a JOIN learning_courses c ON c.id=a.course_id WHERE a.id=? AND a.company_id=?`)
   .bind(id,actor.companyId).first<Record<string,unknown>>();return JSON.stringify(row);
