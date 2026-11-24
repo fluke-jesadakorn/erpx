@@ -352,6 +352,19 @@ const READ_OPEN_PROMISE_LINES_BY_ORDER: NativeReadStatement = NativeReadStatemen
     scope: "holding",
 };
 
+/// Native successor of the TypeScript `rfqs` offer-lines detail read. The owner
+/// plans this literal; the caller executes it on its open unit with the same
+/// single `[rfqId]` bind. This is a pure read with no receipt ledger.
+pub const RD_RFQ_OFFER_LINES: &str = "procurement_rd_rfq_offer_lines";
+const SQL_RFQ_OFFER_LINES: &str =
+    "SELECT l.* FROM procurement_rfq_offer_lines l JOIN procurement_rfq_offers o ON o.id=l.offer_id WHERE o.rfq_id=?";
+const READ_RFQ_OFFER_LINES: NativeReadStatement = NativeReadStatement {
+    kind: RD_RFQ_OFFER_LINES,
+    sql: SQL_RFQ_OFFER_LINES,
+    bind_count: 1,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_INVOICE_MATCH_FOR_FINANCE,
     READ_REQUEST_QUOTATION,
@@ -378,6 +391,7 @@ const READS: &[NativeReadStatement] = &[
     READ_PROMISE_HISTORY_BY_ORDER,
     READ_PROMISE_SCHEDULE_BY_ORDER,
     READ_OPEN_PROMISE_LINES_BY_ORDER,
+    READ_RFQ_OFFER_LINES,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -421,6 +435,7 @@ mod tests {
         assert!(is_read(RD_PROMISE_HISTORY_BY_ORDER));
         assert!(is_read(RD_PROMISE_SCHEDULE_BY_ORDER));
         assert!(is_read(RD_OPEN_PROMISE_LINES_BY_ORDER));
+        assert!(is_read(RD_RFQ_OFFER_LINES));
         assert!(!is_read("procurement_stmt_1"));
         assert!(read_statement("not_a_native_read").is_none());
     }
@@ -863,6 +878,20 @@ mod tests {
         assert_eq!(read.sql.matches('?').count(), 1);
         assert_eq!(read.scope, "holding");
         assert!(is_read(RD_OPEN_PROMISE_LINES_BY_ORDER));
+        assert!(!is_read("procurement_stmt_1"));
+    }
+
+    #[test]
+    fn rfq_offer_lines_plan_matches_retired_typescript_literal() {
+        let read = read_statement(RD_RFQ_OFFER_LINES).expect("read kind");
+        assert_eq!(
+            read.sql,
+            "SELECT l.* FROM procurement_rfq_offer_lines l JOIN procurement_rfq_offers o ON o.id=l.offer_id WHERE o.rfq_id=?"
+        );
+        assert_eq!(read.bind_count, 1);
+        assert_eq!(read.sql.matches('?').count(), 1);
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_RFQ_OFFER_LINES));
         assert!(!is_read("procurement_stmt_1"));
     }
 }

@@ -17,7 +17,7 @@ import {requestQuotationSource,requestVersionGuard} from '@erpx/server-records/p
 import {serviceAuthoritySnapshot} from "@erpx/server-support/public/service-access";
 import {prepareAttachmentBinding} from "@erpx/server-files/public/attachments/service";
 import {nativeRfqNotification} from "./native-rfq-notification";
-import {nativeProcurementReadFirst,PROCUREMENT_RD_RFQ_BY_ORDER} from "./native-procurement-read";
+import {nativeProcurementReadAll,nativeProcurementReadFirst,PROCUREMENT_RD_RFQ_BY_ORDER,PROCUREMENT_RD_RFQ_OFFER_LINES} from "./native-procurement-read";
 import {BusinessRuleError} from "@erpx/server-shared/index";
 import {createRfqApplication,type RfqPorts,type RfqMutation} from "@erpx/server-procurement/application/rfqs";
 import type {RfqRow as Row,RfqOrderInput} from "@erpx/server-procurement/domain/rfqs";
@@ -46,7 +46,7 @@ function application(a:WorkContext,provided?:SqlDatabase){
  detail:async(id)=>{const write=await database();const [lines,offers,offerLines,events]=await Promise.all([
  write.prepare(orderedRead('*','procurement_rfq_lines','rfq_id=?','ordinal')).bind(id).all<Row>(),
  write.prepare(orderedRead('o.*,p.name supplier_name',`procurement_rfq_offers o JOIN (${financePlatformSources.finance_parties}) p ON p.id=o.supplier_id`,'o.rfq_id=?','o.rfq_version DESC')).bind(id).all<Row>(),
- write.prepare('SELECT l.* FROM procurement_rfq_offer_lines l JOIN procurement_rfq_offers o ON o.id=l.offer_id WHERE o.rfq_id=?').bind(id).all<Row>(),
+ nativeProcurementReadAll<Row>(PROCUREMENT_RD_RFQ_OFFER_LINES,[id],write),
  write.prepare(orderedRead('*','procurement_rfq_events','rfq_id=?','version DESC')).bind(id).all<Row>()]);return {lines:lines.results,offers:offers.results,offerLines:offerLines.results,events:events.results};},
  workspace:async()=>{const write=await database();const [rfqs,products,warehouses,suppliers,config]=await Promise.all([
  write.prepare(rfqScopedRead(`${scope} ORDER BY r.updated_at DESC LIMIT 100`)).bind(...args(a)).all<Row>(),
