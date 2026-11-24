@@ -39,7 +39,7 @@ describe('Procurement read-tail r38 parameterized family dedupe', () => {
       ['r35', 'quotedFromSource'],
     ] as const) expect(src(`read-tail-${n}.ts`)).toContain(`export const ${e} =`);
     const obligation = src('package-obligations.ts');
-    expect(obligation).toContain('command_receipts command WHERE command.record_id=o.id');
+    expect(obligation).toContain('commandReceiptMissing("command",`command.record_id=o.id');
     expect(src('purchases.ts')).toContain('FOR UPDATE');
     expect(src('bill-purchases.ts')).toContain('FOR SHARE OF f,o');
     expect(src('attachment-purchases.ts')).toContain('FOR SHARE');

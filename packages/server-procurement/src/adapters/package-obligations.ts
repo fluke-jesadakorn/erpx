@@ -11,6 +11,7 @@ import {jsonbAggBy} from './read-tail-r21';
 import {billReceiptBinding} from './read-tail-r23';
 import {attachmentVersionWitness} from './read-tail-r28';
 import {lineSourceWitness} from './read-tail-r38';
+import {commandReceiptMissing,commandReceiptEventWitness} from './read-tail-r44';
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
 const sources=new WeakMap<SqlDatabase,string>();
 export async function lockSupplyProcurementPackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){
@@ -36,45 +37,39 @@ export async function supplyProcurementPackageObligations(owner:PostgresDatabase
  if(input.moduleId!=="procurement"||input.packageId!=="supply"||input.packageVersion!==1||!Number.isSafeInteger(input.now)||input.now<0)throw Error("SUPPLY_PROCUREMENT_PACKAGE_OBLIGATION_SCOPE_REQUIRED");
  const facts=(await database.prepare(`WITH scope AS(SELECT ?::text company_id),orders AS MATERIALIZED(SELECT o.* FROM (${commerce.orders}) o,scope WHERE o.company_id=scope.company_id)
  SELECT 'rfq' kind,r.id,(${procurementCommandSourceImage("rfq","r")})::text fact,r.status NOT IN ('ordered','cancelled') OR NOT EXISTS
- (SELECT 1 FROM procurement_rfq_events event JOIN command_receipts command ON event.id='rfq-event-'||command.command_id
-  WHERE event.rfq_id=r.id AND event.version<=r.version AND command.authority_json::jsonb->>'companyId'=r.company_id
-${attachmentVersionWitness(recordAttachmentVersionSteps,"r","procurement_rfq")}
-  AND command.actor_id=event.actor_id AND ((r.status='cancelled' AND command.record_id=r.id AND event.action='cancel' AND command.operation='procurement.rfq.cancel') OR
-   (r.status='ordered' AND command.record_id=r.order_id AND event.action='order-created' AND command.operation='commerce.order.create' AND command.result_json::jsonb->>'id'=r.order_id)))
+ ${commandReceiptEventWitness("rfq-event-","r",`command.actor_id=event.actor_id AND ((r.status='cancelled' AND command.record_id=r.id AND event.action='cancel' AND command.operation='procurement.rfq.cancel') OR
+   (r.status='ordered' AND command.record_id=r.order_id AND event.action='order-created' AND command.operation='commerce.order.create' AND command.result_json::jsonb->>'id'=r.order_id))`,`${attachmentVersionWitness(recordAttachmentVersionSteps,"r","procurement_rfq")}`)}
  OR (r.status='ordered' AND NOT EXISTS(SELECT 1 FROM orders original JOIN procurement_rfq_offers offer ON offer.id=r.selected_offer_id AND offer.rfq_id=r.id
   WHERE original.id=r.order_id AND original.warehouse_id=r.warehouse_id AND original.party_id=offer.supplier_id AND original.currency=r.currency
   AND r.approved_by IS NOT NULL AND r.approved_by<>r.created_by AND r.approved_by IS DISTINCT FROM r.submitted_by AND r.approved_by<>offer.recorded_by)) pending
  FROM procurement_rfqs r,scope WHERE r.company_id=scope.company_id
  UNION ALL SELECT 'order',o.id,jsonb_build_array(to_jsonb(o),${jsonbAggBy(`(${commerce.lines})`,"line","order_id","o.id","line.id")})::text,o.state NOT IN ('fulfilled','cancelled')
  OR (o.state='fulfilled' AND (NOT EXISTS${lineSourceWitness(commerce.lines,"order_id","o.id")} OR EXISTS(SELECT 1 FROM (${commerce.lines}) line WHERE line.order_id=o.id AND line.fulfilled_milli<>line.quantity_milli)))
- OR (o.state='cancelled' AND NOT EXISTS(SELECT 1 FROM command_receipts command WHERE command.record_id=o.id AND command.operation='commerce.order.cancel' AND command.authority_json::jsonb->>'companyId'=o.company_id AND command.result_json::jsonb->>'state'='cancelled')) FROM orders o
+ OR (o.state='cancelled' AND ${commandReceiptMissing("command",`command.record_id=o.id AND command.operation='commerce.order.cancel' AND command.authority_json::jsonb->>'companyId'=o.company_id AND command.result_json::jsonb->>'state'='cancelled'`)}) FROM orders o
  UNION ALL SELECT 'receipt',receipt.id,jsonb_build_array(to_jsonb(receipt),${jsonbAggBy(`(${commerce.receiptLines})`,"line","fulfillment_id","receipt.id","line.id")})::text,receipt.invoice_id IS NULL OR NOT EXISTS${lineSourceWitness(commerce.receiptLines,"fulfillment_id","receipt.id")}
  FROM (${commerce.receipts}) receipt JOIN orders original ON original.id=receipt.order_id
  UNION ALL SELECT 'supplier-return',returned.id,jsonb_build_array(to_jsonb(returned),${jsonbAggBy(`(${commerce.returnLines})`,"line","return_id","returned.id","line.id")})::text,
  original.id IS NULL OR receipt.id IS NULL OR receipt.order_id IS DISTINCT FROM returned.order_id OR receipt.invoice_id IS DISTINCT FROM returned.invoice_id
  OR NOT EXISTS${lineSourceWitness(commerce.returnLines,"return_id","returned.id")}
  OR EXISTS(SELECT 1 FROM (${commerce.returnLines}) line LEFT JOIN (${commerce.receiptLines}) actual ON actual.id=line.fulfillment_line_id WHERE line.return_id=returned.id AND (actual.id IS NULL OR actual.fulfillment_id IS DISTINCT FROM returned.fulfillment_id))
- OR NOT EXISTS(SELECT 1 FROM command_receipts requested WHERE requested.record_id=returned.id AND requested.operation='commerce.return.request' AND requested.actor_id=returned.requested_by AND requested.authority_json::jsonb->>'companyId'=returned.company_id AND requested.result_json::jsonb->>'orderId'=returned.order_id)
- OR returned.status NOT IN ('rejected','posted') OR NOT EXISTS(SELECT 1 FROM command_receipts command WHERE command.record_id=returned.id
+ OR ${commandReceiptMissing("requested",`requested.record_id=returned.id AND requested.operation='commerce.return.request' AND requested.actor_id=returned.requested_by AND requested.authority_json::jsonb->>'companyId'=returned.company_id AND requested.result_json::jsonb->>'orderId'=returned.order_id`)}
+ OR returned.status NOT IN ('rejected','posted') OR ${commandReceiptMissing("command",`command.record_id=returned.id
  AND command.authority_json::jsonb->>'companyId'=returned.company_id AND command.result_json::jsonb->>'orderId'=returned.order_id AND command.result_json::jsonb->>'status'=returned.status
  AND ((returned.status='rejected' AND command.operation='commerce.return.reject' AND command.actor_id=returned.approved_by AND returned.approved_by<>returned.requested_by)
  OR(returned.status='posted' AND command.operation='commerce.return.complete' AND returned.approved_by IS NOT NULL AND returned.approved_by<>returned.requested_by))
  AND EXISTS(WITH RECURSIVE versions(version) AS(SELECT CASE WHEN command.result_json::jsonb->>'version' ~ '^[1-9][0-9]*$' THEN (command.result_json::jsonb->>'version')::bigint END UNION
  SELECT binding.next_version FROM versions JOIN (${recordAttachmentVersionSteps}) binding ON binding.previous_version=versions.version AND binding.company_id=returned.company_id
- AND binding.target_type='commerce_return' AND binding.target_id=returned.id WHERE binding.next_version<=returned.version) SELECT 1 FROM versions WHERE version=returned.version))
+ AND binding.target_type='commerce_return' AND binding.target_id=returned.id WHERE binding.next_version<=returned.version) SELECT 1 FROM versions WHERE version=returned.version)`)}
  FROM (${commerce.returns}) returned CROSS JOIN scope LEFT JOIN orders original ON original.id=returned.order_id LEFT JOIN (${commerce.receipts}) receipt ON receipt.id=returned.fulfillment_id WHERE returned.company_id=scope.company_id
  UNION ALL SELECT 'promise',promise.id,jsonb_build_array(to_jsonb(promise),${jsonbAggBy("procurement_delivery_promise_lines","line","promise_id","promise.id","line.id")})::text,original.id IS NULL OR original.party_id IS DISTINCT FROM promise.supplier_id OR original.currency IS DISTINCT FROM promise.currency
- OR NOT EXISTS(SELECT 1 FROM command_receipts command WHERE command.record_id=promise.order_id AND command.result_json::jsonb->>'promiseId'=promise.id AND command.operation='procurement.promise.record' AND command.actor_id=promise.recorded_by AND command.authority_json::jsonb->>'companyId'=promise.company_id)
+ OR ${commandReceiptMissing("command",`command.record_id=promise.order_id AND command.result_json::jsonb->>'promiseId'=promise.id AND command.operation='procurement.promise.record' AND command.actor_id=promise.recorded_by AND command.authority_json::jsonb->>'companyId'=promise.company_id`)}
  OR EXISTS(SELECT 1 FROM procurement_open_promise_lines pending WHERE pending.promise_id=promise.id AND pending.remaining_milli>0)
  FROM procurement_delivery_promises promise CROSS JOIN scope LEFT JOIN orders original ON original.id=promise.order_id WHERE promise.company_id=scope.company_id
  UNION ALL SELECT 'supplier-bill',bill.id,jsonb_build_array(to_jsonb(bill),${jsonbAggBy("procurement_bill_match_lines","line","match_id","bill.id","line.id")},${jsonbAggBy("procurement_bill_match_events","event","match_id","bill.id","event.id")},${jsonbAggBy("procurement_bill_match_receipts","binding","match_id","bill.id","binding.fulfillment_id")})::text,original.id IS NULL OR original.party_id IS DISTINCT FROM bill.supplier_id OR original.currency IS DISTINCT FROM bill.currency OR bill.status NOT IN ('posted','returned')
  OR ${billReceiptBinding(true,"binding","bill")}
  OR EXISTS(SELECT 1 FROM procurement_bill_match_receipts binding LEFT JOIN (${commerce.receipts}) receipt ON receipt.id=binding.fulfillment_id LEFT JOIN orders parent ON parent.id=receipt.order_id
   WHERE binding.match_id=bill.id AND (parent.id IS NULL OR parent.party_id IS DISTINCT FROM bill.supplier_id OR parent.currency IS DISTINCT FROM bill.currency))
- OR NOT EXISTS(SELECT 1 FROM procurement_bill_match_events event JOIN command_receipts command ON event.id='bill-event-'||command.command_id
-  WHERE event.match_id=bill.id AND event.version<=bill.version AND command.authority_json::jsonb->>'companyId'=bill.company_id AND command.actor_id=event.actor_id
-${attachmentVersionWitness(recordAttachmentVersionSteps,"bill","supplier_bill_match")}
-  AND ((bill.status='returned' AND command.record_id=bill.id AND event.action IN ('return','return-ap-draft') AND command.operation='procurement.bill.return') OR (bill.status='posted' AND command.record_id=bill.invoice_id AND event.action='posted' AND command.operation='finance.invoice.post')))
+ OR NOT EXISTS${commandReceiptEventWitness("bill-event-","bill",`((bill.status='returned' AND command.record_id=bill.id AND event.action IN ('return','return-ap-draft') AND command.operation='procurement.bill.return') OR (bill.status='posted' AND command.record_id=bill.invoice_id AND event.action='posted' AND command.operation='finance.invoice.post'))`,`${attachmentVersionWitness(recordAttachmentVersionSteps,"bill","supplier_bill_match")}`)}
  OR (bill.status='posted' AND bill.invoice_id IS NULL)
  FROM procurement_bill_matches bill CROSS JOIN scope LEFT JOIN orders original ON original.id=bill.order_id WHERE bill.company_id=scope.company_id
  ORDER BY kind,id`).bind(input.companyId).all<{kind:string;id:string;fact:string;pending:boolean}>()).results;

@@ -102,6 +102,6 @@ describe('Procurement read-tail r43 parameterized family dedupe', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(106);
-    expect(total).toBe(103); // F2 + F3 + F4 remove exactly three inline SELECTs.
+    expect(total).toBe(99); // r44 F1 skeleton (-3) + F6 witness pair (-1): 103 -> 99.
   });
 });
