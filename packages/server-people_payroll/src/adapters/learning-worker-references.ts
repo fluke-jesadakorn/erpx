@@ -1,4 +1,5 @@
 import 'server-only';
+import { PP_RD22_ENGAGEMENT_JSONB_AGG_SQL } from './pp-read-tail-r22-sources';
 import {createHash} from 'node:crypto';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
@@ -30,7 +31,7 @@ export function learningWorkerPlacement(database:SqlDatabase,actor:WorkContext,u
  * so a concurrent or deferred eligibility change cannot disappear as zero. */
 export async function learningWorkerReferenceWitness(database:SqlDatabase,companyId:string,userId:string|null=null){
  const image=await database.prepare(`SELECT jsonb_agg(jsonb_build_object('person',to_jsonb(p),
- 'engagements',(SELECT jsonb_agg(to_jsonb(e) ORDER BY e.id) FROM hr_engagements e WHERE e.person_id=p.id AND e.company_id=p.company_id)) ORDER BY p.id)::text image
+ 'engagements',(${PP_RD22_ENGAGEMENT_JSONB_AGG_SQL})) ORDER BY p.id)::text image
  FROM hr_people p WHERE p.company_id=? AND (?::text IS NULL OR p.user_id=?)`).bind(companyId,userId,userId).first<string|null>('image');
  return createHash('sha256').update(image??'null').digest('hex');
 }

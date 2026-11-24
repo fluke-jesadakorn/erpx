@@ -1,3 +1,4 @@
+import { PP_RD22_LEAVE_REQUESTS_PROJECTION_SQL } from './pp-read-tail-r22-sources';
 import { PP_RD20_HR_ENGAGEMENTS_COMPACT_SQL } from './pp-read-tail-r20-sources';
 import "server-only";
 import {PP_RD18_HR_PEOPLE_PROJ_SQL} from './pp-read-tail-r18-sources';
@@ -12,7 +13,7 @@ export const platformOwnerProjectionSources = Object.freeze({
   leave_policy_assignments: "SELECT \"id\",\"company_id\",\"engagement_id\",\"policy_version_id\",\"holiday_calendar_id\",\"effective_from\",\"effective_to\",\"created_by\",\"created_at\",\"version\" FROM leave_policy_assignments",
   leave_policy_rules: "SELECT \"policy_version_id\",\"leave_type_id\",\"grant_kind\",\"grant_units\",\"accrual_units\",\"accrual_period\",\"carryover_limit\",\"employee_eligible\",\"contractor_eligible\",\"evidence_min_units\",\"evidence_purpose\",\"evidence_min_count\",\"evidence_due_stage\",\"evidence_grace_days\",\"evidence_note\",\"evidence_privacy\" FROM leave_policy_rules",
   leave_policy_versions: "SELECT \"id\",\"company_id\",\"policy_key\",\"version\",\"name\",\"status\",\"effective_from\",\"effective_to\",\"timezone\",\"workweek_json\",\"allow_negative\",\"created_by\",\"created_at\" FROM leave_policy_versions",
-  leave_requests: "SELECT \"id\",\"number\",\"employee_id\",\"company_id\",\"branch_id\",\"start_date\",\"days\",\"handover_note\",\"state\",\"version\",\"created_by\",\"prepared_by\",\"decided_by\",\"decision_note\",\"last_command_id\",\"created_at\",\"updated_at\",\"department_id\",\"person_id\",\"engagement_id\",\"leave_type_id\",\"end_date\",\"start_segment\",\"end_segment\",\"policy_version_id\",\"calculated_units\",\"calculation_snapshot\",\"cancellation_state\",\"evidence_policy_snapshot\",\"evidence_due_at\",\"evidence_version\",\"submitted_at\" FROM leave_requests",
+  leave_requests: PP_RD22_LEAVE_REQUESTS_PROJECTION_SQL,
   leave_types: "SELECT \"id\",\"company_id\",\"code\",\"name\",\"description\",\"tracked\",\"evidence_after_units\",\"evidence_note\",\"private_evidence\",\"active\",\"effective_from\",\"effective_to\",\"created_by\",\"created_at\",\"updated_at\" FROM leave_types",
   people_applied_packages: "SELECT \"id\",\"company_id\",\"person_id\",\"engagement_id\",\"position_id\",\"package_id\",\"package_revision\",\"definition\",\"source_kind\",\"scope\",\"case_id\",\"operation_id\",\"authorizing_assignment_id\",\"valid_from\",\"valid_until\",\"ended_at\",\"created_at\" FROM people_applied_packages",
   people_package_revisions: "SELECT \"company_id\",\"package_id\",\"revision\",\"definition\",\"created_by\",\"created_at\" FROM people_package_revisions",

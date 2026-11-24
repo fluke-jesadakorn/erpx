@@ -1,3 +1,4 @@
+import { PP_RD22_ACTIVE_PERSON_VERSION_GUARD } from './pp-read-tail-r22-sources';
 import { nativePeopleHandoffs } from "@erpx/server-collaboration/adapters/native-people-handoffs";
 import {withTalentPurchasedRead,withTalentHirePurchasedCommand,withTalentPrivacyPurchasedCommand} from "@erpx/server-talent/public/purchases";
 import "server-only";
@@ -47,7 +48,7 @@ function application(provided?:SqlDatabase) {
         guard11(key: string, value: "hire-email-reconcile", companyId: string, email: string, personId: string) { return assertion(database, key, value, "NOT EXISTS(SELECT 1 FROM hr_people WHERE company_id=? AND lower(email)=lower(?) AND id<>?)", [companyId, email, personId]); },
         guard12(key: string, value: "hire-group", payGroupId: string, companyId: string, currency: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_pay_groups WHERE id=? AND company_id=? AND currency=? AND status='active')", [payGroupId, companyId, currency]); },
         guard13(...args) { return peopleHirePlacementFacts(database).guard13(...args); },
-        guard14(key: string, value: "hire-person", id: string, companyId: string, version: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_people WHERE id=? AND company_id=? AND version=? AND status='active' AND merged_into_id IS NULL)", [id, companyId, version]); },
+        guard14(key: string, value: "hire-person", id: string, companyId: string, version: number) { return assertion(database, key, value, PP_RD22_ACTIVE_PERSON_VERSION_GUARD, [id, companyId, version]); },
         stageConsumeHireHandoffEffect3(personId: string, companyId: string, legal_name: string, email: string, phone: string | null, countryCode: string, userId: string, now: number, now2: number) { return nativePeopleHandoffs(database).person(companyId,[personId,companyId,legal_name,email,phone,countryCode,userId,now,now2]); },
         stageConsumeHireHandoffEffect4(engagementId: string, personId: string, companyId: string, branch_id: string, department_id: string | null, start_date: string, job_title: string, currency: string, payGroupId: string, userId: string, now: number, now2: number) { return nativePeopleHandoffs(database).engagement(companyId,[engagementId,personId,companyId,branch_id,department_id,start_date,job_title,currency,payGroupId,userId,now,now2]); },
         stageConsumeHireHandoffEffect5(compensationId: string, engagementId: string, start_date: string, frequency: string, base_amount_minor: number, currency: string, userId: string, now: number, now2: number, companyId: string) { return nativePeopleHandoffs(database).compensation(companyId,[compensationId,engagementId,start_date,frequency,base_amount_minor,currency,userId,now,now2]); },

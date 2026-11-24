@@ -1,4 +1,5 @@
 import 'server-only';
+import { PP_RD22_WORKFORCE_SCOPE_SQL } from './pp-read-tail-r22-sources';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {loadIamAuthority} from '@erpx/server-identity_access/public/iam-store';
@@ -15,7 +16,7 @@ export async function workforceProductSelfServiceEntry(database:SqlDatabase,scop
  try{
   const iam=await loadIamAuthority(database,scope.companyId,scope.userId,scope.role,scope.sessionId),actor:StaffActor={userId:scope.userId,assignmentId:scope.assignmentId,role:scope.role,companyId:scope.companyId,branchId:scope.branchId,departmentId:scope.departmentId,iam};
   const current=currentAssignmentReadScope(actor,'workforce_actor_scope');
-  if(!await database.prepare(`SELECT 1 FROM(SELECT ?::text company_id,?::text branch_id,?::text department_id)workforce_actor_scope WHERE (${current.where}) AND EXISTS(SELECT 1 FROM assignments WHERE id=? AND version=?) AND NOT EXISTS(SELECT 1 FROM iam_revoked_sessions WHERE session_id=? AND company_id=? AND user_id=?)`).bind(scope.companyId,scope.branchId,scope.departmentId,...current.args,scope.assignmentId,scope.assignmentVersion,scope.sessionId??null,scope.companyId,scope.userId).first())return null;
+  if(!await database.prepare(`${PP_RD22_WORKFORCE_SCOPE_SQL}(${current.where}) AND EXISTS(SELECT 1 FROM assignments WHERE id=? AND version=?) AND NOT EXISTS(SELECT 1 FROM iam_revoked_sessions WHERE session_id=? AND company_id=? AND user_id=?)`).bind(scope.companyId,scope.branchId,scope.departmentId,...current.args,scope.assignmentId,scope.assignmentVersion,scope.sessionId??null,scope.companyId,scope.userId).first())return null;
   if(target.kind==='leave-record'||target.kind==='overtime-record'){
    if(!await hasWorkforceProductRecordHistory(database,actor,target.kind==='leave-record'?'leave':'overtime',target.id))return null;
   }else{

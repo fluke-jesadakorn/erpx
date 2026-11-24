@@ -1,3 +1,4 @@
+import { PP_RD22_ENGAGEMENT_VERSION_GUARD } from './pp-read-tail-r22-sources';
 import { ppRd21IdVersionStatusGuard } from './pp-read-tail-r21-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import { PP_RD19_HR_ENGAGEMENT_VERSION_EXISTS_SQL, PP_RD19_EVAL_DEF_OPEN_EXISTS_SQL, PP_RD19_ACTIVE_ENGAGEMENT_EXISTS_SQL } from './pp-read-tail-r19-sources';
@@ -71,7 +72,7 @@ function application(provided?: SqlDatabase) {
             return evaluationEngagementTimezone(database, id);
         },
         stageCreateEvaluationAssessmentEffect(id: string) { return database.prepare("SELECT id FROM hr_engagements WHERE id=? FOR UPDATE").bind(id); },
-        guard24(key: string, value: "engagement-version", id: string, companyId: string, version: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_engagements WHERE id=? AND company_id=? AND version=?)", [id, companyId, version]); },
+        guard24(key: string, value: "engagement-version", id: string, companyId: string, version: number) { return assertion(database, key, value, PP_RD22_ENGAGEMENT_VERSION_GUARD, [id, companyId, version]); },
         stageCreateEvaluationAssessmentEffect2(id: string) { return database.prepare("SELECT id FROM hr_evaluation_definitions WHERE id=? FOR SHARE").bind(id); },
         guard26(key: string, value: "cycle-open", cycleId: string, version: number) { return assertion(database, key, value, PP_RD19_EVAL_DEF_OPEN_EXISTS_SQL, [cycleId, version]); },
         guard27(key: string, value: "period-overlap", id: string, cycleId: string, periodEnd: string, periodStart: string) { return assertion(database, key, value, "NOT EXISTS(SELECT 1 FROM hr_evaluation_assessments WHERE engagement_id=? AND cycle_id=? AND period_start<=? AND period_end>=?)", [id, cycleId, periodEnd, periodStart]); },

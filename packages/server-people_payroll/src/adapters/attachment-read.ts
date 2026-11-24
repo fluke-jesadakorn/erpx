@@ -1,4 +1,5 @@
 import 'server-only';
+import { PP_RD22_WORKFORCE_SCOPE_SQL } from './pp-read-tail-r22-sources';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {privateFileDenialAuthorityWitness,privateFileDenialAuthoritySourceLocks} from '@erpx/server-identity_access/public/private-file-denial-authority';
 import {currentAssignmentReadScope} from '@erpx/server-identity_access/public/record-source-authority';
@@ -29,7 +30,7 @@ export async function withPeopleAttachmentContentRead<Result extends {object:Sto
   await database.batch([...peopleAttachmentReadSourceLocks(database),attachmentPrivateReadSourceLocks(database),...privateFileDenialAuthoritySourceLocks(database)]);
   await lockQueuedCommandAuthority(database);await lockScheduledFeatureSources(database);await database.batch(companyPurchaseReadLocks(database,actor.companyId).slice(1));
   const source=await attachmentReadSource(database,actor.companyId,linkId);assertAttachmentReadRoute(selected,source);if(!source)throw attachmentReadChanged();
-  const before=await peopleAttachmentReadSourceImage(database,actor.companyId,target,source.targetId),current=currentAssignmentReadScope(actor,'workforce_actor_scope'),initiallyCurrent=!!await database.prepare(`SELECT 1 FROM(SELECT ?::text company_id,?::text branch_id,?::text department_id)workforce_actor_scope WHERE ${current.where}`).bind(actor.companyId,actor.branchId,actor.departmentId,...current.args).first();
+  const before=await peopleAttachmentReadSourceImage(database,actor.companyId,target,source.targetId),current=currentAssignmentReadScope(actor,'workforce_actor_scope'),initiallyCurrent=!!await database.prepare(`${PP_RD22_WORKFORCE_SCOPE_SQL}${current.where}`).bind(actor.companyId,actor.branchId,actor.departmentId,...current.args).first();
   const invalidAuthority=initiallyCurrent?null:await privateFileDenialAuthorityWitness(database,actor);
   const check=async(authorizeSource:boolean)=>{
    if(identity(actor)!==context)throw attachmentReadChanged();if(authorizeSource||initiallyCurrent)await requirePrivateAttachmentReaderCurrent(database,actor);else if(await privateFileDenialAuthorityWitness(database,actor)!==invalidAuthority)throw attachmentReadChanged();if(authorizeSource)await authorize(database,source);
