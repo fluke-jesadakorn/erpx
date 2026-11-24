@@ -20,6 +20,7 @@ import {createLegalApprovalApplication} from "@erpx/server-legal/application/app
 import type {LegalWrite} from "@erpx/server-legal/application/service";
 import { legalApprovalStatements } from '@erpx/server-collaboration/adapters/native-legal-approval';
 import {legalMembershipExistsSql} from '../legal-members-read-sources';
+import {legalSignerAccessPrefix,legalSignerAccessSuffix} from '../legal-signer-access-sources';
 function application(db:SqlDatabase,a:WorkContext){const workflow=legalApprovalFacts(db),nativeWrites=new WeakMap<LegalWrite,SqlStatement>(),nativeApproval=legalApprovalStatements(db,a.companyId,a.userId);const stage=(statement:SqlStatement):LegalWrite=>{const write:LegalWrite={owner:"legal"};nativeWrites.set(write,statement);return write;};
 return createLegalApprovalApplication({actor:a,access:(id,p)=>access(db,a,id,p),eligible:(id,item,p)=>eligible(db,a,id,item,p),samePerson:id=>samePerson(a,id),hash:value=>createHash("sha256").update(value).digest("hex"),clock:{now:()=>Date.now()},identifiers:{next:()=>crypto.randomUUID()},error:(status,code,message)=>new ApiError(status,code,message),repository:{
 routeSteps:facts=>workflow.routeSteps(facts),
@@ -27,7 +28,7 @@ decisionHistory:facts=>workflow.decisionHistory(facts),
 contractDocument:(facts:{documentId:string;itemId:string;})=>db.prepare("SELECT * FROM legal_documents WHERE id=? AND item_id=?").bind(facts.documentId,facts.itemId).first<DocumentVersion>(),
 executedDocument:(facts:{id:string;})=>db.prepare("SELECT 1 FROM legal_executed_copies WHERE document_id=?").bind(facts.id).first(),
 latestAuthor:(facts:{itemId:string;})=>db.prepare("SELECT actor_id FROM legal_events WHERE item_id=? AND action IN ('created','update','document','document.upload','ai.accepted') ORDER BY version DESC LIMIT 1").bind(facts.itemId).first<{ actor_id: string }>(),
-signerAccess:(facts:{itemId:string;u:string;itemId2:string;id:string;u2:string;now:number;})=>db.prepare("SELECT 1 FROM legal_members WHERE item_id=? AND user_id=? UNION ALL SELECT 1 FROM legal_shares WHERE item_id=? AND document_id=? AND user_id=? AND revoked_at IS NULL AND expires_at>?").bind(facts.itemId,facts.u,facts.itemId2,facts.id,facts.u2,facts.now).first(),
+signerAccess:(facts:{itemId:string;u:string;itemId2:string;id:string;u2:string;now:number;})=>db.prepare(legalSignerAccessPrefix+"document_id=? AND user_id=?"+legalSignerAccessSuffix).bind(facts.itemId,facts.u,facts.itemId2,facts.id,facts.u2,facts.now).first(),
 async lockDocument(facts){return stage(await nativeApproval.lockDocument(facts));},
 async retainRoute(facts){return stage(await nativeApproval.retainRoute(facts));},
 currentStep:facts=>workflow.currentStep(facts),

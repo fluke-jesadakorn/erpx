@@ -15,6 +15,7 @@ import {createLegalRetentionApplication} from "@erpx/server-legal/application/re
 import type {LegalWrite} from "@erpx/server-legal/application/service";
 import { legalRetention } from '@erpx/server-collaboration/adapters/native-legal-retention';
 import {nativeLegalAuxiliaryRead} from '../native-legal-auxiliary';
+import {legalHoldGuardPrefix,legalHoldGuardSuffix} from '../legal-hold-guard-sources';
 export {drainLegalDestruction} from "@erpx/server-legal/adapters/legal/destruction-worker";
 /** Exact projection of the native `retention` auxiliary read; the transport accepts
  * every authoritative field and no SQL text remains in TypeScript. */
@@ -44,7 +45,7 @@ destruction:(facts:{requestId:string | undefined;id:string;})=>db.prepare("SELEC
 async changeDestruction(facts){return stage(await nativeRet.changeDestruction(facts));},
 async advanceRecord(facts){return stage(await nativeRet.advanceRecord({now:facts.now,itemId:facts.id}));},
 requireRetentionPolicyVersion:(key,values)=>stage(assertion(db,key,"retention-policy-version","EXISTS(SELECT 1 FROM legal_retention_policies WHERE id=? AND version=?)",values)),
-requireRetentionNoHold:(key,values)=>stage(assertion(db,key,"retention-no-hold","NOT EXISTS(SELECT 1 FROM legal_hold_targets t JOIN legal_holds h ON h.id=t.hold_id WHERE t.item_id=? AND h.state!='released')",values)),
+requireRetentionNoHold:(key,values)=>stage(assertion(db,key,"retention-no-hold",legalHoldGuardPrefix+"?"+legalHoldGuardSuffix,values)),
 guardChanges:(id,version,key,edit,allowFrozen)=>guards(db,a,id,version,key,edit,allowFrozen).map(stage),companyLock:()=>stage(lock(db,a.companyId)),event:async(id,action,note,version,identifier,now)=>stage(await nativeRet.event({id,action,note,version,identifier,now})),replay:(key,operation,id,input)=>replayCommand(db,a,key,operation,id,input),commit:async(key,operation,input,id,version,result,writes)=>{const receipt=await executeCommand(db,a,key,operation,input,id,version,result,writes.map(write=>{const statement=nativeWrites.get(write);if(!statement)throw new Error("LEGAL_RETENTION_REPOSITORY_MISMATCH");return statement;}));await recordLegalRetentionExecution(db,a,key,operation,input);return receipt;},
 }});}
 export async function retentionView(db:SqlDatabase,a:WorkContext,id?:string){requirePermission(a,"legal.read");if(await legalPackageEnforcementMode()!=="disabled"){if(id)await requireLegalItemPurchasedRead(db,a,await access(db,a,id),["legal.obligations"]);else if((await legalPurchaseControls(db,a))?.["legal.obligations"]?.history===false)throw new ApiError(403,"PACKAGE_REQUIRED","Legal obligations history is required.");}const view=await nativeLegalAuxiliaryRead<LegalRetentionRead>(a,'retention',id);return application(db,a,view).retentionView(id);}

@@ -7,6 +7,7 @@ import {lock} from "@erpx/server-legal/adapters/legal/access";
 import {validateLegalDestructionSources,sealLegalDestructionSources} from "@erpx/server-legal/adapters/legal/destruction-sources";
 import {createLegalDestructionWorker,type LegalDestructionWork} from "@erpx/server-legal/application/destruction-worker";
 import { legalDestructionWorker } from '@erpx/server-collaboration/adapters/native-legal-destruction-worker';
+import {legalHoldGuardPrefix,legalHoldGuardSuffix} from '../legal-hold-guard-sources';
 function work(db:SqlDatabase,files:FileStore,companyId:string):LegalDestructionWork{const nw=legalDestructionWorker(db,companyId);return {
 beginJournal:async ()=>{await db.prepare("SELECT pg_advisory_xact_lock(hashtextextended('legal-files',0))").run();},
 approvedDestruction:(facts:{id:string;})=>db.prepare("SELECT x.*,i.company_id FROM legal_destructions x JOIN legal_items i ON i.id=x.item_id WHERE x.id=? AND x.state='approved' FOR UPDATE OF x,i").bind(facts.id).first<{
@@ -16,7 +17,7 @@ approvedDestruction:(facts:{id:string;})=>db.prepare("SELECT x.*,i.company_id FR
           policy_id: string;
           policy_version: number;
         }>(),
-stillEligible:(facts:{item_id:string;policy_id:string;policy_version:number;now:number;})=>db.prepare("SELECT 1 FROM legal_retention_assignments a JOIN legal_retention_policies p ON p.id=a.policy_id JOIN legal_items i ON i.id=a.item_id WHERE a.item_id=? AND a.policy_id=? AND a.policy_version=? AND p.version=a.policy_version AND p.state='approved' AND a.eligible_at<=? AND i.state IN ('archived','closed','completed','expired','terminated') AND NOT EXISTS(SELECT 1 FROM legal_hold_targets t JOIN legal_holds h ON h.id=t.hold_id WHERE t.item_id=i.id AND h.state!='released')").bind(facts.item_id,facts.policy_id,facts.policy_version,facts.now).first(),
+stillEligible:(facts:{item_id:string;policy_id:string;policy_version:number;now:number;})=>db.prepare("SELECT 1 FROM legal_retention_assignments a JOIN legal_retention_policies p ON p.id=a.policy_id JOIN legal_items i ON i.id=a.item_id WHERE a.item_id=? AND a.policy_id=? AND a.policy_version=? AND p.version=a.policy_version AND p.state='approved' AND a.eligible_at<=? AND i.state IN ('archived','closed','completed','expired','terminated') AND "+legalHoldGuardPrefix+"i.id"+legalHoldGuardSuffix).bind(facts.item_id,facts.policy_id,facts.policy_version,facts.now).first(),
 blockDestruction:async (facts:{id:string;})=>{await (await nw.block(facts)).run();},
 startExecution:async (facts:{now:number;id:string;})=>{await (await nw.start(facts)).run();},
 recordStarted:async (facts:{identifier:string;fact1:string;now:number;item_id:string;})=>{await (await nw.startedEvent(facts)).run();},
