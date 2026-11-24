@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12556,
+    "revision": 12558,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -185005,7 +185005,7 @@
         "owner": "quality",
         "title": "quality read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -185016,22 +185016,37 @@
         "resources": [
           "owner:quality"
         ],
-        "claim": {
-          "runId": "run-20261125-a",
-          "agentId": "wH4n115",
-          "claimedAt": "2026-11-24T17:12:08.092Z",
-          "heartbeatAt": "2026-11-24T17:15:31.032Z",
-          "expiresAt": "2026-11-24T17:45:31.032Z",
-          "generation": 171
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-quality/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "126e043fe",
+            "owner": "quality",
+            "before": 34,
+            "after": 33,
+            "note": "Native quality alert hold id read preserves unscoped purchase-gate semantics; route/bind parity pinned."
+          },
+          {
+            "command": "targeted vitest + scoped tsc",
+            "result": "passed",
+            "sourceSha": "126e043fe"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Alert hold point read native port (-1): 34->33; preserve unscoped lookup. BEFORE=34.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261125-a",
+          "agentId": "wH4n115",
+          "at": "2026-11-24T17:25:56.764Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -185250,17 +185265,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 10,
+        "in_progress": 9,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1467,
+        "blocked": 1468,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 171,
-    "updatedAt": "2026-11-24T17:25:43.534Z",
+    "updatedAt": "2026-11-24T17:25:56.767Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
