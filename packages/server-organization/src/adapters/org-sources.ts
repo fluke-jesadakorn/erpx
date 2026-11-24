@@ -10,3 +10,7 @@ export const ORG_POSITIONS_SOURCE =
  * Each caller keeps its own binding, scope and supplied transaction. */
 export const ORG_BRANCH_COMPANY_SOURCE =
   "SELECT company_id FROM organization_nodes WHERE id=? AND kind='branch' AND status='active'";
+/** Canonical Company display-name read shared by the PMS/POS owner facts.
+ * Each caller keeps its own binding and supplied transaction. */
+export const ORG_NODE_DISPLAY_NAME_SOURCE =
+  "SELECT display_name FROM organization_nodes WHERE id=?";

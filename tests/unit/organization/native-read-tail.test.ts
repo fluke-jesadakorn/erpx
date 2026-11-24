@@ -117,4 +117,20 @@ describe('Organization owner-local read tail', () => {
     expect(ORG_BRANCH_COMPANY_SOURCE).toBe("SELECT company_id FROM organization_nodes WHERE id=? AND kind='branch' AND status='active'");
   });
 
+  it('shares one canonical Company display-name source across the PMS/POS owner facts', async () => {
+    const {ORG_NODE_DISPLAY_NAME_SOURCE} = await import('../../../packages/server-organization/src/adapters/org-sources');
+    const {pmsHospitalitySetupOrganizationFacts} = await import('@erpx/server-organization/adapters/pms-hospitality-setup-facts');
+    const {posCoreOrganizationFacts} = await import('@erpx/server-organization/adapters/pos-core-facts');
+    const {PosReadOrganizationFacts} = await import('@erpx/server-organization/adapters/pos-facts');
+    const seen: string[] = [];
+    const first = vi.fn(async () => ({display_name: 'Acme'}));
+    const bind = vi.fn(() => ({first}));
+    const handle = {prepare: vi.fn((sql: string) => {seen.push(sql); return {bind};})} as unknown as SqlDatabase;
+    await expect(pmsHospitalitySetupOrganizationFacts(handle).companyName({company: 'company'})).resolves.toEqual({display_name: 'Acme'});
+    await expect(posCoreOrganizationFacts(handle).readOrganizationNodes2({company: 'company'})).resolves.toEqual({display_name: 'Acme'});
+    await expect(PosReadOrganizationFacts(handle).readOrganizationNodes1({company: 'company'})).resolves.toEqual({display_name: 'Acme'});
+    expect(seen).toEqual([ORG_NODE_DISPLAY_NAME_SOURCE, ORG_NODE_DISPLAY_NAME_SOURCE, ORG_NODE_DISPLAY_NAME_SOURCE]);
+    expect(ORG_NODE_DISPLAY_NAME_SOURCE).toBe('SELECT display_name FROM organization_nodes WHERE id=?');
+  });
+
 });

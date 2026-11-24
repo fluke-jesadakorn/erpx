@@ -1,6 +1,7 @@
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import {all,one} from '@erpx/server-runtime/public/runtime/sql';
+import {ORG_NODE_DISPLAY_NAME_SOURCE} from './org-sources';
 export function pmsHospitalitySetupOrganizationFacts(db: SqlDatabase) {
     return {
         branches: (facts: {
@@ -10,6 +11,6 @@ export function pmsHospitalitySetupOrganizationFacts(db: SqlDatabase) {
         }) => all(db, "SELECT id,display_name name FROM organization_nodes WHERE company_id=? AND kind='branch' AND status='active' AND (?::text IS NULL OR id=?) ORDER BY display_name", facts.company, facts.branchId, facts.branchId2),
         companyName: (facts: {
             company: string;
-        }) => one(db, 'SELECT display_name FROM organization_nodes WHERE id=?', facts.company)
+        }) => one(db, ORG_NODE_DISPLAY_NAME_SOURCE, facts.company)
     };
 }
