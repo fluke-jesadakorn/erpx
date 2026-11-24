@@ -12,6 +12,8 @@ const commerceFinalSources=commerceFinalOwnerProjections(),financeFinalSources=f
 const orderFulfilledExistsSql = `WHEN d.state='fulfilled' AND EXISTS(SELECT 1 ${commerceFinalSources.flow_routing_commerce_fulfillments_f_from} `;
 /** Byte-identical company-scoped flow-routes read fragment shared by the bulk read and the single-route read; emitted SQL is unchanged. */
 const flowRoutesByCompanySql = "SELECT * FROM flow_routes WHERE company_id=?";
+/** Byte-identical span shared by the flow-defaults revision read and the route-version guard; emitted SQL is unchanged. */
+const flowDefaultsMaxRevisionSql = "SELECT COALESCE(MAX(revision),0)";
 const flowAdvanceSql=JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)),'../flow-advance-sql.json'),'utf8')) as Record<string,string>;
 function flowAdvanceStatement(kind:FlowKind):string{const sql=flowAdvanceSql[kind];if(!sql)throw new Error(`FLOW_ADVANCE_SQL_MISSING:${kind}`);return sql;}
 
@@ -100,7 +102,7 @@ export function nativeFlowPlanningPorts(database: SqlDatabase): FlowPlanningPort
         }>(); },
         readSharedFlowReferencesRoutesdefaultsevents3(companyId: string) { return database.prepare("SELECT kind,record_id,action,actor_name,created_at,reason,step_key FROM flow_events WHERE company_id=? ORDER BY created_at,id").bind(companyId).all<FlowHistoryRow>(); },
         readReadFlowRoute(companyId: string, kind: "expense" | "leave" | "staff_task" | "request" | "stock_count" | "transfer" | "order" | "invoice" | "journal" | "payroll" | "record", id: string) { return database.prepare(`${flowRoutesByCompanySql} AND kind=? AND record_id=?`).bind(companyId, kind, id).first<Route>(); },
-        readReadFlowDefaultsRevision(companyId: string) { return database.prepare("SELECT COALESCE(MAX(revision),0) revision FROM flow_defaults WHERE company_id=?").bind(companyId).first<{
+        readReadFlowDefaultsRevision(companyId: string) { return database.prepare(`${flowDefaultsMaxRevisionSql} revision FROM flow_defaults WHERE company_id=?`).bind(companyId).first<{
             revision: number;
         }>(); },
         readReadFlowDefaults(companyId: string, kind: "expense" | "leave" | "staff_task" | "request" | "stock_count" | "transfer" | "order" | "invoice" | "journal" | "payroll" | "record", branch_id: string | null, department_id: string | null, defaultsRevision: number) { return database.prepare(`SELECT revision,step_key,primary_user_id FROM flow_defaults WHERE company_id=? AND kind=? AND (branch_id IS NULL OR branch_id=?) AND (department_id IS NULL OR department_id=?) AND revision<=? ORDER BY CASE WHEN department_id IS NOT NULL THEN 3 WHEN branch_id IS NOT NULL THEN 2 ELSE 1 END DESC,revision DESC`).bind(companyId, kind, branch_id, department_id, defaultsRevision).all<DefaultRow>(); },
@@ -114,7 +116,7 @@ export function nativeFlowPlanningPorts(database: SqlDatabase): FlowPlanningPort
             step_key: string;
         }>(); },
         guard24(key: string, value: string, args: string[], version: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM flow_routes WHERE company_id=? AND kind=? AND record_id=? AND version=?)", [...args, version]); },
-        guard25(key: string, value: string, companyId: string, revision: number) { return assertion(database, key, value, "(SELECT COALESCE(MAX(revision),0) FROM flow_defaults WHERE company_id=?)=?", [companyId, revision]); },
+        guard25(key: string, value: string, companyId: string, revision: number) { return assertion(database, key, value, `(${flowDefaultsMaxRevisionSql} FROM flow_defaults WHERE company_id=?)=?`, [companyId, revision]); },
         async stageRouteStatementsEffect(args: string[], revision: number, value: string, now: number) {
             return workflowWave3Statement(database, {kind:'system'}, 'wf_flow_stageroutestatementseffect', [...args, revision, value, now], String(now).slice(0,180), now); },
         readPrepareFlowCommandPerson(companyId: string, userId: string) { return people_payroll_flow_routing(database).readPrepareFlowCommandPerson(companyId, userId); },

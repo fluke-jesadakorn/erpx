@@ -864,16 +864,9 @@ describe('workflow canonical replay receipt read tail (native read plan)', () =>
   });
 });
 
-describe('workflow export receipt result_json dedupe', () => {
-  it('shares one fixed SQL constant across both export receipt readers', async () => {
-    const [supplierSource, financeSource, sharedSource] = await Promise.all([
-      readFile(
-        new URL(
-          '../../../packages/server-workflow/src/adapters/supplier-export-receipt.ts',
-          import.meta.url,
-        ),
-        'utf8',
-      ),
+describe('workflow export receipt result_json dedupe (r32)', () => {
+  it('keeps one fixed SQL constant for the remaining export receipt reader', async () => {
+    const [financeSource, sharedSource] = await Promise.all([
       readFile(
         new URL(
           '../../../packages/server-workflow/src/adapters/finance-command-receipts.ts',
@@ -886,19 +879,26 @@ describe('workflow export receipt result_json dedupe', () => {
         'utf8',
       ),
     ]);
-    expect(supplierSource).toContain('exportReceiptResultSql');
     expect(financeSource).toContain('exportReceiptResultSql');
-    expect(supplierSource).not.toContain('SELECT result_json FROM command_receipts');
     expect(financeSource).not.toContain("AND operation='finance.refund.export'");
     expect(sharedSource.match(/SELECT result_json FROM command_receipts/g)).toHaveLength(1);
   });
 
-  it('binds command id and operation and returns result_json for both callers', async () => {
+  it('leaves no orphan adapter/barrel or dangling export entry', async () => {
+    const { access } = await import('node:fs/promises');
+    for (const relative of [
+      '../../../packages/server-workflow/src/adapters/supplier-export-receipt.ts',
+      '../../../packages/server-workflow/src/public/supplier-export-receipt.ts',
+    ]) {
+      await expect(access(new URL(relative, import.meta.url))).rejects.toThrow();
+    }
+    const manifest = await readFile(new URL('../../../packages/server-workflow/package.json', import.meta.url), 'utf8');
+    expect(manifest).not.toContain('supplier-export-receipt');
+  });
+
+  it('binds command id and operation and returns result_json for the refund reader', async () => {
     const { exportReceiptResultSql } = await import(
       '../../../packages/server-workflow/src/adapters/receipt-sql'
-    );
-    const { supplierExportReceipt } = await import(
-      '../../../packages/server-workflow/src/adapters/supplier-export-receipt'
     );
     const { financeCommandReceipts } = await import(
       '../../../packages/server-workflow/src/adapters/finance-command-receipts'
@@ -910,11 +910,6 @@ describe('workflow export receipt result_json dedupe', () => {
       const prepare = vi.fn(() => ({ bind }));
       return { db: { prepare } as never, prepare, bind, first };
     };
-
-    const supplier = fakeDb();
-    expect(await supplierExportReceipt(supplier.db, 'supplier-key')).toEqual(row);
-    expect(supplier.prepare).toHaveBeenCalledWith(exportReceiptResultSql);
-    expect(supplier.bind).toHaveBeenCalledWith('supplier-key', 'finance.supplier_batch.export');
 
     const refund = fakeDb();
     expect(await financeCommandReceipts(refund.db).refundExport('refund-key')).toEqual(row);

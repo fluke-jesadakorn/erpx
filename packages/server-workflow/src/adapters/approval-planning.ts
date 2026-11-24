@@ -24,6 +24,7 @@ import { type ApprovalsRepository } from '@erpx/server-workflow/application/appr
 import { BusinessRuleError } from '@erpx/server-shared/index';
 import {createApprovalPlanningApplication,type ApprovalPlanningPorts}from '@erpx/server-workflow/application/approvals';
 import {workflowWave3Statement} from './native-workflow-wave3';
+import {approvalInstancesStarWhereSql} from './approval-projection-sources';
 const peoplepayrollFinalSources=peoplepayrollFinalOwnerProjections();
 const approvalStepsApproverSql = `SELECT s.*,COALESCE(p.legal_name,s.approver_user_id) approver_name FROM approval_steps s LEFT ${peoplepayrollFinalSources.approvals_hr_people_p_join} ON p.user_id=s.approver_user_id AND p.company_id=? AND p.merged_into_id IS NULL WHERE s.instance_id`;
 /** Byte-identical span shared by the previous/approver name lookups; emitted SQL is unchanged. */
@@ -52,7 +53,7 @@ export function nativeApprovalPlanningPorts(database: SqlDatabase, readOverrides
         guard4(key: string, value: "override-current-chain", companyId: string, assignedUserId: string, companyId2: string, companyId3: string, userId: string) { return people_payroll_approvals(database).guard4(key, value, companyId, assignedUserId, companyId2, companyId3, userId); },
         guard5(key: string, value: "override-independent", userId: string, requesterUserId: string, companyId: string, preparerUserId: string | null, userId2: string, preparerUserId2: string | null, companyId2: string) { return identity_access_approvals(database).guard5(key, value, userId, requesterUserId, companyId, preparerUserId, userId2, preparerUserId2, companyId2); },
         readCurrentApprovalEffect(kind: ApprovalKind, id: string, companyId: string) {
-            return database.prepare("SELECT * FROM approval_instances WHERE record_type=? AND record_id=? AND company_id=? ORDER BY insertion_order DESC LIMIT 1")
+            return database.prepare(`${approvalInstancesStarWhereSql}record_type=? AND record_id=? AND company_id=? ORDER BY insertion_order DESC LIMIT 1`)
                 .bind(kind, id, companyId)
                 .first<ApprovalInstance>();
         },
@@ -144,7 +145,7 @@ export function nativeApprovalPlanningPorts(database: SqlDatabase, readOverrides
             return nativeWorkflowWrite('wf_native_approval_planning_1', [value, now, kind, id]);
         },
         readRerouteApprovalInstance(id: string, companyId: string) {
-            return database.prepare("SELECT * FROM approval_instances WHERE id=? AND company_id=?")
+            return database.prepare(`${approvalInstancesStarWhereSql}id=? AND company_id=?`)
                 .bind(id, companyId)
                 .first<ApprovalInstance>();
         },
