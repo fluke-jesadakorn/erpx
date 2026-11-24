@@ -49,7 +49,7 @@ describe('pms read-tail r19 byte-identical projection-fragment dedupe', () => {
     for (const file of await tsFiles(dir)) count += (await readFile(file, 'utf8')).split('SELECT ').length - 1;
     // r20 deduped the 3x pms_properties and 3x pms_records projections below r19 after=481.
     // r21 deduped the 4x parameterized recipient cross-join fragment below r20 after=477.
-    expect(count).toBe(405);
+    expect(count).toBe(404);
     expect(count).toBeLessThan(487);
   });
 });

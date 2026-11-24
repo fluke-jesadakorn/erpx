@@ -7,10 +7,11 @@ import { pmsSourceRecipients as recipients } from "@erpx/server-identity_access/
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { pmsSourceReadableSql } from "@erpx/server-pms/adapters/pms/source-policy";
 import { PMS_RECIPIENT_FROM_SQL } from "../pms-read-tail-r22-sql";
+import { PMS_PURCHASE_CLOCK_CTE_SQL } from "../pms-read-tail-r27-sql";
 import { createPmsSourceApplication } from "@erpx/server-pms/application/source";
 import type { PmsSource } from "@erpx/server-pms/domain/source";
 import { pmsPackageEnforcementMode, readPurchasedAccess } from "@erpx/server-commercial/public/purchase-command-boundary";
-import { purchasedCapabilityPredicate, packageClockSql } from "@erpx/server-commercial/public/purchased-capability-sql";
+import { purchasedCapabilityPredicate } from "@erpx/server-commercial/public/purchased-capability-sql";
 export { decodePmsSource, pmsSourceLink } from "@erpx/server-pms/domain/source";
 export type { PmsSource } from "@erpx/server-pms/domain/source";
 function application(db: SqlDatabase) {
@@ -42,7 +43,7 @@ export async function readablePmsSourceIds(actor: StaffActor) {
     else if (can("pms.cashier")) conditions.push("pr.kind='shift' AND pr.data->>'userId'=recipient.user_id");
     if (can("pms.audit") || can("pms.reports")) conditions.push("pr.kind='night'");
     const enforced=await pmsPackageEnforcementMode()==='enforced';
-    const clock=enforced?`WITH purchase_clock AS MATERIALIZED (SELECT ${packageClockSql} observed_at) `:'',join=enforced?' CROSS JOIN purchase_clock':'';
+    const clock=enforced?PMS_PURCHASE_CLOCK_CTE_SQL:'',join=enforced?' CROSS JOIN purchase_clock':'';
     const purchase=enforced?purchasedCapabilityPredicate('pr.company_id','pms.front-desk','history','purchase_clock.observed_at'):'TRUE';
     return { sql: `${clock}SELECT pr.id ${PMS_RECIPIENT_FROM_SQL}${join} WHERE pr.company_id=? AND ${purchase}
       AND (?::text IS NULL OR pr.branch_id=?) AND (${conditions.length ? conditions.map(value => `(${value})`).join(" OR ") : "FALSE"})

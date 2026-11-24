@@ -1,6 +1,7 @@
 import {hydratePmsReceiptAllocationCredits} from "../../../../packages/server-pms/src/adapters/pms";
 import { PMS_WRITE_CONTEXT_SQL } from "./pms-read-tail-r17-sql";
 import { PMS_BOOKING_PAYMENT_BY_ID_SQL } from "./pms-read-tail-r18-sql";
+import { PMS_PURCHASE_CLOCK_CTE_SQL } from "./pms-read-tail-r27-sql";
 import {holdingRoutingEnabled,holdingHosts} from '@erpx/contracts/holding-hosts';
 import {bookingEmailDeliveryPayload} from "@erpx/server-pms/adapters/booking-email-delivery";
 import "server-only";
@@ -27,7 +28,7 @@ import { pmsBookingPublications } from "@erpx/server-files/public/pms-booking-pu
 import { pmsBookingPosFacts } from "@erpx/server-pos/public/pms-booking-facts";
 import { pmsPropertyPurchaseAllowed, pmsPropertyPurchaseFlags, requirePmsPropertyPurchase, withPmsPropertyPurchasedTransaction } from "@erpx/server-pms/adapters/property-purchase-boundary";
 import { pmsPackageEnforcementMode } from "@erpx/server-commercial/public/purchase-command-boundary";
-import { purchasedCapabilityPredicate, packageClockSql } from "@erpx/server-commercial/public/purchased-capability-sql";
+import { purchasedCapabilityPredicate } from "@erpx/server-commercial/public/purchased-capability-sql";
 import { nativePmsOwnerWrite } from "@erpx/feature-pms/public/native-pms";
 export async function bookingEnv(): Promise<BookingEnv> {
     const env = await runtimeEnv();
@@ -332,7 +333,7 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase, companyId = '')
         }>(db, `SELECT * FROM pms_records WHERE property_id=?${facts.search ? " AND (kind IN ('room_type','room','rate') OR (kind='block' AND data_json::jsonb->>'state'='active') OR (kind='stay' AND data_json::jsonb->>'state' IN ('reserved','in_house') AND data_json::jsonb->>'arrival' < ? AND data_json::jsonb->>'departure' > ?))" : ""} ORDER BY id`, facts.propertyId, ...facts.fact1),
         readPmsProperties3: async () => {
             const mode = await pmsPackageEnforcementMode(), enforced = mode === "enforced";
-            const clock = enforced ? `WITH purchase_clock AS MATERIALIZED (SELECT ${packageClockSql} observed_at) ` : "";
+            const clock = enforced ? PMS_PURCHASE_CLOCK_CTE_SQL : "";
             const join = enforced ? " CROSS JOIN purchase_clock" : "";
             const purchase = enforced ? purchasedCapabilityPredicate("p.company_id", "pms.reservations", "new-work", "purchase_clock.observed_at") : "TRUE";
             const hotels = await rows<{ id: string; name: string; config_json: string }>(db, `${clock}SELECT p.id,p.name,p.config_json FROM pms_properties p${join}

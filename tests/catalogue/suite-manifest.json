@@ -70259,6 +70259,31 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "pms",
+      "modules": [
+        "pms"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "PMS purchase clock CTE must stay one constant."
+      },
+      "apps": "booking",
+      "packages": [
+        "@erpx/server-pms"
+      ],
+      "id": "pms.read-tail-r27-dedupe.unit",
+      "files": [
+        "tests/unit/pms/pms-read-tail-r27-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "pms.reports.integration",
       "lane": "integration",
       "owner": "pms",
@@ -81572,6 +81597,31 @@
       "id": "sales.read-tail-r20-dedupe.unit",
       "files": [
         "tests/unit/sales/read-tail-r20-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "sales",
+      "modules": [
+        "sales"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Sales followup customer order join must stay one generator."
+      },
+      "apps": "sales",
+      "packages": [
+        "@erpx/server-sales"
+      ],
+      "id": "sales.read-tail-r21-dedupe.unit",
+      "files": [
+        "tests/unit/sales/read-tail-r21-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
