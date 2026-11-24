@@ -3,4 +3,6 @@ import "server-only";
 export const approvalInstancesSql = "SELECT \"id\",\"company_id\",\"branch_id\",\"department_id\",\"record_type\",\"record_id\",\"phase\",\"cycle\",\"requester_user_id\",\"assignee_user_id\",\"state\",\"current_step\",\"blocked_reason\",\"version\",\"created_at\",\"updated_at\",\"insertion_order\" FROM approval_instances";
 export const approvalStepsSql = "SELECT \"id\",\"instance_id\",\"ordinal\",\"approver_user_id\",\"authority\",\"state\",\"approver_pool_json\",\"required_role\",\"stage\",\"route_snapshot_json\" FROM approval_steps";
 export const approvalStepsByInstanceSql = "SELECT * FROM approval_steps WHERE instance_id=? ORDER BY ordinal";
+/** Byte-identical generator family for approval-step ordinal point reads: callers choose the projection, the emitted SQL is unchanged. */
+export const approvalStepByOrdinalSql = (columns: string): string => `SELECT ${columns} FROM approval_steps WHERE instance_id=? AND ordinal=?`;
 export const auditEventsSql = "SELECT \"id\",\"command_id\",\"actor_id\",\"assignment_id\",\"action\",\"record_type\",\"record_id\",\"record_version\",\"purpose\",\"created_at\",\"authority_json\" FROM audit_events";
