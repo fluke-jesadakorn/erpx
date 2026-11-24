@@ -40,6 +40,11 @@ const agentCompanyListSql = (table: string, suffix: string) =>
  * call site keeps its own company bind; the native owner remains the authority. */
 const agentPoolChildListSql = (table: string, alias: string, suffix: string) =>
   `SELECT ${alias}.* FROM ${table} ${alias} JOIN agent_pools p ON p.id=${alias}.pool_id WHERE p.company_id=? ORDER BY ${suffix}`;
+/** Parameterized Agent catalog-joined company list projection shared by workspaceVersions
+ * and workspaceAssignments. Only the selected columns, joined source, company alias and
+ * ORDER BY vary; each call site keeps its own company bind; the native owner remains the authority. */
+const agentCatalogListSql = (cols: string, from: string, companyAlias: string, suffix: string) =>
+  `SELECT ${cols} FROM ${from} JOIN agent_catalog a ON a.id=v.agent_id WHERE ${companyAlias}.company_id=? ORDER BY ${suffix}`;
 async function exposed<T>(action:()=>Promise<T>){try{return await action();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
 function bindRepository(db:SqlDatabase):AgentGovernanceRepository<SqlStatement>{return {async policyCandidates(companyId:string,userId:string){return (await db.prepare(
     `SELECT x.id,x.version assignment_version,x.scope_path,x.pool_id,x.agent_version_id,
@@ -73,7 +78,7 @@ async workspaceAgents(companyId:string){return (await db
           .all<Row>()).results;},
 async workspaceVersions(companyId:string){return (await db
           .prepare(
-            "SELECT v.*,a.name agent_name FROM agent_versions v JOIN agent_catalog a ON a.id=v.agent_id WHERE a.company_id=? ORDER BY v.created_at DESC",
+            agentCatalogListSql('v.*,a.name agent_name','agent_versions v','a','v.created_at DESC'),
           )
           .bind(companyId)
           .all<Row>()).results;},
@@ -83,7 +88,7 @@ async workspacePools(companyId:string){return (await db
           .all<Row>()).results;},
 async workspaceAssignments(companyId:string){return (await db
           .prepare(
-            "SELECT x.*,v.version_number,a.name agent_name FROM agent_assignments x JOIN agent_versions v ON v.id=x.agent_version_id JOIN agent_catalog a ON a.id=v.agent_id WHERE x.company_id=? ORDER BY x.updated_at DESC",
+            agentCatalogListSql('x.*,v.version_number,a.name agent_name','agent_assignments x JOIN agent_versions v ON v.id=x.agent_version_id','x','x.updated_at DESC'),
           )
           .bind(companyId)
           .all<Row>()).results;},
