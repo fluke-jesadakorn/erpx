@@ -67,7 +67,7 @@ describe('operations read-tail r48 thin-alias retirement', () => {
       src('operations-staff-task-exists.ts'), src('handover-policy.ts'),
       src('identity-policy-version-guard.ts'),
     ]);
-    expect(purchases.match(/operationsTableExists\(/g)).toHaveLength(2);
+    expect(purchases.match(/operationsTableExists\(/g)).toHaveLength(3); // r49 added the embedded handbook_editors probe
     expect(purchases).not.toContain('EXISTS(SELECT 1 FROM handbook_articles');
     expect(obligations.match(/obligationSourceHead\(/g)).toHaveLength(3);
     expect(obligations).not.toContain('MATERIALIZED(SELECT t.* FROM (${operations.tasks})t');
