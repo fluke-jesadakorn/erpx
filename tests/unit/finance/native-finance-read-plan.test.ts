@@ -26,6 +26,7 @@ import {
   COMMAND_RECEIPT_RECORD_IMAGE_SQL,
 } from '../../../packages/server-finance/src/adapters/finance-read-tail-r15-sql';
 import { OPEN_PERIOD_GUARD_SQL, OPEN_PERIOD_IDS_SQL } from '../../../packages/server-finance/src/adapters/finance-read-tail-r16-sql';
+import { SUPPLIER_RESERVATION_GUARD_SQL, BANK_TRANSACTION_BY_ID_SQL, DIMENSION_DEFINITIONS_SQL } from '../../../packages/server-finance/src/adapters/finance-read-tail-r17-sql';
 import { peoplePayrollFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/people-payroll-final-owner-projections';
 import { workflowFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/workflow-final-owner-projections';
 import {
@@ -459,5 +460,42 @@ describe('finance read-tail r16 byte-identical SQL dedupe', () => {
     expect(share.split(`${R16_IDS_LITERAL} FOR SHARE`).length - 1).toBe(1);
     const limit = await readFile(new URL('../../../packages/server-finance/src/adapters/manufacturing-accounting-sources.ts', import.meta.url), 'utf8');
     expect(limit.split(`${R16_IDS_LITERAL} ORDER BY start_date DESC,id LIMIT 1`).length - 1).toBe(1);
+  });
+});
+
+const R17_SUPPLIER_LITERAL = "NOT EXISTS(SELECT 1 FROM finance_supplier_instructions WHERE invoice_id=? AND status IN ('reserved','exported','unknown'))";
+const R17_BANK_LITERAL = "SELECT t.*,s.bank_account FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id WHERE t.id=? AND t.company_id=?";
+const R17_DIMENSION_LITERAL = "SELECT id,code,name,required FROM finance_dimension_definitions WHERE company_id=? AND status='active' ORDER BY code";
+const R17_GROUPS: [string, string, string, string[]][] = [
+  ['SUPPLIER_RESERVATION_GUARD_SQL', SUPPLIER_RESERVATION_GUARD_SQL, R17_SUPPLIER_LITERAL, ['commerce-facts.ts', 'finance-withholding.ts', 'finance.ts']],
+  ['BANK_TRANSACTION_BY_ID_SQL', BANK_TRANSACTION_BY_ID_SQL, R17_BANK_LITERAL, ['finance-bank-automation.ts', 'finance.ts', 'refunds.ts']],
+  ['DIMENSION_DEFINITIONS_SQL', DIMENSION_DEFINITIONS_SQL, R17_DIMENSION_LITERAL, ['finance-assets.ts', 'ledger.ts', 'record-presentation.ts']],
+];
+
+describe('finance read-tail r17 byte-identical SQL dedupe', () => {
+  it('keeps one byte-identical literal per family', async () => {
+    const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r17-sql.ts', import.meta.url), 'utf8');
+    expect(shared.split('SELECT ').length - 1).toBe(3);
+    for (const [name, actual, literal] of R17_GROUPS) {
+      expect(actual).toBe(literal);
+      expect(shared.split(literal).length - 1).toBe(1);
+      expect(typeof name).toBe('string');
+    }
+  });
+
+  it('backs all 9 call sites with the shared constants and no inline literal', async () => {
+    for (const [name, , literal, files] of R17_GROUPS) {
+      for (const file of files) {
+        const text = await readFile(new URL(`../../../packages/server-finance/src/adapters/${file}`, import.meta.url), 'utf8');
+        expect(text.split(literal).length - 1).toBe(0);
+        expect(text).toContain("from './finance-read-tail-r17-sql'");
+        expect(text).toContain(name);
+      }
+    }
+  });
+
+  it('leaves the FOR UPDATE OF t variants inline', async () => {
+    const pos = await readFile(new URL('../../../packages/server-finance/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
+    expect(pos.split(`${R17_BANK_LITERAL} FOR UPDATE OF t`).length - 1).toBe(2);
   });
 });

@@ -1,4 +1,5 @@
 import {withRefundBankEvidenceConfirmation,withRefundBankEvidenceWorkspace,type RefundBankEvidenceReadScope} from '@erpx/server-finance/adapters/refund-bank-evidence';
+import { BANK_TRANSACTION_BY_ID_SQL } from './finance-read-tail-r17-sql';
 import { nativeFinanceRefunds } from '@erpx/server-collaboration/adapters/native-finance-refunds';
 import {withFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
 import {financeRefundHistoryPredicate} from "@erpx/server-finance/adapters/document-purchases";
@@ -92,7 +93,7 @@ function refundService(provided?:SqlDatabase,presentation?:{historyOnly:boolean;
                 await nativeFinanceRefunds(write, actor.companyId).obligationBump2([now, owner.id]),
                 await nativeRefundNotification(write, actor, key, String(owner.id), input.outcome === 'unknown' ? 'review' : 'treasury', 'Refund bank exception updated: review source evidence before retrying', actor.userId),
             ]);
-        }, bank: async (facts) => { const { input, actor } = facts; const write = await db(actor); return write.prepare('SELECT t.*,s.bank_account FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id WHERE t.id=? AND t.company_id=?').bind(input.bankTransactionId, actor.companyId).first<Row>(); }, proofSets: async (facts) => { const { actor, input } = facts; const write = await db(actor); return (await financeRefundProofFacts(write).readRefundProofSets(actor.companyId, input.attachmentSetIds)).results; }, commitConfirmRefundInstruction: async (facts) => {
+        }, bank: async (facts) => { const { input, actor } = facts; const write = await db(actor); return write.prepare(BANK_TRANSACTION_BY_ID_SQL).bind(input.bankTransactionId, actor.companyId).first<Row>(); }, proofSets: async (facts) => { const { actor, input } = facts; const write = await db(actor); return (await financeRefundProofFacts(write).readRefundProofSets(actor.companyId, input.attachmentSetIds)).results; }, commitConfirmRefundInstruction: async (facts) => {
             const { actor, key, input, id, paymentId, journal: journalPlan, fxJournal: fxJournalPlan, carrying, cashBase, gain, loss, owner, amount, foreignSource, sourceBase, outgoing, row, bank, now } = facts;
             const write = await db(actor);
             const journal = journals.get(journalPlan.result.id)!, fxJournal = fxJournalPlan ? journals.get(fxJournalPlan.result.id)! : null, snapshot = { statement: stagedMoney! }, attachmentBinding = proofBinding;

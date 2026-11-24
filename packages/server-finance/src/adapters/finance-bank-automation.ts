@@ -1,4 +1,5 @@
 import {withFinancePurchasedCommand,withFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
+import { BANK_TRANSACTION_BY_ID_SQL } from './finance-read-tail-r17-sql';
 import { nativeFinanceBankAutomation } from '@erpx/server-collaboration/adapters/native-finance-bank-automation';
 import {financeCommandReceipts} from "@erpx/server-workflow/public/finance-command-receipts";
 import {financeBankPosCashAvailableSql} from '@erpx/server-pos/public/finance-bank-cash-source';
@@ -79,7 +80,7 @@ importCommit:async(facts)=>{const {actor,key,op,input,statement,fileHash}=facts;
     );},
 bank:async(actor,id)=>write
       .prepare(
-        "SELECT t.*,s.bank_account FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id WHERE t.id=? AND t.company_id=?",
+        BANK_TRANSACTION_BY_ID_SQL,
       )
       .bind(id, actor.companyId)
       .first<BankRow>(),
