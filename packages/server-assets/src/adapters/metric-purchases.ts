@@ -4,10 +4,11 @@ import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
 import {assetPermissionProbeSql} from "./asset-scope-probe";
+import {assetClockNowMsSql} from "./record-purchases";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {assetsPackageEnforcementMode,readPurchasedAccesses} from "@erpx/server-commercial/public/purchase-command-boundary";
-import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
+import {purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
 const metrics={"active-assets":{module:"assets",table:"operational_assets",capability:"assets.register"},"asset-condition-location":{module:"assets",table:"operational_assets",capability:"assets.register"},"asset-retirements":{module:"assets",table:"operational_assets",capability:"assets.register"},"open-work-orders":{module:"maintenance",table:"maintenance_work_orders",capability:"assets.maintenance"},"blocked-maintenance":{module:"maintenance",table:"maintenance_work_orders",capability:"assets.maintenance"},"asset-downtime":{module:"maintenance",table:"maintenance_work_orders",capability:"assets.downtime"}} as const;
 type AssetMetricId=keyof typeof metrics;
 export async function assetMetricHistoryAccess(database:SqlDatabase,actor:WorkContext){
@@ -21,5 +22,5 @@ export async function assetMetricSource(database:SqlDatabase,actor:WorkContext,i
  const definition=metrics[id as AssetMetricId];if(!definition)throw new ApiError(422,"METRIC_UNSUPPORTED","This Assets metric has no owner source.");
  if(!(await assetMetricHistoryAccess(database,actor))[id])throw new ApiError(403,"METRIC_SOURCE_UNAVAILABLE","This metric requires purchased Assets history and current source authority.");
  if(await assetsPackageEnforcementMode()!=="enforced")return {sql:`SELECT * FROM ${definition.table}`,args:[] as (string|number|null)[]};
- return {sql:`WITH asset_metric_clock AS MATERIALIZED (SELECT ${packageClockSql} now_ms) SELECT asset_metric_owned.* FROM ${definition.table} asset_metric_owned CROSS JOIN asset_metric_clock WHERE ${assignmentReadSql("asset_metric_owned","records.read")} AND ${purchasedCapabilityPredicate("asset_metric_owned.company_id",definition.capability,"history","asset_metric_clock.now_ms")}`,args:[actor.assignmentId,actor.userId,actor.role]};
+ return {sql:`WITH asset_metric_clock AS MATERIALIZED ${assetClockNowMsSql} SELECT asset_metric_owned.* FROM ${definition.table} asset_metric_owned CROSS JOIN asset_metric_clock WHERE ${assignmentReadSql("asset_metric_owned","records.read")} AND ${purchasedCapabilityPredicate("asset_metric_owned.company_id",definition.capability,"history","asset_metric_clock.now_ms")}`,args:[actor.assignmentId,actor.userId,actor.role]};
 }

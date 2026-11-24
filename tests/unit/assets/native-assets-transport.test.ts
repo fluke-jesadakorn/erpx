@@ -532,3 +532,24 @@ describe('Assets read-tail r17 byte-identical family dedupe',()=>{
   }
  });
 });
+
+describe('Assets read-tail r19 clock-CTE family dedupe',()=>{
+  const base=new URL('../../../packages/server-assets/src/adapters/',import.meta.url);
+  it('keeps the materialized clock CTE byte-identical with one owner literal',async()=>{
+    const {readFile}=await import('node:fs/promises');
+    const {packageClockSql}=await import('@erpx/server-commercial/public/purchased-capability-sql');
+    const {assetClockNowMsSql}=await import('../../../packages/server-assets/src/adapters/record-purchases');
+    expect(assetClockNowMsSql).toBe(`(SELECT ${packageClockSql} now_ms)`);
+    for(const [file,alias] of [['record-purchases.ts','asset_source_clock'],['metric-purchases.ts','asset_metric_clock']] as const){
+      const text=await readFile(new URL(file,base),'utf8');
+      expect(text).toContain('WITH '+alias+' AS MATERIALIZED ${assetClockNowMsSql}');
+      expect(text).not.toContain('WITH '+alias+' AS MATERIALIZED (SELECT ${packageClockSql}');
+    }
+    const record=await readFile(new URL('record-purchases.ts',base),'utf8');
+    const metric=await readFile(new URL('metric-purchases.ts',base),'utf8');
+    expect(record.match(/SELECT/g)).toHaveLength(2);
+    expect(metric.match(/SELECT/g)).toHaveLength(2);
+    expect(`WITH asset_source_clock AS MATERIALIZED ${assetClockNowMsSql}`).toBe('WITH asset_source_clock AS MATERIALIZED (SELECT '+packageClockSql+' now_ms)');
+    expect(`WITH asset_metric_clock AS MATERIALIZED ${assetClockNowMsSql}`).toBe('WITH asset_metric_clock AS MATERIALIZED (SELECT '+packageClockSql+' now_ms)');
+  });
+});
