@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8481,
+    "revision": 8489,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -139825,7 +139825,7 @@
         "owner": "planning",
         "title": "planning TS read tail native cutover (r1)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -139837,22 +139837,37 @@
         "resources": [
           "owner:planning"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGCPpln",
-          "claimedAt": "2026-11-24T02:11:17.751Z",
-          "heartbeatAt": "2026-11-24T02:21:45.586Z",
-          "expiresAt": "2026-11-24T02:51:45.586Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-planning/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "666f20906",
+            "owner": "planning",
+            "before": 48,
+            "after": 47,
+            "note": "Organization branch label fragment shared by shortage and recommendation breakdowns; residual 47 classified."
+          },
+          {
+            "command": "vitest planning capacity (4) + tsc planning",
+            "result": "passed",
+            "sourceSha": "666f20906"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "New read-tail lane; find byte-identical SELECT groups, no composition. BEFORE=48.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCPpln",
+          "at": "2026-11-24T02:22:27.826Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -139898,7 +139913,7 @@
         "owner": "legal",
         "title": "legal TS read tail native cutover (r14)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -139911,22 +139926,37 @@
         "resources": [
           "owner:legal"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGChleg",
-          "claimedAt": "2026-11-24T02:11:49.774Z",
-          "heartbeatAt": "2026-11-24T02:21:45.586Z",
-          "expiresAt": "2026-11-24T02:51:45.586Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-legal/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "666f20906",
+            "owner": "legal",
+            "before": 281,
+            "after": 280,
+            "note": "legal_members jsonb_agg shared by attachment source and purchases witness; all lock sites unchanged."
+          },
+          {
+            "command": "vitest legal (196) + tsc legal",
+            "result": "passed",
+            "sourceSha": "666f20906"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=281.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGChleg",
+          "at": "2026-11-24T02:22:27.330Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -140717,6 +140747,78 @@
         "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=129.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.legal.read-tail-r15",
+        "goalId": "G4",
+        "owner": "legal",
+        "title": "legal TS read tail native cutover (r15)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-legal/src/**",
+          "tests/unit/legal/**",
+          "tests/integration/legal/**"
+        ],
+        "resources": [
+          "owner:legal"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGC4leg",
+          "claimedAt": "2026-11-24T02:22:28.242Z",
+          "heartbeatAt": "2026-11-24T02:22:28.242Z",
+          "expiresAt": "2026-11-24T02:52:28.242Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=280.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.planning.read-tail-r2",
+        "goalId": "G4",
+        "owner": "planning",
+        "title": "planning TS read tail native cutover (r2)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-planning/src/**",
+          "tests/unit/planning/**",
+          "tests/integration/planning/**"
+        ],
+        "resources": [
+          "owner:planning"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGC5pln",
+          "claimedAt": "2026-11-24T02:22:28.708Z",
+          "heartbeatAt": "2026-11-24T02:22:28.708Z",
+          "expiresAt": "2026-11-24T02:52:28.708Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=47.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -140725,7 +140827,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 946,
+      "totalPackets": 948,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -140733,13 +140835,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 567,
+        "blocked": 569,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T02:22:02.503Z",
+    "updatedAt": "2026-11-24T02:22:28.719Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
