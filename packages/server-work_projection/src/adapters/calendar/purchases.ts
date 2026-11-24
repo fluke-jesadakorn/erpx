@@ -23,6 +23,7 @@ import {captureCalendarReminderAuthority} from '@erpx/server-work_projection/ada
 // Work-core events now use the existing Work landing's Operations readiness.
 // Roster/Leave/lifecycle and all other owner projections keep their own gates.
 export const manualCalendarReleaseModule='operations';
+const calendarReleaseSql=`SELECT ${scheduledFeaturePredicate('calendar_release.company_id',manualCalendarReleaseModule)} allowed FROM (SELECT ?::text company_id) calendar_release`;
 export const isManualCalendarCommand=(input:CalendarCommand)=>input.action.startsWith('appointment.')||input.action.startsWith('announcement.');
 export function calendarCommandPurpose(input:CalendarCommand):CapabilityPurpose{
  if(input.action==='appointment.save'||input.action==='announcement.save'||input.action==='announcement.status'&&input.status==='published'||input.action==='appointment.reminder.set'&&input.minutes!==null)return 'new-work';
@@ -34,13 +35,13 @@ async function current(database:SqlDatabase,actor:WorkContext,key:string,guards=
  if(guards)await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),await nativeClearCommandAssertions(database, actor.companyId, key)]);
 }
 async function ready(database:SqlDatabase,actor:WorkContext){
- if(!await database.prepare(`SELECT ${scheduledFeaturePredicate('calendar_release.company_id',manualCalendarReleaseModule)} allowed FROM (SELECT ?::text company_id) calendar_release`).bind(actor.companyId).first<boolean>('allowed'))throw new ApiError(403,'FEATURE_COMING_SOON','Manual Work Calendar is not released for this Company.');
+ if(!await database.prepare(calendarReleaseSql).bind(actor.companyId).first<boolean>('allowed'))throw new ApiError(403,'FEATURE_COMING_SOON','Manual Work Calendar is not released for this Company.');
 }
 export async function calendarPurchaseControls(database:SqlDatabase,actor:WorkContext):Promise<CalendarPurchaseControls|undefined>{
  const mode=await appsPackageEnforcementMode();if(mode==='disabled')return;
  await current(database,actor,`calendar-read:${randomUUID()}`);
  const access=await readPurchasedAccess(database,mode,{companyId:actor.companyId,capability:'work.calendar'});
- const released=!!await database.prepare(`SELECT ${scheduledFeaturePredicate('calendar_release.company_id',manualCalendarReleaseModule)} allowed FROM (SELECT ?::text company_id) calendar_release`).bind(actor.companyId).first<boolean>('allowed');
+ const released=!!await database.prepare(calendarReleaseSql).bind(actor.companyId).first<boolean>('allowed');
  return {newWork:released&&access.newWork,settleExisting:released&&access.settleExisting,history:released&&access.history,revision:access.revision};
 }
 export async function requireCalendarCurrentActor(database:SqlDatabase,actor:WorkContext){if(await appsPackageEnforcementMode()!=='disabled')await current(database,actor,`calendar-current:${randomUUID()}`);}
