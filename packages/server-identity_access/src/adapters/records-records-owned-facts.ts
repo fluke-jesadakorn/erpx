@@ -1,8 +1,9 @@
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import "server-only";
+import {principalDisplaySql} from './read-tail-family-r27';
 export function RecordsIdentityAccessOwnedFacts(control: SqlDatabase) {
     return { readSearchReferencesPeople(value: string) {
-            return control.prepare(`SELECT user_id,display_name FROM principals WHERE status='active' AND lower(display_name) LIKE ? ORDER BY display_name LIMIT 8`).bind(value).all<{
+            return control.prepare(`${principalDisplaySql('lower(display_name) LIKE ?')} ORDER BY display_name LIMIT 8`).bind(value).all<{
                 user_id: string;
                 display_name: string;
             }>();

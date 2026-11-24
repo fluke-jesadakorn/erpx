@@ -1,5 +1,6 @@
 import { nativeIdentityWrite } from '@erpx/server-identity_access/public/native-identity-write';
 import { samePersonQuerySql, memberForShareSql, protectedMigrationIdentitySql } from "./iam-probe-sql";
+import { iamConnectionByIdSql } from "./read-tail-family-r27";
 import { nativePrepare } from '@erpx/server-identity_access/public/native-identity-write';
 import {linkMigratedPerson,linkMigratedEmployee} from "@erpx/server-people_payroll/public/identity-person-link-effects";
 import {identitySnapshotSources as peoplepayrollSnapshotSources} from '@erpx/server-people_payroll/public/identity-snapshot-sources';
@@ -35,7 +36,7 @@ export async function applyEmergency(c: PoolClient, actor: IamActor, p: Record<s
 function migrationTx(c: PoolClient, actor: IamActor): MigrationTransaction {
     const tx: MigrationTransaction = { freshMigrationConnection: async (facts) => {
             const { input, observedNow } = facts;
-            return (await c.query("SELECT * FROM iam_connections WHERE id=$1 AND company_id=$2 AND status='active' AND last_sync_at>$3", [input.connectionId, actor.companyId, observedNow - 300000])).rows[0] ?? null;
+            return (await c.query(iamConnectionByIdSql("id=$1 AND company_id=$2 AND status='active' AND last_sync_at>$3"), [input.connectionId, actor.companyId, observedNow - 300000])).rows[0] ?? null;
         },
         linkedMigrationPerson: async (facts) => {
             const { user } = facts;

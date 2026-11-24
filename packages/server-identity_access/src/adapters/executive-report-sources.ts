@@ -6,6 +6,7 @@ import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { type PreviewAssignmentRow } from '@erpx/server-runtime/public/executive/report-contract';
+import {activeWorkContextAssignmentSql} from './read-tail-family-r27';
 const targetGuard = `EXISTS(SELECT 1 FROM assignments g ${organizationSources.executive_report_sources_organization_nodes_c_join} ON c.id=g.company_id AND c.kind='company' AND c.status='active'
     ${peoplepayrollSources.executive_report_sources_hr_people_p_join} ON p.company_id=g.company_id AND p.user_id=g.user_id
     ${peoplepayrollSources.executive_report_sources_hr_engagements_e_join} ON e.company_id=p.company_id AND e.person_id=p.id ${organizationSources.executive_report_sources_staff_levels_l_join} ON l.company_id=e.company_id AND l.id=e.level_id
@@ -30,7 +31,7 @@ export function executiveReportSources(database: SqlDatabase) {
       AND iam_principal_active(a.user_id,a.company_id,?) AND (a.scope_kind='holding' OR (n.status='active' AND ((a.scope_kind='branch' AND n.kind='branch') OR (a.scope_kind='department' AND n.kind='department' AND (n.branch_id IS NULL OR n.branch_id=b.id)))))
     ORDER BY a.scope_kind,a.role,a.id`).bind(companyId, recipientId, now, now2, now3, now4).all<PreviewAssignmentRow>();
         }, readRecipientPreviewAssignmentsCurrentRows(companyId: string, recipientId: string, now: number) {
-            return database.prepare("SELECT assignment_id FROM active_work_contexts WHERE company_id=? AND user_id=? AND expires_at>? AND assignment_id IS NOT NULL ORDER BY updated_at DESC").bind(companyId, recipientId, now).all<{
+            return database.prepare(`${activeWorkContextAssignmentSql('user_id=? AND expires_at>? AND assignment_id IS NOT NULL')} ORDER BY updated_at DESC`).bind(companyId, recipientId, now).all<{
                 assignment_id: string;
             }>();
         }, readRecipientPreviewContextActiveContext(companyId: string, recipientId: string, assignmentId: string, now: number) {
@@ -43,7 +44,7 @@ export function executiveReportSources(database: SqlDatabase) {
             user_id: string;
             legal_name: string;
         })[]) {
-            return database.prepare(`SELECT assignment_id FROM active_work_contexts WHERE company_id=? AND expires_at>? AND assignment_id IN (${rows.map(() => "?").join(",")})`).bind(companyId, now, ...value).all<{
+            return database.prepare(activeWorkContextAssignmentSql(`expires_at>? AND assignment_id IN (${rows.map(() => "?").join(",")})`)).bind(companyId, now, ...value).all<{
                 assignment_id: string;
             }>();
         }, guard33(key: string, value: "transfer-target", id: string, companyId: string, userId: string, role: string, value2: number, assignmentScope: import("@erpx/server-identity_access/public/authorization").AssignmentScopeKind, scopeNodeId: string | null, now: number, now2: number, now3: number, now4: number, value3: number, value4: number, assignmentScope2: import("@erpx/server-identity_access/public/authorization").AssignmentScopeKind) { return assertion(database, key, value, targetGuard, [id, companyId, userId, role, value2, assignmentScope, scopeNodeId, now, now2, now3, now4, value3, value4, assignmentScope2]); } };

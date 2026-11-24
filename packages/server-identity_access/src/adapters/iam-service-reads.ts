@@ -1,5 +1,6 @@
 import 'server-only';
 import {idNameEmailByUserIdsSql,sessionByUserSql} from './iam-probe-sql';
+import {auditFeedSql,newestPageSql} from './read-tail-family-r27';
 import {createIamServiceReads} from '@erpx/server-identity_access/application/iam-service-reads';
 import {identitySnapshotSources as organizationSnapshotSources} from '@erpx/server-organization/public/identity-snapshot-sources';
 import {identitySnapshotSources as peoplepayrollSnapshotSources} from '@erpx/server-people_payroll/public/identity-snapshot-sources';
@@ -28,7 +29,7 @@ function readService(database: PostgresDatabase) {
             .all<{
             id: string;
         }>()).results, role: async (companyId, id) => iamRole(db, companyId, id), auditPage: async (actor, needle, after) => (await db
-            .prepare("SELECT * FROM iam_audit WHERE company_id=? AND (action ILIKE ? OR actor_id ILIKE ? OR target_id ILIKE ?) AND (?::bigint IS NULL OR created_at<? OR (created_at=? AND id<?)) ORDER BY created_at DESC,id DESC LIMIT 101")
+            .prepare(`${auditFeedSql(' AND (action ILIKE ? OR actor_id ILIKE ? OR target_id ILIKE ?) AND (?::bigint IS NULL OR created_at<? OR (created_at=? AND id<?))')} ORDER BY created_at DESC,id DESC LIMIT 101`)
             .bind(actor.companyId, needle, needle, needle, after?.createdAt ?? null, after?.createdAt ?? null, after?.createdAt ?? null, after?.id ?? null)
             .all<Record<string, unknown>>()).results, assignments: async (actor, self) => {
             const table = actor.platform ? "platform_assignments" : "assignments";
@@ -57,7 +58,7 @@ function readService(database: PostgresDatabase) {
         },
         migrations: async (actor) => {
             return (await db
-                .prepare("SELECT * FROM iam_migrations WHERE company_id=? ORDER BY created_at DESC LIMIT 100")
+                .prepare(newestPageSql('iam_migrations', 100))
                 .bind(actor.companyId)
                 .all()).results;
         },
@@ -79,7 +80,7 @@ function readService(database: PostgresDatabase) {
                 enabled: boolean;
             }>();
         },
-        campaigns: async (actor) => { return (await db.prepare("SELECT * FROM iam_access_review_campaigns WHERE company_id=? ORDER BY created_at DESC LIMIT 50").bind(actor.companyId).all<Record<string, unknown>>()).results; },
+        campaigns: async (actor) => { return (await db.prepare(newestPageSql('iam_access_review_campaigns', 50)).bind(actor.companyId).all<Record<string, unknown>>()).results; },
         campaignItems: async (actor, accessReviewCampaigns) => { return (await db.prepare(`SELECT i.* FROM iam_access_review_items i JOIN iam_access_review_campaigns c ON c.id=i.campaign_id WHERE c.company_id=? AND c.id IN (${accessReviewCampaigns.map(() => "?").join(",")}) ORDER BY c.created_at DESC,i.user_id,i.role`).bind(actor.companyId, ...accessReviewCampaigns.map(c => String(c.id))).all<Record<string, unknown>>()).results; },
         sessions: async (actor) => {
             const env = await control();
@@ -128,7 +129,7 @@ function readService(database: PostgresDatabase) {
         },
         recentAudit: async (actor) => {
             return (await db
-                .prepare("SELECT * FROM iam_audit WHERE company_id=? ORDER BY created_at DESC,id DESC LIMIT 100")
+                .prepare(`${auditFeedSql('')} ORDER BY created_at DESC,id DESC LIMIT 100`)
                 .bind(actor.companyId)
                 .all()).results;
         },

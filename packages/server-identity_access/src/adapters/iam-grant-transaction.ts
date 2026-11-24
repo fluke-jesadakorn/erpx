@@ -1,5 +1,6 @@
 import 'server-only';
 import { samePersonQuerySql, assignmentActiveQuerySql, publishedRoleSql } from "./iam-probe-sql";
+import { assignmentValidUntilSql, memberByCompanyUserSql } from "./read-tail-family-r27";
 import { nativeIdentityWrite } from '@erpx/server-identity_access/public/native-identity-write';
 import type {PoolClient} from 'pg';
 import type {IamActor} from '@erpx/server-identity_access/domain/iam-actor';
@@ -25,7 +26,7 @@ grantParentActive: async (facts) => {
         },
 grantReviewerExpiry: async (facts) => {
             const {} = facts;
-            return (await c.query(`SELECT valid_until FROM ${actor.platform ? "platform_assignments" : "assignments"} WHERE id=$1`, [
+            return (await c.query(assignmentValidUntilSql(actor.platform ? "platform_assignments" : "assignments"), [
                 actor.assignmentId,
             ])).rows[0] ?? null;
         },
@@ -35,7 +36,7 @@ grantParentPermissions: async (facts) => {
         },
 grantTargetMember: async (facts) => {
             const { input } = facts;
-            return (await c.query("SELECT status,login_policy FROM iam_members WHERE company_id=$1 AND user_id=$2", [actor.companyId, input.userId])).rows[0] ?? null;
+            return (await c.query(memberByCompanyUserSql('status,login_policy', '$'), [actor.companyId, input.userId])).rows[0] ?? null;
         },
 grantPublishedRole: async (facts) => {
             const { input } = facts;

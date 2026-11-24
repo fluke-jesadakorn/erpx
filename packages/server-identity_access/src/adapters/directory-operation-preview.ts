@@ -10,6 +10,7 @@ import { createHash } from 'node:crypto';
 import { validateObjectTarget } from '@erpx/server-identity_access/public/directory-provider';
 import { createDirectoryOperations, type OperationTransaction } from '@erpx/server-identity_access/application/directory-operations';
 import type { DirectoryChangeInput } from '@erpx/feature-identity_access/lib/directory-operations';
+import {iamConnectionByIdSql} from './read-tail-family-r27';
 
 const exec = promisify(execFile);
 
@@ -30,7 +31,7 @@ function readOnly(): never {
 function operationTx(c: PoolClient): OperationTransaction {
   const tx: OperationTransaction = {
     connection: async ({ id, actor }) =>
-      (await c.query('SELECT * FROM iam_connections WHERE id=$1 AND company_id=$2', [id, actor.companyId])).rows[0] ?? null,
+      (await c.query(iamConnectionByIdSql('id=$1 AND company_id=$2'), [id, actor.companyId])).rows[0] ?? null,
     recordInventory: readOnly,
     lockState: async ({ row }) =>
       (await c.query('SELECT * FROM people_directory_state WHERE connection_id=$1 FOR UPDATE', [row.id])).rows[0] ?? null,
