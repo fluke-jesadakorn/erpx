@@ -39,3 +39,8 @@ export const idNameEmailByUserIdsSql = (ids: string[]) =>
  * projection SQL is fixed here. No lock or control-plane read is changed. */
 export const publishedRoleSql = (companyParam: string, roleParam: string) =>
   `SELECT r.*,v.permissions_json,v.grantable_json,v.scopes_json FROM iam_roles r JOIN iam_role_revisions v ON v.company_id=r.company_id AND v.role_id=r.id AND v.revision=r.published_revision WHERE r.company_id IN ('*',${companyParam}) AND r.id=${roleParam} AND r.status='active'`;
+/** Byte-identical active-grant probe wrapper shared by the payroll cancellation
+ * and recovery grant adapters. Each caller owns its already-authorized grant
+ * predicate; only the fixed single-row existence wrapper lives here so the two
+ * callers cannot drift apart. No lock or control-plane read is changed. */
+export const grantProbeSql = (grant: string) => `SELECT 1 WHERE ${grant}`;
