@@ -9,9 +9,10 @@ import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commerc
 import {crmMarketingCandidateSources} from "@erpx/server-marketing/adapters/crm-purchase-sources";
 import {marketingModuleMemberSql} from "./module-membership";
 import {marketingCandidateSourceSql} from "./marketing-candidate-source";
+import {marketingActorScopeSql} from "./marketing-actor-scope-sql";
 export async function marketingMetricHistoryAccess(database:SqlDatabase,actor:WorkContext){
  const mode=await commercePackageEnforcementMode(),access=await readPurchasedAccesses(database,mode,actor.companyId,["sales.marketing"]);if(mode!=="enforced")return {"marketing-lead-candidates":true,"marketing-engagement-events":true};
- const current=actor.modules.includes("marketing")&&hasPermission(actor,"records.read")&&!!await database.prepare(`SELECT ${assignmentReadSql("marketing_metric_scope","records.read")} AND EXISTS(${marketingModuleMemberSql()}) allowed FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) marketing_metric_scope`).bind(actor.assignmentId,actor.userId,actor.role,actor.assignmentId,actor.companyId,actor.branchId,actor.departmentId).first<boolean>("allowed"),allowed=current&&access["sales.marketing"].history;
+ const current=actor.modules.includes("marketing")&&hasPermission(actor,"records.read")&&!!await database.prepare(`SELECT ${assignmentReadSql("marketing_metric_scope","records.read")} AND EXISTS(${marketingModuleMemberSql()}) allowed FROM ${marketingActorScopeSql} marketing_metric_scope`).bind(actor.assignmentId,actor.userId,actor.role,actor.assignmentId,actor.companyId,actor.branchId,actor.departmentId).first<boolean>("allowed"),allowed=current&&access["sales.marketing"].history;
  return {"marketing-lead-candidates":allowed,"marketing-engagement-events":allowed};
 }
 export async function marketingMetricSource(database:SqlDatabase,actor:WorkContext,id:string){

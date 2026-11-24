@@ -259,12 +259,16 @@ describe('Marketing owner-local campaign read tail', () => {
     const helper = await readFile(new URL('attachment-reviewer-guard.ts', base), 'utf8');
     const purchases = await readFile(new URL('attachment-purchases.ts', base), 'utf8');
 
-    const predicate = "SELECT (${assignmentReadSql('marketing_file_review','records.review')} OR ${assignmentReadSql('marketing_file_review','commerce.approve')})${alias ? ` ${alias}` : ''} FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) marketing_file_review";
-    // One canonical guard owns both read tokens; its comment must not smuggle
-    // an extra token into the retirement KPI.
-    expect(helper.match(/SELECT/g)).toHaveLength(2);
+    const predicate = "SELECT (${assignmentReadSql('marketing_file_review','records.review')} OR ${assignmentReadSql('marketing_file_review','commerce.approve')})${alias ? ` ${alias}` : ''} FROM ${marketingActorScopeSql} marketing_file_review";
+    // The guard owns one read token and the canonical actor-scope helper owns
+    // the other; neither a comment nor a consumer smuggles a duplicate KPI token.
+    expect(helper.match(/SELECT/g)).toHaveLength(1);
     expect(helper).toContain('export const attachmentReviewerGuardSql');
     expect(helper).toContain(predicate);
+    const scopeHelper = await readFile(new URL('marketing-actor-scope-sql.ts', base), 'utf8');
+    expect(scopeHelper.match(/SELECT/g)).toHaveLength(1);
+    expect(helper).not.toContain('(SELECT ?::text company_id,?::text branch_id,?::text department_id)');
+    expect(helper).toContain("from './marketing-actor-scope-sql'");
 
     expect(purchases).toContain('import {attachmentReviewerGuardSql} from "./attachment-reviewer-guard"');
     expect(purchases).not.toContain('assignmentReadSql("marketing_file_review"');
