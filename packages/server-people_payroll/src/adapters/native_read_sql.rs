@@ -187,6 +187,31 @@ const READ_PAYROLL_ITEM_SOURCE_ROWS: NativeReadStatement = NativeReadStatement {
     bind_count: 1,
 };
 
+/// Native successor of the two identical TypeScript `people-evaluation.ts`
+/// engagement-timezone reads (today-group and role-period-zone). The owner
+/// plans this literal once; the caller executes it on its open unit with the
+/// same `[engagement_id]` bind. Deduped into one owner read kind.
+pub const RD_EVALUATION_ENGAGEMENT_TIMEZONE: &str = "people_payroll_rd_evaluation_engagement_timezone";
+const SQL_EVALUATION_ENGAGEMENT_TIMEZONE: &str = "SELECT g.timezone FROM hr_engagements e JOIN hr_pay_groups g ON g.id=e.pay_group_id AND g.company_id=e.company_id WHERE e.id=?";
+const READ_EVALUATION_ENGAGEMENT_TIMEZONE: NativeReadStatement = NativeReadStatement {
+    kind: RD_EVALUATION_ENGAGEMENT_TIMEZONE,
+    sql: SQL_EVALUATION_ENGAGEMENT_TIMEZONE,
+    bind_count: 1,
+};
+
+/// Native successor of the two identical TypeScript `people-evaluation.ts`
+/// pay-basis row reads (workspace basis row and compensation-draft basis). The
+/// owner plans this literal once; the caller executes it on its open unit with
+/// the same `[engagement_id, company_id, effective_from]` binds. Deduped into
+/// one owner read kind.
+pub const RD_EVALUATION_PAY_BASIS_ROW: &str = "people_payroll_rd_evaluation_pay_basis_row";
+const SQL_EVALUATION_PAY_BASIS_ROW: &str = "SELECT version,payload_json FROM hr_evaluation_pay_basis WHERE engagement_id=? AND company_id=? AND effective_from<=? ORDER BY effective_from DESC LIMIT 1";
+const READ_EVALUATION_PAY_BASIS_ROW: NativeReadStatement = NativeReadStatement {
+    kind: RD_EVALUATION_PAY_BASIS_ROW,
+    sql: SQL_EVALUATION_PAY_BASIS_ROW,
+    bind_count: 3,
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_RECORD_SUPPLEMENT_ROWS,
     READ_ORG_ROSTER_EXIT_ENGAGEMENT_IDS,
@@ -203,6 +228,8 @@ const READS: &[NativeReadStatement] = &[
     READ_PAYROLL_OPTIONS_GROUPS,
     READ_PROJECT_WORKER_PERSON_USER,
     READ_PAYROLL_ITEM_SOURCE_ROWS,
+    READ_EVALUATION_ENGAGEMENT_TIMEZONE,
+    READ_EVALUATION_PAY_BASIS_ROW,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -376,6 +403,32 @@ mod tests {
         assert!(read.sql.contains("hr_payroll_items"));
         assert!(read.sql.contains("ORDER BY engagement_id"));
         assert!(is_read(RD_PAYROLL_ITEM_SOURCE_ROWS));
+    }
+
+    #[test]
+    fn evaluation_engagement_timezone_read_plan_is_ledger_free_and_bounded() {
+        let read = read_statement(RD_EVALUATION_ENGAGEMENT_TIMEZONE).expect("read kind");
+        assert!(read.sql.to_ascii_uppercase().starts_with("SELECT"));
+        assert!(!read.sql.to_ascii_uppercase().contains("INSERT"));
+        assert!(!read.sql.to_ascii_uppercase().contains("UPDATE"));
+        assert!(!read.sql.to_ascii_uppercase().contains("DELETE"));
+        assert_eq!(read.bind_count, 1);
+        assert_eq!(read.sql.matches('?').count(), 1);
+        assert!(read.sql.contains("hr_pay_groups"));
+        assert!(is_read(RD_EVALUATION_ENGAGEMENT_TIMEZONE));
+    }
+
+    #[test]
+    fn evaluation_pay_basis_row_read_plan_is_ledger_free_and_bounded() {
+        let read = read_statement(RD_EVALUATION_PAY_BASIS_ROW).expect("read kind");
+        assert!(read.sql.to_ascii_uppercase().starts_with("SELECT"));
+        assert!(!read.sql.to_ascii_uppercase().contains("INSERT"));
+        assert!(!read.sql.to_ascii_uppercase().contains("UPDATE"));
+        assert!(!read.sql.to_ascii_uppercase().contains("DELETE"));
+        assert_eq!(read.bind_count, 3);
+        assert_eq!(read.sql.matches('?').count(), 3);
+        assert!(read.sql.contains("hr_evaluation_pay_basis"));
+        assert!(is_read(RD_EVALUATION_PAY_BASIS_ROW));
     }
 
     #[test]

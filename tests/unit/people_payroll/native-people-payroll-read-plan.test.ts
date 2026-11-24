@@ -17,6 +17,8 @@ import {
   PEOPLE_PAYROLL_RD_PAYROLL_OPTIONS_GROUPS,
   PEOPLE_PAYROLL_RD_PROJECT_WORKER_PERSON_USER,
   PEOPLE_PAYROLL_RD_PAYROLL_ITEM_SOURCE_ROWS,
+  PEOPLE_PAYROLL_RD_EVALUATION_ENGAGEMENT_TIMEZONE,
+  PEOPLE_PAYROLL_RD_EVALUATION_PAY_BASIS_ROW,
 } from '../../../packages/server-people_payroll/src/adapters/native-people-payroll-read';
 import { leaveLegacyEmployeeFacts } from '../../../packages/server-people_payroll/src/adapters/operations-leave-legacy-facts';
 import { expensePaymentDraftExpenseId, documentPageExpensePaymentSource } from '../../../packages/server-people_payroll/src/adapters/document-page-payment-source';
@@ -34,6 +36,7 @@ import { payrollOtherSchemaAvailable } from '../../../packages/server-people_pay
 import { workUiStaffFacts } from '../../../packages/server-people_payroll/src/adapters/work-ui-staff-facts';
 import { projectWorkerPersonUser } from '../../../packages/server-people_payroll/src/adapters/project-worker-startup-state';
 import { payrollItemSourceRows } from '../../../packages/server-people_payroll/src/adapters/payroll-item-source-read';
+import { evaluationEngagementTimezone, evaluationPayBasisRow } from '../../../packages/server-people_payroll/src/adapters/people-evaluation-native-read';
 
 const envKey = 'ERPX_NATIVE_PEOPLE_PAYROLL_CONFIG';
 const original = process.env[envKey];
@@ -551,6 +554,65 @@ describe('native People Payroll caller-unit read plan', () => {
     ]);
     expect(bound).toEqual([['run-1'], ['run-2']]);
     expect(prepared).toEqual(['SELECT 1 AS engagement_id', 'SELECT 1 AS engagement_id']);
+  });
+
+  it('exposes the deduped evaluation read kinds with no SQL on the wire', () => {
+    expect(PEOPLE_PAYROLL_RD_EVALUATION_ENGAGEMENT_TIMEZONE).toBe('people_payroll_rd_evaluation_engagement_timezone');
+    expect(PEOPLE_PAYROLL_RD_EVALUATION_PAY_BASIS_ROW).toBe('people_payroll_rd_evaluation_pay_basis_row');
+    for (const kind of [PEOPLE_PAYROLL_RD_EVALUATION_ENGAGEMENT_TIMEZONE, PEOPLE_PAYROLL_RD_EVALUATION_PAY_BASIS_ROW]) {
+      expect(kind).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
+    }
+  });
+
+  it('plans the deduped evaluation timezone and pay-basis reads on the caller unit with their binds', async () => {
+    const bodies: { kind: string; values: unknown[] }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      bodies.push({ kind: body.kind, values: body.values });
+      const sql = body.kind === PEOPLE_PAYROLL_RD_EVALUATION_ENGAGEMENT_TIMEZONE
+        ? 'SELECT 1 AS timezone'
+        : 'SELECT 1 AS version';
+      return new Response(JSON.stringify({
+        data: { statements: [{ sql, values: body.values }] },
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }));
+    const prepared: string[] = [];
+    const bound: unknown[][] = [];
+    const db = {
+      prepare(sql: string) {
+        prepared.push(sql);
+        return {
+          bind(...values: unknown[]) { bound.push(values); return this; },
+          async all() { return { results: [], success: true, meta: { changes: 0, duration: 0 } }; },
+          async first() { return null; },
+        };
+      },
+      async batch() { return [{ results: [{ timezone: 'Asia/Bangkok' }], success: true, meta: { changes: 0, duration: 0 } }]; },
+      async exec() { return { count: 0, duration: 0 }; },
+    };
+
+    const today = await evaluationEngagementTimezone(db as never, 'eng-1');
+    const zone = await evaluationEngagementTimezone(db as never, 'eng-2');
+    const basis = await evaluationPayBasisRow(db as never, 'eng-3', 'company', '2026-11-01');
+    const draftBasis = await evaluationPayBasisRow(db as never, 'eng-4', 'company', '2026-12-01');
+    expect(today).toEqual({ timezone: 'Asia/Bangkok' });
+    expect(zone).toEqual({ timezone: 'Asia/Bangkok' });
+    expect(basis).toEqual({ timezone: 'Asia/Bangkok' });
+    expect(draftBasis).toEqual({ timezone: 'Asia/Bangkok' });
+
+    expect(bodies).toEqual([
+      { kind: PEOPLE_PAYROLL_RD_EVALUATION_ENGAGEMENT_TIMEZONE, values: ['eng-1'] },
+      { kind: PEOPLE_PAYROLL_RD_EVALUATION_ENGAGEMENT_TIMEZONE, values: ['eng-2'] },
+      { kind: PEOPLE_PAYROLL_RD_EVALUATION_PAY_BASIS_ROW, values: ['eng-3', 'company', '2026-11-01'] },
+      { kind: PEOPLE_PAYROLL_RD_EVALUATION_PAY_BASIS_ROW, values: ['eng-4', 'company', '2026-12-01'] },
+    ]);
+    expect(bound).toEqual([
+      ['eng-1'],
+      ['eng-2'],
+      ['eng-3', 'company', '2026-11-01'],
+      ['eng-4', 'company', '2026-12-01'],
+    ]);
+    expect(prepared).toEqual(['SELECT 1 AS timezone', 'SELECT 1 AS timezone', 'SELECT 1 AS version', 'SELECT 1 AS version']);
   });
 
   it('fails closed when configuration is missing or the plan is malformed', async () => {

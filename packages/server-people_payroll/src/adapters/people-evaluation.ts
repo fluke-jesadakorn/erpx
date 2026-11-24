@@ -1,5 +1,6 @@
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import{nativeEvaluationReadRepository}from '@erpx/server-people_payroll/adapters/people-evaluation-read';
+import {evaluationEngagementTimezone,evaluationPayBasisRow} from './people-evaluation-native-read';
 import {requirePerformanceHistory,withPerformancePurchasedRead,performanceDefinitionPurpose,withPerformancePurchasedCommand,performancePurchaseControls} from '@erpx/server-people_payroll/adapters/performance-purchases';
 import {peopleEvaluationStaffWorkFacts} from '@erpx/server-operations/public/people-evaluation-work-facts';
 import "server-only";
@@ -35,9 +36,7 @@ function application(provided?: SqlDatabase) {
         readEvaluationEmployeesRows(...args){return nativeEvaluationReadRepository(database).readEvaluationEmployeesRows(...args);},
         readEvaluationDefinitionRow(...args){return nativeEvaluationReadRepository(database).readEvaluationDefinitionRow(...args);},
         readEvaluationTodayGroup(engagementId: string) {
-            return database.prepare("SELECT g.timezone FROM hr_engagements e JOIN hr_pay_groups g ON g.id=e.pay_group_id AND g.company_id=e.company_id WHERE e.id=?").bind(engagementId).first<{
-                timezone: string;
-            }>();
+            return evaluationEngagementTimezone(database, engagementId);
         },
         readSaveEvaluationDefinitionPosition(...args) { return peopleEvaluationOrganizationFacts(database).readSaveEvaluationDefinitionPosition(...args); },
         readSaveEvaluationDefinitionEffect(...args) { return peopleEvaluationOrganizationFacts(database).readSaveEvaluationDefinitionEffect(...args); },
@@ -58,10 +57,7 @@ function application(provided?: SqlDatabase) {
         readEvaluationWorkspaceAssessments(companyId: string, id: string, date: string) { return database.prepare("SELECT * FROM hr_evaluation_assessments WHERE company_id=? AND cycle_id=? AND period_start<=? ORDER BY period_start,id").bind(companyId, id, date).all<AssessmentRow>(); },
         readEvaluationWorkspaceWages(id: string, date: string, date2: string) { return database.prepare("SELECT * FROM hr_compensation_revisions WHERE engagement_id=? AND status='approved' AND effective_from<=? AND (effective_to IS NULL OR effective_to>=?) ORDER BY effective_from DESC").bind(id, date, date2).all<Compensation>(); },
         readEvaluationWorkspaceBasisRow(id: string, companyId: string, date: string) {
-            return database.prepare("SELECT version,payload_json FROM hr_evaluation_pay_basis WHERE engagement_id=? AND company_id=? AND effective_from<=? ORDER BY effective_from DESC LIMIT 1").bind(id, companyId, date).first<{
-                version: number;
-                payload_json: string;
-            }>();
+            return evaluationPayBasisRow(database, id, companyId, date);
         },
         readEvaluationWorkspacePositions(...args) { return peopleEvaluationOrganizationFacts(database).readEvaluationWorkspacePositions(...args); },
         readEvaluationWorkspaceLevels(...args) { return peopleEvaluationOrganizationFacts(database).readEvaluationWorkspaceLevels(...args); },
@@ -70,9 +66,7 @@ function application(provided?: SqlDatabase) {
         readEvaluationAssessmentRow(...args){return nativeEvaluationReadRepository(database).readEvaluationAssessmentRow(...args);},
         readValidateEvaluationRolePeriodHistory(...args) { return peopleEvaluationOperationsFacts(database).readValidateEvaluationRolePeriodHistory(...args); },
         readValidateEvaluationRolePeriodZone(id: string) {
-            return database.prepare("SELECT g.timezone FROM hr_engagements e JOIN hr_pay_groups g ON g.id=e.pay_group_id AND g.company_id=e.company_id WHERE e.id=?").bind(id).first<{
-                timezone: string;
-            }>();
+            return evaluationEngagementTimezone(database, id);
         },
         stageCreateEvaluationAssessmentEffect(id: string) { return database.prepare("SELECT id FROM hr_engagements WHERE id=? FOR UPDATE").bind(id); },
         guard24(key: string, value: "engagement-version", id: string, companyId: string, version: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_engagements WHERE id=? AND company_id=? AND version=?)", [id, companyId, version]); },
@@ -143,10 +137,7 @@ function application(provided?: SqlDatabase) {
             }>();
         },
         readCreateEvaluationCompensationDraftBasis(id: string, companyId: string, effectiveFrom: string) {
-            return database.prepare("SELECT version,payload_json FROM hr_evaluation_pay_basis WHERE engagement_id=? AND company_id=? AND effective_from<=? ORDER BY effective_from DESC LIMIT 1").bind(id, companyId, effectiveFrom).first<{
-                version: number;
-                payload_json: string;
-            }>();
+            return evaluationPayBasisRow(database, id, companyId, effectiveFrom);
         },
         stageCreateEvaluationCompensationDraftEffect(id: string) { return database.prepare("SELECT id FROM hr_engagements WHERE id=? FOR UPDATE").bind(id); },
         guard75(key: string, value: "assessment-confirmed", assessmentId: string, expectedVersion: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_evaluation_assessments WHERE id=? AND version=? AND status='confirmed')", [assessmentId, expectedVersion]); },

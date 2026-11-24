@@ -32,6 +32,8 @@ export const PEOPLE_PAYROLL_RD_LEAVE_LEGACY_EMPLOYEE = 'people_payroll_rd_leave_
 export const PEOPLE_PAYROLL_RD_PAYROLL_OPTIONS_GROUPS = 'people_payroll_rd_payroll_options_groups';
 export const PEOPLE_PAYROLL_RD_PROJECT_WORKER_PERSON_USER = 'people_payroll_rd_project_worker_person_user';
 export const PEOPLE_PAYROLL_RD_PAYROLL_ITEM_SOURCE_ROWS = 'people_payroll_rd_payroll_item_source_rows';
+export const PEOPLE_PAYROLL_RD_EVALUATION_ENGAGEMENT_TIMEZONE = 'people_payroll_rd_evaluation_engagement_timezone';
+export const PEOPLE_PAYROLL_RD_EVALUATION_PAY_BASIS_ROW = 'people_payroll_rd_evaluation_pay_basis_row';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'PEOPLE_PAYROLL_NATIVE_READ_UNAVAILABLE', 'The native People Payroll read service is unavailable.');
