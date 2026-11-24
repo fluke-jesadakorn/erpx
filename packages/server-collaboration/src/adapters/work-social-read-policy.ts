@@ -53,7 +53,7 @@ export async function socialReadScope(database:SqlDatabase,actor:Reader,stories=
  // Paid Social keeps the original audience/linked-preview policy. Included
  // Project/PMS text additionally needs its actual source owner; it cannot
  // become free general Social merely by naming a business record.
- return {...scope,where:`(${purchasedReadWhere(project==='enforced',stories,typed)}) AND ${!stories&&project==='enforced'?`EXISTS(SELECT 1 FROM social_purchase_actor WHERE ${projectRead('history',true)})`:'TRUE'} AND ${!stories&&pms==='enforced'?pmsRead('history'):'TRUE'}`};
+ return {...scope,where:`(${purchasedReadWhere(project==='enforced',stories,typed)}) AND ${!stories&&project==='enforced'?projectOnlyReadWhere():'TRUE'} AND ${!stories&&pms==='enforced'?pmsRead('history'):'TRUE'}`};
 }
 export async function workSocialPresentation(database:SqlDatabase,actor:StaffActor,ids:readonly string[]=[]){
  const {work:mode,project,pms}=await socialOwnerModes();
