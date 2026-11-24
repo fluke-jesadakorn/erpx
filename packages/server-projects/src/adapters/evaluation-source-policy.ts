@@ -4,9 +4,10 @@ import type {WorkContext} from "@erpx/server-identity_access/public/authorizatio
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 
 import {projectsPackageEnforcementMode,readPurchasedAccess} from "@erpx/server-commercial/public/purchase-command-boundary";
-import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
+import {purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
 import {projectTaskRecordPolicy} from "@erpx/server-operations/public/project-task-record-policy";
 import {projectOwnerOrMemberColumnSql} from "@erpx/server-projects/adapters/project-read-projections";
+import {scopeBindProjection} from './read-tail-r39';
 
 /** Byte-identical source identity projection shared by the native source arms;
  * one definition keeps every UNION column list identical. */
@@ -24,7 +25,7 @@ export function visibleSource(actor:WorkContext,id:string,company:string,kind?:'
  AND (g.scope_kind='holding' OR g.scope_kind='branch' AND g.scope_node_id=${viewer}.branch_id OR g.scope_kind='department' AND g.scope_node_id=${viewer}.department_id))`;
  const member=projectOwnerOrMemberColumnSql('p',`${viewer}.user_id`,'m');
  const purchase=['projects.wbs','projects.tasks','projects.time','projects.costs','projects.handover'].map(code=>`(native.capability='${code}' AND ${purchasedCapabilityPredicate('native.company_id',code,'history',`${viewer}.now_ms`)})`).join(' OR ');
- return {sql:`EXISTS(WITH ${viewer} AS MATERIALIZED (SELECT ?::text user_id,?::text assignment_id,?::text role,?::text branch_id,?::text department_id,${packageClockSql} now_ms)
+ return {sql:`EXISTS(WITH ${viewer} AS MATERIALIZED ${scopeBindProjection('viewer-clock')}
  SELECT 1 FROM (${nativeSources}) native JOIN staff_projects p ON p.id=native.project_id AND p.company_id=native.company_id CROSS JOIN ${viewer}
  WHERE ${kind?`native.kind='${kind}' AND `:''}native.id=${id} AND native.company_id=${company} AND ${hasPermission(actor,'records.read')?'TRUE':'FALSE'} AND ${current} AND (${purchase})
  AND CASE WHEN native.kind='task' THEN ${taskPolicy} ELSE ${member}

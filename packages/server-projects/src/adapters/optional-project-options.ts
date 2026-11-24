@@ -6,10 +6,11 @@ import {projectPurchaseControls} from '@erpx/server-projects/adapters/purchases'
 import {listProjects} from '@erpx/server-projects/adapters/staff-projects';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {betaAccess} from '@erpx/server-identity_access/public/beta-access';
+import {scopeBindProjection} from './read-tail-r39';
 
 async function strictReferenceReady(database:SqlDatabase,actor:StaffActor){
  if(await betaAccess(database,actor.companyId,new Headers()))return false;
- const readiness=await database.prepare(`SELECT (${scheduledFeaturePredicate('project_reference.company_id','projects')} AND ${scheduledFeaturePredicate('project_reference.company_id','operations')}) allowed FROM (SELECT ?::text company_id) project_reference`).bind(actor.companyId).first<{allowed:boolean}>();
+ const readiness=await database.prepare(`SELECT (${scheduledFeaturePredicate('project_reference.company_id','projects')} AND ${scheduledFeaturePredicate('project_reference.company_id','operations')}) allowed FROM ${scopeBindProjection('company','project_reference')}`).bind(actor.companyId).first<{allowed:boolean}>();
  return readiness?.allowed===true;
 }
 

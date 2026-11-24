@@ -9,6 +9,7 @@ import {projectsPackageEnforcementMode,readPurchasedAccess} from "@erpx/server-c
 
 import {projectPurchaseControls} from "@erpx/server-projects/adapters/purchases";
 import {projectTaskPurchaseAccess} from "@erpx/server-projects/adapters/task-purchases";
+import {scopeBindProjection} from './read-tail-r39';
 
 const sourceKinds="('project','staff_project','project_milestone','project_work_log','project_actual_time','project_cost_allocation','project_handoff')";
 /** Byte-identical native-source identity probe shared by the records/staff/inbox
@@ -41,7 +42,7 @@ export async function requireProjectWorkspaceRecordRead(database:SqlDatabase,act
  if(!exists)return;
  const mode=await projectsPackageEnforcementMode();if(mode==='shadow'){await readPurchasedAccess(database,mode,{companyId:actor.companyId,capability:'projects.wbs'});return;}
  const visible=visibleSource(actor,'record.id','record.company_id');
- const allowed=await database.prepare(`SELECT ${visible.sql} allowed FROM (SELECT ?::text id,?::text company_id) record`).bind(...visible.args,id,actor.companyId).first<{allowed:boolean}>();
+ const allowed=await database.prepare(`SELECT ${visible.sql} allowed FROM ${scopeBindProjection('id-company','record')}`).bind(...visible.args,id,actor.companyId).first<{allowed:boolean}>();
  if(!allowed?.allowed)throw new ApiError(403,'PROJECT_SOURCE_FORBIDDEN','This Project source is unavailable in the current assignment.');
 }
 export async function filterProjectWork(database:SqlDatabase,actor:WorkContext,items:WorkItem[]){

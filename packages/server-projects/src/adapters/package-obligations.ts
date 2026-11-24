@@ -5,6 +5,7 @@ import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/server-commercial/public/package-settlement-sources";
 import {projectTaskSettlementSources as operations,lockProjectTaskSettlementSources} from "@erpx/server-operations/public/project-package-obligation-sources";
 import {notExistsRow,projectFactUnionArms} from './read-tail-r37';
+import {scopeBindProjection} from './read-tail-r39';
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
 const sources=new WeakMap<SqlDatabase,string>();
 export async function lockProjectPackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){
@@ -22,10 +23,10 @@ export const projectRowsSql="SELECT * FROM staff_projects";
 /** Byte-identical fixed row-source prefix shared by the settlement table reads;
  * one definition keeps every source relation identical. */
 const tableRowsSql=`SELECT * FROM `;
-/** Byte-identical assignment-scope subquery shared by the Project purchase and
- * metric authority reads; one definition keeps the emitted SQL unchanged and
- * only the scope alias varies per caller. */
-export const projectAssignmentScopeSql=(alias:string)=>`(SELECT ?::text company_id,?::text branch_id,?::text department_id) ${alias}`;
+/** Byte-identical assignment-scope subquery delegate; the closed bind projection
+ * lives in read-tail-r39 so the purchase and metric authority reads keep the
+ * exact same emitted SQL and only the scope alias varies per caller. */
+export const projectAssignmentScopeSql=(alias:string)=>scopeBindProjection('company-branch-department',alias);
 /** Byte-identical package-actual proof guard shared by the work-log and
  * cost-allocation arms of projectPackageObligations. Only the source kind,
  * source alias, measure column and the two whitespace gaps vary; every source

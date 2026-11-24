@@ -1,6 +1,7 @@
 import {staffProjectByRefHead} from './read-tail-r34';
 import {notExistsRow} from './read-tail-r37';
 import {memberExistsSql} from './read-tail-r38';
+import {projectPointReadSql} from './read-tail-r39';
 /** Native joined facts preserve the caller's transaction and original SQL snapshot. */
 const allocationSumSql = "COALESCE((SELECT SUM(a.amount_minor) FROM staff_project_cost_allocations a WHERE a.journal_line_id=l.id AND a.state IN ('draft','approved')";
 export const projectReadProjection = {
@@ -22,11 +23,10 @@ export function projectOwnerOrMemberSql(alias:string){return `(iam_same_person($
  * staff and executive metric reads; one definition keeps every source relation and
  * bind order identical. */
 export const projectMemberScopeSql = `(p.owner_user_id=? OR ${memberExistsSql('', 'm', 'p', 'id', '?')})`;
-/** Byte-identical member-scope assertion guard shared by the Projects Social
- * audience guard and the Operations staff-task guard. The scope fragment is the
- * only variable; the source relation and bind order stay exactly as in both
- * former inline copies. */
-export const projectMemberScopeGuard = (scope: string) => `EXISTS(SELECT 1 FROM staff_projects p WHERE p.id=? AND p.company_id=? AND ${scope})`;
+/** Member-scope assertion guard shared by the Projects Social audience guard
+ * and the Operations staff-task guard. The closed point-read tail now lives in
+ * read-tail-r39; the scope fragment and bind order stay exactly as before. */
+export const projectMemberScopeGuard = (scope: string) => projectPointReadSql('existence','member-guard',scope);
 /** Byte-identical owner-or-member scope with column-ref viewer aliases shared by
  * the Projects social audience, social purchase, evaluation source and audience
  * statement reads. Only the aliases, id column and EXISTS gap vary; the source

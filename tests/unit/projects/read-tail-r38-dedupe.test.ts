@@ -168,7 +168,7 @@ describe('Projects read-tail r38 closed member EXISTS and evidence super-head de
       .toContain('FROM staff_project_cost_allocations');
   });
 
-  test('retirement:ts-statements is 81 after r38 (BEFORE=88)', () => {
+  test('retirement:ts-statements is 76 after r39 (BEFORE=81)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {
@@ -181,7 +181,7 @@ describe('Projects read-tail r38 closed member EXISTS and evidence super-head de
     // r37 left 88. r38 Rank1 folds five member EXISTS witnesses into one closed
     // helper (-4) and Rank2 folds four evidence heads into one closed super-head
     // (-3): 88-7 = 81. Rank3 dependency witness is unsafe and remains inline.
-    expect(total).toBe(81);
+    expect(total).toBe(76);
     expect(total).toBeLessThan(88);
   });
 });

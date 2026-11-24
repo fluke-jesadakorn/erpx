@@ -116,7 +116,7 @@ describe('Projects read-tail r34 staff_tasks point / staff_projects by-ref dedup
     expect(src('clock-cte.ts')).toContain('export const projectsClockCte=');
   });
 
-  test('retirement:ts-statements is 81 after r38 (BEFORE=88)', () => {
+  test('retirement:ts-statements is 76 after r39 (BEFORE=81)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {
@@ -127,6 +127,6 @@ describe('Projects read-tail r34 staff_tasks point / staff_projects by-ref dedup
     };
     walk(srcRoot);
     // r33 left 105. Family A 4->1 removes 3; Family B 7->1 removes 6: 105-9 = 96.
-    expect(total).toBe(81); // r37 four-arm fact UNION closed helper (-3) + 3-arm NOT EXISTS proof group (-2): 93->88 // r36 package-actual source + event-fact arms: 95->93 // r35 point-read family merge (projectIdSql -> projectPointReadHead): 96->95 // r38 member EXISTS closed helper (-4) + evidence super-head (-3): 88->81
+    expect(total).toBe(76); // r37 four-arm fact UNION closed helper (-3) + 3-arm NOT EXISTS proof group (-2): 93->88 // r36 package-actual source + event-fact arms: 95->93 // r35 point-read family merge (projectIdSql -> projectPointReadHead): 96->95 // r38 member EXISTS closed helper (-4) + evidence super-head (-3): 88->81
   });
 });
