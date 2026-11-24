@@ -87,7 +87,7 @@ describe('manufacturing read-tail r23 stock-footprint select family', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(58); // r23 left 72; r24 72->70; r25 70->65; r26 EXISTS guards -> 60; r27 journal projection family 60->58.
+    expect(total).toBe(57); // r23 left 72; r24 72->70; r25 70->65; r26 EXISTS guards -> 60; r27 journal projection family 60->58; r28 cost-allocation probe 58->57.
     expect(total).toBeLessThan(60);
   });
 });

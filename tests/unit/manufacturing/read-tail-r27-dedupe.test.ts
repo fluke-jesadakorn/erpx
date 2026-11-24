@@ -55,7 +55,7 @@ describe('manufacturing read-tail r27 journal projection family', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(58); // r26 left 60; r27 parameterizes the journal projection family 60->58.
+    expect(total).toBe(57); // r26 left 60; r27 parameterizes the journal projection family 60->58; r28 cost-allocation probe 58->57.
     expect(total).toBeLessThan(60);
   });
 });
