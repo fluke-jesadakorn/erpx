@@ -4,7 +4,7 @@ import {manufacturingInitialPhysicalStockCountMarked,manufacturingInitialPhysica
 import {initialPhysicalStockCountMarked,initialPhysicalStockCountSource,initialPhysicalStockCapabilities,initialPhysicalStockCountSourceRows} from '@erpx/server-inventory/adapters/initial-physical-stock-count-source';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import "server-only";
-import {serviceInitialPhysicalNativeRowSql} from './read-tail-sql';
+import {serviceInitialPhysicalNativeRowSql,childJsonAggSql,childJoinJsonAggSql} from './read-tail-sql';
 import {randomUUID} from "node:crypto";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
@@ -24,7 +24,7 @@ import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/comma
 
 export type CountAttachmentPurchase={companyId:string;capability:string;additionalCapabilities:readonly string[];qualityWitness:string|null;initialWitness:string|null;manufacturingWitness:string|null;posWitness:string|null;serviceWitness:string|null;purpose:CapabilityPurpose;actor:WorkContext;targetId:string;witness:string};
 const target=(type:string)=>type==="stock_count"||type==="inventory_stock_count";
-const image="SELECT jsonb_build_object('count',to_jsonb(count_file_source)-'version'-'updated_at','lines',COALESCE((SELECT jsonb_agg(to_jsonb(l) ORDER BY l.id) FROM inventory_count_lines l WHERE l.count_id=count_file_source.id),'[]'::jsonb),'lots',COALESCE((SELECT jsonb_agg(to_jsonb(lot) ORDER BY lot.id) FROM inventory_count_lot_lines lot JOIN inventory_count_lines l ON l.id=lot.count_line_id WHERE l.count_id=count_file_source.id),'[]'::jsonb))::text image FROM inventory_counts count_file_source WHERE id=? AND company_id=?";
+const image="SELECT jsonb_build_object('count',to_jsonb(count_file_source)-'version'-'updated_at','lines',COALESCE(${childJsonAggSql('inventory_count_lines','l','l.count_id=count_file_source.id')},'[]'::jsonb),'lots',COALESCE(${childJoinJsonAggSql('inventory_count_lot_lines','lot','inventory_count_lines l ON l.id=lot.count_line_id','l.count_id=count_file_source.id')},'[]'::jsonb))::text image FROM inventory_counts count_file_source WHERE id=? AND company_id=?";
 const disposalImage=`SELECT to_jsonb(disposal)::text image FROM (${qualityDisposalCountRows}) disposal WHERE id=? AND company_id=? AND kind='customer-return'`;
 export async function countAttachmentPurchaseScope(database:SqlDatabase,actor:WorkContext,type:string,id:string,purpose:CapabilityPurpose="settle-existing"):Promise<CountAttachmentPurchase|null>{
  if(!target(type))return null;

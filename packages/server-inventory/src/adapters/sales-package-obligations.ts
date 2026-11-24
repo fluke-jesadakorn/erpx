@@ -13,6 +13,7 @@ import {ecommerceCommerceSettlementSources} from "@erpx/server-commerce/public/e
 import {ecommerceQualitySettlementSources} from "@erpx/server-quality/public/ecommerce-package-sources";
 import {qualityDisposalCountRows} from '@erpx/server-inventory/adapters/quality-count-purchases';
 import {inventoryLotMovesSql} from '@erpx/server-inventory/adapters/inventory-read-projections';
+import {childJsonAggSql,childJoinJsonAggSql} from './read-tail-sql';
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};const sources=new WeakMap<SqlDatabase,string>();
 export async function lockSalesInventoryPackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){const {database,companyId}=packageSettlementSource(owner,lock);await database.batch(salesQualitySettlementSourceReadLocks(database));await database.batch(recordAttachmentVersionSourceReadLocks(database));await database.prepare('LOCK TABLE inventory_order_reservations,inventory_lots,inventory_lot_balances,inventory_lot_moves,inventory_fulfillment_lot_allocations,inventory_counts,inventory_count_lines,inventory_count_lot_lines,inventory_count_decisions,inventory_adjustment_moves,command_receipts IN SHARE MODE').run();sources.set(database,companyId);}
 export function assertSalesInventoryPackageObligationSources(owner:PostgresDatabase,database:SqlDatabase,companyId:string){owner.assertActiveTransaction(database);if(sources.get(database)!==companyId)throw Error('SALES_INVENTORY_PACKAGE_OBLIGATION_SOURCE_REQUIRED');assertSalesPackageObligationSources(owner,database,companyId);}
@@ -34,10 +35,10 @@ export async function readSalesInventorySettlementFacts(database:SqlDatabase,com
  UNION ALL SELECT 'quality-source',hold.id,to_jsonb(origin),NOT COALESCE(origin.id IS NOT NULL AND (origin.kind='customer-return' OR hold.spec_id IS NOT NULL AND EXISTS(SELECT 1 FROM (${sales.returnLines}) line JOIN returns r ON r.id=line.return_id WHERE line.id=hold.source_id AND r.company_id=hold.company_id AND r.status IN ('approved','posted'))),false) FROM holds hold LEFT JOIN (${qualityPurchaseSourceRows}) origin ON origin.id=hold.id AND origin.company_id=hold.company_id
  UNION ALL SELECT 'disposal-count',count.id,to_jsonb(count),count.company_id<>hold.company_id OR count.status NOT IN ('posted','cancelled','rejected') OR count.status='posted' AND count.net_value_minor<>0 AND count.journal_id IS NULL OR NOT EXISTS(SELECT 1 FROM (${qualityDisposalCountRows}) source WHERE source.id=count.id AND source.company_id=count.company_id) FROM inventory_counts count JOIN holds hold ON hold.id=count.quality_hold_id
  UNION ALL SELECT 'initial-physical-count',count.id,jsonb_build_array(to_jsonb(count),
- (SELECT jsonb_agg(to_jsonb(line) ORDER BY line.id) FROM inventory_count_lines line WHERE line.count_id=count.id),
- (SELECT jsonb_agg(to_jsonb(lot) ORDER BY lot.id) FROM inventory_count_lot_lines lot JOIN inventory_count_lines line ON line.id=lot.count_line_id WHERE line.count_id=count.id),
- (SELECT jsonb_agg(to_jsonb(event) ORDER BY event.id) FROM inventory_count_decisions event WHERE event.count_id=count.id),
- (SELECT jsonb_agg(to_jsonb(move) ORDER BY move.id) FROM inventory_adjustment_moves move WHERE move.count_id=count.id)),
+ ${childJsonAggSql('inventory_count_lines','line','line.count_id=count.id')},
+ ${childJoinJsonAggSql('inventory_count_lot_lines','lot','inventory_count_lines line ON line.id=lot.count_line_id','line.count_id=count.id')},
+ ${childJsonAggSql('inventory_count_decisions','event','event.count_id=count.id')},
+ ${childJsonAggSql('inventory_adjustment_moves','move','move.count_id=count.id')}),
  NOT COALESCE(EXISTS(SELECT 1 FROM (${initialPhysicalStockCountSourceRows}) source WHERE source.id=count.id AND source.company_id=count.company_id)
  AND EXISTS(SELECT 1 FROM (${supplyInventoryTerminalReceipts}) terminal WHERE terminal.kind='count' AND terminal.id=count.id AND terminal.company_id=count.company_id AND terminal.status=count.status AND terminal.version=count.version),false)
  FROM inventory_counts count CROSS JOIN scope WHERE count.company_id=scope.company_id AND ${selection==='sales'?'TRUE':'FALSE'} AND EXISTS(SELECT 1 FROM (${initialPhysicalStockMarkedRows}) raw_marker WHERE raw_marker.id=count.id)

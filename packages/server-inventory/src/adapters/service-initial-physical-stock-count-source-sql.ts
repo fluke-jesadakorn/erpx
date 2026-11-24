@@ -1,5 +1,5 @@
 import 'server-only';
-import {singleCountLineMarkerSql,countCreateMarkedRowsSql} from './read-tail-sql';
+import {singleCountLineMarkerSql,countCreateMarkedRowsSql,childJsonAggSql,childJoinJsonAggSql} from './read-tail-sql';
 import {servicePartsPostingSourceRows} from '@erpx/server-commerce/public/service-parts-posting-proof';
 export const serviceInitialPhysicalStockCapabilities=['service.orders','service.parts-assets','finance.service-invoice'] as const;
 export const serviceInitialPhysicalStockMarker='_serviceInitialPhysicalStockCount';
@@ -22,10 +22,10 @@ export const serviceInitialPhysicalStockCountSourceRows=`SELECT c.id,c.company_i
 export const serviceInitialPhysicalStockMarkedRows=countCreateMarkedRowsSql(serviceInitialPhysicalStockMarker);
 /** Full private receipt/native lineage, with absence witnesses. No1062 relation is queried. */
 export const serviceInitialPhysicalStockSourceImages=`SELECT c.id,c.company_id,c.journal_id,
- jsonb_build_object('count',to_jsonb(c),'lines',(SELECT jsonb_agg(to_jsonb(l) ORDER BY l.id) FROM inventory_count_lines l WHERE l.count_id=c.id),
- 'lots',(SELECT jsonb_agg(to_jsonb(lot) ORDER BY lot.id) FROM inventory_count_lot_lines lot JOIN inventory_count_lines l ON l.id=lot.count_line_id WHERE l.count_id=c.id),
- 'decisions',(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM inventory_count_decisions d WHERE d.count_id=c.id),
- 'moves',(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.id) FROM inventory_adjustment_moves m WHERE m.count_id=c.id),
+ jsonb_build_object('count',to_jsonb(c),'lines',${childJsonAggSql('inventory_count_lines','l','l.count_id=c.id')},
+ 'lots',${childJoinJsonAggSql('inventory_count_lot_lines','lot','inventory_count_lines l ON l.id=lot.count_line_id','l.count_id=c.id')},
+ 'decisions',${childJsonAggSql('inventory_count_decisions','d','d.count_id=c.id')},
+ 'moves',${childJsonAggSql('inventory_adjustment_moves','m','m.count_id=c.id')},
  'receipt',to_jsonb(receipt),'mappingReceipt',to_jsonb(mapping),'proof',source.source_proof)::text image
  FROM inventory_counts c JOIN (${serviceInitialPhysicalStockMarkedRows}) marker ON marker.id=c.id
  LEFT JOIN (${serviceInitialPhysicalStockCountSourceRows}) source ON source.id=c.id AND source.company_id=c.company_id

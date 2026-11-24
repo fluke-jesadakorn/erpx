@@ -1,5 +1,6 @@
 import "server-only";
 import {inventoryPurchaseReplaySql} from "./inventory-read-projections";
+import {childJsonAggSql,childJoinJsonAggSql} from './read-tail-sql';
 import {randomUUID} from "node:crypto";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
@@ -18,7 +19,7 @@ import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/comma
 const capabilities=["supply.advanced-inventory","supply.receiving","supply.stock"] as const;
 export type LandedCostPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 export const landedCostPurchaseSourceRows=`SELECT c.id,c.company_id,c.branch_id,receipt.warehouse_id,c.fulfillment_id,receipt.order_id,receipt.warehouse_active,
- jsonb_build_object('cost',to_jsonb(c)-'version'-'updated_at'-'status'-'approved_by'-'review_reason'-'journal_id','receipt',receipt.witness,'lines',COALESCE((SELECT jsonb_agg(to_jsonb(line) ORDER BY line.id) FROM inventory_landed_cost_lines line WHERE line.landed_cost_id=c.id),'[]'::jsonb),'lots',COALESCE((SELECT jsonb_agg(to_jsonb(lot) ORDER BY lot.id) FROM inventory_landed_cost_lots lot JOIN inventory_landed_cost_lines line ON line.id=lot.landed_cost_line_id WHERE line.landed_cost_id=c.id),'[]'::jsonb)) witness
+ jsonb_build_object('cost',to_jsonb(c)-'version'-'updated_at'-'status'-'approved_by'-'review_reason'-'journal_id','receipt',receipt.witness,'lines',COALESCE(${childJsonAggSql('inventory_landed_cost_lines','line','line.landed_cost_id=c.id')},'[]'::jsonb),'lots',COALESCE(${childJoinJsonAggSql('inventory_landed_cost_lots','lot','inventory_landed_cost_lines line ON line.id=lot.landed_cost_line_id','line.landed_cost_id=c.id')},'[]'::jsonb)) witness
  FROM inventory_landed_costs c JOIN (${commerceLandedCostReceiptSources}) receipt ON receipt.id=c.fulfillment_id AND receipt.company_id=c.company_id AND receipt.branch_id=c.branch_id`;
 export function landedCostSourceReadLocks(database:SqlDatabase){return [...commerceLandedCostSourceReadLocks(database),database.prepare("LOCK TABLE inventory_landed_costs,inventory_landed_cost_lines,inventory_landed_cost_lots,inventory_landed_cost_events IN SHARE MODE")];}
 async function current(database:SqlDatabase,actor:WorkContext,key:string,permission="finance.read"){

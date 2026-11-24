@@ -9,6 +9,7 @@ import type {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgre
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/server-commercial/public/package-settlement-sources";
 import {assertManufacturingPackageObligationSources,manufacturingPackageSettlementSources as manufacturing} from "@erpx/server-manufacturing/public/package-obligations";
+import {childJsonAggSql,childJoinJsonAggSql} from './read-tail-sql';
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};const sources=new WeakMap<SqlDatabase,string>();
 export async function lockManufacturingInventoryPackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){const {database,companyId}=packageSettlementSource(owner,lock);await database.batch(recordAttachmentVersionSourceReadLocks(database));await database.prepare("LOCK TABLE command_receipts,inventory_count_lot_lines,inventory_count_decisions,inventory_adjustment_moves,commerce_stock,inventory_lots,inventory_lot_balances,inventory_counts,inventory_count_lines,inventory_transfers,inventory_transfer_lines,inventory_transit,inventory_transit_lines,inventory_transit_events,inventory_landed_costs,inventory_landed_cost_lines IN SHARE MODE").run();sources.set(database,companyId);}
 export async function manufacturingInventoryPackageObligations(owner:PostgresDatabase,database:SqlDatabase,input:Input){
@@ -19,10 +20,10 @@ export async function manufacturingInventoryPackageObligations(owner:PostgresDat
  UNION ALL SELECT 'lot',concat(b.warehouse_id,':',b.lot_id),to_jsonb(b)::text,true FROM inventory_lot_balances b JOIN inventory_lots lot ON lot.id=b.lot_id WHERE (b.quantity_milli<0 OR b.value_minor<0) AND EXISTS(SELECT 1 FROM footprint source WHERE source.company_id=lot.company_id AND source.warehouse_id=b.warehouse_id AND source.product_id=lot.product_id)
  UNION ALL SELECT 'count',c.id,to_jsonb(c)::text,true FROM inventory_counts c,scope WHERE scope.full AND c.company_id=scope.company_id AND c.status NOT IN ('posted','cancelled','rejected') AND NOT EXISTS(SELECT 1 FROM (${manufacturingInitialPhysicalStockMarkedRows} UNION ALL ${posInitialPhysicalStockMarkedRows} UNION ALL ${serviceInitialPhysicalStockMarkedRows}) marker WHERE marker.id=c.id)
  UNION ALL SELECT 'manufacturing-initial-physical-count',c.id,jsonb_build_array(to_jsonb(c),
- (SELECT jsonb_agg(to_jsonb(line) ORDER BY line.id) FROM inventory_count_lines line WHERE line.count_id=c.id),
- (SELECT jsonb_agg(to_jsonb(lot) ORDER BY lot.id) FROM inventory_count_lot_lines lot JOIN inventory_count_lines line ON line.id=lot.count_line_id WHERE line.count_id=c.id),
- (SELECT jsonb_agg(to_jsonb(event) ORDER BY event.id) FROM inventory_count_decisions event WHERE event.count_id=c.id),
- (SELECT jsonb_agg(to_jsonb(move) ORDER BY move.id) FROM inventory_adjustment_moves move WHERE move.count_id=c.id))::text,
+ ${childJsonAggSql('inventory_count_lines','line','line.count_id=c.id')},
+ ${childJoinJsonAggSql('inventory_count_lot_lines','lot','inventory_count_lines line ON line.id=lot.count_line_id','line.count_id=c.id')},
+ ${childJsonAggSql('inventory_count_decisions','event','event.count_id=c.id')},
+ ${childJsonAggSql('inventory_adjustment_moves','move','move.count_id=c.id')})::text,
  NOT COALESCE(EXISTS(SELECT 1 FROM (${manufacturingInitialPhysicalStockCountSourceRows}) source WHERE source.id=c.id AND source.company_id=c.company_id) AND EXISTS(SELECT 1 FROM (${supplyInventoryTerminalReceipts}) terminal WHERE terminal.kind='count' AND terminal.id=c.id AND terminal.company_id=c.company_id AND terminal.status=c.status AND terminal.version=c.version),false)
  FROM inventory_counts c,scope WHERE scope.full AND c.company_id=scope.company_id AND EXISTS(SELECT 1 FROM (${manufacturingInitialPhysicalStockMarkedRows}) marker WHERE marker.id=c.id)
  UNION ALL SELECT 'manufacturing-initial-stock',concat(stock.warehouse_id,':',stock.product_id),to_jsonb(stock)::text,stock.quantity_milli<0 OR stock.value_minor<0 FROM commerce_stock stock,scope WHERE scope.full AND EXISTS(SELECT 1 FROM (${manufacturingInitialPhysicalStockCountSourceRows}) source JOIN inventory_counts posted ON posted.id=source.id AND posted.company_id=source.company_id AND posted.status='posted' WHERE source.company_id=scope.company_id AND source.warehouse_id=stock.warehouse_id AND source.product_id=stock.product_id)
