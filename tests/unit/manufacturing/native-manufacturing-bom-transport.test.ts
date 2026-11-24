@@ -167,7 +167,8 @@ describe('Manufacturing finance-close read retirement',()=>{
     expect(paths.some(path=>path.includes('finance-close-source'))).toBe(false);
     const count=paths.reduce((count,path)=>count+(nodeFs.readFileSync(path,'utf8').match(/\bSELECT\b/g)?.length??0),0);
     expect(count).toBeLessThan(148);
-    expect(count).toBe(101);
+    expect(count).toBeLessThan(101);
+    expect(count).toBe(99);
   });
 });
 describe('Manufacturing owner-local report-actor read dedupe',()=>{
@@ -389,6 +390,33 @@ describe('Manufacturing posting-source aggregate dedupe',()=>{
   it('emits the former profile image text byte for byte',()=>{
     const productionAgg=(table:string,alias:string,scope="")=>`(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM ${table} ${alias}${scope})`;
     expect(productionAgg('manufacturing_accounting_profiles','p',',scope WHERE p.company_id=scope.company_id')).toBe(profile);
+  });
+});
+describe('Manufacturing posting-source economics guard dedupe',()=>{
+  const source=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/adapters/posting-setup-sources.ts',import.meta.url),'utf8');
+  const registry=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/public/native_command.rs',import.meta.url),'utf8');
+  const postings='EXISTS(SELECT 1 FROM postings)';
+  const movements='EXISTS(SELECT 1 FROM movements)';
+  const predicate='material_cost_minor<>0 OR labor_cost_minor<>0 OR overhead_cost_minor<>0 OR reported_output_milli<>0 OR reported_scrap_milli<>0';
+  const orders=`EXISTS(SELECT 1 FROM orders WHERE ${predicate})`;
+  const guard=(table:string,predicate="")=>`EXISTS(SELECT 1 FROM ${table}${predicate?` WHERE ${predicate}`:""})`;
+  it('keeps one parameterized guard definition and routes all three economics guards through it',()=>{
+    expect(source).toContain('const economicsGuard=(table:string,predicate="")=>');
+    expect(source).not.toContain(postings);
+    expect(source).not.toContain(movements);
+    expect(source).not.toContain(orders);
+    expect(source).toContain('${economicsGuard("postings")}');
+    expect(source).toContain('${economicsGuard("movements")}');
+    expect(source).toContain(`\${economicsGuard("orders","${predicate}")}`);
+    expect(source.split('EXISTS(SELECT 1 FROM ')).toHaveLength(2);
+  });
+  it('emits all three former guards byte for byte and stays outside the RD_* registry',()=>{
+    expect(guard('postings')).toBe(postings);
+    expect(guard('movements')).toBe(movements);
+    expect(guard('orders',predicate)).toBe(orders);
+    expect(registry).not.toContain(postings);
+    expect(registry).not.toContain(movements);
+    expect(registry).not.toContain(orders);
   });
 });
 describe('Manufacturing initial-physical-stock history guard dedupe',()=>{
