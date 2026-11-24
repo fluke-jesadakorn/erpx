@@ -6,7 +6,7 @@ import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {projectsPackageEnforcementMode,readPurchasedAccess} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
-import {projectsClockCte} from './clock-cte';
+import {projectPurchaseSourceHead} from './read-tail-r32';
 import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import {iamMutationGuards} from "@erpx/server-identity_access/public/iam-store";
 import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packages";
@@ -32,7 +32,7 @@ export async function projectTaskPurchaseAccess(database:SqlDatabase,actor:Staff
 export async function projectTaskReadScope(database:SqlDatabase,actor:StaffActor){
  const mode=await projectsPackageEnforcementMode();if(mode==='disabled')return {where:'TRUE'};
  await projectPurchaseControls(database,actor);
- return {where:mode==='enforced'?`(t.project_id IS NULL OR EXISTS(${projectsClockCte('project_task_clock')} SELECT 1 FROM staff_projects project_task CROSS JOIN project_task_clock WHERE project_task.id=t.project_id AND project_task.company_id=t.company_id AND ${purchasedCapabilityPredicate('project_task.company_id','projects.tasks','history','project_task_clock.now_ms')}))`:'TRUE'};
+ return {where:mode==='enforced'?`(t.project_id IS NULL OR EXISTS(${projectPurchaseSourceHead('project_task_clock','project_task','1')}project_task.id=t.project_id AND project_task.company_id=t.company_id AND ${purchasedCapabilityPredicate('project_task.company_id','projects.tasks','history','project_task_clock.now_ms')}))`:'TRUE'};
 }
 export async function projectTaskWorkState(database:SqlDatabase,actor:StaffActor,id:string,state:TaskWorkState){
  const access=await projectTaskPurchaseAccess(database,actor,id);if(!access)return state;

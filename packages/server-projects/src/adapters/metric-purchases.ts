@@ -6,7 +6,7 @@ import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
 import {projectsPackageEnforcementMode,readPurchasedAccesses} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
-import {projectsClockCte} from "./clock-cte";
+import {projectPurchaseSourceHead} from './read-tail-r32';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {projectRowsSql} from "@erpx/server-projects/adapters/package-obligations";
 import {projectAssignmentAuthorityReadSql} from './read-tail-r23';
@@ -25,5 +25,5 @@ export async function requireProjectMetricPurchase(database:SqlDatabase,actor:Wo
 export async function projectMetricSource(database:SqlDatabase,actor:WorkContext,id:string){
  await requireProjectMetricPurchase(database,actor,id);if(await projectsPackageEnforcementMode()!=="enforced")return {sql:projectRowsSql,args:[] as unknown[]};
  const capability=capabilities[id as ProjectMetric],cost=id==='project-posted-cost',authority=assignmentReadSql("project_metric_owned","records.read"),finance=cost?assignmentReadSql("project_metric_owned","finance.read"):"TRUE",clock='project_metric_clock.now_ms';
- return {sql:`${projectsClockCte('project_metric_clock')} SELECT project_metric_owned.* FROM staff_projects project_metric_owned CROSS JOIN project_metric_clock WHERE ${authority} AND ${finance} AND ${purchasedCapabilityPredicate('project_metric_owned.company_id','projects.wbs','history',clock)} AND ${purchasedCapabilityPredicate('project_metric_owned.company_id',capability,'history',clock)} AND ${scheduledFeaturePredicate('project_metric_owned.company_id','projects')}`,args:[actor.assignmentId,actor.userId,actor.role,...(cost?[actor.assignmentId,actor.userId,actor.role]:[])]};
+ return {sql:`${projectPurchaseSourceHead('project_metric_clock','project_metric_owned','project_metric_owned.*')}${authority} AND ${finance} AND ${purchasedCapabilityPredicate('project_metric_owned.company_id','projects.wbs','history',clock)} AND ${purchasedCapabilityPredicate('project_metric_owned.company_id',capability,'history',clock)} AND ${scheduledFeaturePredicate('project_metric_owned.company_id','projects')}`,args:[actor.assignmentId,actor.userId,actor.role,...(cost?[actor.assignmentId,actor.userId,actor.role]:[])]};
 }

@@ -74,14 +74,14 @@ describe('Projects read-tail r28 assignment-viewer select-head dedupe', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(117);
-    expect(total).toBe(110); // r27 left 117; r28 assignment-viewer head 117->115; r29 ordered-image head 115->113; r30 visible-project-rows head 113->112; r31 receipt-event proof 112->111; r31 owner-or-member column 111->110.
+    expect(total).toBe(108); // r27 left 117; r28 assignment-viewer head 117->115; r29 ordered-image head 115->113; r30 visible-project-rows head 113->112; r31 receipt-event proof 112->111; r31 owner-or-member column 111->110; r32 purchase-source head 110->108.
   });
 });
 
 function untouchedInvariants(): boolean {
   const alert = src('scheduled-tasks.ts');
-  return alert.includes("projectsClockCte('project_alert_clock')")
-    && alert.includes('SELECT 1 FROM staff_projects project_alert_source CROSS JOIN project_alert_clock')
+  return alert.includes("projectPurchaseSourceHead('project_alert_clock','project_alert_source','1')")
+    && !alert.includes('SELECT 1 FROM staff_projects project_alert_source CROSS JOIN project_alert_clock')
     && !alert.includes('WITH project_alert_clock AS MATERIALIZED (SELECT')
     && alert.includes("purchasedCapabilityPredicate('project_alert_source.company_id',capability,'settle-existing','project_alert_clock.now_ms')");
 }

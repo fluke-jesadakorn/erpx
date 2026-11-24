@@ -22,13 +22,13 @@ describe('Projects read-tail r24 scheduled/task clock CTE family dedupe', () => 
   test('both call sites compose the helper and keep predicates and locks unchanged', () => {
     const alert = src('scheduled-tasks.ts');
     const task = src('task-purchases.ts');
-    expect(alert).toContain("projectsClockCte('project_alert_clock')");
-    expect(task).toContain("projectsClockCte('project_task_clock')");
+    expect(alert).toContain("projectPurchaseSourceHead('project_alert_clock','project_alert_source','1')");
+    expect(task).toContain("projectPurchaseSourceHead('project_task_clock','project_task','1')");
     expect(alert).not.toContain('WITH project_alert_clock AS MATERIALIZED (SELECT');
     expect(task).not.toContain('WITH project_task_clock AS MATERIALIZED (SELECT');
     // The remainder of each source statement is unchanged.
-    expect(alert).toContain('SELECT 1 FROM staff_projects project_alert_source CROSS JOIN project_alert_clock');
-    expect(task).toContain('SELECT 1 FROM staff_projects project_task CROSS JOIN project_task_clock');
+    expect(alert).toContain("projectPurchaseSourceHead('project_alert_clock','project_alert_source','1')}project_alert_source.id=t.project_id");
+    expect(task).toContain("projectPurchaseSourceHead('project_task_clock','project_task','1')}project_task.id=t.project_id");
     expect(alert).toContain("purchasedCapabilityPredicate('project_alert_source.company_id',capability,'settle-existing','project_alert_clock.now_ms')");
     expect(task).toContain("purchasedCapabilityPredicate('project_task.company_id','projects.tasks','history','project_task_clock.now_ms')");
     // Lock order, transaction boundary and deferred effects are not edited.
