@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10648,
+    "revision": 10652,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -164857,7 +164857,7 @@
         "owner": "finance",
         "title": "finance chart and payroll exact duplicate families (round 36)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -164869,22 +164869,37 @@
         "resources": [
           "owner:finance"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMfin8",
-          "claimedAt": "2026-11-24T08:24:44.796Z",
-          "heartbeatAt": "2026-11-24T08:24:44.796Z",
-          "expiresAt": "2026-11-24T08:54:44.796Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "1a13e8a49",
+            "owner": "finance",
+            "before": 1970,
+            "after": 1966,
+            "note": "Chart id, chart exists, chart image and payroll remittance image literals share four constants; lock variants and r15-r35 untouched."
+          },
+          {
+            "command": "vitest finance native read plan (92) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "1a13e8a49"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Exact duplicate two-site literals: finance-reporting/pos-core-facts, accounting-profiles/finance-invoice-read, record-presentation/refund-bank-evidence, payroll remittance images. BEFORE=1970.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMfin8",
+          "at": "2026-11-24T08:32:19.184Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -165102,6 +165117,42 @@
         "nextAction": "Remaining: owner-local lock-free reads outside day-report and stripe; locks and PMS fragments stay inline. BEFORE=215.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.finance.read-tail-r37",
+        "goalId": "G4",
+        "owner": "finance",
+        "title": "finance TS read tail native cutover (round 37)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-finance/src/**",
+          "tests/unit/finance/**",
+          "tests/integration/finance/**"
+        ],
+        "resources": [
+          "owner:finance"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMfin9",
+          "claimedAt": "2026-11-24T08:32:19.658Z",
+          "heartbeatAt": "2026-11-24T08:32:19.658Z",
+          "expiresAt": "2026-11-24T09:02:19.658Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=1966.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -165110,7 +165161,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1430,
+      "totalPackets": 1431,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 19,
@@ -165118,13 +165169,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1060,
+        "blocked": 1061,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T08:31:48.477Z",
+    "updatedAt": "2026-11-24T08:32:19.668Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
