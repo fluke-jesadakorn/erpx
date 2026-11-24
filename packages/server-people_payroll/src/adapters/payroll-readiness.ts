@@ -1,3 +1,4 @@
+import { PP_RD23_HR_COMP_REVISIONS_SQL, PP_RD23_HR_PAYROLL_COST_ASSIGNMENTS_SQL, PP_RD23_HR_PAY_GROUPS_IMAGE_SQL, PP_RD23_HR_TIME_ENTRIES_OVERTIME_SQL, PP_RD23_OVERTIME_PAYROLL_HANDOFFS_SQL } from './pp-read-tail-r23-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import {PP_RD15_ACTIVE_PAYEE_SQL} from './pp-read-tail-r15-sources';
 import { payrollItemSourceRows } from './payroll-item-source-read';
@@ -82,10 +83,10 @@ function context(provided?: SqlDatabase, mode: PackageEnforcementMode = "disable
         },
         readSourceBlockersEngagement(engagementId: string, company_id: string) { return database.prepare("SELECT e.id,e.version,e.person_id,e.worker_type,e.employment_type,e.start_date,e.end_date,e.job_title,e.branch_id,e.department_id FROM hr_engagements e WHERE e.id=? AND e.company_id=?").bind(engagementId, company_id).first(); },
         readSourceBlockersPayee(value: string, company_id: string) { return database.prepare(PP_RD15_ACTIVE_PAYEE_SQL).bind(value, company_id).first(); },
-        readSourceBlockersCompensation(engagementId: string, period_end: string, period_start: string) { return database.prepare("SELECT * FROM hr_compensation_revisions WHERE engagement_id=? AND status IN ('active','approved') AND effective_from<=? AND (effective_to IS NULL OR effective_to>=?) ORDER BY effective_from DESC LIMIT 1").bind(engagementId, period_end, period_start).first(); },
-        readSourceBlockersEntries(engagementId: string, period_start: string, period_end: string) { return database.prepare("SELECT id,version,work_date,regular_hours,overtime_hours,cost_assignment_id,cost_branch_id,cost_department_id FROM hr_time_entries WHERE engagement_id=? AND work_date BETWEEN ? AND ? AND status='approved' ORDER BY id").bind(engagementId, period_start, period_end).all(); },
-        readSourceBlockersCostAssignments(engagementId: string, company_id: string, activeEnd: string, activeStart: string) { return database.prepare("SELECT id,effective_from,effective_to,branch_id,department_id,evidence_status,version FROM hr_payroll_cost_assignments WHERE engagement_id=? AND company_id=? AND status='active' AND effective_from<=? AND (effective_to IS NULL OR effective_to>=?) ORDER BY effective_from,id").bind(engagementId, company_id, activeEnd, activeStart).all(); },
-        readSourceBlockersHandoffs(engagementId: string, period_start: string, period_end: string) { return database.prepare("SELECT id,request_id,request_version,minutes,work_date FROM overtime_payroll_handoffs WHERE engagement_id=? AND work_date BETWEEN ? AND ? ORDER BY id").bind(engagementId, period_start, period_end).all(); },
+        readSourceBlockersCompensation(engagementId: string, period_end: string, period_start: string) { return database.prepare(PP_RD23_HR_COMP_REVISIONS_SQL).bind(engagementId, period_end, period_start).first(); },
+        readSourceBlockersEntries(engagementId: string, period_start: string, period_end: string) { return database.prepare(PP_RD23_HR_TIME_ENTRIES_OVERTIME_SQL).bind(engagementId, period_start, period_end).all(); },
+        readSourceBlockersCostAssignments(engagementId: string, company_id: string, activeEnd: string, activeStart: string) { return database.prepare(PP_RD23_HR_PAYROLL_COST_ASSIGNMENTS_SQL).bind(engagementId, company_id, activeEnd, activeStart).all(); },
+        readSourceBlockersHandoffs(engagementId: string, period_start: string, period_end: string) { return database.prepare(PP_RD23_OVERTIME_PAYROLL_HANDOFFS_SQL).bind(engagementId, period_start, period_end).all(); },
         readSourceBlockersBenefits(...args) { return payrollBenefitSources(database).readSourceBlockersBenefits(...args); },
         readSourceBlockersAdvances(company_id: string, engagementId: string, period_end: string, period_start: string, id: string) { return database.prepare("SELECT r.id,r.version,r.amount_minor,r.due_period_start,r.due_period_end,a.reason FROM hr_payroll_advance_repayments r JOIN hr_payroll_advances a ON a.id=r.advance_id WHERE r.company_id=? AND a.engagement_id=? AND a.status='approved' AND r.status IN ('open','reserved') AND r.due_period_start<=? AND r.due_period_end>=? AND (r.payroll_run_id IS NULL OR r.payroll_run_id=?) ORDER BY r.sequence").bind(company_id, engagementId, period_end, period_start, id).all(); },
         readAssertPayrollSourceFreshRun(runId: string) { return database.prepare("SELECT id,company_id,pay_group_id,country_pack_id,scope_engagement_id,period_start,period_end,pay_date,currency,mode,status,version,revision,input_digest,submitted_by,submitted_digest,adjustment_of_run_id FROM hr_payroll_runs WHERE id=?").bind(runId).first<Run>(); },
@@ -191,7 +192,7 @@ function context(provided?: SqlDatabase, mode: PackageEnforcementMode = "disable
                 image=group.image;
                 return insert(tx);
             }, async tx => {
-                if (image && image !== await tx.prepare("SELECT to_jsonb(g)::text image FROM hr_pay_groups g WHERE g.id=? AND g.company_id=?").bind(id2,company_id).first<string>("image")) throw new ApiError(409,"PAYROLL_SCHEDULE_CHANGED","The payroll schedule changed before its draft committed.");
+                if (image && image !== await tx.prepare(PP_RD23_HR_PAY_GROUPS_IMAGE_SQL).bind(id2,company_id).first<string>("image")) throw new ApiError(409,"PAYROLL_SCHEDULE_CHANGED","The payroll schedule changed before its draft committed.");
             }));
         },
         readDrainPayrollScheduledPreviewsDue(value: number) {
@@ -227,7 +228,7 @@ function context(provided?: SqlDatabase, mode: PackageEnforcementMode = "disable
                 const image = await database.prepare("SELECT to_jsonb(g)::text image FROM hr_pay_groups g WHERE g.id=? AND g.company_id=? AND g.status='active' AND g.schedule_enabled AND g.timezone=? AND g.overtime_multiplier_bps=? AND g.proration_method=? FOR SHARE").bind(run.pay_group_id,run.company_id,run.timezone,run.overtime_multiplier_bps,run.proration_method).first<string>("image");
                 if (!image) return null;
                 sourceChecks.push(async () => {
-                    if (image !== await database.prepare("SELECT to_jsonb(g)::text image FROM hr_pay_groups g WHERE g.id=? AND g.company_id=?").bind(run.pay_group_id,run.company_id).first<string>("image")) throw new ApiError(409,"PAYROLL_SCHEDULE_CHANGED","The payroll schedule changed before its preview committed.");
+                    if (image !== await database.prepare(PP_RD23_HR_PAY_GROUPS_IMAGE_SQL).bind(run.pay_group_id,run.company_id).first<string>("image")) throw new ApiError(409,"PAYROLL_SCHEDULE_CHANGED","The payroll schedule changed before its preview committed.");
                 });
             }
             return run;

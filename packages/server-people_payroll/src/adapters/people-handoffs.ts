@@ -1,3 +1,4 @@
+import { PP_RD23_HR_PAY_GROUPS_ACTIVE_CURRENCY_GUARD } from './pp-read-tail-r23-sources';
 import { PP_RD22_ACTIVE_PERSON_VERSION_GUARD } from './pp-read-tail-r22-sources';
 import { nativePeopleHandoffs } from "@erpx/server-collaboration/adapters/native-people-handoffs";
 import {withTalentPurchasedRead,withTalentHirePurchasedCommand,withTalentPrivacyPurchasedCommand} from "@erpx/server-talent/public/purchases";
@@ -46,7 +47,7 @@ function application(provided?:SqlDatabase) {
         guard9(...args) { return peopleHireHandoffFacts(database).guard9(...args); },
         guard10(...args) { return peopleHireHandoffFacts(database).guard10(...args); },
         guard11(key: string, value: "hire-email-reconcile", companyId: string, email: string, personId: string) { return assertion(database, key, value, "NOT EXISTS(SELECT 1 FROM hr_people WHERE company_id=? AND lower(email)=lower(?) AND id<>?)", [companyId, email, personId]); },
-        guard12(key: string, value: "hire-group", payGroupId: string, companyId: string, currency: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_pay_groups WHERE id=? AND company_id=? AND currency=? AND status='active')", [payGroupId, companyId, currency]); },
+        guard12(key: string, value: "hire-group", payGroupId: string, companyId: string, currency: string) { return assertion(database, key, value, PP_RD23_HR_PAY_GROUPS_ACTIVE_CURRENCY_GUARD, [payGroupId, companyId, currency]); },
         guard13(...args) { return peopleHirePlacementFacts(database).guard13(...args); },
         guard14(key: string, value: "hire-person", id: string, companyId: string, version: number) { return assertion(database, key, value, PP_RD22_ACTIVE_PERSON_VERSION_GUARD, [id, companyId, version]); },
         stageConsumeHireHandoffEffect3(personId: string, companyId: string, legal_name: string, email: string, phone: string | null, countryCode: string, userId: string, now: number, now2: number) { return nativePeopleHandoffs(database).person(companyId,[personId,companyId,legal_name,email,phone,countryCode,userId,now,now2]); },

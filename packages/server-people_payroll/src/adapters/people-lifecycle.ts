@@ -1,3 +1,4 @@
+import { PP_RD23_HR_ENGAGEMENTS_ACTIVE_FOR_PERSON_NOT_EXISTS } from './pp-read-tail-r23-sources';
 import { nativePpStatement, nativePpQuery } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import {projectWorkerNativeCommands,requireProjectWorkerNativeCommand,requireProjectWorkerUnit} from '@erpx/server-people_payroll/adapters/project-worker-startup-binding';
 import {filterPeopleLifecycleWork} from "@erpx/server-people_payroll/adapters/record-purchases";
@@ -331,7 +332,7 @@ function applicationPorts(raw: SqlDatabase, client?: PoolClient, actor?: WorkCon
         },
         readCreateRehireEngagementPosition(...args) { return peopleLifecycleOrganizationFacts(database, client).readCreateRehireEngagementPosition(...args); },
         guard61(key: string, value: "new-engagement", companyId: string, personId: string) {
-            return assertion(database, key, value, "NOT EXISTS(SELECT 1 FROM hr_engagements WHERE company_id=? AND person_id=? AND status!='ended')", [companyId, personId]);
+            return assertion(database, key, value, PP_RD23_HR_ENGAGEMENTS_ACTIVE_FOR_PERSON_NOT_EXISTS, [companyId, personId]);
         },
         stageCreateRehireEngagementEffect(id: string, personId: string, companyId: string, value: string | null, value2: string | null, positionId: string, level_id: string, worker_type: string, employment_type: string, startDate: string, title: string, currency: string, userId: string, now: number, now2: number) {
             return nativePpStatement('people_lifecycle_stmt_12')

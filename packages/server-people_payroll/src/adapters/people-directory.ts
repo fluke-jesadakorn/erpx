@@ -1,3 +1,4 @@
+import { PP_RD23_HR_ENGAGEMENTS_ACTIVE_FOR_PERSON_NOT_EXISTS } from './pp-read-tail-r23-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import { PP_RD19_HR_ENGAGEMENT_VERSION_EXISTS_SQL } from './pp-read-tail-r19-sources';
 import {projectWorkerNativeCommands,requireProjectWorkerNativeCommand,requireProjectWorkerUnit} from '@erpx/server-people_payroll/adapters/project-worker-startup-binding';
@@ -74,7 +75,7 @@ function application(provided?: SqlDatabase) {
         readSaveDirectoryPersonPrevious(...args) { return peopleDirectoryOrganizationFacts(database).readSaveDirectoryPersonPrevious(...args); },
         readSaveDirectoryPersonNext(...args) { return peopleDirectoryOrganizationFacts(database).readSaveDirectoryPersonNext(...args); },
         readSetDirectoryStatusEffect(companyId: string, personId: string) { return database.prepare("SELECT 1 FROM people_access_cutoffs WHERE company_id=? AND person_id=? AND cancelled_at IS NULL AND restored_at IS NULL").bind(companyId, personId).first(); },
-        guard25(commandId: string, value: "ended-engagements", companyId: string, personId: string) { return assertion(database, commandId, value, "NOT EXISTS(SELECT 1 FROM hr_engagements WHERE company_id=? AND person_id=? AND status!='ended')", [companyId, personId]); },
+        guard25(commandId: string, value: "ended-engagements", companyId: string, personId: string) { return assertion(database, commandId, value, PP_RD23_HR_ENGAGEMENTS_ACTIVE_FOR_PERSON_NOT_EXISTS, [companyId, personId]); },
         guard26(commandId: string, value: "version", personId: string, expectedVersion: number) {
             return assertion(database, commandId, value, "EXISTS(SELECT 1 FROM hr_people WHERE id=? AND version=?)", [personId, expectedVersion]);
         },

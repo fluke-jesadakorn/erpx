@@ -1,3 +1,4 @@
+import { PP_RD23_HR_COMP_REVISIONS_SQL, PP_RD23_HR_PAYROLL_COST_ASSIGNMENTS_SQL, PP_RD23_HR_PAY_GROUPS_ACTIVE_CURRENCY_GUARD, PP_RD23_HR_TIME_ENTRIES_OVERTIME_SQL, PP_RD23_OVERTIME_PAYROLL_HANDOFFS_SQL, PP_RD23_POSTED_PAYROLL_RUN_GUARD } from './pp-read-tail-r23-sources';
 import { ppRd21IdCompanyStatusVersionGuard } from './pp-read-tail-r21-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import {PP_RD15_ACTIVE_PAYEE_SQL} from './pp-read-tail-r15-sources';
@@ -230,9 +231,9 @@ function context(provided?: SqlDatabase, actor?: WorkContext): PeoplePayrollPort
                 preferred_name: string | null;
             }>();
         },
-        readCalculateItemCompensation(id: string, period_end: string, period_start: string) { return database.prepare(`SELECT * FROM hr_compensation_revisions WHERE engagement_id=? AND status IN ('active','approved') AND effective_from<=? AND (effective_to IS NULL OR effective_to>=?) ORDER BY effective_from DESC LIMIT 1`).bind(id, period_end, period_start).first<Record<string, string | number | null>>(); },
+        readCalculateItemCompensation(id: string, period_end: string, period_start: string) { return database.prepare(`${PP_RD23_HR_COMP_REVISIONS_SQL}`).bind(id, period_end, period_start).first<Record<string, string | number | null>>(); },
         readCalculateItemTime(id: string, period_start: string, period_end: string) {
-            return database.prepare("SELECT id,version,work_date,regular_hours,overtime_hours,cost_assignment_id,cost_branch_id,cost_department_id FROM hr_time_entries WHERE engagement_id=? AND work_date BETWEEN ? AND ? AND status='approved' ORDER BY id").bind(id, period_start, period_end).all<{
+            return database.prepare(PP_RD23_HR_TIME_ENTRIES_OVERTIME_SQL).bind(id, period_start, period_end).all<{
                 id: string;
                 version: number;
                 work_date: string;
@@ -244,7 +245,7 @@ function context(provided?: SqlDatabase, actor?: WorkContext): PeoplePayrollPort
             }>();
         },
         readCalculateItemHandoffs(id: string, period_start: string, period_end: string) {
-            return database.prepare('SELECT id,request_id,request_version,minutes,work_date FROM overtime_payroll_handoffs WHERE engagement_id=? AND work_date BETWEEN ? AND ? ORDER BY id').bind(id, period_start, period_end).all<{
+            return database.prepare(PP_RD23_OVERTIME_PAYROLL_HANDOFFS_SQL).bind(id, period_start, period_end).all<{
                 id: string;
                 request_id: string;
                 request_version: number;
@@ -268,7 +269,7 @@ function context(provided?: SqlDatabase, actor?: WorkContext): PeoplePayrollPort
             }>();
         },
         readCalculateItemCostAssignments(id: string, company_id: string, activeEnd: string, activeStart: string) {
-            return database.prepare("SELECT id,effective_from,effective_to,branch_id,department_id,evidence_status,version FROM hr_payroll_cost_assignments WHERE engagement_id=? AND company_id=? AND status='active' AND effective_from<=? AND (effective_to IS NULL OR effective_to>=?) ORDER BY effective_from,id").bind(id, company_id, activeEnd, activeStart).all<{
+            return database.prepare(PP_RD23_HR_PAYROLL_COST_ASSIGNMENTS_SQL).bind(id, company_id, activeEnd, activeStart).all<{
                 id: string;
                 effective_from: string;
                 effective_to: string | null;
@@ -278,7 +279,7 @@ function context(provided?: SqlDatabase, actor?: WorkContext): PeoplePayrollPort
                 version: number;
             }>();
         },
-        guard77(key: string, value: "pay-group", payGroupId: string, companyId: string, currency: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_pay_groups WHERE id=? AND company_id=? AND currency=? AND status='active')", [payGroupId, companyId, currency]); },
+        guard77(key: string, value: "pay-group", payGroupId: string, companyId: string, currency: string) { return assertion(database, key, value, PP_RD23_HR_PAY_GROUPS_ACTIVE_CURRENCY_GUARD, [payGroupId, companyId, currency]); },
         guard78(key: string, value: "duplicate-period", companyId: string, payGroupId: string, periodEnd: string, periodStart: string) { return assertion(database, key, value, "NOT EXISTS(SELECT 1 FROM hr_payroll_runs WHERE company_id=? AND pay_group_id=? AND mode!='final_pay' AND adjustment_of_run_id IS NULL AND status!='cancelled' AND period_start<=? AND period_end>=?)", [companyId, payGroupId, periodEnd, periodStart]); },
         guard79(key: string, value: "statutory-pack", id: string, record_version: number, sourceDigest: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_country_packs WHERE id=? AND status='active' AND record_version=? AND source_digest=?)", [id, record_version, sourceDigest]); },        readPrepareFinalPayTask(taskId: string, companyId: string) {
             return database.prepare(`SELECT t.id,t.version,t.status,t.assignee_id,t.clearance_type,t.case_id,c.person_id,c.definition,e.id engagement_id,e.pay_group_id,e.currency,e.end_date
@@ -496,7 +497,7 @@ function context(provided?: SqlDatabase, actor?: WorkContext): PeoplePayrollPort
         },
         readCreatePaymentBatchInvoice(...args) { return payrollFinanceFacts(database).readCreatePaymentBatchInvoice(...args); },
         readCreatePaymentBatchBank(...args) { return payrollFinanceFacts(database).readCreatePaymentBatchBank(...args); },
-        guard182(commandId: string, value: "posted-payroll-source", sourceId: string, companyId: string) { return assertion(database, commandId, value, "EXISTS(SELECT 1 FROM hr_payroll_runs WHERE id=? AND company_id=? AND status='posted')", [sourceId, companyId]); },
+        guard182(commandId: string, value: "posted-payroll-source", sourceId: string, companyId: string) { return assertion(database, commandId, value, PP_RD23_POSTED_PAYROLL_RUN_GUARD, [sourceId, companyId]); },
         guard183(commandId: string, value: string, id: string, sourceId: string, net_minor: number, input_snapshot_json: string) { return assertion(database, commandId, value, "EXISTS(SELECT 1 FROM hr_payroll_items WHERE id=? AND run_id=? AND status='posted' AND net_minor=? AND input_snapshot_json=?)", [id, sourceId, net_minor, input_snapshot_json]); },
         stageCreatePaymentBatchStatements(batchId: string, companyId: string, sourceType: "contractor" | "payroll", sourceId: string, currency: string, value: "draft", formatCode: string, total: number, value2: string | null, userId: string, now: number, now2: number) { return nativePpStatement('people_payroll_stmt_37').bind(batchId, companyId, sourceType, sourceId, currency, value, formatCode, total, value2, userId, now, now2); },
         guard185(...args) { return payrollFinanceFacts(database).guard185(...args); },
@@ -565,7 +566,7 @@ function context(provided?: SqlDatabase, actor?: WorkContext): PeoplePayrollPort
         guard201(commandId: string, value: string, source_id: string, id: string, id2: string, batchId: string, eligibleStatus: "failed" | "outstanding", reference: string, person_id: string, payee_name: string, amount_minor: number, currency: string, net_minor: number, currency2: string, input_snapshot_json: string) { return assertion(database, commandId, value, "EXISTS(SELECT 1 FROM hr_payment_batch_items b JOIN hr_payroll_items p ON p.run_id=? AND p.id=? WHERE b.id=? AND b.batch_id=? AND b.status=? AND b.reference=? AND b.person_id=? AND b.payee_name=? AND b.amount_minor=? AND b.currency=? AND p.status='posted' AND p.net_minor=? AND p.currency=? AND p.input_snapshot_json=?)", [source_id, id, id2, batchId, eligibleStatus, reference, person_id, payee_name, amount_minor, currency, net_minor, currency2, input_snapshot_json]); },
         guard202(commandId: string, value: "batch-export-version", batchId: string, companyId: string, version: number) { return assertion(database, commandId, value, ppRd21IdCompanyStatusVersionGuard('hr_payment_batches', 'approved'), [batchId, companyId, version]); },
         guard203(commandId: string, value: "batch-export-items", batchId: string, eligibleStatus: "failed" | "outstanding", length: number) { return assertion(database, commandId, value, "(SELECT COUNT(*) FROM hr_payment_batch_items WHERE batch_id=? AND status=?)=?", [batchId, eligibleStatus, length]); },
-        guard204(commandId: string, value: "posted-payroll-source", source_id: string, companyId: string) { return assertion(database, commandId, value, "EXISTS(SELECT 1 FROM hr_payroll_runs WHERE id=? AND company_id=? AND status='posted')", [source_id, companyId]); },
+        guard204(commandId: string, value: "posted-payroll-source", source_id: string, companyId: string) { return assertion(database, commandId, value, PP_RD23_POSTED_PAYROLL_RUN_GUARD, [source_id, companyId]); },
         stageExportPaymentBatchV2Effect(value: string, companyId: string, batchId: string, version: number, fileKey: string, checksum: string, length: number, total: number, userId: string, now: number) { return nativePpStatement('people_payroll_stmt_41').bind(value, companyId, batchId, version, fileKey, checksum, length, total, userId, now); },
         stageExportPaymentBatchV2Effect2(fileKey: string, checksum: string, now: number, now2: number, batchId: string, companyId: string, version: number) { return nativePpStatement('people_payroll_stmt_42').bind(fileKey, checksum, now, now2, batchId, companyId, version); },
         readConfirmPaymentBatchBatch(batchId: string, companyId: string) {

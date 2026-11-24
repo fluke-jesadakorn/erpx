@@ -1,3 +1,4 @@
+import { PP_RD23_EVAL_ASSESSMENT_VERSION_GUARD } from './pp-read-tail-r23-sources';
 import { PP_RD22_ENGAGEMENT_VERSION_GUARD } from './pp-read-tail-r22-sources';
 import { ppRd21IdVersionStatusGuard } from './pp-read-tail-r21-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
@@ -89,14 +90,14 @@ function application(provided?: SqlDatabase) {
         stageSaveEvaluationAssessmentGuards2(assessmentId: string) { return database.prepare("SELECT id FROM hr_evaluation_assessments WHERE id=? FOR UPDATE").bind(assessmentId); },
         stageSaveEvaluationAssessmentGuards3(id: string) { return database.prepare("SELECT id FROM hr_evaluation_definitions WHERE id=? FOR SHARE").bind(id); },
         guard35(key: string, value: "cycle-open", cycle_id: string, version: number) { return assertion(database, key, value, PP_RD19_EVAL_DEF_OPEN_EXISTS_SQL, [cycle_id, version]); },
-        guard36(key: string, value: "assessment-version", assessmentId: string, expectedVersion: number, status: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_evaluation_assessments WHERE id=? AND version=? AND status=?)", [assessmentId, expectedVersion, status]); },
+        guard36(key: string, value: "assessment-version", assessmentId: string, expectedVersion: number, status: string) { return assertion(database, key, value, PP_RD23_EVAL_ASSESSMENT_VERSION_GUARD, [assessmentId, expectedVersion, status]); },
         stageSaveEvaluationAssessmentEffect(periodStart: string, periodEnd: string, value: string, userId: string, userId2: string, reason: string, now: number, assessmentId: string) { return nativePpStatement('people_eval_stmt_5').bind(periodStart, periodEnd, value, userId, userId2, reason, now, assessmentId); },
         readTransitionEvaluationAssessmentEffect(...args) { return peopleEvaluationIdentityAccessFacts(database).readTransitionEvaluationAssessmentEffect(...args); },
         readTransitionEvaluationAssessmentEffect2(...args) { return peopleEvaluationIdentityAccessFacts(database).readTransitionEvaluationAssessmentEffect2(...args); },
         stageTransitionEvaluationAssessmentEffect(id: string) { return database.prepare("SELECT id FROM hr_engagements WHERE id=? FOR UPDATE").bind(id); },
         guard41(key: string, value: "engagement-version", id: string, version: number) { return assertion(database, key, value, PP_RD19_HR_ENGAGEMENT_VERSION_EXISTS_SQL, [id, version]); },
         stageTransitionEvaluationAssessmentEffect2(assessmentId: string) { return database.prepare("SELECT id FROM hr_evaluation_assessments WHERE id=? FOR UPDATE").bind(assessmentId); },
-        guard43(key: string, value: "assessment-version", assessmentId: string, expectedVersion: number, status: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_evaluation_assessments WHERE id=? AND version=? AND status=?)", [assessmentId, expectedVersion, status]); },
+        guard43(key: string, value: "assessment-version", assessmentId: string, expectedVersion: number, status: string) { return assertion(database, key, value, PP_RD23_EVAL_ASSESSMENT_VERSION_GUARD, [assessmentId, expectedVersion, status]); },
         stageTransitionEvaluationAssessmentEffect3(id: string) { return database.prepare("SELECT id FROM hr_evaluation_definitions WHERE id=? FOR SHARE").bind(id); },
         guard45(key: string, value: "cycle-open", cycle_id: string, version: number) { return assertion(database, key, value, PP_RD19_EVAL_DEF_OPEN_EXISTS_SQL, [cycle_id, version]); },
         guard46(key: string, value: "no-pay-draft", assessmentId: string) { return assertion(database, key, value, "NOT EXISTS(SELECT 1 FROM hr_evaluation_compensation_drafts WHERE assessment_id=? AND status='draft')", [assessmentId]); },
@@ -113,7 +114,7 @@ function application(provided?: SqlDatabase) {
         stageAddEvaluationEvidenceEffect(id: string) { return database.prepare("SELECT id FROM hr_engagements WHERE id=? FOR UPDATE").bind(id); },
         guard58(key: string, value: "engagement-version", id: string, version: number) { return assertion(database, key, value, PP_RD19_HR_ENGAGEMENT_VERSION_EXISTS_SQL, [id, version]); },
         stageAddEvaluationEvidenceEffect2(assessmentId: string) { return database.prepare("SELECT id FROM hr_evaluation_assessments WHERE id=? FOR UPDATE").bind(assessmentId); },
-        guard60(key: string, value: "assessment-version", assessmentId: string, expectedVersion: number, status: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_evaluation_assessments WHERE id=? AND version=? AND status=?)", [assessmentId, expectedVersion, status]); },
+        guard60(key: string, value: "assessment-version", assessmentId: string, expectedVersion: number, status: string) { return assertion(database, key, value, PP_RD23_EVAL_ASSESSMENT_VERSION_GUARD, [assessmentId, expectedVersion, status]); },
         stageAddEvaluationEvidenceEffect3(id: string) { return database.prepare("SELECT id FROM hr_evaluation_definitions WHERE id=? FOR SHARE").bind(id); },
         guard62(key: string, value: "cycle-open", cycle_id: string, version: number) { return assertion(database, key, value, PP_RD19_EVAL_DEF_OPEN_EXISTS_SQL, [cycle_id, version]); },
         stageAddEvaluationEvidenceEffect4(id: string, companyId: string, assessmentId: string, sourceType: "file" | "kpi" | "task" | "project" | "learning", sourceId: string | null, description: string, observedOn: string, value: string, userId: string, now: number) { return nativePpStatement('people_eval_stmt_7').bind(id, companyId, assessmentId, sourceType, sourceId, description, observedOn, value, userId, now); },

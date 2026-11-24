@@ -1,3 +1,4 @@
+import { PP_RD23_FINANCE_EXPENSE_DRAFT_REJECTED_GUARD } from './pp-read-tail-r23-sources';
 import { expenseDrafts } from '@erpx/server-collaboration/adapters/native-expense-drafts';
 import{nativeExpenseEmployment,nativeExpenseRequirements,expenseRequirements}from '@erpx/server-people_payroll/adapters/expense-requirements';
 export{nativeExpenseEmployment,nativeExpenseRequirements,expenseRequirements};
@@ -90,7 +91,7 @@ function originalNativeExpenseDrafts(write: SqlDatabase) {
         write,
         key,
         "expense-version",
-        "EXISTS(SELECT 1 FROM finance_expenses WHERE id=? AND company_id=? AND version=? AND cancelled_at IS NULL AND status IN ('draft','rejected'))",
+        PP_RD23_FINANCE_EXPENSE_DRAFT_REJECTED_GUARD,
         [recordId, actor.companyId, input.expectedVersion],
       ),
     );

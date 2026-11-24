@@ -1,3 +1,4 @@
+import { PP_RD23_IAM_REVIEWS_BY_ID_SQL } from './pp-read-tail-r23-sources';
 import "server-only";
 import {randomUUID} from "node:crypto";
 import type {PoolClient} from "pg";
@@ -76,11 +77,11 @@ export async function preparePeopleIamCommand(client:PoolClient,actor:IamActor,k
 export async function preparePeopleLifecycleIamReview(client:PoolClient,actor:IamActor,reviewId:string,decision:"approve"|"reject",key:string){
  if(await peoplePackageEnforcementMode()==="disabled"||actor.platform)return;
  const database=transactionDatabase(client);await database.batch(companyPurchaseReadLocks(database,actor.companyId));
- const row=(await client.query("SELECT id,kind,payload,created_by,created_person FROM iam_reviews WHERE id=$1 AND company_id=$2",[reviewId,actor.companyId])).rows[0];
+ const row=(await client.query(PP_RD23_IAM_REVIEWS_BY_ID_SQL,[reviewId,actor.companyId])).rows[0];
  if(!row||!String(row.kind).startsWith("people.lifecycle."))return;
  const caseId=String(row.payload.caseId),actual=(await client.query("SELECT kind FROM people_lifecycle_cases WHERE id=$1 AND company_id=$2",[caseId,actor.companyId])).rows[0];
  if(!actual)throw new ApiError(404,"PEOPLE_SOURCE_NOT_FOUND","The lifecycle source was not found in this Company.");
- const original=lifecycleSource(client,actor.companyId,caseId),review=async()=>(await client.query("SELECT id,kind,payload,created_by,created_person FROM iam_reviews WHERE id=$1 AND company_id=$2",[reviewId,actor.companyId])).rows[0]??null;
+ const original=lifecycleSource(client,actor.companyId,caseId),review=async()=>(await client.query(PP_RD23_IAM_REVIEWS_BY_ID_SQL,[reviewId,actor.companyId])).rows[0]??null;
  return prepare(client,actor,key,"people.lifecycle",decision==="reject"||["offboarding","suspend"].includes(actual.kind)?"settle-existing":"new-work",async()=>({review:await review(),...await original.source()}),async()=>({case:await original.identity(),review:await review()}),decision!=="approve"?undefined:async()=>{
   const current=await client.query(`SELECT 1 FROM assignments a WHERE a.id=$1 AND a.company_id=$2 AND a.user_id=$3 AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(a.role,a.company_id,'iam.manage')`,[row.payload.authorizingAssignmentId,actor.companyId,row.created_by]);
   if(!current.rowCount)throw new ApiError(403,"PEOPLE_IAM_PROPOSER_CHANGED","The original requester's authority changed before completion.");

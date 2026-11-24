@@ -1,1 +1,2 @@
-export const socialExpenseUsageSql='SELECT company_id,month FROM expense_ai_usage';
+import { PP_RD23_EXPENSE_AI_USAGE_MONTHS_SQL } from './pp-read-tail-r23-sources';
+export const socialExpenseUsageSql=PP_RD23_EXPENSE_AI_USAGE_MONTHS_SQL;

@@ -1,3 +1,4 @@
+import { PP_RD23_HR_ENGAGEMENTS_ID_COMPANY_EXISTS, PP_RD23_LEAVE_TYPES_ID_COMPANY_EXISTS } from './pp-read-tail-r23-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import {peoplePackageEnforcementMode} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {workforcePurchaseControls,withWorkforcePurchasedRead,withWorkforcePurchasedCommand,withWorkforceAccrualTransaction} from "@erpx/server-people_payroll/adapters/workforce-purchases";
@@ -164,11 +165,11 @@ function serviceContext(provided?: SqlDatabase,providedOwned=false): LeaveSelfSe
                 end_segment: 'full' | 'first_half' | 'second_half';
             }>();
         },
-        readAdministerLeaveEffect(leaveTypeId: string, companyId: string) { return database.prepare('SELECT 1 FROM leave_types WHERE id=? AND company_id=?').bind(leaveTypeId, companyId).first(); },
-        readAdministerLeaveEffect2(engagementId: string, companyId: string) { return database.prepare('SELECT 1 FROM hr_engagements WHERE id=? AND company_id=?').bind(engagementId, companyId).first(); },
-        readAdministerLeaveEffect3(leaveTypeId: string, companyId: string) { return database.prepare('SELECT 1 FROM leave_types WHERE id=? AND company_id=?').bind(leaveTypeId, companyId).first(); },
+        readAdministerLeaveEffect(leaveTypeId: string, companyId: string) { return database.prepare(PP_RD23_LEAVE_TYPES_ID_COMPANY_EXISTS).bind(leaveTypeId, companyId).first(); },
+        readAdministerLeaveEffect2(engagementId: string, companyId: string) { return database.prepare(PP_RD23_HR_ENGAGEMENTS_ID_COMPANY_EXISTS).bind(engagementId, companyId).first(); },
+        readAdministerLeaveEffect3(leaveTypeId: string, companyId: string) { return database.prepare(PP_RD23_LEAVE_TYPES_ID_COMPANY_EXISTS).bind(leaveTypeId, companyId).first(); },
         readAdministerLeaveEffect4(calendarId: string, companyId: string) { return database.prepare('SELECT 1 FROM leave_holiday_calendars WHERE id=? AND company_id=? AND active=true').bind(calendarId, companyId).first(); },
-        readAdministerLeaveEffect5(engagementId: string, companyId: string) { return database.prepare('SELECT 1 FROM hr_engagements WHERE id=? AND company_id=?').bind(engagementId, companyId).first(); },
+        readAdministerLeaveEffect5(engagementId: string, companyId: string) { return database.prepare(PP_RD23_HR_ENGAGEMENTS_ID_COMPANY_EXISTS).bind(engagementId, companyId).first(); },
         stageAdministerLeaveEffect(id: string, companyId: string, code: string, name: string, description: string, tracked: boolean, evidenceAfterUnits: number | null, evidenceNote: string, value: string, userId: string, now: number, now2: number) {
             return nativePpStatement('leave_ss_stmt_6')
                 .bind(id, companyId, code, name, description, tracked, evidenceAfterUnits, evidenceNote, value, userId, now, now2).run();
