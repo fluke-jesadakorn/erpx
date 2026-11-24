@@ -1,4 +1,4 @@
-import { hospitalityOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/hospitality-owner-projection-sources";
+import { COMMERCE_DELIVERY_GUARD_SQL } from "./commerce-delivery-dedupe-sql";
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
@@ -7,11 +7,11 @@ export function CommerceFilesFacts(db: SqlDatabase) {
     return {
         readAttachments1: (facts: {
             id: string;
-        }) => db.prepare(`SELECT a.id attachment_id,a.original_name,a.media_type,a.bytes,a.checksum_sha256,a.created_at FROM attachments a WHERE a.owner_type='commerce_order_delivery' AND a.owner_id=? AND a.purpose='proof_of_delivery' AND a.revoked_at IS NULL AND NOT EXISTS(SELECT 1 FROM attachment_links canonical WHERE canonical.attachment_id=a.id) AND NOT EXISTS(SELECT 1 FROM (${commerceProjectionSources.commerce_fulfillment_evidence}) e WHERE e.attachment_id=a.id) ORDER BY a.created_at DESC,a.id`).bind(facts.id).all<Row>(),
+        }) => db.prepare(`SELECT a.id attachment_id,a.original_name,a.media_type,a.bytes,a.checksum_sha256,a.created_at FROM attachments a WHERE ${COMMERCE_DELIVERY_GUARD_SQL} ORDER BY a.created_at DESC,a.id`).bind(facts.id).all<Row>(),
         readAttachments2: (facts: {
             attachmentId: string;
             id: string;
-        }) => db.prepare(`SELECT 1 ok FROM attachments a WHERE a.id=? AND a.owner_type='commerce_order_delivery' AND a.owner_id=? AND a.purpose='proof_of_delivery' AND a.revoked_at IS NULL AND NOT EXISTS(SELECT 1 FROM attachment_links canonical WHERE canonical.attachment_id=a.id) AND NOT EXISTS(SELECT 1 FROM (${commerceProjectionSources.commerce_fulfillment_evidence}) e WHERE e.attachment_id=a.id)`).bind(facts.attachmentId, facts.id).first('ok'),
+        }) => db.prepare(`SELECT 1 ok FROM attachments a WHERE a.id=? AND ${COMMERCE_DELIVERY_GUARD_SQL}`).bind(facts.attachmentId, facts.id).first('ok'),
         readAttachmentSets1: (facts: {
             companyId: string;
             invoiceId: string;
@@ -28,7 +28,7 @@ export function CommerceFilesFacts(db: SqlDatabase) {
             key: string;
             guardId: string;
             values: string[];
-        }) => assertion(db, facts.key, facts.guardId, `EXISTS(SELECT 1 FROM attachments a WHERE a.id=? AND a.owner_type='commerce_order_delivery' AND a.owner_id=? AND a.purpose='proof_of_delivery' AND a.revoked_at IS NULL AND NOT EXISTS(SELECT 1 FROM attachment_links canonical WHERE canonical.attachment_id=a.id) AND NOT EXISTS(SELECT 1 FROM (${commerceProjectionSources.commerce_fulfillment_evidence}) e WHERE e.attachment_id=a.id))`, facts.values),
+        }) => assertion(db, facts.key, facts.guardId, `EXISTS(SELECT 1 FROM attachments a WHERE a.id=? AND ${COMMERCE_DELIVERY_GUARD_SQL})`, facts.values),
         guardRule32: (facts: {
             key: string;
             guardId: string;
