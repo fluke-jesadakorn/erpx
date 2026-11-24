@@ -1,6 +1,7 @@
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import type { HandoffRow } from '@erpx/server-projects/public/project-structure';
 import { projectOwnerOrMemberSql } from '@erpx/server-projects/adapters/project-read-projections';
+import { projectIdSql } from './project-id-source';
 export function projectStructureSources(db: SqlDatabase) {
     return {
         /** Graph actuals are owned by the mounted native Projects graph read;
@@ -8,7 +9,7 @@ export function projectStructureSources(db: SqlDatabase) {
          * repository port used by the retained handoff reads. */
         async graphActuals() { throw new Error('PROJECT_GRAPH_NATIVE_ONLY'); },
         async handoffs(companyId: string, id: string) { return db.prepare('SELECT * FROM staff_project_handoffs WHERE company_id=? AND project_id=? ORDER BY prepared_at DESC,id').bind(companyId, id).all<HandoffRow>(); },
-        async handoffProject(id: string, companyId: string) { return db.prepare('SELECT project_id FROM staff_project_handoffs WHERE id=? AND company_id=?').bind(id, companyId).first<{
+        async handoffProject(id: string, companyId: string) { return db.prepare(projectIdSql('staff_project_handoffs')).bind(id, companyId).first<{
             project_id: string;
         }>(); },
         async handoffWork(companyId: string, userId: string, userId2: string, userId3: string, userId4: string) {

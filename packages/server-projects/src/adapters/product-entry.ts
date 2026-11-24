@@ -6,6 +6,7 @@ import {holdingResources} from '../../../../packages/server-runtime/src/public/r
 import {projectsPackageEnforcementMode,readPurchasedAccess} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
 import {projectsClockCte} from './clock-cte';
+import {projectIdSql} from './project-id-source';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {ApiError} from '@erpx/server-runtime/public/http';
 /** Role candidate discovery uses current native owner policy; it never chooses
@@ -46,7 +47,7 @@ export async function projectTaskSourceRecordBackdrop(actor:WorkContext,target:P
   if(!source)throw new ApiError(404,'PROJECT_TASK_NOT_FOUND','The Project task is unavailable in this workspace.');
   return {kind:'task',title:source.title,status:source.status};
  }
- const source=await database.prepare('SELECT project_id FROM staff_tasks WHERE id=? AND company_id=?').bind(target.id,actor.companyId).first<{project_id:string|null}>();if(!source?.project_id)return null;
+ const source=await database.prepare(projectIdSql('staff_tasks')).bind(target.id,actor.companyId).first<{project_id:string|null}>();if(!source?.project_id)return null;
  const {getTask}=await import('@erpx/server-operations/public/staff-task-read'),task=await getTask(database,actor,target.id);
  return {kind:'task',title:task.title,status:task.state};
 }
