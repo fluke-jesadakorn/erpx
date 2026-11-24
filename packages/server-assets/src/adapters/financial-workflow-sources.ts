@@ -18,9 +18,18 @@ export const assetPhysicalAggSql = (alias:string,from:string) =>
  * owner-owned tail; no SQL or relation name is accepted from a request. */
 export const assetSourceImageSql = (projection:string,tail="") =>
   `SELECT ${projection}::text image${tail}`;
+/** Canonical owner-local Finance-link keyed asset read. The physical lineage
+ * witness and the Finance-visible asset links share this one statement so the
+ * TS read tail carries no duplicate literal. Callers pass only a fixed
+ * projection, an optional table alias and an owner-owned tail; no SQL or
+ * relation name is accepted from a request. */
+export const assetFinanceLinkReadSql = (projection:string,alias="",tail="") => {
+  const qualifier=alias?`${alias}.`:"";
+  return `SELECT ${projection} FROM operational_assets${alias?` ${alias}`:""} WHERE ${qualifier}company_id=? AND ${qualifier}finance_asset_id=?${tail}`;
+};
 export function assetsFinancialPhysicalSourceLocks(database:SqlDatabase){return [database.prepare('LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links,maintenance_work_orders IN SHARE MODE')];}
 export async function assetsFinancialPhysicalSource(database:SqlDatabase,companyId:string,financeAssetId:string){
- const value=await database.prepare(`WITH physical AS MATERIALIZED(SELECT a.* FROM operational_assets a WHERE a.company_id=? AND a.finance_asset_id=?)
+ const value=await database.prepare(`WITH physical AS MATERIALIZED(${assetFinanceLinkReadSql("a.*","a")})
  ${assetSourceImageSql(`jsonb_build_object('assets',${assetPhysicalAggSql("a","physical a")},'events',${assetPhysicalAggSql("e","operational_asset_events e JOIN physical a ON a.id=e.asset_id")},'links',${assetPhysicalAggSql("l","operational_asset_finance_links l WHERE l.finance_asset_id=?")},'work',${assetPhysicalAggSql("w","maintenance_work_orders w JOIN physical a ON a.id=w.asset_id")})`,`,
  EXISTS(${assetSourceProbeSql("operational_asset_finance_links l LEFT JOIN physical a ON a.id=l.asset_id", "l.finance_asset_id=? AND a.id IS NULL")})
  OR EXISTS(${assetSourceProbeSql("maintenance_work_orders w JOIN physical a ON a.id=w.asset_id", "w.company_id<>a.company_id")}) invalid`)}`).bind(companyId,financeAssetId,financeAssetId,financeAssetId).first<{image:string;invalid:boolean}>();
@@ -28,5 +37,5 @@ export async function assetsFinancialPhysicalSource(database:SqlDatabase,company
 }
 export async function assetsFinancialPhysicalLinks(database:SqlDatabase,actor:WorkContext,financeAssetId:string){
  if(!hasPermission(actor,'records.read')||!hasModuleAccess(actor.modules,'assets'))return [];
- return (await database.prepare('SELECT id,code,name,lifecycle_status status,version FROM operational_assets WHERE company_id=? AND finance_asset_id=? AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?) ORDER BY id').bind(actor.companyId,financeAssetId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId).all<{id:string;code:string;name:string;status:string;version:number}>()).results;
+ return (await database.prepare(assetFinanceLinkReadSql("id,code,name,lifecycle_status status,version",""," AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?) ORDER BY id")).bind(actor.companyId,financeAssetId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId).all<{id:string;code:string;name:string;status:string;version:number}>()).results;
 }

@@ -399,11 +399,15 @@ it('shares one canonical lineage aggregate projection across the Assets financia
    const count=(text:string,needle:string)=>text.split(needle).length-1;
    // The canonical helper owns the single JSON aggregate literal; its comment must
    // not smuggle another "SELECT" token into the retirement KPI.
-   expect(adapter.match(/SELECT/g)).toHaveLength(4);
+   expect(adapter.match(/SELECT/g)).toHaveLength(3);
    expect(adapter).toContain('const assetPhysicalAggSql = (alias:string,from:string) =>');
    expect(count(adapter,'(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM ${from})')).toBe(1);
    // All four lineage call sites use the helper with their owner-owned FROM fragment.
    expect(count(adapter,'assetPhysicalAggSql(')).toBe(4);
+   expect(adapter).toContain('export const assetFinanceLinkReadSql = (projection:string,alias="",tail="") =>');
+   expect(count(adapter,'assetFinanceLinkReadSql(')).toBe(2);
+   expect(adapter).not.toContain('SELECT a.* FROM operational_assets a WHERE');
+   expect(adapter).not.toContain("'SELECT id,code,name,lifecycle_status status,version FROM operational_assets WHERE'");
    expect(adapter).toContain('assetPhysicalAggSql("a","physical a")');
    expect(adapter).toContain('assetPhysicalAggSql("e","operational_asset_events e JOIN physical a ON a.id=e.asset_id")');
    expect(adapter).toContain('assetPhysicalAggSql("l","operational_asset_finance_links l WHERE l.finance_asset_id=?")');
@@ -523,8 +527,9 @@ describe('Assets read-tail r17 byte-identical family dedupe',()=>{
   };
   walk(srcRoot);
   expect(selects).toBeLessThan(32);
-  // r20 retired the image-witness literal; r21 shares the keyed-row read.
-  expect(selects).toBe(24);
+  // r20 retired the image-witness literal; r21 shares the keyed-row read;
+  // r22 shares the Finance-link keyed reads (24->23).
+  expect(selects).toBe(23);
   const financial=readFileSync(resolve(srcRoot,'adapters/financial-workflow-sources.ts'),'utf8');
   expect(financial).toContain("LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links,maintenance_work_orders IN SHARE MODE");
   const purchases=readFileSync(resolve(srcRoot,'adapters/purchases.ts'),'utf8');
@@ -568,7 +573,7 @@ describe('Assets read-tail r21 id+company keyed-row family',()=>{
    }
   };
   walk(srcRoot);
-  expect(selects).toBe(24);
+  expect(selects).toBe(23);
   // r2-r20 lock/cascade families are untouched.
   expect(readFileSync(resolve(srcRoot,'adapters/financial-workflow-sources.ts'),'utf8'))
    .toContain("LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links,maintenance_work_orders IN SHARE MODE");
@@ -598,6 +603,25 @@ describe('Assets read-tail r19 clock-CTE family dedupe',()=>{
   });
 });
 
+describe('Assets read-tail r22 Finance-link keyed read family',()=>{
+ it('shares one parameterized Finance-link keyed asset read, byte-identical at both call sites',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const {assetFinanceLinkReadSql}=await import('../../../packages/server-assets/src/adapters/financial-workflow-sources');
+  const text=await readFile(new URL('../../../packages/server-assets/src/adapters/financial-workflow-sources.ts',import.meta.url),'utf8');
+  expect(text).toContain('export const assetFinanceLinkReadSql = (projection:string,alias="",tail="") =>');
+  expect((text.match(/SELECT/g)??[])).toHaveLength(3);
+  // Physical lineage witness (aliased) is byte-identical to its pre-r22 literal.
+  expect(assetFinanceLinkReadSql("a.*","a")).toBe('SELECT a.* FROM operational_assets a WHERE a.company_id=? AND a.finance_asset_id=?');
+  // Finance-visible links read (unaliased tail) is byte-identical too.
+  expect(assetFinanceLinkReadSql("id,code,name,lifecycle_status status,version",""," AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?) ORDER BY id"))
+    .toBe('SELECT id,code,name,lifecycle_status status,version FROM operational_assets WHERE company_id=? AND finance_asset_id=? AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?) ORDER BY id');
+  expect(text).toContain('WITH physical AS MATERIALIZED(${assetFinanceLinkReadSql("a.*","a")})');
+  expect(text).toContain('assetFinanceLinkReadSql("id,code,name,lifecycle_status status,version",""," AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?) ORDER BY id")');
+  // Locks and every earlier family remain untouched.
+  expect(text).toContain("LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links,maintenance_work_orders IN SHARE MODE");
+ });
+});
+
 describe('Assets read-tail r20 source-image witness family',()=>{
  const base=new URL('../../../packages/server-assets/src/adapters/',import.meta.url);
  it('shares one parameterized image witness and keeps both call sites byte-identical',async()=>{
@@ -605,7 +629,7 @@ describe('Assets read-tail r20 source-image witness family',()=>{
   const financial=await readFile(new URL('financial-workflow-sources.ts',base),'utf8');
   const purchases=await readFile(new URL('purchases.ts',base),'utf8');
   expect(financial).toContain('export const assetSourceImageSql = (projection:string,tail="") =>');
-  expect(financial.match(/SELECT/g)).toHaveLength(4);
+  expect(financial.match(/SELECT/g)).toHaveLength(3);
   expect(purchases.match(/SELECT/g)??[]).toHaveLength(0);
   expect(purchases).toContain('import {assetPhysicalAggSql,assetSourceImageSql} from "./financial-workflow-sources"');
   expect(financial).not.toContain("SELECT jsonb_build_object('assets'");
