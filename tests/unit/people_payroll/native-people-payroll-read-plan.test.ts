@@ -14,6 +14,7 @@ import {
   PEOPLE_PAYROLL_RD_ATTACHMENT_MIGRATION_PAYROLL_REVIEW_EXPORTS,
   PEOPLE_PAYROLL_RD_EXPENSE_PAYMENT_DRAFT_EXPENSE_ID,
   PEOPLE_PAYROLL_RD_LEAVE_LEGACY_EMPLOYEE,
+  PEOPLE_PAYROLL_RD_PAYROLL_OPTIONS_GROUPS,
 } from '../../../packages/server-people_payroll/src/adapters/native-people-payroll-read';
 import { leaveLegacyEmployeeFacts } from '../../../packages/server-people_payroll/src/adapters/operations-leave-legacy-facts';
 import { expensePaymentDraftExpenseId, documentPageExpensePaymentSource } from '../../../packages/server-people_payroll/src/adapters/document-page-payment-source';
@@ -418,6 +419,46 @@ describe('native People Payroll caller-unit read plan', () => {
       values: ['person-1', 'company'],
     }]);
     expect(bound).toEqual([['person-1', 'company']]);
+    expect(prepared).toEqual(['SELECT 1 AS id']);
+  });
+
+  it('exposes the payroll-options groups read kind with no SQL on the wire', () => {
+    expect(PEOPLE_PAYROLL_RD_PAYROLL_OPTIONS_GROUPS).toBe('people_payroll_rd_payroll_options_groups');
+    expect(PEOPLE_PAYROLL_RD_PAYROLL_OPTIONS_GROUPS).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
+  });
+
+  it('plans the payroll-options groups read on the caller unit with its single bind', async () => {
+    const bodies: { kind: string; values: unknown[] }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      bodies.push({ kind: body.kind, values: body.values });
+      return new Response(JSON.stringify({
+        data: { statements: [{ sql: 'SELECT 1 AS id', values: body.values }] },
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }));
+    const prepared: string[] = [];
+    const bound: unknown[][] = [];
+    const db = {
+      prepare(sql: string) {
+        prepared.push(sql);
+        return {
+          bind(...values: unknown[]) { bound.push(values); return this; },
+          async all() { return { results: [], success: true, meta: { changes: 0, duration: 0 } }; },
+          async first() { return null; },
+        };
+      },
+      async batch() { return [{ results: [{ id: 'group-1' }], success: true, meta: { changes: 0, duration: 0 } }]; },
+      async exec() { return { count: 0, duration: 0 }; },
+    };
+
+    const groups = await nativePeoplePayrollReadAll<{ id: string }>(
+      PEOPLE_PAYROLL_RD_PAYROLL_OPTIONS_GROUPS, ['company'], db as never);
+    expect(groups.results).toEqual([{ id: 'group-1' }]);
+    expect(bodies).toEqual([{
+      kind: PEOPLE_PAYROLL_RD_PAYROLL_OPTIONS_GROUPS,
+      values: ['company'],
+    }]);
+    expect(bound).toEqual([['company']]);
     expect(prepared).toEqual(['SELECT 1 AS id']);
   });
 

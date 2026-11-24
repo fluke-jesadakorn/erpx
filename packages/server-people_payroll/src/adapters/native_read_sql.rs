@@ -149,6 +149,18 @@ const READ_LEAVE_LEGACY_EMPLOYEE: NativeReadStatement = NativeReadStatement {
     bind_count: 2,
 };
 
+/// Native successor of the two identical TypeScript `people-payroll`
+/// active-pay-group reads (payroll options and posting-options groups). The
+/// owner plans this literal once; the caller executes it on its open unit with
+/// the same `[company_id]` bind. Deduped into one owner read kind.
+pub const RD_PAYROLL_OPTIONS_GROUPS: &str = "people_payroll_rd_payroll_options_groups";
+const SQL_PAYROLL_OPTIONS_GROUPS: &str = "SELECT id,name,currency,frequency FROM hr_pay_groups WHERE company_id=? AND status='active' ORDER BY name";
+const READ_PAYROLL_OPTIONS_GROUPS: NativeReadStatement = NativeReadStatement {
+    kind: RD_PAYROLL_OPTIONS_GROUPS,
+    sql: SQL_PAYROLL_OPTIONS_GROUPS,
+    bind_count: 1,
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_RECORD_SUPPLEMENT_ROWS,
     READ_ORG_ROSTER_EXIT_ENGAGEMENT_IDS,
@@ -162,6 +174,7 @@ const READS: &[NativeReadStatement] = &[
     READ_ATTACHMENT_MIGRATION_PAYROLL_REVIEW_EXPORTS,
     READ_EXPENSE_PAYMENT_DRAFT_EXPENSE_ID,
     READ_LEAVE_LEGACY_EMPLOYEE,
+    READ_PAYROLL_OPTIONS_GROUPS,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -295,6 +308,19 @@ mod tests {
         assert_eq!(read.sql.matches('?').count(), 2);
         assert!(read.sql.contains("employees"));
         assert!(is_read(RD_LEAVE_LEGACY_EMPLOYEE));
+    }
+
+    #[test]
+    fn payroll_options_groups_read_plan_is_ledger_free_and_bounded() {
+        let read = read_statement(RD_PAYROLL_OPTIONS_GROUPS).expect("read kind");
+        assert!(read.sql.to_ascii_uppercase().starts_with("SELECT"));
+        assert!(!read.sql.to_ascii_uppercase().contains("INSERT"));
+        assert!(!read.sql.to_ascii_uppercase().contains("UPDATE"));
+        assert!(!read.sql.to_ascii_uppercase().contains("DELETE"));
+        assert_eq!(read.bind_count, 1);
+        assert_eq!(read.sql.matches('?').count(), 1);
+        assert!(read.sql.contains("hr_pay_groups"));
+        assert!(is_read(RD_PAYROLL_OPTIONS_GROUPS));
     }
 
     #[test]

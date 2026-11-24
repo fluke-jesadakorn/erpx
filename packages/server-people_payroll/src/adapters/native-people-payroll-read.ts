@@ -29,6 +29,7 @@ export const PEOPLE_PAYROLL_RD_ATTACHMENT_MIGRATION_PAYMENT_EXPORTS = 'people_pa
 export const PEOPLE_PAYROLL_RD_ATTACHMENT_MIGRATION_PAYROLL_REVIEW_EXPORTS = 'people_payroll_rd_attachment_migration_payroll_review_exports';
 export const PEOPLE_PAYROLL_RD_EXPENSE_PAYMENT_DRAFT_EXPENSE_ID = 'people_payroll_rd_expense_payment_draft_expense_id';
 export const PEOPLE_PAYROLL_RD_LEAVE_LEGACY_EMPLOYEE = 'people_payroll_rd_leave_legacy_employee';
+export const PEOPLE_PAYROLL_RD_PAYROLL_OPTIONS_GROUPS = 'people_payroll_rd_payroll_options_groups';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'PEOPLE_PAYROLL_NATIVE_READ_UNAVAILABLE', 'The native People Payroll read service is unavailable.');
