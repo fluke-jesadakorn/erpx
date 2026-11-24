@@ -1,6 +1,7 @@
 import {participantSql} from '@erpx/server-workflow/public/approval-participant-projection';
 import {sourceAccessSql} from '@erpx/server-collaboration/public/social-source-policy';
 import {operationsActiveDelegationSql} from './task-delegation-source';
+import {approverJsonExistsSql} from './task-approver-access-source';
 
 /** SQL counterpart of the original task reader's participant and social-source
  * policy, for consumers that must apply source policy before their own LIMIT. */
@@ -12,8 +13,8 @@ function participantQuery(id:string,company:string,viewer:string){
  iam_same_person(project_task_record.creator_user_id,${user},project_task_record.company_id) OR iam_same_person(project_task_record.assignee_user_id,${user},project_task_record.company_id)
  OR iam_same_person(delegation.delegate_user_id,${user},project_task_record.company_id) OR iam_same_person(parent_project.owner_user_id,${user},project_task_record.company_id)
  OR EXISTS(SELECT 1 FROM staff_project_members m WHERE m.project_id=parent_project.id AND m.user_id=${user})
- OR EXISTS(SELECT 1 FROM erpx_json_each(project_task_record.start_approvers_json) WHERE value=${user})
- OR EXISTS(SELECT 1 FROM erpx_json_each(project_task_record.completion_approvers_json) WHERE value=${user})
+ OR ${approverJsonExistsSql('project_task_record','start',user)}
+ OR ${approverJsonExistsSql('project_task_record','completion',user)}
  OR ${participantSql('task','project_task_record',user)})
 `;
  return sql;

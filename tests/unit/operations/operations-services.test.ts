@@ -480,7 +480,9 @@ describe('Operations staff_tasks snapshot sources share one canonical projection
 import {readFileSync} from 'node:fs';
 import {OPERATIONS_TASK_DELEGATION_SOURCE_SQL,OPERATIONS_TASK_TEMPLATE_SOURCE_SQL,OPERATIONS_TASK_SCHEDULE_SOURCE_SQL,operationsApprovalImageSql,operationsActiveDelegationSql} from '../../../packages/server-operations/src/adapters/task-delegation-source';
 import {workforceActorScopeSql} from '../../../packages/server-operations/src/adapters/workforce-actor-scope-source';
-import {OPERATIONS_TASK_START_APPROVER_SQL,OPERATIONS_TASK_COMPLETION_APPROVER_SQL} from '../../../packages/server-operations/src/adapters/task-approver-access-source';
+import {OPERATIONS_TASK_START_APPROVER_SQL,OPERATIONS_TASK_COMPLETION_APPROVER_SQL,approverJsonExistsSql} from '../../../packages/server-operations/src/adapters/task-approver-access-source';
+import {handoverTaskAccessSql} from '../../../packages/server-operations/src/adapters/handover-policy';
+import {taskParticipantReadPolicy} from '../../../packages/server-operations/src/adapters/project-task-record-policy';
 import {projectSourceProbe} from '../../../packages/server-operations/src/adapters/record-purchases';
 describe('Operations task delegation source dedupe',()=>{
  const fragment='(SELECT jsonb_agg(to_jsonb(delegation) ORDER BY delegation.id) FROM staff_task_delegations delegation WHERE delegation.task_id=t.id AND delegation.company_id=t.company_id)';
@@ -550,6 +552,28 @@ describe('Operations task approver access dedupe',()=>{
    expect(source).toContain('${OPERATIONS_TASK_COMPLETION_APPROVER_SQL}');
    expect(source).not.toContain(startFragment);
    expect(source).not.toContain(completionFragment);
+  }
+ });
+});
+
+describe('Operations approver JSON exists alias/column family dedupe',()=>{
+ const canonical=(alias:string,column:string,value:string)=>'EXISTS(SELECT 1 FROM erpx_json_each('+alias+'.'+column+'_approvers_json) WHERE value='+value+')';
+ test('one alias/column-parameterized helper renders every prior site byte-identically',()=>{
+  const sites:[string,'start'|'completion',string][]=[['t','start','?'],['t','completion','?'],['ht','start','?'],['t','completion','v.user_id'],['project_task_record','start','v.user_id'],['project_task_record','completion','v.user_id']];
+  for(const [alias,column,value] of sites)expect(approverJsonExistsSql(alias,column,value)).toBe(canonical(alias,column,value));
+  expect(approverJsonExistsSql('t','start','?')).toBe(OPERATIONS_TASK_START_APPROVER_SQL);
+  expect(approverJsonExistsSql('t','completion','?')).toBe(OPERATIONS_TASK_COMPLETION_APPROVER_SQL);
+ });
+ test('handover and project task policies compose the helper without local literals',()=>{
+  const handover=handoverTaskAccessSql('ht','?'),project=taskParticipantReadPolicy('?','?','v');
+  expect(handover).toContain(canonical('ht','start','?'));
+  expect(handover).toContain(canonical('ht','completion','?'));
+  expect(project).toContain(canonical('project_task_record','start','v.user_id'));
+  expect(project).toContain(canonical('project_task_record','completion','v.user_id'));
+  for(const name of ['handover-policy.ts','project-task-record-policy.ts']){
+   const source=readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+   expect(source).toContain('approverJsonExistsSql(');
+   expect(source).not.toContain('erpx_json_each(');
   }
  });
 });

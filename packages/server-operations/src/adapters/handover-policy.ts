@@ -1,6 +1,7 @@
 import { finalRootOwnerProjectionSources as collaborationProjectionSources } from "@erpx/server-collaboration/public/final-root-owner-projection-sources";
 import {projectTaskOwnerSql,projectTaskMemberSql,projectHandoverSourceSql} from "@erpx/server-projects/public/project-read-projections";
 import {participantSql} from '@erpx/server-workflow/public/approval-participant-projection';
+import {approverJsonExistsSql} from './task-approver-access-source';
 
 /** Same task-participant categories used by task reads, with an SQL user expression. */
 export function handoverTaskAccessSql(task: string, user: string) {
@@ -13,8 +14,8 @@ export function handoverTaskAccessSql(task: string, user: string) {
       AND iam_same_person(hd.delegate_user_id,${user},${task}.company_id))
     OR ${projectTaskOwnerSql(task,user)}
     OR ${projectTaskMemberSql(task,user)}
-    OR EXISTS(SELECT 1 FROM erpx_json_each(${task}.start_approvers_json) WHERE value=${user})
-    OR EXISTS(SELECT 1 FROM erpx_json_each(${task}.completion_approvers_json) WHERE value=${user})
+    OR ${approverJsonExistsSql(task,'start',user)}
+    OR ${approverJsonExistsSql(task,'completion',user)}
     OR ${participantSql("task",task,user)})`;
 }
 
