@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9912,
+    "revision": 9916,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -156796,7 +156796,7 @@
         "owner": "manufacturing",
         "title": "manufacturing TS read tail native cutover (round 20)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -156808,22 +156808,37 @@
         "resources": [
           "owner:manufacturing"
         ],
-        "claim": {
-          "runId": "run-20261123-l",
-          "agentId": "wGCTman",
-          "claimedAt": "2026-11-24T06:05:43.220Z",
-          "heartbeatAt": "2026-11-24T06:05:43.220Z",
-          "expiresAt": "2026-11-24T06:35:43.220Z",
-          "generation": 164
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-manufacturing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "28ce8c89c",
+            "owner": "manufacturing",
+            "before": 83,
+            "after": 79,
+            "note": "Five EXISTS guards share manufacturingExistsGuard; r11/r4/r15-r19 helpers and locks untouched."
+          },
+          {
+            "command": "vitest manufacturing r20 (4) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "28ce8c89c"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=83.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCTman",
+          "at": "2026-11-24T06:12:49.982Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -157149,6 +157164,42 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=146.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.manufacturing.read-tail-r21",
+        "goalId": "G4",
+        "owner": "manufacturing",
+        "title": "manufacturing TS read tail native cutover (round 21)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-manufacturing/src/**",
+          "tests/unit/manufacturing/**",
+          "tests/integration/manufacturing/**"
+        ],
+        "resources": [
+          "owner:manufacturing"
+        ],
+        "claim": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCVman",
+          "claimedAt": "2026-11-24T06:12:50.544Z",
+          "heartbeatAt": "2026-11-24T06:12:50.544Z",
+          "expiresAt": "2026-11-24T06:42:50.544Z",
+          "generation": 164
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=79.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -157157,7 +157208,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1265,
+      "totalPackets": 1266,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -157165,13 +157216,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 896,
+        "blocked": 897,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 164,
-    "updatedAt": "2026-11-24T06:11:08.646Z",
+    "updatedAt": "2026-11-24T06:12:50.551Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
