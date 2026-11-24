@@ -1,5 +1,4 @@
 import {crmSharedHotelAnalyticsSources} from '@erpx/server-crm/adapters/analytics-hotel-sources';
-import {commercialOwnerProjectionSources as organizationProjectionSources} from '@erpx/server-organization/public/commercial-owner-projection-sources';
 import {commercialOwnerProjectionSources as peopleProjectionSources} from '@erpx/server-people_payroll/public/commercial-owner-projection-sources';
 import {crmAnalyticsSalesPostingSources,crmAnalyticsSalesOrders} from '@erpx/server-commerce/public/crm-analytics-sources';
 import {crmHotelAnalyticsReservations,crmHotelAnalyticsStays,crmHotelAnalyticsPostingSources} from '@erpx/server-pms/public/crm-analytics-sources';
@@ -19,7 +18,7 @@ import {createCRMAnalyticsApplication,type CRMAnalyticsRepository,type CRMAnalyt
 import {n,s,analyticsRange,analyticsSchema} from '@erpx/server-crm/domain/analytics';
 import {crmLeadProjectionScope} from '@erpx/server-crm/adapters/record-purchases';
 import {crmAnalyticsAccess,requireCRMReportAccess} from '@erpx/server-crm/adapters/analytics-purchases';
-import {crmClockCteSql} from '@erpx/server-crm/adapters/purchases';
+import {crmClockCteSql,crmBranchOptionsSql} from '@erpx/server-crm/adapters/purchases';
 export type {AnalyticsFilters} from '@erpx/server-crm/domain/analytics';
 const clock=`report_clock${crmClockCteSql}`;
 function hotelHistory(actor:WorkContext,access:CRMAnalyticsAccess|undefined,privateHistory:boolean){
@@ -36,7 +35,7 @@ function application(a:WorkContext,access?:CRMAnalyticsAccess){
  const repository:CRMAnalyticsRepository={
   async options(){const write=await database(),crm=await crmLeadProjectionScope(write,a,'l'),marketing=await marketingAnalyticsSource(write,a,'campaign');
    const [branches,properties,campaigns,owners]=await Promise.all([
-    write.prepare(`SELECT id,display_name name FROM (${organizationProjectionSources.organization_nodes}) organization_nodes WHERE company_id=? AND kind IN ('branch','headquarters') AND (?::text IS NULL OR id=?) ORDER BY display_name`).bind(a.companyId,a.branchId,a.branchId).all<Row>(),
+    write.prepare(crmBranchOptionsSql(' name',false)).bind(a.companyId,a.branchId,a.branchId).all<Row>(),
     access&&!access.hotel?Promise.resolve({results:[] as Row[]}):write.prepare(`WITH ${clock} SELECT property.id,property.name FROM pms_properties property CROSS JOIN report_clock WHERE property.company_id=? AND (?::text IS NULL OR property.branch_id=?) ${access?`AND ${purchasedCapabilityPredicate('property.company_id','pms.reservations','history','report_clock.now_ms')} AND EXISTS(SELECT 1 FROM (SELECT property.company_id,property.branch_id,?::text department_id) hotel_scope WHERE ${assignmentReadSql('hotel_scope','pms.read')})`:''} ORDER BY property.name`).bind(a.companyId,a.branchId,a.branchId,...(access?[a.departmentId,a.assignmentId,a.userId,a.role]:[])).all<Row>(),
     access&&!access.marketing?Promise.resolve({results:[] as Row[]}):write.prepare(`SELECT id,code name FROM (${marketing.sql}) campaign WHERE company_id=? ORDER BY code`).bind(...marketing.args,a.companyId).all<Row>(),
     access&&!access.crm?Promise.resolve({results:[] as Row[]}):write.prepare(`SELECT DISTINCT l.owner_id id,COALESCE(person.legal_name,l.owner_id) name FROM crm_leads l LEFT JOIN (${peopleProjectionSources.hr_people}) person ON person.user_id=l.owner_id AND person.company_id=l.company_id AND person.merged_into_id IS NULL WHERE l.company_id=? AND (?::text IS NULL OR l.branch_id=?) AND ${crm.where} ORDER BY name`).bind(a.companyId,a.branchId,a.branchId,...crm.args).all<Row>()

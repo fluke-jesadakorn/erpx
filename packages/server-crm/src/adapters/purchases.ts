@@ -21,6 +21,7 @@ import {crmMarketingCandidateSources,crmMarketingCampaignSources,crmMarketingSou
 import type {Row} from '@erpx/server-commerce/public/commerce';
 import {crmLeadSchema,type CRMLeadInput} from "@erpx/server-crm/domain/leads";
 import {salesRecipientEligibility} from "@erpx/server-sales/public/sales-recipient";
+import {commercialOwnerProjectionSources as organizationProjectionSources} from "@erpx/server-organization/public/commercial-owner-projection-sources";
 
 export type CRMPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 export type CRMPurchaseTarget={kind:"lead"|"activity"|"account"|"contact"|"guest-link";id:string};
@@ -42,6 +43,11 @@ export const crmAssignmentModuleExists=`EXISTS(SELECT 1 FROM assignments selecte
 export const crmLeadVersionProjection=`SELECT v.id,v.lead_id,l.title,l.status lead_status,l.version lead_version,`;
 export const crmObligationScopeSql=`WITH scope AS(SELECT ?::text company_id),`;
 export const crmClockCteSql=` AS MATERIALIZED(SELECT ${packageClockSql} now_ms)`;
+/** r21: one renderer for the branch/headquarters option reads shared by the
+ * analytics options and the CRM workspace. Callers pass only the display-name
+ * alias and whether the active-status filter applies; the rendered SQL stays
+ * byte-identical to the retired inline literals. */
+export const crmBranchOptionsSql=(nameAlias:string,activeOnly:boolean)=>`SELECT id,display_name${nameAlias} FROM (${organizationProjectionSources.organization_nodes}) organization_nodes WHERE company_id=? AND kind IN ('branch','headquarters')${activeOnly?" AND status='active'":''} AND (?::text IS NULL OR id=?) ORDER BY display_name`;
 export const crmPurchaseAccountRows=`SELECT account.id,account.company_id,NULL::text branch_id,NULL::text department_id,account.created_by,${accountIdentity} witness FROM crm_accounts account LEFT JOIN (${crmFinanceCustomerSources}) customer ON customer.id=account.finance_party_id AND customer.company_id=account.company_id AND customer.kind='customer' WHERE account.finance_party_id IS NULL OR customer.id IS NOT NULL`;
 export const crmPurchaseContactRows=`SELECT contact.id,contact.company_id,NULL::text branch_id,NULL::text department_id,account.created_by,${contactIdentity} witness FROM crm_contacts contact JOIN (${crmPurchaseAccountRows}) account ON account.id=contact.account_id AND account.company_id=contact.company_id`;
 export const crmPurchaseLeadRows=`SELECT lead.id,lead.company_id,lead.branch_id,lead.department_id,

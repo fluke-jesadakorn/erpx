@@ -383,7 +383,7 @@ describe('crm read-tail r19 parameterized projection families', () => {
   });
 
   it('keeps the owner SELECT KPI strictly below the r18 AFTER=158 baseline', () => {
-    expect(totalSelects()).toBe(151);
+    expect(totalSelects()).toBe(150);
     expect(totalSelects()).toBeLessThan(158);
   });
 });
@@ -429,7 +429,53 @@ describe('crm read-tail r20 parameterized history families', () => {
   });
 
   it('keeps the owner SELECT KPI strictly below the r19 AFTER=153 baseline', () => {
-    expect(totalSelects()).toBe(151);
+    expect(totalSelects()).toBe(150);
     expect(totalSelects()).toBeLessThan(153);
+  });
+});
+
+describe('crm read-tail r21 parameterized branch option family', () => {
+  const owner = fileURLToPath(new URL('../../../packages/server-crm/src/', import.meta.url));
+  const src = (name: string) => readFileSync(resolve(owner, 'adapters', name), 'utf8');
+  const totalSelects = () => {
+    let total = 0;
+    for (const rel of readdirSync(owner, { recursive: true })) {
+      if (!String(rel).endsWith('.ts')) continue;
+      total += readFileSync(resolve(owner, String(rel)), 'utf8').match(/SELECT /g)?.length ?? 0;
+    }
+    return total;
+  };
+  const ORG = '${organizationProjectionSources.organization_nodes}';
+
+  it('renders both branch option lists byte-identically from one parameterized helper', () => {
+    const purchases = src('purchases.ts');
+    const line = purchases.split('\n').find(value => value.includes('export const crmBranchOptionsSql=')) ?? '';
+    const body = line.slice(line.indexOf('`') + 1, line.lastIndexOf('`'));
+    const render = (nameAlias: string, activeOnly: boolean) => body
+      .replace('${nameAlias}', nameAlias)
+      .replace('${activeOnly?" AND status=\'active\'":\'\'}', activeOnly ? " AND status='active'" : '');
+    expect(render(' name', false)).toBe(`SELECT id,display_name name FROM (${ORG}) organization_nodes WHERE company_id=? AND kind IN ('branch','headquarters') AND (?::text IS NULL OR id=?) ORDER BY display_name`);
+    expect(render('', true)).toBe(`SELECT id,display_name FROM (${ORG}) organization_nodes WHERE company_id=? AND kind IN ('branch','headquarters') AND status='active' AND (?::text IS NULL OR id=?) ORDER BY display_name`);
+  });
+
+  it('owns the branch option SELECT token once and composes it at both readers', () => {
+    const purchases = src('purchases.ts');
+    const analytics = src('analytics.ts');
+    const leads = src('leads.ts');
+    expect(purchases.match(/export const crmBranchOptionsSql=/g)).toHaveLength(1);
+    expect(purchases.match(/SELECT id,display_name/g)).toHaveLength(1);
+    expect(analytics.match(/SELECT id,display_name/g) ?? []).toHaveLength(0);
+    expect(leads.match(/SELECT id,display_name/g) ?? []).toHaveLength(0);
+    expect(analytics).toContain("crmBranchOptionsSql(' name',false)");
+    expect(leads).toContain("crmBranchOptionsSql('',true)");
+    // r8-r20 helpers and the owned CRM source lock stay in place.
+    for (const token of ['crmAssignmentAllowedSql', 'crmAccountCreatedByScopeSql', 'opportunityWitnessSql', 'crmClockCteSql', 'crmOpportunityLeadSql', 'crmHotelReservationProbeSql', 'crmCaseEventReceiptWitnessSql'])
+      expect(purchases).toContain(token);
+    expect(purchases).toContain('LOCK TABLE crm_accounts,crm_contacts,crm_guest_links,crm_guest_sharing_events,crm_leads,crm_opportunities,crm_case_events,crm_lead_activities,crm_lead_activity_events IN SHARE ROW EXCLUSIVE MODE');
+  });
+
+  it('keeps the owner SELECT KPI strictly below the r20 BEFORE=151 baseline', () => {
+    expect(totalSelects()).toBe(150);
+    expect(totalSelects()).toBeLessThan(151);
   });
 });
