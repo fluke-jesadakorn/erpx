@@ -10,18 +10,22 @@ import {ApiError} from "@erpx/server-runtime/public/http";
 // engine still routes field_service through listRecords/getRecord/searchReferences;
 // migration 1095 preserved legacy workspace_records images for Field previews.
 // Removing this partition before that engine is retired would re-expose those
-// rows. The four SQL reads here are not counted as retired TS statements.
+// rows. The fixed SQL probes here are not counted as retired TS statements.
 const nativeIds="SELECT id FROM field_service_agreements UNION SELECT id FROM field_service_orders";
+/** One fixed native-record probe shared by the generic Records partition and
+ * its fail-closed single-record guard. Callers pass only an internal predicate;
+ * no caller-supplied relation or statement is accepted. */
+const nativeFieldRecordProbe=(predicate:string)=>`SELECT 1 FROM (${nativeIds}) native_field_record WHERE ${predicate}`;
 export async function serviceSourceReadScope(_database:SqlDatabase,_actor:WorkContext,_surface:"records"){
  void _database;void _actor;void _surface;
- return {where:`(workspace_records.module_id<>'field_service' AND NOT EXISTS(SELECT 1 FROM (${nativeIds}) native_field_record WHERE native_field_record.id=workspace_records.id))`,args:[] as (string|number|null)[]};
+ return {where:`(workspace_records.module_id<>'field_service' AND NOT EXISTS(${nativeFieldRecordProbe("native_field_record.id=workspace_records.id")}))`,args:[] as (string|number|null)[]};
 }
 /** Fail closed for old generic/aliased workspace documents. An HTTP Field read
  * must never substitute for a native transactional Records guard. Remove this
  * partition adapter with the remaining generic Records engine. */
 export async function requireServiceWorkspaceRecordRead(database:SqlDatabase,_actor:WorkContext,moduleId:string,id:string){
  void _actor;
- if(moduleId==="field_service"||await database.prepare(`SELECT 1 FROM (${nativeIds}) native_field_record WHERE id=?`).bind(id).first())
+ if(moduleId==="field_service"||await database.prepare(nativeFieldRecordProbe("id=?")).bind(id).first())
   throw new ApiError(503,"FIELD_RECORD_SOURCE_NATIVE_UNIT_REQUIRED","This Field document requires the native Records transaction.");
 }
 /** Native source-record consumers use the same current source in their
