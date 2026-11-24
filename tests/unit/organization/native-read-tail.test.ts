@@ -184,4 +184,22 @@ describe('Organization owner-local read tail', () => {
     ]);
   });
 
+  it('shares one canonical alias=organization_nodes projection across the IAM snapshot source map', async () => {
+    const {identitySnapshotSources} = await import('../../../packages/server-organization/src/adapters/identity-snapshot-sources');
+    const p = identitySnapshotSources();
+    const keys = [
+      'access_diagnosis_organization_nodes_from',
+      'attachments_finance_facts_organization_nodes_from',
+      'authorization_organization_nodes_from',
+      'executive_main_evidence_sources_organization_nodes_from',
+      'executive_metric_projections_organization_nodes_from',
+      'iam_service_organization_nodes_from',
+      'member_directory_organization_nodes_from',
+      'user_management_organization_nodes_from',
+      'workflow_role_facts_organization_nodes_from',
+    ] as const;
+    const expected = 'FROM (SELECT "id", "kind", "slug", "display_name", "parent_id", "company_id", "branch_id", "status", "hierarchy_revision" FROM organization_nodes) organization_nodes';
+    for (const key of keys) expect(p[key]).toBe(expected);
+  });
+
 });
