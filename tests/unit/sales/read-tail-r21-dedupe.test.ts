@@ -75,9 +75,7 @@ describe('Sales read-tail r21 parameterized followup/customer order join family'
       'const allRows=', // r13
       'const factKind=', // r14
       'const scopedSource=', // r16
-      'const ecommerceNoteOrderScope=', // r7
-      'const ecommerceFollowupOrderScope=', // r7
-      'const ecommerceNoticeOrderScope=', // r7
+      'const ecommerceOrderScope=', // r7, collapsed in r27
     ]) expect(obligations).toContain(literal);
     expect(finalRoot).toMatch(/const tableRead\s*=/); // r15
     expect(followupSource).toContain('export const actorScopeTuple='); // r12/r15

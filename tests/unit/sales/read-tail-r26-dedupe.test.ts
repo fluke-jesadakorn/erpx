@@ -86,9 +86,7 @@ describe('Sales read-tail r26 parameterized presence-guard families', () => {
       'const reconciledAttempt=',
       'const orderDeliveryExistsSql=', // r7
       'const commandAuditPrefixSql=', // r9
-      'const ecommerceNoteOrderScope=', // r7
-      'const ecommerceFollowupOrderScope=', // r7
-      'const ecommerceNoticeOrderScope=', // r7
+      'const ecommerceOrderScope=', // r7, collapsed in r27
       'const allRows=', // r13
       'const factKind=', // r14
       'const scopedSource=', // r16
@@ -128,7 +126,7 @@ describe('Sales read-tail r26 parameterized presence-guard families', () => {
 });
 
 describe('Sales read-tail r26 retirement check', () => {
-  test('retirement:ts-statements stays strictly below the r26 BEFORE=62 baseline', () => {
+  test('retirement:ts-statements stays strictly below the r27 BEFORE=60 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -138,6 +136,7 @@ describe('Sales read-tail r26 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBeLessThan(62);
+    expect(total).toBe(58);
+    expect(total).toBeLessThan(60);
   });
 });

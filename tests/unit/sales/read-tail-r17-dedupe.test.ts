@@ -63,9 +63,7 @@ describe('Sales read-tail r17 followupExists generator family', () => {
       'const allRows=', // r13
       'const factKind=', // r14
       'const scopedSource=', // r16
-      'const ecommerceNoteOrderScope=', // r7
-      'const ecommerceFollowupOrderScope=', // r7
-      'const ecommerceNoticeOrderScope=', // r7
+      'const ecommerceOrderScope=', // r7, collapsed in r27
     ]) expect(obligations).toContain(literal);
     expect(src.match(/LOCK TABLE/g) ?? []).toHaveLength(1);
     expect(src).toContain('LOCK TABLE customer_followups,customer_followup_events IN SHARE ROW EXCLUSIVE MODE');

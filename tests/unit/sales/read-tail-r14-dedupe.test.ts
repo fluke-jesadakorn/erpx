@@ -50,9 +50,7 @@ describe('Sales read-tail r14 factKind generator family', () => {
     expect(src).toContain('const allRows='); // r13
     expect(src).toContain('const orderDeliveryExistsSql='); // r7
     expect(src).toContain('const commandAuditPrefixSql='); // r9
-    expect(src).toContain('const ecommerceNoteOrderScope='); // r7
-    expect(src).toContain('const ecommerceFollowupOrderScope='); // r7
-    expect(src).toContain('const ecommerceNoticeOrderScope='); // r7
+    expect(src).toContain('const ecommerceOrderScope='); // r7, collapsed in r27
     expect(src).toContain('salesCommerceSettlementSourceReadLocks(database)');
     expect(src).toContain('crmFinanceSourceReadLocks(database)');
     expect(src).toContain('LOCK TABLE sales_price_lists,sales_price_list_items,customer_followups,customer_followup_events,customer_contact_notes,customer_contact_note_history,commerce_customer_notifications,commerce_customer_notification_settings,sales_notification_execution_authorizations,sales_notification_execution_attempts,sales_notification_reconciliations,command_receipts,audit_events IN SHARE MODE');
