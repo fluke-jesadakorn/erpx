@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12021,
+    "revision": 12025,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -178750,7 +178750,7 @@
         "owner": "files",
         "title": "files TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -178762,22 +178762,37 @@
         "resources": [
           "owner:files"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4i05",
-          "claimedAt": "2026-11-24T12:55:20.857Z",
-          "heartbeatAt": "2026-11-24T13:00:27.066Z",
-          "expiresAt": "2026-11-24T13:30:27.067Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-files/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "f844d18e6",
+            "owner": "files",
+            "before": 255,
+            "after": 254,
+            "note": "Sanitization attested and binding witness share one head; advisory locks/native writes untouched."
+          },
+          {
+            "command": "vitest files r40 (4) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "f844d18e6"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next safe family; report blocked with AST evidence if none. BEFORE=255.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4i05",
+          "at": "2026-11-24T13:08:59.265Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -178837,7 +178852,7 @@
         "owner": "ecommerce",
         "title": "ecommerce TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -178849,22 +178864,37 @@
         "resources": [
           "owner:ecommerce"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4i07",
-          "claimedAt": "2026-11-24T12:55:46.058Z",
-          "heartbeatAt": "2026-11-24T13:00:27.066Z",
-          "expiresAt": "2026-11-24T13:30:27.067Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-ecommerce/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "f844d18e6",
+            "owner": "ecommerce",
+            "before": 26,
+            "after": 25,
+            "note": "Bare one-row probes share ecommerceRowProbe; locks/native/r1-r22 untouched."
+          },
+          {
+            "command": "vitest ecommerce (117) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "f844d18e6"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next safe family; report blocked with AST evidence if none. BEFORE=26.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4i07",
+          "at": "2026-11-24T13:08:58.939Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -179478,17 +179508,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 14,
+        "in_progress": 12,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1348,
+        "blocked": 1350,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T13:08:20.169Z",
+    "updatedAt": "2026-11-24T13:08:59.270Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
