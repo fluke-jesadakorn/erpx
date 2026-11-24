@@ -113,7 +113,7 @@ describe('Collaboration read-tail r37 isolation of protected SQL', () => {
     expect(sha(fixed('adapters/messaging-purchases.ts'))).toBe('8e0d08a9216c43e1b989aba9b8768d6cb775e0aa06c9764adcc3d482091385e0');
     expect(sha(fixed('public/field-outbox-predicate.generated.ts'))).toBe('1c1945bec812a3981738b0d36af5483786ff8e372c669453c0bc8683976a6c84');
     expect(shared).toContain('export const requestedSourcesJsonb=`(SELECT kind,id FROM jsonb_to_recordset(?::jsonb) AS r(kind text,id text))`');
-    expect(draftPolicy).toContain('WITH requested AS${requestedSourcesJsonb}');
+    expect(draftPolicy).toContain('database.prepare(requestedSourcesSelect(`r.kind,r.id,p.project_id,');
     expect(socialPurchases).toContain('JOIN jsonb_to_recordset(?::jsonb) AS original(id text,company_id text,actor_id text,post_id text,actor_json text,attempt integer,lease_token text)');
     expect(taskSource).toContain('LOCK TABLE social_posts,social_comments,social_post_sources,social_post_revisions,social_task_origins IN SHARE ROW EXCLUSIVE MODE');
     expect(taskSource).toContain('LOCK TABLE messaging_teams,messaging_team_members IN SHARE MODE');
@@ -136,7 +136,7 @@ describe('Collaboration read-tail r37 isolation of protected SQL', () => {
 });
 
 describe('Collaboration read-tail r37 KPI pins', () => {
-  test('retirement:ts-statements is pinned at 360 after r38, below the r37 BEFORE=370 baseline', () => {
+  test('retirement:ts-statements is pinned at 356 after r39, below the r37 BEFORE=370 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -147,8 +147,9 @@ describe('Collaboration read-tail r37 KPI pins', () => {
     };
     walk(srcRoot);
     // 2->1 revisions (-1), 3->1 team-member (-2), 4->1 PMS source (-3): 370 -> 364.
-    // r38 refreshed it after the 364 -> 360 settlement/AI-draft/post-head dedupe.
-    expect(total).toBe(360);
+    // r38 refreshed it after the 364 -> 360 settlement/AI-draft/post-head dedupe;
+    // r39 refreshed it after the 360 -> 356 queued-guard/actor-CTE/requested-select dedupe.
+    expect(total).toBe(356);
     expect(total).toBeLessThan(370);
   });
 });

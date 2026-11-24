@@ -153,3 +153,18 @@ export const socialAiDraftById=(cols:string)=>`SELECT ${cols} FROM social_ai_dra
  * list and trailing access predicate vary; the `p.id=? AND p.company_id=?`
  * prefix, bind order and lock semantics stay at the call sites. */
 export const readablePostHead=(cols:string,tail:string)=>`SELECT p.${cols} FROM social_posts p WHERE p.id=? AND p.company_id=? AND ${tail}`;
+/** Byte-identical queued source-absence guard shared by the two queued Task
+ * read-source readers. Only the joined source rows and the trailing readable
+ * predicate vary; the fixed `social_post_sources requested` head, `post_id`
+ * reference, bind order and lock semantics stay at the call sites. */
+export const queuedSourceAbsentGuard=(joinSql:string,tail:string)=>`NOT EXISTS(SELECT 1 FROM social_post_sources requested JOIN ${joinSql} WHERE requested.post_id=p.id AND ${tail})`;
+/** Byte-identical Social purchase actor CTE shared by the selected/current
+ * scope readers and the queued reply authority reader. Callers pass only their
+ * original body fragment; clock and authority predicates, binds and lock
+ * semantics stay at the call sites. */
+export const socialPurchaseActorCte=(body:string)=>`WITH social_purchase_actor AS MATERIALIZED(SELECT ${body}) `;
+/** Byte-identical requested-source CTE head shared by the Social draft-policy
+ * capabilities reader and the work Social source-facts reader. Only the
+ * projected body varies; the `requestedSourcesJsonb` CTE, JSON bind order and
+ * lock semantics stay unchanged. */
+export const requestedSourcesSelect=(body:string)=>`WITH requested AS${requestedSourcesJsonb} SELECT ${body}`;

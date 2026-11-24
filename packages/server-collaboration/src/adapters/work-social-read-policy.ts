@@ -23,17 +23,17 @@ import {workSocialNativePostPredicate,workSocialUnresolvedPostPredicate,operatio
 import {sourceAccessSql} from '@erpx/server-collaboration/public/social-source-policy';
 
 import{units}from '@erpx/server-collaboration/adapters/work-social-unit-state';
-import {workforceActorScopeExists,jsonbTextIds,socialPurchaseActorFeature,socialPurchaseActorExists,projectPurchaseSourceAbsent,socialPostByIdPredicate} from './read-tail-sql';
+import {workforceActorScopeExists,jsonbTextIds,socialPurchaseActorFeature,socialPurchaseActorExists,projectPurchaseSourceAbsent,socialPostByIdPredicate,socialPurchaseActorCte} from './read-tail-sql';
 type Reader=Pick<StaffActor,'companyId'|'userId'>&Partial<StaffActor>;
 type ReadScope={prefix:string;where:string;args:SqlValue[]};
 export const actorKey=(actor:StaffActor)=>JSON.stringify([actor.companyId,actor.branchId,actor.departmentId,actor.userId,actor.assignmentId,actor.role,actor.authority??null,actor.iam??null]);
 export const clock=packageClockSql;
 export function selected(actor:Reader):actor is StaffActor{return typeof actor.assignmentId==='string'&&typeof actor.role==='string'&&'branchId' in actor&&'departmentId' in actor;}
 export function actorScope(actor:Reader){
- if(selected(actor)){const current=currentAssignmentReadScope(actor,'workforce_actor_scope');return {prefix:`WITH social_purchase_actor AS MATERIALIZED(SELECT ?::text user_id,?::text assignment_id,?::text role,?::text company_id,${clock} now_ms WHERE ${workforceActorScopeExists(current.where)}) `,args:[actor.userId,actor.assignmentId,actor.role,actor.companyId,actor.companyId,actor.branchId,actor.departmentId,...current.args] as SqlValue[]};}
+ if(selected(actor)){const current=currentAssignmentReadScope(actor,'workforce_actor_scope');return {prefix:socialPurchaseActorCte(`?::text user_id,?::text assignment_id,?::text role,?::text company_id,${clock} now_ms WHERE ${workforceActorScopeExists(current.where)}`),args:[actor.userId,actor.assignmentId,actor.role,actor.companyId,actor.companyId,actor.branchId,actor.departmentId,...current.args] as SqlValue[]};}
  // Recipient visibility probes keep their original existential current account
  // policy. No replacement acting role or queued authority is selected here.
- return {prefix:`WITH social_purchase_actor AS MATERIALIZED(SELECT g.user_id,g.id assignment_id,g.role,g.company_id,${clock} now_ms FROM assignments g WHERE g.user_id=? AND g.company_id=? AND (?::text IS NULL OR g.id=?) AND iam_assignment_active(g.id,${clock}) AND iam_principal_active(g.user_id,g.company_id,${clock})) `,args:[actor.userId,actor.companyId,actor.assignmentId??null,actor.assignmentId??null] as SqlValue[]};
+ return {prefix:socialPurchaseActorCte(`g.user_id,g.id assignment_id,g.role,g.company_id,${clock} now_ms FROM assignments g WHERE g.user_id=? AND g.company_id=? AND (?::text IS NULL OR g.id=?) AND iam_assignment_active(g.id,${clock}) AND iam_principal_active(g.user_id,g.company_id,${clock})`),args:[actor.userId,actor.companyId,actor.assignmentId??null,actor.assignmentId??null] as SqlValue[]};
 }
 export const sourceRows=`SELECT ps.source_kind kind,ps.source_id id FROM social_post_sources ps WHERE ps.post_id=p.id`;
 export function projectRead(purpose:CapabilityPurpose,enforced:boolean){return `NOT EXISTS(${projectPurchaseSourceAbsent(sourceRows,projectSocialPurchaseSources,`${projectSocialSourceReadPolicy()} AND ${enforced?`${scheduledFeaturePredicate('p.company_id','projects')} AND (source.kind<>'staff_task' OR ${scheduledFeaturePredicate('p.company_id','operations')}) AND iam_role_allows(social_purchase_actor.role,p.company_id,'records.read') AND ${purchasedCapabilityPredicate('p.company_id','projects.wbs',purpose,'social_purchase_actor.now_ms')} AND (source.kind<>'staff_task' OR ${purchasedCapabilityPredicate('p.company_id','projects.tasks',purpose,'social_purchase_actor.now_ms')})`:'TRUE'}`)}) AND ${enforced?socialProjectAudienceReadPredicate():'TRUE'}`;}
