@@ -56,6 +56,6 @@ describe('billing read-tail r23 parameterized family dedupe', () => {
     let count = 0;
     for (const file of files) count += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     expect(count).toBeLessThan(63);
-    expect(count).toBe(57); // r25 left 63; r26 removed the view literals; r27 deduped the metric count; r28 deduped the storage-ledger reads.
+    expect(count).toBe(55); // r28 left 57; r29 deduped the point-read-by-id family (receipt, invoice, job).
   });
 });

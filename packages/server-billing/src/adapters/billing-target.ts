@@ -7,6 +7,7 @@ import {nativeBillingOwnerQuery} from '@erpx/server-billing/adapters/native-bill
 import {BILLING_ROLLOUT_ELIGIBILITY_SQL,BILLING_LEGACY_ENROLLMENT_OVERLAP_SQL,BILLING_MONTH_INVOICE_SQL} from './billing-read-tail-r16-sql';
 import {billingProviderCostsSql,billingUsageSnapshotSql} from './billing-read-tail-r19-sql';
 import {billingUsageMeterSql,billingSeatUsageSql} from './billing-read-tail-r20-sql';
+import {billingPointReadSql} from './billing-read-tail-r29-sql';
 import type * as D from '@erpx/server-billing/domain/target';
 export type {TargetMeasuredEvidence,TargetRatedLine,TargetBillingPeriodView} from '@erpx/server-billing/domain/target';
 export function nativeTargetBillingRepository(c:PoolClient):TargetBillingRepository{return {operatingCosts:(value0,value1)=>c.query<D.OperatingCostsRow>(`SELECT o.category,o.amount_satang,e.source_state
@@ -27,7 +28,7 @@ assignment:(value0,value1)=>c.query<D.AssignedOfferingRow>(`SELECT * FROM billin
      AND effective_month<=$2 ORDER BY effective_month DESC LIMIT 1`,[value0,value1]),
 assignedPrice:(value0,value1)=>nativeBillingOwnerQuery(c,'selected_target_price',[value0,value1]) as Promise<{rows:D.AssignedPriceRow[];rowCount:number|null}>,
 approvedRating:(value0,value1)=>c.query<D.ApprovedRatingRow>("SELECT * FROM billing_target_rated_periods WHERE holding_id=$1 AND month=$2 AND state='approved'",[value0,value1]),
-approvedInvoice:(value0)=>c.query<D.ApprovedInvoiceRow>("SELECT id,total_satang,status,stripe_id FROM billing_invoices WHERE id=$1",[value0]),
+approvedInvoice:(value0)=>c.query<D.ApprovedInvoiceRow>(billingPointReadSql('id,total_satang,status,stripe_id','billing_invoices','id=$1'),[value0]),
 approvedStatements:async(value0,value1)=>(await nativeBillingOwnerQuery(c,'target_statements',[value0,value1])) as {rows:D.ApprovedStatementsRow[];rowCount:number|null},
 rolloutEligibility:(value0,value1)=>c.query<D.RolloutEligibilityRow>(BILLING_ROLLOUT_ELIGIBILITY_SQL,[value0,value1]),
 legacyEnrollmentOverlap:(value0,value1,value2)=>c.query<D.LegacyEnrollmentOverlapRow>(BILLING_LEGACY_ENROLLMENT_OVERLAP_SQL,[value0,value1,value2]),

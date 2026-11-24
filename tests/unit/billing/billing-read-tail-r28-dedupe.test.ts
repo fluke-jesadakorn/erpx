@@ -60,6 +60,6 @@ describe('billing read-tail r28 storage-ledger parameterized family dedupe', () 
     let count = 0;
     for (const file of files) count += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     expect(count).toBeLessThan(59);
-    expect(count).toBe(57);
+    expect(count).toBe(55);
   });
 });

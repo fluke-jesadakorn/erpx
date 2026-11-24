@@ -14,6 +14,7 @@ import {calculateTargetRolloutReadiness} from '@erpx/server-billing/adapters/bil
 import {BILLING_ROLLOUT_ELIGIBILITY_SQL,BILLING_LEGACY_ENROLLMENT_OVERLAP_SQL,BILLING_MONTH_INVOICE_SQL} from './billing-read-tail-r16-sql';
 import {billingProviderCostsSql} from './billing-read-tail-r19-sql';
 import {BILLING_ADVISORY_XACT_LOCK_SQL} from './billing-read-tail-r25-sql';
+import {billingPointReadSql} from './billing-read-tail-r29-sql';
 export {billingInput} from '@erpx/server-billing/domain/billing';
 export type {BillingActor,BillingInput} from '@erpx/server-billing/domain/billing';
 /** r17 read tail: one SQL text per alias-parameterized read family. Call sites keep
@@ -41,7 +42,7 @@ closeElapsedPeriods:(value0,value1)=>nativeBillingOwnerQuery(c, 'close_elapsed_p
 begin:()=>c.query<Record<string,unknown>>("BEGIN",[]),
 lockHolding:(value0)=>c.query<Record<string,unknown>>(BILLING_ADVISORY_XACT_LOCK_SQL,[value0]),
 lockCommand:(value0)=>c.query<Record<string,unknown>>(BILLING_ADVISORY_XACT_LOCK_SQL,[value0]),
-receipt:(value0)=>c.query<BillingReceipt>("SELECT * FROM billing_receipts WHERE id=$1",[value0]),
+receipt:(value0)=>c.query<BillingReceipt>(billingPointReadSql('*','billing_receipts','id=$1'),[value0]),
 commitReplay:()=>c.query<Record<string,unknown>>("COMMIT",[]),
 holdingExists:value0=>billingHoldingFacts(c).holdingExists(value0),
 ensureAccount:(value0,value1)=>nativeBillingOwnerQuery(c, 'ensure_account', [value0,value1]),
@@ -96,7 +97,7 @@ targetPeriod:(value0,value1)=>c.query<BillingPeriod>(billingPeriodByEnrollmentSq
 insertTargetInvoice:(value0,value1,value2,value3,value4,value5,value6,value7)=>nativeBillingOwnerQuery(c, 'insert_target_invoice', [value0,value1,value2,value3,value4,value5,value6,value7]),
 approveTargetRating:(value0,value1,value2,value3,value4,value5)=>nativeBillingOwnerQuery(c, 'approve_target_rating', [value0,value1,value2,value3,value4,value5]),
 queueTargetIssue:(value0,value1,value2,value3)=>nativeBillingOwnerQuery(c, 'queue_target_issue', [value0,value1,value2,value3]),
-selectedJob:(value0,value1)=>c.query<BillingJobRow>("SELECT * FROM billing_jobs WHERE id=$1 AND holding_id=$2",[value0,value1]),
+selectedJob:(value0,value1)=>c.query<BillingJobRow>(billingPointReadSql('*','billing_jobs','id=$1 AND holding_id=$2'),[value0,value1]),
 retryLegacyEvent:(value0,value1,value2)=>nativeBillingOwnerQuery(c, 'retry_legacy_event', [value0,value1,value2]),
 retryJob:(value0,value1)=>nativeBillingOwnerQuery(c, 'retry_job', [value0,value1]),
 incrementAccountVersion:(value0)=>nativeBillingOwnerQuery(c, 'increment_account_version', [value0]),
