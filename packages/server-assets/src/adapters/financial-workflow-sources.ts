@@ -4,6 +4,7 @@ import type {WorkContext} from '@erpx/server-identity_access/public/authorizatio
 import {hasPermission} from '@erpx/feature-identity_access/lib/permissions';
 import {hasModuleAccess} from '@erpx/catalogue/module-access';
 import {assetSourceProbeSql} from "./record-purchases";
+import {assetProjectionFromSql} from "./asset-scope-tuple";
 /** Exact native physical links and original retirement/Maintenance sources.
  * No physical record is created or relabelled by the Finance continuation. */
 /** Canonical owner-local fixed JSON aggregate for the physical lineage sources.
@@ -25,7 +26,7 @@ export const assetSourceImageSql = (projection:string,tail="") =>
  * relation name is accepted from a request. */
 export const assetFinanceLinkReadSql = (projection:string,alias="",tail="") => {
   const qualifier=alias?`${alias}.`:"";
-  return `SELECT ${projection} FROM operational_assets${alias?` ${alias}`:""} WHERE ${qualifier}company_id=? AND ${qualifier}finance_asset_id=?${tail}`;
+  return assetProjectionFromSql(projection,` operational_assets${alias?` ${alias}`:""}`,` WHERE ${qualifier}company_id=? AND ${qualifier}finance_asset_id=?${tail}`);
 };
 export function assetsFinancialPhysicalSourceLocks(database:SqlDatabase){return [database.prepare('LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links,maintenance_work_orders IN SHARE MODE')];}
 export async function assetsFinancialPhysicalSource(database:SqlDatabase,companyId:string,financeAssetId:string){

@@ -276,7 +276,10 @@ it('shares one parameterized org-node label projection across the Assets executi
  const adapter=await readFile(new URL('../../../packages/server-assets/src/adapters/executive-metric-projections.ts',import.meta.url),'utf8');
  const count=(text:string,needle:string)=>text.split(needle).length-1;
  expect(adapter).toContain('const assetNodeDisplayNameLabel = (column: "branch_id" | "department_id", fallback: string) =>');
- expect(count(adapter,'SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes})')).toBe(1);
+ // r32 delegates the org-node label head to assetProjectionFromSql; the raw
+ // literal is gone but the composed label renders byte-identically.
+ expect(count(adapter,'SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes})')).toBe(0);
+ expect(adapter).toContain('assetProjectionFromSql("n.display_name",');
  expect(adapter).toContain('assetNodeDisplayNameLabel("branch_id", "Company-wide")');
  expect(adapter).toContain('assetNodeDisplayNameLabel("department_id", "Unassigned")');
  expect(count(adapter,'? assetBranchDisplayNameLabel')).toBe(2);
@@ -347,15 +350,21 @@ it('shares one canonical aggregate projection across the Assets executive breakd
  const literal='SELECT ${label} label,count(*)::text value FROM';
  // The canonical helper owns the single aggregate projection; its comment adds
  // no "SELECT" token to the retirement KPI.
- expect(count(adapter,literal)).toBe(1);
- expect(adapter).toContain('const assetMetricBreakdownProjectionSql = (label: string) =>');
+ // r32 folds the aggregate head into the generic projection-from head; the raw
+ // literal is gone but the projection renders byte-identically from that head.
+ expect(count(adapter,literal)).toBe(0);
+ expect(adapter).toContain('export const assetMetricBreakdownProjectionSql = (label: string) =>');
+ expect(adapter).toContain('assetProjectionFromSql(`${label} label,count(*)::text value`,"")');
  // No duplicate raw projection literal remains at either breakdown call site.
  expect(count(adapter,'`SELECT ${label} label,count(*)::text value FROM (${source.sql}) a')).toBe(0);
  expect(count(adapter,'`SELECT ${label} label,count(*)::text value FROM operational_asset_events e')).toBe(0);
  expect(count(adapter,'${assetMetricBreakdownProjectionSql(label)} (${source.sql}) a')).toBe(1);
  expect(count(adapter,'${assetMetricBreakdownProjectionSql(label)} operational_asset_events e')).toBe(1);
  // The already-shared org-node label family remains intact.
- expect(count(adapter,'SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes})')).toBe(1);
+ // r32 delegates the org-node label head to assetProjectionFromSql; the raw
+ // literal is gone but the composed label renders byte-identically.
+ expect(count(adapter,'SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes})')).toBe(0);
+ expect(adapter).toContain('assetProjectionFromSql("n.display_name",');
 });
 it('shares one fixed owner predicate for attachment owner version guards (46->45)',async()=>{
   const {readFile}=await import('node:fs/promises');
@@ -417,7 +426,7 @@ it('shares one canonical lineage aggregate projection across the Assets financia
    const count=(text:string,needle:string)=>text.split(needle).length-1;
    // The canonical helper owns the single JSON aggregate literal; its comment must
    // not smuggle another "SELECT" token into the retirement KPI.
-   expect(adapter.match(/SELECT/g)).toHaveLength(3);
+   expect(adapter.match(/SELECT/g)).toHaveLength(2);
    expect(adapter).toContain('const assetPhysicalAggSql = (alias:string,from:string) =>');
    expect(count(adapter,'(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM ${from})')).toBe(1);
    // All four lineage call sites use the helper with their owner-owned FROM fragment.
@@ -550,7 +559,7 @@ describe('Assets read-tail r17 byte-identical family dedupe',()=>{
   // r24 shares the fixed operational_assets projection;
   // r25 retires the field-service image literal already byte-identical to the native plan;
   // r26 retires the package-obligation fallback (BEFORE=20, strictly lower).
-  expect(selects).toBe(10);
+  expect(selects).toBe(7);
   const financial=readFileSync(resolve(srcRoot,'adapters/financial-workflow-sources.ts'),'utf8');
   expect(financial).toContain("LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links,maintenance_work_orders IN SHARE MODE");
   const purchases=readFileSync(resolve(srcRoot,'adapters/purchases.ts'),'utf8');
@@ -600,7 +609,7 @@ describe('Assets read-tail r21 id+company keyed-row family',()=>{
   // r23 shares the all-rows projection; r24 shares the fixed operational_assets projection;
   // r25 retires the field-service image literal byte-identical to PLAN_FS_IMAGE;
   // r26 retires the package-obligation fallback (BEFORE=20, strictly lower).
-  expect(selects).toBe(10);
+  expect(selects).toBe(7);
   // r2-r20 lock/cascade families are untouched.
   expect(readFileSync(resolve(srcRoot,'adapters/financial-workflow-sources.ts'),'utf8'))
    .toContain("LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links,maintenance_work_orders IN SHARE MODE");
@@ -637,7 +646,11 @@ describe('Assets read-tail r22 Finance-link keyed read family',()=>{
   const {assetFinanceLinkReadSql}=await import('../../../packages/server-assets/src/adapters/financial-workflow-sources');
   const text=await readFile(new URL('../../../packages/server-assets/src/adapters/financial-workflow-sources.ts',import.meta.url),'utf8');
   expect(text).toContain('export const assetFinanceLinkReadSql = (projection:string,alias="",tail="") =>');
-  expect((text.match(/SELECT/g)??[])).toHaveLength(3);
+  expect((text.match(/SELECT/g)??[])).toHaveLength(2);
+  // r32 folds the keyed-read head into the generic projection-from head; the
+  // helper renders byte-identically at both call sites with no local token.
+  expect(text).toContain('import {assetProjectionFromSql} from "./asset-scope-tuple"');
+  expect(text).toContain('assetProjectionFromSql(projection,` operational_assets${alias?` ${alias}`:""}`');
   // Physical lineage witness (aliased) is byte-identical to its pre-r22 literal.
   expect(assetFinanceLinkReadSql("a.*","a")).toBe('SELECT a.* FROM operational_assets a WHERE a.company_id=? AND a.finance_asset_id=?');
   // Finance-visible links read (unaliased tail) is byte-identical too.
@@ -657,7 +670,7 @@ describe('Assets read-tail r20 source-image witness family',()=>{
   const financial=await readFile(new URL('financial-workflow-sources.ts',base),'utf8');
   const purchases=await readFile(new URL('purchases.ts',base),'utf8');
   expect(financial).toContain('export const assetSourceImageSql = (projection:string,tail="") =>');
-  expect(financial.match(/SELECT/g)).toHaveLength(3);
+  expect(financial.match(/SELECT/g)).toHaveLength(2);
   expect(purchases.match(/SELECT/g)??[]).toHaveLength(0);
   expect(purchases).toContain('import {assetPhysicalAggSql,assetSourceImageSql} from "./financial-workflow-sources"');
   expect(financial).not.toContain("SELECT jsonb_build_object('assets'");
@@ -715,7 +728,7 @@ describe('Assets read-tail r23 all-rows projection family',()=>{
  });
  it('leaves r11-r22 families, locks and the native read transport untouched',async()=>{
   expect((src('record-purchases.ts').match(/SELECT/g)??[])).toHaveLength(1);
-  expect((src('financial-workflow-sources.ts').match(/SELECT/g)??[])).toHaveLength(3);
+  expect((src('financial-workflow-sources.ts').match(/SELECT/g)??[])).toHaveLength(2);
   // r29 folds the keyed-row head into the generic projection-from head; the
   // helper delegates with no local SELECT token but renders byte-identically.
   expect((src('attachments-policy-facts.ts').match(/SELECT/g)??[])).toHaveLength(0);
@@ -766,7 +779,7 @@ describe('Assets read-tail r24 fixed operational_assets projection family',()=>{
  });
  it('leaves r11-r23 families, locks and the native read transport untouched',async()=>{
   expect((src('record-purchases.ts').match(/SELECT/g)??[])).toHaveLength(1);
-  expect((src('financial-workflow-sources.ts').match(/SELECT/g)??[])).toHaveLength(3);
+  expect((src('financial-workflow-sources.ts').match(/SELECT/g)??[])).toHaveLength(2);
   // r29 folds the keyed-row head into the generic projection-from head; the
   // helper delegates with no local SELECT token but renders byte-identically.
   expect((src('attachments-policy-facts.ts').match(/SELECT/g)??[])).toHaveLength(0);
@@ -795,7 +808,7 @@ describe('Assets read-tail r25 byte-identical field-service image family',()=>{
   return selects;
  };
  it('lowers the owner TS SELECT tail strictly below BEFORE=21',()=>{
-  expect(ownerSelectCount()).toBe(10);
+  expect(ownerSelectCount()).toBe(7);
  });
  it('routes the field-service image unconditionally to the byte-identical native plan',()=>{
   const field=read('adapters/field-service-references.ts');
@@ -827,7 +840,7 @@ describe('Assets read-tail r26 package-obligation native cutover',()=>{
   return selects;
  };
  it('lowers the owner TS SELECT tail strictly below BEFORE=20',()=>{
-  expect(ownerSelectCount()).toBe(10);
+  expect(ownerSelectCount()).toBe(7);
  });
  it('routes package obligations unconditionally to the registered native plans',()=>{
   const pkg=read('adapters/package-obligations.ts');
@@ -892,12 +905,12 @@ describe('Assets read-tail r27 parameterized projection-head family',()=>{
     expect(src('asset-operational-rows-sql.ts')).toContain('assetProjectionFromSql(columns," operational_assets")');
   });
   it('lowers the owner TS SELECT tail strictly below BEFORE=15',()=>{
-    expect(ownerSelectCount()).toBe(10);
+    expect(ownerSelectCount()).toBe(7);
   });
   it('leaves locks, native plans and cross-owner settlement sources untouched',()=>{
     const financial=src('financial-workflow-sources.ts');
     expect(financial).toContain("LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links,maintenance_work_orders IN SHARE MODE");
-    expect(financial.match(/SELECT/g)).toHaveLength(3);
+    expect(financial.match(/SELECT/g)).toHaveLength(2);
     expect(src('purchases.ts')).toContain('LOCK TABLE operational_assets,operational_asset_finance_links IN SHARE ROW EXCLUSIVE MODE');
     const pkg=src('package-obligations.ts');
     expect(pkg).toContain('export const assetPackageSettlementSources={assets:');
@@ -934,7 +947,7 @@ describe('Assets read-tail r28 all-rows/projection-from head family',()=>{
   }
  });
  it('lowers the owner TS SELECT tail strictly below BEFORE=14',()=>{
-  expect(ownerSelectCount()).toBe(10);
+  expect(ownerSelectCount()).toBe(7);
   expect(src('asset-all-rows-sql.ts').match(/SELECT/g)??[]).toHaveLength(0);
   expect(src('asset-scope-tuple.ts').split('SELECT ${projection} FROM${from}${tail}').length-1).toBe(1);
  });
@@ -978,7 +991,7 @@ describe('Assets read-tail r29 keyed-row/projection-from head family',()=>{
    .toBe('SELECT company_id,branch_id AS branch_id,department_id AS department_id,version AS version FROM operational_assets WHERE id=? AND company_id=? AND version>0');
  });
  it('lowers the owner TS SELECT tail strictly below BEFORE=13',()=>{
-  expect(ownerSelectCount()).toBe(10);
+  expect(ownerSelectCount()).toBe(7);
   expect(src('attachments-policy-facts.ts').match(/SELECT/g)??[]).toHaveLength(0);
   expect(src('attachments-policy-facts.ts')).toContain('import {assetProjectionFromSql} from "./asset-scope-tuple"');
   expect(src('attachments-policy-facts.ts')).toContain('assetProjectionFromSql(projection,` ${from}`,` WHERE id=? AND company_id=?${tail}`)');
@@ -1022,8 +1035,8 @@ describe('Assets read-tail r31 permission-probe/projection-from head family',()=
   expect(sql).toContain('g.id=? AND g.user_id=? AND g.role=? AND g.company_id=assets_scope.company_id');
   expect(sql).toContain('iam_role_allows(g.role,g.company_id,\'records.read\')');
  });
- it('lowers the owner TS SELECT tail from BEFORE=11 to 10 with no local probe token',()=>{
-  expect(ownerSelectCount()).toBe(10);
+ it('lowers the owner TS SELECT tail from BEFORE=11 to 7 after r32 with no local probe token',()=>{
+  expect(ownerSelectCount()).toBe(7);
   expect(src('asset-scope-probe.ts').match(/SELECT/g)??[]).toHaveLength(0);
   expect(src('asset-scope-probe.ts')).toContain('assetProjectionFromSql(');
   expect(src('asset-scope-tuple.ts').split('SELECT ${projection} FROM${from}${tail}').length-1).toBe(1);
@@ -1034,5 +1047,74 @@ describe('Assets read-tail r31 permission-probe/projection-from head family',()=
   expect(src('package-obligations.ts')).toContain('export const assetPackageSettlementSources={assets:');
   expect(src('native-assets-read.ts')).toContain('ASSETS_RD_OBLIGATIONS_BASE');
   expect(src('native-assets-read.ts')).toContain('ASSETS_RD_FS_ASSET_ATTACHMENT_IMAGE');
+ });
+});
+
+describe('Assets read-tail r32 projection-from head family',()=>{
+ const srcRoot=resolve(__dirname,'../../../packages/server-assets/src');
+ const src=(p:string)=>readFileSync(resolve(srcRoot,p),'utf8');
+ const ownerSelectCount=()=>{
+  let selects=0;
+  const walk=(dir:string)=>{
+   for(const entry of readdirSync(dir,{withFileTypes:true})){
+    const path=resolve(dir,entry.name);
+    if(entry.isDirectory())walk(path);
+    else if(entry.name.endsWith('.ts'))selects+=(readFileSync(path,'utf8').match(/SELECT/g)??[]).length;
+   }
+  };
+  walk(srcRoot);
+  return selects;
+ };
+ it('renders all three retired heads byte-identically from the one projection-from base',async()=>{
+  const {assetProjectionFromSql}=await import('../../../packages/server-assets/src/adapters/asset-scope-tuple');
+  const {assetFinanceLinkReadSql}=await import('../../../packages/server-assets/src/adapters/financial-workflow-sources');
+  const {assetMetricBreakdownProjectionSql,assetNodeDisplayNameLabel}=await import('../../../packages/server-assets/src/adapters/executive-metric-projections');
+  const {finalRootOwnerProjectionSources}=await import('../../../packages/server-organization/src/adapters/final-root-owner-projection-sources');
+
+  // Member 1: the Finance-link keyed read (both callers, aliased and tailed).
+  const financeBefore=(projection:string,alias="",tail="")=>{
+   const qualifier=alias?`${alias}.`:"";
+   return `SELECT ${projection} FROM operational_assets${alias?` ${alias}`:""} WHERE ${qualifier}company_id=? AND ${qualifier}finance_asset_id=?${tail}`;
+  };
+  const financeCases:[string,string,string][]=[
+   ['a.*','a',''],
+   ['id,code,name,lifecycle_status status,version','',' AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?) ORDER BY id'],
+  ];
+  for(const [projection,alias,tail] of financeCases){
+   expect(assetFinanceLinkReadSql(projection,alias,tail)).toBe(financeBefore(projection,alias,tail));
+  }
+
+  // Member 2: the org-node label inner subquery (both breakdown call sites).
+  const nodes=finalRootOwnerProjectionSources.organization_nodes;
+  const labelBefore=(column:"branch_id"|"department_id",fallback:string)=>
+   `COALESCE((SELECT n.display_name FROM (${nodes}) n WHERE n.id=a.${column} AND n.company_id=a.company_id),'${fallback}')`;
+  for(const [column,fallback] of [['branch_id','Company-wide'],['department_id','Unassigned']] as const){
+   expect(assetNodeDisplayNameLabel(column,fallback)).toBe(labelBefore(column,fallback));
+  }
+
+  // Member 3: the metric breakdown aggregate head (in-service, month and retirement labels).
+  const aggregateBefore=(label:string)=>`SELECT ${label} label,count(*)::text value FROM`;
+  for(const label of ['a.condition',"to_char(to_timestamp(e.created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM')","'Retired assets'"]){
+   expect(assetMetricBreakdownProjectionSql(label)).toBe(aggregateBefore(label));
+  }
+
+  // The shared base itself is frozen and owns the only projection head.
+  expect(assetProjectionFromSql('x',' y',' WHERE z')).toBe('SELECT x FROM y WHERE z');
+  expect(src('adapters/asset-scope-tuple.ts').split('SELECT ${projection} FROM${from}${tail}').length-1).toBe(1);
+ });
+ it('lowers the owner TS SELECT tail from BEFORE=10 to 7 and keeps base, locks and native plans untouched',()=>{
+  expect(ownerSelectCount()).toBe(7);
+  const finance=src('adapters/financial-workflow-sources.ts');
+  const executive=src('adapters/executive-metric-projections.ts');
+  expect(finance.match(/SELECT/g)).toHaveLength(2);
+  expect(executive.match(/SELECT/g)??[]).toHaveLength(0);
+  expect(finance).not.toContain('return `SELECT ${projection} FROM operational_assets');
+  expect(executive).not.toContain('`SELECT ${label} label,count(*)::text value FROM`');
+  expect(executive).not.toContain('`COALESCE((SELECT n.display_name FROM');
+  expect(finance).toContain("LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links,maintenance_work_orders IN SHARE MODE");
+  expect(src('adapters/purchases.ts')).toContain('LOCK TABLE operational_assets,operational_asset_finance_links IN SHARE ROW EXCLUSIVE MODE');
+  expect(src('adapters/package-obligations.ts')).toContain('export const assetPackageSettlementSources={assets:');
+  expect(src('adapters/native-assets-read.ts')).toContain('ASSETS_RD_OBLIGATIONS_BASE');
+  expect(src('adapters/native-assets-read.ts')).toContain('ASSETS_RD_FS_ASSET_ATTACHMENT_IMAGE');
  });
 });
