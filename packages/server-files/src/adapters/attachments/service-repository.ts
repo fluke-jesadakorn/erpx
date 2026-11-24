@@ -11,6 +11,7 @@ import {attachmentsByIdCompanySql} from "../read-tail-r26-source-sql";
 import {SELECT_ATTACHMENT_ID_SQL} from "../read-tail-r27-source-sql";
 import {LINK_SET_JOIN_SQL} from "../read-tail-r29-source-sql";
 import {attachmentPublicationByIdSql} from "../read-tail-r31-source-sql";
+import {ATTACHMENT_LINK_PROJECTION_HEAD_SQL} from "../read-tail-r37-source-sql";
 const setByIdSql = "SELECT * FROM attachment_sets WHERE id=? AND company_id=?";
 export const usedStorageSql = "SELECT COALESCE(sum(bytes),0) FROM attachment_storage_ledger WHERE company_id=? AND state IN ('reserved','stored')";
 export const pendingStorageSql = "SELECT COALESCE(sum(declared_bytes),0) FROM upload_intents WHERE company_id=? AND status='pending' AND expires_at>?";
@@ -20,7 +21,7 @@ const setLockSql = "SELECT state FROM attachment_sets WHERE id=? AND company_id=
 const publicationByIdSql = attachmentPublicationByIdSql(true);
 const publicationOrderVersionSql = "SELECT version FROM attachment_publication_orders WHERE company_id=? AND target_type=? AND target_id=?";
 const uploadIntentForSetSql = "SELECT * FROM upload_intents WHERE id=? AND attachment_set_id IS NOT NULL AND created_by=? AND company_id=?";
-const attachmentLinkSql = "SELECT l.*,s.target_type,s.target_id,s.component_kind,s.purpose_key,s.expected_target_version,s.state set_state,s.company_id FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.id=? AND s.company_id=?";
+const attachmentLinkSql = `${ATTACHMENT_LINK_PROJECTION_HEAD_SQL}s.state set_state,s.company_id FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.id=? AND s.company_id=?`;
 /** Byte-identical latest-change witness shared by the attested sanitization
  * read and its command assertion. The rendered SQL and binds are unchanged;
  * each site still prepares its own statement. */
@@ -361,7 +362,7 @@ export function repository(db: SqlDatabase) {
             linkId: string;
             companyId: string;
         }) => {
-            return db.prepare(`SELECT l.*,s.target_type,s.target_id,s.component_kind,s.purpose_key,s.expected_target_version,
+            return db.prepare(`${ATTACHMENT_LINK_PROJECTION_HEAD_SQL}
     a.source_state,a.id attachment_id,a.preview_object_key FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id LEFT JOIN attachments a ON a.id=l.attachment_id
       AND a.company_id=s.company_id
     WHERE l.id=? AND s.company_id=? AND (l.attachment_id IS NULL OR a.id IS NOT NULL)`).bind(facts.linkId, facts.companyId).first<Record<string, unknown>>();
