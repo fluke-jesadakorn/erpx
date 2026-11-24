@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12236,
+    "revision": 12238,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -181709,7 +181709,7 @@
         "owner": "identity_access",
         "title": "identity assignment authority trio and session guards",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -181720,22 +181720,37 @@
         "resources": [
           "owner:identity_access"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n34",
-          "claimedAt": "2026-11-24T13:58:02.383Z",
-          "heartbeatAt": "2026-11-24T14:04:54.024Z",
-          "expiresAt": "2026-11-24T14:34:54.024Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-identity_access/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "6d3ca36cc",
+            "owner": "identity_access",
+            "before": 472,
+            "after": 468,
+            "note": "Assignment authority trio, DISTINCT user pair and active work context pair shared; newline tails/revoked probe/locks untouched."
+          },
+          {
+            "command": "vitest identity (95) + scoped tsc + 6 SHA oracles",
+            "result": "passed",
+            "sourceSha": "6d3ca36cc"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "EXISTS assignment authority trio (-2), DISTINCT user_id pair (-1), active work context pair (-1): 472->468.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n34",
+          "at": "2026-11-24T14:10:18.162Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -181957,17 +181972,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 4,
+        "in_progress": 3,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1405,
+        "blocked": 1406,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T14:08:51.003Z",
+    "updatedAt": "2026-11-24T14:10:18.166Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
