@@ -181,3 +181,39 @@ describe('Support evidence read-tail r18 canonical eligibility witness', () => {
     expect(source).not.toContain("prepare(`SELECT 1 AS ok FROM support_tickets");
   });
 });
+
+describe('Support ticket-portal image read-tail r17 parameterized-family dedupe', () => {
+  const src = (name: string) =>
+    readFile(new URL(`../../../packages/server-support/src/${name}`, import.meta.url), 'utf8');
+
+  it('renders byte-identical bound-row image SQL from one canonical helper', async () => {
+    const shared = await src('adapters/ticket-portal-image-sql.ts');
+    expect(shared.match(/\(SELECT jsonb_agg\(to_jsonb\(\$\{alias\}\) ORDER BY \$\{alias\}\.\$\{orderBy\}\) FROM \$\{table\} \$\{alias\} WHERE EXISTS\(SELECT 1 FROM selected binding WHERE \$\{predicate\}\)\)/g)).toHaveLength(1);
+    expect(shared).toContain('portalBoundImageSql');
+    expect(shared).toContain('portalImageSelectedCte');
+    expect(shared).toContain('portalBindingImageSql');
+  });
+
+  it('composes the shared image fragments in both portal image readers with no local copy', async () => {
+    const source = await src('adapters/ticket-portal-sources.ts');
+    expect(source.match(/portalImageSelectedCte\(bindingIds\)/g)).toHaveLength(2);
+    expect(source.match(/portalBindingImageSql\(\)/g)).toHaveLength(2);
+    expect(source.match(/portalBoundImageSql\(/g)).toHaveLength(9);
+    expect(source).not.toContain('jsonb_agg(to_jsonb(binding) ORDER BY binding.id)');
+    expect(source).not.toContain('EXISTS(SELECT 1 FROM selected binding WHERE binding.id=');
+  });
+
+  it('retirement:ts-statements stays strictly below the r17 BEFORE=86 baseline', () => {
+    const root = new URL('../../../packages/server-support/src/', import.meta.url);
+    let total = 0;
+    const walk = (dir: URL) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const child = new URL(`${entry.name}${entry.isDirectory() ? '/' : ''}`, dir);
+        if (entry.isDirectory()) walk(child);
+        else if (entry.name.endsWith('.ts')) total += (readFileSync(child, 'utf8').match(/SELECT /g) ?? []).length;
+      }
+    };
+    walk(root);
+    expect(total).toBeLessThan(86);
+  });
+});
