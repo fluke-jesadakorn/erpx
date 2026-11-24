@@ -6,6 +6,7 @@ import type { CustomerPortalSessionActor, CustomerPortalBindingScope, PortalBind
 import {customerPortalPurchaseScope} from '@erpx/server-customer_authority/adapters/portal-read-purchases';
 import {portalBindingSource} from './portal-binding-source';
 import {customerAuthorityWave3Statement} from './native-customer-authority-wave3';
+import {existenceProbe} from './customer-authority-read-tail-r30-sources';
 export async function projectCustomerPortalAccess(db: SqlDatabase, actor: {userId:string;email:string}, now:number, readId:string) {
   const purchase=await customerPortalPurchaseScope(db,'b');
   return (await (await customerAuthorityWave3Statement(db,{kind:'system'},'portal_access_audit',[actor.userId,actor.email.toLowerCase(),actor.email.toLowerCase(),now,readId,actor.userId,now,actor.userId,purchase],`portal-access:${readId}`,now)).all<Record<string,unknown>>()).results;
@@ -17,7 +18,7 @@ export async function lockCustomerPortalBinding(db: SqlDatabase, id:string, emai
       WHERE b.id=? AND lower(b.email)=? AND o.party_id=b.customer_id AND o.kind IN ('sales','quote') FOR UPDATE`).bind(id,email).first<PortalBinding>();
 }
 export async function customerPortalIdentityExists(db:SqlDatabase, bindingId:string,actor:CustomerPortalSessionActor) {
-  return !!await db.prepare('SELECT 1 FROM customer_access_identities WHERE binding_id=? AND user_id=? AND email=?').bind(bindingId,actor.userId,actor.email.toLowerCase()).first();
+  return !!await db.prepare(existenceProbe('FROM customer_access_identities','binding_id=? AND user_id=? AND email=?')).bind(bindingId,actor.userId,actor.email.toLowerCase()).first();
 }
 export async function readCustomerPortalBindingScope(db:SqlDatabase,actor:Pick<CustomerPortalSessionActor,"userId"|"email">,bindingId:string,now:number) {
   const purchase=await customerPortalPurchaseScope(db,'b');

@@ -5,11 +5,15 @@ import {
   type SqlDatabase,
 } from '@erpx/server-runtime/public/runtime/types';
 import { ApiError } from '@erpx/server-runtime/public/http';
+import { existenceProbe } from './customer-authority-read-tail-r30-sources';
 
 /** One approved, unexpired binding bound to its exact external identity. Shared
  * by the private attachment read and this Files withdraw proof so both owner
  * fences execute identical SQL instead of drifting into separate text. */
-export const bindingIdentityCurrentSql = "SELECT 1 FROM customer_access_bindings binding JOIN customer_access_identities identity ON identity.binding_id=binding.id WHERE binding.id=? AND binding.company_id=? AND binding.status='approved' AND binding.expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND identity.user_id=? AND identity.email=? AND binding.email=?";
+export const bindingIdentityCurrentSql = existenceProbe(
+  'FROM customer_access_bindings binding JOIN customer_access_identities identity ON identity.binding_id=binding.id',
+  "binding.id=? AND binding.company_id=? AND binding.status='approved' AND binding.expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND identity.user_id=? AND identity.email=? AND binding.email=?",
+);
 
 /** Stable owner scope a Customer Authority proof grants for one Files withdraw.
  * A native Files command consumes this value instead of trusting a header, a
