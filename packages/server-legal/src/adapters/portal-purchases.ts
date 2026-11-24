@@ -12,6 +12,7 @@ import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commerc
 import {legalPurchaseClockExistsSql} from './legal-read-tail-r29-sources';
 import {legalPointByIdAndKeySql} from './legal-read-tail-r34-sources';
 import {legalShareDocumentReadHead} from './legal-read-tail-r41-sources';
+import {legalActiveDestructionGuardHead} from './legal-read-tail-r46-sources';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
 import {attachmentPrivateReadSourceLocks} from '@erpx/server-files/public/private-attachment-reads';
@@ -20,10 +21,9 @@ export async function legalPortalPurchasePredicate(alias='i',strictHistory=false
  const clock='legal_portal_purchase_clock.now_ms';return legalPurchaseClockExistsSql('legal_portal_purchase_clock',`${legalItemPurchasePredicate(alias,'history',clock)} AND ${purchasedCapabilityPredicate(`${alias}.company_id`,'legal.documents','history',clock)} AND ${purchasedCapabilityPredicate(`${alias}.company_id`,'legal.access','history',clock)} AND ${scheduledFeaturePredicate(`${alias}.company_id`,'legal')}`);
 }
 /** One verified Legal active-destruction guard. Both portal enrollment source
- * reads interpolate the same fixed predicate; keep it in one place so the two
- * holders cannot drift apart. */
+ * reads interpolate the same shared head so the two holders cannot drift apart. */
 export function legalActiveDestructionGuard(alias='i'){
-  return `AND NOT EXISTS(SELECT 1 FROM legal_destructions destruction WHERE destruction.item_id=${alias}.id AND destruction.state IN ('executing','completed'))`;
+  return legalActiveDestructionGuardHead('destruction', alias);
 }
 /** One verified Legal portal source image. The snapshot read and the original
  * read interpolate the same fixed projection; keep its authorization-bearing

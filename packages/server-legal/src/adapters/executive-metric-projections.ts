@@ -2,6 +2,7 @@ import {legalMetricReadScope} from "@erpx/server-legal/adapters/metric-purchases
 import { readMetricSources } from '@erpx/server-runtime/public/executive/metric-sources';
 import { visibility as legalVisibility } from "@erpx/server-legal/public/legal/access";
 import { legalMetricCountPrefix } from './legal-read-tail-r38-sources';
+import { legalExecutiveObligationSpineHead, legalExecutiveHoldSpineHead } from './legal-read-tail-r46-sources';
 import "server-only";
 import { type Breakdown, type Filters, type MetricId } from "@erpx/feature-shared/lib/executive/canvas";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
@@ -24,9 +25,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
         const label = breakdown === "status" ? "s.state"
             : breakdown === "month" ? "coalesce(to_char(to_date(s.due_date,'YYYY-MM-DD'),'YYYY-MM'),'No due date')"
                 : "s.category";
-        sql = `${legalMetricCountPrefix(label,'s.id')}
-      FROM legal_obligation_schedule s JOIN legal_items i ON i.id=s.item_id
-      WHERE ${visibility.sql} AND ${purchase.where} AND i.kind IN ('contract','obligation','license','ip','matter')
+        sql = `${legalExecutiveObligationSpineHead(legalMetricCountPrefix(label,'s.id'))}${visibility.sql} AND ${purchase.where} AND i.kind IN ('contract','obligation','license','ip','matter')
         AND i.state NOT IN ('archived','closed','cancelled','terminated','expired','completed')
         AND s.state NOT IN ('completed','waived','cancelled','closed','acknowledged','accepted','billed')
       GROUP BY 1 ORDER BY 1`;
@@ -35,9 +34,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
     if (id === "active-legal-holds") {
         const visibility = legalVisibility(a);
         const label = breakdown === "status" ? "h.state" : "i.kind";
-        sql = `${legalMetricCountPrefix(label,'h.id')}
-      FROM legal_holds h JOIN legal_items i ON i.id=h.item_id
-      WHERE ${visibility.sql} AND ${purchase.where} AND h.state IN ('active','release_requested')
+        sql = `${legalExecutiveHoldSpineHead(legalMetricCountPrefix(label,'h.id'))}${visibility.sql} AND ${purchase.where} AND h.state IN ('active','release_requested')
       GROUP BY 1 ORDER BY 1`;
         values = visibility.values;
     }
