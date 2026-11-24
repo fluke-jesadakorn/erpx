@@ -261,3 +261,33 @@ describe('crm read-tail r15 parameterized families', () => {
     expect(totalSelects()).toBeLessThan(168);
   });
 });
+
+describe('crm read-tail r16 parameterized families', () => {
+  const owner = fileURLToPath(new URL('../../../packages/server-crm/src/', import.meta.url));
+  const purchases = readFileSync(resolve(owner, 'adapters/purchases.ts'), 'utf8');
+  const totalSelects = () => {
+    let total = 0;
+    for (const rel of readdirSync(owner, { recursive: true })) {
+      if (!String(rel).endsWith('.ts')) continue;
+      total += readFileSync(resolve(owner, String(rel)), 'utf8').match(/SELECT /g)?.length ?? 0;
+    }
+    return total;
+  };
+
+  it('owns the assignment-authorization read once and calls both guards from it', () => {
+    expect(purchases.match(/const crmAssignmentAllowedSql=/g)).toHaveLength(1);
+    expect(purchases.match(/crmAssignmentAllowedSql\('/g)).toHaveLength(2);
+    expect(purchases).toContain("crmAssignmentAllowedSql('crm_scope',permission)");
+    expect(purchases).toContain("crmAssignmentAllowedSql('crm_reference',permission)");
+    expect(purchases).not.toContain('SELECT ${assignmentReadSql("crm_scope",permission)}');
+    expect(purchases).not.toContain("SELECT ${assignmentReadSql('crm_reference',permission)}");
+    // The single shared builder parameterizes only the alias and permission;
+    // every other token is fixed, so both sites render their original text.
+    const line = purchases.split('\n').find(value => value.includes('const crmAssignmentAllowedSql=')) ?? '';
+    expect(line).toBe("const crmAssignmentAllowedSql=(alias:string,permission:string)=>`SELECT ${assignmentReadSql(alias,permission)} allowed FROM ${actorScopeSql} ${alias}`;");
+  });
+
+  it('keeps the owner SELECT KPI strictly below the r16 BEFORE=166 baseline', () => {
+    expect(totalSelects()).toBeLessThan(166);
+  });
+});
