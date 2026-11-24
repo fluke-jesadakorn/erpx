@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8680,
+    "revision": 8684,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -142520,9 +142520,9 @@
             "result": "passed",
             "sourceSha": "a24abcaab",
             "owner": "finance",
-            "before": 2182,
-            "after": 2174,
-            "note": "Supplier reservation guard 5x, bank transaction by id 3x, active dimension definitions 3x shared; FOR UPDATE OF t variants left inline."
+            "before": 2178,
+            "after": 2170,
+            "note": "Supplier reservation guard 5x, bank transaction by id 3x, active dimension definitions 3x shared; measured 2178->2170; FOR UPDATE OF t variants inline."
           },
           {
             "command": "vitest finance read plan (23) + tsc finance/tests-config",
@@ -142585,7 +142585,7 @@
         "owner": "operations",
         "title": "operations TS read tail native cutover (round 30)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -142597,22 +142597,37 @@
         "resources": [
           "owner:operations"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGC8ope",
-          "claimedAt": "2026-11-24T02:36:56.643Z",
-          "heartbeatAt": "2026-11-24T02:36:56.643Z",
-          "expiresAt": "2026-11-24T03:06:56.643Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-operations/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "adfe1097f",
+            "owner": "operations",
+            "before": 153,
+            "after": 150,
+            "note": "Materialized clock existence probe shared by four scope/authority reads; SQL byte-identical, binds unchanged."
+          },
+          {
+            "command": "vitest operations services (82) + tsc operations",
+            "result": "passed",
+            "sourceSha": "adfe1097f"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: repeated scope/authority/clock predicate families; COALESCE labels exhausted. BEFORE=153.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGC8ope",
+          "at": "2026-11-24T02:44:42.066Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -143199,6 +143214,42 @@
         "nextAction": "Next: remaining supplier-instruction EXISTS/count variants and bank statement guards; re-scout. BEFORE=2174.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.operations.read-tail-r31",
+        "goalId": "G4",
+        "owner": "operations",
+        "title": "operations TS read tail native cutover (round 31)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-operations/src/**",
+          "tests/unit/operations/**",
+          "tests/integration/operations/**"
+        ],
+        "resources": [
+          "owner:operations"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGC9ope",
+          "claimedAt": "2026-11-24T02:44:42.438Z",
+          "heartbeatAt": "2026-11-24T02:44:42.438Z",
+          "expiresAt": "2026-11-24T03:14:42.438Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: approval-instance JSON image across work-task alert/purchases and active-delegation clock window cohort/project/attachment. BEFORE=150.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -143207,7 +143258,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 995,
+      "totalPackets": 996,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -143215,13 +143266,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 615,
+        "blocked": 616,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T02:44:24.681Z",
+    "updatedAt": "2026-11-24T02:44:42.459Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
