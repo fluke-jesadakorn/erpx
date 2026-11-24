@@ -20,6 +20,10 @@
 //! `support_tickets`. It finally plans the package-obligation/Portal read
 //! family: the Portal table fence probe, the binding/response/identity/ack
 //! aggregate and the Company-wide ticket/incident/session/SLA obligation facts.
+//! It also plans the Support Calendar family: the scoped open-ticket and
+//! open-incident calendar feeds on `support_tickets` and `support_incidents`,
+//! carrying the owner-name/team projection and the actor-scoped read predicate
+//! as fixed native SQL with only scalar values crossing the wire.
 //! Reads carry no receipt/audit/outbox ledger: the caller executes them on the
 //! same unit as the surrounding command. No SQL is ever accepted from the wire
 //! and no TypeScript SQL remains for these kinds.
@@ -270,6 +274,36 @@ const READ_SERVICE_TEAM_OPTION_COVERAGE: NativeSupportReadStatement = NativeSupp
     bind_count: 2,
 };
 
+/// Native successors of the TypeScript Support Calendar fixed-SQL reads. The
+/// authoritative relations are the Support-owned `support_tickets` and
+/// `support_incidents`; the embedded `hr_people` (people_payroll) and
+/// `assignments` (identity_access) fragments are closed read-only public
+/// projections already authored natively for Support detail reads. The actor
+/// predicate is fixed native SQL; only its scalar scope binds cross the wire.
+/// Ticket caller binds `[tz, company, branch, branch, department, department,
+/// scopes_json, assignment_id, user_id, role, from, to, mode, owner, owner,
+/// owner_filter, owner_filter, search, search, limit]`.
+pub const RD_CALENDAR_SUPPORT_TICKETS: &str = "support_rd_calendar_support_tickets";
+const SQL_CALENDAR_SUPPORT_TICKETS: &str =
+    "SELECT t.id,t.title,t.source_record_json,t.target_date due_date,CASE WHEN t.sla_clock_json->>'state'='running' THEN (t.sla_clock_json->>'dueAt')::bigint ELSE NULL END sla_due_at,t.status,t.version,t.branch_id,t.department_id,(SELECT legal_name FROM (SELECT \"id\",\"user_id\",\"company_id\",\"legal_name\",\"preferred_name\",\"email\",\"phone\",\"country_code\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"merged_into_id\",\"work_email\",\"work_phone\" FROM hr_people) hr_people WHERE company_id=t.company_id AND user_id=t.owner_id AND merged_into_id IS NULL LIMIT 1) owner_name FROM (SELECT s.*,CASE WHEN s.sla_clock_json->>'state'='running' THEN to_char(to_timestamp((s.sla_clock_json->>'dueAt')::bigint/1000.0) AT TIME ZONE ?,'YYYY-MM-DD') ELSE s.due_date END target_date FROM support_tickets s) t WHERE t.company_id=? AND (?::text IS NULL OR t.branch_id=?) AND (?::text IS NULL OR t.department_id=?) AND coalesce(t.department_id,t.branch_id,t.company_id) IN (SELECT jsonb_array_elements_text(?::jsonb)) AND EXISTS(SELECT 1 FROM (SELECT \"id\",\"user_id\",\"role\",\"modules_json\",\"company_id\",\"branch_id\",\"valid_from\",\"valid_until\",\"revoked_at\",\"version\",\"scope_kind\",\"scope_node_id\",\"parent_id\",\"source\",\"source_id\" FROM assignments) g WHERE g.id=? AND g.user_id=? AND g.role=? AND g.company_id=t.company_id AND iam_assignment_active(g.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(g.user_id,g.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (g.scope_kind='holding' OR g.scope_kind='branch' AND g.scope_node_id=t.branch_id OR g.scope_kind='department' AND g.scope_node_id=t.department_id) AND (iam_role_allows(g.role,g.company_id,'support.read') OR t.source_kind<>'sales_order' AND t.created_by=g.user_id AND iam_role_allows(g.role,g.company_id,'records.read'))) AND t.status NOT IN ('closed','cancelled') AND t.target_date>=? AND t.target_date<? AND (?='team' OR t.owner_id=? OR t.created_by=?) AND (?::text IS NULL OR t.owner_id IN(SELECT user_id FROM (SELECT \"id\",\"user_id\",\"company_id\",\"legal_name\",\"preferred_name\",\"email\",\"phone\",\"country_code\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"merged_into_id\",\"work_email\",\"work_phone\" FROM hr_people) hr_people WHERE id=? AND company_id=t.company_id)) AND (?='' OR t.title ILIKE '%'||?||'%') ORDER BY t.target_date,t.id LIMIT ?";
+const READ_CALENDAR_SUPPORT_TICKETS: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_CALENDAR_SUPPORT_TICKETS,
+    sql: SQL_CALENDAR_SUPPORT_TICKETS,
+    bind_count: 20,
+};
+
+/// Incident caller binds `[company, branch, branch, department, department,
+/// scopes_json, assignment_id, user_id, role, from, to, mode, owner, owner,
+/// owner_filter, owner_filter, search, search, limit]`.
+pub const RD_CALENDAR_SUPPORT_INCIDENTS: &str = "support_rd_calendar_support_incidents";
+const SQL_CALENDAR_SUPPORT_INCIDENTS: &str =
+    "SELECT t.id,t.title,t.due_date,t.status,t.version,t.branch_id,t.department_id FROM support_incidents t WHERE t.company_id=? AND (?::text IS NULL OR t.branch_id=?) AND (?::text IS NULL OR t.department_id=?) AND coalesce(t.department_id,t.branch_id,t.company_id) IN (SELECT jsonb_array_elements_text(?::jsonb)) AND EXISTS(SELECT 1 FROM (SELECT \"id\",\"user_id\",\"role\",\"modules_json\",\"company_id\",\"branch_id\",\"valid_from\",\"valid_until\",\"revoked_at\",\"version\",\"scope_kind\",\"scope_node_id\",\"parent_id\",\"source\",\"source_id\" FROM assignments) g WHERE g.id=? AND g.user_id=? AND g.role=? AND g.company_id=t.company_id AND iam_assignment_active(g.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(g.user_id,g.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(g.role,g.company_id,'support.read') AND (g.scope_kind='holding' OR g.scope_kind='branch' AND g.scope_node_id=t.branch_id OR g.scope_kind='department' AND g.scope_node_id=t.department_id)) AND t.status NOT IN ('closed','cancelled') AND t.due_date>=? AND t.due_date<? AND (?='team' OR t.owner_id=? OR t.created_by=?) AND (?::text IS NULL OR t.owner_id IN(SELECT user_id FROM (SELECT \"id\",\"user_id\",\"company_id\",\"legal_name\",\"preferred_name\",\"email\",\"phone\",\"country_code\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"merged_into_id\",\"work_email\",\"work_phone\" FROM hr_people) hr_people WHERE id=? AND company_id=t.company_id)) AND (?='' OR t.title ILIKE '%'||?||'%') ORDER BY t.due_date,t.id LIMIT ?";
+const READ_CALENDAR_SUPPORT_INCIDENTS: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_CALENDAR_SUPPORT_INCIDENTS,
+    sql: SQL_CALENDAR_SUPPORT_INCIDENTS,
+    bind_count: 19,
+};
+
 const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_SERVICE_COVERAGE_HISTORY,
     READ_SERVICE_TEAM_COVERAGE,
@@ -292,6 +326,8 @@ const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_SERVICE_TEAM_OPTION_HISTORY,
     READ_SERVICE_TEAM_OPTION_HANDLERS,
     READ_SERVICE_TEAM_OPTION_COVERAGE,
+    READ_CALENDAR_SUPPORT_TICKETS,
+    READ_CALENDAR_SUPPORT_INCIDENTS,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -407,6 +443,16 @@ mod tests {
                 SQL_SERVICE_TEAM_OPTION_COVERAGE,
                 2usize,
             ),
+            (
+                RD_CALENDAR_SUPPORT_TICKETS,
+                SQL_CALENDAR_SUPPORT_TICKETS,
+                20usize,
+            ),
+            (
+                RD_CALENDAR_SUPPORT_INCIDENTS,
+                SQL_CALENDAR_SUPPORT_INCIDENTS,
+                19usize,
+            ),
         ];
         for (kind, sql, binds) in expected {
             let statement = read_statement(kind).expect("registered owner read kind");
@@ -420,12 +466,13 @@ mod tests {
             assert!(
                 sql.contains("service_team") || sql.contains("support_ticket_portal") ||
                     sql.contains("support_ticket_events") || sql.contains("support_incident_events") ||
-                    sql.contains("support_incident_tickets") || sql.contains("support_tickets"),
+                    sql.contains("support_incident_tickets") || sql.contains("support_tickets") ||
+                    sql.contains("support_incidents"),
                 "owner read must stay on owner-local Support tables: {sql}"
             );
             assert_eq!(sql.matches('?').count(), binds);
         }
-        assert_eq!(STATEMENTS.len(), 21);
+        assert_eq!(STATEMENTS.len(), 23);
     }
 
     #[test]
@@ -474,5 +521,9 @@ mod tests {
         assert_eq!(option_handlers.bind_count, 2);
         let option_coverage = read_statement(RD_SERVICE_TEAM_OPTION_COVERAGE).expect("service team option coverage");
         assert_eq!(option_coverage.bind_count, 2);
+        let calendar_tickets = read_statement(RD_CALENDAR_SUPPORT_TICKETS).expect("calendar ticket feed");
+        assert_eq!(calendar_tickets.bind_count, 20);
+        let calendar_incidents = read_statement(RD_CALENDAR_SUPPORT_INCIDENTS).expect("calendar incident feed");
+        assert_eq!(calendar_incidents.bind_count, 19);
     }
 }

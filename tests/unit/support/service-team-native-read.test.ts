@@ -3,6 +3,9 @@ import { describe, expect, it, vi } from 'vitest';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 
 vi.mock('server-only', () => ({}));
+vi.mock('@erpx/server-support/adapters/command-runtime', () => ({
+  nativeSupportRuntime: () => ({ purchase: async () => ({ history: true }) }),
+}));
 
 const source = (path: string) => readFile(new URL(`../../../${path}`, import.meta.url), 'utf8');
 const config = JSON.stringify({
@@ -447,6 +450,66 @@ describe('support service-team coverage native read', () => {
         expect(String(fetchMock.mock.calls[0]![0])).toContain('/support/command-plan');
         expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({ kind, values });
       }
+    } finally {
+      fetchMock.mockRestore();
+      delete process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG;
+    }
+  });
+
+  it('leaves no retired owner SQL in the Support Calendar adapter', async () => {
+    const calendar = await source('packages/server-support/src/adapters/calendar-support-facts.ts');
+    expect(calendar).not.toContain('SELECT');
+    expect(calendar).toContain('SUPPORT_RD_CALENDAR_SUPPORT_TICKETS');
+    expect(calendar).toContain('SUPPORT_RD_CALENDAR_SUPPORT_INCIDENTS');
+  });
+
+  it('plans the calendar ticket feed in Rust with owner-scoped scalar binds', async () => {
+    const batch = vi.fn(async () => [{ results: [{ id: 'row-1' }], success: true, meta: { changes: 0, duration: 0 } }]);
+    const db = { prepare: vi.fn(() => ({ bind: vi.fn() })), batch } as unknown as SqlDatabase;
+    process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG = config;
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(ok('SELECT 1', []));
+    const actor = { assignmentId: 'assignment-1', userId: 'user-1', role: 'support', companyId: 'company', holdingId: 'h1' } as never;
+    try {
+      const { calendarSupportSupportFacts } = await import('@erpx/server-support/adapters/calendar-support-facts');
+      const rows = await calendarSupportSupportFacts(db).read1({
+        value1: 'Asia/Bangkok', value2: 'company', value3: null, value4: null,
+        value5: '["company"]', value6: '2026-10-01', value7: '2026-11-01', value8: 'team',
+        value9: 'user-1', value10: null, value11: '', value12: 100, actor,
+      });
+      expect(rows).toEqual([{ id: 'row-1' }]);
+      expect(String(fetchMock.mock.calls[0]![0])).toContain('/support/command-plan');
+      expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({
+        kind: 'support_rd_calendar_support_tickets',
+        values: ['Asia/Bangkok', 'company', null, null, null, null, '["company"]',
+          'assignment-1', 'user-1', 'support', '2026-10-01', '2026-11-01', 'team',
+          'user-1', 'user-1', null, null, '', '', 100],
+      });
+    } finally {
+      fetchMock.mockRestore();
+      delete process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG;
+    }
+  });
+
+  it('plans the calendar incident feed in Rust with owner-scoped scalar binds', async () => {
+    const batch = vi.fn(async () => [{ results: [{ id: 'row-1' }], success: true, meta: { changes: 0, duration: 0 } }]);
+    const db = { prepare: vi.fn(() => ({ bind: vi.fn() })), batch } as unknown as SqlDatabase;
+    process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG = config;
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(ok('SELECT 1', []));
+    const actor = { assignmentId: 'assignment-1', userId: 'user-1', role: 'support', companyId: 'company', holdingId: 'h1' } as never;
+    try {
+      const { calendarSupportSupportFacts } = await import('@erpx/server-support/adapters/calendar-support-facts');
+      const rows = await calendarSupportSupportFacts(db).read2({
+        value1: 'company', value2: null, value3: null, value4: '["company"]',
+        value5: '2026-10-01', value6: '2026-11-01', value7: 'team', value8: 'user-1',
+        value9: null, value10: '', value11: 100, actor,
+      });
+      expect(rows).toEqual([{ id: 'row-1' }]);
+      expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({
+        kind: 'support_rd_calendar_support_incidents',
+        values: ['company', null, null, null, null, '["company"]',
+          'assignment-1', 'user-1', 'support', '2026-10-01', '2026-11-01', 'team',
+          'user-1', 'user-1', null, null, '', '', 100],
+      });
     } finally {
       fetchMock.mockRestore();
       delete process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG;

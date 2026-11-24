@@ -38,6 +38,8 @@ export const SUPPORT_RD_SERVICE_TEAM_OPTIONS = 'support_rd_service_team_options'
 export const SUPPORT_RD_SERVICE_TEAM_OPTION_HISTORY = 'support_rd_service_team_option_history';
 export const SUPPORT_RD_SERVICE_TEAM_OPTION_HANDLERS = 'support_rd_service_team_option_handlers';
 export const SUPPORT_RD_SERVICE_TEAM_OPTION_COVERAGE = 'support_rd_service_team_option_coverage';
+export const SUPPORT_RD_CALENDAR_SUPPORT_TICKETS = 'support_rd_calendar_support_tickets';
+export const SUPPORT_RD_CALENDAR_SUPPORT_INCIDENTS = 'support_rd_calendar_support_incidents';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'SUPPORT_NATIVE_READ_UNAVAILABLE', 'The native Support read service is unavailable.');
