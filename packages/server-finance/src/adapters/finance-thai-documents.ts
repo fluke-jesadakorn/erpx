@@ -1,4 +1,5 @@
 import {withFinancePurchasedCommand,withFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
+import { FINANCE_ADVISORY_XACT_LOCK_SQL } from "./advisory-lock-dedupe-sql";
 import { nativeFinanceThaiDocuments } from '@erpx/server-collaboration/adapters/native-finance-thai-documents';
 import { salesInvoiceLines } from "@erpx/server-finance/adapters/sales-lines";
 import type { IssueSummary } from '@erpx/server-finance/domain/thai-documents';
@@ -32,7 +33,7 @@ export async function prepareThaiDocumentIssue(db: SqlDatabase, actor: WorkConte
     const { snapshot, payer, payee, commandId } = input;
     const { id, documentNumber: number, sha256, html, complete, fingerprint, year, last, now } = await documentService(db).prepareThaiDocumentIssue(actor, input);
     return { id, documentNumber: number, sha256, html, steps: [
-            ...(snapshot.kind === "withholding_certificate" ? [db.prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))").bind(`finance-withholding-month:${actor.companyId}:${String(snapshot.paymentDate).slice(0, 7)}:${snapshot.formKind}`)] : []),
+            ...(snapshot.kind === "withholding_certificate" ? [db.prepare(FINANCE_ADVISORY_XACT_LOCK_SQL).bind(`finance-withholding-month:${actor.companyId}:${String(snapshot.paymentDate).slice(0, 7)}:${snapshot.formKind}`)] : []),
             ...(snapshot.kind === "withholding_certificate" ? await currentTaxSignerGuards(db, actor, payer, commandId) : []),
             ...taxIdentityGuards(db, actor, commandId, [payer, payee]),
             await nativeFinanceThaiDocuments(db, actor.companyId).sequenceSeed([actor.companyId, snapshot.kind, year]),

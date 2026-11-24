@@ -1,4 +1,5 @@
 import 'server-only';
+import { POSTING_FINANCE_PERIODS_SQL, POSTING_COMPANY_FX_RATES_SQL, POSTING_COMPANY_MONEY_IMAGE_SQL, POSTING_COMMAND_RECEIPT_RECORD_SQL } from "./posting-prerequisites-dedupe-sql";
 import {createHash,randomUUID} from 'node:crypto';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {hasPermission} from '@erpx/feature-identity_access/lib/permissions';
@@ -32,9 +33,9 @@ type Rate=Native&{currency:string;effective_date:string;currency_per_usd:string;
 async function references(database:SqlDatabase,actor:WorkContext){
  const [finance,periods,rates,money]=await Promise.all([
   commercePostingFinanceReferences(database,actor),
-  database.prepare('SELECT p.id,p.name,p.start_date,p.end_date,p.state,p.close_version version,to_jsonb(p)::text source FROM finance_periods p WHERE p.company_id=? ORDER BY p.id').bind(actor.companyId).all<Period>(),
-  database.prepare('SELECT r.id,r.currency,r.effective_date,r.currency_per_usd::text,r.confirmed_at,to_jsonb(r)::text source FROM company_fx_rates r WHERE r.company_id=? ORDER BY r.id').bind(actor.companyId).all<Rate>(),
-  database.prepare("SELECT 'settings' kind,to_jsonb(s)::text source FROM company_money_settings s WHERE s.company_id=? UNION ALL SELECT 'scale:'||s.currency kind,to_jsonb(s)::text source FROM company_currency_scales s WHERE s.company_id=? ORDER BY kind").bind(actor.companyId,actor.companyId).all<{kind:string;source:string}>(),
+  database.prepare(POSTING_FINANCE_PERIODS_SQL).bind(actor.companyId).all<Period>(),
+  database.prepare(POSTING_COMPANY_FX_RATES_SQL).bind(actor.companyId).all<Rate>(),
+  database.prepare(POSTING_COMPANY_MONEY_IMAGE_SQL).bind(actor.companyId,actor.companyId).all<{kind:string;source:string}>(),
  ]);
  return {chart:finance.charts,account:finance.accounts,period:periods.results,rate:rates.results,money:money.results};
 }
@@ -96,7 +97,7 @@ export async function withManufacturingPostingPrerequisiteCommand<Result extends
  const write=await owner(actor),operation=operations[kind],permission=kind==='rate'?'finance.approve':'finance.write';
  try{return await write.transaction(async database=>{
   await leases(database,actor.companyId,kind);const current=await authority(database,actor,permission);
-  const receipt=await database.prepare("SELECT record_id FROM command_receipts WHERE command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?").bind(key,operation,actor.userId,actor.companyId).first<{record_id:string}>();
+  const receipt=await database.prepare(POSTING_COMMAND_RECEIPT_RECORD_SQL).bind(key,operation,actor.userId,actor.companyId).first<{record_id:string}>();
   const purpose=receipt?'history' as const:'new-work' as const,guard=`manufacturing-posting-prerequisite:${randomUUID()}`;
   for(const capability of capabilities)await checkPurchasedCapability(database,'enforced',{companyId:actor.companyId,capability,purpose});
   const boundaries=capabilities.map((capability,index)=>({key:`${guard}:${index}`,boundary:purchaseCommandBoundary(database,'enforced',`${guard}:${index}`,{companyId:actor.companyId,capability,purpose})!}));

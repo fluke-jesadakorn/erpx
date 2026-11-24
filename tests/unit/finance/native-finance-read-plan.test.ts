@@ -10,6 +10,13 @@ import { inventoryExecutiveOwnerProjections } from '../../../packages/server-fin
 import { commercialOwnerProjectionSources } from '../../../packages/server-finance/src/adapters/commercial-owner-projection-sources';
 import { hospitalityOwnerProjectionSources } from '../../../packages/server-finance/src/adapters/hospitality-owner-projection-sources';
 import {
+  POSTING_FINANCE_PERIODS_SQL,
+  POSTING_COMPANY_FX_RATES_SQL,
+  POSTING_COMPANY_MONEY_IMAGE_SQL,
+  POSTING_COMMAND_RECEIPT_RECORD_SQL,
+} from '../../../packages/server-finance/src/adapters/posting-prerequisites-dedupe-sql';
+import { FINANCE_ADVISORY_XACT_LOCK_SQL } from '../../../packages/server-finance/src/adapters/advisory-lock-dedupe-sql';
+import {
   nativeFinanceReadAll,
   nativeFinanceReadFirst,
   FINANCE_RD_ASSET_POLICY_ROW,
@@ -231,5 +238,66 @@ describe('finance finance_charts projection dedupe', () => {
     expect(platformOwnerProjectionSources.finance_charts).toBe(FINANCE_CHARTS_PROJECTION_SQL);
     expect(inventoryExecutiveOwnerProjections.finance_charts).toBe(FINANCE_CHARTS_PROJECTION_SQL);
     expect(commercialOwnerProjectionSources.finance_charts).toBe(FINANCE_CHARTS_PROJECTION_SQL);
+  });
+});
+
+const POSTING_PERIODS_SQL = "SELECT p.id,p.name,p.start_date,p.end_date,p.state,p.close_version version,to_jsonb(p)::text source FROM finance_periods p WHERE p.company_id=? ORDER BY p.id";
+const POSTING_FX_SQL = "SELECT r.id,r.currency,r.effective_date,r.currency_per_usd::text,r.confirmed_at,to_jsonb(r)::text source FROM company_fx_rates r WHERE r.company_id=? ORDER BY r.id";
+const POSTING_MONEY_SQL = "SELECT 'settings' kind,to_jsonb(s)::text source FROM company_money_settings s WHERE s.company_id=? UNION ALL SELECT 'scale:'||s.currency kind,to_jsonb(s)::text source FROM company_currency_scales s WHERE s.company_id=? ORDER BY kind";
+const POSTING_RECEIPT_SQL = "SELECT record_id FROM command_receipts WHERE command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?";
+
+const POSTING_CALL_SITES: [string, string[]][] = [
+  ['assets-posting-prerequisites.ts', ['POSTING_FINANCE_PERIODS_SQL', 'POSTING_COMPANY_FX_RATES_SQL', 'POSTING_COMPANY_MONEY_IMAGE_SQL', 'POSTING_COMMAND_RECEIPT_RECORD_SQL']],
+  ['expense-posting-prerequisites.ts', ['POSTING_FINANCE_PERIODS_SQL', 'POSTING_COMPANY_FX_RATES_SQL', 'POSTING_COMPANY_MONEY_IMAGE_SQL']],
+  ['manufacturing-posting-prerequisites.ts', ['POSTING_FINANCE_PERIODS_SQL', 'POSTING_COMPANY_FX_RATES_SQL', 'POSTING_COMPANY_MONEY_IMAGE_SQL', 'POSTING_COMMAND_RECEIPT_RECORD_SQL']],
+  ['payroll-posting-prerequisites.ts', ['POSTING_FINANCE_PERIODS_SQL', 'POSTING_COMPANY_FX_RATES_SQL', 'POSTING_COMPANY_MONEY_IMAGE_SQL']],
+  ['pos-startup-prerequisites.ts', ['POSTING_FINANCE_PERIODS_SQL', 'POSTING_COMPANY_FX_RATES_SQL', 'POSTING_COMPANY_MONEY_IMAGE_SQL', 'POSTING_COMMAND_RECEIPT_RECORD_SQL']],
+  ['sales-posting-setup.ts', ['POSTING_FINANCE_PERIODS_SQL', 'POSTING_COMPANY_FX_RATES_SQL', 'POSTING_COMPANY_MONEY_IMAGE_SQL', 'POSTING_COMMAND_RECEIPT_RECORD_SQL']],
+  ['supply-posting-prerequisites.ts', ['POSTING_FINANCE_PERIODS_SQL', 'POSTING_COMPANY_FX_RATES_SQL', 'POSTING_COMPANY_MONEY_IMAGE_SQL', 'POSTING_COMMAND_RECEIPT_RECORD_SQL']],
+];
+
+describe('finance posting-prerequisites SQL dedupe', () => {
+  it('keeps one byte-identical literal per family with unchanged text', async () => {
+    expect(POSTING_FINANCE_PERIODS_SQL).toBe(POSTING_PERIODS_SQL);
+    expect(POSTING_COMPANY_FX_RATES_SQL).toBe(POSTING_FX_SQL);
+    expect(POSTING_COMPANY_MONEY_IMAGE_SQL).toBe(POSTING_MONEY_SQL);
+    expect(POSTING_COMMAND_RECEIPT_RECORD_SQL).toBe(POSTING_RECEIPT_SQL);
+    const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/posting-prerequisites-dedupe-sql.ts', import.meta.url), 'utf8');
+    expect(shared.split(POSTING_PERIODS_SQL).length - 1).toBe(1);
+    expect(shared.split(POSTING_FX_SQL).length - 1).toBe(1);
+    expect(shared.split(POSTING_MONEY_SQL).length - 1).toBe(1);
+    expect(shared.split(POSTING_RECEIPT_SQL).length - 1).toBe(1);
+    expect(shared.split('SELECT ').length - 1).toBe(5);
+  });
+
+  it('backs every call site with the shared constants and no inline literal', async () => {
+    for (const [file, names] of POSTING_CALL_SITES) {
+      const text = await readFile(new URL(`../../../packages/server-finance/src/adapters/${file}`, import.meta.url), 'utf8');
+      for (const lit of [POSTING_PERIODS_SQL, POSTING_FX_SQL, POSTING_MONEY_SQL, POSTING_RECEIPT_SQL]) {
+        expect(text.split(lit).length - 1).toBe(0);
+      }
+      expect(text).toContain('from "./posting-prerequisites-dedupe-sql"');
+      for (const name of names) expect(text).toContain(name);
+    }
+  });
+});
+
+const ADVISORY_LOCK_SQL = 'SELECT pg_advisory_xact_lock(hashtextextended(?,0))';
+const ADVISORY_LOCK_CALL_SITES = [
+  'finance-books.ts', 'finance-planning.ts', 'finance-tax-identities.ts',
+  'finance-thai-documents.ts', 'finance-withholding-remittance.ts', 'finance-withholding.ts',
+];
+
+describe('finance advisory-lock SQL dedupe', () => {
+  it('keeps one byte-identical literal and backs every lock site', async () => {
+    expect(FINANCE_ADVISORY_XACT_LOCK_SQL).toBe(ADVISORY_LOCK_SQL);
+    const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/advisory-lock-dedupe-sql.ts', import.meta.url), 'utf8');
+    expect(shared.split(ADVISORY_LOCK_SQL).length - 1).toBe(1);
+    for (const file of ADVISORY_LOCK_CALL_SITES) {
+      const text = await readFile(new URL(`../../../packages/server-finance/src/adapters/${file}`, import.meta.url), 'utf8');
+      expect(text.split(ADVISORY_LOCK_SQL).length - 1).toBe(0);
+      expect(text).toContain('from "./advisory-lock-dedupe-sql"');
+      expect(text).toContain('FINANCE_ADVISORY_XACT_LOCK_SQL');
+    }
   });
 });

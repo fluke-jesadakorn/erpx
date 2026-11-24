@@ -1,4 +1,5 @@
 import {withFinanceConfigurationCommand,withFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
+import { FINANCE_ADVISORY_XACT_LOCK_SQL } from "./advisory-lock-dedupe-sql";
 import { createTaxIdentities } from '@erpx/server-finance/application/tax-identities';
 import type { TaxProjection } from '@erpx/server-finance/domain/tax-identities';
 import { taxSignatureMetadata, taxSignatureGuard, taxSignatureWorkspace } from '@erpx/server-files/public/finance-tax-signatures';
@@ -40,7 +41,7 @@ function identityService(provided?: SqlDatabase) {
         }, commitDecision: async ({ actor, id, input, commandId, row, operation, signature, status, now }) => {
             const write = await db(actor), guards = signature ? taxSignatureGuard(write, actor, signature.linkId, id, signature.sha256, commandId, 'signature') : [];
             return executeCommand(write, actor, commandId, operation, input, id, input.expectedVersion + 1, { id, status, version: input.expectedVersion + 1, signatureSha256: signature?.sha256 ?? null }, [
-                write.prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))").bind(`finance-taxpayer:${actor.companyId}`),
+                write.prepare(FINANCE_ADVISORY_XACT_LOCK_SQL).bind(`finance-taxpayer:${actor.companyId}`),
                 assertion(write, commandId, "identity", "EXISTS(SELECT 1 FROM finance_tax_identities WHERE id=? AND company_id=? AND status='draft' AND version=?)", [id, actor.companyId, input.expectedVersion]), ...guards,
                 ...(input.action === "approve" ? [
                     ...(row.previous_identity_id ? [assertion(write, commandId, "previous", "EXISTS(SELECT 1 FROM finance_tax_identities WHERE id=? AND company_id=? AND status='approved' AND party_id IS NOT DISTINCT FROM ?::text)", [row.previous_identity_id, actor.companyId, row.party_id]), await financeTaxIdentities(write, actor.companyId).supersede({ now, previousId: row.previous_identity_id })] : []),

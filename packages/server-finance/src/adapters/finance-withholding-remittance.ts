@@ -1,4 +1,5 @@
 import {withFinancePurchasedCommand,withFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
+import { FINANCE_ADVISORY_XACT_LOCK_SQL } from "./advisory-lock-dedupe-sql";
 import { nativeFinanceWhRemittance } from '@erpx/server-collaboration/adapters/native-finance-wh-remittance';
 import { createWithholdingMonth } from '@erpx/server-finance/application/withholding-month';
 import { createWithholdingMonthSource } from '@erpx/server-finance/application/withholding-month-source';
@@ -17,7 +18,7 @@ import { requireCompanyTaxAuthority, taxSourceDigest } from "@erpx/server-financ
 export { withholdingPackageSchema, withholdingPackageDecisionSchema, withholdingRemittanceSchema, withholdingRemittanceReversalSchema } from '@erpx/server-finance/domain/withholding-month';
 import { withholdingPackageSchema, withholdingPackageDecisionSchema, withholdingRemittanceSchema, withholdingRemittanceReversalSchema, type Row, type Source, type Package } from '@erpx/server-finance/domain/withholding-month';
 const lockKey = (company: string, month: string, kind: string) => `finance-withholding-month:${company}:${month}:${kind}`;
-const lock = (db: SqlDatabase, actor: WorkContext, month: string, kind: string) => db.prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))").bind(lockKey(actor.companyId, month, kind));
+const lock = (db: SqlDatabase, actor: WorkContext, month: string, kind: string) => db.prepare(FINANCE_ADVISORY_XACT_LOCK_SQL).bind(lockKey(actor.companyId, month, kind));
 async function capture(db: SqlDatabase, actor: WorkContext, month: string, formKind: "PND3" | "PND53"): Promise<Source> { return monthlySource(db).capture(actor, month, formKind); }
 function sourceGuards(db: SqlDatabase, actor: WorkContext, key: string, source: Source): SqlStatement[] {
     return [

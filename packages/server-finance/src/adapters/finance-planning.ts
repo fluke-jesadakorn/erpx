@@ -1,4 +1,5 @@
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
+import { FINANCE_ADVISORY_XACT_LOCK_SQL } from "./advisory-lock-dedupe-sql";
 import { ACTIVE_CHART_BASE_CURRENCY_SQL } from "./chart-base-currency-dedupe-sql";
 import {financeCommandReceipts} from "@erpx/server-workflow/public/finance-command-receipts";
 import { fiscalCloseSourceSql } from "@erpx/server-finance/public/finance-fiscal-close-source";
@@ -142,7 +143,7 @@ ledger:async(actor,chartId,endDate)=>(await db
       .bind(actor.companyId, chartId, endDate)
       .all<LedgerLine>()).results,
 lockChart:async(chartId)=>db
-      .prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))")
+      .prepare(FINANCE_ADVISORY_XACT_LOCK_SQL)
       .bind(`finance-book-${chartId}`)
       .run(),
 snapshotCommit:async(facts)=>{const {actor,id,input,key,op,row,snapshotId,result,sourceHash,csv,exportHash,now}=facts;return executeCommand(db, actor, key, op, input, id, row.version, result, [await financePlanning(db, actor.companyId).createSnapshot({ snapshotId, companyId: actor.companyId, definitionId: id, startDate: input.startDate, endDate: input.endDate, resultJson: JSON.stringify(result), sourceHash, userId: actor.userId, now, csv, exportHash }),

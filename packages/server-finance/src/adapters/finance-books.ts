@@ -1,4 +1,5 @@
 import { withFinancePurchasedRead, withFinancePurchasedCommand, withFinanceConfigurationCommand } from "@erpx/server-finance/adapters/purchase-boundary";
+import { FINANCE_ADVISORY_XACT_LOCK_SQL } from "./advisory-lock-dedupe-sql";
 import { nativeFinanceBooks } from '@erpx/server-collaboration/adapters/native-finance-books';
 import {financeCommandReceipts} from "@erpx/server-workflow/public/finance-command-receipts";
 import { financeTransaction } from "@erpx/server-finance/public/finance-transactions";
@@ -71,7 +72,7 @@ function nativeBookReview(db:SqlDatabase):BookReviewRepository{return {replay:(a
         prepared_by: string;
       }>(),
 lockPrimary:async(chartId)=>db
-      .prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))")
+      .prepare(FINANCE_ADVISORY_XACT_LOCK_SQL)
       .bind(`finance-book-${chartId}`)
       .run(),
 sourcePostedSince:async(chartId,effectiveDate)=>db

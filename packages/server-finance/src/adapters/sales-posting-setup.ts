@@ -1,4 +1,5 @@
 import 'server-only';
+import { POSTING_FINANCE_PERIODS_SQL, POSTING_COMPANY_FX_RATES_SQL, POSTING_COMPANY_MONEY_IMAGE_SQL, POSTING_COMMAND_RECEIPT_RECORD_SQL } from "./posting-prerequisites-dedupe-sql";
 import {createHash,randomUUID} from 'node:crypto';
 import {hasPermission} from '@erpx/feature-identity_access/lib/permissions';
 import {samePerson} from '@erpx/feature-identity_access/lib/iam';
@@ -39,9 +40,9 @@ type Edition=SalesDefaults&Native&{review_reason:string|null};
 async function references(database:SqlDatabase,actor:WorkContext){
  const [finance,periods,rates,money,defaults]=await Promise.all([
   commercePostingFinanceReferences(database,actor),
-  database.prepare('SELECT p.id,p.name,p.start_date,p.end_date,p.state,p.close_version version,to_jsonb(p)::text source FROM finance_periods p WHERE p.company_id=? ORDER BY p.id').bind(actor.companyId).all<Period>(),
-  database.prepare('SELECT r.id,r.currency,r.effective_date,r.currency_per_usd::text,r.confirmed_at,to_jsonb(r)::text source FROM company_fx_rates r WHERE r.company_id=? ORDER BY r.id').bind(actor.companyId).all<Rate>(),
-  database.prepare("SELECT 'settings' kind,to_jsonb(s)::text source FROM company_money_settings s WHERE s.company_id=? UNION ALL SELECT 'scale:'||s.currency kind,to_jsonb(s)::text source FROM company_currency_scales s WHERE s.company_id=? ORDER BY kind").bind(actor.companyId,actor.companyId).all<{kind:string;source:string}>(),
+  database.prepare(POSTING_FINANCE_PERIODS_SQL).bind(actor.companyId).all<Period>(),
+  database.prepare(POSTING_COMPANY_FX_RATES_SQL).bind(actor.companyId).all<Rate>(),
+  database.prepare(POSTING_COMPANY_MONEY_IMAGE_SQL).bind(actor.companyId,actor.companyId).all<{kind:string;source:string}>(),
   database.prepare('SELECT d.*,to_jsonb(d)::text source FROM finance_sales_defaults d WHERE d.company_id=? ORDER BY d.id').bind(actor.companyId).all<Edition>(),
  ]);
  return {chart:finance.charts,account:finance.accounts,period:periods.results,rate:rates.results,money:money.results,defaults:defaults.results};
@@ -131,7 +132,7 @@ export async function withSalesPostingCommand<Result extends {id:string}>(actor:
  const decisionInput=(legacy?request:(request as Request).input) as {action?:string};
  try{return await (await owner(actor)).transaction(async database=>{
   await leases(database,actor.companyId,kind);
-  const receipt=await database.prepare("SELECT record_id FROM command_receipts WHERE command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?").bind(key,operation,actor.userId,actor.companyId).first<{record_id:string}>(),purpose=receipt?'history' as const:kind==='decision'&&decisionInput.action==='reject'?'settle-existing' as const:'new-work' as const;
+  const receipt=await database.prepare(POSTING_COMMAND_RECEIPT_RECORD_SQL).bind(key,operation,actor.userId,actor.companyId).first<{record_id:string}>(),purpose=receipt?'history' as const:kind==='decision'&&decisionInput.action==='reject'?'settle-existing' as const:'new-work' as const;
   const selected=await accessFor(database,actor,mode,!legacy,purpose),current=await authority(database,actor,permission,selected.sales);
   await checkPurchasedCapability(database,mode,{companyId:actor.companyId,capability:selected.capability,purpose});
   const guard=`sales-posting:${randomUUID()}`,boundary=purchaseCommandBoundary(database,mode,guard,{companyId:actor.companyId,capability:selected.capability,purpose});if(boundary)await database.batch(boundary.before);
