@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7806,
+    "revision": 7812,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -131031,7 +131031,7 @@
         "owner": "collaboration",
         "title": "collaboration TS read tail native cutover (r1)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -131043,22 +131043,42 @@
         "resources": [
           "owner:collaboration"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG39col",
-          "claimedAt": "2026-11-24T00:53:09.826Z",
-          "heartbeatAt": "2026-11-24T01:07:51.653Z",
-          "expiresAt": "2026-11-24T01:37:51.653Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-collaboration/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "281c4c3a2",
+            "owner": "collaboration",
+            "before": 467,
+            "after": 466,
+            "note": "publishedEvent and noticeEvent share inboxEventByKeySql; byte-identical."
+          },
+          {
+            "command": "cargo check -p erpx-server-collaboration",
+            "result": "passed",
+            "sourceSha": "281c4c3a2"
+          },
+          {
+            "command": "vitest collaboration services (123) + tsc collaboration",
+            "result": "passed",
+            "sourceSha": "281c4c3a2"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "New read-tail lane. Pick the smallest owner-local fixed-SQL dedupe group; BEFORE=467 spaced statements; record strictly lower.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG39col",
+          "at": "2026-11-24T01:12:40.251Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -131753,7 +131773,7 @@
         "owner": "ecommerce",
         "title": "ecommerce TS read tail native cutover (round 3)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -131765,22 +131785,34 @@
         "resources": [
           "owner:ecommerce"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG57eco",
-          "claimedAt": "2026-11-24T01:08:23.803Z",
-          "heartbeatAt": "2026-11-24T01:08:23.803Z",
-          "expiresAt": "2026-11-24T01:38:23.803Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "ecommerce byte-identical TS scan (4 methods)",
+            "result": "passed",
+            "sourceSha": "a0abc4e21",
+            "note": "zero duplicate groups remain after r2"
+          },
+          {
+            "command": "tsc ecommerce + catalog transport (8)",
+            "result": "passed",
+            "sourceSha": "a0abc4e21"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: exact-string duplicate scan again (ecommerce.ts/executive-metric-projections.ts remaining) or owner-local family; BEFORE=76.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Blocked with evidence; no forced refactor.",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG57eco",
+          "at": "2026-11-24T01:12:40.483Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Blocked with evidence; no forced refactor."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -132070,6 +132102,42 @@
         "nextAction": "TS-only dedupe if available; if none safe, report blocked with evidence. BEFORE=80.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.collaboration.read-tail-r2",
+        "goalId": "G4",
+        "owner": "collaboration",
+        "title": "collaboration TS read tail native cutover (round 2)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-collaboration/src/**",
+          "tests/unit/collaboration/**",
+          "tests/integration/collaboration/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG66col",
+          "claimedAt": "2026-11-24T01:12:40.726Z",
+          "heartbeatAt": "2026-11-24T01:12:40.726Z",
+          "expiresAt": "2026-11-24T01:42:40.726Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next verified TS-only dedupe candidates: work-social-draft-policy.ts:30,31 and work-social-purchases.ts:70,94. BEFORE=466.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -132078,21 +132146,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 784,
+      "totalPackets": 785,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
-        "in_progress": 32,
+        "in_progress": 31,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 407,
+        "blocked": 409,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:12:26.353Z",
+    "updatedAt": "2026-11-24T01:12:40.731Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
