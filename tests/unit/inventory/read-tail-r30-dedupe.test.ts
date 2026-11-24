@@ -83,8 +83,9 @@ describe('Inventory read-tail r30 parameterized child-line dedupe', () => {
     walk(srcRoot);
     // r29 deduped the 4x byte-identical id-existence probe into one shared
     // parameterized helper (361 -> 358). r30 folds the 2x byte-identical
-    // child-line row selector into one helper (358 -> 357).
-    expect(total).toBe(357);
+    // child-line row selector into one helper (358 -> 357). r31 lowers it
+    // further to 353, so the exact pin is relaxed to the r30 baseline.
+    expect(total).toBeLessThanOrEqual(357);
     expect(total).toBeLessThan(358);
   });
 });

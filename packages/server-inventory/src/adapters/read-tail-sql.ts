@@ -1,4 +1,5 @@
 import 'server-only';
+import {assignmentReadSql} from '@erpx/server-identity_access/public/record-source-authority';
 import {packageClockSql} from '@erpx/server-commercial/public/purchased-capability-sql';
 import {platformOwnerProjectionSources as identitySources} from '@erpx/server-identity_access/public/platform-owner-projection-sources';
 import {inventoryQualitySnapshotSources} from '@erpx/server-quality/public/inventory-quality-snapshot-sources';
@@ -181,3 +182,10 @@ export const recordIdExistsSql = (table: string) =>
  *  own bind and independent statement. r11-r29 helpers above are left untouched. */
 export const childLineRowsSql = (table: string, lineFk: string) =>
   `SELECT * FROM ${table} WHERE ${lineFk}=? ORDER BY id`;
+/** r31: parameterized current-assignment scope probe. The landed-cost, count and
+ *  transfer purchased-read gates share one assignment/authority envelope plus a
+ *  NULL department scope; only the scope alias and permission vary. Every caller
+ *  keeps its own binds and independent statement. r11-r30 helpers above are left
+ *  untouched. */
+export const scopeAllowedSql = (scope: string, permission: string) =>
+  `SELECT ${assignmentReadSql(scope, permission)} allowed FROM (SELECT ?::text company_id,?::text branch_id,NULL::text department_id) ${scope}`;

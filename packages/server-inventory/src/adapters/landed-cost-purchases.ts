@@ -1,10 +1,9 @@
 import "server-only";
 import {inventoryPurchaseReplaySql} from "./inventory-read-projections";
-import {childJsonAggSql,childJoinJsonAggSql} from './read-tail-sql';
+import {childJsonAggSql,childJoinJsonAggSql,scopeAllowedSql} from './read-tail-sql';
 import {randomUUID} from "node:crypto";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
 import {iamMutationGuards} from "@erpx/server-identity_access/public/iam-store";
 import {workContextGuards,financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {commercePackageEnforcementMode,readPurchasedAccesses,checkPurchasedCapability,companyPurchaseReadLocks,purchaseCommandBoundary,purchaseCommandFailure} from "@erpx/server-commercial/public/purchase-command-boundary";
@@ -25,7 +24,7 @@ export function landedCostSourceReadLocks(database:SqlDatabase){return [...comme
 async function current(database:SqlDatabase,actor:WorkContext,key:string,permission="finance.read"){
  if(actor.departmentId||!hasPermission(actor,permission)||!hasPermission(actor,"finance.read"))throw new ApiError(403,"LANDED_COST_ACCESS_CHANGED","Choose a current original Finance assignment for landed cost.");
  for(const required of new Set(["finance.read",permission])){
- const row=await database.prepare(`SELECT ${assignmentReadSql("landed_cost_scope",required)} allowed FROM (SELECT ?::text company_id,?::text branch_id,NULL::text department_id) landed_cost_scope`).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId).first<{allowed:boolean}>();if(!row?.allowed)throw new ApiError(403,"LANDED_COST_ACCESS_CHANGED","The original landed-cost assignment is no longer current.");}
+ const row=await database.prepare(scopeAllowedSql("landed_cost_scope",required)).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId).first<{allowed:boolean}>();if(!row?.allowed)throw new ApiError(403,"LANDED_COST_ACCESS_CHANGED","The original landed-cost assignment is no longer current.");}
  await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),clearWorkflowCommandAssertions(database, key)]);
 }
 async function source(database:SqlDatabase,actor:WorkContext,id:string){const row=await database.prepare(`SELECT id,fulfillment_id,witness::text witness FROM (${landedCostPurchaseSourceRows}) actual_cost WHERE id=? AND company_id=? AND (?::text IS NULL OR branch_id=?)`).bind(id,actor.companyId,actor.branchId,actor.branchId).first<{id:string;fulfillment_id:string;witness:string}>();if(!row)throw new ApiError(404,"LANDED_COST_NOT_FOUND","The original landed-cost receipt is unavailable in this workspace.");return row;}

@@ -3,6 +3,7 @@ import {serviceInitialPhysicalStockCountMarked,serviceCountPersistedMarker,servi
 import {posInitialPhysicalStockCountMarked,posInitialPhysicalStockCapabilities,requirePosInitialPhysicalStockHistory,withPosInitialPhysicalStockCountUnit} from '@erpx/server-inventory/adapters/pos-initial-physical-stock-count-source';
 import {manufacturingInitialPhysicalStockCountMarked,manufacturingInitialPhysicalStockCapabilities,requireManufacturingInitialPhysicalStockHistory,withManufacturingInitialPhysicalStockCountUnit} from '@erpx/server-inventory/adapters/manufacturing-initial-physical-stock-count-source';
 import "server-only";
+import {scopeAllowedSql} from './read-tail-sql';
 import {initialPhysicalStockCountMarked,initialPhysicalStockCapabilities,requireInitialPhysicalStockHistory,withInitialPhysicalStockCountUnit} from "@erpx/server-inventory/adapters/initial-physical-stock-count-source";
 import {qualityDisposalCountSource} from "@erpx/server-inventory/adapters/quality-count-purchases";
 import {inventoryCountStatusSql,inventoryPurchaseReplaySql} from "@erpx/server-inventory/adapters/inventory-read-projections";
@@ -11,7 +12,6 @@ import {randomUUID} from "node:crypto";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import type {FlowView} from "@erpx/feature-shared/lib/flow";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
 import {iamMutationGuards} from "@erpx/server-identity_access/public/iam-store";
 import {workContextGuards,financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {commercePackageEnforcementMode,checkPurchasedCapability,readPurchasedAccesses,companyPurchaseReadLocks,purchaseCommandBoundary,purchaseCommandFailure} from "@erpx/server-commercial/public/purchase-command-boundary";
@@ -32,7 +32,7 @@ async function source(database:SqlDatabase,actor:Actor,id:string){
 }
 async function current(database:SqlDatabase,actor:Actor,key:string,permission:string){
  if(actor.departmentId||!hasPermission(actor,permission))throw new ApiError(403,"COUNT_ACCESS_CHANGED","Choose a current inventory assignment.");
- const assignment=await database.prepare(`SELECT ${assignmentReadSql("count_scope",permission)} allowed FROM (SELECT ?::text company_id,?::text branch_id,NULL::text department_id) count_scope`)
+ const assignment=await database.prepare(scopeAllowedSql("count_scope",permission))
   .bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId).first<{allowed:boolean}>();
  if(!assignment?.allowed)throw new ApiError(403,"COUNT_ACCESS_CHANGED","Choose a current inventory assignment.");
  await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),clearWorkflowCommandAssertions(database, key)]);

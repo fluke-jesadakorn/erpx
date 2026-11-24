@@ -1,10 +1,10 @@
 import "server-only";
+import {scopeAllowedSql} from './read-tail-sql';
 import {inventoryPurchaseReplaySql} from "./inventory-read-projections";
 import {randomUUID} from "node:crypto";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import type {FlowView} from "@erpx/feature-shared/lib/flow";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
 import {iamMutationGuards} from "@erpx/server-identity_access/public/iam-store";
 import {workContextGuards,financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {commercePackageEnforcementMode,checkPurchasedCapability,readPurchasedAccesses,companyPurchaseReadLocks,purchaseCommandBoundary,purchaseCommandFailure} from "@erpx/server-commercial/public/purchase-command-boundary";
@@ -36,7 +36,7 @@ async function current(database:SqlDatabase,actor:Actor,key:string,permissions:r
  if(actor.departmentId)throw new ApiError(403,"TRANSFER_ACCESS_CHANGED","Choose a current inventory assignment.");
  for(const permission of new Set(["inventory.read",...permissions])){
   if(!hasPermission(actor,permission))throw new ApiError(403,"TRANSFER_ACCESS_CHANGED","Choose a current authorized warehouse assignment.");
-  const assignment=await database.prepare(`SELECT ${assignmentReadSql("transfer_scope",permission)} allowed FROM (SELECT ?::text company_id,?::text branch_id,NULL::text department_id) transfer_scope`)
+  const assignment=await database.prepare(scopeAllowedSql("transfer_scope",permission))
    .bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId).first<{allowed:boolean}>();
   if(!assignment?.allowed)throw new ApiError(403,"TRANSFER_ACCESS_CHANGED","The original warehouse assignment is no longer current.");
  }
