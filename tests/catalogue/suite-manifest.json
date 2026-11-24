@@ -76179,7 +76179,7 @@
         "operations"
       ],
       "files": [
-        "tests/integration/runtime/rust-control-plane-read-port-postgres.test.rs"
+        "tests/integration/shared.runtime/rust-control-plane-read-port-postgres.test.rs"
       ],
       "fixture": "postgres",
       "requires": {
