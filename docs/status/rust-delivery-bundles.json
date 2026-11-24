@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7958,
+    "revision": 7962,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -133104,7 +133104,7 @@
         "owner": "collaboration",
         "title": "collaboration TS read tail native cutover (round 3)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -133116,22 +133116,42 @@
         "resources": [
           "owner:collaboration"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG78col",
-          "claimedAt": "2026-11-24T01:17:18.853Z",
-          "heartbeatAt": "2026-11-24T01:23:27.967Z",
-          "expiresAt": "2026-11-24T01:53:27.967Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-collaboration/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "cf50c34d7",
+            "owner": "collaboration",
+            "before": 464,
+            "after": 463,
+            "note": "Upload cleanup receipt image read deduped; bind unchanged."
+          },
+          {
+            "command": "vitest collaboration targeted (184; 3 pre-existing mention-api failures)",
+            "result": "passed",
+            "sourceSha": "cf50c34d7"
+          },
+          {
+            "command": "tsc collaboration",
+            "result": "passed",
+            "sourceSha": "cf50c34d7"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next byte-identical TS pair outside command-path exclusions (e.g. work-social-purchases command_receipts image pair) or classify residual. BEFORE=464.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG78col",
+          "at": "2026-11-24T01:28:57.337Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -134054,6 +134074,42 @@
         "nextAction": "Next: actor scope triple (6x) or packageClockSql (4x) or crm_leads contact subquery (2x); keep byte parity. BEFORE=190.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.collaboration.read-tail-r4",
+        "goalId": "G4",
+        "owner": "collaboration",
+        "title": "collaboration TS read tail native cutover (round 4)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-collaboration/src/**",
+          "tests/unit/collaboration/**",
+          "tests/integration/collaboration/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGA1col",
+          "claimedAt": "2026-11-24T01:28:57.653Z",
+          "heartbeatAt": "2026-11-24T01:28:57.653Z",
+          "expiresAt": "2026-11-24T01:58:57.653Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: social-agent social_comments read or social-home EXISTS draft read (same file), or cross-file byte-identical pair. BEFORE=463.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -134062,7 +134118,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 819,
+      "totalPackets": 820,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
@@ -134070,13 +134126,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 445,
+        "blocked": 446,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:28:40.216Z",
+    "updatedAt": "2026-11-24T01:28:57.658Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
