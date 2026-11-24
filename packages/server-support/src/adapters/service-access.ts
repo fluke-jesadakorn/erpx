@@ -11,8 +11,14 @@ import { companyAuthority } from "@erpx/server-operations/public/staff-policy";
 import { expenseAuthoritySnapshot } from "@erpx/server-people_payroll/public/expense-routing";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { ApiError } from "@erpx/server-runtime/public/http";
-export const serviceMemberSql = `EXISTS(SELECT 1 FROM (${identity_accessProjectionSources.assignments}) a WHERE a.company_id=? AND a.user_id=?
- AND a.revoked_at IS NULL AND a.valid_from<=(floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND a.valid_until>(floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
+/** One parameterized active-assignment existence family: the scoped service
+ * membership probe and the company membership probe share the same active
+ * assignment read; only the alias, column qualifier, line gap and trailing
+ * clause vary. Each call site renders byte-identically and the native service
+ * scope authority remains. */
+const activeAssignmentSql = (alias: string, col: string, gap: string, tail: string) =>
+    `SELECT 1 FROM (${identity_accessProjectionSources.assignments}) ${alias} WHERE ${col}company_id=? AND ${col}user_id=?${gap} AND ${col}revoked_at IS NULL AND ${col}valid_from<=(floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND ${col}valid_until>(floor(extract(epoch FROM clock_timestamp())*1000)::bigint)${tail}`;
+export const serviceMemberSql = `EXISTS(${activeAssignmentSql('a', 'a.', '\n', '')}
  AND (a.scope_kind='holding' OR (a.scope_kind='branch' AND a.scope_node_id=?) OR (a.scope_kind='department' AND a.scope_node_id=?)))`;
 export function serviceMemberArgs(scope: RecordScope, userId: string) {
     return [scope.company_id, userId, scope.branch_id, scope.department_id];
@@ -25,7 +31,7 @@ export async function serviceMember(db: SqlDatabase, scope: RecordScope, userId:
 }
 export async function companyMember(db: SqlDatabase, companyId: string, userId: string) {
     return !!(await db
-        .prepare(`SELECT 1 FROM (${identity_accessProjectionSources.assignments}) assignments WHERE company_id=? AND user_id=? AND revoked_at IS NULL AND valid_from<=(floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_until>(floor(extract(epoch FROM clock_timestamp())*1000)::bigint) LIMIT 1`)
+        .prepare(activeAssignmentSql('assignments', '', '', ' LIMIT 1'))
         .bind(companyId, userId)
         .first());
 }
