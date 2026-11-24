@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12451,
+    "revision": 12455,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -184099,6 +184099,76 @@
         "nextAction": "Add 3 commerce_rd settings kinds (6->9) and delegate settings-dedupe-sql.ts literals (-3): 457->454. BEFORE=457.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.assets.read-tail-r33",
+        "goalId": "G4",
+        "owner": "assets",
+        "title": "assets next read slice",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-assets/src/**",
+          "tests/unit/assets/**"
+        ],
+        "resources": [
+          "owner:assets"
+        ],
+        "claim": {
+          "runId": "run-20261124-d",
+          "agentId": "wH4n98",
+          "claimedAt": "2026-11-24T16:19:42.639Z",
+          "heartbeatAt": "2026-11-24T16:19:42.639Z",
+          "expiresAt": "2026-11-24T16:49:42.639Z",
+          "generation": 170
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Delegate physical agg, package settlement assets and metric source to assetProjectionFromSql head (-3): 7->4. BEFORE=7.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.work_projection.native-read-r34",
+        "goalId": "G4",
+        "owner": "work_projection",
+        "title": "work_projection next read slice",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-work_projection/src/**",
+          "tests/unit/work_projection/**"
+        ],
+        "resources": [
+          "owner:work_projection"
+        ],
+        "claim": {
+          "runId": "run-20261124-d",
+          "agentId": "wH4n99",
+          "claimedAt": "2026-11-24T16:19:55.223Z",
+          "heartbeatAt": "2026-11-24T16:19:55.223Z",
+          "expiresAt": "2026-11-24T16:49:55.223Z",
+          "generation": 170
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Add native-calendar-read wrappers for READ_67/61/63/64 and retire reminder authorization, occurrence response and byAppointmentIds literals (-3): 50->47. BEFORE=50.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -184107,11 +184177,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1804,
+      "totalPackets": 1806,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 12,
+        "in_progress": 14,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -184121,7 +184191,7 @@
       }
     },
     "lastCoordinatorGeneration": 170,
-    "updatedAt": "2026-11-24T16:19:09.506Z",
+    "updatedAt": "2026-11-24T16:19:55.226Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
