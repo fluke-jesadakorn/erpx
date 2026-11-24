@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10269,
+    "revision": 10273,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -160914,7 +160914,7 @@
         "owner": "finance",
         "title": "finance TS read tail native cutover (round 30)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -160926,28 +160926,36 @@
         "resources": [
           "owner:finance"
         ],
-        "claim": {
-          "runId": "run-20261123-n",
-          "agentId": "wGCMfin2",
-          "claimedAt": "2026-11-24T07:17:44.373Z",
-          "heartbeatAt": "2026-11-24T07:17:44.373Z",
-          "expiresAt": "2026-11-24T07:47:44.373Z",
-          "generation": 166
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "1474d6092",
+            "owner": "finance",
+            "before": 2027,
+            "after": 1989,
+            "note": "Account select, invoice exists and journal source guard prefixes shared; FOR SHARE/FOR UPDATE suffixes inline; retained tax assertion guard untouched; r15-r24 helpers untouched."
+          },
+          {
+            "command": "vitest finance native read plan (67) + tsc tests/config",
+            "result": "passed",
+            "sourceSha": "1474d6092"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: three guard-prefix families (active account 15 sites, invoice EXISTS 13 sites, journal source 13 sites); keep locks and retained tax assertion guards inline. BEFORE=2027.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-m",
+          "runId": "run-20261123-n",
           "agentId": "wGCMfin2",
-          "at": "2026-11-24T07:17:38.838Z",
+          "at": "2026-11-24T07:23:49.950Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during long cargo/mount integration; WIP reviewed, same agents re-claimed under gen 166",
-          "nextAction": "Next: three guard-prefix families (active account 15 sites, invoice EXISTS 13 sites, journal source 13 sites); keep locks and retained tax assertion guards inline. BEFORE=2027."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -161232,6 +161240,42 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=242.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.finance.read-tail-r31",
+        "goalId": "G4",
+        "owner": "finance",
+        "title": "finance TS read tail native cutover (round 31)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-finance/src/**",
+          "tests/unit/finance/**",
+          "tests/integration/finance/**"
+        ],
+        "resources": [
+          "owner:finance"
+        ],
+        "claim": {
+          "runId": "run-20261123-n",
+          "agentId": "wGCMfin3",
+          "claimedAt": "2026-11-24T07:23:50.404Z",
+          "heartbeatAt": "2026-11-24T07:23:50.404Z",
+          "expiresAt": "2026-11-24T07:53:50.404Z",
+          "generation": 166
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=1989.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -161240,7 +161284,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1346,
+      "totalPackets": 1347,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
@@ -161248,13 +161292,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 966,
+        "blocked": 967,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 166,
-    "updatedAt": "2026-11-24T07:23:21.793Z",
+    "updatedAt": "2026-11-24T07:23:50.412Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
