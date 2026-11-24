@@ -55,7 +55,7 @@ describe('talent read-tail r23 scoped-materialized CTE family dedupe', () => {
   it('lowers the talent owner SELECT KPI strictly below the r22 after=61', async () => {
     let count = 0;
     for (const f of await tsFiles(srcDir)) count += (await readFile(f, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(59);
+    expect(count).toBeLessThan(59);
     expect(count).toBeLessThan(61);
   });
 });
