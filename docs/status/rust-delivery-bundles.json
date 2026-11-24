@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8831,
+    "revision": 8835,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -144766,7 +144766,7 @@
         "owner": "manufacturing",
         "title": "manufacturing TS read tail native cutover (round 11)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -144778,22 +144778,37 @@
         "resources": [
           "owner:manufacturing"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGCBman",
-          "claimedAt": "2026-11-24T03:17:31.299Z",
-          "heartbeatAt": "2026-11-24T03:23:58.596Z",
-          "expiresAt": "2026-11-24T03:53:58.596Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-manufacturing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "108d826a8",
+            "owner": "manufacturing",
+            "before": 105,
+            "after": 102,
+            "note": "Order lineage aggs and journal debit/credit sum families shared; five rendered strings identical; RD_* untouched."
+          },
+          {
+            "command": "vitest manufacturing BOM (33) + tsc manufacturing",
+            "result": "passed",
+            "sourceSha": "108d826a8"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: remaining parameterized descriptor/guard families; RD_* untouched. BEFORE=105.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCBman",
+          "at": "2026-11-24T03:26:01.927Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -145083,6 +145098,42 @@
         "nextAction": "Next: assignment-modules EXISTS prefix (metric-purchases vs analytics-purchases) and lead-version projection prefix (executive-evidence vs leads). Account-lead prefix is NOT byte-identical. BEFORE=180.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.manufacturing.read-tail-r12",
+        "goalId": "G4",
+        "owner": "manufacturing",
+        "title": "manufacturing TS read tail native cutover (round 12)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-manufacturing/src/**",
+          "tests/unit/manufacturing/**",
+          "tests/integration/manufacturing/**"
+        ],
+        "resources": [
+          "owner:manufacturing"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCCman",
+          "claimedAt": "2026-11-24T03:26:02.328Z",
+          "heartbeatAt": "2026-11-24T03:26:02.328Z",
+          "expiresAt": "2026-11-24T03:56:02.328Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: remaining parameterized agg/guard families; RD_* untouched. BEFORE=102.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -145091,7 +145142,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1032,
+      "totalPackets": 1033,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -145099,13 +145150,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 652,
+        "blocked": 653,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T03:25:46.547Z",
+    "updatedAt": "2026-11-24T03:26:02.348Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
