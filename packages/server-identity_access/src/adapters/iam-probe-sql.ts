@@ -44,3 +44,12 @@ export const publishedRoleSql = (companyParam: string, roleParam: string) =>
  * predicate; only the fixed single-row existence wrapper lives here so the two
  * callers cannot drift apart. No lock or control-plane read is changed. */
 export const grantProbeSql = (grant: string) => `SELECT 1 WHERE ${grant}`;
+/** Parameterized revoked-session probe shared by the two qmark authorization
+ * reads (legal AI actor facts and record source authority) and the pg IAM
+ * transaction caller. The qmark callers wrap this probe in NOT EXISTS; the pg
+ * caller runs it as a standalone positional-parameter statement. Only the
+ * three fixed placeholder tokens from those owner callers are accepted; the
+ * probed table, projection and predicates are fixed here. No lock, write or
+ * control-plane read is changed. */
+export const revokedSessionProbeSql = (sessionParam: string, companyParam: string, userParam: string) =>
+  `SELECT 1 FROM iam_revoked_sessions WHERE session_id=${sessionParam} AND company_id=${companyParam} AND user_id=${userParam}`;

@@ -1,5 +1,5 @@
 import 'server-only';
-import { assignmentActiveQuerySql, memberForShareSql } from "./iam-probe-sql";
+import { assignmentActiveQuerySql, memberForShareSql, revokedSessionProbeSql } from "./iam-probe-sql";
 import { nativeIdentityWrite } from '@erpx/server-identity_access/public/native-identity-write';
 import {createHash} from 'node:crypto';
 import type {PoolClient} from 'pg';
@@ -49,7 +49,7 @@ export async function iamCommand<T>(db:PostgresDatabase,actor:IamActor,key:strin
           [member.identity_id, actor.userId, actor.companyId],
         )
       ).rows[0],revoked:async actor=>Boolean((await client.query(
-          "SELECT 1 FROM iam_revoked_sessions WHERE session_id=$1 AND company_id=$2 AND user_id=$3",
+          revokedSessionProbeSql('$1','$2','$3'),
           [actor.sessionId, actor.companyId, actor.userId],
         )).rowCount),workContext:async actor=>(
         await client.query(
