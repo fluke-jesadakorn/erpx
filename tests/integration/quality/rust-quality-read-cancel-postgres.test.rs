@@ -1147,6 +1147,61 @@ process.stdout.write(JSON.stringify(queries));
 }
 
 #[tokio::test]
+async fn quality_attachment_descriptor_read_port_matches_retained_typescript() {
+    use erpx_server_quality::public::attachment_descriptor::{
+        QualityAttachmentDescriptorRow, QualityAttachmentDescriptorTarget,
+        lock_quality_attachment_descriptor, read_quality_attachment_descriptor,
+    };
+    fixture::with_database(2, |pool| async move {
+        facts::setup(&pool).await;
+        facts::hold(&pool, "descriptor-read-hold").await;
+        // Capture the exact retained TS descriptor read for Quality targets.
+        let script = r#"
+if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');
+const {policyQualityFacts}=await import('./packages/server-quality/src/adapters/attachments-policy-facts.ts');
+const queries=[];const db={prepare(sql){return{bind(...args){return{first(){queries.push({sql,args});return Promise.resolve(null)}}}}}};
+for(const targetType of ['quality_hold','inventory_quality_hold','inventory_quality_spec'])await policyQualityFacts(db).readDescriptor({targetId:'descriptor-read-hold',companyId:'company',targetType});
+process.stdout.write(JSON.stringify(queries));
+"#;
+        let output = std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
+            .current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
+            .arg("--conditions=react-server").arg("-e").arg(script).output().unwrap();
+        assert!(output.status.success(), "actual Quality TS descriptor read unavailable");
+        let oracle: Vec<serde_json::Value> = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(oracle.len(), 2, "TS descriptor set admits only the two Quality hold targets");
+
+        let mut tx = pool.raw().begin().await.unwrap();
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
+        lock_quality_attachment_descriptor(&mut tx).await.unwrap();
+        let company = CompanyId::new("company").unwrap();
+        let pairs = [
+            (QualityAttachmentDescriptorTarget::QualityHold, &oracle[0]),
+            (QualityAttachmentDescriptorTarget::InventoryQualityHold, &oracle[1]),
+        ];
+        for (target, query) in pairs {
+            assert_eq!(query["args"], serde_json::json!(["descriptor-read-hold", "company"]));
+            let sql = query["sql"].as_str().unwrap().replacen('?', "$1", 1).replacen('?', "$2", 1);
+            let row: (String, Option<String>, Option<String>, i64) = sqlx::query_as(sqlx::AssertSqlSafe(sql))
+                .bind("descriptor-read-hold").bind("company").fetch_one(&mut *tx).await.unwrap();
+            let native: Option<QualityAttachmentDescriptorRow> =
+                read_quality_attachment_descriptor(&mut tx, &company, target.as_str(), "descriptor-read-hold").await.unwrap();
+            let native = native.unwrap();
+            assert_eq!(
+                (&native.company_id, &native.branch_id, &native.department_id, native.version),
+                (&row.0, &row.1, &row.2, row.3),
+                "native descriptor must match the retained TS read for {}",
+                target.as_str()
+            );
+        }
+        // The owner-local port admits only the retained TS target set.
+        assert!(read_quality_attachment_descriptor(&mut tx, &company, "inventory_quality_spec", "descriptor-read-hold").await.unwrap().is_none());
+        assert!(read_quality_attachment_descriptor(&mut tx, &company, "quality_hold", "missing").await.unwrap().is_none());
+        assert!(read_quality_attachment_descriptor(&mut tx, &CompanyId::new("foreign").unwrap(), "quality_hold", "descriptor-read-hold").await.unwrap().is_none());
+        tx.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
 async fn quality_purchase_raw_sources_match_both_actual_typescript_lineages() {
     use erpx_server_quality::public::purchase_lineage_join::{inspect_quality_purchase_lineage_join,lock_quality_purchase_lineage_join};
     let script=r#"
