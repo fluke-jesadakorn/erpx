@@ -71,7 +71,8 @@ describe('billing read-tail r27 metric count projection dedupe', () => {
     expect(text).toContain('values = [a.holdingId, Date.parse(f.from), Date.parse(f.to) + 86400000, Date.now()];');
     // CTE row heads, the plan-name lateral, watermark and evidence SQL stay untouched.
     expect(text.split('SELECT e.id,COALESCE(p.name,e.plan_id) plan').length - 1).toBe(1);
-    expect(text.split("SELECT b.holding_id id,'Legacy subscription' plan,b.status").length - 1).toBe(1);
+    expect(text.split('billingLegacySubscriptionSql(').length - 1).toBe(1);
+    expect(text).toContain("from './billing-read-tail-r32-sql'");
     expect(await src('executive-metric-watermarks.ts')).toContain('billingWatermarkRevisionSql as revision');
     expect(await src('executive-main-evidence-sources.ts')).toContain('commercialSubscriptionSelect()');
     expect(text).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
@@ -82,6 +83,6 @@ describe('billing read-tail r27 metric count projection dedupe', () => {
     let count = 0;
     for (const file of files) count += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     expect(count).toBeLessThan(59);
-    expect(count).toBe(53); // r30 left 54; r31 deduped the target-month read family.
+    expect(count).toBe(48); // r32 deduped the r15 account reads and the legacy subscription head.
   });
 });

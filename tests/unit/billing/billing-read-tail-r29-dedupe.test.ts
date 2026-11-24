@@ -68,14 +68,16 @@ describe('billing read-tail r29 point-read-by-id dedupe', () => {
       expect(text.split(oracle.full).length - 1).toBe(0);
       expect(text.split(oracle.routed).length - 1).toBe(1);
     }
-    expect(billing.split('billingPointReadSql(').length - 1).toBe(2);
-    expect(target.split('billingPointReadSql(').length - 1).toBe(1);
+    expect(billing.split('billingPointReadSql(').length - 1).toBe(3);
+    expect(target.split('billingPointReadSql(').length - 1).toBe(2);
   });
 
   it('keeps the r15 invoice-by-id constant, FOR UPDATE guard and advisory locks untouched', async () => {
     const r15 = await src('billing-read-tail-r15-sql.ts');
-    expect(r15.split('SELECT ').length - 1).toBe(3);
+    expect(r15.split('SELECT ').length - 1).toBe(1);
     expect(r15).toContain('"SELECT * FROM billing_invoices WHERE id=$1"');
+    expect(r15).not.toContain('BILLING_ACCOUNT_BY_HOLDING_SQL');
+    expect(r15).not.toContain('BILLING_CUSTOMER_BY_HOLDING_SQL');
     const jobs = await src('billing-jobs.ts');
     expect(jobs.split('BILLING_INVOICE_BY_ID_SQL').length - 1).toBe(3); // import + two calls
     const billing = await src('billing.ts');
@@ -88,16 +90,16 @@ describe('billing read-tail r29 point-read-by-id dedupe', () => {
     expect(await src('billing-read-tail-r25-sql.ts')).toContain('BILLING_ADVISORY_XACT_LOCK_SQL');
   });
 
-  it('lowers the billing owner SELECT KPI from BEFORE=57 to 53', async () => {
+  it('lowers the billing owner SELECT KPI from BEFORE=57 to 48', async () => {
     let spaced = 0, bare = 0;
     for (const file of await tsFiles(srcRoot)) {
       const text = await readFile(file, 'utf8');
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(53);
-    expect(bare).toBe(53);
-    expect(spaced).toBeLessThan(54);
-    expect(bare).toBeLessThan(54);
+    expect(spaced).toBe(48);
+    expect(bare).toBe(48);
+    expect(spaced).toBeLessThan(53);
+    expect(bare).toBeLessThan(53);
   });
 });

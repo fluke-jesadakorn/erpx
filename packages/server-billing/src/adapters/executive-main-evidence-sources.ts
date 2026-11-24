@@ -4,6 +4,7 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { runtimeEnv } from "../../../../packages/server-runtime/src/public/runtime";
 import { type CommercialSubscriptionRow, type OverdueInvoiceEvidenceRow } from '@erpx/server-runtime/public/executive/evidence-contract';
 import { BILLING_PLAN_NAME_LATERAL_SQL } from './billing-read-tail-r18-sql';
+import { billingLegacySubscriptionSql } from './billing-read-tail-r32-sql';
 function commercialSubscriptionSource() {
     return `WITH subscriptions AS (
       SELECT 'enrollment'::text source_kind,e.id record_id,COALESCE(p.name,e.plan_id) plan_name,
@@ -13,10 +14,9 @@ function commercialSubscriptionSource() {
       ${BILLING_PLAN_NAME_LATERAL_SQL}
       WHERE a.holding_id=? AND e.started_at<=? AND e.ended_at IS NULL AND (e.pending_end=FALSE OR e.effective_at IS NULL OR e.effective_at>?)
       UNION ALL
-      SELECT 'legacy'::text source_kind,b.holding_id record_id,'Legacy subscription'::text plan_name,b.status,
-        NULL::bigint started_at,b.current_period_end effective_at,b.updated_at record_version
-      FROM beta_billing b WHERE b.holding_id=? AND b.subscription_id IS NOT NULL AND b.status IN ('active','trialing')
-        AND (b.current_period_end IS NULL OR b.current_period_end*1000>?)
+${billingLegacySubscriptionSql(
+  "'legacy'::text source_kind,b.holding_id record_id,'Legacy subscription'::text plan_name,b.status,\n        NULL::bigint started_at,b.current_period_end effective_at,b.updated_at record_version",
+  "      ")}
     )`;
 }
 /** Byte-identical projection prefix shared by the subscription search, the

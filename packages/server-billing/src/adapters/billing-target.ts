@@ -34,7 +34,7 @@ approvedStatements:async(value0,value1)=>(await nativeBillingOwnerQuery(c,'targe
 rolloutEligibility:(value0,value1)=>c.query<D.RolloutEligibilityRow>(BILLING_ROLLOUT_ELIGIBILITY_SQL,[value0,value1]),
 legacyEnrollmentOverlap:(value0,value1,value2)=>c.query<D.LegacyEnrollmentOverlapRow>(BILLING_LEGACY_ENROLLMENT_OVERLAP_SQL,[value0,value1,value2]),
 monthInvoices:(value0,value1)=>c.query<D.MonthInvoicesRow>(BILLING_MONTH_INVOICE_SQL,[value0,value1]),
-paymentConsent:(value0)=>c.query<D.PaymentConsentRow>("SELECT payment_mode,consent_at,card_json FROM billing_accounts WHERE holding_id=$1",[value0]),
+paymentConsent:(value0)=>c.query<D.PaymentConsentRow>(billingPointReadSql('payment_mode,consent_at,card_json','billing_accounts','holding_id=$1'),[value0]),
 ratingSnapshot:async(value0,value1)=>c.query<D.RatingSnapshotRow>(await billingUsageSnapshotSql('*',await nativeCommercialOwnerRead(COMMERCIAL_RD_USAGE_SNAPSHOT)),[value0,value1]),
 ratingMeters:async(value0,value1)=>c.query<D.RatingMetersRow>(await billingUsageMeterSql(`source_key,meter_kind,company_id,branch_id,funding_source,quantity,
       input_tokens,output_tokens,request_status,gateway_status,provider,model,units_json,

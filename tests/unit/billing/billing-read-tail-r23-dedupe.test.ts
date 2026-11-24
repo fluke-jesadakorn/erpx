@@ -56,6 +56,6 @@ describe('billing read-tail r23 parameterized family dedupe', () => {
     let count = 0;
     for (const file of files) count += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     expect(count).toBeLessThan(63);
-    expect(count).toBe(53); // r30 left 54; r31 deduped the target-month read family.
+    expect(count).toBe(48); // r32 deduped the r15 account reads and the legacy subscription head.
   });
 });

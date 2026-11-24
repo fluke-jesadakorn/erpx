@@ -61,7 +61,7 @@ latestPlanRevision:(value0)=>c.query<BillingPlan>(billingPlanByRevisionSql(),[va
 insertPlanRevision:(value0,value1,value2,value3,value4,value5)=>nativeBillingOwnerQuery(c, 'insert_plan_revision', [value0,value1,value2,value3,value4,value5]),
 selectedTargetPrice:(value0,value1)=>nativeBillingOwnerQuery(c, 'selected_target_price', [value0,value1]),
 currentTargetPrice:(value0)=>nativeBillingOwnerQuery(c, 'current_target_price', [value0]),
-sandboxHolding:(value0)=>c.query<Record<string,unknown>>("SELECT 1 FROM billing_target_sandbox_holdings WHERE holding_id=$1",[value0]),
+sandboxHolding:(value0)=>c.query<Record<string,unknown>>(billingPointReadSql('1','billing_target_sandbox_holdings','holding_id=$1'),[value0]),
 approvedRollout:(value0,value1)=>c.query<Record<string,unknown>>(billingEffectiveMonthGuardSql("billing_target_rollout_approvals"),[value0,value1]),
 assignTargetPrice:(value0,value1,value2,value3,value4,value5,value6,value7)=>nativeBillingOwnerQuery(c, 'assign_target_price', [value0,value1,value2,value3,value4,value5,value6,value7]),
 successfulPlatformMeter:async(value0,value1,value2)=>c.query<BillingMeterRow>(`SELECT * FROM (${await nativeCommercialOwnerRead(COMMERCIAL_RD_USAGE_METER)}) billing_usage_meters WHERE holding_id=$1 AND month=$2 AND source_key=$3

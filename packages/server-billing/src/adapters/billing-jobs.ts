@@ -17,7 +17,8 @@ export type BillingJobEnv = BetaEnvironment & {
 };
 import {createBillingJobs,type BillingJobRepository,type BillingInboxRow} from '@erpx/server-billing/application/jobs';
 import {nativeBillingOwnerQuery,nativeBillingOwnerBind} from '@erpx/server-billing/adapters/native-billing-owner-write';
-import {BILLING_INVOICE_BY_ID_SQL,BILLING_ACCOUNT_BY_HOLDING_SQL,BILLING_CUSTOMER_BY_HOLDING_SQL} from './billing-read-tail-r15-sql';
+import {BILLING_INVOICE_BY_ID_SQL} from './billing-read-tail-r15-sql';
+import {billingPointReadSql} from './billing-read-tail-r29-sql';
 import {billingPendingInboxSql} from './billing-read-tail-r23-sql';
 import {BILLING_ADVISORY_UNLOCK_SQL} from './billing-read-tail-r25-sql';
 import {billingAccountProjectionSql} from './billing-read-tail-r30-sql';
@@ -33,7 +34,7 @@ releaseVoidedCosts:(v0)=>nativeBillingOwnerQuery(c, 'release_voided_costs', [v0]
 markVoidedPeriodIncomplete:(v0)=>nativeBillingOwnerQuery(c, 'mark_voided_period_incomplete', [v0]),
 retainTestFinanceProjection:(v0,v1,v2,v3,v4,v5,v6,v7,v8,v9,v10)=>nativeBillingOwnerQuery(c, 'retain_test_finance_projection', [v0,v1,v2,v3,v4,v5,v6,v7,v8,v9,v10]),
 jobInvoice:(v0)=>c.query<BillingInvoiceRow>(BILLING_INVOICE_BY_ID_SQL,[v0]),
-jobAccount:(v0)=>c.query<BillingAccount>(BILLING_ACCOUNT_BY_HOLDING_SQL,[v0]),
+jobAccount:(v0)=>c.query<BillingAccount>(billingPointReadSql('*','billing_accounts','holding_id=$1'),[v0]),
 retainJobProgress:(v0,v1)=>nativeBillingOwnerQuery(c, 'retain_job_progress', [v0,v1]),
 retainStripeInvoice:(v0,v1)=>nativeBillingOwnerQuery(c, 'retain_stripe_invoice', [v0,v1]),
 retainInvoiceMode:(v0,v1)=>nativeBillingOwnerQuery(c, 'retain_invoice_mode', [v0,v1]),
@@ -41,15 +42,15 @@ completeJob:(v0)=>nativeBillingOwnerQuery(c, 'complete_job', [v0]),
 tryHoldingLock:(v0)=>c.query<{locked:boolean}>("SELECT pg_try_advisory_lock(hashtextextended($1,0)) AS locked",[v0]),
 begin:()=>c.query<Record<string,unknown>>("BEGIN",[]),
 commit:()=>c.query<Record<string,unknown>>("COMMIT",[]),
-currentAccount:(v0)=>c.query<BillingAccount>(BILLING_ACCOUNT_BY_HOLDING_SQL,[v0]),
+currentAccount:(v0)=>c.query<BillingAccount>(billingPointReadSql('*','billing_accounts','holding_id=$1'),[v0]),
 retainCurrentCard:(v0,v1)=>nativeBillingOwnerQuery(c, 'retain_current_card', [v0,v1]),
 pendingJobs:(v0,v1)=>c.query<BillingJobRow>("SELECT * FROM billing_jobs WHERE holding_id=$1 AND state='pending' AND next_at<=$2 ORDER BY created_at,id LIMIT 10",[v0,v1]),
 rescheduleJob:(v0,v1,v2,v3)=>nativeBillingOwnerQuery(c, 'reschedule_job', [v0,v1,v2,v3]),
 pendingEvents:(v0,v1)=>c.query<BillingInboxRow>(billingPendingInboxSql("payload_json::jsonb #>> '{data,object,customer}'=(SELECT customer_id FROM billing_accounts WHERE holding_id=$2) ORDER BY created_at,id LIMIT 50"),[v0,v1]),
 eventInvoices:(v0,v1)=>c.query<{id:string}>(billingInvoiceIdSql(" AND stripe_id=$2"),[v0,v1]),
-setupCustomer:(v0)=>c.query<{customer_id:string|null}>(BILLING_CUSTOMER_BY_HOLDING_SQL,[v0]),
+setupCustomer:(v0)=>c.query<{customer_id:string|null}>(billingPointReadSql('customer_id','billing_accounts','holding_id=$1'),[v0]),
 retainSetupState:(v0,v1)=>nativeBillingOwnerQuery(c, 'retain_setup_state', [v0,v1]),
-verifiedSetupCustomer:(v0)=>c.query<{customer_id:string|null}>(BILLING_CUSTOMER_BY_HOLDING_SQL,[v0]),
+verifiedSetupCustomer:(v0)=>c.query<{customer_id:string|null}>(billingPointReadSql('customer_id','billing_accounts','holding_id=$1'),[v0]),
 retainSetupCard:(v0,v1)=>nativeBillingOwnerQuery(c, 'retain_setup_card', [v0,v1]),
 applyEvent:(v0,v1)=>nativeBillingOwnerQuery(c, 'apply_stripe_event', [v0,v1]),
 rescheduleEvent:(v0,v1,v2)=>nativeBillingOwnerQuery(c, 'reschedule_stripe_event', [v0,v1,v2]),

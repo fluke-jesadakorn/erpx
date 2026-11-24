@@ -3241,6 +3241,33 @@
       "lane": "unit",
       "owner": "billing",
       "modules": [
+        "commercial"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Billing point reads and legacy subscription head must stay canonical."
+      },
+      "apps": [
+        "finance"
+      ],
+      "packages": [
+        "@erpx/server-billing"
+      ],
+      "id": "billing.billing-read-tail-r32-dedupe.unit",
+      "files": [
+        "tests/unit/billing/billing-read-tail-r32-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "billing",
+      "modules": [
         "finance"
       ],
       "fixture": "none",

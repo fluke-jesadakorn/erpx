@@ -72,16 +72,16 @@ describe('billing read-tail r31 target-month read dedupe', () => {
     expect(text.split('pg_advisory').length - 1).toBe(0);
   });
 
-  it('lowers the billing owner SELECT KPI from BEFORE=54 to 53', async () => {
+  it('lowers the billing owner SELECT KPI from BEFORE=54 to 48', async () => {
     let spaced = 0, bare = 0;
     for (const file of await tsFiles(srcRoot)) {
       const text = await readFile(file, 'utf8');
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(53);
-    expect(bare).toBe(53);
-    expect(spaced).toBeLessThan(54);
-    expect(bare).toBeLessThan(54);
+    expect(spaced).toBe(48);
+    expect(bare).toBe(48);
+    expect(spaced).toBeLessThan(53);
+    expect(bare).toBeLessThan(53);
   });
 });
