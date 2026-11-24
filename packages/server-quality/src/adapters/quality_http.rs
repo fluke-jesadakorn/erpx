@@ -252,6 +252,10 @@ fn malformed() -> BusinessError {
     )
 }
 
+fn read_plan_invalid() -> BusinessError {
+    BusinessError::invalid("QUALITY_READ_PLAN_INVALID", "Review the Quality owner read plan.")
+}
+
 fn unique_header(headers: &HeaderMap, name: HeaderName) -> Result<Option<&str>, BusinessError> {
     let mut values = headers.get_all(name).iter();
     let first = values.next();
@@ -328,6 +332,10 @@ pub fn quality_router(targets: Vec<QualityHttpTarget>) -> Result<Router, Busines
             get(read_detail_core),
         )
         .route(
+            "/api/v1/holdings/{holding_slug}/quality/read-plan",
+            post(read_plan),
+        )
+        .route(
             "/api/v1/holdings/{holding_slug}/quality/specifications",
             post(save_spec),
         )
@@ -397,6 +405,50 @@ fn target<'a>(
         .targets
         .get(&(host.to_owned(), slug.to_owned()))
         .ok_or_else(missing)
+}
+
+/// Exact POST handler for the mounted owner read-plan route. It resolves a
+/// closed Quality read kind and the caller's positional values to one fixed
+/// statement; no SQL is accepted from the wire and the caller executes the
+/// returned statement on its own already-open unit.
+async fn read_plan(
+    State(state): State<Arc<QualityHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let (parts, body) = request.into_parts();
+    let bytes = match to_bytes(body, BODY_LIMIT).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(read_plan_invalid()),
+    };
+    let result = (|| {
+        let _target = target(&state, parts.headers(), &slug)?;
+        if parts.uri.query().is_some_and(|value| !value.is_empty()) {
+            return Err(read_plan_invalid());
+        }
+        let value: Value = serde_json::from_slice(&bytes).map_err(|_| read_plan_invalid())?;
+        let kind = value
+            .get("kind")
+            .and_then(Value::as_str)
+            .ok_or_else(read_plan_invalid)?;
+        let values = value
+            .get("values")
+            .and_then(Value::as_array)
+            .ok_or_else(read_plan_invalid)?;
+        if values.len() > 64 {
+            return Err(read_plan_invalid());
+        }
+        let plan = crate::adapters::native_quality_read_sql::read_statement(kind)
+            .ok_or_else(read_plan_invalid)?;
+        if values.len() != plan.bind_count {
+            return Err(read_plan_invalid());
+        }
+        Ok(json!({"statements": [{"sql": plan.sql, "values": values}]}))
+    })();
+    match result {
+        Ok(data) => bounded(json!({"data": data})),
+        Err(error) => error_response(error),
+    }
 }
 
 fn decision_json(value: QualityDecision) -> Value {

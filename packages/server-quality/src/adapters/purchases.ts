@@ -15,15 +15,18 @@ import {qualityHoldPurchaseSource,qualityPurchaseSourceReadLocks,type QualityPur
 import {qualityWorkScopeTuple} from "@erpx/server-quality/adapters/quality-work-scope-sql";
 import {qualitySourceArmHead} from "./quality-source-arm-head";
 import {evidenceHead} from "./inspection-evidence-source-sql";
+import {nativeQualityReadFirst,RD_ALERT_HOLD_ID} from "./native-quality-read";
 import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 type Actor=Pick<WorkContext,"userId"|"assignmentId"|"role"|"companyId"|"branchId"|"departmentId"|"authority"|"iam">;
 export type QualityPurchaseTarget={kind:"hold"|"spec"|"alert";id:string};
 export type QualityPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 const capabilities=["supply.quality","supply.receiving","supply.stock","sales.orders","inventory.stock-core"] as const;
-/** Canonical alert-to-hold id lookup shared by the Quality purchase-scope readers. */
-export const qualityAlertHoldIdSql = "SELECT hold_id FROM inventory_quality_alerts WHERE id=?";
+/** Canonical alert-to-hold id lookup shared by the Quality purchase-scope readers.
+ * The statement is planned by the native Quality owner read `RD_ALERT_HOLD_ID`
+ * and executed on the caller's already-open unit; no TypeScript SQL mirror
+ * remains and the unscoped purchase-gate semantics are unchanged. */
 export async function qualityAlertHoldId(database:SqlDatabase,id:string):Promise<string|undefined>{
- return (await database.prepare(qualityAlertHoldIdSql).bind(id).first<{hold_id:string}>())?.hold_id;
+ return (await nativeQualityReadFirst<{hold_id:string}>(RD_ALERT_HOLD_ID,[id],database))?.hold_id;
 }
 async function current(database:SqlDatabase,actor:Actor,key:string,permissions:readonly string[]=[]){
  if(actor.departmentId)throw new ApiError(403,"QUALITY_ACCESS_CHANGED","Choose a current Company or Branch Quality assignment.");

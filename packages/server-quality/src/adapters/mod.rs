@@ -8,6 +8,7 @@ pub(crate) mod field_service_detail;
 pub(crate) mod initial_count_history;
 
 pub mod quality_http;
+pub(crate) mod native_quality_read_sql;
 
 pub mod quality_read;
 pub mod quality_work;
