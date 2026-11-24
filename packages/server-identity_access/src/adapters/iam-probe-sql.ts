@@ -70,3 +70,10 @@ export const sessionByUserSql = (tail: string) =>
  * original expiresAt predicate; no lock or control-plane read is changed. */
 export const sessionExistsSql = (tail: string) =>
   `SELECT 1 FROM session WHERE id=? AND "userId"=?${tail}`;
+/** Byte-identical assignment grant probe shared by the two project current-authority
+ * reads. They differ only by an optional published-role predicate; the caller
+ * supplies that fixed tail, never user input. The table, projection, binds and
+ * active/principal predicates are fixed here so they cannot drift. No lock,
+ * session or earlier-round helper is changed. */
+export const projectAuthorityProbeSql = (roleTail: string) =>
+  `SELECT 1 FROM assignments WHERE id=? AND company_id=? AND user_id=? AND role=? AND iam_assignment_active(id,?) AND iam_principal_active(user_id,company_id,?)${roleTail}`;
