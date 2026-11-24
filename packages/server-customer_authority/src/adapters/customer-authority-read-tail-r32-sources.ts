@@ -1,4 +1,5 @@
 import 'server-only';
+import {selectOneProbe} from './customer-authority-read-sql';
 
 /** One canonical fact-witness probe shared by the Customer Authority
  *  package-obligation conclusion and outstanding-facts reads (G4 read-tail
@@ -9,4 +10,4 @@ import 'server-only';
  *  builders, the control-plane lock statement, native-owned fact kinds and the
  *  manager-eligibility helpers stay untouched. */
 export const factExistenceWitness = (negated: boolean, source: string, predicate: string) =>
-  `${negated ? 'NOT ' : ''}EXISTS(SELECT 1 FROM ${source} WHERE ${predicate})`;
+  `${negated ? 'NOT ' : ''}EXISTS(${selectOneProbe(`FROM ${source} WHERE ${predicate}`)})`;

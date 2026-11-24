@@ -76,7 +76,7 @@ describe('Customer Authority read-tail r22 byte-identical / parameterized famili
 
   test('shared module declares each read literal exactly once', () => {
     const shared = adapter('package-obligation-sql.ts');
-    expect(shared.match(/\bSELECT\b/g) ?? []).toHaveLength(3);
+    expect(shared.match(/\bSELECT\b/g) ?? []).toHaveLength(1);
     expect(shared).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
   });
 

@@ -54,17 +54,17 @@ describe('Customer Authority read-tail r38 canonical projection/source head fami
 
     const counts: Array<[string, number, string]> = [
       ['customer-authority-read-sql.ts', 2, 'export const jsonbAggFact'],
-      ['package-obligation-sql.ts', 3, 'export const latestSupportVersion'],
+      ['package-obligation-sql.ts', 1, 'export const latestSupportVersion'],
       ['customer-authority-read-tail-r23-sources.ts', 1, 'export const jsonbImageProjection'],
       ['customer-authority-read-tail-r24-sources.ts', 1, 'export const bindingFactProjection'],
       ['customer-authority-read-tail-r25-sources.ts', 1, 'export const ownerColumnProjection'],
       ['customer-authority-read-tail-r26-sources.ts', 1, 'export const accessBindingOrderProjection'],
-      ['customer-authority-read-tail-r27-sources.ts', 1, 'export const accessEventEvidenceProbe'],
+      ['customer-authority-read-tail-r27-sources.ts', 0, 'export const accessEventEvidenceProbe'],
       ['customer-authority-read-tail-r28-sources.ts', 1, 'export const releaseGateRead'],
       ['customer-authority-read-tail-r29-sources.ts', 1, 'export const reviewEligibilityRows'],
-      ['customer-authority-read-tail-r30-sources.ts', 1, 'export const existenceProbe'],
+      ['customer-authority-read-tail-r30-sources.ts', 0, 'export const existenceProbe'],
       ['customer-authority-read-tail-r31-sources.ts', 1, 'export const supportConclusionIdentity'],
-      ['customer-authority-read-tail-r32-sources.ts', 1, 'export const factExistenceWitness'],
+      ['customer-authority-read-tail-r32-sources.ts', 0, 'export const factExistenceWitness'],
       ['customer-authority-read-tail-r33-sources.ts', 1, 'export const companyScopeSelect'],
       ['customer-authority-read-tail-r34-sources.ts', 1, 'export const bindingCommerceOrderSource'],
       ['customer-authority-read-tail-r35-sources.ts', 1, 'export const scalarProjection'],
@@ -118,6 +118,6 @@ describe('Customer Authority read-tail r38 canonical projection/source head fami
     walk(srcRoot);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(40);
-    expect(total).toBe(39);
+    expect(total).toBe(34);
   });
 });

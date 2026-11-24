@@ -30,7 +30,7 @@ describe('Customer Authority read-tail r27 customer-access event evidence probe 
 
   test('one shared literal, no inline copies, and pinned caller arguments', () => {
     const shared = src('customer-authority-read-tail-r27-sources.ts');
-    expect(shared.match(/\bSELECT\b/g) ?? []).toHaveLength(1);
+    expect(shared.match(/\bSELECT\b/g) ?? []).toHaveLength(0);
     expect(shared).toContain('export const accessEventEvidenceProbe');
     expect(shared).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
 
@@ -49,7 +49,7 @@ describe('Customer Authority read-tail r27 customer-access event evidence probe 
   test('r21-r26 builders, source locks and native kinds stay untouched', () => {
     const counts: Array<[string, number, string]> = [
       ['customer-authority-read-sql.ts', 2, 'export const jsonbAggFact'],
-      ['package-obligation-sql.ts', 3, 'export const latestSupportVersion'],
+      ['package-obligation-sql.ts', 1, 'export const latestSupportVersion'],
       ['customer-authority-read-tail-r23-sources.ts', 1, 'export const jsonbImageProjection'],
       ['customer-authority-read-tail-r24-sources.ts', 1, 'export const bindingFactProjection'],
       ['customer-authority-read-tail-r25-sources.ts', 1, 'export const ownerColumnProjection'],

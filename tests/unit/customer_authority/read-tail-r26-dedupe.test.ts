@@ -57,7 +57,7 @@ describe('Customer Authority read-tail r26 binding/order row projection family',
     expect(r21).toContain('export const bindingsExists');
 
     const r22 = src('package-obligation-sql.ts');
-    expect(r22.match(/\bSELECT\b/g) ?? []).toHaveLength(3);
+    expect(r22.match(/\bSELECT\b/g) ?? []).toHaveLength(1);
     expect(r22).toContain('export const latestSupportVersion');
     expect(r22).toContain('export const supportAbsent');
     expect(r22).toContain('export const commandAuditProbe');

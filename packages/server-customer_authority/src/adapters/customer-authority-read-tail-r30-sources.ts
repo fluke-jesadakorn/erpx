@@ -1,4 +1,5 @@
 import 'server-only';
+import {selectOneProbe} from './customer-authority-read-sql';
 
 /** One canonical owner existence-probe literal shared by the Customer Authority
  *  binding-identity, attachment version-guard, workforce-scope and
@@ -9,4 +10,4 @@ import 'server-only';
  *  builders, control-plane lock text, native-owned statement kinds and the
  *  manager-eligibility helpers stay untouched. */
 export const existenceProbe = (fromSql: string, predicate: string) =>
-  `SELECT 1 ${fromSql} WHERE ${predicate}`;
+  selectOneProbe(`${fromSql} WHERE ${predicate}`);

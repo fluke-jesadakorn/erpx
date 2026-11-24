@@ -60,7 +60,7 @@ describe('Customer Authority read-tail r23 JSONB image projection family', () =>
     expect(r21).toContain('export const bindingsExists');
     // r22 builder module is unchanged.
     const r22 = src('package-obligation-sql.ts');
-    expect(r22.match(/\bSELECT\b/g) ?? []).toHaveLength(3);
+    expect(r22.match(/\bSELECT\b/g) ?? []).toHaveLength(1);
     expect(r22).toContain('export const latestSupportVersion');
     expect(r22).toContain('export const supportAbsent');
     expect(r22).toContain('export const commandAuditProbe');
