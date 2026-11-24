@@ -3,10 +3,11 @@ import "server-only";
 import { registeredMigrationDatabase, registeredResources, resourceSlots, type HoldingId } from "@erpx/feature-runtime/lib/holding-registry";
 export type { HoldingId } from "@erpx/feature-runtime/lib/holding-registry";
 import { getRuntime, type RuntimeEnv } from "@erpx/server-runtime/adapters/runtime/env";
+import { holdingBindingsSql } from './read-tail-sql';
 
 export async function runtimeEnv(): Promise<RuntimeEnv> { return getRuntime(); }
 
-const HOLDING_BINDINGS_SELECT = 'SELECT holding_id, slug, display_name FROM holding_bindings';
+const HOLDING_BINDINGS_SELECT = holdingBindingsSql('holding_id, slug, display_name');
 
 export type HoldingBinding = {
   id: HoldingId;

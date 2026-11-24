@@ -19,6 +19,7 @@ import { runNativeLegalWorker } from "@erpx/server-runtime/adapters/runtime/nati
 import {runtimeBetaSlotActive} from "@erpx/server-manage_erpx/public/runtime-active-slot-source";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { holdingBindingsSql } from '../read-tail-sql';
 
 const exec = promisify(execFile);
 
@@ -195,7 +196,7 @@ export async function legalWork(env: JobEnv) {
       ['sources', async () => {
         if (!env.CONTROL_DB) return;
         const binding = await env.CONTROL_DB.prepare(
-          `SELECT holding_id, slug, display_name FROM holding_bindings WHERE holding_id=? AND status='active'`,
+          holdingBindingsSql('holding_id, slug, display_name', " WHERE holding_id=? AND status='active'"),
         ).bind(slot.id).first<{ holding_id: string; slug: string; display_name: string }>();
         if (!binding) return;
         return (await import("@erpx/server-legal/public/legal/law-corpus")).drainLegalSourceChecks(

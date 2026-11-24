@@ -12,6 +12,7 @@ import type { TokenRow } from "@erpx/server-runtime/domain/executive/connections
 import { createExecutiveConnections, type ExecutiveConnectionUnit } from "@erpx/server-runtime/application/executive/connections";
 import { executiveConnectionOrganizationFacts } from "@erpx/server-organization/public/executive-connection-facts";
 import { executiveConnectionIdentityAccessFacts } from "@erpx/server-identity_access/public/executive-connection-facts";
+import { holdingBindingsSql } from '../read-tail-sql';
 const tokenColumns = "id,name,user_id,holding_id,company_id,assignment_id,assignment_version,role,assignment_scope_kind,assignment_scope_node_id,branch_id,department_id,scope_label,created_at,expires_at,revoked_at,last_used_at";
 const sources = new WeakMap<ExecutiveConnectionUnit, SqlDatabase>();
 /**
@@ -31,7 +32,7 @@ export function executiveConnectionUnit(db: SqlDatabase): ExecutiveConnectionUni
         }) => db.prepare(`SELECT ${tokenColumns} FROM executive_external_tokens WHERE id=? AND revoked_at IS NULL AND expires_at>?`).bind(facts.value1, facts.value2).first<TokenRow>(),
         holdingBinding: (facts: {
             value1: string;
-        }) => db.prepare("SELECT slug FROM holding_bindings WHERE holding_id=? AND status='active'").bind(facts.value1).first<{
+        }) => db.prepare(holdingBindingsSql('slug', " WHERE holding_id=? AND status='active'")).bind(facts.value1).first<{
             slug: string;
         }>(),
         activeGrant: facts => executiveConnectionIdentityAccessFacts(db).activeGrant(facts) };
