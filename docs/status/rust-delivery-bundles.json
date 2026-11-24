@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12159,
+    "revision": 12163,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -181121,6 +181121,77 @@
         "nextAction": "Followup order-join head (-1), byKey via pointRead (-1), followup purchases extraJoin (-1): 50->47. BEFORE=50.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.legal.read-tail-r53",
+        "goalId": "G4",
+        "owner": "legal",
+        "title": "legal TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-legal/src/**",
+          "tests/unit/legal/**",
+          "tests/integration/legal/**"
+        ],
+        "resources": [
+          "owner:legal"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n26",
+          "claimedAt": "2026-11-24T13:48:06.429Z",
+          "heartbeatAt": "2026-11-24T13:48:06.429Z",
+          "expiresAt": "2026-11-24T14:18:06.429Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Three-key law point reads (-2), id+secondary head consolidation (-3): 178->173. BEFORE=178.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.crm.read-tail-r39",
+        "goalId": "G4",
+        "owner": "crm",
+        "title": "crm TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-crm/src/**",
+          "tests/unit/crm/**"
+        ],
+        "resources": [
+          "owner:crm"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n27",
+          "claimedAt": "2026-11-24T13:48:19.864Z",
+          "heartbeatAt": "2026-11-24T13:48:19.864Z",
+          "expiresAt": "2026-11-24T14:18:19.864Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Three single-key source stragglers via crmSingleKeySourceSql (-3), clocked read head (-2): 104->99. BEFORE=104.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -181129,11 +181200,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1745,
+      "totalPackets": 1747,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 13,
+        "in_progress": 15,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -181143,7 +181214,7 @@
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T13:47:29.756Z",
+    "updatedAt": "2026-11-24T13:48:19.870Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
