@@ -8,9 +8,9 @@ import {ApiError} from '@erpx/server-runtime/public/http';
 import type {WorkItem} from '@erpx/feature-work_projection/lib/work-item';
 import {commercePackageEnforcementMode,readPurchasedAccesses} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
-import {crmPurchaseLeadRows,crmPurchaseActivityRows,crmPurchaseAccountRows,crmPurchaseContactRows,crmPurchaseGuestLinkRows,crmLeadActivityExists,crmOpportunityExistsSql,crmClockCteSql,requireCRMPurchasedRead,crmReferenceHistory,type CRMPurchaseTarget} from '@erpx/server-crm/adapters/purchases';
+import {crmPurchaseLeadRows,crmPurchaseActivityRows,crmPurchaseAccountRows,crmPurchaseContactRows,crmPurchaseGuestLinkRows,crmLeadActivityExists,crmOpportunityExistsSql,crmOpportunityLeadSql,crmClockCteSql,requireCRMPurchasedRead,crmReferenceHistory,type CRMPurchaseTarget} from '@erpx/server-crm/adapters/purchases';
 const nativeIds='SELECT id FROM crm_leads UNION ALL SELECT id FROM crm_lead_activities UNION ALL SELECT id FROM crm_opportunities UNION ALL SELECT id FROM crm_accounts UNION ALL SELECT id FROM crm_contacts UNION ALL SELECT id FROM crm_guest_links';
-const validLeads=`SELECT lead.* FROM (${crmPurchaseLeadRows}) lead WHERE NOT EXISTS(SELECT 1 FROM crm_opportunities opportunity WHERE opportunity.lead_id=lead.id) OR EXISTS(${crmOpportunityExistsSql}opportunity.id=lead.id AND opportunity.company_id=lead.company_id)`;
+const validLeads=`SELECT lead.* FROM (${crmPurchaseLeadRows}) lead WHERE NOT EXISTS(${crmOpportunityLeadSql}lead.id) OR EXISTS(${crmOpportunityExistsSql}opportunity.id=lead.id AND opportunity.company_id=lead.company_id)`;
 /** Native record identity is classified independently of generic module labels.
  * Opportunity IDs are mapped to the original lead-ID command/read interface. */
 const recordRows=`SELECT lead.id,'lead' kind,lead.id target_id,lead.company_id,lead.branch_id,lead.department_id,NULL::text created_by,NULL::text account_id,NULL::text contact_id FROM (${validLeads}) lead

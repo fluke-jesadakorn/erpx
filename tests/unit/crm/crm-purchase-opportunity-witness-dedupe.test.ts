@@ -157,3 +157,59 @@ describe('crm purchase opportunity witness read family', () => {
     expect(total).toBeLessThan(173);
   });
 });
+
+describe('crm read-tail r14 parameterized families', () => {
+  const owner = fileURLToPath(new URL('../../../packages/server-crm/src/', import.meta.url));
+  const src = (name: string) => readFileSync(resolve(owner, `adapters/${name}`), 'utf8');
+  const bodyOf = (text: string, marker: string) => {
+    const line = text.split('\n').find(value => value.includes(marker)) ?? '';
+    return line.slice(line.indexOf('`') + 1, line.lastIndexOf('`'));
+  };
+  const totalSelects = () => {
+    let total = 0;
+    for (const rel of readdirSync(owner, { recursive: true })) {
+      if (!String(rel).endsWith('.ts')) continue;
+      total += readFileSync(resolve(owner, String(rel)), 'utf8').match(/SELECT /g)?.length ?? 0;
+    }
+    return total;
+  };
+
+  it('owns the opportunity lead probe once and renders both fact sites byte-identically', () => {
+    const purchases = src('purchases.ts'), record = src('record-purchases.ts'), sales = src('sales-package-obligations.ts');
+    const prefix = bodyOf(purchases, 'export const crmOpportunityLeadSql=');
+    expect(prefix).toBe('SELECT 1 FROM crm_opportunities opportunity WHERE opportunity.lead_id=');
+    expect(purchases.match(/export const crmOpportunityLeadSql=/g)).toHaveLength(1);
+    expect(record.match(/\$\{crmOpportunityLeadSql\}/g)).toHaveLength(1);
+    expect(sales.match(/\$\{crmOpportunityLeadSql\}/g)).toHaveLength(1);
+    expect(record).toContain('NOT EXISTS(${crmOpportunityLeadSql}lead.id)');
+    expect(sales).toContain("EXISTS(${crmOpportunityLeadSql}l.id AND opportunity.stage IN ('won','lost'))");
+    // Pre-dedupe SQL text is reproduced exactly at both call sites.
+    expect(`NOT EXISTS(${prefix}lead.id)`).toBe('NOT EXISTS(SELECT 1 FROM crm_opportunities opportunity WHERE opportunity.lead_id=lead.id)');
+    expect(`EXISTS(${prefix}l.id AND opportunity.stage IN ('won','lost'))`).toBe("EXISTS(SELECT 1 FROM crm_opportunities opportunity WHERE opportunity.lead_id=l.id AND opportunity.stage IN ('won','lost'))");
+    expect(record).not.toContain('SELECT 1 FROM crm_opportunities opportunity WHERE opportunity.lead_id=');
+    expect(sales).not.toContain('SELECT 1 FROM crm_opportunities opportunity WHERE opportunity.lead_id=');
+  });
+
+  it('owns the hotel reservation probe once and renders all three sites byte-identically', () => {
+    const purchases = src('purchases.ts'), marketing = src('marketing-package-obligations.ts'), sales = src('sales-package-obligations.ts');
+    const prefix = bodyOf(purchases, 'export const crmHotelReservationProbeSql=');
+    expect(prefix).toBe('SELECT 1 FROM (${crmHotelReservationSources}) reservation');
+    expect(purchases.match(/export const crmHotelReservationProbeSql=/g)).toHaveLength(1);
+    for (const text of [purchases, marketing, sales]) expect(text.match(/\$\{crmHotelReservationProbeSql\}/g)).toHaveLength(1);
+    expect(marketing).toContain('EXISTS(${crmHotelReservationProbeSql} JOIN crm_opportunities opportunity');
+    expect(sales).toContain('EXISTS(${crmHotelReservationProbeSql} JOIN crm_guest_links guest');
+    expect(purchases).toContain('`${crmHotelReservationProbeSql} WHERE id=? AND company_id=? AND branch_id=?`');
+    // Pre-dedupe SQL text is reproduced exactly at all three call sites.
+    expect(`EXISTS(${prefix} JOIN crm_opportunities opportunity`).toBe('EXISTS(SELECT 1 FROM (${crmHotelReservationSources}) reservation JOIN crm_opportunities opportunity');
+    expect(`EXISTS(${prefix} JOIN crm_guest_links guest`).toBe('EXISTS(SELECT 1 FROM (${crmHotelReservationSources}) reservation JOIN crm_guest_links guest');
+    expect(`${prefix} WHERE id=? AND company_id=? AND branch_id=?`).toBe('SELECT 1 FROM (${crmHotelReservationSources}) reservation WHERE id=? AND company_id=? AND branch_id=?');
+    for (const text of [purchases, marketing, sales]) {
+      const inline = text.split('\n').filter(value => value.includes('SELECT 1 FROM (${crmHotelReservationSources}) reservation'));
+      expect(inline.every(value => value.includes('export const crmHotelReservationProbeSql='))).toBe(true);
+    }
+  });
+
+  it('keeps the owner SELECT KPI strictly below the r14 BEFORE=171 baseline', () => {
+    expect(totalSelects()).toBeLessThan(171);
+  });
+});

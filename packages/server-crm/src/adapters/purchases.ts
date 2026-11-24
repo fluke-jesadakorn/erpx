@@ -55,6 +55,14 @@ export const crmPurchaseOpportunityRows=`SELECT lead.id,lead.company_id,lead.bra
  LEFT JOIN (${crmHotelReservationSources}) reservation ON reservation.id=opportunity.reservation_id AND reservation.company_id=lead.company_id AND reservation.branch_id=lead.branch_id AND EXISTS(SELECT 1 FROM crm_guest_links guest_link WHERE guest_link.contact_id=native.contact_id AND guest_link.company_id=lead.company_id AND guest_link.guest_id=reservation.guest_id AND guest_link.property_id=reservation.property_id)
  WHERE (opportunity.quote_id IS NULL OR quote.id IS NOT NULL) AND (opportunity.sales_id IS NULL OR sale.id IS NOT NULL) AND (opportunity.reservation_id IS NULL OR reservation.id IS NOT NULL)`;
 export const crmOpportunityExistsSql=`SELECT 1 FROM (${crmPurchaseOpportunityRows}) opportunity WHERE `;
+/** r14: one owner literal for the retained-customer opportunity lead probe.
+ * The record-scope and Sales-obligation fact sites pass only their differing
+ * tails; rendered SQL stays byte-identical to the pre-dedupe text. */
+export const crmOpportunityLeadSql=`SELECT 1 FROM crm_opportunities opportunity WHERE opportunity.lead_id=`;
+/** r14: one owner literal for the fixed Hotel reservation probe prefix. The
+ * Marketing/Sales obligation joins and the reference guard pass their own
+ * tails; rendered SQL stays byte-identical to the pre-dedupe text. */
+export const crmHotelReservationProbeSql=`SELECT 1 FROM (${crmHotelReservationSources}) reservation`;
 export const crmAccountCreatedByScopeSql=`(?::text IS NULL OR account.created_by=? OR EXISTS(SELECT 1 FROM crm_leads lead WHERE lead.account_id=account.id AND lead.company_id=account.company_id AND lead.branch_id=? AND (?::text IS NULL OR lead.department_id=?)))`;
 export const crmPurchaseGuestLinkRows=`SELECT link.id,link.company_id,guest.branch_id,NULL::text department_id,account.created_by,
  jsonb_build_object('link',jsonb_build_array(link.id,link.company_id,link.contact_id,link.guest_id,link.property_id),'contact',${contactIdentity},'guest',to_jsonb(guest)) witness FROM crm_guest_links link
@@ -185,7 +193,7 @@ export async function crmLeadCreateReferences(database:SqlDatabase,actor:WorkCon
  if(await commercePackageEnforcementMode()==='disabled')return;
  if(input.campaignId&&!await database.prepare(`SELECT 1 FROM (${crmMarketingCampaignSources}) campaign WHERE id=? AND company_id=?`).bind(input.campaignId,actor.companyId).first())throw new ApiError(404,"CRM_CAMPAIGN_NOT_FOUND","Campaign not found in this Company.");
  if(input.sourceKind==="form"&&!await database.prepare(`SELECT 1 FROM (${crmMarketingCandidateSources}) candidate WHERE id=? AND company_id=? AND branch_id=? AND (?::text IS NULL OR department_id=?)`).bind(input.sourceId??"",actor.companyId,input.branchId,actor.departmentId,actor.departmentId).first())throw new ApiError(404,"MARKETING_CANDIDATE_NOT_FOUND","The actual form candidate is required.");
- if(input.sourceKind==="pms"){await requireCRMCurrentAuthority(database,actor,["pms.read"],`crm-hotel-reference:${randomUUID()}`);if(!await database.prepare(`SELECT 1 FROM (${crmHotelReservationSources}) reservation WHERE id=? AND company_id=? AND branch_id=?`).bind(input.sourceId??"",actor.companyId,input.branchId).first())throw new ApiError(404,"CRM_RESERVATION_NOT_FOUND","The actual Hotel reservation is required.");}
+ if(input.sourceKind==="pms"){await requireCRMCurrentAuthority(database,actor,["pms.read"],`crm-hotel-reference:${randomUUID()}`);if(!await database.prepare(`${crmHotelReservationProbeSql} WHERE id=? AND company_id=? AND branch_id=?`).bind(input.sourceId??"",actor.companyId,input.branchId).first())throw new ApiError(404,"CRM_RESERVATION_NOT_FOUND","The actual Hotel reservation is required.");}
 }
 
 export async function crmOpportunityReference(database:SqlDatabase,actor:WorkContext,kind:"quote"|"sales"|"reservation",id:string){
