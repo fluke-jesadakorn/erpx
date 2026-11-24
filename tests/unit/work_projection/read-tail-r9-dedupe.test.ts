@@ -29,7 +29,7 @@ describe('work_projection read-tail r9 dedupe', () => {
     const source = await readFile(src('calendar-appointments-facts.ts'), 'utf8');
     expect(source).not.toContain('SELECT * FROM calendar_series WHERE company_id=?');
     expect(source).not.toContain('SELECT * FROM calendar_occurrence_exceptions WHERE company_id=?');
-    expect(source.match(/`SELECT \* FROM \$\{table\} WHERE company_id=\? AND \$\{inList\("appointment_id"\)\}`/g)).toHaveLength(1);
+    expect(source.match(/`SELECT \$\{columns\} FROM \$\{table\} WHERE company_id=\? AND \$\{inList\("appointment_id"\)\}`/g)).toHaveLength(1);
   });
 
   it('emits the original byte-identical SQL for both parameterized callers', async () => {
