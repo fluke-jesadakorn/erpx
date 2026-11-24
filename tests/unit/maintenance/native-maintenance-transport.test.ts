@@ -709,7 +709,7 @@ describe('Maintenance record-image fixed SQL',()=>{
   }
  });
 
- it('retirement:ts-statements stays strictly below the r17 BEFORE=35 baseline',async()=>{
+ it('retirement:ts-statements stays strictly below the r18 BEFORE=34 baseline',async()=>{
   const {readdirSync,readFileSync}=await import('node:fs');
   const {resolve}=await import('node:path');
   let total=0;
@@ -722,8 +722,8 @@ describe('Maintenance record-image fixed SQL',()=>{
    }
   };
   walk(srcRoot);
-  expect(total).toBe(34);
-  expect(total).toBeLessThan(35);
+  expect(total).toBe(33);
+  expect(total).toBeLessThan(34);
  });
 });
 
@@ -884,3 +884,43 @@ describe('Maintenance windowed interval CTE fixed SQL',()=>{
    expect(windowedIntervalCte('x','CURRENT ROW','a','t')).toBe('SELECT *,x OVER(PARTITION BY asset_id ORDER BY start_at,end_at,work_order_id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) a FROM t');
   });
  });
+
+/** Fixed-SQL read-tail oracle for the Maintenance Work/Asset source family
+ * (r18). The workspace items and downtime-evidence reads share one owner-local
+ * Work join to the operational Asset projection. Each composed read keeps its
+ * pre-dedupe SQL tokens (whitespace-only reflow for the downtime read), no
+ * duplicate TS query literal remains, every r3-r17 family stays unchanged and
+ * every owner lock is untouched. */
+describe('Maintenance work/asset source fixed SQL',()=>{
+ const dir='../../../packages/server-maintenance/src/adapters/';
+ it('single-sources the Work/Asset projection and keeps both composed reads intact',async()=>{
+  const {readFileSync}=await import('node:fs');
+  const source=readFileSync(new URL(`${dir}work.ts`,import.meta.url),'utf8');
+  const tokens=(s:string)=>s.replace(/\s+/g,' ').trim();
+  expect(source.match(/export const workAssetSource = \(fields: string, assetJoin: string, where: string\) =>/g)).toHaveLength(1);
+  expect(source.match(/`SELECT \$\{fields\} FROM maintenance_work_orders w JOIN \(\$\{assetsProjectionSources\.operational_assets\}\) a ON a\.id=w\.asset_id\$\{assetJoin\} WHERE \$\{where\}`/g)).toHaveLength(1);
+  // r17 left 8 work.ts SELECTs; r18 folds the items/downtime Work/Asset source (8 -> 7).
+  expect(source.match(/SELECT/g)).toHaveLength(7);
+  expect(source).not.toContain('SELECT w.*,a.code asset_code,a.name asset_name,CASE WHEN');
+  expect(source).not.toContain('`SELECT w.id,w.version::text version');
+  expect(source).not.toMatch(/LOCK\s+TABLE/i);
+  const {workAssetSource}=await import('../../../packages/server-maintenance/src/adapters/work');
+  const {finalRootOwnerProjectionSources:assets}=await import('../../../packages/server-assets/src/public/final-root-owner-projection-sources');
+  // Pre-r18 literals rebuilt verbatim with closed placeholder fragments.
+  const itemFields='w.*,a.code asset_code,a.name asset_name,CASE WHEN <guard> THEN 1 ELSE 0 END owner_eligible,CASE WHEN <review> THEN 1 ELSE 0 END can_review,<ownerName> owner_name';
+  expect(tokens(workAssetSource(itemFields,'','<scope>'))).toBe(
+   tokens(`SELECT ${itemFields} FROM maintenance_work_orders w JOIN (${assets.operational_assets}) a ON a.id=w.asset_id WHERE <scope>`));
+  const downFields='w.id,w.version::text version,w.status,w.title,a.code asset_code,a.name asset_name,w.downtime_started_at::text downtime_started_at,w.downtime_ended_at::text downtime_ended_at';
+  expect(tokens(workAssetSource(downFields,' AND a.company_id=w.company_id','<where>'))).toBe(
+   tokens(`SELECT ${downFields}
+   FROM maintenance_work_orders w JOIN (${assets.operational_assets}) a ON a.id=w.asset_id AND a.company_id=w.company_id
+   WHERE <where>`));
+  // r3-r17 families stay unchanged.
+  expect(source).toContain('iamScopeGuardSql(workIamFrom');
+  expect(source).toContain("maintenanceOwnerName('w')");
+  expect(readFileSync(new URL(`${dir}purchase-sources.ts`,import.meta.url),'utf8')).toContain('LOCK TABLE maintenance_work_orders,maintenance_preventive_plans,maintenance_preventive_occurrences IN SHARE ROW EXCLUSIVE MODE');
+  expect(readFileSync(new URL(`${dir}finance-record-sources.ts`,import.meta.url),'utf8')).toContain('LOCK TABLE operational_inventory_consumptions,maintenance_work_orders,operational_assets IN SHARE MODE');
+  expect(readFileSync(new URL(`${dir}asset-settlement-refs.ts`,import.meta.url),'utf8')).toContain('LOCK TABLE maintenance_work_orders,maintenance_preventive_plans IN SHARE MODE');
+  expect(readFileSync(new URL(`${dir}package-obligations.ts`,import.meta.url),'utf8')).toContain('LOCK TABLE maintenance_work_orders,maintenance_work_events,maintenance_preventive_plans,maintenance_preventive_events,maintenance_preventive_occurrences IN SHARE MODE');
+ });
+});

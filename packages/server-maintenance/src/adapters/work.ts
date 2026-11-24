@@ -22,6 +22,15 @@ import {availableServiceSpares} from '@erpx/server-inventory/public/inventory-co
 import {maintenanceOwnerName} from './maintenance-owner-name';
 import {iamScopeGuardSql} from './iam-scope-guard';
 const assetScope="a.company_id=? AND (?::text IS NULL OR a.branch_id=?) AND (?::text IS NULL OR a.department_id=?)",workScope="w.company_id=? AND (?::text IS NULL OR w.branch_id=?) AND (?::text IS NULL OR w.department_id=?)",args=(a:WorkContext)=>[a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId];
+/** Canonical owner-local Work/Asset source projection shared by the workspace
+ * items and downtime-evidence reads. Both call the same owner-fixed Work join
+ * to the operational Asset projection and project the same code/name columns;
+ * callers pass only closed field/join/scope/order fragments, never request-
+ * authored SQL or relation names. Each composed read keeps its pre-dedupe SQL
+ * tokens (whitespace-only reflow for the downtime read) and no LOCK statement
+ * is accepted or changed. r3-r17 families stay unchanged. */
+export const workAssetSource = (fields: string, assetJoin: string, where: string) =>
+  `SELECT ${fields} FROM maintenance_work_orders w JOIN (${assetsProjectionSources.operational_assets}) a ON a.id=w.asset_id${assetJoin} WHERE ${where}`;
 /** Owner-local adapter over the shared IAM guard: this owner supplies only its
  * closed projection relations, fixed aliases and a row alias/user/permission;
  * the common assignment/principal/role/status tail is owned once in the helper. */
@@ -32,7 +41,7 @@ const reviewer=(alias:'a'|'w')=>iamScopeGuard(alias,'?','records.review');
 function access(a:WorkContext,write=false){requirePermission(a,write?'records.write':'records.read');if(!hasModuleAccess(a.modules,'maintenance'))throw new ApiError(403,'MODULE_FORBIDDEN','Your current role cannot access maintenance.');}
 function bindRepository(write:SqlDatabase,a:WorkContext,canReadParts=true):MaintenanceRepository {
  return {
-  items:async()=>(await write.prepare(`SELECT w.*,a.code asset_code,a.name asset_name,CASE WHEN ${worker} THEN 1 ELSE 0 END owner_eligible,CASE WHEN ${reviewer('w')} THEN 1 ELSE 0 END can_review,${maintenanceOwnerName('w')} owner_name FROM maintenance_work_orders w JOIN (${assetsProjectionSources.operational_assets}) a ON a.id=w.asset_id WHERE ${workScope} ORDER BY w.updated_at DESC,w.id`).bind(a.userId,...args(a)).all<Work>()).results,
+  items:async()=>(await write.prepare(`${workAssetSource(`w.*,a.code asset_code,a.name asset_name,CASE WHEN ${worker} THEN 1 ELSE 0 END owner_eligible,CASE WHEN ${reviewer('w')} THEN 1 ELSE 0 END can_review,${maintenanceOwnerName('w')} owner_name`,"",workScope)} ORDER BY w.updated_at DESC,w.id`).bind(a.userId,...args(a)).all<Work>()).results,
   assets:async()=>(await write.prepare(`SELECT a.id,a.code,a.name,a.version,a.condition,a.lifecycle_status FROM (${assetsProjectionSources.operational_assets}) a WHERE ${assetScope} AND a.lifecycle_status IN ('in_service','registered','maintenance') AND NOT EXISTS(SELECT 1 FROM maintenance_work_orders w WHERE w.asset_id=a.id AND w.status NOT IN ('completed','cancelled')) ORDER BY a.code`).bind(...args(a)).all<Row>()).results,
   nodes:async()=>(await write.prepare(`SELECT id,kind,display_name,branch_id FROM (${organizationProjectionSources.organization_nodes}) n WHERE company_id=? AND status='active' AND kind IN ('branch','headquarters','department') AND (?::text IS NULL OR id=? OR branch_id=?) AND (?::text IS NULL OR id=?) ORDER BY kind,display_name`).bind(a.companyId,a.branchId,a.branchId,a.branchId,a.departmentId,a.departmentId).all<Row>()).results,
   people:async()=>(await write.prepare(`SELECT DISTINCT p.user_id id,p.legal_name name FROM (${people_payrollProjectionSources.hr_people}) p JOIN (${identity_accessProjectionSources.assignments}) x ON x.user_id=p.user_id AND x.company_id=p.company_id WHERE p.company_id=? AND p.status='active' AND p.merged_into_id IS NULL AND iam_assignment_active(x.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(x.role,x.company_id,'records.write') ORDER BY p.legal_name`).bind(a.companyId).all<Row>()).results,
@@ -44,10 +53,7 @@ function bindRepository(write:SqlDatabase,a:WorkContext,canReadParts=true):Maint
  if(input.cursor){where.push("(w.downtime_ended_at,w.id)<(?::bigint,?)");values.push(input.cursor.endedAt,input.cursor.id);}
  if(input.recordId){where.push("w.id=?");values.push(input.recordId);}
  values.push(input.recordId?1:Math.max(1,Math.min(51,input.limit+1)));
- return (await write.prepare(`SELECT w.id,w.version::text version,w.status,w.title,a.code asset_code,a.name asset_name,
-   w.downtime_started_at::text downtime_started_at,w.downtime_ended_at::text downtime_ended_at
-   FROM maintenance_work_orders w JOIN (${assetsProjectionSources.operational_assets}) a ON a.id=w.asset_id AND a.company_id=w.company_id
-   WHERE ${where.join(' AND ')} ORDER BY w.downtime_ended_at DESC,w.id DESC LIMIT ?`).bind(...values).all<MaintenanceDowntimeEvidenceRow>()).results;
+ return (await write.prepare(`${workAssetSource(`w.id,w.version::text version,w.status,w.title,a.code asset_code,a.name asset_name,w.downtime_started_at::text downtime_started_at,w.downtime_ended_at::text downtime_ended_at`," AND a.company_id=w.company_id",where.join(' AND '))} ORDER BY w.downtime_ended_at DESC,w.id DESC LIMIT ?`).bind(...values).all<MaintenanceDowntimeEvidenceRow>()).results;
  }
  };
 }
