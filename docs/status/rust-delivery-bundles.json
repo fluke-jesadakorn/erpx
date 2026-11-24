@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12005,
+    "revision": 12007,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -179325,6 +179325,42 @@
         "nextAction": "scopeTuple family (-2): 56->54.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.legal.read-tail-r51",
+        "goalId": "G4",
+        "owner": "legal",
+        "title": "legal law state guard family",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-legal/src/**",
+          "tests/unit/legal/**",
+          "tests/integration/legal/**"
+        ],
+        "resources": [
+          "owner:legal"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4k02",
+          "claimedAt": "2026-11-24T13:05:46.300Z",
+          "heartbeatAt": "2026-11-24T13:05:46.300Z",
+          "expiresAt": "2026-11-24T13:35:46.300Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "legalLawStateGuardSql reuses legalPointByIdSql for law-corpus source/revision: 188->186.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -179333,11 +179369,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1711,
+      "totalPackets": 1712,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 20,
+        "in_progress": 21,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -179347,7 +179383,7 @@
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T13:02:00.289Z",
+    "updatedAt": "2026-11-24T13:05:46.305Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
