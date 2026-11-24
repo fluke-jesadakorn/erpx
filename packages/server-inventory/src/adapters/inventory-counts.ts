@@ -12,14 +12,13 @@ import {manufacturingInitialPhysicalStockMarkedRows,manufacturingInitialPhysical
 import {initialPhysicalStockMarkedRows,initialPhysicalStockCountSourceRows} from '@erpx/server-inventory/adapters/initial-physical-stock-count-source-sql';
 import {requireQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
 import {commercePackageEnforcementMode} from "@erpx/server-commercial/public/purchase-command-boundary";
-import {packageClockSql} from "@erpx/server-commercial/public/purchased-capability-sql";
 import {countSourcePurchasePredicate} from "@erpx/server-inventory/adapters/count-record-purchases";
 import {countSourceAccess} from "@erpx/server-inventory/adapters/count-purchases";
 import {inventoryReadProjection as inventorycommerceProjection} from '@erpx/server-commerce/public/inventory-read-projections';
 import {inventoryReadProjection as inventoryfinanceProjection} from '@erpx/server-finance/public/inventory-read-projections';
 import {inventoryReadProjection as inventorypeople_payrollProjection} from '@erpx/server-people_payroll/public/inventory-read-projections';
 import {readListPage} from "@erpx/server-work_projection/public/list-page";
-import {allInitialPhysicalStockMarkedRowsSql,countInitialPhysicalSourceMarkersSql,decisionActorRowsSql} from './read-tail-sql';
+import {allInitialPhysicalStockMarkedRowsSql,clockCteSql,countInitialPhysicalSourceMarkersSql,decisionActorRowsSql} from './read-tail-sql';
 
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import "server-only";
@@ -41,7 +40,7 @@ async function countListScope(db:SqlDatabase,actor:WorkContext){
  let current=true;try{await requireQueuedCommandAuthority(db,actor,'inventory.read');}catch(error){if(error instanceof ApiError&&(error.status===401||error.status===403))current=false;else throw error;}
  const marked=`EXISTS(${allInitialPhysicalStockMarkedRowsSql(initialPhysicalStockMarkedRows,manufacturingInitialPhysicalStockMarkedRows,posInitialPhysicalStockMarkedRows,serviceInitialPhysicalStockMarkedRows)} initial_marker WHERE initial_marker.id=c.id)`;
  const predicate=countSourcePurchasePredicate('c.id','c.company_id','history','count_list_clock.now_ms');
- return `EXISTS(WITH count_list_clock AS MATERIALIZED (SELECT ${packageClockSql} now_ms) SELECT 1 FROM count_list_clock WHERE CASE WHEN ${marked} THEN ${current?'TRUE':'FALSE'} AND ${predicate} ELSE ${mode==='enforced'?predicate:'TRUE'} END)`;
+ return `EXISTS(WITH ${clockCteSql('count_list_clock')} SELECT 1 FROM count_list_clock WHERE CASE WHEN ${marked} THEN ${current?'TRUE':'FALSE'} AND ${predicate} ELSE ${mode==='enforced'?predicate:'TRUE'} END)`;
 }
 async function requireCountListHistory(db:SqlDatabase,actor:WorkContext){
  const access=await countSourceAccess(db,actor);if(!access||access.history)return;

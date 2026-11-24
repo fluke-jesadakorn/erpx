@@ -2,15 +2,15 @@ import "server-only";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import type {QualityProductEntryScope} from "@erpx/server-quality/public/rules/product-entry";
 import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
-import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
+import {purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {qualityDisposalCountRows} from "@erpx/server-inventory/adapters/quality-count-purchases";
-import {sourceScopeRowsSql} from './read-tail-sql';
+import {clockCteSql,sourceScopeRowsSql} from './read-tail-sql';
 /** Only a proven existing Sales disposal Count. This does not grant Supply's
  * collection, preparation, amendment or recount capabilities. */
 export async function salesQualityCountProductEntry(database:SqlDatabase,scope:QualityProductEntryScope,id:string){
  if(scope.departmentId||!Number.isSafeInteger(scope.assignmentVersion)||scope.assignmentVersion<1)return null;
- const row=await database.prepare(`WITH count_entry_clock AS MATERIALIZED (SELECT ${packageClockSql} now_ms)
+ const row=await database.prepare(`WITH ${clockCteSql('count_entry_clock')}
  SELECT 1 FROM (${sourceScopeRowsSql(qualityDisposalCountRows,'source')} WHERE kind='customer-return') count_entry CROSS JOIN count_entry_clock
  WHERE count_entry.id=? AND count_entry.company_id=? AND (?::text IS NULL OR count_entry.branch_id=?)
  AND ${assignmentReadSql("count_entry","inventory.read")} AND EXISTS(SELECT 1 FROM assignments WHERE id=? AND version=?)

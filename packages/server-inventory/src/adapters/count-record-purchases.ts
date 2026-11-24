@@ -15,7 +15,7 @@ import {ApiError} from '@erpx/server-runtime/public/http';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {qualityDisposalCountRows} from "@erpx/server-inventory/adapters/quality-count-purchases";
 import {requireCountPurchasedRead} from "@erpx/server-inventory/adapters/count-purchases";
-import {allInitialPhysicalStockMarkedRowsSql,countInitialMarkedExistsSql,sourceRowsExistsSql,nativeRecordExistsSql,branchScopeTupleSql,recordIdExistsSql} from './read-tail-sql';
+import {allInitialPhysicalStockMarkedRowsSql,clockCteSql,countInitialMarkedExistsSql,sourceRowsExistsSql,nativeRecordExistsSql,branchScopeTupleSql,recordIdExistsSql} from './read-tail-sql';
 
 /** Filter actual physical-count identities before the consumer limit. Other
  * Inventory records, shared Stock facts and durable deliveries retain owners. */
@@ -38,7 +38,7 @@ export async function countSourceReadScope(database:SqlDatabase,actor:WorkContex
  if(actor.departmentId||!hasPermission(actor,'inventory.read'))return {where:mode==='enforced'?`NOT (${relevant})`:`(NOT (${relevant}) OR NOT (${initialMarked}))`,args:[]};
  const predicate=countSourcePurchasePredicate('count_source.id','count_source.company_id','history','count_source_clock.now_ms');
  const allowed=mode==='enforced'?predicate:`(NOT EXISTS(${allInitialPhysicalStockMarkedRowsSql(initialPhysicalStockMarkedRows,manufacturingInitialPhysicalStockMarkedRows,posInitialPhysicalStockMarkedRows,serviceInitialPhysicalStockMarkedRows)} marker WHERE marker.id=count_source.id) OR ${predicate})`;
- const visible=`EXISTS(WITH count_source_clock AS MATERIALIZED (SELECT ${packageClockSql} now_ms) SELECT 1 FROM (SELECT id,company_id,branch_id,NULL::text department_id FROM inventory_counts) count_source CROSS JOIN count_source_clock WHERE count_source.id=${id} AND count_source.company_id=${company} AND ${branchScopeTupleSql('count_source')} AND ${assignmentReadSql("count_source","inventory.read")} AND ${allowed})`;
+ const visible=`EXISTS(WITH ${clockCteSql('count_source_clock')} SELECT 1 FROM (SELECT id,company_id,branch_id,NULL::text department_id FROM inventory_counts) count_source CROSS JOIN count_source_clock WHERE count_source.id=${id} AND count_source.company_id=${company} AND ${branchScopeTupleSql('count_source')} AND ${assignmentReadSql("count_source","inventory.read")} AND ${allowed})`;
  return {where:mode==='enforced'?`(NOT (${relevant}) OR ${visible})`:`(NOT (${relevant}) OR NOT (${initialMarked}) OR ${visible})`,args:[actor.branchId,actor.branchId,actor.assignmentId,actor.userId,actor.role]};
 }
 export async function requireCountWorkspaceRecordRead(database:SqlDatabase,actor:WorkContext,moduleId:string,id:string){

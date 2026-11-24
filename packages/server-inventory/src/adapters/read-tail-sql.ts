@@ -290,3 +290,9 @@ export const reservedAvailabilitySumSql = (tail: string) =>
  *  unchanged. */
 export const decisionActorRowsSql = (table: string, fk: string, actor: string) =>
   `SELECT d.*,COALESCE(p.legal_name,d.actor_id) actor_name FROM ${table} d ${actor} WHERE d.${fk}=? ORDER BY d.created_at DESC`;
+/** r41: parameterized MATERIALIZED clock-CTE envelope. The five retained
+ *  read-tail guards share one byte-identical clock CTE; only the alias varies.
+ *  Every caller keeps its own statement, binds and capability/scope tail. Locks,
+ *  count sources/adapters, native transport and r11-r40 helpers stay untouched. */
+export const clockCteSql = (alias: string) =>
+  `${alias} AS MATERIALIZED (SELECT ${packageClockSql} now_ms)`;

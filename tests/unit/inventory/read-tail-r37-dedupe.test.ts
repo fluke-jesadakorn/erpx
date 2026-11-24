@@ -69,7 +69,7 @@ describe('Inventory read-tail r37 dedupe', () => {
       'pos-initial-physical-stock-count-source-sql.ts',
       'service-initial-physical-stock-count-source-sql.ts',
     ]) expect(src(f).length).toBeGreaterThan(0);
-    expect(src('count-record-purchases.ts')).toContain('WITH count_source_clock AS MATERIALIZED');
+    expect(src('count-record-purchases.ts')).toContain("clockCteSql('count_source_clock')");
     expect(src('inventory-read-projections.ts')).toContain(
       'export const inventoryCountStatusSql = "SELECT status FROM inventory_counts WHERE id=? AND company_id=?"',
     );

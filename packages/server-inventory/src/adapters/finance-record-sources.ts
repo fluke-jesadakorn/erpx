@@ -3,13 +3,13 @@ import {posInitialPhysicalStockCountSourceRows,posInitialPhysicalStockMarkedRows
 import {supplyInventoryTerminalReceipts} from '@erpx/server-inventory/adapters/supply-terminal-receipts';
 import {manufacturingInitialPhysicalStockCountSourceRows,manufacturingInitialPhysicalStockMarkedRows,manufacturingInitialPhysicalStockSourceImages} from '@erpx/server-inventory/adapters/manufacturing-initial-physical-stock-count-source-sql';
 import {initialPhysicalStockCountSourceRows,initialPhysicalStockMarkedRows} from '@erpx/server-inventory/adapters/initial-physical-stock-count-source-sql';
-import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
+import {purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
 import "server-only";
 import {landedCostPurchaseSourceRows,landedCostSourceReadLocks} from "@erpx/server-inventory/adapters/landed-cost-purchases";
 import {qualityDisposalCountRows} from "@erpx/server-inventory/adapters/quality-count-purchases";
 import {qualityPurchaseSourceReadLocks} from "@erpx/server-quality/public/purchase-sources";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
-import {countMarkedJournalSql,allInitialPhysicalStockMarkedRowsSql,initialPhysicalCountJournalSql,initialPhysicalCountFinanceImagesSql,journalAccountLineExistsSql,terminalReceiptMatchSql,journalLineSumSql} from './read-tail-sql';
+import {clockCteSql,countMarkedJournalSql,allInitialPhysicalStockMarkedRowsSql,initialPhysicalCountJournalSql,initialPhysicalCountFinanceImagesSql,journalAccountLineExistsSql,terminalReceiptMatchSql,journalLineSumSql} from './read-tail-sql';
 
 /** r11: the posted-count journal tail is byte-identical for the manufacturing,
  * pos and service initial-physical-count variants. Only the literal text is
@@ -37,7 +37,7 @@ const transitLossJournal=`SELECT d.company_id,e.journal_id id FROM inventory_tra
  AND ${journalLineSumSql('debit_minor')}=e.value_minor AND ${journalLineSumSql('credit_minor')}=e.value_minor`;
 const salesQualityCountJournal=`SELECT source.company_id,c.journal_id id FROM (${qualityDisposalCountRows}) source JOIN inventory_counts c ON c.id=source.id AND c.company_id=source.company_id AND c.status='posted' JOIN finance_journals j ON j.id=c.journal_id AND j.company_id=c.company_id AND j.source_type='stock_count' AND j.source_id=c.id AND j.status='posted' WHERE source.kind='customer-return'`;
 const salesInitialPhysicalCountJournal=`SELECT source.company_id,c.journal_id id FROM (${initialPhysicalStockCountSourceRows}) source JOIN inventory_counts c ON c.id=source.id AND c.company_id=source.company_id AND c.status='posted' JOIN finance_journals j ON j.id=c.journal_id AND j.company_id=c.company_id AND j.chart_id=source.source_proof->>'chartId' AND j.currency=source.source_proof->>'currency' AND j.source_type='stock_count' AND j.source_id=c.id AND j.status='posted' AND j.is_opening=0`;
-const landedCostJournal=`WITH landed_finance_clock AS MATERIALIZED (SELECT ${packageClockSql} now_ms) SELECT source.company_id,c.journal_id id FROM (${landedCostPurchaseSourceRows}) source JOIN inventory_landed_costs c ON c.id=source.id AND c.company_id=source.company_id AND c.status='posted' JOIN finance_journals j ON j.id=c.journal_id AND j.company_id=c.company_id AND j.source_type='landed_cost' AND j.source_id=c.id AND j.status='posted' AND j.currency=c.currency CROSS JOIN landed_finance_clock WHERE ${purchasedCapabilityPredicate('source.company_id','supply.advanced-inventory','history','landed_finance_clock.now_ms')} AND ${journalLineSumSql('debit_minor')}=c.amount_minor AND ${journalLineSumSql('credit_minor')}=c.amount_minor`;
+const landedCostJournal=`WITH ${clockCteSql('landed_finance_clock')} SELECT source.company_id,c.journal_id id FROM (${landedCostPurchaseSourceRows}) source JOIN inventory_landed_costs c ON c.id=source.id AND c.company_id=source.company_id AND c.status='posted' JOIN finance_journals j ON j.id=c.journal_id AND j.company_id=c.company_id AND j.source_type='landed_cost' AND j.source_id=c.id AND j.status='posted' AND j.currency=c.currency CROSS JOIN landed_finance_clock WHERE ${purchasedCapabilityPredicate('source.company_id','supply.advanced-inventory','history','landed_finance_clock.now_ms')} AND ${journalLineSumSql('debit_minor')}=c.amount_minor AND ${journalLineSumSql('credit_minor')}=c.amount_minor`;
 const manufacturingInitialPhysicalCountJournal=initialPhysicalCountJournalSql(manufacturingInitialPhysicalStockCountSourceRows,initialPhysicalCountJournalTail);
 const manufacturingInitialPhysicalCountMarkedJournal=countMarkedJournalSql(manufacturingInitialPhysicalStockMarkedRows);
 const posInitialPhysicalCountJournal=initialPhysicalCountJournalSql(posInitialPhysicalStockCountSourceRows,initialPhysicalCountJournalTail);

@@ -81,7 +81,7 @@ describe('Inventory read-tail r40 dedupe', () => {
       'attachmentOwnerVersionGuardSql', 'attachmentLotIdsSql', 'reservedAvailabilitySumSql',
     ]) expect(shared).toContain(`export const ${helper}`);
     expect(shared).toContain('WITH ${alias}_clock AS MATERIALIZED (SELECT ${packageClockSql} now_ms)');
-    expect(src('count-record-purchases.ts')).toContain('WITH count_source_clock AS MATERIALIZED');
+    expect(src('count-record-purchases.ts')).toContain("clockCteSql('count_source_clock')");
     for (const f of [
       'initial-physical-stock-count-source-sql.ts',
       'manufacturing-initial-physical-stock-count-source-sql.ts',

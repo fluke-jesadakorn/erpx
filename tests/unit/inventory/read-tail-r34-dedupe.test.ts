@@ -86,7 +86,7 @@ describe('Inventory read-tail r34 parameterized clock-scoped purchase dedupe', (
       'service-initial-physical-stock-count-source-sql.ts',
     ]) expect(src(f).length).toBeGreaterThan(0);
     // The count-record-purchases count source is deliberately not folded in.
-    expect(src('count-record-purchases.ts')).toContain('WITH count_source_clock AS MATERIALIZED');
+    expect(src('count-record-purchases.ts')).toContain("clockCteSql('count_source_clock')");
     expect(src('inventory-read-projections.ts')).toContain(
       'export const inventoryCountStatusSql = "SELECT status FROM inventory_counts WHERE id=? AND company_id=?"',
     );
