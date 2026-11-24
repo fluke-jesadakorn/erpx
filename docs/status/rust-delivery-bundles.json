@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12459,
+    "revision": 12461,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -183203,7 +183203,7 @@
         "owner": "organization",
         "title": "organization TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -183214,28 +183214,36 @@
         "resources": [
           "owner:organization"
         ],
-        "claim": {
-          "runId": "run-20261124-d",
-          "agentId": "wH4n91",
-          "claimedAt": "2026-11-24T16:09:12.268Z",
-          "heartbeatAt": "2026-11-24T16:11:53.559Z",
-          "expiresAt": "2026-11-24T16:41:53.559Z",
-          "generation": 170
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-organization/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "acb4e299c",
+            "owner": "organization",
+            "before": 234,
+            "after": 230,
+            "note": "nodeExistsGuard tail (-2) and activePositionLookup projection/tail (-2); all six sites byte-identical. Version guards/locks/native/spaced joins untouched."
+          },
+          {
+            "command": "vitest organization (111 targeted; 257 owner) + scoped tsc + 22/22 byte verifier",
+            "result": "passed",
+            "sourceSha": "acb4e299c"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Node existence branch guard (-2), active position lookup (-2): 234->230. BEFORE=234.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
           "runId": "run-20261124-d",
-          "agentId": "lead-opencode",
-          "at": "2026-11-24T16:09:12.141Z",
+          "agentId": "wH4n91",
+          "at": "2026-11-24T16:21:33.023Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
-          "nextAction": "Node existence branch guard (-2), active position lookup (-2): 234->230. BEFORE=234."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -184204,17 +184212,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 12,
+        "in_progress": 11,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1444,
+        "blocked": 1445,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 170,
-    "updatedAt": "2026-11-24T16:20:46.112Z",
+    "updatedAt": "2026-11-24T16:21:33.026Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
