@@ -9,6 +9,7 @@ import { purchasedCapability, type CompanyPackageGrant, type CompanyPackageHisto
 import { readCompanyPurchaseFacts } from "@erpx/server-commercial/adapters/package-grants";
 import { packageWriterFence } from "@erpx/server-commercial/adapters/package-locks";
 import { packageClockSql, purchasedCapabilityPredicate } from "@erpx/server-commercial/adapters/purchased-capability-sql";
+import { purchaseObservationAgg } from "./commercial-read-tail-r6-sources";
 import type { PackageEnforcementMode } from "@erpx/server-commercial/adapters/development-package-enforcement";
 
 type Scope = { companyId: string; capability: string; purpose: CapabilityPurpose };
@@ -88,7 +89,7 @@ export function purchaseCommandBoundary(database: SqlDatabase, mode: PackageEnfo
   const before = [...companyPurchaseReadLocks(database, input.companyId),
     ...(mode === "enforced" ? [guard("before")] : [])];
   const after = mode === "enforced" ? [guard("after")] : [database.prepare(clock + `SELECT true commercial_purchase_observation,purchase_scope.company_id,?::text capability,?::text purpose,${predicate} allowed,purchase_scope.now observed_at,
-    COALESCE((SELECT jsonb_agg(jsonb_build_object('companyId',g.company_id,'packageId',g.package_id,'packageVersion',g.package_version,'state',g.state,'startsAt',g.starts_at,'endsAt',g.ends_at,'version',g.version)) FROM company_package_grants g WHERE g.company_id=purchase_scope.company_id),'[]'::jsonb) grants,
+    ${purchaseObservationAgg("purchase_scope.company_id", "company_package_grants", "g", "'companyId',g.company_id,'packageId',g.package_id,'packageVersion',g.package_version,'state',g.state,'startsAt',g.starts_at,'endsAt',g.ends_at,'version',g.version")} grants,
     ${historyObservationSql("purchase_scope.company_id")} history FROM purchase_scope`)
     .bind(input.companyId, input.capability, input.purpose)];
   return { before, after, observe: mode === "shadow" ? observePurchaseResults : undefined };
@@ -129,7 +130,7 @@ export function holdingPurchaseReadLocks(database: SqlDatabase) {
  * projection contract; this module keeps only the live caller-transaction
  * observation path used by shadow-mode owners until their route cutover. */
 function historyObservationSql(company: string) {
-  return `COALESCE((SELECT jsonb_agg(jsonb_build_object('companyId',h.company_id,'packageId',h.package_id,'packageVersion',h.package_version,'sourceGrantVersion',h.source_grant_version,'sourceEventId',h.source_event_id,'retainedAt',h.retained_at)) FROM company_package_history_rights h WHERE h.company_id=${company}),'[]'::jsonb)`;
+  return purchaseObservationAgg(company, "company_package_history_rights", "h", "'companyId',h.company_id,'packageId',h.package_id,'packageVersion',h.package_version,'sourceGrantVersion',h.source_grant_version,'sourceEventId',h.source_event_id,'retainedAt',h.retained_at");
 }
 
 export function purchaseCommandFailure(error: unknown) {

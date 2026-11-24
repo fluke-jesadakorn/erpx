@@ -1,5 +1,6 @@
 import {commercialSeatProjectionAccounts} from '@erpx/server-identity_access/public/commercial-seat-facts';
 import {coverageProbe} from './commercial-read-tail-r4-sources';
+import {snapshotByMonthSql} from './commercial-read-tail-r6-sources';
 
 import { nativeCommercialOwnerWrite, NativeCommercialOwnerWriteError } from "@erpx/server-commercial/adapters/native-owner-write";
 async function ownerWrite(kind: any, values: readonly unknown[], recordId: string, key: string) {
@@ -42,9 +43,8 @@ function transaction(tx:SqlDatabase):UsageProjectionTransaction{return {
      activeSeat?.asOf??null,binding.id,month], binding.id, `usage:${snapshotId}:finish`);},
 };}
 function repository(control:SqlDatabase):UsageProjectionRepository{return {async projectionFacts(month,currentMonth){const [snapshots, sourceRows, currentSnapshots] = await Promise.all([
-    control.prepare(`SELECT holding_id,ai_coverage,storage_coverage,seat_coverage,seat_source_count,unreconciled_originals,
-      active_seat_count,active_seat_observed_at
-      FROM billing_usage_snapshots WHERE month=?`)
+    control.prepare(snapshotByMonthSql(`holding_id,ai_coverage,storage_coverage,seat_coverage,seat_source_count,unreconciled_originals,
+      active_seat_count,active_seat_observed_at`))
       .bind(month).all<SnapshotHeader>(),
     control.prepare(`SELECT holding_id,month,source_key,company_id,company_name,branch_id,branch_name,
       meter_kind,funding_source,pricing_status,quantity,input_tokens,output_tokens,
@@ -53,8 +53,7 @@ function repository(control:SqlDatabase):UsageProjectionRepository{return {async
       cost_reconciled_at,active_from,active_until,byte_milliseconds::text byte_milliseconds
       FROM billing_usage_meters WHERE month=?`)
       .bind(month).all<MeterRow>(),
-    control.prepare(`SELECT holding_id,active_seat_count,active_seat_observed_at
-      FROM billing_usage_snapshots WHERE month=?`)
+    control.prepare(snapshotByMonthSql("holding_id,active_seat_count,active_seat_observed_at"))
       .bind(currentMonth).all<Pick<SnapshotHeader,"holding_id"|"active_seat_count"|"active_seat_observed_at">>(),
   ]);
   return {snapshots:snapshots.results,sourceRows:sourceRows.results,currentSnapshots:currentSnapshots.results};},seatSummary:(holdingId,month)=>readControlSeatSummary(control,holdingId,month),async history(binding){const source = (await holdingResources(binding.id)).write;
