@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10689,
+    "revision": 10692,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -148019,7 +148019,7 @@
         "owner": "operations",
         "title": "operations TS read tail native cutover (round 38)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -148031,28 +148031,36 @@
         "resources": [
           "owner:operations"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCEope2",
-          "claimedAt": "2026-11-24T07:54:19.033Z",
-          "heartbeatAt": "2026-11-24T08:34:53.537Z",
-          "expiresAt": "2026-11-24T09:04:53.537Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-operations/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "1444bbcbe",
+            "owner": "operations",
+            "before": 125,
+            "after": 117,
+            "note": "Actor scope variants, active staff level reads and owner version EXISTS guards share three helpers; handover delegation kept inline; LOCK TABLE and r29-r37 untouched."
+          },
+          {
+            "command": "vitest operations unit (101) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "1444bbcbe"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: remaining parameterized families; r29-r37 helpers fixed. BEFORE=125.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-n",
+          "runId": "run-20261124-a",
           "agentId": "wGCEope2",
-          "at": "2026-11-24T07:53:21.211Z",
+          "at": "2026-11-24T08:35:52.386Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during long worker integration; WIP reviewed by lead; all live claims re-claimed with the same agents under a new generation",
-          "nextAction": "Next: remaining parameterized families; r29-r37 helpers fixed. BEFORE=125."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -164147,7 +164155,7 @@
         "owner": "operations",
         "title": "operations read tail families (round 39)",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -164159,7 +164167,14 @@
         "resources": [
           "owner:operations"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCEope3",
+          "claimedAt": "2026-11-24T08:35:52.538Z",
+          "heartbeatAt": "2026-11-24T08:35:52.538Z",
+          "expiresAt": "2026-11-24T09:05:52.538Z",
+          "generation": 167
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -165623,18 +165638,18 @@
       "totalPackets": 1440,
       "migratedPackets": 330,
       "statusCounts": {
-        "pending": 19,
+        "pending": 18,
         "in_progress": 19,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1070,
+        "blocked": 1071,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T08:35:38.709Z",
+    "updatedAt": "2026-11-24T08:35:52.543Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
