@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7895,
+    "revision": 7899,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -128127,7 +128127,7 @@
         "owner": "crm",
         "title": "crm TS read tail native cutover (round 4)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -128139,22 +128139,42 @@
         "resources": [
           "owner:crm"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wF15crm",
-          "claimedAt": "2026-11-24T00:23:18.150Z",
-          "heartbeatAt": "2026-11-24T01:16:16.832Z",
-          "expiresAt": "2026-11-24T01:46:16.832Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-crm/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "6a180eac3",
+            "owner": "crm",
+            "before": 193,
+            "after": 191,
+            "note": "final-root crm_leads uses commercial source; identities/leads share activeCustomerPartiesSql."
+          },
+          {
+            "command": "cargo check -p erpx-server-crm + non-DB targets",
+            "result": "passed",
+            "sourceSha": "6a180eac3"
+          },
+          {
+            "command": "vitest crm units (52) + tsc crm",
+            "result": "passed",
+            "sourceSha": "6a180eac3"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: crm_case_events marketing-handoff snapshot read in purchases.ts (may need native CRM command-plan config) or another owner-local fixed-SQL dedupe; record a strictly lower spaced count (BEFORE=193).",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wF15crm",
+          "at": "2026-11-24T01:22:14.734Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -133212,6 +133232,42 @@
         "nextAction": "Next: scan for another safe owner-local duplicate image; otherwise report blocked pending native port. BEFORE=46.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.crm.read-tail-r5",
+        "goalId": "G4",
+        "owner": "crm",
+        "title": "crm TS read tail native cutover (round 5)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-crm/src/**",
+          "tests/unit/crm/**",
+          "tests/integration/crm/**"
+        ],
+        "resources": [
+          "owner:crm"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG86crm",
+          "claimedAt": "2026-11-24T01:22:15.046Z",
+          "heartbeatAt": "2026-11-24T01:22:15.046Z",
+          "expiresAt": "2026-11-24T01:52:15.046Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: another owner-local byte-identical dedupe; skip crm_case_events (native config would 503). BEFORE=191.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -133220,7 +133276,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 804,
+      "totalPackets": 805,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
@@ -133228,13 +133284,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 429,
+        "blocked": 430,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:21:40.147Z",
+    "updatedAt": "2026-11-24T01:22:15.052Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
