@@ -202,4 +202,16 @@ describe('Organization owner-local read tail', () => {
     for (const key of keys) expect(p[key]).toBe(expected);
   });
 
+  it('shares one canonical alias=organization_nodes projection across the collaboration notification snapshot source map', async () => {
+    const {collaborationNotificationSnapshotSources} = await import('../../../packages/server-organization/src/adapters/collaboration-notification-snapshot-sources');
+    const p = collaborationNotificationSnapshotSources();
+    const keys = [
+      'organization_channels_organization_nodes_from',
+      'organization_node_channels_organization_nodes_from',
+      'people_roster_facts_organization_nodes_from',
+    ] as const;
+    const expected = 'FROM (SELECT "id", "kind", "slug", "display_name", "parent_id", "company_id", "branch_id", "status", "hierarchy_revision" FROM organization_nodes) organization_nodes';
+    for (const key of keys) expect(p[key]).toBe(expected);
+  });
+
 });
