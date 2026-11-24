@@ -66,6 +66,8 @@ pub const RECORD_RATING_RUN: &str = "record_rating_run";
 pub const RETAIN_RATED_PERIOD: &str = "retain_rated_period";
 pub const APPROVED_RATED_PERIOD: &str = "approved_rated_period";
 pub const ACTIVE_TARGET_ENROLLMENT: &str = "active_target_enrollment";
+pub const SELECTED_TARGET_PRICE: &str = "selected_target_price";
+pub const CURRENT_TARGET_PRICE: &str = "current_target_price";
 pub const RECORD_SCHEDULED_CHANGE: &str = "record_scheduled_change";
 pub const END_ENROLLMENT: &str = "end_enrollment";
 pub const ACTIVATE_PENDING_PLAN: &str = "activate_pending_plan";
@@ -158,6 +160,8 @@ pub const OWNER_WRITE_KINDS: &[&str] = &[
     RETAIN_RATED_PERIOD,
     APPROVED_RATED_PERIOD,
     ACTIVE_TARGET_ENROLLMENT,
+    SELECTED_TARGET_PRICE,
+    CURRENT_TARGET_PRICE,
     RECORD_SCHEDULED_CHANGE,
     END_ENROLLMENT,
     ACTIVATE_PENDING_PLAN,

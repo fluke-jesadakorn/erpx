@@ -7,7 +7,7 @@ import type {PostgresDatabase} from '@erpx/server-runtime/public/runtime/postgre
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {billingHoldingFacts} from '@erpx/server-runtime/public/billing-holding-facts';
 import {createBillingService,type BillingRepository} from '@erpx/server-billing/application/billing';
-import type {BillingActor,BillingInput,BillingReceipt,BillingAccount,BillingEnrollment,BillingPeriod,BillingPlan,BillingInvoiceRow,BillingJobRow,BillingPriceRow,BillingMeterRow,BillingViewFacts} from '@erpx/server-billing/domain/billing';
+import type {BillingActor,BillingInput,BillingReceipt,BillingAccount,BillingEnrollment,BillingPeriod,BillingPlan,BillingInvoiceRow,BillingJobRow,BillingMeterRow,BillingViewFacts} from '@erpx/server-billing/domain/billing';
 import type {BillingStripe} from '@erpx/server-billing/domain/stripe';
 import {calculateTargetBillingPeriod} from '@erpx/server-billing/adapters/billing-target';
 import {calculateTargetRolloutReadiness} from '@erpx/server-billing/adapters/billing-target-rollout';
@@ -44,8 +44,8 @@ setPaymentMode:(value0,value1)=>nativeBillingOwnerQuery(c, 'set_payment_mode', [
 lockPlanRevision:()=>c.query<Record<string,unknown>>("SELECT pg_advisory_xact_lock(hashtextextended('billing-plans',0))",[]),
 latestPlanRevision:(value0)=>c.query<BillingPlan>("SELECT * FROM billing_plans WHERE id=$1 ORDER BY revision DESC LIMIT 1",[value0]),
 insertPlanRevision:(value0,value1,value2,value3,value4,value5)=>nativeBillingOwnerQuery(c, 'insert_plan_revision', [value0,value1,value2,value3,value4,value5]),
-selectedTargetPrice:(value0,value1)=>c.query<BillingPriceRow>("SELECT * FROM billing_target_prices WHERE id=$1 AND effective_month<=$2",[value0,value1]),
-currentTargetPrice:(value0)=>c.query<BillingPriceRow>("SELECT * FROM billing_target_prices WHERE effective_month<=$1 ORDER BY effective_month DESC,id DESC LIMIT 1",[value0]),
+selectedTargetPrice:(value0,value1)=>nativeBillingOwnerQuery(c, 'selected_target_price', [value0,value1]),
+currentTargetPrice:(value0)=>nativeBillingOwnerQuery(c, 'current_target_price', [value0]),
 sandboxHolding:(value0)=>c.query<Record<string,unknown>>("SELECT 1 FROM billing_target_sandbox_holdings WHERE holding_id=$1",[value0]),
 approvedRollout:(value0,value1)=>c.query<Record<string,unknown>>("SELECT 1 FROM billing_target_rollout_approvals WHERE holding_id=$1 AND effective_month<=$2",[value0,value1]),
 assignTargetPrice:(value0,value1,value2,value3,value4,value5,value6,value7)=>nativeBillingOwnerQuery(c, 'assign_target_price', [value0,value1,value2,value3,value4,value5,value6,value7]),

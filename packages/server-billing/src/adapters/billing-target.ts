@@ -25,7 +25,7 @@ measuredSeatIntervals:async(value0,value1)=>c.query<D.MeasuredSeatIntervalsRow>(
      WHERE holding_id=$1 AND month=$2`,[value0,value1]),
 assignment:(value0,value1)=>c.query<D.AssignedOfferingRow>(`SELECT * FROM billing_target_assignments WHERE holding_id=$1
      AND effective_month<=$2 ORDER BY effective_month DESC LIMIT 1`,[value0,value1]),
-assignedPrice:(value0,value1)=>c.query<D.AssignedPriceRow>("SELECT * FROM billing_target_prices WHERE id=$1 AND effective_month<=$2",[value0,value1]),
+assignedPrice:(value0,value1)=>nativeBillingOwnerQuery(c,'selected_target_price',[value0,value1]) as Promise<{rows:D.AssignedPriceRow[];rowCount:number|null}>,
 approvedRating:(value0,value1)=>c.query<D.ApprovedRatingRow>("SELECT * FROM billing_target_rated_periods WHERE holding_id=$1 AND month=$2 AND state='approved'",[value0,value1]),
 approvedInvoice:(value0)=>c.query<D.ApprovedInvoiceRow>("SELECT id,total_satang,status,stripe_id FROM billing_invoices WHERE id=$1",[value0]),
 approvedStatements:async(value0,value1)=>(await nativeBillingOwnerQuery(c,'target_statements',[value0,value1])) as {rows:D.ApprovedStatementsRow[];rowCount:number|null},

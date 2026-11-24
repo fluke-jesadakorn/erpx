@@ -61,6 +61,8 @@ fn sql(kind: &str) -> Option<&'static str> {
         TARGET_ROLLOUT_RATED_SHADOW_PERIOD => r####"SELECT state,mode,total_satang,price_id,meter_snapshot_id,lines_json FROM billing_target_rated_periods WHERE holding_id=$1 AND month=$2"####,
         APPROVED_RATED_PERIOD => r####"SELECT 1 FROM billing_target_rated_periods WHERE holding_id=$1 AND month=$2 AND state='approved'"####,
         ACTIVE_TARGET_ENROLLMENT => r####"SELECT * FROM billing_enrollments WHERE holding_id=$1 AND plan_id='platform_usage' AND ended_at IS NULL"####,
+        SELECTED_TARGET_PRICE => r####"SELECT * FROM billing_target_prices WHERE id=$1 AND effective_month<=$2"####,
+        CURRENT_TARGET_PRICE => r####"SELECT * FROM billing_target_prices WHERE effective_month<=$1 ORDER BY effective_month DESC,id DESC LIMIT 1"####,
         TARGET_ROLLOUT_AVAILABLE_OPERATING_COSTS => r####"SELECT o.category,o.amount_satang,e.source_state
        FROM billing_target_operating_costs o
        JOIN billing_evidence e ON e.id=o.evidence_id
@@ -454,6 +456,47 @@ mod tests {
             })
             .is_err());
         }
+    }
+    #[test]
+    fn selected_and_current_target_price_reads_are_owner_authored_and_fully_bound() {
+        let holding = HoldingId::new("h001").unwrap();
+        for (kind, sql, values, wrong) in [
+            (
+                SELECTED_TARGET_PRICE,
+                "SELECT * FROM billing_target_prices WHERE id=$1 AND effective_month<=$2",
+                vec![serde_json::json!("price-1"), serde_json::json!("2027-02")],
+                vec![serde_json::json!("price-1")],
+            ),
+            (
+                CURRENT_TARGET_PRICE,
+                "SELECT * FROM billing_target_prices WHERE effective_month<=$1 ORDER BY effective_month DESC,id DESC LIMIT 1",
+                vec![serde_json::json!("2027-02")],
+                vec![serde_json::json!("2027-02"), serde_json::json!("price-1")],
+            ),
+        ] {
+            let statement = billing_owner_statement(&holding, &BillingOwnerWriteInput {
+                kind: kind.into(),
+                values: values.clone(),
+                now: 1,
+            })
+            .unwrap_or_else(|_| panic!("{kind} is an allow-listed owner read kind"));
+            assert_eq!(statement.sql, sql);
+            assert_eq!(statement.values, values);
+            // A missing or widened bind cannot broaden an owner-local price read.
+            assert!(billing_owner_statement(&holding, &BillingOwnerWriteInput {
+                kind: kind.into(),
+                values: vec![],
+                now: 1,
+            })
+            .is_err());
+            assert!(billing_owner_statement(&holding, &BillingOwnerWriteInput {
+                kind: kind.into(),
+                values: wrong,
+                now: 1,
+            })
+            .is_err());
+        }
+        assert_ne!(SELECTED_TARGET_PRICE, CURRENT_TARGET_PRICE);
     }
     #[test]
     fn target_rollout_operating_and_capacity_reads_are_owner_authored_and_fully_bound() {

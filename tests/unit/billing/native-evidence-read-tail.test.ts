@@ -21,6 +21,7 @@ const { billingLink, applyLegacyStripeEvent } = await import('@erpx/server-billi
 const { nativeSeatForecastRepository } = await import('@erpx/server-billing/adapters/billing-forecast');
 const { nativeTargetRolloutRepository } = await import('@erpx/server-billing/adapters/billing-target-rollout');
 const { nativeTargetBillingRepository } = await import('@erpx/server-billing/adapters/billing-target');
+const { nativeBillingRepository } = await import('@erpx/server-billing/adapters/billing');
 
 function env() {
   const query = vi.fn(async () => ({ rows: [] }));
@@ -175,6 +176,28 @@ describe('Billing target-rollout owner-local price read tail', () => {
 
     expect(ownerQuery).not.toHaveBeenCalled();
     expect(query).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Billing selected/assigned target price read tail', () => {
+  it('reads selected, current and assigned prices by typed owner kinds with no local SQL', async () => {
+    ownerQuery.mockReset();
+    const query = vi.fn(async () => ({ rows: [], rowCount: 0 }));
+    const repository = nativeBillingRepository({ query } as never);
+
+    await repository.selectedTargetPrice('price-1', '2027-02');
+    expect(ownerQuery).toHaveBeenCalledWith(expect.anything(), 'selected_target_price', ['price-1', '2027-02']);
+    await repository.currentTargetPrice('2027-02');
+    expect(ownerQuery).toHaveBeenCalledWith(expect.anything(), 'current_target_price', ['2027-02']);
+
+    const targetRepository = nativeTargetBillingRepository({ query } as never);
+    await targetRepository.assignedPrice('price-1', '2027-02');
+    expect(ownerQuery).toHaveBeenCalledWith(expect.anything(), 'selected_target_price', ['price-1', '2027-02']);
+
+    // The identical assigned-price read shares one owner kind with the
+    // selected-price read; no TypeScript SELECT is left for the family.
+    expect(ownerQuery).toHaveBeenCalledTimes(3);
+    expect(query).not.toHaveBeenCalled();
   });
 });
 
