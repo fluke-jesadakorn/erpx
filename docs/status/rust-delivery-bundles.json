@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12597,
+    "revision": 12600,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -185023,17 +185023,32 @@
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-commerce/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "8553353c3",
+            "owner": "commerce",
+            "before": 454,
+            "after": 448,
+            "note": "Six product-config kinds added (registry 9->15); callers delegate, tabbed authority retained where present. Locks/guards untouched."
+          },
+          {
+            "command": "vitest commerce r19 (18) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "8553353c3"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
-        "nextAction": "Product config native read kinds (6 plans) via native_commerce_read_sql registry: 454->448. BEFORE=454.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261125-a",
-          "agentId": "wH4n114",
-          "at": "2026-11-24T19:56:46.702Z",
+          "runId": "run-20261125-b",
+          "agentId": "lead-opencode",
+          "at": "2026-11-24T19:58:59.522Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
-          "nextAction": "Product config native read kinds (6 plans) via native_commerce_read_sql registry: 454->448. BEFORE=454."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -185818,7 +185833,7 @@
       }
     },
     "lastCoordinatorGeneration": 172,
-    "updatedAt": "2026-11-24T19:56:46.891Z",
+    "updatedAt": "2026-11-24T19:58:59.524Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
