@@ -1,7 +1,37 @@
 import {productionReadProjection as productionmanufacturingProjection} from '@erpx/server-manufacturing/public/production-read-projections';
 import {productionReadProjection as productioncommerceProjection} from '@erpx/server-commerce/public/production-read-projections';
 import {productionReadProjection as productionorganizationProjection} from '@erpx/server-organization/public/production-read-projections';
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {Row} from '@erpx/server-commerce/public/commerce';import {assertion} from "@erpx/server-workflow/public/command-assertions";export function productionCommandSources(db:SqlDatabase){return {async scenarios(companyId:string,branchId:string | null,branchId2:string | null){return db
+import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {Row} from '@erpx/server-commerce/public/commerce';import {assertion} from "@erpx/server-workflow/public/command-assertions";
+
+const sourceJoins = `
+    ${productionmanufacturingProjection.executiveSpecification}
+    ${productioncommerceProjection.executiveOutput}
+    ${productioncommerceProjection.executiveWarehouse}
+    ${productionorganizationProjection.executiveBranch}
+    LEFT JOIN planning_recommendations r ON r.scenario_id=s.id`;
+const shortageProjection = `
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(jsonb_agg(jsonb_build_object(
+        'product_name',COALESCE(p.name,'Unknown product'),
+        'required_milli',(entry.value->>'requiredMilli')::numeric::text,
+        'available_milli',(entry.value->>'availableMilli')::numeric::text,
+        'shortage_milli',(entry.value->>'shortageMilli')::numeric::text
+      ) ORDER BY COALESCE(p.name,entry.value->>'productId')) FILTER (WHERE (entry.value->>'shortageMilli')::numeric>0),'[]'::jsonb)::text shortage_items_json,
+      count(*) FILTER (WHERE (entry.value->>'shortageMilli')::numeric>0)::text shortage_count
+      FROM jsonb_array_elements(COALESCE(s.shortages_json::jsonb,'[]'::jsonb)) AS entry(value)
+      ${productioncommerceProjection.executiveShortageProduct}
+    ) shortage ON TRUE`;
+const projection = `SELECT s.id scenario_id,s.company_id,s.branch_id,branch.display_name branch_name,
+      s.warehouse_id,w.name warehouse_name,s.specification_id,spec.name specification_name,
+      spec.output_product_id,output.name output_product_name,s.specification_version,
+      s.demand_quantity_milli::text demand_quantity_milli,s.due_date,s.capacity_minutes::text capacity_minutes,
+      s.status scenario_status,s.version scenario_version,s.created_at scenario_created_at,s.updated_at scenario_updated_at,
+      r.id recommendation_id,r.status recommendation_status,r.recommended_quantity_milli::text recommended_quantity_milli,
+      r.required_minutes::text required_minutes,r.feasible_date,r.version recommendation_version,
+      r.scenario_version,r.created_at recommendation_created_at,r.updated_at recommendation_updated_at,
+      COALESCE(shortage.shortage_count,'0') shortage_count,COALESCE(shortage.shortage_items_json,'[]') shortage_items_json
+    FROM planning_scenarios s ${sourceJoins} ${shortageProjection}`;
+export function productionCommandSources(db:SqlDatabase){return {async scenarios(companyId:string,branchId:string | null,branchId2:string | null){return db
           .prepare(
             `SELECT p.*,s.name specification_name FROM planning_scenarios p ${productionmanufacturingProjection.scenarioSpecification} WHERE p.company_id=? AND (?::text IS NULL OR p.branch_id=?) ORDER BY p.updated_at DESC`,
           )
@@ -19,66 +49,12 @@ async calendar(companyId:string,branchId:string | null,branchId2:string | null){
           WHERE r.company_id=? AND (?::text IS NULL OR r.branch_id=?) ORDER BY c.work_date DESC LIMIT 500`)
           .bind(companyId, branchId, branchId2).all<Row>();},
 async executiveShortage(recordId:string,companyId:string,branchId:string | null,branchId2:string | null,from:string,to:string){const branchScope = "(?::text IS NULL OR s.branch_id=?)";
-const sourceJoins = `
-    ${productionmanufacturingProjection.executiveSpecification}
-    ${productioncommerceProjection.executiveOutput}
-    ${productioncommerceProjection.executiveWarehouse}
-    ${productionorganizationProjection.executiveBranch}
-    LEFT JOIN planning_recommendations r ON r.scenario_id=s.id`;
-const shortageProjection = `
-    LEFT JOIN LATERAL (
-      SELECT COALESCE(jsonb_agg(jsonb_build_object(
-        'product_name',COALESCE(p.name,'Unknown product'),
-        'required_milli',(entry.value->>'requiredMilli')::numeric::text,
-        'available_milli',(entry.value->>'availableMilli')::numeric::text,
-        'shortage_milli',(entry.value->>'shortageMilli')::numeric::text
-      ) ORDER BY COALESCE(p.name,entry.value->>'productId')) FILTER (WHERE (entry.value->>'shortageMilli')::numeric>0),'[]'::jsonb)::text shortage_items_json,
-      count(*) FILTER (WHERE (entry.value->>'shortageMilli')::numeric>0)::text shortage_count
-      FROM jsonb_array_elements(COALESCE(s.shortages_json::jsonb,'[]'::jsonb)) AS entry(value)
-      ${productioncommerceProjection.executiveShortageProduct}
-    ) shortage ON TRUE`;
-const projection = `SELECT s.id scenario_id,s.company_id,s.branch_id,branch.display_name branch_name,
-      s.warehouse_id,w.name warehouse_name,s.specification_id,spec.name specification_name,
-      spec.output_product_id,output.name output_product_name,s.specification_version,
-      s.demand_quantity_milli::text demand_quantity_milli,s.due_date,s.capacity_minutes::text capacity_minutes,
-      s.status scenario_status,s.version scenario_version,s.created_at scenario_created_at,s.updated_at scenario_updated_at,
-      r.id recommendation_id,r.status recommendation_status,r.recommended_quantity_milli::text recommended_quantity_milli,
-      r.required_minutes::text required_minutes,r.feasible_date,r.version recommendation_version,
-      r.scenario_version,r.created_at recommendation_created_at,r.updated_at recommendation_updated_at,
-      COALESCE(shortage.shortage_count,'0') shortage_count,COALESCE(shortage.shortage_items_json,'[]') shortage_items_json
-    FROM planning_scenarios s ${sourceJoins} ${shortageProjection}`;return db.prepare(`${projection}
+return db.prepare(`${projection}
       WHERE s.id=? AND s.company_id=? AND ${branchScope} AND s.due_date BETWEEN ? AND ?
         AND jsonb_path_exists(COALESCE(s.shortages_json::jsonb,'[]'::jsonb),'$[*] ? (@.shortageMilli > 0)') LIMIT 1`)
       .bind(recordId,companyId,branchId,branchId2,from,to).first<Row>();},
 async executiveRecommendation(recordId:string,companyId:string,branchId:string | null,branchId2:string | null,from:string,to:string,eligibilityKind:"proposed"|"capacity"){const branchScope = "(?::text IS NULL OR s.branch_id=?)";
-const sourceJoins = `
-    ${productionmanufacturingProjection.executiveSpecification}
-    ${productioncommerceProjection.executiveOutput}
-    ${productioncommerceProjection.executiveWarehouse}
-    ${productionorganizationProjection.executiveBranch}
-    LEFT JOIN planning_recommendations r ON r.scenario_id=s.id`;
-const shortageProjection = `
-    LEFT JOIN LATERAL (
-      SELECT COALESCE(jsonb_agg(jsonb_build_object(
-        'product_name',COALESCE(p.name,'Unknown product'),
-        'required_milli',(entry.value->>'requiredMilli')::numeric::text,
-        'available_milli',(entry.value->>'availableMilli')::numeric::text,
-        'shortage_milli',(entry.value->>'shortageMilli')::numeric::text
-      ) ORDER BY COALESCE(p.name,entry.value->>'productId')) FILTER (WHERE (entry.value->>'shortageMilli')::numeric>0),'[]'::jsonb)::text shortage_items_json,
-      count(*) FILTER (WHERE (entry.value->>'shortageMilli')::numeric>0)::text shortage_count
-      FROM jsonb_array_elements(COALESCE(s.shortages_json::jsonb,'[]'::jsonb)) AS entry(value)
-      ${productioncommerceProjection.executiveShortageProduct}
-    ) shortage ON TRUE`;
-const projection = `SELECT s.id scenario_id,s.company_id,s.branch_id,branch.display_name branch_name,
-      s.warehouse_id,w.name warehouse_name,s.specification_id,spec.name specification_name,
-      spec.output_product_id,output.name output_product_name,s.specification_version,
-      s.demand_quantity_milli::text demand_quantity_milli,s.due_date,s.capacity_minutes::text capacity_minutes,
-      s.status scenario_status,s.version scenario_version,s.created_at scenario_created_at,s.updated_at scenario_updated_at,
-      r.id recommendation_id,r.status recommendation_status,r.recommended_quantity_milli::text recommended_quantity_milli,
-      r.required_minutes::text required_minutes,r.feasible_date,r.version recommendation_version,
-      r.scenario_version,r.created_at recommendation_created_at,r.updated_at recommendation_updated_at,
-      COALESCE(shortage.shortage_count,'0') shortage_count,COALESCE(shortage.shortage_items_json,'[]') shortage_items_json
-    FROM planning_scenarios s ${sourceJoins} ${shortageProjection}`;const eligibility=eligibilityKind==='proposed'?"r.status='proposed'":"r.status IN ('proposed','approved') AND r.required_minutes<=s.capacity_minutes";return db.prepare(`${projection}
+const eligibility=eligibilityKind==='proposed'?"r.status='proposed'":"r.status IN ('proposed','approved') AND r.required_minutes<=s.capacity_minutes";return db.prepare(`${projection}
     WHERE r.id=? AND s.company_id=? AND ${branchScope} AND r.feasible_date BETWEEN ? AND ? AND ${eligibility} LIMIT 1`)
     .bind(recordId,companyId,branchId,branchId2,from,to).first<Row>();},
 guardRoutingResource(key:string,value:string,resourceId:string,companyId:string,branchId:string | null,branchId2:string | null){return assertion(db, key, value, "EXISTS(SELECT 1 FROM production_resources WHERE id=? AND company_id=? AND status='active' AND (?::text IS NULL OR branch_id=?))", [resourceId, companyId, branchId, branchId2]);},
