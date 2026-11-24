@@ -117125,6 +117125,33 @@
       "lane": "unit",
       "owner": "work_projection",
       "modules": [
+        "work_projection"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Work projection derived scope row must stay one helper."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-work_projection"
+      ],
+      "id": "work_projection.read-tail-r30-dedupe.unit",
+      "files": [
+        "tests/unit/work_projection/read-tail-r30-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "work_projection",
+      "modules": [
         "operations"
       ],
       "fixture": "none",
