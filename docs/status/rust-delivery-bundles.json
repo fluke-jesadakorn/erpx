@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11955,
+    "revision": 11958,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261124-c",
       "agentId": "lead-opencode",
       "startedAt": "2026-11-24T11:32:49.939Z",
-      "heartbeatAt": "2026-11-24T12:37:13.270Z",
-      "expiresAt": "2026-11-24T13:07:13.270Z",
+      "heartbeatAt": "2026-11-24T12:46:28.613Z",
+      "expiresAt": "2026-11-24T13:16:28.613Z",
       "generation": 169,
       "tokenHash": "eac3f45906eed752625f2bb4dc251a340a6a580a6b89a15f666d16287f0d616e"
     },
@@ -178270,7 +178270,7 @@
         "owner": "legal",
         "title": "legal TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -178282,22 +178282,37 @@
         "resources": [
           "owner:legal"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4g04",
-          "claimedAt": "2026-11-24T12:28:08.949Z",
-          "heartbeatAt": "2026-11-24T12:37:13.270Z",
-          "expiresAt": "2026-11-24T13:07:13.270Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-legal/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "35bdb21fa",
+            "owner": "legal",
+            "before": 192,
+            "after": 188,
+            "note": "Share document image and clean document guard delegate to r41/r32 heads; advisory locks/FOR UPDATE untouched."
+          },
+          {
+            "command": "vitest legal read-tail (152) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "35bdb21fa"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "share document head reuse (-2), clean document head (-2): 192->188. BEFORE=192.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4g04",
+          "at": "2026-11-24T12:53:56.773Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -178526,8 +178541,8 @@
           "runId": "run-20261124-c",
           "agentId": "wH4h03",
           "claimedAt": "2026-11-24T12:29:35.188Z",
-          "heartbeatAt": "2026-11-24T12:37:13.270Z",
-          "expiresAt": "2026-11-24T13:07:13.270Z",
+          "heartbeatAt": "2026-11-24T12:46:28.613Z",
+          "expiresAt": "2026-11-24T13:16:28.613Z",
           "generation": 169
         },
         "baseSha": null,
@@ -178551,17 +178566,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 2,
+        "in_progress": 1,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1338,
+        "blocked": 1339,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T12:46:16.330Z",
+    "updatedAt": "2026-11-24T12:53:56.777Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
