@@ -1,13 +1,11 @@
-import { finalRootOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/final-root-owner-projection-sources";
 import "server-only";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import type {PortalBindingRow} from "@erpx/server-files/public/contracts/attachments-portal";
 import {customerPortalPurchaseScope} from '@erpx/server-customer_authority/adapters/portal-read-purchases';
+import {portalBindingSource} from './portal-binding-source';
 export function portalAttachmentCustomerAuthorityFacts(db:SqlDatabase){return {
-readPortalBinding:async(facts:{external:boolean;values:Array<string|number>})=>db.prepare(`SELECT b.company_id,o.branch_id,o.department_id,b.version
-    FROM customer_access_bindings b
-    JOIN (${commerceProjectionSources.commerce_orders}) o ON o.id=b.order_id AND o.company_id=b.company_id AND o.party_id=b.customer_id
+readPortalBinding:async(facts:{external:boolean;values:Array<string|number>})=>db.prepare(`${portalBindingSource()}
     ${facts.external ? "JOIN customer_access_identities i ON i.binding_id=b.id AND i.user_id=? AND i.email=?" : ""}
     WHERE b.id=? AND b.company_id=? ${facts.external ? "AND b.status='approved' AND b.expires_at>?" : ""} AND ${await customerPortalPurchaseScope(db,'b')}
       AND o.kind IN ('sales','quote') ${facts.external ? "AND o.state IN ('confirmed','converted','partially_fulfilled','fulfilled')" : ""}`).bind(...(facts.external?facts.values:facts.values.slice(0,2))).first<PortalBindingRow>(),

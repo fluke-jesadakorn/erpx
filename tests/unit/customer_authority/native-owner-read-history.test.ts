@@ -308,3 +308,25 @@ describe('customer authority portal support responses source dedupe', () => {
     expect(consumer).not.toContain('SELECT * FROM customer_portal_support_responses');
   });
 });
+
+describe('customer authority portal/access binding source dedupe', () => {
+  const binding = () => new URL('../../../packages/server-customer_authority/src/adapters/portal-binding-source.ts', import.meta.url);
+  const access = () => new URL('../../../packages/server-customer_authority/src/adapters/portal-access.ts', import.meta.url);
+  const facts = () => new URL('../../../packages/server-customer_authority/src/adapters/attachments-portal-facts.ts', import.meta.url);
+
+  it('keeps one byte-identical binding core shared by access scope and attachment facts', async () => {
+    const src = await readFile(binding(), 'utf8');
+    const accessSrc = await readFile(access(), 'utf8');
+    const factsSrc = await readFile(facts(), 'utf8');
+    // Both readers previously carried the same projection/FROM/JOIN core;
+    // one caller-owned column-list parameter keeps each projection while the
+    // shared core drops a duplicate SELECT from the owner KPI.
+    expect(src).toContain("export const portalBindingSource = (columns = '') => `SELECT ${columns}b.company_id,o.branch_id,o.department_id,b.version");
+    expect(src).toContain('JOIN (${commerceProjectionSources.commerce_orders}) o ON o.id=b.order_id AND o.company_id=b.company_id AND o.party_id=b.customer_id');
+    expect(src.match(/SELECT/g)).toHaveLength(1);
+    expect(accessSrc).toContain("db.prepare(`${portalBindingSource('b.id,')}");
+    expect(accessSrc).not.toContain('SELECT b.id,b.company_id,o.branch_id,o.department_id,b.version');
+    expect(factsSrc).toContain('db.prepare(`${portalBindingSource()}');
+    expect(factsSrc).not.toContain('SELECT b.company_id,o.branch_id,o.department_id,b.version');
+  });
+});

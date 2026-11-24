@@ -4,6 +4,7 @@ import "server-only";
 import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
 import type { CustomerPortalSessionActor, CustomerPortalBindingScope, PortalBinding } from "@erpx/server-customer_360/public/portal-contract";
 import {customerPortalPurchaseScope} from '@erpx/server-customer_authority/adapters/portal-read-purchases';
+import {portalBindingSource} from './portal-binding-source';
 import {customerAuthorityWave3Statement} from './native-customer-authority-wave3';
 export async function projectCustomerPortalAccess(db: SqlDatabase, actor: {userId:string;email:string}, now:number, readId:string) {
   const purchase=await customerPortalPurchaseScope(db,'b');
@@ -20,9 +21,7 @@ export async function customerPortalIdentityExists(db:SqlDatabase, bindingId:str
 }
 export async function readCustomerPortalBindingScope(db:SqlDatabase,actor:Pick<CustomerPortalSessionActor,"userId"|"email">,bindingId:string,now:number) {
   const purchase=await customerPortalPurchaseScope(db,'b');
-  return db.prepare(`SELECT b.id,b.company_id,o.branch_id,o.department_id,b.version
-    FROM customer_access_bindings b
-    JOIN (${commerceProjectionSources.commerce_orders}) o ON o.id=b.order_id AND o.company_id=b.company_id AND o.party_id=b.customer_id
+  return db.prepare(`${portalBindingSource('b.id,')}
     JOIN customer_access_identities i ON i.binding_id=b.id AND i.user_id=? AND i.email=?
     WHERE b.id=? AND b.email=? AND b.status='approved' AND b.expires_at>? AND ${purchase}
       AND o.kind IN ('sales','quote') AND o.state IN ('confirmed','converted','partially_fulfilled','fulfilled')`).bind(actor.userId,actor.email.toLowerCase(),bindingId,actor.email.toLowerCase(),now).first<CustomerPortalBindingScope>();
