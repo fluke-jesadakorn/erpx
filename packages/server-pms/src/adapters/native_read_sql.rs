@@ -61,6 +61,10 @@ pub const PMS_RD_UNPOSTED_BOOKING_RECEIPTS: &str = "pms_rd_unposted_booking_rece
 /// ledger/receipt/outbox and no lock/refund path; the caller runs it on its
 /// already-open unit.
 pub const PMS_RD_UNPOSTED_COUNTER_RECEIPTS: &str = "pms_rd_unposted_counter_receipts";
+/// Native successor of the owner-local hospitality-setup property list read.
+/// Fixed SQL with two positional binds, no ledger/receipt/outbox and no
+/// lock/refund path; the caller runs it on its already-open unit.
+pub const PMS_RD_HOSPITALITY_SETUP_PROPERTIES: &str = "pms_rd_hospitality_setup_properties";
 const SQL_INVENTORY_COMMAND: &str = "SELECT id,kind,data_json,version,updated_at FROM pms_records \
 WHERE property_id=? AND kind IN ('room_type','room','rate','block','item','credit') \
 UNION ALL SELECT id,kind,data_json,version,updated_at FROM pms_records \
@@ -176,8 +180,16 @@ const READ_UNPOSTED_COUNTER_RECEIPTS: NativeReadStatement = NativeReadStatement 
     sql: SQL_UNPOSTED_COUNTER_RECEIPTS,
     bind_count: 4,
 };
+/// Retired TypeScript literal:
+/// `SELECT id,name,state,business_date FROM pms_properties WHERE company_id=? AND branch_id=? ORDER BY name`
+const SQL_HOSPITALITY_SETUP_PROPERTIES: &str = "SELECT id,name,state,business_date FROM pms_properties WHERE company_id=? AND branch_id=? ORDER BY name";
+const READ_HOSPITALITY_SETUP_PROPERTIES: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_HOSPITALITY_SETUP_PROPERTIES,
+    sql: SQL_HOSPITALITY_SETUP_PROPERTIES,
+    bind_count: 2,
+};
 
-const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG, READ_PENDING_HOTEL_TRANSFERS, READ_UNPOSTED_BOOKING_RECEIPTS, READ_UNPOSTED_COUNTER_RECEIPTS];
+const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG, READ_PENDING_HOTEL_TRANSFERS, READ_UNPOSTED_BOOKING_RECEIPTS, READ_UNPOSTED_COUNTER_RECEIPTS, READ_HOSPITALITY_SETUP_PROPERTIES];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
 pub fn is_read(kind: &str) -> bool {
@@ -378,6 +390,24 @@ ORDER BY id"
         assert!(!upper.contains("REFUND"));
         assert_eq!(read.sql.matches('?').count(), read.bind_count);
         assert_eq!(read.bind_count, 4);
+        assert!(is_read(read.kind));
+    }
+
+    #[test]
+    fn hospitality_setup_properties_read_matches_retired_typescript_literal() {
+        let read = read_statement(PMS_RD_HOSPITALITY_SETUP_PROPERTIES).expect("hospitality setup properties read");
+        assert_eq!(read.sql, "SELECT id,name,state,business_date FROM pms_properties WHERE company_id=? AND branch_id=? ORDER BY name");
+        let upper = read.sql.to_ascii_uppercase();
+        assert!(upper.starts_with("SELECT"));
+        assert!(!upper.contains("INSERT INTO"));
+        assert!(!upper.contains("UPDATE "));
+        assert!(!upper.contains("DELETE FROM"));
+        assert!(!upper.contains("FOR UPDATE"));
+        assert!(!upper.contains("FOR SHARE"));
+        assert!(!upper.contains("LOCK TABLE"));
+        assert!(!upper.contains("REFUND"));
+        assert_eq!(read.sql.matches('?').count(), read.bind_count);
+        assert_eq!(read.bind_count, 2);
         assert!(is_read(read.kind));
     }
 }

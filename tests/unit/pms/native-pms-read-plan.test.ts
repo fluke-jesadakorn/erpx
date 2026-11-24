@@ -19,6 +19,7 @@ import {
   PMS_RD_PENDING_HOTEL_TRANSFERS,
   PMS_RD_UNPOSTED_BOOKING_RECEIPTS,
   PMS_RD_UNPOSTED_COUNTER_RECEIPTS,
+  PMS_RD_HOSPITALITY_SETUP_PROPERTIES,
 } from '../../../packages/server-pms/src/adapters/native-pms-read';
 import { readPmsInventoryCommand } from '../../../packages/server-pms/src/adapters/pms/read-repository';
 
@@ -488,6 +489,50 @@ describe('native PMS unposted counter receipts read retirement', () => {
     expect(bodies.map(b => b.values)).toEqual([['property-1', 'company-1', 'Asia/Bangkok', '2026-11-24']]);
     expect(bound).toEqual([['property-1', 'company-1', 'Asia/Bangkok', '2026-11-24']]);
     expect(prepared).toEqual([unpostedCounterReceiptsSql]);
+    for (const body of bodies) expect(JSON.stringify(body)).not.toContain('SELECT');
+  });
+});
+
+const hospitalitySetupPropertiesSql = 'SELECT id,name,state,business_date FROM pms_properties WHERE company_id=? AND branch_id=? ORDER BY name';
+
+describe('native PMS hospitality-setup property list read retirement', () => {
+  it('exposes a fixed property-list read kind with no SQL on the wire', () => {
+    expect(PMS_RD_HOSPITALITY_SETUP_PROPERTIES).toBe('pms_rd_hospitality_setup_properties');
+    expect(PMS_RD_HOSPITALITY_SETUP_PROPERTIES).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
+  });
+
+  it('removes the TypeScript hospitality-setup pms_properties SELECT literal', async () => {
+    const setup = await readFile(new URL('../../../packages/server-pms/src/adapters/hospitality-setup.ts', import.meta.url), 'utf8');
+    expect(setup).not.toContain(hospitalitySetupPropertiesSql);
+    expect(setup).toContain('nativePmsReadAll');
+    expect(setup).toContain('PMS_RD_HOSPITALITY_SETUP_PROPERTIES');
+    const call = setup.split('\n').find(line => line.includes('PMS_RD_HOSPITALITY_SETUP_PROPERTIES,')) ?? '';
+    expect(call).toContain('nativePmsReadAll');
+    expect(call).not.toContain('db.prepare');
+  });
+
+  it('plans the property-list read in Rust and runs it on the caller unit', async () => {
+    const bodies: { kind: string; values: unknown[] }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      bodies.push(body);
+      return new Response(JSON.stringify({ data: { statements: [{ sql: hospitalitySetupPropertiesSql, values: body.values }] } }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      });
+    }));
+    const prepared: string[] = [], bound: unknown[][] = [];
+    const db = {
+      prepare(sql: string) { prepared.push(sql); return { bind(...values: unknown[]) { bound.push(values); return this; } }; },
+      async batch<T>() { return [{ results: [{ id: 'property-1', name: 'Grand', state: 'open', business_date: '2026-11-24' }], success: true, meta: { changes: 0, duration: 0 } }] as unknown as { results: T[]; success: boolean; meta: { changes: number; duration: number } }[]; },
+      async exec() { return { count: 0, duration: 0 }; },
+    };
+    const rows = await nativePmsReadAll<{ id: string }>(PMS_RD_HOSPITALITY_SETUP_PROPERTIES, ['company-1', 'branch-1'], db as never);
+
+    expect(rows.results).toMatchObject([{ id: 'property-1', name: 'Grand', state: 'open', business_date: '2026-11-24' }]);
+    expect(bodies.map(b => b.kind)).toEqual([PMS_RD_HOSPITALITY_SETUP_PROPERTIES]);
+    expect(bodies.map(b => b.values)).toEqual([['company-1', 'branch-1']]);
+    expect(bound).toEqual([['company-1', 'branch-1']]);
+    expect(prepared).toEqual([hospitalitySetupPropertiesSql]);
     for (const body of bodies) expect(JSON.stringify(body)).not.toContain('SELECT');
   });
 });

@@ -1,10 +1,10 @@
 import 'server-only';
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
-import {all} from '@erpx/server-runtime/public/runtime/sql';
 import { ApiError } from "@erpx/server-runtime/public/http";
+import { nativePmsReadAll, PMS_RD_HOSPITALITY_SETUP_PROPERTIES } from "./native-pms-read";
 import { loadPms } from "../../../../packages/server-pms/src/public/pms";
 import { pmsAccountCategory, pmsAccountCode } from "@erpx/server-finance/public/hospitality-accounting";
-import { createHospitalitySetup, type PmsSetupRepository } from "@erpx/server-pms/application/hospitality-setup";
+import { createHospitalitySetup, type PmsSetupRepository, type PmsSetupRow } from "@erpx/server-pms/application/hospitality-setup";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { pmsHospitalitySetupOrganizationFacts } from "@erpx/server-organization/public/pms-hospitality-setup-facts";
 import { pmsHospitalitySetupCommerceFacts } from "@erpx/server-commerce/public/pms-hospitality-setup-facts";
@@ -22,7 +22,7 @@ function repository(db: SqlDatabase): PmsSetupRepository {
         properties: (facts: {
             company: string;
             branch: string;
-        }) => all(db, 'SELECT id,name,state,business_date FROM pms_properties WHERE company_id=? AND branch_id=? ORDER BY name', facts.company, facts.branch),
+        }) => nativePmsReadAll<PmsSetupRow>(PMS_RD_HOSPITALITY_SETUP_PROPERTIES, [facts.company, facts.branch], db).then(r => r.results),
         commerce: facts => commerce.commerce(facts),
         settings: facts => pos.settings(facts),
         warehouses: facts => commerce.warehouses(facts),
