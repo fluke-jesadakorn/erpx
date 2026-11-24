@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8884,
+    "revision": 8888,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -145161,7 +145161,7 @@
         "owner": "inventory",
         "title": "inventory TS read tail native cutover (round 14)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -145173,22 +145173,37 @@
         "resources": [
           "owner:inventory"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGCEinv",
-          "claimedAt": "2026-11-24T03:24:28.699Z",
-          "heartbeatAt": "2026-11-24T03:24:28.699Z",
-          "expiresAt": "2026-11-24T03:54:28.699Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-inventory/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "c66038c29",
+            "owner": "inventory",
+            "before": 470,
+            "after": 463,
+            "note": "Initial marked EXISTS, initial-count journal and image selects shared; registry untouched; r11-r13 helpers unchanged."
+          },
+          {
+            "command": "vitest inventory r11/r12/r14 (15) + tsc inventory",
+            "result": "passed",
+            "sourceSha": "c66038c29"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: runner-up families (count marker EXISTS with alias variant, finance-record source images/journal selects) and new parameterized groups. BEFORE=470.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCEinv",
+          "at": "2026-11-24T03:35:01.696Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -145703,6 +145718,42 @@
         "nextAction": "Next: legal-approval-facts.ts lines 10/16 share FROM approval_steps WHERE instance_id=? AND ordinal=? with different selected columns; generator family. BEFORE=65.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.inventory.read-tail-r15",
+        "goalId": "G4",
+        "owner": "inventory",
+        "title": "inventory TS read tail native cutover (round 15)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-inventory/src/**",
+          "tests/unit/inventory/**",
+          "tests/integration/inventory/**"
+        ],
+        "resources": [
+          "owner:inventory"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCFinv",
+          "claimedAt": "2026-11-24T03:35:02.123Z",
+          "heartbeatAt": "2026-11-24T03:35:02.123Z",
+          "expiresAt": "2026-11-24T04:05:02.123Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: remaining parameterized groups; registry untouched. BEFORE=463.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -145711,7 +145762,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1043,
+      "totalPackets": 1044,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -145719,13 +145770,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 666,
+        "blocked": 667,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T03:33:49.292Z",
+    "updatedAt": "2026-11-24T03:35:02.138Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
