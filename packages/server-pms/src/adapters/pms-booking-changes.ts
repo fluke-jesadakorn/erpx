@@ -1,4 +1,5 @@
 import 'server-only';
+import { PMS_WRITE_CONTEXT_SQL } from "./pms-read-tail-r17-sql";
 import { createHmac, createHash, timingSafeEqual, randomUUID } from 'node:crypto';
 import { type Snapshot } from "@erpx/server-pms/public/rules/pms";
 import { authorizedBooking, bookingSummary, bookingSnapshot, persist, queueMail, bookingCheckout, type BookingEnv, type BookingPaymentRow } from "@erpx/server-pms/public/pms-booking";
@@ -43,7 +44,7 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase, companyId = '')
             amount_minor: number;
             refunded: number;
         }>(),
-        readWriteContext: () => db.prepare("SELECT set_config('erpx.pms_write','on',true)").bind().first(),
+        readWriteContext: () => db.prepare(PMS_WRITE_CONTEXT_SQL).bind().first(),
         readPmsBookingChanges: (facts: {
             key: string;
             id: string;

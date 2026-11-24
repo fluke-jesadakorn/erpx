@@ -1,4 +1,5 @@
 import {hydratePmsReceiptAllocationCredits} from "../../../../packages/server-pms/src/adapters/pms";
+import { PMS_WRITE_CONTEXT_SQL } from "./pms-read-tail-r17-sql";
 import {holdingRoutingEnabled,holdingHosts} from '@erpx/contracts/holding-hosts';
 import {bookingEmailDeliveryPayload} from "@erpx/server-pms/adapters/booking-email-delivery";
 import "server-only";
@@ -195,7 +196,7 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase, companyId = '')
             fact2: number;
             id: string;
         }) => write('pms_w033', [facts.paymentIntentId, facts.providerSucceededAt, facts.fact2, facts.id]),
-        readContext1: () => db.prepare("SELECT set_config('erpx.pms_write','on',true)").bind().first(),
+        readContext1: () => db.prepare(PMS_WRITE_CONTEXT_SQL).bind().first(),
         readPmsBookingPayments4: (facts: {
             id: string;
         }) => db.prepare('SELECT * FROM pms_booking_payments WHERE id=? FOR UPDATE').bind(facts.id).first<BookingPaymentRow>(),

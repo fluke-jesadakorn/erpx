@@ -1,4 +1,5 @@
 import {decodePmsRecord,type PmsStoredRecord} from "@erpx/server-pms/domain/stored-record";
+import { PMS_WRITE_CONTEXT_SQL } from "./pms-read-tail-r17-sql";
 import { roomChargeReversalWork } from "@erpx/server-pos/public/room-charge-reversal-queue";
 import { withPmsPurchasedCommand } from "@erpx/server-pms/adapters/purchase-boundary";
 import { readPurchasedAccesses, pmsPackageEnforcementMode, type PurchasedAccess } from "@erpx/server-commercial/public/purchase-command-boundary";
@@ -256,7 +257,7 @@ function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
         readAssignments2: facts => identity_access.readAssignments2(facts),
         readFinanceParties2: facts => finance.readFinanceParties2(facts),
         readCommerceProducts2: facts => commerce.readCommerceProducts2(facts),
-        readContext: () => db.prepare("SELECT set_config('erpx.pms_write','on',true)").bind().first(),
+        readContext: () => db.prepare(PMS_WRITE_CONTEXT_SQL).bind().first(),
         readOrganizationNodes2: facts => organization.readOrganizationNodes2(facts),
         insertPmsProperties: (facts: {
             target: string;
@@ -456,13 +457,13 @@ function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
             fact1: number;
             id: string;
         }) => write('pms_w094', [facts.code, facts.fact1, facts.id]),
-        readContext2: () => db.prepare("SELECT set_config('erpx.pms_write','on',true)").bind().first(),
+        readContext2: () => db.prepare(PMS_WRITE_CONTEXT_SQL).bind().first(),
         updatePmsProperties4: (facts: {
             version: number;
             fact1: number;
             id: string;
         }) => write('pms_w095', [facts.version, facts.fact1, facts.id]),
-        readContext3: () => db.prepare("SELECT set_config('erpx.pms_write','on',true)").bind().first(),
+        readContext3: () => db.prepare(PMS_WRITE_CONTEXT_SQL).bind().first(),
         updatePmsProperties5: (facts: {
             version: number;
             fact1: number;

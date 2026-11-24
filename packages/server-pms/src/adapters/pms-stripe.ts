@@ -1,4 +1,5 @@
 import { assertPmsProviderAuthority } from "@erpx/server-pms/adapters/provider-authority";
+import { PMS_WRITE_CONTEXT_SQL } from "./pms-read-tail-r17-sql";
 import 'server-only';
 import { createHash, randomUUID } from 'node:crypto';
 import { type Snapshot } from "@erpx/server-pms/public/rules/pms";
@@ -78,7 +79,7 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase, companyId = ''
             succeededAt2: number;
             id: string;
         }) => write('pms_w053', [facts.succeededAt, facts.succeededAt2, facts.id]),
-        readWriteContext: () => db.prepare("SELECT set_config('erpx.pms_write','on',true)").bind().first(),
+        readWriteContext: () => db.prepare(PMS_WRITE_CONTEXT_SQL).bind().first(),
         readPmsStripePayments6: (facts: {
             id: string;
         }) => db.prepare('SELECT * FROM pms_stripe_payments WHERE id=? FOR UPDATE').bind(facts.id).first<Payment>(),
@@ -143,7 +144,7 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase, companyId = ''
             paymentId: string;
             companyId: string;
         }) => nativePmsReadFirst<{ property_id: string }>(PMS_RD_STRIPE_PAYMENT_PROPERTY, [facts.paymentId, facts.companyId], db),
-        readWriteContext2: () => db.prepare("SELECT set_config('erpx.pms_write','on',true)").bind().first(),
+        readWriteContext2: () => db.prepare(PMS_WRITE_CONTEXT_SQL).bind().first(),
         readPmsStripePayments12: (facts: {
             paymentId: string;
             companyId: string;
@@ -192,7 +193,7 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase, companyId = ''
             id: string;
             refund_generation: number;
         }) => write('pms_w068', [facts.state, facts.now, facts.id, facts.refund_generation]),
-        readWriteContext3: () => db.prepare("SELECT set_config('erpx.pms_write','on',true)").bind().first(),
+        readWriteContext3: () => db.prepare(PMS_WRITE_CONTEXT_SQL).bind().first(),
         readPmsStripePayments14: (facts: {
             id: string;
         }) => db.prepare('SELECT * FROM pms_stripe_payments WHERE id=? FOR UPDATE').bind(facts.id).first<Payment>(),

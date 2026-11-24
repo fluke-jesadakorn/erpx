@@ -1,4 +1,5 @@
 import "server-only";
+import { PMS_WRITE_CONTEXT_SQL } from "../pms-read-tail-r17-sql";
 import { createHash } from "node:crypto";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase, TransactionalSqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
@@ -80,7 +81,7 @@ function unit(db: SqlDatabase, actor: WorkContext, key = ""): PmsImportUnit<SqlS
             now: facts.fact2,
             id: facts.id,
         }),
-        writeContext: () => db.prepare("SELECT set_config('erpx.pms_write','on',true)").bind().first(),
+        writeContext: () => db.prepare(PMS_WRITE_CONTEXT_SQL).bind().first(),
         party: facts => finance.party(facts),
         payment: facts => finance.payment(facts),
         balance: (facts: {

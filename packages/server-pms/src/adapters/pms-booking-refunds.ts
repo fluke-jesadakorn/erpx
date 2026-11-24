@@ -1,4 +1,5 @@
 import { assertPmsProviderAuthority } from "@erpx/server-pms/adapters/provider-authority";
+import { PMS_WRITE_CONTEXT_SQL } from "./pms-read-tail-r17-sql";
 import 'server-only';
 import { randomUUID } from 'node:crypto';
 import { type Snapshot } from "@erpx/server-pms/public/rules/pms";
@@ -65,7 +66,7 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase, companyId = ''
             id: string;
             property_id: string;
         }>(),
-        readWriteContext: () => db.prepare("SELECT set_config('erpx.pms_write','on',true)").bind().first(),
+        readWriteContext: () => db.prepare(PMS_WRITE_CONTEXT_SQL).bind().first(),
         readPmsBookingRefundRequests4: (facts: {
             id: string;
         }) => db.prepare('SELECT * FROM pms_booking_refund_requests WHERE id=? FOR UPDATE').bind(facts.id).first<Request>(),
@@ -97,7 +98,7 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase, companyId = ''
             requestId: string;
             companyId: string;
         }) => db.prepare(`SELECT p.* FROM pms_booking_payments p JOIN pms_booking_refund_requests r ON r.payment_id=p.id WHERE r.id=? AND p.company_id=? AND p.status='refund_review' AND r.state='requested'`).bind(facts.requestId, facts.companyId).first<BookingPaymentRow>(),
-        readWriteContext2: () => db.prepare("SELECT set_config('erpx.pms_write','on',true)").bind().first(),
+        readWriteContext2: () => db.prepare(PMS_WRITE_CONTEXT_SQL).bind().first(),
         readPmsBookingPayments3: (facts: {
             id: string;
         }) => db.prepare("SELECT status FROM pms_booking_payments WHERE id=? FOR UPDATE").bind(facts.id).first<{
@@ -146,7 +147,7 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase, companyId = ''
             now: number;
             id: string;
         }) => write('pms_w019', [facts.state, facts.now, facts.id]),
-        readWriteContext3: () => db.prepare("SELECT set_config('erpx.pms_write','on',true)").bind().first(),
+        readWriteContext3: () => db.prepare(PMS_WRITE_CONTEXT_SQL).bind().first(),
         readPmsBookingRefundRequests6: (facts: {
             id: string;
         }) => db.prepare('SELECT * FROM pms_booking_refund_requests WHERE id=? FOR UPDATE').bind(facts.id).first<Request>(),
