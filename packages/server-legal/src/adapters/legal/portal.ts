@@ -20,6 +20,9 @@ import {legalPortalActor,type PortalActor} from "@erpx/server-legal/domain/porta
 import {createLegalPortalApplication,type LegalPortalWrite,type LegalPortalUnit,type LegalPortalRepository,type LegalPortalShare,type LegalPortalShareFacts} from "@erpx/server-legal/application/portal";
 import { legalPortalWrites } from '@erpx/server-collaboration/adapters/native-legal-portal-writes';
 export type {PortalActor} from "@erpx/server-legal/domain/portal";
+/** Shared read of a portal idempotency receipt by key and actor; both upload
+ * repository methods assert the same authority-bound row. */
+const portalReceiptReadSql="SELECT request_hash,result_json FROM legal_portal_receipts WHERE id=? AND user_id=?";
 export async function portalContext(slug:string){const {session}=await currentSession();const actor=legalPortalActor(session.user,session.session.id,(status,code,message)=>new ApiError(status,code,message)),binding=await holdingBindingBySlug(slug),resources=await holdingResources(binding.id);return {...resources,actor};}
 async function shareRecord(database:SqlDatabase,facts:LegalPortalShareFacts,strictHistory=false){return database.prepare(`SELECT s.*,i.company_id,i.branch_id,i.department_id,i.version AS item_version,i.kind FROM legal_shares s JOIN legal_items i ON i.id=s.item_id JOIN legal_documents d ON d.id=s.document_id AND d.item_id=i.id WHERE ${await legalPortalPurchasePredicate('i',strictHistory)} AND s.id=? AND lower(s.email)=? AND (s.user_id IS NULL OR s.user_id=?) AND s.revoked_at IS NULL AND s.expires_at>?`).bind(facts.id,facts.email,facts.actorId,facts.now).first<LegalPortalShare>();}
 function unit(db:SqlDatabase):LegalPortalUnit{const nw=legalPortalWrites(db);const legalNative=legalPortalBindingStatements(db),journal=legalPortalJournal(db),writes=new WeakMap<LegalPortalWrite,SqlStatement>();function stage(statement:SqlStatement):LegalPortalWrite{const write:LegalPortalWrite={owner:"legal"};writes.set(write,statement);return write;}
@@ -53,9 +56,9 @@ actionableEnvelope:(facts:{envelopeId:string | undefined;item_id:string;document
 viewEnvelope:facts=>(async()=>{await (await nw.viewEnvelope(facts)).run();return {results:[]};})(),
 interactionEvent:facts=>(async()=>{await (await nw.interactionEvent(facts)).run();return {results:[]};})(),
 interactionReceipt:facts=>(async()=>{await (await nw.receipt(facts)).run();return {results:[]};})(),
-uploadReceipt:(facts:{key:string;actorId:string;})=>db.prepare("SELECT request_hash,result_json FROM legal_portal_receipts WHERE id=? AND user_id=?").bind(facts.key,facts.actorId).first<{ request_hash: string; result_json: string }>(),
+uploadReceipt:(facts:{key:string;actorId:string;})=>db.prepare(portalReceiptReadSql).bind(facts.key,facts.actorId).first<{ request_hash: string; result_json: string }>(),
 uploadEnabled:(facts:{company_id:string;})=>db.prepare("SELECT 1 FROM legal_settings WHERE company_id=? AND enabled").bind(facts.company_id).first(),
-uploadReplay:(facts:{key:string;actorId:string;})=>db.prepare("SELECT request_hash,result_json FROM legal_portal_receipts WHERE id=? AND user_id=?").bind(facts.key,facts.actorId).first<{ request_hash: string; result_json: string }>(),
+uploadReplay:(facts:{key:string;actorId:string;})=>db.prepare(portalReceiptReadSql).bind(facts.key,facts.actorId).first<{ request_hash: string; result_json: string }>(),
 externalUpload:facts=>(async()=>{await (await nw.externalUpload(facts)).run();return {results:[]};})(),
 bindLink:async facts=>stage(await legalNative.bindLink(facts)),
 bindSet:async facts=>stage(await legalNative.bindSet(facts)),
