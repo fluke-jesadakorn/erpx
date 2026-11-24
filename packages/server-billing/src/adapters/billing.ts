@@ -52,11 +52,11 @@ assignTargetPrice:(value0,value1,value2,value3,value4,value5,value6,value7)=>nat
 successfulPlatformMeter:async(value0,value1,value2)=>c.query<BillingMeterRow>(`SELECT * FROM (${await nativeCommercialOwnerRead(COMMERCIAL_RD_USAGE_METER)}) billing_usage_meters WHERE holding_id=$1 AND month=$2 AND source_key=$3
            AND meter_kind='ai' AND funding_source='erpx' AND request_status='succeeded'`,[value0,value1,value2]),
 availableProviderEvidence:(value0,value1)=>nativeBillingOwnerQuery(c, 'available_evidence', [value0,value1]),
-approvedProviderPeriod:(value0,value1)=>c.query<Record<string,unknown>>("SELECT 1 FROM billing_target_rated_periods WHERE holding_id=$1 AND month=$2 AND state='approved'",[value0,value1]),
+approvedProviderPeriod:(value0,value1)=>nativeBillingOwnerQuery(c, 'APPROVED_RATED_PERIOD', [value0,value1]),
 existingProviderCost:(value0,value1,value2)=>c.query<Record<string,unknown>>("SELECT * FROM billing_target_provider_costs WHERE holding_id=$1 AND month=$2 AND source_key=$3",[value0,value1,value2]),
 recordProviderCost:(value0,value1,value2,value3,value4,value5,value6,value7,value8,value9,value10,value11,value12)=>nativeBillingOwnerQuery(c, 'record_provider_cost', [value0,value1,value2,value3,value4,value5,value6,value7,value8,value9,value10,value11,value12]),
 availableStatementEvidence:(value0,value1)=>nativeBillingOwnerQuery(c, 'available_evidence', [value0,value1]),
-approvedStatementPeriod:(value0,value1)=>c.query<Record<string,unknown>>("SELECT 1 FROM billing_target_rated_periods WHERE holding_id=$1 AND month=$2 AND state='approved'",[value0,value1]),
+approvedStatementPeriod:(value0,value1)=>nativeBillingOwnerQuery(c, 'APPROVED_RATED_PERIOD', [value0,value1]),
 providerStatementTotal:(value0,value1,value2,value3,value4)=>c.query<{count:number;total:string}>(`SELECT COUNT(*)::int AS count, COALESCE(SUM(original_minor),0)::text AS total
            FROM billing_target_provider_costs WHERE holding_id=$1 AND month=$2 AND provider=$3
              AND statement_id=$4 AND original_currency=$5`,[value0,value1,value2,value3,value4]),
@@ -67,14 +67,14 @@ availableCapacityEvidence:(value0,value1)=>nativeBillingOwnerQuery(c, 'available
 recordCapacityReview:(value0,value1,value2,value3,value4,value5,value6,value7,value8,value9,value10)=>nativeBillingOwnerQuery(c, 'record_capacity_review', [value0,value1,value2,value3,value4,value5,value6,value7,value8,value9,value10]),
 recordRolloutApproval:(value0,value1,value2,value3,value4,value5,value6,value7)=>nativeBillingOwnerQuery(c, 'record_rollout_approval', [value0,value1,value2,value3,value4,value5,value6,value7]),
 extraTargetAssignment:(value0,value1)=>c.query<Record<string,unknown>>("SELECT 1 FROM billing_target_assignments WHERE holding_id=$1 AND effective_month<=$2",[value0,value1]),
-approvedExtraPeriod:(value0,value1)=>c.query<Record<string,unknown>>("SELECT 1 FROM billing_target_rated_periods WHERE holding_id=$1 AND month=$2 AND state='approved'",[value0,value1]),
+approvedExtraPeriod:(value0,value1)=>nativeBillingOwnerQuery(c, 'APPROVED_RATED_PERIOD', [value0,value1]),
 availableExtraEvidence:(value0,value1)=>nativeBillingOwnerQuery(c, 'available_evidence', [value0,value1]),
 recordTargetExtra:(value0,value1,value2,value3,value4,value5,value6,value7,value8,value9,value10,value11)=>nativeBillingOwnerQuery(c, 'record_target_extra', [value0,value1,value2,value3,value4,value5,value6,value7,value8,value9,value10,value11]),
 lockTargetSnapshot:async(value0,value1)=>c.query<Record<string,unknown>>(`SELECT snapshot_id FROM (${await nativeCommercialOwnerRead(COMMERCIAL_RD_USAGE_SNAPSHOT)}) billing_usage_snapshots WHERE holding_id=$1 AND month=$2 FOR UPDATE`,[value0,value1]),
 targetRolloutEligible:(value0,value1)=>c.query<Record<string,unknown>>(`SELECT 1 FROM billing_target_sandbox_holdings WHERE holding_id=$1
            UNION ALL SELECT 1 FROM billing_target_rollout_approvals
            WHERE holding_id=$1 AND effective_month<=$2 LIMIT 1`,[value0,value1]),
-approvedTargetPeriod:(value0,value1)=>c.query<Record<string,unknown>>("SELECT 1 FROM billing_target_rated_periods WHERE holding_id=$1 AND month=$2 AND state='approved'",[value0,value1]),
+approvedTargetPeriod:(value0,value1)=>nativeBillingOwnerQuery(c, 'APPROVED_RATED_PERIOD', [value0,value1]),
 legacyEnrollmentOverlap:(value0,value1,value2)=>c.query<BillingEnrollment>(`SELECT 1 FROM billing_enrollments WHERE holding_id=$1 AND plan_id<>'platform_usage'
            AND started_at<$3 AND COALESCE(ended_at,effective_at,9223372036854775807)>$2`,[value0,value1,value2]),
 monthInvoiceExists:(value0,value1)=>c.query<BillingInvoiceRow>(`SELECT 1 FROM billing_invoices i JOIN billing_periods p ON p.id=i.period_id

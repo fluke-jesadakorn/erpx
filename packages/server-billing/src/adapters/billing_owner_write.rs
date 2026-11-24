@@ -59,6 +59,7 @@ fn sql(kind: &str) -> Option<&'static str> {
       FROM billing_target_prices WHERE effective_month<=$1
       ORDER BY effective_month DESC,id DESC LIMIT 1"####,
         TARGET_ROLLOUT_RATED_SHADOW_PERIOD => r####"SELECT state,mode,total_satang,price_id,meter_snapshot_id,lines_json FROM billing_target_rated_periods WHERE holding_id=$1 AND month=$2"####,
+        APPROVED_RATED_PERIOD => r####"SELECT 1 FROM billing_target_rated_periods WHERE holding_id=$1 AND month=$2 AND state='approved'"####,
         TARGET_ROLLOUT_AVAILABLE_OPERATING_COSTS => r####"SELECT o.category,o.amount_satang,e.source_state
        FROM billing_target_operating_costs o
        JOIN billing_evidence e ON e.id=o.evidence_id
@@ -396,6 +397,37 @@ mod tests {
             .is_err());
         }
         assert_ne!(TARGET_ROLLOUT_EFFECTIVE_PRICE, TARGET_ROLLOUT_RATED_SHADOW_PERIOD);
+    }
+    #[test]
+    fn approved_rated_period_read_is_owner_authored_and_fully_bound() {
+        let holding = HoldingId::new("h001").unwrap();
+        let statement = billing_owner_statement(&holding, &BillingOwnerWriteInput {
+            kind: APPROVED_RATED_PERIOD.into(),
+            values: vec![serde_json::json!("h001"), serde_json::json!("2027-02")],
+            now: 1,
+        })
+        .expect("approved_rated_period is an allow-listed owner read kind");
+        assert_eq!(
+            statement.sql,
+            "SELECT 1 FROM billing_target_rated_periods WHERE holding_id=$1 AND month=$2 AND state='approved'"
+        );
+        assert_eq!(
+            statement.values,
+            vec![serde_json::json!("h001"), serde_json::json!("2027-02")]
+        );
+        // A missing or widened bind cannot broaden an owner-local read.
+        assert!(billing_owner_statement(&holding, &BillingOwnerWriteInput {
+            kind: APPROVED_RATED_PERIOD.into(),
+            values: vec![serde_json::json!("h001")],
+            now: 1,
+        })
+        .is_err());
+        assert!(billing_owner_statement(&holding, &BillingOwnerWriteInput {
+            kind: APPROVED_RATED_PERIOD.into(),
+            values: vec![serde_json::json!("h001"), serde_json::json!("2027-02"), serde_json::json!("extra")],
+            now: 1,
+        })
+        .is_err());
     }
     #[test]
     fn target_rollout_operating_and_capacity_reads_are_owner_authored_and_fully_bound() {
