@@ -2373,6 +2373,33 @@
       },
       "ci": {
         "critical": true,
+        "reason": "Benefits plan fact projection prefix must stay one literal."
+      },
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-benefits"
+      ],
+      "id": "benefits.read-tail-r16-dedupe.unit",
+      "files": [
+        "tests/unit/benefits/read-tail-r16-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "benefits",
+      "modules": [
+        "benefits"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
         "reason": "Benefits scope CTE prefix must exist once and stay byte-identical."
       },
       "apps": [

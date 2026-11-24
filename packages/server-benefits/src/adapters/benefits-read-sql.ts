@@ -23,3 +23,6 @@ export const benefitWindowFactPrefix = "UNION ALL SELECT 'window',w.id,w.version
 /** Byte-identical owner-local dependent fact projection prefix shared by the
  * Benefits and People package-settlement fact unions; generated SQL is unchanged. */
 export const benefitDependentFactPrefix = "UNION ALL SELECT 'dependent',d.id,d.version,d.status,to_jsonb(d),d.status='pending'";
+/** Byte-identical owner-local plan fact projection prefix shared by the
+ * Benefits and People package-settlement fact unions; generated SQL is unchanged. */
+export const benefitPlanFactPrefix = "SELECT 'plan' kind,p.id,p.version,p.status state,to_jsonb(p) image,";
