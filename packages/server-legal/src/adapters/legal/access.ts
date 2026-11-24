@@ -10,7 +10,7 @@ import type { LegalItem, LegalKind } from "@erpx/server-legal/public/rules/model
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { productionFeatureGuard } from "@erpx/server-pms/public/feature-availability";
 import { legalEvent } from '@erpx/server-collaboration/adapters/native-legal-event';
-import {legalFilesAdvisoryLockSql} from '../legal-read-tail-r9-sources';
+import {legalCompanyAdvisoryLockSql,legalFilesAdvisoryLockSql} from '../legal-read-tail-r9-sources';
 export const tables: Record<LegalKind, string> = {
   request: "legal_requests",
   matter: "legal_matters",
@@ -65,7 +65,7 @@ function application(db:SqlDatabase,a:WorkContext){
 export async function access(db:SqlDatabase,a:WorkContext,id:string,permission="legal.read"){const item=await application(db,a).access(id,permission);await requireLegalItemPurchasedRead(db,a,item);return item;}
 export function lock(db: SqlDatabase, company: string) {
   return db
-    .prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))")
+    .prepare(legalCompanyAdvisoryLockSql)
     .bind(`legal:${company}`);
 }
 export function guards(
