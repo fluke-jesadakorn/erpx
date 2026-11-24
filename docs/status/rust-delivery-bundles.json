@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12203,
+    "revision": 12205,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -181248,7 +181248,7 @@
         "owner": "legal",
         "title": "legal TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -181260,22 +181260,37 @@
         "resources": [
           "owner:legal"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n26",
-          "claimedAt": "2026-11-24T13:48:06.429Z",
-          "heartbeatAt": "2026-11-24T13:56:34.987Z",
-          "expiresAt": "2026-11-24T14:26:34.987Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-legal/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "4cedc7170",
+            "owner": "legal",
+            "before": 178,
+            "after": 173,
+            "note": "Law three-key reads use zero-token r32/r53 head; r27/r28/r9 exports delegate to r34; advisory/FOR UPDATE locks untouched."
+          },
+          {
+            "command": "vitest legal (173) + scoped tsc + runtime golden",
+            "result": "passed",
+            "sourceSha": "4cedc7170"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Three-key law point reads (-2), id+secondary head consolidation (-3): 178->173. BEFORE=178.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n26",
+          "at": "2026-11-24T14:00:49.704Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -181675,17 +181690,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 16,
+        "in_progress": 15,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1391,
+        "blocked": 1392,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T14:00:21.175Z",
+    "updatedAt": "2026-11-24T14:00:49.709Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
