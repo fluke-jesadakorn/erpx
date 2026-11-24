@@ -5,7 +5,7 @@ import {commerceCompleteOwnerSourceReadLocks} from '@erpx/server-commerce/public
 import {finalRootOwnerProjectionSources as commerce} from '@erpx/server-commerce/public/final-root-owner-projection-sources';
 import {commercePackageEnforcementMode,checkPurchasedCapability,readPurchasedAccesses,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
-import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
+import {portalReleaseGateSql} from './portal-release-gate';
 import {holdingResources} from '../../../../packages/server-runtime/src/public/runtime';
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
@@ -21,7 +21,7 @@ async function source(database:SqlDatabase,actor:WorkContext,id:string){
 }
 async function current(database:SqlDatabase,actor:WorkContext,review=false){
  const bound=await requireQueuedCommandAuthority(database,actor,'commerce.read');await requireQueuedCommandAuthority(database,bound,'commerce.sales');if(review)await requireQueuedCommandAuthority(database,bound,'commerce.approve');
- if(!await database.prepare(`SELECT ${scheduledFeaturePredicate('portal_release.company_id','customer_authority')} allowed FROM (SELECT ?::text company_id) portal_release`).bind(actor.companyId).first<boolean>('allowed'))throw new ApiError(403,'FEATURE_COMING_SOON','Customer access is not released for this Company.');return bound;
+ if(!await database.prepare(portalReleaseGateSql()).bind(actor.companyId).first<boolean>('allowed'))throw new ApiError(403,'FEATURE_COMING_SOON','Customer access is not released for this Company.');return bound;
 }
 export async function customerAccessPurchaseControls(database:SqlDatabase,actor:WorkContext){
  const mode=await commercePackageEnforcementMode();if(mode==='disabled')return undefined;await current(database,actor);const access=(await readPurchasedAccesses(database,mode,actor.companyId,['sales.portal']))['sales.portal'];return {newWork:access.newWork,settleExisting:access.settleExisting,history:access.history,revision:access.revision};

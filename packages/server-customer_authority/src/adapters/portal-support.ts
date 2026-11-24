@@ -7,7 +7,7 @@ import {holdingResources} from '../../../../packages/server-runtime/src/public/r
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {commercePackageEnforcementMode,checkPurchasedCapability,readPurchasedAccesses,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
-import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
+import {portalReleaseGateSql} from './portal-release-gate';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import type {CustomerPortalSessionActor} from '@erpx/server-customer_360/public/portal-contract';
@@ -33,7 +33,7 @@ function currentBinding(row:Source){if(row.status!=='approved'||Number(row.expir
 async function staffAuthority(database:SqlDatabase,actor:WorkContext,review:boolean){for(const permission of ['commerce.read','commerce.sales',...(review?['commerce.approve']:[])]){requirePermission(actor,permission);await requireQueuedCommandAuthority(database,actor,permission);}}
 async function capability(database:SqlDatabase,companyId:string,purpose:'history'|'settle-existing'){
  const mode=await commercePackageEnforcementMode(),scope={companyId,capability:'sales.portal',purpose};
- const release=async()=>{if(!await database.prepare(`SELECT ${scheduledFeaturePredicate('portal_response.company_id','customer_authority')} allowed FROM (SELECT ?::text company_id) portal_response`).bind(companyId).first<boolean>('allowed'))throw new ApiError(403,'FEATURE_COMING_SOON','Customer access is not released for this Company.');};await release();await checkPurchasedCapability(database,mode,scope);return async()=>{await release();};
+ const release=async()=>{if(!await database.prepare(portalReleaseGateSql()).bind(companyId).first<boolean>('allowed'))throw new ApiError(403,'FEATURE_COMING_SOON','Customer access is not released for this Company.');};await release();await checkPurchasedCapability(database,mode,scope);return async()=>{await release();};
 }
 const response=(database:SqlDatabase,id:string)=>database.prepare('SELECT id,response_version,message,created_at,actor_id FROM customer_portal_support_responses WHERE request_id=? ORDER BY response_version DESC LIMIT 1').bind(id).first<ResponseRow>();
 async function threads(database:SqlDatabase,bindingId:string,userId?:string):Promise<PortalSupportThread[]>{
