@@ -25,7 +25,7 @@ import {createApprovalPlanningApplication,type ApprovalPlanningPorts}from '@erpx
 import {workflowWave3Statement} from './native-workflow-wave3';
 import {nativeWorkflowReadAll,nativeWorkflowReadFirst} from './native-workflow-read';
 import {approvalInstancesStarWhereSql} from './approval-projection-sources';
-import {jsonEachApproverPoolSql} from './json-each-sources';
+import {approverUnionProjectionSql} from './json-each-sources';
 /** Byte-identical prefix shared by the pending/blocked instance-state guards; callers keep their own literal state and bind order, emitted SQL is unchanged. */
 const approvalInstanceStateExistsPrefix = "EXISTS(SELECT 1 FROM approval_instances WHERE id=? AND version=? AND state='";
 const pendingInstanceExistsSql = `${approvalInstanceStateExistsPrefix}pending' AND current_step=?)`;
@@ -111,7 +111,7 @@ export function nativeApprovalPlanningPorts(database: SqlDatabase, readOverrides
         guard31(key: string, value: "approval-version", id: string, version: number, ordinal: number, id2: string, userId: string, override: boolean) {
             return assertion(database, key, value, override
                 ? `${pendingInstanceAndStepSql}state='pending' AND approver_user_id<>?)`
-                : `${pendingInstanceAndStepSql}? IN (SELECT approver_user_id UNION ${jsonEachApproverPoolSql('approver_pool_json')}) AND state='pending')`, [id, version, ordinal, id2, userId]);
+                : `${pendingInstanceAndStepSql}? IN (${approverUnionProjectionSql('plain')}) AND state='pending')`, [id, version, ordinal, id2, userId]);
         },
         guard32(key: string, value: "override-authority", assignmentId: string, companyId: string, userId: string, branch_id: string | null, department_id: string | null) { return identity_access_approvals(database).guard32(key, value, assignmentId, companyId, userId, branch_id, department_id); },
         guard33(key: string, value: "appointed-approval-current", value2: (string | null)[], policyStep: boolean) { return organization_approvals(database).guard33(key, value, value2, policyStep); },

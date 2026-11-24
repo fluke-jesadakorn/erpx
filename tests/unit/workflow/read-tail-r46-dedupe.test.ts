@@ -101,7 +101,7 @@ describe('approval-step and expense-batch native cutover (r46)', () => {
     expect(src).toContain("'wf_native_expense_batch_instances'");
   });
 
-  it('retirement:ts-statements is 37 after the r46/r47 cutover (43->41->37)', async () => {
+  it('retirement:ts-statements is 33 after the r46/r47 cutover and r48 dedupe (43->41->37->33)', async () => {
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -111,6 +111,6 @@ describe('approval-step and expense-batch native cutover (r46)', () => {
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(37);
+    expect(total).toBe(33);
   });
 });

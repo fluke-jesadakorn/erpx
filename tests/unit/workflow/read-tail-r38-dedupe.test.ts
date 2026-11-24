@@ -72,7 +72,8 @@ describe('company-scoped flow-event history generator family (r38)', () => {
     await walk(srcRoot);
     expect(total).toBeLessThan(53);
     // r46 moved the approval-step/expense-batch reads onto native kinds (43->41);
-    // r47 moved calendar-index-facts and record-details history onto native kinds (41->37).
-    expect(total).toBe(37);
+    // r47 moved calendar-index-facts and record-details history onto native kinds (41->37);
+    // r48 deduped the approver union, flow version guard, and settlement sources (37->33).
+    expect(total).toBe(33);
   });
 });

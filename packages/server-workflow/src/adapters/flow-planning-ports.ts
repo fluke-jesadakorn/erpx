@@ -67,6 +67,13 @@ async function flowAfterEffects(db: SqlDatabase, actor: StaffActor, key: string,
     return after;
 }
 const tables: Record<FlowKind, string> = { expense: "finance_expenses", leave: "leave_requests", staff_task: "staff_tasks", request: "employee_requests", stock_count: "inventory_counts", transfer: "inventory_transfers", order: "commerce_orders", invoice: "finance_invoices", journal: "finance_journals", payroll: "hr_payroll_runs", record: "workspace_records" };
+/** Byte-identical company-scoped version-guard family: the closed target selects
+ * only the source table and key predicate; emitted SQL and bind order stay exact. */
+const flowVersionGuardSql = (target: 'route' | FlowKind): string => {
+    const table = target === 'route' ? 'flow_routes' : tables[target];
+    const key = target === 'route' ? 'kind=? AND record_id=?' : 'id=?';
+    return `EXISTS(SELECT 1 FROM ${table} WHERE company_id=? AND ${key} AND version=?)`;
+};
 export function nativeFlowPlanningPorts(database: SqlDatabase): FlowPlanningPorts<SqlStatement> {
     const repository: FlowRoutingRepository<SqlStatement> = { async readFlowRecordRow(companyId: string, id: string, kind: FlowKind) { const row = await workflowRecord(database, kind, companyId, id); if (row && kind === "order") return { ...row, has_service_lines: await commerce_flow_routing(database).readServiceOrder(companyId,id) ? 1 : 0 }; return row; },
         readWorkFulfillmentsRows(companyId: string) { return commerce_flow_routing(database).readWorkFulfillmentsRows(companyId); },
@@ -116,7 +123,7 @@ export function nativeFlowPlanningPorts(database: SqlDatabase): FlowPlanningPort
             reason: string;
             step_key: string;
         }>(); },
-        guard24(key: string, value: string, args: string[], version: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM flow_routes WHERE company_id=? AND kind=? AND record_id=? AND version=?)", [...args, version]); },
+        guard24(key: string, value: string, args: string[], version: number) { return assertion(database, key, value, flowVersionGuardSql('route'), [...args, version]); },
         guard25(key: string, value: string, companyId: string, revision: number) { return assertion(database, key, value, `(${flowDefaultsMaxRevisionSql} FROM flow_defaults WHERE company_id=?)=?`, [companyId, revision]); },
         async stageRouteStatementsEffect(args: string[], revision: number, value: string, now: number) {
             return workflowWave3Statement(database, {kind:'system'}, 'wf_flow_stageroutestatementseffect', [...args, revision, value, now], String(now).slice(0,180), now); },
@@ -131,7 +138,7 @@ export function nativeFlowPlanningPorts(database: SqlDatabase): FlowPlanningPort
         async stageAssignFlowPrimaryEffect(userId: string, companyId: string, order_id: string) {
             return workflowWave3Statement(database, {kind:'system'}, 'wf_flow_stageassignflowprimaryeffect', [userId, companyId, order_id], String(companyId).slice(0,180), Date.now()); },
         readAssignFlowPrimaryAdministrator(companyId: string, userId: string) { return people_payroll_flow_routing(database).readAssignFlowPrimaryAdministrator(companyId, userId); },
-        guard34(key: string, value: "flow-document-version", companyId: string, id: string, recordVersion: number, kind: FlowKind) { return assertion(database, key, value, `EXISTS(SELECT 1 FROM ${tables[kind]} WHERE company_id=? AND id=? AND version=?)`, [companyId, id, recordVersion]); },
+        guard34(key: string, value: "flow-document-version", companyId: string, id: string, recordVersion: number, kind: FlowKind) { return assertion(database, key, value, flowVersionGuardSql(kind), [companyId, id, recordVersion]); },
         async stageAssignFlowPrimaryEffect2(value: string, companyId: string, kind: "expense" | "leave" | "staff_task" | "request" | "stock_count" | "transfer" | "order" | "invoice" | "journal" | "payroll" | "record", id: string) {
             return workflowWave3Statement(database, {kind:'system'}, 'wf_flow_stageassignflowprimaryeffect2', [value, companyId, kind, id], String(companyId).slice(0,180), Date.now()); },
         async stageAssignFlowPrimaryEffect3(companyId: string, kind: "expense" | "leave" | "staff_task" | "request" | "stock_count" | "transfer" | "order" | "invoice" | "journal" | "payroll" | "record", key: string, branch_id: string | null, department_id: string | null, userId: string, userId2: string, reason: string, now: number) {

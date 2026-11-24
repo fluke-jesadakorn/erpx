@@ -55,9 +55,9 @@ describe('approver-pool erpx_json_each generator family (r35)', () => {
     ]);
     expect(shared.match(/export const jsonEachApproverPoolSql/g) ?? []).toHaveLength(1);
     expect(planning).not.toContain("erpx_json_each(COALESCE(approver_pool_json");
-    expect(planning).toContain("jsonEachApproverPoolSql('approver_pool_json')");
+    expect(planning).toContain("approverUnionProjectionSql('plain')");
     expect(participant).not.toContain("erpx_json_each(COALESCE(ast.approver_pool_json");
-    expect(participant).toContain("jsonEachApproverPoolSql('ast.approver_pool_json')");
+    expect(participant).toContain("approverUnionProjectionSql('step')");
   });
 
   it('retirement:ts-statements stays strictly below the recorded 58 r34 baseline (r36 lowers it further)', async () => {

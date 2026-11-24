@@ -106,7 +106,7 @@ describe('calendar-index and record-details native cutover (r47)', () => {
     expect(adapter).toContain('readCommerceMasterDetailHistory(...args) { return RecordDetailsWorkflowOwnedFacts(database).readCommerceMasterDetailHistory(...args); }');
   });
 
-  it('retirement:ts-statements is 37 after the r47 native read cutover (41->37)', async () => {
+  it('retirement:ts-statements is 33 after the r47 native read cutover and r48 dedupe (41->37->33)', async () => {
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -117,6 +117,6 @@ describe('calendar-index and record-details native cutover (r47)', () => {
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(41);
-    expect(total).toBe(37);
+    expect(total).toBe(33);
   });
 });
