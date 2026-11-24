@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12533,
+    "revision": 12534,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -158731,7 +158731,7 @@
         "owner": "customer_360",
         "title": "customer_360 TS read tail native cutover (r12)",
         "kind": "migration",
-        "status": "blocked",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -158743,13 +158743,20 @@
         "resources": [
           "owner:customer_360"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261125-a",
+          "agentId": "wH4n121",
+          "claimedAt": "2026-11-24T17:19:07.376Z",
+          "heartbeatAt": "2026-11-24T17:19:07.376Z",
+          "expiresAt": "2026-11-24T17:49:07.376Z",
+          "generation": 171
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Blocked with evidence; claim released",
         "handoff": {
           "runId": "run-20261123-m",
@@ -185078,17 +185085,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 20,
+        "in_progress": 21,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1457,
+        "blocked": 1456,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 171,
-    "updatedAt": "2026-11-24T17:15:31.036Z",
+    "updatedAt": "2026-11-24T17:19:07.384Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
