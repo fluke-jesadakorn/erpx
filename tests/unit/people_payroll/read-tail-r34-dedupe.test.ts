@@ -40,7 +40,8 @@ describe('People Payroll read-tail r34 active pay group projection family dedupe
 
   test('lock-bearing reads, the r23 guards and the payroll-readiness EXISTS guard stay untouched', () => {
     expect(src('pp-read-tail-r23-sources.ts')).toContain("export const PP_RD23_HR_PAY_GROUPS_ACTIVE_CURRENCY_GUARD = \"EXISTS(SELECT 1 FROM hr_pay_groups WHERE id=? AND company_id=? AND currency=? AND status='active')\";");
-    expect(src('payroll-readiness.ts')).toContain("EXISTS(SELECT 1 FROM hr_pay_groups WHERE id=? AND company_id=? AND status='active' AND overtime_multiplier_bps=? AND proration_method=?)");
+    expect(src('payroll-readiness.ts')).toContain('ppRd37StatusGuard5("hr_pay_groups", "company_id", "active", "overtime_multiplier_bps", "proration_method")');
+    expect(src('pp-read-tail-r37-sources.ts')).toContain("EXISTS(SELECT 1 FROM ${table} WHERE id=? AND ${c2}=? AND status='${status}' AND ${c4}=? AND ${c5}=?)");
     expect(src('people-handoffs.ts')).toContain('PP_RD23_HR_PAY_GROUPS_ACTIVE_CURRENCY_GUARD');
     expect(src('people-payroll.ts')).toContain('PP_RD23_HR_PAY_GROUPS_ACTIVE_CURRENCY_GUARD');
     expect(src('payroll-statutory.ts')).toContain('"SELECT pg_advisory_xact_lock(hashtextextended(?,0))"');
@@ -60,6 +61,6 @@ describe('People Payroll read-tail r34 active pay group projection family dedupe
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(1393);
-    expect(total).toBe(1356);
+    expect(total).toBe(1351);
   });
 });

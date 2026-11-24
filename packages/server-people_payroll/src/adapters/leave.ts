@@ -1,3 +1,4 @@
+import {ppRd37IdVersionInGuard} from './pp-read-tail-r37-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import { PP_RD19_HR_ENGAGEMENT_VERSION_EXISTS_SQL } from './pp-read-tail-r19-sources';
 import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
@@ -36,7 +37,7 @@ function application(provided?: SqlDatabase) {
         stageCreateLeaveEffect(...args) { return leaveLegacyEmployeeFacts(database).stageCreateLeaveEffect(...args); },
         stageCreateLeaveEffect2(...args) { return leaveLegacyEmployeeFacts(database).stageCreateLeaveEffect2(...args); },
         guard6(key: string, value: "leave-state", id: string, version: number, states: string[]) {
-            return assertion(database, key, value, `EXISTS(SELECT 1 FROM leave_requests WHERE id=? AND version=? AND state IN (${states.map(() => "?").join(",")}))`, [id, version, ...states]);
+            return assertion(database, key, value, ppRd37IdVersionInGuard("leave_requests", "state", states.map(() => "?").join(",")), [id, version, ...states]);
         },
         guard7(key: string, value: "placement", engagement_id: string, engagement_version: number) {
             return assertion(database, key, value, PP_RD19_HR_ENGAGEMENT_VERSION_EXISTS_SQL, [engagement_id, engagement_version]);

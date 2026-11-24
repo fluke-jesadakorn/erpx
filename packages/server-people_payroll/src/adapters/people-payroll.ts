@@ -1,3 +1,4 @@
+import {ppRd37StatusGuard5} from './pp-read-tail-r37-sources';
 import {ppRd36SinglePred, ppRd36ThreePred, ppRd36TwoPredTail} from './pp-read-tail-r36-sources';
 import { PP_RD23_HR_COMP_REVISIONS_SQL, PP_RD23_HR_PAYROLL_COST_ASSIGNMENTS_SQL, PP_RD23_HR_PAY_GROUPS_ACTIVE_CURRENCY_GUARD, PP_RD23_HR_TIME_ENTRIES_OVERTIME_SQL, PP_RD23_OVERTIME_PAYROLL_HANDOFFS_SQL, PP_RD23_POSTED_PAYROLL_RUN_GUARD } from './pp-read-tail-r23-sources';
 import { ppRd30Exists4Guard } from './pp-read-tail-r30-sources';
@@ -505,7 +506,7 @@ function context(provided?: SqlDatabase, actor?: WorkContext): PeoplePayrollPort
         readCreatePaymentBatchInvoice(...args) { return payrollFinanceFacts(database).readCreatePaymentBatchInvoice(...args); },
         readCreatePaymentBatchBank(...args) { return payrollFinanceFacts(database).readCreatePaymentBatchBank(...args); },
         guard182(commandId: string, value: "posted-payroll-source", sourceId: string, companyId: string) { return assertion(database, commandId, value, PP_RD23_POSTED_PAYROLL_RUN_GUARD, [sourceId, companyId]); },
-        guard183(commandId: string, value: string, id: string, sourceId: string, net_minor: number, input_snapshot_json: string) { return assertion(database, commandId, value, "EXISTS(SELECT 1 FROM hr_payroll_items WHERE id=? AND run_id=? AND status='posted' AND net_minor=? AND input_snapshot_json=?)", [id, sourceId, net_minor, input_snapshot_json]); },
+        guard183(commandId: string, value: string, id: string, sourceId: string, net_minor: number, input_snapshot_json: string) { return assertion(database, commandId, value, ppRd37StatusGuard5("hr_payroll_items", "run_id", "posted", "net_minor", "input_snapshot_json"), [id, sourceId, net_minor, input_snapshot_json]); },
         stageCreatePaymentBatchStatements(batchId: string, companyId: string, sourceType: "contractor" | "payroll", sourceId: string, currency: string, value: "draft", formatCode: string, total: number, value2: string | null, userId: string, now: number, now2: number) { return nativePpStatement('people_payroll_stmt_37').bind(batchId, companyId, sourceType, sourceId, currency, value, formatCode, total, value2, userId, now, now2); },
         guard185(...args) { return payrollFinanceFacts(database).guard185(...args); },
         guard186(commandId: string, value: "contractor-batch-unique", companyId: string, sourceId: string, batchId: string) { return assertion(database, commandId, value, "NOT EXISTS(SELECT 1 FROM hr_payment_batches WHERE company_id=? AND source_type='contractor' AND source_id=? AND status<>'cancelled' AND id<>?)", [companyId, sourceId, batchId]); },
