@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12443,
+    "revision": 12445,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -183905,7 +183905,7 @@
         "owner": "workflow",
         "title": "workflow next read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -183916,22 +183916,37 @@
         "resources": [
           "owner:workflow"
         ],
-        "claim": {
-          "runId": "run-20261124-d",
-          "agentId": "wH4n82",
-          "claimedAt": "2026-11-24T16:04:10.613Z",
-          "heartbeatAt": "2026-11-24T16:11:53.559Z",
-          "expiresAt": "2026-11-24T16:41:53.559Z",
-          "generation": 170
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-workflow/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "57c9cbc10",
+            "owner": "workflow",
+            "before": 37,
+            "after": 33,
+            "note": "approverUnionProjectionSql step/plain (-1), flowVersionGuardSql closed 11-key map (-1), workSettlementSourceSql closed 3-key (-2). All rendered variants byte-identical; bind order preserved."
+          },
+          {
+            "command": "vitest workflow (103) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "57c9cbc10"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Approver union projection (-1), flow-route version guard (-1), settlement sources union (-2 if closed): 37->33. BEFORE=37.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-d",
+          "agentId": "wH4n82",
+          "at": "2026-11-24T16:17:19.861Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -184065,17 +184080,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 16,
+        "in_progress": 15,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1438,
+        "blocked": 1439,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 170,
-    "updatedAt": "2026-11-24T16:17:06.888Z",
+    "updatedAt": "2026-11-24T16:17:19.864Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
