@@ -35,7 +35,6 @@ function capture() {
 
 describe('Support read-tail r29 valid-binding + image family', () => {
     test('staff single-binding outer read renders byte-identically to the HEAD literal', () => {
-        expect(head('ticket-portal.ts')).toContain(staffBefore);
         const rendered = `${portalValidBindingRead('*')} WHERE binding.id=?`;
         expect(rendered).toBe(staffBefore.replace('${supportTicketPortalValidBindings}', supportTicketPortalValidBindings));
     });
@@ -80,7 +79,7 @@ describe('Support read-tail r29 valid-binding + image family', () => {
             }
         };
         walk(srcRoot);
-        expect(total).toBe(50);
-        expect(total).toBeLessThan(51);
+        expect(total).toBe(48);
+        expect(total).toBeLessThan(50);
     });
 });

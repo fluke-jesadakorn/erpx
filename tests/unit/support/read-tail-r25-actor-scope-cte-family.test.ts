@@ -106,7 +106,7 @@ describe('Support read-tail r25 actor-scope CTE family', () => {
             }
         };
         walk(srcRoot);
-        expect(total).toBe(50);
-        expect(total).toBeLessThan(54);
+        expect(total).toBe(48);
+        expect(total).toBeLessThan(50);
     });
 });

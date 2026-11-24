@@ -368,9 +368,9 @@ it('the Support case routes delegate to the native Support presenter instead of 
 it('keeps one fixed Support ticket-evidence projection for the search and by-id readers', async () => {
     const { readFile } = await import('node:fs/promises');
     const source = await readFile(new URL('../../../packages/server-support/src/adapters/executive-main-evidence-sources.ts', import.meta.url), 'utf8');
-    expect(source).toContain('const ticketEvidenceSelect');
-    expect(source.match(/SELECT t\.id,t\.title,t\.status,t\.due_date,t\.updated_at,t\.version/g)).toHaveLength(1);
-    expect(source.match(/\$\{ticketEvidenceSelect\(overdue\)\}/g)).toHaveLength(2);
+    expect(source).toContain('const evidenceSelect = (columns: string)');
+    expect(source.match(/const ticketEvidenceColumns = \(overdue: boolean\)/g)).toHaveLength(1);
+    expect(source.match(/\$\{evidenceSelect\(ticketEvidenceColumns\(overdue\)\)\}/g)).toHaveLength(2);
     expect(source).toContain('FROM support_incidents t WHERE ${conditions.join(" AND ")}');
 });
 

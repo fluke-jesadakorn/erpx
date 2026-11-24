@@ -442,6 +442,19 @@ const READ_SALES_CUSTOMER_SOURCE_CASES: NativeSupportReadStatement = NativeSuppo
     bind_count: 12,
 };
 
+/// Native successor of the TypeScript Support evidence-items read. The caller
+/// binds `[ticket_id]` and receives the ticket's evidence rows, including
+/// revoked and legally-held rows, composed over the closed read-only Files
+/// owner projections. Only the scalar ticket id crosses the wire.
+pub const RD_EVIDENCE_ITEMS: &str = "support_rd_evidence_items";
+const SQL_EVIDENCE_ITEMS: &str =
+    "SELECT a.id,a.original_name,a.media_type,a.bytes,a.checksum_sha256,a.created_at,a.created_by,a.revoked_at,a.legal_hold FROM (SELECT \"id\",\"upload_id\",\"owner_type\",\"owner_id\",\"purpose\",\"object_key\",\"revision\",\"original_name\",\"media_type\",\"bytes\",\"checksum_sha256\",\"created_by\",\"legal_hold\",\"created_at\",\"revoked_at\",\"company_id\",\"detected_media_type\",\"source_state\",\"scanned_at\",\"scanner_definition_at\",\"preview_object_key\",\"preview_media_type\",\"preview_checksum_sha256\",\"preview_bytes\",\"destroyed_at\",\"legacy_sanitized_only\" FROM attachments) a WHERE a.owner_type='support_ticket' AND a.owner_id=? AND (a.company_id IS NULL OR EXISTS(SELECT 1 FROM (SELECT \"id\",\"set_id\",\"attachment_id\",\"upload_intent_id\",\"caption\",\"state\",\"supersedes_link_id\",\"created_by\",\"created_at\",\"expires_at\",\"bound_at\",\"binding_type\",\"binding_id\",\"withdrawn_at\",\"withdrawn_by\",\"withdrawal_reason\" FROM attachment_links) l JOIN (SELECT \"id\",\"company_id\",\"branch_id\",\"department_id\",\"target_type\",\"target_id\",\"component_kind\",\"component_ref\",\"purpose_key\",\"expected_target_version\",\"policy_version\",\"classification\",\"audience_json\",\"retention_policy_key\",\"retention_policy_version\",\"retain_until\",\"destruction_mode\",\"required_count\",\"max_files\",\"state\",\"created_by\",\"created_at\",\"updated_at\",\"bound_at\",\"bound_command_id\" FROM attachment_sets) s ON s.id=l.set_id WHERE l.attachment_id=a.id AND l.state='bound' AND s.company_id=a.company_id AND s.target_type='support_ticket' AND s.target_id=a.owner_id)) ORDER BY a.created_at,a.id";
+const READ_EVIDENCE_ITEMS: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_EVIDENCE_ITEMS,
+    sql: SQL_EVIDENCE_ITEMS,
+    bind_count: 1,
+};
+
 const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_SERVICE_COVERAGE_HISTORY,
     READ_SERVICE_TEAM_COVERAGE,
@@ -475,6 +488,7 @@ const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_SALES_SUPPORT_COUNTS,
     READ_SALES_OPEN_SUPPORT_CASES,
     READ_SALES_CUSTOMER_SOURCE_CASES,
+    READ_EVIDENCE_ITEMS,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -625,6 +639,7 @@ mod tests {
                 SQL_SALES_CUSTOMER_SOURCE_CASES,
                 12usize,
             ),
+            (RD_EVIDENCE_ITEMS, SQL_EVIDENCE_ITEMS, 1usize),
         ];
         for (kind, sql, binds) in expected {
             let statement = read_statement(kind).expect("registered owner read kind");
@@ -639,12 +654,13 @@ mod tests {
                 sql.contains("service_team") || sql.contains("support_ticket_portal") ||
                     sql.contains("support_ticket_events") || sql.contains("support_incident_events") ||
                     sql.contains("support_incident_tickets") || sql.contains("support_tickets") ||
-                    sql.contains("support_incidents") || sql.contains("support_sla_policies"),
-                "owner read must stay on owner-local Support tables: {sql}"
+                    sql.contains("support_incidents") || sql.contains("support_sla_policies") ||
+                    sql.contains("attachment_links"),
+                "owner read must stay on owner-local Support tables or closed Files projections: {sql}"
             );
             assert_eq!(sql.matches('?').count(), binds);
         }
-        assert_eq!(STATEMENTS.len(), 32);
+        assert_eq!(STATEMENTS.len(), 33);
     }
 
     #[test]
