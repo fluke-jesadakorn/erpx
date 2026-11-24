@@ -1,4 +1,5 @@
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
+import { payrollItemSourceRows } from './payroll-item-source-read';
 import { withPayrollPurchasedCommand, withPayrollPurchasedRead, withPayrollJobsPurchasedTransaction } from "@erpx/server-people_payroll/adapters/payroll-purchases";
 import { peoplePackageEnforcementMode, type PackageEnforcementMode } from "@erpx/server-commercial/public/purchase-command-boundary";
 import { packageClockSql, purchasedCapabilityPredicate } from "@erpx/server-commercial/public/purchased-capability-sql";
@@ -65,10 +66,7 @@ function context(provided?: SqlDatabase, mode: PackageEnforcementMode = "disable
             }>();
         },
         readSourceBlockersRows(id: string) {
-            return database.prepare("SELECT engagement_id,input_snapshot_json FROM hr_payroll_items WHERE run_id=? ORDER BY engagement_id").bind(id).all<{
-                engagement_id: string;
-                input_snapshot_json: string;
-            }>();
+            return payrollItemSourceRows(database, id);
         },
         readSourceBlockersCurrent(company_id: string, pay_group_id: string, currency: string, period_end: string, period_start: string, scope_engagement_id: string | null, scope_engagement_id2: string | null) {
             return database.prepare("SELECT e.id FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id WHERE e.company_id=? AND e.pay_group_id=? AND e.currency=? AND e.worker_type='employee' AND e.status IN ('active','ended') AND p.status='active' AND p.merged_into_id IS NULL AND e.start_date<=? AND (e.end_date IS NULL OR e.end_date>=?) AND (?::text IS NULL OR e.id=?) ORDER BY e.id").bind(company_id, pay_group_id, currency, period_end, period_start, scope_engagement_id, scope_engagement_id2).all<{
@@ -106,10 +104,7 @@ function context(provided?: SqlDatabase, mode: PackageEnforcementMode = "disable
             }>();
         },
         readPayrollSourceGuardsRows(runId: string) {
-            return database.prepare("SELECT engagement_id,input_snapshot_json FROM hr_payroll_items WHERE run_id=? ORDER BY engagement_id").bind(runId).all<{
-                engagement_id: string;
-                input_snapshot_json: string;
-            }>();
+            return payrollItemSourceRows(database, runId);
         },
         guard18(key: string, value: "source-employee-count", company_id: string, pay_group_id: string, currency: string, period_end: string, period_start: string, scope_engagement_id: string | null, scope_engagement_id2: string | null, length: number) { return assertion(database, key, value, `(SELECT COUNT(*) FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id WHERE e.company_id=? AND e.pay_group_id=? AND e.currency=? AND e.worker_type='employee' AND e.status IN ('active','ended') AND p.status='active' AND p.merged_into_id IS NULL AND e.start_date<=? AND (e.end_date IS NULL OR e.end_date>=?) AND (?::text IS NULL OR e.id=?))=?`, [company_id, pay_group_id, currency, period_end, period_start, scope_engagement_id, scope_engagement_id2, length]); },
         guard19(key: string, value: string, pay_group_id: string, company_id: string, overtimeMultiplierBps: number, prorationMethod: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_pay_groups WHERE id=? AND company_id=? AND status='active' AND overtime_multiplier_bps=? AND proration_method=?)", [pay_group_id, company_id, overtimeMultiplierBps, prorationMethod]); },

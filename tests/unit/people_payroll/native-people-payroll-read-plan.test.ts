@@ -16,6 +16,7 @@ import {
   PEOPLE_PAYROLL_RD_LEAVE_LEGACY_EMPLOYEE,
   PEOPLE_PAYROLL_RD_PAYROLL_OPTIONS_GROUPS,
   PEOPLE_PAYROLL_RD_PROJECT_WORKER_PERSON_USER,
+  PEOPLE_PAYROLL_RD_PAYROLL_ITEM_SOURCE_ROWS,
 } from '../../../packages/server-people_payroll/src/adapters/native-people-payroll-read';
 import { leaveLegacyEmployeeFacts } from '../../../packages/server-people_payroll/src/adapters/operations-leave-legacy-facts';
 import { expensePaymentDraftExpenseId, documentPageExpensePaymentSource } from '../../../packages/server-people_payroll/src/adapters/document-page-payment-source';
@@ -32,6 +33,7 @@ import { finalPayCancellationSchemaAvailable } from '../../../packages/server-pe
 import { payrollOtherSchemaAvailable } from '../../../packages/server-people_payroll/src/adapters/payroll-other-remittance-sources';
 import { workUiStaffFacts } from '../../../packages/server-people_payroll/src/adapters/work-ui-staff-facts';
 import { projectWorkerPersonUser } from '../../../packages/server-people_payroll/src/adapters/project-worker-startup-state';
+import { payrollItemSourceRows } from '../../../packages/server-people_payroll/src/adapters/payroll-item-source-read';
 
 const envKey = 'ERPX_NATIVE_PEOPLE_PAYROLL_CONFIG';
 const original = process.env[envKey];
@@ -504,6 +506,51 @@ describe('native People Payroll caller-unit read plan', () => {
     ]);
     expect(bound).toEqual([['person-1', 'company'], ['person-2', 'company']]);
     expect(prepared).toEqual(['SELECT 1 AS user_id', 'SELECT 1 AS user_id']);
+  });
+
+  it('exposes the deduped payroll-item source-rows read kind with no SQL on the wire', () => {
+    expect(PEOPLE_PAYROLL_RD_PAYROLL_ITEM_SOURCE_ROWS).toBe('people_payroll_rd_payroll_item_source_rows');
+    expect(PEOPLE_PAYROLL_RD_PAYROLL_ITEM_SOURCE_ROWS).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
+  });
+
+  it('plans the deduped payroll-item source-rows reads on the caller unit with their binds', async () => {
+    const bodies: { kind: string; values: unknown[] }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      bodies.push({ kind: body.kind, values: body.values });
+      return new Response(JSON.stringify({
+        data: { statements: [{ sql: 'SELECT 1 AS engagement_id', values: body.values }] },
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }));
+    const prepared: string[] = [];
+    const bound: unknown[][] = [];
+    const db = {
+      prepare(sql: string) {
+        prepared.push(sql);
+        return {
+          bind(...values: unknown[]) { bound.push(values); return this; },
+          async all() { return { results: [], success: true, meta: { changes: 0, duration: 0 } }; },
+          async first() { return null; },
+        };
+      },
+      async batch() { return [{
+        results: [{ engagement_id: 'eng-1', input_snapshot_json: '{}' }],
+        success: true, meta: { changes: 0, duration: 0 },
+      }]; },
+      async exec() { return { count: 0, duration: 0 }; },
+    };
+
+    const blockers = await payrollItemSourceRows(db as never, 'run-1');
+    const guards = await payrollItemSourceRows(db as never, 'run-2');
+    expect(blockers.results).toEqual([{ engagement_id: 'eng-1', input_snapshot_json: '{}' }]);
+    expect(guards.results).toEqual([{ engagement_id: 'eng-1', input_snapshot_json: '{}' }]);
+
+    expect(bodies).toEqual([
+      { kind: PEOPLE_PAYROLL_RD_PAYROLL_ITEM_SOURCE_ROWS, values: ['run-1'] },
+      { kind: PEOPLE_PAYROLL_RD_PAYROLL_ITEM_SOURCE_ROWS, values: ['run-2'] },
+    ]);
+    expect(bound).toEqual([['run-1'], ['run-2']]);
+    expect(prepared).toEqual(['SELECT 1 AS engagement_id', 'SELECT 1 AS engagement_id']);
   });
 
   it('fails closed when configuration is missing or the plan is malformed', async () => {

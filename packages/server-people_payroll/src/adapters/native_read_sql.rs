@@ -174,6 +174,19 @@ const READ_PROJECT_WORKER_PERSON_USER: NativeReadStatement = NativeReadStatement
     bind_count: 2,
 };
 
+/// Native successor of the two identical TypeScript `payroll-readiness`
+/// payroll-item source-rows reads (readSourceBlockersRows and
+/// readPayrollSourceGuardsRows). The owner plans this literal once; the caller
+/// executes it on its open unit with the same `[run_id]` bind. Deduped into one
+/// owner read kind.
+pub const RD_PAYROLL_ITEM_SOURCE_ROWS: &str = "people_payroll_rd_payroll_item_source_rows";
+const SQL_PAYROLL_ITEM_SOURCE_ROWS: &str = "SELECT engagement_id,input_snapshot_json FROM hr_payroll_items WHERE run_id=? ORDER BY engagement_id";
+const READ_PAYROLL_ITEM_SOURCE_ROWS: NativeReadStatement = NativeReadStatement {
+    kind: RD_PAYROLL_ITEM_SOURCE_ROWS,
+    sql: SQL_PAYROLL_ITEM_SOURCE_ROWS,
+    bind_count: 1,
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_RECORD_SUPPLEMENT_ROWS,
     READ_ORG_ROSTER_EXIT_ENGAGEMENT_IDS,
@@ -189,6 +202,7 @@ const READS: &[NativeReadStatement] = &[
     READ_LEAVE_LEGACY_EMPLOYEE,
     READ_PAYROLL_OPTIONS_GROUPS,
     READ_PROJECT_WORKER_PERSON_USER,
+    READ_PAYROLL_ITEM_SOURCE_ROWS,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -348,6 +362,20 @@ mod tests {
         assert_eq!(read.sql.matches('?').count(), 2);
         assert!(read.sql.contains("merged_into_id"));
         assert!(is_read(RD_PROJECT_WORKER_PERSON_USER));
+    }
+
+    #[test]
+    fn payroll_item_source_rows_read_plan_is_ledger_free_and_bounded() {
+        let read = read_statement(RD_PAYROLL_ITEM_SOURCE_ROWS).expect("read kind");
+        assert!(read.sql.to_ascii_uppercase().starts_with("SELECT"));
+        assert!(!read.sql.to_ascii_uppercase().contains("INSERT"));
+        assert!(!read.sql.to_ascii_uppercase().contains("UPDATE"));
+        assert!(!read.sql.to_ascii_uppercase().contains("DELETE"));
+        assert_eq!(read.bind_count, 1);
+        assert_eq!(read.sql.matches('?').count(), 1);
+        assert!(read.sql.contains("hr_payroll_items"));
+        assert!(read.sql.contains("ORDER BY engagement_id"));
+        assert!(is_read(RD_PAYROLL_ITEM_SOURCE_ROWS));
     }
 
     #[test]
