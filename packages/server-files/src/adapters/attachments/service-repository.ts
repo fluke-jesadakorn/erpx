@@ -13,6 +13,8 @@ const advisoryLockSql = "SELECT pg_advisory_xact_lock(hashtextextended(?,0))";
 const attachmentChecksumSql = "SELECT checksum_sha256,source_state FROM attachments WHERE id=? AND company_id=?";
 const setLockSql = "SELECT state FROM attachment_sets WHERE id=? AND company_id=? FOR UPDATE";
 const publicationByIdSql = "SELECT * FROM attachment_publications WHERE id=? AND company_id=?";
+const publicationOrderVersionSql = "SELECT version FROM attachment_publication_orders WHERE company_id=? AND target_type=? AND target_id=?";
+const uploadIntentForSetSql = "SELECT * FROM upload_intents WHERE id=? AND attachment_set_id IS NOT NULL AND created_by=? AND company_id=?";
 const attachmentLinkSql = "SELECT l.*,s.target_type,s.target_id,s.component_kind,s.purpose_key,s.expected_target_version,s.state set_state,s.company_id FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.id=? AND s.company_id=?";
 const sanitizationAttestedSql = `SELECT 1 FROM attachment_events attested WHERE attested.set_id=? AND attested.company_id=? AND attested.action='sanitization.attested'
         AND attested.created_at>=COALESCE((SELECT max(changed.created_at) FROM attachment_events changed WHERE changed.set_id=attested.set_id AND changed.action IN ('file.reserved','link.reused','link.withdrawn')),0)
@@ -229,7 +231,7 @@ export function repository(db: SqlDatabase) {
             companyId: string;
             arg4: number;
         }) => {
-            return db.prepare(`SELECT * FROM upload_intents WHERE id=? AND attachment_set_id IS NOT NULL AND created_by=? AND company_id=?
+            return db.prepare(`${uploadIntentForSetSql}
       AND (status IN ('uploaded','ready') OR (status='pending' AND expires_at>?))`).bind(facts.uploadIntentId, facts.userId, facts.companyId, facts.arg4).first<Record<string, unknown>>();
         },
         readAttachments26: (facts: {
@@ -246,7 +248,7 @@ export function repository(db: SqlDatabase) {
             uploadIntentId: string;
             userId: string;
             companyId: string;
-        }) => { return db.prepare("SELECT * FROM upload_intents WHERE id=? AND attachment_set_id IS NOT NULL AND created_by=? AND company_id=? FOR UPDATE").bind(facts.uploadIntentId, facts.userId, facts.companyId).first<Record<string, unknown>>(); },
+        }) => { return db.prepare(`${uploadIntentForSetSql} FOR UPDATE`).bind(facts.uploadIntentId, facts.userId, facts.companyId).first<Record<string, unknown>>(); },
         readAttachments29: (facts: {
             attachmentId: string;
             companyId: string;
@@ -459,7 +461,7 @@ export function repository(db: SqlDatabase) {
         readAttachmentSets57: (facts: {
             setId: string;
             companyId: string;
-        }) => { return db.prepare("SELECT * FROM attachment_sets WHERE id=? AND company_id=? FOR UPDATE").bind(facts.setId, facts.companyId).first<SetRow>(); },
+        }) => { return db.prepare(`${setByIdSql} FOR UPDATE`).bind(facts.setId, facts.companyId).first<SetRow>(); },
         readAttachmentLinks58: (facts: {
             id: string;
             companyId: string;
@@ -636,7 +638,7 @@ export function repository(db: SqlDatabase) {
             companyId: string;
             targetType: string;
             targetId: string;
-        }) => { return db.prepare("SELECT version FROM attachment_publication_orders WHERE company_id=? AND target_type=? AND target_id=?").bind(facts.companyId, facts.targetType, facts.targetId).first<{
+        }) => { return db.prepare(publicationOrderVersionSql).bind(facts.companyId, facts.targetType, facts.targetId).first<{
             version: number;
         }>(); },
         readPublicationRevocation: (facts:{eventId:string;companyId:string;userId:string;publicationId:string;reason:string;}) => db.prepare(`SELECT event.id FROM attachment_events event JOIN attachment_publications publication
@@ -657,7 +659,7 @@ export function repository(db: SqlDatabase) {
         readAttachmentPublications88: (facts: {
             id: string;
             companyId: string;
-        }) => { return db.prepare("SELECT * FROM attachment_publications WHERE id=? AND company_id=? FOR UPDATE").bind(facts.id, facts.companyId).first<Record<string, unknown>>(); },
+        }) => { return db.prepare(`${publicationByIdSql} FOR UPDATE`).bind(facts.id, facts.companyId).first<Record<string, unknown>>(); },
         stepAttachmentPublications89: (facts: {
             userId: string;
             now: number;
@@ -688,7 +690,7 @@ export function repository(db: SqlDatabase) {
             companyId: string;
             targetType: string;
             targetId: string;
-        }) => { return db.prepare("SELECT version FROM attachment_publication_orders WHERE company_id=? AND target_type=? AND target_id=? FOR UPDATE").bind(facts.companyId, facts.targetType, facts.targetId).first<{
+        }) => { return db.prepare(`${publicationOrderVersionSql} FOR UPDATE`).bind(facts.companyId, facts.targetType, facts.targetId).first<{
             version: number;
         }>(); },
         readAttachmentPublications95: (facts: {
