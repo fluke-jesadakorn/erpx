@@ -1,5 +1,6 @@
 import {posInitialStockJournalMarked} from '@erpx/server-finance/adapters/pos-initial-stock-journal-sources';
 import { DIMENSION_DEFINITIONS_SQL } from './finance-read-tail-r17-sql';
+import { ACCOUNT_CHART_ID_SQL } from './finance-read-tail-r18-sql';
 import {resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import {withManufacturingInitialStockJournalRead} from '@erpx/server-finance/adapters/manufacturing-initial-stock-journal-read';
 import {manufacturingInitialStockJournalMarked} from '@erpx/server-finance/adapters/manufacturing-initial-stock-journal-sources';
@@ -37,7 +38,7 @@ export async function journalRecordWorkspace(actor:WorkContext,id:string){
 }
 export async function invoiceRecordWorkspace(actor:WorkContext,id:string){
  const db=(await holdingResources(actor.holdingId)).write,detail=await getInvoice(actor,id,db);
- const account=await db.prepare("SELECT chart_id FROM finance_accounts WHERE id=? AND company_id=?").bind(detail.invoice.debit_account_id,actor.companyId).first<{chart_id:string}>();
+ const account=await db.prepare(ACCOUNT_CHART_ID_SQL).bind(detail.invoice.debit_account_id,actor.companyId).first<{chart_id:string}>();
  if(!account)throw new ApiError(404,"ACCOUNT_NOT_FOUND","The invoice account is unavailable.");
  const refs=await references(db,actor,account.chart_id);
  const parties=await db.prepare(`SELECT * FROM finance_parties WHERE company_id=? AND (id=? OR (? AND status='active' AND person_id IS NULL)) ORDER BY name,id`).bind(actor.companyId,detail.invoice.party_id,detail.invoice.status==="draft"&&detail.invoice.source_type==="standalone").all<FinanceRow>();

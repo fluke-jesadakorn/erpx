@@ -1,6 +1,7 @@
 import 'server-only';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {commerceFinanceJoinedFacts} from '@erpx/server-finance/adapters/commerce-joined-facts';
+import { MONEY_SETTINGS_IMAGE_SQL, MONEY_TXN_SNAPSHOT_SOURCE_SQL } from './finance-read-tail-r18-sql';
 /** Private original quote fields captured by the original Commerce application.
  * This is not an input or a caller-selected source authority. */
 export type ManufacturingInitialPhysicalStockProductMoney={
@@ -16,12 +17,12 @@ export function manufacturingInitialPhysicalStockMasterFinanceLeases(database:Sq
 export async function manufacturingInitialPhysicalStockMasterFinanceSource(database:SqlDatabase,companyId:string,chartId:string,currency:string){
  const [effective,reference]=await Promise.all([
   commerceFinanceJoinedFacts(database).readCommerceSettings1({companyId}),
-  database.prepare(`SELECT jsonb_build_object('chart',(SELECT to_jsonb(c) FROM finance_charts c WHERE c.id=? AND c.company_id=?),'settings',(SELECT to_jsonb(s) FROM company_money_settings s WHERE s.company_id=?),'scale',(SELECT to_jsonb(s) FROM company_currency_scales s WHERE s.company_id=? AND s.currency=?),'rates',COALESCE((SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM company_fx_rates r WHERE r.company_id=? AND r.currency=?),'[]'::jsonb))::text image`).bind(chartId,companyId,companyId,companyId,currency,companyId,currency).first<string>('image'),
+  database.prepare(MONEY_SETTINGS_IMAGE_SQL).bind(chartId,companyId,companyId,companyId,currency,companyId,currency).first<string>('image'),
  ]);return {effective,image:JSON.stringify([effective,reference])};
 }
 type MoneyRow={company_id:string;source_type:string;source_id:string;amount_kind:string;transaction_date:string;currency:string;currency_scale:number;amount_units:string;usd_units:string;fx_rate_id:string|null;used_latest_fallback:boolean;captured_at:number;source:string};
 export async function manufacturingInitialPhysicalStockProductMoneySource(database:SqlDatabase,companyId:string,productId:string){
- return (await database.prepare(`SELECT s.company_id,s.source_type,s.source_id,s.amount_kind,s.transaction_date::text,s.currency,s.currency_scale,s.amount_units::text,s.usd_units::text,s.fx_rate_id,s.used_latest_fallback,s.captured_at,to_jsonb(s)::text source FROM money_transaction_snapshots s WHERE s.company_id=? AND s.source_type='commerce_product_revision' AND s.source_id=? ORDER BY s.amount_kind`).bind(companyId,`${productId}:1`).all<MoneyRow>()).results;
+ return (await database.prepare(MONEY_TXN_SNAPSHOT_SOURCE_SQL).bind(companyId,`${productId}:1`).all<MoneyRow>()).results;
 }
 export function manufacturingInitialPhysicalStockProductMoneyMatches(rows:Awaited<ReturnType<typeof manufacturingInitialPhysicalStockProductMoneySource>>,companyId:string,productId:string,expected:ManufacturingInitialPhysicalStockProductMoney){
  const row=rows[0],input=expected.input,source=row?JSON.parse(row.source) as Record<string,unknown>:null;

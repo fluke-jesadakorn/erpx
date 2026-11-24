@@ -2,6 +2,7 @@
 
 import { requireFinanceDocumentHistory } from "@erpx/server-finance/adapters/document-purchases";
 import { OPEN_PERIOD_LIST_SQL } from './finance-read-tail-r15-sql';
+import { PERIOD_DATES_SQL } from './finance-read-tail-r18-sql';
 import { salesInvoiceLines } from "@erpx/server-finance/adapters/sales-lines";
 
 import { createFinanceResourcePolicy } from '@erpx/server-finance/application/access';
@@ -29,7 +30,7 @@ export function financeReadService(provided?:SqlDatabase,historyOnly=false) {
     const db = (actor: WorkContext) => pending ??= provided ? (createFinanceResourcePolicy({error:(...args)=>new ApiError(...args),hasPermission})(actor,true),Promise.resolve(provided)) : resources(actor, true).then(r => r.write);
     return createFinanceReads({ error: (...args) => new ApiError(...args), authorize: requirePermission, ready: async (actor) => { await db(actor); }, currentLines: async (companyId, id, revision) => salesInvoiceLines(await pending!, companyId, id, revision), reportCharts: async (actor) => (await (await db(actor)).prepare('SELECT id FROM finance_charts WHERE company_id=?').bind(actor.companyId).all<{
             id: string;
-        }>()).results, reportChart: async (actor, id) => !!await (await db(actor)).prepare('SELECT 1 FROM finance_charts WHERE id=? AND company_id=?').bind(id, actor.companyId).first(), reportPeriod: async (actor, id) => !!await (await db(actor)).prepare('SELECT 1 FROM finance_periods WHERE id=? AND company_id=?').bind(id, actor.companyId).first(), reportPeriodDates: async (actor, id) => (await db(actor)).prepare('SELECT start_date,end_date FROM finance_periods WHERE id=? AND company_id=?').bind(id, actor.companyId).first<{
+        }>()).results, reportChart: async (actor, id) => !!await (await db(actor)).prepare('SELECT 1 FROM finance_charts WHERE id=? AND company_id=?').bind(id, actor.companyId).first(), reportPeriod: async (actor, id) => !!await (await db(actor)).prepare('SELECT 1 FROM finance_periods WHERE id=? AND company_id=?').bind(id, actor.companyId).first(), reportPeriodDates: async (actor, id) => (await db(actor)).prepare(PERIOD_DATES_SQL).bind(id, actor.companyId).first<{
             start_date: string;
             end_date: string;
         }>(), trialRows: async ({ actor, periodId, chartId, dates, options }) => {

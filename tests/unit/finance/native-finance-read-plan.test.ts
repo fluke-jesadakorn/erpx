@@ -27,6 +27,12 @@ import {
 } from '../../../packages/server-finance/src/adapters/finance-read-tail-r15-sql';
 import { OPEN_PERIOD_GUARD_SQL, OPEN_PERIOD_IDS_SQL } from '../../../packages/server-finance/src/adapters/finance-read-tail-r16-sql';
 import { SUPPLIER_RESERVATION_GUARD_SQL, BANK_TRANSACTION_BY_ID_SQL, DIMENSION_DEFINITIONS_SQL } from '../../../packages/server-finance/src/adapters/finance-read-tail-r17-sql';
+import {
+  MONEY_SETTINGS_IMAGE_SQL, MONEY_TXN_SNAPSHOT_SOURCE_SQL,
+  PAYMENT_PROJECTION_SQL, REFUND_OBLIGATION_PROJECTION_SQL,
+  ACCOUNT_CHART_ID_SQL, ALLOCATION_PROJECTION_SQL,
+  PERIOD_DATES_SQL, COLLECTIONS_TOOL_GUARD_SQL, BANK_STATEMENT_VERSION_GUARD_SQL,
+} from '../../../packages/server-finance/src/adapters/finance-read-tail-r18-sql';
 import { peoplePayrollFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/people-payroll-final-owner-projections';
 import { workflowFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/workflow-final-owner-projections';
 import {
@@ -497,5 +503,64 @@ describe('finance read-tail r17 byte-identical SQL dedupe', () => {
   it('leaves the FOR UPDATE OF t variants inline', async () => {
     const pos = await readFile(new URL('../../../packages/server-finance/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
     expect(pos.split(`${R17_BANK_LITERAL} FOR UPDATE OF t`).length - 1).toBe(2);
+  });
+});
+
+const R18_MONEY_SETTINGS_LITERAL = "SELECT jsonb_build_object('chart',(SELECT to_jsonb(c) FROM finance_charts c WHERE c.id=? AND c.company_id=?),'settings',(SELECT to_jsonb(s) FROM company_money_settings s WHERE s.company_id=?),'scale',(SELECT to_jsonb(s) FROM company_currency_scales s WHERE s.company_id=? AND s.currency=?),'rates',COALESCE((SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM company_fx_rates r WHERE r.company_id=? AND r.currency=?),'[]'::jsonb))::text image";
+const R18_SNAPSHOT_LITERAL = "SELECT s.company_id,s.source_type,s.source_id,s.amount_kind,s.transaction_date::text,s.currency,s.currency_scale,s.amount_units::text,s.usd_units::text,s.fx_rate_id,s.used_latest_fallback,s.captured_at,to_jsonb(s)::text source FROM money_transaction_snapshots s WHERE s.company_id=? AND s.source_type='commerce_product_revision' AND s.source_id=? ORDER BY s.amount_kind";
+const R18_PAYMENT_LITERAL = 'SELECT "id","company_id","party_id","kind","payment_number","payment_date","currency","amount_minor","outstanding_minor","bank_account","status","journal_id","version","created_by","approved_by","released_by","created_at","updated_at","payment_slip_id","fx_rate_micros","base_amount_minor","fx_journal_id","withholding_assessment_id","withheld_minor" FROM finance_payments';
+const R18_REFUND_OBLIGATION_LITERAL = 'SELECT "id","company_id","branch_id","department_id","return_id","invoice_id","party_id","direction","currency","chart_id","balance_account_id","amount_minor","outstanding_minor","status","beneficiary_name","beneficiary_account","approval_reason","created_by","approved_by","approved_at","version","created_at","updated_at","base_amount_minor","base_outstanding_minor","source_credit_journal_id","billing_correction_id" FROM finance_refund_obligations';
+const R18_ACCOUNT_CHART_LITERAL = "SELECT chart_id FROM finance_accounts WHERE id=? AND company_id=?";
+const R18_ALLOCATION_LITERAL = 'SELECT "id","company_id","payment_id","invoice_id","amount_minor","created_by","created_at","base_invoice_minor","base_payment_minor","realized_fx_minor" FROM finance_allocations';
+const R18_PERIOD_DATES_LITERAL = "SELECT start_date,end_date FROM finance_periods WHERE id=? AND company_id=?";
+const R18_COLLECTIONS_TOOL_LITERAL = "EXISTS(SELECT 1 FROM finance_company_tools WHERE company_id=? AND tool='collections' AND enabled=1)";
+const R18_BANK_STATEMENT_VERSION_LITERAL = "EXISTS(SELECT 1 FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id WHERE t.id=? AND t.company_id=? AND t.version=? AND t.match_status IN ('unmatched','proposed') AND s.bank_account=? AND t.currency=? AND t.amount_minor=? AND t.external_id=?)";
+const R18_GROUPS: [string, string, string, string[]][] = [
+  ['MONEY_SETTINGS_IMAGE_SQL', MONEY_SETTINGS_IMAGE_SQL, R18_MONEY_SETTINGS_LITERAL, ['manufacturing-initial-physical-stock-master-sources.ts', 'pos-startup-master-sources.ts']],
+  ['MONEY_TXN_SNAPSHOT_SOURCE_SQL', MONEY_TXN_SNAPSHOT_SOURCE_SQL, R18_SNAPSHOT_LITERAL, ['manufacturing-initial-physical-stock-master-sources.ts', 'pos-startup-master-sources.ts', 'sales-service-product-sources.ts']],
+  ['PAYMENT_PROJECTION_SQL', PAYMENT_PROJECTION_SQL, R18_PAYMENT_LITERAL, ['final-root-owner-projection-sources.ts', 'hospitality-owner-projection-sources.ts']],
+  ['REFUND_OBLIGATION_PROJECTION_SQL', REFUND_OBLIGATION_PROJECTION_SQL, R18_REFUND_OBLIGATION_LITERAL, ['final-root-owner-projection-sources.ts', 'commercial-owner-projection-sources.ts']],
+  ['ACCOUNT_CHART_ID_SQL', ACCOUNT_CHART_ID_SQL, R18_ACCOUNT_CHART_LITERAL, ['record-presentation.ts', 'assets-financial-workflow.ts']],
+  ['ALLOCATION_PROJECTION_SQL', ALLOCATION_PROJECTION_SQL, R18_ALLOCATION_LITERAL, ['hospitality-owner-projection-sources.ts', 'commercial-owner-projection-sources.ts']],
+  ['PERIOD_DATES_SQL', PERIOD_DATES_SQL, R18_PERIOD_DATES_LITERAL, ['finance-invoice-read.ts', 'records-record-details-owned-facts.ts']],
+  ['COLLECTIONS_TOOL_GUARD_SQL', COLLECTIONS_TOOL_GUARD_SQL, R18_COLLECTIONS_TOOL_LITERAL, ['finance-collections.ts']],
+  ['BANK_STATEMENT_VERSION_GUARD_SQL', BANK_STATEMENT_VERSION_GUARD_SQL, R18_BANK_STATEMENT_VERSION_LITERAL, ['payroll-other-remittance.ts', 'payroll-owner-facts.ts']],
+];
+
+describe('finance read-tail r18 byte-identical SQL dedupe', () => {
+  it('keeps one byte-identical literal per family with no inline duplicates', async () => {
+    const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r18-sql.ts', import.meta.url), 'utf8');
+    expect(shared.split('SELECT ').length - 1).toBe(13);
+    for (const [name, actual, literal] of R18_GROUPS) {
+      expect(actual).toBe(literal);
+      expect(actual).not.toContain('FOR UPDATE');
+      expect(actual).not.toContain('FOR SHARE');
+      expect(shared.split(literal).length - 1).toBe(1);
+      expect(typeof name).toBe('string');
+    }
+  });
+
+  it('backs every call site with the shared constants and unchanged binds', async () => {
+    const bindFiles = new Set([
+      'manufacturing-initial-physical-stock-master-sources.ts', 'pos-startup-master-sources.ts',
+      'sales-service-product-sources.ts', 'record-presentation.ts', 'assets-financial-workflow.ts',
+      'finance-invoice-read.ts', 'records-record-details-owned-facts.ts', 'finance-collections.ts',
+      'payroll-other-remittance.ts', 'payroll-owner-facts.ts',
+    ]);
+    for (const [name, , literal, files] of R18_GROUPS) {
+      for (const file of files) {
+        const text = await readFile(new URL(`../../../packages/server-finance/src/adapters/${file}`, import.meta.url), 'utf8');
+        expect(text.split(literal).length - 1).toBe(0);
+        expect(text).toContain(name);
+        if (bindFiles.has(file)) expect(text).toContain('.bind(');
+      }
+    }
+  });
+
+  it('leaves every lock-taking variant inline outside the shared text', async () => {
+    const pos = await readFile(new URL('../../../packages/server-finance/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
+    expect(pos.split(`${R17_BANK_LITERAL} FOR UPDATE OF t`).length - 1).toBe(2);
+    const pms = await readFile(new URL('../../../packages/server-finance/src/adapters/pms-command-facts.ts', import.meta.url), 'utf8');
+    expect(pms.split(`${R16_IDS_LITERAL} FOR SHARE`).length - 1).toBe(1);
   });
 });

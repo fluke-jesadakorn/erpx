@@ -1,4 +1,5 @@
 import { OPEN_PERIOD_GUARD_SQL, OPEN_PERIOD_IDS_SQL } from './finance-read-tail-r16-sql';
+import { BANK_STATEMENT_VERSION_GUARD_SQL } from './finance-read-tail-r18-sql';
 import {financeSnapshotSources} from "@erpx/server-people_payroll/public/finance-snapshot-sources";
 import { OPEN_PERIOD_LIST_SQL } from './finance-read-tail-r15-sql';
 import { financePayrollOwner } from '@erpx/server-collaboration/adapters/native-finance-payroll-owner';
@@ -90,6 +91,6 @@ export function payrollFinanceFacts(database: SqlDatabase) {
                 id: string;
             }>();
         },
-        guard216(commandId: string, value: string, id: string, companyId: string, bankVersion: number, bank_account_id: string, currency: string, value2: number, confirmationRef: string) { return assertion(database, commandId, value, "EXISTS(SELECT 1 FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id WHERE t.id=? AND t.company_id=? AND t.version=? AND t.match_status IN ('unmatched','proposed') AND s.bank_account=? AND t.currency=? AND t.amount_minor=? AND t.external_id=?)", [id, companyId, bankVersion, bank_account_id, currency, value2, confirmationRef]); },
+        guard216(commandId: string, value: string, id: string, companyId: string, bankVersion: number, bank_account_id: string, currency: string, value2: number, confirmationRef: string) { return assertion(database, commandId, value, BANK_STATEMENT_VERSION_GUARD_SQL, [id, companyId, bankVersion, bank_account_id, currency, value2, confirmationRef]); },
         stageConfirmPaymentBatchEffect2(id: string, id2: string, bankVersion: number, companyId: string) { return financePayrollOwner(database, companyId).bankMatch({ id, id2, bankVersion }); } };
 }

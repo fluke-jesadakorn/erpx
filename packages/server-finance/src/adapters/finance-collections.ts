@@ -1,5 +1,6 @@
 import {withFinancePurchasedCommand,withFinancePurchasedRead,requireFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
 import { CHART_BASE_CURRENCY_BY_ID_SQL } from './finance-read-tail-r15-sql';
+import { COLLECTIONS_TOOL_GUARD_SQL } from './finance-read-tail-r18-sql';
 import { nativeFinanceCollections } from '@erpx/server-collaboration/adapters/native-finance-collections';
 import {financeCommandReceipts} from "@erpx/server-workflow/public/finance-command-receipts";
 import type { z } from "zod";
@@ -47,7 +48,7 @@ prepareCommit:async(facts)=>{const {actor,key,op,input,id,row,ageStage,message,h
         write,
         key,
         "tool",
-        "EXISTS(SELECT 1 FROM finance_company_tools WHERE company_id=? AND tool='collections' AND enabled=1)",
+        COLLECTIONS_TOOL_GUARD_SQL,
         [actor.companyId],
       ),
       assertion(
@@ -112,7 +113,7 @@ reviseCommit:async(facts)=>{const {actor,key,op,parentId,input,id,parent,invoice
         write,
         key,
         "tool",
-        "EXISTS(SELECT 1 FROM finance_company_tools WHERE company_id=? AND tool='collections' AND enabled=1)",
+        COLLECTIONS_TOOL_GUARD_SQL,
         [actor.companyId],
       ),
       assertion(

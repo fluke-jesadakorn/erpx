@@ -1,4 +1,5 @@
 import 'server-only';
+import { ACCOUNT_CHART_ID_SQL } from './finance-read-tail-r18-sql';
 import {createHash} from 'node:crypto';
 import {hasPermission} from '@erpx/feature-identity_access/lib/permissions';
 import {samePerson} from '@erpx/feature-identity_access/lib/iam';
@@ -25,7 +26,7 @@ export async function assetsFinancialWorkspace(actor:WorkContext,assetId?:string
   let detail:AssetsFinancialWorkspace['detail']=null;
   if(data.detail){
    const a:Asset=data.detail.asset,source=await assetsFinancialOriginalSource(database,actor,a.id);
-   const chartId=await database.prepare('SELECT chart_id FROM finance_accounts WHERE id=? AND company_id=?').bind(a.account_id,actor.companyId).first<string>('chart_id');if(!chartId)throw new ApiError(409,'ASSETS_FINANCIAL_SOURCE_CHANGED','The original Asset chart identity is unavailable.');
+   const chartId=await database.prepare(ACCOUNT_CHART_ID_SQL).bind(a.account_id,actor.companyId).first<string>('chart_id');if(!chartId)throw new ApiError(409,'ASSETS_FINANCIAL_SOURCE_CHANGED','The original Asset chart identity is unavailable.');
    detail={asset:{...summary({...a}),chartId,accountId:a.account_id,depreciationAccountId:a.depreciation_account_id,depreciationExpenseAccountId:a.depreciation_expense_account_id,residualMinor:Number(a.residual_minor),usefulLifeMonths:Number(a.useful_life_months),inServiceDate:a.in_service_date,accumulatedDepreciationMinor:Number(a.accumulated_depreciation_minor),activationJournalId:a.activation_journal_id,
     canEdit:a.status==='draft'&&canWrite&&access['assets.register'].newWork&&access['finance.asset-recognition'].newWork,canCancel:a.status==='draft'&&canWrite&&recognition,canRecognize:a.status==='draft'&&!a.activation_journal_id&&!!a.depreciation_account_id&&!!a.depreciation_expense_account_id&&canApprove&&recognition&&!samePerson(current,a.created_by),canPrepareDisposal:a.status==='in_service'&&!!a.activation_journal_id&&canWrite&&disposal&&!data.detail.disposals.some(row=>row.status==='draft')},
     disposals:data.detail.disposals.map(row=>({id:String(row.id),assetId:a.id,status:String(row.status),version:Number(row.version),assetVersion:Number(row.asset_version),entryDate:String(row.entry_date).slice(0,10),proceedsMinor:Number(row.proceeds_minor),journalId:typeof row.journal_id==='string'?row.journal_id:null,canPost:row.status==='draft'&&Number(row.asset_version)===a.version&&canApprove&&disposal&&!samePerson(current,row.created_by),canCancel:row.status==='draft'&&Number(row.asset_version)===a.version&&canWrite&&disposal})),
