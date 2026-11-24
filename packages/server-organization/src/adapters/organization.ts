@@ -33,10 +33,11 @@ export {positionSchema,organizationNodeChangeSchema,organizationNodeDecisionSche
 import {organizationGuard}from '@erpx/server-organization/public/organization-graph-guard';
 import {organizationRoster}from '@erpx/server-organization/public/organization-roster-read';
 import {NODE_BRANCH_ACTIVE,NODE_BRANCH_ACTIVE_EXISTS,departmentSnapshotMissing} from './organization-read-tail-sources';
+import {snapshotProjection,staffLevelNumberSource} from './organization-column-alias-families';
 const HEAD_SEAT_SNAPSHOT_SOURCE =
   "SELECT version,position_id,person_id,effective_at FROM authority_seats WHERE company_id=? AND kind='head' AND scope_id=?";
 const DEPARTMENT_HEAD_SNAPSHOT_SOURCE =
-  "SELECT version,person_id FROM department_heads WHERE company_id=? AND department_id=?";
+  snapshotProjection('version,person_id','department_heads','company_id','department_id');
 const DEPARTMENT_FLOW_SNAPSHOT_SOURCE =
   "SELECT id,version,steps_json FROM department_flow_versions WHERE company_id=? AND department_id=? ORDER BY version DESC LIMIT 1";
 const nodeImpactSql=`SELECT
@@ -80,7 +81,7 @@ clock:{now:()=>Date.now()},authorize:actor=>requirePermission(actor,'organizatio
  hasChildren:async(companyId,id)=>!!await db.prepare("SELECT 1 FROM organization_nodes WHERE company_id=? AND parent_id=? AND status<>'archived' LIMIT 1").bind(companyId,id).first(),
  slugConflict:async(companyId,branchId,slug)=>!!await db.prepare('SELECT 1 FROM organization_nodes WHERE company_id=? AND parent_id=? AND slug=? LIMIT 1').bind(companyId,branchId,slug).first(),
  change:(companyId,id)=>db.prepare('SELECT * FROM organization_node_changes WHERE id=? AND company_id=?').bind(id,companyId).first<OrganizationNodeChange>(),
- target:(companyId,id)=>db.prepare('SELECT branch_id,slug FROM organization_nodes WHERE id=? AND company_id=?').bind(id,companyId).first<{branch_id:string|null;slug:string}>(),
+ target:(companyId,id)=>db.prepare(snapshotProjection('branch_id,slug','organization_nodes','id','company_id')).bind(id,companyId).first<{branch_id:string|null;slug:string}>(),
  relocationSnapshot:(companyId,id)=>relocationSnapshot(db,companyId,id),impact:(companyId,id)=>organizationNodeImpact(db,companyId,id),submittedSnapshot:async(id)=>(await db.prepare("SELECT snapshot_json FROM organization_node_change_events WHERE change_id=? AND action='submitted' ORDER BY created_at DESC,id DESC LIMIT 1").bind(id).first<{snapshot_json:string}>())?.snapshot_json??null,
  attachmentSets:(companyId,ids)=>attachmentPurposeFacts(db,companyId,ids),prepareReviewBinding:(actor,id,attachmentSetIds,version,key,decision)=>prepareAttachmentBinding(db,actor,{attachmentSetIds,bindingContract:{targetType:'organization_change',bindingType:'organization_change_review',contexts:[{purposeKey:'org_change_proof',componentKind:'action',componentRef:'organization-change-review'}]},targetId:id,expectedTargetVersion:version,commandId:key,bindingId:`${id}:${decision}:${version+1}`}),
  reviewGuards:(actor,id,version,key,requesterId)=>[assertion(db,key,'change-version',"EXISTS(SELECT 1 FROM organization_node_changes WHERE id=? AND company_id=? AND version=? AND state='submitted')",[id,actor.companyId,version]),assertion(db,key,'independent-review','NOT iam_same_person(?,?,?)',[actor.userId,requesterId,actor.companyId])],
@@ -138,7 +139,7 @@ commitReview:async(actor,id,input,key,_change,state,version,appliedNodeId,stages
     await nativeOrganizationChangeNotice(db,actor,id,key,"cancelled"),
   ]);
 },
-level:(companyId,id)=>db.prepare('SELECT level_number FROM staff_levels WHERE company_id=? AND id=? AND active=1').bind(companyId,id).first<{level_number:number|null}>()};}
+level:(companyId,id)=>db.prepare(staffLevelNumberSource('company_id','id')).bind(companyId,id).first<{level_number:number|null}>()};}
 async function invoke<T>(call:()=>Promise<T>):Promise<T>{try{return await call();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
 const application=(db:SqlDatabase)=>createOrganizationApplication(portsFor(db));
 export const organizationOverview=(db:SqlDatabase,actor:WorkContext,query:Record<string,unknown>={})=>invoke(()=>application(db).overview(actor,query));
