@@ -1,4 +1,4 @@
-import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
+import { idCompanyStatusVersionGuard, aggByCompany } from './finance-read-tail-r20-sql';
 import {withFinancePurchasedCommand,withFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
 import { nativeFinanceTaxRegister } from '@erpx/server-collaboration/adapters/native-finance-tax-register';
 import { financeOwnerDecisionEffects } from "@erpx/server-workflow/public/finance-owner-decision-effects";
@@ -89,7 +89,7 @@ export async function prepareVatCorrection(actor: WorkContext, entryId: string, 
 export async function reviewVatCorrection(actor: WorkContext, id: string, action: "approve" | "reject", raw: z.infer<typeof taxReviewSchema>, key: string) { return withFinancePurchasedCommand(actor,{key:key,operation:`finance.vat-correction.${action}`,purpose:"settle-existing",capability:"finance.tax"},tx=>vatService(tx).reviewVatCorrection(actor, id, action, raw, key)); }
 // The hash covers the complete reviewed register for the month. List limits in
 // the workspace do not truncate calculation or source-change checks.
-const registerJson = `COALESCE((SELECT jsonb_agg(to_jsonb(t) ORDER BY t.id) FROM finance_current_tax_entries t WHERE t.company_id=? AND t.chart_id=? AND t.claim_month=?),'[]'::jsonb)::text`;
+const registerJson = `COALESCE(${aggByCompany('t','finance_current_tax_entries','id',' AND t.chart_id=? AND t.claim_month=?')},'[]'::jsonb)::text`;
 const reconciliationSql = `WITH tax_accounts AS (
       SELECT DISTINCT i.tax_account_id id,CASE WHEN i.kind='receivable' THEN 'output' ELSE 'input' END direction
       FROM finance_invoices i JOIN finance_journals j ON j.id=i.journal_id WHERE i.company_id=? AND j.chart_id=? AND j.entry_date BETWEEN ? AND ? AND i.tax_account_id IS NOT NULL

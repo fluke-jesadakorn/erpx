@@ -33,6 +33,8 @@ import {
   ACCOUNT_CHART_ID_SQL, ALLOCATION_PROJECTION_SQL,
   PERIOD_DATES_SQL, COLLECTIONS_TOOL_GUARD_SQL, BANK_STATEMENT_VERSION_GUARD_SQL,
 } from '../../../packages/server-finance/src/adapters/finance-read-tail-r18-sql';
+import { rootOwnerExistsSql, materializedClockCteSql } from '../../../packages/server-finance/src/adapters/finance-read-tail-r19-sql';
+import { idCompanyStatusVersionGuard, aggByCompany } from '../../../packages/server-finance/src/adapters/finance-read-tail-r20-sql';
 import { peoplePayrollFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/people-payroll-final-owner-projections';
 import { workflowFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/workflow-final-owner-projections';
 import {
@@ -562,5 +564,267 @@ describe('finance read-tail r18 byte-identical SQL dedupe', () => {
     expect(pos.split(`${R17_BANK_LITERAL} FOR UPDATE OF t`).length - 1).toBe(2);
     const pms = await readFile(new URL('../../../packages/server-finance/src/adapters/pms-command-facts.ts', import.meta.url), 'utf8');
     expect(pms.split(`${R16_IDS_LITERAL} FOR SHARE`).length - 1).toBe(1);
+  });
+});
+
+const R19_ROOT = 'SELECT 1 FROM finance_documents';
+const R19_SRC = 'SELECT 1 FROM finance_owned';
+const R19_OWNER_JOIN = (alias: string) =>
+  `EXISTS(SELECT 1 FROM (${R19_ROOT}) root JOIN (${R19_SRC}) ${alias} ON ${alias}.id=root.id AND ${alias}.company_id=root.company_id)`;
+const R19_OWNER_FILES = [
+  'document-purchases.ts', 'pos-initial-stock-journal-sources.ts',
+  'manufacturing-initial-stock-journal-sources.ts', 'service-initial-stock-journal-sources.ts',
+];
+const R19_CLOCK_FILES = [
+  'group-purchase-sources.ts', 'sales-posting-setup.ts', 'document-purchases.ts',
+  'finance-expansion-work.ts', 'legal-setup.ts', 'ledger.ts', 'expense-posting-prerequisites.ts',
+  'finance-due-drafts.ts', 'refunds.ts', 'assets-financial-entry.ts',
+  'payroll-posting-prerequisites.ts', 'sales-customer-receipts.ts', 'calendar-purchases.ts',
+];
+
+describe('finance read-tail r19 byte-identical SQL dedupe', () => {
+  it('renders the root-to-owner existence join byte-identically for every alias', () => {
+    for (const alias of ['owner_source', 'marker', 'source']) {
+      expect(rootOwnerExistsSql(R19_ROOT, R19_SRC, alias)).toBe(R19_OWNER_JOIN(alias));
+      expect(rootOwnerExistsSql(R19_ROOT, R19_SRC, alias)).not.toMatch(/FOR UPDATE|FOR SHARE/);
+    }
+  });
+
+  it('renders all three materialized clock CTE variants byte-identically', () => {
+    const clock = 'package_clock_sql';
+    expect(materializedClockCteSql('clean_clock', clock)).toBe(`WITH clean_clock AS MATERIALIZED(SELECT ${clock} now_ms)`);
+    expect(materializedClockCteSql('spaced_clock', clock, true)).toBe(`WITH spaced_clock AS MATERIALIZED (SELECT ${clock} now_ms)`);
+    expect(materializedClockCteSql('as_clock', clock, true, true)).toBe(`WITH as_clock AS MATERIALIZED (SELECT ${clock} AS now_ms)`);
+    expect(materializedClockCteSql('as_clock', clock, true, true)).not.toMatch(/FOR UPDATE|FOR SHARE/);
+  });
+
+  it('keeps exactly two SELECT-bearing templates in the shared helper', async () => {
+    const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r19-sql.ts', import.meta.url), 'utf8');
+    expect(shared.split('SELECT ').length - 1).toBe(2);
+  });
+
+  it('backs all 22 owner-join sites with the helper and no inline join', async () => {
+    let calls = 0;
+    for (const file of R19_OWNER_FILES) {
+      const text = await readFile(new URL(`../../../packages/server-finance/src/adapters/${file}`, import.meta.url), 'utf8');
+      expect(text).not.toMatch(/EXISTS\(SELECT 1 FROM \(\$\{[^}]*\}\) root JOIN \(\$\{[^}]*\}\) (owner_source|marker|source) ON \1\.id=root\.id AND \1\.company_id=root\.company_id\)/);
+      expect(text).toContain('rootOwnerExistsSql');
+      calls += (text.match(/rootOwnerExistsSql\(/g) ?? []).length;
+    }
+    expect(calls).toBe(22);
+  });
+
+  it('backs all 15 WITH-prefixed clock sites with the helper and no inline clock prefix', async () => {
+    let calls = 0;
+    for (const file of R19_CLOCK_FILES) {
+      const text = await readFile(new URL(`../../../packages/server-finance/src/adapters/${file}`, import.meta.url), 'utf8');
+      expect(text).not.toMatch(/WITH \w+ AS MATERIALIZED\(SELECT \$\{packageClockSql\}/);
+      expect(text).toContain('materializedClockCteSql');
+      calls += (text.match(/materializedClockCteSql\(/g) ?? []).length;
+    }
+    expect(calls).toBe(15);
+  });
+
+  it('leaves the comma-joined clock CTE and lock variants inline', async () => {
+    const doc = await readFile(new URL('../../../packages/server-finance/src/adapters/document-purchases.ts', import.meta.url), 'utf8');
+    expect(doc.split('finance_entry_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms)').length - 1).toBe(1);
+    expect(doc.split('root JOIN finance_assets a ON').length - 1).toBe(1);
+    expect(doc.split('root JOIN finance_asset_disposals a ON').length - 1).toBe(1);
+    const pos = await readFile(new URL('../../../packages/server-finance/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
+    expect(pos.split(`${R17_BANK_LITERAL} FOR UPDATE OF t`).length - 1).toBe(2);
+  });
+});
+
+const R20_GUARD_TEMPLATE = (table: string, status: string) =>
+  `EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND status='${status}' AND version=?)`;
+const R20_AGG_TEMPLATE = (a: string, table: string, order: string) =>
+  `(SELECT jsonb_agg(to_jsonb(${a}) ORDER BY ${a}.${order}) FROM ${table} ${a} WHERE ${a}.company_id=?)`;
+const R20_GUARDS: [string, string, string][] = [
+  ['refunds.ts', 'finance_refund_obligations', 'pending'],
+  ['refunds.ts', 'finance_refund_instructions', 'prepared'],
+  ['finance.ts', 'finance_invoices', 'draft'],
+  ['finance-withholding.ts', 'finance_withholding_assessments', 'consumed'],
+  ['finance-withholding.ts', 'finance_withholding_assessments', 'draft'],
+  ['finance-withholding.ts', 'finance_payments', 'draft'],
+  ['finance-withholding-remittance.ts', 'finance_withholding_remittances', 'confirmed'],
+  ['finance-withholding-remittance.ts', 'finance_withholding_packages', 'draft'],
+  ['finance-withholding-remittance.ts', 'finance_withholding_packages', 'approved'],
+  ['finance-thai-documents.ts', 'finance_thai_document_changes', 'draft'],
+  ['finance-tax-register.ts', 'finance_vat_corrections', 'prepared'],
+  ['finance-tax-register.ts', 'finance_statutory_packages', 'prepared'],
+  ['finance-tax-register.ts', 'finance_statutory_packages', 'exported'],
+  ['finance-tax-register.ts', 'finance_statutory_packages', 'approved_for_export'],
+  ['finance-tax-identities.ts', 'finance_tax_identities', 'draft'],
+  ['finance-reporting.ts', 'finance_year_closings', 'draft'],
+  ['finance-reporting.ts', 'finance_statement_packages', 'draft'],
+  ['finance-owned-reversal.ts', 'finance_journals', 'posted'],
+  ['finance-invoice-lines.ts', 'finance_accounts', 'active'],
+  ['finance-business-contracts.ts', 'finance_recognition_runs', 'posted'],
+  ['finance-business-contracts.ts', 'finance_recognition_runs', 'draft'],
+  ['finance-business-contracts.ts', 'finance_business_contracts', 'active'],
+  ['finance-book-adjustments.ts', 'finance_book_adjustments', 'posted'],
+  ['finance-book-adjustments.ts', 'finance_book_adjustments', 'draft'],
+  ['finance-billing-corrections.ts', 'finance_billing_corrections', 'draft'],
+  ['finance-assets.ts', 'finance_asset_disposals', 'draft'],
+  ['finance-asset-policies.ts', 'finance_asset_policy_runs', 'draft'],
+  ['finance-accruals.ts', 'finance_accrual_schedules', 'active'],
+];
+const R20_AGGS: [string, string, string, string][] = [
+  ['sales-service-product-sources.ts', 'c', 'finance_charts', 'id'],
+  ['sales-service-product-sources.ts', 'a', 'finance_accounts', 'id'],
+  ['sales-service-product-sources.ts', 'd', 'finance_sales_defaults', 'id'],
+  ['sales-service-product-sources.ts', 's', 'company_currency_scales', 'currency'],
+  ['sales-service-product-sources.ts', 'r', 'company_fx_rates', 'id'],
+  ['assets-financial-sources.ts', 'c', 'finance_charts', 'id'],
+  ['assets-financial-sources.ts', 'a', 'finance_accounts', 'id'],
+  ['assets-financial-sources.ts', 'p', 'finance_periods', 'id'],
+  ['assets-financial-sources.ts', 'd', 'finance_dimension_definitions', 'id'],
+  ['assets-financial-sources.ts', 'b', 'finance_book_rules', 'id'],
+  ['assets-financial-sources.ts', 's', 'company_currency_scales', 'currency'],
+  ['assets-financial-sources.ts', 'r', 'company_fx_rates', 'id'],
+];
+
+describe('finance read-tail r20 byte-identical SQL dedupe', () => {
+  it('renders all 28 status/version guards byte-identically with no lock text', () => {
+    expect(R20_GUARDS).toHaveLength(28);
+    for (const [, table, status] of R20_GUARDS) {
+      const rendered = idCompanyStatusVersionGuard(table, status);
+      expect(rendered).toBe(R20_GUARD_TEMPLATE(table, status));
+      expect(rendered).not.toMatch(/FOR UPDATE|FOR SHARE/);
+    }
+  });
+
+  it('renders all 12 company-only jsonb_agg projections byte-identically with no lock text', () => {
+    expect(R20_AGGS).toHaveLength(12);
+    for (const [, a, table, order] of R20_AGGS) {
+      const rendered = aggByCompany(a, table, order);
+      expect(rendered).toBe(R20_AGG_TEMPLATE(a, table, order));
+      expect(rendered).not.toMatch(/FOR UPDATE|FOR SHARE/);
+    }
+  });
+
+  it('keeps exactly two SELECT-bearing templates in the shared helper', async () => {
+    const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r20-sql.ts', import.meta.url), 'utf8');
+    expect(shared.split('SELECT ').length - 1).toBe(2);
+  });
+
+  it('backs all 28 guard sites with the helper and no inline literal', async () => {
+    let calls = 0;
+    for (const file of new Set(R20_GUARDS.map(([f]) => f))) {
+      const text = await readFile(new URL(`../../../packages/server-finance/src/adapters/${file}`, import.meta.url), 'utf8');
+      expect(text).toContain("from './finance-read-tail-r20-sql'");
+      expect(text).toContain('idCompanyStatusVersionGuard');
+      for (const [f, table, status] of R20_GUARDS) {
+        if (f !== file) continue;
+        expect(text.split(R20_GUARD_TEMPLATE(table, status)).length - 1).toBe(0);
+      }
+      calls += (text.match(/idCompanyStatusVersionGuard\(/g) ?? []).length;
+    }
+    expect(calls).toBe(28);
+  });
+
+  it('backs the 12 company-only plus 3 variant jsonb_agg sites with the helper and keeps COALESCE outside', async () => {
+    let calls = 0;
+    for (const file of new Set(R20_AGGS.map(([f]) => f))) {
+      const text = await readFile(new URL(`../../../packages/server-finance/src/adapters/${file}`, import.meta.url), 'utf8');
+      expect(text).toContain("from './finance-read-tail-r20-sql'");
+      expect(text).toContain('aggByCompany');
+      for (const [f, a, table, order] of R20_AGGS) {
+        if (f !== file) continue;
+        expect(text.split(R20_AGG_TEMPLATE(a, table, order)).length - 1).toBe(0);
+      }
+      calls += (text.match(/aggByCompany\(/g) ?? []).length;
+    }
+    expect(calls).toBe(15);
+    const sales = await readFile(new URL('../../../packages/server-finance/src/adapters/sales-service-product-sources.ts', import.meta.url), 'utf8');
+    expect(sales.split(`COALESCE(\${aggByCompany('c','finance_charts','id')},'[]'::jsonb)`).length - 1).toBe(1);
+    const assets = await readFile(new URL('../../../packages/server-finance/src/adapters/assets-financial-sources.ts', import.meta.url), 'utf8');
+    expect(assets.split(`COALESCE(\${aggByCompany('c','finance_charts','id')}`).length - 1).toBe(0);
+  });
+
+  it('leaves r18 predicate and lock variants inline; extra predicates now shared', async () => {
+    const tax = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-tax-register.ts', import.meta.url), 'utf8');
+    expect(tax.split("aggByCompany('t','finance_current_tax_entries','id',' AND t.chart_id=? AND t.claim_month=?')").length - 1).toBe(1);
+    expect(tax.split('t.company_id=? AND t.chart_id=? AND t.claim_month=?').length - 1).toBe(0);
+    const attach = await readFile(new URL('../../../packages/server-finance/src/adapters/commerce-attachment-sources.ts', import.meta.url), 'utf8');
+    expect(attach.split("aggByCompany('p','finance_parties','id',' AND p.id IN(SELECT jsonb_array_elements_text(?::jsonb))')").length - 1).toBe(1);
+    const r18 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r18-sql.ts', import.meta.url), 'utf8');
+    expect(r18.split('r.currency=?)').length - 1).toBeGreaterThan(0);
+    const wh = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-withholding-remittance.ts', import.meta.url), 'utf8');
+    expect(wh.split('SELECT id FROM finance_withholding_packages WHERE id=? FOR UPDATE').length - 1).toBe(1);
+  });
+});
+
+const R21_VARIANTS: [string, string, string, string[], string][] = [
+  [
+    'finance-tax-register.ts',
+    '(SELECT jsonb_agg(to_jsonb(t) ORDER BY t.id) FROM finance_current_tax_entries t WHERE t.company_id=? AND t.chart_id=? AND t.claim_month=?)',
+    "aggByCompany('t','finance_current_tax_entries','id',' AND t.chart_id=? AND t.claim_month=?')",
+    ["t", "finance_current_tax_entries", "id", " AND t.chart_id=? AND t.claim_month=?"],
+    'registerJson',
+  ],
+  [
+    'commerce-attachment-sources.ts',
+    '(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.id) FROM finance_parties p WHERE p.company_id=? AND p.id IN(SELECT jsonb_array_elements_text(?::jsonb)))',
+    "aggByCompany('p','finance_parties','id',' AND p.id IN(SELECT jsonb_array_elements_text(?::jsonb))')",
+    ["p", "finance_parties", "id", " AND p.id IN(SELECT jsonb_array_elements_text(?::jsonb))"],
+    'parties',
+  ],
+  [
+    'assets-financial-sources.ts',
+    '(SELECT jsonb_agg(to_jsonb(v) ORDER BY v.dimension_id,v.code) FROM finance_dimension_values v WHERE v.company_id=?)',
+    "aggByCompany('v','finance_dimension_values','dimension_id,code')",
+    ["v", "finance_dimension_values", "dimension_id,code"],
+    'dimensionValues',
+  ],
+  [
+    'assets-financial-sources.ts',
+    '(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.rule_id,m.primary_account_id) FROM finance_book_account_mappings m JOIN finance_book_rules b ON b.id=m.rule_id WHERE b.company_id=?)',
+    "aggByCompany('m','finance_book_account_mappings','rule_id,primary_account_id','','finance_book_account_mappings m JOIN finance_book_rules b ON b.id=m.rule_id','b')",
+    ["m", "finance_book_account_mappings", "rule_id,primary_account_id", "", "finance_book_account_mappings m JOIN finance_book_rules b ON b.id=m.rule_id", "b"],
+    'bookMappings',
+  ],
+  [
+    'assets-financial-sources.ts',
+    "(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.source_type,m.source_id,m.amount_kind) FROM money_transaction_snapshots m WHERE m.company_id=? AND ((m.source_type='finance_asset' AND m.source_id=?) OR (m.source_type IN('finance_asset_revision','asset_depreciation') AND left(m.source_id,length(?)+1)=?||':') OR (m.source_type='asset_disposal' AND m.source_id IN(SELECT id FROM disposals))))",
+    "aggByCompany('m','money_transaction_snapshots','source_type,source_id,amount_kind',` AND ((m.source_type='finance_asset' AND m.source_id=?) OR (m.source_type IN('finance_asset_revision','asset_depreciation') AND left(m.source_id,length(?)+1)=?||':') OR (m.source_type='asset_disposal' AND m.source_id IN(SELECT id FROM disposals)))`)",
+    ["m", "money_transaction_snapshots", "source_type,source_id,amount_kind", " AND ((m.source_type='finance_asset' AND m.source_id=?) OR (m.source_type IN('finance_asset_revision','asset_depreciation') AND left(m.source_id,length(?)+1)=?||':') OR (m.source_type='asset_disposal' AND m.source_id IN(SELECT id FROM disposals)))"],
+    'money',
+  ],
+];
+
+describe('finance read-tail r21 byte-identical SQL variants', () => {
+  it('renders all 5 extra-predicate / multi-column-order variants byte-identically with no lock text', () => {
+    expect(R21_VARIANTS).toHaveLength(5);
+    for (const [, expected, , args] of R21_VARIANTS) {
+      const rendered = aggByCompany(...(args as [string, string, string, string, string, string]));
+      expect(rendered).toBe(expected);
+      expect(rendered).not.toMatch(/FOR UPDATE|FOR SHARE/);
+    }
+  });
+
+  it('backs all 5 variant sites with the helper and no inline literal', async () => {
+    for (const file of new Set(R21_VARIANTS.map(([f]) => f))) {
+      const text = await readFile(new URL(`../../../packages/server-finance/src/adapters/${file}`, import.meta.url), 'utf8');
+      expect(text).toContain("from './finance-read-tail-r20-sql'");
+      expect(text).toContain('aggByCompany');
+      for (const [f, expected, call] of R21_VARIANTS) {
+        if (f !== file) continue;
+        expect(text.split(expected).length - 1).toBe(0);
+        expect(text.split(call).length - 1).toBe(1);
+      }
+    }
+  });
+
+  it('keeps COALESCE outside the shared register projection and locks inline', async () => {
+    const tax = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-tax-register.ts', import.meta.url), 'utf8');
+    expect(tax.split("COALESCE(${aggByCompany('t','finance_current_tax_entries','id',' AND t.chart_id=? AND t.claim_month=?')},'[]'::jsonb)::text").length - 1).toBe(1);
+    const wh = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-withholding-remittance.ts', import.meta.url), 'utf8');
+    expect(wh.split('SELECT id FROM finance_withholding_packages WHERE id=? FOR UPDATE').length - 1).toBe(1);
+  });
+
+  it('keeps exactly two SELECT-bearing templates in the shared helper', async () => {
+    const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r20-sql.ts', import.meta.url), 'utf8');
+    expect(shared.split('SELECT ').length - 1).toBe(2);
   });
 });
