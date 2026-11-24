@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11065,
+    "revision": 11070,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -167622,7 +167622,7 @@
         "owner": "workflow",
         "title": "workflow flow routes native read port (round 41)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -167634,22 +167634,37 @@
         "resources": [
           "owner:workflow"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMwf2",
-          "claimedAt": "2026-11-24T09:04:40.319Z",
-          "heartbeatAt": "2026-11-24T09:38:27.860Z",
-          "expiresAt": "2026-11-24T10:08:27.860Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-workflow/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "eaf6eff5b",
+            "owner": "workflow",
+            "before": 54,
+            "after": 53,
+            "note": "flowRoutesByCompanySql retired to two fixed native kinds; locks, receipts and r24-r40 helpers untouched. cargo lib 45/45 with isolated target."
+          },
+          {
+            "command": "vitest workflow (76) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "eaf6eff5b"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Add WF_NATIVE_FLOW_ROUTES_BY_COMPANY and cut flow-planning-ports.ts:97/:107 to nativeWorkflowReadAll. BEFORE=54.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMwf2",
+          "at": "2026-11-24T09:48:00.672Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -168916,7 +168931,7 @@
         "owner": "workflow",
         "title": "workflow TS read tail native cutover (round 42)",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -168928,7 +168943,14 @@
         "resources": [
           "owner:workflow"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMwf3",
+          "claimedAt": "2026-11-24T09:48:38.015Z",
+          "heartbeatAt": "2026-11-24T09:48:38.015Z",
+          "expiresAt": "2026-11-24T10:18:38.015Z",
+          "generation": 167
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -169963,7 +169985,7 @@
         "owner": "sales",
         "title": "sales TS read tail native cutover (round 23)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -169975,22 +169997,22 @@
         "resources": [
           "owner:sales"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMsal4",
-          "claimedAt": "2026-11-24T09:38:12.291Z",
-          "heartbeatAt": "2026-11-24T09:38:27.860Z",
-          "expiresAt": "2026-11-24T10:08:27.860Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized SELECT-head family; if none, report blocked. BEFORE=64.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Blocked with AST evidence; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMsal4",
+          "at": "2026-11-24T09:48:01.023Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Blocked with AST evidence; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -170270,18 +170292,18 @@
       "totalPackets": 1536,
       "migratedPackets": 330,
       "statusCounts": {
-        "pending": 24,
-        "in_progress": 29,
+        "pending": 23,
+        "in_progress": 28,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1151,
+        "blocked": 1153,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T09:47:34.007Z",
+    "updatedAt": "2026-11-24T09:48:38.026Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
