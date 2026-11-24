@@ -25,9 +25,12 @@ export const occurrenceExceptionsSql = (columns: string, tail: string) =>
 /** Point read of a single occurrence exception. Only the selected columns vary between fact units. */
 export const occurrenceExceptionPointSql = (columns: string) =>
     occurrenceExceptionsSql(columns, 'occurrence_key=?');
+/** Shared appointment/attendee join head. Only the selected columns and the trailing join/predicate vary across the reminder and availability fact units. */
+export const appointmentAttendeesSql = (columns: string, tail: string) =>
+    `SELECT ${columns} FROM calendar_appointments a JOIN calendar_attendees t ON t.appointment_id=a.id AND t.company_id=a.company_id ${tail}`;
 /** Reminder attendee join over appointment/attendee. Selected columns and trailing predicate are the only variation between the configuration point read and the recipients list read. */
 export const reminderAttendeesSql = (columns: string, tail = '') =>
-    `SELECT ${columns} FROM calendar_appointments a JOIN calendar_attendees t ON t.appointment_id=a.id AND t.company_id=a.company_id WHERE a.id=? AND a.company_id=?${tail}`;
+    appointmentAttendeesSql(columns, `WHERE a.id=? AND a.company_id=?${tail}`);
 /** Reminder source point read over the appointment/attendee join. Only the selected columns vary. */
 export const reminderAttendeePointSql = (columns: string) =>
     reminderAttendeesSql(columns, ' AND t.user_id=?');
@@ -47,7 +50,7 @@ export const calendarImageSql = (expression: string, table: 'calendar_announceme
     `SELECT ${expression} image FROM ${table} row WHERE id=? AND company_id=?`;
 /** Appointment/attendee/series joined range read. The projection columns and predicates are the only variation between the availability and reminder fact units; the join shape and series column set are shared. */
 export const appointmentAttendeeSeriesSql = (columns: string, where: string) =>
-    `SELECT ${columns} FROM calendar_appointments a JOIN calendar_attendees t ON t.appointment_id=a.id AND t.company_id=a.company_id LEFT JOIN calendar_series s ON s.appointment_id=a.id WHERE ${where}`;
+    appointmentAttendeesSql(columns, `LEFT JOIN calendar_series s ON s.appointment_id=a.id WHERE ${where}`);
 /** Nested child-image projection keyed by appointment and company. Only the projection expression, source table and aliases vary across the calendar image and reminder configuration builders. */
 export const appointmentChildImageSql = (expression: string, table: string, alias: string, row: string) =>
     `(SELECT ${expression} FROM ${table} ${alias} WHERE ${alias}.appointment_id=${row}.id AND ${alias}.company_id=${row}.company_id)`;
