@@ -7,6 +7,7 @@ import {manufacturingRowsSelect,manufacturingIdSelect} from './manufacturing-rea
 import {manufacturingOrderJoinSelect} from './manufacturing-read-tail-r15-sql';
 import {manufacturingAccountingProfileSelect} from './manufacturing-read-tail-r19-sql';
 import {manufacturingExistsGuard} from './manufacturing-read-tail-r20-sql';
+import {manufacturingOrderDetailSelect} from './manufacturing-read-tail-r22-sql';
 
 /** Owner-local fixed read: the latest output-report actor on a production
  * order. `lastReportActor` (QC pass) and `lastOutputReportActor` (scrap approval)
@@ -96,7 +97,7 @@ async scopedOrder(id:string,companyId:string,branchId:string | null,branchId2:st
       .first<Row>();},
 async orderSpecificationLines(specification_id:string | number | null){return db
         .prepare(
-          `SELECT l.*,p.tracking_mode FROM manufacturing_specification_lines l ${productioncommerceProjection.materialProduct} WHERE l.specification_id=? ORDER BY l.ordinal`,
+          manufacturingOrderDetailSelect("l.*,p.tracking_mode", ` FROM manufacturing_specification_lines l ${productioncommerceProjection.materialProduct}`, "l.specification_id=?", "l.ordinal"),
         )
         .bind(specification_id)
         .all<Row>();},
@@ -146,7 +147,7 @@ async detailedOrder(id:string,companyId:string,branchId:string | null,branchId2:
       .first<Row>();},
 async orderReservations(id:string){return db
         .prepare(
-          `SELECT r.*,p.name product_name,p.tracking_mode FROM manufacturing_material_reservations r ${productioncommerceProjection.reservationProduct} WHERE r.order_id=? ORDER BY p.name`,
+          manufacturingOrderDetailSelect("r.*,p.name product_name,p.tracking_mode", ` FROM manufacturing_material_reservations r ${productioncommerceProjection.reservationProduct}`, "r.order_id=?", "p.name"),
         )
         .bind(id)
         .all<Row>();},
@@ -164,16 +165,16 @@ async productGenealogy(id:string){return db
         .prepare(manufacturingRowsSelect("manufacturing_genealogy", "order_id=?"))
         .bind(id)
         .all<Row>();},
-async orderPostings(id:string){return db.prepare(`SELECT p.*,j.status journal_status FROM manufacturing_order_postings p ${productionfinanceProjection.journal} WHERE p.order_id=? ORDER BY p.source_order_version`)
+async orderPostings(id:string){return db.prepare(manufacturingOrderDetailSelect("p.*,j.status journal_status", ` FROM manufacturing_order_postings p ${productionfinanceProjection.journal}`, "p.order_id=?", "p.source_order_version"))
       .bind(id).all<Row>();},
-async orderOperations(id:string,specification_id:string | number | null){return db.prepare(`SELECT op.*,r.name resource_name,e.labor_minutes,e.machine_minutes,e.evidence,e.created_at completed_at
+async orderOperations(id:string,specification_id:string | number | null){return db.prepare(manufacturingOrderDetailSelect(`op.*,r.name resource_name,e.labor_minutes,e.machine_minutes,e.evidence,e.created_at completed_at`, `
       FROM manufacturing_specification_operations op ${productionplanningProjection.operationResource}
-      LEFT JOIN manufacturing_operation_events e ON e.operation_id=op.id AND e.order_id=? WHERE op.specification_id=? ORDER BY op.ordinal`)
+      LEFT JOIN manufacturing_operation_events e ON e.operation_id=op.id AND e.order_id=?`, "op.specification_id=?", "op.ordinal"))
       .bind(id, specification_id).all<Row>();},
-async lotGenealogy(id:string){return db.prepare(`SELECT g.*,i.lot_id input_lot_id,il.lot_code input_lot_code,il.serial_number input_serial_number,
-      ol.lot_id output_lot_id,l.lot_code output_lot_code,l.serial_number output_serial_number FROM manufacturing_lot_genealogy g
+async lotGenealogy(id:string){return db.prepare(manufacturingOrderDetailSelect(`g.*,i.lot_id input_lot_id,il.lot_code input_lot_code,il.serial_number input_serial_number,
+      ol.lot_id output_lot_id,l.lot_code output_lot_code,l.serial_number output_serial_number`, ` FROM manufacturing_lot_genealogy g
       JOIN manufacturing_material_lot_issues i ON i.id=g.input_issue_id ${productioninventoryProjection.genealogyInputLot}
-      JOIN manufacturing_output_lots ol ON ol.id=g.output_lot_id ${productioninventoryProjection.genealogyOutputLot} WHERE g.order_id=? ORDER BY g.id`)
+      JOIN manufacturing_output_lots ol ON ol.id=g.output_lot_id ${productioninventoryProjection.genealogyOutputLot}`, "g.order_id=?", "g.id"))
       .bind(id).all<Row>();},
 async openOrders(companyId:string,branchId:string | null,branchId2:string | null){return db
         .prepare(

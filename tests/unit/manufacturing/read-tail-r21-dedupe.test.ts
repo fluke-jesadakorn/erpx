@@ -75,7 +75,7 @@ describe('manufacturing read-tail r21 attachment-image select family', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(77); // r20 left 79; r21 lowers 79->77 (three image selects -> one helper).
+    expect(total).toBeLessThanOrEqual(77); // r20 left 79; r21 lowered 79->77 (three image selects -> one helper); r22 lowers 77->73.
     expect(total).toBeLessThan(79);
   });
 });
