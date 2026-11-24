@@ -2,6 +2,7 @@ import { finalRootOwnerProjectionSources as collaborationProjectionSources } fro
 import {projectTaskOwnerSql,projectTaskMemberSql,projectHandoverSourceSql} from "@erpx/server-projects/public/project-read-projections";
 import {participantSql} from '@erpx/server-workflow/public/approval-participant-projection';
 import {approverJsonExistsSql} from './task-approver-access-source';
+import {operationsSocialTaskOriginExists} from './social-task-origin-exists';
 
 /** Same task-participant categories used by task reads, with an SQL user expression. */
 export function handoverTaskAccessSql(task: string, user: string) {
@@ -25,7 +26,7 @@ export function handoverSourcesReadableSql(post: string, user: string) {
     SELECT 1 FROM (${collaborationProjectionSources.social_post_sources}) hs WHERE hs.post_id=${post}.id AND (
       (hs.source_kind='staff_task' AND NOT EXISTS(
         SELECT 1 FROM staff_tasks ht WHERE ht.id=hs.source_id AND ht.company_id=${post}.company_id
-          AND NOT EXISTS(SELECT 1 FROM (${collaborationProjectionSources.social_task_origins}) ho WHERE ho.task_id=ht.id)
+          AND NOT ${operationsSocialTaskOriginExists('ho','ht.id')}
           AND ${handoverTaskAccessSql("ht", user)}))
       OR (hs.source_kind='staff_project' AND NOT EXISTS(${projectHandoverSourceSql(post, user)}))
     )))`;

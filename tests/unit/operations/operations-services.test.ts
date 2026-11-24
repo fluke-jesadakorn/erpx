@@ -492,6 +492,7 @@ import {taskParticipantReadPolicy} from '../../../packages/server-operations/src
 import {projectSourceProbe} from '../../../packages/server-operations/src/adapters/record-purchases';
 import {operationsOverdueAlertSql} from '../../../packages/server-operations/src/adapters/executive-task-cohort';
 import {workCacheOperationsDeadlines} from '../../../packages/server-operations/src/adapters/work-cache-deadlines';
+import {operationsSocialTaskOriginExists} from '../../../packages/server-operations/src/adapters/social-task-origin-exists';
 import {finalRootOwnerProjectionSources as collaborationProjectionSources} from '@erpx/server-collaboration/public/final-root-owner-projection-sources';
 describe('Operations task delegation source dedupe',()=>{
  const fragment='(SELECT jsonb_agg(to_jsonb(delegation) ORDER BY delegation.id) FROM staff_task_delegations delegation WHERE delegation.task_id=t.id AND delegation.company_id=t.company_id)';
@@ -884,7 +885,48 @@ describe('Operations read-tail r41 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(110);
-    expect(space).toBeLessThan(111);
+    // r42 deduped the social task-origin EXISTS family; the r41
+    // BEFORE=110 baseline itself is unchanged.
+    expect(space).toBe(109);
+    expect(space).toBeLessThan(110);
+  });
+});
+
+describe('Operations read-tail r42 retirement',()=>{
+  const source=(name:string)=>readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+  const probe=(alias:string,task:string)=>`EXISTS(SELECT 1 FROM (${collaborationProjectionSources.social_task_origins}) ${alias} WHERE ${alias}.task_id=${task})`;
+  test('the two social task-origin probes render byte-identically',()=>{
+    expect(operationsSocialTaskOriginExists('ox','t.id')).toBe(probe('ox','t.id'));
+    expect(operationsSocialTaskOriginExists('ho','ht.id')).toBe(probe('ho','ht.id'));
+    expect(operationsSocialTaskOriginExists('ox','t.id')).toBe("EXISTS(SELECT 1 FROM (" + collaborationProjectionSources.social_task_origins + ") ox WHERE ox.task_id=t.id)");
+  });
+  test('the family keeps one canonical literal and no local SELECT at its call sites',()=>{
+    const cohort=source('executive-task-cohort.ts'), handover=source('handover-policy.ts');
+    expect(cohort).toContain("operationsSocialTaskOriginExists('ox','t.id')");
+    expect(handover).toContain("operationsSocialTaskOriginExists('ho','ht.id')");
+    expect(cohort).not.toContain('social_task_origins}) ox WHERE');
+    expect(handover).not.toContain('social_task_origins}) ho WHERE');
+    expect(source('social-task-origin-exists.ts').match(/SELECT /g)).toHaveLength(1);
+  });
+  test('LOCK TABLE and the r29-r41 helpers remain untouched',()=>{
+    expect(source('work-package-obligation-sources.ts')).toContain('LOCK TABLE');
+    expect(source('project-package-obligation-sources.ts')).toContain('LOCK TABLE');
+    expect(source('task-delegation-source.ts')).toContain('operationsActiveDelegationSql');
+    expect(source('executive-task-cohort.ts')).toContain('operationsOverdueAlertSql');
+    expect(source('work-cache-deadlines.ts')).toContain('activeDelegationDeadline');
+  });
+  test('retirement:ts-statements stays strictly below the r42 BEFORE=110 baseline',()=>{
+    const root=resolve(__dirname,'../../../packages/server-operations/src');
+    let space=0;
+    const walk=(dir:string)=>{
+      for(const entry of readdirSync(dir,{withFileTypes:true})){
+        const path=resolve(dir,entry.name);
+        if(entry.isDirectory())walk(path);
+        else if(entry.name.endsWith('.ts'))space+=(readFileSync(path,'utf8').match(/SELECT /g)??[]).length;
+      }
+    };
+    walk(root);
+    expect(space).toBe(109);
+    expect(space).toBeLessThan(110);
   });
 });

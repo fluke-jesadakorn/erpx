@@ -6,6 +6,7 @@ import {participantSql} from '@erpx/server-workflow/public/approval-participant-
 import {socialPostScope} from '@erpx/server-collaboration/public/social-source-policy';
 import {OPERATIONS_TASK_START_APPROVER_SQL,OPERATIONS_TASK_COMPLETION_APPROVER_SQL} from './task-approver-access-source';
 import {operationsActiveDelegationSql} from './task-delegation-source';
+import {operationsSocialTaskOriginExists} from './social-task-origin-exists';
 
 /** Canonical overdue-alert notification probe shared by the cohort visibility
  * and executive evidence readers. Projection/alias/separator text is
@@ -47,7 +48,7 @@ export function operationsTaskVisibility(actor: WorkContext, referenceAt = Date.
   return {
     sql: `t.company_id=? AND (?::text IS NULL OR t.branch_id=?) AND (?::text IS NULL OR t.department_id=?)
       AND ${access}
-      AND (NOT EXISTS(SELECT 1 FROM (${collaborationProjectionSources.social_task_origins}) ox WHERE ox.task_id=t.id)
+      AND (NOT ${operationsSocialTaskOriginExists('ox','t.id')}
         OR EXISTS(SELECT 1 FROM (${collaborationProjectionSources.social_task_origins}) o JOIN (${collaborationProjectionSources.social_posts}) p ON p.id=o.post_id
           WHERE o.task_id=t.id AND ${posts.sql}))`,
     values: [
