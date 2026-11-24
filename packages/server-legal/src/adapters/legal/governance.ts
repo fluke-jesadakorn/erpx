@@ -16,6 +16,7 @@ import {nativeLegalAuxiliaryRead} from '../native-legal-auxiliary';
 import {legalMembershipSql} from '../legal-members-read-sources';
 import {legalSignerAccessPrefix,legalSignerAccessSuffix} from '../legal-signer-access-sources';
 import {legalDocumentsItemPairSql} from '../legal-read-tail-r9-sources';
+import {legalVersionExistsSql} from '../legal-read-tail-r26-sources';
 /** Exact projection of the native `governance` auxiliary read; the transport accepts
  * every authoritative field and no SQL text remains in TypeScript. */
 type LegalGovernanceRead={forms:Record<string,unknown>[];authorities:Record<string,unknown>[];settings:(Record<string,unknown>&{enabled:boolean;ai_enabled:boolean;reminder_days:number})|null;};
@@ -37,7 +38,7 @@ authority:(facts:{authorityId:string;itemId:string;})=>db.prepare("SELECT * FROM
 async decideAuthority(facts){return stage(await nativeGov.decideAuthority(facts));},
 async advanceRecord(facts){return stage(await nativeGov.advanceRecord(facts));},
 requireFormCurrent:(key,values)=>stage(assertion(db,key,"form-current","EXISTS(SELECT 1 FROM legal_intake_forms WHERE id=? AND version=? AND state='draft')",values)),
-requireAuthorityCurrent:(key,values)=>stage(assertion(db,key,"authority-current","EXISTS(SELECT 1 FROM legal_authorities WHERE id=? AND version=?)",values)),
+requireAuthorityCurrent:(key,values)=>stage(assertion(db,key,"authority-current",legalVersionExistsSql("legal_authorities"),values)),
 guardChanges:(id,version,key,edit)=>guards(db,a,id,version,key,edit).map(stage),companyLock:()=>stage(lock(db,a.companyId)),personGuard:(key,id,item,permission)=>stage(personGuard(db,a,key,id,item,permission)),
 async event(id,action,note,version,identifier,now){return stage(await nativeGov.event({id,action,note,version,identifier,now}));},
 replay:(key,operation,id,input)=>replayCommand(db,a,key,operation,id,input),

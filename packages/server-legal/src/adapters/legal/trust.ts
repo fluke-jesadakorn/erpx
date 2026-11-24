@@ -14,6 +14,7 @@ import { createLegalTrustApplication, type LegalTrustMaterial } from "@erpx/serv
 import { legalTrustProcessing } from '@erpx/server-collaboration/adapters/native-legal-trust-processing';
 import { nativeLegalAuxiliaryRead } from '../native-legal-auxiliary';
 import { legalRateCountPrefix } from '../legal-read-tail-r19-sources';
+import { legalVersionExistsSql } from '../legal-read-tail-r26-sources';
 /** Exact projection of the native `trust` auxiliary read; the transport accepts
  * every authoritative field and no SQL text remains in TypeScript. */
 type LegalTrustViewRow = {
@@ -27,7 +28,7 @@ function application(db: SqlDatabase, a: WorkContext) {const native=legalTrustPr
     replay: (key, operation, raw) => replayCommand(db, a, key, operation, a.companyId, raw), lock: () => stage(lock(db, a.companyId)),
     material: id => db.prepare("SELECT * FROM legal_trust_material WHERE id=? AND company_id=?").bind(id, a.companyId).first<LegalTrustMaterial>(),
     addition: async (key, input, content, checksum, now) => [assertion(db, key, "trust-limit", `${legalRateCountPrefix}trust_material WHERE company_id=? AND state!='retired')<100`, [a.companyId]), await native.addition({ key, kind: input.kind, name: input.name, source: input.source, content, checksum, now })].map(stage),
-    decision: async (key, row, state) => [assertion(db, key, "trust-version", "EXISTS(SELECT 1 FROM legal_trust_material WHERE id=? AND version=?)", [row.id, row.version]), await native.decision({ key, state, id: row.id, version: row.version })].map(stage),
+    decision: async (key, row, state) => [assertion(db, key, "trust-version", legalVersionExistsSql("legal_trust_material"), [row.id, row.version]), await native.decision({ key, state, id: row.id, version: row.version })].map(stage),
     commit: (key, operation, raw, writes) => executeCommand(db, a, key, operation, raw, a.companyId, 1, { id: a.companyId, version: 1 }, writes.map(write => { const statement = statements.get(write); if (!statement) throw new Error("LEGAL_WRITE_REPOSITORY_MISMATCH"); return statement; })),
   } });
 }

@@ -17,6 +17,7 @@ import { legalRetention } from '@erpx/server-collaboration/adapters/native-legal
 import {nativeLegalAuxiliaryRead} from '../native-legal-auxiliary';
 import {legalHoldGuardPrefix,legalHoldGuardSuffix} from '../legal-hold-guard-sources';
 import {legalRetentionPolicySelectSql} from '../legal-read-tail-r18-sources';
+import {legalVersionExistsSql} from '../legal-read-tail-r26-sources';
 export {drainLegalDestruction} from "@erpx/server-legal/adapters/legal/destruction-worker";
 /** Exact projection of the native `retention` auxiliary read; the transport accepts
  * every authoritative field and no SQL text remains in TypeScript. */
@@ -45,7 +46,7 @@ destruction:(facts:{requestId:string | undefined;id:string;})=>db.prepare("SELEC
       }>(),
 async changeDestruction(facts){return stage(await nativeRet.changeDestruction(facts));},
 async advanceRecord(facts){return stage(await nativeRet.advanceRecord({now:facts.now,itemId:facts.id}));},
-requireRetentionPolicyVersion:(key,values)=>stage(assertion(db,key,"retention-policy-version","EXISTS(SELECT 1 FROM legal_retention_policies WHERE id=? AND version=?)",values)),
+requireRetentionPolicyVersion:(key,values)=>stage(assertion(db,key,"retention-policy-version",legalVersionExistsSql("legal_retention_policies"),values)),
 requireRetentionNoHold:(key,values)=>stage(assertion(db,key,"retention-no-hold",legalHoldGuardPrefix+"?"+legalHoldGuardSuffix,values)),
 guardChanges:(id,version,key,edit,allowFrozen)=>guards(db,a,id,version,key,edit,allowFrozen).map(stage),companyLock:()=>stage(lock(db,a.companyId)),event:async(id,action,note,version,identifier,now)=>stage(await nativeRet.event({id,action,note,version,identifier,now})),replay:(key,operation,id,input)=>replayCommand(db,a,key,operation,id,input),commit:async(key,operation,input,id,version,result,writes)=>{const receipt=await executeCommand(db,a,key,operation,input,id,version,result,writes.map(write=>{const statement=nativeWrites.get(write);if(!statement)throw new Error("LEGAL_RETENTION_REPOSITORY_MISMATCH");return statement;}));await recordLegalRetentionExecution(db,a,key,operation,input);return receipt;},
 }});}

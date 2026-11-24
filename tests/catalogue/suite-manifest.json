@@ -50121,6 +50121,31 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "legal",
+      "modules": [
+        "legal"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Legal version exists version assertion family must stay one generator."
+      },
+      "apps": "legal-portal",
+      "packages": [
+        "@erpx/server-legal"
+      ],
+      "id": "legal.read-tail-r26-dedupe.unit",
+      "files": [
+        "tests/unit/legal/read-tail-r26-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "legal.release-gates.integration",
       "lane": "integration",
       "owner": "legal",
@@ -66048,6 +66073,31 @@
       "id": "planning.read-tail-r7-dedupe.unit",
       "files": [
         "tests/unit/planning/read-tail-r7-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "planning",
+      "modules": [
+        "planning"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Planning scoped branch list queries must stay one builder."
+      },
+      "apps": "planning",
+      "packages": [
+        "@erpx/server-planning"
+      ],
+      "id": "planning.read-tail-r8-dedupe.unit",
+      "files": [
+        "tests/unit/planning/read-tail-r8-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
