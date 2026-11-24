@@ -28,3 +28,28 @@ export const manufacturingIdSelect = (table: string) => `SELECT id FROM ${table}
 
 export const manufacturingNativeProductionProbe = (ids: string, where: string) =>
   `SELECT 1 FROM (${ids}) native_production WHERE ${where}`;
+
+/** Text-only attachment target version guard shared by the operational and
+ * service fact adapters. Both previously inlined the same EXISTS with only the
+ * table and optional trailing predicate varying; this emits their SQL byte for
+ * byte. It stays a live statement inside each caller's assertion on the same
+ * transaction and is outside the RD_* read registry. */
+export const manufacturingAttachmentVersionGuard = (table: string, extra = "") =>
+  `EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND version=?${extra ? ` AND ${extra}` : ""})`;
+
+/** Text-only attachment target descriptor projection shared by the operational
+ * and policy fact adapters. The three callers projected the same
+ * company/branch/department/version descriptor with only the expressions,
+ * alias style and optional predicate varying; this emits each one's SQL byte
+ * for byte. It stays inside each caller's own prepared statement and is
+ * outside the RD_* read registry. */
+export const manufacturingTargetDescriptorSelect = (
+  table: string,
+  branch: string,
+  department: string,
+  opts: { version?: string; asAlias?: boolean; extra?: string } = {},
+) => {
+  const { version = "version", asAlias = false, extra = "" } = opts;
+  const alias = (column: string) => asAlias ? ` AS ${column}` : ` ${column}`;
+  return `SELECT company_id,${branch}${alias("branch_id")},${department}${alias("department_id")},${version}${asAlias ? " AS version" : ""} FROM ${table} WHERE id=? AND company_id=?${extra}`;
+};

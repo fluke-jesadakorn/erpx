@@ -3,6 +3,7 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { ApiError } from "@erpx/server-runtime/public/http";
+import {manufacturingAttachmentVersionGuard} from "./manufacturing-read-sql-fragments";
 const allowedTargets = new Set<string>(["production_run"]);
 const recordVersionTables: Record<string, {
     table: string;
@@ -19,7 +20,7 @@ function ownerVersionGuard(db: SqlDatabase, commandId: string, targetType: strin
     const item = aliases[targetType];
     if (!item)
         throw new ApiError(422, "ATTACHMENT_TARGET_UNSUPPORTED", "This file target has no atomic version guard.");
-    return assertion(db, commandId, `attachment-owner-${index}`, `EXISTS(SELECT 1 FROM ${item.table} WHERE id=? AND company_id=? AND version=?${item.extra ? ` AND ${item.extra}` : ""})`, [targetId, companyId, version]);
+    return assertion(db, commandId, `attachment-owner-${index}`, manufacturingAttachmentVersionGuard(item.table,item.extra), [targetId, companyId, version]);
 }
 function ownerVersionStep(db: SqlDatabase, targetType: string, targetId: string, expectedVersion: number, now: number) {
     if (!allowedTargets.has(targetType))

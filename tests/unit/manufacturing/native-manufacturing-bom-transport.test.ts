@@ -167,7 +167,7 @@ describe('Manufacturing finance-close read retirement',()=>{
     expect(paths.some(path=>path.includes('finance-close-source'))).toBe(false);
     const count=paths.reduce((count,path)=>count+(nodeFs.readFileSync(path,'utf8').match(/\bSELECT\b/g)?.length??0),0);
     expect(count).toBeLessThan(148);
-    expect(count).toBe(108);
+    expect(count).toBe(105);
   });
 });
 describe('Manufacturing owner-local report-actor read dedupe',()=>{
@@ -427,10 +427,15 @@ describe('Manufacturing read-tail text-only fragment dedupe', () => {
     expect(f.manufacturingIdSelect('manufacturing_orders')).toBe('SELECT id FROM manufacturing_orders');
     expect(f.manufacturingNativeProductionProbe('IDS', 'native_production.id=workspace_records.id')).toBe('SELECT 1 FROM (IDS) native_production WHERE native_production.id=workspace_records.id');
     expect(f.manufacturingNativeProductionProbe('IDS', 'id=?')).toBe('SELECT 1 FROM (IDS) native_production WHERE id=?');
+    expect(f.manufacturingAttachmentVersionGuard('manufacturing_specifications')).toBe('EXISTS(SELECT 1 FROM manufacturing_specifications WHERE id=? AND company_id=? AND version=?)');
+    expect(f.manufacturingAttachmentVersionGuard('manufacturing_orders', 'extra_col=1')).toBe('EXISTS(SELECT 1 FROM manufacturing_orders WHERE id=? AND company_id=? AND version=? AND extra_col=1)');
+    expect(f.manufacturingTargetDescriptorSelect('manufacturing_orders', 'branch_id', 'NULL::text')).toBe('SELECT company_id,branch_id branch_id,NULL::text department_id,version FROM manufacturing_orders WHERE id=? AND company_id=?');
+    expect(f.manufacturingTargetDescriptorSelect('manufacturing_specifications', 'NULL::text', 'NULL::text')).toBe('SELECT company_id,NULL::text branch_id,NULL::text department_id,version FROM manufacturing_specifications WHERE id=? AND company_id=?');
+    expect(f.manufacturingTargetDescriptorSelect('manufacturing_orders', 'branch_id', 'NULL', { version: 'version', asAlias: true, extra: '' })).toBe('SELECT company_id,branch_id AS branch_id,NULL AS department_id,version AS version FROM manufacturing_orders WHERE id=? AND company_id=?');
   });
   it('keeps one text-only definition and routes every caller through it', () => {
     const fragment = adapter('manufacturing-read-sql-fragments.ts');
-    expect(fragment.match(/\bSELECT\b/g)).toHaveLength(10);
+    expect(fragment.match(/\bSELECT\b/g)).toHaveLength(12);
     expect(fragment).not.toMatch(/^import /m);
     expect(fragment).not.toMatch(/compositionRoot|registerRead|readPlanRegistry/);
     for (const [name, old, helper] of [
@@ -447,6 +452,10 @@ describe('Manufacturing read-tail text-only fragment dedupe', () => {
       ['metric-purchases.ts', ['SELECT id FROM manufacturing_orders'], 'manufacturingIdSelect'],
       ['record-purchases.ts', ['SELECT id FROM manufacturing_specifications UNION ALL'], 'manufacturingIdSelect'],
       ['record-purchases.ts', ['EXISTS(SELECT 1 FROM (${nativeIds}) native_production WHERE native_production.id=${id})', 'SELECT 1 FROM (${nativeIds}) native_production WHERE id=?'], 'manufacturingNativeProductionProbe'],
+      ['attachments-operational-facts.ts', ['EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND version=?)', 'SELECT company_id,${moduleTarget.branch} branch_id'], 'manufacturingAttachmentVersionGuard'],
+      ['attachments-service-facts.ts', ['EXISTS(SELECT 1 FROM ${item.table} WHERE id=? AND company_id=? AND version=?'], 'manufacturingAttachmentVersionGuard'],
+      ['attachments-operational-facts.ts', ['SELECT company_id,NULL::text branch_id,NULL::text department_id,version FROM manufacturing_specifications'], 'manufacturingTargetDescriptorSelect'],
+      ['attachments-policy-facts.ts', ['SELECT company_id,${branch} AS branch_id,${department} AS department_id,${version} AS version FROM'], 'manufacturingTargetDescriptorSelect'],
     ] as const) {
       const text = adapter(name);
       for (const literal of old) expect(text).not.toContain(literal);

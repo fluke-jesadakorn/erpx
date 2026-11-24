@@ -2,6 +2,7 @@ import "server-only";
 import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import type {TargetRow} from "@erpx/server-files/public/contracts/attachments-operational";
+import {manufacturingAttachmentVersionGuard,manufacturingTargetDescriptorSelect} from "./manufacturing-read-sql-fragments";
 const versionOwners:Record<string,string>={"manufacturing_spec": "manufacturing_specifications"};
 const allowedTargets=new Set<string>(["manufacturing_spec"]);
 function remainingOperationalAttachmentTargetVersionGuard(
@@ -20,7 +21,7 @@ if(!allowedTargets.has(targetType))return null;
     db,
     commandId,
     `attachment-owner-${index}`,
-    `EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND version=?)`,
+    manufacturingAttachmentVersionGuard(table),
     [targetId, companyId, version],
   );
 }
@@ -41,6 +42,6 @@ if(!allowedTargets.has(targetType))return null;
     .bind(now, targetId, expectedVersion);
 }
 export function OperationalAttachmentManufacturingFacts(db:SqlDatabase){return {
-readModuleScoped:(facts:{targetType:string;targetId:string;companyId:string;})=>{const moduleTarget=({"production_run": {"table": "manufacturing_orders", "branch": "branch_id", "department": null}} as Record<string,{table:string;branch:string;department:string|null}>)[facts.targetType];return db.prepare(`SELECT company_id,${moduleTarget.branch} branch_id,${moduleTarget.department ?? "NULL::text"} department_id,version FROM ${moduleTarget.table} WHERE id=? AND company_id=?`).bind(facts.targetId,facts.companyId).first<TargetRow>();},
-readManufacturingSpecifications1:(facts:{targetId:string;companyId:string;})=>db.prepare("SELECT company_id,NULL::text branch_id,NULL::text department_id,version FROM manufacturing_specifications WHERE id=? AND company_id=?").bind(facts.targetId,facts.companyId).first<TargetRow>(),versionGuard:(commandId:string,targetType:string,targetId:string,companyId:string,version:number,index:number)=>remainingOperationalAttachmentTargetVersionGuard(db,commandId,targetType,targetId,companyId,version,index),versionStep:(targetType:string,targetId:string,expectedVersion:number,now:number)=>remainingOperationalAttachmentRecordVersionStep(db,targetType,targetId,expectedVersion,now)
+readModuleScoped:(facts:{targetType:string;targetId:string;companyId:string;})=>{const moduleTarget=({"production_run": {"table": "manufacturing_orders", "branch": "branch_id", "department": null}} as Record<string,{table:string;branch:string;department:string|null}>)[facts.targetType];return db.prepare(manufacturingTargetDescriptorSelect(moduleTarget.table,moduleTarget.branch,moduleTarget.department ?? "NULL::text")).bind(facts.targetId,facts.companyId).first<TargetRow>();},
+readManufacturingSpecifications1:(facts:{targetId:string;companyId:string;})=>db.prepare(manufacturingTargetDescriptorSelect("manufacturing_specifications","NULL::text","NULL::text")).bind(facts.targetId,facts.companyId).first<TargetRow>(),versionGuard:(commandId:string,targetType:string,targetId:string,companyId:string,version:number,index:number)=>remainingOperationalAttachmentTargetVersionGuard(db,commandId,targetType,targetId,companyId,version,index),versionStep:(targetType:string,targetId:string,expectedVersion:number,now:number)=>remainingOperationalAttachmentRecordVersionStep(db,targetType,targetId,expectedVersion,now)
 };}
