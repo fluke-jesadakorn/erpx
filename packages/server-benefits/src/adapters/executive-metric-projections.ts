@@ -6,6 +6,7 @@ import { type Breakdown, type Filters, type MetricId } from "@erpx/feature-share
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import { specs } from '@erpx/server-runtime/public/executive/metric-projection-contract';
+import { benefitMetricCountSql } from '@erpx/server-benefits/adapters/benefits-read-sql';
 import type { MetricSnapshot, RawMetricRow } from '@erpx/server-runtime/public/executive/metric-projection-contract';
 export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, _breakdown: Breakdown): Promise<MetricSnapshot> {
     void _breakdown;
@@ -15,11 +16,11 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
     let sql = '', values: unknown[] = [];
     const referenceAtOverride: number | null = null;
     if (id === "active-benefit-elections") {
-        sql = `SELECT e.status label,count(*)::text value FROM benefit_elections e WHERE e.company_id=? AND ${scope.where} AND e.status<>'cancelled' AND e.effective_from<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND (e.effective_to IS NULL OR e.effective_to>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD')) GROUP BY e.status ORDER BY e.status`;
+        sql = benefitMetricCountSql('e.status','benefit_elections','e',"status<>'cancelled'",' GROUP BY e.status ORDER BY e.status',scope.where);
         values = [a.companyId,...scope.args];
     }
     if (id === "published-benefit-plans") {
-        sql = `SELECT 'Published plans' label,count(*)::text value FROM benefit_plans WHERE company_id=? AND ${scope.where} AND status='published' AND effective_from<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND (effective_to IS NULL OR effective_to>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD'))`;
+        sql = benefitMetricCountSql("'Published plans'",'benefit_plans','',"status='published'",'',scope.where);
         values = [a.companyId,...scope.args];
     }
     const raw = (await sourceDb.prepare(sql).bind(...values).all<RawMetricRow>()).results;

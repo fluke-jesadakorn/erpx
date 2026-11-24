@@ -26,3 +26,7 @@ export const benefitDependentFactPrefix = "UNION ALL SELECT 'dependent',d.id,d.v
 /** Byte-identical owner-local plan fact projection prefix shared by the
  * Benefits and People package-settlement fact unions; generated SQL is unchanged. */
 export const benefitPlanFactPrefix = "SELECT 'plan' kind,p.id,p.version,p.status state,to_jsonb(p) image,";
+/** Parameterized owner-local aggregate metric projection shared by the two
+ *  Benefits executive metric queries; generated SQL is unchanged. */
+export const benefitMetricCountSql = (label: string, table: string, alias: string, status: string, group: string, where: string) =>
+  `SELECT ${label} label,count(*)::text value FROM ${table}${alias ? ` ${alias}` : ''} WHERE ${alias ? `${alias}.` : ''}company_id=? AND ${where} AND ${alias ? `${alias}.` : ''}${status} AND ${alias ? `${alias}.` : ''}effective_from<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND (${alias ? `${alias}.` : ''}effective_to IS NULL OR ${alias ? `${alias}.` : ''}effective_to>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD'))${group}`;
