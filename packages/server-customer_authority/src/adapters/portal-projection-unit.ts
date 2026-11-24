@@ -14,6 +14,7 @@ import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-t
 import {customerPortalSourceReadLocks} from '@erpx/server-customer_authority/adapters/portal-source-locks';
 import {portalSupportInstalled,portalSupportSourceReadLocks} from '@erpx/server-customer_authority/adapters/portal-support-sources';
 import {customerPortalPurchaseScope} from '@erpx/server-customer_authority/adapters/portal-read-purchases';
+import {jsonbAggFact,bindingsExists} from './customer-authority-read-sql';
 
 type Actor={userId:string;email:string};
 type Projection={items:{binding_id:string;sharedFiles:{linkId:string}[]}[]};
@@ -29,13 +30,13 @@ const changed=()=>new ApiError(409,'CUSTOMER_PORTAL_PROJECTION_CHANGED','The ver
 export function customerPortalProjectionSupportInstalled(database:SqlDatabase,actor:Actor){const unit=units.get(database);if(!unit||unit.actor!==JSON.stringify(actor))throw new ApiError(503,'CUSTOMER_PORTAL_PROJECTION_COMPOSITION_REQUIRED','Use the complete customer document read.');return unit.supportInstalled;}
 
 async function source(database:SqlDatabase,actor:Actor,installed:boolean):Promise<SourceImage>{
- const support=installed?`jsonb_build_array((SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM customer_portal_support_responses r JOIN bindings b ON b.id=r.binding_id),(SELECT jsonb_agg(to_jsonb(a) ORDER BY a.id) FROM customer_portal_support_acknowledgements a JOIN bindings b ON b.id=a.binding_id),(SELECT jsonb_agg(to_jsonb(c) ORDER BY c.id) FROM customer_portal_support_closures c JOIN bindings b ON b.id=c.binding_id))`:'NULL';
+ const support=installed?`jsonb_build_array(${jsonbAggFact('r')} FROM customer_portal_support_responses r JOIN bindings b ON b.id=r.binding_id,${jsonbAggFact('a')} FROM customer_portal_support_acknowledgements a JOIN bindings b ON b.id=a.binding_id,${jsonbAggFact('c')} FROM customer_portal_support_closures c JOIN bindings b ON b.id=c.binding_id))`:'NULL';
  const row=await database.prepare(`WITH bindings AS(SELECT * FROM customer_access_bindings WHERE email=?)
  SELECT jsonb_build_array(
- (SELECT jsonb_agg(to_jsonb(b) ORDER BY b.id) FROM bindings b),
- (SELECT jsonb_agg(to_jsonb(o) ORDER BY o.id) FROM (${commerce.commerce_orders}) o WHERE EXISTS(SELECT 1 FROM bindings b WHERE b.order_id=o.id AND b.company_id=o.company_id)),
- (SELECT jsonb_agg(to_jsonb(f) ORDER BY f.id) FROM (${commerce.commerce_fulfillments}) f JOIN (${commerce.commerce_orders}) o ON o.id=f.order_id WHERE EXISTS(SELECT 1 FROM bindings b WHERE b.order_id=f.order_id AND b.company_id=o.company_id)),
- (SELECT jsonb_agg(to_jsonb(a) ORDER BY a.id) FROM customer_portal_actions a WHERE EXISTS(SELECT 1 FROM bindings b WHERE b.id=a.binding_id)),${support})::text core,
+ ${jsonbAggFact('b')} FROM bindings b),
+ ${jsonbAggFact('o')} FROM (${commerce.commerce_orders}) o WHERE ${bindingsExists('b.order_id=o.id AND b.company_id=o.company_id')}),
+ ${jsonbAggFact('f')} FROM (${commerce.commerce_fulfillments}) f JOIN (${commerce.commerce_orders}) o ON o.id=f.order_id WHERE ${bindingsExists('b.order_id=f.order_id AND b.company_id=o.company_id')}),
+ ${jsonbAggFact('a')} FROM customer_portal_actions a WHERE ${bindingsExists('b.id=a.binding_id')}),${support})::text core,
  COALESCE((SELECT jsonb_agg(jsonb_build_object('id',i.binding_id,'image',to_jsonb(i)::text,'userId',i.user_id,'email',i.email) ORDER BY i.binding_id) FROM customer_access_identities i JOIN bindings b ON b.id=i.binding_id),'[]'::jsonb) identities,
  COALESCE((SELECT jsonb_agg(jsonb_build_object('id',r.id,'image',to_jsonb(r)::text,'bindingId',r.binding_id,'userId',r.user_id,'bindingVersion',r.binding_version,'projectionVersion',r.projection_version) ORDER BY r.id) FROM customer_access_reads r JOIN bindings b ON b.id=r.binding_id WHERE r.user_id=?),'[]'::jsonb) reads`).bind(actor.email.toLowerCase(),actor.userId).first<{core:string;identities:string;reads:string}>();
  if(!row)throw changed();return sourceSchema.parse({core:row.core,identities:JSON.parse(row.identities),reads:JSON.parse(row.reads)});
