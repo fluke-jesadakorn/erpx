@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8094,
+    "revision": 8102,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -135426,7 +135426,7 @@
         "owner": "workflow",
         "title": "workflow TS read tail native cutover (r19)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -135438,22 +135438,42 @@
         "resources": [
           "owner:workflow"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGANwor",
-          "claimedAt": "2026-11-24T01:37:20.562Z",
-          "heartbeatAt": "2026-11-24T01:37:20.562Z",
-          "expiresAt": "2026-11-24T02:07:20.562Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-workflow/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "f50e9d85c",
+            "owner": "workflow",
+            "before": 80,
+            "after": 78,
+            "note": "Payroll final owner projections reuse approvalStepsSql/approvalInstancesSql; byte-identical."
+          },
+          {
+            "command": "vitest workflow transport (30)",
+            "result": "passed",
+            "sourceSha": "f50e9d85c"
+          },
+          {
+            "command": "tsc workflow",
+            "result": "passed",
+            "sourceSha": "f50e9d85c"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=80.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGANwor",
+          "at": "2026-11-24T01:41:45.902Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -135462,7 +135482,7 @@
         "owner": "identity_access",
         "title": "identity_access TS read tail native cutover (round 9)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -135474,22 +135494,42 @@
         "resources": [
           "owner:identity_access"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGAOida",
-          "claimedAt": "2026-11-24T01:37:33.667Z",
-          "heartbeatAt": "2026-11-24T01:37:33.667Z",
-          "expiresAt": "2026-11-24T02:07:33.667Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-identity_access/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "f50e9d85c",
+            "owner": "identity_access",
+            "before": 576,
+            "after": 575,
+            "note": "iam_members FOR SHARE literal shared via memberForShareSql; both sites still execute FOR SHARE."
+          },
+          {
+            "command": "vitest identity services (26)",
+            "result": "passed",
+            "sourceSha": "f50e9d85c"
+          },
+          {
+            "command": "tsc identity_access",
+            "result": "passed",
+            "sourceSha": "f50e9d85c"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: iam_members FOR SHARE reads (iam-migrations:150, iam-transactions:42) dedupe text while keeping FOR SHARE at each site; or emergency/directory probe pair. BEFORE=576.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGAOida",
+          "at": "2026-11-24T01:41:46.489Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -135888,6 +135928,78 @@
         "nextAction": "Next: own-local byte-identical dedupe; avoid executive metric source regex; BEFORE=71. wGB0run",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.workflow.read-tail-r20",
+        "goalId": "G4",
+        "owner": "workflow",
+        "title": "workflow TS read tail native cutover (r20)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-workflow/src/**",
+          "tests/unit/workflow/**",
+          "tests/integration/workflow/**"
+        ],
+        "resources": [
+          "owner:workflow"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGB4wor",
+          "claimedAt": "2026-11-24T01:41:46.824Z",
+          "heartbeatAt": "2026-11-24T01:41:46.824Z",
+          "expiresAt": "2026-11-24T02:11:46.824Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=78.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.identity_access.read-tail-r10",
+        "goalId": "G4",
+        "owner": "identity_access",
+        "title": "identity_access TS read tail native cutover (r10)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-identity_access/src/**",
+          "tests/unit/identity_access/**",
+          "tests/integration/identity_access/**"
+        ],
+        "resources": [
+          "owner:identity_access"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGB5ida",
+          "claimedAt": "2026-11-24T01:41:47.343Z",
+          "heartbeatAt": "2026-11-24T01:41:47.343Z",
+          "expiresAt": "2026-11-24T02:11:47.343Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=575.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -135896,7 +136008,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 852,
+      "totalPackets": 854,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
@@ -135904,13 +136016,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 476,
+        "blocked": 478,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:41:32.377Z",
+    "updatedAt": "2026-11-24T01:41:47.353Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
