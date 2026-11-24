@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7680,
+    "revision": 7688,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -129429,7 +129429,7 @@
         "owner": "field_service",
         "title": "field_service TS read tail native cutover (r4)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -129441,22 +129441,42 @@
         "resources": [
           "owner:field_service"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG08fse",
-          "claimedAt": "2026-11-24T00:34:24.328Z",
-          "heartbeatAt": "2026-11-24T00:48:16.955Z",
-          "expiresAt": "2026-11-24T01:18:16.955Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-field_service/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "e50eaccd1",
+            "owner": "field_service",
+            "before": 6,
+            "after": 5,
+            "note": "Records partition and single-record guard share nativeFieldRecordProbe; final-root pins untouched."
+          },
+          {
+            "command": "cargo check -p erpx-server-field-service",
+            "result": "passed",
+            "sourceSha": "e50eaccd1"
+          },
+          {
+            "command": "vitest field_service units (189) + tsc field_service",
+            "result": "passed",
+            "sourceSha": "e50eaccd1"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to an owner native read; BEFORE=6 spaced statements; record strictly lower.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG08fse",
+          "at": "2026-11-24T00:48:49.387Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -129869,7 +129889,7 @@
         "owner": "quality",
         "title": "quality TS read tail native cutover (round 4)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -129881,22 +129901,42 @@
         "resources": [
           "owner:quality"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG19qua",
-          "claimedAt": "2026-11-24T00:38:16.312Z",
-          "heartbeatAt": "2026-11-24T00:48:16.955Z",
-          "expiresAt": "2026-11-24T01:18:16.955Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-quality/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "67ed37343",
+            "owner": "quality",
+            "before": 114,
+            "after": 113,
+            "note": "Operational and service attachment CAS version guards share one helper."
+          },
+          {
+            "command": "cargo check -p erpx-server-quality",
+            "result": "passed",
+            "sourceSha": "67ed37343"
+          },
+          {
+            "command": "vitest quality targeted (32) + tsc quality",
+            "result": "passed",
+            "sourceSha": "67ed37343"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or use the quality native read; record a strictly lower spaced count (BEFORE=114).",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG19qua",
+          "at": "2026-11-24T00:48:48.984Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -130366,6 +130406,78 @@
         "nextAction": "Next: pos-guest-account-interface hotels (3 binds) and choices (4 binds) via new PMS kinds; leave assertDay FOR SHARE in TS; record a strictly lower spaced count (BEFORE=515).",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.quality.read-tail-r5",
+        "goalId": "G4",
+        "owner": "quality",
+        "title": "quality TS read tail native cutover (r5)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-quality/src/**",
+          "tests/unit/quality/**",
+          "tests/integration/quality/**"
+        ],
+        "resources": [
+          "owner:quality"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG33qua",
+          "claimedAt": "2026-11-24T00:48:49.617Z",
+          "heartbeatAt": "2026-11-24T00:48:49.617Z",
+          "expiresAt": "2026-11-24T01:18:49.617Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; record a strictly lower spaced count (BEFORE=114).",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.field_service.read-tail-r5",
+        "goalId": "G4",
+        "owner": "field_service",
+        "title": "field_service TS read tail native cutover (r5)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-field_service/src/**",
+          "tests/unit/field_service/**",
+          "tests/integration/field_service/**"
+        ],
+        "resources": [
+          "owner:field_service"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG34fse",
+          "claimedAt": "2026-11-24T00:48:49.869Z",
+          "heartbeatAt": "2026-11-24T00:48:49.869Z",
+          "expiresAt": "2026-11-24T01:18:49.869Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; record a strictly lower spaced count (BEFORE=5).",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -130374,7 +130486,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 754,
+      "totalPackets": 756,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 17,
@@ -130382,13 +130494,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 378,
+        "blocked": 380,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T00:48:33.822Z",
+    "updatedAt": "2026-11-24T00:48:49.881Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
