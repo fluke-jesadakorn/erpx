@@ -1,3 +1,4 @@
+import { FINANCE_RECEIPT_IMAGE_SQL } from "./finance-tail-dedupe-sql";
 import {effectiveWorkModules} from '@erpx/server-identity_access/public/rules/work-modules';
 import {payrollPostingPrerequisitesPresentationAllowed} from '@erpx/server-finance/domain/payroll-posting-prerequisites-entry';
 import 'server-only';
@@ -126,9 +127,9 @@ export async function withPayrollPostingPrerequisiteCommand<Result extends {id:s
   if(receipt){const replay=await replayCommand<Result>(database,actor,key,operation,receipt.record_id,request);if(!replay)throw new ApiError(409,'IDEMPOTENCY_CONFLICT','The original Payroll prerequisite receipt is unavailable.');if(replay.id!==receipt.record_id||!before[kind].some(row=>row.id===receipt.record_id)||!before.payroll.groups.some(row=>row.id===request.payGroupId))throw changed();result=replay;}
   else{if(request.contextKey!==contextKey(current,before,request.payGroupId))throw new ApiError(409,'PAYROLL_POSTING_CONTEXT_CHANGED','Refresh the current original Payroll group and Finance prerequisites.');await validateFresh(database,actor,before,kind,request);result=await run(database);}
   const created=await references(database,actor);if(receipt?image(created)!==image(before):!createdReferenceMatches(created,kind,result.id,actor,request.input)||!unchangedBeforeCreation(before,created,kind,result.id))throw changed();
-  const expectedReceipt=await database.prepare('SELECT to_jsonb(r)::text image FROM command_receipts r WHERE r.command_id=?').bind(key).first<string>('image');if(!expectedReceipt||receipt&&receipt.image!==expectedReceipt)throw changed();
+  const expectedReceipt=await database.prepare(FINANCE_RECEIPT_IMAGE_SQL).bind(key).first<string>('image');if(!expectedReceipt||receipt&&receipt.image!==expectedReceipt)throw changed();
   await database.batch(boundaries.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database,item.key)]));await flushFinanceDeferredEffects(database);
-  if(image(created)!==image(await references(database,actor))||expectedReceipt!==await database.prepare('SELECT to_jsonb(r)::text image FROM command_receipts r WHERE r.command_id=?').bind(key).first<string>('image'))throw changed();
+  if(image(created)!==image(await references(database,actor))||expectedReceipt!==await database.prepare(FINANCE_RECEIPT_IMAGE_SQL).bind(key).first<string>('image'))throw changed();
   const final=await authority(database,actor,permission);if(stamp(current)!==stamp(final))throw new ApiError(403,'QUEUED_AUTHORITY_CHANGED','The original Company Finance authority changed.');
   for(const capability of capabilities)await checkPurchasedCapability(database,'enforced',{companyId:actor.companyId,capability,purpose});return result;
  });}catch(error){throw purchaseCommandFailure(error)??financialConstraintError(error)??error;}
@@ -176,7 +177,7 @@ export async function payrollPostingPrerequisiteConfirmation(actor:WorkContext,r
   // Original replay assertion cleanup can defer owner effects. Flush them all
   // before final read-only source, authority and purchase observations.
   await flushFinanceDeferredEffects(database);
-  if(image(before)!==image(await references(database,actor))||receipt.image!==await database.prepare('SELECT to_jsonb(r)::text image FROM command_receipts r WHERE r.command_id=?').bind(key).first<string>('image'))throw changed();
+  if(image(before)!==image(await references(database,actor))||receipt.image!==await database.prepare(FINANCE_RECEIPT_IMAGE_SQL).bind(key).first<string>('image'))throw changed();
   const final=await authority(database,actor,permission);if(stamp(current)!==stamp(final))throw new ApiError(403,'QUEUED_AUTHORITY_CHANGED','The original Company Finance authority changed.');
   for(const capability of capabilities)await checkPurchasedCapability(database,'enforced',{companyId:actor.companyId,capability,purpose:'history'});
   return {kind,commandId:key,payGroupId:input.request.payGroupId,id:receipt.record_id,status:state.data,version};

@@ -16,6 +16,7 @@ import {
   POSTING_COMMAND_RECEIPT_RECORD_SQL,
 } from '../../../packages/server-finance/src/adapters/posting-prerequisites-dedupe-sql';
 import { FINANCE_ADVISORY_XACT_LOCK_SQL } from '../../../packages/server-finance/src/adapters/advisory-lock-dedupe-sql';
+import { FINANCE_RECEIPT_IMAGE_SQL, FINANCE_INVOICES_PROJECTION_SQL, FINANCE_PARTIES_PROJECTION_SQL, FINANCE_ACCOUNTS_PROJECTION_SQL } from '../../../packages/server-finance/src/adapters/finance-tail-dedupe-sql';
 import {
   nativeFinanceReadAll,
   nativeFinanceReadFirst,
@@ -298,6 +299,76 @@ describe('finance advisory-lock SQL dedupe', () => {
       expect(text.split(ADVISORY_LOCK_SQL).length - 1).toBe(0);
       expect(text).toContain('from "./advisory-lock-dedupe-sql"');
       expect(text).toContain('FINANCE_ADVISORY_XACT_LOCK_SQL');
+    }
+  });
+});
+
+const TAIL_IMAGE_SQL = "SELECT to_jsonb(r)::text image FROM command_receipts r WHERE r.command_id=?";
+const TAIL_INVOICES_SQL = "SELECT \"id\",\"company_id\",\"party_id\",\"kind\",\"invoice_number\",\"invoice_date\",\"due_date\",\"currency\",\"subtotal_minor\",\"tax_minor\",\"total_minor\",\"outstanding_minor\",\"tax_code\",\"debit_account_id\",\"credit_account_id\",\"source_type\",\"source_id\",\"status\",\"journal_id\",\"version\",\"created_by\",\"approved_by\",\"posted_at\",\"created_at\",\"updated_at\",\"tax_account_id\",\"fx_rate_micros\",\"base_total_minor\",\"base_outstanding_minor\",\"line_mode\",\"line_revision\" FROM finance_invoices";
+const TAIL_PARTIES_SQL = "SELECT \"id\",\"company_id\",\"kind\",\"code\",\"name\",\"currency\",\"tax_registration\",\"payment_terms_days\",\"credit_limit_minor\",\"status\",\"version\",\"created_at\",\"updated_at\",\"person_id\",\"notification_email\",\"notification_consent\",\"merged_into_id\",\"merged_at\",\"merged_by\",\"phone\",\"address_json\" FROM finance_parties";
+const TAIL_ACCOUNTS_SQL = "SELECT \"id\",\"chart_id\",\"company_id\",\"code\",\"name\",\"category\",\"parent_id\",\"currency\",\"is_control\",\"status\",\"version\",\"created_at\",\"updated_at\",\"control_kind\" FROM finance_accounts";
+
+describe('finance read-tail r14 group 3 receipt-image dedupe', () => {
+  it('keeps one byte-identical literal and backs all six call sites', async () => {
+    expect(FINANCE_RECEIPT_IMAGE_SQL).toBe(TAIL_IMAGE_SQL);
+    const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-tail-dedupe-sql.ts', import.meta.url), 'utf8');
+    expect(shared.split(TAIL_IMAGE_SQL).length - 1).toBe(1);
+    for (const file of ['expense-posting-prerequisites.ts', 'payroll-posting-prerequisites.ts']) {
+      const text = await readFile(new URL(`../../../packages/server-finance/src/adapters/${file}`, import.meta.url), 'utf8');
+      expect(text.split(TAIL_IMAGE_SQL).length - 1).toBe(0);
+      expect(text).toContain('from "./finance-tail-dedupe-sql"');
+      expect(text).toContain('FINANCE_RECEIPT_IMAGE_SQL');
+    }
+  });
+});
+
+const TAIL_PROJECTION_CASES: [string, string, string][] = [
+  ['commercial-owner-projection-sources.ts', 'FINANCE_ACCOUNTS_PROJECTION_SQL', TAIL_ACCOUNTS_SQL],
+  ['commercial-owner-projection-sources.ts', 'FINANCE_INVOICES_PROJECTION_SQL', TAIL_INVOICES_SQL],
+  ['commercial-owner-projection-sources.ts', 'FINANCE_PARTIES_PROJECTION_SQL', TAIL_PARTIES_SQL],
+  ['final-root-owner-projection-sources.ts', 'FINANCE_INVOICES_PROJECTION_SQL', TAIL_INVOICES_SQL],
+  ['final-root-owner-projection-sources.ts', 'FINANCE_PARTIES_PROJECTION_SQL', TAIL_PARTIES_SQL],
+  ['hospitality-owner-projection-sources.ts', 'FINANCE_ACCOUNTS_PROJECTION_SQL', TAIL_ACCOUNTS_SQL],
+  ['hospitality-owner-projection-sources.ts', 'FINANCE_INVOICES_PROJECTION_SQL', TAIL_INVOICES_SQL],
+  ['hospitality-owner-projection-sources.ts', 'FINANCE_PARTIES_PROJECTION_SQL', TAIL_PARTIES_SQL],
+  ['platform-owner-projection-sources.ts', 'FINANCE_ACCOUNTS_PROJECTION_SQL', TAIL_ACCOUNTS_SQL],
+  ['platform-owner-projection-sources.ts', 'FINANCE_INVOICES_PROJECTION_SQL', TAIL_INVOICES_SQL],
+  ['platform-owner-projection-sources.ts', 'FINANCE_PARTIES_PROJECTION_SQL', TAIL_PARTIES_SQL],
+  ['inventory-executive-owner-projections.ts', 'FINANCE_ACCOUNTS_PROJECTION_SQL', TAIL_ACCOUNTS_SQL],
+];
+
+describe('finance read-tail r14 group 4 owner-projection dedupe', () => {
+  it('keeps one byte-identical literal per projection', async () => {
+    expect(FINANCE_INVOICES_PROJECTION_SQL).toBe(TAIL_INVOICES_SQL);
+    expect(FINANCE_PARTIES_PROJECTION_SQL).toBe(TAIL_PARTIES_SQL);
+    expect(FINANCE_ACCOUNTS_PROJECTION_SQL).toBe(TAIL_ACCOUNTS_SQL);
+    const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-tail-dedupe-sql.ts', import.meta.url), 'utf8');
+    for (const lit of [TAIL_INVOICES_SQL, TAIL_PARTIES_SQL, TAIL_ACCOUNTS_SQL]) {
+      expect(shared.split(lit.replace(/"/g, '\\"')).length - 1).toBe(1);
+    }
+    expect(shared.split('SELECT ').length - 1).toBe(4);
+  });
+
+  it('backs every owner projection with the shared constants and no inline literal', async () => {
+    const sources: Record<string, Record<string, unknown>> = {
+      'commercial-owner-projection-sources.ts': commercialOwnerProjectionSources as unknown as Record<string, unknown>,
+      'final-root-owner-projection-sources.ts': finalRootOwnerProjectionSources as unknown as Record<string, unknown>,
+      'hospitality-owner-projection-sources.ts': hospitalityOwnerProjectionSources as unknown as Record<string, unknown>,
+      'platform-owner-projection-sources.ts': platformOwnerProjectionSources as unknown as Record<string, unknown>,
+      'inventory-executive-owner-projections.ts': inventoryExecutiveOwnerProjections as unknown as Record<string, unknown>,
+    };
+    const expected = {
+      FINANCE_ACCOUNTS_PROJECTION_SQL: FINANCE_ACCOUNTS_PROJECTION_SQL,
+      FINANCE_INVOICES_PROJECTION_SQL: FINANCE_INVOICES_PROJECTION_SQL,
+      FINANCE_PARTIES_PROJECTION_SQL: FINANCE_PARTIES_PROJECTION_SQL,
+    } as Record<string, string>;
+    for (const [file, name, lit] of TAIL_PROJECTION_CASES) {
+      const text = await readFile(new URL(`../../../packages/server-finance/src/adapters/${file}`, import.meta.url), 'utf8');
+      expect(text.split(lit).length - 1).toBe(0);
+      expect(text).toContain('from "./finance-tail-dedupe-sql"');
+      expect(text).toContain(name);
+      const key = name.replace('_PROJECTION_SQL', '').toLowerCase();
+      expect(sources[file]![key]).toBe(expected[name]);
     }
   });
 });

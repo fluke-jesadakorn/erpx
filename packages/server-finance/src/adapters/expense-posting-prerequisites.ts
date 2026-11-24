@@ -1,3 +1,4 @@
+import { FINANCE_RECEIPT_IMAGE_SQL } from "./finance-tail-dedupe-sql";
 import 'server-only';
 import { POSTING_FINANCE_PERIODS_SQL, POSTING_COMPANY_FX_RATES_SQL, POSTING_COMPANY_MONEY_IMAGE_SQL } from "./posting-prerequisites-dedupe-sql";
 import {createHash,randomUUID} from 'node:crypto';
@@ -126,9 +127,9 @@ export async function withExpensePostingPrerequisiteCommand<Result extends {id:s
   if(receipt){const replay=await replayCommand<Result>(database,actor,key,operation,receipt.record_id,request);if(!replay)throw new ApiError(409,'IDEMPOTENCY_CONFLICT','The original Expense prerequisite receipt is unavailable.');if(replay.id!==receipt.record_id||!before[kind].some(row=>row.id===receipt.record_id))throw changed();result=replay;}
   else{if(request.contextKey!==contextKey(current,before))throw new ApiError(409,'EXPENSE_POSTING_CONTEXT_CHANGED','Refresh the current Company Expense and Finance prerequisites.');await validateFresh(database,actor,before,kind,request);result=await run(database);}
   const created=await references(database,actor);if(receipt?image(created)!==image(before):!createdReferenceMatches(created,kind,result.id,actor,request.input)||!unchangedBeforeCreation(before,created,kind,result.id))throw changed();
-  const expectedReceipt=await database.prepare('SELECT to_jsonb(r)::text image FROM command_receipts r WHERE r.command_id=?').bind(key).first<string>('image');if(!expectedReceipt||receipt&&receipt.image!==expectedReceipt)throw changed();
+  const expectedReceipt=await database.prepare(FINANCE_RECEIPT_IMAGE_SQL).bind(key).first<string>('image');if(!expectedReceipt||receipt&&receipt.image!==expectedReceipt)throw changed();
   await database.batch(boundaries.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database,item.key)]));await flushFinanceDeferredEffects(database);
-  if(image(created)!==image(await references(database,actor))||expectedReceipt!==await database.prepare('SELECT to_jsonb(r)::text image FROM command_receipts r WHERE r.command_id=?').bind(key).first<string>('image'))throw changed();
+  if(image(created)!==image(await references(database,actor))||expectedReceipt!==await database.prepare(FINANCE_RECEIPT_IMAGE_SQL).bind(key).first<string>('image'))throw changed();
   const final=await authority(database,actor,permission);if(stamp(current)!==stamp(final))throw new ApiError(403,'QUEUED_AUTHORITY_CHANGED','The original Company Finance authority changed.');for(const capability of capabilities)await checkPurchasedCapability(database,'enforced',{companyId:actor.companyId,capability,purpose});return result;
  });}catch(error){throw purchaseCommandFailure(error)??financialConstraintError(error)??error;}
 }
@@ -145,7 +146,7 @@ export async function expensePostingPrerequisiteConfirmation(actor:WorkContext,r
   const original=await replayCommand<{id:string}>(database,actor,key,operation,receipt.record_id,input.request),native=before[kind].find(row=>row.id===receipt.record_id);if(!original||original.id!==receipt.record_id||!native)throw changed();
   const source=JSON.parse(native.source) as Record<string,unknown>,state=expensePostingPrerequisiteNativeStatusSchema.safeParse(kind==='rate'?'confirmed':kind==='period'?source.state:source.status),allowed:Record<Kind,readonly string[]>={chart:['draft','active','archived'],account:['active','inactive'],period:['open','closing','closed'],rate:['confirmed']};if(!state.success||!allowed[kind].includes(state.data))throw changed();
   let version:number|null=null;if(kind!=='rate'){const value=kind==='period'?source.close_version:source.version;if(typeof value!=='number'||!Number.isSafeInteger(value)||value<(kind==='period'?0:1))throw changed();version=value;}
-  await flushFinanceDeferredEffects(database);if(image(before)!==image(await references(database,actor))||receipt.image!==await database.prepare('SELECT to_jsonb(r)::text image FROM command_receipts r WHERE r.command_id=?').bind(key).first<string>('image'))throw changed();
+  await flushFinanceDeferredEffects(database);if(image(before)!==image(await references(database,actor))||receipt.image!==await database.prepare(FINANCE_RECEIPT_IMAGE_SQL).bind(key).first<string>('image'))throw changed();
   const final=await authority(database,actor,permission);if(stamp(current)!==stamp(final))throw new ApiError(403,'QUEUED_AUTHORITY_CHANGED','The original Company Finance authority changed.');for(const capability of capabilities)await checkPurchasedCapability(database,'enforced',{companyId:actor.companyId,capability,purpose:'history'});
   return {kind,commandId:key,companyId:actor.companyId,id:receipt.record_id,status:state.data,version};
  });}catch(error){throw purchaseCommandFailure(error)??financialConstraintError(error)??error;}

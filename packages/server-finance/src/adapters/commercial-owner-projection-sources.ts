@@ -1,15 +1,16 @@
 import "server-only";
+import { FINANCE_ACCOUNTS_PROJECTION_SQL, FINANCE_INVOICES_PROJECTION_SQL, FINANCE_PARTIES_PROJECTION_SQL } from "./finance-tail-dedupe-sql";
 import { FINANCE_CHARTS_PROJECTION_SQL } from "./finance-charts-projection-dedupe-sql";
 import { FINANCE_JOURNAL_LINES_PROJECTION_SQL } from "./finance-journal-lines-projection-dedupe-sql";
 import { FINANCE_JOURNALS_PROJECTION_SQL } from "./finance-journals-projection-dedupe-sql";
 /** Closed native projections for commercial owner joins. Callers retain their original scope/authority filters and execute the composed statement in their supplied transaction. No SQL or relation name is accepted from a caller. */
 export const commercialOwnerProjectionSources = {
-  finance_accounts: "SELECT \"id\",\"chart_id\",\"company_id\",\"code\",\"name\",\"category\",\"parent_id\",\"currency\",\"is_control\",\"status\",\"version\",\"created_at\",\"updated_at\",\"control_kind\" FROM finance_accounts",
+  finance_accounts: FINANCE_ACCOUNTS_PROJECTION_SQL,
   finance_allocations: "SELECT \"id\",\"company_id\",\"payment_id\",\"invoice_id\",\"amount_minor\",\"created_by\",\"created_at\",\"base_invoice_minor\",\"base_payment_minor\",\"realized_fx_minor\" FROM finance_allocations",
   finance_charts: FINANCE_CHARTS_PROJECTION_SQL,
-  finance_invoices: "SELECT \"id\",\"company_id\",\"party_id\",\"kind\",\"invoice_number\",\"invoice_date\",\"due_date\",\"currency\",\"subtotal_minor\",\"tax_minor\",\"total_minor\",\"outstanding_minor\",\"tax_code\",\"debit_account_id\",\"credit_account_id\",\"source_type\",\"source_id\",\"status\",\"journal_id\",\"version\",\"created_by\",\"approved_by\",\"posted_at\",\"created_at\",\"updated_at\",\"tax_account_id\",\"fx_rate_micros\",\"base_total_minor\",\"base_outstanding_minor\",\"line_mode\",\"line_revision\" FROM finance_invoices",
+  finance_invoices: FINANCE_INVOICES_PROJECTION_SQL,
   finance_journal_lines: FINANCE_JOURNAL_LINES_PROJECTION_SQL,
   finance_journals: FINANCE_JOURNALS_PROJECTION_SQL,
-  finance_parties: "SELECT \"id\",\"company_id\",\"kind\",\"code\",\"name\",\"currency\",\"tax_registration\",\"payment_terms_days\",\"credit_limit_minor\",\"status\",\"version\",\"created_at\",\"updated_at\",\"person_id\",\"notification_email\",\"notification_consent\",\"merged_into_id\",\"merged_at\",\"merged_by\",\"phone\",\"address_json\" FROM finance_parties",
+  finance_parties: FINANCE_PARTIES_PROJECTION_SQL,
   finance_refund_obligations: "SELECT \"id\",\"company_id\",\"branch_id\",\"department_id\",\"return_id\",\"invoice_id\",\"party_id\",\"direction\",\"currency\",\"chart_id\",\"balance_account_id\",\"amount_minor\",\"outstanding_minor\",\"status\",\"beneficiary_name\",\"beneficiary_account\",\"approval_reason\",\"created_by\",\"approved_by\",\"approved_at\",\"version\",\"created_at\",\"updated_at\",\"base_amount_minor\",\"base_outstanding_minor\",\"source_credit_journal_id\",\"billing_correction_id\" FROM finance_refund_obligations",
 } as const;
