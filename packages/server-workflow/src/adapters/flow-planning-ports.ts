@@ -1,6 +1,7 @@
 import { workflowFinalOwnerProjections as commerceFinalOwnerProjections } from '@erpx/server-commerce/public/workflow-final-owner-projections';
 import {workflowWave3Statement} from './native-workflow-wave3';
 import {nativeWorkflowReadFirst} from './native-workflow-read';
+import {approvalStepsByInstanceSql} from './approval-projection-sources';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -63,7 +64,7 @@ export function nativeFlowPlanningPorts(database: SqlDatabase): FlowPlanningPort
     const repository: FlowRoutingRepository<SqlStatement> = { async readFlowRecordRow(companyId: string, id: string, kind: FlowKind) { const row = await workflowRecord(database, kind, companyId, id); if (row && kind === "order") return { ...row, has_service_lines: await commerce_flow_routing(database).readServiceOrder(companyId,id) ? 1 : 0 }; return row; },
         readWorkFulfillmentsRows(companyId: string) { return commerce_flow_routing(database).readWorkFulfillmentsRows(companyId); },
         readDefinitionsInstance(company_id: string, approvalKind: "expense" | "leave" | "request" | "stock_count" | "transfer" | "order" | "invoice" | "journal" | "payroll" | "record" | "task", id: string | number | null) { return nativeWorkflowReadFirst<ApprovalInstance>('wf_native_flow_definitions_instance', [company_id, approvalKind, id], company_id, database); },
-        readDefinitionsApprovalSteps(id: string) { return database.prepare("SELECT * FROM approval_steps WHERE instance_id=? ORDER BY ordinal").bind(id).all<ApprovalStep>(); },
+        readDefinitionsApprovalSteps(id: string) { return database.prepare(approvalStepsByInstanceSql).bind(id).all<ApprovalStep>(); },
         readDefinitionsJournal(journal_id: string | number, company_id: string) { return finance_flow_routing(database).readDefinitionsJournal(journal_id, company_id); },
         readDefinitionsDelegation(company_id: string, id: string | number | null) { return operations_flow_routing(database).readDefinitionsDelegation(company_id, id); },
         readDefinitionsTeam(company_id: string, teamId: string) { return support_flow_routing(database).readDefinitionsTeam(company_id, teamId); },
