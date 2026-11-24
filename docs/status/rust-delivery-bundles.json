@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8574,
+    "revision": 8578,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -141384,7 +141384,7 @@
         "owner": "files",
         "title": "files TS read tail native cutover (round 10)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -141396,22 +141396,37 @@
         "resources": [
           "owner:files"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGCI_fil",
-          "claimedAt": "2026-11-24T02:25:35.863Z",
-          "heartbeatAt": "2026-11-24T02:27:42.633Z",
-          "expiresAt": "2026-11-24T02:57:42.633Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-files/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "afe3f69f3",
+            "owner": "files",
+            "before": 355,
+            "after": 353,
+            "note": "attachment_links and attachment_sets owner projections shared; attachments constant unchanged."
+          },
+          {
+            "command": "vitest files attachment (15) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "afe3f69f3"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: attachment_links 26-col projection x2 and attachment_sets projection x2 in final-root/hospitality owner sources; add constants to owner-projection-dedupe-sql. Advisory lock excluded. BEFORE=355.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCI_fil",
+          "at": "2026-11-24T02:31:02.354Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -141845,6 +141860,42 @@
         "nextAction": "Next: remaining pricing/followup byte-identical groups; lock statements independent. BEFORE=105.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.files.read-tail-r11",
+        "goalId": "G4",
+        "owner": "files",
+        "title": "files TS read tail native cutover (round 11)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-files/src/**",
+          "tests/unit/files/**",
+          "tests/integration/files/**"
+        ],
+        "resources": [
+          "owner:files"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCWfil",
+          "claimedAt": "2026-11-24T02:31:02.652Z",
+          "heartbeatAt": "2026-11-24T02:31:02.652Z",
+          "expiresAt": "2026-11-24T03:01:02.652Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: remaining same-file literal pairs in service-repository/service/migration; advisory lock group excluded. BEFORE=353.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -141853,7 +141904,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 968,
+      "totalPackets": 969,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -141861,13 +141912,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 589,
+        "blocked": 590,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T02:30:46.731Z",
+    "updatedAt": "2026-11-24T02:31:02.659Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
