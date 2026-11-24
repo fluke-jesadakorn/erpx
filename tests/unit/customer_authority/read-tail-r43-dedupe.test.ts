@@ -188,6 +188,6 @@ describe('Customer Authority read-tail r43 universal-head delegation family', ()
     walk(srcRoot);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(26);
-    expect(total).toBe(22);
+    expect(total).toBe(21);
   });
 });

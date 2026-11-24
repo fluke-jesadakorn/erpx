@@ -365,9 +365,10 @@ describe('customer authority portal/access binding source dedupe', () => {
     // Both readers previously carried the same projection/FROM/JOIN core;
     // one caller-owned column-list parameter keeps each projection while the
     // shared core drops a duplicate SELECT from the owner KPI.
-    expect(src).toContain("export const portalBindingSource = (columns = '') => `SELECT ${columns}b.company_id,o.branch_id,o.department_id,b.version");
-    expect(src).toContain('JOIN (${commerceProjectionSources.commerce_orders}) o ON o.id=b.order_id AND o.company_id=b.company_id AND o.party_id=b.customer_id');
-    expect(src.match(/SELECT/g)).toHaveLength(1);
+    expect(src).toContain("export const portalBindingSource = (columns = '') => portalBindingOrderCore(");
+    expect(src).toContain('commerceProjectionSources.commerce_orders,');
+    expect(src).toContain("from './customer-authority-read-tail-r44-sources'");
+    expect(src.match(/SELECT/g) ?? []).toHaveLength(0);
     expect(accessSrc).toContain("db.prepare(`${portalBindingSource('b.id,')}");
     expect(accessSrc).not.toContain('SELECT b.id,b.company_id,o.branch_id,o.department_id,b.version');
     expect(factsSrc).toContain('db.prepare(`${portalBindingSource()}');
@@ -383,9 +384,10 @@ describe('customer authority portal purchase binding read core dedupe', () => {
 
   it('keeps one byte-identical binding/order core shared by purchase source and both attachment witnesses', async () => {
     const src = await readFile(helper(), 'utf8');
-    expect(src).toContain("export const portalPurchaseBindingSource = (projection: string, kinds = \"'sales','quote'\") => `SELECT ${projection}");
-    expect(src).toContain('FROM customer_access_bindings b JOIN (${commerce.commerce_orders}) o ON o.id=b.order_id AND o.company_id=b.company_id AND o.party_id=b.customer_id AND o.kind IN (${kinds})');
-    expect(src.match(/SELECT/g)).toHaveLength(1);
+    expect(src).toContain("export const portalPurchaseBindingSource = (projection: string, kinds = \"'sales','quote'\") => portalBindingOrderCore(");
+    expect(src).toContain('commerce.commerce_orders,');
+    expect(src).toContain("from './customer-authority-read-tail-r44-sources'");
+    expect(src.match(/SELECT/g) ?? []).toHaveLength(0);
   });
 
   it('reproduces the exact portal purchase source SQL', () => {

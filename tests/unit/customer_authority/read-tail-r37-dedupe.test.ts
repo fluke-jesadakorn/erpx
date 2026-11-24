@@ -73,8 +73,8 @@ describe('Customer Authority read-tail r37 full-row projection family', () => {
       ['customer-authority-read-tail-r34-sources.ts', 0, 'export const bindingCommerceOrderSource'],
       ['customer-authority-read-tail-r35-sources.ts', 0, 'export const scalarProjection'],
       ['customer-authority-read-tail-r36-sources.ts', 0, 'export const pointRead'],
-      ['portal-binding-source.ts', 1, 'export const portalBindingSource'],
-      ['portal-purchase-binding-source.ts', 1, 'export const portalPurchaseBindingSource'],
+      ['portal-binding-source.ts', 0, 'export const portalBindingSource'],
+      ['portal-purchase-binding-source.ts', 0, 'export const portalPurchaseBindingSource'],
       // supportSource's SELECT head now lives in the r37 builder; only the
       // installed-regclass probe remains as a literal SELECT in this file.
       ['portal-support-sources.ts', 1, 'const supportSource'],

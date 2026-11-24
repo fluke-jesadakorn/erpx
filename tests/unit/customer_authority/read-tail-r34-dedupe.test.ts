@@ -101,8 +101,8 @@ describe('Customer Authority read-tail r34 union fact row scaffold', () => {
       ['customer-authority-read-tail-r31-sources.ts', 0, 'export const supportConclusionIdentity'],
       ['customer-authority-read-tail-r32-sources.ts', 0, 'export const factExistenceWitness'],
       ['customer-authority-read-tail-r33-sources.ts', 0, 'export const companyScopeSelect'],
-      ['portal-binding-source.ts', 1, 'export const portalBindingSource'],
-      ['portal-purchase-binding-source.ts', 1, 'export const portalPurchaseBindingSource'],
+      ['portal-binding-source.ts', 0, 'export const portalBindingSource'],
+      ['portal-purchase-binding-source.ts', 0, 'export const portalPurchaseBindingSource'],
     ];
     for (const [name, count, symbol] of counts) {
       const helper = src(name);
@@ -126,6 +126,6 @@ describe('Customer Authority read-tail r34 union fact row scaffold', () => {
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(47);
     // r43 further reduced the tail (26 -> 22); keep the current exact pin.
-    expect(total).toBe(22);
+    expect(total).toBe(21);
   });
 });
