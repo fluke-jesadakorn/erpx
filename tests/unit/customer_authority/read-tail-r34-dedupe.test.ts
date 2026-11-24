@@ -31,7 +31,10 @@ describe('Customer Authority read-tail r34 binding source core family', () => {
 
   test('one shared core, two pinned callers and intact portal shells/control plane', () => {
     const shared = src('customer-authority-read-tail-r34-sources.ts');
-    expect(shared.match(/\bSELECT\b/g) ?? []).toHaveLength(2);
+    // r38: the union-fact SELECT head now delegates to the byte-identical r25
+    // ownerColumnProjection, so this builder owns only the binding/order core.
+    expect(shared.match(/\bSELECT\b/g) ?? []).toHaveLength(1);
+    expect(shared).toContain('ownerColumnProjection(projection, from)');
     expect(shared).toContain('export const bindingCommerceOrderSource');
     expect(shared).toContain('o.id=b.order_id AND o.company_id=b.company_id');
     expect(shared).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
@@ -45,7 +48,8 @@ describe('Customer Authority read-tail r34 binding source core family', () => {
     const unit = src('portal-projection-unit.ts');
     expect(unit.match(/bindingCommerceOrderSource\(/g) ?? []).toHaveLength(1);
     expect(unit).not.toContain('SELECT count(*)::int n FROM customer_access_reads r JOIN customer_access_bindings b ON');
-    expect(unit).toContain("WITH bindings AS(SELECT * FROM customer_access_bindings WHERE email=?)");
+    expect(unit).toContain("allColumnsProjection('customer_access_bindings',' WHERE email=?')");
+    expect(unit).not.toContain('WITH bindings AS(SELECT * FROM customer_access_bindings WHERE email=?)');
 
     const access = src('portal-access.ts');
     expect(access).toContain('FOR UPDATE');
@@ -121,6 +125,7 @@ describe('Customer Authority read-tail r34 union fact row scaffold', () => {
     walk(srcRoot);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(47);
-    expect(total).toBe(43);
+    // r38 further reduced the tail (40 -> 39); keep the current exact pin.
+    expect(total).toBe(39);
   });
 });
