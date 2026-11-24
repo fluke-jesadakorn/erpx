@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8635,
+    "revision": 8637,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -142002,7 +142002,7 @@
         "owner": "sales",
         "title": "sales TS read tail native cutover (round 8)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -142014,22 +142014,37 @@
         "resources": [
           "owner:sales"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGCVsal",
-          "claimedAt": "2026-11-24T02:30:46.717Z",
-          "heartbeatAt": "2026-11-24T02:30:46.717Z",
-          "expiresAt": "2026-11-24T03:00:46.717Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-sales/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ac1e22979",
+            "owner": "sales",
+            "before": 105,
+            "after": 104,
+            "note": "sales_price_lists by id shared between list and resolve prefix; binds unchanged; locks independent."
+          },
+          {
+            "command": "vitest sales targeted (156) + tsc sales",
+            "result": "passed",
+            "sourceSha": "ac1e22979"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: remaining pricing/followup byte-identical groups; lock statements independent. BEFORE=105.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCVsal",
+          "at": "2026-11-24T02:38:05.527Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -142642,17 +142657,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
-        "in_progress": 33,
+        "in_progress": 32,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 604,
+        "blocked": 605,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T02:37:52.827Z",
+    "updatedAt": "2026-11-24T02:38:05.538Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
