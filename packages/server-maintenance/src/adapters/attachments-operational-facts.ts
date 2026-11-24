@@ -2,6 +2,7 @@ import "server-only";
 import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {attachmentOwnerVersionGuardSql} from "./attachment-owner-version-guard";
+import {attachmentDescriptorReadSql} from "./attachment-descriptor-read";
 import type {TargetRow} from "@erpx/server-files/public/contracts/attachments-operational";
 const versionOwners:Record<string,string>={};
 const allowedTargets=new Set<string>([]);
@@ -42,5 +43,5 @@ if(!allowedTargets.has(targetType))return null;
     .bind(now, targetId, expectedVersion);
 }
 export function OperationalAttachmentMaintenanceFacts(db:SqlDatabase){return {
-readModuleScoped:(facts:{targetType:string;targetId:string;companyId:string;})=>{const moduleTarget=({"maintenance_work": {"table": "maintenance_work_orders", "branch": "branch_id", "department": "department_id"}} as Record<string,{table:string;branch:string;department:string|null}>)[facts.targetType];return db.prepare(`SELECT company_id,${moduleTarget.branch} branch_id,${moduleTarget.department ?? "NULL::text"} department_id,version FROM ${moduleTarget.table} WHERE id=? AND company_id=?`).bind(facts.targetId,facts.companyId).first<TargetRow>();},versionGuard:(commandId:string,targetType:string,targetId:string,companyId:string,version:number,index:number)=>remainingOperationalAttachmentTargetVersionGuard(db,commandId,targetType,targetId,companyId,version,index),versionStep:(targetType:string,targetId:string,expectedVersion:number,now:number)=>remainingOperationalAttachmentRecordVersionStep(db,targetType,targetId,expectedVersion,now)
+readModuleScoped:(facts:{targetType:string;targetId:string;companyId:string;})=>{const moduleTarget=({"maintenance_work": {"table": "maintenance_work_orders", "branch": "branch_id", "department": "department_id"}} as Record<string,{table:string;branch:string;department:string|null}>)[facts.targetType];return db.prepare(attachmentDescriptorReadSql(moduleTarget.table,`${moduleTarget.branch} branch_id`,`${moduleTarget.department ?? "NULL::text"} department_id`,"version")).bind(facts.targetId,facts.companyId).first<TargetRow>();},versionGuard:(commandId:string,targetType:string,targetId:string,companyId:string,version:number,index:number)=>remainingOperationalAttachmentTargetVersionGuard(db,commandId,targetType,targetId,companyId,version,index),versionStep:(targetType:string,targetId:string,expectedVersion:number,now:number)=>remainingOperationalAttachmentRecordVersionStep(db,targetType,targetId,expectedVersion,now)
 };}

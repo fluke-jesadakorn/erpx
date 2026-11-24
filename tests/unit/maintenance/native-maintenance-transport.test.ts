@@ -531,3 +531,26 @@ describe('Maintenance package settlement source fixed SQL',()=>{
   expect(plans).toContain('ON asset.id=plan.asset_id AND asset.company_id=plan.company_id');
  });
 });
+
+/** Fixed-SQL read-tail oracle for the Maintenance attachment target descriptor
+ * (r8). The operational (module-scoped) and policy (permission-checked) fact
+ * sources share one owner-local fixed statement; both composed SQL strings are
+ * byte-identical to their pre-dedupe literals and no duplicate TS query literal
+ * remains in either consumer. */
+describe('Maintenance attachment descriptor fixed SQL',()=>{
+ const dir='../../../packages/server-maintenance/src/adapters/';
+ it('single-sources the target descriptor read and keeps both composed SQL strings intact',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const helper=await readFile(new URL(`${dir}attachment-descriptor-read.ts`,import.meta.url),'utf8');
+  const operational=await readFile(new URL(`${dir}attachments-operational-facts.ts`,import.meta.url),'utf8');
+  const policy=await readFile(new URL(`${dir}attachments-policy-facts.ts`,import.meta.url),'utf8');
+  expect(helper.match(/SELECT/g)).toHaveLength(1);
+  expect(operational.match(/SELECT/g)).toBeNull();
+  expect(policy.match(/SELECT/g)).toBeNull();
+  expect(operational).toContain('attachmentDescriptorReadSql(moduleTarget.table');
+  expect(policy).toContain('attachmentDescriptorReadSql(descriptor.table');
+  const {attachmentDescriptorReadSql}=await import('../../../packages/server-maintenance/src/adapters/attachment-descriptor-read');
+  expect(attachmentDescriptorReadSql('maintenance_work_orders','branch_id branch_id','department_id department_id','version')).toBe('SELECT company_id,branch_id branch_id,department_id department_id,version FROM maintenance_work_orders WHERE id=? AND company_id=?');
+  expect(attachmentDescriptorReadSql('maintenance_work_orders','branch_id AS branch_id','department_id AS department_id','version AS version')).toBe('SELECT company_id,branch_id AS branch_id,department_id AS department_id,version AS version FROM maintenance_work_orders WHERE id=? AND company_id=?');
+ });
+});
