@@ -10,12 +10,12 @@ import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commerc
 
 export type AssetSourceKind="asset"|"maintenance_work"|"maintenance_plan";
 const definitions={asset:{table:"operational_assets",module:"assets",capability:"assets.register"},maintenance_work:{table:"maintenance_work_orders",module:"maintenance",capability:"assets.maintenance"},maintenance_plan:{table:"maintenance_preventive_plans",module:"maintenance",capability:"assets.preventive"}} as const;
-/** Canonical owner-local fixed projection for Assets source probes. Visibility
- * checks, record-source rechecks and the clock purchase probe share one literal
- * so the TS read tail carries no duplicate statement. Callers pass only
- * owner-owned relation, alias, column and predicate fragments; no SQL or
- * relation name is accepted from a request. */
-const assetSourceProbeSql=(from:string,where:string)=>`SELECT 1 FROM ${from} WHERE ${where}`;
+/** Canonical owner-local fixed row-existence probe for Assets. Visibility,
+ * record-source, clock-purchase and package-settlement EXISTS checks share this
+ * one literal so the TS read tail carries no duplicate statement. Callers pass
+ * only owner-owned FROM and predicate fragments; no SQL or relation name is
+ * accepted from a request. */
+export const assetSourceProbeSql=(from:string,where:string)=>`SELECT 1 FROM ${from} WHERE ${where}`;
 const assetSourceVisibleSql=(table:string,alias:string,idValue:string,tail="")=>`EXISTS(${assetSourceProbeSql(`${table} ${alias}`,`${alias}.id=${idValue}${tail}`)})`;
 const assetSourceReadSql=(from:string,idColumn:string,tail="")=>assetSourceProbeSql(from,`${idColumn}=?${tail}`);
 /** Fixed owner kinds select the actual source table. Project/Learning worker

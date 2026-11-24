@@ -7,11 +7,12 @@ import {talentSettlementPlacements as placements,talentSettlementPlacementReadLo
 import {assetsSettlementFinancialAssets,assetsSettlementFinancialAssetReadLocks} from "@erpx/server-finance/public/assets-settlement-sources";
 import {maintenanceAssetSettlementRefs,maintenanceAssetSettlementRefReadLocks} from "@erpx/server-maintenance/public/asset-settlement-refs";
 import {maintenanceSettlementInventoryReadLocks} from "@erpx/server-inventory/public/maintenance-settlement-sources";
+import {assetSourceProbeSql} from "./record-purchases";
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};const sources=new WeakMap<SqlDatabase,string>();
-/** Canonical owner-local existence probe. Every owner-local EXISTS check in this
- * adapter shares this single statement token; callers pass only fixed FROM and
- * predicate fragments, never request SQL or relation names. */
-const assetExistsSql = (from:string,where:string) => `EXISTS(SELECT 1 FROM ${from} WHERE ${where})`;
+/** Canonical owner-local EXISTS wrapper. It reuses the owner-local source probe
+ * so the row-existence literal is defined once in this owner; callers pass only
+ * fixed FROM and predicate fragments, never request SQL or relation names. */
+const assetExistsSql = (from:string,where:string) => `EXISTS(${assetSourceProbeSql(from,where)})`;
 /** Canonical owner-local source-existence probe for Assets package settlement.
  * Branch, department and maintenance-ref callers share this one literal so the
  * TS read tail carries no duplicate statement. Callers pass only owner-owned

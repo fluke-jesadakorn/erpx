@@ -367,15 +367,17 @@ it('shares one fixed owner predicate for attachment owner version guards (46->45
   expect(service).toContain('attachmentOwnerVersionGuardSql(item.table, item.extra)');
   expect(operational).toContain('attachmentOwnerVersionGuardSql(table)');
 });
-it('shares one canonical existence probe across the Assets package-settlement read (11->8)',async()=>{
+it('shares one canonical existence probe across the Assets package-settlement read (11->7)',async()=>{
   const {readFile}=await import('node:fs/promises');
   const adapter=await readFile(new URL('../../../packages/server-assets/src/adapters/package-obligations.ts',import.meta.url),'utf8');
   const count=(text:string,needle:string)=>text.split(needle).length-1;
-  // The canonical helper owns the single existence statement; no comment may
-  // smuggle another "SELECT" token into the retirement KPI.
-  expect(adapter.match(/SELECT/g)).toHaveLength(8);
+  // The owner-local source probe is the single existence statement; neither this
+  // adapter nor its comments may smuggle another "SELECT" token into the KPI.
+  expect(adapter.match(/SELECT/g)).toHaveLength(7);
+  expect(adapter).toContain('import {assetSourceProbeSql} from "./record-purchases"');
   expect(adapter).toContain('const assetExistsSql = (from:string,where:string) =>');
-  expect(count(adapter,'EXISTS(SELECT 1 FROM ${from} WHERE ${where})')).toBe(1);
+  expect(count(adapter,'EXISTS(SELECT 1 FROM ${from} WHERE ${where})')).toBe(0);
+  expect(count(adapter,'`EXISTS(${assetSourceProbeSql(from,where)})`')).toBe(1);
   expect(adapter).toContain('const assetSourceExistsSql = (source:string,alias:string,where:string) =>');
   // No duplicate raw probe literal remains at the owner or finance-source call sites.
   expect(count(adapter,'EXISTS(SELECT 1 FROM (${source}) ${alias} WHERE ${where})')).toBe(0);
