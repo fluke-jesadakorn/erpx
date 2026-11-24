@@ -2,8 +2,8 @@ import type { RouteContext } from "@erpx/contracts/next-routes";
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { ApiError,errorResponse } from "@erpx/server-runtime/public/http";
-import { createRecord,createRecordSchema } from "@erpx/server-records/public/records";
-import { createNativeRecordRegistryClient, nativeRecordRegistryAvailable, nativeRecordRegistryConfiguration, nativeRecordRegistryFailure } from "@erpx/server-records/public/native-record-registry";
+import { createRecordSchema } from "@erpx/server-records/public/records";
+import { createNativeRecordRegistryClient, nativeRecordRegistryConfiguration, nativeRecordRegistryFailure } from "@erpx/server-records/public/native-record-registry";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +29,7 @@ async function readNativeRegistry(request:Request,actor:Awaited<ReturnType<typeo
     throw new ApiError(mapped.status,mapped.code,mapped.message);
   }
 }
-export async function POST(request:Request,context:RouteContext<"/api/v1/holdings/[holdingSlug]/records/[module]">){try{const {holdingSlug,module}=await context.params;const body=await request.text();if(new TextEncoder().encode(body).length>64*1024)throw new ApiError(413,"REQUEST_TOO_LARGE","This record is too large.");let raw:unknown;try{raw=JSON.parse(body);}catch{throw new ApiError(422,"INVALID_JSON","Submit a valid record.");}const parsed=createRecordSchema.safeParse(raw);if(!parsed.success)throw new ApiError(422,"VALIDATION_FAILED",parsed.error.issues[0]?.message??"Invalid record.");const actor=await requireWorkContext(holdingSlug);if(nativeRecordRegistryAvailable()&&module==="support")return await createNativeRecord(request,actor,holdingSlug,module,parsed.data);return Response.json(canonicalDestinationLinks({data:await createRecord(actor,module,parsed.data,request.headers.get("Idempotency-Key")??undefined)}),{status:201});}catch(error){return errorResponse(error);}}
+export async function POST(request:Request,context:RouteContext<"/api/v1/holdings/[holdingSlug]/records/[module]">){try{const {holdingSlug,module}=await context.params;const body=await request.text();if(new TextEncoder().encode(body).length>64*1024)throw new ApiError(413,"REQUEST_TOO_LARGE","This record is too large.");let raw:unknown;try{raw=JSON.parse(body);}catch{throw new ApiError(422,"INVALID_JSON","Submit a valid record.");}const parsed=createRecordSchema.safeParse(raw);if(!parsed.success)throw new ApiError(422,"VALIDATION_FAILED",parsed.error.issues[0]?.message??"Invalid record.");const actor=await requireWorkContext(holdingSlug);return await createNativeRecord(request,actor,holdingSlug,module,parsed.data);}catch(error){return errorResponse(error);}}
 async function createNativeRecord(request:Request,actor:Awaited<ReturnType<typeof requireWorkContext>>,holdingSlug:string,moduleId:string,input:{sectionId:string;title:string;description:string;fields:{key:string;label:string;type:string;value:string|number|boolean;options?:string[]}[]}){
   if(!actor.authority||!actor.iam)throw new ApiError(409,"WORK_CONTEXT_CHANGED","Your work role changed. Reload and review before retrying.");
   const key=request.headers.get("Idempotency-Key");

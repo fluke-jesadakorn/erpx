@@ -2,22 +2,28 @@ import type { RouteContext } from "@erpx/contracts/next-routes";
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { errorResponse, ApiError } from "@erpx/server-runtime/public/http";
-import { archiveRecord, getRecord, updateRecord, updateRecordSchema } from "@erpx/server-records/public/records";
-import { recordMentionDisplay } from "@erpx/server-records/public/mention-display";
-import { createNativeRecordContextClient, nativeRecordContextConfiguration, nativeRecordContextFailure } from "@erpx/server-records/public/native-record-context";
-import { createNativeRecordRegistryClient, nativeRecordRegistryAvailable, nativeRecordRegistryConfiguration, nativeRecordRegistryFailure } from "@erpx/server-records/public/native-record-registry";
+import { updateRecordSchema } from "@erpx/server-records/public/records";
+import { createNativeRecordContextClient, nativeRecordContextConfiguration, nativeRecordContextFailure, type NativeRecordContext } from "@erpx/server-records/public/native-record-context";
+import { createNativeRecordRegistryClient, nativeRecordRegistryConfiguration, nativeRecordRegistryFailure } from "@erpx/server-records/public/native-record-registry";
 
 export const dynamic = "force-dynamic";
 export async function GET(request: Request, context: RouteContext<"/api/v1/holdings/[holdingSlug]/records/[module]/[id]">) {
   try {
     const {holdingSlug,module,id}=await context.params;
     const actor=await requireWorkContext(holdingSlug);
+    const recordContext=await readRecordContext(request,actor,holdingSlug,module,id);
     const data=new URL(request.url).searchParams.get("view")==="mention"
-      ? {record:await recordMentionDisplay(actor,module,id)}
-      : await readRecordContext(request,actor,holdingSlug,module,id);
+      ? mentionView(recordContext)
+      : recordContext;
     return Response.json(canonicalDestinationLinks({data}),{headers:{"Cache-Control":"private, no-store"}});
   }
   catch(error){return errorResponse(error);}
+}
+/** The mention drawer needs only the cached display fields from the native context. */
+function mentionView(context:NativeRecordContext){
+  const {record}=context;
+  return {record:{title:record.title,description:record.description,status:record.status,version:record.version,
+    fields:record.fields.map(({key,label,value})=>({key,label,value}))}};
 }
 async function readRecordContext(request:Request,actor:Awaited<ReturnType<typeof requireWorkContext>>,holdingSlug:string,moduleId:string,recordId:string) {
   if(!actor.authority||!actor.iam)throw new ApiError(409,"WORK_CONTEXT_CHANGED","Your work role changed. Reload and review before retrying.");
@@ -35,7 +41,7 @@ async function readRecordContext(request:Request,actor:Awaited<ReturnType<typeof
     throw new ApiError(mapped.status,mapped.code,mapped.message);
   }
 }
-export async function DELETE(request:Request,context:RouteContext<"/api/v1/holdings/[holdingSlug]/records/[module]/[id]">){try{const {holdingSlug,module,id}=await context.params;const expectedVersion=Number(new URL(request.url).searchParams.get("expectedVersion"));if(!Number.isInteger(expectedVersion)||expectedVersion<1)throw new ApiError(422,"VERSION_REQUIRED","Current record version is required.");const actor=await requireWorkContext(holdingSlug);if(nativeRecordRegistryAvailable()&&module==="support")return await archiveNativeRecord(request,actor,holdingSlug,module,id,expectedVersion);return Response.json(canonicalDestinationLinks({data:await archiveRecord(actor,module,id,expectedVersion,request.headers.get("Idempotency-Key")??undefined)}));}catch(error){return errorResponse(error);}}
+export async function DELETE(request:Request,context:RouteContext<"/api/v1/holdings/[holdingSlug]/records/[module]/[id]">){try{const {holdingSlug,module,id}=await context.params;const expectedVersion=Number(new URL(request.url).searchParams.get("expectedVersion"));if(!Number.isInteger(expectedVersion)||expectedVersion<1)throw new ApiError(422,"VERSION_REQUIRED","Current record version is required.");const actor=await requireWorkContext(holdingSlug);return await archiveNativeRecord(request,actor,holdingSlug,module,id,expectedVersion);}catch(error){return errorResponse(error);}}
 async function archiveNativeRecord(request:Request,actor:Awaited<ReturnType<typeof requireWorkContext>>,holdingSlug:string,moduleId:string,recordId:string,expectedVersion:number){
   if(!actor.authority||!actor.iam)throw new ApiError(409,"WORK_CONTEXT_CHANGED","Your work role changed. Reload and review before retrying.");
   const key=request.headers.get("Idempotency-Key");
@@ -63,9 +69,7 @@ export async function PATCH(request: Request, context: RouteContext<"/api/v1/hol
   try { const {holdingSlug,module,id}=await context.params; const parsed=updateRecordSchema.safeParse(await request.json());
     if(!parsed.success) throw new ApiError(422,"VALIDATION_FAILED",parsed.error.issues[0]?.message??"Invalid fields.");
     const actor=await requireWorkContext(holdingSlug);
-    if(nativeRecordRegistryAvailable()&&module==="support")return await updateNativeRecord(request,actor,holdingSlug,module,id,parsed.data);
-    await getRecord(actor,module,id);
-    return Response.json(canonicalDestinationLinks({data:await updateRecord(actor,module,id,parsed.data,request.headers.get("Idempotency-Key")??undefined)}));
+    return await updateNativeRecord(request,actor,holdingSlug,module,id,parsed.data);
   } catch(error){return errorResponse(error);}
 }
 async function updateNativeRecord(request:Request,actor:Awaited<ReturnType<typeof requireWorkContext>>,holdingSlug:string,moduleId:string,recordId:string,input:{expectedVersion:number;fields:Record<string,string|number|boolean>}){
