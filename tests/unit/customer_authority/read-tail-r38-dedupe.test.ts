@@ -65,11 +65,11 @@ describe('Customer Authority read-tail r38 canonical projection/source head fami
       ['customer-authority-read-tail-r30-sources.ts', 0, 'export const existenceProbe'],
       ['customer-authority-read-tail-r31-sources.ts', 0, 'export const supportConclusionIdentity'],
       ['customer-authority-read-tail-r32-sources.ts', 0, 'export const factExistenceWitness'],
-      ['customer-authority-read-tail-r33-sources.ts', 1, 'export const companyScopeSelect'],
+      ['customer-authority-read-tail-r33-sources.ts', 0, 'export const companyScopeSelect'],
       ['customer-authority-read-tail-r34-sources.ts', 0, 'export const bindingCommerceOrderSource'],
       ['customer-authority-read-tail-r35-sources.ts', 0, 'export const scalarProjection'],
       ['customer-authority-read-tail-r36-sources.ts', 0, 'export const pointRead'],
-      ['customer-authority-read-tail-r37-sources.ts', 1, 'export const allColumnsProjection'],
+      ['customer-authority-read-tail-r37-sources.ts', 0, 'export const allColumnsProjection'],
     ];
     for (const [name, count, symbol] of counts) {
       const helper = src(name);
@@ -118,6 +118,6 @@ describe('Customer Authority read-tail r38 canonical projection/source head fami
     walk(srcRoot);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(40);
-    expect(total).toBe(26);
+    expect(total).toBe(22);
   });
 });

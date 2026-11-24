@@ -47,7 +47,7 @@ describe('Customer Authority read-tail r41 executive-evidence family', () => {
 
   test('one canonical head, two delegating callers, prepared statements and binds intact', () => {
     const head = src('customer-authority-read-tail-r41-sources.ts');
-    expect(head.match(/\bSELECT\b/g) ?? []).toHaveLength(1);
+    expect(head.match(/\bSELECT\b/g) ?? []).toHaveLength(0);
     expect(head.match(/export const evidenceSource/g) ?? []).toHaveLength(1);
     expect(head).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
 
@@ -78,11 +78,11 @@ describe('Customer Authority read-tail r41 executive-evidence family', () => {
       ['customer-authority-read-tail-r30-sources.ts', 0, 'export const existenceProbe'],
       ['customer-authority-read-tail-r31-sources.ts', 0, 'export const supportConclusionIdentity'],
       ['customer-authority-read-tail-r32-sources.ts', 0, 'export const factExistenceWitness'],
-      ['customer-authority-read-tail-r33-sources.ts', 1, 'export const companyScopeSelect'],
+      ['customer-authority-read-tail-r33-sources.ts', 0, 'export const companyScopeSelect'],
       ['customer-authority-read-tail-r34-sources.ts', 0, 'export const bindingCommerceOrderSource'],
       ['customer-authority-read-tail-r35-sources.ts', 0, 'export const scalarProjection'],
       ['customer-authority-read-tail-r36-sources.ts', 0, 'export const pointRead'],
-      ['customer-authority-read-tail-r37-sources.ts', 1, 'export const allColumnsProjection'],
+      ['customer-authority-read-tail-r37-sources.ts', 0, 'export const allColumnsProjection'],
       ['customer-authority-read-tail-r40-sources.ts', 1, 'export const selectProjection'],
     ];
     for (const [name, count, symbol] of counts) {
@@ -118,6 +118,6 @@ describe('Customer Authority read-tail r41 executive-evidence family', () => {
     walk(srcRoot);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(28);
-    expect(total).toBe(26);
+    expect(total).toBe(22);
   });
 });

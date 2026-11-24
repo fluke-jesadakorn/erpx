@@ -26,7 +26,7 @@ describe('Customer Authority read-tail r37 full-row projection family', () => {
 
   test('one shared scaffold, two pinned callers and intact locks/kinds/eligibility', () => {
     const shared = src('customer-authority-read-tail-r37-sources.ts');
-    expect(shared.match(/\bSELECT\b/g) ?? []).toHaveLength(1);
+    expect(shared.match(/\bSELECT\b/g) ?? []).toHaveLength(0);
     expect(shared).toContain('export const allColumnsProjection');
     expect(shared).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
 
@@ -69,7 +69,7 @@ describe('Customer Authority read-tail r37 full-row projection family', () => {
       ['customer-authority-read-tail-r30-sources.ts', 0, 'export const existenceProbe'],
       ['customer-authority-read-tail-r31-sources.ts', 0, 'export const supportConclusionIdentity'],
       ['customer-authority-read-tail-r32-sources.ts', 0, 'export const factExistenceWitness'],
-      ['customer-authority-read-tail-r33-sources.ts', 1, 'export const companyScopeSelect'],
+      ['customer-authority-read-tail-r33-sources.ts', 0, 'export const companyScopeSelect'],
       ['customer-authority-read-tail-r34-sources.ts', 0, 'export const bindingCommerceOrderSource'],
       ['customer-authority-read-tail-r35-sources.ts', 0, 'export const scalarProjection'],
       ['customer-authority-read-tail-r36-sources.ts', 0, 'export const pointRead'],

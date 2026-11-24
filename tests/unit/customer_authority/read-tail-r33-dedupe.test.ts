@@ -28,7 +28,7 @@ describe('Customer Authority read-tail r33 company-scope probe family', () => {
 
   test('one shared literal, three pinned callers and intact control plane', () => {
     const shared = src('customer-authority-read-tail-r33-sources.ts');
-    expect(shared.match(/\bSELECT\b/g) ?? []).toHaveLength(1);
+    expect(shared.match(/\bSELECT\b/g) ?? []).toHaveLength(0);
     expect(shared).toContain('export const companyScopeSelect');
     expect(shared).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
 
@@ -89,7 +89,7 @@ describe('Customer Authority read-tail r33 company-scope probe family', () => {
     walk(srcRoot);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(49);
-    // r39 further reduced the tail (39 -> 34); keep the current exact pin.
-    expect(total).toBe(26);
+    // r43 further reduced the tail (26 -> 22); keep the current exact pin.
+    expect(total).toBe(22);
   });
 });

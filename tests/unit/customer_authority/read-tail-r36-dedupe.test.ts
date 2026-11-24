@@ -65,7 +65,7 @@ describe('Customer Authority read-tail r36 point-read family', () => {
       ['customer-authority-read-tail-r30-sources.ts', 0, 'export const existenceProbe'],
       ['customer-authority-read-tail-r31-sources.ts', 0, 'export const supportConclusionIdentity'],
       ['customer-authority-read-tail-r32-sources.ts', 0, 'export const factExistenceWitness'],
-      ['customer-authority-read-tail-r33-sources.ts', 1, 'export const companyScopeSelect'],
+      ['customer-authority-read-tail-r33-sources.ts', 0, 'export const companyScopeSelect'],
       ['customer-authority-read-tail-r34-sources.ts', 0, 'export const bindingCommerceOrderSource'],
       ['customer-authority-read-tail-r35-sources.ts', 0, 'export const scalarProjection'],
       ['portal-binding-source.ts', 1, 'export const portalBindingSource'],

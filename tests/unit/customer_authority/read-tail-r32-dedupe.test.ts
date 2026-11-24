@@ -91,7 +91,7 @@ describe('Customer Authority read-tail r32 fact-existence witness family', () =>
     walk(srcRoot);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(52);
-    // r39 further reduced the tail (39 -> 34); keep the current exact pin.
-    expect(total).toBe(26);
+    // r43 further reduced the tail (26 -> 22); keep the current exact pin.
+    expect(total).toBe(22);
   });
 });

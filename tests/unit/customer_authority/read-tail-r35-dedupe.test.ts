@@ -63,7 +63,7 @@ describe('Customer Authority read-tail r35 scalar projection family', () => {
       ['customer-authority-read-tail-r30-sources.ts', 0, 'export const existenceProbe'],
       ['customer-authority-read-tail-r31-sources.ts', 0, 'export const supportConclusionIdentity'],
       ['customer-authority-read-tail-r32-sources.ts', 0, 'export const factExistenceWitness'],
-      ['customer-authority-read-tail-r33-sources.ts', 1, 'export const companyScopeSelect'],
+      ['customer-authority-read-tail-r33-sources.ts', 0, 'export const companyScopeSelect'],
       ['customer-authority-read-tail-r34-sources.ts', 0, 'export const bindingCommerceOrderSource'],
       ['portal-binding-source.ts', 1, 'export const portalBindingSource'],
       ['portal-purchase-binding-source.ts', 1, 'export const portalPurchaseBindingSource'],
@@ -88,7 +88,7 @@ describe('Customer Authority read-tail r35 scalar projection family', () => {
     walk(srcRoot);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(43);
-    // r39 further reduced the tail (39 -> 34); keep the current exact pin.
-    expect(total).toBe(26);
+    // r43 further reduced the tail (26 -> 22); keep the current exact pin.
+    expect(total).toBe(22);
   });
 });
