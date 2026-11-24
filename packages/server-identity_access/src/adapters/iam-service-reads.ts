@@ -1,5 +1,5 @@
 import 'server-only';
-import {idNameEmailByUserIdsSql} from './iam-probe-sql';
+import {idNameEmailByUserIdsSql,sessionByUserSql} from './iam-probe-sql';
 import {createIamServiceReads} from '@erpx/server-identity_access/application/iam-service-reads';
 import {identitySnapshotSources as organizationSnapshotSources} from '@erpx/server-organization/public/identity-snapshot-sources';
 import {identitySnapshotSources as peoplepayrollSnapshotSources} from '@erpx/server-people_payroll/public/identity-snapshot-sources';
@@ -83,7 +83,7 @@ function readService(database: PostgresDatabase) {
         campaignItems: async (actor, accessReviewCampaigns) => { return (await db.prepare(`SELECT i.* FROM iam_access_review_items i JOIN iam_access_review_campaigns c ON c.id=i.campaign_id WHERE c.company_id=? AND c.id IN (${accessReviewCampaigns.map(() => "?").join(",")}) ORDER BY c.created_at DESC,i.user_id,i.role`).bind(actor.companyId, ...accessReviewCampaigns.map(c => String(c.id))).all<Record<string, unknown>>()).results; },
         sessions: async (actor) => {
             const env = await control();
-            return (await env.CONTROL_DB.prepare('SELECT id,"createdAt","expiresAt","userAgent" FROM session WHERE "userId"=? ORDER BY "createdAt" DESC')
+            return (await env.CONTROL_DB.prepare(sessionByUserSql(' ORDER BY "createdAt" DESC'))
                 .bind(actor.userId)
                 .all()).results;
         },

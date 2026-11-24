@@ -1,5 +1,5 @@
 import { nativeIdentityWrite } from '@erpx/server-identity_access/public/native-identity-write';
-import { samePersonQuerySql } from "./iam-probe-sql";
+import { samePersonQuerySql, sessionByUserSql, sessionExistsSql } from "./iam-probe-sql";
 import { nativePrepare } from '@erpx/server-identity_access/public/native-identity-write';
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import {identitySnapshotSources as manageerpxSnapshotSources} from '@erpx/server-manage_erpx/public/identity-snapshot-sources';
@@ -170,7 +170,7 @@ export async function iamAccountApi(request: Request, path: string[]) {
               .first()),
             sessions: (
               await env.CONTROL_DB.prepare(
-                'SELECT id,"createdAt","expiresAt","userAgent" FROM session WHERE "userId"=?',
+                sessionByUserSql(''),
               )
                 .bind(actor.userId)
                 .all()
@@ -204,7 +204,7 @@ export async function iamAccountApi(request: Request, path: string[]) {
       const env = await runtimeEnv();
       if (
         await env.CONTROL_DB.prepare(
-          'SELECT 1 FROM session WHERE id=? AND "userId"=?',
+          sessionExistsSql(''),
         )
           .bind(id, actor.userId)
           .first()

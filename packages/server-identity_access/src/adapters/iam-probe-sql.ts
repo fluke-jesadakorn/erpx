@@ -4,8 +4,14 @@
  * readers own the same authorization shape. */
 export const roleAllowsSql = "SELECT 1 WHERE iam_role_allows(?,?,?)";
 export const samePersonSql = "SELECT 1 WHERE iam_same_person(?,?,?)";
+/** Parameterized same-person column probe shared by the pg IAM callers (positional
+ * binds) and the People evaluation facts port (qmark binds). Only the three fixed
+ * placeholder tokens from those owner callers are accepted; the projection and
+ * function are fixed here. No lock or control-plane read is changed. */
+export const samePersonColumnSql = (a: string, b: string, c: string) =>
+  `SELECT iam_same_person(${a},${b},${c}) same`;
 /** pg positional-parameter probe returning a `same` column, shared by the IAM transaction adapters. */
-export const samePersonQuerySql = "SELECT iam_same_person($1,$2,$3) same";
+export const samePersonQuerySql = samePersonColumnSql("$1", "$2", "$3");
 /** pg positional-parameter probe returning an `ok` column, shared by the IAM assignment-active transaction adapters. */
 export const assignmentActiveQuerySql = "SELECT iam_assignment_active($1,$2) ok";
 /** pg positional-parameter probe returning the locked iam_members row, shared by the migration and transaction adapters. */
@@ -53,3 +59,14 @@ export const grantProbeSql = (grant: string) => `SELECT 1 WHERE ${grant}`;
  * control-plane read is changed. */
 export const revokedSessionProbeSql = (sessionParam: string, companyParam: string, userParam: string) =>
   `SELECT 1 FROM iam_revoked_sessions WHERE session_id=${sessionParam} AND company_id=${companyParam} AND user_id=${userParam}`;
+/** Byte-identical session-by-user read shared by the IAM API session list and
+ * the IAM service reads port. `tail` preserves each caller's original ORDER BY
+ * suffix so every rendered statement stays byte-identical to its pre-dedupe
+ * literal. No caller-supplied SQL is accepted beyond that fixed suffix. */
+export const sessionByUserSql = (tail: string) =>
+  `SELECT id,"createdAt","expiresAt","userAgent" FROM session WHERE "userId"=?${tail}`;
+/** Byte-identical session existence probe shared by the IAM API revoke guard
+ * and the collaboration push-session adapter. `tail` preserves each caller's
+ * original expiresAt predicate; no lock or control-plane read is changed. */
+export const sessionExistsSql = (tail: string) =>
+  `SELECT 1 FROM session WHERE id=? AND "userId"=?${tail}`;

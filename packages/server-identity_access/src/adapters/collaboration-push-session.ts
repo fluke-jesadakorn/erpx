@@ -1,6 +1,6 @@
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {StoredSubscription} from '@erpx/server-collaboration/public/web-push';export async function currentPushSession(control:SqlDatabase,db:SqlDatabase,
+import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {StoredSubscription} from '@erpx/server-collaboration/public/web-push';import {sessionExistsSql} from './iam-probe-sql';export async function currentPushSession(control:SqlDatabase,db:SqlDatabase,
   s:Pick<StoredSubscription,"session_id"|"user_id"|"company_id">,now:number) {
-  const session=await control.prepare('SELECT 1 FROM session WHERE id=? AND "userId"=? AND "expiresAt">?')
+  const session=await control.prepare(sessionExistsSql(' AND "expiresAt">?'))
     .bind(s.session_id,s.user_id,new Date(now).toISOString()).first();
   if(!session)return false;
   return Boolean(await db.prepare(`SELECT 1 FROM active_work_contexts c JOIN assignments a
