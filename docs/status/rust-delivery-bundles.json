@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11227,
+    "revision": 11229,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -171078,7 +171078,7 @@
         "owner": "collaboration",
         "title": "collaboration TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -171090,22 +171090,37 @@
         "resources": [
           "owner:collaboration"
         ],
-        "claim": {
-          "runId": "run-20261124-b",
-          "agentId": "wGCMcol9",
-          "claimedAt": "2026-11-24T10:16:13.113Z",
-          "heartbeatAt": "2026-11-24T10:20:25.536Z",
-          "expiresAt": "2026-11-24T10:50:25.536Z",
-          "generation": 168
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-collaboration/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "f6c85ba61",
+            "owner": "collaboration",
+            "before": 398,
+            "after": 397,
+            "note": "PMS post-source NOT EXISTS guard shared; LOCK TABLE, FOR UPDATE SKIP LOCKED and notification helpers untouched."
+          },
+          {
+            "command": "vitest collaboration r16-r29 (66) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "f6c85ba61"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Find a new byte-identical/parameterized SELECT-head family outside r1-r28; locks and notification helpers untouched. BEFORE=398.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMcol9",
+          "at": "2026-11-24T10:24:54.915Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -171977,17 +171992,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 28,
+        "in_progress": 27,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1189,
+        "blocked": 1190,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 168,
-    "updatedAt": "2026-11-24T10:24:33.607Z",
+    "updatedAt": "2026-11-24T10:24:54.923Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
