@@ -12,6 +12,7 @@ import {isTransactionalSqlDatabase,type SqlDatabase} from "@erpx/server-runtime/
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {qualityHoldPurchaseSource,qualityPurchaseSourceReadLocks,type QualityPurchaseSource} from "@erpx/server-quality/adapters/purchase-sources";
+import {qualityWorkScopeTuple} from "@erpx/server-quality/adapters/quality-work-scope-sql";
 import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 type Actor=Pick<WorkContext,"userId"|"assignmentId"|"role"|"companyId"|"branchId"|"departmentId"|"authority"|"iam">;
 export type QualityPurchaseTarget={kind:"hold"|"spec"|"alert";id:string};
@@ -26,7 +27,7 @@ async function current(database:SqlDatabase,actor:Actor,key:string,permissions:r
  if(actor.departmentId)throw new ApiError(403,"QUALITY_ACCESS_CHANGED","Choose a current Company or Branch Quality assignment.");
  for(const permission of new Set(["quality.read",...permissions])){
   if(!hasPermission(actor,permission))throw new ApiError(403,"QUALITY_ACCESS_CHANGED","Choose a current authorized Quality assignment.");
-  const row=await database.prepare(`SELECT ${assignmentReadSql("quality_scope",permission)} allowed FROM (SELECT ?::text company_id,?::text branch_id,NULL::text department_id) quality_scope`).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId).first<{allowed:boolean}>();
+  const row=await database.prepare(`SELECT ${assignmentReadSql("quality_scope",permission)} allowed FROM ${qualityWorkScopeTuple("?::text company_id,?::text branch_id,NULL::text department_id","quality_scope")}`).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId).first<{allowed:boolean}>();
   if(!row?.allowed)throw new ApiError(403,"QUALITY_ACCESS_CHANGED","The original Quality assignment is no longer current.");
  }
  await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),clearWorkflowCommandAssertions(database, key)]);

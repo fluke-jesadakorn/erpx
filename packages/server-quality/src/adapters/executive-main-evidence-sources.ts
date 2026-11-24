@@ -4,6 +4,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { getQualityHold } from "@erpx/server-quality/public/quality";
+import { inspectionEvidenceSource } from "./inspection-evidence-source-sql";
 import { QualityInspectionRow } from '@erpx/server-runtime/public/executive/evidence-contract';
 export function executiveMainEvidenceSources(db: SqlDatabase) {
     return { async factsSearchQualityInspectionEvidence(input: {
@@ -37,11 +38,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
                 conditions.push("(i.created_at,i.id)<(?,?)");
                 values.push(cursor.createdAt, cursor.id);
             }
-            const rows = (await db.prepare(`SELECT i.id,i.hold_id,i.result,i.created_at,i.reviewed_version,p.name product_name,w.name warehouse_name
-    FROM inventory_quality_inspections i
-    JOIN inventory_quality_holds h ON h.id=i.hold_id
-    JOIN (${commerceProjectionSources.commerce_products}) p ON p.id=h.product_id AND p.company_id=h.company_id
-    JOIN (${commerceProjectionSources.commerce_warehouses}) w ON w.id=h.warehouse_id AND w.company_id=h.company_id
+            const rows = (await db.prepare(`${inspectionEvidenceSource("i.id,i.hold_id,i.result,i.created_at,i.reviewed_version,p.name product_name,w.name warehouse_name")}
     WHERE ${conditions.join(" AND ")}
     ORDER BY i.created_at DESC,i.id DESC LIMIT ?`).bind(...values, input.limit + 1).all<QualityInspectionRow>()).results;
             return { rows };
@@ -105,12 +102,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
             if (!parent)
                 throw new ApiError(404, "EVIDENCE_NOT_FOUND", "This source record is unavailable in the selected role, scope or filters.");
             await getQualityHold(actor, parent.hold_id);
-            const row = await db.prepare(`SELECT i.id,i.hold_id,i.result,i.evidence,i.inspected_by,i.created_at,i.reviewed_version,
-      p.name product_name,w.name warehouse_name
-    FROM inventory_quality_inspections i
-    JOIN inventory_quality_holds h ON h.id=i.hold_id
-    JOIN (${commerceProjectionSources.commerce_products}) p ON p.id=h.product_id AND p.company_id=h.company_id
-    JOIN (${commerceProjectionSources.commerce_warehouses}) w ON w.id=h.warehouse_id AND w.company_id=h.company_id
+            const row = await db.prepare(`${inspectionEvidenceSource("i.id,i.hold_id,i.result,i.evidence,i.inspected_by,i.created_at,i.reviewed_version,\n      p.name product_name,w.name warehouse_name")}
     WHERE i.id=? AND i.hold_id=? AND h.company_id=? AND (?::text IS NULL OR h.branch_id=?)
       AND i.created_at>=? AND i.created_at<?`)
                 .bind(recordId, parent.hold_id, actor.companyId, actor.branchId, actor.branchId, Date.parse(filters.from), Date.parse(filters.to) + 86400000)
