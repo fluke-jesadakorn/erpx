@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10779,
+    "revision": 10782,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -166012,7 +166012,7 @@
         "owner": "organization",
         "title": "organization TS read tail native cutover (round 37)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -166024,22 +166024,37 @@
         "resources": [
           "owner:organization"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMorg9",
-          "claimedAt": "2026-11-24T08:40:49.644Z",
-          "heartbeatAt": "2026-11-24T08:41:42.266Z",
-          "expiresAt": "2026-11-24T09:11:42.266Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-organization/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "0f61ba13b",
+            "owner": "organization",
+            "before": 264,
+            "after": 263,
+            "note": "qmark and positional leave policy version lookups share one helper; FOR SHARE variants, spaced JOIN constants and r17-r36 untouched."
+          },
+          {
+            "command": "vitest organization read-tail (59) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "0f61ba13b"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=264.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMorg9",
+          "at": "2026-11-24T08:53:47.403Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -166483,7 +166498,7 @@
         "owner": "organization",
         "title": "organization TS read tail native cutover (round 38)",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -166495,7 +166510,14 @@
         "resources": [
           "owner:organization"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMorga",
+          "claimedAt": "2026-11-24T08:54:06.086Z",
+          "heartbeatAt": "2026-11-24T08:54:06.086Z",
+          "expiresAt": "2026-11-24T09:24:06.086Z",
+          "generation": 167
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -166798,18 +166820,18 @@
       "totalPackets": 1465,
       "migratedPackets": 330,
       "statusCounts": {
-        "pending": 28,
+        "pending": 27,
         "in_progress": 11,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1094,
+        "blocked": 1095,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T08:53:12.167Z",
+    "updatedAt": "2026-11-24T08:54:06.094Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
