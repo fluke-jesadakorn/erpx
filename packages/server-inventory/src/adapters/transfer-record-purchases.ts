@@ -6,7 +6,7 @@ import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {commercePackageEnforcementMode,readPurchasedAccess} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
 import {requireTransferPurchasedRead} from "@erpx/server-inventory/adapters/transfer-purchases";
-import {nativeRecordExistsSql,branchScopeTupleSql} from './read-tail-sql';
+import {nativeRecordExistsSql,branchScopeTupleSql,recordIdExistsSql} from './read-tail-sql';
 
 /** Filter actual warehouse-transfer identities before the consumer limit. Other
  * Inventory records, shared Stock facts and durable deliveries retain owners. */
@@ -27,6 +27,6 @@ export async function transferSourceReadScope(database:SqlDatabase,actor:WorkCon
 }
 export async function requireTransferWorkspaceRecordRead(database:SqlDatabase,actor:WorkContext,moduleId:string,id:string){
  if(moduleId!=="inventory"||await commercePackageEnforcementMode()==="disabled")return;
- if(await database.prepare("SELECT 1 FROM inventory_transfers WHERE id=?").bind(id).first())await requireTransferPurchasedRead(database,actor,{kind:"transfer",id});
- else if(await database.prepare("SELECT 1 FROM inventory_transit WHERE id=?").bind(id).first())await requireTransferPurchasedRead(database,actor,{kind:"transit",id});
+ if(await database.prepare(recordIdExistsSql("inventory_transfers")).bind(id).first())await requireTransferPurchasedRead(database,actor,{kind:"transfer",id});
+ else if(await database.prepare(recordIdExistsSql("inventory_transit")).bind(id).first())await requireTransferPurchasedRead(database,actor,{kind:"transit",id});
 }

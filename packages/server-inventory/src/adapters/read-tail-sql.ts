@@ -169,3 +169,9 @@ export const packageObligationDocumentRowsSql = (pending: string) =>
  *  r11-r27 helpers above are left untouched. */
 export const evidencePositionRowsSql = (rows: string, alias: string, conditions: string) =>
   `SELECT * FROM (${rows}) ${alias} WHERE ${conditions} ORDER BY warehouse_id,product_id LIMIT ?`;
+/** r29: parameterized native-record id-existence probe. A workspace record read
+ *  checks its backing Inventory table by id before purchased-access enforcement.
+ *  Only the table varies; every caller keeps its own bind and independent
+ *  statement. r11-r28 helpers above are left untouched. */
+export const recordIdExistsSql = (table: string) =>
+  `SELECT 1 FROM ${table} WHERE id=?`;

@@ -15,7 +15,7 @@ import {ApiError} from '@erpx/server-runtime/public/http';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {qualityDisposalCountRows} from "@erpx/server-inventory/adapters/quality-count-purchases";
 import {requireCountPurchasedRead} from "@erpx/server-inventory/adapters/count-purchases";
-import {allInitialPhysicalStockMarkedRowsSql,countInitialMarkedExistsSql,sourceRowsExistsSql,nativeRecordExistsSql,branchScopeTupleSql} from './read-tail-sql';
+import {allInitialPhysicalStockMarkedRowsSql,countInitialMarkedExistsSql,sourceRowsExistsSql,nativeRecordExistsSql,branchScopeTupleSql,recordIdExistsSql} from './read-tail-sql';
 
 /** Filter actual physical-count identities before the consumer limit. Other
  * Inventory records, shared Stock facts and durable deliveries retain owners. */
@@ -43,7 +43,7 @@ export async function countSourceReadScope(database:SqlDatabase,actor:WorkContex
 }
 export async function requireCountWorkspaceRecordRead(database:SqlDatabase,actor:WorkContext,moduleId:string,id:string){
  if(moduleId!=="inventory")return;
- if(await database.prepare("SELECT 1 FROM inventory_counts WHERE id=?").bind(id).first())await requireCountPurchasedRead(database,actor,id);
+ if(await database.prepare(recordIdExistsSql("inventory_counts")).bind(id).first())await requireCountPurchasedRead(database,actor,id);
 }
 
 /** Resolve only native validated owner destinations after the shared reader's
