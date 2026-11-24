@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9893,
+    "revision": 9897,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -156274,7 +156274,7 @@
         "owner": "commercial",
         "title": "commercial TS read tail native cutover (r9)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -156286,22 +156286,37 @@
         "resources": [
           "owner:commercial"
         ],
-        "claim": {
-          "runId": "run-20261123-l",
-          "agentId": "wGCRcom",
-          "claimedAt": "2026-11-24T06:01:35.275Z",
-          "heartbeatAt": "2026-11-24T06:01:35.275Z",
-          "expiresAt": "2026-11-24T06:31:35.275Z",
-          "generation": 164
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-commercial/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "f276407a1",
+            "owner": "commercial",
+            "before": 29,
+            "after": 28,
+            "note": "Holding usage snapshot reads share holdingSnapshotReadSql; advisory locks and r1/r3-r8 untouched."
+          },
+          {
+            "command": "vitest commercial r1/r3-r9 (39) + commercial unit (192) + tsc",
+            "result": "passed",
+            "sourceSha": "f276407a1"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=29.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCRcom",
+          "at": "2026-11-24T06:10:18.949Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -156642,7 +156657,7 @@
         "owner": "crm",
         "title": "crm TS read tail native cutover (r22)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -156654,22 +156669,37 @@
         "resources": [
           "owner:crm"
         ],
-        "claim": {
-          "runId": "run-20261123-l",
-          "agentId": "wGCTcrm",
-          "claimedAt": "2026-11-24T06:04:39.855Z",
-          "heartbeatAt": "2026-11-24T06:04:39.855Z",
-          "expiresAt": "2026-11-24T06:34:39.855Z",
-          "generation": 164
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-crm/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "f276407a1",
+            "owner": "crm",
+            "before": 150,
+            "after": 146,
+            "note": "Assignment scoped EXISTS guard shared across analytics and record purchases; r8-r21 and locks untouched."
+          },
+          {
+            "command": "vitest crm witness dedupe (33) + tsc crm",
+            "result": "passed",
+            "sourceSha": "f276407a1"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=150.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCTcrm",
+          "at": "2026-11-24T06:10:20.247Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -156971,17 +157001,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
-        "in_progress": 25,
+        "in_progress": 23,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 890,
+        "blocked": 892,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 164,
-    "updatedAt": "2026-11-24T06:10:01.594Z",
+    "updatedAt": "2026-11-24T06:10:20.253Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
