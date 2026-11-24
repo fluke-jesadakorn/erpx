@@ -5,6 +5,21 @@ import {maintenanceOwnerName} from "./maintenance-owner-name";
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 const inList = (expression: string) => `${expression} IN (SELECT jsonb_array_elements_text(?::jsonb))`;
+/** Canonical owner-local scheduled-source projection shared by the preventive
+ * plan and work-order branches of the calendar read. Both branches project the
+ * same owner columns into one scheduled shape; callers pass only owner-fixed
+ * table, alias, due-at projection and a closed status predicate, never request-
+ * authored SQL. Each composed branch stays byte-identical to its pre-dedupe
+ * literal and no LOCK statement is accepted or changed. */
+export const scheduledSourceSql = (
+  alias: "p" | "w",
+  sourceKind: "maintenance_plan" | "maintenance_work",
+  dueAtSql: string,
+  table: string,
+  where: string,
+): string =>
+  `SELECT ${alias}.id,'${sourceKind}'${alias === "p" ? " source_kind" : ""},${alias}.company_id,${alias}.branch_id,${alias}.department_id,${alias}.title,${alias}.status,${alias}.version,${dueAtSql},${alias}.owner_id,${alias}.created_by
+  FROM ${table} ${alias} WHERE ${where}`;
 export function calendarMaintenanceMaintenanceFacts(db: SqlDatabase,actor?:WorkContext) {
     return { read1: async (facts: {
             value1: string;
@@ -21,10 +36,8 @@ export function calendarMaintenanceMaintenanceFacts(db: SqlDatabase,actor?:WorkC
         }) => {
             const work=actor?await assetSourcePredicate(db,actor,"s","maintenance_work"):{where:"TRUE",args:[]},plan=actor?await assetSourcePredicate(db,actor,"s","maintenance_plan"):{where:"TRUE",args:[]};
             return db.prepare(`WITH scheduled AS (
-  SELECT p.id,'maintenance_plan' source_kind,p.company_id,p.branch_id,p.department_id,p.title,p.status,p.version,p.next_due_at due_at,p.owner_id,p.created_by
-  FROM maintenance_preventive_plans p WHERE p.status='active'
-  UNION ALL SELECT w.id,'maintenance_work',w.company_id,w.branch_id,w.department_id,w.title,w.status,w.version,w.scheduled_at,w.owner_id,w.created_by
-  FROM maintenance_work_orders w WHERE w.status NOT IN ('completed','cancelled') AND w.scheduled_at IS NOT NULL)
+  ${scheduledSourceSql("p","maintenance_plan","p.next_due_at due_at","maintenance_preventive_plans","p.status='active'")}
+  UNION ALL ${scheduledSourceSql("w","maintenance_work","w.scheduled_at","maintenance_work_orders","w.status NOT IN ('completed','cancelled') AND w.scheduled_at IS NOT NULL")})
   SELECT s.*,${maintenanceOwnerName('s')} owner_name
   FROM scheduled s WHERE s.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND (?::text IS NULL OR s.department_id=?) AND ${inList('coalesce(s.department_id,s.branch_id)')}
   AND s.due_at>=? AND s.due_at<? AND (?='team' OR s.owner_id=? OR s.created_by=?)

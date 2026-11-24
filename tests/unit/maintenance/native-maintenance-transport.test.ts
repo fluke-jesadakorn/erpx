@@ -670,7 +670,7 @@ describe('Maintenance record-image fixed SQL',()=>{
   }
  });
 
- it('retirement:ts-statements stays strictly below the r12 BEFORE=41 baseline',async()=>{
+ it('retirement:ts-statements stays strictly below the r13 BEFORE=39 baseline',async()=>{
   const {readdirSync,readFileSync}=await import('node:fs');
   const {resolve}=await import('node:path');
   let total=0;
@@ -683,8 +683,8 @@ describe('Maintenance record-image fixed SQL',()=>{
    }
   };
   walk(srcRoot);
-  expect(total).toBe(39);
-  expect(total).toBeLessThan(40);
+  expect(total).toBe(38);
+  expect(total).toBeLessThan(39);
  });
 });
 
@@ -725,5 +725,37 @@ describe('Maintenance IAM scope guard fixed SQL',()=>{
    const ps=`(assignment.scope_kind='holding' OR assignment.scope_kind='branch' AND assignment.scope_node_id=r.branch_id OR assignment.scope_kind='department' AND assignment.scope_node_id=r.department_id)`;
    const prePurchase=`EXISTS(SELECT 1 FROM ${pf} WHERE assignment.company_id=r.company_id AND assignment.user_id=r.owner_id AND iam_assignment_active(assignment.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(assignment.user_id,assignment.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(assignment.role,assignment.company_id,'records.write') AND ${ps} AND person.status='active' AND person.merged_into_id IS NULL AND engagement.status='active' AND engagement.start_date<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND (engagement.end_date IS NULL OR engagement.end_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD')))`;
    expect(iamScopeGuardSql(pf,'assignment','person','engagement','r','r.owner_id','records.write',ps)).toBe(prePurchase);
+  });
+ });
+
+/** Fixed-SQL read-tail oracle for the Maintenance scheduled-source family (r14).
+ * The preventive-plan and work-order branches of the calendar `scheduled` CTE
+ * share one owner-local projection helper. Both composed branches stay
+ * byte-identical to their pre-dedupe literals, no duplicate TS query literal
+ * remains and every owner lock is untouched. r3-r13 families stay unchanged. */
+describe('Maintenance scheduled-source fixed SQL',()=>{
+  const dir='../../../packages/server-maintenance/src/adapters/';
+  it('single-sources the scheduled projection and keeps both composed branches byte-identical',async()=>{
+   const {readFileSync}=await import('node:fs');
+   const helper=readFileSync(new URL(`${dir}calendar-maintenance-facts.ts`,import.meta.url),'utf8');
+   expect(helper.match(/SELECT/g)).toHaveLength(4);
+   // r14 removed the two inline scheduled-branch literals; the inList read remains.
+   expect(helper).not.toContain("SELECT p.id,'maintenance_plan' source_kind");
+   expect(helper).not.toContain("UNION ALL SELECT w.id,'maintenance_work'");
+   expect(helper.match(/scheduledSourceSql\(/g)).toHaveLength(2);
+   // Locks untouched: the calendar read owns none and the other owner locks remain.
+   expect(helper).not.toContain('LOCK TABLE');
+   expect(readFileSync(new URL(`${dir}purchase-sources.ts`,import.meta.url),'utf8')).toContain('LOCK TABLE maintenance_work_orders,maintenance_preventive_plans,maintenance_preventive_occurrences IN SHARE ROW EXCLUSIVE MODE');
+   expect(readFileSync(new URL(`${dir}finance-record-sources.ts`,import.meta.url),'utf8')).toContain('LOCK TABLE operational_inventory_consumptions,maintenance_work_orders,operational_assets IN SHARE MODE');
+   expect(readFileSync(new URL(`${dir}asset-settlement-refs.ts`,import.meta.url),'utf8')).toContain('LOCK TABLE maintenance_work_orders,maintenance_preventive_plans IN SHARE MODE');
+
+   const {scheduledSourceSql}=await import('../../../packages/server-maintenance/src/adapters/calendar-maintenance-facts');
+   // Pre-r14 plan branch rebuilt verbatim.
+   const prePlan=`SELECT p.id,'maintenance_plan' source_kind,p.company_id,p.branch_id,p.department_id,p.title,p.status,p.version,p.next_due_at due_at,p.owner_id,p.created_by
+  FROM maintenance_preventive_plans p WHERE p.status='active'`;
+   const preWork=`SELECT w.id,'maintenance_work',w.company_id,w.branch_id,w.department_id,w.title,w.status,w.version,w.scheduled_at,w.owner_id,w.created_by
+  FROM maintenance_work_orders w WHERE w.status NOT IN ('completed','cancelled') AND w.scheduled_at IS NOT NULL`;
+   expect(scheduledSourceSql('p','maintenance_plan','p.next_due_at due_at','maintenance_preventive_plans',"p.status='active'")).toBe(prePlan);
+   expect(scheduledSourceSql('w','maintenance_work','w.scheduled_at','maintenance_work_orders',"w.status NOT IN ('completed','cancelled') AND w.scheduled_at IS NOT NULL")).toBe(preWork);
   });
  });
