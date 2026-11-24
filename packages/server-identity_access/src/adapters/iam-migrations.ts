@@ -1,5 +1,5 @@
 import { nativeIdentityWrite } from '@erpx/server-identity_access/public/native-identity-write';
-import { samePersonQuerySql } from "./iam-probe-sql";
+import { samePersonQuerySql, memberForShareSql } from "./iam-probe-sql";
 import { nativePrepare } from '@erpx/server-identity_access/public/native-identity-write';
 import {linkMigratedPerson,linkMigratedEmployee} from "@erpx/server-people_payroll/public/identity-person-link-effects";
 import {identitySnapshotSources as peoplepayrollSnapshotSources} from '@erpx/server-people_payroll/public/identity-snapshot-sources';
@@ -147,7 +147,7 @@ function migrationTx(c: PoolClient, actor: IamActor): MigrationTransaction {
         },
         currentRecoveryIdentity: async (facts) => {
             const { userId } = facts;
-            return (await c.query("SELECT * FROM iam_members WHERE company_id=$1 AND user_id=$2 FOR SHARE", [actor.companyId, userId])).rows[0] ?? null;
+            return (await c.query(memberForShareSql, [actor.companyId, userId])).rows[0] ?? null;
         },
         emergencySamePerson: async (facts) => {
             const { userId } = facts;

@@ -8,3 +8,5 @@ export const samePersonSql = "SELECT 1 WHERE iam_same_person(?,?,?)";
 export const samePersonQuerySql = "SELECT iam_same_person($1,$2,$3) same";
 /** pg positional-parameter probe returning an `ok` column, shared by the IAM assignment-active transaction adapters. */
 export const assignmentActiveQuerySql = "SELECT iam_assignment_active($1,$2) ok";
+/** pg positional-parameter probe returning the locked iam_members row, shared by the migration and transaction adapters. */
+export const memberForShareSql = "SELECT * FROM iam_members WHERE company_id=$1 AND user_id=$2 FOR SHARE";

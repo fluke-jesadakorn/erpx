@@ -1,5 +1,5 @@
 import 'server-only';
-import { assignmentActiveQuerySql } from "./iam-probe-sql";
+import { assignmentActiveQuerySql, memberForShareSql } from "./iam-probe-sql";
 import { nativeIdentityWrite } from '@erpx/server-identity_access/public/native-identity-write';
 import {createHash} from 'node:crypto';
 import type {PoolClient} from 'pg';
@@ -40,7 +40,7 @@ export async function iamCommand<T>(db:PostgresDatabase,actor:IamActor,key:strin
       )
     ).rows[0],member:async actor=>(
       await client.query(
-        "SELECT * FROM iam_members WHERE company_id=$1 AND user_id=$2 FOR SHARE",
+        memberForShareSql,
         [actor.companyId, actor.userId],
       )
     ).rows[0],directoryIdentity:async(actor,member)=>(
