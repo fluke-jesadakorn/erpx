@@ -288,7 +288,9 @@ describe('native Customer 360 timeline transport',()=>{
   expect(customerVisiblePredicate(true,true,true).match(/SELECT /g)).toHaveLength(6);
   const source=await (await import('node:fs/promises')).readFile(new URL('../../../packages/server-customer_360/src/adapters/timeline.ts',import.meta.url),'utf8');
   expect(source.match(/customerVisiblePredicate\(serviceVisible, financeVisible, legalVisible\)/g)).toHaveLength(2);
-  expect(source.match(/SELECT p\.id,p\.name,p\.code/g)).toHaveLength(1);
+  // r10: the customer-party projection now composes through the shared scopedProjection helper.
+  expect(source).not.toContain('SELECT p.id,p.name,p.code');
+  expect(source.match(/scopedProjection\('p\.id,p\.name,p\.code'/g)).toHaveLength(2);
  });
 
  it('shares one parameterized projection across the non-alias timeline event family',async()=>{
@@ -331,7 +333,7 @@ describe('native Customer 360 timeline transport',()=>{
  const read=async(path:string)=> (await import('node:fs/promises')).readFile(new URL(path,import.meta.url),'utf8');
  const timeline=await read('../../../packages/server-customer_360/src/adapters/timeline.ts');
  expect(timeline.match(/const scopedProjection = \(/g)).toHaveLength(1);
- expect(timeline.match(/\$\{scopedProjection\(/g)).toHaveLength(6);
+ expect(timeline.match(/\$\{scopedProjection\(/g)).toHaveLength(8); // r9 six scoped CTE reads + r10 two directory/visible-customer reads
  for(const literal of [
   'WITH scoped_orders AS (SELECT id,company_id,party_id',
   'scoped_leads AS (SELECT l.id,l.title',
@@ -346,10 +348,61 @@ describe('native Customer 360 timeline transport',()=>{
  expect(scoped.match(/companyScopeSource = \(/g)).toHaveLength(1);
  expect(timeline.match(/const eventSelect=\(/g)).toHaveLength(1);
  expect(timeline.match(/const eventRow=\(/g)).toHaveLength(1);
- expect(timeline.match(/SELECT p\.id,p\.name,p\.code/g)).toHaveLength(1);
+ expect(timeline).not.toContain('SELECT p.id,p.name,p.code'); // r10 customer-party projection now composes through scopedProjection
  const facts=await read('../../../packages/server-customer_360/src/adapters/package-obligations.ts');
  expect(facts).toContain('LOCK TABLE customer_portal_actions IN SHARE ROW EXCLUSIVE MODE');
  const portal=await read('../../../packages/server-customer_360/src/adapters/portal.ts');
  expect(portal).toContain("companyScopeSource('portal_release')");
  });
+
+  it('shares one parameterized customer-party projection with the scoped CTE family (r10)',async()=>{
+   const read=async(path:string)=> (await import('node:fs/promises')).readFile(new URL(path,import.meta.url),'utf8');
+   const timeline=await read('../../../packages/server-customer_360/src/adapters/timeline.ts');
+   // Mirror of the single production scopedProjection template; byte-identity oracle only, never a live source.
+   const scopedProjection=(columns:string,from:string,where:string)=>`SELECT ${columns} FROM ${from} WHERE ${where}`;
+   const parties='(PARTIES) p',pred="EXISTS(SELECT 1 FROM scoped_orders o WHERE o.party_id=p.id)";
+   // Verbatim pre-dedupe renderings of the deleted customerPartySelect helper.
+   const directory=`SELECT p.id,p.name,p.code FROM ${parties} WHERE p.company_id=? AND p.kind='customer' AND ${pred}`;
+   const visible=`SELECT p.id,p.name,p.code FROM ${parties} WHERE p.id=? AND p.company_id=? AND p.kind='customer' AND ${pred}`;
+   expect(scopedProjection('p.id,p.name,p.code',parties,`p.company_id=? AND p.kind='customer' AND ${pred}`)).toBe(directory);
+   expect(scopedProjection('p.id,p.name,p.code',parties,`p.id=? AND p.company_id=? AND p.kind='customer' AND ${pred}`)).toBe(visible);
+   expect(directory).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|LOCK\s+TABLE/i);
+   expect(visible).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|LOCK\s+TABLE/i);
+   // One definition; eight composed sites (six r9 + two r10); the pre-r5 helper is gone.
+   expect(timeline.match(/const scopedProjection = \(/g)).toHaveLength(1);
+   expect(timeline.match(/\$\{scopedProjection\(/g)).toHaveLength(8);
+   expect(timeline).not.toContain('customerPartySelect');
+   expect(timeline).not.toContain('SELECT p.id,p.name,p.code');
+   // r5-r9 helpers, the visibility predicate and every lock stay authoritative and untouched.
+   expect(timeline.match(/const eventSelect=\(/g)).toHaveLength(1);
+   expect(timeline.match(/const eventRow=\(/g)).toHaveLength(1);
+   const scoped=await read('../../../packages/server-customer_360/src/adapters/customer-read-sources.ts');
+   expect(scoped.match(/const scopedRow = \(/g)).toHaveLength(1);
+   expect(scoped.match(/companyScopeSource = \(/g)).toHaveLength(1);
+   const facts=await read('../../../packages/server-customer_360/src/adapters/package-obligations.ts');
+   expect(facts).toContain('LOCK TABLE customer_portal_actions IN SHARE ROW EXCLUSIVE MODE');
+   expect(facts).toContain("WITH scope AS${companyScopeSource('')}");
+   const portal=await read('../../../packages/server-customer_360/src/adapters/portal.ts');
+   expect(portal).toContain("companyScopeSource('portal_release')");
+   expect(portal).toContain('SELECT id,binding_id,order_id,action,status,created_at,request_hash,user_id FROM customer_portal_actions WHERE');
+   expect(timeline).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|LOCK\s+TABLE/i);
+  });
+
+  it('r10 retirement:ts-statements is strictly below BEFORE=16',async()=>{
+   const fs=await import('node:fs/promises');
+   const {fileURLToPath}=await import('node:url');
+   const {resolve}=await import('node:path');
+   const root=fileURLToPath(new URL('../../../packages/server-customer_360/src',import.meta.url));
+   let total=0;
+   const walk=async(dir:string):Promise<void>=>{
+    for(const name of await fs.readdir(dir)){
+     const p=resolve(dir,name);
+     if((await fs.stat(p)).isDirectory()) await walk(p);
+     else if(p.endsWith('.ts')) total+=((await fs.readFile(p,'utf8')).match(/SELECT/g)??[]).length;
+    }
+   };
+   await walk(root);
+   expect(total).toBe(15);
+   expect(total).toBeLessThan(16);
+  });
 });
