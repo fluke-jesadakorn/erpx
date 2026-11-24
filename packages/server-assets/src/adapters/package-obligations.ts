@@ -9,6 +9,7 @@ import {maintenanceAssetSettlementRefReadLocks} from "@erpx/server-maintenance/p
 import {maintenanceSettlementInventoryReadLocks} from "@erpx/server-inventory/public/maintenance-settlement-sources";
 import {assetSourceProbeSql} from "./record-purchases";
 import {assetAllRowsSql} from "./asset-all-rows-sql";
+import {assetProjectionFromSql} from "./asset-scope-tuple";
 import {
   ASSETS_RD_OBLIGATIONS_BASE,
   ASSETS_RD_OBLIGATIONS_PARTS,
@@ -26,7 +27,7 @@ const assetExistsSql = (from:string,where:string) => `EXISTS(${assetSourceProbeS
  * relation, alias and predicate fragments; no request SQL or relation name is accepted. */
 const assetSourceExistsSql = (source:string,alias:string,where:string) =>
     assetExistsSql(`(${source}) ${alias}`, where);
-export const assetPackageSettlementSources={assets:`SELECT asset.*,COALESCE(${assetSourceExistsSql(placements,"branch","branch.id=asset.branch_id AND branch.company_id=asset.company_id AND branch.kind IN ('branch','headquarters')")} AND (asset.department_id IS NULL OR ${assetSourceExistsSql(placements,"department","department.id=asset.department_id AND department.company_id=asset.company_id AND department.branch_id=asset.branch_id AND department.kind='department'")}),false) source_valid FROM operational_assets asset`,links:assetAllRowsSql("operational_asset_finance_links")} as const;
+export const assetPackageSettlementSources={assets:assetProjectionFromSql(`asset.*,COALESCE(${assetSourceExistsSql(placements,"branch","branch.id=asset.branch_id AND branch.company_id=asset.company_id AND branch.kind IN ('branch','headquarters')")} AND (asset.department_id IS NULL OR ${assetSourceExistsSql(placements,"department","department.id=asset.department_id AND department.company_id=asset.company_id AND department.branch_id=asset.branch_id AND department.kind='department'")}),false) source_valid`," operational_assets asset"),links:assetAllRowsSql("operational_asset_finance_links")} as const;
 export async function lockAssetPackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){const {database,companyId}=packageSettlementSource(owner,lock);await database.prepare("LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links IN SHARE MODE").run();await database.batch([...placementLocks(database),...assetsSettlementFinancialAssetReadLocks(database),...maintenanceAssetSettlementRefReadLocks(database),...maintenanceSettlementInventoryReadLocks(database)]);sources.set(database,companyId);}
 export function assertAssetPackageObligationSources(owner:PostgresDatabase,database:SqlDatabase,companyId:string){owner.assertActiveTransaction(database);if(sources.get(database)!==companyId)throw Error("ASSETS_PACKAGE_OBLIGATION_SOURCE_REQUIRED");}
 /** Retired TS obligation fallback; the registered owner read plans are byte-identical. */

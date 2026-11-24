@@ -12,7 +12,7 @@ import {assetProjectionFromSql} from "./asset-scope-tuple";
  * the TS read tail carries no duplicate statement. Callers pass only fixed
  * aliases and owner-owned FROM fragments; no SQL is accepted from a request. */
 export const assetPhysicalAggSql = (alias:string,from:string) =>
-  `(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM ${from})`;
+  `(${assetProjectionFromSql(`jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id)`,` ${from}`)})`;
 /** Canonical owner-local source-image witness. The physical lineage and the
  * purchase owner source share this one literal so the TS read tail carries no
  * duplicate image statement. Callers pass only a fixed JSON projection and an
