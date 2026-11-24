@@ -5,6 +5,7 @@ import "server-only";
 import {one,all,run} from '@erpx/server-runtime/public/runtime/sql';
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import {COMMERCE_CURRENCY_BY_COMPANY_SQL} from './settings-dedupe-sql';
+import { COMMERCE_STOCK_PRODUCT_FOR_UPDATE_SQL } from './stock-source-dedupe-sql';
 
 /** Byte-identical text deduped; every call site still prepares and executes it. */
 const COMMERCE_STOCK_FOR_UPDATE_SQL = `SELECT * FROM (${inventoryProjectionSources.commerce_stock}) commerce_stock WHERE warehouse_id=? AND product_id=? FOR UPDATE`;
@@ -69,7 +70,7 @@ export function posCoreCommerceFacts(db: SqlDatabase) {
         writeCommerceStock3: (facts: {
             warehouse_id: string | number | boolean | null;
             product_id: string | number | boolean | null;
-        }) => run(db, `SELECT product_id FROM (${inventoryProjectionSources.commerce_stock}) commerce_stock WHERE warehouse_id=? AND product_id=? FOR UPDATE`, facts.warehouse_id, facts.product_id),
+        }) => run(db, COMMERCE_STOCK_PRODUCT_FOR_UPDATE_SQL, facts.warehouse_id, facts.product_id),
         writeCommerceStock4: (facts: {
             quantityMilli: number;
             restoredCost: number;

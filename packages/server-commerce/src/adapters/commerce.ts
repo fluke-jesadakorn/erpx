@@ -18,7 +18,7 @@ import { commerceFinalOwnerProjectionSources as recordsProjectionSources } from 
 import {commerceCommerceStockEffects} from '@erpx/server-inventory/public/commerce-stock-owner-effects';
 import { commercialOwnerProjectionSources as inventoryProjectionSources } from "@erpx/server-inventory/public/commercial-owner-projection-sources";
 import { COMMERCE_STOCK_BY_WAREHOUSE_PRODUCT_SQL, COMMERCE_STOCK_VERSION_GUARD_SQL } from "./stock-source-dedupe-sql";
-import { COMMERCE_PRODUCT_ACTIVE_VERSION_GUARD_SQL } from "./guarded-source-dedupe-sql";
+import { COMMERCE_PRODUCT_ACTIVE_VERSION_GUARD_SQL, COMMERCE_WAREHOUSE_ACTIVE_SQL, COMMERCE_PRODUCT_ACTIVE_SQL } from "./guarded-source-dedupe-sql";
 
 import { commerceExpensePaymentEffects } from "@erpx/server-people_payroll/public/commerce-expense-payment-effects";
 import { commerceFinancePageSources } from "@erpx/server-finance/public/commerce-page-sources";
@@ -298,11 +298,11 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             companyId: string;
             branchId: string | null;
             branchId2: string | null;
-        }) => db.prepare("SELECT * FROM commerce_warehouses WHERE id=? AND company_id=? AND status='active' AND (?::text IS NULL OR branch_id=?)").bind(facts.warehouseId, facts.companyId, facts.branchId, facts.branchId2).first<Row>(),
+        }) => db.prepare(COMMERCE_WAREHOUSE_ACTIVE_SQL).bind(facts.warehouseId, facts.companyId, facts.branchId, facts.branchId2).first<Row>(),
         readCommerceProducts2: (facts: {
             productId: string;
             companyId: string;
-        }) => db.prepare("SELECT * FROM commerce_products WHERE id=? AND company_id=? AND status='active'").bind(facts.productId, facts.companyId).first<Row>(),
+        }) => db.prepare(COMMERCE_PRODUCT_ACTIVE_SQL).bind(facts.productId, facts.companyId).first<Row>(),
         prepareCommerceOrders2: async (facts: {
             partyId: string;
             warehouseId: string | null;

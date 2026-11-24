@@ -1,6 +1,7 @@
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import type {CountRow} from '@erpx/server-inventory/public/count-contract';
+import { COMMERCE_WAREHOUSE_ACTIVE_SQL } from "./guarded-source-dedupe-sql";
 /** Private current Commerce reference facts for the exact Inventory initial
  * physical count. No catalogue/Finance collection or caller SQL is accepted. */
 export const initialPhysicalStockGoodsReceiptRows=`SELECT s.*,r.command_id goods_setup_command_id,r.request_hash goods_setup_request_hash FROM commerce_settings s JOIN command_receipts r ON r.record_id=s.company_id AND r.operation='commerce.sales-goods-posting-setup.initialize' AND r.authority_json::jsonb->>'companyId'=s.company_id AND r.result_json::jsonb->>'id'=s.company_id AND r.result_json::jsonb->>'status'='configured' AND r.result_json::jsonb->>'version'='1'`;
@@ -21,7 +22,7 @@ export async function initialPhysicalStockMasterChoices(database:SqlDatabase,act
 }
 export async function initialPhysicalStockMasterSource(database:SqlDatabase,actor:Pick<WorkContext,'companyId'|'branchId'>,warehouseId:string,productId:string){
  const [warehouse,product]=await Promise.all([
-  database.prepare("SELECT * FROM commerce_warehouses WHERE id=? AND company_id=? AND status='active' AND (?::text IS NULL OR branch_id=?)").bind(warehouseId,actor.companyId,actor.branchId,actor.branchId).first<CountRow>(),
+  database.prepare(COMMERCE_WAREHOUSE_ACTIVE_SQL).bind(warehouseId,actor.companyId,actor.branchId,actor.branchId).first<CountRow>(),
   database.prepare("SELECT * FROM commerce_products WHERE id=? AND company_id=? AND status='active' AND item_type='stock'").bind(productId,actor.companyId).first<CountRow>(),
  ]);return warehouse&&product?{warehouse,product}:null;
 }

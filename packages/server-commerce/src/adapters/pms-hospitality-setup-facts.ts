@@ -4,6 +4,7 @@ import { commercialOwnerProjectionSources as inventoryProjectionSources } from "
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import {all,one} from '@erpx/server-runtime/public/runtime/sql';
+import { COMMERCE_WAREHOUSE_BRANCH_ACTIVE_SQL } from './guarded-source-dedupe-sql';
 export function pmsHospitalitySetupCommerceFacts(db: SqlDatabase) {
     return {
         commerce: (facts: {
@@ -12,7 +13,7 @@ export function pmsHospitalitySetupCommerceFacts(db: SqlDatabase) {
         warehouses: (facts: {
             company: string;
             branch: string;
-        }) => all(db, "SELECT id,name FROM commerce_warehouses WHERE company_id=? AND branch_id=? AND status='active'", facts.company, facts.branch),
+        }) => all(db, COMMERCE_WAREHOUSE_BRANCH_ACTIVE_SQL, facts.company, facts.branch),
         products: (facts: {
             company: string;
         }) => all(db, `SELECT p.id,p.name,p.sku,p.unit,p.price_minor,p.tax_bps,p.version,c.kind,c.station,c.recipe_json,COALESCE(c.version,0) catalog_version FROM commerce_products p LEFT JOIN (${posProjectionSources.pos_catalog}) c ON c.product_id=p.id WHERE p.company_id=? AND p.status='active' ORDER BY p.name`, facts.company),

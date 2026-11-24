@@ -1,4 +1,5 @@
 import { commercialOwnerProjectionSources as organizationProjectionSources } from "@erpx/server-organization/public/commercial-owner-projection-sources";
+import { COMMERCE_BRANCH_LABEL_SQL } from './projection-source-dedupe-sql';
 import { readMetricSources } from '@erpx/server-runtime/public/executive/metric-sources';
 import "server-only";
 import { type Breakdown, type Filters, type MetricId } from "@erpx/feature-shared/lib/executive/canvas";
@@ -14,7 +15,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
     if (id === "sales-fulfillment-rate") {
         const label = breakdown === "month" ? "substring(o.order_date,1,7)"
             : breakdown === "status" ? "o.state"
-                : breakdown === "branch" ? `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=o.branch_id AND n.company_id=o.company_id),'Company-wide')`
+                : breakdown === "branch" ? COMMERCE_BRANCH_LABEL_SQL
                     : "'Eligible sales orders'";
         sql = `SELECT ${label} label,count(*) FILTER (WHERE o.state='fulfilled')::text numerator,count(*)::text denominator
       FROM commerce_orders o WHERE ${scopedAlias("o")} AND o.kind='sales'
@@ -25,7 +26,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
     }
     if (id === "sales-cancellations" || id === "sales-cancellation-value") {
         const label = breakdown === "branch"
-            ? `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=o.branch_id AND n.company_id=o.company_id),'Company-wide')`
+            ? COMMERCE_BRANCH_LABEL_SQL
             : breakdown === "month"
                 ? "to_char(to_timestamp(o.updated_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM')"
                 : id === "sales-cancellations" ? "'Cancelled sales orders'" : "'Confirmed cancellation value'";
@@ -42,7 +43,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
     }
     if (id === "open-po-receipts") {
         const label = breakdown === "status" ? "o.state"
-            : breakdown === "branch" ? `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=o.branch_id AND n.company_id=o.company_id),'Company-wide')`
+            : breakdown === "branch" ? COMMERCE_BRANCH_LABEL_SQL
                 : breakdown === "month" ? "substring(o.due_date,1,7)" : "'Open PO receipts'";
         sql = `SELECT ${label} label,count(*)::text value FROM commerce_orders o
       WHERE ${scopedAlias("o")} AND o.kind='purchase' AND o.state IN ('confirmed','partially_fulfilled')

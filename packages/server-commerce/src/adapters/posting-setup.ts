@@ -1,5 +1,6 @@
 import 'server-only';
 import { COMMERCE_POSTING_ABSENT_SQL, COMMERCE_RECEIPT_GUARD_SQL } from './guarded-source-dedupe-sql';
+import { COMMERCE_POSTING_MAPPING_STATE_SQL } from './settings-dedupe-sql';
 
 import { nativeCommerceOwnerWrite, NativeCommerceOwnerWriteError } from "@erpx/server-commerce/adapters/native-owner-write";
 async function nativeSettingsWrite(actor: any, input: any, key: string, fields: readonly string[]) {
@@ -36,7 +37,7 @@ const operation='commerce.posting-setup.initialize',capabilities=['supply.receiv
 const columns={chartId:'chart_id',currency:'currency',receivableAccountId:'receivable_account_id',payableAccountId:'payable_account_id',revenueAccountId:'revenue_account_id',inventoryAccountId:'inventory_account_id',clearingAccountId:'clearing_account_id',cogsAccountId:'cogs_account_id',inputTaxAccountId:'input_tax_account_id',outputTaxAccountId:'output_tax_account_id',cashAccountId:'cash_account_id'} as const;
 const fields=Object.keys(columns) as Array<keyof typeof columns>;
 async function current(database:SqlDatabase,companyId:string):Promise<CommercePostingSetupConfiguration|null>{
- const row=await database.prepare(`SELECT ${fields.map(field=>`${columns[field]} "${field}"`).join(',')} FROM commerce_settings WHERE company_id=?`).bind(companyId).first<CommercePostingSetupConfiguration>();return row;
+ const row=await database.prepare(COMMERCE_POSTING_MAPPING_STATE_SQL).bind(companyId).first<CommercePostingSetupConfiguration>();return row;
 }
 function mapping(input:CommercePostingSetupInput):CommercePostingSetupConfiguration{return Object.fromEntries(fields.map(field=>[field,input[field]])) as CommercePostingSetupConfiguration;}
 function sameMapping(a:CommercePostingSetupConfiguration|null,b:CommercePostingSetupConfiguration){return a!==null&&fields.every(field=>a[field]===b[field]);}

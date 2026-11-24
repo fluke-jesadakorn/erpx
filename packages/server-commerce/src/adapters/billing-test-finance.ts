@@ -1,4 +1,5 @@
 import "server-only";
+import { COMMERCE_BILLING_TEST_SOURCE_KEY_SQL } from './guarded-source-dedupe-sql';
 
 import { nativeCommerceOwnerWrite, NativeCommerceOwnerWriteError } from "@erpx/server-commerce/adapters/native-owner-write";
 async function nativeBillingTest(kind: any, values: readonly unknown[], recordId: string, key: string, companyId: string): Promise<{ results: Record<string, unknown>[] }> {
@@ -71,13 +72,13 @@ function unit(db: SqlDatabase): BillingTestFinanceUnit<SqlStatement> {
         }) => nativeBillingTest('billing-test.line', [facts.key, facts.fact1, facts.debit, facts.amount, facts.key2, facts.fact5, facts.credit, facts.amount2], facts.key, `billing-test:line:${facts.key}`, facts.key),
         readBillingTestFinanceEntries2: (facts: {
             issuedKey: string;
-        }) => db.prepare(`SELECT 1 FROM billing_test_finance_entries WHERE source_key=?`).bind(facts.issuedKey).first(),
+        }) => db.prepare(COMMERCE_BILLING_TEST_SOURCE_KEY_SQL).bind(facts.issuedKey).first(),
         readBillingTestFinanceEntries3: (facts: {
             fact0: string;
-        }) => db.prepare("SELECT 1 FROM billing_test_finance_entries WHERE source_key=?").bind(facts.fact0).first(),
+        }) => db.prepare(COMMERCE_BILLING_TEST_SOURCE_KEY_SQL).bind(facts.fact0).first(),
         readBillingTestFinanceEntries4: (facts: {
             fact0: string;
-        }) => db.prepare("SELECT 1 FROM billing_test_finance_entries WHERE source_key=?").bind(facts.fact0).first(),
+        }) => db.prepare(COMMERCE_BILLING_TEST_SOURCE_KEY_SQL).bind(facts.fact0).first(),
         readBillingTestFinanceEntries5: (facts: {
             stripe_id: string;
         }) => db.prepare(`SELECT

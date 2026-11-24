@@ -9,6 +9,21 @@ import {
   NativeCommerceReadError,
 } from '../../../packages/server-commerce/src/adapters/native-commerce-read';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import { readFile } from 'node:fs/promises';
+import {
+  COMMERCE_ACTIVE_WAREHOUSES_SQL,
+  COMMERCE_BILLING_TEST_SOURCE_KEY_SQL,
+  COMMERCE_MASTER_SOURCE_SQL,
+  COMMERCE_OWN_RECEIPT_SOURCE_SQL,
+  COMMERCE_PRODUCT_ACTIVE_SQL,
+  COMMERCE_PRODUCT_COMPANY_ACTIVE_GUARD_SQL,
+  COMMERCE_WAREHOUSE_ACTIVE_SQL,
+  COMMERCE_WAREHOUSE_BRANCH_ACTIVE_SQL,
+  COMMERCE_WAREHOUSE_IDENTITY_SQL,
+} from '../../../packages/server-commerce/src/adapters/guarded-source-dedupe-sql';
+import { COMMERCE_BRANCH_LABEL_SQL } from '../../../packages/server-commerce/src/adapters/projection-source-dedupe-sql';
+import { COMMERCE_STOCK_PRODUCT_FOR_UPDATE_SQL } from '../../../packages/server-commerce/src/adapters/stock-source-dedupe-sql';
+import { COMMERCE_POSTING_MAPPING_STATE_SQL } from '../../../packages/server-commerce/src/adapters/settings-dedupe-sql';
 
 const host = 'acme.example.com';
 const origin = `https://${host}`;
@@ -138,5 +153,118 @@ describe('native Commerce command-plan read transport', () => {
     await expect(
       nativeCommerceReadFirst('commerce_rd_pms_settings_exists', [company], database([])),
     ).rejects.toMatchObject({ code: 'COMMERCE_READ_RESPONSE_INVALID', status: 503 });
+  });
+});
+
+const adapters = (file: string) =>
+  new URL(`../../../packages/server-commerce/src/adapters/${file}`, import.meta.url);
+
+const readTailCases = [
+  {
+    name: 'COMMERCE_WAREHOUSE_ACTIVE_SQL',
+    value: COMMERCE_WAREHOUSE_ACTIVE_SQL,
+    literal: "SELECT * FROM commerce_warehouses WHERE id=? AND company_id=? AND status='active' AND (?::text IS NULL OR branch_id=?)",
+    files: [
+      'commerce.ts',
+      'ecommerce-sources.ts',
+      'initial-physical-stock-count-sources.ts',
+      'inventory-counts-sources.ts',
+      'production-command-sources.ts',
+    ],
+  },
+  {
+    name: 'COMMERCE_ACTIVE_WAREHOUSES_SQL',
+    value: COMMERCE_ACTIVE_WAREHOUSES_SQL,
+    literal: "SELECT id,name,branch_id FROM commerce_warehouses WHERE company_id=? AND status='active' AND (?::text IS NULL OR branch_id=?) ORDER BY name",
+    files: ['ecommerce-sources.ts', 'inventory-counts-sources.ts', 'production-command-sources.ts'],
+  },
+  {
+    name: 'COMMERCE_PRODUCT_COMPANY_ACTIVE_GUARD_SQL',
+    value: COMMERCE_PRODUCT_COMPANY_ACTIVE_GUARD_SQL,
+    literal: "EXISTS(SELECT 1 FROM commerce_products WHERE id=? AND company_id=? AND status='active')",
+    files: ['production-command-sources.ts'],
+  },
+  {
+    name: 'COMMERCE_WAREHOUSE_IDENTITY_SQL',
+    value: COMMERCE_WAREHOUSE_IDENTITY_SQL,
+    literal: 'SELECT id,company_id,branch_id,status FROM commerce_warehouses',
+    files: ['manufacturing-purchase-sources.ts', 'sales-package-sources.ts', 'supply-package-sources.ts'],
+  },
+  {
+    name: 'COMMERCE_WAREHOUSE_BRANCH_ACTIVE_SQL',
+    value: COMMERCE_WAREHOUSE_BRANCH_ACTIVE_SQL,
+    literal: "SELECT id,name FROM commerce_warehouses WHERE company_id=? AND branch_id=? AND status='active'",
+    files: ['pms-command-facts.ts', 'pms-hospitality-setup-facts.ts'],
+  },
+  {
+    name: 'COMMERCE_PRODUCT_ACTIVE_SQL',
+    value: COMMERCE_PRODUCT_ACTIVE_SQL,
+    literal: "SELECT * FROM commerce_products WHERE id=? AND company_id=? AND status='active'",
+    files: ['commerce.ts', 'inventory-counts-sources.ts'],
+  },
+] as const;
+
+describe('commerce read-tail r11 warehouse/product guard dedupe', () => {
+  it('keeps exactly one byte-identical literal per shared constant', async () => {
+    const shared = await readFile(adapters('guarded-source-dedupe-sql.ts'), 'utf8');
+    for (const { name, value, literal } of readTailCases) {
+      expect(value, name).toBe(literal);
+      expect(shared.split(literal).length - 1, name).toBe(1);
+    }
+    // Pre-existing posting constants plus the nine shared read-tail literals.
+    expect(shared.split('SELECT').length - 1).toBe(12);
+  });
+
+  it('backs every call site with its shared constant and no inline literal', async () => {
+    for (const { name, literal, files } of readTailCases) {
+      for (const file of files) {
+        const text = await readFile(adapters(file), 'utf8');
+        expect(text.split(literal).length - 1, `${name} inline in ${file}`).toBe(0);
+        expect(text, `${name} import in ${file}`).toContain(name);
+      }
+    }
+  });
+
+  it('shares billing, master, receipt, branch-label and stock-lock text', async () => {
+    expect(COMMERCE_BILLING_TEST_SOURCE_KEY_SQL).toBe('SELECT 1 FROM billing_test_finance_entries WHERE source_key=?');
+    expect(COMMERCE_OWN_RECEIPT_SOURCE_SQL).toContain('to_jsonb(receipt)::text source FROM command_receipts');
+    expect(COMMERCE_MASTER_SOURCE_SQL('commerce_products', false)).toContain('to_jsonb(master)::text source FROM commerce_products');
+    expect(COMMERCE_MASTER_SOURCE_SQL('commerce_warehouses', true)).toContain('AND (?::text IS NULL OR branch_id=?)');
+    expect(COMMERCE_BRANCH_LABEL_SQL).toContain('COALESCE((SELECT n.display_name');
+    expect(COMMERCE_STOCK_PRODUCT_FOR_UPDATE_SQL).toContain('SELECT product_id FROM (');
+    expect(COMMERCE_STOCK_PRODUCT_FOR_UPDATE_SQL).toContain('FOR UPDATE');
+
+    const files = [
+      'billing-test-finance.ts',
+      'manufacturing-initial-physical-stock-masters.ts',
+      'pos-startup-masters.ts',
+      'executive-metric-projections.ts',
+      'pos-core-facts.ts',
+      'inventory-consumption-sources.ts',
+    ];
+    for (const file of files) {
+      const text = await readFile(adapters(file), 'utf8');
+      expect(text.split('SELECT 1 FROM billing_test_finance_entries').length - 1, file).toBe(0);
+      expect(text.split('to_jsonb(master)::text source').length - 1, file).toBe(0);
+      expect(text.split('to_jsonb(receipt)::text source').length - 1, file).toBe(0);
+      expect(text.split('COALESCE((SELECT n.display_name').length - 1, file).toBe(0);
+      expect(text.split('SELECT product_id FROM (').length - 1, file).toBe(0);
+    }
+  });
+
+  it('reuses the posting mapping state in all four posting setups and drops the zero-importer adapter', async () => {
+    expect(COMMERCE_POSTING_MAPPING_STATE_SQL).toContain('chart_id "chartId"');
+    expect(COMMERCE_POSTING_MAPPING_STATE_SQL).toContain('FROM commerce_settings WHERE company_id=?');
+    for (const file of [
+      'posting-setup.ts',
+      'sales-goods-posting-setup.ts',
+      'manufacturing-posting-setup.ts',
+      'pos-posting-setup.ts',
+    ]) {
+      const text = await readFile(adapters(file), 'utf8');
+      expect(text, file).toContain('COMMERCE_POSTING_MAPPING_STATE_SQL');
+      expect(text.split('SELECT ${fields.map(').length - 1, file).toBe(0);
+    }
+    await expect(readFile(adapters('finance-supplier-payment-source-facts.ts'), 'utf8')).rejects.toThrow();
   });
 });

@@ -1,4 +1,5 @@
 import 'server-only';
+import { COMMERCE_MASTER_SOURCE_SQL, COMMERCE_OWN_RECEIPT_SOURCE_SQL } from './guarded-source-dedupe-sql';
 import {randomUUID} from 'node:crypto';
 import {decimalToMinor} from '@erpx/feature-finance/lib/finance-money';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
@@ -47,10 +48,10 @@ async function leases(database:SqlDatabase,actor:WorkContext){
 }
 async function master(database:SqlDatabase,actor:WorkContext,kind:Kind,id:string){
  const table=kind==='products'?'commerce_products':'commerce_warehouses';
- return database.prepare(`SELECT to_jsonb(master)::text source FROM ${table} master WHERE id=? AND company_id=? ${kind==='warehouses'?'AND (?::text IS NULL OR branch_id=?)':''}`).bind(id,actor.companyId,...(kind==='warehouses'?[actor.branchId,actor.branchId]:[])).first<string>('source');
+ return database.prepare(COMMERCE_MASTER_SOURCE_SQL(table,kind==='warehouses')).bind(id,actor.companyId,...(kind==='warehouses'?[actor.branchId,actor.branchId]:[])).first<string>('source');
 }
 async function ownReceipt(database:SqlDatabase,actor:WorkContext,operation:string,key:string,id:string){
- return database.prepare("SELECT to_jsonb(receipt)::text source FROM command_receipts receipt WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?").bind(key,operation,id,actor.userId,actor.companyId).first<string>('source');
+ return database.prepare(COMMERCE_OWN_RECEIPT_SOURCE_SQL).bind(key,operation,id,actor.userId,actor.companyId).first<string>('source');
 }
 function matches(source:string|null,actor:WorkContext,kind:Kind,input:PosStartupProductInput|PosStartupWarehouseInput,id:string){
  if(!source)return false;const row=JSON.parse(source) as Record<string,unknown>;

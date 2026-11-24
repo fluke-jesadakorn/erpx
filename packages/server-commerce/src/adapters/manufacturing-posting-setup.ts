@@ -1,5 +1,6 @@
 import 'server-only';
 import { COMMERCE_POSTING_ABSENT_SQL } from './guarded-source-dedupe-sql';
+import { COMMERCE_POSTING_MAPPING_STATE_SQL } from './settings-dedupe-sql';
 
 import { nativeCommerceOwnerWrite, NativeCommerceOwnerWriteError } from "@erpx/server-commerce/adapters/native-owner-write";
 async function nativeSettingsWrite(actor: any, input: any, key: string, fields: readonly string[]) {
@@ -35,7 +36,7 @@ const operation='commerce.manufacturing-posting-setup.initialize',capabilities=[
 const columns={chartId:'chart_id',currency:'currency',receivableAccountId:'receivable_account_id',payableAccountId:'payable_account_id',revenueAccountId:'revenue_account_id',inventoryAccountId:'inventory_account_id',clearingAccountId:'clearing_account_id',cogsAccountId:'cogs_account_id',inputTaxAccountId:'input_tax_account_id',outputTaxAccountId:'output_tax_account_id',cashAccountId:'cash_account_id'} as const;
 const fields=Object.keys(columns) as Array<keyof typeof columns>;
 function mapping(input:ManufacturingPostingSetupInput):CommercePostingSetupConfiguration{return Object.fromEntries(fields.map(field=>[field,input[field]])) as CommercePostingSetupConfiguration;}
-async function current(database:SqlDatabase,companyId:string){return database.prepare(`SELECT ${fields.map(field=>`${columns[field]} "${field}"`).join(',')} FROM commerce_settings WHERE company_id=?`).bind(companyId).first<CommercePostingSetupConfiguration>();}
+async function current(database:SqlDatabase,companyId:string){return database.prepare(COMMERCE_POSTING_MAPPING_STATE_SQL).bind(companyId).first<CommercePostingSetupConfiguration>();}
 function authorityImage(actor:WorkContext){return JSON.stringify([actor.holdingId,actor.companyId,actor.branchId,actor.departmentId,actor.userId,actor.assignmentId,actor.role,actor.authority??null,actor.iam]);}
 async function owner(actor:WorkContext){const database=(await holdingResources(actor.holdingId)).write;if(!isTransactionalSqlDatabase(database))throw new ApiError(503,'TRANSACTION_REQUIRED','Manufacturing posting setup requires the original owned Holding transaction.');return database;}
 async function leases(database:SqlDatabase,companyId:string,write=false){

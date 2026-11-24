@@ -2,6 +2,7 @@ import {commercePmsCommandFactsStockEffects} from '@erpx/server-inventory/public
 import { commercialOwnerProjectionSources as inventoryProjectionSources } from "@erpx/server-inventory/public/commercial-owner-projection-sources";
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
+import { COMMERCE_WAREHOUSE_BRANCH_ACTIVE_SQL } from "./guarded-source-dedupe-sql";
 const query = async <T>(db: SqlDatabase, sql: string, ...values: unknown[]) => (await db
     .prepare(sql)
     .bind(...values)
@@ -20,7 +21,7 @@ export function pmsCommerceFacts(db: SqlDatabase) {
         }) => query<{
             id: string;
             name: string;
-        }>(db, "SELECT id,name FROM commerce_warehouses WHERE company_id=? AND branch_id=? AND status='active'", facts.companyId, facts.fact1),
+        }>(db, COMMERCE_WAREHOUSE_BRANCH_ACTIVE_SQL, facts.companyId, facts.fact1),
         readCommerceWarehouses2: (facts: {
             warehouseId: string;
             companyId: string;
