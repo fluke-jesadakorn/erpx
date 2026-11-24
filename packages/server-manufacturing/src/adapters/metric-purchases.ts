@@ -5,8 +5,9 @@ import {assignmentReadSql} from "@erpx/server-identity_access/public/record-sour
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {manufacturingPackageEnforcementMode} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
-import {requireManufacturingPurchasedRead,manufacturingSourceAccess,manufacturingClockCte,manufacturingPurchaseScopedRows} from "@erpx/server-manufacturing/adapters/purchases";
+import {requireManufacturingPurchasedRead,manufacturingSourceAccess,manufacturingClockCte} from "@erpx/server-manufacturing/adapters/purchases";
 import {manufacturingIdSelect} from "./manufacturing-read-sql-fragments";
+import {manufacturingPurchaseScopedSelect} from "./manufacturing-read-tail-r24-sql";
 /** Values, evidence search and the retained source callback share the exact
  * native source/purchase predicate before grouping or pagination. */
 export async function manufacturingMetricSource(database:SqlDatabase,actor:WorkContext,id:string){
@@ -14,7 +15,8 @@ export async function manufacturingMetricSource(database:SqlDatabase,actor:WorkC
  await requireManufacturingPurchasedRead(database,actor,{module:planning?"planning":"manufacturing",capabilities});
  if(await manufacturingPackageEnforcementMode()!=="enforced")return {sql:manufacturingIdSelect(planning?"planning_scenarios":"manufacturing_orders"),args:[] as (string|number|null)[]};
  const predicates=capabilities.map(capability=>purchasedCapabilityPredicate("production_metric.company_id",capability,"history","production_metric_clock.now_ms")),advanced=purchasedCapabilityPredicate("production_metric.company_id","planning.advanced-mrp","history","production_metric_clock.now_ms"),permission=cost?"finance.read":"records.read";
- return {sql:`WITH ${manufacturingClockCte("production_metric_clock")} SELECT production_metric.id FROM ${manufacturingPurchaseScopedRows("production_metric")} CROSS JOIN production_metric_clock WHERE production_metric.kind='${planning?"scenario":"order"}' AND ${assignmentReadSql("production_metric",permission)} AND ${predicates.join(" AND ")} AND (NOT production_metric.advanced OR ${advanced})`,args:[actor.departmentId,actor.assignmentId,actor.userId,actor.role]};
+ const tail=`CROSS JOIN production_metric_clock WHERE production_metric.kind='${planning?"scenario":"order"}' AND ${assignmentReadSql("production_metric",permission)} AND ${predicates.join(" AND ")} AND (NOT production_metric.advanced OR ${advanced})`;
+ return {sql:`WITH ${manufacturingClockCte("production_metric_clock")} ${manufacturingPurchaseScopedSelect("production_metric.id","production_metric",tail)}`,args:[actor.departmentId,actor.assignmentId,actor.userId,actor.role]};
 }
 
 export async function manufacturingMetricHistoryAccess(database:SqlDatabase,actor:WorkContext){

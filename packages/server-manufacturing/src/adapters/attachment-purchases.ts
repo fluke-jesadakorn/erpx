@@ -11,8 +11,9 @@ import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packages";
 import type {AttachmentOperation} from "@erpx/server-files/public/attachments/types";
 import {ApiError} from "@erpx/server-runtime/public/http";
-import {manufacturingPurchaseRecordRows,manufacturingPurchaseScopedRows,manufacturingPurchaseSourceReadLocks,clearCommandAssertions,type ManufacturingPurchaseTarget} from "@erpx/server-manufacturing/adapters/purchases";
+import {manufacturingPurchaseRecordRows,manufacturingPurchaseSourceReadLocks,clearCommandAssertions,type ManufacturingPurchaseTarget} from "@erpx/server-manufacturing/adapters/purchases";
 import {manufacturingSelectedAssignmentExists} from "./manufacturing-read-sql-fragments";
+import {manufacturingPurchaseScopedSelect} from "./manufacturing-read-tail-r24-sql";
 import {manufacturingPurchaseRecordSelect} from "./manufacturing-read-tail-r16-sql";
 export type ManufacturingAttachmentPurchase={companyId:string;capability:string;purpose:CapabilityPurpose;actor:WorkContext;targetId:string;kind:ManufacturingPurchaseTarget["kind"];advanced:boolean;witness:string};
 function kind(type:string){return type==="manufacturing_spec"?"specification":type==="production_run"?"order":type==="planning_scenario"?"scenario":null;}
@@ -20,7 +21,7 @@ export async function manufacturingAttachmentPurchaseScope(database:SqlDatabase,
  const target=kind(type);if(!target||await manufacturingPackageEnforcementMode()==="disabled")return null;
  const row=await database.prepare(manufacturingPurchaseRecordSelect("capability,advanced,witness::text witness",manufacturingPurchaseRecordRows,"actual_production_file","id=? AND company_id=? AND kind=?")).bind(id,actor.companyId,target).first<{capability:string;advanced:boolean;witness:string}>();if(!row)throw new ApiError(404,"ATTACHMENT_TARGET_NOT_FOUND","The original production source is unavailable.");return {companyId:actor.companyId,capability:row.capability,purpose,actor,targetId:id,kind:target,advanced:row.advanced,witness:row.witness};
 }
-function sourcePredicate(permission:string){return `EXISTS(SELECT 1 FROM ${manufacturingPurchaseScopedRows("production_file_scope")} WHERE id=? AND company_id=? AND kind=? AND witness::text=? AND (branch_id IS NULL OR ?::text IS NULL OR branch_id=?) AND ${assignmentReadSql("production_file_scope",permission)} AND ?::jsonb @> jsonb_build_array(production_file_scope.module_id) AND ${manufacturingSelectedAssignmentExists("production_file_scope.module_id")})`;}
+function sourcePredicate(permission:string){const tail=`WHERE id=? AND company_id=? AND kind=? AND witness::text=? AND (branch_id IS NULL OR ?::text IS NULL OR branch_id=?) AND ${assignmentReadSql("production_file_scope",permission)} AND ?::jsonb @> jsonb_build_array(production_file_scope.module_id) AND ${manufacturingSelectedAssignmentExists("production_file_scope.module_id")}`;return `EXISTS(${manufacturingPurchaseScopedSelect("1","production_file_scope",tail)})`;}
 function sourceArgs(scope:ManufacturingAttachmentPurchase){const actor=scope.actor;return [actor.departmentId,scope.targetId,scope.companyId,scope.kind,scope.witness,actor.branchId,actor.branchId,actor.assignmentId,actor.userId,actor.role,JSON.stringify(actor.modules),actor.assignmentId];}
 function capabilities(scope:ManufacturingAttachmentPurchase){return [scope.capability,...(scope.advanced?["planning.advanced-mrp"]:[])];}
 export async function authorizeManufacturingAttachmentPurchase(database:SqlDatabase,actor:WorkContext,type:string,id:string,operation:AttachmentOperation){

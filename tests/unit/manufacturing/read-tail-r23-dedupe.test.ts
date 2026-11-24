@@ -77,7 +77,7 @@ describe('manufacturing read-tail r23 stock-footprint select family', () => {
     expect(src('manufacturing-read-tail-r23-sql.ts')).not.toMatch(/LOCK\s+TABLE|FOR\s+UPDATE|FOR\s+SHARE/i);
   });
 
-  it('keeps retirement:ts-statements strictly below the r22 BEFORE=73 baseline', () => {
+  it('keeps retirement:ts-statements strictly below the r23 BEFORE=72 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -87,7 +87,7 @@ describe('manufacturing read-tail r23 stock-footprint select family', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(72); // r22 left 73; r23 lowers 73->72 (two stock-footprint selects -> one helper).
-    expect(total).toBeLessThan(73);
+    expect(total).toBe(70); // r23 left 72; r24 lowers 72->70 (three scoped selects -> one helper).
+    expect(total).toBeLessThan(72);
   });
 });
