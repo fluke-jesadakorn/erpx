@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8584,
+    "revision": 8592,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -141102,7 +141102,7 @@
         "owner": "marketing",
         "title": "marketing TS read tail native cutover (round 26)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -141114,22 +141114,34 @@
         "resources": [
           "owner:marketing"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGC8mar",
-          "claimedAt": "2026-11-24T02:22:55.743Z",
-          "heartbeatAt": "2026-11-24T02:27:42.633Z",
-          "expiresAt": "2026-11-24T02:57:42.633Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "marketing byte-identical scan (59 literals)",
+            "result": "passed",
+            "sourceSha": "2a1711a11",
+            "note": "no byte-identical SELECT group or unused native read remains; all helpers already canonical."
+          },
+          {
+            "command": "vitest marketing (53) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "2a1711a11"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: remaining marketing_assets WHERE id=? point reads or native read; if none, report blocked. BEFORE=83.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Blocked with evidence.",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGC8mar",
+          "at": "2026-11-24T02:32:23.825Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Blocked with evidence."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -141522,7 +141534,7 @@
         "owner": "benefits",
         "title": "benefits TS read tail native cutover (r7)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -141534,22 +141546,37 @@
         "resources": [
           "owner:benefits"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGCLben",
-          "claimedAt": "2026-11-24T02:27:06.762Z",
-          "heartbeatAt": "2026-11-24T02:27:42.633Z",
-          "expiresAt": "2026-11-24T02:57:42.633Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-benefits/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "457090910",
+            "owner": "benefits",
+            "before": 67,
+            "after": 66,
+            "note": "Released election handoff prefix shared; byte-identical; writes 0."
+          },
+          {
+            "command": "vitest benefits (48) + tsc benefits",
+            "result": "passed",
+            "sourceSha": "457090910"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=67.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCLben",
+          "at": "2026-11-24T02:32:22.947Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -141983,6 +142010,78 @@
         "nextAction": "Next: `SELECT * FROM manufacturing_specifications WHERE` lines 49/55 and `SELECT * FROM manufacturing_specification_` lines 67/112, plus cross-owner orders/costs groups. BEFORE=126.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.benefits.read-tail-r8",
+        "goalId": "G4",
+        "owner": "benefits",
+        "title": "benefits TS read tail dedupe (round 8)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-benefits/src/**",
+          "tests/unit/benefits/**",
+          "tests/integration/benefits/**"
+        ],
+        "resources": [
+          "owner:benefits"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCZben",
+          "claimedAt": "2026-11-24T02:32:24.343Z",
+          "heartbeatAt": "2026-11-24T02:32:24.343Z",
+          "expiresAt": "2026-11-24T03:02:24.343Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=66.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.marketing.read-ports",
+        "goalId": "G4",
+        "owner": "marketing",
+        "title": "marketing native read ports",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-marketing/src/**",
+          "tests/unit/marketing/**",
+          "tests/integration/marketing/**"
+        ],
+        "resources": [
+          "owner:marketing"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGC0mar2",
+          "claimedAt": "2026-11-24T02:32:24.936Z",
+          "heartbeatAt": "2026-11-24T02:32:24.936Z",
+          "expiresAt": "2026-11-24T03:02:24.936Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Build owner-local native read ports for remaining marketing point reads (assets/forms/campaigns) with PG parity; no composition or TS deletion yet.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -141991,7 +142090,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 971,
+      "totalPackets": 973,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -141999,13 +142098,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 591,
+        "blocked": 593,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T02:32:03.479Z",
+    "updatedAt": "2026-11-24T02:32:24.954Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
