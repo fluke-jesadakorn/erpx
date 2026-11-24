@@ -1,9 +1,10 @@
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
+import { activeCompanyNodes } from './organization-read-tail-sources-r42';
 
 /** Provider listing, called only after Platform Commercial authorization. */
 export async function commercialCompanies(db: SqlDatabase) {
-  return (await db.prepare("SELECT id,slug,display_name AS name FROM organization_nodes WHERE kind='company' AND status='active' ORDER BY display_name,id")
+  return (await db.prepare(activeCompanyNodes('id,slug,display_name AS name', ' ', 'display_name,id'))
     .all<{ id: string; slug: string; name: string }>()).results;
 }
 

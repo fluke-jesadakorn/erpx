@@ -36,14 +36,14 @@ import {NODE_BRANCH_ACTIVE,NODE_BRANCH_ACTIVE_EXISTS,departmentSnapshotMissing} 
 import {changeVersionGuardSource} from './organization-read-tail-sources-r39';
 import {nodeChangeByIdCompany} from './organization-read-tail-sources-r40';
 import {relocationVersionSnapshot} from './organization-read-tail-sources-r41';
+import {latestDepartmentFlow,organizationChangeRows} from './organization-read-tail-sources-r42';
 import {snapshotProjection,staffLevelNumberSource} from './organization-column-alias-families';
 import {impactCount} from './organization-column-alias-families-r29';
 const HEAD_SEAT_SNAPSHOT_SOURCE =
   "SELECT version,position_id,person_id,effective_at FROM authority_seats WHERE company_id=? AND kind='head' AND scope_id=?";
 const DEPARTMENT_HEAD_SNAPSHOT_SOURCE =
   snapshotProjection('version,person_id','department_heads','company_id','department_id');
-const DEPARTMENT_FLOW_SNAPSHOT_SOURCE =
-  "SELECT id,version,steps_json FROM department_flow_versions WHERE company_id=? AND department_id=? ORDER BY version DESC LIMIT 1";
+const DEPARTMENT_FLOW_SNAPSHOT_SOURCE = latestDepartmentFlow('id,version,steps_json');
 const nodeImpactSql=`SELECT
  ${impactCount('organization_nodes',"parent_id=? AND status='active'")} child_nodes,
  ${impactCount(`(${people_payrollPlatformSources.hr_engagements}) hr_engagements`,"status='active' AND (branch_id=? OR department_id=?)")} staff,
@@ -74,8 +74,8 @@ clock:{now:()=>Date.now()},authorize:actor=>requirePermission(actor,'organizatio
  templates:async(companyId)=>(await db.prepare('SELECT id,name,version,positions_json FROM organization_templates WHERE company_id=? ORDER BY name').bind(companyId).all<{id:string;name:string;version:number;positions_json:string}>()).results,
  channelNodes:async(actor)=>(await db.prepare(`SELECT n.id FROM organization_nodes n WHERE n.company_id=? AND n.status='active' AND n.kind IN ('company','branch','department') AND ${organizationMemberSql('n','?')}`).bind(actor.companyId,actor.userId).all<{id:string}>()).results.map(n=>n.id),
  managerGrants:async(companyId,from,to)=>(await db.prepare(`SELECT user_id,scope_kind,scope_node_id FROM (${identity_accessPlatformSources.assignments}) assignments WHERE company_id=? AND iam_role_allows(role,company_id,'spending.approve') AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_from<=? AND valid_until>?`).bind(companyId,from,to).all<{user_id:string;scope_kind:string;scope_node_id:string|null}>()).results,
- changeTotal:async(companyId,filters)=>{const {predicate,args}=changeSelection(companyId,filters);return Number((await db.prepare(`SELECT count(*) total FROM organization_node_changes WHERE ${predicate}`).bind(...args).first<{total:number}>())?.total??0);},
- changes:async(actor,filters,page,pageSize)=>{const {predicate,args}=changeSelection(actor.companyId,filters);return (await db.prepare(`SELECT *,NOT iam_same_person(requested_by,?,company_id) independent_reviewer FROM organization_node_changes WHERE ${predicate} ORDER BY updated_at DESC,id LIMIT ? OFFSET ?`).bind(actor.userId,...args,pageSize,(page-1)*pageSize).all<OrganizationNodeChange&{independent_reviewer:boolean}>()).results;},
+ changeTotal:async(companyId,filters)=>{const {predicate,args}=changeSelection(companyId,filters);return Number((await db.prepare(`${organizationChangeRows('count(*) total')}${predicate}`).bind(...args).first<{total:number}>())?.total??0);},
+ changes:async(actor,filters,page,pageSize)=>{const {predicate,args}=changeSelection(actor.companyId,filters);return (await db.prepare(`${organizationChangeRows('*,NOT iam_same_person(requested_by,?,company_id) independent_reviewer')}${predicate} ORDER BY updated_at DESC,id LIMIT ? OFFSET ?`).bind(actor.userId,...args,pageSize,(page-1)*pageSize).all<OrganizationNodeChange&{independent_reviewer:boolean}>()).results;},
  events:async(companyId,ids)=>(await db.prepare(`SELECT e.change_id,e.action,e.version,e.created_at,e.snapshot_json,COALESCE(p.legal_name,e.actor_id) actor_name FROM organization_node_change_events e LEFT JOIN (${people_payrollPlatformSources.hr_people}) p ON p.user_id=e.actor_id AND p.company_id=e.company_id AND p.merged_into_id IS NULL WHERE e.company_id=? AND e.change_id IN (${ids.map(()=>'?').join(',')}) ORDER BY e.version,e.created_at,e.id`).bind(companyId,...ids).all<{change_id:string;action:string;version:number;created_at:number;snapshot_json:string;actor_name:string}>()).results,
  graphGuard:(companyId,key)=>organizationGuard(db,companyId,key),replay:(actor,key,operation,id,input)=>replayCommand(db,actor,key,operation,id,input),
  branchActive:async(companyId,id)=>!!await db.prepare(NODE_BRANCH_ACTIVE).bind(id,companyId).first(),
@@ -106,7 +106,7 @@ stageRelocate:async (actor,change,id,appliedNodeId,key,{head,legacyHead,flow},no
             : departmentSnapshotMissing('department_heads'),
           legacyHead?[actor.companyId,change.target_node_id,legacyHead.version,legacyHead.person_id]:[actor.companyId,change.target_node_id]),
           assertion(db,key,"relocation-flow-unchanged",flow
-            ? "(SELECT id FROM department_flow_versions WHERE company_id=? AND department_id=? ORDER BY version DESC LIMIT 1)=? AND EXISTS(SELECT 1 FROM department_flow_versions WHERE id=? AND company_id=? AND department_id=? AND version=? AND steps_json=?::jsonb)"
+            ? `(${latestDepartmentFlow('id')})=? AND EXISTS(SELECT 1 FROM department_flow_versions WHERE id=? AND company_id=? AND department_id=? AND version=? AND steps_json=?::jsonb)`
             : departmentSnapshotMissing('department_flow_versions'),
           flow?[actor.companyId,change.target_node_id,flow.id,flow.id,actor.companyId,change.target_node_id,flow.version,typeof flow.steps_json==="string"?flow.steps_json:JSON.stringify(flow.steps_json)]:[actor.companyId,change.target_node_id]),
           await nativeOrgStatement(db,actor.companyId,'node_relocate_copy',[appliedNodeId,change.display_name,change.branch_id,change.branch_id,change.target_node_id,actor.companyId],key,now),

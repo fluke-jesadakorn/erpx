@@ -1,11 +1,11 @@
 import "server-only";
 import {companyIdProjection} from './organization-column-alias-families';
+import {activeCompanyNodes} from './organization-read-tail-sources-r42';
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { type CompanyRow, type NodeRow, type LevelRow, type PositionRow, type DirectorySelectionRecord } from '@erpx/server-people_payroll/public/directory-projection-contract';
 export function peopleDirectoryHierarchyFacts(database: SqlDatabase) {
     return { readDirectoryFacts2() {
-            return database.prepare(`SELECT id,slug,display_name FROM organization_nodes
-      WHERE kind='company' AND status='active' ORDER BY display_name,id`).all<CompanyRow>();
+            return database.prepare(activeCompanyNodes('id,slug,display_name', '\n      ', 'display_name,id')).all<CompanyRow>();
         },
         readDirectoryFacts3() {
             return database.prepare(`SELECT n.id,n.company_id,n.kind,n.slug,n.display_name,n.parent_id,n.branch_id
