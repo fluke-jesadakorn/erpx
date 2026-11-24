@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9515,
+    "revision": 9519,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -152642,6 +152642,78 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=48.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.crm.read-tail-r18",
+        "goalId": "G4",
+        "owner": "crm",
+        "title": "crm TS read tail native cutover (r18)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-crm/src/**",
+          "tests/unit/crm/**",
+          "tests/integration/crm/**"
+        ],
+        "resources": [
+          "owner:crm"
+        ],
+        "claim": {
+          "runId": "run-20261123-k",
+          "agentId": "wGCKcrm",
+          "claimedAt": "2026-11-24T05:30:06.106Z",
+          "heartbeatAt": "2026-11-24T05:30:06.106Z",
+          "expiresAt": "2026-11-24T06:00:06.106Z",
+          "generation": 163
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=163.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.commercial.read-tail-r6",
+        "goalId": "G4",
+        "owner": "commercial",
+        "title": "commercial TS read tail native cutover (r6)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-commercial/src/**",
+          "tests/unit/commercial/**",
+          "tests/integration/commercial/**"
+        ],
+        "resources": [
+          "owner:commercial"
+        ],
+        "claim": {
+          "runId": "run-20261123-k",
+          "agentId": "wGCKcom",
+          "claimedAt": "2026-11-24T05:30:06.831Z",
+          "heartbeatAt": "2026-11-24T05:30:06.831Z",
+          "expiresAt": "2026-11-24T06:00:06.831Z",
+          "generation": 163
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=34.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -152650,11 +152722,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1174,
+      "totalPackets": 1176,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 29,
+        "in_progress": 31,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
@@ -152664,7 +152736,7 @@
       }
     },
     "lastCoordinatorGeneration": 163,
-    "updatedAt": "2026-11-24T05:29:18.742Z",
+    "updatedAt": "2026-11-24T05:30:06.844Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
