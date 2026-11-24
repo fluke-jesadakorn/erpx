@@ -16,8 +16,9 @@
 //! the service-team option reads on `service_teams`, `service_team_revisions`,
 //! `service_team_members` and `service_team_coverage`. It also plans the
 //! incident-detail ticket candidate read on `support_tickets` and
-//! `support_incident_tickets`, and the SLA workspace active-ticket read on
-//! `support_tickets`. It finally plans the package-obligation/Portal read
+//! `support_incident_tickets`, the SLA workspace active-ticket read on
+//! `support_tickets` and the SLA policy point/approved reads on
+//! `support_sla_policies`. It finally plans the package-obligation/Portal read
 //! family: the Portal table fence probe, the binding/response/identity/ack
 //! aggregate and the Company-wide ticket/incident/session/SLA obligation facts.
 //! It also plans the Support Calendar family: the scoped open-ticket and
@@ -170,6 +171,30 @@ const READ_SLA_WORKSPACE_TICKETS: NativeSupportReadStatement = NativeSupportRead
     kind: RD_SLA_WORKSPACE_TICKETS,
     sql: SQL_SLA_WORKSPACE_TICKETS,
     bind_count: 5,
+};
+
+/// Native successor of the TypeScript SLA policy point read used by the policy
+/// detail. The caller binds `[policy_id, company_id]` and receives the single
+/// owner-local policy row.
+pub const RD_SLA_POLICY_POINT: &str = "support_rd_sla_policy_point";
+const SQL_SLA_POLICY_POINT: &str =
+    "SELECT * FROM support_sla_policies WHERE id=? AND company_id=?";
+const READ_SLA_POLICY_POINT: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_SLA_POLICY_POINT,
+    sql: SQL_SLA_POLICY_POINT,
+    bind_count: 2,
+};
+
+/// Native successor of the TypeScript SLA policy approved-list read used by
+/// the support detail. The caller binds `[company_id]` and receives the
+/// owner's approved policies ordered by name.
+pub const RD_SLA_POLICY_APPROVED: &str = "support_rd_sla_policy_approved";
+const SQL_SLA_POLICY_APPROVED: &str =
+    "SELECT id,name,version FROM support_sla_policies WHERE company_id=? AND status='approved' ORDER BY name";
+const READ_SLA_POLICY_APPROVED: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_SLA_POLICY_APPROVED,
+    sql: SQL_SLA_POLICY_APPROVED,
+    bind_count: 1,
 };
 
 /// Native successors of the TypeScript package-obligation/Portal read family.
@@ -429,6 +454,8 @@ const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_INCIDENT_TICKET_LINKS,
     READ_INCIDENT_TICKET_CANDIDATES,
     READ_SLA_WORKSPACE_TICKETS,
+    READ_SLA_POLICY_POINT,
+    READ_SLA_POLICY_APPROVED,
     READ_PORTAL_BINDINGS_INSTALLED,
     READ_SUPPORT_PACKAGE_PORTAL_BINDINGS,
     READ_SUPPORT_PACKAGE_OBLIGATION_FACTS,
@@ -517,6 +544,8 @@ mod tests {
                 SQL_SLA_WORKSPACE_TICKETS,
                 5usize,
             ),
+            (RD_SLA_POLICY_POINT, SQL_SLA_POLICY_POINT, 2usize),
+            (RD_SLA_POLICY_APPROVED, SQL_SLA_POLICY_APPROVED, 1usize),
             (
                 RD_PORTAL_BINDINGS_INSTALLED,
                 SQL_PORTAL_BINDINGS_INSTALLED,
@@ -610,12 +639,12 @@ mod tests {
                 sql.contains("service_team") || sql.contains("support_ticket_portal") ||
                     sql.contains("support_ticket_events") || sql.contains("support_incident_events") ||
                     sql.contains("support_incident_tickets") || sql.contains("support_tickets") ||
-                    sql.contains("support_incidents"),
+                    sql.contains("support_incidents") || sql.contains("support_sla_policies"),
                 "owner read must stay on owner-local Support tables: {sql}"
             );
             assert_eq!(sql.matches('?').count(), binds);
         }
-        assert_eq!(STATEMENTS.len(), 30);
+        assert_eq!(STATEMENTS.len(), 32);
     }
 
     #[test]
@@ -644,6 +673,10 @@ mod tests {
         assert_eq!(candidates.bind_count, 4);
         let sla_tickets = read_statement(RD_SLA_WORKSPACE_TICKETS).expect("SLA workspace tickets");
         assert_eq!(sla_tickets.bind_count, 5);
+        let policy_point = read_statement(RD_SLA_POLICY_POINT).expect("SLA policy point read");
+        assert_eq!(policy_point.bind_count, 2);
+        let policy_approved = read_statement(RD_SLA_POLICY_APPROVED).expect("SLA policy approved read");
+        assert_eq!(policy_approved.bind_count, 1);
         let installed = read_statement(RD_PORTAL_BINDINGS_INSTALLED).expect("portal fence probe");
         assert_eq!(installed.bind_count, 0);
         let bindings = read_statement(RD_SUPPORT_PACKAGE_PORTAL_BINDINGS).expect("portal binding aggregate");
@@ -717,5 +750,19 @@ mod tests {
             assert_eq!(statement.sql.matches('?').count(), statement.bind_count);
             assert!(!statement.sql.contains(';'));
         }
+    }
+
+    #[test]
+    fn sla_policy_reads_render_the_retired_owner_literals_byte_for_byte() {
+        let point = read_statement(RD_SLA_POLICY_POINT).expect("SLA policy point read");
+        assert_eq!(point.sql, "SELECT * FROM support_sla_policies WHERE id=? AND company_id=?");
+        assert_eq!(point.bind_count, 2);
+        let approved = read_statement(RD_SLA_POLICY_APPROVED).expect("SLA policy approved read");
+        assert_eq!(
+            approved.sql,
+            "SELECT id,name,version FROM support_sla_policies WHERE company_id=? AND status='approved' ORDER BY name"
+        );
+        assert_eq!(approved.bind_count, 1);
+        assert!(read_statement("support_policy_select").is_none());
     }
 }

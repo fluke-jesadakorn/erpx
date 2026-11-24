@@ -32,7 +32,6 @@
     "./adapters/support-evidence": "./src/adapters/support-evidence.ts",
     "./adapters/support-incident-read": "./src/adapters/support-incident-read.ts",
     "./adapters/support-incidents": "./src/adapters/support-incidents.ts",
-    "./adapters/support-policy-read-sources": "./src/adapters/support-policy-read-sources.ts",
     "./adapters/support-recipient": "./src/adapters/support-recipient.ts",
     "./adapters/support-sessions": "./src/adapters/support-sessions.ts",
     "./adapters/support-sla": "./src/adapters/support-sla.ts",
