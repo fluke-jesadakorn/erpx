@@ -8,6 +8,10 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import { specs } from '@erpx/server-runtime/public/executive/metric-projection-contract';
 import type { MetricSnapshot, RawMetricRow } from '@erpx/server-runtime/public/executive/metric-projection-contract';
+/** Byte-identical org label fragment shared by the branch/department breakdowns.
+ * The alias, column and fallback stay caller-owned; the rendered SQL is unchanged. */
+const orgLabelSql = (alias: string, column: string, fallback: string) =>
+    `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=${alias}.${column} AND n.company_id=${alias}.company_id),'${fallback}')`;
 export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown): Promise<MetricSnapshot> {
     const spec = specs[id], scopedAlias = (alias: string) => `${alias}.company_id=? AND (?::text IS NULL OR ${alias}.branch_id=?) AND (?::text IS NULL OR ${alias}.department_id=?)`, scopeArgs = [a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId];
     const purchased=await crmMetricSource(sourceDb,a,id);
@@ -15,15 +19,15 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
     const referenceAtOverride: number | null = null;
     if (id === "opportunity-pipeline") {
         const label = breakdown === "status" ? "v.stage"
-            : breakdown === "branch" ? `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=l.branch_id AND n.company_id=l.company_id),'Company-wide')`
+            : breakdown === "branch" ? orgLabelSql("l","branch_id","Company-wide")
                 : breakdown === "month" ? "substring(v.close_date,1,7)" : "v.stage";
         sql = `SELECT ${label} label,sum(v.expected_minor)::text value FROM crm_opportunities v JOIN (${purchased.sql}) l ON l.id=v.lead_id WHERE ${scopedAlias("l")} AND v.currency=? AND v.close_date BETWEEN ? AND ? AND v.stage IN ('discovery','proposal','negotiation') GROUP BY 1 ORDER BY 1`;
         values = [...purchased.args,...scopeArgs, f.currency, f.from, f.to];
     }
     if (id === "overdue-followups") {
         const label = breakdown === "status" ? "c.status"
-            : breakdown === "branch" ? `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=o.branch_id AND n.company_id=o.company_id),'Company-wide')`
-                : breakdown === "department" ? `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=o.department_id AND n.company_id=o.company_id),'Unassigned')`
+            : breakdown === "branch" ? orgLabelSql("o","branch_id","Company-wide")
+                : breakdown === "department" ? orgLabelSql("o","department_id","Unassigned")
                     : breakdown === "month" ? "substring(c.due_date,1,7)" : "'Overdue follow-ups'";
         sql = `SELECT ${label} label,count(*)::text value FROM (${purchased.sql}) c JOIN (${commerceProjectionSources.commerce_orders}) o ON o.id=c.order_id AND o.company_id=c.company_id WHERE ${scopedAlias("o")} AND o.kind IN ('sales','quote') AND c.status='open' AND c.due_date BETWEEN ? AND ? AND c.due_date<to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') GROUP BY 1 ORDER BY 1`;
         values = [...purchased.args,...scopeArgs, f.from, f.to];
