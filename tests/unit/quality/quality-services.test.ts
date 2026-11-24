@@ -202,10 +202,10 @@ describe('quality package-obligation scope and clock CTE dedupe',()=>{
   const clockSites=[['packages/server-quality/src/adapters/record-purchases.ts','quality_source_clock'],['packages/server-quality/src/adapters/product-entry.ts','quality_entry_clock'],['packages/server-quality/src/adapters/calendar-quality-facts.ts','quality_calendar_clock']] as const;
   for(const [path,name] of clockSites){const text=readFileSync(source(path),'utf8');expect(text).toContain(`qualityClockCte("${name}")`);expect(text).not.toContain(`WITH ${name} AS MATERIALIZED (SELECT`);}
  });
- test('the owner TS statement KPI stays strictly below the r14 BEFORE=90 baseline',()=>{
+ test('the owner TS statement KPI stays strictly below the r15 BEFORE=84 baseline',()=>{
   const count=files(source('packages/server-quality/src')).reduce((total,path)=>total+(readFileSync(path,'utf8').match(/INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT /g)?.length??0),0);
-  expect(count).toBeLessThan(90);
-  expect(count).toBe(84);
+  expect(count).toBeLessThan(84);
+  expect(count).toBe(80);
  });
 });
 describe('quality command-receipt guard dedupe',()=>{
@@ -258,6 +258,40 @@ describe('quality hold child aggregate dedupe',()=>{
    expect(text).toContain('qualityChildAggSql(');
    expect(text).not.toMatch(/jsonb_agg\(to_jsonb\((i|c|d|inspection|event)\) ORDER BY \1\.id\) FROM inventory_quality_/);
   }
+ });
+});
+describe('quality r15 child aggregate family dedupe',()=>{
+ const source=(path:string)=>resolve(process.cwd(),path);
+ test('spec-metric and inspection-joined child aggregates stay byte-identical through the shared helpers',async()=>{
+  const {qualityChildAggSql,qualityJoinedChildAggSql}=await import('../../../packages/server-quality/src/adapters/quality-child-agg-sql');
+  const spec=[
+   ['inventory_quality_spec_metrics','m','spec_id','s.id'],
+   ['inventory_quality_spec_metrics','metric','spec_id','spec.id'],
+  ] as const;
+  for(const [table,alias,key,parent] of spec){
+   const sql=qualityChildAggSql(table,alias,key,parent);
+   expect(sql).toBe(`(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM ${table} ${alias} WHERE ${alias}.${key}=${parent})`);
+   expect(sql.match(/SELECT /g)).toHaveLength(1);
+  }
+  const joined=[
+   ['inventory_quality_measurements','m','m.id','inspection_id','h.id','(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.id) FROM inventory_quality_measurements m JOIN inventory_quality_inspections i ON i.id=m.inspection_id WHERE i.hold_id=h.id)'],
+   ['inventory_quality_inspection_attachments','a','a.inspection_id,a.attachment_id','inspection_id','h.id','(SELECT jsonb_agg(to_jsonb(a) ORDER BY a.inspection_id,a.attachment_id) FROM inventory_quality_inspection_attachments a JOIN inventory_quality_inspections i ON i.id=a.inspection_id WHERE i.hold_id=h.id)'],
+  ] as const;
+  for(const [table,alias,order,key,parent,before] of joined){
+   const sql=qualityJoinedChildAggSql(table,alias,order,key,parent);
+   expect(sql).toBe(before);
+   expect(sql.match(/SELECT /g)).toHaveLength(1);
+  }
+  const attach=readFileSync(source('packages/server-quality/src/adapters/attachment-read-sources.ts'),'utf8');
+  const supply=readFileSync(source('packages/server-quality/src/adapters/supply-package-obligations.ts'),'utf8');
+  expect(attach.match(/qualityChildAggSql\(/g)).toHaveLength(4);
+  expect(attach.match(/qualityJoinedChildAggSql\(/g)).toHaveLength(2);
+  expect(supply.match(/qualityChildAggSql\(/g)).toHaveLength(4);
+  expect(attach).not.toContain('jsonb_agg(to_jsonb(m) ORDER BY m.id) FROM inventory_quality_spec_metrics');
+  expect(supply).not.toContain('jsonb_agg(to_jsonb(metric) ORDER BY metric.id) FROM inventory_quality_spec_metrics');
+  expect(attach).not.toContain('jsonb_agg(to_jsonb(m) ORDER BY m.id) FROM inventory_quality_measurements');
+  expect(attach).not.toContain('jsonb_agg(to_jsonb(a) ORDER BY a.inspection_id,a.attachment_id) FROM inventory_quality_inspection_attachments');
+  expect(readFileSync(source('packages/server-quality/src/adapters/quality-child-agg-sql.ts'),'utf8').match(/SELECT /g)).toHaveLength(1);
  });
 });
 describe('quality source-rows family dedupe (r12)',()=>{

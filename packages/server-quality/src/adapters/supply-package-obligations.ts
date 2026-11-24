@@ -49,7 +49,7 @@ export async function supplyQualityPackageObligations(owner:PostgresDatabase,dat
  UNION ALL SELECT 'alert',alert.id,to_jsonb(alert),hold.status NOT IN ('released','cancelled','disposed') AND
  (alert.acknowledged_by IS NULL OR alert.acknowledged_at IS NULL OR NOT EXISTS(${qualityReceiptGuardSql('alert.id','quality.alert.acknowledge','hold.company_id','version','alert.version::text','alert.acknowledged_by')}))
  FROM inventory_quality_alerts alert JOIN holds hold ON hold.id=alert.hold_id
- UNION ALL SELECT 'specification',spec.id,jsonb_build_array(to_jsonb(spec),(SELECT jsonb_agg(to_jsonb(metric) ORDER BY metric.id) FROM inventory_quality_spec_metrics metric WHERE metric.spec_id=spec.id)),
+ UNION ALL SELECT 'specification',spec.id,jsonb_build_array(to_jsonb(spec),${qualityChildAggSql('inventory_quality_spec_metrics','metric','spec_id','spec.id')}),
  NOT COALESCE((spec.status IN ('active','superseded') AND spec.approved_by IS NOT NULL AND spec.activated_at IS NOT NULL AND EXISTS(${qualityReceiptGuardSql('spec.id','quality.spec.activate','spec.company_id','status',"'active'",'spec.approved_by')}))
  OR(spec.status='cancelled' AND EXISTS(${qualityReceiptGuardSql('spec.id','quality.spec.cancel','spec.company_id','status',"'cancelled'")})),false)
  FROM inventory_quality_specs spec,scope WHERE spec.company_id=scope.company_id ORDER BY kind,id`).bind(input.companyId,input.packageId==="supply").all<{kind:string;id:string;fact:unknown;pending:boolean}>()).results;
