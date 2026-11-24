@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11235,
+    "revision": 11239,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -171375,7 +171375,7 @@
         "owner": "customer_authority",
         "title": "customer_authority TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -171387,22 +171387,37 @@
         "resources": [
           "owner:customer_authority"
         ],
-        "claim": {
-          "runId": "run-20261124-b",
-          "agentId": "wGCMcaf",
-          "claimedAt": "2026-11-24T10:16:14.301Z",
-          "heartbeatAt": "2026-11-24T10:20:25.536Z",
-          "expiresAt": "2026-11-24T10:50:25.536Z",
-          "generation": 168
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-customer_authority/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ce80edd1a",
+            "owner": "customer_authority",
+            "before": 39,
+            "after": 34,
+            "note": "Six SELECT 1 helpers share selectOneProbe via thin named wrappers; locks, native kinds, portal source locks and eligibility helpers untouched."
+          },
+          {
+            "command": "vitest CA r21-r39 (80) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "ce80edd1a"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Rank 1 selectOneProbe: six SELECT 1 helper literals -> one builder (-5, or -7 with portal-read-purchases). Keep named thin wrappers; locks/native/eligibility untouched. BEFORE=39.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMcaf",
+          "at": "2026-11-24T10:25:50.766Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -171699,7 +171714,7 @@
         "owner": "inventory",
         "title": "inventory TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -171711,22 +171726,37 @@
         "resources": [
           "owner:inventory"
         ],
-        "claim": {
-          "runId": "run-20261124-b",
-          "agentId": "wGCMinve",
-          "claimedAt": "2026-11-24T10:18:11.034Z",
-          "heartbeatAt": "2026-11-24T10:20:25.536Z",
-          "expiresAt": "2026-11-24T10:50:25.536Z",
-          "generation": 168
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-inventory/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "f96e58f9e",
+            "owner": "inventory",
+            "before": 340,
+            "after": 339,
+            "note": "Reserved stock alias and reserved availability bound reads share reservedAvailabilitySumSql; locks, count sources, native transport and r11-r38 untouched."
+          },
+          {
+            "command": "vitest inventory r35-r39 (31) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "f96e58f9e"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Find a NEW byte-identical/parameterized SELECT-head family outside r11-r38; locks, count sources and native transport untouched. BEFORE=340.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMinve",
+          "at": "2026-11-24T10:25:51.597Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -172100,17 +172130,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 30,
+        "in_progress": 28,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1190,
+        "blocked": 1192,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 168,
-    "updatedAt": "2026-11-24T10:25:13.646Z",
+    "updatedAt": "2026-11-24T10:25:51.604Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
