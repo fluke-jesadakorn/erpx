@@ -17,15 +17,16 @@ export type BillingJobEnv = BetaEnvironment & {
 };
 import {createBillingJobs,type BillingJobRepository,type BillingInboxRow} from '@erpx/server-billing/application/jobs';
 import {nativeBillingOwnerQuery,nativeBillingOwnerBind} from '@erpx/server-billing/adapters/native-billing-owner-write';
+import {BILLING_INVOICE_BY_ID_SQL,BILLING_ACCOUNT_BY_HOLDING_SQL,BILLING_CUSTOMER_BY_HOLDING_SQL} from './billing-read-tail-r15-sql';
 import type {BillingAccount,BillingInvoiceRow,BillingJobRow} from '@erpx/server-billing/domain/billing';
 import {billingTestFinanceReady} from '@erpx/server-commerce/public/billing-test-finance-ready';
-function nativeJobRepository(c:PoolClient):BillingJobRepository{return {invoice:(v0)=>c.query<BillingInvoiceRow>("SELECT * FROM billing_invoices WHERE id=$1",[v0]),
+function nativeJobRepository(c:PoolClient):BillingJobRepository{return {invoice:(v0)=>c.query<BillingInvoiceRow>(BILLING_INVOICE_BY_ID_SQL,[v0]),
 mirrorInvoiceState:(v0,v1,v2,v3,v4,v5,v6)=>nativeBillingOwnerQuery(c, 'mirror_invoice_state', [v0,v1,v2,v3,v4,v5,v6]),
 releaseVoidedCosts:(v0)=>nativeBillingOwnerQuery(c, 'release_voided_costs', [v0]),
 markVoidedPeriodIncomplete:(v0)=>nativeBillingOwnerQuery(c, 'mark_voided_period_incomplete', [v0]),
 retainTestFinanceProjection:(v0,v1,v2,v3,v4,v5,v6,v7,v8,v9,v10)=>nativeBillingOwnerQuery(c, 'retain_test_finance_projection', [v0,v1,v2,v3,v4,v5,v6,v7,v8,v9,v10]),
-jobInvoice:(v0)=>c.query<BillingInvoiceRow>("SELECT * FROM billing_invoices WHERE id=$1",[v0]),
-jobAccount:(v0)=>c.query<BillingAccount>("SELECT * FROM billing_accounts WHERE holding_id=$1",[v0]),
+jobInvoice:(v0)=>c.query<BillingInvoiceRow>(BILLING_INVOICE_BY_ID_SQL,[v0]),
+jobAccount:(v0)=>c.query<BillingAccount>(BILLING_ACCOUNT_BY_HOLDING_SQL,[v0]),
 retainJobProgress:(v0,v1)=>nativeBillingOwnerQuery(c, 'retain_job_progress', [v0,v1]),
 retainStripeInvoice:(v0,v1)=>nativeBillingOwnerQuery(c, 'retain_stripe_invoice', [v0,v1]),
 retainInvoiceMode:(v0,v1)=>nativeBillingOwnerQuery(c, 'retain_invoice_mode', [v0,v1]),
@@ -33,15 +34,15 @@ completeJob:(v0)=>nativeBillingOwnerQuery(c, 'complete_job', [v0]),
 tryHoldingLock:(v0)=>c.query<{locked:boolean}>("SELECT pg_try_advisory_lock(hashtextextended($1,0)) AS locked",[v0]),
 begin:()=>c.query<Record<string,unknown>>("BEGIN",[]),
 commit:()=>c.query<Record<string,unknown>>("COMMIT",[]),
-currentAccount:(v0)=>c.query<BillingAccount>("SELECT * FROM billing_accounts WHERE holding_id=$1",[v0]),
+currentAccount:(v0)=>c.query<BillingAccount>(BILLING_ACCOUNT_BY_HOLDING_SQL,[v0]),
 retainCurrentCard:(v0,v1)=>nativeBillingOwnerQuery(c, 'retain_current_card', [v0,v1]),
 pendingJobs:(v0,v1)=>c.query<BillingJobRow>("SELECT * FROM billing_jobs WHERE holding_id=$1 AND state='pending' AND next_at<=$2 ORDER BY created_at,id LIMIT 10",[v0,v1]),
 rescheduleJob:(v0,v1,v2,v3)=>nativeBillingOwnerQuery(c, 'reschedule_job', [v0,v1,v2,v3]),
 pendingEvents:(v0,v1)=>c.query<BillingInboxRow>("SELECT * FROM stripe_inbox WHERE state='pending' AND next_at<=$1 AND payload_json::jsonb #>> '{data,object,customer}'=(SELECT customer_id FROM billing_accounts WHERE holding_id=$2) ORDER BY created_at,id LIMIT 50",[v0,v1]),
 eventInvoices:(v0,v1)=>c.query<{id:string}>("SELECT id FROM billing_invoices WHERE holding_id=$1 AND stripe_id=$2",[v0,v1]),
-setupCustomer:(v0)=>c.query<{customer_id:string|null}>("SELECT customer_id FROM billing_accounts WHERE holding_id=$1",[v0]),
+setupCustomer:(v0)=>c.query<{customer_id:string|null}>(BILLING_CUSTOMER_BY_HOLDING_SQL,[v0]),
 retainSetupState:(v0,v1)=>nativeBillingOwnerQuery(c, 'retain_setup_state', [v0,v1]),
-verifiedSetupCustomer:(v0)=>c.query<{customer_id:string|null}>("SELECT customer_id FROM billing_accounts WHERE holding_id=$1",[v0]),
+verifiedSetupCustomer:(v0)=>c.query<{customer_id:string|null}>(BILLING_CUSTOMER_BY_HOLDING_SQL,[v0]),
 retainSetupCard:(v0,v1)=>nativeBillingOwnerQuery(c, 'retain_setup_card', [v0,v1]),
 applyEvent:(v0,v1)=>nativeBillingOwnerQuery(c, 'apply_stripe_event', [v0,v1]),
 rescheduleEvent:(v0,v1,v2)=>nativeBillingOwnerQuery(c, 'reschedule_stripe_event', [v0,v1,v2]),
