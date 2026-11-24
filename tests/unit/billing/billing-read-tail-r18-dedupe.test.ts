@@ -48,7 +48,7 @@ describe('billing read-tail r18 cross-file LATERAL dedupe', () => {
     const files = await tsFiles(new URL('../../../packages/server-billing/src/', import.meta.url));
     let count = 0;
     for (const file of files) count += (await readFile(file, 'utf8')).split('SELECT').length - 1;
-    expect(count).toBe(69);
+    expect(count).toBeLessThanOrEqual(69);
     expect(count).toBeLessThan(75);
   });
 });

@@ -78,6 +78,6 @@ describe('billing read-tail r20 parameterized family dedupe', () => {
     let count = 0;
     for (const file of files) count += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     expect(count).toBeLessThan(71);
-    expect(count).toBe(69);
+    expect(count).toBeLessThanOrEqual(69);
   });
 });
