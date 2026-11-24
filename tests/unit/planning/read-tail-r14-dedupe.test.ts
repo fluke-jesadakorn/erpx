@@ -103,8 +103,9 @@ describe('Planning read-tail r14 parameterized ordered jsonb_agg family', () => 
       }
     };
     walk(srcRoot);
-    // r15 shared the two attachment image-source heads through planningImageSourceRows (26 -> 25).
-    expect(total).toBe(25);
+    // r15 shared the two attachment image-source heads (26 -> 25); r16 folded
+    // the three purchase witness rows into the generalized source-row head (25 -> 22).
+    expect(total).toBe(22);
     expect(total).toBeLessThan(27);
   });
 });

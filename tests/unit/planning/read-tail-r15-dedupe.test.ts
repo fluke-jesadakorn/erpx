@@ -108,7 +108,9 @@ describe('Planning read-tail r15 parameterized image-source row family', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(25);
+    // r16 folded the three purchase witness rows into the generalized
+    // source-row head (25 -> 22) while keeping every emitted SQL byte-identical.
+    expect(total).toBe(22);
     expect(total).toBeLessThan(26);
   });
 });
