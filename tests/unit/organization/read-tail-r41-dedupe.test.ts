@@ -64,7 +64,7 @@ describe('Organization read-tail r41 byte-identical families', () => {
     };
     walk(srcRoot);
     // r41 collapses three relocation-snapshot reads into one shared source (-2).
-    expect(space).toBe(237);
+    expect(space).toBe(234);
     expect(space).toBeLessThan(251);
   });
 });

@@ -1,6 +1,7 @@
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import {branchNodeOptions} from './organization-read-tail-sources-r49';
 const query = async <T>(db: SqlDatabase, sql: string, ...values: unknown[]) => (await db
     .prepare(sql)
     .bind(...values)
@@ -14,7 +15,7 @@ export function pmsOrganizationFacts(db: SqlDatabase) {
         }) => query<{
             id: string;
             name: string;
-        }>(db, `SELECT id,display_name name FROM organization_nodes WHERE company_id=? AND kind='branch' AND status='active'${facts.actor.branchId ? " AND id=?" : ""}`, facts.companyId, ...facts.fact1),
+        }>(db, branchNodeOptions(`status='active'${facts.actor.branchId ? " AND id=?" : ""}`), facts.companyId, ...facts.fact1),
         readOrganizationNodes2: (facts: {
             branchId: string;
             companyId: string;
