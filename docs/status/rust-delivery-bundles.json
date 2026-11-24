@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12284,
+    "revision": 12286,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -182112,7 +182112,7 @@
         "owner": "support",
         "title": "support portal installed native kind",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -182124,22 +182124,37 @@
         "resources": [
           "owner:support"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n42",
-          "claimedAt": "2026-11-24T14:18:46.842Z",
-          "heartbeatAt": "2026-11-24T14:30:19.045Z",
-          "expiresAt": "2026-11-24T15:00:19.045Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-support/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "16a697ec7",
+            "owner": "support",
+            "before": 43,
+            "after": 42,
+            "note": "Portal both-tables installed probe native support_rd_ticket_portal_installed (0 binds), registry 37->38; single-table kind/locks/assertions untouched."
+          },
+          {
+            "command": "cargo test support (96) + vitest support (207) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "16a697ec7"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Portal both-tables installed probe native zero-bind kind, registry 37->38: 43->42.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n42",
+          "at": "2026-11-24T14:33:55.602Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -182499,17 +182514,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 5,
+        "in_progress": 4,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1416,
+        "blocked": 1417,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T14:32:01.473Z",
+    "updatedAt": "2026-11-24T14:33:55.606Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
