@@ -1,7 +1,8 @@
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
+import {legalSettingsEnabledSql} from './legal-read-tail-r9-sources';
 export function pmsRolloutLegalFacts(db: SqlDatabase) {
     return {
-        legal: (companyId: string) => db.prepare('SELECT 1 FROM legal_settings WHERE company_id=? AND enabled').bind(companyId).first()
+        legal: (companyId: string) => db.prepare(legalSettingsEnabledSql).bind(companyId).first()
     };
 }

@@ -8,8 +8,9 @@ import {validateLegalDestructionSources,sealLegalDestructionSources} from "@erpx
 import {createLegalDestructionWorker,type LegalDestructionWork} from "@erpx/server-legal/application/destruction-worker";
 import { legalDestructionWorker } from '@erpx/server-collaboration/adapters/native-legal-destruction-worker';
 import {legalHoldGuardPrefix,legalHoldGuardSuffix} from '../legal-hold-guard-sources';
+import {legalFilesAdvisoryLockSql} from '../legal-read-tail-r9-sources';
 function work(db:SqlDatabase,files:FileStore,companyId:string):LegalDestructionWork{const nw=legalDestructionWorker(db,companyId);return {
-beginJournal:async ()=>{await db.prepare("SELECT pg_advisory_xact_lock(hashtextextended('legal-files',0))").run();},
+beginJournal:async ()=>{await db.prepare(legalFilesAdvisoryLockSql).run();},
 approvedDestruction:(facts:{id:string;})=>db.prepare("SELECT x.*,i.company_id FROM legal_destructions x JOIN legal_items i ON i.id=x.item_id WHERE x.id=? AND x.state='approved' FOR UPDATE OF x,i").bind(facts.id).first<{
           id: string;
           item_id: string;
@@ -21,7 +22,7 @@ stillEligible:(facts:{item_id:string;policy_id:string;policy_version:number;now:
 blockDestruction:async (facts:{id:string;})=>{await (await nw.block(facts)).run();},
 startExecution:async (facts:{now:number;id:string;})=>{await (await nw.start(facts)).run();},
 recordStarted:async (facts:{identifier:string;fact1:string;now:number;item_id:string;})=>{await (await nw.startedEvent(facts)).run();},
-beginExecution:async ()=>{await db.prepare("SELECT pg_advisory_xact_lock(hashtextextended('legal-files',0))").run();},
+beginExecution:async ()=>{await db.prepare(legalFilesAdvisoryLockSql).run();},
 executingDestruction:(facts:{id:string;})=>db.prepare("SELECT x.*,i.company_id,i.version item_version FROM legal_destructions x JOIN legal_items i ON i.id=x.item_id WHERE x.id=? AND x.state='executing' FOR UPDATE OF x,i").bind(facts.id).first<{
           id: string;
           item_id: string;

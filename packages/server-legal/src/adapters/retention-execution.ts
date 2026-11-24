@@ -16,6 +16,8 @@ import { legalRetentionAuthorization } from '@erpx/server-collaboration/adapters
 type Source={id:string;item_id:string;company_id:string;kind:LegalKind;item_version:number;requested_by:string;approved_by:string|null;image:string};
 async function source(database:SqlDatabase,id:string){return database.prepare(`SELECT x.id,x.item_id,i.company_id,i.kind,i.version item_version,x.requested_by,x.approved_by,jsonb_build_object('request',x.id,'item',i.id,'company',i.company_id,'branch',i.branch_id,'department',i.department_id,'kind',i.kind,'classification',i.classification,'state',i.state,'version',i.version,'requester',x.requested_by,'approver',x.approved_by,'manifest',x.manifest,'policyId',x.policy_id,'policyVersion',x.policy_version,'policy',to_jsonb(p))::text image FROM legal_destructions x JOIN legal_items i ON i.id=x.item_id JOIN legal_retention_policies p ON p.id=x.policy_id AND p.company_id=i.company_id WHERE x.id=?`).bind(id).first<Source>();}
 const hash=(image:string)=>createHash('sha256').update(image).digest('hex');
+/** Byte-identical independent-review guard; both assertions prepare and run it. */
+const samePersonSql = 'SELECT iam_same_person(?,?,?) same';
 function queuedAuthority(actor:WorkContext){const {holdingId,holdingSlug,holdingName,companyId,branchId,departmentId,userId,assignmentId,role,authority,iam,name,email,scope,assignmentScope,inherited,modules}=actor;return {holdingId,holdingSlug,holdingName,companyId,branchId,departmentId,userId,assignmentId,role,authority,iam,name,email,scope,assignmentScope,inherited,modules,assignments:[],workspaces:[]};}
 /** Called only after the original complete approve/retry receipt in its owned
  * transaction. Original approvals and populated legacy rows are never rewritten. */
@@ -23,7 +25,7 @@ export async function recordLegalRetentionExecution(database:SqlDatabase,actor:W
  if(await legalPackageEnforcementMode()==='disabled'||!['retention.approve','retention.retry'].includes(operation))return;
  const input=raw as {requestId?:unknown},id=typeof input?.requestId==='string'?input.requestId:null,original=id?await source(database,id):null;
  if(!original||original.company_id!==actor.companyId||!original.approved_by)throw new ApiError(409,'LEGAL_RETENTION_SOURCE_CHANGED','The original approved destruction source is unavailable.');
- if(await database.prepare('SELECT iam_same_person(?,?,?) same').bind(actor.userId,original.requested_by,actor.companyId).first<boolean>('same'))throw new ApiError(403,'LEGAL_INDEPENDENT_REVIEW','An independent current manager must authorize retained destruction work.');
+ if(await database.prepare(samePersonSql).bind(actor.userId,original.requested_by,actor.companyId).first<boolean>('same'))throw new ApiError(403,'LEGAL_INDEPENDENT_REVIEW','An independent current manager must authorize retained destruction work.');
  if(operation==='retention.approve'&&original.approved_by!==actor.userId)throw new ApiError(409,'LEGAL_RETENTION_SOURCE_CHANGED','The original approval identity changed.');
  const bound=await requireQueuedCommandAuthority(database,actor,'legal.destroy');
  await requireSourceAccess(database,bound,original.item_id);
@@ -39,7 +41,7 @@ async function assertCurrent(database:SqlDatabase,id:string){
  await requireQueuedCommandAuthority(database,actor,'legal.destroy');
  await requireSourceAccess(database,actor,original.item_id);
  if(await database.prepare("SELECT 1 FROM legal_hold_targets t JOIN legal_holds h ON h.id=t.hold_id WHERE t.item_id=? AND h.state<>'released'").bind(original.item_id).first())throw new ApiError(409,'LEGAL_HOLD','A current Legal hold prevents deletion.');
- if(await database.prepare('SELECT iam_same_person(?,?,?) same').bind(actor.userId,original.requested_by,actor.companyId).first<boolean>('same'))throw new ApiError(403,'LEGAL_INDEPENDENT_REVIEW','The retained destruction requires its independent authorized reviewer.');
+ if(await database.prepare(samePersonSql).bind(actor.userId,original.requested_by,actor.companyId).first<boolean>('same'))throw new ApiError(403,'LEGAL_INDEPENDENT_REVIEW','The retained destruction requires its independent authorized reviewer.');
  const mode=await legalPackageEnforcementMode();for(const capability of [legalKindCapability(original.kind),'legal.obligations'])await checkPurchasedCapability(database,mode,{companyId:original.company_id,capability,purpose:'history'});
 }
 /** These units preserve the existing durable journal before physical deletion.

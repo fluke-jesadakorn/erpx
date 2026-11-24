@@ -14,13 +14,14 @@ import {featureSpecs,featureKinds,type FeatureRow} from "@erpx/feature-legal/lib
 import {createLegalFeaturesApplication} from "@erpx/server-legal/application/features";
 import { legalFeatureStatements } from '@erpx/server-collaboration/adapters/native-legal-features';
 import {legalMembershipSql} from '../legal-members-read-sources';
+import {legalDocumentsItemPairSql} from '../legal-read-tail-r9-sources';
 function application(db:SqlDatabase,a:WorkContext){const nativeWrites=new WeakMap<LegalWrite,SqlStatement>();const nativeFeatures=legalFeatureStatements(db,a.companyId,a.userId);const stage=(statement:SqlStatement):LegalWrite=>{const write:LegalWrite={owner:"legal"};nativeWrites.set(write,statement);return write;};
 return createLegalFeaturesApplication({actor:a,access:(id,p)=>access(db,a,id,p),eligible:(id,item,p)=>eligible(db,a,id,item,p),samePerson:id=>samePerson(a,id),require:permission=>requirePermission(a,permission),clock:{now:()=>Date.now()},identifiers:{next:()=>crypto.randomUUID()},error:(status,code,message)=>new ApiError(status,code,message),repository:{
 featureCount:(facts:{id:string;search:string;search2:string;capability:(typeof featureKinds)[number];})=>db.prepare(`SELECT count(*) n FROM ${featureSpecs[facts.capability].table} WHERE item_id=? AND (?='' OR strpos(lower(title||' '||data::text),lower(?))>0)`).bind(facts.id,facts.search,facts.search2).first("n"),
 features:(facts:{id:string;search:string;search2:string;fact3:number;capability:(typeof featureKinds)[number];})=>db.prepare(`SELECT * FROM ${featureSpecs[facts.capability].table} WHERE item_id=? AND (?='' OR strpos(lower(title||' '||data::text),lower(?))>0) ORDER BY updated_at DESC,id LIMIT 50 OFFSET ?`).bind(facts.id,facts.search,facts.search2,facts.fact3).all<FeatureRow>(),
 feature:(facts:{featureId:string;itemId:string;capability:(typeof featureKinds)[number];})=>db.prepare(`SELECT * FROM ${featureSpecs[facts.capability].table} WHERE id=? AND item_id=?`).bind(facts.featureId,facts.itemId).first<FeatureRow>(),
 ownerMembership:(facts:{itemId:string;ownerId:string;})=>db.prepare(legalMembershipSql).bind(facts.itemId,facts.ownerId).first(),
-attachedDocument:(facts:{documentId:string;itemId:string;})=>db.prepare("SELECT 1 FROM legal_documents WHERE id=? AND item_id=?").bind(facts.documentId,facts.itemId).first(),
+attachedDocument:(facts:{documentId:string;itemId:string;})=>db.prepare(legalDocumentsItemPairSql).bind(facts.documentId,facts.itemId).first(),
 async createFeature(facts){return stage(await nativeFeatures.createFeature({...facts,table:featureSpecs[facts.capability].table}));},
 conflictCleared:(facts:{itemId:string;})=>db.prepare("SELECT 1 FROM legal_counsel_entries WHERE item_id=? AND data->>'entryType'='conflict' AND state IN ('approved','closed')").bind(facts.itemId).first(),
 approvedFees:(facts:{itemId:string;id:string;})=>db.prepare("SELECT coalesce(sum(coalesce(nullif(data->>'amount',''),'0')::bigint),0) amount FROM legal_counsel_entries WHERE item_id=? AND id<>? AND state IN ('approved','billed','closed') AND data->>'entryType' IN ('fee','invoice')").bind(facts.itemId,facts.id).first<{ amount: number }>(),

@@ -19,6 +19,7 @@ import type {DocumentVersion} from "@erpx/server-legal/domain/model";
 import {legalPortalActor,type PortalActor} from "@erpx/server-legal/domain/portal";
 import {createLegalPortalApplication,type LegalPortalWrite,type LegalPortalUnit,type LegalPortalRepository,type LegalPortalShare,type LegalPortalShareFacts} from "@erpx/server-legal/application/portal";
 import { legalPortalWrites } from '@erpx/server-collaboration/adapters/native-legal-portal-writes';
+import {legalSettingsEnabledSql,legalDocumentByIdSql} from '../legal-read-tail-r9-sources';
 export type {PortalActor} from "@erpx/server-legal/domain/portal";
 /** Shared read of a portal idempotency receipt by key and actor; both upload
  * repository methods assert the same authority-bound row. */
@@ -37,10 +38,10 @@ comments:(facts:{item_id:string;document_id:string;})=>db.prepare("SELECT body,c
 envelopes:(facts:{item_id:string;document_id:string;actorId:string;})=>db.prepare("SELECT e.id,e.state,e.consent,e.expires_at,s.state signer_state,s.viewed_at FROM legal_envelopes e JOIN legal_signers s ON s.envelope_id=e.id WHERE e.item_id=? AND e.document_id=? AND s.user_id=? ORDER BY e.created_at DESC LIMIT 10").bind(facts.item_id,facts.document_id,facts.actorId).all(),
 viewRead:facts=>(async()=>{await (await nw.accessEvent({...facts,action:facts.fact4})).run();return {results:[]};})(),
 billing:(facts:{item_id:string;actorId:string;})=>db.prepare("SELECT id,title,state,data,version FROM legal_counsel_entries WHERE item_id=? AND created_by=? ORDER BY updated_at DESC LIMIT 100").bind(facts.item_id,facts.actorId).all<{id:string;title:string;state:string;data:unknown;version:number}>(),
-document:(facts:{document_id:string;})=>db.prepare("SELECT * FROM legal_documents WHERE id=?").bind(facts.document_id).first<DocumentVersion>(),
+document:(facts:{document_id:string;})=>db.prepare(legalDocumentByIdSql).bind(facts.document_id).first<DocumentVersion>(),
 downloadRead:facts=>(async()=>{await (await nw.accessEvent({companyId:facts.companyId,identifier:facts.identifier,item_id:facts.item_id,document_id:facts.id,actorId:facts.actorId,action:facts.fact4,now:facts.now})).run();return {results:[]};})(),
 receipt:(facts:{key:string;})=>db.prepare("SELECT * FROM legal_portal_receipts WHERE id=?").bind(facts.key).first<{ user_id: string; request_hash: string; result_json: string }>(),
-enabled:(facts:{company_id:string;})=>db.prepare("SELECT 1 FROM legal_settings WHERE company_id=? AND enabled").bind(facts.company_id).first(),
+enabled:(facts:{company_id:string;})=>db.prepare(legalSettingsEnabledSql).bind(facts.company_id).first(),
 acceptShare:facts=>(async()=>{await (await nw.acceptShare(facts)).run();return {results:[]};})(),
 externalComment:facts=>(async()=>{await (await nw.externalComment(facts)).run();return {results:[]};})(),
 counselEntry:facts=>(async()=>{await (await nw.counselEntry(facts)).run();return {results:[]};})(),
@@ -57,7 +58,7 @@ viewEnvelope:facts=>(async()=>{await (await nw.viewEnvelope(facts)).run();return
 interactionEvent:facts=>(async()=>{await (await nw.interactionEvent(facts)).run();return {results:[]};})(),
 interactionReceipt:facts=>(async()=>{await (await nw.receipt(facts)).run();return {results:[]};})(),
 uploadReceipt:(facts:{key:string;actorId:string;})=>db.prepare(portalReceiptReadSql).bind(facts.key,facts.actorId).first<{ request_hash: string; result_json: string }>(),
-uploadEnabled:(facts:{company_id:string;})=>db.prepare("SELECT 1 FROM legal_settings WHERE company_id=? AND enabled").bind(facts.company_id).first(),
+uploadEnabled:(facts:{company_id:string;})=>db.prepare(legalSettingsEnabledSql).bind(facts.company_id).first(),
 uploadReplay:(facts:{key:string;actorId:string;})=>db.prepare(portalReceiptReadSql).bind(facts.key,facts.actorId).first<{ request_hash: string; result_json: string }>(),
 externalUpload:facts=>(async()=>{await (await nw.externalUpload(facts)).run();return {results:[]};})(),
 bindLink:async facts=>stage(await legalNative.bindLink(facts)),

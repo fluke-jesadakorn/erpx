@@ -10,6 +10,7 @@ import type { LegalItem, LegalKind } from "@erpx/server-legal/public/rules/model
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { productionFeatureGuard } from "@erpx/server-pms/public/feature-availability";
 import { legalEvent } from '@erpx/server-collaboration/adapters/native-legal-event';
+import {legalFilesAdvisoryLockSql} from '../legal-read-tail-r9-sources';
 export const tables: Record<LegalKind, string> = {
   request: "legal_requests",
   matter: "legal_matters",
@@ -79,9 +80,7 @@ export function guards(
 ): SqlStatement[] {
   const v = visibility(a);
   return [
-    db.prepare(
-      "SELECT pg_advisory_xact_lock(hashtextextended('legal-files',0))",
-    ),
+    db.prepare(legalFilesAdvisoryLockSql),
     lock(db, a.companyId),
     ...(preparation&&!a.branchId&&!a.departmentId&&hasPermission(a,"legal.manage")?[assertion(db,key,"legal-preparation-only","EXISTS(SELECT 1 FROM legal_items WHERE id=? AND kind IN ('rule','template'))",[id])]:productionFeatureGuard(db,key,a.companyId,"legal")),
     ...(!allowFrozen
