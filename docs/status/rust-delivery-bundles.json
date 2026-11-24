@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12122,
+    "revision": 12124,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -180366,7 +180366,7 @@
         "owner": "inventory",
         "title": "inventory r14 journal leftover and schema readiness probes",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -180378,22 +180378,37 @@
         "resources": [
           "owner:inventory"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n07",
-          "claimedAt": "2026-11-24T13:26:22.279Z",
-          "heartbeatAt": "2026-11-24T13:37:42.857Z",
-          "expiresAt": "2026-11-24T14:07:42.857Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-inventory/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "5ec9d6191",
+            "owner": "inventory",
+            "before": 320,
+            "after": 316,
+            "note": "Sales count journal reuses r14 helper; readiness probes use schemaReadySql whitelist; inList shared (attachment canonicalizes IN() spacing; native mirror untouched)."
+          },
+          {
+            "command": "vitest inventory r12-r46 (33) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "5ec9d6191"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Rank1 sales count journal reuses r14 helper (-1), Rank2 schemaReadySql whitelist (-2), Rank3 jsonb inList fragment (-1): 320->316.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n07",
+          "at": "2026-11-24T13:39:19.873Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -180620,17 +180635,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 7,
+        "in_progress": 6,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1376,
+        "blocked": 1377,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T13:38:12.572Z",
+    "updatedAt": "2026-11-24T13:39:19.876Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
