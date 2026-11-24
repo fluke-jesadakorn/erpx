@@ -19,6 +19,7 @@ import {createCRMIdentityApplication,type CRMIdentityPorts,type CRMIdentityMutat
 import {crmIdentityCommand} from "@erpx/server-crm/domain/identities";
 import {requireCRMPurchasedRead,crmReferenceHistory,crmReferencePurchaseControls,withCRMPurchasedCommand,crmNativeReadFilter,type CRMPurchaseTarget} from "@erpx/server-crm/adapters/purchases";
 import {crmCreatorLeadScopeSql} from "./read-tail-r24-sql";
+import {crmGuestLinkReservationSourceSql} from "./read-tail-r26-sql";
 /** G4 r24: the creator (created_by) lead-scope guards render through the one
  * owner helper; every rendered string stays byte-identical to the prior text. */
 const contactScopeSql=crmCreatorLeadScopeSql('acc','l','l.contact_id=c.id','');
@@ -38,13 +39,9 @@ async identities(){const write=await database(); const [accounts,contacts,custom
   .bind(a.companyId,a.branchId,a.branchId,a.branchId,a.userId,a.branchId,a.departmentId,a.departmentId).all<Row>()).results:[];
  return {accounts:accounts.results,contacts:contacts.results,customers:customers.results,guestLinks};},
 async contact(contactId){const write=await database();return await write.prepare(`SELECT c.id,c.name,c.account_id FROM crm_contacts c JOIN crm_accounts acc ON acc.id=c.account_id WHERE c.id=? AND c.company_id=? AND ${contactScopeSql}`).bind(contactId,a.companyId,a.branchId,a.userId,a.branchId,a.departmentId,a.departmentId).first<Row>();},
-async stays(contactId){const write=await database();return (await write.prepare(`SELECT g.guest_id,r.id reservation_id,r.data_json::jsonb->>'state' reservation_state,
+async stays(contactId){const write=await database();return (await write.prepare(crmGuestLinkReservationSourceSql(`g.guest_id,r.id reservation_id,r.data_json::jsonb->>'state' reservation_state,
   s.id stay_id,s.data_json::jsonb->>'state' stay_state,s.data_json::jsonb->>'arrival' arrival,
-  s.data_json::jsonb->>'departure' departure,p.id property_id
-  FROM crm_guest_links g JOIN (${pmsProjectionSources.pms_properties}) p ON p.id=g.property_id AND p.company_id=g.company_id
-  JOIN (${pmsProjectionSources.pms_records}) r ON r.property_id=p.id AND r.kind='reservation' AND r.data_json::jsonb->>'guestId'=g.guest_id
-  LEFT JOIN (${pmsProjectionSources.pms_records}) s ON s.property_id=p.id AND s.kind='stay' AND s.data_json::jsonb->>'reservationId'=r.id
-  WHERE g.sharing_state='granted' AND g.contact_id=? AND g.company_id=? AND (?::text IS NULL OR p.branch_id=?) ORDER BY r.updated_at DESC,s.id LIMIT 201`).bind(contactId,a.companyId,a.branchId,a.branchId).all<Row>()).results;},commit:async(mutation,result)=>commit(await database(),a,mutation,result),
+  s.data_json::jsonb->>'departure' departure,p.id property_id`,pmsProjectionSources.pms_properties,pmsProjectionSources.pms_records,`\n  LEFT JOIN (${pmsProjectionSources.pms_records}) s ON s.property_id=p.id AND s.kind='stay' AND s.data_json::jsonb->>'reservationId'=r.id`,' ORDER BY r.updated_at DESC,s.id LIMIT 201','\n  ')).bind(contactId,a.companyId,a.branchId,a.branchId).all<Row>()).results;},commit:async(mutation,result)=>commit(await database(),a,mutation,result),
 };return createCRMIdentityApplication(ports);}
 async function commit<Result>(write:SqlDatabase,a:WorkContext,m:CRMIdentityMutation,result:Result):Promise<Result>{
  const {input:i,recordId,key,now,version}=m;
