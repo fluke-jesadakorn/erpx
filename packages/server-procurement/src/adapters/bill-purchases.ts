@@ -1,5 +1,6 @@
 import "server-only";
 import {receiptImage} from './read-tail-r19';
+import {sourceImage} from './read-tail-r31';
 import {randomUUID} from "node:crypto";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {iamMutationGuards} from "@erpx/server-identity_access/public/iam-store";
@@ -28,7 +29,7 @@ export async function withSupplierBillPurchasedRead<Result>(actor:WorkContext,ru
 export {supplierBillOwnerPredicate} from "@erpx/server-procurement/adapters/bill-source-sql";
 const scoped=branchDepartmentScope("m");
 async function image(database:SqlDatabase,actor:WorkContext,id:string){
- return database.prepare(`SELECT jsonb_build_object('bill',to_jsonb(m),'receipts',${receiptImage("m.id")})::text image FROM procurement_bill_matches m JOIN commerce_fulfillments primary_receipt ON primary_receipt.id=m.fulfillment_id AND primary_receipt.order_id=m.order_id JOIN commerce_orders primary_order ON primary_order.id=m.order_id AND primary_order.company_id=m.company_id AND primary_order.kind='purchase' WHERE m.id=? AND ${scoped} AND ${billReceiptBinding(false,"br","m")} AND ${foreignBillReceiptWitness("m")}`).bind(id,actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId).first<string>("image");
+ return database.prepare(sourceImage(`jsonb_build_object('bill',to_jsonb(m),'receipts',${receiptImage("m.id")})::text image`,`procurement_bill_matches m JOIN commerce_fulfillments primary_receipt ON primary_receipt.id=m.fulfillment_id AND primary_receipt.order_id=m.order_id JOIN commerce_orders primary_order ON primary_order.id=m.order_id AND primary_order.company_id=m.company_id AND primary_order.kind='purchase'`,`m.id=? AND ${scoped} AND ${billReceiptBinding(false,"br","m")} AND ${foreignBillReceiptWitness("m")}`)).bind(id,actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId).first<string>("image");
 }
 /** Bill matching discharges actual received Purchase obligations. It cannot
  * authorize a standalone AP invoice or a Sales/foreign receipt by its label. */
