@@ -1,4 +1,5 @@
 import {rosterCoverageGapSql} from '@erpx/server-organization/adapters/roster-source-scope';
+import {nodeTreeCte} from './organization-column-alias-families';
 import { platformOwnerProjectionSources as identity_accessPlatformSources } from "@erpx/server-identity_access/public/platform-owner-projection-sources";
 import { platformOwnerProjectionSources as people_payrollPlatformSources } from "@erpx/server-people_payroll/public/platform-owner-projection-sources";
 import "server-only";
@@ -7,9 +8,7 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { RosterGap } from '@erpx/server-people_payroll/public/roster-worker-contract';
 export function rosterOrganizationFacts(database: SqlDatabase) {
     return { async readDepartments(fact0: string | null, fact1: string, fact2: string, fact3: string, fact4: string | null, fact5: string | null, fact6: string | null, fact7: boolean, fact8: string | null) {
-            return (await database.prepare(`WITH RECURSIVE subtree AS (
-    SELECT id FROM organization_nodes WHERE id=? AND company_id=?
-    UNION ALL SELECT n.id FROM organization_nodes n JOIN subtree p ON n.parent_id=p.id WHERE n.company_id=? AND n.status='active')
+            return (await database.prepare(`${nodeTreeCte('subtree', 'id', 'n.id', 'p', 'n.parent_id=p.id')}
     SELECT d.id,d.display_name name,d.branch_id,b.display_name branch_name FROM organization_nodes d
     LEFT JOIN organization_nodes b ON b.id=d.branch_id
     WHERE d.company_id=? AND d.kind='department' AND d.status='active'
@@ -31,9 +30,7 @@ export function rosterOrganizationFacts(database: SqlDatabase) {
             }>()).results;
         },
         async readNotifyManagers(fact0: string, fact1: string, fact2: string, fact3: string, fact4: number, fact5: number, fact6: string | null, fact7: string) {
-            return (await database.prepare(`WITH RECURSIVE ancestors AS (
-    SELECT id,parent_id FROM organization_nodes WHERE id=? AND company_id=?
-    UNION ALL SELECT n.id,n.parent_id FROM organization_nodes n JOIN ancestors c ON n.id=c.parent_id WHERE n.company_id=? AND n.status='active')
+            return (await database.prepare(`${nodeTreeCte('ancestors', 'id,parent_id', 'n.id,n.parent_id', 'c', 'n.id=c.parent_id')}
     SELECT DISTINCT a.user_id FROM (${identity_accessPlatformSources.assignments}) a WHERE a.company_id=? AND iam_assignment_active(a.id,?) AND iam_principal_active(a.user_id,a.company_id,?) AND iam_role_allows(a.role,a.company_id,'roster.approve')
     AND (a.scope_kind='holding' OR a.scope_kind='branch' AND a.scope_node_id=? OR a.scope_kind='department' AND a.scope_node_id IN (SELECT id FROM ancestors))
     AND NOT EXISTS(SELECT 1 FROM (${people_payrollPlatformSources.hr_people}) p WHERE p.id=ANY(?::text[]) AND iam_same_person(p.user_id,a.user_id,p.company_id))`).bind(fact0, fact1, fact2, fact3, fact4, fact5, fact6, fact7).all<{

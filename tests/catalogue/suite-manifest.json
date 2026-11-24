@@ -4845,6 +4845,31 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "collaboration",
+      "modules": [
+        "collaboration"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Collaboration social topic EXISTS fragments must stay byte-identical."
+      },
+      "apps": "apps",
+      "packages": [
+        "@erpx/server-collaboration"
+      ],
+      "id": "collaboration.read-tail-r18-dedupe.unit",
+      "files": [
+        "tests/unit/collaboration/read-tail-r18-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "collaboration.rust-collaboration-pg-postgres.integration",
       "lane": "integration",
       "owner": "collaboration",
@@ -58837,6 +58862,31 @@
       "packages": []
     },
     {
+      "lane": "unit",
+      "owner": "organization",
+      "modules": [
+        "organization"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Organization company id and node tree CTE families must stay byte-identical."
+      },
+      "apps": "apps",
+      "packages": [
+        "@erpx/server-organization"
+      ],
+      "id": "organization.read-tail-r25-dedupe.unit",
+      "files": [
+        "tests/unit/organization/read-tail-r25-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "lane": "integration",
       "owner": "organization",
       "modules": [
@@ -107275,6 +107325,31 @@
       "id": "workflow.read-tail-r36-dedupe.unit",
       "files": [
         "tests/unit/workflow/read-tail-r36-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "workflow",
+      "modules": [
+        "operations"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Workflow erpx_json_each value generator family must stay byte-identical and centralized."
+      },
+      "apps": "apps",
+      "packages": [
+        "@erpx/server-workflow"
+      ],
+      "id": "workflow.read-tail-r37-dedupe.unit",
+      "files": [
+        "tests/unit/workflow/read-tail-r37-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
