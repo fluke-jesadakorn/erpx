@@ -2,6 +2,7 @@ import {productionReadProjection as productionmanufacturingProjection} from '@er
 import {productionReadProjection as productioncommerceProjection} from '@erpx/server-commerce/public/production-read-projections';
 import {productionReadProjection as productionorganizationProjection} from '@erpx/server-organization/public/production-read-projections';
 import {planningSelectFrom} from "./planning-select-from-sql";
+import {planningSelectColumnsFrom} from "./planning-select-columns-sql";
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {Row} from '@erpx/server-commerce/public/commerce';import {assertion} from "@erpx/server-workflow/public/command-assertions";import {productionResourcesExists,planningAllocatedMinutes} from "./planning-guard-sql";import {planningCommandExistsGuard} from "./planning-command-guard-sql";import {planningScopedBranchList} from "./planning-scoped-list-sql";import {planningScopedBranchRow} from "./planning-scoped-row-sql";
 
 const sourceJoins = `
@@ -44,8 +45,8 @@ async recommendations(companyId:string,branchId:string | null,branchId2:string |
           .all<Row>();},
 async resources(companyId:string,branchId:string | null,branchId2:string | null){return db.prepare(planningScopedBranchList('*', 'production_resources', 'company_id=?', 'branch_id=?', 'name'))
           .bind(companyId, branchId, branchId2).all<Row>();},
-async calendar(companyId:string,branchId:string | null,branchId2:string | null){return db.prepare(`SELECT c.* FROM production_resource_calendar c JOIN production_resources r ON r.id=c.resource_id
-          WHERE r.company_id=? AND (?::text IS NULL OR r.branch_id=?) ORDER BY c.work_date DESC LIMIT 500`)
+async calendar(companyId:string,branchId:string | null,branchId2:string | null){return db.prepare(planningSelectColumnsFrom('c.*', `production_resource_calendar c JOIN production_resources r ON r.id=c.resource_id
+          WHERE r.company_id=? AND (?::text IS NULL OR r.branch_id=?) ORDER BY c.work_date DESC LIMIT 500`))
           .bind(companyId, branchId, branchId2).all<Row>();},
 async executiveShortage(recordId:string,companyId:string,branchId:string | null,branchId2:string | null,from:string,to:string){const branchScope = "(?::text IS NULL OR s.branch_id=?)";
 return db.prepare(`${projection}
@@ -57,8 +58,8 @@ const eligibility=eligibilityKind==='proposed'?"r.status='proposed'":"r.status I
     WHERE r.id=? AND s.company_id=? AND ${branchScope} AND r.feasible_date BETWEEN ? AND ? AND ${eligibility} LIMIT 1`)
     .bind(recordId,companyId,branchId,branchId2,from,to).first<Row>();},
 guardRoutingResource(key:string,value:string,resourceId:string,companyId:string,branchId:string | null,branchId2:string | null){return assertion(db, key, value, productionResourcesExists("status='active' AND (?::text IS NULL OR branch_id=?)"), [resourceId, companyId, branchId, branchId2]);},
-async comparison(comparisonScenarioId:string,companyId:string,branch_id:string | number | null,specificationId:string){return db.prepare(`SELECT s.id,s.version,s.shortages_json,r.required_minutes,r.feasible_date FROM planning_scenarios s
-      JOIN planning_recommendations r ON r.scenario_id=s.id WHERE s.id=? AND s.company_id=? AND s.branch_id=? AND s.specification_id=?`)
+async comparison(comparisonScenarioId:string,companyId:string,branch_id:string | number | null,specificationId:string){return db.prepare(planningSelectColumnsFrom('s.id,s.version,s.shortages_json,r.required_minutes,r.feasible_date', `planning_scenarios s
+      JOIN planning_recommendations r ON r.scenario_id=s.id WHERE s.id=? AND s.company_id=? AND s.branch_id=? AND s.specification_id=?`))
       .bind(comparisonScenarioId, companyId, branch_id, specificationId).first<Row>();},
 guardComparison(key:string,value:"comparison",comparisonScenarioId:string,companyId:string,value2:string,specificationId:string,value3:number){return assertion(db, key, value, planningCommandExistsGuard("planning_scenarios", "id=? AND company_id=? AND branch_id=? AND specification_id=? AND version=?"), [comparisonScenarioId, companyId, value2, specificationId, value3]);},
 prepareScenario(id:string,companyId:string,branch_id:string | number | null,warehouseId:string,specificationId:string,specificationVersion:number,demand:number,dueDate:string,capacityMinutes:number,value:string,userId:string,now:number,now2:number,value2:string){throw new Error("NATIVE_PLANNING_REQUIRED");},
