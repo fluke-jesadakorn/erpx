@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12076,
+    "revision": 12078,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -180129,6 +180129,41 @@
         "nextAction": "Rank1 ordered item reads (-3), Rank2 fixed point heads (-3), Rank3 destruction guard (-2): 186->180.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.billing.read-tail-r32",
+        "goalId": "G4",
+        "owner": "billing",
+        "title": "billing point reads and legacy subscription head",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-billing/src/**",
+          "tests/unit/billing/**"
+        ],
+        "resources": [
+          "owner:billing"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n06",
+          "claimedAt": "2026-11-24T13:23:47.998Z",
+          "heartbeatAt": "2026-11-24T13:23:47.998Z",
+          "expiresAt": "2026-11-24T13:53:47.998Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Rank3 holding point reads via billingPointReadSql (-4) plus Rank1 legacy beta_billing head (-1): 53->48.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -180137,11 +180172,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1725,
+      "totalPackets": 1726,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 13,
+        "in_progress": 14,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -180151,7 +180186,7 @@
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T13:23:05.221Z",
+    "updatedAt": "2026-11-24T13:23:48.003Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
