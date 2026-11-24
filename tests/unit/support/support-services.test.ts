@@ -384,3 +384,41 @@ it('keeps one fixed SLA policy eligibility projection for the workspace and work
     expect(source).toContain('FROM support_sla_policies p WHERE p.company_id=? ORDER BY p.created_at DESC,p.id');
     expect(source).toContain('FROM support_sla_policies p WHERE p.company_id=? ORDER BY p.updated_at DESC');
 });
+
+it('keeps one parameterized active-organization-node scope family with byte-identical rendering', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const source = await readFile(new URL('../../../packages/server-support/src/adapters/service-access.ts', import.meta.url), 'utf8');
+    expect(source).toContain('const activeOrgNodeSql');
+    expect(source.match(/SELECT 1 FROM \(\$\{organizationProjectionSources\.organization_nodes\}\) organization_nodes WHERE id=\?/g)).toHaveLength(1);
+    expect(source.match(/activeOrgNodeSql\('company'\)/g)).toHaveLength(1);
+    expect(source.match(/activeOrgNodeSql\('branch'\)/g)).toHaveLength(1);
+    expect(source.match(/activeOrgNodeSql\('department', departmentBranchMatch\)/g)).toHaveLength(1);
+    expect(source).toContain("kind='${kind}'${branchMatch} AND status='active'");
+    expect(source).toContain("const departmentBranchMatch = ' AND branch_id IS NOT DISTINCT FROM ?'");
+
+    const { validateServiceScope } = await import('@erpx/server-support/adapters/service-access');
+    const { finalRootOwnerProjectionSources } = await import('@erpx/server-organization/public/final-root-owner-projection-sources');
+    const nodes = finalRootOwnerProjectionSources.organization_nodes;
+    const companySql = `SELECT 1 FROM (${nodes}) organization_nodes WHERE id=? AND company_id=? AND kind='company' AND status='active'`;
+    const branchSql = `SELECT 1 FROM (${nodes}) organization_nodes WHERE id=? AND company_id=? AND kind='branch' AND status='active'`;
+    const departmentSql = `SELECT 1 FROM (${nodes}) organization_nodes WHERE id=? AND company_id=? AND kind='department' AND branch_id IS NOT DISTINCT FROM ? AND status='active'`;
+    const calls: { sql: string; values: unknown[] }[] = [];
+    const db = {
+        prepare(sql: string) {
+            const call = { sql, values: [] as unknown[] };
+            calls.push(call);
+            return {
+                bind(...values: unknown[]) { call.values = values; return this; },
+                async first() { return true; },
+            };
+        },
+    } as unknown as import('@erpx/server-runtime/public/runtime/types').SqlDatabase;
+    await validateServiceScope(db, actor, scope);
+    const nodeCalls = calls.filter((call) => call.sql.includes('organization_nodes WHERE id=?'));
+    expect(nodeCalls.map((call) => call.sql)).toEqual([companySql, branchSql, departmentSql]);
+    expect(nodeCalls.map((call) => call.values)).toEqual([
+        ['company', 'company'],
+        ['branch', 'company'],
+        ['department', 'company', 'branch'],
+    ]);
+});

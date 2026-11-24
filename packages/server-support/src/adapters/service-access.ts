@@ -29,11 +29,17 @@ export async function companyMember(db: SqlDatabase, companyId: string, userId: 
         .bind(companyId, userId)
         .first());
 }
+/** One parameterized active-organization-node scope family: company, branch and
+ * department differ only by node kind and the optional branch match. Rendering
+ * stays byte-identical and the native service scope authority remains. */
+const activeOrgNodeSql = (kind: string, branchMatch = '') =>
+    `SELECT 1 FROM (${organizationProjectionSources.organization_nodes}) organization_nodes WHERE id=? AND company_id=? AND kind='${kind}'${branchMatch} AND status='active'`;
+const departmentBranchMatch = ' AND branch_id IS NOT DISTINCT FROM ?';
 export function nativeValidateServiceScope(db: SqlDatabase) {
     return createValidateServiceScope({ error: violation => new ApiError(violation.status, violation.code, violation.message), member: (scope, userId) => serviceMember(db, scope, userId),
-        async company(companyId) { return Boolean(await db.prepare(`SELECT 1 FROM (${organizationProjectionSources.organization_nodes}) organization_nodes WHERE id=? AND company_id=? AND kind='company' AND status='active'`).bind(companyId, companyId).first()); },
-        async branch(companyId, branchId) { return Boolean(await db.prepare(`SELECT 1 FROM (${organizationProjectionSources.organization_nodes}) organization_nodes WHERE id=? AND company_id=? AND kind='branch' AND status='active'`).bind(branchId, companyId).first()); },
-        async department(companyId, branchId, departmentId) { return Boolean(await db.prepare(`SELECT 1 FROM (${organizationProjectionSources.organization_nodes}) organization_nodes WHERE id=? AND company_id=? AND kind='department' AND branch_id IS NOT DISTINCT FROM ? AND status='active'`).bind(departmentId, companyId, branchId).first()); },
+        async company(companyId) { return Boolean(await db.prepare(activeOrgNodeSql('company')).bind(companyId, companyId).first()); },
+        async branch(companyId, branchId) { return Boolean(await db.prepare(activeOrgNodeSql('branch')).bind(branchId, companyId).first()); },
+        async department(companyId, branchId, departmentId) { return Boolean(await db.prepare(activeOrgNodeSql('department', departmentBranchMatch)).bind(departmentId, companyId, branchId).first()); },
     });
 }
 export async function validateServiceScope(db: SqlDatabase, actor: WorkContext, scope: RecordScope) { return nativeValidateServiceScope(db)(actor, scope); }
