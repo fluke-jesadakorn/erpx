@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10344,
+    "revision": 10351,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -145474,7 +145474,7 @@
         "owner": "commerce",
         "title": "commerce residual read native port",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -145486,28 +145486,34 @@
         "resources": [
           "owner:commerce"
         ],
-        "claim": {
-          "runId": "run-20261123-n",
-          "agentId": "wGC5com",
-          "claimedAt": "2026-11-24T07:17:39.008Z",
-          "heartbeatAt": "2026-11-24T07:17:39.008Z",
-          "expiresAt": "2026-11-24T07:47:39.008Z",
-          "generation": 166
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "cargo test -p erpx-server-commerce --lib",
+            "result": "passed",
+            "sourceSha": "d78e37f4d",
+            "note": "23 passed incl every_plan_is_select_only_with_exact_bind_count_and_no_locks and byte_parity_with_retained_typescript_statements."
+          },
+          {
+            "command": "cargo test -p erpx-server-commerce --test commerce_residual_read_parity_postgres",
+            "result": "passed",
+            "sourceSha": "d78e37f4d",
+            "note": "2 passed against ERPX_TEST_ADMIN_URL: live TS authority and one-transaction row parity for 17 plans."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Build owner-local native read ports for a residual single-site commerce read family with PG parity; no TS deletion yet. BEFORE=457.",
+        "blocker": "handoff",
+        "nextAction": "Integrated with cargo lib + PG parity passing; claim released",
         "handoff": {
-          "runId": "run-20261123-m",
+          "runId": "run-20261123-n",
           "agentId": "wGC5com",
-          "at": "2026-11-24T07:17:38.838Z",
+          "at": "2026-11-24T07:28:40.373Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during long cargo/mount integration; WIP reviewed, same agents re-claimed under gen 166",
-          "nextAction": "Build owner-local native read ports for a residual single-site commerce read family with PG parity; no TS deletion yet. BEFORE=457."
+          "reason": "handoff",
+          "nextAction": "Integrated with cargo lib + PG parity passing; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -161303,7 +161309,7 @@
         "owner": "maintenance",
         "title": "maintenance TS read tail native cutover (r18)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -161315,22 +161321,37 @@
         "resources": [
           "owner:maintenance"
         ],
-        "claim": {
-          "runId": "run-20261123-n",
-          "agentId": "wGCMmai5",
-          "claimedAt": "2026-11-24T07:25:04.210Z",
-          "heartbeatAt": "2026-11-24T07:25:04.210Z",
-          "expiresAt": "2026-11-24T07:55:04.210Z",
-          "generation": 166
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-maintenance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "04fc88f7f",
+            "owner": "maintenance",
+            "before": 34,
+            "after": 33,
+            "note": "Workspace work orders and downtime evidence share workAssetSource; r3-r17 and all LOCK TABLE statements untouched."
+          },
+          {
+            "command": "vitest maintenance transport (40) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "04fc88f7f"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=34.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-n",
+          "agentId": "wGCMmai5",
+          "at": "2026-11-24T07:28:41.081Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -161989,6 +162010,71 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=33.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.maintenance.read-tail-r19",
+        "goalId": "G4",
+        "owner": "maintenance",
+        "title": "maintenance TS read tail native cutover (r19)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-maintenance/src/**",
+          "tests/unit/maintenance/**",
+          "tests/integration/maintenance/**"
+        ],
+        "resources": [
+          "owner:maintenance"
+        ],
+        "claim": {
+          "runId": "run-20261123-n",
+          "agentId": "wGCMmai6",
+          "claimedAt": "2026-11-24T07:28:41.613Z",
+          "heartbeatAt": "2026-11-24T07:28:41.613Z",
+          "expiresAt": "2026-11-24T07:58:41.613Z",
+          "generation": 166
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=33.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.legal.read-tail-r32",
+        "goalId": "G4",
+        "owner": "legal",
+        "title": "legal TS read tail native cutover (r32)",
+        "kind": "migration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-legal/src/**",
+          "tests/unit/legal/**",
+          "tests/integration/legal/**"
+        ],
+        "resources": [
+          "owner:legal"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=241.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -161997,21 +162083,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1367,
+      "totalPackets": 1369,
       "migratedPackets": 329,
       "statusCounts": {
-        "pending": 16,
-        "in_progress": 30,
+        "pending": 17,
+        "in_progress": 29,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 990,
+        "blocked": 992,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 166,
-    "updatedAt": "2026-11-24T07:28:13.314Z",
+    "updatedAt": "2026-11-24T07:28:41.792Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
