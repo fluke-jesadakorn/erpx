@@ -61,6 +61,6 @@ describe('People Payroll read-tail r40 unlinked-user-by-company dedupe', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(1342);
-    expect(total).toBe(1233);
+    expect(total).toBe(1228);
   });
 });

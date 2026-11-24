@@ -5,6 +5,7 @@ import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
 import { ppRd29OpenFinancePeriodSql, ppRd29FinanceExpenseTreasurySql, ppRd29FinancePartySupplierSql } from './pp-read-tail-r29-sources';
 import { ppRd48ExpenseClaimInvoice } from './pp-read-tail-r48-sources';
 import { ppRd49ExpenseClaimReceiptV2, ppRd49ExpenseClaimReceiptV1, ppRd49AttachmentLinkPoint, ppRd49DraftLinkGuard } from './pp-read-tail-r49-sources';
+import { ppRd50SlipOwnerGuard } from './pp-read-tail-r50-sources';
 import{canAccountExpenses,canPostExpenses,visibility,currentExpenseReader,approvalFields,expenseSelect,originalNativeExpenseReads,listExpenses,getExpense,expenseFromDatabase,canEditExpense,canReviewExpense,nativeExpenseReads,expensePresentationRows,expenseVisibleRecordIds,type ExpenseRow}from '@erpx/server-people_payroll/adapters/expense-read';
 export{canAccountExpenses,canPostExpenses,visibility,currentExpenseReader,approvalFields,expenseSelect,originalNativeExpenseReads,listExpenses,getExpense,expenseFromDatabase,canEditExpense,canReviewExpense,nativeExpenseReads,expensePresentationRows,expenseVisibleRecordIds};
 export type{ExpenseRow};
@@ -357,7 +358,7 @@ function originalNativeExpenseReceiptRemoval(write: SqlDatabase) {
         write,
         key,
         "receipt",
-        `EXISTS(SELECT 1 FROM (${filesProjectionSources.attachments}) attachments WHERE id=? AND owner_id=? AND owner_type='expense_claim' AND revoked_at IS NULL)`,
+        ppRd50SlipOwnerGuard('expense_claim'),
         [attachmentId, id],
       ),
       ...(canonical

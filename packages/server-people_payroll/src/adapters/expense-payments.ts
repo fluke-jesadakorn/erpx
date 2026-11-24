@@ -2,6 +2,7 @@ import { ppRd21IdVersionStatusGuard } from './pp-read-tail-r21-sources';
 import { ppRd27IdCompanyVersionStatusLiteralGuard } from './pp-read-tail-r27-sources';
 import { ppRd48IdCompanyVersionPairGuard, ppRd48ExpenseClaimInvoice } from './pp-read-tail-r48-sources';
 import { ppRd49AttachmentLinkPoint, ppRd49DraftLinkGuard } from './pp-read-tail-r49-sources';
+import { ppRd50SlipOwnerGuard } from './pp-read-tail-r50-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import{paymentDraft,nativeExpensePaymentReader,paymentFromDatabase}from '@erpx/server-people_payroll/adapters/expense-payment-read';
 export{paymentDraft,nativeExpensePaymentReader,paymentFromDatabase};
@@ -199,7 +200,7 @@ function originalNativeExpensePaymentSlipRemoval(write: SqlDatabase) {
         write,
         key,
         "slip-owner",
-        `EXISTS(SELECT 1 FROM (${filesProjectionSources.attachments}) attachments WHERE id=? AND owner_type='expense_payment' AND owner_id=? AND revoked_at IS NULL)`,
+        ppRd50SlipOwnerGuard('expense_payment', true),
         [attachmentId, id],
       ),
       ...(canonical
