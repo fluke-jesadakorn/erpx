@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8003,
+    "revision": 8005,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -134041,7 +134041,7 @@
         "owner": "assets",
         "title": "assets TS read tail native cutover (round 16)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -134053,22 +134053,34 @@
         "resources": [
           "owner:assets"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG96ass",
-          "claimedAt": "2026-11-24T01:27:32.078Z",
-          "heartbeatAt": "2026-11-24T01:29:05.622Z",
-          "expiresAt": "2026-11-24T01:59:05.622Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "assets byte-identical scan (24 literals, LCS + exact)",
+            "result": "passed",
+            "sourceSha": "b64b06ed1",
+            "note": "zero dedupable fragments outside the closed asset-scope-probe"
+          },
+          {
+            "command": "vitest assets transport (24) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "b64b06ed1"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: scan for a safe byte-identical fragment; if none, report blocked. BEFORE=32.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Blocked with evidence.",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG96ass",
+          "at": "2026-11-24T01:33:45.652Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Blocked with evidence."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -134684,17 +134696,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
-        "in_progress": 29,
+        "in_progress": 28,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 456,
+        "blocked": 457,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:33:34.225Z",
+    "updatedAt": "2026-11-24T01:33:45.655Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
