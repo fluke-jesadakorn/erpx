@@ -6,6 +6,7 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type {Row} from '@erpx/server-commerce/public/commerce';
 
 import { supportRecipientEligibility } from "@erpx/server-support/adapters/support-recipient";
+import { supportEligibleFlagSql, supportReviewerCountSql } from "./eligibility-projection-sources";
 
 import { createGetSupportIncident } from "@erpx/server-support/application/support-incidents";
 import{nativeSupportReadRuntime}from '@erpx/server-support/adapters/read-runtime';
@@ -20,7 +21,7 @@ const reviewer = `m.company_id=t.company_id AND m.user_id<>t.owner_id AND m.user
  * One fixed text serves the by-id reader and the work-list reader so the two
  * call sites cannot drift; the native incident reader remains the authority. */
 export const incidentEligibilitySelect = (ownerEligible: string, reviewerPredicate: string) =>
-    `SELECT t.*,CASE WHEN ${ownerEligible} THEN 1 ELSE 0 END owner_eligible,CASE WHEN EXISTS(SELECT 1 FROM (${identity_accessProjectionSources.assignments}) m WHERE ${reviewerPredicate} AND m.user_id=?) THEN 1 ELSE 0 END reviewer_eligible,(SELECT COUNT(DISTINCT m.user_id) FROM (${identity_accessProjectionSources.assignments}) m WHERE ${reviewerPredicate}) reviewer_count`;
+    `SELECT t.*,CASE WHEN ${ownerEligible} THEN 1 ELSE 0 END owner_eligible,${supportEligibleFlagSql(reviewerPredicate, 'reviewer_eligible')},${supportReviewerCountSql(reviewerPredicate)} reviewer_count`;
 export function supportIncidentReadPredicate(a: WorkContext, alias = 't') {
     return { sql: `EXISTS(SELECT 1 FROM (${identity_accessProjectionSources.assignments}) g WHERE g.id=? AND g.user_id=? AND g.role=? AND g.company_id=${alias}.company_id
   AND iam_assignment_active(g.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(g.user_id,g.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)

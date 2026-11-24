@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { readFile } from 'node:fs/promises';
+import { readFileSync, readdirSync } from 'node:fs';
 
 vi.mock('server-only', () => ({}));
 vi.mock('@erpx/server-support/adapters/support-incident-read', () => ({
@@ -74,8 +75,52 @@ describe('Support incident read-tail r16 canonical projection', () => {
     const source = await src('adapters/support-incident-read.ts');
     expect(source).toContain('export const incidentEligibilitySelect');
     expect(source.match(/SELECT t\.\*,CASE WHEN \$\{ownerEligible\}/g)).toHaveLength(1);
-    expect(source.match(/EXISTS\(SELECT 1 FROM \(\$\{identity_accessProjectionSources\.assignments\}\) m WHERE/g)).toHaveLength(1);
-    expect(source.match(/\(SELECT COUNT\(DISTINCT m\.user_id\) FROM/g)).toHaveLength(1);
+    expect(source.match(/\$\{supportEligibleFlagSql\(reviewerPredicate, 'reviewer_eligible'\)\}/g)).toHaveLength(1);
+    expect(source.match(/\$\{supportReviewerCountSql\(reviewerPredicate\)\}/g)).toHaveLength(1);
+    expect(source).not.toMatch(/EXISTS\(SELECT 1 FROM \(\$\{identity_accessProjectionSources\.assignments\}\) m WHERE/);
+    expect(source).not.toMatch(/\(SELECT COUNT\(DISTINCT m\.user_id\) FROM/);
+  });
+
+  it('renders the byte-identical eligibility fragments from one shared owner', async () => {
+    const shared = await src('adapters/eligibility-projection-sources.ts');
+    expect(shared.match(/EXISTS\(SELECT 1 FROM \(\$\{identity_accessProjectionSources\.assignments\}\) m WHERE/g)).toHaveLength(1);
+    expect(shared.match(/\(SELECT COUNT\(DISTINCT m\.user_id\) FROM/g)).toHaveLength(1);
+    expect(shared).toContain('supportEligibleFlagSql');
+    expect(shared).toContain('supportReviewerCountSql');
+  });
+
+  it('composes the shared eligibility fragments in every Support read tail', async () => {
+    const names = [
+      'adapters/support-ticket-read-sources.ts',
+      'adapters/support-sla.ts',
+      'adapters/support-sla-alerts.ts',
+    ];
+    for (const name of names) {
+      const text = await src(name);
+      expect(text, name).not.toMatch(/EXISTS\(SELECT 1 FROM \(\$\{identity_accessProjectionSources\.assignments\}\) m WHERE/);
+      expect(text, name).not.toMatch(/\(SELECT COUNT\(DISTINCT m\.user_id\) FROM/);
+    }
+    expect(await src('adapters/support-ticket-read-sources.ts')).toContain('supportReviewerCountSql(');
+    const sla = await src('adapters/support-sla.ts');
+    expect(sla).toContain('supportEligibleFlagSql(');
+    expect(sla).toContain('supportReviewerCountSql(');
+    const alerts = await src('adapters/support-sla-alerts.ts');
+    expect(alerts).toContain('supportEligibleFlagSql(');
+    expect(alerts).toContain('supportReviewerCountSql(');
+  });
+
+  it('retirement:ts-statements stays strictly below the r17 BEFORE=91 baseline', () => {
+    const root = new URL('../../../packages/server-support/src/', import.meta.url);
+    let total = 0;
+    const walk = (dir: URL) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const child = new URL(`${entry.name}${entry.isDirectory() ? '/' : ''}`, dir);
+        if (entry.isDirectory()) walk(child);
+        else if (entry.name.endsWith('.ts')) total += (readFileSync(child, 'utf8').match(/SELECT /g) ?? []).length;
+      }
+    };
+    walk(root);
+    expect(total).toBeLessThan(91);
   });
 
   it('composes the projection in both incident readers with no local copy', async () => {
