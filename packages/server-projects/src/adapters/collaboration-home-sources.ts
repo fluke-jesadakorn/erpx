@@ -8,19 +8,21 @@ import {purchasedCapabilityPredicate,packageClockSql} from '@erpx/server-commerc
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {hasPermission} from '@erpx/feature-identity_access/lib/permissions';
 import {ApiError} from '@erpx/server-runtime/public/http';
-import {projectMemberScopeGuard} from '@erpx/server-projects/adapters/project-read-projections';
+import {projectMemberScopeGuard,projectMemberScopeSql} from '@erpx/server-projects/adapters/project-read-projections';
+import {projectAssignmentScopeSql} from '@erpx/server-projects/adapters/package-obligations';
+import {membersJsonSql} from '@erpx/server-projects/adapters/social-purchase-sources';
 
 /** Owner-local fixed SQL for the Projects collaboration-home read family. The
- * selected-audience and home reads repeat identical membership, actor-scope and
- * clock fragments; one definition each removes the redundant statement text. */
-const projectMemberScope = '(p.owner_user_id=? OR EXISTS(SELECT 1 FROM staff_project_members m WHERE m.project_id=p.id AND m.user_id=?))';
-const workforceActorScope = 'CROSS JOIN (SELECT ?::text company_id,?::text branch_id,?::text department_id) workforce_actor_scope';
+ * selected-audience and home reads reuse the owner's shared membership,
+ * actor-scope and members fragments; the clock CTE stays local. Every source
+ * relation and bind order is unchanged. */
+const workforceActorScope = `CROSS JOIN ${projectAssignmentScopeSql('workforce_actor_scope')}`;
 const projectAudienceClock = `WITH project_audience_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms)`;
 
 function audienceScope(actor:StaffActor,enforced:boolean){
     const current=currentAssignmentReadScope(actor,'workforce_actor_scope');
     return {where:`p.company_id=workforce_actor_scope.company_id AND ${current.where}
-      AND ${projectMemberScope}
+      AND ${projectMemberScopeSql}
       AND ${enforced?`${hasPermission(actor,'records.read')?'TRUE':'FALSE'} AND ${purchasedCapabilityPredicate('p.company_id','projects.wbs','history','project_audience_clock.now_ms')}
       AND ${scheduledFeaturePredicate('p.company_id','projects')} AND iam_role_allows(?::text,p.company_id,'records.read')`:'TRUE'}`,
       args:[actor.companyId,actor.branchId,actor.departmentId,...current.args,actor.userId,actor.userId,...(enforced?[actor.role]:[])]};
@@ -52,7 +54,7 @@ export async function socialProjectAudienceSource(db:SqlDatabase,actor:StaffActo
     await checkPurchasedCapability(db,mode,{companyId:actor.companyId,capability:'projects.wbs',purpose:'history'});
     const scope=audienceScope(actor,true);
     const row=await db.prepare(`${projectAudienceClock}
-      SELECT jsonb_build_object('project',to_jsonb(p),'members',(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.user_id) FROM staff_project_members m WHERE m.project_id=p.id))::text image
+      SELECT jsonb_build_object('project',to_jsonb(p),${membersJsonSql})::text image
       FROM staff_projects p CROSS JOIN project_audience_clock
       ${workforceActorScope}
       WHERE ${scope.where} AND p.id=?`).bind(...scope.args,id).first<{image:string}>();
@@ -73,13 +75,13 @@ export function socialProjectAudienceReadPredicate(){
 export function collaborationHomeSources(db: SqlDatabase) {
     return { async projects(companyId: string, userId: string, userId2: string) {
             return db.prepare(`SELECT p.id,p.title FROM staff_projects p WHERE p.company_id=?
-      AND ${projectMemberScope}
+      AND ${projectMemberScopeSql}
       ORDER BY p.title,p.id LIMIT 100`)
                 .bind(companyId, userId, userId2).all<{
                 id: string;
                 title: string;
             }>();
         }, guardProjectAudience(key: string, value: "audience-project", id: string, companyId: string, userId: string, userId2: string) {
-            return assertion(db, key, value, projectMemberScopeGuard(projectMemberScope), [id, companyId, userId, userId2]);
+            return assertion(db, key, value, projectMemberScopeGuard(projectMemberScopeSql), [id, companyId, userId, userId2]);
         } };
 }

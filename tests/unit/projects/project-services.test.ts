@@ -638,19 +638,24 @@ it('keeps one byte-identical literal per Projects actual-evidence and blocker fa
  expect(count("SELECT a.id,a.project_id,p.title project_title,j.entry_date::text entry_date")).toBe(1);
  expect(count("SELECT jsonb_agg(jsonb_build_object('id',pr.id")).toBe(1);
 });
-it('keeps one owner-local fixed SQL definition for the Projects collaboration-home read family',async()=>{
+it('keeps one shared definition per byte-identical Projects collaboration-home SQL family',async()=>{
  const {readFile}=await import('node:fs/promises');
  const source=await readFile(new URL('../../../packages/server-projects/src/adapters/collaboration-home-sources.ts',import.meta.url),'utf8');
  const count=(token:string)=>source.split(token).length-1;
- expect(source).toContain('const projectMemberScope');
+ expect(source).toContain("import {projectMemberScopeGuard,projectMemberScopeSql} from '@erpx/server-projects/adapters/project-read-projections';");
+ expect(source).toContain("import {projectAssignmentScopeSql} from '@erpx/server-projects/adapters/package-obligations';");
+ expect(source).toContain("import {membersJsonSql} from '@erpx/server-projects/adapters/social-purchase-sources';");
  expect(source).toContain('const workforceActorScope');
  expect(source).toContain('const projectAudienceClock');
- expect(count('(p.owner_user_id=? OR EXISTS(SELECT 1 FROM staff_project_members m WHERE m.project_id=p.id AND m.user_id=?))')).toBe(1);
- expect(count('CROSS JOIN (SELECT ?::text company_id,?::text branch_id,?::text department_id) workforce_actor_scope')).toBe(1);
+ expect(count('(p.owner_user_id=? OR EXISTS(SELECT 1 FROM staff_project_members m WHERE m.project_id=p.id AND m.user_id=?))')).toBe(0);
+ expect(count('CROSS JOIN (SELECT ?::text company_id,?::text branch_id,?::text department_id) workforce_actor_scope')).toBe(0);
+ expect(count("'members',(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.user_id) FROM staff_project_members m WHERE m.project_id=p.id)")).toBe(0);
  expect(count('WITH project_audience_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms)')).toBe(1);
- expect(count('${projectMemberScope}')).toBe(2);
+ expect(count('${projectMemberScopeSql}')).toBe(2);
  expect(count('${workforceActorScope}')).toBe(2);
  expect(count('${projectAudienceClock}')).toBe(2);
+ expect(count('${membersJsonSql}')).toBe(1);
+ expect(count("projectAssignmentScopeSql('workforce_actor_scope')")).toBe(1);
 });
 it('keeps one byte-identical member-scope guard for the Projects assertion readers',async()=>{
  const {readFile}=await import('node:fs/promises');
@@ -663,9 +668,9 @@ it('keeps one byte-identical member-scope guard for the Projects assertion reade
  const home=await readFile(new URL('../../../packages/server-projects/src/adapters/collaboration-home-sources.ts',import.meta.url),'utf8');
  const ops=await readFile(new URL('../../../packages/server-projects/src/adapters/operations-staff-tasks-facts.ts',import.meta.url),'utf8');
  expect(count(defs,'export const projectMemberScopeGuard =')).toBe(1);
- expect(count(home,'projectMemberScopeGuard(projectMemberScope)')).toBe(1);
+ expect(count(home,'projectMemberScopeGuard(projectMemberScopeSql)')).toBe(1);
  expect(count(ops,'projectMemberScopeGuard(projectMemberScopeSql)')).toBe(1);
- expect(count(home,'EXISTS(SELECT 1 FROM staff_projects p WHERE p.id=? AND p.company_id=? AND ${projectMemberScope})')).toBe(0);
+ expect(count(home,'EXISTS(SELECT 1 FROM staff_projects p WHERE p.id=? AND p.company_id=? AND ${projectMemberScopeSql})')).toBe(0);
  expect(count(ops,'EXISTS(SELECT 1 FROM staff_projects p WHERE p.id=? AND p.company_id=? AND (p.owner_user_id=?')).toBe(0);
 });
 it('keeps one owner-local fixed SQL definition for the Projects settlement-source row reads',async()=>{
