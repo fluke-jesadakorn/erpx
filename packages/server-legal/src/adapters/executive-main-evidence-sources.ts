@@ -4,6 +4,16 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { visibility as legalVisibility } from "@erpx/server-legal/public/legal/access";
 import { LegalEvidenceRow, LegalHoldEvidenceRow } from '@erpx/server-runtime/public/executive/evidence-contract';
+/** Byte-identical evidence read prefixes shared by the search and point reads.
+ * Every call site still prepares and executes its own complete statement. */
+const evidenceObligationSelect = `SELECT s.id,s.item_id,s.title,s.category,s.due_date,s.state,s.version,
+          i.title item_title,i.kind item_kind,i.version item_version
+        FROM legal_obligation_schedule s JOIN legal_items i ON i.id=s.item_id
+        WHERE `;
+const evidenceHoldSelect = `SELECT h.id,h.item_id,h.state,h.created_at,
+          i.title item_title,i.kind item_kind,i.version item_version
+        FROM legal_holds h JOIN legal_items i ON i.id=h.item_id
+        WHERE `;
 function activeSchedulePredicate() {
     return `i.kind IN ('contract','obligation','license','ip','matter')
     AND i.state NOT IN ('archived','closed','cancelled','terminated','expired','completed')
@@ -41,29 +51,17 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
                 values.push(cursor.id);
             }
             const rows = isObligation
-                ? (await db.prepare(`SELECT s.id,s.item_id,s.title,s.category,s.due_date,s.state,s.version,
-          i.title item_title,i.kind item_kind,i.version item_version
-        FROM legal_obligation_schedule s JOIN legal_items i ON i.id=s.item_id
-        WHERE ${conditions.join(" AND ")} ORDER BY s.id LIMIT ?`).bind(...values, input.limit + 1).all<LegalEvidenceRow>()).results
-                : (await db.prepare(`SELECT h.id,h.item_id,h.state,h.created_at,
-          i.title item_title,i.kind item_kind,i.version item_version
-        FROM legal_holds h JOIN legal_items i ON i.id=h.item_id
-        WHERE ${conditions.join(" AND ")} ORDER BY h.id LIMIT ?`).bind(...values, input.limit + 1).all<LegalHoldEvidenceRow>()).results;
+                ? (await db.prepare(`${evidenceObligationSelect}${conditions.join(" AND ")} ORDER BY s.id LIMIT ?`).bind(...values, input.limit + 1).all<LegalEvidenceRow>()).results
+                : (await db.prepare(`${evidenceHoldSelect}${conditions.join(" AND ")} ORDER BY h.id LIMIT ?`).bind(...values, input.limit + 1).all<LegalHoldEvidenceRow>()).results;
             return { rows };
         }, async factsReadLegalEvidence(actor: WorkContext, isObligation: boolean, recordId: string): Promise<{
             row: LegalEvidenceRow | LegalHoldEvidenceRow | null;
         }> {
             const visibility = legalVisibility(actor),purchase=await legalMetricReadScope(db,actor,isObligation?"active-legal-obligations":"active-legal-holds");
             const row = isObligation
-                ? await db.prepare(`SELECT s.id,s.item_id,s.title,s.category,s.due_date,s.state,s.version,
-          i.title item_title,i.kind item_kind,i.version item_version
-        FROM legal_obligation_schedule s JOIN legal_items i ON i.id=s.item_id
-        WHERE s.id=? AND ${visibility.sql} AND ${purchase.where} AND ${activeSchedulePredicate()}`)
+                ? await db.prepare(`${evidenceObligationSelect}s.id=? AND ${visibility.sql} AND ${purchase.where} AND ${activeSchedulePredicate()}`)
                     .bind(recordId, ...visibility.values).first<LegalEvidenceRow>()
-                : await db.prepare(`SELECT h.id,h.item_id,h.state,h.created_at,
-          i.title item_title,i.kind item_kind,i.version item_version
-        FROM legal_holds h JOIN legal_items i ON i.id=h.item_id
-        WHERE h.id=? AND ${visibility.sql} AND ${purchase.where} AND h.state IN ('active','release_requested')`)
+                : await db.prepare(`${evidenceHoldSelect}h.id=? AND ${visibility.sql} AND ${purchase.where} AND h.state IN ('active','release_requested')`)
                     .bind(recordId, ...visibility.values).first<LegalHoldEvidenceRow>();
             return { row };
         } };
