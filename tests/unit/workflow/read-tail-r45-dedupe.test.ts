@@ -57,7 +57,7 @@ describe('workflow closed projection generator families (r45)', () => {
     expect(receipt).toContain('commandReceiptsProjectionSql([column]');
   });
 
-  it('retirement:ts-statements is 43 after the A1/A2 closed projection dedupe (46->43)', async () => {
+  it('retirement:ts-statements is 41 after the r46 native read cutover (46->43->41)', async () => {
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -68,6 +68,6 @@ describe('workflow closed projection generator families (r45)', () => {
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(46);
-    expect(total).toBe(43);
+    expect(total).toBe(41);
   });
 });

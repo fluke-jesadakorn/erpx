@@ -193,6 +193,17 @@ pub const WF_NATIVE_APPROVAL_VIEW_HISTORY: &str = "wf_native_approval_view_histo
 /// company-scoped; the planner resolves it to one fixed SELECT executed on the
 /// caller's open unit and carries no receipt/assertion semantics.
 pub const WF_NATIVE_APPROVAL_VIEW_HISTORY_BATCH: &str = "wf_native_approval_view_history_batch";
+/// Owner-authored caller-unit reads for the approval-step approver family. The
+/// mounted wave3-command planner resolves each to one fixed SELECT byte-identical
+/// to the retired TypeScript literal; the TypeScript bridge executes it on the
+/// caller's open company unit and carries no receipt/assertion semantics.
+pub const WF_NATIVE_APPROVAL_STEPS_APPROVER: &str = "wf_native_approval_steps_approver";
+pub const WF_NATIVE_APPROVAL_STEPS_BATCH: &str = "wf_native_approval_steps_batch";
+/// Owner-authored caller-unit read for the expense batch instances family. The
+/// mounted wave3-command planner resolves it to one fixed SELECT byte-identical
+/// to the retired TypeScript literal; the TypeScript bridge executes it on the
+/// caller's open company unit and carries no receipt/assertion semantics.
+pub const WF_NATIVE_EXPENSE_BATCH_INSTANCES: &str = "wf_native_expense_batch_instances";
 pub const KINDS: &[&str] = &[
     WF_OPENAPPROVAL,
     WF_OPENAPPROVAL2,
@@ -244,6 +255,9 @@ pub const KINDS: &[&str] = &[
     WF_NATIVE_OPEN_APPROVAL_PREVIOUS,
     WF_NATIVE_APPROVAL_VIEW_HISTORY,
     WF_NATIVE_APPROVAL_VIEW_HISTORY_BATCH,
+    WF_NATIVE_APPROVAL_STEPS_APPROVER,
+    WF_NATIVE_APPROVAL_STEPS_BATCH,
+    WF_NATIVE_EXPENSE_BATCH_INSTANCES,
 ];
 
 fn statement(kind: &str) -> Option<(&'static str, usize)> {
@@ -545,6 +559,18 @@ fn statement(kind: &str) -> Option<(&'static str, usize)> {
         ),
         WF_NATIVE_APPROVAL_VIEW_HISTORY_BATCH => (
             "SELECT i.record_id batch_record_id,d.*,COALESCE(p.legal_name,d.actor_user_id) actor_name,(SELECT legal_name FROM (SELECT \"id\",\"user_id\",\"company_id\",\"legal_name\",\"preferred_name\",\"email\",\"phone\",\"country_code\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"merged_into_id\",\"work_email\",\"work_phone\" FROM hr_people) hr_people WHERE company_id=i.company_id AND iam_same_person(user_id,d.previous_approver_user_id,company_id) AND merged_into_id IS NULL LIMIT 1) previous_approver_name,(SELECT legal_name FROM (SELECT \"id\",\"user_id\",\"company_id\",\"legal_name\",\"preferred_name\",\"email\",\"phone\",\"country_code\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"merged_into_id\",\"work_email\",\"work_phone\" FROM hr_people) hr_people WHERE company_id=i.company_id AND iam_same_person(user_id,d.approver_user_id,company_id) AND merged_into_id IS NULL LIMIT 1) approver_name FROM approval_decisions d JOIN approval_instances i ON i.id=d.instance_id LEFT JOIN (SELECT \"id\",\"user_id\",\"company_id\",\"legal_name\",\"preferred_name\",\"email\",\"phone\",\"country_code\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"merged_into_id\",\"work_email\",\"work_phone\" FROM hr_people) p ON p.user_id=d.actor_user_id AND p.company_id=i.company_id AND p.merged_into_id IS NULL WHERE i.record_type='expense' AND i.record_id IN(SELECT value FROM erpx_json_each(?)) AND i.company_id=? ORDER BY d.created_at,d.insertion_order",
+            2,
+        ),
+        WF_NATIVE_APPROVAL_STEPS_APPROVER => (
+            "SELECT s.*,COALESCE(p.legal_name,s.approver_user_id) approver_name FROM approval_steps s LEFT JOIN (SELECT \"id\",\"user_id\",\"company_id\",\"legal_name\",\"preferred_name\",\"email\",\"phone\",\"country_code\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"merged_into_id\",\"work_email\",\"work_phone\" FROM hr_people) p ON p.user_id=s.approver_user_id AND p.company_id=? AND p.merged_into_id IS NULL WHERE s.instance_id=? ORDER BY s.ordinal",
+            2,
+        ),
+        WF_NATIVE_APPROVAL_STEPS_BATCH => (
+            "SELECT s.*,COALESCE(p.legal_name,s.approver_user_id) approver_name FROM approval_steps s LEFT JOIN (SELECT \"id\",\"user_id\",\"company_id\",\"legal_name\",\"preferred_name\",\"email\",\"phone\",\"country_code\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"merged_into_id\",\"work_email\",\"work_phone\" FROM hr_people) p ON p.user_id=s.approver_user_id AND p.company_id=? AND p.merged_into_id IS NULL WHERE s.instance_id IN(SELECT value FROM erpx_json_each(?)) ORDER BY s.ordinal",
+            2,
+        ),
+        WF_NATIVE_EXPENSE_BATCH_INSTANCES => (
+            "SELECT DISTINCT ON(record_id) * FROM approval_instances WHERE record_type='expense' AND company_id=? AND record_id IN(SELECT value FROM erpx_json_each(?)) ORDER BY record_id,insertion_order DESC",
             2,
         ),
 _ => return None,
@@ -1311,5 +1337,56 @@ mod tests {
             assert!(plan(kind, values).is_ok(), "valid binds must plan for {kind}");
             assert!(plan(kind, vec![json!("company")]).is_err());
         }
+    }
+
+    /// The r46 approval-step approver, approval-step batch and expense batch
+    /// instances reads stay byte-identical to the retired TypeScript literals,
+    /// SELECT-only, company-scoped and placeholder-exact with two binds each.
+    #[test]
+    fn approval_steps_and_expense_batch_reads_are_byte_identical_owner_selects() {
+        let hr = "\"id\",\"user_id\",\"company_id\",\"legal_name\",\"preferred_name\",\"email\",\"phone\",\"country_code\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"merged_into_id\",\"work_email\",\"work_phone\"";
+        let steps_prefix = format!(
+            "SELECT s.*,COALESCE(p.legal_name,s.approver_user_id) approver_name FROM approval_steps s LEFT JOIN (SELECT {hr} FROM hr_people) p ON p.user_id=s.approver_user_id AND p.company_id=? AND p.merged_into_id IS NULL WHERE s.instance_id"
+        );
+        let cases = [
+            (
+                WF_NATIVE_APPROVAL_STEPS_APPROVER,
+                format!("{steps_prefix}=? ORDER BY s.ordinal"),
+                vec![json!("company"), json!("inst-1")],
+            ),
+            (
+                WF_NATIVE_APPROVAL_STEPS_BATCH,
+                format!("{steps_prefix} IN(SELECT value FROM erpx_json_each(?)) ORDER BY s.ordinal"),
+                vec![json!("company"), json!("[\"inst-1\"]")],
+            ),
+            (
+                WF_NATIVE_EXPENSE_BATCH_INSTANCES,
+                "SELECT DISTINCT ON(record_id) * FROM approval_instances WHERE record_type='expense' AND company_id=? AND record_id IN(SELECT value FROM erpx_json_each(?)) ORDER BY record_id,insertion_order DESC"
+                    .to_owned(),
+                vec![json!("company"), json!("[\"e1\"]")],
+            ),
+        ];
+        for (kind, expected_sql, values) in cases {
+            let (sql, binds) = statement(kind).expect("registered owner read kind");
+            assert_eq!(sql, expected_sql, "SQL must stay byte-identical for {kind}");
+            assert_eq!(binds, 2, "bind count must stay fixed for {kind}");
+            assert_eq!(sql.matches('?').count(), binds);
+            assert!(sql.starts_with("SELECT "), "read must be SELECT-only: {sql}");
+            assert!(sql.contains("company_id=?"), "read must stay company-scoped: {sql}");
+            for forbidden in [
+                "INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE", "FOR SHARE",
+                "LOCK TABLE",
+            ] {
+                assert!(
+                    !sql.contains(forbidden),
+                    "read must not mutate or lock: {forbidden}"
+                );
+            }
+            assert!(supported(kind));
+            assert!(plan(kind, values).is_ok(), "valid binds must plan for {kind}");
+            assert!(plan(kind, vec![json!("company")]).is_err());
+            assert!(plan(kind, vec![json!("company"), json!("a"), json!("b")]).is_err());
+        }
+        assert!(!supported("wf_native_approval_steps_unknown"));
     }
 }

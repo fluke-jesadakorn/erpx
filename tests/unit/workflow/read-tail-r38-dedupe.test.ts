@@ -60,7 +60,7 @@ describe('company-scoped flow-event history generator family (r38)', () => {
     expect(src).toContain("flowEventsHistorySql('action,actor_name,created_at,reason,step_key', ' AND kind=? AND record_id=?')");
   });
 
-  it('retirement:ts-statements is strictly lower than the recorded 53 r41 baseline after the r42/r44/r45 native read and projection cut', async () => {
+  it('retirement:ts-statements is strictly lower than the recorded 53 r41 baseline after the r42/r44/r45/r46 native read and projection cut', async () => {
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -71,6 +71,7 @@ describe('company-scoped flow-event history generator family (r38)', () => {
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(53);
-    expect(total).toBe(43);
+    // r46 moved the approval-step/expense-batch reads onto native kinds (43->41).
+    expect(total).toBe(41);
   });
 });

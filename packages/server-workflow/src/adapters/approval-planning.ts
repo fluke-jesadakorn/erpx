@@ -1,5 +1,4 @@
 
-import {workflowFinalOwnerProjections as peoplepayrollFinalOwnerProjections} from "@erpx/server-people_payroll/public/workflow-final-owner-projections";
 import {nativeWorkflowWrite} from './native-workflow-write';
 import { nativeClearCommandAssertions } from '@erpx/server-collaboration/adapters/native-command-assertions';
 import { createApprovalsSourceRepository as organization_approvals } from '@erpx/server-organization/public/workflow-approvals-facts';
@@ -26,9 +25,7 @@ import {createApprovalPlanningApplication,type ApprovalPlanningPorts}from '@erpx
 import {workflowWave3Statement} from './native-workflow-wave3';
 import {nativeWorkflowReadAll,nativeWorkflowReadFirst} from './native-workflow-read';
 import {approvalInstancesStarWhereSql} from './approval-projection-sources';
-import {jsonEachApproverPoolSql,jsonEachSql} from './json-each-sources';
-const peoplepayrollFinalSources=peoplepayrollFinalOwnerProjections();
-const approvalStepsApproverSql = `SELECT s.*,COALESCE(p.legal_name,s.approver_user_id) approver_name FROM approval_steps s LEFT ${peoplepayrollFinalSources.approvals_hr_people_p_join} ON p.user_id=s.approver_user_id AND p.company_id=? AND p.merged_into_id IS NULL WHERE s.instance_id`;
+import {jsonEachApproverPoolSql} from './json-each-sources';
 /** Byte-identical prefix shared by the pending/blocked instance-state guards; callers keep their own literal state and bind order, emitted SQL is unchanged. */
 const approvalInstanceStateExistsPrefix = "EXISTS(SELECT 1 FROM approval_instances WHERE id=? AND version=? AND state='";
 const pendingInstanceExistsSql = `${approvalInstanceStateExistsPrefix}pending' AND current_step=?)`;
@@ -40,7 +37,6 @@ const noApprovalStepExistsPrefix = "NOT EXISTS(SELECT 1 FROM approval_steps";
  * and route-version (guard49) guards; emitted SQL and bind order stay unchanged. */
 const approvalRecordVersionExists = (table: string, column: string, versionFirst = false) =>
     `EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND ${versionFirst ? `version=? AND ${column}=?` : `${column}=? AND version=?`})`;
-const jsonEachBindSql = `(${jsonEachSql('?')})`;
 export { participantSql } from '@erpx/server-workflow/adapters/approval-participant-projection';
 export type { ApprovalKind } from '@erpx/server-workflow/domain/approvals';
 export type { ApprovalPhase } from '@erpx/server-workflow/domain/approvals';
@@ -60,10 +56,9 @@ export function nativeApprovalPlanningPorts(database: SqlDatabase, readOverrides
                 .bind(kind, id, companyId)
                 .first<ApprovalInstance>();
         },
-        readStepsForEffect(company_id: string, id: string) {
-            return database.prepare(`${approvalStepsApproverSql}=? ORDER BY s.ordinal`)
-                .bind(company_id, id)
-                .all<ApprovalStep>();
+        async readStepsForEffect(company_id: string, id: string) {
+            const results = await nativeWorkflowReadAll<ApprovalStep>('wf_native_approval_steps_approver', [company_id, id], company_id, database);
+            return {results};
         },
         async readOpenApprovalPrevious(kind: ApprovalKind, id: string, phase: ApprovalPhase, companyId: string) {
             return nativeWorkflowReadFirst<{cycle: number}>('wf_native_open_approval_previous', [kind, id, phase], companyId, database);
@@ -232,11 +227,11 @@ export async function expenseApprovalReadBatch(db: SqlDatabase, actor: Pick<Staf
     const requested = new Set(ids);
     if (requested.size > 250) throw new Error("EXPENSE_BATCH_TOO_LARGE");
     const encoded = JSON.stringify([...requested]);
-    const instances = requested.size ? (await db.prepare(`SELECT DISTINCT ON(record_id) * FROM approval_instances WHERE record_type='expense' AND company_id=? AND record_id IN${jsonEachBindSql} ORDER BY record_id,insertion_order DESC`).bind(actor.companyId,encoded).all<ApprovalInstance>()).results : [];
+    const instances = requested.size ? await nativeWorkflowReadAll<ApprovalInstance>('wf_native_expense_batch_instances',[actor.companyId,encoded],actor.companyId,db) : [];
     const current = new Map(instances.map(row => [row.record_id,row]));
     const stable = instances.filter(row => row.state !== "blocked");
     const [steps, history] = requested.size ? await Promise.all([
-        stable.length ? db.prepare(`${approvalStepsApproverSql} IN${jsonEachBindSql} ORDER BY s.ordinal`).bind(actor.companyId,JSON.stringify(stable.map(row => row.id))).all<ApprovalStep>() : Promise.resolve({results:[] as ApprovalStep[]}),
+        stable.length ? nativeWorkflowReadAll<ApprovalStep>('wf_native_approval_steps_batch',[actor.companyId,JSON.stringify(stable.map(row => row.id))],actor.companyId,db).then(results=>({results})) : Promise.resolve({results:[] as ApprovalStep[]}),
         nativeWorkflowReadAll<ApprovalDecision & {batch_record_id:string}>('wf_native_approval_view_history_batch',[encoded,actor.companyId],actor.companyId,db).then(results=>({results})),
     ]) : [{results:[] as ApprovalStep[]},{results:[] as (ApprovalDecision & {batch_record_id:string})[]}];
     const stepsByInstance = new Map<string,ApprovalStep[]>(), historyByRecord = new Map<string,ApprovalDecision[]>();

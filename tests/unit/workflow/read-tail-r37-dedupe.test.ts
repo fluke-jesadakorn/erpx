@@ -35,7 +35,7 @@ describe('erpx_json_each value generator family (r37)', () => {
     expect(sql).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
   });
 
-  it('expense batch callers still emit the byte-identical json_each bind span', async () => {
+  it('expense batch callers emit no local SQL and keep the exact json_each span in the owner registry', async () => {
     const sqls: string[] = [];
     const db = {
       prepare: (sql: string) => { sqls.push(sql); return { bind: () => ({ all: () => ({ results: [] }) }) }; },
@@ -43,10 +43,12 @@ describe('erpx_json_each value generator family (r37)', () => {
     } as unknown as SqlDatabase;
     const actor = { companyId: 'c1', userId: 'u1', role: 'staff', assignmentId: 'a1' } as unknown as Parameters<typeof expenseApprovalReadBatch>[1];
     await expenseApprovalReadBatch(db, actor, ['e1']);
-    expect(sqls).toHaveLength(1);
-    expect(sqls[0]).toBe("SELECT DISTINCT ON(record_id) * FROM approval_instances WHERE record_type='expense' AND company_id=? AND record_id IN(SELECT value FROM erpx_json_each(?)) ORDER BY record_id,insertion_order DESC");
-    // The batch history read is native now; the exact json_each span lives in
-    // the owner registry and the bridge carries only the typed kind and binds.
+    expect(sqls).toHaveLength(0);
+    // Both batch reads are native now; the exact json_each spans live in the
+    // owner registry and the bridge carries only the typed kinds and binds.
+    expect(vi.mocked(nativeWorkflowReadAll)).toHaveBeenCalledWith(
+      'wf_native_expense_batch_instances', ['c1', '["e1"]'], 'c1', db,
+    );
     expect(vi.mocked(nativeWorkflowReadAll)).toHaveBeenCalledWith(
       'wf_native_approval_view_history_batch', ['["e1"]', 'c1'], 'c1', db,
     );
@@ -61,7 +63,7 @@ describe('erpx_json_each value generator family (r37)', () => {
     ]);
     expect(shared.match(/export const jsonEachSql/g) ?? []).toHaveLength(1);
     expect(planning).not.toContain('SELECT value FROM erpx_json_each');
-    expect(planning).toContain("jsonEachSql('?')");
+    expect(planning).toContain("'wf_native_expense_batch_instances'");
   });
 
   it('retirement:ts-statements is strictly lower than the recorded 56 r36 baseline', async () => {
