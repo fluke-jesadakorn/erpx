@@ -3,6 +3,7 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {NODE_BRANCH_ACTIVE_EXISTS} from './organization-read-tail-sources';
 import {twoColumnLookup} from './organization-column-alias-families-r27';
+import {activeLevelAbsent} from './organization-column-alias-families-r30';
 const ROSTER_REQUIRED_SOURCE = twoColumnLookup('roster_required','organization_positions','company_id','id');
 export function peopleDirectoryOrganizationFacts(database: SqlDatabase) {
     return { readDirectoryOptionsNodes(companyId: string, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null) {
@@ -30,6 +31,6 @@ export function peopleDirectoryOrganizationFacts(database: SqlDatabase) {
             roster_required: number;
         }>(); },
         guard27(commandId: string, value: "active-level", personId: string) {
-            return assertion(database, commandId, value, `NOT EXISTS(SELECT 1 FROM (${people_payrollPlatformSources.hr_engagements}) e LEFT JOIN staff_levels l ON l.id=e.level_id AND l.company_id=e.company_id WHERE e.person_id=? AND e.status!='ended' AND (e.level_id IS NULL OR l.active IS DISTINCT FROM 1))`, [personId]);
+            return assertion(database, commandId, value, `NOT EXISTS(${activeLevelAbsent(people_payrollPlatformSources.hr_engagements, `e.person_id=? AND e.status!='ended' AND (e.level_id IS NULL OR l.active IS DISTINCT FROM 1)`)})`, [personId]);
         } };
 }
