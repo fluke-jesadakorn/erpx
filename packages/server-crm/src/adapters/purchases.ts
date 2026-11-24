@@ -23,6 +23,7 @@ import {crmLeadSchema,type CRMLeadInput} from "@erpx/server-crm/domain/leads";
 import {salesRecipientEligibility} from "@erpx/server-sales/public/sales-recipient";
 import {commercialOwnerProjectionSources as organizationProjectionSources} from "@erpx/server-organization/public/commercial-owner-projection-sources";
 import {crmCreatorLeadScopeSql} from "./read-tail-r24-sql";
+import {crmPurchaseRowProjection} from "./read-tail-r25-sql";
 
 export type CRMPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 export type CRMPurchaseTarget={kind:"lead"|"activity"|"account"|"contact"|"guest-link";id:string};
@@ -59,16 +60,16 @@ export const crmClockCteSql=` AS MATERIALIZED(SELECT ${packageClockSql} now_ms)`
  * alias and whether the active-status filter applies; the rendered SQL stays
  * byte-identical to the retired inline literals. */
 export const crmBranchOptionsSql=(nameAlias:string,activeOnly:boolean)=>`SELECT id,display_name${nameAlias} FROM (${organizationProjectionSources.organization_nodes}) organization_nodes WHERE company_id=? AND kind IN ('branch','headquarters')${activeOnly?" AND status='active'":''} AND (?::text IS NULL OR id=?) ORDER BY display_name`;
-export const crmPurchaseAccountRows=`SELECT account.id,account.company_id,NULL::text branch_id,NULL::text department_id,account.created_by,${accountIdentity} witness FROM crm_accounts account LEFT JOIN (${crmFinanceCustomerSources}) customer ON customer.id=account.finance_party_id AND customer.company_id=account.company_id AND customer.kind='customer' WHERE account.finance_party_id IS NULL OR customer.id IS NOT NULL`;
-export const crmPurchaseContactRows=`SELECT contact.id,contact.company_id,NULL::text branch_id,NULL::text department_id,account.created_by,${contactIdentity} witness FROM crm_contacts contact JOIN (${crmPurchaseAccountRows}) account ON account.id=contact.account_id AND account.company_id=contact.company_id`;
-export const crmPurchaseLeadRows=`SELECT lead.id,lead.company_id,lead.branch_id,lead.department_id,
+export const crmPurchaseAccountRows=`${crmPurchaseRowProjection('account','NULL::text branch_id','NULL::text department_id')}account.created_by,${accountIdentity} witness FROM crm_accounts account LEFT JOIN (${crmFinanceCustomerSources}) customer ON customer.id=account.finance_party_id AND customer.company_id=account.company_id AND customer.kind='customer' WHERE account.finance_party_id IS NULL OR customer.id IS NOT NULL`;
+export const crmPurchaseContactRows=`${crmPurchaseRowProjection('contact','NULL::text branch_id','NULL::text department_id')}account.created_by,${contactIdentity} witness FROM crm_contacts contact JOIN (${crmPurchaseAccountRows}) account ON account.id=contact.account_id AND account.company_id=contact.company_id`;
+export const crmPurchaseLeadRows=`${crmPurchaseRowProjection('lead','lead.branch_id','lead.department_id')}
  jsonb_build_object('lead',jsonb_build_array(lead.id,lead.company_id,lead.branch_id,lead.department_id,lead.account_id,lead.contact_id,lead.created_by),'account',${accountIdentity},'contact',${contactIdentity},'customer',jsonb_build_array(customer.id,customer.company_id,customer.kind)) witness
  FROM crm_leads lead JOIN crm_accounts account ON account.id=lead.account_id AND account.company_id=lead.company_id
  JOIN crm_contacts contact ON contact.id=lead.contact_id AND contact.account_id=account.id AND contact.company_id=lead.company_id
  LEFT JOIN (${crmFinanceCustomerSources}) customer ON customer.id=account.finance_party_id AND customer.company_id=lead.company_id AND customer.kind='customer'
  WHERE account.finance_party_id IS NULL OR customer.id IS NOT NULL`;
-export const crmPurchaseActivityRows=`SELECT activity.id,activity.company_id,lead.branch_id,lead.department_id,jsonb_build_object('activity',jsonb_build_array(activity.id,activity.company_id,activity.lead_id,activity.created_by),'lead',lead.witness) witness FROM crm_lead_activities activity JOIN (${crmPurchaseLeadRows}) lead ON lead.id=activity.lead_id AND lead.company_id=activity.company_id`;
-export const crmPurchaseOpportunityRows=`SELECT lead.id,lead.company_id,lead.branch_id,lead.department_id,jsonb_build_object('lead',lead.witness,'opportunity',jsonb_build_array(opportunity.id,opportunity.lead_id,opportunity.customer_id,opportunity.currency,opportunity.quote_id,opportunity.sales_id,opportunity.reservation_id),'quote',to_jsonb(quote),'sale',to_jsonb(sale),'reservation',to_jsonb(reservation)) witness
+export const crmPurchaseActivityRows=`${crmPurchaseRowProjection('activity','lead.branch_id','lead.department_id')}jsonb_build_object('activity',jsonb_build_array(activity.id,activity.company_id,activity.lead_id,activity.created_by),'lead',lead.witness) witness FROM crm_lead_activities activity JOIN (${crmPurchaseLeadRows}) lead ON lead.id=activity.lead_id AND lead.company_id=activity.company_id`;
+export const crmPurchaseOpportunityRows=`${crmPurchaseRowProjection('lead','lead.branch_id','lead.department_id')}jsonb_build_object('lead',lead.witness,'opportunity',jsonb_build_array(opportunity.id,opportunity.lead_id,opportunity.customer_id,opportunity.currency,opportunity.quote_id,opportunity.sales_id,opportunity.reservation_id),'quote',to_jsonb(quote),'sale',to_jsonb(sale),'reservation',to_jsonb(reservation)) witness
  FROM (${crmPurchaseLeadRows}) lead JOIN crm_leads native ON native.id=lead.id JOIN crm_accounts account ON account.id=native.account_id
  JOIN crm_opportunities opportunity ON opportunity.lead_id=lead.id JOIN (${crmFinanceCustomerSources}) customer ON customer.id=opportunity.customer_id AND customer.company_id=lead.company_id AND customer.kind='customer' AND account.finance_party_id=customer.id AND account.reviewed_by IS NOT NULL
  LEFT JOIN (${crmCommerceOrderSources}) quote ON quote.id=opportunity.quote_id AND quote.company_id=lead.company_id AND quote.branch_id=lead.branch_id AND quote.department_id IS NOT DISTINCT FROM lead.department_id AND quote.party_id=customer.id AND quote.currency=opportunity.currency AND quote.kind='quote'
@@ -89,7 +90,7 @@ export const crmHotelReservationProbeSql=`SELECT 1 FROM (${crmHotelReservationSo
  * sites. Callers pass only their differing tail; rendered SQL stays byte-identical. */
 export const crmCaseEventReceiptWitnessSql=`SELECT 1 FROM crm_case_events event JOIN command_receipts receipt ON event.id='crm-event-'||receipt.command_id||`;
 export const crmAccountCreatedByScopeSql=crmCreatorLeadScopeSql('account','lead','lead.account_id=account.id','lead.company_id=account.company_id');
-export const crmPurchaseGuestLinkRows=`SELECT link.id,link.company_id,guest.branch_id,NULL::text department_id,account.created_by,
+export const crmPurchaseGuestLinkRows=`${crmPurchaseRowProjection('link','guest.branch_id','NULL::text department_id')}account.created_by,
  jsonb_build_object('link',jsonb_build_array(link.id,link.company_id,link.contact_id,link.guest_id,link.property_id),'contact',${contactIdentity},'guest',to_jsonb(guest)) witness FROM crm_guest_links link
  JOIN crm_contacts contact ON contact.id=link.contact_id AND contact.company_id=link.company_id
  JOIN crm_accounts account ON account.id=contact.account_id AND account.company_id=link.company_id

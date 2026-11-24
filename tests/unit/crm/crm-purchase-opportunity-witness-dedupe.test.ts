@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { crmCreatorLeadScopeSql } from '../../../packages/server-crm/src/adapters/read-tail-r24-sql';
 
 const purchasesUrl = new URL('../../../packages/server-crm/src/adapters/purchases.ts', import.meta.url);
 const adapter = (name: string) => new URL(`../../../packages/server-crm/src/adapters/${name}`, import.meta.url);
@@ -42,10 +43,11 @@ describe('crm purchase opportunity witness read family', () => {
 
   it('keeps one crm_leads contact-scope predicate shared by the guest-link and contact reads', async () => {
     const identities = await readFile(adapter('identities.ts'), 'utf8');
-    const predicate = '(?::text IS NULL OR acc.created_by=? OR EXISTS(SELECT 1 FROM crm_leads l WHERE l.contact_id=c.id AND l.branch_id=? AND (?::text IS NULL OR l.department_id=?)))';
-    expect(identities.split(predicate).length - 1).toBe(1);
-    expect(identities).toContain('const contactScopeSql=`' + predicate + '`;');
+    const helper = await readFile(adapter('read-tail-r24-sql.ts'), 'utf8');
+    expect(identities).toContain("const contactScopeSql=crmCreatorLeadScopeSql('acc','l','l.contact_id=c.id','');");
     expect(identities.match(/\$\{contactScopeSql\}/g)).toHaveLength(2);
+    expect(helper.match(/crmCreatorLeadScopeSql =/g)).toHaveLength(1);
+    expect(crmCreatorLeadScopeSql('acc', 'l', 'l.contact_id=c.id', '')).toBe('(?::text IS NULL OR acc.created_by=? OR EXISTS(SELECT 1 FROM crm_leads l WHERE l.contact_id=c.id AND l.branch_id=? AND (?::text IS NULL OR l.department_id=?)))');
   });
 
   it('keeps one marketing candidate row prefix shared by the handoff read and recheck', async () => {
@@ -122,7 +124,8 @@ describe('crm purchase opportunity witness read family', () => {
     const accountScope = '(?::text IS NULL OR account.created_by=? OR EXISTS(SELECT 1 FROM crm_leads lead WHERE lead.account_id=account.id AND lead.company_id=account.company_id AND lead.branch_id=? AND (?::text IS NULL OR lead.department_id=?)))';
     const attachment = await readFile(adapter('attachment-purchases.ts'), 'utf8');
     const serviceFacts = await readFile(adapter('attachments-service-facts.ts'), 'utf8');
-    expect(purchases.split('export const crmAccountCreatedByScopeSql=`' + accountScope + '`;').length - 1).toBe(1);
+    expect(purchases.split("export const crmAccountCreatedByScopeSql=crmCreatorLeadScopeSql('account','lead','lead.account_id=account.id','lead.company_id=account.company_id');").length - 1).toBe(1);
+    expect(crmCreatorLeadScopeSql('account', 'lead', 'lead.account_id=account.id', 'lead.company_id=account.company_id')).toBe(accountScope);
     expect(attachment).not.toContain(accountScope);
     expect(serviceFacts).not.toContain('?::text IS NULL OR account.created_by=? OR EXISTS(SELECT 1 FROM crm_leads lead\n');
     expect(attachment.match(/\$\{crmAccountCreatedByScopeSql\}/g)).toHaveLength(1);
@@ -383,7 +386,7 @@ describe('crm read-tail r19 parameterized projection families', () => {
   });
 
   it('keeps the owner SELECT KPI strictly below the r18 AFTER=158 baseline', () => {
-    expect(totalSelects()).toBe(144);
+    expect(totalSelects()).toBe(136);
     expect(totalSelects()).toBeLessThan(158);
   });
 });
@@ -429,7 +432,7 @@ describe('crm read-tail r20 parameterized history families', () => {
   });
 
   it('keeps the owner SELECT KPI strictly below the r19 AFTER=153 baseline', () => {
-    expect(totalSelects()).toBe(144);
+    expect(totalSelects()).toBe(136);
     expect(totalSelects()).toBeLessThan(153);
   });
 });
@@ -475,7 +478,7 @@ describe('crm read-tail r21 parameterized branch option family', () => {
   });
 
   it('keeps the owner SELECT KPI strictly below the r20 BEFORE=151 baseline', () => {
-    expect(totalSelects()).toBe(144);
+    expect(totalSelects()).toBe(136);
     expect(totalSelects()).toBeLessThan(151);
   });
 });
@@ -533,7 +536,7 @@ describe('crm read-tail r22 assignment-scope EXISTS family', () => {
   });
 
   it('keeps the owner SELECT KPI strictly below the r21 BEFORE=150 baseline', () => {
-    expect(totalSelects()).toBe(144);
+    expect(totalSelects()).toBe(136);
     expect(totalSelects()).toBeLessThan(150);
   });
 });
@@ -577,7 +580,65 @@ describe('crm read-tail r23 reference-existence and account-scope families', () 
   });
 
   it('keeps the owner SELECT KPI strictly below the r22 BEFORE=146 baseline', () => {
-    expect(totalSelects()).toBe(144);
+    expect(totalSelects()).toBe(136);
     expect(totalSelects()).toBeLessThan(146);
+  });
+});
+
+describe('crm read-tail r24 creator EXISTS lead-scope family', () => {
+  const owner = fileURLToPath(new URL('../../../packages/server-crm/src/', import.meta.url));
+  const src = (name: string) => readFileSync(resolve(owner, 'adapters', name), 'utf8');
+  const totalSelects = () => {
+    let total = 0;
+    for (const rel of readdirSync(owner, { recursive: true })) {
+      if (!String(rel).endsWith('.ts')) continue;
+      total += readFileSync(resolve(owner, String(rel)), 'utf8').match(/SELECT /g)?.length ?? 0;
+    }
+    return total;
+  };
+
+  /** Retired inline literals, exactly as they read before r24. */
+  const retired: Record<string, string> = {
+    contactScope: "(?::text IS NULL OR acc.created_by=? OR EXISTS(SELECT 1 FROM crm_leads l WHERE l.contact_id=c.id AND l.branch_id=? AND (?::text IS NULL OR l.department_id=?)))",
+    accountScope: "(?::text IS NULL OR a.created_by=? OR EXISTS(SELECT 1 FROM crm_leads l WHERE l.account_id=a.id AND l.company_id=a.company_id AND l.branch_id=? AND (?::text IS NULL OR l.department_id=?)))",
+    contactScopeA: "(?::text IS NULL OR a.created_by=? OR EXISTS(SELECT 1 FROM crm_leads l WHERE l.contact_id=c.id AND l.company_id=c.company_id AND l.branch_id=? AND (?::text IS NULL OR l.department_id=?)))",
+    accountCreatedBy: "(?::text IS NULL OR account.created_by=? OR EXISTS(SELECT 1 FROM crm_leads lead WHERE lead.account_id=account.id AND lead.company_id=account.company_id AND lead.branch_id=? AND (?::text IS NULL OR lead.department_id=?)))",
+    sourceAccount: "(?::text IS NULL OR actual.created_by=? OR EXISTS(SELECT 1 FROM crm_leads l WHERE l.account_id=actual.id AND l.company_id=actual.company_id AND l.branch_id=? AND (?::text IS NULL OR l.department_id=?)))",
+    sourceGuestLink: "(?::text IS NULL OR actual.created_by=? OR EXISTS(SELECT 1 FROM crm_leads l WHERE l.contact_id=(SELECT contact_id FROM crm_guest_links WHERE id=actual.id) AND l.company_id=actual.company_id AND l.branch_id=? AND (?::text IS NULL OR l.department_id=?)))",
+  };
+
+  it('renders byte-identical read-only SQL for every retired inline site', () => {
+    const cases: Array<[string, string]> = [
+      [retired.contactScope, crmCreatorLeadScopeSql('acc', 'l', 'l.contact_id=c.id', '')],
+      [retired.accountScope, crmCreatorLeadScopeSql('a', 'l', 'l.account_id=a.id', 'l.company_id=a.company_id')],
+      [retired.contactScopeA, crmCreatorLeadScopeSql('a', 'l', 'l.contact_id=c.id', 'l.company_id=c.company_id')],
+      [retired.accountCreatedBy, crmCreatorLeadScopeSql('account', 'lead', 'lead.account_id=account.id', 'lead.company_id=account.company_id')],
+      [retired.sourceAccount, crmCreatorLeadScopeSql('actual', 'l', 'l.account_id=actual.id', 'l.company_id=actual.company_id')],
+      [retired.sourceGuestLink, crmCreatorLeadScopeSql('actual', 'l', 'l.contact_id=(SELECT contact_id FROM crm_guest_links WHERE id=actual.id)', 'l.company_id=actual.company_id')],
+    ];
+    for (const [expected, rendered] of cases) {
+      expect(rendered).toBe(expected);
+      expect(rendered).toContain('SELECT ');
+      expect(rendered).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
+    }
+  });
+
+  it('owns the renderer once and composes it at the four retired sites', () => {
+    expect(src('read-tail-r24-sql.ts').match(/crmCreatorLeadScopeSql =/g)).toHaveLength(1);
+    const identities = src('identities.ts');
+    expect(identities).toContain("const contactScopeSql=crmCreatorLeadScopeSql('acc','l','l.contact_id=c.id','');");
+    expect(identities).toContain("const accountOrContactLeadScopeSql=(field:string,ref:string,company:string)=>crmCreatorLeadScopeSql('a','l',`l.${field}=${ref}`,`l.company_id=${company}`);");
+    expect(identities).not.toContain('created_by=? OR EXISTS(SELECT 1 FROM crm_leads ');
+    const purchases = src('purchases.ts');
+    expect(purchases).toContain("export const crmAccountCreatedByScopeSql=crmCreatorLeadScopeSql('account','lead','lead.account_id=account.id','lead.company_id=account.company_id');");
+    expect(purchases).toContain(":crmCreatorLeadScopeSql('actual','l',");
+    expect(purchases).not.toContain('created_by=? OR EXISTS(SELECT 1 FROM crm_leads ');
+    for (const token of ['crmAssignmentScopeExistsSql', 'crmAccountCreatedByScopeSql', 'crmAssignmentAllowedSql', 'opportunityWitnessSql', 'crmClockCteSql', 'crmOpportunityLeadSql', 'crmHotelReservationProbeSql', 'crmCaseEventReceiptWitnessSql', 'crmBranchOptionsSql'])
+      expect(purchases).toContain(token);
+  });
+
+  it('keeps the owner SELECT KPI strictly below the r24 BEFORE=144 baseline', () => {
+    expect(totalSelects()).toBe(136);
+    expect(totalSelects()).toBeLessThan(144);
   });
 });
