@@ -25,6 +25,7 @@ import { BusinessRuleError } from '@erpx/server-shared/index';
 import {createApprovalPlanningApplication,type ApprovalPlanningPorts}from '@erpx/server-workflow/application/approvals';
 import {workflowWave3Statement} from './native-workflow-wave3';
 import {approvalInstancesStarWhereSql} from './approval-projection-sources';
+import {jsonEachApproverPoolSql} from './json-each-sources';
 const peoplepayrollFinalSources=peoplepayrollFinalOwnerProjections();
 const approvalStepsApproverSql = `SELECT s.*,COALESCE(p.legal_name,s.approver_user_id) approver_name FROM approval_steps s LEFT ${peoplepayrollFinalSources.approvals_hr_people_p_join} ON p.user_id=s.approver_user_id AND p.company_id=? AND p.merged_into_id IS NULL WHERE s.instance_id`;
 /** Byte-identical span shared by the previous/approver name lookups; emitted SQL is unchanged. */
@@ -121,7 +122,7 @@ export function nativeApprovalPlanningPorts(database: SqlDatabase, readOverrides
         guard31(key: string, value: "approval-version", id: string, version: number, ordinal: number, id2: string, userId: string, override: boolean) {
             return assertion(database, key, value, override
                 ? `${pendingInstanceAndStepSql}state='pending' AND approver_user_id<>?)`
-                : `${pendingInstanceAndStepSql}? IN (SELECT approver_user_id UNION SELECT value FROM erpx_json_each(COALESCE(approver_pool_json,'[]'))) AND state='pending')`, [id, version, ordinal, id2, userId]);
+                : `${pendingInstanceAndStepSql}? IN (SELECT approver_user_id UNION ${jsonEachApproverPoolSql('approver_pool_json')}) AND state='pending')`, [id, version, ordinal, id2, userId]);
         },
         guard32(key: string, value: "override-authority", assignmentId: string, companyId: string, userId: string, branch_id: string | null, department_id: string | null) { return identity_access_approvals(database).guard32(key, value, assignmentId, companyId, userId, branch_id, department_id); },
         guard33(key: string, value: "appointed-approval-current", value2: (string | null)[], policyStep: boolean) { return organization_approvals(database).guard33(key, value, value2, policyStep); },
