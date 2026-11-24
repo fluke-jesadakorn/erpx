@@ -710,7 +710,7 @@ describe('Maintenance record-image fixed SQL',()=>{
   }
  });
 
- it('retirement:ts-statements stays strictly below the r20 BEFORE=32 baseline',async()=>{
+ it('retirement:ts-statements stays strictly below the r21 BEFORE=30 baseline',async()=>{
   const {readdirSync,readFileSync}=await import('node:fs');
   const {resolve}=await import('node:path');
   let total=0;
@@ -723,8 +723,8 @@ describe('Maintenance record-image fixed SQL',()=>{
    }
   };
   walk(srcRoot);
-  expect(total).toBe(30);
-  expect(total).toBeLessThan(32);
+  expect(total).toBe(28);
+  expect(total).toBeLessThan(30);
  });
 });
 
@@ -900,8 +900,9 @@ describe('Maintenance work/asset source fixed SQL',()=>{
   const tokens=(s:string)=>s.replace(/\s+/g,' ').trim();
   expect(source.match(/export const workAssetSource = \(fields: string, assetJoin: string, where: string\) =>/g)).toHaveLength(1);
   expect(source.match(/`SELECT \$\{fields\} FROM maintenance_work_orders w JOIN \(\$\{assetsProjectionSources\.operational_assets\}\) a ON a\.id=w\.asset_id\$\{assetJoin\} WHERE \$\{where\}`/g)).toHaveLength(1);
-  // r17 left 8 work.ts SELECTs; r18 folds the items/downtime Work/Asset source (8 -> 7).
-  expect(source.match(/SELECT/g)).toHaveLength(7);
+  // r17 left 8 work.ts SELECTs; r18 folds the items/downtime Work/Asset source (8 -> 7);
+  // r21 folds the assets/nodes/consumptions projection source scans (7 -> 5).
+  expect(source.match(/SELECT/g)).toHaveLength(5);
   expect(source).not.toContain('SELECT w.*,a.code asset_code,a.name asset_name,CASE WHEN');
   expect(source).not.toContain('`SELECT w.id,w.version::text version');
   expect(source).not.toMatch(/LOCK\s+TABLE/i);
@@ -1019,5 +1020,49 @@ describe('Maintenance facts UNION fact-row fixed SQL',()=>{
   expect(read).toContain('export const settlementRefSource');
   const wsrc=readFileSync(new URL(`${dir}work.ts`,import.meta.url),'utf8');
   expect(wsrc).toContain('export const workAssetSource');
+ });
+});
+
+/** Fixed-SQL read-tail oracle for the Maintenance projection row-scan family
+ * (r21). The Work assets, org-nodes and consumptions reads share one owner-local
+ * top-level `SELECT <fields> FROM (<source>) <alias> <tail>` skeleton. All three
+ * composed strings stay byte-identical to their pre-dedupe literals, no duplicate
+ * TS query literal remains, the retired count drops strictly below BEFORE=30,
+ * every r3-r20 family stays unchanged and every owner lock is untouched. */
+describe('Maintenance projection row-scan fixed SQL',()=>{
+ const dir='../../../packages/server-maintenance/src/adapters/';
+ it('single-sources the row-scan head and keeps all three composed reads byte-identical',async()=>{
+  const {readFileSync}=await import('node:fs');
+  const source=readFileSync(new URL(`${dir}work.ts`,import.meta.url),'utf8');
+  // One fixed SELECT template for the family; the three inline literals are gone.
+  expect(source.match(/export const projectionRowScan = \(fields: string, source: string, alias: string, tail: string\) =>\s*\n\s*`SELECT \$\{fields\} FROM \(\$\{source\}\) \$\{alias\} \$\{tail\}`/g)).toHaveLength(1);
+  expect(source.match(/projectionRowScan\(/g)).toHaveLength(3);
+  expect(source).not.toContain('`SELECT a.id,a.code,a.name,a.version,a.condition,a.lifecycle_status FROM (');
+  expect(source).not.toContain('`SELECT id,kind,display_name,branch_id FROM (');
+  expect(source).not.toContain('`SELECT p.*,j.status journal_status,product.name product_name FROM (');
+  // r18 left 7 work.ts SELECTs; r21 folds three row scans into one template (7 -> 5).
+  expect(source.match(/SELECT/g)).toHaveLength(5);
+  // No write, row-lock or native read is accepted or changed.
+  expect(source).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
+
+  const {projectionRowScan}=await import('../../../packages/server-maintenance/src/adapters/work');
+  // Pre-r21 literals rebuilt verbatim with closed fragment placeholders.
+  const scope='<assetScope>';
+  const preAssets=`SELECT a.id,a.code,a.name,a.version,a.condition,a.lifecycle_status FROM (<assets>) a WHERE ${scope} AND a.lifecycle_status IN ('in_service','registered','maintenance') AND NOT EXISTS(SELECT 1 FROM maintenance_work_orders w WHERE w.asset_id=a.id AND w.status NOT IN ('completed','cancelled')) ORDER BY a.code`;
+  const preNodes=`SELECT id,kind,display_name,branch_id FROM (<org>) n WHERE company_id=? AND status='active' AND kind IN ('branch','headquarters','department') AND (?::text IS NULL OR id=? OR branch_id=?) AND (?::text IS NULL OR id=?) ORDER BY kind,display_name`;
+  const preConsumptions=`SELECT p.*,j.status journal_status,product.name product_name FROM (<inv>) p JOIN (<fin>) j ON j.id=p.journal_id JOIN (<com>) product ON product.id=p.product_id WHERE p.source_kind='maintenance' AND p.source_id=? ORDER BY p.created_at,p.id`;
+  expect(projectionRowScan('a.id,a.code,a.name,a.version,a.condition,a.lifecycle_status','<assets>','a',`WHERE ${scope} AND a.lifecycle_status IN ('in_service','registered','maintenance') AND NOT EXISTS(SELECT 1 FROM maintenance_work_orders w WHERE w.asset_id=a.id AND w.status NOT IN ('completed','cancelled')) ORDER BY a.code`)).toBe(preAssets);
+  expect(projectionRowScan('id,kind,display_name,branch_id','<org>','n',`WHERE company_id=? AND status='active' AND kind IN ('branch','headquarters','department') AND (?::text IS NULL OR id=? OR branch_id=?) AND (?::text IS NULL OR id=?) ORDER BY kind,display_name`)).toBe(preNodes);
+  expect(projectionRowScan('p.*,j.status journal_status,product.name product_name','<inv>','p',`JOIN (<fin>) j ON j.id=p.journal_id JOIN (<com>) product ON product.id=p.product_id WHERE p.source_kind='maintenance' AND p.source_id=? ORDER BY p.created_at,p.id`)).toBe(preConsumptions);
+  for(const sql of [preAssets,preNodes,preConsumptions]){
+   expect(sql).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|pg_advisory/i);
+  }
+  // r3-r20 families and their locks stay untouched.
+  expect(source).toContain('export const workAssetSource');
+  expect(source).toContain('iamScopeGuardSql(workIamFrom');
+  expect(readFileSync(new URL(`${dir}projection-lookup.ts`,import.meta.url),'utf8')).toContain('export const projectionLookup');
+  expect(readFileSync(new URL(`${dir}package-obligations.ts`,import.meta.url),'utf8')).toContain('export const factRow=');
+  expect(readFileSync(new URL(`${dir}purchase-sources.ts`,import.meta.url),'utf8')).toContain('LOCK TABLE maintenance_work_orders,maintenance_preventive_plans,maintenance_preventive_occurrences IN SHARE ROW EXCLUSIVE MODE');
+  expect(readFileSync(new URL(`${dir}finance-record-sources.ts`,import.meta.url),'utf8')).toContain('LOCK TABLE operational_inventory_consumptions,maintenance_work_orders,operational_assets IN SHARE MODE');
  });
 });

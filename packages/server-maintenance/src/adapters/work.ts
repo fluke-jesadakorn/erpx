@@ -31,6 +31,16 @@ const assetScope="a.company_id=? AND (?::text IS NULL OR a.branch_id=?) AND (?::
  * is accepted or changed. r3-r17 families stay unchanged. */
 export const workAssetSource = (fields: string, assetJoin: string, where: string) =>
   `SELECT ${fields} FROM maintenance_work_orders w JOIN (${assetsProjectionSources.operational_assets}) a ON a.id=w.asset_id${assetJoin} WHERE ${where}`;
+/** Canonical owner-local row scan over a closed projection source, shared by
+ * the Work assets, org-nodes and consumptions read tails (r21). Callers supply
+ * only fixed field/alias/tail fragments from this owner's closed projection
+ * relations, never request-authored SQL; each composed read stays byte-identical
+ * to its pre-dedupe literal. Distinct from the scalar r16 projectionLookup
+ * (parenthesized WHERE-only lookup) and the r18 workAssetSource (fixed Work/Asset
+ * join): this is a top-level multi-row scan with an arbitrary closed tail. No
+ * LOCK or native read is accepted or changed. */
+export const projectionRowScan = (fields: string, source: string, alias: string, tail: string) =>
+  `SELECT ${fields} FROM (${source}) ${alias} ${tail}`;
 /** Owner-local adapter over the shared IAM guard: this owner supplies only its
  * closed projection relations, fixed aliases and a row alias/user/permission;
  * the common assignment/principal/role/status tail is owned once in the helper. */
@@ -42,11 +52,11 @@ function access(a:WorkContext,write=false){requirePermission(a,write?'records.wr
 function bindRepository(write:SqlDatabase,a:WorkContext,canReadParts=true):MaintenanceRepository {
  return {
   items:async()=>(await write.prepare(`${workAssetSource(`w.*,a.code asset_code,a.name asset_name,CASE WHEN ${worker} THEN 1 ELSE 0 END owner_eligible,CASE WHEN ${reviewer('w')} THEN 1 ELSE 0 END can_review,${maintenanceOwnerName('w')} owner_name`,"",workScope)} ORDER BY w.updated_at DESC,w.id`).bind(a.userId,...args(a)).all<Work>()).results,
-  assets:async()=>(await write.prepare(`SELECT a.id,a.code,a.name,a.version,a.condition,a.lifecycle_status FROM (${assetsProjectionSources.operational_assets}) a WHERE ${assetScope} AND a.lifecycle_status IN ('in_service','registered','maintenance') AND NOT EXISTS(SELECT 1 FROM maintenance_work_orders w WHERE w.asset_id=a.id AND w.status NOT IN ('completed','cancelled')) ORDER BY a.code`).bind(...args(a)).all<Row>()).results,
-  nodes:async()=>(await write.prepare(`SELECT id,kind,display_name,branch_id FROM (${organizationProjectionSources.organization_nodes}) n WHERE company_id=? AND status='active' AND kind IN ('branch','headquarters','department') AND (?::text IS NULL OR id=? OR branch_id=?) AND (?::text IS NULL OR id=?) ORDER BY kind,display_name`).bind(a.companyId,a.branchId,a.branchId,a.branchId,a.departmentId,a.departmentId).all<Row>()).results,
+  assets:async()=>(await write.prepare(`${projectionRowScan("a.id,a.code,a.name,a.version,a.condition,a.lifecycle_status",assetsProjectionSources.operational_assets,"a",`WHERE ${assetScope} AND a.lifecycle_status IN ('in_service','registered','maintenance') AND NOT EXISTS(SELECT 1 FROM maintenance_work_orders w WHERE w.asset_id=a.id AND w.status NOT IN ('completed','cancelled')) ORDER BY a.code`)}`).bind(...args(a)).all<Row>()).results,
+  nodes:async()=>(await write.prepare(`${projectionRowScan("id,kind,display_name,branch_id",organizationProjectionSources.organization_nodes,"n","WHERE company_id=? AND status='active' AND kind IN ('branch','headquarters','department') AND (?::text IS NULL OR id=? OR branch_id=?) AND (?::text IS NULL OR id=?) ORDER BY kind,display_name")}`).bind(a.companyId,a.branchId,a.branchId,a.branchId,a.departmentId,a.departmentId).all<Row>()).results,
   people:async()=>(await write.prepare(`SELECT DISTINCT p.user_id id,p.legal_name name FROM (${people_payrollProjectionSources.hr_people}) p JOIN (${identity_accessProjectionSources.assignments}) x ON x.user_id=p.user_id AND x.company_id=p.company_id WHERE p.company_id=? AND p.status='active' AND p.merged_into_id IS NULL AND iam_assignment_active(x.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(x.role,x.company_id,'records.write') ORDER BY p.legal_name`).bind(a.companyId).all<Row>()).results,
   spares:branchId=>canReadParts?availableServiceSpares(write,a,branchId):Promise.resolve({stock:[],lots:[]}),
-  consumptions:async id=>canReadParts?(await write.prepare(`SELECT p.*,j.status journal_status,product.name product_name FROM (${inventoryProjectionSources.operational_inventory_consumptions}) p JOIN (${financeProjectionSources.finance_journals}) j ON j.id=p.journal_id JOIN (${commerceProjectionSources.commerce_products}) product ON product.id=p.product_id WHERE p.source_kind='maintenance' AND p.source_id=? ORDER BY p.created_at,p.id`).bind(id).all<Row>()).results:[],
+  consumptions:async id=>canReadParts?(await write.prepare(`${projectionRowScan("p.*,j.status journal_status,product.name product_name",inventoryProjectionSources.operational_inventory_consumptions,"p",`JOIN (${financeProjectionSources.finance_journals}) j ON j.id=p.journal_id JOIN (${commerceProjectionSources.commerce_products}) product ON product.id=p.product_id WHERE p.source_kind='maintenance' AND p.source_id=? ORDER BY p.created_at,p.id`)}`).bind(id).all<Row>()).results:[],
   history:async id=>(await write.prepare('SELECT * FROM maintenance_work_events WHERE work_order_id=? ORDER BY version').bind(id).all<Row>()).results,
   async downtime(input){ const where=[workScope,"w.status IN ('completed','cancelled')","w.downtime_started_at IS NOT NULL","w.downtime_ended_at IS NOT NULL","w.downtime_ended_at>w.downtime_started_at","w.downtime_started_at<?","w.downtime_ended_at>?"];const values:unknown[]=[...args(a),input.to,input.from];
  if(input.query){where.push("position(lower(?) in lower(concat_ws(' ',w.title,a.code,a.name)))>0");values.push(input.query);}
