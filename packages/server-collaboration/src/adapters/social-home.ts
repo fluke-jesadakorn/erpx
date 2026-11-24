@@ -37,7 +37,7 @@ import { collaborationHomeSources as operations } from '@erpx/server-operations/
 import {handoverAcknowledgements} from '@erpx/server-operations/public/handover-acknowledgement-read';
 import {workSocialReadScope,workSocialPresentation} from '@erpx/server-collaboration/public/work-social-read-policy';
 import {withWorkSocialCommand} from '@erpx/server-collaboration/adapters/work-social-purchases';
-import {socialFollowPostExists,messagingTeamMemberExists,publishedCommentRead,socialPostDraftById,socialPostTopicExists,socialCommentTopicExists} from './read-tail-sql';
+import {socialFollowPostExists,messagingTeamMemberExists,publishedCommentRead,socialPostDraftById,socialPostTopicExists,socialCommentTopicExists,socialCommentAncestorStep} from './read-tail-sql';
 const draftVersionGuardSql = "EXISTS(SELECT 1 FROM social_post_drafts WHERE id=? AND author_id=? AND version=? AND published_post_id IS NULL)";
 async function inward<T>(action: () => Promise<T>) {
     try {
@@ -96,9 +96,7 @@ function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSoci
         ON parent.id=child.parent_comment_id AND parent.post_id=child.post_id
       WHERE child.post_id=? AND child.id IN (${ids.map(() => "?").join(",")}) AND child.state='published'
       UNION
-      SELECT parent.* FROM ancestors child JOIN social_comments parent
-        ON parent.id=child.parent_comment_id AND parent.post_id=child.post_id
-      WHERE parent.state='published'
+      ${socialCommentAncestorStep}
     )
     SELECT a.id,a.post_id,a.body,a.author_id,a.author_name,a.created_at,a.mentions_json,a.rich_content_json,
       a.author_kind,a.parent_comment_id,parent.author_name AS parent_author_name
@@ -127,9 +125,7 @@ function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSoci
           ON parent.id=child.parent_comment_id AND parent.post_id=child.post_id
         WHERE parent.state='published'
         UNION
-        SELECT parent.* FROM ancestors child JOIN social_comments parent
-          ON parent.id=child.parent_comment_id AND parent.post_id=child.post_id
-        WHERE parent.state='published'
+        ${socialCommentAncestorStep}
       ), thread_comments AS (
         SELECT id,post_id,body,author_id,author_name,created_at,mentions_json,rich_content_json,author_kind,parent_comment_id FROM selected
         UNION
