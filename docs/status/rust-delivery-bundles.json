@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10910,
+    "revision": 10914,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -167852,7 +167852,7 @@
         "owner": "inventory",
         "title": "inventory TS read tail native cutover (round 37)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -167864,22 +167864,37 @@
         "resources": [
           "owner:inventory"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMinvc",
-          "claimedAt": "2026-11-24T09:08:30.816Z",
-          "heartbeatAt": "2026-11-24T09:08:30.816Z",
-          "expiresAt": "2026-11-24T09:38:30.816Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-inventory/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "656a0ea43",
+            "owner": "inventory",
+            "before": 343,
+            "after": 342,
+            "note": "Attachment owner version guard shared; locks, count sources, clock CTE, native transport and r11-r36 helpers untouched."
+          },
+          {
+            "command": "vitest inventory r35-r37 (19) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "656a0ea43"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=343.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMinvc",
+          "at": "2026-11-24T09:19:35.031Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -168400,6 +168415,42 @@
         "nextAction": "Next: safe byte-identical or parameterized SELECT-head family; if none, report blocked. BEFORE=119.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.inventory.read-tail-r38",
+        "goalId": "G4",
+        "owner": "inventory",
+        "title": "inventory TS read tail native cutover (round 38)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-inventory/src/**",
+          "tests/unit/inventory/**",
+          "tests/integration/inventory/**"
+        ],
+        "resources": [
+          "owner:inventory"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMinvd",
+          "claimedAt": "2026-11-24T09:19:35.419Z",
+          "heartbeatAt": "2026-11-24T09:19:35.419Z",
+          "expiresAt": "2026-11-24T09:49:35.419Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized SELECT-head family; if none, report blocked. BEFORE=342.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -168408,7 +168459,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1498,
+      "totalPackets": 1499,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 22,
@@ -168416,13 +168467,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1121,
+        "blocked": 1122,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T09:18:36.039Z",
+    "updatedAt": "2026-11-24T09:19:35.426Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
