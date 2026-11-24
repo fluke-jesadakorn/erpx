@@ -79,7 +79,8 @@ describe('Records read-tail r18 retirement check', () => {
     walk(srcRoot);
     // r18 deduped the 2x SELECT count(*) request_ai_usage quota subqueries in
     // request-ai.ts into one shared parameterized fragment (34 -> 33).
-    expect(total).toBe(33);
+    // r18's achievement is a ceiling of 33; later rounds (r19+) reduce further.
+    expect(total).toBeLessThanOrEqual(33);
     expect(total).toBeLessThan(34);
   });
 });

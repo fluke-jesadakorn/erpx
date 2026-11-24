@@ -13,6 +13,7 @@ import {requestVersionGuard} from '@erpx/server-records/public/employee-requests
 import { serviceAuthoritySnapshot, validateServiceScope } from "@erpx/server-support/public/service-access";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { requestAiUsageCountSql } from './read-tail-count-sql';
+import { existsGuardSql } from './read-tail-exists-sql';
 import { assertProductionModuleEnabled, productionFeatureGuard } from "@erpx/server-pms/public/feature-availability";
 import { generateThaiHotelMockAi, isThaiHotelAiMockEnabled } from "@erpx/server-runtime/public/simulation-only-adapters";
 import { holdingResources as nativeHoldingResources } from '../../../../packages/server-runtime/src/public/runtime';
@@ -77,7 +78,7 @@ function application(provided?: SqlDatabase, actor?: WorkContext) {
         stageRunRequestAiEffect(...args) { return RequestAiWorkflowFacts(database).stageRunRequestAiEffect(...args); },
         guard13(...args) { return RequestAiIdentityAccessFacts(database).guard13(...args); },
         guard14(command: string, value: "request-ai-lease", id: string, token: string) {
-            return assertion(database, command, value, "EXISTS(SELECT 1 FROM request_ai_proposals WHERE id=? AND state='running' AND lease_token=? AND claim_until>(floor(extract(epoch FROM clock_timestamp())*1000)::bigint))", [id, token]);
+            return assertion(database, command, value, existsGuardSql('request_ai_proposals', "id=? AND state='running' AND lease_token=? AND claim_until>(floor(extract(epoch FROM clock_timestamp())*1000)::bigint)"), [id, token]);
         },
         stageRunRequestAiEffect2(value: string, now: number, id: string, token: string) {
             return nativeRecordsStatement('records_stmt_6', { companyId: actor?.companyId, actor, now: Date.now() })

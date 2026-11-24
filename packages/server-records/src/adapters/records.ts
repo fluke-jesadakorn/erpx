@@ -36,6 +36,7 @@ import { readListPage } from "@erpx/server-work_projection/public/list-page";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
 import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
+import { existsGuardSql } from './read-tail-exists-sql';
 import "server-only";
 import { z } from "zod";
 import { runtimeEnv } from "../../../../packages/server-runtime/src/public/runtime";
@@ -104,7 +105,7 @@ function application(provided?: SqlDatabase,actor?:WorkContext) {
         /** Retired: transition state and history execute in the native Rust records command route. */
         stageTransitionRecordUpdate() { throw new NativeApiError(503,'NATIVE_RECORDS_UNAVAILABLE','The native Records command is unavailable.'); },
         stageTransitionRecordHistory() { throw new NativeApiError(503,'NATIVE_RECORDS_UNAVAILABLE','The native Records command is unavailable.'); },
-        guard9(key: string, value: "record-version", companyId: string, moduleId: string, id: string, version: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM workspace_records WHERE company_id=? AND module_id=? AND id=? AND version=? AND archived_at IS NULL)", [companyId, moduleId, id, version]); },
+        guard9(key: string, value: "record-version", companyId: string, moduleId: string, id: string, version: number) { return assertion(database, key, value, existsGuardSql('workspace_records', 'company_id=? AND module_id=? AND id=? AND version=? AND archived_at IS NULL'), [companyId, moduleId, id, version]); },
         readRecordContextEdgesbacklinksmentionssuggestionshistory(moduleId: string, id: string) {
             return database.prepare(referenceEdgesSql('host','references')).bind(moduleId, id).all<{
                 target_module: string;
@@ -147,7 +148,7 @@ function application(provided?: SqlDatabase,actor?:WorkContext) {
         stageRequestSuggestionEffect(suggestionId: string, moduleId: string, id: string, key: string, value: string, value2: string, value3: string, value4: string, value5: "ready", userId: string, now: number, now2: number) {
             return nativeRecordsStatement('records_stmt_19', { companyId: actor?.companyId, actor, now: Date.now() }).bind(suggestionId, moduleId, id, key, value, value2, value3, value4, value5, userId, now, now2);
         },
-        guard24(key: string, value: "suggestion-ready", suggestionId: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM record_field_suggestions WHERE id=? AND state='ready')", [suggestionId]); },
+        guard24(key: string, value: "suggestion-ready", suggestionId: string) { return assertion(database, key, value, existsGuardSql('record_field_suggestions', "id=? AND state='ready'"), [suggestionId]); },
         guard25(key: string, value: string, mod: string, sourceId: string, version: number) { return assertion(database, key, value, recordVersionExistsSql, [mod, sourceId, version]); },
         stageDecideSuggestionEffect(value: string, userId: string, now: number, moduleId: string, id: string) { return nativeRecordsStatement('records_stmt_20', { companyId: actor?.companyId, actor, now: Date.now() }).bind(value, userId, now, moduleId, id); },
         stageDecideSuggestionEffect2(value: "rejected" | "applied", userId: string, now: number, suggestionId: string) { return nativeRecordsStatement('records_stmt_21', { companyId: actor?.companyId, actor, now: Date.now() }).bind(value, userId, now, suggestionId); } };
