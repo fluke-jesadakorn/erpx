@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { readFile } from "node:fs/promises";
 import { assertBrandCategoryLocks, assertBrandIndependentPublisher } from "@erpx/server-brand/domain/policy";
 import { brandIdentitySchema, type ActiveBrandIdentity, type BrandCategoryLock, type BrandDraft } from "@erpx/server-brand/domain/identity";
 import { readBrandIdentityWorkspace } from "@erpx/server-brand/application/identity-read";
@@ -92,5 +93,24 @@ describe("Retained Branding media normalization", () => {
       async metadata() { return { width: 64, height: 64 }; },
       async encode() { throw new Error("encoder failure"); },
     }, new ArrayBuffer(0))).rejects.toThrow("encoder failure");
+  });
+});
+
+describe("Brand residual read tail", () => {
+  test("current-scope probe uses one SELECT token with a bound VALUES tuple", async () => {
+    const source = await readFile(
+      new URL("../../../packages/server-brand/src/adapters/attachment-read.ts", import.meta.url),
+      "utf8",
+    );
+    expect(source.match(/SELECT/g)).toHaveLength(1);
+    expect(source).toContain(
+      "`SELECT 1 FROM(VALUES(?::text,?::text,?::text))workforce_actor_scope(company_id,branch_id,department_id) WHERE ${currentScope.where}`",
+    );
+    expect(source).not.toContain(
+      "(SELECT ?::text company_id,?::text branch_id,?::text department_id)workforce_actor_scope",
+    );
+    expect(source).toContain(
+      ".bind(actor.companyId,actor.branchId,actor.departmentId,...currentScope.args)",
+    );
   });
 });
