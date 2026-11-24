@@ -1,6 +1,7 @@
 import { nativeCreateCandidate, nativeRecordEngagement, nativeReviewAsset } from '@erpx/feature-marketing/adapters/server/native-marketing-wave2';
 import {filterMarketingPurchasedWork} from "@erpx/server-marketing/adapters/record-purchases";
 import {marketingEvidenceCandidateRows,marketingEvidenceEventRows} from "./executive-evidence-rows";
+import {marketingCandidateFormRows} from "./candidate-form-rows";
 import { commercialOwnerProjectionSources as organizationProjectionSources } from "@erpx/server-organization/public/commercial-owner-projection-sources";
 
 import "server-only";
@@ -52,7 +53,7 @@ async assets(){return (await write
         .all<Row>()).results;},
 async candidates(){return (await write
         .prepare(
-          `SELECT c.*,a.name form_name FROM marketing_lead_candidates c JOIN marketing_assets a ON a.id=c.form_id WHERE c.company_id=? AND ${await marketingCandidateReadFilter('c')} AND (?::text IS NULL OR c.branch_id=?) AND (?::text IS NULL OR c.department_id=?) ORDER BY c.updated_at DESC`,
+          `${marketingCandidateFormRows()} WHERE c.company_id=? AND ${await marketingCandidateReadFilter('c')} AND (?::text IS NULL OR c.branch_id=?) AND (?::text IS NULL OR c.department_id=?) ORDER BY c.updated_at DESC`,
         )
         .bind(
           a.companyId,
@@ -101,7 +102,7 @@ candidate:(id,lock=false)=>write
     .first<Row>(),
 detail:id=>write
       .prepare(
-        "SELECT c.*,a.name form_name FROM marketing_lead_candidates c JOIN marketing_assets a ON a.id=c.form_id WHERE c.id=? AND c.company_id=? AND (?::text IS NULL OR c.branch_id=?) AND (?::text IS NULL OR c.department_id=?)",
+        `${marketingCandidateFormRows()} WHERE c.id=? AND c.company_id=? AND (?::text IS NULL OR c.branch_id=?) AND (?::text IS NULL OR c.department_id=?)`,
       )
       .bind(
         id,

@@ -214,4 +214,22 @@ describe('Marketing owner-local campaign read tail', () => {
     expect(workspace).toContain("marketingEvidenceCandidateRows('marketing_lead_candidates')");
     expect(workspace).toContain("marketingEvidenceEventRows('marketing_lead_candidates')");
   });
+
+  it('keeps one fixed owner projection for workspace candidate row reads', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const base = new URL('../../../packages/server-marketing/src/adapters/', import.meta.url);
+    const helper = await readFile(new URL('candidate-form-rows.ts', base), 'utf8');
+    const workspace = await readFile(new URL('marketing.ts', base), 'utf8');
+
+    const projection = 'SELECT c.*,a.name form_name FROM marketing_lead_candidates c JOIN marketing_assets a ON a.id=c.form_id';
+    // The canonical helper owns the single workspace candidate projection; its
+    // comment must not smuggle an extra token into the retirement KPI.
+    expect(helper.match(/SELECT/g)).toHaveLength(1);
+    expect(helper).toContain('export function marketingCandidateFormRows');
+    expect(helper).toContain(projection);
+
+    expect(workspace).toContain('import {marketingCandidateFormRows} from "./candidate-form-rows"');
+    expect(workspace).not.toContain(projection);
+    expect(workspace.match(/\$\{marketingCandidateFormRows\(\)\}/g)).toHaveLength(2);
+  });
 });
