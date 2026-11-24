@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7613,
+    "revision": 7617,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -128480,7 +128480,7 @@
         "owner": "finance",
         "title": "finance TS read tail native cutover (r4)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -128492,22 +128492,42 @@
         "resources": [
           "owner:finance"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wF23fin",
-          "claimedAt": "2026-11-24T00:25:29.972Z",
-          "heartbeatAt": "2026-11-24T00:31:22.515Z",
-          "expiresAt": "2026-11-24T01:01:22.515Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "cc943763f",
+            "owner": "finance",
+            "before": 2270,
+            "after": 2269,
+            "note": "Agent and records monthly AI usage projections share recordsFinanceUsageSql."
+          },
+          {
+            "command": "cargo check -p erpx-server-finance + lib (50)",
+            "result": "passed",
+            "sourceSha": "cc943763f"
+          },
+          {
+            "command": "vitest finance ai services (36) + tsc finance",
+            "result": "passed",
+            "sourceSha": "cc943763f"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to a mounted native read; record a strictly lower spaced count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wF23fin",
+          "at": "2026-11-24T00:37:50.447Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -129469,6 +129489,42 @@
         "nextAction": "Pick the smallest remaining owner-local legal dedupe (avoid the knowledge.ts evidence guard until the out-of-scope Files oracle is resolved); record a strictly lower spaced count (BEFORE=317).",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.finance.read-tail-r5",
+        "goalId": "G4",
+        "owner": "finance",
+        "title": "finance TS read tail native cutover (round 5)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-finance/src/**",
+          "tests/unit/finance/**",
+          "tests/integration/finance/**"
+        ],
+        "resources": [
+          "owner:finance"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG17fin",
+          "claimedAt": "2026-11-24T00:37:50.682Z",
+          "heartbeatAt": "2026-11-24T00:37:50.682Z",
+          "expiresAt": "2026-11-24T01:07:50.682Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or use an already-mounted finance native read; no new composition mounts; record a strictly lower spaced count (BEFORE=2269).",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -129477,7 +129533,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 738,
+      "totalPackets": 739,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 17,
@@ -129485,13 +129541,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 362,
+        "blocked": 363,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T00:37:34.266Z",
+    "updatedAt": "2026-11-24T00:37:50.688Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
