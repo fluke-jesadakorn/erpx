@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12205,
+    "revision": 12207,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -181056,7 +181056,7 @@
         "owner": "files",
         "title": "files TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -181067,22 +181067,37 @@
         "resources": [
           "owner:files"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n21",
-          "claimedAt": "2026-11-24T13:45:47.709Z",
-          "heartbeatAt": "2026-11-24T13:56:34.987Z",
-          "expiresAt": "2026-11-24T14:26:34.987Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-files/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "c082ac462",
+            "owner": "files",
+            "before": 251,
+            "after": 248,
+            "note": "Set row join head and ledger object key projection head shared; advisory/FOR UPDATE/LOCK TABLE/nativeWrite untouched."
+          },
+          {
+            "command": "vitest files r42 (6) + pins (9) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "c082ac462"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "set_row JOIN head (-2) and ledger object_key projection head (-1): 251->248. BEFORE=251.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n21",
+          "at": "2026-11-24T14:01:13.544Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -181690,17 +181705,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 15,
+        "in_progress": 14,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1392,
+        "blocked": 1393,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T14:00:49.709Z",
+    "updatedAt": "2026-11-24T14:01:13.550Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
