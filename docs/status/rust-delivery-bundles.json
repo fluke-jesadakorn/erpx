@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7828,
+    "revision": 7830,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -131953,7 +131953,7 @@
         "owner": "customer_360",
         "title": "customer_360 TS read tail native cutover (r4)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -131965,22 +131965,34 @@
         "resources": [
           "owner:customer_360"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG60c360",
-          "claimedAt": "2026-11-24T01:10:25.562Z",
-          "heartbeatAt": "2026-11-24T01:14:14.575Z",
-          "expiresAt": "2026-11-24T01:44:14.575Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "customer_360 byte-identical scan (3 methods; 21/22/35 populations)",
+            "result": "passed",
+            "sourceSha": "02aa41cfa",
+            "note": "zero duplicates remain"
+          },
+          {
+            "command": "tsc customer_360 + 3 transport suites (22)",
+            "result": "passed",
+            "sourceSha": "02aa41cfa"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "TS-only dedupe if available; if none safe, report blocked with evidence. BEFORE=35.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Blocked with evidence; no forced dedupe.",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG60c360",
+          "at": "2026-11-24T01:14:43.886Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Blocked with evidence; no forced dedupe."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -132319,17 +132331,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
-        "in_progress": 31,
+        "in_progress": 30,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 412,
+        "blocked": 413,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:14:33.700Z",
+    "updatedAt": "2026-11-24T01:14:43.890Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
