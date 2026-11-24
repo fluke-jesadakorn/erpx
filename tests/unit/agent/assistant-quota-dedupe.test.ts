@@ -37,4 +37,36 @@ describe('Agent read-tail r7 fixed SQL dedupe', () => {
     expect(runtime).not.toContain('"SELECT 1"');
     expect(runtime.match(/db\.prepare\(nativeOwnerWriteNoopSql\)/g)).toHaveLength(1);
   });
+
+  /** Verbatim pre-dedupe records quota count (quotaAllowed ↔ guardQuota). */
+  const recordsQuotaCount = '(SELECT count(*) FROM (${recordsRequestUsageSql} UNION ALL ${recordsFinanceUsageSql} UNION ALL ${agentWorkspaceMonthlyUsageSql} UNION ALL ${recordsExecutiveUsageSql}) calls WHERE company_id=? AND month=?)';
+
+  it('r9: authors the byte-identical records quota count once', async () => {
+    const helper = await src('adapters/collaboration-agent-sources.ts');
+    expect(helper).toContain(`const agentRecordsQuotaCountSql = \`${recordsQuotaCount}\`;`);
+    expect(helper.match(/SELECT count\(\*\) FROM \(\$\{recordsRequestUsageSql\}/g)).toHaveLength(1);
+    expect(helper.match(/agentRecordsQuotaCountSql/g)).toHaveLength(3);
+  });
+
+  it('r9: both consumers render the exact pre-dedupe statement text', async () => {
+    const helper = await src('adapters/collaboration-agent-sources.ts');
+    const def = helper.match(/const agentRecordsQuotaCountSql = `([\s\S]*?)`;/)?.[1];
+    expect(def).toBe(recordsQuotaCount);
+    const templates = [...helper.matchAll(/`([\s\S]*?)`/g)].map((m) => m[1]).filter((t) => t.includes('${agentRecordsQuotaCountSql}'));
+    expect(templates).toHaveLength(2);
+    expect(templates.map((t) => t.replace('${agentRecordsQuotaCountSql}', def!))).toEqual([
+      `SELECT CASE WHEN
+      \${socialMonthlyUsageCountSql} +
+      \${recordsExpenseUsageCountSql} +
+      (SELECT count(*) FROM (\${recordsRequestUsageSql} UNION ALL \${recordsFinanceUsageSql} UNION ALL \${agentWorkspaceMonthlyUsageSql} UNION ALL \${recordsExecutiveUsageSql}) calls WHERE company_id=? AND month=?) < \${recordsAiMonthlyLimitSql}
+      AND \${socialRequestRateBudgetSql} THEN 1 ELSE 0 END AS allowed`,
+      `\${socialMonthlyUsageCountSql} + \${recordsExpenseUsageCountSql} + (SELECT count(*) FROM (\${recordsRequestUsageSql} UNION ALL \${recordsFinanceUsageSql} UNION ALL \${agentWorkspaceMonthlyUsageSql} UNION ALL \${recordsExecutiveUsageSql}) calls WHERE company_id=? AND month=?) < \${recordsAiMonthlyLimitSql} AND \${socialRequestRateBudgetSql}`,
+    ]);
+  });
+
+  it('r9: the distinct translation guard stays local and untouched', async () => {
+    const assistant = await src('adapters/workspace-assistant.ts');
+    expect(assistant).toContain('guardTranslationQuota(id:string,companyId:string,value:number,month:string){return assertion(db,id,"translation-quota"');
+    expect(assistant).toContain(') calls WHERE company_id=? AND created_at>=?');
+  });
 });
