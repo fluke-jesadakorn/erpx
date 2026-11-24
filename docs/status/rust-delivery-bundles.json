@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11314,
+    "revision": 11316,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -172462,7 +172462,7 @@
         "owner": "records",
         "title": "records TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -172474,22 +172474,37 @@
         "resources": [
           "owner:records"
         ],
-        "claim": {
-          "runId": "run-20261124-b",
-          "agentId": "wGCMrec3",
-          "claimedAt": "2026-11-24T10:28:16.825Z",
-          "heartbeatAt": "2026-11-24T10:34:05.000Z",
-          "expiresAt": "2026-11-24T11:04:05.000Z",
-          "generation": 168
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-records/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b413b9b22",
+            "owner": "records",
+            "before": 28,
+            "after": 27,
+            "note": "approvalChildAgg generalized to childRowAgg and the inline children aggregate folded in; rendered image SQL byte-identical; public signature unchanged."
+          },
+          {
+            "command": "vitest records dedupe (36) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "b413b9b22"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=28.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMrec3",
+          "at": "2026-11-24T10:35:26.509Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -173022,17 +173037,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 23,
+        "in_progress": 22,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1213,
+        "blocked": 1214,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 168,
-    "updatedAt": "2026-11-24T10:34:45.464Z",
+    "updatedAt": "2026-11-24T10:35:26.517Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
