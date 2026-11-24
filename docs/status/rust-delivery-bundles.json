@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12300,
+    "revision": 12304,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -182667,6 +182667,76 @@
         "nextAction": "Evidence row tail merge in executive-evidence-rows.ts (-1): 49->48; verify floor after.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.projects.read-tail-r38",
+        "goalId": "G4",
+        "owner": "projects",
+        "title": "projects TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-projects/src/**",
+          "tests/unit/projects/**"
+        ],
+        "resources": [
+          "owner:projects"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n54",
+          "claimedAt": "2026-11-24T14:54:03.561Z",
+          "heartbeatAt": "2026-11-24T14:54:03.561Z",
+          "expiresAt": "2026-11-24T15:24:03.561Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Member EXISTS fold (-4), projection super-head (-3): 88->81. BEFORE=88.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.maintenance.read-tail-r28",
+        "goalId": "G4",
+        "owner": "maintenance",
+        "title": "maintenance TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-maintenance/src/**",
+          "tests/unit/maintenance/**"
+        ],
+        "resources": [
+          "owner:maintenance"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n55",
+          "claimedAt": "2026-11-24T14:54:16.485Z",
+          "heartbeatAt": "2026-11-24T14:54:16.485Z",
+          "expiresAt": "2026-11-24T15:24:16.485Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "factRow delegate to settlementRefSource (-1): 21->20. BEFORE=21.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -182675,11 +182745,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1774,
+      "totalPackets": 1776,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 3,
+        "in_progress": 5,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -182689,7 +182759,7 @@
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T14:53:24.446Z",
+    "updatedAt": "2026-11-24T14:54:16.491Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
