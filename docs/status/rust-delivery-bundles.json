@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8310,
+    "revision": 8314,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -137944,7 +137944,7 @@
         "owner": "legal",
         "title": "legal TS read tail native cutover (round r12)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -137956,22 +137956,37 @@
         "resources": [
           "owner:legal"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGCeleg",
-          "claimedAt": "2026-11-24T01:58:50.087Z",
-          "heartbeatAt": "2026-11-24T01:58:50.087Z",
-          "expiresAt": "2026-11-24T02:28:50.087Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-legal/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "1645b2ab6",
+            "owner": "legal",
+            "before": 283,
+            "after": 282,
+            "note": "Manager availability inner SELECT shared by managerAvailable and requireRequesterRouting; both still execute; composed SQL byte-identical."
+          },
+          {
+            "command": "vitest legal units (196) + tsc legal",
+            "result": "passed",
+            "sourceSha": "1645b2ab6"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical dedupe or native read; if none, report blocked. BEFORE=283.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCeleg",
+          "at": "2026-11-24T02:05:07.784Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -138638,6 +138653,42 @@
         "nextAction": "Next: scan all remaining manufacturing adapters (not just production-command-sources) for byte-identical groups; if none, report blocked. BEFORE=137.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.legal.read-tail-r13",
+        "goalId": "G4",
+        "owner": "legal",
+        "title": "legal TS read tail native cutover (round 13)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-legal/src/**",
+          "tests/unit/legal/**",
+          "tests/integration/legal/**"
+        ],
+        "resources": [
+          "owner:legal"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCyleg",
+          "claimedAt": "2026-11-24T02:05:08.101Z",
+          "heartbeatAt": "2026-11-24T02:05:08.101Z",
+          "expiresAt": "2026-11-24T02:35:08.101Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: scan all legal adapters for another byte-identical family; avoid knowledge guard/trust/PDF/malware. BEFORE=282.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -138646,7 +138697,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 904,
+      "totalPackets": 905,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -138654,13 +138705,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 525,
+        "blocked": 526,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T02:04:53.518Z",
+    "updatedAt": "2026-11-24T02:05:08.107Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
