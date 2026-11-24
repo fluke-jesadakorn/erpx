@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11400,
+    "revision": 11406,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -172210,7 +172210,7 @@
         "owner": "procurement",
         "title": "procurement TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -172222,22 +172222,37 @@
         "resources": [
           "owner:procurement"
         ],
-        "claim": {
-          "runId": "run-20261124-b",
-          "agentId": "wGCMproa",
-          "claimedAt": "2026-11-24T10:19:52.803Z",
-          "heartbeatAt": "2026-11-24T11:01:04.525Z",
-          "expiresAt": "2026-11-24T11:31:04.525Z",
-          "generation": 168
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-procurement/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "980fbed46",
+            "owner": "procurement",
+            "before": 112,
+            "after": 111,
+            "note": "RFQ list read now native plan; registry and bind order unchanged."
+          },
+          {
+            "command": "vitest procurement native plan (21); cargo lib pending",
+            "result": "passed",
+            "sourceSha": "980fbed46"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=112.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMproa",
+          "at": "2026-11-24T11:15:31.638Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -172655,7 +172670,7 @@
         "owner": "planning",
         "title": "planning TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -172667,22 +172682,37 @@
         "resources": [
           "owner:planning"
         ],
-        "claim": {
-          "runId": "run-20261124-b",
-          "agentId": "wGCMpln5",
-          "claimedAt": "2026-11-24T10:28:17.236Z",
-          "heartbeatAt": "2026-11-24T11:01:04.525Z",
-          "expiresAt": "2026-11-24T11:31:04.525Z",
-          "generation": 168
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-planning/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "6f6fdf70b",
+            "owner": "planning",
+            "before": 22,
+            "after": 21,
+            "note": "Production command source select-from head shared by both readers; binds unchanged."
+          },
+          {
+            "command": "vitest planning r17 (5)",
+            "result": "passed",
+            "sourceSha": "6f6fdf70b"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=22.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMpln5",
+          "at": "2026-11-24T11:15:30.847Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -173597,7 +173627,7 @@
         "owner": "files",
         "title": "files TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -173609,22 +173639,37 @@
         "resources": [
           "owner:files"
         ],
-        "claim": {
-          "runId": "run-20261124-b",
-          "agentId": "wGCMfilc",
-          "claimedAt": "2026-11-24T10:40:07.085Z",
-          "heartbeatAt": "2026-11-24T11:01:04.525Z",
-          "expiresAt": "2026-11-24T11:31:04.525Z",
-          "generation": 168
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-files/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "497298b57",
+            "owner": "files",
+            "before": 264,
+            "after": 262,
+            "note": "Upload invalidation and rollback heads share one helper; advisory locks and native writes untouched."
+          },
+          {
+            "command": "vitest files r34 (4)",
+            "result": "passed",
+            "sourceSha": "497298b57"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=264.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMfilc",
+          "at": "2026-11-24T11:15:31.248Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -174034,17 +174079,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 25,
+        "in_progress": 22,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1232,
+        "blocked": 1235,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 168,
-    "updatedAt": "2026-11-24T11:11:49.262Z",
+    "updatedAt": "2026-11-24T11:15:31.644Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
