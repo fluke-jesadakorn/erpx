@@ -59,7 +59,7 @@ describe('manufacturing read-tail r28 cost-allocation probe family', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(57); // r27 left 58; r28 parameterizes the cost-allocation probe family 58->57.
+    expect(total).toBe(56); // r27 left 58; r28 parameterizes the cost-allocation probe family 58->57; r29 scoped EXISTS probe 57->56.
     expect(total).toBeLessThan(58);
   });
 });

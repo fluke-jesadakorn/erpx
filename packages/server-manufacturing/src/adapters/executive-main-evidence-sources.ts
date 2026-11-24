@@ -6,12 +6,13 @@ import { type Filters } from "@erpx/feature-shared/lib/executive/canvas";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { ManufacturingCostEvidenceRow } from '@erpx/server-runtime/public/executive/evidence-contract';
+import { manufacturingScopedExistsProbe } from './manufacturing-read-tail-r29-sql';
 async function manufacturingCostEvidenceRows(db: SqlDatabase, actor: WorkContext, filters: Filters, query: string, cursor?: {
     postedAt: number;
     id: string;
 }, limit = 25, recordId?: string) {
     const scoped = manufacturingCostConditions(actor, filters, query, cursor, recordId),purchased=await manufacturingMetricSource(db,actor,"production-cost");
-    scoped.conditions.push(`EXISTS(SELECT 1 FROM (${purchased.sql}) purchased_production WHERE purchased_production.id=o.id)`);scoped.values.push(...purchased.args);
+    scoped.conditions.push(manufacturingScopedExistsProbe(purchased.sql,"purchased_production","purchased_production.id=o.id"));scoped.values.push(...purchased.args);
     return (await db.prepare(`SELECT m.id,m.order_id,m.movement_kind,m.amount_minor::text amount_minor,j.posted_at,m.version,m.journal_id,
       j.status journal_status,j.currency,o.status order_status,o.version order_version,p.name product_name,w.name warehouse_name
     FROM manufacturing_cost_movements m
