@@ -18,9 +18,12 @@ export function assertProjectPackageObligationSources(owner:PostgresDatabase,dat
  owner.assertActiveTransaction(database);if(sources.get(database)!==companyId)throw Error("PROJECT_PACKAGE_OBLIGATION_SOURCE_REQUIRED");
 }
 export const projectRowsSql="SELECT * FROM staff_projects";
+/** Byte-identical fixed row-source prefix shared by the settlement table reads;
+ * one definition keeps every source relation identical. */
+const tableRowsSql=`SELECT * FROM `;
 export const projectPackageSettlementSources={
- projects:projectRowsSql,members:"SELECT * FROM staff_project_members",milestones:"SELECT * FROM staff_project_milestones",
- workLogs:"SELECT * FROM staff_project_work_logs",costs:"SELECT * FROM staff_project_cost_allocations",actuals:"SELECT * FROM staff_project_package_actuals",handoffs:"SELECT * FROM staff_project_handoffs",
+ projects:projectRowsSql,members:`${tableRowsSql}staff_project_members`,milestones:`${tableRowsSql}staff_project_milestones`,
+ workLogs:`${tableRowsSql}staff_project_work_logs`,costs:`${tableRowsSql}staff_project_cost_allocations`,actuals:`${tableRowsSql}staff_project_package_actuals`,handoffs:`${tableRowsSql}staff_project_handoffs`,
 } as const;
 export async function projectPackageObligations(owner:PostgresDatabase,database:SqlDatabase,input:Input){
  assertProjectPackageObligationSources(owner,database,input.companyId);

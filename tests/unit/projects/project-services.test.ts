@@ -638,3 +638,14 @@ it('keeps one owner-local fixed SQL definition for the Projects collaboration-ho
  expect(count('${workforceActorScope}')).toBe(2);
  expect(count('${projectAudienceClock}')).toBe(2);
 });
+it('keeps one owner-local fixed SQL definition for the Projects settlement-source row reads',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const source=await readFile(new URL('../../../packages/server-projects/src/adapters/package-obligations.ts',import.meta.url),'utf8');
+ const count=(token:string)=>source.split(token).length-1;
+ expect(source).toContain('const tableRowsSql=`SELECT * FROM `;');
+ // One shared prefix plus the already-settled projects row source.
+ expect(count('SELECT * FROM ')).toBe(2);
+ for(const table of ['staff_project_members','staff_project_milestones','staff_project_work_logs','staff_project_cost_allocations','staff_project_package_actuals','staff_project_handoffs']){
+   expect(count(`\${tableRowsSql}${table}`)).toBe(1);
+ }
+});
