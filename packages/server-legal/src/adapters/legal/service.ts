@@ -10,6 +10,7 @@ import { legalEventsByItemSql } from "../legal-read-tail-r18-sources";
 import { legalHoldTargetGuardPrefix } from "../legal-read-tail-r24-sources";
 import { legalRecentItemListSql } from "../legal-read-tail-r31-sources";
 import { legalItemOrderedSql } from "../legal-read-tail-r35-sources";
+import { legalHoldOwnTargetSql } from "../legal-read-tail-r39-sources";
 import { finalRootOwnerProjectionSources as workflowProjectionSources } from "@erpx/server-workflow/public/final-root-owner-projection-sources";
 import {nativeLegalHoldNotice} from "../native-legal-hold-notice";
 import "server-only";
@@ -149,14 +150,14 @@ requireHoldPreservable:(key:string,id:string)=>stage(assertion(
         db,
         key,
         "hold-preservable",
-        "NOT EXISTS(SELECT 1 FROM legal_hold_targets t JOIN legal_holds h ON h.id=t.hold_id JOIN legal_destructions d ON d.item_id=t.item_id WHERE h.state!='released' AND d.state IN ('executing','completed') AND (h.item_id=? OR EXISTS(SELECT 1 FROM legal_hold_targets own WHERE own.hold_id=h.id AND own.item_id=?)))",
+        `NOT EXISTS(SELECT 1 FROM legal_hold_targets t JOIN legal_holds h ON h.id=t.hold_id JOIN legal_destructions d ON d.item_id=t.item_id WHERE h.state!='released' AND d.state IN ('executing','completed') AND (h.item_id=? OR ${legalHoldOwnTargetSql('h')}))`,
         [id, id],
       )),
 requireHoldSourcesPreservable:(key:string,id:string)=>stage(assertion(
         db,
         key,
         "hold-sources-preservable",
-        "NOT EXISTS("+legalHoldTargetGuardPrefix+"hold.state!='released' AND legal_item_has_destroyed_attachment(target.item_id) AND (hold.item_id=? OR EXISTS(SELECT 1 FROM legal_hold_targets own WHERE own.hold_id=hold.id AND own.item_id=?)))",
+        "NOT EXISTS("+legalHoldTargetGuardPrefix+`hold.state!='released' AND legal_item_has_destroyed_attachment(target.item_id) AND (hold.item_id=? OR ${legalHoldOwnTargetSql('hold')}))`,
         [id, id],
       )),
 enabled:()=>enabled(db,a),companyLock:()=>stage(lock(db,a.companyId)),guardChanges:(id,version,key,edit,allowFrozen,preparation)=>guards(db,a,id,version,key,edit,allowFrozen,preparation).map(stage),personGuard:(key,id,scope,permission)=>stage(personGuard(db,a,key,id,scope,permission)),featureGuard:key=>productionFeatureGuard(db,key,a.companyId,"legal").map(stage),
