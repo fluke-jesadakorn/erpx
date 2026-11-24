@@ -17,6 +17,11 @@ type Actor=Pick<WorkContext,"userId"|"assignmentId"|"role"|"companyId"|"branchId
 export type QualityPurchaseTarget={kind:"hold"|"spec"|"alert";id:string};
 export type QualityPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 const capabilities=["supply.quality","supply.receiving","supply.stock","sales.orders","inventory.stock-core"] as const;
+/** Canonical alert-to-hold id lookup shared by the Quality purchase-scope readers. */
+export const qualityAlertHoldIdSql = "SELECT hold_id FROM inventory_quality_alerts WHERE id=?";
+export async function qualityAlertHoldId(database:SqlDatabase,id:string):Promise<string|undefined>{
+ return (await database.prepare(qualityAlertHoldIdSql).bind(id).first<{hold_id:string}>())?.hold_id;
+}
 async function current(database:SqlDatabase,actor:Actor,key:string,permissions:readonly string[]=[]){
  if(actor.departmentId)throw new ApiError(403,"QUALITY_ACCESS_CHANGED","Choose a current Company or Branch Quality assignment.");
  for(const permission of new Set(["quality.read",...permissions])){
@@ -31,7 +36,7 @@ async function targetSource(database:SqlDatabase,actor:Actor,target:QualityPurch
   const row=await database.prepare("SELECT id,company_id,product_id,created_by FROM inventory_quality_specs WHERE id=? AND company_id=?").bind(target.id,actor.companyId).first<{id:string;company_id:string;product_id:string;created_by:string}>();
   if(!row)throw new ApiError(404,"QUALITY_SPEC_NOT_FOUND","The original inspection specification is unavailable.");return {capabilities:["supply.quality"],witness:JSON.stringify(row),productId:row.product_id};
  }
- const id=target.kind==="alert"?(await database.prepare("SELECT hold_id FROM inventory_quality_alerts WHERE id=?").bind(target.id).first<{hold_id:string}>())?.hold_id:target.id;
+ const id=target.kind==="alert"?await qualityAlertHoldId(database,target.id):target.id;
  if(!id)throw new ApiError(404,"QUALITY_ALERT_NOT_FOUND","The original Quality escalation is unavailable.");
  const owner=await qualityHoldPurchaseSource(database,actor,id);return {capabilities:owner.capabilities,witness:owner.witness,owner,productId:owner.hold.product_id};
 }

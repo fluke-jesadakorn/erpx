@@ -72959,6 +72959,33 @@
       ]
     },
     {
+      "lane": "unit",
+      "owner": "quality",
+      "modules": [
+        "quality"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Quality alert hold-id lookup must exist once and stay shared between purchase and record guards."
+      },
+      "apps": [
+        "quality"
+      ],
+      "packages": [
+        "@erpx/server-quality"
+      ],
+      "id": "quality.alert-source-dedupe.unit",
+      "files": [
+        "tests/unit/quality/quality-alert-source-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "quality.demo-quality-alerts.e2e",
       "lane": "e2e",
       "owner": "quality",

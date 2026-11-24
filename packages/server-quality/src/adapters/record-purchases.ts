@@ -7,7 +7,7 @@ import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packa
 import {commercePackageEnforcementMode,readPurchasedAccess} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
 import {qualityPurchaseSourceRows} from "@erpx/server-quality/adapters/purchase-sources";
-import {requireQualityPurchasedRead} from "@erpx/server-quality/adapters/purchases";
+import {qualityAlertHoldId,requireQualityPurchasedRead} from "@erpx/server-quality/adapters/purchases";
 /** Fixed owner capability intersection; callers supply only server-owned aliases. */
 export function qualitySourcePurchasePredicate(alias:string,purpose:CapabilityPurpose,clock:string){
  const cap=(capability:string)=>purchasedCapabilityPredicate(`${alias}.company_id`,capability,purpose,clock);
@@ -25,8 +25,8 @@ export async function qualitySourceReadScope(database:SqlDatabase,actor:WorkCont
 }
 export async function requireQualityWorkspaceRecordRead(database:SqlDatabase,actor:WorkContext,_moduleId:string,id:string){
  if(await commercePackageEnforcementMode()==="disabled")return;
- const alert=await database.prepare("SELECT hold_id FROM inventory_quality_alerts WHERE id=?").bind(id).first<{hold_id:string}>();
- if(alert){await requireQualityPurchasedRead(database,actor,alert.hold_id);return;}
+ const holdId=await qualityAlertHoldId(database,id);
+ if(holdId){await requireQualityPurchasedRead(database,actor,holdId);return;}
  if(await database.prepare("SELECT 1 FROM inventory_quality_holds WHERE id=?").bind(id).first()){await requireQualityPurchasedRead(database,actor,id);return;}
  if(await database.prepare("SELECT 1 FROM inventory_quality_specs WHERE id=?").bind(id).first())await requireQualityPurchasedRead(database,actor);
 }
