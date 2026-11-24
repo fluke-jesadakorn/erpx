@@ -49,7 +49,7 @@ describe('Support read-tail r36 ticket-portal installed native kind', () => {
         expect(registry).toContain(`"${retiredSelect}"`);
         expect(registry).toContain('kind: RD_TICKET_PORTAL_INSTALLED,');
         expect(registry).toContain('    READ_TICKET_PORTAL_INSTALLED,\n');
-        expect(registry).toContain('assert_eq!(STATEMENTS.len(), 38);');
+        expect(registry).toContain('assert_eq!(STATEMENTS.len(), 40);');
         expect(registry).toContain('                RD_TICKET_PORTAL_INSTALLED,\n                SQL_TICKET_PORTAL_INSTALLED,\n                0usize,');
         expect(registry).toContain('ticket_portal_installed_read_renders_the_retired_owner_literal_byte_for_byte');
     });
@@ -83,7 +83,7 @@ describe('Support read-tail r36 ticket-portal installed native kind', () => {
     });
 
     test('retirement:ts-statements drops from 43 to 42', () => {
-        expect(selectCount()).toBe(42);
+        expect(selectCount()).toBe(40);
         expect(selectCount()).toBeLessThan(43);
     });
 });

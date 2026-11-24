@@ -84,7 +84,7 @@ describe('Support read-tail r23 active-assignment family', () => {
             }
         };
         walk(srcRoot);
-        expect(total).toBe(42);
+        expect(total).toBe(40);
         expect(total).toBeLessThan(50);
     });
 });

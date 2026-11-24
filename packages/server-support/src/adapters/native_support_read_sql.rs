@@ -528,6 +528,35 @@ const READ_CUSTOMER_CONTACT_NOTES: NativeSupportReadStatement = NativeSupportRea
     bind_count: 2,
 };
 
+/// Native successor of the TypeScript service-team members named read used by
+/// the service-team handlers. The caller binds `[team_id, company_id]` and
+/// receives the member/user id, responsibility and the People legal-name (with
+/// a user-id fallback) over the closed People projection. No lock, advisory or
+/// audit ledger is attached to this read.
+pub const RD_SERVICE_TEAM_MEMBERS_NAMED: &str = "support_rd_service_team_members_named";
+const SQL_SERVICE_TEAM_MEMBERS_NAMED: &str =
+    "SELECT m.user_id,m.responsibility,COALESCE(p.legal_name,m.user_id) name FROM service_team_members m JOIN service_teams t ON t.id=m.team_id AND t.company_id=m.company_id LEFT JOIN (SELECT \"id\",\"user_id\",\"company_id\",\"legal_name\",\"preferred_name\",\"email\",\"phone\",\"country_code\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"merged_into_id\",\"work_email\",\"work_phone\" FROM hr_people) p ON p.company_id=m.company_id AND p.user_id=m.user_id AND p.merged_into_id IS NULL WHERE t.id=? AND t.company_id=? AND t.active=1 ORDER BY m.user_id";
+const READ_SERVICE_TEAM_MEMBERS_NAMED: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_SERVICE_TEAM_MEMBERS_NAMED,
+    sql: SQL_SERVICE_TEAM_MEMBERS_NAMED,
+    bind_count: 2,
+};
+
+/// Native successor of the TypeScript work-team coverage witness. The caller
+/// binds `[company_id, user_id, branch_id, branch_id, branch_id, branch_id,
+/// department_id, department_id]` and receives the first active coverage row;
+/// the node projection and team-scope predicates stay fixed native SQL with
+/// only scalar values crossing the wire. No lock, advisory or audit ledger is
+/// attached to this read.
+pub const RD_WORK_TEAM_COVERAGE: &str = "support_rd_work_team_coverage";
+const SQL_WORK_TEAM_COVERAGE: &str =
+    "SELECT 1 FROM service_team_members m\n    JOIN service_teams t ON t.id=m.team_id AND t.company_id=m.company_id AND t.active=1\n    JOIN service_team_coverage c ON c.team_id=t.id AND c.company_id=t.company_id\n    JOIN (SELECT \"id\",\"kind\",\"slug\",\"display_name\",\"parent_id\",\"company_id\",\"branch_id\",\"status\",\"hierarchy_revision\" FROM organization_nodes) n ON n.id=c.scope_node_id AND n.company_id=c.company_id AND n.status='active'\n    LEFT JOIN (SELECT \"id\",\"kind\",\"slug\",\"display_name\",\"parent_id\",\"company_id\",\"branch_id\",\"status\",\"hierarchy_revision\" FROM organization_nodes) b ON b.id=n.branch_id AND b.company_id=n.company_id AND b.kind='branch'\n    WHERE m.company_id=? AND m.user_id=? AND (\n      (c.scope_kind='holding' AND n.kind='company' AND n.id=m.company_id) OR\n      (c.scope_kind='branch' AND n.kind='branch' AND (CAST(? AS TEXT) IS NULL OR n.id=?)) OR\n      (c.scope_kind='department' AND n.kind='department' AND (n.branch_id IS NULL OR b.status='active') AND (CAST(? AS TEXT) IS NULL OR n.branch_id=?) AND (CAST(? AS TEXT) IS NULL OR n.id=?))\n    ) LIMIT 1";
+const READ_WORK_TEAM_COVERAGE: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_WORK_TEAM_COVERAGE,
+    sql: SQL_WORK_TEAM_COVERAGE,
+    bind_count: 8,
+};
+
 const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_SERVICE_COVERAGE_HISTORY,
     READ_SERVICE_TEAM_COVERAGE,
@@ -567,6 +596,8 @@ const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_SLA_ALERTS,
     READ_TICKET_RECIPIENTS,
     READ_CUSTOMER_CONTACT_NOTES,
+    READ_SERVICE_TEAM_MEMBERS_NAMED,
+    READ_WORK_TEAM_COVERAGE,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -731,6 +762,8 @@ mod tests {
             (RD_SLA_ALERTS, SQL_SLA_ALERTS, 6usize),
             (RD_TICKET_RECIPIENTS, SQL_TICKET_RECIPIENTS, 6usize),
             (RD_CUSTOMER_CONTACT_NOTES, SQL_CUSTOMER_CONTACT_NOTES, 2usize),
+            (RD_SERVICE_TEAM_MEMBERS_NAMED, SQL_SERVICE_TEAM_MEMBERS_NAMED, 2usize),
+            (RD_WORK_TEAM_COVERAGE, SQL_WORK_TEAM_COVERAGE, 8usize),
         ];
         for (kind, sql, binds) in expected {
             let statement = read_statement(kind).expect("registered owner read kind");
@@ -751,7 +784,7 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), binds);
         }
-        assert_eq!(STATEMENTS.len(), 38);
+        assert_eq!(STATEMENTS.len(), 40);
     }
 
     #[test]
@@ -828,6 +861,11 @@ mod tests {
         assert_eq!(recipients.bind_count, 6);
         let notes = read_statement(RD_CUSTOMER_CONTACT_NOTES).expect("customer contact notes read");
         assert_eq!(notes.bind_count, 2);
+        let named_members = read_statement(RD_SERVICE_TEAM_MEMBERS_NAMED)
+            .expect("service team members named read");
+        assert_eq!(named_members.bind_count, 2);
+        let coverage = read_statement(RD_WORK_TEAM_COVERAGE).expect("work team coverage read");
+        assert_eq!(coverage.bind_count, 8);
     }
 
     #[test]
@@ -941,5 +979,39 @@ mod tests {
         assert!(notes.sql.starts_with("SELECT "));
         assert!(!notes.sql.contains(';'));
         assert!(read_statement("support_rd_customer_contact_notes_select").is_none());
+    }
+
+    #[test]
+    fn service_team_members_named_read_renders_the_retired_owner_literal_byte_for_byte() {
+        let members = read_statement(RD_SERVICE_TEAM_MEMBERS_NAMED)
+            .expect("service team members named read");
+        assert_eq!(
+            members.sql,
+            "SELECT m.user_id,m.responsibility,COALESCE(p.legal_name,m.user_id) name FROM service_team_members m JOIN service_teams t ON t.id=m.team_id AND t.company_id=m.company_id LEFT JOIN (SELECT \"id\",\"user_id\",\"company_id\",\"legal_name\",\"preferred_name\",\"email\",\"phone\",\"country_code\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"merged_into_id\",\"work_email\",\"work_phone\" FROM hr_people) p ON p.company_id=m.company_id AND p.user_id=m.user_id AND p.merged_into_id IS NULL WHERE t.id=? AND t.company_id=? AND t.active=1 ORDER BY m.user_id"
+        );
+        assert_eq!(members.bind_count, 2);
+        assert_eq!(members.sql.matches('?').count(), 2);
+        assert!(members.sql.starts_with("SELECT "));
+        assert!(members.sql.contains(SQL_HR_PEOPLE));
+        assert!(members.sql.contains("COALESCE(p.legal_name,m.user_id) name"));
+        assert!(members.sql.ends_with("WHERE t.id=? AND t.company_id=? AND t.active=1 ORDER BY m.user_id"));
+        assert!(!members.sql.contains(';'));
+        assert!(read_statement("support_rd_service_team_members_named_select").is_none());
+    }
+
+    #[test]
+    fn work_team_coverage_read_renders_the_retired_owner_literal_byte_for_byte() {
+        let coverage = read_statement(RD_WORK_TEAM_COVERAGE).expect("work team coverage read");
+        assert_eq!(
+            coverage.sql,
+            "SELECT 1 FROM service_team_members m\n    JOIN service_teams t ON t.id=m.team_id AND t.company_id=m.company_id AND t.active=1\n    JOIN service_team_coverage c ON c.team_id=t.id AND c.company_id=t.company_id\n    JOIN (SELECT \"id\",\"kind\",\"slug\",\"display_name\",\"parent_id\",\"company_id\",\"branch_id\",\"status\",\"hierarchy_revision\" FROM organization_nodes) n ON n.id=c.scope_node_id AND n.company_id=c.company_id AND n.status='active'\n    LEFT JOIN (SELECT \"id\",\"kind\",\"slug\",\"display_name\",\"parent_id\",\"company_id\",\"branch_id\",\"status\",\"hierarchy_revision\" FROM organization_nodes) b ON b.id=n.branch_id AND b.company_id=n.company_id AND b.kind='branch'\n    WHERE m.company_id=? AND m.user_id=? AND (\n      (c.scope_kind='holding' AND n.kind='company' AND n.id=m.company_id) OR\n      (c.scope_kind='branch' AND n.kind='branch' AND (CAST(? AS TEXT) IS NULL OR n.id=?)) OR\n      (c.scope_kind='department' AND n.kind='department' AND (n.branch_id IS NULL OR b.status='active') AND (CAST(? AS TEXT) IS NULL OR n.branch_id=?) AND (CAST(? AS TEXT) IS NULL OR n.id=?))\n    ) LIMIT 1"
+        );
+        assert_eq!(coverage.bind_count, 8);
+        assert_eq!(coverage.sql.matches('?').count(), 8);
+        assert!(coverage.sql.starts_with("SELECT 1 FROM service_team_members m"));
+        assert!(coverage.sql.contains("FROM organization_nodes"));
+        assert!(coverage.sql.ends_with("    ) LIMIT 1"));
+        assert!(!coverage.sql.contains(';'));
+        assert!(read_statement("support_rd_work_team_coverage_select").is_none());
     }
 }
