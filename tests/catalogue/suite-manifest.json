@@ -82810,6 +82810,33 @@
     },
     {
       "lane": "unit",
+      "owner": "runtime",
+      "modules": [
+        "runtime"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Runtime executive generation jobs reads must compose executiveGenerationJobsSql."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-runtime"
+      ],
+      "id": "runtime.read-tail-r14-dedupe.unit",
+      "files": [
+        "tests/unit/runtime/read-tail-r14-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
       "owner": "shared.runtime",
       "modules": [
         "operations"
