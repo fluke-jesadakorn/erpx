@@ -7,6 +7,7 @@ import { type LifecyclePositionFact } from '@erpx/server-people_payroll/public/p
 import { nativeOrgExecute } from './native-organization-owner-write';
 import { maxVersionSubquery } from './organization-column-alias-families-r29';
 import { activePositionById } from './organization-column-alias-families-r38';
+import { recommendedPayDefault } from './organization-read-tail-sources-r40';
 export function peopleLifecycleOrganizationFacts(database: SqlDatabase, client?: PoolClient) {
     return { readPeopleLifecycleDataPositions(companyId: string) {
             return database.prepare(`SELECT p.id,p.title,p.version,p.requirements,p.branch_id,p.department_id,p.level_id,p.active,b.package_id,b.revision package_revision FROM organization_positions p LEFT JOIN (${people_payrollPlatformSources.people_position_packages}) b ON b.company_id=p.company_id AND b.position_id=p.id WHERE p.company_id=? ORDER BY p.title,p.id`)
@@ -43,7 +44,7 @@ export function peopleLifecycleOrganizationFacts(database: SqlDatabase, client?:
                 revision: number | null;
             }>();
         },
-        readPreviewLifecycleRecommendedPay(companyId: string, id: string, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null) { return database.prepare("SELECT d.currency,d.monthly_amount_minor FROM position_pay_defaults d JOIN organization_positions p ON p.id=d.position_id WHERE d.company_id=? AND d.position_id=? AND (?::text IS NULL OR p.branch_id=?) AND (?::text IS NULL OR p.department_id=?) ORDER BY d.version DESC LIMIT 1").bind(companyId, id, branchId, branchId2, departmentId, departmentId2).first<{
+        readPreviewLifecycleRecommendedPay(companyId: string, id: string, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null) { return database.prepare(recommendedPayDefault('d.currency,d.monthly_amount_minor')).bind(companyId, id, branchId, branchId2, departmentId, departmentId2).first<{
             currency: string;
             monthly_amount_minor: number;
         }>(); },

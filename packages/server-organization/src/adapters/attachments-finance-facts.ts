@@ -4,6 +4,7 @@ import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import type {Row} from "@erpx/server-files/public/contracts/attachments-finance";
 import { nativeOrgStatement } from "./native-organization-owner-write";
 import {ownerVersionGuardSource} from './organization-read-tail-sources';
+import {nodeChangeByIdCompany} from './organization-read-tail-sources-r40';
 const versionDescriptors:Record<string,{table:string;column?:string;extra?:string}>={"organization_change": {"table": "organization_node_changes"}};
 const allowedTargets=new Set(["organization_change", "organization_node"]);
 function financeOperationsAttachmentTargetVersionGuard(
@@ -43,5 +44,5 @@ if(!allowedTargets.has(targetType))return null;
 export function FinanceAttachmentOrganizationFacts(db:SqlDatabase,companyId=''){return {
 readOwner7:(facts:{companyId:string;targetId:string;targetType:string;purposeKey:string;})=>{return db.prepare(`SELECT company_id,CASE WHEN kind='branch' THEN id ELSE branch_id END branch_id,NULL::text department_id,hierarchy_revision AS version,kind
       FROM organization_nodes WHERE id=? AND company_id=? AND kind IN ('company','headquarters','branch','department')`).bind(facts.targetId,facts.companyId).first<Row>();},
-readOwner8:(facts:{companyId:string;targetId:string;targetType:string;purposeKey:string;})=>{return db.prepare("SELECT company_id,NULL::text branch_id,NULL::text department_id,version,requested_by,state FROM organization_node_changes WHERE id=? AND company_id=?").bind(facts.targetId,facts.companyId).first<Row>();},versionGuard:(commandId:string,targetType:string,targetId:string,companyId:string,version:number,index:number)=>financeOperationsAttachmentTargetVersionGuard(db,commandId,targetType,targetId,companyId,version,index),versionStep:(targetType:string,targetId:string,expectedVersion:number,now:number)=>financeOperationsAttachmentRecordVersionStep(db,targetType,targetId,expectedVersion,now,companyId)
+readOwner8:(facts:{companyId:string;targetId:string;targetType:string;purposeKey:string;})=>{return db.prepare(nodeChangeByIdCompany('company_id,NULL::text branch_id,NULL::text department_id,version,requested_by,state')).bind(facts.targetId,facts.companyId).first<Row>();},versionGuard:(commandId:string,targetType:string,targetId:string,companyId:string,version:number,index:number)=>financeOperationsAttachmentTargetVersionGuard(db,commandId,targetType,targetId,companyId,version,index),versionStep:(targetType:string,targetId:string,expectedVersion:number,now:number)=>financeOperationsAttachmentRecordVersionStep(db,targetType,targetId,expectedVersion,now,companyId)
 };}
