@@ -7,6 +7,7 @@ import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/se
 import {supplyCommerceSettlementSources as commerce,supplyCommerceSettlementSourceReadLocks} from "@erpx/server-commerce/public/supply-package-sources";
 import {recordAttachmentVersionSteps,recordAttachmentVersionSourceReadLocks} from "@erpx/server-files/public/record-version-receipts";
 import {tableRead} from './read-tail-r19';
+import {jsonbAggBy} from './read-tail-r21';
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
 const sources=new WeakMap<SqlDatabase,string>();
 export async function lockSupplyProcurementPackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){
@@ -44,12 +45,12 @@ export async function supplyProcurementPackageObligations(owner:PostgresDatabase
   WHERE original.id=r.order_id AND original.warehouse_id=r.warehouse_id AND original.party_id=offer.supplier_id AND original.currency=r.currency
   AND r.approved_by IS NOT NULL AND r.approved_by<>r.created_by AND r.approved_by IS DISTINCT FROM r.submitted_by AND r.approved_by<>offer.recorded_by)) pending
  FROM procurement_rfqs r,scope WHERE r.company_id=scope.company_id
- UNION ALL SELECT 'order',o.id,jsonb_build_array(to_jsonb(o),(SELECT jsonb_agg(to_jsonb(line) ORDER BY line.id) FROM (${commerce.lines}) line WHERE line.order_id=o.id))::text,o.state NOT IN ('fulfilled','cancelled')
+ UNION ALL SELECT 'order',o.id,jsonb_build_array(to_jsonb(o),${jsonbAggBy(`(${commerce.lines})`,"line","order_id","o.id","line.id")})::text,o.state NOT IN ('fulfilled','cancelled')
  OR (o.state='fulfilled' AND (NOT EXISTS(SELECT 1 FROM (${commerce.lines}) line WHERE line.order_id=o.id) OR EXISTS(SELECT 1 FROM (${commerce.lines}) line WHERE line.order_id=o.id AND line.fulfilled_milli<>line.quantity_milli)))
  OR (o.state='cancelled' AND NOT EXISTS(SELECT 1 FROM command_receipts command WHERE command.record_id=o.id AND command.operation='commerce.order.cancel' AND command.authority_json::jsonb->>'companyId'=o.company_id AND command.result_json::jsonb->>'state'='cancelled')) FROM orders o
- UNION ALL SELECT 'receipt',receipt.id,jsonb_build_array(to_jsonb(receipt),(SELECT jsonb_agg(to_jsonb(line) ORDER BY line.id) FROM (${commerce.receiptLines}) line WHERE line.fulfillment_id=receipt.id))::text,receipt.invoice_id IS NULL OR NOT EXISTS(SELECT 1 FROM (${commerce.receiptLines}) line WHERE line.fulfillment_id=receipt.id)
+ UNION ALL SELECT 'receipt',receipt.id,jsonb_build_array(to_jsonb(receipt),${jsonbAggBy(`(${commerce.receiptLines})`,"line","fulfillment_id","receipt.id","line.id")})::text,receipt.invoice_id IS NULL OR NOT EXISTS(SELECT 1 FROM (${commerce.receiptLines}) line WHERE line.fulfillment_id=receipt.id)
  FROM (${commerce.receipts}) receipt JOIN orders original ON original.id=receipt.order_id
- UNION ALL SELECT 'supplier-return',returned.id,jsonb_build_array(to_jsonb(returned),(SELECT jsonb_agg(to_jsonb(line) ORDER BY line.id) FROM (${commerce.returnLines}) line WHERE line.return_id=returned.id))::text,
+ UNION ALL SELECT 'supplier-return',returned.id,jsonb_build_array(to_jsonb(returned),${jsonbAggBy(`(${commerce.returnLines})`,"line","return_id","returned.id","line.id")})::text,
  original.id IS NULL OR receipt.id IS NULL OR receipt.order_id IS DISTINCT FROM returned.order_id OR receipt.invoice_id IS DISTINCT FROM returned.invoice_id
  OR NOT EXISTS(SELECT 1 FROM (${commerce.returnLines}) line WHERE line.return_id=returned.id)
  OR EXISTS(SELECT 1 FROM (${commerce.returnLines}) line LEFT JOIN (${commerce.receiptLines}) actual ON actual.id=line.fulfillment_line_id WHERE line.return_id=returned.id AND (actual.id IS NULL OR actual.fulfillment_id IS DISTINCT FROM returned.fulfillment_id))
@@ -62,11 +63,11 @@ export async function supplyProcurementPackageObligations(owner:PostgresDatabase
  SELECT binding.next_version FROM versions JOIN (${recordAttachmentVersionSteps}) binding ON binding.previous_version=versions.version AND binding.company_id=returned.company_id
  AND binding.target_type='commerce_return' AND binding.target_id=returned.id WHERE binding.next_version<=returned.version) SELECT 1 FROM versions WHERE version=returned.version))
  FROM (${commerce.returns}) returned CROSS JOIN scope LEFT JOIN orders original ON original.id=returned.order_id LEFT JOIN (${commerce.receipts}) receipt ON receipt.id=returned.fulfillment_id WHERE returned.company_id=scope.company_id
- UNION ALL SELECT 'promise',promise.id,jsonb_build_array(to_jsonb(promise),(SELECT jsonb_agg(to_jsonb(line) ORDER BY line.id) FROM procurement_delivery_promise_lines line WHERE line.promise_id=promise.id))::text,original.id IS NULL OR original.party_id IS DISTINCT FROM promise.supplier_id OR original.currency IS DISTINCT FROM promise.currency
+ UNION ALL SELECT 'promise',promise.id,jsonb_build_array(to_jsonb(promise),${jsonbAggBy("procurement_delivery_promise_lines","line","promise_id","promise.id","line.id")})::text,original.id IS NULL OR original.party_id IS DISTINCT FROM promise.supplier_id OR original.currency IS DISTINCT FROM promise.currency
  OR NOT EXISTS(SELECT 1 FROM command_receipts command WHERE command.record_id=promise.order_id AND command.result_json::jsonb->>'promiseId'=promise.id AND command.operation='procurement.promise.record' AND command.actor_id=promise.recorded_by AND command.authority_json::jsonb->>'companyId'=promise.company_id)
  OR EXISTS(SELECT 1 FROM procurement_open_promise_lines pending WHERE pending.promise_id=promise.id AND pending.remaining_milli>0)
  FROM procurement_delivery_promises promise CROSS JOIN scope LEFT JOIN orders original ON original.id=promise.order_id WHERE promise.company_id=scope.company_id
- UNION ALL SELECT 'supplier-bill',bill.id,jsonb_build_array(to_jsonb(bill),(SELECT jsonb_agg(to_jsonb(line) ORDER BY line.id) FROM procurement_bill_match_lines line WHERE line.match_id=bill.id),(SELECT jsonb_agg(to_jsonb(event) ORDER BY event.id) FROM procurement_bill_match_events event WHERE event.match_id=bill.id),(SELECT jsonb_agg(to_jsonb(binding) ORDER BY binding.fulfillment_id) FROM procurement_bill_match_receipts binding WHERE binding.match_id=bill.id))::text,original.id IS NULL OR original.party_id IS DISTINCT FROM bill.supplier_id OR original.currency IS DISTINCT FROM bill.currency OR bill.status NOT IN ('posted','returned')
+ UNION ALL SELECT 'supplier-bill',bill.id,jsonb_build_array(to_jsonb(bill),${jsonbAggBy("procurement_bill_match_lines","line","match_id","bill.id","line.id")},${jsonbAggBy("procurement_bill_match_events","event","match_id","bill.id","event.id")},${jsonbAggBy("procurement_bill_match_receipts","binding","match_id","bill.id","binding.fulfillment_id")})::text,original.id IS NULL OR original.party_id IS DISTINCT FROM bill.supplier_id OR original.currency IS DISTINCT FROM bill.currency OR bill.status NOT IN ('posted','returned')
  OR NOT EXISTS(SELECT 1 FROM procurement_bill_match_receipts binding WHERE binding.match_id=bill.id AND binding.fulfillment_id=bill.fulfillment_id)
  OR EXISTS(SELECT 1 FROM procurement_bill_match_receipts binding LEFT JOIN (${commerce.receipts}) receipt ON receipt.id=binding.fulfillment_id LEFT JOIN orders parent ON parent.id=receipt.order_id
   WHERE binding.match_id=bill.id AND (parent.id IS NULL OR parent.party_id IS DISTINCT FROM bill.supplier_id OR parent.currency IS DISTINCT FROM bill.currency))
