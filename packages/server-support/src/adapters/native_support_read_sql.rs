@@ -304,6 +304,36 @@ const READ_CALENDAR_SUPPORT_INCIDENTS: NativeSupportReadStatement = NativeSuppor
     bind_count: 19,
 };
 
+/// Native successors of the TypeScript Support executive metric projections.
+/// The authoritative relations are the Support-owned `support_tickets` and
+/// `support_incidents`; the embedded `organization_nodes` (organization) and
+/// `assignments` (identity_access) fragments are closed read-only public
+/// projections and the POS/Assets/PMS source authorities arrive as scalar id
+/// sets from those owners' frozen read ports. The breakdown/overdue label and
+/// scope predicates are fixed native SQL; only scalar values cross the wire.
+/// Caller binds `[breakdown, breakdown, breakdown, overdue, company, branch,
+/// branch, department, department, assignment, user, role, pos_ids_json,
+/// asset_ids_json, pms_ids_json, overdue]`.
+pub const RD_EXEC_TICKET_METRIC: &str = "support_rd_exec_ticket_metric";
+const SQL_EXEC_TICKET_METRIC: &str =
+    "SELECT CASE WHEN ?='status' THEN t.status WHEN ?='branch' THEN COALESCE((SELECT n.display_name FROM (SELECT \"id\",\"kind\",\"slug\",\"display_name\",\"parent_id\",\"company_id\",\"branch_id\",\"status\",\"hierarchy_revision\" FROM organization_nodes) n WHERE n.id=t.branch_id AND n.company_id=t.company_id),'Company-wide') WHEN ?='department' THEN COALESCE((SELECT n.display_name FROM (SELECT \"id\",\"kind\",\"slug\",\"display_name\",\"parent_id\",\"company_id\",\"branch_id\",\"status\",\"hierarchy_revision\" FROM organization_nodes) n WHERE n.id=t.department_id AND n.company_id=t.company_id),'Unassigned') WHEN ?=1 THEN 'Overdue SLA' ELSE t.status END label,count(*)::text value FROM support_tickets t WHERE t.company_id=? AND (?::text IS NULL OR t.branch_id=?) AND (?::text IS NULL OR t.department_id=?) AND EXISTS(SELECT 1 FROM (SELECT \"id\",\"user_id\",\"role\",\"modules_json\",\"company_id\",\"branch_id\",\"valid_from\",\"valid_until\",\"revoked_at\",\"version\",\"scope_kind\",\"scope_node_id\",\"parent_id\",\"source\",\"source_id\" FROM assignments) g WHERE g.id=? AND g.user_id=? AND g.role=? AND g.company_id=t.company_id AND iam_assignment_active(g.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(g.user_id,g.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (g.scope_kind='holding' OR g.scope_kind='branch' AND g.scope_node_id=t.branch_id OR g.scope_kind='department' AND g.scope_node_id=t.department_id) AND (iam_role_allows(g.role,g.company_id,'support.read') OR t.source_kind<>'sales_order' AND t.created_by=g.user_id AND iam_role_allows(g.role,g.company_id,'records.read'))) AND (t.source_record_json IS NULL OR (t.source_record_json::jsonb->>'kind'='pos_sale' AND t.source_record_json::jsonb->>'id' IN (SELECT jsonb_array_elements_text(?::jsonb))) OR (t.source_record_json::jsonb->>'kind'='asset' AND t.source_record_json::jsonb->>'id' IN (SELECT jsonb_array_elements_text(?::jsonb))) OR (t.source_record_json::jsonb->>'kind'='pms_record' AND t.source_record_json::jsonb->>'id' IN (SELECT jsonb_array_elements_text(?::jsonb)))) AND t.status NOT IN ('closed','cancelled') AND (?=0 OR (t.sla_clock_json->>'state'='running' AND (t.sla_clock_json->>'dueAt') ~ '^[0-9]+$' AND (t.sla_clock_json->>'dueAt')::bigint < floor(extract(epoch FROM clock_timestamp())*1000)::bigint)) GROUP BY 1 ORDER BY 1";
+const READ_EXEC_TICKET_METRIC: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_EXEC_TICKET_METRIC,
+    sql: SQL_EXEC_TICKET_METRIC,
+    bind_count: 16,
+};
+
+/// Incident caller binds `[breakdown, breakdown, breakdown, breakdown, company,
+/// branch, branch, department, department, assignment, user, role]`.
+pub const RD_EXEC_INCIDENT_METRIC: &str = "support_rd_exec_incident_metric";
+const SQL_EXEC_INCIDENT_METRIC: &str =
+    "SELECT CASE WHEN ?='status' THEN t.status WHEN ?='severity' THEN t.severity WHEN ?='branch' THEN COALESCE((SELECT n.display_name FROM (SELECT \"id\",\"kind\",\"slug\",\"display_name\",\"parent_id\",\"company_id\",\"branch_id\",\"status\",\"hierarchy_revision\" FROM organization_nodes) n WHERE n.id=t.branch_id AND n.company_id=t.company_id),'Company-wide') WHEN ?='department' THEN COALESCE((SELECT n.display_name FROM (SELECT \"id\",\"kind\",\"slug\",\"display_name\",\"parent_id\",\"company_id\",\"branch_id\",\"status\",\"hierarchy_revision\" FROM organization_nodes) n WHERE n.id=t.department_id AND n.company_id=t.company_id),'Unassigned') ELSE 'Active support incidents' END label,count(*)::text value FROM support_incidents t WHERE t.company_id=? AND (?::text IS NULL OR t.branch_id=?) AND (?::text IS NULL OR t.department_id=?) AND EXISTS(SELECT 1 FROM (SELECT \"id\",\"user_id\",\"role\",\"modules_json\",\"company_id\",\"branch_id\",\"valid_from\",\"valid_until\",\"revoked_at\",\"version\",\"scope_kind\",\"scope_node_id\",\"parent_id\",\"source\",\"source_id\" FROM assignments) g WHERE g.id=? AND g.user_id=? AND g.role=? AND g.company_id=t.company_id AND iam_assignment_active(g.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(g.user_id,g.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(g.role,g.company_id,'support.read') AND (g.scope_kind='holding' OR g.scope_kind='branch' AND g.scope_node_id=t.branch_id OR g.scope_kind='department' AND g.scope_node_id=t.department_id)) AND t.status IN ('open','investigating','mitigated') GROUP BY 1 ORDER BY 1";
+const READ_EXEC_INCIDENT_METRIC: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_EXEC_INCIDENT_METRIC,
+    sql: SQL_EXEC_INCIDENT_METRIC,
+    bind_count: 12,
+};
+
 const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_SERVICE_COVERAGE_HISTORY,
     READ_SERVICE_TEAM_COVERAGE,
@@ -328,6 +358,8 @@ const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_SERVICE_TEAM_OPTION_COVERAGE,
     READ_CALENDAR_SUPPORT_TICKETS,
     READ_CALENDAR_SUPPORT_INCIDENTS,
+    READ_EXEC_TICKET_METRIC,
+    READ_EXEC_INCIDENT_METRIC,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -453,6 +485,8 @@ mod tests {
                 SQL_CALENDAR_SUPPORT_INCIDENTS,
                 19usize,
             ),
+            (RD_EXEC_TICKET_METRIC, SQL_EXEC_TICKET_METRIC, 16usize),
+            (RD_EXEC_INCIDENT_METRIC, SQL_EXEC_INCIDENT_METRIC, 12usize),
         ];
         for (kind, sql, binds) in expected {
             let statement = read_statement(kind).expect("registered owner read kind");
@@ -472,7 +506,7 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), binds);
         }
-        assert_eq!(STATEMENTS.len(), 23);
+        assert_eq!(STATEMENTS.len(), 25);
     }
 
     #[test]

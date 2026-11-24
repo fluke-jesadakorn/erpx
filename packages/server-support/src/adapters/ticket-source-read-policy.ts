@@ -1,4 +1,5 @@
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { readableRecordSourceIds as posSources } from "@erpx/server-pos/public/records-source-facts";
 import { readablePmsSourceIds } from "@erpx/server-pms/public/pms/source";
 import { headers } from 'next/headers';
@@ -124,4 +125,20 @@ export async function supportTicketSourceReadPredicate(actor: WorkContext, alias
   return { sql: `(${alias}.source_record_json IS NULL OR ${definitions.map(([kind, projection]) =>
     `(${source}->>'kind'='${kind}' AND ${source}->>'id' IN (${projection.sql}))`).join(" OR ")})`,
     bindings: definitions.flatMap(([, projection]) => projection.bindings) };
+}
+
+/** Resolve the same three source authorities to scalar id sets for owner-planned
+ * aggregate reads. The composed subqueries come from the owning POS/Assets/PMS
+ * public ports; this adapter emits no owner SQL and only the resulting ids
+ * cross to the native read as scalar JSON binds. */
+export async function supportTicketSourceIdSets(actor: WorkContext, db: SqlDatabase) {
+  const [pos, asset, pms] = await Promise.all([
+    posSources(actor), nativeAssetSourceIds(actor), readablePmsSourceIds(actor),
+  ]);
+  const ids = async (projection: { sql: string; bindings: unknown[] }): Promise<string[]> => {
+    if (projection.sql === 'NULL' || projection.sql.includes('WHERE FALSE')) return [];
+    const rows = await db.prepare(projection.sql).bind(...projection.bindings).all<{ id: string }>();
+    return rows.results.map(row => String(row.id));
+  };
+  return { posSale: await ids(pos), asset: asset.bindings as string[], pmsRecord: await ids(pms) };
 }

@@ -668,6 +668,22 @@ mod tests {
                 200,
             ),
             (
+                "support_rd_exec_ticket_metric",
+                json!([
+                    "status", "status", "status", 0, "company", null, null, null, null,
+                    "assignment", "user", "role", "[]", "[]", "[]", 0
+                ]),
+                200,
+            ),
+            (
+                "support_rd_exec_incident_metric",
+                json!([
+                    "status", "status", "status", "status", "company", null, null, null, null,
+                    "assignment", "user", "role"
+                ]),
+                200,
+            ),
+            (
                 "support_rd_service_coverage_history",
                 json!(["company", "extra"]),
                 422,
@@ -707,6 +723,22 @@ mod tests {
                     "company", null, null, null, null, "[]", "assignment",
                     "user", "role", "2026-10-01", "2026-11-01", "team",
                     "owner", "owner", null, null, ""
+                ]),
+                422,
+            ),
+            (
+                "support_rd_exec_ticket_metric",
+                json!([
+                    "status", "status", "status", 0, "company", null, null, null, null,
+                    "assignment", "user", "role", "[]", "[]", "[]"
+                ]),
+                422,
+            ),
+            (
+                "support_rd_exec_incident_metric",
+                json!([
+                    "status", "status", "status", "status", "company", null, null, null, null,
+                    "assignment", "user"
                 ]),
                 422,
             ),

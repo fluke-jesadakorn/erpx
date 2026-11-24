@@ -40,6 +40,8 @@ export const SUPPORT_RD_SERVICE_TEAM_OPTION_HANDLERS = 'support_rd_service_team_
 export const SUPPORT_RD_SERVICE_TEAM_OPTION_COVERAGE = 'support_rd_service_team_option_coverage';
 export const SUPPORT_RD_CALENDAR_SUPPORT_TICKETS = 'support_rd_calendar_support_tickets';
 export const SUPPORT_RD_CALENDAR_SUPPORT_INCIDENTS = 'support_rd_calendar_support_incidents';
+export const SUPPORT_RD_EXEC_TICKET_METRIC = 'support_rd_exec_ticket_metric';
+export const SUPPORT_RD_EXEC_INCIDENT_METRIC = 'support_rd_exec_incident_metric';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'SUPPORT_NATIVE_READ_UNAVAILABLE', 'The native Support read service is unavailable.');
@@ -76,13 +78,13 @@ function configuration(): Settings {
   return { privateBaseUrl: base.origin, timeoutMs: value.timeoutMs, holdings };
 }
 
-/** Plan an owner read in Rust and run it on the caller's open unit. Pure read:
- * the kind selects the SQL; only routing-scoped values cross the wire. */
-export async function nativeSupportReadAll<T>(
+type PlannedSupportRead = { sql: string; values: readonly unknown[] };
+
+async function planAndRun<T>(
   kind: string,
   values: readonly unknown[],
   db: SqlDatabase,
-): Promise<SqlResult<T>> {
+): Promise<{ plan: PlannedSupportRead; result: SqlResult<T> }> {
   const config = configuration();
   const holding = config.holdings[0]!;
   const key = 'sup-read-' + createHash('sha256').update(kind).update('\u0000').update(JSON.stringify(values)).digest('hex').slice(0, 32);
@@ -118,10 +120,35 @@ export async function nativeSupportReadAll<T>(
   const payload = await response.json().catch((): unknown => null);
   const statements = record(payload) ? (payload as { data?: { statements?: unknown } }).data?.statements : undefined;
   if (!Array.isArray(statements) || statements.length !== 1) return unavailable();
-  const planned = statements.map((statement: unknown) => {
-    if (!record(statement) || typeof statement.sql !== 'string' || !Array.isArray(statement.values)) return unavailable();
-    return db.prepare(statement.sql).bind(...statement.values);
-  });
+  const statement = statements[0];
+  if (!record(statement) || typeof statement.sql !== 'string' || !Array.isArray(statement.values)) return unavailable();
+  const planned = [db.prepare(statement.sql).bind(...statement.values)];
   const results = await db.batch<T>(planned);
-  return results[0] ?? { results: [], success: true, meta: { changes: 0, duration: 0 } };
+  return {
+    plan: { sql: statement.sql, values: statement.values },
+    result: results[0] ?? { results: [], success: true, meta: { changes: 0, duration: 0 } },
+  };
+}
+
+/** Plan an owner read in Rust and run it on the caller's open unit. Pure read:
+ * the kind selects the SQL; only routing-scoped values cross the wire. */
+export async function nativeSupportReadAll<T>(
+  kind: string,
+  values: readonly unknown[],
+  db: SqlDatabase,
+): Promise<SqlResult<T>> {
+  return (await planAndRun<T>(kind, values, db)).result;
+}
+
+/** Same strict native plan, but also returns the owner-planned SQL for the
+ * bounded executive metric source drill-down, which derives its source query
+ * from the exact statement. The SQL still originates only in the native
+ * registry; no SQL is accepted from the caller. */
+export async function nativeSupportReadPlan<T>(
+  kind: string,
+  values: readonly unknown[],
+  db: SqlDatabase,
+): Promise<{ sql: string; values: readonly unknown[]; results: T[] }> {
+  const { plan, result } = await planAndRun<T>(kind, values, db);
+  return { sql: plan.sql, values: plan.values, results: result.results };
 }

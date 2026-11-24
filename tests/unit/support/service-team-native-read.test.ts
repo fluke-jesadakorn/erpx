@@ -4,7 +4,17 @@ import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 
 vi.mock('server-only', () => ({}));
 vi.mock('@erpx/server-support/adapters/command-runtime', () => ({
-  nativeSupportRuntime: () => ({ purchase: async () => ({ history: true }) }),
+  nativeSupportRuntime: () => ({
+    purchase: async () => ({ history: true }),
+    requirePurchase: async () => ({ history: true }),
+  }),
+}));
+const metricSourceMock = vi.hoisted(() => vi.fn(async (..._args: unknown[]) => ({ rows: [] })));
+vi.mock('@erpx/server-support/adapters/ticket-source-read-policy', () => ({
+  supportTicketSourceIdSets: async () => ({ posSale: ['pos-1'], asset: ['asset-1'], pmsRecord: [] }),
+}));
+vi.mock('@erpx/server-runtime/public/executive/metric-sources', () => ({
+  readMetricSources: (...args: unknown[]) => metricSourceMock(...args),
 }));
 
 const source = (path: string) => readFile(new URL(`../../../${path}`, import.meta.url), 'utf8');
@@ -509,6 +519,75 @@ describe('support service-team coverage native read', () => {
         values: ['company', null, null, null, null, '["company"]',
           'assignment-1', 'user-1', 'support', '2026-10-01', '2026-11-01', 'team',
           'user-1', 'user-1', null, null, '', '', 100],
+      });
+    } finally {
+      fetchMock.mockRestore();
+      delete process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG;
+    }
+  });
+
+  it('leaves no retired owner SQL in the executive metric projection', async () => {
+    const metric = await source('packages/server-support/src/adapters/executive-metric-projections.ts');
+    expect(metric).not.toContain('SELECT');
+    expect(metric).toContain('SUPPORT_RD_EXEC_TICKET_METRIC');
+    expect(metric).toContain('SUPPORT_RD_EXEC_INCIDENT_METRIC');
+  });
+
+  it('plans the ticket metric in Rust with frozen source ids and scalar scope binds', async () => {
+    const prepare = vi.fn(() => ({ bind: vi.fn() }));
+    const batch = vi.fn(async () => [{
+      results: [{ label: 'triage', value: '1' }], success: true, meta: { changes: 0, duration: 0 },
+    }]);
+    const db = { prepare, batch } as unknown as SqlDatabase;
+    const plannedSql = "SELECT CASE WHEN ?='status' THEN t.status ELSE t.status END label,count(*)::text value FROM support_tickets t WHERE t.company_id=? GROUP BY 1 ORDER BY 1";
+    process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG = config;
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => ok(plannedSql, []));
+    metricSourceMock.mockClear();
+    const actor = { assignmentId: 'assignment-1', userId: 'user-1', role: 'support', companyId: 'company', branchId: 'branch', departmentId: null } as never;
+    try {
+      const { readExecutiveMetricProjection } = await import('@erpx/server-support/adapters/executive-metric-projections');
+      const snapshot = await readExecutiveMetricProjection(db, actor, 'open-support-tickets', { from: '2026-01-01', to: '2026-12-31', currency: 'THB' }, 'status');
+      expect(snapshot.raw).toEqual([{ label: 'triage', value: '1' }]);
+      const body = JSON.parse(String(fetchMock.mock.calls[0]![1]!.body));
+      expect(body).toMatchObject({
+        kind: 'support_rd_exec_ticket_metric',
+        values: [
+          'status', 'status', 'status', 0, 'company', 'branch', 'branch', null, null,
+          'assignment-1', 'user-1', 'support', '["pos-1"]', '["asset-1"]', '[]', 0,
+        ],
+      });
+      await snapshot.source({ label: 'triage', page: 1 });
+      expect(metricSourceMock).toHaveBeenCalledWith(
+        db, 'open-support-tickets', plannedSql, expect.any(Array),
+        { label: 'triage', page: 1 }, snapshot.raw, expect.any(String), undefined,
+      );
+    } finally {
+      fetchMock.mockRestore();
+      delete process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG;
+    }
+  });
+
+  it('plans the incident metric in Rust without a source predicate', async () => {
+    const prepare = vi.fn(() => ({ bind: vi.fn() }));
+    const batch = vi.fn(async () => [{
+      results: [{ label: 'open', value: '1' }], success: true, meta: { changes: 0, duration: 0 },
+    }]);
+    const db = { prepare, batch } as unknown as SqlDatabase;
+    process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG = config;
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
+      ok('SELECT t.status label,count(*)::text value FROM support_incidents t GROUP BY 1 ORDER BY 1', []));
+    const actor = { assignmentId: 'assignment-1', userId: 'user-1', role: 'support', companyId: 'company', branchId: 'branch', departmentId: null } as never;
+    try {
+      const { readExecutiveMetricProjection } = await import('@erpx/server-support/adapters/executive-metric-projections');
+      const snapshot = await readExecutiveMetricProjection(db, actor, 'active-support-incidents', { from: '2026-01-01', to: '2026-12-31', currency: 'THB' }, 'status');
+      expect(snapshot.raw).toEqual([{ label: 'open', value: '1' }]);
+      const body = JSON.parse(String(fetchMock.mock.calls[0]![1]!.body));
+      expect(body).toMatchObject({
+        kind: 'support_rd_exec_incident_metric',
+        values: [
+          'status', 'status', 'status', 'status', 'company', 'branch', 'branch', null, null,
+          'assignment-1', 'user-1', 'support',
+        ],
       });
     } finally {
       fetchMock.mockRestore();
