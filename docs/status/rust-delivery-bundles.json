@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7597,
+    "revision": 7601,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -127476,7 +127476,7 @@
         "owner": "commerce",
         "title": "commerce TS read tail native cutover (r3)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -127488,22 +127488,42 @@
         "resources": [
           "owner:commerce"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wF01com",
-          "claimedAt": "2026-11-24T00:09:18.945Z",
-          "heartbeatAt": "2026-11-24T00:31:22.515Z",
-          "expiresAt": "2026-11-24T01:01:22.515Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-commerce/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "dfa3b0f21",
+            "owner": "commerce",
+            "before": 561,
+            "after": 559,
+            "note": "Sales editor active products and warehouses via two commerce command-plan kinds."
+          },
+          {
+            "command": "cargo check -p erpx-server-commerce + lib native (2)",
+            "result": "passed",
+            "sourceSha": "dfa3b0f21"
+          },
+          {
+            "command": "vitest commerce native read (5) + tsc commerce",
+            "result": "passed",
+            "sourceSha": "dfa3b0f21"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local fixed-SQL read family; dedupe or switch to an owner native read; record a strictly lower spaced count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wF01com",
+          "at": "2026-11-24T00:35:45.230Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -129245,6 +129265,42 @@
         "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to an owner native read; BEFORE=40 spaced statements; record strictly lower.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.commerce.read-tail-r4",
+        "goalId": "G4",
+        "owner": "commerce",
+        "title": "commerce TS read tail native cutover (round 4)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-commerce/src/**",
+          "tests/unit/commerce/**",
+          "tests/integration/commerce/**"
+        ],
+        "resources": [
+          "owner:commerce"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG13com",
+          "claimedAt": "2026-11-24T00:35:45.522Z",
+          "heartbeatAt": "2026-11-24T00:35:45.522Z",
+          "expiresAt": "2026-11-24T01:05:45.522Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family served by the commerce command-plan; record a strictly lower spaced count (BEFORE=559).",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -129253,7 +129309,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 734,
+      "totalPackets": 735,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 17,
@@ -129261,13 +129317,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 358,
+        "blocked": 359,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T00:34:38.996Z",
+    "updatedAt": "2026-11-24T00:35:45.529Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
