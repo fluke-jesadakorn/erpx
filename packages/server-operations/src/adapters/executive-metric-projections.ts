@@ -14,13 +14,18 @@ import type { MetricSnapshot, RawMetricRow } from '@erpx/server-runtime/public/e
  * breakdown fragments so the COALESCE subquery cannot drift. Yields the exact
  * prior SQL; only the node column and fallback label vary per caller. */
 const orgNodeLabel = (column: string, fallback: string) => `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=t.${column} AND n.company_id=t.company_id),'${fallback}')`;
+/** Canonical count projection shared by the three executive count readers.
+ *  Label/table/where/separator/tail text is parameterized so each caller
+ *  renders byte-identical SQL; bind arrays are unchanged. */
+const countProjectionSql = (label: string, table: string, where: string, sep = ' ', tail = ' GROUP BY 1 ORDER BY 1') =>
+  `SELECT ${label} label,count(*)::text value FROM ${table} t${sep}WHERE ${where}${tail}`;
 export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown): Promise<MetricSnapshot> {
     const access=await workMetricHistoryAccess(sourceDb,a);if(access[id as keyof typeof access]===false)throw new ApiError(403,'METRIC_SOURCE_UNAVAILABLE','This Work metric requires its retained purchase and current original authority.');
     const purchase=await workTaskProjectionReadScope(sourceDb,a);
     const spec = specs[id], scopedAlias = (alias: string) => `${alias}.company_id=? AND (?::text IS NULL OR ${alias}.branch_id=?) AND (?::text IS NULL OR ${alias}.department_id=?)`, scopeArgs = [a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId];
     let sql = '', values: unknown[] = [], referenceAtOverride: number | null = null;
     if (id === "my-tasks") {
-        sql = `SELECT t.state label,count(*)::text value FROM staff_tasks t WHERE ${scopedAlias("t")} AND t.assignee_user_id=? AND t.state NOT IN ('draft','completed','cancelled') AND t.due_at>=? AND t.due_at<? AND ${purchase.where} GROUP BY 1 ORDER BY 1`;
+        sql = countProjectionSql('t.state', 'staff_tasks', `${scopedAlias("t")} AND t.assignee_user_id=? AND t.state NOT IN ('draft','completed','cancelled') AND t.due_at>=? AND t.due_at<? AND ${purchase.where}`);
         values = [...scopeArgs, a.userId, Date.parse(f.from), Date.parse(f.to) + 86400000,...purchase.args];
     }
     if (operationsMetrics.includes(id as OperationsMetricId)) {
@@ -55,14 +60,13 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
                         : breakdown === "age-band" ? ageBand
                             : metric === "operations-escalations" ? "'Overdue escalations sent to current reader'"
                                 : "'Overdue operational tasks'";
-            sql = `SELECT ${label} label,count(*)::text value FROM staff_tasks t
-        WHERE ${visibility.sql} AND ${cohort.sql} AND ${purchase.where} GROUP BY 1 ORDER BY 1`;
+            sql = countProjectionSql(label, 'staff_tasks', `${visibility.sql} AND ${cohort.sql} AND ${purchase.where}`, '\n        ');
             values = [...visibility.values, ...cohort.values,...purchase.args];
         }
     }
     if (id === "routines") {
         const routine=await routineSourceReadScope(sourceDb,a);
-        sql = `SELECT 'Published' label,count(*)::text value FROM routine_templates t WHERE ${scopedAlias("t")} AND t.assignee_user_id=? AND t.published=1 AND ${routine.where}`;
+        sql = countProjectionSql("'Published'", 'routine_templates', `${scopedAlias("t")} AND t.assignee_user_id=? AND t.published=1 AND ${routine.where}`, ' ', '');
         values = [...scopeArgs, a.userId,...routine.args];
     }
     const raw = (await sourceDb.prepare(sql).bind(...values).all<RawMetricRow>()).results;

@@ -1,11 +1,11 @@
 import {workTaskProjectionReadScope} from "@erpx/server-operations/adapters/record-purchases";
-import { finalRootOwnerProjectionSources as collaborationProjectionSources } from "@erpx/server-collaboration/public/final-root-owner-projection-sources";
+import {operationsOverdueAlertSql} from './executive-task-cohort';
 import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { operationsTaskCohort, operationsTaskVisibility } from "@erpx/server-runtime/public/executive/operations-access";
 import { OperationsEvidenceRow } from '@erpx/server-runtime/public/executive/evidence-contract';
-const overdueAlert = `(SELECT min(n.created_at) FROM (${collaborationProjectionSources.staff_notifications}) n WHERE n.company_id=t.company_id AND n.user_id=? AND n.record_type='staff_task_alert' AND n.record_id=t.id AND n.record_version=t.version AND n.id LIKE 'staff-task-alert-overdue-%')`;
+const overdueAlert = `(${operationsOverdueAlertSql('min(n.created_at)', 't')})`;
 /** Canonical Operations evidence projection shared by the search and read
  * readers; one fixed text keeps the two SELECTs from drifting. Binds unchanged. */
 const evidenceSelect = (metric: string, alertSelect: string, extra = '') =>

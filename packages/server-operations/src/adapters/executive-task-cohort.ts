@@ -7,6 +7,17 @@ import {socialPostScope} from '@erpx/server-collaboration/public/social-source-p
 import {OPERATIONS_TASK_START_APPROVER_SQL,OPERATIONS_TASK_COMPLETION_APPROVER_SQL} from './task-approver-access-source';
 import {operationsActiveDelegationSql} from './task-delegation-source';
 
+/** Canonical overdue-alert notification probe shared by the cohort visibility
+ * and executive evidence readers. Projection/alias/separator text is
+ * parameterized so each caller renders byte-identical SQL; binds unchanged. */
+export const operationsOverdueAlertSql = (
+  projection: string,
+  alias: string,
+  whereSep = ' ',
+  andSep = ' ',
+) =>
+  `SELECT ${projection} FROM (${collaborationProjectionSources.staff_notifications}) n${whereSep}WHERE n.company_id=${alias}.company_id AND n.user_id=? AND n.record_type='staff_task_alert'${andSep}AND n.record_id=${alias}.id AND n.record_version=${alias}.version${andSep}AND n.id LIKE 'staff-task-alert-overdue-%'`;
+
 export const operationsMetrics = [
   "open-operations-exceptions",
   "exception-resolution-time",
@@ -78,10 +89,7 @@ export function operationsTaskCohort(
   const overdue = `${alias}.state NOT IN ('completed','cancelled') AND ${alias}.due_at<?`;
   if (metric === "operations-escalations") {
     return {
-      sql: `${overdue} AND EXISTS(SELECT 1 FROM (${collaborationProjectionSources.staff_notifications}) n
-        WHERE n.company_id=${alias}.company_id AND n.user_id=? AND n.record_type='staff_task_alert'
-          AND n.record_id=${alias}.id AND n.record_version=${alias}.version
-          AND n.id LIKE 'staff-task-alert-overdue-%')`,
+      sql: `${overdue} AND EXISTS(${operationsOverdueAlertSql('1', alias, '\n        ', '\n          ')})`,
       values: [referenceAt, actor.userId],
     };
   }

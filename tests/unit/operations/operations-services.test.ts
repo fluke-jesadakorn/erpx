@@ -490,6 +490,8 @@ import {OPERATIONS_TASK_START_APPROVER_SQL,OPERATIONS_TASK_COMPLETION_APPROVER_S
 import {handoverTaskAccessSql} from '../../../packages/server-operations/src/adapters/handover-policy';
 import {taskParticipantReadPolicy} from '../../../packages/server-operations/src/adapters/project-task-record-policy';
 import {projectSourceProbe} from '../../../packages/server-operations/src/adapters/record-purchases';
+import {operationsOverdueAlertSql} from '../../../packages/server-operations/src/adapters/executive-task-cohort';
+import {finalRootOwnerProjectionSources as collaborationProjectionSources} from '@erpx/server-collaboration/public/final-root-owner-projection-sources';
 describe('Operations task delegation source dedupe',()=>{
  const fragment='(SELECT jsonb_agg(to_jsonb(delegation) ORDER BY delegation.id) FROM staff_task_delegations delegation WHERE delegation.task_id=t.id AND delegation.company_id=t.company_id)';
  test('the canonical projection owns a single byte-identical delegation read',()=>{
@@ -800,7 +802,50 @@ describe('Operations read-tail r39 retirement',()=>{
      }
     };
     walk(root);
-    expect(space).toBe(114);
+    // r40 deduped the overdue-alert and count-projection families; the r39
+    // BEFORE=117 baseline itself is unchanged.
+    expect(space).toBeLessThanOrEqual(111);
     expect(space).toBeLessThan(117);
+  });
+});
+
+describe('Operations read-tail r40 retirement',()=>{
+  const source=(name:string)=>readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+  const sn=collaborationProjectionSources.staff_notifications;
+  test('overdue-alert family renders both readers byte-identically',()=>{
+    expect(`(${operationsOverdueAlertSql('min(n.created_at)','t')})`).toBe(`(SELECT min(n.created_at) FROM (${sn}) n WHERE n.company_id=t.company_id AND n.user_id=? AND n.record_type='staff_task_alert' AND n.record_id=t.id AND n.record_version=t.version AND n.id LIKE 'staff-task-alert-overdue-%')`);
+    expect(`EXISTS(${operationsOverdueAlertSql('1','t','\n        ','\n          ')})`).toBe(`EXISTS(SELECT 1 FROM (${sn}) n\n        WHERE n.company_id=t.company_id AND n.user_id=? AND n.record_type='staff_task_alert'\n          AND n.record_id=t.id AND n.record_version=t.version\n          AND n.id LIKE 'staff-task-alert-overdue-%')`);
+    // one literal SELECT in the helper plus one inside the embedded projection source
+    expect(operationsOverdueAlertSql('1','t').match(/SELECT /g)).toHaveLength(2);
+  });
+  test('both readers compose the canonical alert and keep no local literal',()=>{
+    const evidence=source('executive-main-evidence-sources.ts');
+    expect(evidence).toContain("operationsOverdueAlertSql('min(n.created_at)', 't')");
+    expect(evidence).not.toContain('(SELECT min(n.created_at) FROM (');
+    const cohort=source('executive-task-cohort.ts');
+    expect(cohort).toContain("operationsOverdueAlertSql('1', alias, '\\n        ', '\\n          ')");
+    expect(cohort).not.toContain('EXISTS(SELECT 1 FROM (${collaborationProjectionSources.staff_notifications}) n');
+  });
+  test('the three count projections compose one canonical builder',()=>{
+    const metric=source('executive-metric-projections.ts');
+    expect(metric).toContain("countProjectionSql('t.state', 'staff_tasks',");
+    expect(metric).toContain("countProjectionSql(label, 'staff_tasks',");
+    expect(metric).toContain("countProjectionSql(\"'Published'\", 'routine_templates',");
+    expect(metric).not.toContain('SELECT t.state label,count(*)::text value FROM staff_tasks t WHERE');
+    expect(metric).not.toContain("SELECT 'Published' label,count(*)::text value FROM routine_templates t WHERE");
+  });
+  test('retirement:ts-statements stays strictly below the r40 BEFORE=114 baseline',()=>{
+    const root=resolve(__dirname,'../../../packages/server-operations/src');
+    let space=0;
+    const walk=(dir:string)=>{
+      for(const entry of readdirSync(dir,{withFileTypes:true})){
+        const path=resolve(dir,entry.name);
+        if(entry.isDirectory())walk(path);
+        else if(entry.name.endsWith('.ts'))space+=(readFileSync(path,'utf8').match(/SELECT /g)??[]).length;
+      }
+    };
+    walk(root);
+    expect(space).toBe(111);
+    expect(space).toBeLessThan(114);
   });
 });
