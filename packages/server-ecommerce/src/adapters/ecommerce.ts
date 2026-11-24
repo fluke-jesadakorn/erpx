@@ -39,6 +39,9 @@ function access(a: WorkContext, write = false) {
 }
 const cartScope = "c.company_id=? AND (?::text IS NULL OR c.branch_id=?) AND (?::text IS NULL OR c.department_id=?)";
 function scopeValues(a:WorkContext){return [a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId];}
+const activeChannelAssertion = "EXISTS(SELECT 1 FROM ecommerce_channels WHERE id=? AND company_id=? AND status='active')";
+const openCartAssertion = "EXISTS(SELECT 1 FROM ecommerce_carts WHERE id=? AND version=? AND status='open')";
+const checkoutVersionAssertion = "EXISTS(SELECT 1 FROM ecommerce_checkouts WHERE id=? AND version=?)";
 
 function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction: boolean): EcommerceRepository {
  let money: Awaited<ReturnType<typeof snapshotMoney>> | undefined;
@@ -111,7 +114,7 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
         write,
         key,
         "channel",
-        "EXISTS(SELECT 1 FROM ecommerce_channels WHERE id=? AND company_id=? AND status='active')",
+        activeChannelAssertion,
         [i.channelId, a.companyId],
       ),
       assertion(
@@ -142,7 +145,7 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
         write,
         key,
         "channel",
-        "EXISTS(SELECT 1 FROM ecommerce_channels WHERE id=? AND company_id=? AND status='active')",
+        activeChannelAssertion,
         [i.channelId, a.companyId],
       ),
       assertion(
@@ -186,7 +189,7 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
         write,
         key,
         "cart",
-        "EXISTS(SELECT 1 FROM ecommerce_carts WHERE id=? AND version=? AND status='open')",
+        openCartAssertion,
         [i.cartId, i.expectedVersion],
       ),
     ],
@@ -207,7 +210,7 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
       write,
       key,
       "cart",
-      "EXISTS(SELECT 1 FROM ecommerce_carts WHERE id=? AND version=? AND status='open')",
+      openCartAssertion,
       [i.cartId, i.expectedVersion],
     ),
   ]);
@@ -287,7 +290,7 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
           write,
           key,
           "checkout",
-          "EXISTS(SELECT 1 FROM ecommerce_checkouts WHERE id=? AND version=?)",
+          checkoutVersionAssertion,
           [id, i.expectedVersion],
         ),
       ],
@@ -317,7 +320,7 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
           write,
           key,
           "checkout",
-          "EXISTS(SELECT 1 FROM ecommerce_checkouts WHERE id=? AND version=?)",
+          checkoutVersionAssertion,
           [id, i.expectedVersion],
         ),
       ],
