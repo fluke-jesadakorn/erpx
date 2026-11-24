@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7830,
+    "revision": 7834,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -132037,7 +132037,7 @@
         "owner": "organization",
         "title": "organization TS read tail native cutover (r9)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -132049,22 +132049,42 @@
         "resources": [
           "owner:organization"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG62org",
-          "claimedAt": "2026-11-24T01:10:41.052Z",
-          "heartbeatAt": "2026-11-24T01:14:14.575Z",
-          "expiresAt": "2026-11-24T01:44:14.575Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-organization/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "1b6c63271",
+            "owner": "organization",
+            "before": 395,
+            "after": 394,
+            "note": "IAM store and workflow approvals share AUTHORITY_SEATS_S_FROM; consumers unchanged."
+          },
+          {
+            "command": "tsc organization",
+            "result": "passed",
+            "sourceSha": "1b6c63271"
+          },
+          {
+            "command": "vitest organization native tail (13)",
+            "result": "passed",
+            "sourceSha": "1b6c63271"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "TS-only dedupe if available; if none safe, report blocked with evidence. BEFORE=395.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG62org",
+          "at": "2026-11-24T01:14:54.333Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -132319,6 +132339,42 @@
         "nextAction": "Next scout batch: pms-command connection probes, counter-payment readiness, hospitality setup settings/registers, startup settings/registers; avoid FOR UPDATE/SHARE. BEFORE=260.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.organization.read-tail-r10",
+        "goalId": "G4",
+        "owner": "organization",
+        "title": "organization TS read tail native cutover (round 10)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-organization/src/**",
+          "tests/unit/organization/**",
+          "tests/integration/organization/**"
+        ],
+        "resources": [
+          "owner:organization"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG70org",
+          "claimedAt": "2026-11-24T01:14:54.612Z",
+          "heartbeatAt": "2026-11-24T01:14:54.612Z",
+          "expiresAt": "2026-11-24T01:44:54.612Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: roster_required pair in people-directory-facts.ts (L23/L26) or branch-options pair in collaboration-home/beta-management; BEFORE=394.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -132327,7 +132383,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 788,
+      "totalPackets": 789,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
@@ -132335,13 +132391,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 413,
+        "blocked": 414,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:14:43.890Z",
+    "updatedAt": "2026-11-24T01:14:54.620Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
