@@ -53938,6 +53938,33 @@
       }
     },
     {
+      "lane": "unit",
+      "owner": "marketing",
+      "modules": [
+        "marketing"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Marketing settlement source tables must share one canonical byte-identical literal."
+      },
+      "apps": [
+        "marketing"
+      ],
+      "packages": [
+        "@erpx/server-marketing"
+      ],
+      "id": "marketing.settlement-source-dedupe.unit",
+      "files": [
+        "tests/unit/marketing/settlement-source-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "operations.demo-task-delegation.e2e",
       "lane": "e2e",
       "owner": "operations",
