@@ -29,7 +29,7 @@ describe('legal hold-target guard read prefix family (r24)', () => {
     for (const [name, text, token] of [
       ['preservation', preservation, '"+legalHoldTargetGuardPrefix+"'],
       ['mutation', mutation, '${legalHoldTargetGuardPrefix}'],
-      ['service', service, '"+legalHoldTargetGuardPrefix+"'],
+      ['service', service, '"+legalHoldTargetGuardPrefix+'],
     ] as const) {
       expect(text, name).toMatch(/import\s*\{[^}]*legalHoldTargetGuardPrefix/);
       expect(text, name).toContain(token);

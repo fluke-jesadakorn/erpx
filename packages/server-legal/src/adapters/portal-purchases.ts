@@ -11,6 +11,7 @@ import {legalPackageEnforcementMode,checkPurchasedCapability,purchaseCommandBoun
 import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
 import {legalPurchaseClockExistsSql} from './legal-read-tail-r29-sources';
 import {legalPointByIdAndKeySql} from './legal-read-tail-r34-sources';
+import {legalShareDocumentReadHead} from './legal-read-tail-r41-sources';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
 import {attachmentPrivateReadSourceLocks} from '@erpx/server-files/public/private-attachment-reads';
@@ -47,7 +48,7 @@ export async function legalPortalSnapshotSourceImage(database:SqlDatabase,actor:
  return row.image;
 }
 
-async function share(database:SqlDatabase,actor:PortalActor,id:string){return database.prepare(`SELECT s.id,s.item_id,s.document_id,s.version,i.company_id,i.kind FROM legal_shares s JOIN legal_items i ON i.id=s.item_id JOIN legal_documents d ON d.id=s.document_id AND d.item_id=i.id WHERE s.id=? AND lower(s.email)=? AND (s.user_id IS NULL OR s.user_id=?) AND s.revoked_at IS NULL AND s.expires_at>${packageClockSql}`).bind(id,actor.email,actor.userId).first<{id:string;item_id:string;document_id:string;version:number;company_id:string;kind:LegalKind}>();}
+async function share(database:SqlDatabase,actor:PortalActor,id:string){return database.prepare(`${legalShareDocumentReadHead('s.id,s.item_id,s.document_id,s.version,i.company_id,i.kind')}WHERE s.id=? AND lower(s.email)=? AND (s.user_id IS NULL OR s.user_id=?) AND s.revoked_at IS NULL AND s.expires_at>${packageClockSql}`).bind(id,actor.email,actor.userId).first<{id:string;item_id:string;document_id:string;version:number;company_id:string;kind:LegalKind}>();}
 /** The external actor is authenticated by the normal verified-email Portal
  * context. Its actual share/token/source is revalidated inside the complete
  * existing owner unit; no Company assignment is fabricated for this user. */
@@ -69,5 +70,5 @@ export async function legalPortalPurchaseControls(database:SqlDatabase,actor:Por
 export async function legalPortalReadWitness(database:SqlDatabase,actor:PortalActor,id:string){
  if(await legalPackageEnforcementMode()==='disabled')return null;
  const predicate=await legalPortalPurchasePredicate('i'),source=await share(database,actor,id);if(!source)throw new ApiError(404,'LEGAL_SHARE_UNAVAILABLE','This share expired or is unavailable.');
- const witness=await database.prepare(`SELECT jsonb_build_object('share',s.id,'shareVersion',s.version,'item',i.id,'company',i.company_id,'kind',i.kind,'document',d.id,'documentVersion',d.version,'checksum',d.checksum,'bytes',d.bytes,'link',d.attachment_link_id,'source',d.attachment_source_id,'object',d.object_key)::text image FROM legal_shares s JOIN legal_items i ON i.id=s.item_id JOIN legal_documents d ON d.id=s.document_id AND d.item_id=i.id WHERE s.id=? AND ${predicate}`).bind(id).first<string>('image');if(!witness)throw new ApiError(404,'LEGAL_SHARE_UNAVAILABLE','This shared Legal source is unavailable.');return witness;
+ const witness=await database.prepare(`${legalShareDocumentReadHead("jsonb_build_object('share',s.id,'shareVersion',s.version,'item',i.id,'company',i.company_id,'kind',i.kind,'document',d.id,'documentVersion',d.version,'checksum',d.checksum,'bytes',d.bytes,'link',d.attachment_link_id,'source',d.attachment_source_id,'object',d.object_key)::text image")}WHERE s.id=? AND ${predicate}`).bind(id).first<string>('image');if(!witness)throw new ApiError(404,'LEGAL_SHARE_UNAVAILABLE','This shared Legal source is unavailable.');return witness;
 }
