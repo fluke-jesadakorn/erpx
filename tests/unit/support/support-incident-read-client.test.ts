@@ -92,3 +92,29 @@ describe('Support incident read-tail r16 canonical projection', () => {
     expect(surface).toContain('incidentEligibilitySelect');
   });
 });
+
+describe('Support ticket read-tail r17 canonical eligibility projection', () => {
+  const src = (name: string) =>
+    readFile(new URL(`../../../packages/server-support/src/${name}`, import.meta.url), 'utf8');
+
+  it('keeps one canonical ticket eligibility projection owner', async () => {
+    const source = await src('adapters/support-ticket-read.ts');
+    expect(source).toContain('export const ticketEligibilitySelect');
+    expect(source.match(/SELECT t\.\*,\$\{extra\}CASE WHEN \$\{ownerEligible\}/g)).toHaveLength(1);
+    expect(source.match(/CASE WHEN \$\{ownerEligible\} THEN 1 ELSE 0 END owner_eligible/g)).toHaveLength(1);
+  });
+
+  it('composes the projection in both ticket readers with no local copy', async () => {
+    const byId = await src('adapters/support-ticket-read.ts');
+    const work = await src('adapters/support.ts');
+    expect(byId).toContain('${ticketEligibilitySelect(eligible, reviewers,');
+    expect(work).toContain('${ticketEligibilitySelect(eligible, reviewers)}');
+    expect(work).not.toContain('owner_eligible');
+    expect(work).not.toContain('reviewer_count');
+  });
+
+  it('re-exports the shared helper from the owner public surface', async () => {
+    const surface = await src('public/support-ticket-read.ts');
+    expect(surface).toContain('ticketEligibilitySelect');
+  });
+});
