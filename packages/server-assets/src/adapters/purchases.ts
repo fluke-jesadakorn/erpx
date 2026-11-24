@@ -3,7 +3,7 @@ import { nativeClearCommandAssertions } from '@erpx/server-collaboration/adapter
 import {randomUUID} from "node:crypto";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {assetPermissionProbeSql} from "./asset-scope-probe";
-import {assetPhysicalAggSql} from "./financial-workflow-sources";
+import {assetPhysicalAggSql,assetSourceImageSql} from "./financial-workflow-sources";
 import {assetSourceProbeSql} from "./record-purchases";
 import {iamMutationGuards} from "@erpx/server-identity_access/public/iam-store";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
@@ -24,7 +24,7 @@ type Composition={companyId:string;assignmentId:string;checks:(()=>Promise<void>
 const compositions=new WeakMap<SqlDatabase,Composition>();
 const scope="r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?)";
 function sourceQuery(target:Target,file=false){
- if(target.kind==="asset")return `SELECT jsonb_build_object('asset',${file?"to_jsonb(r)-'version'-'updated_at'":"to_jsonb(r)"},'finance',to_jsonb(f),'links',${assetPhysicalAggSql("link","operational_asset_finance_links link WHERE link.asset_id=r.id")})::text image FROM operational_assets r LEFT JOIN finance_assets f ON f.id=r.finance_asset_id AND f.company_id=r.company_id WHERE r.id=? AND ${scope}`;
+ if(target.kind==="asset")return assetSourceImageSql(`jsonb_build_object('asset',${file?"to_jsonb(r)-'version'-'updated_at'":"to_jsonb(r)"},'finance',to_jsonb(f),'links',${assetPhysicalAggSql("link","operational_asset_finance_links link WHERE link.asset_id=r.id")})`,` FROM operational_assets r LEFT JOIN finance_assets f ON f.id=r.finance_asset_id AND f.company_id=r.company_id WHERE r.id=? AND ${scope}`);
  return maintenancePurchaseSourceQuery(target.kind,file);
 }
 const sourceArgs=(actor:WorkContext,target:Target)=>[target.id,actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId];

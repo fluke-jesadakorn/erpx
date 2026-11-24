@@ -459,8 +459,9 @@ it('shares the canonical lineage aggregate with the Assets purchase owner source
  // The r10 helper owns the single aggregate token; exporting it lets the
  // separate purchase owner source reuse the same literal without a second one.
  expect(aggregate).toContain('export const assetPhysicalAggSql = (alias:string,from:string) =>');
- expect(purchases.match(/SELECT/g)).toHaveLength(1);
- expect(purchases).toContain('import {assetPhysicalAggSql} from "./financial-workflow-sources"');
+ expect(purchases.match(/SELECT/g)??[]).toHaveLength(0);
+ expect(purchases).toContain('import {assetPhysicalAggSql,assetSourceImageSql} from "./financial-workflow-sources"');
+ expect(purchases).toContain('assetSourceImageSql(');
  expect(count(purchases,'${assetPhysicalAggSql("link","operational_asset_finance_links link WHERE link.asset_id=r.id")}')).toBe(1);
  // No duplicate raw finance-link aggregate remains at the purchase call site.
  expect(count(purchases,'(SELECT jsonb_agg(to_jsonb(link) ORDER BY link.id) FROM operational_asset_finance_links link WHERE link.asset_id=r.id)')).toBe(0);
@@ -505,7 +506,7 @@ describe('Assets read-tail r17 byte-identical family dedupe',()=>{
   expect(financial).toContain('OR EXISTS(${assetSourceProbeSql("maintenance_work_orders w JOIN physical a ON a.id=w.asset_id", "w.company_id<>a.company_id")})');
   const purchases=await readFile(new URL('purchases.ts',adapters),'utf8');
   expect(purchases).toContain("assetSourceProbeSql(\"command_receipts\", \"command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?\")");
-  expect(purchases.match(/SELECT/g)).toHaveLength(1);
+  expect(purchases.match(/SELECT/g)??[]).toHaveLength(0);
  });
  it('leaves locks untouched and retires five SELECT literals (32->27)',async()=>{
   const {readdirSync,readFileSync}=await import('node:fs');
@@ -521,7 +522,8 @@ describe('Assets read-tail r17 byte-identical family dedupe',()=>{
   };
   walk(srcRoot);
   expect(selects).toBeLessThan(32);
-  expect(selects).toBe(27);
+  // r20 retires the image-witness literal: 25 tracked SELECT tokens.
+  expect(selects).toBe(25);
   const financial=readFileSync(resolve(srcRoot,'adapters/financial-workflow-sources.ts'),'utf8');
   expect(financial).toContain("LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links,maintenance_work_orders IN SHARE MODE");
   const purchases=readFileSync(resolve(srcRoot,'adapters/purchases.ts'),'utf8');
@@ -552,4 +554,31 @@ describe('Assets read-tail r19 clock-CTE family dedupe',()=>{
     expect(`WITH asset_source_clock AS MATERIALIZED ${assetClockNowMsSql}`).toBe('WITH asset_source_clock AS MATERIALIZED (SELECT '+packageClockSql+' now_ms)');
     expect(`WITH asset_metric_clock AS MATERIALIZED ${assetClockNowMsSql}`).toBe('WITH asset_metric_clock AS MATERIALIZED (SELECT '+packageClockSql+' now_ms)');
   });
+});
+
+describe('Assets read-tail r20 source-image witness family',()=>{
+ const base=new URL('../../../packages/server-assets/src/adapters/',import.meta.url);
+ it('shares one parameterized image witness and keeps both call sites byte-identical',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const financial=await readFile(new URL('financial-workflow-sources.ts',base),'utf8');
+  const purchases=await readFile(new URL('purchases.ts',base),'utf8');
+  expect(financial).toContain('export const assetSourceImageSql = (projection:string,tail="") =>');
+  expect(financial.match(/SELECT/g)).toHaveLength(4);
+  expect(purchases.match(/SELECT/g)??[]).toHaveLength(0);
+  expect(purchases).toContain('import {assetPhysicalAggSql,assetSourceImageSql} from "./financial-workflow-sources"');
+  expect(financial).not.toContain("SELECT jsonb_build_object('assets'");
+  expect(purchases).not.toContain("SELECT jsonb_build_object('asset'");
+  const agg=(alias:string,from:string)=>`(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM ${from})`;
+  const probe=(from:string,where:string)=>`SELECT 1 FROM ${from} WHERE ${where}`;
+  const image=(projection:string,tail="")=>`SELECT ${projection}::text image${tail}`;
+  const lineage=image(`jsonb_build_object('assets',${agg("a","physical a")},'events',${agg("e","operational_asset_events e JOIN physical a ON a.id=e.asset_id")},'links',${agg("l","operational_asset_finance_links l WHERE l.finance_asset_id=?")},'work',${agg("w","maintenance_work_orders w JOIN physical a ON a.id=w.asset_id")})`,`,
+ EXISTS(${probe("operational_asset_finance_links l LEFT JOIN physical a ON a.id=l.asset_id","l.finance_asset_id=? AND a.id IS NULL")})
+ OR EXISTS(${probe("maintenance_work_orders w JOIN physical a ON a.id=w.asset_id","w.company_id<>a.company_id")}) invalid`);
+  expect(lineage).toBe(`SELECT jsonb_build_object('assets',${agg("a","physical a")},'events',${agg("e","operational_asset_events e JOIN physical a ON a.id=e.asset_id")},'links',${agg("l","operational_asset_finance_links l WHERE l.finance_asset_id=?")},'work',${agg("w","maintenance_work_orders w JOIN physical a ON a.id=w.asset_id")})::text image,
+ EXISTS(${probe("operational_asset_finance_links l LEFT JOIN physical a ON a.id=l.asset_id","l.finance_asset_id=? AND a.id IS NULL")})
+ OR EXISTS(${probe("maintenance_work_orders w JOIN physical a ON a.id=w.asset_id","w.company_id<>a.company_id")}) invalid`);
+  const scope="r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?)";
+  const purchase=image(`jsonb_build_object('asset',${true?"to_jsonb(r)-'version'-'updated_at'":"to_jsonb(r)"},'finance',to_jsonb(f),'links',${agg("link","operational_asset_finance_links link WHERE link.asset_id=r.id")})`,` FROM operational_assets r LEFT JOIN finance_assets f ON f.id=r.finance_asset_id AND f.company_id=r.company_id WHERE r.id=? AND ${scope}`);
+  expect(purchase).toBe(`SELECT jsonb_build_object('asset',to_jsonb(r)-'version'-'updated_at','finance',to_jsonb(f),'links',${agg("link","operational_asset_finance_links link WHERE link.asset_id=r.id")})::text image FROM operational_assets r LEFT JOIN finance_assets f ON f.id=r.finance_asset_id AND f.company_id=r.company_id WHERE r.id=? AND ${scope}`);
+ });
 });

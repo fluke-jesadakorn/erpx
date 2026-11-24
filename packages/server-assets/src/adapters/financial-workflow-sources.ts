@@ -12,12 +12,18 @@ import {assetSourceProbeSql} from "./record-purchases";
  * aliases and owner-owned FROM fragments; no SQL is accepted from a request. */
 export const assetPhysicalAggSql = (alias:string,from:string) =>
   `(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM ${from})`;
+/** Canonical owner-local source-image witness. The physical lineage and the
+ * purchase owner source share this one literal so the TS read tail carries no
+ * duplicate image statement. Callers pass only a fixed JSON projection and an
+ * owner-owned tail; no SQL or relation name is accepted from a request. */
+export const assetSourceImageSql = (projection:string,tail="") =>
+  `SELECT ${projection}::text image${tail}`;
 export function assetsFinancialPhysicalSourceLocks(database:SqlDatabase){return [database.prepare('LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links,maintenance_work_orders IN SHARE MODE')];}
 export async function assetsFinancialPhysicalSource(database:SqlDatabase,companyId:string,financeAssetId:string){
  const value=await database.prepare(`WITH physical AS MATERIALIZED(SELECT a.* FROM operational_assets a WHERE a.company_id=? AND a.finance_asset_id=?)
- SELECT jsonb_build_object('assets',${assetPhysicalAggSql("a","physical a")},'events',${assetPhysicalAggSql("e","operational_asset_events e JOIN physical a ON a.id=e.asset_id")},'links',${assetPhysicalAggSql("l","operational_asset_finance_links l WHERE l.finance_asset_id=?")},'work',${assetPhysicalAggSql("w","maintenance_work_orders w JOIN physical a ON a.id=w.asset_id")})::text image,
+ ${assetSourceImageSql(`jsonb_build_object('assets',${assetPhysicalAggSql("a","physical a")},'events',${assetPhysicalAggSql("e","operational_asset_events e JOIN physical a ON a.id=e.asset_id")},'links',${assetPhysicalAggSql("l","operational_asset_finance_links l WHERE l.finance_asset_id=?")},'work',${assetPhysicalAggSql("w","maintenance_work_orders w JOIN physical a ON a.id=w.asset_id")})`,`,
  EXISTS(${assetSourceProbeSql("operational_asset_finance_links l LEFT JOIN physical a ON a.id=l.asset_id", "l.finance_asset_id=? AND a.id IS NULL")})
- OR EXISTS(${assetSourceProbeSql("maintenance_work_orders w JOIN physical a ON a.id=w.asset_id", "w.company_id<>a.company_id")}) invalid`).bind(companyId,financeAssetId,financeAssetId,financeAssetId).first<{image:string;invalid:boolean}>();
+ OR EXISTS(${assetSourceProbeSql("maintenance_work_orders w JOIN physical a ON a.id=w.asset_id", "w.company_id<>a.company_id")}) invalid`)}`).bind(companyId,financeAssetId,financeAssetId,financeAssetId).first<{image:string;invalid:boolean}>();
  if(!value)throw Error('Original physical Asset source unavailable');return value;
 }
 export async function assetsFinancialPhysicalLinks(database:SqlDatabase,actor:WorkContext,financeAssetId:string){
