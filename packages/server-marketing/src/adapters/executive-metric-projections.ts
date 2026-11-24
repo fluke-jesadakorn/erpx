@@ -1,5 +1,4 @@
 import {marketingMetricSource} from "@erpx/server-marketing/adapters/metric-purchases";
-import { commercialOwnerProjectionSources as organizationProjectionSources } from "@erpx/server-organization/public/commercial-owner-projection-sources";
 import { readMetricSources } from '@erpx/server-runtime/public/executive/metric-sources';
 import "server-only";
 import { type Breakdown, type Filters, type MetricId } from "@erpx/feature-shared/lib/executive/canvas";
@@ -8,9 +7,9 @@ import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import { specs } from '@erpx/server-runtime/public/executive/metric-projection-contract';
 import type { MetricSnapshot, RawMetricRow } from '@erpx/server-runtime/public/executive/metric-projection-contract';
 import {marketingMetricBreakdownSql} from './executive-metric-breakdown-sql';
-/** Owner-local fixed label projections shared by both executive breakdowns; the composed SQL and bind values are unchanged. */
-const branchLabel = `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=c.branch_id AND n.company_id=c.company_id),'Branch')`;
-const departmentLabel = `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=c.department_id AND n.company_id=c.company_id),'Unassigned')`;
+import {marketingExecutiveLabelSql} from './executive-label-sql';
+const branchLabel = marketingExecutiveLabelSql('branch');
+const departmentLabel = marketingExecutiveLabelSql('department');
 export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown): Promise<MetricSnapshot> {
     const spec = specs[id], scopedAlias = (alias: string) => `${alias}.company_id=? AND (?::text IS NULL OR ${alias}.branch_id=?) AND (?::text IS NULL OR ${alias}.department_id=?)`, scopeArgs = [a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId];
     const purchased=await marketingMetricSource(sourceDb,a,id);

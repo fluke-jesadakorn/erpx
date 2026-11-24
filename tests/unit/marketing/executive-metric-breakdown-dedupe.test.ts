@@ -31,11 +31,31 @@ describe('marketing executive metric breakdown dedupe', () => {
     expect(source).toContain("marketingMetricBreakdownSql('engagements', purchased.sql, label, scopedAlias('c'))");
   });
 
-  it('preserves the outer binds and the previously deduped label projections', async () => {
+  it('preserves the outer binds and routes labels through the shared helper', async () => {
     const source = await readFile(adapter('executive-metric-projections.ts'), 'utf8');
     expect(source).toContain('values = [...purchased.args,...scopeArgs];');
     expect(source).toContain('values = [...purchased.args,...scopeArgs, Date.parse(f.from), Date.parse(f.to) + 86400000];');
-    expect(source).toContain('const branchLabel = `COALESCE((SELECT');
-    expect(source).toContain('const departmentLabel = `COALESCE((SELECT');
+    expect(source).not.toContain('const branchLabel = `COALESCE((SELECT');
+    expect(source).not.toContain('const departmentLabel = `COALESCE((SELECT');
+    expect(source).toContain("const branchLabel = marketingExecutiveLabelSql('branch');");
+    expect(source).toContain("const departmentLabel = marketingExecutiveLabelSql('department');");
+  });
+
+  it('emits byte-identical branch and department label projections from one helper', async () => {
+    const { marketingExecutiveLabelSql } = await import(
+      '../../../packages/server-marketing/src/adapters/executive-label-sql.ts'
+    );
+    const { commercialOwnerProjectionSources } = await import(
+      '@erpx/server-organization/public/commercial-owner-projection-sources'
+    );
+    const nodes = commercialOwnerProjectionSources.organization_nodes;
+    expect(marketingExecutiveLabelSql('branch')).toBe(
+      `COALESCE((SELECT n.display_name FROM (${nodes}) n WHERE n.id=c.branch_id AND n.company_id=c.company_id),'Branch')`
+    );
+    expect(marketingExecutiveLabelSql('department')).toBe(
+      `COALESCE((SELECT n.display_name FROM (${nodes}) n WHERE n.id=c.department_id AND n.company_id=c.company_id),'Unassigned')`
+    );
+    const helper = await readFile(adapter('executive-label-sql.ts'), 'utf8');
+    expect(helper.match(/SELECT /g)).toHaveLength(1);
   });
 });
