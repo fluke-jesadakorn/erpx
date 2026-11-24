@@ -4,7 +4,7 @@ import type {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgre
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/server-commercial/public/package-settlement-sources";
 import {benefitEligibilitySettlementLocks,benefitEligibilitySettlementSources as learning} from "@erpx/server-learning/public/benefit-source-facts";
-import {benefitPayrollInputOwnerPredicate} from "@erpx/server-benefits/adapters/benefits-read-sql";
+import {benefitPayrollInputOwnerPredicate,benefitElectionFactPrefix} from "@erpx/server-benefits/adapters/benefits-read-sql";
 
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
 const sources=new WeakMap<SqlDatabase,string>();
@@ -42,7 +42,7 @@ export async function benefitPackageObligations(owner:PostgresDatabase,database:
  SELECT 'plan' kind,p.id,p.version,p.status state,to_jsonb(p) image,p.status NOT IN ('retired','rejected') OR NOT p.terminal_proven pending FROM plans p
  UNION ALL SELECT 'window',w.id,w.version,w.status,to_jsonb(w),w.status NOT IN ('closed','cancelled') OR NOT w.terminal_proven FROM windows w
  UNION ALL SELECT 'dependent',d.id,d.version,d.status,to_jsonb(d),d.status='pending' OR NOT d.terminal_proven FROM (${benefitPackageSettlementSources.dependents}) d,scope WHERE d.company_id=scope.company_id
- UNION ALL SELECT 'election',e.id,e.version,e.status,to_jsonb(e),e.status NOT IN ('released','cancelled') OR NOT e.terminal_proven
+ ${benefitElectionFactPrefix} NOT e.terminal_proven
  OR plan.id IS NULL OR plan.company_id IS DISTINCT FROM e.company_id OR plan.version<e.plan_version
  OR win.id IS NULL OR win.company_id IS DISTINCT FROM e.company_id OR win.version<e.window_version
  OR (e.status='released' AND (e.released_by IS NULL OR NOT EXISTS(SELECT 1 FROM benefit_payroll_inputs handoff JOIN benefit_election_events event ON event.election_id=e.id AND event.version=handoff.source_election_version AND event.action='release' AND event.status='released' AND event.actor_id=handoff.released_by
