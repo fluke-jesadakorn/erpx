@@ -1,5 +1,9 @@
+import { createHash } from 'node:crypto';
+import { readFileSync, readdirSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
+import { obligationFactHead } from '../../../packages/server-customer_360/src/adapters/obligation-fact-head';
 import {
   createNativeCustomerPortalClient,
   nativeCustomerPortalConfiguration,
@@ -167,5 +171,83 @@ describe('native customer-portal transport', () => {
       code: 'NATIVE_CUSTOMER_PORTAL_UNAVAILABLE',
       status: 503,
     });
+  });
+});
+
+const c360SrcRoot = resolve(__dirname, '../../../packages/server-customer_360/src');
+const c360Src = (name: string) => readFileSync(resolve(c360SrcRoot, 'adapters', name), 'utf8');
+const c360Sha = (s: string) => createHash('sha256').update(s).digest('hex');
+const c360ReadOnly = (sql: string) => {
+  expect(sql).toContain('SELECT ');
+  expect(sql).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
+};
+// Pre-dedupe emitted heads copied verbatim from the r9 BEFORE=15 baseline. Whole-string
+// byte identity is the oracle: no label, alias, quote or token may drift.
+const obligationHeads = {
+  action: {
+    args: ['action', ' kind', 'request.id', 'request', ' fact'] as const,
+    sql: "SELECT 'action' kind,request.id,to_jsonb(request) fact,NOT ",
+    sha: '2d568f2bcd15a437312ed98b7f883e8a734d1ac7cdea574370e1011ce8964abc',
+  },
+  acknowledgement: {
+    args: ['acknowledgement', '', 'ack.id', 'ack', ''] as const,
+    sql: "SELECT 'acknowledgement',ack.id,to_jsonb(ack),NOT ",
+    sha: '8a7d169761b7630de2877eeeaf3cde7a558dbe42ceee443963b12541736e04ed',
+  },
+} as const;
+
+describe('Customer 360 obligation-fact query-head family', () => {
+  it.each([
+    ['action', obligationHeads.action],
+    ['acknowledgement', obligationHeads.acknowledgement],
+  ] as const)('%s renders byte-identically and stays read-only', (_name, member) => {
+    const actual = obligationFactHead(...member.args);
+    expect(actual).toBe(member.sql);
+    expect(c360Sha(actual)).toBe(member.sha);
+    c360ReadOnly(actual);
+  });
+
+  it('one generator literal with two call sites and no inlined projection head', () => {
+    const shared = c360Src('obligation-fact-head.ts');
+    expect(shared.match(/export const obligationFactHead\s*=/g) ?? []).toHaveLength(1);
+    expect((shared.match(/SELECT /g) ?? []).length).toBe(1);
+    expect(shared).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
+    const obligations = c360Src('package-obligations.ts');
+    expect(obligations.match(/obligationFactHead\(/g) ?? []).toHaveLength(2);
+    expect(obligations).not.toContain(obligationHeads.action.sql);
+    expect(obligations).not.toContain(obligationHeads.acknowledgement.sql);
+    expect(obligations).toContain("obligationFactHead('action',' kind','request.id','request',' fact')");
+    expect(obligations).toContain("obligationFactHead('acknowledgement','','ack.id','ack','')");
+  });
+
+  it('r3/r5-r9 families, locks, native reads and cross-owner pins stay independent', () => {
+    const reads = c360Src('customer-read-sources.ts');
+    expect(reads).toContain('const scopedRow ='); // r5
+    expect(reads).toContain('export function customerVisiblePredicate('); // r5
+    expect(reads).toContain('export const companyScopeSource ='); // r8
+    const timeline = c360Src('timeline.ts');
+    expect(timeline).toContain('const eventSelect='); // r6
+    expect(timeline).toContain('const eventRow='); // r7
+    expect(timeline).toContain('const scopedProjection ='); // r9
+    const obligations = c360Src('package-obligations.ts');
+    expect(obligations).toContain('const supportConclusionExists='); // r3
+    expect(obligations).toContain('LOCK TABLE customer_portal_actions IN SHARE ROW EXCLUSIVE MODE');
+    expect(obligations).toContain('assertPortalAuthorityPackageObligationSources');
+    const pin = c360Src('final-root-owner-projection-sources.ts');
+    expect(pin).toContain('customer_portal_actions: "SELECT \\"id\\",\\"company_id\\"'); // cross-owner pin untouched
+  });
+
+  it('retirement:ts-statements is strictly lower than BEFORE=15 (expected 14)', () => {
+    let total = 0;
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith('.ts')) total += (readFileSync(path, 'utf8').match(/SELECT /g) ?? []).length;
+      }
+    };
+    walk(c360SrcRoot);
+    expect(total).toBe(14);
+    expect(total).toBeLessThan(15);
   });
 });
