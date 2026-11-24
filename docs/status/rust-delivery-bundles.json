@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9843,
+    "revision": 9857,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -155599,7 +155599,7 @@
         "owner": "talent",
         "title": "talent TS read tail native cutover (r25)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -155611,28 +155611,36 @@
         "resources": [
           "owner:talent"
         ],
-        "claim": {
-          "runId": "run-20261123-l",
-          "agentId": "wGCPtal",
-          "claimedAt": "2026-11-24T05:56:23.482Z",
-          "heartbeatAt": "2026-11-24T05:56:24.357Z",
-          "expiresAt": "2026-11-24T06:26:24.357Z",
-          "generation": 164
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-talent/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d0b120e17",
+            "owner": "talent",
+            "before": 55,
+            "after": 53,
+            "note": "Owner source image projection shared across five lineages; r20-r24, locks and consumers untouched."
+          },
+          {
+            "command": "vitest talent r21-r25 + transport (41) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "d0b120e17"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=55.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-k",
+          "runId": "run-20261123-l",
           "agentId": "wGCPtal",
-          "at": "2026-11-24T05:56:18.484Z",
+          "at": "2026-11-24T06:02:57.781Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired at 05:55Z; WIP reviewed in shared checkout; release claims and continue under new generation.",
-          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=55."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -155836,7 +155844,7 @@
         "owner": "ecommerce",
         "title": "ecommerce TS read tail native cutover (r8)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -155848,22 +155856,37 @@
         "resources": [
           "owner:ecommerce"
         ],
-        "claim": {
-          "runId": "run-20261123-l",
-          "agentId": "wGCPeco",
-          "claimedAt": "2026-11-24T05:56:59.128Z",
-          "heartbeatAt": "2026-11-24T05:56:59.128Z",
-          "expiresAt": "2026-11-24T06:26:59.128Z",
-          "generation": 164
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-ecommerce/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d0b120e17",
+            "owner": "ecommerce",
+            "before": 64,
+            "after": 63,
+            "note": "Branch and department source node label fragments share nodeNameLabel; r1/r4-r7 and checkout locks untouched."
+          },
+          {
+            "command": "vitest ecommerce r8 + full unit lane (37) + tsc ecommerce",
+            "result": "passed",
+            "sourceSha": "d0b120e17"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=64.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCPeco",
+          "at": "2026-11-24T06:02:58.344Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -156290,6 +156313,186 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=41.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.talent.read-tail-r26",
+        "goalId": "G4",
+        "owner": "talent",
+        "title": "talent TS read tail native cutover (r26)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-talent/src/**",
+          "tests/unit/talent/**",
+          "tests/integration/talent/**"
+        ],
+        "resources": [
+          "owner:talent"
+        ],
+        "claim": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCStal",
+          "claimedAt": "2026-11-24T06:02:59.038Z",
+          "heartbeatAt": "2026-11-24T06:02:59.038Z",
+          "expiresAt": "2026-11-24T06:32:59.038Z",
+          "generation": 164
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=53.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.ecommerce.read-tail-r9",
+        "goalId": "G4",
+        "owner": "ecommerce",
+        "title": "ecommerce TS read tail native cutover (r9)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-ecommerce/src/**",
+          "tests/unit/ecommerce/**",
+          "tests/integration/ecommerce/**"
+        ],
+        "resources": [
+          "owner:ecommerce"
+        ],
+        "claim": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCSeco",
+          "claimedAt": "2026-11-24T06:02:59.583Z",
+          "heartbeatAt": "2026-11-24T06:02:59.583Z",
+          "expiresAt": "2026-11-24T06:32:59.583Z",
+          "generation": 164
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=63.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.pms.read-tail-r25",
+        "goalId": "G4",
+        "owner": "pms",
+        "title": "pms TS read tail native cutover (r25)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-pms/src/**",
+          "tests/unit/pms/**",
+          "tests/integration/pms/**"
+        ],
+        "resources": [
+          "owner:pms"
+        ],
+        "claim": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCSpms",
+          "claimedAt": "2026-11-24T06:03:00.175Z",
+          "heartbeatAt": "2026-11-24T06:03:00.175Z",
+          "expiresAt": "2026-11-24T06:33:00.175Z",
+          "generation": 164
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=420.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.agent.read-tail-r17",
+        "goalId": "G4",
+        "owner": "agent",
+        "title": "agent TS read tail native cutover (r17)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-agent/src/**",
+          "tests/unit/agent/**",
+          "tests/integration/agent/**"
+        ],
+        "resources": [
+          "owner:agent"
+        ],
+        "claim": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCSage",
+          "claimedAt": "2026-11-24T06:03:00.751Z",
+          "heartbeatAt": "2026-11-24T06:03:00.751Z",
+          "expiresAt": "2026-11-24T06:33:00.751Z",
+          "generation": 164
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=60.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.work_projection.read-tail-r15",
+        "goalId": "G4",
+        "owner": "work_projection",
+        "title": "work_projection TS read tail native cutover (r15)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-work_projection/src/**",
+          "tests/unit/work_projection/**",
+          "tests/integration/work_projection/**"
+        ],
+        "resources": [
+          "owner:work_projection"
+        ],
+        "claim": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCSwp",
+          "claimedAt": "2026-11-24T06:03:01.287Z",
+          "heartbeatAt": "2026-11-24T06:03:01.287Z",
+          "expiresAt": "2026-11-24T06:33:01.287Z",
+          "generation": 164
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=73.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -156298,21 +156501,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1247,
+      "totalPackets": 1252,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
-        "in_progress": 20,
+        "in_progress": 23,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 880,
+        "blocked": 882,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 164,
-    "updatedAt": "2026-11-24T06:02:13.704Z",
+    "updatedAt": "2026-11-24T06:03:01.293Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
