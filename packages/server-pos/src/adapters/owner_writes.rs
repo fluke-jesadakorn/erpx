@@ -396,6 +396,11 @@ pub const KINDS: &[&str] = &[
     crate::adapters::stripe_reads::PAYMENT_ID,
     crate::adapters::stripe_reads::REFUND_BY_ID,
     crate::adapters::stripe_reads::REFUND_ID_BY_PROVIDER,
+    // POS audit actor read kinds: closed, SELECT-only owner statements on the
+    // owner's pos_audit table. Row locks, advisory/LOCK, PMS reads and the
+    // day-report/Stripe registries stay inline in their callers and modules.
+    crate::adapters::audit_reads::AUDIT_ACTOR_CHARGE_TO_ROOM,
+    crate::adapters::audit_reads::AUDIT_ACTOR_KITCHEN_START,
     // POS purchase-boundary read kinds: closed, SELECT-only owner statements
     // that the TypeScript purchase bridge requests on the caller's unit.
     crate::adapters::boundary_reads::SALE_CREATE_MODE,
@@ -562,6 +567,10 @@ fn sql(kind: &str) -> Option<&'static str> {
         // the dedicated module and is shared with the transport parity oracle.
         kind if crate::adapters::stripe_reads::supported(kind) =>
             return crate::adapters::stripe_reads::sql(kind),
+        // Audit actor reads: authoritative owner SQL lives in the dedicated
+        // module and is shared with the transport parity oracle.
+        kind if crate::adapters::audit_reads::supported(kind) =>
+            return crate::adapters::audit_reads::sql(kind),
         // Purchase-boundary reads: authoritative owner SQL lives in the
         // dedicated module and is shared with the integration parity oracle.
         kind if crate::adapters::boundary_reads::supported(kind) =>
@@ -622,7 +631,7 @@ mod tests {
     use super::*;
     #[test]
     fn every_kind_is_allow_listed_with_parameterized_owner_sql() {
-        assert_eq!(KINDS.len(), 164);
+        assert_eq!(KINDS.len(), 166);
         for kind in KINDS {
             assert!(supported(kind), "kind must be allow listed: {kind}");
             let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
@@ -1149,6 +1158,26 @@ mod tests {
             }
         }
         assert_eq!(crate::adapters::stripe_reads::KINDS.len(), 8);
+    }
+
+    /// The retired audit actor reads are SELECT-only, lock-free owner
+    /// statements on the owner's pos_audit table, scoped by the caller's record
+    /// id and a closed operation value. Row locks, advisory/LOCK, PMS reads and
+    /// the day-report/Stripe registries stay inline in their callers/modules.
+    #[test]
+    fn audit_read_kinds_are_select_only_and_lock_free() {
+        for kind in crate::adapters::audit_reads::KINDS {
+            assert!(supported(kind), "audit read kind must be mounted: {kind}");
+            let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
+            assert!(stmt.starts_with("SELECT "), "audit kind must be SELECT-only: {kind}");
+            for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE", "FOR SHARE", "LOCK TABLE", "pg_advisory", "pms_sources", "pms_properties", "commerce_"] {
+                assert!(
+                    !stmt.contains(forbidden),
+                    "audit kind must not mutate, lock or cross owners: {kind} contains {forbidden}",
+                );
+            }
+        }
+        assert_eq!(crate::adapters::audit_reads::KINDS.len(), 2);
     }
 
     /// The retired addon/package obligation reads are SELECT-only owner

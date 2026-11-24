@@ -1,4 +1,5 @@
 import { nativePosOne, nativePosRun } from './native-owner-write';
+import { nativePosAuditChargeToRoomStatement, nativePosAuditKitchenStartStatement } from './native-pos-audit-reads';
 import { nativePosPaymentByIdPlainStatement, nativePosPostingJournalStatement, nativePosRegisterByIdStatement, nativePosRegisterCatalogStatement, nativePosSaleByIdStatement } from './native-pos-core-statement';
 import { nativePosFulfilledLinesStatement, nativePosFirstPaymentIdStatement, nativePosLinesBySaleStatement, nativePosLinesTotalStatement, nativePosOpenPaymentIdStatement, nativePosPaymentIdBySaleStatement, nativePosPendingPaymentIdStatement, nativePosRefundablePaymentsStatement, nativePosSucceededPaymentTotalStatement } from './native-pos-sale-child';
 import { posGuestAccountInterface } from "@erpx/server-pms/public/pos-guest-account-interface";
@@ -318,7 +319,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         }) => one(db, "SELECT id FROM pos_day_closes WHERE company_id=? AND branch_id=? AND business_date=? AND state='prepared'", facts.company_id, facts.branch_id, facts.business_date),
         readPosAudit1: (facts: {
             id: string | number | boolean | null;
-        }) => one(db, "SELECT actor_id FROM pos_audit WHERE operation='sale.charge_to_room' AND record_id=? ORDER BY created_at DESC LIMIT 1", facts.id),
+        }) => nativePosAuditChargeToRoomStatement(db, facts),
         readPosRoomChargeReversals1: (facts: {
             id: string | number | boolean | null;
         }) => one(db, 'SELECT sale_id FROM pos_room_charge_reversals WHERE sale_id=?', facts.id),
@@ -402,7 +403,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         }) => one(db, 'SELECT s.created_by FROM pos_lines l JOIN pos_sales s ON s.id=l.sale_id WHERE l.fulfillment_id=? AND s.created_by=? LIMIT 1', facts.id, facts.user),
         readPosAudit2: (facts: {
             id: string | number | boolean | null;
-        }) => one(db, "SELECT actor_id FROM pos_audit WHERE operation='kitchen.start' AND record_id=? ORDER BY created_at DESC LIMIT 1", facts.id),
+        }) => nativePosAuditKitchenStartStatement(db, facts),
         readPosLines12: (facts: {
             id: string | number | boolean | null;
         }) => one(db, "SELECT l.id FROM pos_lines l JOIN pos_sales s ON s.id=l.sale_id WHERE l.fulfillment_id=? AND s.state='completed' AND l.returned_milli<l.quantity_milli", facts.id),
