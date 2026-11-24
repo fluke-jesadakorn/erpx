@@ -13,6 +13,7 @@ import { legalItemOrderedSql } from "../legal-read-tail-r35-sources";
 import { legalHoldOwnTargetSql } from "../legal-read-tail-r39-sources";
 import { legalExternalUploadShareJoinHead } from "../legal-read-tail-r44-sources";
 import { legalPointByKeySql } from "../legal-read-tail-r36-sources";
+import { legalOrderedKeyHeadSql } from "../legal-read-tail-r54-sources";
 import { finalRootOwnerProjectionSources as workflowProjectionSources } from "@erpx/server-workflow/public/final-root-owner-projection-sources";
 import {nativeLegalHoldNotice} from "../native-legal-hold-notice";
 import "server-only";
@@ -111,7 +112,7 @@ envelopes:(id:string)=>{return db
         .all<Omit<LegalDetail["envelopes"][number], "signers">>();},
 signers:(envelopeId:string)=>{return db
           .prepare(
-            "SELECT user_id,ordinal,state,signed_at FROM legal_signers WHERE envelope_id=? ORDER BY ordinal",
+            legalOrderedKeyHeadSql("user_id,ordinal,state,signed_at","legal_signers","envelope_id")+" ORDER BY ordinal",
           )
           .bind(envelopeId)
           .all<LegalDetail["envelopes"][number]["signers"][number]>();},

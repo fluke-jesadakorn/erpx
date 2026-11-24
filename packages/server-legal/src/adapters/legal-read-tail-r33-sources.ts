@@ -5,6 +5,6 @@ import "server-only";
 export const legalStatePointSql = (
   columns: string,
   table: string,
-  key2: 'company_id' | 'document_id',
+  key2: 'company_id' | 'document_id' | 'rule_id',
   state: 'active' | 'approved',
 ) => `SELECT ${columns} FROM ${table} WHERE id=? AND ${key2}=? AND state='${state}'`;

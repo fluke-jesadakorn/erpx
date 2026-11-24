@@ -24,6 +24,7 @@ import {legalSettingsEnabledSql,legalDocumentByIdSql,legalDestructionActiveSql} 
 import {legalPointByIdSql} from '../legal-read-tail-r32-sources';
 import {legalPointByIdAndKeySql} from '../legal-read-tail-r34-sources';
 import {legalShareDocumentReadHead} from '../legal-read-tail-r41-sources';
+import {legalItemKeyHeadSql} from '../legal-read-tail-r54-sources';
 export type {PortalActor} from "@erpx/server-legal/domain/portal";
 /** Shared read of a portal idempotency receipt by key and actor; both upload
  * repository methods assert the same authority-bound row. */
@@ -38,10 +39,10 @@ uploadRecoveryShare:facts=>shareRecord(db,facts,true),
 uploadRecoverySource:facts=>legalPortalRepository(db).recoverySource(facts),
 retentionFrozen:(facts:{item_id:string;})=>db.prepare(legalDestructionActiveSql).bind(facts.item_id).first(),
 documentSummary:(facts:{document_id:string;})=>db.prepare(legalPointByIdSql("id,name,body,version,checksum,media_type","legal_documents")).bind(facts.document_id).first(),
-comments:(facts:{item_id:string;document_id:string;})=>db.prepare("SELECT body,created_at,created_by FROM legal_comments WHERE item_id=? AND document_id=? AND visibility='external' ORDER BY created_at LIMIT 100").bind(facts.item_id,facts.document_id).all(),
+comments:(facts:{item_id:string;document_id:string;})=>db.prepare(legalItemKeyHeadSql("body,created_at,created_by","legal_comments","document_id")+" AND visibility='external' ORDER BY created_at LIMIT 100").bind(facts.item_id,facts.document_id).all(),
 envelopes:(facts:{item_id:string;document_id:string;actorId:string;})=>db.prepare(legalEnvelopeSignerReadHead("e.id,e.state,e.consent,e.expires_at,s.state signer_state,s.viewed_at")+"e.item_id=? AND e.document_id=? AND s.user_id=? ORDER BY e.created_at DESC LIMIT 10").bind(facts.item_id,facts.document_id,facts.actorId).all(),
 viewRead:facts=>(async()=>{await (await nw.accessEvent({...facts,action:facts.fact4})).run();return {results:[]};})(),
-billing:(facts:{item_id:string;actorId:string;})=>db.prepare("SELECT id,title,state,data,version FROM legal_counsel_entries WHERE item_id=? AND created_by=? ORDER BY updated_at DESC LIMIT 100").bind(facts.item_id,facts.actorId).all<{id:string;title:string;state:string;data:unknown;version:number}>(),
+billing:(facts:{item_id:string;actorId:string;})=>db.prepare(legalItemKeyHeadSql("id,title,state,data,version","legal_counsel_entries","created_by")+" ORDER BY updated_at DESC LIMIT 100").bind(facts.item_id,facts.actorId).all<{id:string;title:string;state:string;data:unknown;version:number}>(),
 document:(facts:{document_id:string;})=>db.prepare(legalDocumentByIdSql).bind(facts.document_id).first<DocumentVersion>(),
 downloadRead:facts=>(async()=>{await (await nw.accessEvent({companyId:facts.companyId,identifier:facts.identifier,item_id:facts.item_id,document_id:facts.id,actorId:facts.actorId,action:facts.fact4,now:facts.now})).run();return {results:[]};})(),
 receipt:(facts:{key:string;})=>db.prepare(legalPointByIdSql("*","legal_portal_receipts")).bind(facts.key).first<{ user_id: string; request_hash: string; result_json: string }>(),

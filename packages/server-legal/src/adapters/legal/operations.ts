@@ -22,6 +22,7 @@ import { legalEnvelopeSignerReadHead } from '../legal-read-tail-r43-sources';
 import {legalEventsByItemSql} from '../legal-read-tail-r18-sources';
 import {legalOrderedHistorySql} from '../legal-read-tail-r30-sources';
 import {legalItemOrderedSql} from '../legal-read-tail-r35-sources';
+import {legalPointByIdAndKeySql} from '../legal-read-tail-r34-sources';
 /** Exact projection of the native `views` auxiliary read; no view SQL remains in TypeScript. */
 type LegalSavedViewsView={name:string;query:unknown}[];
 function unit(db:SqlDatabase,a:WorkContext,views?:LegalSavedViewsView):LegalOperationUnit{const nativeOps=legalOperations(db,a.companyId,a.userId);let observation:ReturnType<typeof legalReadScope>|undefined;const purchase=()=>observation??=legalReadScope(db,a);const v=visibility(a),writes=new WeakMap<LegalWrite,SqlStatement>();function stage(statement:SqlStatement):LegalWrite{const write:LegalWrite={owner:"legal"};writes.set(write,statement);return write;}function resolve(write:LegalWrite){const statement=writes.get(write);if(!statement)throw new Error("LEGAL_OPERATIONS_REPOSITORY_MISMATCH");return statement;}
@@ -49,7 +50,7 @@ holdPreview:async(id)=>db
       )
       .bind(id, ...v.values)
       .all(),
-proposedAi:(facts:{proposalId:string;id:string;actorId:string;})=>db.prepare("SELECT source_version,source_hash,proposal FROM legal_ai_proposals WHERE id=? AND item_id=? AND created_by=? AND state='proposed'").bind(facts.proposalId,facts.id,facts.actorId).first<{ source_version: number; source_hash: string; proposal: string }>(),
+proposedAi:(facts:{proposalId:string;id:string;actorId:string;})=>db.prepare(legalPointByIdAndKeySql("source_version,source_hash,proposal","legal_ai_proposals","item_id")+" AND created_by=? AND state='proposed'").bind(facts.proposalId,facts.id,facts.actorId).first<{ source_version: number; source_hash: string; proposal: string }>(),
 nextDocumentVersion:(facts:{id:string;})=>db.prepare(nextDocumentVersionSql).bind(facts.id).first<{ n: number }>(),
 async reviewedAiDocument(facts){return stage(await nativeOps.aiDocument({documentId:facts.documentId,itemId:facts.id,version:facts.next,name:facts.name,checksum:facts.checksum,bytes:facts.bytes,body:facts.body,actorId:facts.actorId,now:facts.now}));},
 async acceptProposal(facts){return stage(await nativeOps.acceptProposal({proposalJson:facts.fact0,proposalId:facts.proposalId}));},

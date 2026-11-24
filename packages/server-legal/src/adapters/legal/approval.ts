@@ -24,18 +24,19 @@ import {legalSignerAccessPrefix,legalSignerAccessSuffix} from '../legal-signer-a
 import {legalByIdAndItemSql} from '../legal-read-tail-r27-sources';
 import {legalPointByIdSql} from '../legal-read-tail-r32-sources';
 import {legalPointByKeySql} from '../legal-read-tail-r36-sources';
+import {legalItemKeyHeadSql,legalOrderedKeyHeadSql} from '../legal-read-tail-r54-sources';
 function application(db:SqlDatabase,a:WorkContext){const workflow=legalApprovalFacts(db),nativeWrites=new WeakMap<LegalWrite,SqlStatement>(),nativeApproval=legalApprovalStatements(db,a.companyId,a.userId);const stage=(statement:SqlStatement):LegalWrite=>{const write:LegalWrite={owner:"legal"};nativeWrites.set(write,statement);return write;};
 return createLegalApprovalApplication({actor:a,access:(id,p)=>access(db,a,id,p),eligible:(id,item,p)=>eligible(db,a,id,item,p),samePerson:id=>samePerson(a,id),hash:value=>createHash("sha256").update(value).digest("hex"),clock:{now:()=>Date.now()},identifiers:{next:()=>crypto.randomUUID()},error:(status,code,message)=>new ApiError(status,code,message),repository:{
 routeSteps:facts=>workflow.routeSteps(facts),
 decisionHistory:facts=>workflow.decisionHistory(facts),
 contractDocument:(facts:{documentId:string;itemId:string;})=>db.prepare(legalByIdAndItemSql("legal_documents")).bind(facts.documentId,facts.itemId).first<DocumentVersion>(),
 executedDocument:(facts:{id:string;})=>db.prepare(legalPointByKeySql("1","legal_executed_copies","document_id")).bind(facts.id).first(),
-latestAuthor:(facts:{itemId:string;})=>db.prepare("SELECT actor_id FROM legal_events WHERE item_id=? AND action IN ('created','update','document','document.upload','ai.accepted') ORDER BY version DESC LIMIT 1").bind(facts.itemId).first<{ actor_id: string }>(),
+latestAuthor:(facts:{itemId:string;})=>db.prepare(legalOrderedKeyHeadSql("actor_id","legal_events","item_id")+" AND action IN ('created','update','document','document.upload','ai.accepted') ORDER BY version DESC LIMIT 1").bind(facts.itemId).first<{ actor_id: string }>(),
 signerAccess:(facts:{itemId:string;u:string;itemId2:string;id:string;u2:string;now:number;})=>db.prepare(legalSignerAccessPrefix+"document_id=? AND user_id=?"+legalSignerAccessSuffix).bind(facts.itemId,facts.u,facts.itemId2,facts.id,facts.u2,facts.now).first(),
 async lockDocument(facts){return stage(await nativeApproval.lockDocument(facts));},
 async retainRoute(facts){return stage(await nativeApproval.retainRoute(facts));},
 currentStep:facts=>workflow.currentStep(facts),
-routeSnapshot:(facts:{itemId:string;instanceId:string;})=>db.prepare("SELECT * FROM legal_approval_routes WHERE item_id=? AND instance_id=?").bind(facts.itemId,facts.instanceId).first<{
+routeSnapshot:(facts:{itemId:string;instanceId:string;})=>db.prepare(legalItemKeyHeadSql("*","legal_approval_routes","instance_id")).bind(facts.itemId,facts.instanceId).first<{
         document_id: string;
         document_hash: string;
         signers: string;
