@@ -57,6 +57,6 @@ describe('quality read-tail r17 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(75);
-    expect(total).toBe(63);
+    expect(total).toBe(59);
   });
 });

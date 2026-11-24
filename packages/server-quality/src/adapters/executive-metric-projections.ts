@@ -1,4 +1,5 @@
 import { commercialOwnerProjectionSources as organizationProjectionSources } from "@erpx/server-organization/public/commercial-owner-projection-sources";
+import { inspectionMetricSource } from "./inspection-evidence-source-sql";
 import { readMetricSources } from '@erpx/server-runtime/public/executive/metric-sources';
 import "server-only";
 import { type Breakdown, type Filters, type MetricId } from "@erpx/feature-shared/lib/executive/canvas";
@@ -30,11 +31,10 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
             : breakdown === "branch"
                 ? qualityBranchDisplayLabelSql
                 : "'All finalized inspections'";
-        sql = `SELECT ${label} label,
-        count(*) FILTER (WHERE i.result='pass')::text numerator,count(*)::text denominator
-      FROM inventory_quality_inspections i JOIN inventory_quality_holds h ON h.id=i.hold_id
+        sql = `${inspectionMetricSource(`${label} label,
+        count(*) FILTER (WHERE i.result='pass')::text numerator,count(*)::text denominator`, `
       WHERE h.company_id=? AND (?::text IS NULL OR h.branch_id=?) AND i.created_at>=? AND i.created_at<?
-      GROUP BY 1 ORDER BY 1`;
+      GROUP BY 1 ORDER BY 1`)}`;
         values = [a.companyId, a.branchId, a.branchId, Date.parse(f.from), Date.parse(f.to) + 86400000];
     }
     const raw = (await sourceDb.prepare(sql).bind(...values).all<RawMetricRow>()).results;
