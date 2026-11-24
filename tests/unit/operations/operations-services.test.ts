@@ -580,14 +580,17 @@ describe('Operations active-delegation clock window dedupe',()=>{
  const execWindow="SELECT sd.delegate_user_id FROM staff_task_delegations sd WHERE sd.task_id=t.id AND sd.company_id=t.company_id\n      AND sd.status='active' AND sd.starts_at<=? AND sd.expires_at>?\n      ORDER BY sd.created_at DESC,sd.id DESC LIMIT 1";
  const projectWindow="SELECT sd.delegate_user_id FROM staff_task_delegations sd WHERE sd.task_id=project_task_record.id AND sd.company_id=project_task_record.company_id AND sd.status='active' AND sd.starts_at<=${viewer}.now_ms AND sd.expires_at>${viewer}.now_ms ORDER BY sd.created_at DESC,sd.id DESC LIMIT 1";
  const attachmentWindow="SELECT 1 FROM staff_task_delegations delegation WHERE delegation.task_id=work_task_file_source.id AND delegation.company_id=work_task_file_source.company_id AND delegation.status='active' AND delegation.starts_at<=${viewer}.now_ms AND delegation.expires_at>${viewer}.now_ms AND iam_same_person(delegation.delegate_user_id,${viewer}.user_id,delegation.company_id)";
- test('the canonical window renders all three callers byte-identically',()=>{
+ const clock="floor(extract(epoch FROM clock_timestamp())*1000)::bigint";
+ const staffTaskWindow="SELECT sd.id,sd.delegate_user_id,sd.expires_at,sd.reason,sd.version FROM staff_task_delegations sd WHERE sd.task_id=t.id AND sd.company_id=t.company_id AND sd.status='active' AND sd.starts_at<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND sd.expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint ORDER BY sd.created_at DESC,sd.id DESC LIMIT 1";
+ test('the canonical window renders all four callers byte-identically',()=>{
   expect(window('sd.delegate_user_id','sd','t.id','t.company_id','?','\n      ORDER BY sd.created_at DESC,sd.id DESC LIMIT 1','\n      ')).toBe(execWindow);
   expect(window('sd.delegate_user_id','sd','project_task_record.id','project_task_record.company_id','${viewer}.now_ms',' ORDER BY sd.created_at DESC,sd.id DESC LIMIT 1')).toBe(projectWindow);
   expect(window('1','delegation','work_task_file_source.id','work_task_file_source.company_id','${viewer}.now_ms',' AND iam_same_person(delegation.delegate_user_id,${viewer}.user_id,delegation.company_id)')).toBe(attachmentWindow);
+  expect(window('sd.id,sd.delegate_user_id,sd.expires_at,sd.reason,sd.version','sd','t.id','t.company_id',clock,' ORDER BY sd.created_at DESC,sd.id DESC LIMIT 1')).toBe(staffTaskWindow);
   expect(window('1','delegation','x','y','z').match(/SELECT /g)).toHaveLength(1);
  });
- test('all three readers compose the canonical window and keep no local literal',()=>{
-  for(const name of ['executive-task-cohort.ts','project-task-record-policy.ts','task-attachment-purchases.ts']){
+ test('all four readers compose the canonical window and keep no local literal',()=>{
+  for(const name of ['executive-task-cohort.ts','project-task-record-policy.ts','task-attachment-purchases.ts','staff-task-read.ts']){
    const source=readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
    expect(source).toContain('operationsActiveDelegationSql(');
    expect(source).not.toContain('FROM staff_task_delegations sd WHERE sd.task_id=');
