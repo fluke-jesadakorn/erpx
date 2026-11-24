@@ -98,7 +98,7 @@ describe('manufacturing read-tail r24 purchased-scope select family', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(60); // r23 left 72; r24 72->70; r25 70->65; r26 unifies six EXISTS guards -> 60.
-    expect(total).toBeLessThan(65);
+    expect(total).toBe(58); // r23 left 72; r24 72->70; r25 70->65; r26 EXISTS guards -> 60; r27 journal projection family 60->58.
+    expect(total).toBeLessThan(60);
   });
 });

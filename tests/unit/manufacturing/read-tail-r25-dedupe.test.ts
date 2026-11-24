@@ -146,7 +146,7 @@ describe('manufacturing read-tail r25 jsonb_agg helper unification', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(60); // r24 left 70; r25 70->65; r26 unifies six EXISTS guards -> 60.
-    expect(total).toBeLessThan(65);
+    expect(total).toBe(58); // r24 left 70; r25 70->65; r26 EXISTS guards -> 60; r27 journal projection family 60->58.
+    expect(total).toBeLessThan(60);
   });
 });
