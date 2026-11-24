@@ -11,6 +11,7 @@ import {createPurchaseProgressApplication} from "@erpx/server-procurement/applic
 import {nativeProcurementReadAll,PROCUREMENT_RD_REQUEST_ALLOCATIONS,PROCUREMENT_RD_PROGRESS_REQUEST_RFQS} from "./native-procurement-read";
 import {requestOrderLink} from './read-tail-r19';
 import {orderScopedAggregate} from './read-tail-r30';
+import {progressOrderAggregate} from './read-tail-r32';
 import type {ProgressRow,PurchaseProgressRequest} from "@erpx/server-procurement/domain/request-progress";
 export type {PurchaseProgressState,PurchaseProgressStep,PurchaseRequestProgress} from "@erpx/server-procurement/domain/request-progress";
 async function facts(db:SqlDatabase,actor:WorkContext,request:PurchaseProgressRequest){
@@ -20,7 +21,8 @@ async function facts(db:SqlDatabase,actor:WorkContext,request:PurchaseProgressRe
   const receipts=await db.prepare(orderScopedAggregate('COUNT(*) receipt_count',`(${commercePlatformSources.commerce_fulfillments}) f JOIN (${commercePlatformSources.commerce_orders}) o ON o.id=f.order_id`,requestOrderLink("link","o"),'o')).bind(actor.companyId,request.purchase_order_id,request.id).first<ProgressRow>();
   const bills=await db
         .prepare(
-          `SELECT COUNT(*) bill_count,
+          progressOrderAggregate(
+            `COUNT(*) bill_count,
              COUNT(*) FILTER (WHERE m.status='posted') posted_count,
              COUNT(m.invoice_id) invoice_count,
              COUNT(*) FILTER (WHERE i.status='paid' OR COALESCE(i.outstanding_minor,0)=0) paid_count,
@@ -28,24 +30,33 @@ async function facts(db:SqlDatabase,actor:WorkContext,request:PurchaseProgressRe
                 FROM procurement_bill_match_receipts br
                 JOIN procurement_bill_matches covered ON covered.id=br.match_id
                JOIN (${commercePlatformSources.commerce_orders}) covered_order ON covered_order.id=covered.order_id
-               WHERE covered.company_id=? AND (covered_order.id=? OR ${requestOrderLink("link","covered_order")}) AND covered.status<>'returned' AND br.active=TRUE) matched_receipt_count
-           FROM procurement_bill_matches m
+               WHERE covered.company_id=? AND (covered_order.id=? OR ${requestOrderLink("link","covered_order")}) AND covered.status<>'returned' AND br.active=TRUE) matched_receipt_count`,
+            `procurement_bill_matches m
            LEFT JOIN (${financePlatformSources.finance_invoices}) i ON i.id=m.invoice_id
-           JOIN (${commercePlatformSources.commerce_orders}) matched_order ON matched_order.id=m.order_id
-           WHERE m.company_id=? AND (matched_order.id=? OR ${requestOrderLink("link","matched_order")}) AND m.status<>'returned'`,
+           JOIN (${commercePlatformSources.commerce_orders}) matched_order ON matched_order.id=m.order_id`,
+            'm',
+            'matched_order',
+            "m.status<>'returned'",
+            requestOrderLink("link","matched_order"),
+          ),
         )
         .bind(actor.companyId,request.purchase_order_id,request.id,actor.companyId,request.purchase_order_id,request.id)
         .first<ProgressRow>();
   const payments = await db
         .prepare(
-          `SELECT COUNT(*) instruction_count,
+          progressOrderAggregate(
+            `COUNT(*) instruction_count,
              COUNT(*) FILTER (WHERE s.status='confirmed') confirmed_count,
-             MIN(s.batch_id) batch_id
-           FROM (${financePlatformSources.finance_supplier_instructions}) s
+             MIN(s.batch_id) batch_id`,
+            `(${financePlatformSources.finance_supplier_instructions}) s
            JOIN (${financePlatformSources.finance_invoices}) i ON i.id=s.invoice_id
            JOIN procurement_bill_matches m ON m.invoice_id=i.id
-           JOIN (${commercePlatformSources.commerce_orders}) paid_order ON paid_order.id=m.order_id
-           WHERE m.company_id=? AND (paid_order.id=? OR ${requestOrderLink("link","paid_order")}) AND s.status<>'cancelled'`,
+           JOIN (${commercePlatformSources.commerce_orders}) paid_order ON paid_order.id=m.order_id`,
+            'm',
+            'paid_order',
+            "s.status<>'cancelled'",
+            requestOrderLink("link","paid_order"),
+          ),
         )
         .bind(actor.companyId,request.purchase_order_id,request.id)
         .first<ProgressRow>();
