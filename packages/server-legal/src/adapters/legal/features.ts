@@ -18,6 +18,7 @@ import {legalDocumentsItemPairSql} from '../legal-read-tail-r9-sources';
 import {legalByIdAndItemSql} from '../legal-read-tail-r27-sources';
 import {legalPointByIdAndKeySql} from '../legal-read-tail-r34-sources';
 import {legalFeatureSearchSql} from '../legal-read-tail-r42-sources';
+import {legalCounselConflictClearedSql,legalCounselApprovedFeesSql} from '../legal-read-tail-r56-sources';
 function application(db:SqlDatabase,a:WorkContext){const nativeWrites=new WeakMap<LegalWrite,SqlStatement>();const nativeFeatures=legalFeatureStatements(db,a.companyId,a.userId);const stage=(statement:SqlStatement):LegalWrite=>{const write:LegalWrite={owner:"legal"};nativeWrites.set(write,statement);return write;};
 return createLegalFeaturesApplication({actor:a,access:(id,p)=>access(db,a,id,p),eligible:(id,item,p)=>eligible(db,a,id,item,p),samePerson:id=>samePerson(a,id),require:permission=>requirePermission(a,permission),clock:{now:()=>Date.now()},identifiers:{next:()=>crypto.randomUUID()},error:(status,code,message)=>new ApiError(status,code,message),repository:{
 featureCount:(facts:{id:string;search:string;search2:string;capability:(typeof featureKinds)[number];})=>db.prepare(legalFeatureSearchSql("count(*) n",featureSpecs[facts.capability].table)).bind(facts.id,facts.search,facts.search2).first("n"),
@@ -26,8 +27,8 @@ feature:(facts:{featureId:string;itemId:string;capability:(typeof featureKinds)[
 ownerMembership:(facts:{itemId:string;ownerId:string;})=>db.prepare(legalMembershipSql).bind(facts.itemId,facts.ownerId).first(),
 attachedDocument:(facts:{documentId:string;itemId:string;})=>db.prepare(legalDocumentsItemPairSql).bind(facts.documentId,facts.itemId).first(),
 async createFeature(facts){return stage(await nativeFeatures.createFeature({...facts,table:featureSpecs[facts.capability].table}));},
-conflictCleared:(facts:{itemId:string;})=>db.prepare("SELECT 1 FROM legal_counsel_entries WHERE item_id=? AND data->>'entryType'='conflict' AND state IN ('approved','closed')").bind(facts.itemId).first(),
-approvedFees:(facts:{itemId:string;id:string;})=>db.prepare("SELECT coalesce(sum(coalesce(nullif(data->>'amount',''),'0')::bigint),0) amount FROM legal_counsel_entries WHERE item_id=? AND id<>? AND state IN ('approved','billed','closed') AND data->>'entryType' IN ('fee','invoice')").bind(facts.itemId,facts.id).first<{ amount: number }>(),
+conflictCleared:(facts:{itemId:string;})=>db.prepare(legalCounselConflictClearedSql()).bind(facts.itemId).first(),
+approvedFees:(facts:{itemId:string;id:string;})=>db.prepare(legalCounselApprovedFeesSql()).bind(facts.itemId,facts.id).first<{ amount: number }>(),
 async updateFeature(facts){return stage(await nativeFeatures.updateFeature({...facts,table:featureSpecs[facts.capability].table}));},
 async recordFeatureHistory(facts){return stage(await nativeFeatures.recordFeatureHistory(facts));},
 async advanceRecord(facts){return stage(await nativeFeatures.advanceRecord(facts));},

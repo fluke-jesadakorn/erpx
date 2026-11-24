@@ -22,6 +22,7 @@ import { legalLawStateGuardSql } from '../legal-read-tail-r51-sources';
 import { legalPointByIdKeyAndCompanySql } from '../legal-read-tail-r53-sources';
 import { legalStatePointSql } from '../legal-read-tail-r33-sources';
 import { legalPointByIdAndKeySql } from '../legal-read-tail-r34-sources';
+import { legalLawSourceCheckPendingSql, legalLawSourceCurrentSql, legalLawSourceCheckCurrentSql, legalLawApplicabilityCurrentSql, legalLawReviewCurrentSql } from '../legal-read-tail-r56-sources';
 export {legalChunkSchema} from "@erpx/server-legal/domain/law-corpus";
 export {fetchOfficialLawSource} from "@erpx/server-legal/adapters/legal/law-source-provider";
 export {drainLegalSourceChecks} from "@erpx/server-legal/adapters/legal/law-source-worker";
@@ -40,7 +41,7 @@ inspection:(facts:{inspectionId:string;documentId:string;})=>db.prepare(legalPoi
 async insertChunk(facts){return stage(await nativeCorpus.insertChunk(facts));},
 async registerSource(facts){return stage(await nativeCorpus.registerSource(facts));},
 registeredSource:(facts:{sourceId:string;id:string;companyId:string;})=>db.prepare(legalLawStateGuardSql('legal_law_sources','active')).bind(facts.sourceId,facts.id,facts.companyId).first(),
-pendingCheck:(facts:{sourceCheckId:string;sourceId:string;companyId:string;checksum:string;})=>db.prepare("SELECT 1 FROM legal_law_source_checks WHERE id=? AND source_id=? AND company_id=? AND state='pending_review' AND checksum=? AND candidate_revision_id IS NULL").bind(facts.sourceCheckId,facts.sourceId,facts.companyId,facts.checksum).first(),
+pendingCheck:(facts:{sourceCheckId:string;sourceId:string;companyId:string;checksum:string;})=>db.prepare(legalLawSourceCheckPendingSql()).bind(facts.sourceCheckId,facts.sourceId,facts.companyId,facts.checksum).first(),
 async importRevision(facts){return stage(await nativeCorpus.importRevision(facts));},
 async bindSourceCheck(facts){return stage(await nativeCorpus.bindSourceCheck(facts));},
 async importDocumentText(facts){return stage(await nativeCorpus.importDocumentText(facts));},
@@ -53,11 +54,11 @@ decideReview:(facts:{fact0:"approved" | "retired";actorId:string;now:number;reas
 async reviewSourceCheck(facts){return stage(await nativeCorpus.reviewSourceCheck(facts));},
 async advanceRecord(facts){return stage(await nativeCorpus.advanceRecord({now:facts.now,id:facts.id}));},
 requireLegalCorpusSourceClean:(key:string,values:string[])=>stage(assertion(db,key,"legal-corpus-source-clean",`EXISTS(${legalCorpusSourceCleanHead(`d.item_id=? AND i.company_id=? AND d.checksum=? AND ${legalDisposedGuardSql('x','d.id')} AND ${legalAttachmentAvailableSql()}`)})`,values)),
-requireLawSourceCurrent:(key:string,values:string[])=>stage(assertion(db,key,"law-source-current","EXISTS(SELECT 1 FROM legal_law_sources WHERE id=? AND company_id=? AND rule_id=? AND state='active')",values)),
-requireLawSourceCheckCurrent:(key:string,values:string[])=>stage(assertion(db,key,"law-source-check-current","EXISTS(SELECT 1 FROM legal_law_source_checks WHERE id=? AND state='pending_review' AND checksum=? AND candidate_revision_id IS NULL)",values)),
+requireLawSourceCurrent:(key:string,values:string[])=>stage(assertion(db,key,"law-source-current",`EXISTS(${legalLawSourceCurrentSql()})`,values)),
+requireLawSourceCheckCurrent:(key:string,values:string[])=>stage(assertion(db,key,"law-source-check-current",`EXISTS(${legalLawSourceCheckCurrentSql()})`,values)),
 requireLawRevisionCurrent:(key:string,values:string[])=>stage(assertion(db,key,"law-revision-current",`EXISTS(${legalStatePointSql('1','legal_law_revisions','rule_id','approved')})`,values)),
-requireLawApplicabilityCurrent:(key:string,values:(string | number)[])=>stage(assertion(db,key,"law-applicability-current","EXISTS(SELECT 1 FROM legal_law_applicability WHERE id=? AND version=? AND state='pending' AND NOT iam_same_person(created_by,?,company_id))",values)),
-requireLawReviewCurrent:(key:string,reviewKind:"law"|"document",retiring:boolean,values:(string | number)[])=>stage(assertion(db,key,"law-review-current",`EXISTS(SELECT 1 FROM ${reviewTables[reviewKind].table} WHERE id=? AND version=? AND state=? ${retiring ? "" : "AND NOT iam_same_person(created_by,?,company_id)"})`,values)),
+requireLawApplicabilityCurrent:(key:string,values:(string | number)[])=>stage(assertion(db,key,"law-applicability-current",`EXISTS(${legalLawApplicabilityCurrentSql()})`,values)),
+requireLawReviewCurrent:(key:string,reviewKind:"law"|"document",retiring:boolean,values:(string | number)[])=>stage(assertion(db,key,"law-review-current",`EXISTS(${legalLawReviewCurrentSql(reviewTables[reviewKind].table,retiring)})`,values)),
 sources:id=>viewScope(id).select("legal_law_sources","rule_id"),revisions:id=>viewScope(id).select("legal_law_revisions","rule_id"),applicabilityList:id=>viewScope(id).select("legal_law_applicability","rule_id"),textReviews:id=>viewScope(id).select("legal_text_reviews","item_id"),checks:id=>viewScope(id).select("legal_law_source_checks","rule_id","c.id,c.source_id,c.company_id,c.rule_id,c.check_date,c.state,c.attempts,c.checked_at,c.checksum,c.error,c.candidate_revision_id,c.created_at"),impacts:id=>viewScope(id).impacts(),chunks:id=>viewScope(id).chunks(),recordReads:async reads=>{if(reads.length){const statements=await Promise.all(reads.map(row=>nativeCorpus.accessEvent({identifier:row.identifier,itemId:row.itemId,documentId:row.documentId,action:"corpus.review.read",now:row.now})));await db.batch(statements);}},
 guardChanges:(id,version,key,edit,allowFrozen,preparation)=>guards(db,a,id,version,key,edit,allowFrozen,preparation).map(stage),event:async(id,action,note,version,identifier,now)=>stage(await nativeCorpus.event({id,action,note,version,identifier,now})),replay:<Result extends object=Record<string,unknown>>(key:string,operation:string,id:string,input:unknown)=>replayCommand<Result>(db,a,key,operation,id,input),commit:(key,operation,input,id,version,result,writes)=>executeCommand(db,a,key,operation,input,id,version,result,writes.map(write=>{const statement=nativeWrites.get(write);if(!statement)throw new Error("LEGAL_CORPUS_REPOSITORY_MISMATCH");return statement;})),
 }});}

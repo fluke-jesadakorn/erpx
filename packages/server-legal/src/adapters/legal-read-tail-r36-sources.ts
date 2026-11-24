@@ -5,5 +5,5 @@ import "server-only";
 export const legalPointByKeySql = (
   columns: string,
   table: string,
-  key: 'document_id' | 'id' | 'item_id' | 'destruction_id' | 'envelope_id',
+  key: 'document_id' | 'id' | 'item_id' | 'destruction_id' | 'envelope_id' | 'source_id',
 ) => `SELECT ${columns} FROM ${table} WHERE ${key}=?`;

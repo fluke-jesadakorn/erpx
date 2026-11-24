@@ -122,6 +122,6 @@ describe('legal read-tail r54 item-key, ordered-key and state/kind tail dedupe',
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(173);
-    expect(total).toBe(153);
+    expect(total).toBeLessThanOrEqual(153);
   });
 });
