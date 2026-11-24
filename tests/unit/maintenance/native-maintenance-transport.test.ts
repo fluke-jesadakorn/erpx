@@ -517,8 +517,9 @@ describe('Maintenance package settlement source fixed SQL',()=>{
   const source=await readFile(new URL(file,import.meta.url),'utf8');
   const count=(text:string,needle:string)=>text.split(needle).length-1;
   expect(source.match(/const ownerSourceSql = \(table:string,alias:string\) =>/g)).toHaveLength(1);
-  // The dedupe removed one raw statement literal: 13 -> 12 in this adapter.
-  expect(source.match(/SELECT/g)).toHaveLength(12);
+  // r3 removed one raw statement literal (13 -> 12); r9 shared the occurrence
+  // and work-event full-row literals through settlementEventRows (12 -> 11).
+  expect(source.match(/SELECT/g)).toHaveLength(11);
   expect(count(source,'SELECT work.*,COALESCE')).toBe(0);
   expect(count(source,'SELECT plan.*,COALESCE')).toBe(0);
   expect(source).toContain('ownerSourceSql("maintenance_work_orders","work")');
@@ -552,5 +553,28 @@ describe('Maintenance attachment descriptor fixed SQL',()=>{
   const {attachmentDescriptorReadSql}=await import('../../../packages/server-maintenance/src/adapters/attachment-descriptor-read');
   expect(attachmentDescriptorReadSql('maintenance_work_orders','branch_id branch_id','department_id department_id','version')).toBe('SELECT company_id,branch_id branch_id,department_id department_id,version FROM maintenance_work_orders WHERE id=? AND company_id=?');
   expect(attachmentDescriptorReadSql('maintenance_work_orders','branch_id AS branch_id','department_id AS department_id','version AS version')).toBe('SELECT company_id,branch_id AS branch_id,department_id AS department_id,version AS version FROM maintenance_work_orders WHERE id=? AND company_id=?');
+ });
+});
+
+/** Fixed-SQL read-tail oracle for the Maintenance settlement event row family
+ * (r9). Preventive occurrences and work events share one owner-local full-row
+ * statement; both exported sources stay byte-identical to their pre-dedupe
+ * literals, no duplicate TS query literal remains and locks are untouched. */
+describe('Maintenance settlement event row fixed SQL',()=>{
+ const file='../../../packages/server-maintenance/src/adapters/package-obligations.ts';
+ it('single-sources the full-row read and keeps both composed strings intact',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const source=await readFile(new URL(file,import.meta.url),'utf8');
+  expect(source.match(/const settlementEventRows=\(table:"maintenance_preventive_occurrences"\|"maintenance_work_events"\)=>`SELECT \* FROM \$\{table\}`/g)).toHaveLength(1);
+  expect(source.match(/SELECT \* FROM/g)).toHaveLength(1);
+  expect(source.match(/SELECT/g)).toHaveLength(11);
+  expect(source).not.toContain('occurrences:"SELECT * FROM maintenance_preventive_occurrences"');
+  expect(source).not.toContain('workEvents:"SELECT * FROM maintenance_work_events"');
+  expect(source).toContain('settlementEventRows("maintenance_preventive_occurrences")');
+  expect(source).toContain('settlementEventRows("maintenance_work_events")');
+  expect(source).toContain('LOCK TABLE maintenance_work_orders,maintenance_work_events,maintenance_preventive_plans,maintenance_preventive_events,maintenance_preventive_occurrences IN SHARE MODE');
+  const {maintenancePackageSettlementSources}=await import('../../../packages/server-maintenance/src/adapters/package-obligations');
+  expect(maintenancePackageSettlementSources.occurrences).toBe('SELECT * FROM maintenance_preventive_occurrences');
+  expect(maintenancePackageSettlementSources.workEvents).toBe('SELECT * FROM maintenance_work_events');
  });
 });

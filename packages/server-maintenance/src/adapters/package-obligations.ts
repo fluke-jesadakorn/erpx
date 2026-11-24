@@ -13,7 +13,11 @@ type Input={companyId:string;packageId:string;packageVersion:number;moduleId:str
 const ownerSourceSql = (table:string,alias:string) =>
   `SELECT ${alias}.*,COALESCE(asset.source_valid AND asset.branch_id=${alias}.branch_id AND asset.department_id IS NOT DISTINCT FROM ${alias}.department_id,false) source_valid FROM ${table} ${alias} LEFT JOIN (${assets.assets}) asset ON asset.id=${alias}.asset_id AND asset.company_id=${alias}.company_id`;
 const work=ownerSourceSql("maintenance_work_orders","work"),plans=ownerSourceSql("maintenance_preventive_plans","plan");
-export const maintenancePackageSettlementSources={work,plans,consumptions:maintenanceSettlementConsumptions,occurrences:"SELECT * FROM maintenance_preventive_occurrences",workEvents:"SELECT * FROM maintenance_work_events"} as const;
+/** Canonical owner-local full-row read shared by the occurrence and work-event
+ * settlement sources. Callers pass only an owner-fixed table from the closed
+ * union, never request-authored SQL; both composed strings stay byte-identical. */
+const settlementEventRows=(table:"maintenance_preventive_occurrences"|"maintenance_work_events")=>`SELECT * FROM ${table}`;
+export const maintenancePackageSettlementSources={work,plans,consumptions:maintenanceSettlementConsumptions,occurrences:settlementEventRows("maintenance_preventive_occurrences"),workEvents:settlementEventRows("maintenance_work_events")} as const;
 export async function lockMaintenancePackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){const {database,companyId}=packageSettlementSource(owner,lock);await database.prepare("LOCK TABLE maintenance_work_orders,maintenance_work_events,maintenance_preventive_plans,maintenance_preventive_events,maintenance_preventive_occurrences IN SHARE MODE").run();await database.batch(maintenanceSettlementInventoryReadLocks(database));sources.set(database,companyId);}
 export function assertMaintenancePackageObligationSources(owner:PostgresDatabase,database:SqlDatabase,companyId:string){owner.assertActiveTransaction(database);if(sources.get(database)!==companyId)throw Error("MAINTENANCE_PACKAGE_OBLIGATION_SOURCE_REQUIRED");assertAssetPackageObligationSources(owner,database,companyId);}
 export async function maintenancePackageObligations(owner:PostgresDatabase,database:SqlDatabase,input:Input){
