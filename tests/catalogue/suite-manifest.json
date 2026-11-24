@@ -62252,6 +62252,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "organization",
+      "modules": [
+        "organization"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Organization node scope, staff level, change guard and branch exists must stay four helpers."
+      },
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-organization"
+      ],
+      "id": "organization.read-tail-r39-dedupe.unit",
+      "files": [
+        "tests/unit/organization/read-tail-r39-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "lane": "integration",
       "owner": "organization",
       "modules": [

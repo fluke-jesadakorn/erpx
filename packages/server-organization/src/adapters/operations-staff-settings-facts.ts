@@ -4,6 +4,7 @@ import { nativeOrgStatement } from "./native-organization-owner-write";
 import { twoColumnLookup, nodeKindByIdCompany } from './organization-column-alias-families-r27';
 import { activeNodeKindExists } from './organization-column-alias-families-r34';
 import { ownerVersionGuardSource } from './organization-read-tail-sources';
+import { activeStaffLevelSource } from './organization-read-tail-sources-r39';
 export function StaffSettingsOrganizationFacts(database: SqlDatabase, companyId = '') {
     return { readListLevelsEffect(companyId: string) {
             return database.prepare("SELECT * FROM staff_levels WHERE company_id=? ORDER BY level_number ASC NULLS LAST,rank DESC,code")
@@ -32,7 +33,7 @@ export function StaffSettingsOrganizationFacts(database: SqlDatabase, companyId 
             return nativeOrgStatement(database, ownerCompanyId, 'staff_level_insert', [recordId, ownerCompanyId, code, name, rank, value, value2, now, now2], `staff-level:${recordId}`, now);
         },
         guard8(key: string, value: "level-active", levelId: string, companyId: string) {
-            return assertion(database, key, value, "EXISTS(SELECT 1 FROM staff_levels WHERE id=? AND company_id=? AND active=1)", [levelId, companyId]);
+            return assertion(database, key, value, `EXISTS(${activeStaffLevelSource})`, [levelId, companyId]);
         },
         readSetDepartmentHeadDepartment(id: string, companyId: string) {
             return database.prepare(nodeKindByIdCompany('branch_id','department'))

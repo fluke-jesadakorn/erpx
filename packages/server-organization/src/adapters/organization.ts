@@ -33,6 +33,7 @@ export {positionSchema,organizationNodeChangeSchema,organizationNodeDecisionSche
 import {organizationGuard}from '@erpx/server-organization/public/organization-graph-guard';
 import {organizationRoster}from '@erpx/server-organization/public/organization-roster-read';
 import {NODE_BRANCH_ACTIVE,NODE_BRANCH_ACTIVE_EXISTS,departmentSnapshotMissing} from './organization-read-tail-sources';
+import {changeVersionGuardSource} from './organization-read-tail-sources-r39';
 import {snapshotProjection,staffLevelNumberSource} from './organization-column-alias-families';
 import {impactCount} from './organization-column-alias-families-r29';
 const HEAD_SEAT_SNAPSHOT_SOURCE =
@@ -85,7 +86,7 @@ clock:{now:()=>Date.now()},authorize:actor=>requirePermission(actor,'organizatio
  target:(companyId,id)=>db.prepare(snapshotProjection('branch_id,slug','organization_nodes','id','company_id')).bind(id,companyId).first<{branch_id:string|null;slug:string}>(),
  relocationSnapshot:(companyId,id)=>relocationSnapshot(db,companyId,id),impact:(companyId,id)=>organizationNodeImpact(db,companyId,id),submittedSnapshot:async(id)=>(await db.prepare("SELECT snapshot_json FROM organization_node_change_events WHERE change_id=? AND action='submitted' ORDER BY created_at DESC,id DESC LIMIT 1").bind(id).first<{snapshot_json:string}>())?.snapshot_json??null,
  attachmentSets:(companyId,ids)=>attachmentPurposeFacts(db,companyId,ids),prepareReviewBinding:(actor,id,attachmentSetIds,version,key,decision)=>prepareAttachmentBinding(db,actor,{attachmentSetIds,bindingContract:{targetType:'organization_change',bindingType:'organization_change_review',contexts:[{purposeKey:'org_change_proof',componentKind:'action',componentRef:'organization-change-review'}]},targetId:id,expectedTargetVersion:version,commandId:key,bindingId:`${id}:${decision}:${version+1}`}),
- reviewGuards:(actor,id,version,key,requesterId)=>[assertion(db,key,'change-version',"EXISTS(SELECT 1 FROM organization_node_changes WHERE id=? AND company_id=? AND version=? AND state='submitted')",[id,actor.companyId,version]),assertion(db,key,'independent-review','NOT iam_same_person(?,?,?)',[actor.userId,requesterId,actor.companyId])],
+ reviewGuards:(actor,id,version,key,requesterId)=>[assertion(db,key,'change-version',changeVersionGuardSource("state='submitted'"),[id,actor.companyId,version]),assertion(db,key,'independent-review','NOT iam_same_person(?,?,?)',[actor.userId,requesterId,actor.companyId])],
  stageCreateNode:async(actor,change,nodeId)=>[await nativeOrgStatement(db,actor.companyId,'node_create',[nodeId,change.node_kind,change.slug,change.display_name,change.node_kind==='branch'?actor.companyId:change.branch_id,actor.companyId,change.branch_id],`org-node:${change.id}`,Date.now())],
  stageNodeVersion:(actor,change,key)=>[assertion(db,key,'node-version','EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND hierarchy_revision=? AND kind=? AND branch_id IS NOT DISTINCT FROM ?)',[change.target_node_id,actor.companyId,change.expected_node_version!,change.node_kind,change.action==='relocate'?change.source_branch_id:change.branch_id])],
  relocationAuthority:async(companyId,id)=>{const [head,legacyHead,flow]=await Promise.all([db.prepare(HEAD_SEAT_SNAPSHOT_SOURCE).bind(companyId,id).first<RelocationAuthority['head']&{}>(),db.prepare(DEPARTMENT_HEAD_SNAPSHOT_SOURCE).bind(companyId,id).first<RelocationAuthority['legacyHead']&{}>(),db.prepare(DEPARTMENT_FLOW_SNAPSHOT_SOURCE).bind(companyId,id).first<RelocationAuthority['flow']&{}>()]);return {head,legacyHead,flow};},
@@ -127,14 +128,14 @@ commitReview:async(actor,id,input,key,_change,state,version,appliedNodeId,stages
   return executeCommand(db,actor,key,operation,input,id,version,{id,version,state,nodeId:appliedNodeId},stages);
 },saveChange:async(actor,id,input,key,submit,sourceBranchId,slug,now)=>{const recordId=id??`org-change-${key}`,operation=`organization.node-change.${submit?'submit':'save'}`,version=input.expectedVersion+1,state=submit?'submitted':'draft',result={id:recordId,version,state};
   return executeCommand(db,actor,key,operation,input,recordId,version,result,[
-    ...(id?[assertion(db,key,"change-version","EXISTS(SELECT 1 FROM organization_node_changes WHERE id=? AND company_id=? AND version=? AND state IN ('draft','rejected'))",[id,actor.companyId,input.expectedVersion])]:[]),
+    ...(id?[assertion(db,key,"change-version",changeVersionGuardSource("state IN ('draft','rejected')"),[id,actor.companyId,input.expectedVersion])]:[]),
     await nativeOrgStatement(db,actor.companyId,'change_save',[recordId,actor.companyId,input.targetNodeId,input.action,input.kind,slug,input.displayName,input.branchId,sourceBranchId,input.expectedNodeVersion,state,version,actor.userId,input.reason,now,now],key,now),
     await nativeOrgStatement(db,actor.companyId,'change_event_insert',[`org-change-event-${key}`,recordId,actor.companyId,submit?"submitted":"drafted",actor.userId,version,JSON.stringify({...input,state}),now],key,now),
     ...(submit?[await nativeOrganizationChangeNotice(db,actor,recordId,key,"submitted")]:[]),
   ]);
 },cancelChange:async(actor,id,expectedVersion,key,now)=>{const operation='organization.node-change.cancel',input={expectedVersion};
   const version=expectedVersion+1;return executeCommand(db,actor,key,operation,input,id,version,{id,version,state:"cancelled"},[
-    assertion(db,key,"change-version","EXISTS(SELECT 1 FROM organization_node_changes WHERE id=? AND company_id=? AND version=? AND state IN ('draft','submitted','rejected'))",[id,actor.companyId,expectedVersion]),
+    assertion(db,key,"change-version",changeVersionGuardSource("state IN ('draft','submitted','rejected')"),[id,actor.companyId,expectedVersion]),
     await nativeOrgStatement(db,actor.companyId,'change_cancel',[version,now,id,actor.companyId],key,now),
     await nativeOrgStatement(db,actor.companyId,'change_event_insert',[`org-change-event-${key}`,id,actor.companyId,"cancelled",actor.userId,version,JSON.stringify(input),now],key,now),
     await nativeOrganizationChangeNotice(db,actor,id,key,"cancelled"),
