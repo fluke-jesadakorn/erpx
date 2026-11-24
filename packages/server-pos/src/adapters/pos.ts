@@ -2,6 +2,7 @@ import { nativePosAll } from './native-owner-write';
 import { nativePosCashMovementsStatement, nativePosConnectionsStatement, nativePosKeyedSaleDocumentStatement, nativePosRegisterByIdStatement, nativePosSalesEvidenceStatement, nativePosShiftsStatement, nativePosTablesStatement } from './native-pos-core-statement';
 import { nativePosSaleLinesStatement, nativePosSalePaymentsStatement } from './native-pos-sale-child';
 import { nativePosRegistersStatement, nativePosRegistersFrontStatement, nativePosSaleStatement, nativePosSettingsStatement } from './native-pos-registers-statement';
+import { nativePosConnectionsRowStatement, nativePosRefundsListStatement, nativePosSalesListStatement, nativePosSettlementsListStatement } from './native-pos-list-reads';
 import { roomChargeReversalWork } from "@erpx/server-pos/adapters/room-charge-reversal-queue";
 import { posGuestAccountInterface } from "@erpx/server-pms/public/pos-guest-account-interface";
 import { hospitalityOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/hospitality-owner-projection-sources";
@@ -76,7 +77,7 @@ function unit(db: SqlDatabase, actor: WorkContext): PosReadUnit<SqlStatement> {
             fact3: string;
             fact4: string;
             fact5: 0 | 1;
-        }) => all(db, "SELECT s.*,r.name register_name FROM pos_sales s JOIN pos_registers r ON r.id=s.register_id WHERE s.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND (?='' OR s.number ILIKE ?) AND (?=0 OR s.state IN ('open','held','payment_pending')) ORDER BY s.created_at DESC LIMIT 150", facts.company, facts.branch, facts.branch2, facts.fact3, facts.fact4, facts.fact5),
+        }) => nativePosSalesListStatement(db, facts),
         readPosLines1: (facts: {
             company: string;
             branch: string | null;
@@ -88,7 +89,7 @@ function unit(db: SqlDatabase, actor: WorkContext): PosReadUnit<SqlStatement> {
             branch2: string | null;
             fact3: string | number | boolean | null | undefined;
             fact4: string | number | boolean | null | undefined;
-        }) => all(db, 'SELECT f.*,s.number sale_number,s.currency FROM pos_refunds f JOIN pos_sales s ON s.id=f.sale_id WHERE f.company_id=? AND (?::text IS NULL OR f.branch_id=?) AND (?::text IS NULL OR f.sale_id=?) ORDER BY f.created_at DESC LIMIT 100', facts.company, facts.branch, facts.branch2, facts.fact3, facts.fact4),
+        }) => nativePosRefundsListStatement(db, facts),
         readPosCashMovements1: (facts: {
             company: string;
             branch: string | null;
@@ -111,7 +112,7 @@ function unit(db: SqlDatabase, actor: WorkContext): PosReadUnit<SqlStatement> {
         }) => one(db, `SELECT ps.property_id,ps.record_id guest_account_entry_id,p.version property_version,r.reversal_entry_id,r.reason reversal_reason,r.reversed_at FROM (${pmsProjectionSources.pms_sources}) ps JOIN (${pmsProjectionSources.pms_properties}) p ON p.id=ps.property_id LEFT JOIN pos_room_charge_reversals r ON r.sale_id=? WHERE ps.source_key=? AND p.company_id=? AND p.branch_id=?`, facts.id, facts.fact1, facts.company, facts.branch_id),
         readPosConnections1: (facts: {
             company: string;
-        }) => one(db, "SELECT * FROM pos_connections WHERE company_id=? AND state='ready'", facts.company),
+        }) => nativePosConnectionsRowStatement(db, facts.company),
         readPmsProperties1: facts => posGuestAccountInterface(db).choices(facts.company,facts.branch_id,facts.currency,facts.propertyId),
         readPosRefundPayments1: (facts: {
             company: string;
@@ -160,7 +161,7 @@ function unit(db: SqlDatabase, actor: WorkContext): PosReadUnit<SqlStatement> {
         }) => nativePosConnectionsStatement(db, facts.company),
         readPosSettlements1: (facts: {
             company: string;
-        }) => all(db, 'SELECT * FROM pos_settlements WHERE company_id=? ORDER BY created_at DESC LIMIT 100', facts.company),
+        }) => nativePosSettlementsListStatement(db, facts.company),
         readPosSales3: (facts: {
             id: string;
             company: string;
