@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12263,
+    "revision": 12277,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -182267,6 +182267,181 @@
         "nextAction": "r17 plan/period readers (-2), invoice id helper (-1), provider cost head (-1), operating costs (-1), reconciliation (-1): 42->36. BEFORE=42.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.people_payroll.read-tail-r49",
+        "goalId": "G4",
+        "owner": "people_payroll",
+        "title": "people_payroll TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-people_payroll/src/**",
+          "tests/unit/people_payroll/**"
+        ],
+        "resources": [
+          "owner:people_payroll"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n48",
+          "claimedAt": "2026-11-24T14:24:30.844Z",
+          "heartbeatAt": "2026-11-24T14:24:30.844Z",
+          "expiresAt": "2026-11-24T14:54:30.844Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Expense claim receipt V2/V1 guards (-4), link point read (-2), draft link guard (-1): 1240->1233. BEFORE=1240.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.pms.read-tail-r44",
+        "goalId": "G4",
+        "owner": "pms",
+        "title": "pms TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-pms/src/**",
+          "tests/unit/pms/**"
+        ],
+        "resources": [
+          "owner:pms"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n49",
+          "claimedAt": "2026-11-24T14:24:43.485Z",
+          "heartbeatAt": "2026-11-24T14:24:43.485Z",
+          "expiresAt": "2026-11-24T14:54:43.485Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Chosen kind CTE union (-3), payment identity/source image union (-3), night lineage anchor (-1): 299->292. BEFORE=299.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.crm.read-tail-r40",
+        "goalId": "G4",
+        "owner": "crm",
+        "title": "crm TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-crm/src/**",
+          "tests/unit/crm/**"
+        ],
+        "resources": [
+          "owner:crm"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n50",
+          "claimedAt": "2026-11-24T14:24:56.128Z",
+          "heartbeatAt": "2026-11-24T14:24:56.128Z",
+          "expiresAt": "2026-11-24T14:54:56.128Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Scoped desc list (-2), distinct owner directory (-1), lead row sources (-1): 99->95. BEFORE=99.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.inventory.read-tail-r48",
+        "goalId": "G4",
+        "owner": "inventory",
+        "title": "inventory TS read tail (next round)",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-inventory/src/**",
+          "tests/unit/inventory/**"
+        ],
+        "resources": [
+          "owner:inventory"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Blocked with AST evidence; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n47",
+          "at": "2026-11-24T14:25:09.039Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Blocked with AST evidence; claim released"
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.quality.read-tail-r27",
+        "goalId": "G4",
+        "owner": "quality",
+        "title": "quality TS read tail (next round)",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-quality/src/**",
+          "tests/unit/quality/**"
+        ],
+        "resources": [
+          "owner:quality"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Blocked with AST evidence; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n47",
+          "at": "2026-11-24T14:25:22.021Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Blocked with AST evidence; claim released"
+        },
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -182275,21 +182450,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1766,
+      "totalPackets": 1771,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 5,
+        "in_progress": 8,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1411,
+        "blocked": 1413,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T14:23:46.842Z",
+    "updatedAt": "2026-11-24T14:25:22.025Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
