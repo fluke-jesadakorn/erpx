@@ -1,5 +1,12 @@
 import "server-only";
 
+/** Parameterized scoped-row template. The visibility EXISTS branches differ only
+ * by projected column, relation and alias; one template keeps their SQL byte-identical. */
+const scopedRow = (column: string, relation: string, alias: string, key: string) =>
+  `SELECT ${column} FROM ${relation} ${alias} WHERE ${alias}.${key}=p.id`;
+const existsScoped = (relation: string, alias: string, key: string) =>
+  `EXISTS(${scopedRow('1', relation, alias, key)})`;
+
 /** Fixed customer-visibility predicate shared by the directory and timeline
  * visible-customer reads. Each caller keeps its own binding and scope; only the
  * module/permission gates are passed in. */
@@ -8,5 +15,5 @@ export function customerVisiblePredicate(
   financeVisible: boolean,
   legalVisible: boolean,
 ) {
-  return `(EXISTS(SELECT 1 FROM scoped_orders o WHERE o.party_id=p.id) OR EXISTS(SELECT 1 FROM scoped_leads l WHERE l.customer_id=p.id) OR ${serviceVisible ? 'EXISTS(SELECT 1 FROM scoped_service g WHERE g.customer_id=p.id)' : 'FALSE'} OR ${financeVisible ? 'EXISTS(SELECT 1 FROM scoped_invoices i WHERE i.party_id=p.id)' : 'FALSE'} OR ${legalVisible ? 'EXISTS(SELECT 1 FROM scoped_legal lg WHERE lg.order_id IN (SELECT id FROM scoped_orders so WHERE so.party_id=p.id))' : 'FALSE'})`;
+  return `(${existsScoped('scoped_orders', 'o', 'party_id')} OR ${existsScoped('scoped_leads', 'l', 'customer_id')} OR ${serviceVisible ? existsScoped('scoped_service', 'g', 'customer_id') : 'FALSE'} OR ${financeVisible ? existsScoped('scoped_invoices', 'i', 'party_id') : 'FALSE'} OR ${legalVisible ? `EXISTS(SELECT 1 FROM scoped_legal lg WHERE lg.order_id IN (${scopedRow('id', 'scoped_orders', 'so', 'party_id')}))` : 'FALSE'})`;
 }
