@@ -282,3 +282,11 @@ export const attachmentLotIdsSql = (lots: string, lines: string, lineFk: string,
  *  r11-r38 helpers above are left unchanged. */
 export const reservedAvailabilitySumSql = (tail: string) =>
   `COALESCE((SELECT sum(quantity_milli) FROM inventory_active_reservations ${tail}),0)`;
+/** r40: parameterized decision-actor projection. The stock-count and warehouse-
+ *  transfer decision reads share one byte-identical SQL head; only the decision
+ *  table, its parent FK and the actor projection vary. Every consumer keeps its
+ *  own bind and independent statement. Locks, count sources/adapters, the clock
+ *  CTE and native transport stay untouched. r11-r39 helpers above are left
+ *  unchanged. */
+export const decisionActorRowsSql = (table: string, fk: string, actor: string) =>
+  `SELECT d.*,COALESCE(p.legal_name,d.actor_id) actor_name FROM ${table} d ${actor} WHERE d.${fk}=? ORDER BY d.created_at DESC`;

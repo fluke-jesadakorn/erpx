@@ -10,7 +10,7 @@
  */
 import {requireTransferPurchasedRead} from "@erpx/server-inventory/adapters/transfer-purchases";
 import {inventoryQualityHoldReadSource} from '@erpx/server-quality/public/inventory-hold-read-source';
-import {activeQualityHoldExistsSql} from './read-tail-sql';
+import {activeQualityHoldExistsSql,decisionActorRowsSql} from './read-tail-sql';
 import {inventoryReadProjection as inventorycommerceProjection} from '@erpx/server-commerce/public/inventory-read-projections';
 import {inventoryReadProjection as inventoryfinanceProjection} from '@erpx/server-finance/public/inventory-read-projections';
 import {inventoryReadProjection as inventorypeople_payrollProjection} from '@erpx/server-people_payroll/public/inventory-read-projections';
@@ -42,7 +42,7 @@ export async function transferOptions(actor:WorkContext){requirePermission(actor
 export async function transferDetail(actor:WorkContext,id:string){return exposed(async()=>{const transfer=await getTransfer(actor,id);const {write}=await holdingResources(actor.holdingId);const workflow=workflowSources(write);const[lines,allocations,decisions,history]=await Promise.all([
  write.prepare(`SELECT l.*,p.sku,p.tracking_mode,COALESCE(s.version,0) current_version FROM inventory_transfer_lines l ${inventorycommerceProjection.lineProduct} ${inventorycommerceProjection.lineStock} WHERE l.transfer_id=? ORDER BY l.ordinal`).bind(transfer.source_warehouse_id,id).all<TransferRow>(),
  write.prepare("SELECT a.*,l.lot_code,l.serial_number,l.expiry_date,b.quantity_milli current_quantity_milli,b.version current_balance_version FROM inventory_transfer_lot_allocations a JOIN inventory_lots l ON l.id=a.lot_id JOIN inventory_transfer_lines tl ON tl.id=a.transfer_line_id LEFT JOIN inventory_lot_balances b ON b.lot_id=a.lot_id AND b.warehouse_id=? WHERE tl.transfer_id=? ORDER BY tl.ordinal,l.expiry_date NULLS LAST,l.id").bind(transfer.source_warehouse_id,id).all<TransferRow>(),
- write.prepare(`SELECT d.*,COALESCE(p.legal_name,d.actor_id) actor_name FROM inventory_transfer_decisions d ${inventorypeople_payrollProjection.decisionActor} WHERE d.transfer_id=? ORDER BY d.created_at DESC`).bind(actor.companyId,id).all<TransferRow>(),
+ write.prepare(decisionActorRowsSql('inventory_transfer_decisions','transfer_id',inventorypeople_payrollProjection.decisionActor)).bind(actor.companyId,id).all<TransferRow>(),
  workflow.transferHistory(actor.companyId,id)]);return {transfer,lines:lines.results,allocations:allocations.results,decisions:decisions.results,history:history.results};});}
 /** Writers are native-only. These retained names fail closed instead of returning to SQL effects. */
 export async function saveTransfer(..._input:unknown[]):Promise<TransferCommandResult>{void _input;throw new ApiError(503,'NATIVE_INVENTORY_TRANSFER_REQUIRED','The native warehouse transfer command is required.');}
