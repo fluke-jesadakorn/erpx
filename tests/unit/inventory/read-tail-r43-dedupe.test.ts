@@ -112,7 +112,7 @@ describe('Inventory read-tail r43 dedupe', () => {
     expect(shared).not.toMatch(lockRe);
   });
 
-  test('retirement:ts-statements KPI is 325 (strictly below r42 331)', () => {
+  test('retirement:ts-statements KPI is at or below r44 321 (r43 was 325)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -127,7 +127,7 @@ describe('Inventory read-tail r43 dedupe', () => {
     // B generates the service-count marker once (327 -> 325: two inline SELECT
     // tokens removed, none added to the generated exports). Locks, count
     // sources/adapters, native transport and r11-r42 helpers stay untouched.
-    expect(total).toBe(325);
+    expect(total).toBeLessThanOrEqual(321);
     expect(total).toBeLessThan(331);
   });
 });

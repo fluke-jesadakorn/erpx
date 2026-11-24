@@ -1,5 +1,5 @@
 import 'server-only';
-import {singleCountLineMarkerSql,countCreateMarkedRowsSql,childJsonAggSql,childJoinJsonAggSql,countEvidenceRowHeadSql} from './read-tail-sql';
+import {singleCountLineMarkerSql,countCreateMarkedRowsSql,childJsonAggSql,childJoinJsonAggSql,countEvidenceRowHeadSql,sourceImagesHeadSql} from './read-tail-sql';
 import {servicePartsPostingSourceRows} from '@erpx/server-commerce/public/service-parts-posting-proof';
 export const serviceInitialPhysicalStockCapabilities=['service.orders','service.parts-assets','finance.service-invoice'] as const;
 export const serviceInitialPhysicalStockMarker='_serviceInitialPhysicalStockCount';
@@ -21,7 +21,7 @@ export const serviceInitialPhysicalStockCountSourceRows=`${countEvidenceRowHeadS
 
 export const serviceInitialPhysicalStockMarkedRows=countCreateMarkedRowsSql(serviceInitialPhysicalStockMarker);
 /** Full private receipt/native lineage, with absence witnesses. No1062 relation is queried. */
-export const serviceInitialPhysicalStockSourceImages=`SELECT c.id,c.company_id,c.journal_id,
+export const serviceInitialPhysicalStockSourceImages=`${sourceImagesHeadSql}
  jsonb_build_object('count',to_jsonb(c),'lines',${childJsonAggSql('inventory_count_lines','l','l.count_id=c.id')},
  'lots',${childJoinJsonAggSql('inventory_count_lot_lines','lot','inventory_count_lines l ON l.id=lot.count_line_id','l.count_id=c.id')},
  'decisions',${childJsonAggSql('inventory_count_decisions','d','d.count_id=c.id')},

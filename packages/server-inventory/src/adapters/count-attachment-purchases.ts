@@ -4,7 +4,7 @@ import {manufacturingInitialPhysicalStockCountMarked,manufacturingInitialPhysica
 import {initialPhysicalStockCountMarked,initialPhysicalStockCountSource,initialPhysicalStockCapabilities,initialPhysicalStockCountSourceRows} from '@erpx/server-inventory/adapters/initial-physical-stock-count-source';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import "server-only";
-import {serviceInitialPhysicalNativeRowSql,childJsonAggSql,childJoinJsonAggSql,attachmentSourceProofExistsSql} from './read-tail-sql';
+import {serviceInitialPhysicalNativeRowSql,childJsonAggSql,childJoinJsonAggSql,attachmentSourceProofExistsSql,countAuthorityScopeSql} from './read-tail-sql';
 import {randomUUID} from "node:crypto";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
@@ -64,7 +64,7 @@ export async function countAttachmentCommandBoundary(database:SqlDatabase,scopes
    ...(scope.manufacturingWitness?[assertion(database,key,'count-file-manufacturing-source',attachmentSourceProofExistsSql(manufacturingInitialPhysicalStockCountSourceRows,'manufacturing_source',['manufacturing','inventory','finance'].map(module=>scheduledFeaturePredicate('manufacturing_source.company_id',module)).join(' AND ')),[scope.targetId,scope.companyId,scope.manufacturingWitness])]:[]),
    ...(scope.qualityWitness?[assertion(database,key,"count-file-quality-source",`(${disposalImage})=?`,[scope.targetId,scope.companyId,scope.qualityWitness])]:[]),
    assertion(database,key,"count-file-owner",`(${image})=?`,[scope.targetId,scope.companyId,scope.witness]),
-   assertion(database,key,"count-file-authority",`EXISTS(SELECT 1 FROM (SELECT id,company_id,branch_id,NULL::text department_id FROM inventory_counts) count_file_scope WHERE id=? AND company_id=? AND (?::text IS NULL OR branch_id=?) AND ?::text IS NULL AND (${assignmentReadSql("count_file_scope","inventory.prepare")} OR ${assignmentReadSql("count_file_scope","inventory.approve")}))`,[scope.targetId,scope.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.assignmentId,actor.userId,actor.role,actor.assignmentId,actor.userId,actor.role]),
+   assertion(database,key,"count-file-authority",`EXISTS(SELECT 1 FROM ${countAuthorityScopeSql('count_file_scope')} WHERE id=? AND company_id=? AND (?::text IS NULL OR branch_id=?) AND ?::text IS NULL AND (${assignmentReadSql("count_file_scope","inventory.prepare")} OR ${assignmentReadSql("count_file_scope","inventory.approve")}))`,[scope.targetId,scope.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.assignmentId,actor.userId,actor.role,actor.assignmentId,actor.userId,actor.role]),
    clearWorkflowCommandAssertions(database, key)];
  });
  return {before:[...boundaries.flatMap(item=>item.boundary.before),...guards("before")],after:[...financeDeferredEffectStatements(database),...guards("after"),...boundaries.flatMap(item=>item.boundary.after),...boundaries.map(item=>clearWorkflowCommandAssertions(database, item.key))],observe:mode==="shadow"?observePurchaseResults:undefined};

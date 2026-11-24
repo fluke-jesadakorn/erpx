@@ -314,3 +314,16 @@ export const countScopeRowsSql = (rows: string) =>
  *  native transport, count adapters and r11-r42 helpers stay untouched. */
 export const countEvidenceRowHeadSql = (tail: string) =>
   `SELECT c.id,c.company_id,c.branch_id,c.warehouse_id,${tail}`;
+
+/** r44: the initial-physical-count SourceImages projections share one
+ *  byte-identical c-alias select head; only the image/tail varies. Each caller
+ *  keeps its own statement, binds and source rows. Locks, native transport,
+ *  count adapters and r11-r43 helpers stay untouched. */
+export const sourceImagesHeadSql = 'SELECT c.id,c.company_id,c.journal_id,';
+/** r44: the lot-balance joined read projections share one byte-identical
+ *  balance-column head; only the guard, join and scope tail vary. */
+export const lotBalanceRowsHeadSql = 'SELECT l.*,b.warehouse_id,b.quantity_milli,b.value_minor,b.version balance_version,';
+/** r44: the count-file authority scope relation is byte-identical across the
+ *  attachment and record purchase reads; only the relation alias varies. */
+export const countAuthorityScopeSql = (alias: string) =>
+  `(SELECT id,company_id,branch_id,NULL::text department_id FROM inventory_counts) ${alias}`;
