@@ -26,11 +26,12 @@ import {procurementPurchaseAccess,requireProcurementPurchasedRead,withProcuremen
 import {branchDepartmentScope,pointRead,orderedRead} from './read-tail-sql';
 import {pointVersionGuard} from './read-tail-r19';
 import {eligiblePurchaseCount,memberScopeExclusion} from './read-tail-r24';
+import {settingsRead} from './read-tail-r27';
 export {rfqCreateSchema,rfqActionSchema} from "@erpx/server-procurement/domain/rfqs";
 type Evidence=Awaited<ReturnType<typeof prepareAttachmentBinding>>;
 type Authority=SqlStatement[];
 const scope=branchDepartmentScope("r");
-const currencyRead=`SELECT currency FROM (${commercePlatformSources.commerce_settings}) commerce_settings WHERE company_id=?`;
+const currencyRead=settingsRead("currency",commercePlatformSources.commerce_settings);
 const args=(a:WorkContext)=>[a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId];
 function guard(db:SqlDatabase,a:WorkContext,r:Row,key:string,version:number){return assertion(db,key,'rfq-version',`EXISTS(SELECT 1 FROM procurement_rfqs r WHERE r.id=? AND r.version=? AND r.status=? AND ${scope})`,[r.id,version,r.status,...args(a)]);}
 function event(db:SqlDatabase,a:WorkContext,id:string,key:string,version:number,action:string,evidence:string,offer:string|null,now:number){return nativeProcurementStatement('procurement_stmt_11', { now: Date.now() }).bind(`rfq-event-${key}`,id,version,action,a.userId,evidence,offer,now);}

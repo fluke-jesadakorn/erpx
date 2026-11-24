@@ -32,6 +32,7 @@ import {branchDepartmentScope,orderedRead} from './read-tail-sql';
 import {receiptCount,expenseAccountBy} from './read-tail-r20';
 import {memberScopeExclusion} from './read-tail-r24';
 import {fulfillmentLinesBy} from './read-tail-r26';
+import {settingsRead} from './read-tail-r27';
 export {supplierBillSchema,supplierBillDecisionSchema,supplierInvoicePolicySchema,matchedBillLines} from "@erpx/server-procurement/domain/supplier-bills";
 const scope=branchDepartmentScope("m");
 const args=(actor:WorkContext)=>[actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId];
@@ -124,7 +125,7 @@ return {lines:lines.results,receipts:receipts.results,events:events.results,acco
  policyEvents:async()=>(await (await database()).prepare(orderedRead('e.*,COALESCE(person.legal_name,e.actor_id) actor_name',`procurement_invoice_policy_events e LEFT JOIN (${people_payrollPlatformSources.hr_people}) person ON person.company_id=e.company_id AND person.user_id=e.actor_id AND person.merged_into_id IS NULL`,'e.company_id=?','e.version DESC')).bind(actor.companyId).all<Row>()).results,
  receipt:async(id)=>(await database()).prepare(`SELECT f.*,j.status journal_status,j.currency journal_currency,j.chart_id journal_chart_id FROM (${commercePlatformSources.commerce_fulfillments}) f LEFT JOIN (${financePlatformSources.finance_journals}) j ON j.id=f.journal_id WHERE f.id=?`).bind(id).first<Row>(),
  order:async(id)=>(await getOrder(actor,id,provided)).order,
- configuration:async()=>(await database()).prepare(`SELECT * FROM (${commercePlatformSources.commerce_settings}) commerce_settings WHERE company_id=?`).bind(actor.companyId).first<Row>(),
+ configuration:async()=>(await database()).prepare(settingsRead("*",commercePlatformSources.commerce_settings)).bind(actor.companyId).first<Row>(),
  postings:async(id)=>(await (await database()).prepare(`SELECT * FROM (${financePlatformSources.finance_journal_lines}) finance_journal_lines WHERE journal_id=? ORDER BY ordinal`).bind(id).all<Row>()).results,
  receiptLines:async(ids)=>(await (await database()).prepare(fulfillmentLinesBy(
     commercePlatformSources.commerce_fulfillment_lines,
