@@ -112,3 +112,21 @@ describe('manage_erpx beta_policy storage-bytes read pair', () => {
     expect(prepared).toEqual([OLD_STORAGE_BYTES_SQL, OLD_STORAGE_BYTES_SQL]);
   });
 });
+
+const OLD_DOCUMENT_PAGE_STORAGE_LIMIT =
+  'COALESCE((SELECT storage_bytes FROM beta_policy WHERE company_id=?),9007199254740991)';
+
+describe('manage_erpx document page storage-limit projection dedupe', () => {
+  it('embeds the one canonical storage-bytes read instead of repeating its SQL', async () => {
+    const src = await readFile(adapter('document-page-storage-limit.ts'), 'utf8');
+    expect(src).not.toMatch(/SELECT storage_bytes FROM beta_policy WHERE company_id=\?/);
+    expect(src).toContain("import {betaPolicyStorageBytesSql} from './attachments-service-facts'");
+  });
+
+  it('preserves the exact SQL consumed by the server-files attachment derivative guard', async () => {
+    const { documentPageStorageLimitSql } = await import(
+      '../../../packages/server-manage_erpx/src/adapters/document-page-storage-limit'
+    );
+    expect(documentPageStorageLimitSql).toBe(OLD_DOCUMENT_PAGE_STORAGE_LIMIT);
+  });
+});
