@@ -8,6 +8,7 @@ import {legalEvidenceSamePerson} from "@erpx/server-identity_access/public/legal
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {access,eligible,guards,personGuard} from "@erpx/server-legal/adapters/legal/access";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
+import {legalLaterApprovalGuardSql} from "../legal-read-tail-r15-sources";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
 import type {ExecutedCopy} from "@erpx/server-legal/domain/model";
 import {createExecutedCopyApplication,type ExecutedCopySource} from "@erpx/server-legal/application/executed-copies";
@@ -27,7 +28,7 @@ commit:async(x,item,e,authors,state,now,event,key)=>{
     personGuard(db,a,key,a.userId,item,"legal.approve"),
     assertion(db,key,"legal-executed-reviewer",legalMembershipExistsSql,[item.id,a.userId]),
     ...authors.map((author,i)=>assertion(db,key,`legal-executed-independent-${i}`,"NOT iam_same_person(?,?,?)",[a.userId,author,a.companyId])),
-    assertion(db,key,"legal-executed-current",`EXISTS(SELECT 1 FROM legal_executed_copies e JOIN legal_documents d ON d.id=e.document_id JOIN legal_documents p ON p.id=e.approved_document_id JOIN (${filesProjectionSources.attachments}) f ON f.id=d.attachment_source_id WHERE e.id=? AND e.version=? AND e.state!='confirmed' AND d.checksum=e.executed_hash AND p.checksum=e.approved_hash AND p.locked=true AND f.source_state='available') AND NOT EXISTS(SELECT 1 FROM legal_disposals WHERE document_id IN (?,?)) AND NOT EXISTS(SELECT 1 FROM legal_approvals WHERE item_id=? AND cycle>?)`,[e.id,e.version,e.document_id,e.approved_document_id,item.id,e.approved_cycle]),
+    assertion(db,key,"legal-executed-current",`EXISTS(SELECT 1 FROM legal_executed_copies e JOIN legal_documents d ON d.id=e.document_id JOIN legal_documents p ON p.id=e.approved_document_id JOIN (${filesProjectionSources.attachments}) f ON f.id=d.attachment_source_id WHERE e.id=? AND e.version=? AND e.state!='confirmed' AND d.checksum=e.executed_hash AND p.checksum=e.approved_hash AND p.locked=true AND f.source_state='available') AND NOT EXISTS(SELECT 1 FROM legal_disposals WHERE document_id IN (?,?)) AND ${legalLaterApprovalGuardSql}`,[e.id,e.version,e.document_id,e.approved_document_id,item.id,e.approved_cycle]),
     await nativeExec.review({ key, executedCopyId: e.id, itemVersion: item.version, decision: x.decision, checks: JSON.stringify(x.checks), reason: x.reason, now }),
     await nativeExec.copyState({ state: x.decision==="confirm"?"confirmed":"changes_required", reviewedBy: x.decision==="confirm"?a.userId:null, reviewedAt: x.decision==="confirm"?now:null, id: e.id }),
     await nativeExec.advanceContract({ state, now, itemId: item.id }),

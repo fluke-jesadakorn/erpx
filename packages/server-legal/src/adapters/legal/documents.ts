@@ -7,6 +7,7 @@ import type {SqlDatabase,SqlStatement,FileStore} from "@erpx/server-runtime/publ
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
+import {legalLaterApprovalGuardSql} from "../legal-read-tail-r15-sources";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
 import {attachmentsV2ReadOnly} from "@erpx/server-files/public/attachments/feature";
 import {attachmentContent,completeAttachmentUpload,createAttachmentSet,prepareAttachmentBinding,reserveAttachmentFile,scanAttachmentNow} from "@erpx/server-files/public/attachments/service";
@@ -52,7 +53,7 @@ submission:(facts:{id:string;})=>db.prepare("SELECT u.*,s.item_id FROM legal_ext
       attachment_source_id: string | null;
     }>(),
 async recordSubmissionRead(facts){await (await nativeDocs.accessEvent({identifier:facts.identifier,itemId:facts.item_id,id:facts.null,actorId:facts.actorId,action:facts.fact4,now:facts.now})).run();},
-requireExecutedApproval:(key:string,values:(string | number)[])=>stage(assertion(db,key,"legal-executed-approval","EXISTS(SELECT 1 FROM legal_approvals WHERE item_id=? AND cycle=? AND document_id=? AND document_hash=? AND decision='approved') AND NOT EXISTS(SELECT 1 FROM legal_approvals WHERE item_id=? AND cycle>?)",values)),
+requireExecutedApproval:(key:string,values:(string | number)[])=>stage(assertion(db,key,"legal-executed-approval","EXISTS(SELECT 1 FROM legal_approvals WHERE item_id=? AND cycle=? AND document_id=? AND document_hash=? AND decision='approved') AND "+legalLaterApprovalGuardSql,values)),
 requireExecutedAuthority:(key:string,documentId:string,values:string[])=>stage(assertion(db,key,`legal-executed-authority-${documentId}`,"EXISTS(SELECT 1 FROM legal_documents WHERE id=? AND item_id=?) AND NOT EXISTS(SELECT 1 FROM legal_disposals WHERE document_id=?)",values)),
 persistInspection:async (writes):Promise<number>=>{if(await legalPackageEnforcementMode()==="disabled")return(await db.batch(resolve(writes)))[1].meta.changes;const facts=writes.map(write=>inspections.get(write)).find((value):value is InspectionFacts=>!!value);if(!facts||writes.length!==2)throw new ApiError(503,"LEGAL_INSPECTION_SOURCE_REQUIRED","Inspection requires its original owner source.");return withLegalPurchasedCommand(db,a,{key:`legal-inspection:${facts.inspectionId}`,id:facts.item_id,operation:"legal.document.inspect",purpose:"settle-existing",permission:"legal.read",additional:["legal.documents"]},async owner=>{const source=await documentAccess(owner,a,facts.id),result=JSON.parse(facts.resultJson) as {checksum?:string};if(source.item_id!==facts.item_id||result.checksum!==source.checksum)throw new ApiError(409,"LEGAL_SOURCE_CHANGED","The inspected Legal original changed.");const outcome=await owner.batch([owner.prepare(legalFilesAdvisoryLockSql),await legalDocuments(owner,a.companyId,a.userId).inspection({inspectionId:facts.inspectionId,id:facts.id,kind:facts.kind,resultJson:facts.resultJson,actorId:facts.actorId,now:facts.now,itemId:facts.item_id})]);return outcome[1].meta.changes;});},
 guardChanges:(id,version,key,edit,allowFrozen,preparation)=>guards(db,a,id,version,key,edit,allowFrozen,preparation).map(stage),
