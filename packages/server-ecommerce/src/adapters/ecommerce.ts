@@ -42,6 +42,10 @@ function scopeValues(a:WorkContext){return [a.companyId,a.branchId,a.branchId,a.
 const activeChannelAssertion = "EXISTS(SELECT 1 FROM ecommerce_channels WHERE id=? AND company_id=? AND status='active')";
 const openCartAssertion = "EXISTS(SELECT 1 FROM ecommerce_carts WHERE id=? AND version=? AND status='open')";
 const checkoutVersionAssertion = "EXISTS(SELECT 1 FROM ecommerce_checkouts WHERE id=? AND version=?)";
+/** r10: one parameterized projection-existence guard; the product and party
+ *  callers rebuild byte-identically. Text only: binds and locks unchanged. */
+const activeProjectionAssertion = (source: string, alias: string, predicate: string) =>
+  `EXISTS(SELECT 1 FROM (${source}) ${alias} WHERE id=? AND company_id=? AND ${predicate})`;
 
 function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction: boolean): EcommerceRepository {
  let money: Awaited<ReturnType<typeof snapshotMoney>> | undefined;
@@ -121,7 +125,7 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
         write,
         key,
         "product",
-        `EXISTS(SELECT 1 FROM (${commerceProjectionSources.commerce_products}) commerce_products WHERE id=? AND company_id=? AND status='active')`,
+        activeProjectionAssertion(commerceProjectionSources.commerce_products, "commerce_products", "status='active'"),
         [i.productId, a.companyId],
       ),
     ],
@@ -152,7 +156,7 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
         write,
         key,
         "party",
-        `EXISTS(SELECT 1 FROM (${financeProjectionSources.finance_parties}) finance_parties WHERE id=? AND company_id=? AND kind='customer' AND status='active')`,
+        activeProjectionAssertion(financeProjectionSources.finance_parties, "finance_parties", "kind='customer' AND status='active'"),
         [i.partyId, a.companyId],
       ),
     ],
