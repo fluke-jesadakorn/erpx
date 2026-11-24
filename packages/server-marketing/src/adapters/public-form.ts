@@ -12,6 +12,7 @@ import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-a
 import {withPublicMarketingFormRead} from '@erpx/server-marketing/adapters/public-form-read';
 import {marketingFormContentSql} from './public-form-content-source';
 import {formAssetLockSql} from './form-asset-lock-sql';
+import {activeFormSql} from './active-form-sql';
 function translate(error:unknown):never{if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}
 export function marketingPresentationReferences(configuration:unknown){try{return references(configuration);}catch(error){return translate(error);}}
 const contentPredicate=`EXISTS(${marketingFormContentSql('1')})`;
@@ -23,7 +24,7 @@ export function marketingPresentationAssertions(db:SqlDatabase,key:string,compan
 function application(db:SqlDatabase){return createMarketingPresentationApplication({
 content:(companyId,refs)=>db.prepare(marketingFormContentSql('id,version,preview_json')).bind(refs.contentAssetId!,companyId,refs.contentVersion!).first<MarketingContent>(),
 media:(companyId,refs)=>approvedMarketingCreative(db,companyId,refs.mediaPublicationId!,refs.contentAssetId!),
-form:id=>db.prepare("SELECT id,company_id,name,version,preview_json,configuration_json FROM marketing_assets WHERE id=? AND kind='form' AND status='active'").bind(id).first<PublicMarketingForm>(),
+form:id=>db.prepare(activeFormSql('public')).bind(id).first<PublicMarketingForm>(),
 });}
 export async function marketingFormReadiness(db:SqlDatabase,companyId:string,configuration:unknown){try{return await application(db).readiness(companyId,configuration);}catch(error){return translate(error);}}
 async function load(db:SqlDatabase,id:string,submissionKey?:string){

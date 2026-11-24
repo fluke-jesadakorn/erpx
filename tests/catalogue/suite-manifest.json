@@ -52876,6 +52876,33 @@
       ]
     },
     {
+      "lane": "unit",
+      "owner": "marketing",
+      "modules": [
+        "marketing"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Active form point reads must share one closed-variant helper with byte-identical output."
+      },
+      "apps": [
+        "marketing"
+      ],
+      "packages": [
+        "@erpx/server-marketing"
+      ],
+      "id": "marketing.active-form-dedupe.unit",
+      "files": [
+        "tests/unit/marketing/active-form-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "marketing.demo-marketing-to-crm-lead.journeys",
       "lane": "journeys",
       "owner": "marketing",
