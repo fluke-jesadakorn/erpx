@@ -78578,6 +78578,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "sales",
+      "modules": [
+        "sales"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Sales settlement fact kind prefixes must stay one generator."
+      },
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-sales"
+      ],
+      "id": "sales.read-tail-r14-dedupe.unit",
+      "files": [
+        "tests/unit/sales/read-tail-r14-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "sales.rust-customer-followups-http.unit",
       "lane": "unit",
       "owner": "sales",
