@@ -30,3 +30,7 @@ export const benefitPlanFactPrefix = "SELECT 'plan' kind,p.id,p.version,p.status
  *  Benefits executive metric queries; generated SQL is unchanged. */
 export const benefitMetricCountSql = (label: string, table: string, alias: string, status: string, group: string, where: string) =>
   `SELECT ${label} label,count(*)::text value FROM ${table}${alias ? ` ${alias}` : ''} WHERE ${alias ? `${alias}.` : ''}company_id=? AND ${where} AND ${alias ? `${alias}.` : ''}${status} AND ${alias ? `${alias}.` : ''}effective_from<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND (${alias ? `${alias}.` : ''}effective_to IS NULL OR ${alias ? `${alias}.` : ''}effective_to>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD'))${group}`;
+/** Parameterized owner-local final fact projection shared by the Benefits
+ *  and People package-settlement fact unions; generated SQL is unchanged. */
+export const benefitFactFinalSelect = (pending: string, tail: string) =>
+  `) SELECT kind,id,version,state,image,${pending} pending FROM facts${tail}`;

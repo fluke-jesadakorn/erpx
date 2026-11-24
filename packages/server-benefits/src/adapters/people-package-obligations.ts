@@ -4,7 +4,7 @@ import type {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgre
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/server-commercial/public/package-settlement-sources";
 import {assertPeoplePackageObligationSources,peoplePackageSettlementSources as people} from "@erpx/server-people_payroll/public/package-obligations";
-import {benefitPayrollInputOwnerPredicate,benefitElectionFactPrefix,benefitReleasedElectionHandoffPrefix,benefitScopePrefix,benefitWindowFactPrefix,benefitDependentFactPrefix,benefitPlanFactPrefix} from "@erpx/server-benefits/adapters/benefits-read-sql";
+import {benefitPayrollInputOwnerPredicate,benefitElectionFactPrefix,benefitReleasedElectionHandoffPrefix,benefitScopePrefix,benefitWindowFactPrefix,benefitDependentFactPrefix,benefitPlanFactPrefix,benefitFactFinalSelect} from "@erpx/server-benefits/adapters/benefits-read-sql";
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};const sources=new WeakMap<SqlDatabase,string>();
 export async function lockPeopleBenefitsPackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){const {database,companyId}=packageSettlementSource(owner,lock);await database.prepare("LOCK TABLE benefit_plans,benefit_plan_events,benefit_dependents,benefit_dependent_events,benefit_enrollment_windows,benefit_window_events,benefit_elections,benefit_election_events,benefit_payroll_inputs IN SHARE MODE").run();sources.set(database,companyId);}
 /** Benefits owns reviewed elections and immutable Payroll deliveries. Its
@@ -24,6 +24,6 @@ export async function peopleBenefitsPackageObligations(owner:PostgresDatabase,da
  FROM benefit_elections e CROSS JOIN scope LEFT JOIN (${people.people}) p ON p.id=e.person_id AND p.company_id=e.company_id LEFT JOIN (${people.engagements}) engagement ON engagement.id=e.engagement_id AND engagement.company_id=e.company_id LEFT JOIN benefit_plans plan ON plan.id=e.plan_id LEFT JOIN benefit_enrollment_windows win ON win.id=e.window_id WHERE e.company_id=scope.company_id
  UNION ALL ${benefitPayrollInputOwnerPredicate}
  FROM benefit_payroll_inputs h CROSS JOIN scope LEFT JOIN benefit_elections e ON e.id=h.election_id WHERE h.company_id=scope.company_id
- ) SELECT kind,id,version,state,image,scope.is_base AND COALESCE(facts.pending,true) pending FROM facts CROSS JOIN scope ORDER BY kind,id`).bind(input.companyId,input.packageId==='people',input.now).all<{kind:string;id:string;version:number;state:string;image:unknown;pending:boolean}>()).results;
+ ${benefitFactFinalSelect('scope.is_base AND COALESCE(facts.pending,true)',' CROSS JOIN scope ORDER BY kind,id')}`).bind(input.companyId,input.packageId==='people',input.now).all<{kind:string;id:string;version:number;state:string;image:unknown;pending:boolean}>()).results;
  return {companyId:input.companyId,packageId:input.packageId,moduleId:"benefits",observedAt:input.now,revision:createHash("sha256").update(JSON.stringify({companyId:input.companyId,packageId:input.packageId,packageVersion:input.packageVersion,facts})).digest("hex"),outstanding:facts.filter(fact=>fact.pending).length};
 }
