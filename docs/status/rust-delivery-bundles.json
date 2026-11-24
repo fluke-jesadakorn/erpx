@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12178,
+    "revision": 12180,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -181377,6 +181377,41 @@
         "nextAction": "returnLinks via ecommerceOrderedList (-1), file authority via release gate (-1), listing frames merge (-1): 22->19.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.people_payroll.read-tail-r48",
+        "goalId": "G4",
+        "owner": "people_payroll",
+        "title": "payroll expense guards and claim invoice read",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-people_payroll/src/**",
+          "tests/unit/people_payroll/**"
+        ],
+        "resources": [
+          "owner:people_payroll"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n32",
+          "claimedAt": "2026-11-24T13:55:29.298Z",
+          "heartbeatAt": "2026-11-24T13:55:29.298Z",
+          "expiresAt": "2026-11-24T14:25:29.298Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Finance expense version guards (-3), status guard pairs (-1), expense claim invoice read (-1): 1245->1240.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -181385,11 +181420,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1751,
+      "totalPackets": 1752,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 16,
+        "in_progress": 17,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -181399,7 +181434,7 @@
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T13:54:57.331Z",
+    "updatedAt": "2026-11-24T13:55:29.306Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
