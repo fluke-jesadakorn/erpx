@@ -1,12 +1,12 @@
 //! Native Work Projection calendar read port.
 //!
-//! The twelve SELECT facts consumed by the calendar command unit execute here
-//! on the caller's PostgreSQL connection. The TypeScript facts adapter carries
-//! no calendar SQL: the transport bridge posts an allow-listed kind and its
-//! positional values to the private `/work/owner-read` route, composition
-//! opens the Holding transaction, and this module returns the exact row shape
-//! the calendar command application already consumes. No SQL mirror and no
-//! TypeScript fallback exist behind this port.
+//! The twelve SELECT facts consumed by the calendar command unit and the eight
+//! occurrence/reminder read-tail facts execute here on the caller's PostgreSQL
+//! connection. The TypeScript facts adapter carries no calendar SQL: the
+//! transport bridge posts an allow-listed kind and its positional values to the
+//! private `/work/owner-read` route, composition opens the Holding transaction,
+//! and this module returns the exact row shape the calendar application already
+//! consumes. No SQL mirror and no TypeScript fallback exist behind this port.
 use erpx_server_runtime::public::postgres::PgTransactionError;
 use erpx_server_shared::public::BusinessError;
 use serde_json::{Value, json};
@@ -28,9 +28,23 @@ pub const READ_38: &str = "wp_cal_read_38"; // attendance (F3)
 pub const READ_42: &str = "wp_cal_read_42"; // organizer (F3)
 pub const READ_53: &str = "wp_cal_read_53"; // announcement (F5)
 
+// Occurrence exception/response read tail (calendar-appointments-facts.ts
+// read4/read5 and calendar-availability-facts.ts readOccurrence* helpers).
+pub const READ_60: &str = "wp_cal_read_60"; // occurrence exception by key
+pub const READ_61: &str = "wp_cal_read_61"; // occurrence response by key/user
+pub const READ_62: &str = "wp_cal_read_62"; // moved occurrences
+pub const READ_63: &str = "wp_cal_read_63"; // exceptions by appointment list
+pub const READ_64: &str = "wp_cal_read_64"; // responses by appointment list
+
+// Reminder authority read tail (calendar/reminder-authority.ts,
+// calendar/reminder-purchases.ts and calendar-reminders-facts.ts).
+pub const READ_65: &str = "wp_cal_read_65"; // appointment version
+pub const READ_66: &str = "wp_cal_read_66"; // reminder configuration image
+pub const READ_67: &str = "wp_cal_read_67"; // latest execution authorization
+
 const ALL: &[&str] = &[
     READ_01, READ_03, READ_04, READ_12, READ_13, READ_23, READ_26, READ_30, READ_37, READ_38,
-    READ_42, READ_53,
+    READ_42, READ_53, READ_60, READ_61, READ_62, READ_63, READ_64, READ_65, READ_66, READ_67,
 ];
 
 const TIME_SQL: &str = "SELECT (extract(epoch FROM ($1::timestamp AT TIME ZONE $2::text))*1000)::bigint starts_at,(extract(epoch FROM ($3::timestamp AT TIME ZONE $4::text))*1000)::bigint ends_at,to_char(($5::timestamp AT TIME ZONE $6::text) AT TIME ZONE $7::text,'YYYY-MM-DD\"T\"HH24:MI') start_local,to_char(($8::timestamp AT TIME ZONE $9::text) AT TIME ZONE $10::text,'YYYY-MM-DD\"T\"HH24:MI') end_local";
@@ -43,6 +57,18 @@ const ATTENDEE_STATE_SQL: &str = "SELECT user_id,response,reminder_minutes,respo
 const ATTENDANCE_SQL: &str = "SELECT attendance FROM calendar_attendees WHERE company_id=$1 AND appointment_id=$2 AND user_id=$3";
 const ORGANIZER_SQL: &str = "SELECT user_id FROM calendar_attendees WHERE appointment_id=$1 AND company_id=$2 AND attendance='organizer'";
 
+// Verbatim PostgreSQL authority of the retained TypeScript facts. `$n` is the
+// only translation from their `?` placeholders; predicates and projections are
+// unchanged so a row-for-row parity oracle is executable in the PG test.
+const OCCURRENCE_EXCEPTION_SQL: &str = "SELECT start_local,end_local,cancelled FROM calendar_occurrence_exceptions WHERE appointment_id=$1 AND company_id=$2 AND occurrence_key=$3";
+const OCCURRENCE_RESPONSE_SQL: &str = "SELECT response FROM calendar_occurrence_responses WHERE appointment_id=$1 AND company_id=$2 AND occurrence_key=$3 AND user_id=$4";
+const MOVED_OCCURRENCES_SQL: &str = "SELECT occurrence_key,start_local,end_local FROM calendar_occurrence_exceptions WHERE appointment_id=$1 AND company_id=$2 AND cancelled=false AND start_local IS NOT NULL AND end_local IS NOT NULL";
+const OCCURRENCE_EXCEPTIONS_SQL: &str = "SELECT * FROM calendar_occurrence_exceptions WHERE company_id=$1 AND appointment_id IN (SELECT jsonb_array_elements_text($2::jsonb))";
+const OCCURRENCE_RESPONSES_SQL: &str = "SELECT appointment_id,occurrence_key,user_id,response FROM calendar_occurrence_responses WHERE company_id=$1 AND appointment_id IN (SELECT jsonb_array_elements_text($2::jsonb))";
+const APPOINTMENT_VERSION_SQL: &str = "SELECT version FROM calendar_appointments WHERE id=$1 AND company_id=$2";
+const REMINDER_CONFIGURATION_SQL: &str = "SELECT jsonb_build_object('record',to_jsonb(a)-ARRAY['version','updated_at'],'attendee',to_jsonb(t)-ARRAY['response','response_at'],'series',(SELECT to_jsonb(s)-'version' FROM calendar_series s WHERE s.appointment_id=a.id AND s.company_id=a.company_id),'exceptions',(SELECT jsonb_agg(to_jsonb(e)-'version' ORDER BY e.occurrence_key) FROM calendar_occurrence_exceptions e WHERE e.appointment_id=a.id AND e.company_id=a.company_id))::text image FROM calendar_appointments a JOIN calendar_attendees t ON t.appointment_id=a.id AND t.company_id=a.company_id WHERE a.id=$1 AND a.company_id=$2 AND t.user_id=$3";
+const REMINDER_AUTHORIZATION_SQL: &str = "SELECT * FROM calendar_reminder_execution_authorizations WHERE appointment_id=$1 AND company_id=$2 AND recipient_id=$3 ORDER BY source_version DESC,created_at DESC,command_id DESC LIMIT 1";
+
 pub fn supported(kind: &str) -> bool {
     ALL.contains(&kind)
 }
@@ -51,7 +77,8 @@ pub fn supported(kind: &str) -> bool {
 pub fn arity(kind: &str) -> Option<usize> {
     match kind {
         READ_01 => Some(10),
-        READ_38 => Some(3),
+        READ_38 | READ_60 | READ_66 | READ_67 => Some(3),
+        READ_61 => Some(4),
         READ_03 => Some(1),
         READ_04
         | READ_12
@@ -61,7 +88,11 @@ pub fn arity(kind: &str) -> Option<usize> {
         | READ_30
         | READ_37
         | READ_42
-        | READ_53 => Some(2),
+        | READ_53
+        | READ_62
+        | READ_63
+        | READ_64
+        | READ_65 => Some(2),
         _ => None,
     }
 }
@@ -193,6 +224,69 @@ fn announcement(row: &PgRow) -> Result<Value, sqlx::Error> {
     }))
 }
 
+fn occurrence_exception_change(row: &PgRow) -> Result<Value, sqlx::Error> {
+    Ok(json!({
+        "start_local": row.try_get::<Option<String>, _>("start_local")?,
+        "end_local": row.try_get::<Option<String>, _>("end_local")?,
+        "cancelled": row.try_get::<bool, _>("cancelled")?,
+    }))
+}
+
+fn occurrence_response_value(row: &PgRow) -> Result<Value, sqlx::Error> {
+    Ok(json!({"response": row.try_get::<String, _>("response")?}))
+}
+
+fn moved_occurrence(row: &PgRow) -> Result<Value, sqlx::Error> {
+    Ok(json!({
+        "occurrence_key": row.try_get::<String, _>("occurrence_key")?,
+        "start_local": row.try_get::<String, _>("start_local")?,
+        "end_local": row.try_get::<String, _>("end_local")?,
+    }))
+}
+
+fn occurrence_exception(row: &PgRow) -> Result<Value, sqlx::Error> {
+    Ok(json!({
+        "appointment_id": row.try_get::<String, _>("appointment_id")?,
+        "occurrence_key": row.try_get::<String, _>("occurrence_key")?,
+        "start_local": row.try_get::<Option<String>, _>("start_local")?,
+        "end_local": row.try_get::<Option<String>, _>("end_local")?,
+        "cancelled": row.try_get::<bool, _>("cancelled")?,
+    }))
+}
+
+fn occurrence_response(row: &PgRow) -> Result<Value, sqlx::Error> {
+    Ok(json!({
+        "appointment_id": row.try_get::<String, _>("appointment_id")?,
+        "occurrence_key": row.try_get::<String, _>("occurrence_key")?,
+        "user_id": row.try_get::<String, _>("user_id")?,
+        "response": row.try_get::<String, _>("response")?,
+    }))
+}
+
+fn version(row: &PgRow) -> Result<Value, sqlx::Error> {
+    Ok(json!({"version": row.try_get::<i32, _>("version")?}))
+}
+
+fn image(row: &PgRow) -> Result<Value, sqlx::Error> {
+    Ok(json!({"image": row.try_get::<Option<String>, _>("image")?}))
+}
+
+fn reminder_authorization(row: &PgRow) -> Result<Value, sqlx::Error> {
+    Ok(json!({
+        "command_id": row.try_get::<String, _>("command_id")?,
+        "appointment_id": row.try_get::<String, _>("appointment_id")?,
+        "recipient_id": row.try_get::<String, _>("recipient_id")?,
+        "company_id": row.try_get::<String, _>("company_id")?,
+        "actor_id": row.try_get::<String, _>("actor_id")?,
+        "assignment_id": row.try_get::<String, _>("assignment_id")?,
+        "action": row.try_get::<String, _>("action")?,
+        "authority_json": row.try_get::<String, _>("authority_json")?,
+        "source_hash": row.try_get::<String, _>("source_hash")?,
+        "source_version": row.try_get::<i64, _>("source_version")?,
+        "created_at": row.try_get::<i64, _>("created_at")?,
+    }))
+}
+
 async fn first<F>(
     sql: &'static str,
     values: &[Value],
@@ -247,6 +341,23 @@ pub async fn execute_calendar_read(
         READ_30 => all(ATTENDEE_STATE_SQL, command.values, attendee_state, connection).await?,
         READ_38 => first(ATTENDANCE_SQL, command.values, attendance, connection).await?,
         READ_42 => first(ORGANIZER_SQL, command.values, attendee_user, connection).await?,
+        READ_60 => {
+            first(OCCURRENCE_EXCEPTION_SQL, command.values, occurrence_exception_change, connection)
+                .await?
+        }
+        READ_61 => {
+            first(OCCURRENCE_RESPONSE_SQL, command.values, occurrence_response_value, connection)
+                .await?
+        }
+        READ_62 => all(MOVED_OCCURRENCES_SQL, command.values, moved_occurrence, connection).await?,
+        READ_63 => all(OCCURRENCE_EXCEPTIONS_SQL, command.values, occurrence_exception, connection).await?,
+        READ_64 => all(OCCURRENCE_RESPONSES_SQL, command.values, occurrence_response, connection).await?,
+        READ_65 => first(APPOINTMENT_VERSION_SQL, command.values, version, connection).await?,
+        READ_66 => first(REMINDER_CONFIGURATION_SQL, command.values, image, connection).await?,
+        READ_67 => {
+            first(REMINDER_AUTHORIZATION_SQL, command.values, reminder_authorization, connection)
+                .await?
+        }
         _ => return Err(BusinessError::invalid(
             "WORK_CALENDAR_READ_INVALID",
             "Unsupported calendar read kind.",
