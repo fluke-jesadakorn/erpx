@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10897,
+    "revision": 10906,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -166836,9 +166836,9 @@
         "claim": {
           "runId": "run-20261124-a",
           "agentId": "wGCMcrm7",
-          "claimedAt": "2026-11-24T09:14:42.851Z",
-          "heartbeatAt": "2026-11-24T09:14:42.851Z",
-          "expiresAt": "2026-11-24T09:44:42.851Z",
+          "claimedAt": "2026-11-24T09:18:19.131Z",
+          "heartbeatAt": "2026-11-24T09:18:19.131Z",
+          "expiresAt": "2026-11-24T09:48:19.131Z",
           "generation": 167
         },
         "baseSha": null,
@@ -166847,8 +166847,15 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=130.",
-        "handoff": null,
+        "nextAction": "Safe byte-identical or parameterized family; if none, report blocked. BEFORE=124.",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMcrm7",
+          "at": "2026-11-24T09:18:18.755Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=130."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -167902,7 +167909,7 @@
         "owner": "runtime",
         "title": "runtime executive generation jobs dedupe (round 14)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -167914,22 +167921,37 @@
         "resources": [
           "owner:runtime"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMrun2",
-          "claimedAt": "2026-11-24T09:09:04.397Z",
-          "heartbeatAt": "2026-11-24T09:09:04.397Z",
-          "expiresAt": "2026-11-24T09:39:04.397Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-runtime/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "a5b796cb3",
+            "owner": "runtime",
+            "before": 41,
+            "after": 36,
+            "note": "Five executive_generation_jobs reads compose executiveGenerationJobsSql byte-identically; control-plane/migration SQL and r1-r13 helpers untouched."
+          },
+          {
+            "command": "vitest runtime r14 + r6 (9), all read-tail (42) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "a5b796cb3"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Five reads on executive_generation_jobs compose existing executiveGenerationJobsSql. BEFORE=41.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMrun2",
+          "at": "2026-11-24T09:18:19.813Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -167974,7 +167996,7 @@
         "owner": "procurement",
         "title": "procurement calendar snapshot native cutover (round 36)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -167986,22 +168008,22 @@
         "resources": [
           "owner:procurement"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMpro9",
-          "claimedAt": "2026-11-24T09:09:58.251Z",
-          "heartbeatAt": "2026-11-24T09:09:58.251Z",
-          "expiresAt": "2026-11-24T09:39:58.251Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=112.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Blocked with evidence; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMpro9",
+          "at": "2026-11-24T09:18:20.531Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Blocked with evidence; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -168291,6 +168313,42 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=224.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.runtime.read-tail-r15",
+        "goalId": "G4",
+        "owner": "runtime",
+        "title": "runtime TS read tail native cutover (round 15)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-runtime/src/**",
+          "tests/unit/runtime/**",
+          "tests/integration/shared.runtime/**"
+        ],
+        "resources": [
+          "owner:runtime"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMrun3",
+          "claimedAt": "2026-11-24T09:18:20.192Z",
+          "heartbeatAt": "2026-11-24T09:18:20.192Z",
+          "expiresAt": "2026-11-24T09:48:20.192Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Families: executive reports guards/share jsonb and holding bindings reads compose existing helpers. BEFORE=36.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -168299,21 +168357,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1496,
+      "totalPackets": 1497,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 22,
-        "in_progress": 24,
+        "in_progress": 23,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1118,
+        "blocked": 1120,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T09:16:26.118Z",
+    "updatedAt": "2026-11-24T09:18:20.536Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
