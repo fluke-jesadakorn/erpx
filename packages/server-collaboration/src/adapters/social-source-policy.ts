@@ -8,6 +8,7 @@ import { socialScopeKind } from '@erpx/server-collaboration/domain/social-source
 
 import { socialAssignmentAccessSql } from '@erpx/server-identity_access/public/collaboration-social-authorization';
 import { socialProjectAudienceSql } from '@erpx/server-projects/public/project-read-projections';
+import { socialPostSourcePmsGuard } from './read-tail-sql';
 
 export function sourceAccessSql(alias = 'p', currentAssignment?: string,viewer?:{userId:string;now:string}) {
     const audience = `    ${alias}.audience_kind IS NULL OR ${alias}.audience_kind IN ('company','branch','department')
@@ -20,7 +21,7 @@ export function sourceAccessSql(alias = 'p', currentAssignment?: string,viewer?:
     OR (${alias}.audience_kind='project' AND EXISTS(
       ${socialProjectAudienceSql(alias)}))
 `;
-    return socialAssignmentAccessSql(alias, currentAssignment ? `AND (NOT EXISTS(SELECT 1 FROM social_post_sources ps WHERE ps.post_id=${alias}.id AND ps.source_kind='pms_record') OR a.id=${currentAssignment})` : '', audience, `${handoverSourcesReadableSql(alias, 'a.user_id')} AND ${pmsPostSourcesReadableSql(alias, 'a.user_id', 'a.id')}`,viewer);
+    return socialAssignmentAccessSql(alias, currentAssignment ? `AND (${socialPostSourcePmsGuard(alias, '')} OR a.id=${currentAssignment})` : '', audience, `${handoverSourcesReadableSql(alias, 'a.user_id')} AND ${pmsPostSourcesReadableSql(alias, 'a.user_id', 'a.id')}`,viewer);
 }
 export function socialPostScope(actor: Pick<WorkContext, "companyId" | "userId" | "branchId" | "departmentId"> & Partial<Pick<WorkContext, "assignmentId">>, alias = "p") {
     const now = Date.now(), base = `${alias}.company_id=? AND ${alias}.state='published' AND ${sourceAccessSql(alias, actor.assignmentId ? "?::text" : undefined)}`;

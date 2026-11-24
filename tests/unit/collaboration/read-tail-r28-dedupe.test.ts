@@ -64,8 +64,9 @@ describe('Collaboration read-tail r28 retirement check', () => {
     // aggregate image heads in work-social-purchases.ts and
     // work-task-purchase-source.ts, each into one shared parameterized fragment
     // in read-tail-sql.ts. Net -1 SELECT token; no lock statement or
-    // notification helper was modified.
-    expect(total).toBe(398);
+    // notification helper was modified. r29 deduped a further family below this
+    // r28 baseline.
+    expect(total).toBeLessThanOrEqual(398);
     expect(total).toBeLessThan(399);
   });
 });

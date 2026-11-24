@@ -66,3 +66,9 @@ export const socialAiPhaseImageSql=(draft:string,usage:string,reply:string)=>`SE
  * the trailing WHERE/JOIN expression varies; the aggregate head, bind order and
  * lock semantics stay unchanged. */
 export const socialPostRevisionsAgg=(tail:string)=>`(SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM social_post_revisions r ${tail})`;
+/** Byte-identical PMS post-source absence guard shared by the collaboration
+ * source-authorization predicate (pms-source-authorization.ts) and the Social
+ * source-access policy (social-source-policy.ts). Only the post alias and the
+ * trailing condition vary; the fixed `ps.post_id=<post>.id AND
+ * ps.source_kind='pms_record'` head, bind order and lock semantics stay. */
+export const socialPostSourcePmsGuard=(post:string,tail:string)=>`NOT EXISTS(SELECT 1 FROM social_post_sources ps WHERE ps.post_id=${post}.id AND ps.source_kind='pms_record'${tail})`;
