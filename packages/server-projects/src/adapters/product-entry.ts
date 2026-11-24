@@ -4,7 +4,8 @@ import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import type {ProjectTaskSourceEntry,ProjectTaskEntryScope} from '@erpx/server-projects/domain/product-entry';
 import {holdingResources} from '../../../../packages/server-runtime/src/public/runtime';
 import {projectsPackageEnforcementMode,readPurchasedAccess} from '@erpx/server-commercial/public/purchase-command-boundary';
-import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
+import {purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
+import {projectsClockCte} from './clock-cte';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {ApiError} from '@erpx/server-runtime/public/http';
 /** Role candidate discovery uses current native owner policy; it never chooses
@@ -14,7 +15,7 @@ async function projectTaskProductRecord(database:SqlDatabase,scope:ProjectTaskEn
  // The original task policy imports approvals. Load its named port lazily to
  // avoid the Projects / Operations / workflow module initialization cycle.
  const {projectTaskRecordPolicy}=await import('@erpx/server-operations/public/project-task-record-policy');
- const row=await database.prepare(`WITH project_entry_clock AS MATERIALIZED (SELECT ${packageClockSql} now_ms),
+ const row=await database.prepare(`${projectsClockCte('project_entry_clock')},
  project_entry_viewer AS MATERIALIZED (SELECT g.id assignment_id,g.user_id,g.role,clock.now_ms FROM assignments g CROSS JOIN project_entry_clock clock
  WHERE g.id=? AND g.user_id=? AND g.role=? AND g.company_id=? AND g.version=?
  AND iam_assignment_active(g.id,clock.now_ms) AND iam_principal_active(g.user_id,g.company_id,clock.now_ms)

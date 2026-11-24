@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { preparedPostFields, preparedTaskFields } from "@erpx/feature-shared/lib/ai/prepared-work";
+import { projectsClockCte } from "../../../packages/server-projects/src/adapters/clock-cte";
 
 describe("guided intake details in owning forms", () => {
   it("only maps an unambiguous task owner and a real Gregorian date", () => {
@@ -24,5 +25,19 @@ describe("guided intake details in owning forms", () => {
     expect(preparedPostFields({ body: "x".repeat(3100), purpose: "publish" })).toEqual({
       body: "x".repeat(3000), purpose: "update",
     });
+  });
+});
+
+describe("projectsClockCte byte-identical read guards", () => {
+  const clock = "floor(extract(epoch FROM clock_timestamp())*1000)::bigint";
+  it("preserves the metric guard CTE", () => {
+    expect(projectsClockCte("project_metric_clock")).toBe(
+      `WITH project_metric_clock AS MATERIALIZED (SELECT ${clock} now_ms)`
+    );
+  });
+  it("preserves the product-entry guard CTE", () => {
+    expect(projectsClockCte("project_entry_clock")).toBe(
+      `WITH project_entry_clock AS MATERIALIZED (SELECT ${clock} now_ms)`
+    );
   });
 });
