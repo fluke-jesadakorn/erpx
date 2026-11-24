@@ -17,3 +17,12 @@ export const LINK_SET_ID_SELECT_SQL = "SELECT l.id FROM attachment_links l JOIN 
  * and service-repository selectors. Text only: each call site renders its own
  * statement with its own binds; no SQL text is accepted from a caller. */
 export const LINK_ATTACHMENT_SELECT_SQL = "SELECT l.id link_id,l.attachment_id";
+/** r22: byte-identical link/set WHERE-exists guard prefix shared by the generic
+ * service and Field owner guards; only the terminal predicate and its binds vary.
+ * Text only: every call site still prepares its own statement with its own binds.
+ * r10-r21 helpers above are left untouched. */
+export const LINK_SET_WHERE_EXISTS_SQL = "EXISTS(SELECT 1 FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.";
+/** r22: byte-identical scope/materialized-sets prefix shared by the four
+ * package-obligation source reads; only the set row alias varies. Text only:
+ * every call site still prepares its own statement with its own binds. */
+export const PACKAGE_OBLIGATION_SCOPE_SQL = 'WITH scope AS(SELECT ?::text company_id),sets AS MATERIALIZED(SELECT ';

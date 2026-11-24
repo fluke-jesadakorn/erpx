@@ -2,7 +2,7 @@ import 'server-only';
 import type {PostgresDatabase} from '@erpx/server-runtime/public/runtime/postgres';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {packageSettlementSource,type PackageSettlementSourceLock} from '@erpx/server-commercial/public/package-settlement-sources';
-import {scansAggSql} from './read-tail-dedupe-sql';
+import {scansAggSql, PACKAGE_OBLIGATION_SCOPE_SQL} from './read-tail-dedupe-sql';
 import {scanPendingSql} from './scan-pending-dedupe-sql';
 const sources=new WeakMap<SqlDatabase,string>();
 export async function lockPerformanceFilePackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){
@@ -12,7 +12,7 @@ export async function lockPerformanceFilePackageObligationSources(owner:Postgres
  * unfinished uploads/scans and any existing public approval remain duties. */
 export async function performanceFilePackageObligationFacts(owner:PostgresDatabase,database:SqlDatabase,companyId:string){
  owner.assertActiveTransaction(database);if(sources.get(database)!==companyId)throw Error('PERFORMANCE_FILES_PACKAGE_OBLIGATION_SOURCE_REQUIRED');
- return (await database.prepare(`WITH scope AS(SELECT ?::text company_id),sets AS MATERIALIZED(SELECT s.* FROM attachment_sets s,scope WHERE s.company_id=scope.company_id AND s.target_type='hr_evaluation_assessment')
+ return (await database.prepare(`${PACKAGE_OBLIGATION_SCOPE_SQL}s.* FROM attachment_sets s,scope WHERE s.company_id=scope.company_id AND s.target_type='hr_evaluation_assessment')
  SELECT 'file-set' kind,s.id,s.target_id,to_jsonb(s) image,s.state='draft' pending FROM sets s
  UNION ALL SELECT 'file-link',l.id,s.target_id,to_jsonb(l)||jsonb_build_object('set',to_jsonb(s),'attachment',to_jsonb(a),'upload',to_jsonb(u),'scans',${scansAggSql('a')}),
  COALESCE(l.state='draft' OR l.state='bound' AND (s.state<>'bound' OR a.id IS NULL OR a.company_id IS DISTINCT FROM s.company_id OR a.source_state='quarantined' OR ${scanPendingSql('a')}),true)

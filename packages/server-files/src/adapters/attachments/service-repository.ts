@@ -6,7 +6,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { AttachmentSourceState, AttachmentComponentKind } from "@erpx/server-files/domain/attachments/types";
 import type { SetRow, LinkRow } from "@erpx/server-files/domain/attachments/service-models";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import {LINK_ATTACHMENT_SELECT_SQL, LINK_SET_ATTACHMENT_EXISTS_SQL, LINK_SET_ID_SELECT_SQL} from "../read-tail-dedupe-sql";
+import {LINK_ATTACHMENT_SELECT_SQL, LINK_SET_ATTACHMENT_EXISTS_SQL, LINK_SET_ID_SELECT_SQL, LINK_SET_WHERE_EXISTS_SQL} from "../read-tail-dedupe-sql";
 const setByIdSql = "SELECT * FROM attachment_sets WHERE id=? AND company_id=?";
 export const usedStorageSql = "SELECT COALESCE(sum(bytes),0) FROM attachment_storage_ledger WHERE company_id=? AND state IN ('reserved','stored')";
 export const pendingStorageSql = "SELECT COALESCE(sum(declared_bytes),0) FROM upload_intents WHERE company_id=? AND status='pending' AND expires_at>?";
@@ -917,7 +917,7 @@ export function repository(db: SqlDatabase) {
             return db.prepare(`SELECT a.id FROM attachments a WHERE a.company_id IS NOT NULL AND a.legal_hold=0 AND a.source_state='available' AND NOT erpx_files_field_attachment_owned(a.id)
     AND EXISTS(SELECT 1 FROM attachment_links closed WHERE closed.attachment_id=a.id AND closed.state IN ('expired','withdrawn') AND closed.expires_at<=?)
     AND NOT EXISTS(SELECT 1 FROM attachment_links l WHERE l.attachment_id=a.id AND l.state IN ('draft','bound'))
-    AND NOT EXISTS(SELECT 1 FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.attachment_id=a.id AND s.retention_policy_key IS NOT NULL
+    AND NOT ${LINK_SET_WHERE_EXISTS_SQL}attachment_id=a.id AND s.retention_policy_key IS NOT NULL
       AND (s.destruction_mode IS DISTINCT FROM 'automatic' OR s.retain_until IS NULL OR s.retain_until>?))
     AND NOT EXISTS(SELECT 1 FROM (${legalProjectionSources.legal_file_preservations}) p JOIN (${legalProjectionSources.legal_hold_targets}) target ON target.item_id=p.item_id JOIN (${legalProjectionSources.legal_holds}) hold ON hold.id=target.hold_id
       WHERE p.source_type='attachment' AND p.source_id=a.id AND hold.state<>'released')
