@@ -1,4 +1,5 @@
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
+import { PERIOD_BY_ID_SQL } from './finance-read-tail-r33-sql';
 import { nativeFinanceEngines } from '@erpx/server-collaboration/adapters/native-finance-engines';
 import {nativePeriodCloseReadiness} from '@erpx/server-finance/adapters/finance-workspace';
 import { createFinanceEngines } from '@erpx/server-finance/application/engines';
@@ -71,6 +72,6 @@ function engineService(provided?: SqlDatabase) {
         },
         runDetail: async (facts) => { const { runId, actor } = facts; const write = await db(actor); return write.prepare("SELECT * FROM finance_calculation_runs WHERE id=? AND company_id=?").bind(runId, actor.companyId).first<Row>(); },
         events: async (facts) => { const { runId, actor } = facts; const write = await db(actor); return (await write.prepare("SELECT * FROM finance_calculation_events WHERE run_id=? ORDER BY version").bind(runId).all<Row>()).results; },
-        period: async (facts) => { const { periodId, actor } = facts; const write = await db(actor); return write.prepare("SELECT * FROM finance_periods WHERE id=? AND company_id=?").bind(periodId, actor.companyId).first<Row>(); },
+        period: async (facts) => { const { periodId, actor } = facts; const write = await db(actor); return write.prepare(PERIOD_BY_ID_SQL).bind(periodId, actor.companyId).first<Row>(); },
         commitCloseSnapshot: async (facts) => { const { actor, key, periodId, period, output, values, sourceVersion, now } = facts; const write = await db(actor); return executeCommand(write, actor, key, "finance.close.check", { periodId }, periodId, Number(period.close_version), output, await Promise.all(values.map(async check => await nativeFinanceEngines(write, actor.companyId).closeCheck([crypto.randomUUID(), actor.companyId, periodId, check.key, sourceVersion, check.status, check.count, JSON.stringify(check), now, actor.userId])))); } });
 }

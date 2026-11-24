@@ -5,6 +5,7 @@ import { SUPPLIER_RESERVATION_GUARD_SQL, BANK_TRANSACTION_BY_ID_SQL } from './fi
 import {requireLegacyFinanceJournal} from './document-purchases';
 import { CHART_BASE_CURRENCY_BY_ID_SQL } from './finance-read-tail-r15-sql';
 import { ACTIVE_CHART_BASE_CURRENCY_BY_ID_SQL } from './finance-read-tail-r32-sql';
+import { PERIOD_BY_ID_SQL } from './finance-read-tail-r33-sql';
 import { nativeFinanceOwnerWrite } from './native-finance-owner-write';
 import{confirmedFunctionalFx,prepareJournal,journalPreparation,journalStatements}from '@erpx/server-finance/adapters/journal-planning';
 import{decimalToMinor}from '@erpx/server-finance/public/money-primitives';
@@ -610,7 +611,7 @@ function fxService(provided?: SqlDatabase) {
     WHERE i.company_id=? AND a.chart_id=? AND i.currency<>? AND i.invoice_date<=? AND i.status IN ('posted','partially_paid','paid')
     ORDER BY i.currency,i.invoice_number,i.id`).bind(period.end_date, period.end_date, period.end_date, actor.companyId, chartId, chart.base_currency, period.end_date).all<FinanceRow>()).results;
         },
-        workspacePeriod: async (facts) => { const { periodId, actor } = facts; const write = await db(actor); return write.prepare("SELECT * FROM finance_periods WHERE id=? AND company_id=?").bind(periodId, actor.companyId).first<FinanceRow>(); },
+        workspacePeriod: async (facts) => { const { periodId, actor } = facts; const write = await db(actor); return write.prepare(PERIOD_BY_ID_SQL).bind(periodId, actor.companyId).first<FinanceRow>(); },
         workspaceCurrencies: async (facts) => { const { actor, period } = facts; const write = await db(actor); return (await write.prepare(`SELECT DISTINCT a.chart_id,c.name chart_name,c.base_currency,i.currency FROM finance_invoices i JOIN finance_accounts a ON a.id=CASE WHEN i.kind='receivable' THEN i.debit_account_id ELSE i.credit_account_id END JOIN finance_charts c ON c.id=a.chart_id WHERE i.company_id=? AND i.currency<>c.base_currency AND i.invoice_date<=? AND i.status IN ('posted','partially_paid') AND i.outstanding_minor>0 ORDER BY c.name,i.currency`).bind(actor.companyId, period.end_date).all<FinanceRow>()).results; },
         workspaceAccounts: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare("SELECT a.id,a.chart_id,a.code,a.name,a.category,a.currency FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id WHERE a.company_id=? AND a.status='active' AND a.currency=c.base_currency AND a.category IN ('other_income','other_expense') ORDER BY a.code").bind(actor.companyId).all<FinanceRow>()).results; },
         workspaceRuns: async (facts) => { const { actor, periodId } = facts; const write = await db(actor); return (await write.prepare("SELECT r.*,c.name chart_name FROM finance_fx_revaluation_runs r JOIN finance_charts c ON c.id=r.chart_id WHERE r.company_id=? AND r.period_id=? ORDER BY r.created_at DESC").bind(actor.companyId, periodId).all<FinanceRow>()).results; },
