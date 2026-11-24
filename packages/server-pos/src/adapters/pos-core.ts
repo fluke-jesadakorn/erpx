@@ -1,6 +1,6 @@
 import { nativePosOne, nativePosRun } from './native-owner-write';
 import { nativePosAuditChargeToRoomStatement, nativePosAuditKitchenStartStatement } from './native-pos-audit-reads';
-import { nativePosPaymentByIdPlainStatement, nativePosPostingJournalStatement, nativePosRegisterByIdStatement, nativePosRegisterCatalogStatement, nativePosSaleByIdStatement } from './native-pos-core-statement';
+import { nativePosOpenShiftByIdStatement, nativePosOpenShiftByRegisterStatement, nativePosPaymentByIdPlainStatement, nativePosPostingJournalStatement, nativePosRegisterByIdStatement, nativePosRegisterByNameStatement, nativePosRegisterCatalogStatement, nativePosRegistersByKindStatement, nativePosRestaurantRegisterPropertyStatement, nativePosSaleByIdStatement, nativePosTableByNameStatement } from './native-pos-core-statement';
 import { nativePosFulfilledLinesStatement, nativePosFirstPaymentIdStatement, nativePosLinesBySaleStatement, nativePosLinesTotalStatement, nativePosOpenPaymentIdStatement, nativePosPaymentIdBySaleStatement, nativePosPendingPaymentIdStatement, nativePosRefundablePaymentsStatement, nativePosSucceededPaymentTotalStatement } from './native-pos-sale-child';
 import { posGuestAccountInterface } from "@erpx/server-pms/public/pos-guest-account-interface";
 import { hospitalityOwnerProjectionSources as pmsProjectionSources } from "@erpx/server-pms/public/hospitality-owner-projection-sources";
@@ -194,7 +194,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
             company: string;
             branchId: string;
             registerName: string;
-        }) => one(db, 'SELECT id FROM pos_registers WHERE company_id=? AND branch_id=? AND name=?', facts.company, facts.branchId, facts.registerName),
+        }) => nativePosRegisterByNameStatement(db, facts),
         writePosSettings1: (facts: {
             company: string;
             currency: string;
@@ -235,7 +235,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         }) => one(db, 'SELECT * FROM pos_registers WHERE id=? FOR UPDATE', facts.id),
         readPosShifts1: (facts: {
             id: string;
-        }) => one(db, "SELECT id FROM pos_shifts WHERE register_id=? AND state='open'", facts.id),
+        }) => nativePosOpenShiftByRegisterStatement(db, facts.id),
         writePosRegisters2: (facts: {
             warehouseId: string;
             branch_id: string | number | boolean | null;
@@ -259,7 +259,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         readPosTables1: (facts: {
             registerId: string;
             name: string;
-        }) => one(db, 'SELECT id FROM pos_tables WHERE register_id=? AND name=?', facts.registerId, facts.name),
+        }) => nativePosTableByNameStatement(db, facts),
         readPosCatalog1: (facts: {
             productId: string;
             company: string;
@@ -283,7 +283,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
             branchId: string | null;
             branchId2: string | null;
             kind: "stock" | "recipe" | "service";
-        }) => all(db, "SELECT id FROM pos_registers WHERE company_id=? AND (?::text IS NULL OR branch_id=?) AND (?<>'recipe' OR mode='restaurant')", facts.company, facts.branchId, facts.branchId2, facts.kind),
+        }) => nativePosRegistersByKindStatement(db, facts),
         readPosRegisters6: (facts: {
             rid: string;
         }) => nativePosRegisterByIdStatement(db, facts.rid),
@@ -373,10 +373,10 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         }) => nativePosRun(db, '', 'core_writepossales6_369', [facts.fact0, facts.id]),
         readPosRegisters9: (facts: {
             register_id: string | number | boolean | null;
-        }) => one(db, "SELECT id,property_id FROM pos_registers WHERE id=? AND mode='restaurant'", facts.register_id),
+        }) => nativePosRestaurantRegisterPropertyStatement(db, facts.register_id),
         readPosShifts4: (facts: {
             shift_id: string | number | boolean | null;
-        }) => one(db, "SELECT id FROM pos_shifts WHERE id=? AND state='open'", facts.shift_id),
+        }) => nativePosOpenShiftByIdStatement(db, facts.shift_id),
         readPosPayments7: (facts: {
             id: string | number | boolean | null;
         }) => nativePosFirstPaymentIdStatement(db, facts.id),

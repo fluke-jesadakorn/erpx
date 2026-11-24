@@ -417,6 +417,14 @@ pub const KINDS: &[&str] = &[
     crate::adapters::core_reads::SHIFTS,
     crate::adapters::core_reads::TABLES,
     crate::adapters::core_reads::CASH_MOVEMENTS,
+    // POS keyed register/shift/table reads: closed, SELECT-only, lock-free
+    // owner statements ported from the inline TypeScript literals.
+    crate::adapters::core_reads::REGISTER_BY_NAME,
+    crate::adapters::core_reads::OPEN_SHIFT_BY_REGISTER,
+    crate::adapters::core_reads::TABLE_BY_NAME,
+    crate::adapters::core_reads::REGISTERS_BY_KIND,
+    crate::adapters::core_reads::RESTAURANT_REGISTER_PROPERTY,
+    crate::adapters::core_reads::OPEN_SHIFT_BY_ID,
     // POS addon/package obligation read kinds: closed, SELECT-only owner
     // statements that the TypeScript obligation bridge requests on the
     // caller's unit.
@@ -631,7 +639,7 @@ mod tests {
     use super::*;
     #[test]
     fn every_kind_is_allow_listed_with_parameterized_owner_sql() {
-        assert_eq!(KINDS.len(), 166);
+        assert_eq!(KINDS.len(), 172);
         for kind in KINDS {
             assert!(supported(kind), "kind must be allow listed: {kind}");
             let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
@@ -1083,23 +1091,27 @@ mod tests {
         assert_eq!(crate::adapters::boundary_reads::KINDS.len(), 9);
     }
 
-    /// The retired core workspace reads (shifts family) are SELECT-only owner
-    /// statements scoped by caller-supplied Company/branch values. No caller
-    /// SQL is accepted; transport only selects the statement text.
+    /// The retired core workspace and keyed register/shift/table reads are
+    /// SELECT-only, lock-free owner statements scoped by caller-supplied
+    /// Company/branch or key values. No caller SQL is accepted; transport only
+    /// selects the statement text.
     #[test]
     fn core_read_kinds_are_select_only() {
         for kind in crate::adapters::core_reads::KINDS {
             assert!(supported(kind), "core read kind must be mounted: {kind}");
             let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
             assert!(stmt.starts_with("SELECT "), "core kind must be SELECT-only: {kind}");
-            for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";"] {
+            for forbidden in [
+                "INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE", "FOR SHARE",
+                "FOR NO KEY UPDATE", "LOCK TABLE", "pg_advisory", "pms_sources", "pms_properties",
+            ] {
                 assert!(
                     !stmt.contains(forbidden),
-                    "core kind must not mutate: {kind} contains {forbidden}"
+                    "core kind must not mutate, lock or cross owners: {kind} contains {forbidden}"
                 );
             }
         }
-        assert_eq!(crate::adapters::core_reads::KINDS.len(), 3);
+        assert_eq!(crate::adapters::core_reads::KINDS.len(), 9);
     }
 
     /// The retired day-report list reads are SELECT-only, lock-free owner

@@ -4,6 +4,12 @@ import {
   nativePosShiftsStatement,
   nativePosTablesStatement,
   nativePosCashMovementsStatement,
+  nativePosRegisterByNameStatement,
+  nativePosOpenShiftByRegisterStatement,
+  nativePosTableByNameStatement,
+  nativePosRegistersByKindStatement,
+  nativePosRestaurantRegisterPropertyStatement,
+  nativePosOpenShiftByIdStatement,
   nativePosSalesEvidenceStatement,
   nativePosSaleByIdStatement,
   nativePosSettingsCurrencyStatement,
@@ -1140,5 +1146,148 @@ describe('native POS by-id register read (byte-identical SELECT-only family)', (
       expect(source).not.toContain(literal);
       expect(source).toContain('nativePosRegisterByIdStatement');
     }
+  });
+});
+
+describe('native POS keyed register/shift/table reads (core read family)', () => {
+  const cases = [
+    {
+      name: 'register by company/branch/name',
+      kind: 'pos_core_register_by_name',
+      sql: 'SELECT id FROM pos_registers WHERE company_id=? AND branch_id=? AND name=?',
+      values: ['company', 'branch', 'Retail'],
+      company: 'company',
+      bridge: nativePosRegisterByNameStatement,
+      args: [{ company: 'company', branchId: 'branch', registerName: 'Retail' }],
+      rows: [{ id: 'register' }],
+      all: false,
+    },
+    {
+      name: 'open shift by register',
+      kind: 'pos_core_open_shift_by_register',
+      sql: "SELECT id FROM pos_shifts WHERE register_id=? AND state='open'",
+      values: ['register'],
+      company: '',
+      bridge: nativePosOpenShiftByRegisterStatement,
+      args: ['register'],
+      rows: [{ id: 'shift-1' }],
+      all: false,
+    },
+    {
+      name: 'table by register/name',
+      kind: 'pos_core_table_by_name',
+      sql: 'SELECT id FROM pos_tables WHERE register_id=? AND name=?',
+      values: ['register', 'T1'],
+      company: '',
+      bridge: nativePosTableByNameStatement,
+      args: [{ registerId: 'register', name: 'T1' }],
+      rows: [{ id: 'table-1' }],
+      all: false,
+    },
+    {
+      name: 'register ids by Company/branch/kind',
+      kind: 'pos_core_registers_by_kind',
+      sql: "SELECT id FROM pos_registers WHERE company_id=? AND (?::text IS NULL OR branch_id=?) AND (?<>'recipe' OR mode='restaurant')",
+      values: ['company', 'branch', 'branch', 'recipe'],
+      company: 'company',
+      bridge: nativePosRegistersByKindStatement,
+      args: [{ company: 'company', branchId: 'branch', branchId2: 'branch', kind: 'recipe' }],
+      rows: [{ id: 'register' }],
+      all: true,
+    },
+    {
+      name: 'restaurant register id/property by id',
+      kind: 'pos_core_restaurant_register_property',
+      sql: "SELECT id,property_id FROM pos_registers WHERE id=? AND mode='restaurant'",
+      values: ['register'],
+      company: '',
+      bridge: nativePosRestaurantRegisterPropertyStatement,
+      args: ['register'],
+      rows: [{ id: 'register', property_id: null }],
+      all: false,
+    },
+    {
+      name: 'open shift by id',
+      kind: 'pos_core_open_shift_by_id',
+      sql: "SELECT id FROM pos_shifts WHERE id=? AND state='open'",
+      values: ['shift-1'],
+      company: '',
+      bridge: nativePosOpenShiftByIdStatement,
+      args: ['shift-1'],
+      rows: [{ id: 'shift-1' }],
+      all: false,
+    },
+  ] as const;
+
+  function keyedDb(seen: { sql?: string; values?: unknown[] }, rows: unknown[]) {
+    return {
+      prepare: (sql: string) => ({
+        bind: (...values: unknown[]) => {
+          seen.sql = sql;
+          seen.values = values;
+          return {
+            first: async () => rows[0],
+            all: async () => ({ results: rows, success: true, meta: { changes: 0, duration: 0 } }),
+          };
+        },
+      }),
+    };
+  }
+
+  it.each(cases)('requests the $name from the native core registry only', async (item) => {
+    process.env.ERPX_NATIVE_POS_OWNER_CONFIG = config();
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: { sql: item.sql, values: [...item.values] } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    vi.stubGlobal('fetch', fetch);
+    const seen: { sql?: string; values?: unknown[] } = {};
+    const db = keyedDb(seen, [...item.rows]);
+    const result = await (item.bridge as (db: never, ...rest: unknown[]) => Promise<unknown>)(
+      db as never, ...item.args,
+    );
+    expect(result).toEqual(item.all ? [...item.rows] : item.rows[0]);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const [url, init] = fetch.mock.calls[0];
+    expect(url).toBe(`http://127.0.0.1:44994/api/v1/companies/${item.company}/pos/owner-write`);
+    expect(init.method).toBe('POST');
+    expect(init.headers['x-erpx-context-company']).toBe(item.company);
+    expect(init.headers['idempotency-key']).toMatch(/^[0-9a-f-]{36}$/);
+    expect(JSON.parse(init.body)).toEqual({ company: item.company, kind: item.kind, values: [...item.values] });
+    expect(seen.sql).toBe(item.sql);
+    expect(seen.values).toEqual([...item.values]);
+    expect(seen.sql).toMatch(/^SELECT /);
+    expect(seen.sql).not.toMatch(/FOR UPDATE|FOR SHARE|FOR NO KEY UPDATE|LOCK TABLE|pg_advisory|INSERT|UPDATE |DELETE|RETURNING|pms_sources|pms_properties/);
+    expect(seen.sql!.match(/\?/g)?.length).toBe(item.values.length);
+  });
+
+  it.each(cases)('fails closed for $name when the native owner service is unconfigured', async (item) => {
+    delete process.env.ERPX_NATIVE_POS_OWNER_CONFIG;
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    await expect(
+      (item.bridge as (db: never, ...rest: unknown[]) => Promise<unknown>)({} as never, ...item.args),
+    ).rejects.toMatchObject({ code: 'NATIVE_POS_OWNER_UNAVAILABLE', status: 503 });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('keeps the retired keyed SQL literals out of the TS core adapter', async () => {
+    const { readFileSync } = await import('node:fs');
+    const core = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos-core.ts', import.meta.url), 'utf8');
+    for (const item of cases) {
+      expect(core).not.toContain(item.sql);
+      expect(core).toContain(item.bridge.name);
+    }
+    // Row locks, PMS fragments, day-report and Stripe reads stay untouched.
+    expect(core).toContain('SELECT * FROM pos_registers WHERE id=? FOR UPDATE');
+    expect(core).toContain('pmsProjectionSources.pms_sources');
+    expect(core).toContain("SELECT id FROM pos_day_closes WHERE company_id=?");
+    const owner = readFileSync(new URL('../../../packages/server-pos/src/adapters/owner_writes.rs', import.meta.url), 'utf8');
+    expect(owner).toContain('crate::adapters::day_report_reads::SETTLEMENTS');
+    expect(owner).toContain('crate::adapters::stripe_reads::REFUND_ID_BY_PROVIDER');
+    expect(owner).toContain('crate::adapters::core_reads::REGISTER_BY_NAME');
+    expect(owner).toContain('crate::adapters::core_reads::OPEN_SHIFT_BY_ID');
   });
 });

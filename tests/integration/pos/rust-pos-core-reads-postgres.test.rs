@@ -34,7 +34,26 @@ const CORE_READ_KINDS: &[&str] = &[
     "pos_core_shifts",
     "pos_core_tables",
     "pos_core_cash_movements",
+    "pos_core_register_by_name",
+    "pos_core_open_shift_by_register",
+    "pos_core_table_by_name",
+    "pos_core_registers_by_kind",
+    "pos_core_restaurant_register_property",
+    "pos_core_open_shift_by_id",
 ];
+
+/// Expected positional bind count for each closed kind.
+fn core_binds(kind: &str) -> usize {
+    match kind {
+        "pos_core_shifts" | "pos_core_tables" | "pos_core_cash_movements"
+        | "pos_core_register_by_name" => 3,
+        "pos_core_table_by_name" => 2,
+        "pos_core_registers_by_kind" => 4,
+        "pos_core_open_shift_by_register" | "pos_core_restaurant_register_property"
+        | "pos_core_open_shift_by_id" => 1,
+        _ => panic!("unknown core kind: {kind}"),
+    }
+}
 
 /// `pos.ts` shifts-family reads reconstructed verbatim as the parity oracle.
 fn legacy_core_sql(kind: &str) -> Option<&'static str> {
@@ -42,6 +61,12 @@ fn legacy_core_sql(kind: &str) -> Option<&'static str> {
         "pos_core_shifts" => "SELECT s.*,r.name register_name,\n   s.opening_minor+COALESCE((SELECT SUM(p.amount_minor) FROM pos_payments p JOIN pos_sales b ON b.id=p.sale_id WHERE b.shift_id=s.id AND p.method='cash' AND p.state='succeeded'),0)\n   -COALESCE((SELECT SUM(rp.amount_minor) FROM pos_refund_payments rp JOIN pos_refunds rf ON rf.id=rp.refund_id JOIN pos_payments p ON p.id=rp.payment_id WHERE rf.payout_shift_id=s.id AND p.method='cash' AND rp.state='succeeded'),0)\n   +COALESCE((SELECT SUM(m.amount_minor) FROM pos_cash_movements m WHERE m.shift_id=s.id AND m.approved_by IS NOT NULL),0) cash_expected_minor\n   FROM pos_shifts s JOIN pos_registers r ON r.id=s.register_id WHERE s.company_id=? AND (?::text IS NULL OR s.branch_id=?) ORDER BY s.opened_at DESC LIMIT 100",
         "pos_core_tables" => "SELECT t.* FROM pos_tables t JOIN pos_registers r ON r.id=t.register_id WHERE r.company_id=? AND (?::text IS NULL OR r.branch_id=?) ORDER BY t.name",
         "pos_core_cash_movements" => "SELECT m.*,s.register_id FROM pos_cash_movements m JOIN pos_shifts s ON s.id=m.shift_id WHERE s.company_id=? AND (?::text IS NULL OR s.branch_id=?) ORDER BY m.created_at DESC LIMIT 100",
+        "pos_core_register_by_name" => "SELECT id FROM pos_registers WHERE company_id=? AND branch_id=? AND name=?",
+        "pos_core_open_shift_by_register" => "SELECT id FROM pos_shifts WHERE register_id=? AND state='open'",
+        "pos_core_table_by_name" => "SELECT id FROM pos_tables WHERE register_id=? AND name=?",
+        "pos_core_registers_by_kind" => "SELECT id FROM pos_registers WHERE company_id=? AND (?::text IS NULL OR branch_id=?) AND (?<>'recipe' OR mode='restaurant')",
+        "pos_core_restaurant_register_property" => "SELECT id,property_id FROM pos_registers WHERE id=? AND mode='restaurant'",
+        "pos_core_open_shift_by_id" => "SELECT id FROM pos_shifts WHERE id=? AND state='open'",
         _ => return None,
     })
 }
@@ -53,9 +78,15 @@ fn core_kinds_are_mounted_and_match_the_owner_statements() {
         assert!(mounted::supported(kind), "core kind must be mounted: {kind}");
         let sql = mounted::sql(kind).unwrap_or_else(|| panic!("missing SQL for mounted kind {kind}"));
         assert!(sql.starts_with("SELECT "), "kind must be SELECT-only: {kind}");
-        assert_eq!(sql.matches('?').count(), 3, "Company/branch scope binds: {kind}");
-        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";"] {
-            assert!(!sql.contains(forbidden), "kind must not mutate: {kind} contains {forbidden}");
+        assert_eq!(sql.matches('?').count(), core_binds(kind), "bind count drifted for {kind}");
+        for forbidden in [
+            "INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE", "FOR SHARE",
+            "FOR NO KEY UPDATE", "LOCK TABLE", "pg_advisory", "pms_sources", "pms_properties",
+        ] {
+            assert!(
+                !sql.contains(forbidden),
+                "kind must not mutate, lock or cross owners: {kind} contains {forbidden}"
+            );
         }
         assert_eq!(sql, legacy_core_sql(kind).unwrap(), "mounted SQL drifted for {kind}");
     }
@@ -74,6 +105,14 @@ async fn rows(connection: &mut PgConnection, sql: &str, values: &[Option<&str>])
         .unwrap()
         .into_iter()
         .map(|row| serde_json::from_str::<Value>(&row.try_get::<String, _>(0).unwrap()).unwrap())
+        .collect()
+}
+
+async fn ids(connection: &mut PgConnection, sql: &str, values: &[Option<&str>]) -> Vec<String> {
+    rows(connection, sql, values)
+        .await
+        .into_iter()
+        .map(|row| row.get("id").and_then(Value::as_str).unwrap_or_default().to_string())
         .collect()
 }
 
@@ -262,5 +301,41 @@ fn core_read_statements_execute_and_scope_on_postgres() {
             .len(),
             3
         );
+        // Keyed register/shift/table reads resolve the seeded owner rows and
+        // stay closed to out-of-scope, closed or mismatched records.
+        assert_eq!(
+            ids(&mut connection, mounted::sql(mounted::REGISTER_BY_NAME).unwrap(),
+                &[Some("company"), Some("branch"), Some("Retail")]).await,
+            vec!["register"]
+        );
+        assert!(ids(&mut connection, mounted::sql(mounted::REGISTER_BY_NAME).unwrap(),
+            &[Some("company"), Some("other"), Some("Retail")]).await.is_empty());
+        assert_eq!(
+            ids(&mut connection, mounted::sql(mounted::OPEN_SHIFT_BY_REGISTER).unwrap(),
+                &[Some("register")]).await,
+            vec!["shift-1"]
+        );
+        assert_eq!(
+            ids(&mut connection, mounted::sql(mounted::TABLE_BY_NAME).unwrap(),
+                &[Some("register"), Some("T1")]).await,
+            vec!["table-1"]
+        );
+        assert_eq!(
+            ids(&mut connection, mounted::sql(mounted::REGISTERS_BY_KIND).unwrap(),
+                &[Some("company"), Some("branch"), Some("branch"), Some("recipe")]).await,
+            vec!["register"]
+        );
+        assert_eq!(
+            ids(&mut connection, mounted::sql(mounted::RESTAURANT_REGISTER_PROPERTY).unwrap(),
+                &[Some("register")]).await,
+            vec!["register"]
+        );
+        assert_eq!(
+            ids(&mut connection, mounted::sql(mounted::OPEN_SHIFT_BY_ID).unwrap(),
+                &[Some("shift-1")]).await,
+            vec!["shift-1"]
+        );
+        assert!(ids(&mut connection, mounted::sql(mounted::OPEN_SHIFT_BY_ID).unwrap(),
+            &[Some("shift-2")]).await.is_empty());
     });
 }

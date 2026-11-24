@@ -402,3 +402,88 @@ export async function nativePosPaymentByIdPlainStatement<T = SqlValueRow>(
 ): Promise<T | null> {
   return nativePosOne<T>(db, '', 'core_readpospaymentbyid_541', [paymentId]);
 }
+
+/**
+ * Owner-issued keyed register read by Company/branch/name. The SQL lives in the
+ * native POS owner registry (`erpx-server-pos::adapters::core_reads`, kind
+ * `pos_core_register_by_name`); this bridge sends only the typed kind and the
+ * positional scope values. Caller-transaction, lock-free; no local SQL, mirror
+ * or fallback remains. Row-locked register reads stay inline in the callers.
+ */
+export async function nativePosRegisterByNameStatement<T = SqlValueRow>(
+  db: SqlDatabase,
+  facts: { company: string; branchId: string; registerName: string },
+): Promise<T | null> {
+  return nativePosOne<T>(db, facts.company, 'pos_core_register_by_name', [
+    facts.company, facts.branchId, facts.registerName,
+  ]);
+}
+
+/**
+ * Owner-issued open-shift-by-register read. The SQL lives in the native POS
+ * owner registry (`erpx-server-pos::adapters::core_reads`, kind
+ * `pos_core_open_shift_by_register`); this bridge sends only the typed kind and
+ * the register id. Caller-transaction, lock-free; no local SQL or fallback.
+ */
+export async function nativePosOpenShiftByRegisterStatement<T = SqlValueRow>(
+  db: SqlDatabase,
+  registerId: unknown,
+): Promise<T | null> {
+  return nativePosOne<T>(db, '', 'pos_core_open_shift_by_register', [registerId]);
+}
+
+/**
+ * Owner-issued table-by-register/name read. The SQL lives in the native POS
+ * owner registry (`erpx-server-pos::adapters::core_reads`, kind
+ * `pos_core_table_by_name`); this bridge sends only the typed kind and the
+ * positional values. Caller-transaction, lock-free; no local SQL or fallback.
+ */
+export async function nativePosTableByNameStatement<T = SqlValueRow>(
+  db: SqlDatabase,
+  facts: { registerId: string; name: string },
+): Promise<T | null> {
+  return nativePosOne<T>(db, '', 'pos_core_table_by_name', [facts.registerId, facts.name]);
+}
+
+/**
+ * Owner-issued register-id list scoped by Company/branch/kind. The SQL lives in
+ * the native POS owner registry (`erpx-server-pos::adapters::core_reads`, kind
+ * `pos_core_registers_by_kind`); this bridge sends only the typed kind and the
+ * positional scope values. Caller-transaction, lock-free; no local SQL or
+ * fallback remains.
+ */
+export async function nativePosRegistersByKindStatement(
+  db: SqlDatabase,
+  facts: { company: string; branchId: string | null; branchId2: string | null; kind: string },
+): Promise<SqlValueRow[]> {
+  return nativePosAll(db, facts.company, 'pos_core_registers_by_kind', [
+    facts.company, facts.branchId, facts.branchId2, facts.kind,
+  ]);
+}
+
+/**
+ * Owner-issued restaurant register id/property-by-id read. The SQL lives in the
+ * native POS owner registry (`erpx-server-pos::adapters::core_reads`, kind
+ * `pos_core_restaurant_register_property`); this bridge sends only the typed
+ * kind and the register id. Caller-transaction, lock-free; no local SQL or
+ * fallback remains. Row-locked register reads stay inline in the callers.
+ */
+export async function nativePosRestaurantRegisterPropertyStatement<T = SqlValueRow>(
+  db: SqlDatabase,
+  registerId: unknown,
+): Promise<T | null> {
+  return nativePosOne<T>(db, '', 'pos_core_restaurant_register_property', [registerId]);
+}
+
+/**
+ * Owner-issued open-shift-by-id read. The SQL lives in the native POS owner
+ * registry (`erpx-server-pos::adapters::core_reads`, kind
+ * `pos_core_open_shift_by_id`); this bridge sends only the typed kind and the
+ * shift id. Caller-transaction, lock-free; no local SQL or fallback remains.
+ */
+export async function nativePosOpenShiftByIdStatement<T = SqlValueRow>(
+  db: SqlDatabase,
+  shiftId: unknown,
+): Promise<T | null> {
+  return nativePosOne<T>(db, '', 'pos_core_open_shift_by_id', [shiftId]);
+}
