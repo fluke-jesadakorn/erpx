@@ -5,6 +5,7 @@ import { hospitalityDayControls as control, type HospitalityDayControlRepository
 import { pmsDayControlPosFacts } from "@erpx/server-pos/public/pms-day-control-facts";
 import { pmsDayControlFinanceFacts } from "@erpx/server-finance/public/pms-day-control-facts";
 import { nativePmsReadFirst, PMS_RD_CHARGE_CORRECTION_PENDING_COUNT, PMS_RD_PROPERTY_CONFIG, PMS_RD_PENDING_HOTEL_TRANSFERS, PMS_RD_UNPOSTED_BOOKING_RECEIPTS, PMS_RD_UNPOSTED_COUNTER_RECEIPTS } from "./native-pms-read";
+import { pmsRefundPaymentJoinHeadSql } from "./pms-read-tail-r34-sql";
 function repository(db: SqlDatabase): HospitalityDayControlRepository {
     const pos = pmsDayControlPosFacts(db), finance = pmsDayControlFinanceFacts(db);
     return {
@@ -36,8 +37,7 @@ function repository(db: SqlDatabase): HospitalityDayControlRepository {
             companyId: string;
             timezone: string;
             businessDate: string;
-        }) => db.prepare(`SELECT count(*) n FROM pms_booking_refund_requests r
-    JOIN pms_booking_payments p ON p.id=r.payment_id WHERE p.property_id=? AND p.company_id=?
+        }) => db.prepare(`${pmsRefundPaymentJoinHeadSql('count')} WHERE p.property_id=? AND p.company_id=?
     AND (r.state='failed' OR (r.state IN ('approved','processing','requires_action') AND r.last_error IS NOT NULL))
     AND to_char(to_timestamp(r.created_at/1000.0) AT TIME ZONE ?,'YYYY-MM-DD')<=?`).bind(facts.propertyId, facts.companyId, facts.timezone, facts.businessDate).first<Count>().then(row => Number(row?.n ?? 0)),
         unpostedCounterReceipts: (facts: {

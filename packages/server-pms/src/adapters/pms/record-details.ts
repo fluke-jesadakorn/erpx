@@ -9,6 +9,7 @@ import { pmsRecordDetailFacts } from "@erpx/server-finance/public/pms-record-det
 import { createPmsRecordDetails, type PmsRecordDetailsRepository } from "@erpx/server-pms/application/record-details";
 import { nativePmsReadFirst, PMS_RD_DOCUMENT_SNAPSHOT } from "../native-pms-read";
 import { PMS_STRIPE_REFUND_COLUMNS_SQL } from "../pms-read-tail-r22-sql";
+import { pmsRefundPaymentJoinHeadSql } from "../pms-read-tail-r34-sql";
 function repository(db: SqlDatabase): PmsRecordDetailsRepository {
     const financial = pmsRecordDetailFacts(db);
     return {
@@ -16,7 +17,7 @@ function repository(db: SqlDatabase): PmsRecordDetailsRepository {
             id: string;
             companyId: string;
             kind: "booking" | "counter";
-        }) => db.prepare(facts.kind === 'booking' ? 'SELECT r.id,p.property_id,r.amount_minor,p.status,r.state refund_state,r.created_at,r.last_error,r.reason FROM pms_booking_refund_requests r JOIN pms_booking_payments p ON p.id=r.payment_id WHERE r.id=? AND p.company_id=?' : `${PMS_STRIPE_REFUND_COLUMNS_SQL} WHERE id=? AND company_id=? AND refund_state IS NOT NULL`).bind(facts.id, facts.companyId).first<Record<string, string | number | null>>(),
+        }) => db.prepare(facts.kind === 'booking' ? `${pmsRefundPaymentJoinHeadSql('detail')} WHERE r.id=? AND p.company_id=?` : `${PMS_STRIPE_REFUND_COLUMNS_SQL} WHERE id=? AND company_id=? AND refund_state IS NOT NULL`).bind(facts.id, facts.companyId).first<Record<string, string | number | null>>(),
         document: (facts: {
             documentId: string;
         }) => nativePmsReadFirst<{

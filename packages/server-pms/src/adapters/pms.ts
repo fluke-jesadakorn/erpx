@@ -4,6 +4,7 @@ import { PMS_STRIPE_REFUND_COLUMNS_SQL } from "./pms-read-tail-r22-sql";
 import { PMS_RECORDS_PROJECTION_PREFIX_SQL } from "./pms-read-tail-r24-sql";
 import { PMS_IDS_JSONB_MEMBER_SQL } from "./pms-read-tail-r26-sql";
 import { pmsBookingPaymentIdProbeSql } from "./pms-read-tail-r29-sql";
+import { pmsRefundPaymentJoinHeadSql } from "./pms-read-tail-r34-sql";
 import { roomChargeReversalWork } from "@erpx/server-pos/public/room-charge-reversal-queue";
 import { withPmsPurchasedCommand } from "@erpx/server-pms/adapters/purchase-boundary";
 import { readPurchasedAccesses, pmsPackageEnforcementMode, type PurchasedAccess } from "@erpx/server-commercial/public/purchase-command-boundary";
@@ -177,7 +178,7 @@ function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
             created_at: number;
             last_error: string | null;
             needs_receipt_recovery: boolean;
-        }>(db, "SELECT r.id,p.property_id,r.amount_minor,p.status,r.state refund_state,r.created_at,r.last_error, (p.status='refund_review' AND r.state='requested' AND r.allocations_json::jsonb='[]'::jsonb AND NOT EXISTS(SELECT 1 FROM pms_records e WHERE e.property_id=p.property_id AND e.kind='entry' AND e.data_json::jsonb->>'sourceKey'='online-payment:'||p.id)) needs_receipt_recovery FROM pms_booking_refund_requests r JOIN pms_booking_payments p ON p.id=r.payment_id WHERE p.company_id=? AND p.property_id=? ORDER BY r.created_at DESC LIMIT 100", facts.companyId,facts.propertyId),
+        }>(db, `${pmsRefundPaymentJoinHeadSql('detailReceipt')} WHERE p.company_id=? AND p.property_id=? ORDER BY r.created_at DESC LIMIT 100`, facts.companyId,facts.propertyId),
         readFinanceBankTransactions: facts => finance.readFinanceBankTransactions(facts),
         readPosConnections2: facts => pos.readPosConnections2(facts),
         readFinanceCharts2: facts => finance.readFinanceCharts2(facts),

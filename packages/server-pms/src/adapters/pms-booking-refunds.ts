@@ -1,6 +1,7 @@
 import { assertPmsProviderAuthority } from "@erpx/server-pms/adapters/provider-authority";
 import { PMS_WRITE_CONTEXT_SQL } from "./pms-read-tail-r17-sql";
 import { PMS_BOOKING_PAYMENT_BY_ID_SQL } from "./pms-read-tail-r18-sql";
+import { pmsRefundPaymentJoinHeadSql } from "./pms-read-tail-r34-sql";
 import 'server-only';
 import { randomUUID } from 'node:crypto';
 import { type Snapshot } from "@erpx/server-pms/public/rules/pms";
@@ -63,7 +64,7 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase, companyId = ''
             id: string;
             id2: string;
             companyId: string;
-        }) => db.prepare("SELECT r.id,p.property_id FROM pms_booking_refund_requests r JOIN pms_booking_payments p ON p.id=r.payment_id WHERE (r.id=? OR p.id=?) AND p.company_id=? AND r.state='requested' ORDER BY r.created_at LIMIT 1").bind(facts.id, facts.id2, facts.companyId).first<{
+        }) => db.prepare(`${pmsRefundPaymentJoinHeadSql('property')} WHERE (r.id=? OR p.id=?) AND p.company_id=? AND r.state='requested' ORDER BY r.created_at LIMIT 1`).bind(facts.id, facts.id2, facts.companyId).first<{
             id: string;
             property_id: string;
         }>(),
@@ -83,7 +84,7 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase, companyId = ''
         }) => write('pms_w012', [facts.userId, facts.fact1, facts.payment_id]),
         readPmsRecords: (facts: {
             companyId: string;
-        }) => db.prepare(`SELECT r.id,p.id payment_id,p.property_id,r.amount_minor,p.status,r.state refund_state,r.last_error,r.reason,r.created_at, (p.status='refund_review' AND r.state='requested' AND r.allocations_json::jsonb='[]'::jsonb AND NOT EXISTS(SELECT 1 FROM pms_records e WHERE e.property_id=p.property_id AND e.kind='entry' AND e.data_json::jsonb->>'sourceKey'='online-payment:'||p.id)) needs_receipt_recovery FROM pms_booking_refund_requests r JOIN pms_booking_payments p ON p.id=r.payment_id WHERE p.company_id=? ORDER BY r.created_at DESC LIMIT 100`).bind(facts.companyId).all<{
+        }) => db.prepare(`${pmsRefundPaymentJoinHeadSql('fullReceipt')} WHERE p.company_id=? ORDER BY r.created_at DESC LIMIT 100`).bind(facts.companyId).all<{
             id: string;
             payment_id: string;
             property_id: string;

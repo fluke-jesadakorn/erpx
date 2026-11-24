@@ -2,6 +2,7 @@ import {hydratePmsReceiptAllocationCredits} from "../../../../packages/server-pm
 import { PMS_WRITE_CONTEXT_SQL } from "./pms-read-tail-r17-sql";
 import { PMS_BOOKING_PAYMENT_BY_ID_SQL } from "./pms-read-tail-r18-sql";
 import { PMS_PURCHASE_CLOCK_CTE_SQL } from "./pms-read-tail-r27-sql";
+import { pmsRefundPaymentJoinHeadSql } from "./pms-read-tail-r34-sql";
 import {holdingRoutingEnabled,holdingHosts} from '@erpx/contracts/holding-hosts';
 import {bookingEmailDeliveryPayload} from "@erpx/server-pms/adapters/booking-email-delivery";
 import "server-only";
@@ -258,7 +259,7 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase, companyId = '')
         }>(),
         readPmsBookingRefundRequests1: (facts: {
             id: string;
-        }) => db.prepare('SELECT r.id,r.amount_minor,r.state,r.reason FROM pms_booking_refund_requests r JOIN pms_booking_payments p ON p.id=r.payment_id WHERE p.reservation_id=? ORDER BY r.created_at DESC').bind(facts.id).all<{
+        }) => db.prepare(`${pmsRefundPaymentJoinHeadSql('brief')} WHERE p.reservation_id=? ORDER BY r.created_at DESC`).bind(facts.id).all<{
             id: string;
             amount_minor: number;
             state: string;
