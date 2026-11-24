@@ -159,3 +159,30 @@ describe('retired Quality dead read branch',()=>{
   expect(decisions).toContain('QUALITY_HOLD_NOT_FOUND');
  });
 });
+describe('quality attachment target-scope read dedupe',()=>{
+ const source=(path:string)=>resolve(process.cwd(),path);
+ test('one fixed target-scope SELECT backs all three admitted variants',async()=>{
+  const {qualityAttachmentScopeReadSql}=await import('../../../packages/server-quality/src/adapters/quality-attachment-scope-read-sql');
+  expect(qualityAttachmentScopeReadSql('legacy_hold'))
+   .toBe('SELECT company_id,branch_id branch_id,NULL department_id,version FROM inventory_quality_holds WHERE id=?');
+  expect(qualityAttachmentScopeReadSql('hold'))
+   .toBe('SELECT company_id,branch_id AS branch_id,NULL AS department_id,version AS version FROM inventory_quality_holds WHERE id=? AND company_id=?');
+  expect(qualityAttachmentScopeReadSql('spec'))
+   .toBe('SELECT company_id,NULL::text branch_id,NULL::text department_id,version FROM inventory_quality_specs WHERE id=? AND company_id=?');
+  for(const variant of ['legacy_hold','hold','spec'] as const)expect(qualityAttachmentScopeReadSql(variant).match(/SELECT /g)).toHaveLength(1);
+  const helper=readFileSync(source('packages/server-quality/src/adapters/quality-attachment-scope-read-sql.ts'),'utf8');
+  expect(helper.match(/SELECT /g)).toHaveLength(1);
+ });
+ test('owner facts compose the shared SELECT instead of inlining it',()=>{
+  const migration='packages/server-quality/src/adapters/attachment-migration-owner.ts';
+  const policy='packages/server-quality/src/adapters/attachments-policy-facts.ts';
+  const operational='packages/server-quality/src/adapters/attachments-operational-facts.ts';
+  for(const path of [migration,policy,operational])expect(readFileSync(source(path),'utf8')).toContain('qualityAttachmentScopeReadSql');
+  expect(readFileSync(source(migration),'utf8')).not.toContain('SELECT ');
+  expect(readFileSync(source(operational),'utf8')).not.toContain('SELECT ');
+  const policyText=readFileSync(source(policy),'utf8');
+  expect(policyText.match(/SELECT /g)).toHaveLength(1);
+  expect(policyText).toContain('readQualityHold');
+  expect(readFileSync(source(operational),'utf8')).toContain('qualityAttachmentVersionGuardSql');
+ });
+});
