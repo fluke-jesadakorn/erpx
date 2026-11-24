@@ -1,6 +1,7 @@
 import {commercialSeatProjectionAccounts} from '@erpx/server-identity_access/public/commercial-seat-facts';
 import {coverageProbe} from './commercial-read-tail-r4-sources';
 import {snapshotByMonthSql} from './commercial-read-tail-r6-sources';
+import {holdingSnapshotReadSql} from './commercial-read-tail-r9-sources';
 
 import { nativeCommercialOwnerWrite, NativeCommercialOwnerWriteError } from "@erpx/server-commercial/adapters/native-owner-write";
 async function ownerWrite(kind: any, values: readonly unknown[], recordId: string, key: string) {
@@ -26,8 +27,7 @@ function transaction(tx:SqlDatabase):UsageProjectionTransaction{return {
     .all<{id:number;user_id:string;status:string;effective_at:number}>()).results;},
  async ensureHeader(plan){const {binding,month,snapshotId,observedAt,coverage,activeSeat}=plan;
    await ownerWrite('usage.snapshot-ensure', [binding.id, month, snapshotId, observedAt, coverage.ai, coverage.storage,
-     coverage.unreconciledOriginals,activeSeat?.count??null,activeSeat?.asOf??null], binding.id, `usage:${snapshotId}:ensure`);},lockHeader:(holdingId,month)=>{const binding={id:holdingId};return tx.prepare(`SELECT refreshed_at FROM billing_usage_snapshots
-      WHERE holding_id=? AND month=? FOR UPDATE`).bind(binding.id, month).first<{refreshed_at:number}>();},async meter(plan,row){const {snapshotId}=plan;
+     coverage.unreconciledOriginals,activeSeat?.count??null,activeSeat?.asOf??null], binding.id, `usage:${snapshotId}:ensure`);},lockHeader:(holdingId,month)=>{const binding={id:holdingId};return tx.prepare(holdingSnapshotReadSql("refreshed_at", " AND month=? FOR UPDATE")).bind(binding.id, month).first<{refreshed_at:number}>();},async meter(plan,row){const {snapshotId}=plan;
    await ownerWrite('usage.meter', [row.holding_id,row.month,row.source_key,row.company_id,row.company_name,
      row.branch_id,row.branch_name,row.meter_kind,row.funding_source,row.pricing_status,
      row.quantity,row.input_tokens,row.output_tokens,row.average_daily_bytes,
@@ -60,7 +60,7 @@ function repository(control:SqlDatabase):UsageProjectionRepository{return {async
       const [ai, storage, existing] = await Promise.all([
         commercialEarliestAIUsage(source,),
         commercialEarliestOriginal(source,),
-        control.prepare("SELECT month FROM billing_usage_snapshots WHERE holding_id=?")
+        control.prepare(holdingSnapshotReadSql("month", ""))
           .bind(binding.id).all<{ month: string }>(),
       ]);
       return {ai,storage,existing:existing.results};}};}
