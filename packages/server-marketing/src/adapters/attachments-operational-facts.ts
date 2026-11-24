@@ -3,6 +3,7 @@ import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import type {TargetRow} from "@erpx/server-files/public/contracts/attachments-operational";
 import { attachmentOwnerVersionGuardSql } from "./attachment-owner-version-guard";
+import { attachmentOwnerFactReadSql } from "./attachment-owner-fact-read-sql";
 const versionOwners:Record<string,string>={"marketing_asset": "marketing_assets"};
 const allowedTargets=new Set<string>(["marketing_asset"]);
 function remainingOperationalAttachmentTargetVersionGuard(
@@ -42,5 +43,5 @@ if(!allowedTargets.has(targetType))return null;
     .bind(now, targetId, expectedVersion);
 }
 export function OperationalAttachmentMarketingFacts(db:SqlDatabase){return {
-readMarketingAssets1:(facts:{targetId:string;companyId:string;})=>db.prepare("SELECT company_id,NULL::text branch_id,NULL::text department_id,version,kind FROM marketing_assets WHERE id=? AND company_id=?").bind(facts.targetId,facts.companyId).first<TargetRow & { kind: string }>(),versionGuard:(commandId:string,targetType:string,targetId:string,companyId:string,version:number,index:number)=>remainingOperationalAttachmentTargetVersionGuard(db,commandId,targetType,targetId,companyId,version,index),versionStep:(targetType:string,targetId:string,expectedVersion:number,now:number)=>remainingOperationalAttachmentRecordVersionStep(db,targetType,targetId,expectedVersion,now)
+readMarketingAssets1:(facts:{targetId:string;companyId:string;})=>db.prepare(attachmentOwnerFactReadSql('asset')).bind(facts.targetId,facts.companyId).first<TargetRow & { kind: string }>(),versionGuard:(commandId:string,targetType:string,targetId:string,companyId:string,version:number,index:number)=>remainingOperationalAttachmentTargetVersionGuard(db,commandId,targetType,targetId,companyId,version,index),versionStep:(targetType:string,targetId:string,expectedVersion:number,now:number)=>remainingOperationalAttachmentRecordVersionStep(db,targetType,targetId,expectedVersion,now)
 };}

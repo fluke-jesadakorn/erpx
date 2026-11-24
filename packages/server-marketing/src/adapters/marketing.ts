@@ -21,6 +21,7 @@ import { marketingCampaigns, marketingCostSources } from "@erpx/server-marketing
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import {marketingFormReadiness,marketingPresentationAssertions} from "@erpx/server-marketing/adapters/public-form";
 import {activeFormSql} from "./active-form-sql";
+import {marketingLocalPointReadSql} from "./marketing-local-point-read-sql";
 import {listAttachmentPublications} from "@erpx/server-files/public/attachments/service";
 import {attachmentsV2Readable} from "@erpx/server-files/public/attachments/feature";
 import {isTransactionalSqlDatabase} from "@erpx/server-runtime/public/runtime/types";
@@ -92,12 +93,12 @@ async campaignSummary(){return (await write
         .all<Row>()).results;},
 sourceForm:(formId,formVersion)=>write.prepare(activeFormSql('source',true,true)).bind(formId,a.companyId,formVersion).first<{configuration_json:string}>(),
 asset:id=>write
-      .prepare("SELECT * FROM marketing_assets WHERE id=? AND company_id=?")
+      .prepare(marketingLocalPointReadSql('asset'))
       .bind(id, a.companyId)
       .first<Row>(),
 candidate:(id,lock=false)=>write
     .prepare(
-      `SELECT * FROM marketing_lead_candidates WHERE id=? AND company_id=? ${lock?"FOR UPDATE":""}`,
+      marketingLocalPointReadSql('candidate',lock),
     )
     .bind(id, a.companyId)
     .first<Row>(),
@@ -116,7 +117,7 @@ detail:id=>write
       .first<Row>(),
 async history(id){return (await write
         .prepare(
-          "SELECT * FROM marketing_engagement_events WHERE candidate_id=? ORDER BY version",
+          marketingLocalPointReadSql('history'),
         )
         .bind(id)
         .all<Row>()).results;},
