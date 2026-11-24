@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10777,
+    "revision": 10779,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -164200,7 +164200,7 @@
         "owner": "operations",
         "title": "operations read tail families (round 39)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -164212,22 +164212,37 @@
         "resources": [
           "owner:operations"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCEope3",
-          "claimedAt": "2026-11-24T08:35:52.538Z",
-          "heartbeatAt": "2026-11-24T08:41:42.266Z",
-          "expiresAt": "2026-11-24T09:11:42.266Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-operations/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "40a5c3a1a",
+            "owner": "operations",
+            "before": 117,
+            "after": 114,
+            "note": "Two task image reads move to native kinds and purchased actor scope clock EXISTS share one helper; overdue alert kept inline; LOCK TABLE and r29-r38 untouched."
+          },
+          {
+            "command": "vitest operations r39 (126) + scoped tsc + rustc registry (26)",
+            "result": "passed",
+            "sourceSha": "40a5c3a1a"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next families after r38: task image by id, purchased actor scope clock, overdue alert predicate. BEFORE=125.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCEope3",
+          "at": "2026-11-24T08:53:12.162Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -166784,17 +166799,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 28,
-        "in_progress": 12,
+        "in_progress": 11,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1093,
+        "blocked": 1094,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T08:52:51.483Z",
+    "updatedAt": "2026-11-24T08:53:12.167Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
