@@ -31,6 +31,7 @@ import type {BillRow as Row} from "@erpx/server-procurement/domain/supplier-bill
 import {branchDepartmentScope,orderedRead} from './read-tail-sql';
 import {receiptCount,expenseAccountBy} from './read-tail-r20';
 import {memberScopeExclusion} from './read-tail-r24';
+import {fulfillmentLinesBy} from './read-tail-r26';
 export {supplierBillSchema,supplierBillDecisionSchema,supplierInvoicePolicySchema,matchedBillLines} from "@erpx/server-procurement/domain/supplier-bills";
 const scope=branchDepartmentScope("m");
 const args=(actor:WorkContext)=>[actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId];
@@ -86,14 +87,12 @@ function application(actor:WorkContext,provided?:SqlDatabase){
   if (!receipts.length) return { fulfillments: [], lines: [], currency: null };
   const ids = receipts.map(receipt => String(receipt.id));
   const placeholders = ids.map(() => "?").join(",");
-  const lines = (await write.prepare(`
-    SELECT fl.*,ol.product_id,ol.description,p.sku,p.unit,p.tracking_mode
-    FROM (${commercePlatformSources.commerce_fulfillment_lines}) fl
-    JOIN (${commercePlatformSources.commerce_order_lines}) ol ON ol.id=fl.order_line_id
-    JOIN (${commercePlatformSources.commerce_products}) p ON p.id=ol.product_id
-    WHERE fl.fulfillment_id IN (${placeholders})
-    ORDER BY fl.fulfillment_id,ol.ordinal
-  `).bind(...ids).all<Row>()).results;
+  const lines = (await write.prepare(fulfillmentLinesBy(
+    commercePlatformSources.commerce_fulfillment_lines,
+    commercePlatformSources.commerce_order_lines,
+    commercePlatformSources.commerce_products,
+    placeholders,
+  )).bind(...ids).all<Row>()).results;
   return { fulfillments: receipts, lines, currency: String(receipts[0].order_currency) };
 },detail:async(bill)=>{const write=await database(),id=String(bill.id);
   const [lines, receipts, events, accounts] = await Promise.all([
@@ -127,7 +126,12 @@ return {lines:lines.results,receipts:receipts.results,events:events.results,acco
  order:async(id)=>(await getOrder(actor,id,provided)).order,
  configuration:async()=>(await database()).prepare(`SELECT * FROM (${commercePlatformSources.commerce_settings}) commerce_settings WHERE company_id=?`).bind(actor.companyId).first<Row>(),
  postings:async(id)=>(await (await database()).prepare(`SELECT * FROM (${financePlatformSources.finance_journal_lines}) finance_journal_lines WHERE journal_id=? ORDER BY ordinal`).bind(id).all<Row>()).results,
- receiptLines:async(ids)=>(await (await database()).prepare(`SELECT fl.*,ol.product_id,ol.description,p.sku,p.unit,p.tracking_mode FROM (${commercePlatformSources.commerce_fulfillment_lines}) fl JOIN (${commercePlatformSources.commerce_order_lines}) ol ON ol.id=fl.order_line_id JOIN (${commercePlatformSources.commerce_products}) p ON p.id=ol.product_id WHERE fl.fulfillment_id IN (${ids.map(()=>'?').join(',')}) ORDER BY fl.fulfillment_id,ol.ordinal`).bind(...ids).all<Row>()).results,
+ receiptLines:async(ids)=>(await (await database()).prepare(fulfillmentLinesBy(
+    commercePlatformSources.commerce_fulfillment_lines,
+    commercePlatformSources.commerce_order_lines,
+    commercePlatformSources.commerce_products,
+    ids.map(()=>'?').join(','),
+  )).bind(...ids).all<Row>()).results,
  variance:async(id)=>!!await nativeProcurementReadFirst(PROCUREMENT_RD_BILL_MATCH_VARIANCE,[id],await database()),
  varianceAccount:async(id,chartId)=>!!await (await database()).prepare(expenseAccountBy(financePlatformSources.finance_accounts,financePlatformSources.finance_charts,"a.id")).bind(id,actor.companyId,chartId).first(),
  commit:async(m,result)=>commit(await database(),actor,m,result),

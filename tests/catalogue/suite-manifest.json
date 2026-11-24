@@ -73245,6 +73245,31 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "procurement",
+      "modules": [
+        "procurement"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Procurement fulfillment line postable reads must stay one builder."
+      },
+      "apps": "supply",
+      "packages": [
+        "@erpx/server-procurement"
+      ],
+      "id": "procurement.read-tail-r26-dedupe.unit",
+      "files": [
+        "tests/unit/procurement/read-tail-r26-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "procurement.rust-portal-commerce-locks-postgres.integration",
       "lane": "integration",
       "owner": "procurement",
