@@ -1,9 +1,10 @@
 import { platformOwnerProjectionSources as people_payrollPlatformSources } from "@erpx/server-people_payroll/public/platform-owner-projection-sources";
 import { leavePolicyVersionLookup } from './organization-column-alias-families-r37';
+import { activePositionById } from './organization-column-alias-families-r38';
 import type { PoolClient } from 'pg';
 import type { LifecyclePositionFacts } from '@erpx/server-people_payroll/public/lifecycle-worker-contract';
 export function lifecycleOrganizationFacts(client: PoolClient) {
-    return { readPosition(company_id: string, positionId: string | null) { return client.query<LifecyclePositionFacts>("SELECT * FROM organization_positions WHERE company_id=$1 AND id=$2 AND active=1", [company_id, positionId]); },
+    return { readPosition(company_id: string, positionId: string | null) { return client.query<LifecyclePositionFacts>(activePositionById('$1', '$2'), [company_id, positionId]); },
         applyEffect6(manager: string, company_id: string, level_id: unknown) { return client.query<Record<string, unknown>>(`SELECT 1 FROM (${people_payrollPlatformSources.hr_people}) p JOIN (${people_payrollPlatformSources.hr_engagements}) e ON e.person_id=p.id AND e.company_id=p.company_id JOIN staff_levels l ON l.id=e.level_id JOIN staff_levels target ON target.id=$3 WHERE p.id=$1 AND p.company_id=$2 AND p.status='active' AND e.status='active' AND l.level_number<target.level_number`, [manager, company_id, level_id]); },
         readPay(company_id: string, id: unknown) { return client.query<{
             pay_group_id: string;

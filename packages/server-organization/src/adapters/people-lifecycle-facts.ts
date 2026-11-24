@@ -6,6 +6,7 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { type LifecyclePositionFact } from '@erpx/server-people_payroll/public/people-lifecycle-contract';
 import { nativeOrgExecute } from './native-organization-owner-write';
 import { maxVersionSubquery } from './organization-column-alias-families-r29';
+import { activePositionById } from './organization-column-alias-families-r38';
 export function peopleLifecycleOrganizationFacts(database: SqlDatabase, client?: PoolClient) {
     return { readPeopleLifecycleDataPositions(companyId: string) {
             return database.prepare(`SELECT p.id,p.title,p.version,p.requirements,p.branch_id,p.department_id,p.level_id,p.active,b.package_id,b.revision package_revision FROM organization_positions p LEFT JOIN (${people_payrollPlatformSources.people_position_packages}) b ON b.company_id=p.company_id AND b.position_id=p.id WHERE p.company_id=? ORDER BY p.title,p.id`)
@@ -66,7 +67,7 @@ export function peopleLifecycleOrganizationFacts(database: SqlDatabase, client?:
             }>();
         },
         readCreateRehireEngagementPosition(companyId: string, positionId: string) {
-            return database.prepare("SELECT * FROM organization_positions WHERE company_id=? AND id=? AND active=1")
+            return database.prepare(activePositionById('?', '?'))
                 .bind(companyId, positionId)
                 .first<{
                 branch_id: string | null;
