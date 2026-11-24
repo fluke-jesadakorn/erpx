@@ -12,12 +12,15 @@ import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import type {AttachmentOperation,AttachmentPolicy} from "@erpx/server-files/public/attachments/types";
 import {qualityPurchaseSourceRows,qualityPurchaseSourceReadLocks} from "@erpx/server-quality/adapters/purchase-sources";
+import {qualityAttachmentSourceSelect} from "./quality-attachment-source-select-sql";
 import {requireQualityPurchasedRead} from "@erpx/server-quality/adapters/purchases";
 import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 export type QualityAttachmentPurchase={companyId:string;capabilities:readonly string[];purpose:CapabilityPurpose;actor:WorkContext;kind:"hold"|"spec";targetId:string;witness:string;permission:string};
 const kind=(type:string)=>["quality_hold","inventory_quality_hold"].includes(type)?"hold":type==="inventory_quality_spec"?"spec":null;
 function source(type:"hold"|"spec"){
- return type==="hold"?`SELECT id,company_id,branch_id,NULL::text department_id,kind,witness::text image FROM (${qualityPurchaseSourceRows}) actual_quality_source WHERE id=? AND company_id=?`:"SELECT id,company_id,NULL::text branch_id,NULL::text department_id,'advanced' kind,(to_jsonb(s)-'version'-'updated_at')::text image FROM inventory_quality_specs s WHERE id=? AND company_id=?";
+ return type==="hold"
+  ? qualityAttachmentSourceSelect("branch_id","kind","witness::text image",`(${qualityPurchaseSourceRows}) actual_quality_source`)
+  : qualityAttachmentSourceSelect("NULL::text branch_id","'advanced' kind","(to_jsonb(s)-'version'-'updated_at')::text image","inventory_quality_specs s");
 }
 export async function qualityAttachmentPurchaseScope(database:SqlDatabase,actor:WorkContext,policy:Pick<AttachmentPolicy,"targetType"|"purposeKey">,targetId:string):Promise<QualityAttachmentPurchase|null>{
  const target=kind(policy.targetType);if(!target||await commercePackageEnforcementMode()==="disabled")return null;
