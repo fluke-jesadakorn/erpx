@@ -3,12 +3,14 @@ export const ecommerceModuleAssignment = (alias = '') => {
  const p = alias ? `${alias}.` : '';
  return `SELECT 1 FROM assignments${alias ? ` ${alias}` : ''} WHERE ${p}id=? AND ${p}company_id=? AND (jsonb_array_length(${p}modules_json::jsonb)=0 OR ${p}modules_json::jsonb @> '["ecommerce"]'::jsonb)`;
 };
-/** r20: the row/alias separator is configurable so the no-space workforce
- *  scope probe rebuilds byte-identically. Existing callers keep the default
- *  single space; text only, binds and locks unchanged. */
-export const ecommerceScopeRow = (alias: string, branch = false, separator = ' ') => branch
- ? `(SELECT ?::text company_id,?::text branch_id,?::text department_id)${separator}${alias}`
- : `(SELECT ?::text company_id)${separator}${alias}`;
+/** r21: one scoped-row frame emits both column shapes byte-identically. The
+ *  r20 separator stays configurable; text only, binds and locks unchanged. */
+export const ecommerceScopeRow = (alias: string, branch = false, separator = ' ') =>
+ `(SELECT ?::text company_id${branch ? ',?::text branch_id,?::text department_id' : ''})${separator}${alias}`;
+/** r21: one release/feature gate frame emits every probe site byte-identically.
+ *  Text only: binds, source locks and the emitted SQL are unchanged. */
+export const ecommerceReleaseGate = (scope: string, predicate: string, selectAlias = ' allowed') =>
+ `SELECT ${predicate}${selectAlias} FROM ${scope}`;
 /** r14: one parameterized EXISTS row guard; the channel, cart and checkout
  *  assertion callers rebuild byte-identically. Text only: binds unchanged. */
 export const ecommerceExistsGuard = (table: string, where: string) =>

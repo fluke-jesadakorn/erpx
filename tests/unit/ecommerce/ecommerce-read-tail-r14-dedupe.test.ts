@@ -109,7 +109,7 @@ describe('Ecommerce read-tail r14 four-family dedupe', () => {
 });
 
 describe('Ecommerce read-tail r14 retirement check', () => {
-  test('retirement:ts-statements stays strictly below the r14 BEFORE=57 baseline (r20 pin 38)', () => {
+  test('retirement:ts-statements stays strictly below the r14 BEFORE=57 baseline (r21 pin 29)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -120,6 +120,6 @@ describe('Ecommerce read-tail r14 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(57);
-    expect(total).toBe(38);
+    expect(total).toBe(29);
   });
 });

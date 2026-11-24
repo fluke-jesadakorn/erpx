@@ -114,7 +114,7 @@ describe('Ecommerce read-tail r20 C5-C9 dedupe', () => {
 });
 
 describe('Ecommerce read-tail r20 retirement check', () => {
-  test('retirement:ts-statements === 38 (r19 BEFORE=42)', () => {
+  test('retirement:ts-statements === 29 (r21 BEFORE=38)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -124,6 +124,6 @@ describe('Ecommerce read-tail r20 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(38);
+    expect(total).toBe(29);
   });
 });
