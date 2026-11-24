@@ -1,5 +1,6 @@
 import "server-only";
 import {receiptImage} from './read-tail-r19';
+import {sourceScopeExists} from './read-tail-r25';
 import {randomUUID} from "node:crypto";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
@@ -35,7 +36,7 @@ export async function procurementAttachmentPurchaseScope(database:SqlDatabase,ac
 export async function authorizeProcurementAttachmentPurchase(database:SqlDatabase,actor:WorkContext,policy:AttachmentPolicy,id:string,operation:AttachmentOperation){
  const scope=await procurementAttachmentPurchaseScope(database,actor,policy,id,operation==="read"?"history":"new-work");if(!scope)return;
  const bill=scope.targetType==="supplier_bill_match",authority=await (bill?supplierBillSourcePredicate:procurementSourcePredicate)(database,actor,"r",false);
- if(!await database.prepare(`SELECT 1 FROM ${bill?"procurement_bill_matches":"procurement_rfqs"} r WHERE r.id=? AND ${authority.where}`).bind(id,...authority.args).first())throw new ApiError(404,"ATTACHMENT_TARGET_NOT_FOUND","The original Procurement source is unavailable.");
+ if(!await database.prepare(sourceScopeExists(bill,authority.where)).bind(id,...authority.args).first())throw new ApiError(404,"ATTACHMENT_TARGET_NOT_FOUND","The original Procurement source is unavailable.");
  await checkPurchasedCapability(database,await commercePackageEnforcementMode(),scope);
 }
 /** Files owns private bytes, Legal holds and its original policy/version. This
