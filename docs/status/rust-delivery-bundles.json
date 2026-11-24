@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11757,
+    "revision": 11761,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -175144,7 +175144,7 @@
         "owner": "legal",
         "title": "legal TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -175156,22 +175156,37 @@
         "resources": [
           "owner:legal"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4b05",
-          "claimedAt": "2026-11-24T11:46:47.930Z",
-          "heartbeatAt": "2026-11-24T11:53:11.142Z",
-          "expiresAt": "2026-11-24T12:23:11.142Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-legal/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d1576efa2",
+            "owner": "legal",
+            "before": 201,
+            "after": 196,
+            "note": "Attachment availability spine 3->1 and disposal guard reuses r39 helper; advisory locks/FOR UPDATE untouched."
+          },
+          {
+            "command": "vitest legal r47+corpus (241) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "d1576efa2"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=201.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4b05",
+          "at": "2026-11-24T12:04:17.993Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -175717,7 +175732,7 @@
         "owner": "planning",
         "title": "planning TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -175729,22 +175744,37 @@
         "resources": [
           "owner:planning"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4b19",
-          "claimedAt": "2026-11-24T11:49:55.882Z",
-          "heartbeatAt": "2026-11-24T11:53:11.142Z",
-          "expiresAt": "2026-11-24T12:23:11.142Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-planning/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d1576efa2",
+            "owner": "planning",
+            "before": 20,
+            "after": 19,
+            "note": "Capacity reader folds into planningSelectFrom; locks/guards/native/r1-r18 untouched."
+          },
+          {
+            "command": "vitest planning (81)",
+            "result": "passed",
+            "sourceSha": "d1576efa2"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=20.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4b19",
+          "at": "2026-11-24T12:04:18.525Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -176286,17 +176316,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 21,
-        "in_progress": 16,
+        "in_progress": 14,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1282,
+        "blocked": 1284,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T12:03:56.020Z",
+    "updatedAt": "2026-11-24T12:04:18.531Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
