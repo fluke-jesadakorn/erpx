@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12128,
+    "revision": 12130,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -180488,7 +180488,7 @@
         "owner": "marketing",
         "title": "marketing projection-source and point read heads",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -180500,22 +180500,37 @@
         "resources": [
           "owner:marketing"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n10",
-          "claimedAt": "2026-11-24T13:30:02.146Z",
-          "heartbeatAt": "2026-11-24T13:37:42.857Z",
-          "expiresAt": "2026-11-24T14:07:42.857Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-marketing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "aadbf1401",
+            "owner": "marketing",
+            "before": 61,
+            "after": 55,
+            "note": "Four projection sources and four point reads share closed heads; FOR SHARE/settlement/native untouched."
+          },
+          {
+            "command": "vitest marketing (47) + scoped tsc + 8/8 byte oracle",
+            "result": "passed",
+            "sourceSha": "aadbf1401"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "F1 projection-source head (-3) and F2 point read head (-3): 61->55.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n10",
+          "at": "2026-11-24T13:41:08.510Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -180706,17 +180721,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 8,
+        "in_progress": 7,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1377,
+        "blocked": 1378,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T13:40:43.520Z",
+    "updatedAt": "2026-11-24T13:41:08.514Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
