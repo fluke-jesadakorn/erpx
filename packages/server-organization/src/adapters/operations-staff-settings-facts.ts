@@ -2,6 +2,7 @@ import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runt
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { nativeOrgStatement } from "./native-organization-owner-write";
 import { twoColumnLookup, nodeKindByIdCompany } from './organization-column-alias-families-r27';
+import { ownerVersionGuardSource } from './organization-read-tail-sources';
 export function StaffSettingsOrganizationFacts(database: SqlDatabase, companyId = '') {
     return { readListLevelsEffect(companyId: string) {
             return database.prepare("SELECT * FROM staff_levels WHERE company_id=? ORDER BY level_number ASC NULLS LAST,rank DESC,code")
@@ -21,7 +22,7 @@ export function StaffSettingsOrganizationFacts(database: SqlDatabase, companyId 
             level_number: number | null;
         }>(); },
         guard5(key: string, value: "level-version", id: string, companyId: string, expectedVersion: number) {
-            return assertion(database, key, value, "EXISTS(SELECT 1 FROM staff_levels WHERE id=? AND company_id=? AND version=?)", [id, companyId, expectedVersion]);
+            return assertion(database, key, value, ownerVersionGuardSource('staff_levels'), [id, companyId, expectedVersion]);
         },
         stageSaveLevelEffect(code: string, name: string, rank: number, value: 0 | 1, value2: number | null, now: number, id: string): Promise<SqlStatement> {
             return nativeOrgStatement(database, companyId, 'staff_level_update', [code, name, rank, value, value2, now, id], `staff-level:${id}:${now}`, now);

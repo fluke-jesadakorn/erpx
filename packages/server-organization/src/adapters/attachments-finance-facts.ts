@@ -17,7 +17,7 @@ function financeOperationsAttachmentTargetVersionGuard(
 ): SqlStatement | null {
 if(!allowedTargets.has(targetType))return null;
   if (targetType === "organization_node")
-    return assertion(db, commandId, `attachment-owner-${index}`, "EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND hierarchy_revision=?)", [targetId, companyId, version]);
+    return assertion(db, commandId, `attachment-owner-${index}`, ownerVersionGuardSource('organization_nodes', 'hierarchy_revision'), [targetId, companyId, version]);
   const item = versionDescriptors[targetType];
   if (!item) return null;
   const column = item.column ?? "version";
