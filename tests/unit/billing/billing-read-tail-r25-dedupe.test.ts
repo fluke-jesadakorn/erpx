@@ -48,6 +48,6 @@ describe('billing advisory lock text family dedupe', () => {
     let count = 0;
     for (const file of files) count += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     expect(count).toBeLessThan(63);
-    expect(count).toBe(59); // r25 left 63; r26 removed the three view literals; r27 deduped the metric count projection.
+    expect(count).toBe(57); // r25 left 63; r26 removed the view literals; r27 deduped the metric count; r28 deduped the storage-ledger reads.
   });
 });

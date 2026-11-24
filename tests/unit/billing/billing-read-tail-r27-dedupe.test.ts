@@ -81,7 +81,7 @@ describe('billing read-tail r27 metric count projection dedupe', () => {
     const files = await tsFiles(new URL('../../../packages/server-billing/src/', import.meta.url));
     let count = 0;
     for (const file of files) count += (await readFile(file, 'utf8')).split('SELECT').length - 1;
-    expect(count).toBeLessThan(60);
-    expect(count).toBe(59);
+    expect(count).toBeLessThan(59);
+    expect(count).toBe(57); // r28 deduped the storage-ledger point read and stored-totals projection.
   });
 });
