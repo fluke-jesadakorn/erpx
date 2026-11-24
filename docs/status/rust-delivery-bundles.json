@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9883,
+    "revision": 9885,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -156821,6 +156821,42 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=410.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.finance.native-tax-read-port",
+        "goalId": "G4",
+        "owner": "finance",
+        "title": "finance native tax register read plans",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-finance/src/**",
+          "tests/unit/finance/**",
+          "tests/integration/finance/**"
+        ],
+        "resources": [
+          "owner:finance"
+        ],
+        "claim": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCUfin",
+          "claimedAt": "2026-11-24T06:08:25.476Z",
+          "heartbeatAt": "2026-11-24T06:08:25.476Z",
+          "expiresAt": "2026-11-24T06:38:25.476Z",
+          "generation": 164
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Add RD_TAX_* kinds to native_finance_read_sql.rs for the VAT/tax-register point and count reads, unit + PG parity, then switch callers; keep assertion EXISTS guards and locks in TS.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -156829,11 +156865,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1259,
+      "totalPackets": 1260,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
-        "in_progress": 24,
+        "in_progress": 25,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
@@ -156843,7 +156879,7 @@
       }
     },
     "lastCoordinatorGeneration": 164,
-    "updatedAt": "2026-11-24T06:07:51.607Z",
+    "updatedAt": "2026-11-24T06:08:25.495Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
