@@ -109,10 +109,10 @@ describe('Files read-tail r38 parameterized family', () => {
       }
     };
     walk(srcRoot);
-    // r37 left 257; r38 lowers 257->255 (three 1-token heads -> one 1-token helper).
-    expect(literal).toBe(255);
-    expect(total).toBe(256);
-    expect(literal).toBeLessThan(257);
-    expect(total).toBeLessThan(258);
+    // r38 left 255; r40 lowers 255->254 (two 1-token attestation heads -> one 1-token helper).
+    expect(literal).toBe(254);
+    expect(total).toBe(255);
+    expect(literal).toBeLessThan(255);
+    expect(total).toBeLessThan(256);
   });
 });

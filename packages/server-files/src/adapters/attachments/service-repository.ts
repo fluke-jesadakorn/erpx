@@ -13,6 +13,7 @@ import {LINK_SET_JOIN_SQL} from "../read-tail-r29-source-sql";
 import {attachmentPublicationByIdSql} from "../read-tail-r31-source-sql";
 import {ATTACHMENT_LINK_PROJECTION_HEAD_SQL} from "../read-tail-r37-source-sql";
 import {ATTACHMENT_EVENT_EVENT_HEAD_SQL} from "../read-tail-r38-source-sql";
+import {SANITIZATION_ATTESTED_HEAD_SQL} from "../read-tail-r40-source-sql";
 const setByIdSql = "SELECT * FROM attachment_sets WHERE id=? AND company_id=?";
 export const usedStorageSql = "SELECT COALESCE(sum(bytes),0) FROM attachment_storage_ledger WHERE company_id=? AND state IN ('reserved','stored')";
 export const pendingStorageSql = "SELECT COALESCE(sum(declared_bytes),0) FROM upload_intents WHERE company_id=? AND status='pending' AND expires_at>?";
@@ -32,7 +33,7 @@ const changedCreatedAtSql = "(SELECT max(changed.created_at) FROM attachment_eve
  * still prepares its own statement with its own binds. */
 const setCreatedCompatibilitySql = (value: string) =>
   `EXISTS(${ATTACHMENT_EVENT_EVENT_HEAD_SQL}set_id=candidate.id AND event.company_id=candidate.company_id AND event.action='set.created' AND COALESCE((event.details_json::jsonb->>'compatibilityAdapter')::boolean,false)=${value})`;
-const sanitizationAttestedSql = `SELECT 1 FROM attachment_events attested WHERE attested.set_id=? AND attested.company_id=? AND attested.action='sanitization.attested'
+const sanitizationAttestedSql = `${SANITIZATION_ATTESTED_HEAD_SQL}
         AND attested.created_at>=COALESCE(${changedCreatedAtSql},0)
         ORDER BY attested.created_at DESC LIMIT 1`;
 export function repository(db: SqlDatabase) {
@@ -1002,7 +1003,7 @@ export function repository(db: SqlDatabase) {
             commandId: string;
             step: string;
             values: (string | number | null)[];
-        }) => assertion(db, facts.commandId, facts.step, `EXISTS(SELECT 1 FROM attachment_events attested WHERE attested.set_id=? AND attested.company_id=? AND attested.action='sanitization.attested' AND attested.created_at>=COALESCE(${changedCreatedAtSql},0))`, facts.values),
+        }) => assertion(db, facts.commandId, facts.step, `EXISTS(${SANITIZATION_ATTESTED_HEAD_SQL} AND attested.created_at>=COALESCE(${changedCreatedAtSql},0))`, facts.values),
         bindingGuard2: (facts: {
             commandId: string;
             step: string;
