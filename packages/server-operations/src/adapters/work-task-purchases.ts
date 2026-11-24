@@ -1,5 +1,6 @@
 import 'server-only';
 import {OPERATIONS_TASK_DELEGATION_SOURCE_SQL,OPERATIONS_TASK_TEMPLATE_SOURCE_SQL,OPERATIONS_TASK_SCHEDULE_SOURCE_SQL} from './task-delegation-source';
+import {OPERATIONS_ACTOR_SCOPE_INPUT_SQL} from './workforce-actor-scope-source';
 import {randomUUID} from 'node:crypto';
 import {nativeOperationsReadFirst,OPERATIONS_RD_WORK_TASK_SOURCE} from './native-operations-read';
 import type {StaffActor} from '@erpx/server-operations/public/staff-policy';
@@ -29,7 +30,7 @@ type TaskSource={id:string;company_id:string;branch_id:string|null;department_id
 const attachmentActions=new WeakMap<SqlDatabase,{id:string;userId:string}>();
 export function workTaskOwnsAttachmentAction(database:SqlDatabase,actor:StaffActor,id:string){const action=attachmentActions.get(database);return action?.id===id&&action.userId===actor.userId;}
 const source=(database:SqlDatabase,actor:StaffActor,id:string)=>nativeOperationsReadFirst<TaskSource>(OPERATIONS_RD_WORK_TASK_SOURCE,[id,actor.companyId],database);
-function authority(actor:StaffActor){const scope=currentAssignmentReadScope(actor,'workforce_actor_scope');return {sql:`SELECT 1 FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) workforce_actor_scope WHERE ${scope.where} AND ${scheduledFeaturePredicate('workforce_actor_scope.company_id','operations')}`,args:[actor.companyId,actor.branchId,actor.departmentId,...scope.args]};}
+function authority(actor:StaffActor){const scope=currentAssignmentReadScope(actor,'workforce_actor_scope');return {sql:`SELECT 1 FROM ${OPERATIONS_ACTOR_SCOPE_INPUT_SQL} workforce_actor_scope WHERE ${scope.where} AND ${scheduledFeaturePredicate('workforce_actor_scope.company_id','operations')}`,args:[actor.companyId,actor.branchId,actor.departmentId,...scope.args]};}
 async function current(database:SqlDatabase,actor:StaffActor,key:string,write=false){const scope=authority(actor);if(!await database.prepare(scope.sql).bind(...scope.args).first())throw new ApiError(403,'WORK_TASK_AUTHORITY_CHANGED','Choose the current original task account and Company role.');if(write)await database.batch([assertion(database,key,'work-task-current',`EXISTS(${scope.sql})`,scope.args),...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),staffGuard(database,key,actor.companyId,actor.userId,'work-task-actor'),clearWorkflowCommandAssertions(database, key)]);}
 async function capabilities(database:SqlDatabase,actor:StaffActor,task:TaskSource|null,ordinary:boolean,postId?:string){
  if(!ordinary)return [];const codes=['work.actions'];if(task?.template_id)codes.push('work.advanced-routines');if((await workTaskSocialPurchaseSource(database,actor.companyId,task?.id??'',postId)).workSocial)codes.push('work.social');return codes;
