@@ -66,7 +66,7 @@ describe('talent read-tail r26 evidence page family dedupe', () => {
   it('lowers the talent owner SELECT KPI strictly below the recorded 53 r25 baseline', async () => {
     let count = 0;
     for (const f of await tsFiles(srcDir)) count += (await readFile(f, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(48);
-    expect(count).toBeLessThan(53);
+    expect(count).toBe(47);
+    expect(count).toBeLessThan(48);
   });
 });

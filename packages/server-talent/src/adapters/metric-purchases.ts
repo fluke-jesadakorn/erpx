@@ -1,5 +1,6 @@
 import "server-only";
 import {talentActorScopeSelect,talentClockCte} from './talent-scope-sql';
+import {talentSourceRows} from './talent-read-tail-r32-sources';
 import {hasModuleAccess} from "@erpx/catalogue/module-access";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
@@ -9,10 +10,6 @@ import {ApiError} from "@erpx/server-runtime/public/http";
 import {talentPackageEnforcementMode,readPurchasedAccesses} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
 const metrics={"open-requisitions":"recruit.positions","application-stage-counts":"recruit.applications"} as const;
-/** Owner-local metric source-row family. The projection and FROM source are
- * parameterized; emitted SQL stays byte-identical to the two former inline
- * copies over the same Recruitment owner rows. */
-const metricSourceRows=(cols:string,from:string)=>`SELECT ${cols} FROM ${from}`;
 export async function talentMetricHistoryAccess(database:SqlDatabase,actor:WorkContext){
  const mode=await talentPackageEnforcementMode(),access=await readPurchasedAccesses(database,mode,actor.companyId,["recruit.positions","recruit.applications"]);if(mode!=="enforced")return {"open-requisitions":true,"application-stage-counts":true};
  const current=hasModuleAccess(actor.modules,"talent")&&hasPermission(actor,"records.read")&&hasPermission(actor,"records.review")&&!!await database.prepare(talentActorScopeSelect("talent_metric_scope",`${assignmentReadSql("talent_metric_scope","records.read")} AND ${assignmentReadSql("talent_metric_scope","records.review")} allowed`)).bind(actor.assignmentId,actor.userId,actor.role,actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first<boolean>("allowed");
@@ -23,7 +20,7 @@ export async function talentMetricHistoryAccess(database:SqlDatabase,actor:WorkC
 export async function talentMetricSource(database:SqlDatabase,actor:WorkContext,id:string){
  const capability=metrics[id as keyof typeof metrics];if(!capability)throw new ApiError(422,"METRIC_UNSUPPORTED","This Recruitment metric has no owner source.");
  if(!(await talentMetricHistoryAccess(database,actor))[id as keyof typeof metrics])throw new ApiError(403,"METRIC_SOURCE_UNAVAILABLE","Recruitment history and current reviewer authority are required.");
- const rows=id==="open-requisitions"?metricSourceRows("*","talent_requisitions"):metricSourceRows("a.*,r.branch_id,r.department_id","talent_applications a JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id");
+ const rows=id==="open-requisitions"?talentSourceRows("*","talent_requisitions"):talentSourceRows("a.*,r.branch_id,r.department_id","talent_applications a JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id");
  if(await talentPackageEnforcementMode()!=="enforced")return {sql:rows,args:[] as (string|number|null)[]};
  return {sql:`${talentClockCte("talent_metric_clock")} SELECT talent_metric_owned.* FROM (${rows}) talent_metric_owned CROSS JOIN talent_metric_clock WHERE ${assignmentReadSql("talent_metric_owned","records.read")} AND ${assignmentReadSql("talent_metric_owned","records.review")} AND ${purchasedCapabilityPredicate("talent_metric_owned.company_id",capability,"history","talent_metric_clock.now_ms")}`,args:[actor.assignmentId,actor.userId,actor.role,actor.assignmentId,actor.userId,actor.role]};
 }

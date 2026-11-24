@@ -1,5 +1,6 @@
 import "server-only";
 import {talentActorScopeCte,talentClockCte} from './talent-scope-sql';
+import {talentSourceRows} from './talent-read-tail-r32-sources';
 import {hasModuleAccess} from "@erpx/catalogue/module-access";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
@@ -10,15 +11,11 @@ import {nativeTalentReadFirst} from "./native-talent-read";
 import {talentPackageEnforcementMode,readPurchasedAccesses,checkPurchasedCapability} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
 const capabilities=["recruit.positions","recruit.candidates","recruit.applications","recruit.offers"] as const;
-/** Owner-local source-row family. The projection and FROM source are
- * parameterized; the emitted SQL is byte-identical to the former five
- * inline copies over the same Recruitment owner rows. */
-const sourceRow=(cols:string,from:string)=>`SELECT ${cols} FROM ${from}`;
-const sources=`${sourceRow("r.id,r.company_id,r.branch_id,r.department_id,'requisition' kind,'recruit.positions' capability","talent_requisitions r")}
- UNION ALL ${sourceRow("c.id,c.company_id,NULL,NULL,'candidate','recruit.candidates'","talent_candidates c")}
- UNION ALL ${sourceRow("a.id,a.company_id,r.branch_id,r.department_id,'application','recruit.applications'","talent_applications a JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id")}
- UNION ALL ${sourceRow("p.id,a.company_id,r.branch_id,r.department_id,'proposal','recruit.applications'","talent_proposals p JOIN talent_applications a ON a.id=p.application_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id")}
- UNION ALL ${sourceRow("o.id,o.company_id,r.branch_id,r.department_id,'offer','recruit.offers'","talent_offers o JOIN talent_applications a ON a.id=o.application_id AND a.company_id=o.company_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id")}`;
+const sources=`${talentSourceRows("r.id,r.company_id,r.branch_id,r.department_id,'requisition' kind,'recruit.positions' capability","talent_requisitions r")}
+ UNION ALL ${talentSourceRows("c.id,c.company_id,NULL,NULL,'candidate','recruit.candidates'","talent_candidates c")}
+ UNION ALL ${talentSourceRows("a.id,a.company_id,r.branch_id,r.department_id,'application','recruit.applications'","talent_applications a JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id")}
+ UNION ALL ${talentSourceRows("p.id,a.company_id,r.branch_id,r.department_id,'proposal','recruit.applications'","talent_proposals p JOIN talent_applications a ON a.id=p.application_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id")}
+ UNION ALL ${talentSourceRows("o.id,o.company_id,r.branch_id,r.department_id,'offer','recruit.offers'","talent_offers o JOIN talent_applications a ON a.id=o.application_id AND a.company_id=o.company_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id")}`;
 function currentSource(actor:WorkContext,id:string,company:string,kind?:"application",purchased=true){
  const permission=hasModuleAccess(actor.modules,"talent")&&hasPermission(actor,"records.read")&&hasPermission(actor,"records.review"),purchase=purchased?capabilities.map(capability=>`(talent_source.capability='${capability}' AND ${purchasedCapabilityPredicate("talent_source.company_id",capability,"history","talent_source_clock.now_ms")})`).join(" OR "):"TRUE";
  return {where:`EXISTS(${talentClockCte("talent_source_clock")} SELECT 1 FROM (${sources}) talent_source CROSS JOIN ${talentActorScopeCte} talent_viewer CROSS JOIN talent_source_clock WHERE talent_source.id=${id} AND talent_source.company_id=${company} AND talent_source.company_id=talent_viewer.company_id AND ${permission?"TRUE":"FALSE"} ${kind?"AND talent_source.kind='application'":""} AND (talent_source.kind='candidate' OR (talent_viewer.branch_id IS NULL OR talent_source.branch_id=talent_viewer.branch_id) AND (talent_viewer.department_id IS NULL OR talent_source.department_id=talent_viewer.department_id)) AND ${assignmentReadSql("talent_viewer","records.read")} AND ${assignmentReadSql("talent_viewer","records.review")} AND (${purchase}))`,args:[actor.companyId,actor.branchId,actor.departmentId,actor.assignmentId,actor.userId,actor.role,actor.assignmentId,actor.userId,actor.role]};

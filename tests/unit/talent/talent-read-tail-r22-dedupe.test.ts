@@ -2,6 +2,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
 const file = new URL('../../../packages/server-talent/src/adapters/record-purchases.ts', import.meta.url);
+const util = new URL('../../../packages/server-talent/src/adapters/talent-read-tail-r32-sources.ts', import.meta.url);
 const srcDir = new URL('../../../packages/server-talent/src/', import.meta.url);
 
 // Exact pre-dedupe emitted SQL (r21 baseline). The five Recruitment owner
@@ -20,24 +21,26 @@ async function tsFiles(directory: URL): Promise<string[]> {
   }
   return found;
 }
-function evaluate(text: string): string {
-  const helper = text.match(/const sourceRow=[\s\S]*?;\n/)![0].replace(/:\s*string/g, '');
-  const sourceRow = new Function(helper + ' return sourceRow;')();
+function evaluate(helperText: string, text: string): string {
+  const helper = helperText.match(/const talentSourceRows = [\s\S]*?;\n/)![0].replace(/:\s*string/g, '');
+  const talentSourceRows = new Function(helper + ' return talentSourceRows;')();
   const tpl = text.match(/const sources=`([\s\S]*?)`;/)![1];
-  return new Function('sourceRow', 'return `' + tpl + '`;')(sourceRow);
+  return new Function('talentSourceRows', 'return `' + tpl + '`;')(talentSourceRows);
 }
 
 describe('talent read-tail r22 source-row family dedupe', () => {
   it('declares the shared family once and routes all five rows through it', async () => {
-    const text = await readFile(file, 'utf8');
-    expect(text.split('const sourceRow=').length - 1).toBe(1);
-    expect(text.split('${sourceRow(').length - 1).toBe(5);
+    const [u, t] = await Promise.all([util, file].map(f => readFile(f, 'utf8')));
+    expect(u.split('const talentSourceRows =').length - 1).toBe(1);
     // the only literal "SELECT <cols> FROM" prefix is the shared helper body
-    expect(text.split('SELECT ${cols} FROM ${from}').length - 1).toBe(1);
+    expect(u.split('SELECT ${cols} FROM ${from}').length - 1).toBe(1);
+    expect(t.split('import {talentSourceRows}').length - 1).toBe(1);
+    expect(t.split('${talentSourceRows(').length - 1).toBe(5);
+    expect(t.split('SELECT ${cols} FROM ${from}').length - 1).toBe(0);
   });
 
   it('emits byte-identical SQL for the Recruitment owner source rows', async () => {
-    expect(evaluate(await readFile(file, 'utf8'))).toBe(EXPECTED_SOURCES);
+    expect(evaluate(await readFile(util, 'utf8'), await readFile(file, 'utf8'))).toBe(EXPECTED_SOURCES);
   });
 
   it('keeps source consumers and locks unchanged', async () => {
@@ -52,10 +55,10 @@ describe('talent read-tail r22 source-row family dedupe', () => {
     expect(text).not.toMatch(/LOCK TABLE|FOR\s+UPDATE|FOR\s+SHARE|INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|pg_advisory/i);
   });
 
-  it('lowers the talent owner SELECT KPI strictly below the r21 after=65', async () => {
+  it('lowers the talent owner SELECT KPI strictly below BEFORE=48 to 47', async () => {
     let count = 0;
     for (const f of await tsFiles(srcDir)) count += (await readFile(f, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBeLessThan(61);
-    expect(count).toBeLessThan(65);
+    expect(count).toBe(47);
+    expect(count).toBeLessThan(48);
   });
 });

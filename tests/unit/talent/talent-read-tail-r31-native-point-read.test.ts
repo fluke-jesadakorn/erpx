@@ -33,18 +33,19 @@ describe('talent read-tail r31 owner-local point read native port', () => {
     expect(text).not.toContain('SELECT capability,company_id FROM (${sources})');
     expect(text).toContain("nativeTalentReadFirst<{capability:string;company_id:string}>('talent_rd_workspace_record_source',[id],database)");
     // The r22 sources family, locks and cross-owner predicates stay untouched.
-    expect(text).toContain('const sourceRow=');
+    expect(text).toContain('import {talentSourceRows}');
+    expect(text).toContain('${talentSourceRows(');
     expect(text).toContain('const sources=');
     expect(text).toContain("SELECT 1 FROM workspace_records WHERE module_id='talent'");
     expect(text).toContain('assignmentReadSql("talent_viewer","records.read")');
   });
 
-  it('lowers the talent owner SELECT KPI strictly below BEFORE=49 to 48', async () => {
+  it('re-pins the talent owner SELECT KPI strictly below BEFORE=48 to 47', async () => {
     let count = 0;
     const srcDir = new URL('../../../packages/server-talent/src/', import.meta.url);
     for (const f of await tsFiles(srcDir)) count += (await readFile(f, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(48);
-    expect(count).toBeLessThan(49);
+    expect(count).toBe(47);
+    expect(count).toBeLessThan(48);
   });
 
   it('sends only the kind and positional values to the mounted command-plan route', async () => {
