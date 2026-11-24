@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8767,
+    "revision": 8771,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -140875,7 +140875,7 @@
         "owner": "pos",
         "title": "pos TS read tail native cutover (r19)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -140887,22 +140887,37 @@
         "resources": [
           "owner:pos"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGC0pos",
-          "claimedAt": "2026-11-24T02:21:13.911Z",
-          "heartbeatAt": "2026-11-24T02:48:10.926Z",
-          "expiresAt": "2026-11-24T03:18:10.926Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pos/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "5bffbcd76",
+            "owner": "pos",
+            "before": 254,
+            "after": 252,
+            "note": "By-id register reads native; refund reads, FOR UPDATE/SHARE and cross-owner fragments retained."
+          },
+          {
+            "command": "cargo pos owner_writes (23) + vitest pos (57+184) + tsc pos",
+            "result": "passed",
+            "sourceSha": "5bffbcd76"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe native read or byte-identical dedupe; if none, report blocked. BEFORE=254.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released.",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGC0pos",
+          "at": "2026-11-24T03:09:33.504Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -144285,6 +144300,42 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=199.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.pos.read-tail-r20",
+        "goalId": "G4",
+        "owner": "pos",
+        "title": "pos TS read tail native cutover (round 20)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-pos/src/**",
+          "tests/unit/pos/**",
+          "tests/integration/pos/**"
+        ],
+        "resources": [
+          "owner:pos"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGC1pos",
+          "claimedAt": "2026-11-24T03:09:33.848Z",
+          "heartbeatAt": "2026-11-24T03:09:33.848Z",
+          "expiresAt": "2026-11-24T03:39:33.848Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: only cross-owner fragments, lock-bearing reads or refund-flow reads remain; re-scan carefully. BEFORE=252.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -144293,7 +144344,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1016,
+      "totalPackets": 1017,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -144301,13 +144352,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 637,
+        "blocked": 638,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T03:06:22.867Z",
+    "updatedAt": "2026-11-24T03:09:33.858Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
