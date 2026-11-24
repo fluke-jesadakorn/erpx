@@ -106,8 +106,9 @@ describe('Planning read-tail r14 parameterized ordered jsonb_agg family', () => 
     // r15 shared the two attachment image-source heads (26 -> 25); r16 folded
     // the three purchase witness rows into the generalized source-row head (25 -> 22);
     // r17 folded the shortage/executive projection heads into one builder (22 -> 21);
-    // r18 folded the calendar/comparison single-line heads into one builder (21 -> 20).
-    expect(total).toBe(20);
+    // r18 folded the calendar/comparison single-line heads into one builder (21 -> 20);
+    // r19 folded the capacity operations head into the r17 builder (20 -> 19).
+    expect(total).toBe(19);
     expect(total).toBeLessThan(27);
   });
 });

@@ -118,8 +118,9 @@ describe('Planning read-tail r17 parameterized projection/FROM head', () => {
     walk(srcRoot);
     // r17 folds the LATERAL shortage and main executive projection heads into
     // one owner-local builder (22 -> 21) while keeping every SQL byte-identical;
-    // r18 folds the calendar/comparison single-line heads (21 -> 20).
-    expect(total).toBe(20);
+    // r18 folds the calendar/comparison single-line heads (21 -> 20);
+    // r19 folds the capacity operations head into this builder (20 -> 19).
+    expect(total).toBe(19);
     expect(total).toBeLessThan(21);
   });
 });

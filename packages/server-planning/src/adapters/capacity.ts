@@ -6,14 +6,15 @@ import { createCapacityPlanner, type CapacityInput } from "@erpx/server-planning
 import type { CapacityOperation } from "@erpx/server-planning/domain/capacity";
 import { resourceCalendarByKey } from "./planning-calendar-source-sql";
 import { planningResourceAllocationRows } from "./planning-resource-allocation-sql";
+import { planningSelectFrom } from "./planning-select-from-sql";
 
 /** Bound to the caller's connection, including an existing native transaction. */
 export async function calculateProductionCapacity(db: SqlDatabase, actor: WorkContext, input: CapacityInput) {
   return createCapacityPlanner({
     repository: {
-      operations: async (specificationId, companyId) => (await db.prepare(`SELECT o.*,r.version resource_version,r.status,r.daily_minutes,r.work_weekdays_json,r.branch_id
-        ${productionmanufacturingProjection.routingOperations} JOIN production_resources r ON r.id=o.resource_id
-        WHERE o.specification_id=? AND r.company_id=? ORDER BY o.ordinal`).bind(specificationId, companyId).all<CapacityOperation>()).results,
+      operations: async (specificationId, companyId) => (await db.prepare(planningSelectFrom('o.*,r.version resource_version,r.status,r.daily_minutes,r.work_weekdays_json,r.branch_id',
+        '        ', `${productionmanufacturingProjection.routingOperations.replace(/^FROM /, '')} JOIN production_resources r ON r.id=o.resource_id
+        WHERE o.specification_id=? AND r.company_id=? ORDER BY o.ordinal`)).bind(specificationId, companyId).all<CapacityOperation>()).results,
       calendar: (resourceId, date) => db.prepare(resourceCalendarByKey('available_minutes,version')).bind(resourceId, date).first<{ available_minutes: number; version: number }>(),
       allocatedMinutes: async (resourceId, date) => Number((await db.prepare(planningResourceAllocationRows('COALESCE(sum(minutes),0) minutes', 'resource_id=? AND work_date=? AND released_at IS NULL')).bind(resourceId, date).first<{ minutes: number }>())?.minutes ?? 0),
     }, error: (status, code, message) => new ApiError(status, code, message),

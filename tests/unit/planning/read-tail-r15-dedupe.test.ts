@@ -111,8 +111,9 @@ describe('Planning read-tail r15 parameterized image-source row family', () => {
     // r16 folded the three purchase witness rows into the generalized source-row
     // head (25 -> 22); r17 folded the shortage/executive projection heads (22 -> 21)
     // while keeping every emitted SQL byte-identical; r18 folded the calendar/comparison
-    // single-line heads (21 -> 20).
-    expect(total).toBe(20);
+    // single-line heads (21 -> 20); r19 folded the capacity operations head into
+    // the r17 builder (20 -> 19).
+    expect(total).toBe(19);
     expect(total).toBeLessThan(26);
   });
 });
