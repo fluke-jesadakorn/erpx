@@ -1,6 +1,7 @@
 import 'server-only';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
+import {correlatedNodeJson} from './organization-column-alias-families-r28';
 
 /** Company foundation facts only; this point witness never grants Organization
  * management or provider access. All native rows remain inside the read unit. */
@@ -11,8 +12,8 @@ export function foundationAttachmentOrganizationSourceImage(database:SqlDatabase
 export async function organizationAttachmentReadSourceImage(database:SqlDatabase,actor:WorkContext,type:string,id:string){
  if(!isOrganizationAttachmentReadTarget(type))return null;
  if(type==='organization_node')return database.prepare(`SELECT jsonb_build_object('node',to_jsonb(node),'company',(SELECT to_jsonb(company) FROM organization_nodes company WHERE company.id=node.company_id AND company.kind='company'),
- 'branch',(SELECT to_jsonb(branch) FROM organization_nodes branch WHERE branch.id=node.branch_id AND branch.company_id=node.company_id))::text image FROM organization_nodes node WHERE node.id=? AND node.company_id=? AND node.kind IN('company','headquarters','branch','department')`).bind(id,actor.companyId).first<string>('image');
- return database.prepare(`SELECT jsonb_build_object('change',to_jsonb(change),'target',(SELECT to_jsonb(node) FROM organization_nodes node WHERE node.id=change.target_node_id AND node.company_id=change.company_id),
- 'branch',(SELECT to_jsonb(branch) FROM organization_nodes branch WHERE branch.id=change.branch_id AND branch.company_id=change.company_id),
+ 'branch',${correlatedNodeJson('branch','node.branch_id','node.company_id')})::text image FROM organization_nodes node WHERE node.id=? AND node.company_id=? AND node.kind IN('company','headquarters','branch','department')`).bind(id,actor.companyId).first<string>('image');
+ return database.prepare(`SELECT jsonb_build_object('change',to_jsonb(change),'target',${correlatedNodeJson('node','change.target_node_id','change.company_id')},
+ 'branch',${correlatedNodeJson('branch','change.branch_id','change.company_id')},
  'events',(SELECT jsonb_agg(to_jsonb(event) ORDER BY event.version,event.id) FROM organization_node_change_events event WHERE event.change_id=change.id AND event.company_id=change.company_id))::text image FROM organization_node_changes change WHERE change.id=? AND change.company_id=?`).bind(id,actor.companyId).first<string>('image');
 }

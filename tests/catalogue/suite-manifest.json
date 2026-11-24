@@ -2527,6 +2527,31 @@
       },
       "ci": {
         "critical": true,
+        "reason": "Benefits next pure read family must stay byte-identical."
+      },
+      "apps": "apps",
+      "packages": [
+        "@erpx/server-benefits"
+      ],
+      "id": "benefits.read-tail-r20-dedupe.unit",
+      "files": [
+        "tests/unit/benefits/read-tail-r20-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "benefits",
+      "modules": [
+        "benefits"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
         "reason": "Benefits scope CTE prefix must exist once and stay byte-identical."
       },
       "apps": [
@@ -59642,6 +59667,31 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "organization",
+      "modules": [
+        "organization"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Organization company snapshot aggregate and correlated node json families must stay byte-identical."
+      },
+      "apps": "apps",
+      "packages": [
+        "@erpx/server-organization"
+      ],
+      "id": "organization.read-tail-r28-dedupe.unit",
+      "files": [
+        "tests/unit/organization/read-tail-r28-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "lane": "integration",
       "owner": "organization",
       "modules": [
@@ -69526,6 +69576,31 @@
       "id": "pms.read-tail-r24-dedupe.unit",
       "files": [
         "tests/unit/pms/pms-read-tail-r24-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "pms",
+      "modules": [
+        "pms"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "PMS guest account, reservation and stays families must stay byte-identical."
+      },
+      "apps": "booking",
+      "packages": [
+        "@erpx/server-pms"
+      ],
+      "id": "pms.read-tail-r25-dedupe.unit",
+      "files": [
+        "tests/unit/pms/pms-read-tail-r25-dedupe.test.ts"
       ],
       "framework": "vitest"
     },

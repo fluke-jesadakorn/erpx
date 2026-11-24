@@ -96,7 +96,8 @@ describe('Organization read-tail r27 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(299);
+    // r28 cut two further families below the r27 count; family assertions above are unchanged.
+    expect(total).toBe(292);
     expect(total).toBeLessThan(303);
   });
 });
