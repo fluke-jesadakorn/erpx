@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10601,
+    "revision": 10603,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -163265,7 +163265,7 @@
         "owner": "people_payroll",
         "title": "payroll two column projection family (round 32)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -163277,28 +163277,36 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMppl3",
-          "claimedAt": "2026-11-24T08:02:04.050Z",
-          "heartbeatAt": "2026-11-24T08:15:48.647Z",
-          "expiresAt": "2026-11-24T08:45:48.647Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-people_payroll/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "14de94215",
+            "owner": "people_payroll",
+            "before": 1409,
+            "after": 1399,
+            "note": "Eleven two column projection by two predicate reads share ppRd32TwoColProjection including reversed forms; locks and r1-r31 untouched."
+          },
+          {
+            "command": "vitest payroll r20-r32 (58) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "14de94215"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Eleven two column by id and company reads share one projection builder. BEFORE=1409.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
           "runId": "run-20261124-a",
           "agentId": "wGCMppl3",
-          "at": "2026-11-24T08:02:03.413Z",
+          "at": "2026-11-24T08:23:36.309Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
-          "nextAction": "Eleven two column by id and company reads share one projection builder. BEFORE=1409."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -164580,17 +164588,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 20,
-        "in_progress": 21,
+        "in_progress": 20,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1047,
+        "blocked": 1048,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T08:23:01.415Z",
+    "updatedAt": "2026-11-24T08:23:36.314Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
