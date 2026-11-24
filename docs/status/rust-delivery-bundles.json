@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10830,
+    "revision": 10838,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -166847,7 +166847,7 @@
         "owner": "learning",
         "title": "learning TS read tail native cutover (round 10)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -166859,22 +166859,37 @@
         "resources": [
           "owner:learning"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMlrn5",
-          "claimedAt": "2026-11-24T08:59:22.480Z",
-          "heartbeatAt": "2026-11-24T09:05:44.208Z",
-          "expiresAt": "2026-11-24T09:35:44.208Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-learning/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d255bb981",
+            "owner": "learning",
+            "before": 69,
+            "after": 66,
+            "note": "Course projection and assignment x course join head share two helpers; 7 LOCK TABLE statements and r1-r9 untouched."
+          },
+          {
+            "command": "vitest learning r7-r10 (23) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "d255bb981"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=70.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMlrn5",
+          "at": "2026-11-24T09:06:42.322Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -167410,6 +167425,114 @@
         "nextAction": "Switch agent-governance policyCandidates to the native governance port and delete the TS literal; keep guards/locks. BEFORE=57.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.manage_erpx.read-tail-r10",
+        "goalId": "G4",
+        "owner": "manage_erpx",
+        "title": "manage_erpx point read families (round 10)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-manage_erpx/src/**",
+          "tests/unit/manage_erpx/**",
+          "tests/integration/manage_erpx/**"
+        ],
+        "resources": [
+          "owner:manage_erpx"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMman2",
+          "claimedAt": "2026-11-24T09:06:43.359Z",
+          "heartbeatAt": "2026-11-24T09:06:43.359Z",
+          "expiresAt": "2026-11-24T09:36:43.359Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "company provisioning point reads and beta invitation point reads. BEFORE=28.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.assets.read-tail-r26",
+        "goalId": "G4",
+        "owner": "assets",
+        "title": "assets package obligations native cutover (round 26)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-assets/src/**",
+          "tests/unit/assets/**",
+          "tests/integration/assets/**"
+        ],
+        "resources": [
+          "owner:assets"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMast8",
+          "claimedAt": "2026-11-24T09:06:43.688Z",
+          "heartbeatAt": "2026-11-24T09:06:43.688Z",
+          "expiresAt": "2026-11-24T09:36:43.689Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Remove TS fallback for assetPackageObligations; native plan already registered. BEFORE=20.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.marketing.read-tail-r34",
+        "goalId": "G4",
+        "owner": "marketing",
+        "title": "marketing package obligations native port (round 34)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-marketing/src/**",
+          "tests/unit/marketing/**",
+          "tests/integration/marketing/**"
+        ],
+        "resources": [
+          "owner:marketing"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMmkt7",
+          "claimedAt": "2026-11-24T09:06:43.925Z",
+          "heartbeatAt": "2026-11-24T09:06:43.925Z",
+          "expiresAt": "2026-11-24T09:36:43.925Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Add marketing-package-obligations plan and cut over the 11-token statement. BEFORE=77.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -167418,21 +167541,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1478,
+      "totalPackets": 1481,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 23,
-        "in_progress": 20,
+        "in_progress": 22,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1103,
+        "blocked": 1104,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T09:06:21.130Z",
+    "updatedAt": "2026-11-24T09:06:43.933Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
