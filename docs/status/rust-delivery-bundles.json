@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7983,
+    "revision": 7987,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -133929,7 +133929,7 @@
         "owner": "workflow",
         "title": "workflow TS read tail native cutover (round 17)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -133941,22 +133941,42 @@
         "resources": [
           "owner:workflow"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG94wor",
-          "claimedAt": "2026-11-24T01:27:03.011Z",
-          "heartbeatAt": "2026-11-24T01:29:05.622Z",
-          "expiresAt": "2026-11-24T01:59:05.622Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-workflow/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "add97e6a3",
+            "owner": "workflow",
+            "before": 84,
+            "after": 81,
+            "note": "Approval instances/steps/audit projection literals shared by final-root, hospitality and commercial sources."
+          },
+          {
+            "command": "vitest workflow transport (30)",
+            "result": "passed",
+            "sourceSha": "add97e6a3"
+          },
+          {
+            "command": "tsc workflow",
+            "result": "passed",
+            "sourceSha": "add97e6a3"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: legal approval-step point reads need company scope (scope-refine or dedupe only), or another byte-parity pair; keep assertion fragments. BEFORE=84.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG94wor",
+          "at": "2026-11-24T01:32:19.202Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -134390,6 +134410,42 @@
         "nextAction": "Next: safe TS-only dedupe; if none, report blocked. BEFORE=47.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.workflow.read-tail-r18",
+        "goalId": "G4",
+        "owner": "workflow",
+        "title": "workflow TS read tail native cutover (round 18)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-workflow/src/**",
+          "tests/unit/workflow/**",
+          "tests/integration/workflow/**"
+        ],
+        "resources": [
+          "owner:workflow"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGA7wor",
+          "claimedAt": "2026-11-24T01:32:19.427Z",
+          "heartbeatAt": "2026-11-24T01:32:19.427Z",
+          "expiresAt": "2026-11-24T02:02:19.427Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: scan for another byte-identical projection pair; keep assertion fragments/flow_*. BEFORE=81.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -134398,7 +134454,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 825,
+      "totalPackets": 826,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
@@ -134406,13 +134462,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 451,
+        "blocked": 452,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:31:58.206Z",
+    "updatedAt": "2026-11-24T01:32:19.431Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
