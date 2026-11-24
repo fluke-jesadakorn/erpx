@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11273,
+    "revision": 11275,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -171855,7 +171855,7 @@
         "owner": "assets",
         "title": "assets TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -171867,22 +171867,38 @@
         "resources": [
           "owner:assets"
         ],
-        "claim": {
-          "runId": "run-20261124-b",
-          "agentId": "wGCMast9",
-          "claimedAt": "2026-11-24T10:18:11.408Z",
-          "heartbeatAt": "2026-11-24T10:20:25.536Z",
-          "expiresAt": "2026-11-24T10:50:25.536Z",
-          "generation": 168
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-assets/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "a83d22865",
+            "owner": "assets",
+            "before": 15,
+            "after": 14,
+            "note": "Two safe projection-from heads share assetProjectionFromSql; lock/FOR SHARE and cross-owner finance members, LOCK TABLE, native plans and settlement sources untouched."
+          },
+          {
+            "command": "vitest assets targeted (51/53; 2 external projects export WIP) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "a83d22865",
+            "note": "Two failures caused by missing server-projects read-tail-r29 package export, fixed at integration of projects r29."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Find a NEW byte-identical/parameterized SELECT-head family outside r1-r26; locks and native plans untouched. BEFORE=15.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMast9",
+          "at": "2026-11-24T10:29:03.591Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -172574,17 +172590,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 29,
+        "in_progress": 28,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1200,
+        "blocked": 1201,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 168,
-    "updatedAt": "2026-11-24T10:28:18.553Z",
+    "updatedAt": "2026-11-24T10:29:03.606Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
