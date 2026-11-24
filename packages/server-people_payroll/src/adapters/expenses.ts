@@ -4,6 +4,7 @@ import { PP_RD24_UNCLAIMED_EXPENSE_GUARD } from './pp-read-tail-r24-sources';
 import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
 import { ppRd29OpenFinancePeriodSql, ppRd29FinanceExpenseTreasurySql, ppRd29FinancePartySupplierSql } from './pp-read-tail-r29-sources';
 import { ppRd48ExpenseClaimInvoice } from './pp-read-tail-r48-sources';
+import { ppRd49ExpenseClaimReceiptV2, ppRd49ExpenseClaimReceiptV1, ppRd49AttachmentLinkPoint, ppRd49DraftLinkGuard } from './pp-read-tail-r49-sources';
 import{canAccountExpenses,canPostExpenses,visibility,currentExpenseReader,approvalFields,expenseSelect,originalNativeExpenseReads,listExpenses,getExpense,expenseFromDatabase,canEditExpense,canReviewExpense,nativeExpenseReads,expensePresentationRows,expenseVisibleRecordIds,type ExpenseRow}from '@erpx/server-people_payroll/adapters/expense-read';
 export{canAccountExpenses,canPostExpenses,visibility,currentExpenseReader,approvalFields,expenseSelect,originalNativeExpenseReads,listExpenses,getExpense,expenseFromDatabase,canEditExpense,canReviewExpense,nativeExpenseReads,expensePresentationRows,expenseVisibleRecordIds};
 export type{ExpenseRow};
@@ -257,10 +258,8 @@ function originalNativeExpenseLifecycle(write: SqlDatabase) {
             key,
             "receipt",
             attachmentsV2Readable()
-              ? `EXISTS(SELECT 1 FROM (${filesProjectionSources.attachments}) a JOIN (${filesProjectionSources.attachment_links}) l ON l.attachment_id=a.id JOIN (${filesProjectionSources.attachment_sets}) s ON s.id=l.set_id
-                  WHERE a.owner_type='expense_claim' AND a.owner_id=? AND a.revoked_at IS NULL AND a.source_state='available'
-                    AND l.state='bound' AND s.target_type='expense_claim' AND s.target_id=a.owner_id)`
-              : `EXISTS(SELECT 1 FROM (${filesProjectionSources.attachments}) attachments WHERE owner_type='expense_claim' AND owner_id=? AND revoked_at IS NULL)`,
+              ? ppRd49ExpenseClaimReceiptV2()
+              : ppRd49ExpenseClaimReceiptV1(),
             [id],
           ),
           assertion(
@@ -340,11 +339,11 @@ function originalNativeExpenseReceiptRemoval(write: SqlDatabase) {
     readOnly: attachmentsV2ReadOnly,
     expense: (actor, id) => expenseFromDatabase(write, actor, id),
     link: (actor, id, attachmentId) => attachmentsV2Readable()
-      ? write.prepare(`SELECT l.id,l.state,l.set_id FROM (${filesProjectionSources.attachment_links}) l JOIN (${filesProjectionSources.attachment_sets}) s ON s.id=l.set_id WHERE l.attachment_id=? AND s.company_id=? AND s.target_type='expense_claim' AND s.target_id=?`)
+      ? write.prepare(ppRd49AttachmentLinkPoint('expense_claim'))
         .bind(attachmentId, actor.companyId, id).first<{ id: string; state: string; set_id: string }>()
       : Promise.resolve(undefined),
     draftLink: (actor, id, attachmentId) => attachmentsV2Readable()
-      ? write.prepare(`SELECT l.id,l.set_id FROM (${filesProjectionSources.attachment_links}) l JOIN (${filesProjectionSources.attachment_sets}) s ON s.id=l.set_id WHERE l.attachment_id=? AND s.company_id=? AND s.target_type='expense_claim' AND s.target_id=? AND l.state='draft'`)
+      ? write.prepare(ppRd49AttachmentLinkPoint('expense_claim', true))
         .bind(attachmentId, actor.companyId, id).first<{ id: string; set_id: string }>()
       : Promise.resolve(null),
     async prepareRemoval(actor, key, id, attachmentId, expectedVersion, expense, canonical) {
@@ -367,7 +366,7 @@ function originalNativeExpenseReceiptRemoval(write: SqlDatabase) {
               write,
               key,
               "canonical-receipt-draft",
-              `EXISTS(SELECT 1 FROM (${filesProjectionSources.attachment_links}) attachment_links WHERE id=? AND state='draft')`,
+              ppRd49DraftLinkGuard(),
               [canonical.id],
             ),
             await filesExpenseEffects(write).withdrawLink({at:now,actorId:actor.userId,reason:"Removed from expense preparation",linkId:canonical.id,companyId:actor.companyId}),
@@ -440,10 +439,8 @@ export function nativeExpensePostingPreparation(write: SqlDatabase) {
         key,
         "receipt",
             attachmentsV2Readable()
-              ? `EXISTS(SELECT 1 FROM (${filesProjectionSources.attachments}) a JOIN (${filesProjectionSources.attachment_links}) l ON l.attachment_id=a.id JOIN (${filesProjectionSources.attachment_sets}) s ON s.id=l.set_id
-                  WHERE a.owner_type='expense_claim' AND a.owner_id=? AND a.revoked_at IS NULL AND a.source_state='available'
-                    AND l.state='bound' AND s.target_type='expense_claim' AND s.target_id=a.owner_id)`
-              : `EXISTS(SELECT 1 FROM (${filesProjectionSources.attachments}) attachments WHERE owner_type='expense_claim' AND owner_id=? AND revoked_at IS NULL)`,
+              ? ppRd49ExpenseClaimReceiptV2()
+              : ppRd49ExpenseClaimReceiptV1(),
         [id],
       ),
       ...(claim.request_kind==="payment"&&claim.payee_party_id ? [assertion(write,key,"payee",ppRd29FinancePartySupplierSql(financeProjectionSources.finance_parties),[payee,actor.companyId,claim.currency])] : [

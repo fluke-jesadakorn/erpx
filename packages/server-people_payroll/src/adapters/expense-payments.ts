@@ -1,6 +1,7 @@
 import { ppRd21IdVersionStatusGuard } from './pp-read-tail-r21-sources';
 import { ppRd27IdCompanyVersionStatusLiteralGuard } from './pp-read-tail-r27-sources';
 import { ppRd48IdCompanyVersionPairGuard, ppRd48ExpenseClaimInvoice } from './pp-read-tail-r48-sources';
+import { ppRd49AttachmentLinkPoint, ppRd49DraftLinkGuard } from './pp-read-tail-r49-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import{paymentDraft,nativeExpensePaymentReader,paymentFromDatabase}from '@erpx/server-people_payroll/adapters/expense-payment-read';
 export{paymentDraft,nativeExpensePaymentReader,paymentFromDatabase};
@@ -180,8 +181,7 @@ function originalNativeExpensePaymentSlipRemoval(write: SqlDatabase) {
     readOnly: attachmentsV2ReadOnly,
     payment: (actor, id) => paymentFromDatabase(write, actor, id, true),
     link: (actor, id, attachmentId) => attachmentsV2Readable()
-      ? write.prepare(`SELECT l.id,l.state,l.set_id FROM (${filesProjectionSources.attachment_links}) l JOIN (${filesProjectionSources.attachment_sets}) s ON s.id=l.set_id
-           WHERE l.attachment_id=? AND s.company_id=? AND s.target_type='expense_payment' AND s.target_id=?`)
+      ? write.prepare(ppRd49AttachmentLinkPoint('expense_payment'))
         .bind(attachmentId, actor.companyId, id).first<{ id: string; state: string; set_id: string }>()
       : Promise.resolve(null),
     async prepareRemoval(actor, key, id, attachmentId, expectedVersion, expense, canonical) {
@@ -208,7 +208,7 @@ function originalNativeExpensePaymentSlipRemoval(write: SqlDatabase) {
               write,
               key,
               "canonical-slip-draft",
-              `EXISTS(SELECT 1 FROM (${filesProjectionSources.attachment_links}) attachment_links WHERE id=? AND state='draft')`,
+              ppRd49DraftLinkGuard(),
               [canonical.id],
             ),
             await filesExpenseEffects(write).withdrawLink({at:now,actorId:actor.userId,reason:"Removed from payment preparation",linkId:canonical.id,companyId:actor.companyId}),

@@ -116,6 +116,6 @@ describe('People Payroll read-tail r27 parameterized family dedupe', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(1443);
-    expect(total).toBe(1240);
+    expect(total).toBe(1233);
   });
 });

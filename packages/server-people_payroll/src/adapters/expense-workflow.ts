@@ -1,6 +1,7 @@
 import { PP_RD23_FINANCE_EXPENSE_DRAFT_REJECTED_GUARD } from './pp-read-tail-r23-sources';
 import { ppRd29OpenFinancePeriodSql } from './pp-read-tail-r29-sources';
 import { ppRd48FinanceExpenseVersionGuard } from './pp-read-tail-r48-sources';
+import { ppRd49ExpenseClaimReceiptV2, ppRd49ExpenseClaimReceiptV1 } from './pp-read-tail-r49-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import{nativeExpensePayers,expensePayers,nativeExpenseWorkflowFields,expenseWorkflowFields}from '@erpx/server-people_payroll/adapters/expense-workflow-read';
 export{nativeExpensePayers,expensePayers,nativeExpenseWorkflowFields,expenseWorkflowFields};
@@ -160,10 +161,8 @@ function originalNativeExpenseTransitions(write: SqlDatabase) {
           key,
           "receipt",
           attachmentsV2Readable()
-            ? `EXISTS(SELECT 1 FROM (${filesProjectionSources.attachments}) a JOIN (${filesProjectionSources.attachment_links}) l ON l.attachment_id=a.id JOIN (${filesProjectionSources.attachment_sets}) s ON s.id=l.set_id
-                WHERE a.owner_type='expense_claim' AND a.owner_id=? AND a.revoked_at IS NULL AND a.source_state='available'
-                  AND l.state='bound' AND s.target_type='expense_claim' AND s.target_id=a.owner_id)`
-            : `EXISTS(SELECT 1 FROM (${filesProjectionSources.attachments}) attachments WHERE owner_type='expense_claim' AND owner_id=? AND revoked_at IS NULL)`,
+            ? ppRd49ExpenseClaimReceiptV2()
+            : ppRd49ExpenseClaimReceiptV1(),
           [id],
         ),
         assertion(
