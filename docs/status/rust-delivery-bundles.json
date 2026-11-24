@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12343,
+    "revision": 12346,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -182819,17 +182819,32 @@
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-people_payroll/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "98a73f361",
+            "owner": "people_payroll",
+            "before": 1233,
+            "after": 1228,
+            "note": "COALESCE display_name across 5 sites and slip owner guards shared; locks/advisory/native untouched."
+          },
+          {
+            "command": "vitest payroll (152) + scoped tsc + 7 byte oracle",
+            "result": "passed",
+            "sourceSha": "98a73f361"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: lease expired; same operator resumes with reviewed WIP",
-        "nextAction": "COALESCE display_name family (-4), slip owner guards (-1): 1233->1228. BEFORE=1233.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n56",
-          "at": "2026-11-24T15:07:42.843Z",
+          "runId": "run-20261124-d",
+          "agentId": "lead-opencode",
+          "at": "2026-11-24T15:14:44.616Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: lease expired; same operator resumes with reviewed WIP",
-          "nextAction": "COALESCE display_name family (-4), slip owner guards (-1): 1233->1228. BEFORE=1233."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -183242,7 +183257,7 @@
       }
     },
     "lastCoordinatorGeneration": 170,
-    "updatedAt": "2026-11-24T15:13:40.139Z",
+    "updatedAt": "2026-11-24T15:14:44.619Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
