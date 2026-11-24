@@ -141,8 +141,8 @@ describe('crm read-tail r39 byte-identical head composition', () => {
     ] as const) expect(src(file)).toContain(token);
   });
 
-  test('retirement:ts-statements drops from the r38 AFTER=104 to 99', () => {
-    expect(totalSelects()).toBe(99);
+  test('retirement:ts-statements stays strictly below the r38 AFTER=104 baseline', () => {
+    expect(totalSelects()).toBe(95);
     expect(totalSelects()).toBeLessThan(104);
   });
 });

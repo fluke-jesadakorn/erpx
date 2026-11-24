@@ -10,7 +10,8 @@ import {salesFollowupMetricHistoryAccess,salesFollowupMetricSource} from "@erpx/
 import {actorScopeSql,crmPurchaseOpportunityRows,crmAssignmentModuleExists} from "@erpx/server-crm/adapters/purchases";
 import {crmCurrentScopeAllowedSql} from './read-tail-r30-sql';
 import {crmAssignmentModuleExistsSql} from './read-tail-r35-sql';
-const rows=`SELECT lead.* FROM crm_leads lead JOIN (${crmPurchaseOpportunityRows}) actual ON actual.id=lead.id AND actual.company_id=lead.company_id`;
+import {crmLeadRowSourceSql} from './read-tail-r40-sql';
+const rows=crmLeadRowSourceSql(`FROM crm_leads lead JOIN (${crmPurchaseOpportunityRows}) actual ON actual.id=lead.id AND actual.company_id=lead.company_id`);
 export async function crmMetricHistoryAccess(database:SqlDatabase,actor:WorkContext){
  const mode=await commercePackageEnforcementMode(),access=await readPurchasedAccesses(database,mode,actor.companyId,["sales.crm"]),followups=await salesFollowupMetricHistoryAccess(database,actor);if(mode!=="enforced")return {"opportunity-pipeline":true,...followups};
  const current=actor.modules.includes("crm")&&hasPermission(actor,"commerce.read")&&!!await database.prepare(crmCurrentScopeAllowedSql(assignmentReadSql("crm_metric_scope","commerce.read"),actorScopeSql,"crm_metric_scope",` AND ${crmAssignmentModuleExistsSql('', "'crm'::text)))")}`)).bind(actor.assignmentId,actor.userId,actor.role,actor.assignmentId,actor.companyId,actor.branchId,actor.departmentId).first<boolean>("allowed");

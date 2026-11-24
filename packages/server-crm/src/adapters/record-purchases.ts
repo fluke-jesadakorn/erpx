@@ -12,9 +12,10 @@ import {crmPurchaseLeadRows,crmPurchaseActivityRows,crmPurchaseAccountRows,crmPu
 import {crmWorkLeadOwnerProbeSql} from './read-tail-r29-sql';
 import {crmClockedSourceScopeSql} from './read-tail-r33-sql';
 import {crmOwnedSourceRowSql} from './read-tail-r34-sql';
+import {crmLeadRowSourceSql} from './read-tail-r40-sql';
 const crmNativeIdSql=(table:string)=>`SELECT id FROM ${table}`;
 const nativeIds=[crmNativeIdSql('crm_leads'),crmNativeIdSql('crm_lead_activities'),crmNativeIdSql('crm_opportunities'),crmNativeIdSql('crm_accounts'),crmNativeIdSql('crm_contacts'),crmNativeIdSql('crm_guest_links')].join(' UNION ALL ');
-const validLeads=`SELECT lead.* FROM (${crmPurchaseLeadRows}) lead WHERE NOT EXISTS(${crmOpportunityLeadSql}lead.id) OR EXISTS(${crmOpportunityExistsSql}opportunity.id=lead.id AND opportunity.company_id=lead.company_id)`;
+const validLeads=crmLeadRowSourceSql(`FROM (${crmPurchaseLeadRows}) lead WHERE NOT EXISTS(${crmOpportunityLeadSql}lead.id) OR EXISTS(${crmOpportunityExistsSql}opportunity.id=lead.id AND opportunity.company_id=lead.company_id)`);
 /** Native record identity is classified independently of generic module labels.
  * Opportunity IDs are mapped to the original lead-ID command/read interface. */
 const recordRows=`SELECT lead.id,'lead' kind,lead.id target_id,lead.company_id,lead.branch_id,lead.department_id,NULL::text created_by,NULL::text account_id,NULL::text contact_id FROM (${validLeads}) lead

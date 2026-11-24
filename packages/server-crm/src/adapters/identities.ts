@@ -21,6 +21,7 @@ import {requireCRMPurchasedRead,crmReferenceHistory,crmReferencePurchaseControls
 import {crmCreatorLeadScopeSql} from "./read-tail-r24-sql";
 import {crmGuestLinkReservationSourceSql} from "./read-tail-r26-sql";
 import {crmContactAccountReadSql} from "./read-tail-r35-sql";
+import {crmScopedDescListSql} from "./read-tail-r40-sql";
 /** G4 r24: the creator (created_by) lead-scope guards render through the one
  * owner helper; every rendered string stays byte-identical to the prior text. */
 const contactScopeSql=crmCreatorLeadScopeSql('acc','l','l.contact_id=c.id','');
@@ -29,14 +30,14 @@ function application(a:WorkContext,provided?:SqlDatabase){let resource:Promise<S
 const ports:CRMIdentityPorts={canGuestReview:hasPermission(a,'commerce.approve')&&hasPermission(a,'pms.read'),canReview:hasPermission(a,'commerce.approve'),canCreate:hasPermission(a,'commerce.sales'),clock:{now:()=>Date.now()},authorize:permission=>{requirePermission(a,permission);},
 replay:async(key,operation,id,input)=>replayCommand(await database(),a,key,operation,id,input),
 async identities(){const write=await database(); const [accounts,contacts,customers]=await Promise.all([
-  write.prepare(`SELECT a.id,a.kind,a.name,a.finance_party_id,a.review_evidence,a.version,p.name finance_customer_name FROM crm_accounts a LEFT JOIN (${financeProjectionSources.finance_parties}) p ON p.id=a.finance_party_id AND p.company_id=a.company_id WHERE a.company_id=? AND ${await crmNativeReadFilter('account','a')} AND ${accountOrContactLeadScopeSql('account_id','a.id','a.company_id')} ORDER BY a.updated_at DESC LIMIT 200`).bind(a.companyId,a.branchId,a.userId,a.branchId,a.departmentId,a.departmentId).all<Row>(),
+  write.prepare(crmScopedDescListSql(`a.id,a.kind,a.name,a.finance_party_id,a.review_evidence,a.version,p.name finance_customer_name FROM crm_accounts a LEFT JOIN (${financeProjectionSources.finance_parties}) p ON p.id=a.finance_party_id AND p.company_id=a.company_id WHERE a.company_id=? AND ${await crmNativeReadFilter('account','a')} AND ${accountOrContactLeadScopeSql('account_id','a.id','a.company_id')}`,'a.updated_at DESC LIMIT 200')).bind(a.companyId,a.branchId,a.userId,a.branchId,a.departmentId,a.departmentId).all<Row>(),
   write.prepare(crmContactAccountReadSql('c.id,c.account_id,c.name,c.detail,c.version','a',`WHERE c.company_id=? AND ${await crmNativeReadFilter('contact','c')} AND ${accountOrContactLeadScopeSql('contact_id','c.id','c.company_id')} ORDER BY c.updated_at DESC LIMIT 300`)).bind(a.companyId,a.branchId,a.userId,a.branchId,a.departmentId,a.departmentId).all<Row>(),
   write.prepare(activeCustomerPartiesSql).bind(a.companyId).all<Row>()
  ]);
- const guestLinks=hasPermission(a,'pms.read')&&await crmReferenceHistory(write,a,'pms.reservations')?(await write.prepare(`SELECT g.id,g.contact_id,g.guest_id,g.property_id,g.sharing_state,g.sharing_evidence,g.version,p.name property_name
+ const guestLinks=hasPermission(a,'pms.read')&&await crmReferenceHistory(write,a,'pms.reservations')?(await write.prepare(crmScopedDescListSql(`g.id,g.contact_id,g.guest_id,g.property_id,g.sharing_state,g.sharing_evidence,g.version,p.name property_name
   FROM crm_guest_links g JOIN (${pmsProjectionSources.pms_properties}) p ON p.id=g.property_id AND p.company_id=g.company_id
   JOIN crm_contacts c ON c.id=g.contact_id AND c.company_id=g.company_id JOIN crm_accounts acc ON acc.id=c.account_id
-  WHERE g.company_id=? AND ${await crmNativeReadFilter('guest-link','g')} AND (?::text IS NULL OR p.branch_id=?) AND ${contactScopeSql} ORDER BY g.created_at DESC LIMIT 200`)
+  WHERE g.company_id=? AND ${await crmNativeReadFilter('guest-link','g')} AND (?::text IS NULL OR p.branch_id=?) AND ${contactScopeSql}`,'g.created_at DESC LIMIT 200'))
   .bind(a.companyId,a.branchId,a.branchId,a.branchId,a.userId,a.branchId,a.departmentId,a.departmentId).all<Row>()).results:[];
  return {accounts:accounts.results,contacts:contacts.results,customers:customers.results,guestLinks};},
 async contact(contactId){const write=await database();return await write.prepare(crmContactAccountReadSql('c.id,c.name,c.account_id','acc',`WHERE c.id=? AND c.company_id=? AND ${contactScopeSql}`)).bind(contactId,a.companyId,a.branchId,a.userId,a.branchId,a.departmentId,a.departmentId).first<Row>();},
