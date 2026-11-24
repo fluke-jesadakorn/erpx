@@ -51,7 +51,10 @@ describe('Planning read-tail r14 parameterized ordered jsonb_agg family', () => 
     let restored = src('attachment-read-sources.ts');
     expect(restored).toContain(OUTER_CALL);
     restored = restored.replace(OUTER_CALL, ORIG_FULL);
-    expect(restored).toContain(` 'resources',${ORIG_FULL} image`);
+    // r15 moved the trailing " image" into the shared head helper; the nested
+    // pre-dedupe aggregate is still restored verbatim in source and in output.
+    expect(restored).toContain(` 'resources',${ORIG_FULL}`);
+    expect(planningAttachmentScenarioSourceRows).toContain(` 'resources',${ORIG_FULL} image`);
     expect(restored).toContain(ORIG_CALENDAR);
     expect(src('attachment-read-sources.ts')).not.toContain(ORIG_FULL);
   });
@@ -100,7 +103,8 @@ describe('Planning read-tail r14 parameterized ordered jsonb_agg family', () => 
       }
     };
     walk(srcRoot);
-    expect(total).toBe(26);
+    // r15 shared the two attachment image-source heads through planningImageSourceRows (26 -> 25).
+    expect(total).toBe(25);
     expect(total).toBeLessThan(27);
   });
 });
