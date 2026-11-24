@@ -83,6 +83,7 @@ describe('Customer Authority read-tail r28 release-gate read family', () => {
     walk(srcRoot);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(58);
-    expect(total).toBe(57);
+    // r29 further reduced the tail (57 -> 56); keep a bound, not a stale exact pin.
+    expect(total).toBeLessThan(57);
   });
 });

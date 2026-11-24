@@ -11,6 +11,7 @@ import {customerAuthorityCandidates} from "@erpx/server-finance/public/customer-
 import {createCustomerIdentityApplication,type IdentityRepository} from "@erpx/server-customer_authority/application/identity";
 import {CA_RD_IDENTITY_CHANGE_HISTORY,nativeOwnerReadAll} from './native-owner-read';
 import {managerEligibilitySql} from './manager-eligibility';
+import {reviewEligibilityRows} from './customer-authority-read-tail-r29-sources';
 /**
  * Retained identity-change read projections only. The request and
  * approve/reject/resubmit commands are native-owned
@@ -20,7 +21,7 @@ import {managerEligibilitySql} from './manager-eligibility';
 const manager=managerEligibilitySql('c');
 function ports(a:WorkContext) { return {actorId:a.userId,companyScope:!a.branchId&&!a.departmentId,require:(permission:"commerce.read"|"commerce.sales"|"commerce.approve")=>requirePermission(a,permission),canApprove:()=>hasPermission(a,'commerce.approve'),canSales:()=>hasPermission(a,'commerce.sales'),canRead:()=>hasPermission(a,'commerce.read'),clock:{now:()=>Date.now()},error:(status:number,code:string,message:string)=>new ApiError(status,code,message)}; }
 function repository(a:WorkContext,write:import("@erpx/server-runtime/public/runtime/types").SqlDatabase):IdentityRepository{return {
- rows:async()=>(await write.prepare(`SELECT c.*,p.name customer_name,p.code customer_code,p.version current_customer_version,CASE WHEN ${manager} THEN 1 ELSE 0 END actor_eligible FROM customer_identity_changes c JOIN (${financeProjectionSources.finance_parties}) p ON p.id=c.customer_id AND p.company_id=c.company_id WHERE c.company_id=? ORDER BY c.updated_at DESC,c.id`).bind(a.userId,a.companyId).all<Row>()).results,
+ rows:async()=>(await write.prepare(reviewEligibilityRows('c','customer_identity_changes','p.name customer_name,p.code customer_code,p.version current_customer_version',`JOIN (${financeProjectionSources.finance_parties}) p ON p.id=c.customer_id AND p.company_id=c.company_id`,manager)).bind(a.userId,a.companyId).all<Row>()).results,
  customers:()=>customerAuthorityCandidates(write,a.companyId,'identity'),history:async id=>(await nativeOwnerReadAll<Row>(CA_RD_IDENTITY_CHANGE_HISTORY,[id],write,a.holdingSlug)).results,
  };}
 function application(a:WorkContext){return createCustomerIdentityApplication({...ports(a),repository:async()=>repository(a,(await holdingResources(a.holdingId)).write)});}
