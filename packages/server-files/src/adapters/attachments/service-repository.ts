@@ -7,11 +7,12 @@ import type { AttachmentSourceState, AttachmentComponentKind } from "@erpx/serve
 import type { SetRow, LinkRow } from "@erpx/server-files/domain/attachments/service-models";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {LINK_ATTACHMENT_SELECT_SQL, LINK_SET_ATTACHMENT_EXISTS_SQL, LINK_SET_ID_SELECT_SQL, LINK_SET_WHERE_EXISTS_SQL} from "../read-tail-dedupe-sql";
+import {attachmentsByIdCompanySql} from "../read-tail-r26-source-sql";
 const setByIdSql = "SELECT * FROM attachment_sets WHERE id=? AND company_id=?";
 export const usedStorageSql = "SELECT COALESCE(sum(bytes),0) FROM attachment_storage_ledger WHERE company_id=? AND state IN ('reserved','stored')";
 export const pendingStorageSql = "SELECT COALESCE(sum(declared_bytes),0) FROM upload_intents WHERE company_id=? AND status='pending' AND expires_at>?";
 const advisoryLockSql = "SELECT pg_advisory_xact_lock(hashtextextended(?,0))";
-const attachmentChecksumSql = "SELECT checksum_sha256,source_state FROM attachments WHERE id=? AND company_id=?";
+const attachmentChecksumSql = attachmentsByIdCompanySql('checksum_sha256,source_state');
 const setLockSql = "SELECT state FROM attachment_sets WHERE id=? AND company_id=? FOR UPDATE";
 const publicationByIdSql = "SELECT * FROM attachment_publications WHERE id=? AND company_id=?";
 const publicationOrderVersionSql = "SELECT version FROM attachment_publication_orders WHERE company_id=? AND target_type=? AND target_id=?";

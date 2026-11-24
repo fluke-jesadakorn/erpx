@@ -4,6 +4,7 @@ import {ApiError} from '@erpx/server-runtime/public/http';
 import {isTransactionalSqlDatabase,type SqlDatabase,type StoredFile} from '@erpx/server-runtime/public/runtime/types';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {bufferedAttachmentRead} from '@erpx/server-files/adapters/private-attachment-reads';
+import {imageSnapshotSql} from './read-tail-r26-source-sql';
 
 /** Publication approval is the original public authority. Private source policy
  * is not substituted for it. Keep that exact published revision stable until
@@ -14,7 +15,7 @@ export async function withPublicationContentRead<Result extends {object:StoredFi
   // Query-free and compatible with the original publication writer. No Company
   // purchase, membership, consent or publication state is created by this read.
   await database.prepare('LOCK TABLE attachment_publications IN SHARE ROW EXCLUSIVE MODE').run();
-  const image=()=>database.prepare('SELECT to_jsonb(publication)::text image FROM attachment_publications publication WHERE id=?').bind(id).first<string>('image');
+  const image=()=>database.prepare(imageSnapshotSql('publication','attachment_publications')).bind(id).first<string>('image');
   const before=await image(),result=await read(database),bytes=await result.object.arrayBuffer();
   if(await sha256(bytes)!==result.row.derivative_checksum_sha256)throw new ApiError(503,'FILE_UNAVAILABLE','Published media is temporarily unavailable.');
   await flushFinanceDeferredEffects(database);

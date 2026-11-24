@@ -15,6 +15,7 @@ import type { SqlStatement } from '@erpx/server-runtime/public/runtime/types';
 import type { LegacySource } from '@erpx/server-files/domain/attachments/migration';
 import { createAttachmentMigrationApplication, type AttachmentMigrationRepository } from '@erpx/server-files/application/attachments-migration';
 import { ORPHAN_PRESERVATION_PRESENT_SQL } from '../preservation-presence-dedupe-sql';
+import { orphanReconciliationSql } from '../read-tail-r26-source-sql';
 function application(db: SqlDatabase) {
     const database = db, repository: AttachmentMigrationRepository<SqlStatement> = { readBackfillSpecializedAttachmentsMessaging() { return attachmentMigrationcollaboration(database).readBackfillSpecializedAttachmentsMessaging(); },
         readBackfillSpecializedAttachmentsDocuments() { return attachmentMigrationlegal(database).readBackfillSpecializedAttachmentsDocuments(); },
@@ -108,16 +109,12 @@ function application(db: SqlDatabase) {
             }>();
         },
         readReconcileAttachmentStorageEffect3() {
-            return database.prepare(`SELECT ledger.id FROM attachment_storage_ledger ledger
-    LEFT JOIN attachments source ON source.id=ledger.attachment_id
-    WHERE source.id IS NULL OR (source.company_id IS NOT NULL AND ledger.company_id IS DISTINCT FROM source.company_id) ORDER BY ledger.id`).all<{
+            return database.prepare(orphanReconciliationSql('attachment_storage_ledger','ledger')).all<{
                 id: string;
             }>();
         },
         readReconcileAttachmentStorageEffect4() {
-            return database.prepare(`SELECT derivative.id FROM attachment_derivatives derivative
-    LEFT JOIN attachments source ON source.id=derivative.attachment_id
-    WHERE source.id IS NULL OR (source.company_id IS NOT NULL AND derivative.company_id IS DISTINCT FROM source.company_id) ORDER BY derivative.id`).all<{
+            return database.prepare(orphanReconciliationSql('attachment_derivatives','derivative')).all<{
                 id: string;
             }>();
         },

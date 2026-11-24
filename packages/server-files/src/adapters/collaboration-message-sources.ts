@@ -1,1 +1,3 @@
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';export function collaborationMessageSource(db:SqlDatabase,id:string,companyId:string){return db.prepare('SELECT object_key,checksum_sha256 FROM attachments WHERE id=? AND company_id=?').bind(id,companyId).first<{object_key:string;checksum_sha256:string}>();}
+import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
+import {attachmentsByIdCompanySql} from './read-tail-r26-source-sql';
+export function collaborationMessageSource(db:SqlDatabase,id:string,companyId:string){return db.prepare(attachmentsByIdCompanySql('object_key,checksum_sha256')).bind(id,companyId).first<{object_key:string;checksum_sha256:string}>();}
