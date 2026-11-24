@@ -9,9 +9,10 @@ import {refuseLegalSigning} from "@erpx/server-legal/domain/signing";
 import {createLegalSigningApplication,type LegalEnvelopeView} from "@erpx/server-legal/application/signing";
 import { legalSigningReferences } from '@erpx/server-collaboration/adapters/native-legal-signing-references';
 import { legalExistsPointGuardHeadSql } from '../legal-read-tail-r40-sources';
+import { legalEnvelopeSignerReadHead } from '../legal-read-tail-r43-sources';
 export function assertLegalSigningEnabled():never{return refuseLegalSigning((status,code,message)=>new ApiError(status,code,message));}
 function application(db:SqlDatabase,a:WorkContext){const native=legalSigningReferences(db,a.companyId,a.userId);return createLegalSigningApplication({access:(id,p)=>access(db,a,id,p),clock:{now:()=>Date.now()},identifiers:{next:()=>crypto.randomUUID()},error:(status,code,message)=>new ApiError(status,code,message),repository:{
- envelope:(envelopeId,itemId)=>db.prepare("SELECT e.*,s.ordinal,s.state signer_state,s.viewed_at FROM legal_envelopes e JOIN legal_signers s ON s.envelope_id=e.id WHERE e.id=? AND e.item_id=? AND s.user_id=?").bind(envelopeId,itemId,a.userId).first<LegalEnvelopeView>(),
+ envelope:(envelopeId,itemId)=>db.prepare(legalEnvelopeSignerReadHead("e.*,s.ordinal,s.state signer_state,s.viewed_at")+"e.id=? AND e.item_id=? AND s.user_id=?").bind(envelopeId,itemId,a.userId).first<LegalEnvelopeView>(),
  replay:(key,operation,id,input)=>replayCommand(db,a,key,operation,id,input),
  view:async (item,e,key,x,times,eventId)=>executeCommand(db,a,key,"legal.signing.view",x,item.id,item.version+1,{id:item.id,version:item.version+1,state:item.state},[
  ...guards(db,a,item.id,item.version,key,false),assertion(db,key,"legal-envelope",`${legalExistsPointGuardHeadSql('legal_envelopes','id')}state='sent' AND expires_at>?)`,[e.id,times.envelope]),

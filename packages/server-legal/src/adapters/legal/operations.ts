@@ -18,6 +18,7 @@ import type {LegalWrite} from "@erpx/server-legal/application/service";
 import {createLegalOperationsApplication,type LegalOperationUnit,type LegalOperationsRepository} from "@erpx/server-legal/application/operations";
 import { legalOperations } from '@erpx/server-collaboration/adapters/native-legal-operations';
 import {nativeLegalAuxiliaryRead} from '../native-legal-auxiliary';
+import { legalEnvelopeSignerReadHead } from '../legal-read-tail-r43-sources';
 import {legalEventsByItemSql} from '../legal-read-tail-r18-sources';
 import {legalOrderedHistorySql} from '../legal-read-tail-r30-sources';
 import {legalItemOrderedSql} from '../legal-read-tail-r35-sources';
@@ -35,7 +36,7 @@ async exportRead(facts){return stage(await nativeOps.accessEvent({identifier:fac
 savedViews:async()=>({results:views??[]}),
 async saveView(facts){return stage(await nativeOps.saveView({companyId:facts.companyId,actorId:facts.actorId,name:facts.name,queryJson:facts.fact3}));},
 async derivedLink(facts){return nativeOps.derivedLink({id:facts.id,id2:facts.id2});},
-envelopes:(facts:{id:string;})=>db.prepare("SELECT e.*,s.user_id,s.ordinal,s.state signer_state,s.signed_at,s.evidence FROM legal_envelopes e JOIN legal_signers s ON s.envelope_id=e.id WHERE e.item_id=? ORDER BY e.created_at,s.ordinal").bind(facts.id).all(),
+envelopes:(facts:{id:string;})=>db.prepare(legalEnvelopeSignerReadHead("e.*,s.user_id,s.ordinal,s.state signer_state,s.signed_at,s.evidence")+"e.item_id=? ORDER BY e.created_at,s.ordinal").bind(facts.id).all(),
 documents:(facts:{id:string;})=>db.prepare(legalItemOrderedSql("id,version,name,checksum,bytes,media_type,locked,created_at","legal_documents","version")).bind(facts.id).all(),
 events:(facts:{id:string;})=>db.prepare(`${legalEventsByItemSql},id`).bind(facts.id).all(),
 accesses:(facts:{id:string;})=>db.prepare("SELECT * FROM legal_access_events WHERE item_id=? ORDER BY created_at,id LIMIT 10001").bind(facts.id).all(),

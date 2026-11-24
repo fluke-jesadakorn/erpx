@@ -15,6 +15,7 @@ import {legalPortalJournal} from "@erpx/server-workflow/public/legal-portal-jour
 import {lock} from "@erpx/server-legal/adapters/legal/access";
 import {hash} from "@erpx/server-legal/adapters/legal/service";
 import {portalAttachmentBytes,stagePortalAttachment} from "@erpx/server-legal/adapters/legal/portal-attachments";
+import { legalEnvelopeSignerReadHead } from '../legal-read-tail-r43-sources';
 import type {DocumentVersion} from "@erpx/server-legal/domain/model";
 import {legalPortalActor,type PortalActor} from "@erpx/server-legal/domain/portal";
 import {createLegalPortalApplication,type LegalPortalWrite,type LegalPortalUnit,type LegalPortalRepository,type LegalPortalShare,type LegalPortalShareFacts} from "@erpx/server-legal/application/portal";
@@ -38,7 +39,7 @@ uploadRecoverySource:facts=>legalPortalRepository(db).recoverySource(facts),
 retentionFrozen:(facts:{item_id:string;})=>db.prepare(legalDestructionActiveSql).bind(facts.item_id).first(),
 documentSummary:(facts:{document_id:string;})=>db.prepare(legalPointByIdSql("id,name,body,version,checksum,media_type","legal_documents")).bind(facts.document_id).first(),
 comments:(facts:{item_id:string;document_id:string;})=>db.prepare("SELECT body,created_at,created_by FROM legal_comments WHERE item_id=? AND document_id=? AND visibility='external' ORDER BY created_at LIMIT 100").bind(facts.item_id,facts.document_id).all(),
-envelopes:(facts:{item_id:string;document_id:string;actorId:string;})=>db.prepare("SELECT e.id,e.state,e.consent,e.expires_at,s.state signer_state,s.viewed_at FROM legal_envelopes e JOIN legal_signers s ON s.envelope_id=e.id WHERE e.item_id=? AND e.document_id=? AND s.user_id=? ORDER BY e.created_at DESC LIMIT 10").bind(facts.item_id,facts.document_id,facts.actorId).all(),
+envelopes:(facts:{item_id:string;document_id:string;actorId:string;})=>db.prepare(legalEnvelopeSignerReadHead("e.id,e.state,e.consent,e.expires_at,s.state signer_state,s.viewed_at")+"e.item_id=? AND e.document_id=? AND s.user_id=? ORDER BY e.created_at DESC LIMIT 10").bind(facts.item_id,facts.document_id,facts.actorId).all(),
 viewRead:facts=>(async()=>{await (await nw.accessEvent({...facts,action:facts.fact4})).run();return {results:[]};})(),
 billing:(facts:{item_id:string;actorId:string;})=>db.prepare("SELECT id,title,state,data,version FROM legal_counsel_entries WHERE item_id=? AND created_by=? ORDER BY updated_at DESC LIMIT 100").bind(facts.item_id,facts.actorId).all<{id:string;title:string;state:string;data:unknown;version:number}>(),
 document:(facts:{document_id:string;})=>db.prepare(legalDocumentByIdSql).bind(facts.document_id).first<DocumentVersion>(),
@@ -50,7 +51,7 @@ externalComment:facts=>(async()=>{await (await nw.externalComment(facts)).run();
 counselEntry:facts=>(async()=>{await (await nw.counselEntry(facts)).run();return {results:[]};})(),
 counselHistory:facts=>(async()=>{await (await nw.counselHistory(facts)).run();return {results:[]};})(),
 advanceItem:facts=>(async()=>{await (await nw.advanceItem(facts)).run();return {results:[]};})(),
-actionableEnvelope:(facts:{envelopeId:string | undefined;item_id:string;document_id:string;actorId:string;now:number;})=>db.prepare("SELECT e.*,s.ordinal,s.viewed_at FROM legal_envelopes e JOIN legal_signers s ON s.envelope_id=e.id WHERE e.id=? AND e.item_id=? AND e.document_id=? AND s.user_id=? AND e.state='sent' AND s.state='pending' AND e.expires_at>?").bind(facts.envelopeId,facts.item_id,facts.document_id,facts.actorId,facts.now).first<{
+actionableEnvelope:(facts:{envelopeId:string | undefined;item_id:string;document_id:string;actorId:string;now:number;})=>db.prepare(legalEnvelopeSignerReadHead("e.*,s.ordinal,s.viewed_at")+"e.id=? AND e.item_id=? AND e.document_id=? AND s.user_id=? AND e.state='sent' AND s.state='pending' AND e.expires_at>?").bind(facts.envelopeId,facts.item_id,facts.document_id,facts.actorId,facts.now).first<{
           id: string;
           ordinal: number;
           viewed_at: number | null;
