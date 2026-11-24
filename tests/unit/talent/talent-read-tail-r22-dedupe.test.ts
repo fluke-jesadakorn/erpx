@@ -45,7 +45,7 @@ describe('talent read-tail r22 source-row family dedupe', () => {
     for (const ref of [
       '(${sources}) talent_source',
       '(${sources}) actual_talent_source',
-      'SELECT capability,company_id FROM (${sources})',
+      "nativeTalentReadFirst<{capability:string;company_id:string}>('talent_rd_workspace_record_source',[id],database)",
       'export async function talentSourceReadScope',
       'export async function requireTalentWorkspaceRecordRead',
     ]) expect(text, ref).toContain(ref);

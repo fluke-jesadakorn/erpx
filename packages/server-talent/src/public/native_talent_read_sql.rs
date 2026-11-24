@@ -7,5 +7,5 @@
 
 pub use crate::adapters::native_talent_read_sql::{
     NativeTalentReadStatement, RD_CANDIDATE_EVENTS, RD_CANDIDATE_SOURCE_IMAGE,
-    RD_CANDIDATE_SOURCE_IMAGE_FILE, RD_OFFER_EVENTS, read_statement,
+    RD_CANDIDATE_SOURCE_IMAGE_FILE, RD_OFFER_EVENTS, RD_WORKSPACE_RECORD_SOURCE, read_statement,
 };

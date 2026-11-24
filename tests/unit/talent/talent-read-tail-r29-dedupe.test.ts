@@ -60,7 +60,7 @@ describe('talent read-tail r29 assertion EXISTS guard family dedupe', () => {
   it('lowers the talent owner SELECT KPI strictly below the recorded 50 r28 baseline', async () => {
     let count = 0;
     for (const f of await tsFiles(srcDir)) count += (await readFile(f, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(49);
+    expect(count).toBe(48);
     expect(count).toBeLessThan(50);
   });
 });

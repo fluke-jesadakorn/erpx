@@ -6,6 +6,7 @@ import type {WorkContext} from "@erpx/server-identity_access/public/authorizatio
 import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {ApiError} from "@erpx/server-runtime/public/http";
+import {nativeTalentReadFirst} from "./native-talent-read";
 import {talentPackageEnforcementMode,readPurchasedAccesses,checkPurchasedCapability} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
 const capabilities=["recruit.positions","recruit.candidates","recruit.applications","recruit.offers"] as const;
@@ -32,7 +33,7 @@ export async function talentSourceReadScope(database:SqlDatabase,actor:WorkConte
 }
 export async function requireTalentWorkspaceRecordRead(database:SqlDatabase,actor:WorkContext,moduleId:string,id:string){
  const mode=await talentPackageEnforcementMode();if(mode==="disabled"||moduleId!=="talent")return;
- const native=await database.prepare(`SELECT capability,company_id FROM (${sources}) actual_talent_source WHERE id=? LIMIT 1`).bind(id).first<{capability:string;company_id:string}>();if(!native)return;const scope=currentSource(actor,"workspace_records.id","workspace_records.company_id",undefined,false);
+ const native=await nativeTalentReadFirst<{capability:string;company_id:string}>('talent_rd_workspace_record_source',[id],database);if(!native)return;const scope=currentSource(actor,"workspace_records.id","workspace_records.company_id",undefined,false);
  if(!await database.prepare(`SELECT 1 FROM workspace_records WHERE module_id='talent' AND id=? AND ${scope.where}`).bind(id,...scope.args).first())throw new ApiError(404,"TALENT_SOURCE_NOT_FOUND","The actual Recruitment source is unavailable in this workspace.");
  await checkPurchasedCapability(database,mode,{companyId:actor.companyId,capability:native.capability,purpose:"history"});
 }

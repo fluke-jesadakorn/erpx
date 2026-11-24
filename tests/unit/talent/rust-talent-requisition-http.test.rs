@@ -777,3 +777,64 @@ async fn command_plan_returns_owner_authored_hire_handoff_fact_reads() {
 
     server.abort();
 }
+
+#[tokio::test]
+async fn command_plan_resolves_the_native_workspace_record_point_read() {
+    const KIND: &str = "talent_rd_workspace_record_source";
+    const SQL: &str = "SELECT capability,company_id FROM (SELECT r.id,r.company_id,r.branch_id,r.department_id,'requisition' kind,'recruit.positions' capability FROM talent_requisitions r\n UNION ALL SELECT c.id,c.company_id,NULL,NULL,'candidate','recruit.candidates' FROM talent_candidates c\n UNION ALL SELECT a.id,a.company_id,r.branch_id,r.department_id,'application','recruit.applications' FROM talent_applications a JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id\n UNION ALL SELECT p.id,a.company_id,r.branch_id,r.department_id,'proposal','recruit.applications' FROM talent_proposals p JOIN talent_applications a ON a.id=p.application_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id\n UNION ALL SELECT o.id,o.company_id,r.branch_id,r.department_id,'offer','recruit.offers' FROM talent_offers o JOIN talent_applications a ON a.id=o.application_id AND a.company_id=o.company_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id) actual_talent_source WHERE id=? LIMIT 1";
+
+    let router = talent_requisition_http_router(vec![TalentRequisitionHttpTarget {
+        host: "acme.example.test".into(),
+        holding_slug: "acme".into(),
+        origin: "https://acme.example.test".into(),
+        backend: Arc::new(Noop),
+    }])
+    .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let _ = serve(listener, router).await;
+    });
+
+    let payload = format!(r#"{{"kind":"{KIND}","values":["source-1"]}}"#);
+    let (status, body, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/talent/command-plan",
+            "acme.example.test",
+            None,
+            &payload,
+        ),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(body["data"]["statements"][0]["sql"], serde_json::json!(SQL));
+    assert_eq!(body["data"]["statements"][0]["values"], serde_json::json!(["source-1"]));
+
+    let bad = format!(r#"{{"kind":"{KIND}","values":[]}}"#);
+    let (status, _, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/talent/command-plan",
+            "acme.example.test",
+            None,
+            &bad,
+        ),
+    )
+    .await;
+    assert_eq!(status, 422);
+    let injected = r#"{"kind":"SELECT capability,company_id FROM talent_offers","values":[]}"#;
+    let (status, _, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/talent/command-plan",
+            "acme.example.test",
+            None,
+            injected,
+        ),
+    )
+    .await;
+    assert_eq!(status, 422);
+
+    server.abort();
+}

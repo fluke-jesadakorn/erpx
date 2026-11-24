@@ -231,6 +231,25 @@ const READ_OFFER_EVENTS: NativeTalentReadStatement = NativeTalentReadStatement {
     bind_count: 1,
 };
 
+/// Native successor of the TypeScript `requireTalentWorkspaceRecordRead`
+/// actual-source point read. The five Recruitment owner source rows are the
+/// exact `record-purchases.ts` `sources` union; the caller binds `[id]` on its
+/// open unit. Locks, IAM/commercial predicates and the r20-r30 helpers stay in
+/// TypeScript and are unchanged.
+pub const RD_WORKSPACE_RECORD_SOURCE: &str = "talent_rd_workspace_record_source";
+const SQL_RD_WORKSPACE_RECORD_SOURCE: &str = concat!(
+    "SELECT capability,company_id FROM (SELECT r.id,r.company_id,r.branch_id,r.department_id,'requisition' kind,'recruit.positions' capability FROM talent_requisitions r\n ",
+    "UNION ALL SELECT c.id,c.company_id,NULL,NULL,'candidate','recruit.candidates' FROM talent_candidates c\n ",
+    "UNION ALL SELECT a.id,a.company_id,r.branch_id,r.department_id,'application','recruit.applications' FROM talent_applications a JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id\n ",
+    "UNION ALL SELECT p.id,a.company_id,r.branch_id,r.department_id,'proposal','recruit.applications' FROM talent_proposals p JOIN talent_applications a ON a.id=p.application_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id\n ",
+    "UNION ALL SELECT o.id,o.company_id,r.branch_id,r.department_id,'offer','recruit.offers' FROM talent_offers o JOIN talent_applications a ON a.id=o.application_id AND a.company_id=o.company_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id) actual_talent_source WHERE id=? LIMIT 1",
+);
+const READ_WORKSPACE_RECORD_SOURCE: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_WORKSPACE_RECORD_SOURCE,
+    sql: SQL_RD_WORKSPACE_RECORD_SOURCE,
+    bind_count: 1,
+};
+
 const STATEMENTS: &[NativeTalentReadStatement] = &[
     READ_APPLICATION_EVENTS,
     READ_PROPOSALS,
@@ -251,6 +270,7 @@ const STATEMENTS: &[NativeTalentReadStatement] = &[
     READ_CANDIDATE_SOURCE_IMAGE_FILE,
     READ_CANDIDATE_EVENTS,
     READ_OFFER_EVENTS,
+    READ_WORKSPACE_RECORD_SOURCE,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -285,7 +305,7 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), 1);
         }
-        assert_eq!(STATEMENTS.len(), 19);
+        assert_eq!(STATEMENTS.len(), 20);
     }
 
     #[test]
@@ -514,6 +534,43 @@ mod tests {
             }
             assert_eq!(sql.matches('?').count(), binds);
         }
+    }
+
+    #[test]
+    fn workspace_record_source_point_read_is_owner_authored_select_only() {
+        let statement = read_statement(RD_WORKSPACE_RECORD_SOURCE)
+            .expect("registered owner read kind");
+        assert_eq!(statement.kind, RD_WORKSPACE_RECORD_SOURCE);
+        assert_eq!(statement.sql, SQL_RD_WORKSPACE_RECORD_SOURCE);
+        assert_eq!(statement.bind_count, 1);
+        assert!(
+            statement.sql.starts_with("SELECT "),
+            "point read must be SELECT-only: {sql}",
+            sql = statement.sql
+        );
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE", "FOR SHARE"] {
+            assert!(!statement.sql.contains(forbidden), "point read must not mutate or lock: {forbidden}");
+        }
+        for table in [
+            "talent_requisitions",
+            "talent_candidates",
+            "talent_applications",
+            "talent_proposals",
+            "talent_offers",
+        ] {
+            assert!(
+                statement.sql.contains(table),
+                "point read must stay on owner-local Talent tables: {table}"
+            );
+        }
+        assert_eq!(statement.sql.matches('?').count(), 1);
+        // Byte-exact mirror of the retired TypeScript `record-purchases.ts`
+        // point read: the same five-row `sources` union and the same trailing
+        // `WHERE id=? LIMIT 1`, with the emitted newline/space layout.
+        assert_eq!(
+            statement.sql,
+            "SELECT capability,company_id FROM (SELECT r.id,r.company_id,r.branch_id,r.department_id,'requisition' kind,'recruit.positions' capability FROM talent_requisitions r\n UNION ALL SELECT c.id,c.company_id,NULL,NULL,'candidate','recruit.candidates' FROM talent_candidates c\n UNION ALL SELECT a.id,a.company_id,r.branch_id,r.department_id,'application','recruit.applications' FROM talent_applications a JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id\n UNION ALL SELECT p.id,a.company_id,r.branch_id,r.department_id,'proposal','recruit.applications' FROM talent_proposals p JOIN talent_applications a ON a.id=p.application_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id\n UNION ALL SELECT o.id,o.company_id,r.branch_id,r.department_id,'offer','recruit.offers' FROM talent_offers o JOIN talent_applications a ON a.id=o.application_id AND a.company_id=o.company_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id) actual_talent_source WHERE id=? LIMIT 1"
+        );
     }
 
     #[test]
