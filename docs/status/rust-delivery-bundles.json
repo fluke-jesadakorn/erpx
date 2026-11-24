@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12195,
+    "revision": 12197,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -181542,6 +181542,41 @@
         "nextAction": "EXISTS assignment authority trio (-2), DISTINCT user_id pair (-1), active work context pair (-1): 472->468.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.pms.read-tail-r43",
+        "goalId": "G4",
+        "owner": "pms",
+        "title": "pms night lineage and booking email heads",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-pms/src/**",
+          "tests/unit/pms/**"
+        ],
+        "resources": [
+          "owner:pms"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n35",
+          "claimedAt": "2026-11-24T13:59:06.846Z",
+          "heartbeatAt": "2026-11-24T13:59:06.846Z",
+          "expiresAt": "2026-11-24T14:29:06.846Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Night-source witness (-1), booking email pending head (-1), night lineage recursive step (-1): 302->299.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -181550,11 +181585,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1754,
+      "totalPackets": 1755,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 14,
+        "in_progress": 15,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -181564,7 +181599,7 @@
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T13:58:29.780Z",
+    "updatedAt": "2026-11-24T13:59:06.855Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
