@@ -1,4 +1,5 @@
 import { PP_RD23_RECOVERY_FIRST_PERIOD_GUARD } from './pp-read-tail-r23-sources';
+import { ppRd26IdCompanyVersionStatusGuard } from './pp-read-tail-r26-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import { withPayrollPurchasedCommand, withPayrollPurchasedRead } from "@erpx/server-people_payroll/adapters/payroll-purchases";
 import "server-only";
@@ -42,7 +43,7 @@ function application(provided?: SqlDatabase) {
         readConsentPayrollRecoveryName(person_id: unknown, companyId: string, userId: string) { return database.prepare("SELECT legal_name FROM hr_people WHERE id=? AND company_id=? AND user_id=? AND status='active' AND merged_into_id IS NULL").bind(person_id, companyId, userId).first<string>('legal_name'); },
         guard12(key: string, value: "recovery-own-consent", id: string, companyId: string, expectedVersion: number, userId: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_payroll_recoveries WHERE id=? AND company_id=? AND version=? AND status='consent_pending' AND employee_user_id=?)", [id, companyId, expectedVersion, userId]); },
         stageConsentPayrollRecoveryEffect(status: "review_pending" | "declined", value: string | null, value2: number | null, html: string | null, checksum: string | null, now: number, id: string) { return nativePpStatement('pp_payroll_recoveries_stmt_3').bind(status, value, value2, html, checksum, now, id); },
-        guard14(key: string, value: "recovery-review-version", id: string, companyId: string, expectedVersion: number, value2: string) { return assertion(database, key, value, 'EXISTS(SELECT 1 FROM hr_payroll_recoveries WHERE id=? AND company_id=? AND version=? AND status=?)', [id, companyId, expectedVersion, value2]); },
+        guard14(key: string, value: "recovery-review-version", id: string, companyId: string, expectedVersion: number, value2: string) { return assertion(database, key, value, ppRd26IdCompanyVersionStatusGuard('hr_payroll_recoveries'), [id, companyId, expectedVersion, value2]); },
         stageReviewPayrollRecoveryEffect(status: "approved" | "rejected" | "cancelled", value: string | null, value2: string | null, now: number, id: string) { return nativePpStatement('pp_payroll_recoveries_stmt_4').bind(status, value, value2, now, id); },
         readRecognizePayrollRecoveryMapping(companyId: string, pay_group_id: unknown) {
             return database.prepare("SELECT id,version,chart_id,accounts_json FROM hr_payroll_account_mappings WHERE company_id=? AND pay_group_id=? AND status='approved' ORDER BY created_at DESC LIMIT 1").bind(companyId, pay_group_id).first<{

@@ -1,5 +1,6 @@
 import 'server-only';
 import {PP_RD15_FINAL_PAY_VALID_SQL} from './pp-read-tail-r15-sources';
+import { ppRd26CommandReceiptPriorSql } from './pp-read-tail-r26-sources';
 import { payrollFinalPayCancellation } from '@erpx/server-collaboration/adapters/native-payroll-final-pay-cancellation';
 import {randomUUID} from 'node:crypto';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
@@ -49,7 +50,7 @@ async function owned<Result>(actor:WorkContext,runId:string,key:string|undefined
  const owner=(await holdingResources(actor.holdingId)).write;if(!isTransactionalSqlDatabase(owner))throw new ApiError(503,'PAYROLL_TRANSACTION_REQUIRED','Final-pay cancellation requires its owned Holding transaction.');
  try{return await owner.transaction(async database=>{
   await leases(database,actor.companyId);const authorized=await currentAuthority(database,actor),schemaAvailable=await finalPayCancellationSchemaAvailable(database),mode=await peoplePackageEnforcementMode();
-  const prior=key?await database.prepare('SELECT 1 FROM command_receipts WHERE command_id=?').bind(key).first():null,purchase={companyId:actor.companyId,capability:'people.payroll',purpose:key&&!prior?'settle-existing' as const:'history' as const},fence=`final-pay-cancel:${randomUUID()}`;
+  const prior=key?await database.prepare(ppRd26CommandReceiptPriorSql('command_receipts')).bind(key).first():null,purchase={companyId:actor.companyId,capability:'people.payroll',purpose:key&&!prior?'settle-existing' as const:'history' as const},fence=`final-pay-cancel:${randomUUID()}`;
   if(mode!=='disabled')await checkPurchasedCapability(database,mode,purchase);
   if(key&&!schemaAvailable)throw new ApiError(503,'FINAL_PAY_CANCELLATION_SCHEMA_REQUIRED','The reviewed final-pay cancellation schema is required.');
   const boundary=key?purchaseCommandBoundary(database,mode,fence,purchase):null;if(boundary)await database.batch(boundary.before);

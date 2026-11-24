@@ -4,6 +4,7 @@ import "server-only";
 import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
+import { ppRd26AttachmentTargetScopeSql } from './pp-read-tail-r26-sources';
 const sensitiveVersionKinds: Record<string, string> = {
   hr_evaluation_assessment: 'pp_attach_sensitive_evaluation',
   hr_person: 'pp_attach_sensitive_person',
@@ -103,7 +104,7 @@ readPeoplePreparationTasks1:(facts:{targetId:string;companyId:string;})=>db.prep
       branch_id: string | null;
       department_id: string | null;
     }>(),
-readHrPayrollRuns1:(facts:{targetId:string;companyId:string;})=>db.prepare("SELECT company_id,NULL::text branch_id,NULL::text department_id,version FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(facts.targetId,facts.companyId).first<{ company_id: string; branch_id: null; department_id: null; version: number }>(),
+readHrPayrollRuns1:(facts:{targetId:string;companyId:string;})=>db.prepare(ppRd26AttachmentTargetScopeSql('hr_payroll_runs')).bind(facts.targetId,facts.companyId).first<{ company_id: string; branch_id: null; department_id: null; version: number }>(),
 readHrPayrollAdvances1:(facts:{userId:string;targetId:string;companyId:string;})=>db.prepare(`SELECT a.company_id,a.version,a.status,a.requested_by,e.branch_id,e.department_id,
         CASE WHEN iam_same_person(p.user_id,?,a.company_id) THEN 1 ELSE 0 END is_self
       FROM hr_payroll_advances a

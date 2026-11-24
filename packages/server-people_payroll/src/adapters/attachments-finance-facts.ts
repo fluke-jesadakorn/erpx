@@ -2,6 +2,7 @@ import "server-only";
 import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
+import { ppRd26AttachmentTargetScopeSql } from './pp-read-tail-r26-sources';
 const financeVersionKinds: Record<string, string> = {
   overtime_request: 'pp_attach_finance_overtime',
   time_entry: 'pp_attach_finance_time_entry',
@@ -43,5 +44,5 @@ if(!allowedTargets.has(targetType))return null;
 export function FinanceAttachmentPeoplePayrollFacts(db:SqlDatabase){return {
 readOwner6:(facts:{companyId:string;targetId:string;targetType:string;purposeKey:string;})=>{return db.prepare(`SELECT t.company_id,e.branch_id,e.department_id,t.version,t.submitted_by,t.status
       FROM hr_time_entries t JOIN hr_engagements e ON e.id=t.engagement_id WHERE t.id=? AND t.company_id=?`).bind(facts.targetId,facts.companyId).first<Row>();},
-readOwner11:(facts:{companyId:string;targetId:string;targetType:string;purposeKey:string;})=>{return db.prepare("SELECT company_id,NULL::text branch_id,NULL::text department_id,version FROM people_provision_operations WHERE id=? AND company_id=?").bind(facts.targetId,facts.companyId).first<Row>();},versionGuard:(commandId:string,targetType:string,targetId:string,companyId:string,version:number,index:number)=>financeOperationsAttachmentTargetVersionGuard(db,commandId,targetType,targetId,companyId,version,index),versionStep:(targetType:string,targetId:string,expectedVersion:number,now:number)=>financeOperationsAttachmentRecordVersionStep(db,targetType,targetId,expectedVersion,now)
+readOwner11:(facts:{companyId:string;targetId:string;targetType:string;purposeKey:string;})=>{return db.prepare(ppRd26AttachmentTargetScopeSql('people_provision_operations')).bind(facts.targetId,facts.companyId).first<Row>();},versionGuard:(commandId:string,targetType:string,targetId:string,companyId:string,version:number,index:number)=>financeOperationsAttachmentTargetVersionGuard(db,commandId,targetType,targetId,companyId,version,index),versionStep:(targetType:string,targetId:string,expectedVersion:number,now:number)=>financeOperationsAttachmentRecordVersionStep(db,targetType,targetId,expectedVersion,now)
 };}
