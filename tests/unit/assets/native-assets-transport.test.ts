@@ -304,10 +304,11 @@ it('shares one parameterized asset descriptor SQL across the policy and remainin
  const policy=await readFile(new URL('../../../packages/server-assets/src/adapters/attachments-policy-facts.ts',import.meta.url),'utf8');
  const operational=await readFile(new URL('../../../packages/server-assets/src/adapters/attachments-operational-facts.ts',import.meta.url),'utf8');
  const count=(text:string,needle:string)=>text.split(needle).length-1;
- const literal='SELECT company_id,${branch} AS branch_id,${department} AS department_id,${version} AS version FROM ${table}';
+ const literal='SELECT ${projection} FROM ${from} WHERE id=? AND company_id=?${tail}';
  expect(policy).toContain('export const assetAttachmentDescriptorSql = (table:string,branch:string,department:string,version:string,extra="") =>');
  expect(count(policy,literal)).toBe(1);
  expect(count(operational,literal)).toBe(0);
+ expect(policy).toContain('assetIdCompanyReadSql(`company_id,${branch} AS branch_id,${department} AS department_id,${version} AS version`,table,extra)');
  expect(policy).toContain('assetAttachmentDescriptorSql(descriptor.table,branch,department,version,extra)');
  expect(operational).toContain('assetAttachmentDescriptorSql(moduleTarget.table,moduleTarget.branch,moduleTarget.department ?? "NULL::text","version")');
  expect(operational).toContain('import {assetAttachmentDescriptorSql} from "./attachments-policy-facts"');
@@ -522,8 +523,8 @@ describe('Assets read-tail r17 byte-identical family dedupe',()=>{
   };
   walk(srcRoot);
   expect(selects).toBeLessThan(32);
-  // r20 retires the image-witness literal: 25 tracked SELECT tokens.
-  expect(selects).toBe(25);
+  // r20 retired the image-witness literal; r21 shares the keyed-row read.
+  expect(selects).toBe(24);
   const financial=readFileSync(resolve(srcRoot,'adapters/financial-workflow-sources.ts'),'utf8');
   expect(financial).toContain("LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links,maintenance_work_orders IN SHARE MODE");
   const purchases=readFileSync(resolve(srcRoot,'adapters/purchases.ts'),'utf8');
@@ -532,6 +533,47 @@ describe('Assets read-tail r17 byte-identical family dedupe',()=>{
    const text=readFileSync(resolve(srcRoot,'adapters',file),'utf8');
    expect(text).not.toMatch(/INSERT\s+INTO|DELETE\s+FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE/i);
   }
+ });
+});
+
+describe('Assets read-tail r21 id+company keyed-row family',()=>{
+ const base=new URL('../../../packages/server-assets/src/adapters/',import.meta.url);
+ it('renders both callers byte-identically from one parameterized statement',async()=>{
+  const {assetIdCompanyReadSql,assetAttachmentDescriptorSql}=await import('../../../packages/server-assets/src/adapters/attachments-policy-facts');
+  expect(assetIdCompanyReadSql("id","assignments"," FOR SHARE"))
+   .toBe('SELECT id FROM assignments WHERE id=? AND company_id=? FOR SHARE');
+  expect(assetIdCompanyReadSql("company_id,branch_id AS branch_id,department_id AS department_id,version AS version","operational_assets"))
+   .toBe('SELECT company_id,branch_id AS branch_id,department_id AS department_id,version AS version FROM operational_assets WHERE id=? AND company_id=?');
+  expect(assetAttachmentDescriptorSql("operational_assets","branch_id","department_id","version"," AND version>0"))
+   .toBe('SELECT company_id,branch_id AS branch_id,department_id AS department_id,version AS version FROM operational_assets WHERE id=? AND company_id=? AND version>0');
+ });
+ it('onboards the assignment guard and lowers the owner read tail (25->24)',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const policy=await readFile(new URL('attachments-policy-facts.ts',base),'utf8');
+  const guard=await readFile(new URL('attachment-purchases.ts',base),'utf8');
+  const literal='SELECT ${projection} FROM ${from} WHERE id=? AND company_id=?${tail}';
+  expect(policy.split(literal).length-1).toBe(1);
+  expect(guard.match(/SELECT/g)??[]).toHaveLength(0);
+  expect(guard).toContain('import {assetIdCompanyReadSql} from "./attachments-policy-facts"');
+  expect(guard).toContain('assetIdCompanyReadSql("id","assignments"," FOR SHARE")');
+  const {readdirSync,readFileSync}=await import('node:fs');
+  const {resolve}=await import('node:path');
+  const srcRoot=resolve(base.pathname,'..');
+  let selects=0;
+  const walk=(dir:string)=>{
+   for(const entry of readdirSync(dir,{withFileTypes:true})){
+    const path=resolve(dir,entry.name);
+    if(entry.isDirectory())walk(path);
+    else if(entry.name.endsWith('.ts'))selects+=(readFileSync(path,'utf8').match(/SELECT/g)??[]).length;
+   }
+  };
+  walk(srcRoot);
+  expect(selects).toBe(24);
+  // r2-r20 lock/cascade families are untouched.
+  expect(readFileSync(resolve(srcRoot,'adapters/financial-workflow-sources.ts'),'utf8'))
+   .toContain("LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links,maintenance_work_orders IN SHARE MODE");
+  expect(readFileSync(resolve(srcRoot,'adapters/purchases.ts'),'utf8'))
+   .toContain('LOCK TABLE operational_assets,operational_asset_finance_links IN SHARE ROW EXCLUSIVE MODE');
  });
 });
 
