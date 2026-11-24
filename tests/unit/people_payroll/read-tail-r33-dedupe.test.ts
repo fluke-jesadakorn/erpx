@@ -77,6 +77,6 @@ describe('People Payroll read-tail r33 four-column and select-star family dedupe
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(1399);
-    expect(total).toBe(1261);
+    expect(total).toBe(1245);
   });
 });

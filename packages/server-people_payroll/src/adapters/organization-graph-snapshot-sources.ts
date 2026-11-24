@@ -1,3 +1,4 @@
+import {ppRd47GraphSnapshotProjection} from './pp-read-tail-r47-sources';
 import 'server-only';
 
 /**
@@ -5,6 +6,6 @@ import 'server-only';
  * Named projection columns remain stable across historical migration baselines.
  */
 export const organizationGraphSnapshotSources = Object.freeze({
-  people: 'SELECT person.id,person.company_id,to_jsonb(person) snapshot FROM hr_people person',
-  engagements: 'SELECT engagement.id,engagement.company_id,to_jsonb(engagement) snapshot FROM hr_engagements engagement',
+  people: ppRd47GraphSnapshotProjection('person','hr_people'),
+  engagements: ppRd47GraphSnapshotProjection('engagement','hr_engagements'),
 } as const);
