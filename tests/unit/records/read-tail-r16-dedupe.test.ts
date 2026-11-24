@@ -9,6 +9,7 @@ import {
   requestAiUsageProjectionSql,
   recordsRequestUsageSql,
   requestAiUsageMonthlyCountSql,
+  requestAiProposalProjection,
   requestAiProposalProjectionSql,
 } from '../../../packages/server-records/src/adapters/ai-usage-projection';
 import { betaManagementRequestSources } from '../../../packages/server-records/src/adapters/beta-management-sources';
@@ -16,6 +17,7 @@ import { betaManagementRequestSources } from '../../../packages/server-records/s
 const srcRoot = resolve(__dirname, '../../../packages/server-records/src');
 const shared = readFileSync(resolve(srcRoot, 'adapters/ai-usage-projection.ts'), 'utf8');
 const beta = readFileSync(resolve(srcRoot, 'adapters/beta-management-sources.ts'), 'utf8');
+const requestAi = readFileSync(resolve(srcRoot, 'adapters/request-ai.ts'), 'utf8');
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 const selectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;
 const readOnly = (sql: string) => {
@@ -31,7 +33,11 @@ const pre = {
   beta: '29bf707dc3f062586453362766c44e40bfc4c13b8ab82352d714c39db11224a2',
   count: '3558f43a6369e72cc812b08c6c7691cbef7b8e916b1ba49de08bdb45f61122b4',
   proposal: '7129a648fc24e19a563a2be2a243b71d846e0ad33cd0c9a534b842c49b02d971',
+  proposalDrain: '52fe49c64600a1319632b6a714b15e34dd2cfc42cb87a0dd692417418cfc1505',
 } as const;
+
+// Pre-dedupe tail of the bounded drain claim, copied byte-for-byte from HEAD.
+const proposalDrainTail = " WHERE (state='queued' OR (state='running' AND claim_until<?)) AND attempts<3 AND (?::text IS NULL OR request_id=?) ORDER BY created_at LIMIT 2";
 
 describe('Records read-tail r16 request_ai_usage projection family', () => {
   test('every family member renders byte-identically and stays read-only', () => {
@@ -40,14 +46,20 @@ describe('Records read-tail r16 request_ai_usage projection family', () => {
     expect(sha(betaManagementRequestSources({} as never).aiUsageSource)).toBe(pre.beta);
     expect(sha(requestAiUsageMonthlyCountSql)).toBe(pre.count);
     expect(sha(requestAiProposalProjectionSql)).toBe(pre.proposal);
-    for (const sql of [requestAiUsageProjectionSql, recordsRequestUsageSql, requestAiUsageMonthlyCountSql, requestAiProposalProjectionSql]) readOnly(sql);
+    expect(sha(requestAiProposalProjection('id', proposalDrainTail))).toBe(pre.proposalDrain);
+    for (const sql of [requestAiUsageProjectionSql, recordsRequestUsageSql, requestAiUsageMonthlyCountSql, requestAiProposalProjectionSql, requestAiProposalProjection('id', proposalDrainTail)]) readOnly(sql);
   });
 
-  test('the family is one generator literal with three callers and no inlined projection', () => {
+  test('the request-AI families are single generator literals with no inlined projection', () => {
     expect(shared.split('`SELECT ${columns} FROM request_ai_usage`')).toHaveLength(2);
     expect(shared.match(/requestAiUsageProjection\(/g) ?? []).toHaveLength(2);
     expect(beta.match(/requestAiUsageProjection\(/g) ?? []).toHaveLength(1);
-    expect(selectCount(shared)).toBe(3); // generator + monthly count + proposal
+    expect(shared.split('`SELECT ${columns} FROM request_ai_proposals${tail}`')).toHaveLength(2);
+    expect(shared.match(/requestAiProposalProjection\(/g) ?? []).toHaveLength(1);
+    expect(requestAi.match(/requestAiProposalProjection\(/g) ?? []).toHaveLength(1);
+    expect(requestAi).not.toContain('SELECT id FROM request_ai_proposals WHERE');
+    expect(selectCount(shared)).toBe(3); // usage generator + monthly count + proposal generator
+    expect(selectCount(requestAi)).toBe(0);
     expect(selectCount(beta)).toBe(0);
   });
 

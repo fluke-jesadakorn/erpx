@@ -25,7 +25,7 @@ import { createRequestAiApplication, type RequestAiRepository } from '@erpx/serv
 import { BusinessRuleError } from '@erpx/server-shared/index';
 import type { SqlStatement } from '@erpx/server-runtime/public/runtime/types';
 import { recordsAiQuota } from '@erpx/server-agent/public/records-ai-quota';
-import { requestAiProposalProjectionSql } from './ai-usage-projection';
+import { requestAiProposalProjection, requestAiProposalProjectionSql } from './ai-usage-projection';
 import { RequestAiIdentityAccessFacts } from '@erpx/server-identity_access/public/records-request-ai-facts';
 import { RequestAiWorkflowFacts } from '@erpx/server-workflow/public/records-request-ai-facts';
 import { nativeRecordsStatement } from '@erpx/feature-records/adapters/server/native-records-command';
@@ -100,7 +100,7 @@ function application(provided?: SqlDatabase, actor?: WorkContext) {
                 .run();
         },
         readDrainRequestAiRows(now: number, value: string | null, value2: string | null) {
-            return database.prepare("SELECT id FROM request_ai_proposals WHERE (state='queued' OR (state='running' AND claim_until<?)) AND attempts<3 AND (?::text IS NULL OR request_id=?) ORDER BY created_at LIMIT 2")
+            return database.prepare(requestAiProposalProjection('id', " WHERE (state='queued' OR (state='running' AND claim_until<?)) AND attempts<3 AND (?::text IS NULL OR request_id=?) ORDER BY created_at LIMIT 2"))
                 .bind(now, value, value2)
                 .all<{
                 id: string;
