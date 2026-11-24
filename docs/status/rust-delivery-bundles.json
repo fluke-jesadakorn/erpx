@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8290,
+    "revision": 8294,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -137501,7 +137501,7 @@
         "owner": "runtime",
         "title": "runtime TS read tail native cutover (round 2)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -137513,22 +137513,37 @@
         "resources": [
           "owner:runtime"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGBQrun",
-          "claimedAt": "2026-11-24T01:49:35.272Z",
-          "heartbeatAt": "2026-11-24T01:58:28.736Z",
-          "expiresAt": "2026-11-24T02:28:28.736Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-runtime/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "65d9f4961",
+            "owner": "runtime",
+            "before": 64,
+            "after": 62,
+            "note": "Three holding_bindings prefixes share HOLDING_BINDINGS_SELECT; metric-sources untouched; each prepare still executes."
+          },
+          {
+            "command": "vitest runtime services (62) + scoped tsc runtime.ts",
+            "result": "passed",
+            "sourceSha": "65d9f4961"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: three identical holding_bindings projection prefixes in runtime.ts only after confirming no source-drawer/regex coupling, or another safe dedupe. BEFORE=64.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGBQrun",
+          "at": "2026-11-24T02:00:29.313Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -138390,6 +138405,42 @@
         "nextAction": "Next: remaining scope predicates or native benefit reads; if none, report blocked. BEFORE=71.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.runtime.read-tail-r3",
+        "goalId": "G4",
+        "owner": "runtime",
+        "title": "runtime TS read tail native cutover (round 3)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-runtime/src/**",
+          "tests/unit/runtime/**",
+          "tests/integration/runtime/**"
+        ],
+        "resources": [
+          "owner:runtime"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCtrun",
+          "claimedAt": "2026-11-24T02:00:29.637Z",
+          "heartbeatAt": "2026-11-24T02:00:29.637Z",
+          "expiresAt": "2026-11-24T02:30:29.637Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: postgres.ts / migrations.ts duplicate literals or another safe pair; keep metric source drawer untouched. BEFORE=62.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -138398,7 +138449,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 899,
+      "totalPackets": 900,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -138406,13 +138457,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 520,
+        "blocked": 521,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T02:00:14.892Z",
+    "updatedAt": "2026-11-24T02:00:29.644Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
