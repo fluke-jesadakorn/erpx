@@ -109,13 +109,13 @@ describe('crm read-tail r43 byte-identical scalar-subquery reuse', () => {
     expect(a).toContain('import {actorScopeSql,');
   });
 
-  test('leaves locks, receipts, native kinds, the stay aggregate and r8-r42 helpers untouched', () => {
+  test('leaves locks, receipt reads, native kinds, the stay aggregate and r8-r42 helpers untouched (r45 routes the three purchase probes)', () => {
     const p = src('purchases.ts');
     expect(p).toContain('LOCK TABLE crm_accounts,crm_contacts,crm_guest_links,crm_guest_sharing_events,crm_leads,crm_opportunities,crm_case_events,crm_lead_activities,crm_lead_activity_events IN SHARE ROW EXCLUSIVE MODE');
     expect(p).toContain('SELECT 1 FROM command_receipts WHERE command_id=?');
-    expect(p).toContain('EXISTS(SELECT 1 FROM crm_guest_links guest_link WHERE guest_link.contact_id=');
-    expect(p).toContain('export const crmHotelReservationProbeSql=`SELECT 1 FROM (${crmHotelReservationSources}) reservation`;');
-    expect(p).toContain('export const crmCaseEventReceiptWitnessSql=`SELECT 1 FROM crm_case_events event JOIN command_receipts receipt ON');
+    expect(p).toContain('EXISTS(${crmSelectOneSql(`crm_guest_links guest_link WHERE guest_link.contact_id=');
+    expect(p).toContain('export const crmHotelReservationProbeSql=crmSelectOneSql(`(${crmHotelReservationSources}) reservation`);');
+    expect(p).toContain('export const crmCaseEventReceiptWitnessSql=crmSelectOneSql(`crm_case_events event JOIN command_receipts receipt ON');
     expect(src('record-purchases.ts')).toContain('const nativeIds=[crmNativeIdSql(');
     expect(src('attachment-purchases.ts')).toContain('await nativeClearCommandAssertions(database, actor.companyId, key)');
     expect(src('analytics.ts')).toContain('(SELECT MIN(stay.checked_in_at) FROM (${crmHotelAnalyticsStays}) stay');
@@ -140,8 +140,8 @@ describe('crm read-tail r43 byte-identical scalar-subquery reuse', () => {
     ] as const) expect(src(file)).toContain(token);
   });
 
-  test('retirement:ts-statements drops from the r42 AFTER=78 to 73', () => {
-    expect(totalSelects()).toBe(61);
-    expect(totalSelects()).toBeLessThan(78);
+  test('retirement:ts-statements drops from the r42 AFTER=61 to 57 (r45)', () => {
+    expect(totalSelects()).toBe(57);
+    expect(totalSelects()).toBeLessThan(61);
   });
 });

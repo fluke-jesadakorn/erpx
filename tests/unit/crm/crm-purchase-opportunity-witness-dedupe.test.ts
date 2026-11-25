@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { crmCreatorLeadScopeSql } from '../../../packages/server-crm/src/adapters/read-tail-r24-sql';
 import { crmCurrentScopeAllowedSql } from '../../../packages/server-crm/src/adapters/read-tail-r30-sql';
+import { crmSelectOneSql } from '../../../packages/server-crm/src/adapters/read-tail-r42-sql';
 import { crmOwnedSourceRowSql } from '../../../packages/server-crm/src/adapters/read-tail-r34-sql';
 import { crmSalesOpportunitySql, crmSingleKeySourceSql } from '../../../packages/server-crm/src/adapters/read-tail-r37-sql';
 import { crmUnionAllSql } from '../../../packages/server-crm/src/adapters/read-tail-r44-sql';
@@ -149,9 +150,8 @@ describe('crm purchase opportunity witness read family', () => {
     const line = src.split('\n').find(value => value.includes('const financeCustomerMissingSql=')) ?? '';
     const body = line.slice(line.indexOf('`') + 1, line.lastIndexOf('`'));
     const render = (company: string) => body.replace('${company}', company);
-    const preDedupe = (company: string) => `account.finance_party_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM (\${crmFinanceCustomerSources}) customer WHERE customer.id=account.finance_party_id AND customer.company_id=${company} AND customer.kind='customer')`;
-    expect(render('l.company_id')).toBe(preDedupe('l.company_id'));
-    expect(render('account.company_id')).toBe(preDedupe('account.company_id'));
+    expect(src).toContain("NOT EXISTS(${crmSelectOneSql(`(${crmFinanceCustomerSources}) customer WHERE customer.id=account.finance_party_id AND customer.company_id=${company} AND customer.kind='customer'`)})");
+    expect(render('l.company_id')).toBe(render('account.company_id').replaceAll('account.company_id','l.company_id'));
     expect(src.match(/const financeCustomerMissingSql=/g)).toHaveLength(1);
     expect(src.match(/financeCustomerMissingSql\('/g)).toHaveLength(2);
     expect(src.match(/account\.finance_party_id IS NOT NULL AND NOT EXISTS/g)).toHaveLength(1);
@@ -202,7 +202,7 @@ describe('crm read-tail r14 parameterized families', () => {
 
   it('owns the hotel reservation probe once and renders all three sites byte-identically', () => {
     const purchases = src('purchases.ts'), marketing = src('marketing-package-obligations.ts'), sales = src('sales-package-obligations.ts');
-    const prefix = bodyOf(purchases, 'export const crmHotelReservationProbeSql=');
+    const prefix = crmSelectOneSql(bodyOf(purchases, 'export const crmHotelReservationProbeSql='));
     expect(prefix).toBe('SELECT 1 FROM (${crmHotelReservationSources}) reservation');
     expect(purchases.match(/export const crmHotelReservationProbeSql=/g)).toHaveLength(1);
     for (const text of [purchases, marketing, sales]) expect(text.match(/\$\{crmHotelReservationProbeSql\}/g)).toHaveLength(1);
@@ -242,7 +242,7 @@ describe('crm read-tail r15 parameterized families', () => {
 
   it('owns the case-event receipt witness once and renders both fact sites byte-identically', () => {
     const purchases = src('purchases.ts'), sales = src('sales-package-obligations.ts');
-    const prefix = bodyOf(purchases, 'export const crmCaseEventReceiptWitnessSql=');
+    const prefix = crmSelectOneSql(bodyOf(purchases, 'export const crmCaseEventReceiptWitnessSql='));
     expect(prefix).toBe("SELECT 1 FROM crm_case_events event JOIN command_receipts receipt ON event.id='crm-event-'||receipt.command_id||");
     expect(purchases.match(/export const crmCaseEventReceiptWitnessSql=/g)).toHaveLength(1);
     expect(sales.match(/\$\{crmCaseEventReceiptWitnessSql\}/g)).toHaveLength(2);
@@ -333,8 +333,8 @@ describe('crm read-tail r18 parameterized families', () => {
     // Only the helper definition keeps the inline fragment; no call site does.
     expect(record.match(/SELECT id FROM/g)).toHaveLength(1);
     expect(record).toContain("const nativeIds=[crmNativeIdSql('crm_leads'),crmNativeIdSql('crm_lead_activities'),crmNativeIdSql('crm_opportunities'),crmNativeIdSql('crm_accounts'),crmNativeIdSql('crm_contacts'),crmNativeIdSql('crm_guest_links')].join(' UNION ALL ');");
-    expect(record).toContain('EXISTS(SELECT 1 FROM (${nativeIds}) native_crm WHERE native_crm.id=${id})');
-    expect(record).toContain('`SELECT 1 FROM (${nativeIds}) actual WHERE id=?`');
+    expect(record).toContain("EXISTS(${crmSelectOneSql(`(${nativeIds}) native_crm WHERE native_crm.id=${id}`)})");
+    expect(record).toContain("${crmSelectOneSql(`(${nativeIds}) actual WHERE id=?`)}");
     // r8-r17 helpers stay in place.
     expect(record).toContain('${crmOpportunityLeadSql}');
     expect(record).toContain('${crmOpportunityExistsSql}');

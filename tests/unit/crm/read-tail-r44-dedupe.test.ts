@@ -129,12 +129,12 @@ describe('crm read-tail r44 byte-identical UNION-ALL reuse', () => {
     expect(r).toContain("FROM (${crmPurchaseGuestLinkRows}) link JOIN crm_guest_links native ON native.id=link.id`)}`;");
   });
 
-  test('leaves plain heads, MATERIALIZED heads, the r42 activity NOT EXISTS and r8-r43 helpers untouched', () => {
+  test('leaves plain heads, MATERIALIZED heads and r8-r43 helpers untouched (r45 routes the activity NOT EXISTS)', () => {
     const s = src('sales-package-obligations.ts'), m = src('marketing-package-obligations.ts'), r = src('record-purchases.ts');
     expect(s).toContain("SELECT 'lead' kind,l.id,to_jsonb(l) fact");
     expect(s).toContain('leads AS MATERIALIZED(SELECT l.* FROM crm_leads l,scope');
     expect(m).toContain('candidates AS MATERIALIZED(SELECT candidate.* FROM (${marketing.candidates})');
-    expect(s).toContain('NOT EXISTS(SELECT 1 FROM crm_lead_activity_events event JOIN command_receipts receipt ON');
+    expect(s).toContain('NOT EXISTS(${crmSelectOneSql(`crm_lead_activity_events event JOIN command_receipts receipt ON');
     expect(s).toContain(" AND(o.stage='lost' OR o.win_source='sales' AND EXISTS(${crmSelectOneSql(");
     expect(m).toContain(' FROM (${marketing.touches}) touch CROSS JOIN scope');
     expect(r).toContain("const nativeIds=[crmNativeIdSql(");
@@ -161,8 +161,8 @@ describe('crm read-tail r44 byte-identical UNION-ALL reuse', () => {
     ] as const) expect(src(file)).toContain(token);
   });
 
-  test('retirement:ts-statements drops from the r43 AFTER=73 to 61', () => {
-    expect(totalSelects()).toBe(61);
-    expect(totalSelects()).toBeLessThan(73);
+  test('retirement:ts-statements drops from the r44 AFTER=61 to 57 (r45)', () => {
+    expect(totalSelects()).toBe(57);
+    expect(totalSelects()).toBeLessThan(61);
   });
 });

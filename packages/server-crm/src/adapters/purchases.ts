@@ -82,7 +82,7 @@ export const crmPurchaseOpportunityRows=`${crmPurchaseRowProjection('lead','lead
  JOIN crm_opportunities opportunity ON opportunity.lead_id=lead.id JOIN (${crmFinanceCustomerSources}) customer ON customer.id=opportunity.customer_id AND customer.company_id=lead.company_id AND customer.kind='customer' AND account.finance_party_id=customer.id AND account.reviewed_by IS NOT NULL
  LEFT JOIN (${crmCommerceOrderSources}) quote ON quote.id=opportunity.quote_id AND quote.company_id=lead.company_id AND quote.branch_id=lead.branch_id AND quote.department_id IS NOT DISTINCT FROM lead.department_id AND quote.party_id=customer.id AND quote.currency=opportunity.currency AND quote.kind='quote'
  LEFT JOIN (${crmCommerceOrderSources}) sale ON sale.id=opportunity.sales_id AND sale.company_id=lead.company_id AND sale.branch_id=lead.branch_id AND sale.department_id IS NOT DISTINCT FROM lead.department_id AND sale.party_id=customer.id AND sale.currency=opportunity.currency AND sale.kind='sales' AND sale.source_id=quote.id
- LEFT JOIN (${crmHotelReservationSources}) reservation ON reservation.id=opportunity.reservation_id AND reservation.company_id=lead.company_id AND reservation.branch_id=lead.branch_id AND EXISTS(SELECT 1 FROM crm_guest_links guest_link WHERE guest_link.contact_id=native.contact_id AND guest_link.company_id=lead.company_id AND guest_link.guest_id=reservation.guest_id AND guest_link.property_id=reservation.property_id)
+ LEFT JOIN (${crmHotelReservationSources}) reservation ON reservation.id=opportunity.reservation_id AND reservation.company_id=lead.company_id AND reservation.branch_id=lead.branch_id AND EXISTS(${crmSelectOneSql(`crm_guest_links guest_link WHERE guest_link.contact_id=native.contact_id AND guest_link.company_id=lead.company_id AND guest_link.guest_id=reservation.guest_id AND guest_link.property_id=reservation.property_id`)})
  WHERE (opportunity.quote_id IS NULL OR quote.id IS NOT NULL) AND (opportunity.sales_id IS NULL OR sale.id IS NOT NULL) AND (opportunity.reservation_id IS NULL OR reservation.id IS NOT NULL)`;
 export const crmOpportunityExistsSql=crmSalesOpportunitySql('1',`(${crmPurchaseOpportunityRows}) opportunity`,'');
 /** r14: one owner literal for the retained-customer opportunity lead probe.
@@ -92,11 +92,11 @@ export const crmOpportunityLeadSql=crmSalesOpportunitySql('1','crm_opportunities
 /** r14: one owner literal for the fixed Hotel reservation probe prefix. The
  * Marketing/Sales obligation joins and the reference guard pass their own
  * tails; rendered SQL stays byte-identical to the pre-dedupe text. */
-export const crmHotelReservationProbeSql=`SELECT 1 FROM (${crmHotelReservationSources}) reservation`;
+export const crmHotelReservationProbeSql=crmSelectOneSql(`(${crmHotelReservationSources}) reservation`);
 /** r15: one owner literal for the case-event/command-receipt authority witness
  * join shared by the Sales-obligation lead-disqualify and opportunity-win fact
  * sites. Callers pass only their differing tail; rendered SQL stays byte-identical. */
-export const crmCaseEventReceiptWitnessSql=`SELECT 1 FROM crm_case_events event JOIN command_receipts receipt ON event.id='crm-event-'||receipt.command_id||`;
+export const crmCaseEventReceiptWitnessSql=crmSelectOneSql(`crm_case_events event JOIN command_receipts receipt ON event.id='crm-event-'||receipt.command_id||`);
 export const crmAccountCreatedByScopeSql=crmCreatorLeadScopeSql('account','lead','lead.account_id=account.id','lead.company_id=account.company_id');
 export const crmPurchaseGuestLinkRows=`${crmPurchaseRowProjection('link','guest.branch_id','NULL::text department_id')}account.created_by,
  jsonb_build_object('link',jsonb_build_array(link.id,link.company_id,link.contact_id,link.guest_id,link.property_id),'contact',${contactIdentity},'guest',to_jsonb(guest)) witness FROM crm_guest_links link

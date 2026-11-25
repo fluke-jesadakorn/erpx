@@ -105,12 +105,12 @@ describe('crm read-tail r42 byte-identical existence-probe reuse', () => {
 
   test('every retired site uses the renderer and keeps its wrapper', () => {
     for (const [file, count] of [
-      ['purchases.ts', 3],
+      ['purchases.ts', 6],
       ['record-purchases.ts', 3],
       ['analytics.ts', 2],
       ['attachments-service-facts.ts', 1],
       ['marketing-package-obligations.ts', 2],
-      ['sales-package-obligations.ts', 3],
+      ['sales-package-obligations.ts', 4],
     ] as const) {
       const text = src(file);
       expect(text).toContain("read-tail-r42-sql");
@@ -168,14 +168,14 @@ describe('crm read-tail r42 byte-identical existence-probe reuse', () => {
     expect(sales).toContain('.bind(input.companyId).all<{kind:string;id:string;fact:unknown;pending:boolean}>()).results;');
   });
 
-  test('leaves locks, receipts, native kinds, no-space probe and r8-r41 helpers untouched', () => {
+  test('leaves locks, receipt reads, native kinds, no-space probe and r8-r41 helpers untouched (r45 routes the four probes)', () => {
     const p = src('purchases.ts'), r = src('attachment-read.ts');
     expect(p).toContain('LOCK TABLE crm_accounts,crm_contacts,crm_guest_links,crm_guest_sharing_events,crm_leads,crm_opportunities,crm_case_events,crm_lead_activities,crm_lead_activity_events IN SHARE ROW EXCLUSIVE MODE');
     expect(p).toContain('SELECT 1 FROM command_receipts WHERE command_id=?');
-    expect(p).toContain('EXISTS(SELECT 1 FROM crm_guest_links guest_link WHERE guest_link.contact_id=');
-    expect(p).toContain('export const crmHotelReservationProbeSql=`SELECT 1 FROM (${crmHotelReservationSources}) reservation`;');
-    expect(p).toContain('export const crmCaseEventReceiptWitnessSql=`SELECT 1 FROM crm_case_events event JOIN command_receipts receipt ON');
-    expect(src('sales-package-obligations.ts')).toContain('NOT EXISTS(SELECT 1 FROM crm_lead_activity_events event JOIN command_receipts receipt ON');
+    expect(p).toContain('EXISTS(${crmSelectOneSql(`crm_guest_links guest_link WHERE guest_link.contact_id=');
+    expect(p).toContain('export const crmHotelReservationProbeSql=crmSelectOneSql(`(${crmHotelReservationSources}) reservation`);');
+    expect(p).toContain('export const crmCaseEventReceiptWitnessSql=crmSelectOneSql(`crm_case_events event JOIN command_receipts receipt ON');
+    expect(src('sales-package-obligations.ts')).toContain('NOT EXISTS(${crmSelectOneSql(`crm_lead_activity_events event JOIN command_receipts receipt ON');
     expect(r).toContain('`SELECT 1 FROM${actorScopeSql}workforce_actor_scope WHERE ${current.where}`');
     for (const [file, token] of [
       ['read-tail-r24-sql.ts', 'export const crmCreatorLeadScopeSql'],
@@ -197,8 +197,8 @@ describe('crm read-tail r42 byte-identical existence-probe reuse', () => {
     ] as const) expect(src(file)).toContain(token);
   });
 
-  test('retirement:ts-statements drops from the r41 AFTER=91 to 78', () => {
-    expect(totalSelects()).toBe(61);
-    expect(totalSelects()).toBeLessThan(91);
+  test('retirement:ts-statements drops from the r42 AFTER=61 to 57 (r45)', () => {
+    expect(totalSelects()).toBe(57);
+    expect(totalSelects()).toBeLessThan(61);
   });
 });
