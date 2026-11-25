@@ -105,7 +105,7 @@ describe('POS read-tail r41 refund-payment text subquery dedupe', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(170);
+    expect(total).toBe(169);
     expect(total).toBeLessThan(175);
   });
 });

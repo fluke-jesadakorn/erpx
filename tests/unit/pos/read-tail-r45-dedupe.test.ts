@@ -130,7 +130,7 @@ describe('POS read-tail r45 finance payment identity head dedupe', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(170);
+    expect(total).toBe(169);
     expect(total).toBeLessThan(171);
   });
 });
