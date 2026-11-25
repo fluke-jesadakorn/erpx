@@ -132,7 +132,7 @@ describe('Commerce read-tail r28 products master-selector head retirement', () =
     expect(read('supply-package-sources.ts')).toContain('LOCK TABLE commerce_orders,commerce_order_lines,commerce_fulfillments,commerce_fulfillment_lines,commerce_returns,commerce_return_lines,commerce_warehouses,commerce_products,commerce_goods_valuations,commerce_invoice_goods_carrying IN SHARE MODE');
   });
 
-  test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 407 (before 408)', () => {
+  test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 406 (before 408)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -142,7 +142,7 @@ describe('Commerce read-tail r28 products master-selector head retirement', () =
       }
     };
     walk(src);
-    expect(total).toBe(407);
+    expect(total).toBe(406);
     expect((read('initial-physical-stock-count-sources.ts').match(/SELECT /g) ?? []).length).toBe(4);
     expect((read('inventory-counts-sources.ts').match(/SELECT /g) ?? []).length).toBe(3);
     expect((read('read-tail-r28-dedupe-sql.ts').match(/SELECT /g) ?? []).length).toBe(1);
