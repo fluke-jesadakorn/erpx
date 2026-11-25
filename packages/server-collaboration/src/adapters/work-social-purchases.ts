@@ -215,13 +215,13 @@ export async function workSocialAttachmentSourceImage(database:SqlDatabase,compa
  ${await nativeInboxSqlFragment(companyId,'work_social_witness_post_ids')}
  ${await nativeInboxSqlFragment(companyId,'work_social_witness_posts')}
  ${await nativeInboxSqlFragment(companyId,'work_social_witness_native_sources')}
- SELECT jsonb_build_object('root',(SELECT image FROM native_root),'posts',${workSocialPostsAgg},
+ ${await nativeInboxSqlFragment(companyId,'work_social_witness_image_head')}${workSocialPostsAgg},
  'comments',${workSocialCommentsAgg('JOIN posts p ON p.id=c.post_id')},
  'sources',${workSocialSourcesAgg},
- 'participants',(SELECT jsonb_agg(to_jsonb(member) ORDER BY member.post_id,member.user_id) FROM social_post_participants member JOIN posts p ON p.id=member.post_id),
- 'teams',(SELECT jsonb_agg(jsonb_build_object('team',to_jsonb(team),'members',(SELECT jsonb_agg(to_jsonb(member) ORDER BY member.user_id) FROM messaging_team_members member WHERE member.team_id=team.id)) ORDER BY team.id) FROM messaging_teams team WHERE team.company_id=? AND EXISTS(SELECT 1 FROM posts p WHERE p.audience_kind='team' AND p.audience_id=team.id)),
+ ${await nativeInboxSqlFragment(companyId,'work_social_witness_participants')}
+ ${await nativeInboxSqlFragment(companyId,'work_social_witness_teams')}
  'revisions',${socialPostRevisionsFileAgg('JOIN posts p ON p.id=revision.post_id')})::text image,
- COALESCE((SELECT jsonb_agg(jsonb_build_object('kind',kind,'id',id) ORDER BY kind,id) FROM native_sources),'[]'::jsonb)::text sources`).bind(id,companyId,id,companyId,type,id,type,companyId,companyId).first<{image:string;sources:string}>();
+ ${await nativeInboxSqlFragment(companyId,'work_social_witness_sources')}`).bind(id,companyId,id,companyId,type,id,type,companyId,companyId).first<{image:string;sources:string}>();
  if(!row)return null;return JSON.stringify([row.image,await sourceFacts(database,companyId,JSON.parse(row.sources) as Source[])]);
 }
 

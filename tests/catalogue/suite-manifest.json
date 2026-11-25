@@ -169915,6 +169915,29 @@
       },
       "apps": [],
       "packages": []
+    },
+    {
+      "id": "files.projection-native-head.unit",
+      "lane": "unit",
+      "owner": "files",
+      "modules": [
+        "learning"
+      ],
+      "files": [
+        "tests/unit/files/projection-native-head.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
     }
   ]
 }

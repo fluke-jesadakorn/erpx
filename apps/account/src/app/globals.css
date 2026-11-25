@@ -3076,7 +3076,6 @@
 @source "../../../../packages/server-workflow/src/adapters/commercial-owner-projection-sources.ts";
 @source "../../../../packages/server-workflow/src/adapters/document-sources.ts";
 @source "../../../../packages/server-workflow/src/adapters/expense-native-effects.ts";
-@source "../../../../packages/server-workflow/src/adapters/final-root-owner-projection-sources.ts";
 @source "../../../../packages/server-workflow/src/adapters/finance-ai-request-sources.ts";
 @source "../../../../packages/server-workflow/src/adapters/finance-ai-revision-sources.ts";
 @source "../../../../packages/server-workflow/src/adapters/finance-command-receipts.ts";
@@ -3130,7 +3129,6 @@
 @source "../../../../packages/server-workflow/src/public/commercial-owner-projection-sources.ts";
 @source "../../../../packages/server-workflow/src/public/decision-effects.ts";
 @source "../../../../packages/server-workflow/src/public/expense-native-effects.ts";
-@source "../../../../packages/server-workflow/src/public/final-root-owner-projection-sources.ts";
 @source "../../../../packages/server-workflow/src/public/finance-ai-request-sources.ts";
 @source "../../../../packages/server-workflow/src/public/finance-ai-revision-sources.ts";
 @source "../../../../packages/server-workflow/src/public/finance-command-receipts.ts";

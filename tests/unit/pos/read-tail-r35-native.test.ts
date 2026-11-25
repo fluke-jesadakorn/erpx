@@ -132,13 +132,13 @@ describe('POS read-tail r35 native Stripe keyed reads', () => {
     ]) expect(stripe).toMatch(new RegExp(`${fn}<PosRow>\\(db`));
   });
 
-  it('pins the r36/r40 KPIs: stripe kinds 12, sale-child kinds 13, owner kinds 198, TS SELECT tokens 156', () => {
+  it('pins the r36/r40 KPIs: stripe kinds 13, sale-child kinds 13, owner kinds 198, TS SELECT tokens 155', () => {
     const registry = read('stripe_reads.rs');
     const owner = read('owner_writes.rs');
-    expect(registry).toContain('assert_eq!(KINDS.len(), 12)');
-    expect(registry).toContain('assert_eq!(EXPECTED.len(), 12)');
-    expect(owner).toContain('assert_eq!(KINDS.len(), 198)');
-    expect(owner).toContain('assert_eq!(crate::adapters::stripe_reads::KINDS.len(), 12)');
+    expect(registry).toContain('assert_eq!(KINDS.len(), 13)');
+    expect(registry).toContain('assert_eq!(EXPECTED.len(), 13)');
+    expect(owner).toContain('assert_eq!(KINDS.len(), 199)');
+    expect(owner).toContain('assert_eq!(crate::adapters::stripe_reads::KINDS.len(), 13)');
     expect(owner).toContain('assert_eq!(crate::adapters::sale_child_reads::KINDS.len(), 13)');
     for (const name of ['STRIPE_EVENT_BY_ID', 'CONNECTIONS_READY', 'SALE_NUMBER_BY_ID', 'REFUND_PAYMENT_BY_REFUND'])
       expect(owner).toContain(`crate::adapters::stripe_reads::${name},`);
@@ -152,7 +152,7 @@ describe('POS read-tail r35 native Stripe keyed reads', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(156);
+    expect(total).toBe(155);
     expect(total).toBeLessThan(188);
   });
 

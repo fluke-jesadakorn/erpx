@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 14511,
+    "revision": 14514,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -206154,25 +206154,25 @@
       {
         "goalId": "G4",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-commerce",
-          "claimedAt": "2026-11-25T20:17:55.064Z",
-          "heartbeatAt": "2026-11-25T20:17:55.064Z",
-          "expiresAt": "2026-11-25T20:47:55.064Z",
-          "generation": 177
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-commerce",
+          "at": "2026-11-25T20:24:01.875Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Executive evidence 367->364; next inventory executive projections"
+        },
         "scopeRefinementRequired": false,
         "id": "retire.commerce.next-read-family-14",
         "owner": "commerce",
@@ -206184,7 +206184,7 @@
         "resources": [
           "owner:commerce"
         ],
-        "nextAction": "Cut executive-main-evidence-sources order evidence reads (367->lower); verify bounded variants; tests"
+        "nextAction": "Executive evidence 367->364; next inventory executive projections"
       },
       {
         "goalId": "G4",
@@ -206465,6 +206465,41 @@
           "owner:crm"
         ],
         "nextAction": "Fold the r25 purchase-row projection or r30 current-scope head (30->lower); tests"
+      },
+      {
+        "goalId": "G4",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-commerce",
+          "claimedAt": "2026-11-25T20:24:02.201Z",
+          "heartbeatAt": "2026-11-25T20:24:02.201Z",
+          "expiresAt": "2026-11-25T20:54:02.201Z",
+          "generation": 177
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false,
+        "id": "retire.commerce.next-read-family-15",
+        "owner": "commerce",
+        "title": "commerce next read family 15",
+        "allowedPaths": [
+          "packages/server-commerce/src/**",
+          "tests/unit/commerce/**"
+        ],
+        "resources": [
+          "owner:commerce"
+        ],
+        "nextAction": "Cut inventory-executive-owner-projections reads (364->lower) after caller/predicate verification; tests"
       }
     ],
     "migrationProgress": {
@@ -206473,7 +206508,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 2282,
+      "totalPackets": 2283,
       "migratedPackets": 369,
       "statusCounts": {
         "pending": 21,
@@ -206481,13 +206516,13 @@
         "ready_for_integration": 37,
         "integrating": 0,
         "migrated": 369,
-        "blocked": 1843,
+        "blocked": 1844,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 177,
-    "updatedAt": "2026-11-25T20:23:47.034Z",
+    "updatedAt": "2026-11-25T20:24:02.204Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",

@@ -15,16 +15,6 @@ import { legalExternalUploadShareJoinHead } from "../legal-read-tail-r44-sources
 import { legalPointByKeySql } from "../legal-read-tail-r36-sources";
 import { legalOrderedKeyHeadSql } from "../legal-read-tail-r54-sources";
 import contract from '../legal-service-sources.json' with {type:'json'};
-const fill = (template: string, values: Record<string, string>) => {
-  let rendered = template;
-  for (const [name, value] of Object.entries(values)) {
-    const token = `{${name}}`;
-    if (!rendered.includes(token)) throw new Error('LEGAL_SERVICE_CONTRACT_INVALID');
-    rendered = rendered.split(token).join(value);
-  }
-  return rendered;
-};
-import { finalRootOwnerProjectionSources as workflowProjectionSources } from "@erpx/server-workflow/public/final-root-owner-projection-sources";
 import {nativeLegalHoldNotice} from "../native-legal-hold-notice";
 import "server-only";
 import {createHash} from "node:crypto";
@@ -42,6 +32,15 @@ import {legalPeople} from "@erpx/server-legal/adapters/legal/assignees";
 import type {LegalItem,LegalDetail,DocumentVersion} from "@erpx/server-legal/domain/model";
 import {createLegalRegisterApplication,type LegalWrite,type LegalListQuery} from "@erpx/server-legal/application/service";
 import { legalService } from '@erpx/server-collaboration/adapters/native-legal-service';
+const fill = (template: string, values: Record<string, string>) => {
+  let rendered = template;
+  for (const [name, value] of Object.entries(values)) {
+    const token = `{${name}}`;
+    if (!rendered.includes(token)) throw new Error('LEGAL_SERVICE_CONTRACT_INVALID');
+    rendered = rendered.split(token).join(value);
+  }
+  return rendered;
+};
 export const hash=(value:string|Uint8Array)=>createHash("sha256").update(value).digest("hex");
 function application(db:SqlDatabase,a:WorkContext,readScope?:Promise<Awaited<ReturnType<typeof legalReadScope>>>){const nativeSvc=legalService(db,a.companyId,a.userId,identity_accessProjectionSources.assignments,tables);
  let readObservation=readScope;const purchasedRead=()=>readObservation??=legalReadScope(db,a);
