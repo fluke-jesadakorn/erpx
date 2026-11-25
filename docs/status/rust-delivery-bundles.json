@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12733,
+    "revision": 12735,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -186693,7 +186693,7 @@
         "owner": "quality",
         "title": "quality read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -186704,22 +186704,37 @@
         "resources": [
           "owner:quality"
         ],
-        "claim": {
-          "runId": "run-20261125-d",
-          "agentId": "wH4n164",
-          "claimedAt": "2026-11-25T00:18:40.971Z",
-          "heartbeatAt": "2026-11-25T00:31:25.848Z",
-          "expiresAt": "2026-11-25T01:01:25.848Z",
-          "generation": 174
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-quality/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "f7ecdf39b",
+            "owner": "quality",
+            "before": 33,
+            "after": 31,
+            "note": "Four kinds (hold/spec exists 1 bind; CAS 3 binds); shared qualitySourceIdExistsSql token removed via qualitySourceArmHead; plan-returning assertion preserves command_assertions/CAS."
+          },
+          {
+            "command": "vitest quality r29 (5) + cargo lib (6) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "f7ecdf39b"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Hold/spec probes and CAS guard plans (-2), removing shared helper token: 33->31. BEFORE=33.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n164",
+          "at": "2026-11-25T00:33:22.860Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -186833,17 +186848,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 2,
+        "in_progress": 1,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1505,
+        "blocked": 1506,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 174,
-    "updatedAt": "2026-11-25T00:31:25.851Z",
+    "updatedAt": "2026-11-25T00:33:22.864Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
