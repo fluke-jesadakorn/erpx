@@ -87,13 +87,13 @@ describe('Support read-tail r41 ticket work native kind', () => {
         expect(registry).not.toContain('LOCK TABLE');
     });
 
-    test('retirement:ts-statements drops 35->32 and the registry grows 49->50', () => {
+    test('retirement:ts-statements drops 35->31 and the registry grows 49->50', () => {
         // The ticket-work caller rendered its SQL from shared helpers and had no
         // counted SELECT literal. r42 switched the incident work list to its own
         // native kind and retired the shared `eligibilitySelect` token, so the
-        // owner SELECT count is now 32.
-        expect(countSelect(true)).toBe(32);
-        expect(countSelect(false)).toBe(32);
+        // owner SELECT count is now 31.
+        expect(countSelect(true)).toBe(31);
+        expect(countSelect(false)).toBe(31);
         expect(registry).toContain('assert_eq!(STATEMENTS.len(), 50);');
     });
 });

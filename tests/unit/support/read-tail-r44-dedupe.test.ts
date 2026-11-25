@@ -100,8 +100,8 @@ describe('support read-tail r44 byte-identical bound-row image aggregate head', 
     expect(src('read-tail-r43-sql.ts')).toContain('readTailR43ColumnsFromSql =');
   });
 
-  test('retirement:ts-statements drops from the r43 AFTER=33 to 32', () => {
-    expect(totalSelects()).toBe(32);
-    expect(totalSelects()).toBeLessThan(33);
+  test('retirement:ts-statements drops from the r44 AFTER=32 to 31', () => {
+    expect(totalSelects()).toBe(31);
+    expect(totalSelects()).toBeLessThan(32);
   });
 });

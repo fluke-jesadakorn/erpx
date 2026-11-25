@@ -105,8 +105,8 @@ describe('Support read-tail r40 by-id native family', () => {
         expect(registry).not.toContain('LOCK TABLE');
     });
 
-    test('retirement:ts-statements drops 37->32 and the registry grows 46->50', () => {
-        expect(selectCount()).toBe(32);
+    test('retirement:ts-statements drops 37->31 and the registry grows 46->50', () => {
+        expect(selectCount()).toBe(31);
         expect(selectCount()).toBeLessThan(37);
         expect(registry).toContain('assert_eq!(STATEMENTS.len(), 50);');
     });

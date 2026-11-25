@@ -69,7 +69,7 @@ describe('Support read-tail r34 ticket-portal ticket-image native kind', () => {
     });
 
     test('retirement:ts-statements is strictly below the r34 BEFORE=45 baseline', () => {
-        expect(selectCount()).toBe(32);
+        expect(selectCount()).toBe(31);
         expect(selectCount()).toBeLessThan(44);
     });
 });
