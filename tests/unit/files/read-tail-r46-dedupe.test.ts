@@ -39,19 +39,23 @@ const R49_A = 'SELECT * FROM upload_intents WHERE ';
 
 const stripImport = (text: string) => text
   .split('\n')
-  .filter(line => !line.includes('read-tail-r46-source-sql') && !line.includes('read-tail-r47-source-sql') && !line.includes('read-tail-r49-source-sql') && !line.includes('read-tail-r50-source-sql'))
+  .filter(line => !line.includes('read-tail-r46-source-sql') && !line.includes('read-tail-r47-source-sql') && !line.includes('read-tail-r49-source-sql') && !line.includes('read-tail-r50-source-sql') && !line.includes('read-tail-r51-source-sql'))
   .join('\n');
 /** Render the two closed-union helpers back to their original inline literals. */
 const renderMigration = (text: string) => stripImport(text)
   .replaceAll("${ORPHAN_PRESERVATION_EVENT_HEAD_SQL('preserved')}", P1)
   .replaceAll("${ORPHAN_PRESERVATION_EVENT_HEAD_SQL('restored')}", P2)
-  .replaceAll('${DISTINCT_SET_ROW_HEAD_SQL}', 'SELECT DISTINCT set_row.');
+  .replaceAll('${DISTINCT_SET_ROW_HEAD_SQL}', 'SELECT DISTINCT set_row.')
+  .replaceAll("${LINK_STATE_EXISTS_HEAD_SQL('closed')}", "SELECT 1 FROM attachment_links closed WHERE closed.attachment_id=a.id AND closed.state IN (")
+  .replaceAll("${LINK_STATE_EXISTS_HEAD_SQL('l')}", "SELECT 1 FROM attachment_links l WHERE l.attachment_id=a.id AND l.state IN (");
 const renderRepository = (text: string) => stripImport(text)
   .replaceAll('db.prepare(SET_DRAFT_BOUND_COUNT_SQL(true))', `db.prepare("${H1}")`)
   .replaceAll('db.prepare(SET_DRAFT_BOUND_COUNT_SQL(false))', `db.prepare("${H2}")`)
   .replaceAll('${SET_ROW_DRAFT_LINK_EXISTS_HEAD_SQL}', R47_A)
   .replaceAll('UPLOAD_INTENT_STAR_WHERE_HEAD_SQL + "', '"' + R49_A)
-  .replaceAll('${DISTINCT_SET_ROW_HEAD_SQL}', 'SELECT DISTINCT set_row.');
+  .replaceAll('${DISTINCT_SET_ROW_HEAD_SQL}', 'SELECT DISTINCT set_row.')
+  .replaceAll("${LINK_STATE_EXISTS_HEAD_SQL('closed')}", "SELECT 1 FROM attachment_links closed WHERE closed.attachment_id=a.id AND closed.state IN (")
+  .replaceAll("${LINK_STATE_EXISTS_HEAD_SQL('l')}", "SELECT 1 FROM attachment_links l WHERE l.attachment_id=a.id AND l.state IN (");
 
 const tsFiles = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
   const path = resolve(dir, entry.name);
@@ -146,8 +150,8 @@ describe('Files read-tail r46 byte-oracle dedupe', () => {
     }
     // Two closed-union families fold two sites into one helper each (-2):
     // the orphan-preservation event head and the draft/bound link count head.
-    expect(literal).toBe(225);
-    expect(total).toBe(226);
+    expect(literal).toBe(224);
+    expect(total).toBe(225);
     expect(literal).toBeLessThan(239);
     expect(total).toBeLessThan(240);
   });

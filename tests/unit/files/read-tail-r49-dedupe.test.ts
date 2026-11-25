@@ -33,7 +33,7 @@ const INDENT_2 = '                  '; // 18 spaces, legacy count
 
 const stripImport = (text: string) => text
   .split('\n')
-  .filter(line => !line.includes('read-tail-r49-source-sql') && !line.includes('read-tail-r50-source-sql'))
+  .filter(line => !line.includes('read-tail-r49-source-sql') && !line.includes('read-tail-r50-source-sql') && !line.includes('read-tail-r51-source-sql'))
   .join('\n');
 /** Render each of the five sites back to its exact pre-r49 inline literal. */
 const render = (text: string) => stripImport(text)
@@ -41,7 +41,9 @@ const render = (text: string) => stripImport(text)
   .replaceAll('${LEAVE_COUNT_HEAD_SQL}', D)
   .replaceAll('${UPLOAD_INTENT_STAR_WHERE_HEAD_SQL}', A)
   .replaceAll('UPLOAD_INTENT_STAR_WHERE_HEAD_SQL + "', '"' + A)
-  .replaceAll('${DISTINCT_SET_ROW_HEAD_SQL}', 'SELECT DISTINCT set_row.');
+  .replaceAll('${DISTINCT_SET_ROW_HEAD_SQL}', 'SELECT DISTINCT set_row.')
+  .replaceAll("${LINK_STATE_EXISTS_HEAD_SQL('closed')}", "SELECT 1 FROM attachment_links closed WHERE closed.attachment_id=a.id AND closed.state IN (")
+  .replaceAll("${LINK_STATE_EXISTS_HEAD_SQL('l')}", "SELECT 1 FROM attachment_links l WHERE l.attachment_id=a.id AND l.state IN (");
 
 const tsFiles = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
   const path = resolve(dir, entry.name);
@@ -163,8 +165,8 @@ describe('Files read-tail r49 byte-oracle dedupe', () => {
       total += (text.match(/SELECT\s/g) ?? []).length;
     }
     // B, D and A each fold two inline sites into one helper (-3 total).
-    expect(literal).toBe(225);
-    expect(total).toBe(226);
+    expect(literal).toBe(224);
+    expect(total).toBe(225);
     expect(literal).toBeLessThan(229);
     expect(total).toBeLessThan(230);
   });

@@ -44,23 +44,29 @@ const R49_D = 'SELECT count(*)\n';
 
 const stripImport = (text: string) => text
   .split('\n')
-  .filter(line => !line.includes('read-tail-r47-source-sql') && !line.includes('read-tail-r49-source-sql') && !line.includes('read-tail-r50-source-sql'))
+  .filter(line => !line.includes('read-tail-r47-source-sql') && !line.includes('read-tail-r49-source-sql') && !line.includes('read-tail-r50-source-sql') && !line.includes('read-tail-r51-source-sql'))
   .join('\n');
 /** Render each site back to its exact pre-r47 inline literals. */
 const renderSR = (text: string) => stripImport(text)
   .replaceAll('${SET_ROW_DRAFT_LINK_EXISTS_HEAD_SQL}', A)
   .replaceAll('UPLOAD_INTENT_STAR_WHERE_HEAD_SQL + "', '"' + R49_A)
-  .replaceAll('${DISTINCT_SET_ROW_HEAD_SQL}', 'SELECT DISTINCT set_row.');
+  .replaceAll('${DISTINCT_SET_ROW_HEAD_SQL}', 'SELECT DISTINCT set_row.')
+  .replaceAll("${LINK_STATE_EXISTS_HEAD_SQL('closed')}", "SELECT 1 FROM attachment_links closed WHERE closed.attachment_id=a.id AND closed.state IN (")
+  .replaceAll("${LINK_STATE_EXISTS_HEAD_SQL('l')}", "SELECT 1 FROM attachment_links l WHERE l.attachment_id=a.id AND l.state IN (");
 const renderCleanup = (text: string) => stripImport(text)
   .replaceAll('${CLEANUP_LINK_ROWS_HEAD_SQL}', B)
   .replaceAll("'c.command_id IN('+CLEANUP_BOUND_COMMAND_ID_HEAD_SQL", "'c.command_id IN(" + C + "'")
   .replaceAll("'a.command_id IN('+CLEANUP_BOUND_COMMAND_ID_HEAD_SQL", "'a.command_id IN(" + C + "'")
   .replaceAll('${UPLOAD_INTENT_STAR_WHERE_HEAD_SQL}', R49_A)
-  .replaceAll('${DISTINCT_SET_ROW_HEAD_SQL}', 'SELECT DISTINCT set_row.');
+  .replaceAll('${DISTINCT_SET_ROW_HEAD_SQL}', 'SELECT DISTINCT set_row.')
+  .replaceAll("${LINK_STATE_EXISTS_HEAD_SQL('closed')}", "SELECT 1 FROM attachment_links closed WHERE closed.attachment_id=a.id AND closed.state IN (")
+  .replaceAll("${LINK_STATE_EXISTS_HEAD_SQL('l')}", "SELECT 1 FROM attachment_links l WHERE l.attachment_id=a.id AND l.state IN (");
 const renderLeave = (text: string) => stripImport(text)
   .replaceAll('${LEAVE_LEGACY_SOURCE_ID_HEAD_SQL}', D)
   .replaceAll('${LEAVE_COUNT_HEAD_SQL}', R49_D)
-  .replaceAll('${DISTINCT_SET_ROW_HEAD_SQL}', 'SELECT DISTINCT set_row.');
+  .replaceAll('${DISTINCT_SET_ROW_HEAD_SQL}', 'SELECT DISTINCT set_row.')
+  .replaceAll("${LINK_STATE_EXISTS_HEAD_SQL('closed')}", "SELECT 1 FROM attachment_links closed WHERE closed.attachment_id=a.id AND closed.state IN (")
+  .replaceAll("${LINK_STATE_EXISTS_HEAD_SQL('l')}", "SELECT 1 FROM attachment_links l WHERE l.attachment_id=a.id AND l.state IN (");
 
 const tsFiles = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
   const path = resolve(dir, entry.name);
@@ -172,8 +178,8 @@ describe('Files read-tail r47 byte-oracle dedupe', () => {
     // Four closed-union families fold two sites into one helper each (-4):
     // draft-link EXISTS witness, cleanup direct-link CTE, cleanup bound-command
     // id witness and leave-evidence legacy source-id projection.
-    expect(literal).toBe(225);
-    expect(total).toBe(226);
+    expect(literal).toBe(224);
+    expect(total).toBe(225);
     expect(literal).toBeLessThan(237);
     expect(total).toBeLessThan(238);
   });

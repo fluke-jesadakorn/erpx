@@ -21,6 +21,7 @@ import {SET_DRAFT_BOUND_COUNT_SQL} from "../read-tail-r46-source-sql";
 import {SET_ROW_DRAFT_LINK_EXISTS_HEAD_SQL} from "../read-tail-r47-source-sql";
 import {UPLOAD_INTENT_STAR_WHERE_HEAD_SQL} from "../read-tail-r49-source-sql";
 import {DISTINCT_SET_ROW_HEAD_SQL} from "../read-tail-r50-source-sql";
+import {LINK_STATE_EXISTS_HEAD_SQL} from "../read-tail-r51-source-sql";
 const setByIdSql = ATTACHMENT_SETS_STAR_WHERE_HEAD_SQL + "id=? AND company_id=?";
 export const usedStorageSql = "SELECT COALESCE(sum(bytes),0) FROM attachment_storage_ledger WHERE company_id=? AND state IN ('reserved','stored')";
 export const pendingStorageSql = "SELECT COALESCE(sum(declared_bytes),0) FROM upload_intents WHERE company_id=? AND status='pending' AND expires_at>?";
@@ -929,8 +930,8 @@ export function repository(db: SqlDatabase) {
             now: number;
         }) => {
             return db.prepare(`${SELECT_ATTACHMENT_ID_SQL} WHERE a.company_id IS NOT NULL AND a.legal_hold=0 AND a.source_state='available' AND NOT erpx_files_field_attachment_owned(a.id)
-    AND EXISTS(SELECT 1 FROM attachment_links closed WHERE closed.attachment_id=a.id AND closed.state IN ('expired','withdrawn') AND closed.expires_at<=?)
-    AND NOT EXISTS(SELECT 1 FROM attachment_links l WHERE l.attachment_id=a.id AND l.state IN ('draft','bound'))
+    AND EXISTS(${LINK_STATE_EXISTS_HEAD_SQL('closed')}'expired','withdrawn') AND closed.expires_at<=?)
+    AND NOT EXISTS(${LINK_STATE_EXISTS_HEAD_SQL('l')}'draft','bound'))
     AND NOT ${LINK_SET_WHERE_EXISTS_SQL}attachment_id=a.id AND s.retention_policy_key IS NOT NULL
       AND (s.destruction_mode IS DISTINCT FROM 'automatic' OR s.retain_until IS NULL OR s.retain_until>?))
     AND NOT EXISTS(SELECT 1 FROM (${legalProjectionSources.legal_file_preservations}) p JOIN (${legalProjectionSources.legal_hold_targets}) target ON target.item_id=p.item_id JOIN (${legalProjectionSources.legal_holds}) hold ON hold.id=target.hold_id

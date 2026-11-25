@@ -131,6 +131,8 @@ describe('Files read-tail r41 byte-oracle dedupe', () => {
       // r50 read-tail call sites and helper (assigned owner paths).
       'packages/server-files/src/adapters/leave-evidence-sources.ts',
       'packages/server-files/src/adapters/read-tail-r50-source-sql.ts',
+      // r51 read-tail call sites and helper (assigned owner paths).
+      'packages/server-files/src/adapters/read-tail-r51-source-sql.ts',
     ].includes(p))).toBe(true);
   });
 
@@ -151,8 +153,8 @@ describe('Files read-tail r41 byte-oracle dedupe', () => {
     // r42 left 248; r43 lowers 248->246 (two SELECT-bearing shared heads folded).
     // r44 lowers 246->242 (three more shared heads folded).
     // r46 folds two closed-union heads (orphan-preservation event, draft/bound count): 239->237.
-    expect(literal).toBe(225);
-    expect(total).toBe(226);
+    expect(literal).toBe(224);
+    expect(total).toBe(225);
     expect(literal).toBeLessThan(254);
     expect(total).toBeLessThan(255);
   });

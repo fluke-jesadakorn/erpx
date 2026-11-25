@@ -26,9 +26,12 @@ const HEAD_SHA = 'e34ef9843e0667106b7a9500ecf72e08ba0173b1449bb1b72ae61ef936fa04
 /** Render each of the two sites back to its exact pre-r50 inline literal. */
 const stripImport = (text: string) => text
   .split('\n')
-  .filter(line => !line.includes('read-tail-r50-source-sql'))
+  .filter(line => !line.includes('read-tail-r50-source-sql') && !line.includes('read-tail-r51-source-sql'))
   .join('\n');
-const render = (text: string) => stripImport(text).replaceAll('${DISTINCT_SET_ROW_HEAD_SQL}', HEAD);
+const render = (text: string) => stripImport(text)
+  .replaceAll('${DISTINCT_SET_ROW_HEAD_SQL}', HEAD)
+  .replaceAll("${LINK_STATE_EXISTS_HEAD_SQL('closed')}", "SELECT 1 FROM attachment_links closed WHERE closed.attachment_id=a.id AND closed.state IN (")
+  .replaceAll("${LINK_STATE_EXISTS_HEAD_SQL('l')}", "SELECT 1 FROM attachment_links l WHERE l.attachment_id=a.id AND l.state IN (");
 
 const tsFiles = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
   const path = resolve(dir, entry.name);
@@ -102,8 +105,8 @@ describe('Files read-tail r50 byte-oracle dedupe', () => {
       total += (text.match(/SELECT\s/g) ?? []).length;
     }
     // The two inline DISTINCT set-row sites fold into one helper (-1 total).
-    expect(literal).toBe(225);
-    expect(total).toBe(226);
+    expect(literal).toBe(224);
+    expect(total).toBe(225);
     expect(literal).toBeLessThan(226);
     expect(total).toBeLessThan(227);
   });

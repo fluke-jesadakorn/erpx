@@ -146,8 +146,8 @@ describe('Files read-tail r48 byte-oracle dedupe', () => {
     // Three families fold two sites into one helper each: the scoped-existence
     // head (-2, two SELECT tokens), the messaging settlement head (-1) and the
     // ecommerce/marketing file-link target_ head (-1).
-    expect(literal).toBe(225);
-    expect(total).toBe(226);
+    expect(literal).toBe(224);
+    expect(total).toBe(225);
     expect(literal).toBeLessThan(233);
     expect(total).toBeLessThan(234);
   });
