@@ -69,3 +69,14 @@ export const executiveReportRevisionsSql = (columns: string, suffix = '') =>
  */
 export const executiveReportsSql = (columns: string, suffix = '') =>
   `SELECT ${columns} FROM executive_reports${suffix}`;
+
+/**
+ * Runtime-owned canonical SQL for the closed catalog-object presence probe
+ * family. Migration fallback inspection and coverage refresh project the same
+ * `IS NOT NULL present` shape over a fixed catalog function and a trusted
+ * literal name; one builder keeps the query text byte-identical across callers.
+ * Neither the function nor the name is accepted from an untrusted caller.
+ * Control-plane lock statements are not part of this family.
+ */
+export const catalogObjectExistsSql = (fn: 'to_regclass' | 'to_regprocedure', name: string) =>
+  `SELECT ${fn}('${name}') IS NOT NULL present`;

@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { PostgresDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
 import type { PoolClient } from 'pg';
+import { catalogObjectExistsSql } from '../read-tail-sql';
 const MIGRATION_LOCK_SQL = 'SELECT pg_advisory_lock(714928001)';
 const MIGRATION_UNLOCK_SQL = 'SELECT pg_advisory_unlock(714928001)';
 
@@ -44,7 +45,7 @@ export async function inspectMigrations(
     // A missing function does not prove that no migrations were applied.
     // Older Control tracks have receipts without the narrow read-only reader.
     // Inspect catalogue presence without falling back to privileged table reads.
-    const receiptTable = await db.prepare("SELECT to_regclass('public.erpx_migrations') IS NOT NULL present").first<boolean>('present');
+    const receiptTable = await db.prepare(catalogObjectExistsSql('to_regclass', 'public.erpx_migrations')).first<boolean>('present');
     if (receiptTable) throw Object.assign(new Error('MIGRATION_RECEIPTS_UNAVAILABLE'), {
       code: 'MIGRATION_RECEIPTS_UNAVAILABLE', cause: error,
     });
@@ -59,7 +60,7 @@ export async function inspectMigrations(
 }
 
 async function refreshCoverage(client: PoolClient, track: string) {
-  if (track === 'holding-write' && (await client.query("SELECT to_regprocedure('ensure_work_cache_coverage()') IS NOT NULL present")).rows[0].present)
+  if (track === 'holding-write' && (await client.query(catalogObjectExistsSql('to_regprocedure', 'ensure_work_cache_coverage()'))).rows[0].present)
     await client.query('SELECT ensure_work_cache_coverage()');
 }
 
