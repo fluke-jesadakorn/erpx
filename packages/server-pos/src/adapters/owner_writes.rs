@@ -384,6 +384,8 @@ pub const KINDS: &[&str] = &[
     crate::adapters::sale_child_reads::PAYMENT_FIRST_ID,
     crate::adapters::sale_child_reads::LINES_TOTAL,
     crate::adapters::sale_child_reads::PAYMENT_OPEN_ID,
+    crate::adapters::sale_child_reads::DAY_PLANNER_LINES,
+    crate::adapters::sale_child_reads::DAY_PLANNER_PAYMENTS,
     // POS child-tail read kinds (round 30): closed, SELECT-only, lock-free
     // owner statements ported from the inline pos-core.ts literals. Row locks,
     // PMS fragments and the day-report/Stripe registries stay inline.
@@ -689,7 +691,7 @@ mod tests {
     use super::*;
     #[test]
     fn every_kind_is_allow_listed_with_parameterized_owner_sql() {
-        assert_eq!(KINDS.len(), 194);
+        assert_eq!(KINDS.len(), 196);
         for kind in KINDS {
             assert!(supported(kind), "kind must be allow listed: {kind}");
             let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
@@ -1221,7 +1223,7 @@ mod tests {
                 );
             }
         }
-        assert_eq!(crate::adapters::sale_child_reads::KINDS.len(), 11);
+        assert_eq!(crate::adapters::sale_child_reads::KINDS.len(), 13);
     }
 
     /// The retired child-tail reads are SELECT-only, lock-free owner statements

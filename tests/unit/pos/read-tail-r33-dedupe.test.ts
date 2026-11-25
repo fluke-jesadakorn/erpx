@@ -22,8 +22,9 @@ describe('POS read-tail r33 by-id payment native cutover', () => {
     expect(bridge).toContain(`'${KIND}'`);
     expect(bridge).toContain('nativePosPaymentByIdStatement');
     // No new by-id payment kind was added by r33; r35 mounted four Stripe
-    // keyed reads, so the registry length now pins the r35 value of 194.
-    expect(read('owner_writes.rs')).toContain('assert_eq!(KINDS.len(), 194)');
+    // keyed reads and r36 mounted two day-planner sale-child reads, so the
+    // registry length now pins the r36 value of 196.
+    expect(read('owner_writes.rs')).toContain('assert_eq!(KINDS.len(), 196)');
   });
 
   test('owner registry already holds the retired literal byte-identically with its FOR UPDATE lock', () => {
@@ -56,7 +57,7 @@ describe('POS read-tail r33 by-id payment native cutover', () => {
     expect(read('native-pos-stripe-reads.ts')).toContain("'pos_stripe_");
   });
 
-  test('retirement:ts-statements is strictly lower than the r33 BEFORE=189 baseline (expected 184)', () => {
+  test('retirement:ts-statements is strictly lower than the r33 BEFORE=189 baseline (expected 182)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -66,7 +67,7 @@ describe('POS read-tail r33 by-id payment native cutover', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(184);
+    expect(total).toBe(182);
     expect(total).toBeLessThan(189);
   });
 });

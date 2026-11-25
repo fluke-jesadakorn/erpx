@@ -9,8 +9,9 @@ import { nativePosAll, nativePosOne } from './native-owner-write';
  * (`erpx-server-pos::adapters::sale_child_reads`); this bridge sends only a
  * typed kind and the sale id. The caller executes the statement on its own
  * unit, so no TypeScript SQL, mirror or fallback reader remains for this
- * family. Lock-bearing, advisory/LOCK, PMS/cross-owner, sale-document,
- * room-charge-reversal and refund-child reads stay inline in the callers.
+ * family, including the two day-planner sale-child reads. Lock-bearing,
+ * advisory/LOCK, PMS/cross-owner, sale-document, room-charge-reversal and
+ * refund-child reads stay inline in the callers.
  */
 
 const LINES_WITH_FULFILLMENT = 'pos_sale_child_lines_with_fulfillment';
@@ -24,6 +25,8 @@ const LINES_FULFILLMENT_DETAIL = 'pos_sale_child_lines_fulfillment_detail';
 const PAYMENT_FIRST_ID = 'pos_sale_child_payment_first_id';
 const LINES_TOTAL = 'pos_sale_child_lines_total';
 const PAYMENT_OPEN_ID = 'pos_sale_child_payment_open_id';
+const DAY_PLANNER_LINES = 'pos_sale_child_day_planner_lines';
+const DAY_PLANNER_PAYMENTS = 'pos_sale_child_day_planner_payments';
 
 /** Sale lines joined to their fulfillment (workspace detail). */
 export async function nativePosSaleLinesStatement(db: SqlDatabase, saleId: unknown): Promise<SqlValueRow[]> {
@@ -78,4 +81,14 @@ export async function nativePosLinesTotalStatement<T = SqlValueRow>(db: SqlDatab
 /** Open or refundable payment id for a sale. */
 export async function nativePosOpenPaymentIdStatement<T = SqlValueRow>(db: SqlDatabase, saleId: unknown): Promise<T | null> {
   return nativePosOne<T>(db, '', PAYMENT_OPEN_ID, [saleId]);
+}
+
+/** Day-planner sale lines with receipt detail. */
+export async function nativePosDayPlannerLinesStatement(db: SqlDatabase, saleId: unknown): Promise<SqlValueRow[]> {
+  return nativePosAll(db, '', DAY_PLANNER_LINES, [saleId]);
+}
+
+/** Day-planner succeeded sale payments with receipt detail. */
+export async function nativePosDayPlannerPaymentsStatement(db: SqlDatabase, saleId: unknown): Promise<SqlValueRow[]> {
+  return nativePosAll(db, '', DAY_PLANNER_PAYMENTS, [saleId]);
 }

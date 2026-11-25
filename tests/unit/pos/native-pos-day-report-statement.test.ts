@@ -178,7 +178,8 @@ describe('native POS day-report business-date list read bridge', () => {
     expect(source).not.toContain('SELECT id FROM pos_day_closes WHERE company_id=? AND branch_id=? AND business_date=?');
     expect(source).not.toContain('SELECT * FROM pos_shifts WHERE company_id=? AND branch_id=? AND business_date=?');
     expect(source).not.toContain('SELECT id,state FROM pos_fulfillments WHERE company_id=?');
-    expect(source.match(/nativePosDay[A-Za-z]+Statement\(db/g)).toHaveLength(10);
+    expect(source.match(/nativePosDay(?!Planner)[A-Za-z]+Statement\(db/g)).toHaveLength(10);
+    expect(source.match(/nativePosDayPlanner(Lines|Payments)Statement\(db/g)).toHaveLength(2);
   });
 
   it('keeps lock-bearing and PMS point-lookup reads inline in pos-daily.ts', () => {

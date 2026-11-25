@@ -1,12 +1,13 @@
 import { nativePosOne, nativePosRun } from './native-owner-write';
 import { nativePosSaleByIdStatement, nativePosSettingsCurrencyStatement } from './native-pos-core-statement';
 import { nativePosDayClosesStatement, nativePosDaySalesStatement, nativePosDayShiftsStatement, nativePosDayPaymentsStatement, nativePosDayRefundsStatement, nativePosDayRefundPaymentsStatement, nativePosDayStockMovesStatement, nativePosDayFulfillmentsStatement, nativePosDayCashMovementsStatement, nativePosDaySettlementsStatement } from './native-pos-day-report';
+import { nativePosDayPlannerLinesStatement, nativePosDayPlannerPaymentsStatement } from './native-pos-sale-child';
 import { hospitalityOwnerProjectionSources as pmsProjectionSources } from "@erpx/server-pms/public/hospitality-owner-projection-sources";
 import 'server-only';
 import { createHash } from 'node:crypto';
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-import {all,one,run} from '@erpx/server-runtime/public/runtime/sql';
+import {one} from '@erpx/server-runtime/public/runtime/sql';
 /** Day-close writes are owned by the native axum service; the retained TS
  * planner must never write them. Fail closed rather than fake a durable write. */
 function requireNativeDayClose(): never {
@@ -29,10 +30,10 @@ function unit(db: SqlDatabase): PosDayUnit<SqlStatement> {
         readFinanceParties1: facts => PosDayFinanceFacts(db).readFinanceParties1(facts),
         readPosLines1: (facts: {
             saleId: string;
-        }) => all(db, 'SELECT id,name,quantity_milli,price_minor,tax_bps,tax_inclusive,discount_minor,subtotal_minor,tax_minor,modifiers_json,note FROM pos_lines WHERE sale_id=? ORDER BY id', facts.saleId),
+        }) => nativePosDayPlannerLinesStatement(db, facts.saleId),
         readPosPayments1: (facts: {
             saleId: string;
-        }) => all(db, "SELECT id,method,amount_minor,tendered_minor,reference,finance_payment_id FROM pos_payments WHERE sale_id=? AND state='succeeded' ORDER BY created_at,id", facts.saleId),
+        }) => nativePosDayPlannerPaymentsStatement(db, facts.saleId),
         readPmsSources1: (facts: {
             fact0: string;
         }) => one(db, `SELECT property_id,record_id guest_account_entry_id FROM (${pmsProjectionSources.pms_sources}) pms_sources WHERE source_key=?`, facts.fact0),
