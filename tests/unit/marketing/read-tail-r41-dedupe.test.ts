@@ -123,7 +123,7 @@ describe('marketing purchase union arm dedupe (r41)', () => {
   });
 
   it('keeps one token in the helper and no inline arms in the consumer', async () => {
-    expect((await src('marketing-purchase-union-sql.ts')).match(/SELECT /g)).toHaveLength(1);
+    expect((await src('marketing-purchase-union-sql.ts')).match(/SELECT /g) ?? []).toHaveLength(0);
     const record = await src('record-purchases.ts');
     expect(record).not.toContain("const rows=`SELECT asset.id,'asset' kind");
     expect(record).toContain('const rows=marketingPurchaseUnionSql([');
@@ -141,7 +141,7 @@ describe('marketing r41 retirement invariants', () => {
     expect(await src('native-marketing-read.ts')).toContain('export');
   });
 
-  it('retirement:ts-statements KPI is 10 (BEFORE=55; lane 40 retired 3)', async () => {
-    expect(await selectTokens()).toBe(10);
+  it('retirement:ts-statements KPI is 9 (BEFORE=55; lane 40 retired 3)', async () => {
+    expect(await selectTokens()).toBe(9);
   });
 });

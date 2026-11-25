@@ -26,6 +26,8 @@ export const SALES_RD_PRICING_LIST_BY_ID = 'sales_rd_pricing_list_by_id';
 export const SALES_RD_PRICING_LIST_ACTIVE_BY_ID = 'sales_rd_pricing_list_active_by_id';
 export const SALES_RD_PRICING_LIST_ACTIVE = 'sales_rd_pricing_list_active';
 export const SALES_RD_PRICING_ITEMS_BY_LIST = 'sales_rd_pricing_items_by_list';
+export const SALES_RD_FOLLOWUP_SOURCE_FOLLOWUP = 'sales_rd_followup_source_followup';
+export const SALES_RD_FOLLOWUP_SOURCE_ORDER = 'sales_rd_followup_source_order';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'SALES_NATIVE_READ_UNAVAILABLE', 'The native Sales read service is unavailable.');

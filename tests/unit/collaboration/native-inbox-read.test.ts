@@ -116,7 +116,7 @@ describe('native inbox read family', () => {
 });
 
 describe('retirement:ts-statements', () => {
-  it('drops 316 -> 308 as the inbox adapter reaches zero SELECT tokens', () => {
+  it('drops 316 -> 306 as the inbox adapter reaches zero SELECT tokens', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const e of readdirSync(dir, { withFileTypes: true })) {
@@ -126,7 +126,7 @@ describe('retirement:ts-statements', () => {
       }
     };
     walk(root);
-    expect(total).toBe(308);
+    expect(total).toBe(306);
     expect(total).toBeLessThan(316);
   });
 });

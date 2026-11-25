@@ -31,6 +31,8 @@ pub const RD_PAIR_LOCK: &str = "runtime_rd_pair_lock";
 pub const RD_PAIR_UNLOCK: &str = "runtime_rd_pair_unlock";
 pub const RD_MIGRATION_LOCK: &str = "runtime_rd_migration_lock";
 pub const RD_MIGRATION_UNLOCK: &str = "runtime_rd_migration_unlock";
+pub const RD_LOCK_TIMEOUT_SET: &str = "runtime_rd_lock_timeout_set";
+pub const RD_LOCK_TIMEOUT_RESTORE: &str = "runtime_rd_lock_timeout_restore";
 
 const BODY_LIMIT: usize = 64 * 1024;
 const ORIGIN_HEADER: HeaderName = HeaderName::from_static("origin");
@@ -71,6 +73,8 @@ pub fn plan(kind: &str, values: &[Value]) -> Result<ControlPlanePlan, BusinessEr
         RD_PAIR_UNLOCK => (sql::PAIR_UNLOCK, 2),
         RD_MIGRATION_LOCK => (sql::MIGRATION_LOCK, 0),
         RD_MIGRATION_UNLOCK => (sql::MIGRATION_UNLOCK, 0),
+        RD_LOCK_TIMEOUT_SET => (sql::LOCK_TIMEOUT_SET, 0),
+        RD_LOCK_TIMEOUT_RESTORE => (sql::LOCK_TIMEOUT_RESTORE, 1),
         _ => return Err(invalid()),
     };
     if values.len() != expected || (expected > 0 && !values.iter().all(Value::is_string)) {
@@ -240,6 +244,19 @@ mod tests {
     }
 
     #[test]
+    fn lock_timeout_plans_are_byte_identical_to_the_native_port() {
+        let set = plan(RD_LOCK_TIMEOUT_SET, &[]).unwrap();
+        assert_eq!(set.sql, sql::LOCK_TIMEOUT_SET);
+        assert!(set.values.is_empty());
+        let restore = plan(RD_LOCK_TIMEOUT_RESTORE, &[Value::from("10s")]).unwrap();
+        assert_eq!(restore.sql, sql::LOCK_TIMEOUT_RESTORE);
+        assert_eq!(restore.values.len(), 1);
+        assert!(plan(RD_LOCK_TIMEOUT_SET, &[Value::from("x")]).is_err());
+        assert!(plan(RD_LOCK_TIMEOUT_RESTORE, &[]).is_err());
+        assert!(plan(RD_LOCK_TIMEOUT_RESTORE, &[Value::from(1)]).is_err());
+    }
+
+    #[test]
     fn migration_lock_plans_are_bind_free_with_the_native_key() {
         for (kind, expected) in [
             (RD_MIGRATION_LOCK, sql::MIGRATION_LOCK),
@@ -251,7 +268,10 @@ mod tests {
             assert!(planned.sql.contains("714928001"), "{kind}");
             assert!(plan(kind, &[Value::from("x")]).is_err(), "{kind} takes no binds");
         }
-        assert_eq!(MIGRATION_LOCK_KEY, 714_928_001);
+        assert_eq!(
+            crate::adapters::postgres::control_plane::MIGRATION_LOCK_KEY,
+            714_928_001
+        );
     }
 
     #[test]

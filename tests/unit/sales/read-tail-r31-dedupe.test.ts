@@ -197,10 +197,10 @@ describe('Sales read-tail r31 retirement check', () => {
     expect(native).toContain('export const SALES_RD_PRICE_LIST_ITEMS_ACTIVE');
     expect(native).toContain('export const SALES_RD_NOTIFICATION_ATTEMPT');
     expect(native).toContain('export const SALES_RD_NOTIFICATION_RECONCILIATION_INSTALLED');
-    expect((rustRegistry.match(/pub const RD_\w+: &str =/g) ?? []).length).toBe(9);
+    expect((rustRegistry.match(/pub const RD_\w+: &str =/g) ?? []).length).toBe(11);
   });
 
-  test('retirement:ts-statements drops from 50 to 36', () => {
+  test('retirement:ts-statements drops from 50 to 34', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -214,7 +214,7 @@ describe('Sales read-tail r31 retirement check', () => {
     // r33: tail generator delegates to the primary generator (-1).
     // r34: pointRead delegates to the shared tableRead generator (-1).
     // r35: delivery-presence head shared by order/return/notice guards (-1).
-    expect(total).toBe(36);
+    expect(total).toBe(34);
     expect(total).toBeLessThan(50);
   });
 });

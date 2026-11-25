@@ -519,6 +519,10 @@ pub fn plan_values_statement(
         "inbox_native_rows_cte" => "WITH native_rows AS (SELECT * FROM jsonb_to_recordset(?::jsonb) AS n(id text,event_id text,company_id text,user_id text,delivered_at bigint,read_at bigint,archived_at bigint,source_type text,source_id text,source_version bigint,category text,preview text,native_field_item jsonb)),legacy_rows AS (",
         "inbox_candidate_source" => "SELECT d.id,d.event_id,d.company_id,d.user_id,d.delivered_at,d.read_at,d.archived_at,e.source_type,e.source_id,e.source_version,e.category,e.preview,NULL::jsonb AS native_field_item\n  FROM inbox_deliveries d JOIN inbox_events e ON e.id=d.event_id\n  WHERE d.company_id=? AND d.user_id=? AND d.archived_at IS NULL",
         "inbox_combined_order" => "SELECT * FROM combined ORDER BY delivered_at DESC,id DESC LIMIT 100",
+        // Social agent read oracles: byte-identical to the retired TS reads;
+        // the caller runs them on its own unit with the same ordered binds.
+        "social_agent_recent_comments" => "SELECT id FROM social_comments WHERE post_id=? AND state='published' AND created_at<=? ORDER BY created_at DESC,id DESC LIMIT 10",
+        "social_agent_post_content" => "SELECT content_json FROM social_posts WHERE id=? AND company_id=? AND state='published'",
         _ => return None,
     };
     Some(
@@ -739,6 +743,32 @@ mod tests {
             };
             assert_eq!(planned.sql.matches('?').count(), expected_placeholders, "{kind}");
         }
+
+        let agent_values = ["post-1", "company-1"];
+        let planned = super::plan_values_statement(
+            "social_agent_post_content",
+            &read_input("social_agent_post_content", &agent_values),
+        )
+        .expect("registered kind")
+        .expect("planned statement");
+        assert_eq!(
+            planned.sql,
+            "SELECT content_json FROM social_posts WHERE id=? AND company_id=? AND state='published'"
+        );
+        assert_eq!(planned.values.len(), 2);
+
+        let recent = ["post-1", "1"];
+        let planned = super::plan_values_statement(
+            "social_agent_recent_comments",
+            &read_input("social_agent_recent_comments", &recent),
+        )
+        .expect("registered kind")
+        .expect("planned statement");
+        assert_eq!(
+            planned.sql,
+            "SELECT id FROM social_comments WHERE post_id=? AND state='published' AND created_at<=? ORDER BY created_at DESC,id DESC LIMIT 10"
+        );
+        assert_eq!(planned.values.len(), 2);
     }
 }
 

@@ -100,7 +100,7 @@ describe('Commerce r28 products master-selector family native cutover', () => {
       expect(plans).toContain(`"${site.sql}"`);
       expect(plans).toContain(`kind: ${constant},`);
     }
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 29);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 31);');
     expect(plans).toContain('fn inventory_count_product_selectors_keep_their_exact_literals()');
     expect(sha(FAMILY.map((site) => site.sql).join('\n'))).toBe(
       '8e79df210ce8ad27cffa3c548605370f0c5085579c6fb949db45574a0300f397',
@@ -123,8 +123,8 @@ describe('Commerce r28 products master-selector family native cutover', () => {
     expect(read('supply-package-sources.ts')).toContain('LOCK TABLE commerce_orders,commerce_order_lines,commerce_fulfillments,commerce_fulfillment_lines,commerce_returns,commerce_return_lines,commerce_warehouses,commerce_products,commerce_goods_valuations,commerce_invoice_goods_carrying IN SHARE MODE');
   });
 
-  test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 387 (before 388)', () => {
-    expect(count(src, /SELECT /g)).toBe(387);
+  test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 385 (before 386)', () => {
+    expect(count(src, /SELECT /g)).toBe(385);
     expect((read('initial-physical-stock-count-sources.ts').match(/SELECT /g) ?? []).length).toBe(4);
     expect((read('inventory-counts-sources.ts').match(/SELECT /g) ?? []).length).toBe(3);
   });

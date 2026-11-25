@@ -10,13 +10,13 @@ import {supportOrderAttachmentSourceLocks,supportOrderAttachmentSourceImage} fro
 import {fieldServiceAssetAttachmentSourceLocks,fieldServiceAssetAttachmentSourceImage} from '@erpx/server-assets/public/field-service-references';
 import {fieldServiceCustomerAttachmentSourceLocks,fieldServiceCustomerAttachmentSourceImage} from '@erpx/server-finance/public/field-service-references';
 import {posAttachmentReadSourceLocks,posAttachmentReadSourceImage} from '@erpx/server-pos/public/attachment-read-sources';
-import {socialPmsAttachmentSourceReadLocks,socialPmsSourceFacts} from '@erpx/server-pms/public/social-source-facts';
+import {socialPmsAttachmentSourceReadLocks} from '@erpx/server-pms/public/social-source-facts';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {attachmentDeniedReadAudits} from '@erpx/server-files/public/attachment-denied-read-audits';
 import {attachmentReadSource,attachmentPrivateReadSourceLocks,assertAttachmentReadRoute,requirePrivateAttachmentReaderCurrent,bufferedAttachmentRead,type AttachmentReadRoute,type AttachmentReadSource} from '@erpx/server-files/public/private-attachment-reads';
 import {isTransactionalSqlDatabase,type SqlDatabase,type StoredFile} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
-import {nativeSupportReadAll,SUPPORT_RD_TICKET_ATTACHMENT_SOURCE_IMAGE} from './native-support-read';
+import {nativeSupportReadAll,nativeSupportReadFirst,SUPPORT_RD_TICKET_ATTACHMENT_SOURCE_IMAGE,SUPPORT_RD_ATTACHMENT_PMS_SOURCE_IMAGE} from './native-support-read';
 
 async function image(database:SqlDatabase,companyId:string,id:string){
  const ticket=(await nativeSupportReadAll<{image:string;source_record_json:string|null;order_id:string|null;customer_id:string|null}>(SUPPORT_RD_TICKET_ATTACHMENT_SOURCE_IMAGE,[id,companyId],database)).results[0]??null;if(!ticket)return null;
@@ -24,7 +24,7 @@ async function image(database:SqlDatabase,companyId:string,id:string){
  if(ticket.source_record_json){const source:unknown=JSON.parse(ticket.source_record_json);if(source&&typeof source==='object'&&'id' in source&&typeof source.id==='string'&&'kind' in source){
   if(source.kind==='pos_sale')origin=await posAttachmentReadSourceImage(database,companyId,'pos_sale',source.id);
   else if(source.kind==='asset')origin=await fieldServiceAssetAttachmentSourceImage(database,companyId,source.id);
-  else if(source.kind==='pms_record')origin=await database.prepare(`SELECT jsonb_agg(to_jsonb(source) ORDER BY source.kind)::text image FROM (${socialPmsSourceFacts}) source WHERE source.id=? AND source.company_id=?`).bind(source.id,companyId).first<string>('image');
+  else if(source.kind==='pms_record')origin=await nativeSupportReadFirst<{image:string}>(SUPPORT_RD_ATTACHMENT_PMS_SOURCE_IMAGE,[source.id,companyId],database).then(row=>row?.image??null);
  }}
  return JSON.stringify([ticket.image,origin,ticket.order_id?await supportOrderAttachmentSourceImage(database,companyId,ticket.order_id):null,ticket.customer_id?await fieldServiceCustomerAttachmentSourceImage(database,companyId,ticket.customer_id):null]);
 }

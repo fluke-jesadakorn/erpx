@@ -132,6 +132,28 @@ const READ_PRICING_ITEMS_BY_LIST: NativeSalesReadStatement = NativeSalesReadStat
     scope: "holding",
 };
 
+/// Native successor of the TypeScript followup purchase source read (followup kind: [id, company, branch, branch, department, department]).
+/// Fixed owner projections only; the statement is byte-identical to the retired literal.
+pub const RD_FOLLOWUP_SOURCE_FOLLOWUP: &str = "sales_rd_followup_source_followup";
+const SQL_FOLLOWUP_SOURCE_FOLLOWUP: &str = "SELECT id,company_id,branch_id,department_id,order_kind,witness::text witness,owner_id,due_date,status,version FROM (SELECT followup.*,actual.branch_id,actual.department_id,actual.kind order_kind,jsonb_build_object('followup',jsonb_build_array(followup.id,followup.company_id,followup.order_id,followup.created_by),'order',actual.witness) witness FROM customer_followups followup JOIN (SELECT actual.*,jsonb_build_array(actual.id,actual.company_id,actual.branch_id,actual.department_id,actual.kind,actual.party_id,actual.currency) witness FROM (SELECT id,company_id,branch_id,department_id,kind,party_id,currency,source_id FROM commerce_orders) actual JOIN (SELECT id,company_id,kind,status FROM finance_parties) customer ON customer.id=actual.party_id AND customer.company_id=actual.company_id AND customer.kind='customer' WHERE actual.kind IN ('quote','sales')) actual ON actual.id=followup.order_id AND actual.company_id=followup.company_id) followup_source WHERE id=? AND company_id=? AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?)";
+const READ_FOLLOWUP_SOURCE_FOLLOWUP: NativeSalesReadStatement = NativeSalesReadStatement {
+    kind: RD_FOLLOWUP_SOURCE_FOLLOWUP,
+    sql: SQL_FOLLOWUP_SOURCE_FOLLOWUP,
+    bind_count: 6,
+    scope: "holding",
+};
+
+/// Native successor of the TypeScript followup purchase source read (order kind: [id, company, branch, branch, department, department]).
+/// Fixed owner projections only; the statement is byte-identical to the retired literal.
+pub const RD_FOLLOWUP_SOURCE_ORDER: &str = "sales_rd_followup_source_order";
+const SQL_FOLLOWUP_SOURCE_ORDER: &str = "SELECT id,company_id,branch_id,department_id,order_kind,witness::text witness,NULL::text owner_id,NULL::text due_date,NULL::text status,NULL::bigint version FROM (SELECT actual.*,actual.kind order_kind FROM (SELECT actual.*,jsonb_build_array(actual.id,actual.company_id,actual.branch_id,actual.department_id,actual.kind,actual.party_id,actual.currency) witness FROM (SELECT id,company_id,branch_id,department_id,kind,party_id,currency,source_id FROM commerce_orders) actual JOIN (SELECT id,company_id,kind,status FROM finance_parties) customer ON customer.id=actual.party_id AND customer.company_id=actual.company_id AND customer.kind='customer' WHERE actual.kind IN ('quote','sales')) actual) followup_source WHERE id=? AND company_id=? AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?)";
+const READ_FOLLOWUP_SOURCE_ORDER: NativeSalesReadStatement = NativeSalesReadStatement {
+    kind: RD_FOLLOWUP_SOURCE_ORDER,
+    sql: SQL_FOLLOWUP_SOURCE_ORDER,
+    bind_count: 6,
+    scope: "holding",
+};
+
 const READS: &[NativeSalesReadStatement] = &[
     READ_PRICE_LIST_ACTIVE,
     READ_PRICE_LIST_ITEMS_ACTIVE,
@@ -142,6 +164,9 @@ const READS: &[NativeSalesReadStatement] = &[
     READ_PRICING_LIST_ACTIVE_BY_ID,
     READ_PRICING_LIST_ACTIVE,
     READ_PRICING_ITEMS_BY_LIST,
+    READ_FOLLOWUP_SOURCE_FOLLOWUP,
+    READ_FOLLOWUP_SOURCE_ORDER,
+
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -316,8 +341,34 @@ mod tests {
     }
 
     #[test]
+    fn followup_source_read_is_allow_listed_and_byte_stable() {
+        let read = read_statement(RD_FOLLOWUP_SOURCE_FOLLOWUP).expect("read kind");
+        assert_eq!(read.kind, "sales_rd_followup_source_followup");
+        assert_eq!(read.bind_count, 6);
+        assert_eq!(read.sql.matches('?').count(), 6);
+        assert_eq!(read.sql.len(), 1066);
+        assert!(read.sql.starts_with("SELECT id,company_id,branch_id,department_id"));
+        assert!(read.sql.ends_with("AND (?::text IS NULL OR department_id=?)"));
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_FOLLOWUP_SOURCE_FOLLOWUP));
+    }
+
+    #[test]
+    fn order_source_read_is_allow_listed_and_byte_stable() {
+        let read = read_statement(RD_FOLLOWUP_SOURCE_ORDER).expect("read kind");
+        assert_eq!(read.kind, "sales_rd_followup_source_order");
+        assert_eq!(read.bind_count, 6);
+        assert_eq!(read.sql.matches('?').count(), 6);
+        assert_eq!(read.sql.len(), 815);
+        assert!(read.sql.starts_with("SELECT id,company_id,branch_id,department_id"));
+        assert!(read.sql.ends_with("AND (?::text IS NULL OR department_id=?)"));
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_FOLLOWUP_SOURCE_ORDER));
+    }
+
+    #[test]
     fn only_owner_read_kinds_are_registered() {
-        assert_eq!(READS.len(), 9);
+        assert_eq!(READS.len(), 11);
         assert!(READS.iter().all(|read| is_read(read.kind)));
         assert!(!is_read("sales_price_lists"));
         assert!(!is_read("SELECT 1"));

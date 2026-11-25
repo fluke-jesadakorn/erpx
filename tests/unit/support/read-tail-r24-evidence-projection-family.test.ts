@@ -125,7 +125,7 @@ describe('Support read-tail r24 evidence projection family', () => {
             }
         };
         walk(srcRoot);
-        expect(total).toBe(26);
+        expect(total).toBe(25);
         expect(total).toBeLessThan(50);
     });
 });

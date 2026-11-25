@@ -188,7 +188,7 @@ describe('marketing read-tail r43 dedupe', () => {
       'SELECT id FROM marketing_assets UNION ALL SELECT id FROM marketing_lead_candidates UNION ALL SELECT id FROM marketing_campaigns UNION ALL SELECT id FROM marketing_campaign_costs';
     expect(marketingSourceIdsSql()).toBe(expected);
     expect(selectTokens(await src('marketing-source-id-sql.ts'))).toBe(0);
-    expect(selectTokens(await src('marketing-purchase-union-sql.ts'))).toBe(1);
+    expect(selectTokens(await src('marketing-purchase-union-sql.ts'))).toBe(0);
   });
 
   it('leaves FOR SHARE, command_receipts settlement, package settlement and native ports untouched', async () => {
@@ -201,8 +201,8 @@ describe('marketing read-tail r43 dedupe', () => {
     expect(await src('native-marketing-read.ts')).toContain('export');
   });
 
-  it('pins the owner SELECT KPI to 10 (lane 40 retired 3) (BEFORE=36)', async () => {
-    expect(await ownerSelectTokens()).toBe(10);
+  it('pins the owner SELECT KPI to 9 (lane 40 retired 3) (BEFORE=36)', async () => {
+    expect(await ownerSelectTokens()).toBe(9);
     expect(await ownerSelectTokens()).toBeLessThan(32);
   });
 });

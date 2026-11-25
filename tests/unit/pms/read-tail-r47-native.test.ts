@@ -85,7 +85,7 @@ describe('pms read-tail r47 native read retirement', () => {
     expect(rust).toContain('const SQL_HOUSEKEEPING_COMMAND: &str = ' + JSON.stringify(HEAD.housekeeping) + ';');
     expect(rust).toContain('bind_count: 11,');
     expect(rust).toContain('bind_count: 4,');
-    expect(rust).toContain('READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS];');
+    expect(rust).toContain('READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS, READ_TRANSFER_REQUESTS, READ_GUEST_DOCUMENTS];');
   });
 
   it('routes both call sites through the native transport and removes the inline SQL', async () => {
@@ -106,7 +106,7 @@ describe('pms read-tail r47 native read retirement', () => {
     expect(pms).not.toContain(HEAD.housekeeping);
     expect(pms).toContain('readPmsHousekeepingCommand');
     expect(pms).toContain('PMS_RD_HOUSEKEEPING_COMMAND');
-    const houseAt = pms.indexOf('PMS_RD_HOUSEKEEPING_COMMAND,');
+    const houseAt = pms.indexOf('PMS_RD_HOUSEKEEPING_COMMAND, [propertyId');
     expect(houseAt).toBeGreaterThanOrEqual(0);
     const houseChunk = pms.slice(Math.max(0, houseAt - 200), houseAt + 200);
     expect(houseChunk).toContain('nativePmsReadAll');
@@ -170,8 +170,8 @@ describe('pms read-tail r47 native read retirement', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(228);
-    expect(bare).toBe(229);
+    expect(spaced).toBe(226);
+    expect(bare).toBe(227);
     expect(spaced).toBeLessThan(283);
     expect(bare).toBeLessThan(285);
   });

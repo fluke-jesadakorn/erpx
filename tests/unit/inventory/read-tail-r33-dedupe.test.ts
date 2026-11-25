@@ -65,9 +65,7 @@ describe('Inventory read-tail r33 parameterized scoped-field dedupe', () => {
       'service-initial-physical-stock-count-source-sql.ts',
     ]) expect(src(f).length).toBeGreaterThan(0);
     // The canonical count-source literal is unchanged.
-    expect(src('inventory-read-projections.ts')).toContain(
-      'export const inventoryCountStatusSql = "SELECT status FROM inventory_counts WHERE id=? AND company_id=?"',
-    );
+    expect(src('inventory-read-projections.ts')).not.toContain('SELECT status FROM inventory_counts');
     expect(src('count-purchases.ts')).toContain('companyPurchaseReadLocks');
     expect(readFileSync(resolve(srcRoot, 'adapters', 'native-inventory-read.ts'), 'utf8').length).toBeGreaterThan(0);
     expect(shared).not.toMatch(lockRe);

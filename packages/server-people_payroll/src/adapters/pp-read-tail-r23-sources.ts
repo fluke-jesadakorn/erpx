@@ -1,4 +1,5 @@
 import 'server-only';
+import { ppRdRound3ExistsByIdTwoPred } from './pp-read-tail-round3-sources';
 /** Canonical byte-identical SELECT-only owner read fragments shared across People Payroll
  * adapters (G4 read-tail r23). Each constant owns one parameterized literal copied verbatim
  * from its former inline copies; consumers import it and keep no local copy. All are pure
@@ -13,7 +14,7 @@ export const PP_RD23_OVERTIME_PAYROLL_HANDOFFS_SQL = 'SELECT id,request_id,reque
 export const PP_RD23_HR_PAYROLL_COST_ASSIGNMENTS_SQL = "SELECT id,effective_from,effective_to,branch_id,department_id,evidence_status,version FROM hr_payroll_cost_assignments WHERE engagement_id=? AND company_id=? AND status='active' AND effective_from<=? AND (effective_to IS NULL OR effective_to>=?) ORDER BY effective_from,id";
 export const PP_RD23_HR_PAY_GROUPS_ACTIVE_CURRENCY_GUARD = "EXISTS(SELECT 1 FROM hr_pay_groups WHERE id=? AND company_id=? AND currency=? AND status='active')";
 export const PP_RD23_HR_ENGAGEMENTS_ACTIVE_FOR_PERSON_NOT_EXISTS = "NOT EXISTS(SELECT 1 FROM hr_engagements WHERE company_id=? AND person_id=? AND status!='ended')";
-export const PP_RD23_EVAL_ASSESSMENT_VERSION_GUARD = 'EXISTS(SELECT 1 FROM hr_evaluation_assessments WHERE id=? AND version=? AND status=?)';
+export const PP_RD23_EVAL_ASSESSMENT_VERSION_GUARD = ppRdRound3ExistsByIdTwoPred('hr_evaluation_assessments', 'version', 'status');
 export const PP_RD23_LEAVE_TYPES_ID_COMPANY_EXISTS = 'SELECT 1 FROM leave_types WHERE id=? AND company_id=?';
 export const PP_RD23_HR_ENGAGEMENTS_ID_COMPANY_EXISTS = 'SELECT 1 FROM hr_engagements WHERE id=? AND company_id=?';
 export const PP_RD23_HR_PAY_GROUPS_IMAGE_SQL = 'SELECT to_jsonb(g)::text image FROM hr_pay_groups g WHERE g.id=? AND g.company_id=?';

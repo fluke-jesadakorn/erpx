@@ -86,9 +86,7 @@ describe('Inventory read-tail r38 dedupe', () => {
       'pos-initial-physical-stock-count-source-sql.ts',
       'service-initial-physical-stock-count-source-sql.ts',
     ]) expect(src(f).length).toBeGreaterThan(0);
-    expect(src('inventory-read-projections.ts')).toContain(
-      'export const inventoryCountStatusSql = "SELECT status FROM inventory_counts WHERE id=? AND company_id=?"',
-    );
+    expect(src('inventory-read-projections.ts')).not.toContain('SELECT status FROM inventory_counts');
     expect(readFileSync(resolve(srcRoot, 'adapters', 'native-inventory-read.ts'), 'utf8').length).toBeGreaterThan(0);
     // Attachment and maintenance read locks are untouched.
     expect(src('attachment-read-sources.ts')).toContain('LOCK TABLE command_receipts IN SHARE ROW EXCLUSIVE MODE');

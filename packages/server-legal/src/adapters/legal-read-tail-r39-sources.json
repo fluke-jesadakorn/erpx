@@ -1,0 +1,4 @@
+{
+  "disposedGuard": "NOT EXISTS(SELECT 1 FROM legal_disposals {alias} WHERE {alias}.document_id={ref})",
+  "holdOwnTarget": "EXISTS(SELECT 1 FROM legal_hold_targets own WHERE own.hold_id={alias}.id AND own.item_id=?)"
+}

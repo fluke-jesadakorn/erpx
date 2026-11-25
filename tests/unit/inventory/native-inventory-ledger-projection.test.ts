@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
-import { inventoryLedgerProjectionSql, inventoryCountStatusSql, inventoryPurchaseReplaySql, inventoryCommandReplaySql } from '../../../packages/server-inventory/src/adapters/inventory-read-projections';
+import { inventoryLedgerProjectionSql, inventoryPurchaseReplaySql, inventoryCommandReplaySql } from '../../../packages/server-inventory/src/adapters/inventory-read-projections';
 import { commercialOwnerProjectionSources } from '../../../packages/server-inventory/src/adapters/commercial-owner-projection-sources';
 import { hospitalityOwnerProjectionSources } from '../../../packages/server-inventory/src/adapters/hospitality-owner-projection-sources';
 
@@ -17,8 +17,7 @@ describe('inventory owner projection dedupe', () => {
     expect(hospitalityOwnerProjectionSources.inventory_ledger).toBe(inventoryLedgerProjectionSql);
   });
 
-  it('shares one canonical Stock Count status SQL with every count-source caller', () => {
-    expect(inventoryCountStatusSql).toBe('SELECT status FROM inventory_counts WHERE id=? AND company_id=?');
+  it('routes the canonical Stock Count status read through the native registry for every count-source caller', () => {
     const callers = [
       'initial-physical-stock-count-source.ts',
       'manufacturing-initial-physical-stock-count-source.ts',
@@ -27,9 +26,12 @@ describe('inventory owner projection dedupe', () => {
     ];
     for (const file of callers) {
       const text = src(file);
-      expect(text).toContain('inventoryCountStatusSql');
+      expect(text).toContain('countStatus');
       expect(text).not.toContain('SELECT status FROM inventory_counts WHERE id=? AND company_id=?');
     }
+    const projections = src('inventory-read-projections.ts');
+    expect(projections).not.toContain('inventoryCountStatusSql');
+    expect(projections).toContain('inventory_rd_count_status');
   });
 
   it('shares one canonical purchase replay SQL with every purchase-source caller', () => {

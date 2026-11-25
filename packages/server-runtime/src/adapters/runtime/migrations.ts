@@ -11,11 +11,21 @@ import {
   RD_COVERAGE_PROCEDURE_PRESENT,
   RD_COVERAGE_REFRESH,
   RD_MIGRATION_CHECKSUM,
+  RD_MIGRATION_LOCK,
   RD_MIGRATION_RECEIPTS,
+  RD_MIGRATION_UNLOCK,
   RD_RECEIPT_TABLE_PRESENT,
 } from '../native-runtime-control-plane';
-const MIGRATION_LOCK_SQL = 'SELECT pg_advisory_lock(714928001)';
-const MIGRATION_UNLOCK_SQL = 'SELECT pg_advisory_unlock(714928001)';
+
+/** Lock on the caller's own connection; the owner plans the fixed-key SQL. */
+async function migrationLock(client: PoolClient) {
+  const plan = await planRuntimeControlPlane(RD_MIGRATION_LOCK);
+  await client.query(plan.sql, [...plan.values]);
+}
+async function migrationUnlock(client: PoolClient) {
+  const plan = await planRuntimeControlPlane(RD_MIGRATION_UNLOCK);
+  await client.query(plan.sql, [...plan.values]);
+}
 
 // The receipt insert is owned by the Rust crate (runtime_stmt_22) and mirrored
 // by runtime-migrations-sql.json; the test in native_command_sql.rs keeps the
@@ -81,16 +91,16 @@ export async function refreshMigrationCoverage(db: PostgresDatabase, track: stri
   if (!['control','control-read','holding-write','holding-read'].includes(track)) throw new Error('INVALID_MIGRATION_TRACK');
   const client = await db.pool.connect();
   try {
-    await client.query(MIGRATION_LOCK_SQL);
+    await migrationLock(client);
     await refreshCoverage(client, track);
-  } finally { await client.query(MIGRATION_UNLOCK_SQL).catch(() => {}); client.release(); }
+  } finally { await migrationUnlock(client).catch(() => {}); client.release(); }
 }
 
 export async function migrateDatabase(db: PostgresDatabase, track: string, root = runtimeResourcePath('migrations/postgres')) {
   if (!['control','control-read','holding-write','holding-read'].includes(track)) throw new Error('INVALID_MIGRATION_TRACK');
   const client = await db.pool.connect();
   try {
-    await client.query(MIGRATION_LOCK_SQL);
+    await migrationLock(client);
     await client.query('CREATE TABLE IF NOT EXISTS erpx_migrations(name TEXT PRIMARY KEY,checksum TEXT NOT NULL,applied_at TIMESTAMPTZ NOT NULL DEFAULT now())');
     for (const name of (await readdir(join(root, track))).filter(f => f.endsWith('.sql')).sort()) {
       const sql = await readFile(join(root, track, name), 'utf8'), checksum = createHash('sha256').update(sql).digest('hex');
@@ -117,5 +127,5 @@ export async function migrateDatabase(db: PostgresDatabase, track: string, root 
       catch (error) { await client.query('ROLLBACK'); throw error; }
     }
     await refreshCoverage(client, track);
-  } finally { await client.query(MIGRATION_UNLOCK_SQL).catch(() => {}); client.release(); }
+  } finally { await migrationUnlock(client).catch(() => {}); client.release(); }
 }

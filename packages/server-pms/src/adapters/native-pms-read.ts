@@ -96,6 +96,11 @@ export const PMS_RD_CHANGE_PAYMENT_PENDING = 'pms_rd_change_payment_pending';
  * lock/refund decision; the caller runs them on its already-open unit. */
 export const PMS_RD_BOOKING_ALLOCATIONS = 'pms_rd_booking_allocations';
 export const PMS_RD_REFUND_REQUEST_ALLOCATIONS = 'pms_rd_refund_request_allocations';
+/** Native successors of the owner-local `pms.ts` transfer/document companion
+ * reads. Fixed SQL with two positional binds each, no ledger/receipt/outbox
+ * and no lock/refund path; the caller runs them on its already-open unit. */
+export const PMS_RD_TRANSFER_REQUESTS = 'pms_rd_transfer_requests';
+export const PMS_RD_GUEST_DOCUMENTS = 'pms_rd_guest_documents';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'PMS_NATIVE_READ_UNAVAILABLE', 'The native PMS read service is unavailable.');

@@ -56,8 +56,9 @@ describe('quality read-tail r32 lineage head dedupe', () => {
 
   test('one owner-local head helper replaces the two inline head prefixes', () => {
     const helper = read('adapters/quality-lineage-recursion-sql.ts');
-    expect(helper.match(/SELECT /g)).toHaveLength(1);
-    expect(helper).toContain('const lineageHead = (columns: string, tail: string) => `SELECT ${columns},${tail}`');
+    expect(helper.match(/SELECT /g) ?? []).toHaveLength(0);
+    expect(helper).toContain('import { evidenceHead } from "./inspection-evidence-source-sql";');
+    expect(helper).toContain('const lineageHead = (columns: string, tail: string) => evidenceHead(`${columns},`, "", tail);');
     expect(helper).toContain('lineageHead(columns, `0 depth FROM ${source}`)');
     expect(helper).toContain('lineageHead(columns, `${alias}.depth+1 FROM lineage ${alias}`)');
     expect(helper).not.toContain('=> `SELECT ${columns},0 depth FROM ${source}`');
@@ -92,6 +93,6 @@ describe('quality read-tail r32 lineage head dedupe', () => {
 
   test('retirement:ts-statements is strictly lower than the BEFORE=30 baseline', () => {
     expect(kpi()).toBeLessThan(30);
-    expect(kpi()).toBe(20);
+    expect(kpi()).toBe(19);
   });
 });

@@ -100,8 +100,8 @@ describe('Support read-tail r42 incident work native kind', () => {
     });
 
     test('retirement:ts-statements drops 35->31 and the registry grows 49->50', () => {
-        expect(countSelect(true)).toBe(26);
-        expect(countSelect(false)).toBe(26);
-        expect(registry).toContain('assert_eq!(STATEMENTS.len(), 54);');
+        expect(countSelect(true)).toBe(25);
+        expect(countSelect(false)).toBe(25);
+        expect(registry).toContain('assert_eq!(STATEMENTS.len(), 55);');
     });
 });

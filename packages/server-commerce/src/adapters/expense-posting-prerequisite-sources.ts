@@ -10,13 +10,14 @@ import {ApiError} from '@erpx/server-runtime/public/http';
 import {posStartupCommerceReadLocks} from '@erpx/server-commerce/adapters/pos-posting-setup-sources';
 import {manufacturingPostingDocumentState} from '@erpx/server-commerce/adapters/sales-goods-posting-setup';
 import type {CommercePostingSetupConfiguration} from '@erpx/server-commerce/domain/posting-setup';
+import {nativeCommerceReadFirst,RD_EXPENSE_PREREQUISITE_SETTINGS_SOURCE} from './native-commerce-read';
 
 export function expensePostingPrerequisiteSourceLocks(database:SqlDatabase){return [...posStartupCommerceReadLocks(database),...manufacturingPostingInventorySourceLocks(database),...manufacturingPostingSourceReadLocks(database),...expensePostingSetupSourceLocks(database),...expensePostingFinanceReadLocks(database)];}
 /** Company economic identity stays private and independent of the one newly
  * created Finance reference. A receipt is never a substitute for these rows. */
 export async function expensePostingPrerequisiteSources(database:SqlDatabase,actor:WorkContext){
  const [row,documents,inventory,production,expense,finance]=await Promise.all([
-  database.prepare('SELECT to_jsonb(s)::text source FROM commerce_settings s WHERE s.company_id=?').bind(actor.companyId).first<{source:string}>(),
+  nativeCommerceReadFirst<{source:string}>(RD_EXPENSE_PREREQUISITE_SETTINGS_SOURCE,[actor.companyId],database),
   manufacturingPostingDocumentState(database,actor.companyId),manufacturingPostingInventoryState(database,actor.companyId),manufacturingPostingSourceState(database,actor.companyId),expensePostingSetupSources(database,actor.companyId),expensePostingFinanceState(database,actor),
  ]);
  const raw=row?JSON.parse(row.source) as Record<string,unknown>:null;

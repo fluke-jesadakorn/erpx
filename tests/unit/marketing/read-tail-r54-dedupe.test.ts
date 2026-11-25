@@ -128,7 +128,7 @@ describe('marketing read-tail r54 dedupe', () => {
     ])
       expect(headTokens(await src(name)), name).toBe(1);
     expect((await src('read-tail-sql.ts')).match(/SELECT/g)).toHaveLength(1);
-    expect(headTokens(await src('marketing-purchase-union-sql.ts'))).toBe(1);
+    expect(headTokens(await src('marketing-purchase-union-sql.ts'))).toBe(0);
     expect(headTokens(await src('marketing-clocked-report-frame.ts'))).toBe(0);
     expect(headTokens(await src('executive-label-sql.ts'))).toBe(0);
     expect((await src('marketing.ts')).match(/SELECT COALESCE\(NULLIF\(BTRIM\(attribution_json/)).toBeNull();
@@ -147,10 +147,10 @@ describe('marketing read-tail r54 dedupe', () => {
     );
     await expect(src('candidate-form-rows.ts')).rejects.toThrow();
     expect(await src('marketing.ts')).toContain('LANE40_CANDIDATE_LIST');
-    expect(headTokens(await src('marketing-purchase-union-sql.ts'))).toBe(1);
+    expect(headTokens(await src('marketing-purchase-union-sql.ts'))).toBe(0);
   });
 
   it('pins the owner head KPI to 17 (BEFORE=20; lane 40 retired 2 TS SELECTs)', async () => {
-    expect(await ownerHeadTokens()).toEqual({ spaced: 10, bare: 10 });
+    expect(await ownerHeadTokens()).toEqual({ spaced: 9, bare: 9 });
   });
 });

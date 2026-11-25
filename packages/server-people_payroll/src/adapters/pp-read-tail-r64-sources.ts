@@ -1,6 +1,7 @@
-// Owner-local renderer for the byte-identical hr_time_entries id EXISTS guard
-// head shared by two people_payroll call sites. The caller's predicate tail
-// (minus the closing paren owned here) is passed through unchanged; binds
-// and their order stay with the caller. Read-only.
+// Owner renderer for the hr_time_entries id EXISTS guard shared by two
+// people_payroll call sites. The former inline head now renders from the shared
+// round-2d template; the caller's predicate tail and binds stay unchanged. Read-only.
+import { ppRdRound2dExistsById } from './pp-read-tail-round2d-sources';
+
 export const ppRd64TimeEntryIdGuard = (tail: string) =>
-  `EXISTS(SELECT 1 FROM hr_time_entries WHERE id=?${tail})`;
+  ppRdRound2dExistsById('hr_time_entries', tail);

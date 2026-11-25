@@ -208,7 +208,7 @@ export const disposalCountsSql = (holds: string, tail = '') =>
  *  read and the transfer flow-status probe share one byte-identical projection,
  *  two-key equality predicate and bind shape; only the field, table and scope
  *  keys vary. Every caller keeps its own binds and independent statement. The
- *  canonical inventoryCountStatusSql count-source literal is left untouched.
+ *  count status lives in the native read registry via `countStatus`.
  *  r11-r32 helpers above are left untouched. */
 export const scopedFieldSql = (field: string, table: string, key: string, scopeKey: string) =>
   `SELECT ${field} FROM ${table} WHERE ${key}=? AND ${scopeKey}=?`;

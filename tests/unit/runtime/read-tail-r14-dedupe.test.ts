@@ -66,8 +66,8 @@ describe('Runtime read-tail r14 executive_generation_jobs generation.ts five rea
   test('control-plane lock and migration SQL is untouched', () => {
     const migrations = src('runtime/migrations.ts');
     const postgres = src('runtime/postgres.ts');
-    expect(migrations).toContain("'SELECT pg_advisory_lock(714928001)'");
-    expect(migrations).toContain("'SELECT pg_advisory_unlock(714928001)'");
+    expect(migrations).toContain('planRuntimeControlPlane(RD_MIGRATION_LOCK)');
+    expect(migrations).toContain('planRuntimeControlPlane(RD_MIGRATION_UNLOCK)');
     expect(migrations).not.toContain('executiveGenerationJobsSql');
     expect(postgres).not.toContain('executiveGenerationJobsSql');
   });
@@ -93,7 +93,7 @@ describe('Runtime read-tail r14 executive_generation_jobs generation.ts five rea
       }
     };
     walk(srcRoot);
-    expect(total).toBe(17);
+    expect(total).toBe(13);
     expect(total).toBeLessThan(36);
   });
 });

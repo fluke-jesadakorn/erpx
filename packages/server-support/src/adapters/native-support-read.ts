@@ -52,6 +52,7 @@ export const SUPPORT_RD_EXEC_TICKET_METRIC = 'support_rd_exec_ticket_metric';
 export const SUPPORT_RD_EXEC_INCIDENT_METRIC = 'support_rd_exec_incident_metric';
 export const SUPPORT_RD_INCIDENT_ATTACHMENT_SOURCE_IMAGE = 'support_rd_incident_attachment_source_image';
 export const SUPPORT_RD_INCIDENT_ATTACHMENT_SOURCE_LINKS = 'support_rd_incident_attachment_source_links';
+export const SUPPORT_RD_ATTACHMENT_PMS_SOURCE_IMAGE = 'support_rd_attachment_pms_source_image';
 export const SUPPORT_RD_SALES_SUPPORT_COUNTS = 'support_rd_sales_support_counts';
 export const SUPPORT_RD_SALES_OPEN_SUPPORT_CASES = 'support_rd_sales_open_support_cases';
 export const SUPPORT_RD_SALES_CUSTOMER_SOURCE_CASES = 'support_rd_sales_customer_source_cases';
@@ -111,6 +112,7 @@ const BIND_COUNTS: Readonly<Record<string, number>> = {
   [SUPPORT_RD_EXEC_INCIDENT_METRIC]: 12,
   [SUPPORT_RD_INCIDENT_ATTACHMENT_SOURCE_IMAGE]: 3,
   [SUPPORT_RD_INCIDENT_ATTACHMENT_SOURCE_LINKS]: 2,
+  [SUPPORT_RD_ATTACHMENT_PMS_SOURCE_IMAGE]: 2,
   [SUPPORT_RD_SALES_SUPPORT_COUNTS]: 14,
   [SUPPORT_RD_SALES_OPEN_SUPPORT_CASES]: 14,
   [SUPPORT_RD_SALES_CUSTOMER_SOURCE_CASES]: 12,

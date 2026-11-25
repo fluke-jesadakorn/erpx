@@ -6,6 +6,9 @@ import {
   legalExternalUploadShareJoinHead,
   legalFilePreservationHoldTargetHead,
 } from '../../../packages/server-legal/src/adapters/legal-read-tail-r44-sources';
+import contract from '../../../packages/server-legal/src/adapters/legal-read-tail-r44-sources.json' with {
+  type: 'json',
+};
 
 const srcRoot = resolve(__dirname, '../../../packages/server-legal/src');
 const src = (name: string) => readFile(new URL(`../../../packages/server-legal/src/adapters/${name}`, import.meta.url), 'utf8');
@@ -81,6 +84,9 @@ describe('legal read-tail r44 parameterized external-upload and preservation hea
     for (const m of extMembers) {
       expect(legalExternalUploadShareJoinHead(m.projection, m.u, m.s) + m.tail).toBe(m.expected);
     }
+    expect(legalExternalUploadShareJoinHead('u.$&,s.item_id', 'u', 's')).toBe(
+      'SELECT u.$&,s.item_id FROM legal_external_uploads u JOIN legal_shares s ON s.id=u.share_id ',
+    );
   });
 
   it('renders byte-identical preservation/hold-target SQL and keeps both inequality tokens', () => {
@@ -105,6 +111,20 @@ describe('legal read-tail r44 parameterized external-upload and preservation hea
     const shared = await src('legal-read-tail-r44-sources.ts');
     expect(shared.match(/export const legalExternalUploadShareJoinHead/g) ?? []).toHaveLength(1);
     expect(shared.match(/export const legalFilePreservationHoldTargetHead/g) ?? []).toHaveLength(1);
+    expect(shared.match(/SELECT /g) ?? []).toHaveLength(0);
+    expect(shared).toContain('legal-read-tail-r44-sources.json');
+    expect(shared).toContain('LEGAL_READ_TAIL_R44_CONTRACT_INVALID');
+    expect(contract).toEqual({
+      externalUploadShare:
+        'SELECT {projection} FROM legal_external_uploads {uploadAlias} JOIN legal_shares {shareAlias} ON {shareAlias}.id={uploadAlias}.share_id ',
+      filePreservationHoldTarget:
+        "SELECT {projection} FROM legal_file_preservations p JOIN legal_hold_targets {targetAlias} ON {targetAlias}.item_id=p.item_id JOIN legal_holds {holdAlias} ON {holdAlias}.id={targetAlias}.hold_id WHERE {holdAlias}.state{inequality}'released'",
+    });
+    const rust = await src('legal_read_tail_r44.rs');
+    expect(rust).toContain('include_str!("legal-read-tail-r44-sources.json")');
+    expect(rust).toContain('render_external_upload_share');
+    expect(rust).toContain('render_file_preservation_hold_target');
+    expect(rust).toContain('755bd9304bff30bffd2aade73bbb5ce8abc0e393b21b2af100adf2be357da75b');
     const extHead = 'FROM legal_external_uploads ';
     const presHead = 'FROM legal_file_preservations p JOIN legal_hold_targets ';
     for (const [file, count] of Object.entries(extCallers)) {
@@ -177,5 +197,19 @@ describe('legal read-tail r44 parameterized external-upload and preservation hea
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(212);
+  });
+
+  it('retirement:ts-statements is BEFORE=109 -> AFTER=107 for the r44 native contract', async () => {
+    let total = 0;
+    const walk = async (dir: string) => {
+      for (const entry of await readdir(dir, { withFileTypes: true })) {
+        const p = resolve(dir, entry.name);
+        if (entry.isDirectory()) await walk(p);
+        else if (entry.name.endsWith('.ts')) total += ((await readFile(p, 'utf8')).match(/SELECT /g) ?? []).length;
+      }
+    };
+    await walk(srcRoot);
+    expect(total).toBeLessThan(109);
+    expect(total).toBe(105);
   });
 });

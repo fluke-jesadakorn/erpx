@@ -6,6 +6,9 @@ import {
   legalDisposedGuardSql,
   legalHoldOwnTargetSql,
 } from '../../../packages/server-legal/src/adapters/legal-read-tail-r39-sources';
+import contract from '../../../packages/server-legal/src/adapters/legal-read-tail-r39-sources.json' with {
+  type: 'json',
+};
 
 const srcRoot = resolve(__dirname, '../../../packages/server-legal/src');
 const src = (name: string) => readFile(new URL(`../../../packages/server-legal/src/adapters/${name}`, import.meta.url), 'utf8');
@@ -20,6 +23,8 @@ describe('legal read-tail r39 fragment families', () => {
       .toBe('EXISTS(SELECT 1 FROM legal_hold_targets own WHERE own.hold_id=h.id AND own.item_id=?)');
     expect(legalHoldOwnTargetSql('hold'))
       .toBe('EXISTS(SELECT 1 FROM legal_hold_targets own WHERE own.hold_id=hold.id AND own.item_id=?)');
+    expect(legalDisposedGuardSql('$&', 'd.$1'))
+      .toBe('NOT EXISTS(SELECT 1 FROM legal_disposals $& WHERE $&.document_id=d.$1)');
   });
 
   it('keeps every fragment read-only (no writes or row locks)', () => {
@@ -43,6 +48,20 @@ describe('legal read-tail r39 fragment families', () => {
     for (const symbol of ['legalDisposedGuardSql', 'legalHoldOwnTargetSql']) {
       expect(shared.match(new RegExp(`export const ${symbol}`, 'g')) ?? []).toHaveLength(1);
     }
+    expect(shared.match(/SELECT /g) ?? []).toHaveLength(0);
+    expect(shared).toContain('legal-read-tail-r39-sources.json');
+    expect(shared).toContain('LEGAL_READ_TAIL_R39_CONTRACT_INVALID');
+    expect(contract).toEqual({
+      disposedGuard:
+        'NOT EXISTS(SELECT 1 FROM legal_disposals {alias} WHERE {alias}.document_id={ref})',
+      holdOwnTarget:
+        'EXISTS(SELECT 1 FROM legal_hold_targets own WHERE own.hold_id={alias}.id AND own.item_id=?)',
+    });
+    const rust = await src('legal_read_tail_r39.rs');
+    expect(rust).toContain('include_str!("legal-read-tail-r39-sources.json")');
+    expect(rust).toContain('render_legal_disposed_guard');
+    expect(rust).toContain('render_legal_hold_own_target');
+    expect(rust).toContain('670af8e6257d3de6af0b7ade3fddd638f4d935ae545c3a5b781829ad8fb5b74a');
     expect(destruction).toContain("legalDisposedGuardSql('disposed','legal_documents.id')");
     expect(queued).toContain("legalDisposedGuardSql('x','d.id')");
     expect(service).toContain("legalHoldOwnTargetSql('h')");
@@ -140,5 +159,19 @@ describe('legal read-tail r39 fragment families', () => {
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(226);
+  });
+
+  it('retirement:ts-statements is BEFORE=107 -> AFTER=105 for the r39 native contract', async () => {
+    let total = 0;
+    const walk = async (dir: string) => {
+      for (const entry of await readdir(dir, { withFileTypes: true })) {
+        const p = resolve(dir, entry.name);
+        if (entry.isDirectory()) await walk(p);
+        else if (entry.name.endsWith('.ts')) total += ((await readFile(p, 'utf8')).match(/SELECT /g) ?? []).length;
+      }
+    };
+    await walk(srcRoot);
+    expect(total).toBeLessThan(107);
+    expect(total).toBe(105);
   });
 });

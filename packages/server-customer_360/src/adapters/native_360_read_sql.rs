@@ -14,6 +14,15 @@ pub const RD_PORTAL_ACTION_BY_KEY: &str = "c360_rd_portal_action_by_key";
 pub const RD_PORTAL_ACTION_BY_BINDING: &str = "c360_rd_portal_action_by_binding";
 /// Allow-listed native Customer 360 read kind: audit/outbox existence guard in the portal package facts.
 pub const RD_OBLIGATION_AUDIT_EXISTS: &str = "c360_rd_obligation_audit_exists";
+/// Allow-listed native Customer 360 read kind: action UNION branch head of the obligation facts.
+pub const RD_OBLIGATION_ACTION_HEAD: &str = "c360_rd_obligation_action_head";
+/// Allow-listed native Customer 360 read kind: acknowledgement UNION branch head of the obligation facts.
+pub const RD_OBLIGATION_ACK_HEAD: &str = "c360_rd_obligation_ack_head";
+
+/// Exact zero-bind action branch head retired from `obligation-fact-head.ts`.
+const SQL_OBLIGATION_ACTION_HEAD: &str = "SELECT 'action' kind,request.id,to_jsonb(request) fact,NOT ";
+/// Exact zero-bind acknowledgement branch head retired from `obligation-fact-head.ts`.
+const SQL_OBLIGATION_ACK_HEAD: &str = "SELECT 'acknowledgement',ack.id,to_jsonb(ack),NOT ";
 
 /// Exact zero-bind guard retired from the customer_360 obligation facts CTE.
 const SQL_OBLIGATION_AUDIT_EXISTS: &str = "EXISTS(SELECT 1 FROM audit_events audit JOIN outbox_events event ON event.command_id=audit.command_id AND event.event_type=audit.action AND event.aggregate_id=request.order_id AND event.aggregate_version=request.source_version WHERE audit.command_id=request.request_key AND audit.actor_id=request.user_id AND audit.assignment_id='external-customer' AND audit.action='customer.portal.'||request.action AND audit.record_id=request.order_id AND audit.record_version=request.source_version AND audit.authority_json::jsonb->>'bindingId'=request.binding_id AND event.payload_json::jsonb->>'bindingId'=request.binding_id AND event.payload_json::jsonb->>'customerId'=request.customer_id AND event.payload_json::jsonb->>'userId'=request.user_id AND event.payload_json::jsonb->>'note'=request.note)";
@@ -54,6 +63,16 @@ pub fn plan_for(kind: &str, binds: usize) -> Result<NativeReadStatement, Busines
         RD_OBLIGATION_AUDIT_EXISTS => NativeReadStatement {
             kind: RD_OBLIGATION_AUDIT_EXISTS,
             sql: SQL_OBLIGATION_AUDIT_EXISTS,
+            bind_count: 0,
+        },
+        RD_OBLIGATION_ACTION_HEAD => NativeReadStatement {
+            kind: RD_OBLIGATION_ACTION_HEAD,
+            sql: SQL_OBLIGATION_ACTION_HEAD,
+            bind_count: 0,
+        },
+        RD_OBLIGATION_ACK_HEAD => NativeReadStatement {
+            kind: RD_OBLIGATION_ACK_HEAD,
+            sql: SQL_OBLIGATION_ACK_HEAD,
             bind_count: 0,
         },
         _ => return Err(invalid()),
@@ -100,12 +119,27 @@ mod tests {
     }
 
     #[test]
+    fn obligation_union_heads_are_byte_identical_to_the_deleted_helper() {
+        // Verbatim pre-cut renderings from the r9 BEFORE=15 baseline.
+        const TS_ACTION: &str = "SELECT 'action' kind,request.id,to_jsonb(request) fact,NOT ";
+        const TS_ACK: &str = "SELECT 'acknowledgement',ack.id,to_jsonb(ack),NOT ";
+        let action = plan_for(RD_OBLIGATION_ACTION_HEAD, 0).expect("registered kind");
+        let ack = plan_for(RD_OBLIGATION_ACK_HEAD, 0).expect("registered kind");
+        assert_eq!(action.sql, TS_ACTION);
+        assert_eq!(ack.sql, TS_ACK);
+        assert_eq!(action.bind_count, 0);
+        assert_eq!(ack.bind_count, 0);
+    }
+
+    #[test]
     fn unknown_kind_or_wrong_bind_count_fails_closed() {
         assert!(plan_for("c360_rd_unknown", 1).is_err());
         assert!(plan_for(RD_PORTAL_ACTION_BY_KEY, 0).is_err());
         assert!(plan_for(RD_PORTAL_ACTION_BY_KEY, 2).is_err());
         assert!(plan_for(RD_PORTAL_ACTION_BY_BINDING, 1).is_err());
         assert!(plan_for(RD_OBLIGATION_AUDIT_EXISTS, 1).is_err());
+        assert!(plan_for(RD_OBLIGATION_ACTION_HEAD, 1).is_err());
+        assert!(plan_for(RD_OBLIGATION_ACK_HEAD, 1).is_err());
         assert!(!SQL_PORTAL_ACTION_BY_KEY.contains(";"));
         assert!(!SQL_PORTAL_ACTION_BY_BINDING.contains(";"));
     }

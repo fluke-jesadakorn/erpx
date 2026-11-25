@@ -5,6 +5,10 @@ pub use crate::adapters::governance_http::{
 };
 pub use crate::adapters::governance_postgres::{AgentError, PgAgentGovernance};
 pub use crate::adapters::workspace_read_postgres::PgAgentWorkspaceRead;
+pub use crate::adapters::workspace_read_http::{
+    AgentWorkspaceHttpBackend, AgentWorkspaceHttpFuture, AgentWorkspaceHttpKind,
+    AgentWorkspaceHttpReadRequest, AgentWorkspaceHttpTarget, router_for_holdings,
+};
 pub use crate::application::workspace_read::{
     AgentRecordReadKind, AgentWorkspaceReadPorts, WorkspaceReadFuture,
     agent_evidence_record_read, agent_workspace_read,

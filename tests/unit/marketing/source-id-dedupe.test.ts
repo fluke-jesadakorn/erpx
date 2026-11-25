@@ -20,7 +20,8 @@ describe('marketing source-id projection dedupe', () => {
     const union = await readFile(adapter('marketing-purchase-union-sql.ts'), 'utf8');
     const record = await readFile(adapter('record-purchases.ts'), 'utf8');
     expect(helper.match(/SELECT /g) ?? []).toHaveLength(0);
-    expect(union.match(/SELECT /g)).toHaveLength(1);
+    expect(union.match(/SELECT /g) ?? []).toHaveLength(0);
+    expect(union).toContain('marketingSelectHeadSql(projection, ` FROM ${from}`)');
     expect(helper).toContain("marketingPurchaseUnionSql(sourceIdTables.map(table => ['id', table] as const))");
     expect(record).not.toContain(expected);
     expect(record).toContain('marketingSourceIdsSql()');

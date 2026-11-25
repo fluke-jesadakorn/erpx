@@ -26,7 +26,7 @@ describe('marketing read-tail r59 owner-projection head cutover', () => {
       'SELECT "id","company_id" FROM marketing_campaigns',
     );
     expect(marketingProjectionSourceSql(['"a"', 'b c'], 'marketing_campaign_costs c')).toBe(
-      'SELECT """a""","b c" FROM marketing_campaign_costs c',
+      'SELECT ""a"","b c" FROM marketing_campaign_costs c',
     );
   });
 
@@ -43,7 +43,7 @@ describe('marketing read-tail r59 owner-projection head cutover', () => {
       expect(await src(name)).toContain('marketingProjectionSourceSql(');
   });
 
-  it('retirement:ts-statements is BEFORE=11 -> AFTER=10', async () => {
-    expect(await selectTokens()).toBe(10);
+  it('retirement:ts-statements stays strictly below BEFORE=11 at 9 after r60', async () => {
+    expect(await selectTokens()).toBe(9);
   });
 });

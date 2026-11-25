@@ -84,7 +84,8 @@ describe('Customer 360 read-tail r13 scoped-projection head family', () => {
     expect(obligations).toContain('const supportConclusionExists='); // r3
     expect(obligations).toContain('LOCK TABLE customer_portal_actions IN SHARE ROW EXCLUSIVE MODE');
     expect(obligations).toContain('assertPortalAuthorityPackageObligationSources');
-    expect(obligations).toContain('${obligationFactHead('); // r9
+    expect(obligations).toContain('${actionHead.sql}'); // r17: obligation fact heads are native plans
+    expect(obligations).toContain('${ackHead.sql}');
     const portal = src('portal.ts');
     expect(portal).not.toContain('SELECT id,binding_id,order_id,action,status,created_at,request_hash,user_id FROM customer_portal_actions WHERE'); // r15: planned natively
     expect(portal).toContain('nativeC360ReadStatement(');
@@ -105,7 +106,7 @@ describe('Customer 360 read-tail r13 scoped-projection head family', () => {
     expect(native.some((source) => source.includes('scopedProjection'))).toBe(false);
   });
 
-  it('retirement:ts-statements is strictly lower than BEFORE=10 (expected 9)', () => {
+  it('retirement:ts-statements is strictly lower than BEFORE=9 (expected 8)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -115,7 +116,7 @@ describe('Customer 360 read-tail r13 scoped-projection head family', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(9);
-    expect(total).toBeLessThan(10);
+    expect(total).toBe(8);
+    expect(total).toBeLessThan(9);
   });
 });

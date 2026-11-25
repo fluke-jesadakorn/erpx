@@ -97,11 +97,14 @@ describe('People Payroll read-tail r23 byte-identical / parameterized family ded
     }
   });
 
-  test('the shared module declares each fragment exactly once', () => {
+  test('the shared module declares each fragment once, or delegates to round-3', () => {
     const s = src('pp-read-tail-r23-sources.ts');
     for (const literal of literals) {
+      if (literal === PP_RD23_EVAL_ASSESSMENT_VERSION_GUARD) continue;
       expect(s.split(literal)).toHaveLength(2);
     }
+    expect(s).toContain("from './pp-read-tail-round3-sources'");
+    expect(s).toContain("ppRdRound3ExistsByIdTwoPred('hr_evaluation_assessments', 'version', 'status')");
   });
 
   test('worktree read-only SELECT count is strictly lower than the recorded 1485 r22 baseline', () => {
@@ -117,6 +120,6 @@ describe('People Payroll read-tail r23 byte-identical / parameterized family ded
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(1485);
-    expect(total).toBe(1164);
+    expect(total).toBeLessThanOrEqual(1144);
   });
 });

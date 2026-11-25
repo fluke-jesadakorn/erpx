@@ -79,9 +79,7 @@ describe('Inventory read-tail r39 dedupe', () => {
       'pos-initial-physical-stock-count-source-sql.ts',
       'service-initial-physical-stock-count-source-sql.ts',
     ]) expect(src(f).length).toBeGreaterThan(0);
-    expect(src('inventory-read-projections.ts')).toContain(
-      'export const inventoryCountStatusSql = "SELECT status FROM inventory_counts WHERE id=? AND company_id=?"',
-    );
+    expect(src('inventory-read-projections.ts')).not.toContain('SELECT status FROM inventory_counts');
     expect(readFileSync(resolve(srcRoot, 'adapters', 'native-inventory-read.ts'), 'utf8').length).toBeGreaterThan(0);
     expect(src('transfer-attachment-purchases.ts')).toContain('FOR SHARE');
     expect(src('count-attachment-purchases.ts')).toContain('FOR SHARE');

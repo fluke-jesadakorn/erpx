@@ -1,5 +1,6 @@
 import 'server-only';
-import {inventoryCommandReplaySql,inventoryCountStatusSql} from './inventory-read-projections';
+import {inventoryCommandReplaySql} from './inventory-read-projections';
+import {countStatus} from './native-count-status';
 import {randomUUID} from 'node:crypto';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {lockQueuedCommandAuthority,requireQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
@@ -52,7 +53,7 @@ export async function withManufacturingInitialPhysicalStockCountUnit<Result>(own
   const before=command.id?await manufacturingInitialPhysicalStockCountSource(database,actor,command.id):null;
   if(command.id&&!before)throw new ApiError(404,'COUNT_NOT_FOUND','The original Initial Physical Stock Count is unavailable.');
   const readImage=command.id&&command.readOnly?await manufacturingInitialPhysicalStockCountImage(database,actor,command.id):null;
-  const flow=command.flowStep&&command.id?await database.prepare(inventoryCountStatusSql).bind(command.id,actor.companyId).first<{status:string}>():null;
+  const flow=command.flowStep&&command.id?await countStatus(database,command.id,actor.companyId):null;
   const flowNewWork=!!command.flowStep&&(command.saveDefault||command.flowStep==='draft'||['draft','rejected'].includes(flow?.status??''));
   const purpose=replay?'history':flowNewWork?'new-work':command.purpose,key=`manufacturing-initial-stock:${randomUUID()}`;
   for(const capability of manufacturingInitialPhysicalStockCapabilities)await checkPurchasedCapability(database,'enforced',{companyId:actor.companyId,capability,purpose});

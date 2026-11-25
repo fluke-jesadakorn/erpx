@@ -42,6 +42,8 @@ import {
   PMS_RD_CHANGE_PAYMENT_PENDING,
   PMS_RD_BOOKING_ALLOCATIONS,
   PMS_RD_REFUND_REQUEST_ALLOCATIONS,
+  PMS_RD_TRANSFER_REQUESTS,
+  PMS_RD_GUEST_DOCUMENTS,
 } from '../../../packages/server-pms/src/adapters/native-pms-read';
 import { readPmsInventoryCommand } from '../../../packages/server-pms/src/adapters/pms/read-repository';
 import { pmsAttachmentReadSourceImage } from '../../../packages/server-pms/src/adapters/attachment-read-sources';
@@ -928,7 +930,7 @@ describe('native PMS scoped-records read retirement', () => {
     ] as const) {
       expect(rust).toContain('const SQL_' + suffix + '_COMMAND: &str = ' + JSON.stringify(sql) + ';');
     }
-    expect(rust).toContain('READ_STRIPE_PAYMENT_PROPERTY, READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS];');
+    expect(rust).toContain('READ_STRIPE_PAYMENT_PROPERTY, READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS, READ_TRANSFER_REQUESTS, READ_GUEST_DOCUMENTS];');
   });
 
   it('plans all four reads in Rust and runs them on the caller unit with the same binds', async () => {
@@ -993,7 +995,7 @@ describe('native PMS guest booking-document read retirement', () => {
     const rust = await readFile(new URL('../../../packages/server-pms/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
     expect(rust).toContain('pub const PMS_RD_GUEST_BOOKING_DOCUMENT: &str = "pms_rd_guest_booking_document";');
     expect(rust).toContain('const SQL_GUEST_BOOKING_DOCUMENT: &str = ' + JSON.stringify(guestDocumentSql) + ';');
-    expect(rust).toContain('READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS];');
+    expect(rust).toContain('READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS, READ_TRANSFER_REQUESTS, READ_GUEST_DOCUMENTS];');
     const documentPlan = rust.slice(rust.indexOf('const READ_GUEST_BOOKING_DOCUMENT:'));
     expect(documentPlan.slice(0, 300)).toContain('bind_count: 3,');
     expect(guestDocumentSql.match(/\?/g)).toHaveLength(3);
@@ -1061,7 +1063,7 @@ describe('native PMS hotelMetrics read retirement', () => {
     const rust = await readFile(new URL('../../../packages/server-pms/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
     expect(rust).toContain('pub const PMS_RD_HOTEL_METRICS: &str = "pms_rd_hotel_metrics";');
     expect(rust).toContain(hotelMetricsSql);
-    expect(rust).toContain('READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS];');
+    expect(rust).toContain('READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS, READ_TRANSFER_REQUESTS, READ_GUEST_DOCUMENTS];');
     expect(hotelMetricsSql.match(/\?/g)).toHaveLength(5);
     expect(hotelMetricsSql).toMatch(/\n    ORDER BY p\.name,p\.id$/);
     expect(hotelMetricsSql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
@@ -1131,7 +1133,7 @@ describe('native PMS booking-receipt point-read retirement', () => {
     expect(rust).toContain('pub const PMS_RD_BOOKING_RECEIPT_BY_ATTEMPT: &str = "pms_rd_booking_receipt_by_attempt";');
     expect(rust).toContain('const SQL_BOOKING_RECEIPT_BY_KEY: &str = ' + JSON.stringify(receiptByKeySql) + ';');
     expect(rust).toContain('const SQL_BOOKING_RECEIPT_BY_ATTEMPT: &str = ' + JSON.stringify(receiptByAttemptSql) + ';');
-    expect(rust).toContain('READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS];');
+    expect(rust).toContain('READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS, READ_TRANSFER_REQUESTS, READ_GUEST_DOCUMENTS];');
     expect(receiptByKeySql.match(/\?/g)).toHaveLength(1);
     expect(receiptByAttemptSql.match(/\?/g)).toHaveLength(2);
     for (const sql of [receiptByKeySql, receiptByAttemptSql]) expect(sql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
@@ -1200,7 +1202,7 @@ describe('native PMS booking companion read retirement', () => {
     expect(rust).toContain('pub const PMS_RD_CHANGE_PAYMENT_PENDING: &str = "pms_rd_change_payment_pending";');
     expect(rust).toContain('const SQL_BOOKING_DOCUMENTS: &str = ' + JSON.stringify(bookingDocumentsSql) + ';');
     expect(rust).toContain('const SQL_CHANGE_PAYMENT_PENDING: &str = ' + JSON.stringify(changePaymentPendingSql) + ';');
-    expect(rust).toContain('READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS];');
+    expect(rust).toContain('READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS, READ_TRANSFER_REQUESTS, READ_GUEST_DOCUMENTS];');
     expect(bookingDocumentsSql.match(/\?/g)).toHaveLength(3);
     expect(changePaymentPendingSql.match(/\?/g)).toHaveLength(1);
     for (const sql of [bookingDocumentsSql, changePaymentPendingSql]) expect(sql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
@@ -1269,7 +1271,7 @@ describe('native PMS refund allocation companion read retirement', () => {
     expect(rust).toContain('pub const PMS_RD_REFUND_REQUEST_ALLOCATIONS: &str = "pms_rd_refund_request_allocations";');
     expect(rust).toContain('const SQL_BOOKING_ALLOCATIONS: &str = ' + JSON.stringify(bookingAllocationsSql) + ';');
     expect(rust).toContain('const SQL_REFUND_REQUEST_ALLOCATIONS: &str = ' + JSON.stringify(refundRequestAllocationsSql) + ';');
-    expect(rust).toContain('READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS];');
+    expect(rust).toContain('READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS, READ_TRANSFER_REQUESTS, READ_GUEST_DOCUMENTS];');
     for (const sql of [bookingAllocationsSql, refundRequestAllocationsSql]) {
       expect(sql.match(/\?/g)).toHaveLength(1);
       expect(sql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
@@ -1303,6 +1305,74 @@ describe('native PMS refund allocation companion read retirement', () => {
     expect(bound).toEqual([['payment-1'], ['payment-1']]);
     expect(bodies.map(b => b.kind)).toEqual([PMS_RD_BOOKING_ALLOCATIONS, PMS_RD_REFUND_REQUEST_ALLOCATIONS]);
     expect(bodies.map(b => b.values)).toEqual([['payment-1'], ['payment-1']]);
+    for (const body of bodies) expect(JSON.stringify(body)).not.toContain('SELECT');
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as unknown as [URL, RequestInit];
+    expect(String(url)).toContain('/api/v1/holdings/acme/pms/command-plan');
+    expect(init.headers).toMatchObject({ 'content-type': 'application/json', accept: 'application/json', 'cache-control': 'no-cache' });
+  });
+});
+
+const transferRequestsSql = 'SELECT * FROM pms_transfer_requests WHERE company_id=? AND property_id=? ORDER BY created_at DESC LIMIT 100';
+const guestDocumentsSql = "SELECT COALESCE(finance_id,id) id,snapshot_json FROM pms_documents WHERE property_id=? AND guest_account_id=? AND (kind='receipt' OR (kind='opening' AND finance_id IS NOT NULL)) ORDER BY created_at,id";
+
+describe('native PMS transfer/document companion read retirement', () => {
+  it('exposes two fixed allow-listed kinds with no SQL on the wire', () => {
+    expect(PMS_RD_TRANSFER_REQUESTS).toBe('pms_rd_transfer_requests');
+    expect(PMS_RD_GUEST_DOCUMENTS).toBe('pms_rd_guest_documents');
+    for (const kind of [PMS_RD_TRANSFER_REQUESTS, PMS_RD_GUEST_DOCUMENTS])
+      expect(kind).not.toMatch(/SELECT|INSERT|UPDATE|DELETE|FOR UPDATE|FOR SHARE/);
+  });
+
+  it('removes both TypeScript SELECT literals but keeps the lock reads', async () => {
+    const adapter = await readFile(new URL('../../../packages/server-pms/src/adapters/pms.ts', import.meta.url), 'utf8');
+    expect(adapter).not.toContain(transferRequestsSql);
+    expect(adapter).not.toContain(guestDocumentsSql);
+    expect(adapter).toContain('nativePmsReadAll<TransferRequestRow>');
+    expect(adapter).toContain('PMS_RD_TRANSFER_REQUESTS, [facts.companyId, facts.id], db');
+    expect(adapter).toContain('PMS_RD_GUEST_DOCUMENTS, [facts.id, facts.guestAccountId], db');
+    expect(adapter).toContain('FOR UPDATE');
+  });
+
+  it('carries the byte-identical retired SQL in the Rust registry with two binds each', async () => {
+    const rust = await readFile(new URL('../../../packages/server-pms/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
+    expect(rust).toContain('pub const PMS_RD_TRANSFER_REQUESTS: &str = "pms_rd_transfer_requests";');
+    expect(rust).toContain('pub const PMS_RD_GUEST_DOCUMENTS: &str = "pms_rd_guest_documents";');
+    expect(rust).toContain('const SQL_TRANSFER_REQUESTS: &str = ' + JSON.stringify(transferRequestsSql) + ';');
+    expect(rust).toContain('const SQL_GUEST_DOCUMENTS: &str = ' + JSON.stringify(guestDocumentsSql) + ';');
+    expect(rust).toContain('READ_REFUND_REQUEST_ALLOCATIONS, READ_TRANSFER_REQUESTS, READ_GUEST_DOCUMENTS];');
+    for (const sql of [transferRequestsSql, guestDocumentsSql]) {
+      expect(sql.match(/\?/g)).toHaveLength(2);
+      expect(sql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
+    }
+    const bridge = await readFile(new URL('../../../packages/server-pms/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
+    expect(bridge).toContain("export const PMS_RD_TRANSFER_REQUESTS = 'pms_rd_transfer_requests';");
+    expect(bridge).toContain("export const PMS_RD_GUEST_DOCUMENTS = 'pms_rd_guest_documents';");
+  });
+
+  it('plans both reads in Rust and runs them on the caller unit with the same binds', async () => {
+    const bodies: { kind: string; values: unknown[] }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      bodies.push(body);
+      const sql = body.kind === PMS_RD_TRANSFER_REQUESTS ? transferRequestsSql : guestDocumentsSql;
+      return new Response(JSON.stringify({ data: { statements: [{ sql, values: body.values }] } }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      });
+    }));
+    const prepared: string[] = [], bound: unknown[][] = [];
+    const db = {
+      prepare(sql: string) { prepared.push(sql); return { bind(...values: unknown[]) { bound.push(values); return this; } }; },
+      async batch<T>() { return [{ results: [{ id: 'row-1', snapshot_json: '{}' }], success: true, meta: { changes: 0, duration: 0 } }] as unknown as { results: T[]; success: boolean; meta: { changes: number; duration: number } }[]; },
+      async exec() { return { count: 0, duration: 0 }; },
+    };
+    const transfers = await nativePmsReadAll<{ id: string }>(PMS_RD_TRANSFER_REQUESTS, ['company-1', 'property-1'], db as never);
+    const docs = await nativePmsReadAll<{ id: string }>(PMS_RD_GUEST_DOCUMENTS, ['property-1', 'guest-1'], db as never);
+    expect(transfers.results[0]?.id).toBe('row-1');
+    expect(docs.results[0]?.id).toBe('row-1');
+    expect(prepared).toEqual([transferRequestsSql, guestDocumentsSql]);
+    expect(bound).toEqual([['company-1', 'property-1'], ['property-1', 'guest-1']]);
+    expect(bodies.map(b => b.kind)).toEqual([PMS_RD_TRANSFER_REQUESTS, PMS_RD_GUEST_DOCUMENTS]);
+    expect(bodies.map(b => b.values)).toEqual([['company-1', 'property-1'], ['property-1', 'guest-1']]);
     for (const body of bodies) expect(JSON.stringify(body)).not.toContain('SELECT');
     const [url, init] = vi.mocked(fetch).mock.calls[0] as unknown as [URL, RequestInit];
     expect(String(url)).toContain('/api/v1/holdings/acme/pms/command-plan');

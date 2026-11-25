@@ -14,6 +14,7 @@ import type {WorkItem} from '@erpx/feature-work_projection/lib/work-item';
 import {salesRecipientEligibility} from '@erpx/server-sales/adapters/recipient';
 import {actorScopeTuple,authorityScopeRead,clockNowMs,followupMetricPrefix} from './followup-source-sql';
 import {followupCustomerOrderRead} from './followup-customer-order-read';
+import {nativeSalesReadFirst,SALES_RD_FOLLOWUP_SOURCE_FOLLOWUP,SALES_RD_FOLLOWUP_SOURCE_ORDER} from './native-sales-read';
 export type FollowupPurchaseTarget={kind:'followup'|'order';id:string};
 type Source={id:string;company_id:string;branch_id:string;department_id:string|null;order_kind:'quote'|'sales';witness:string;owner_id:string|null;due_date:string|null;status:string|null;version:number|null};
 const orders=`SELECT actual.*,jsonb_build_array(actual.id,actual.company_id,actual.branch_id,actual.department_id,actual.kind,actual.party_id,actual.currency) witness FROM (${crmCommerceOrderSources}) actual JOIN (${crmFinanceCustomerSources}) customer ON customer.id=actual.party_id AND customer.company_id=actual.company_id AND customer.kind='customer' WHERE actual.kind IN ('quote','sales')`;
@@ -25,8 +26,12 @@ const followupExists=(predicate:string,alias='')=>`SELECT 1 FROM customer_follow
 const capability=(kind:Source['order_kind'])=>kind==='quote'?'sales.quotes':'sales.orders';
 export function followupPurchaseSourceReadLocks(database:SqlDatabase){return [...crmFinanceSourceReadLocks(database),...crmCommerceSourceReadLocks(database),database.prepare('LOCK TABLE customer_followups,customer_followup_events IN SHARE ROW EXCLUSIVE MODE')];}
 async function source(database:SqlDatabase,actor:WorkContext,target:FollowupPurchaseTarget){
- const rows=target.kind==='followup'?followupPurchaseRows:`SELECT actual.*,actual.kind order_kind FROM (${orders}) actual`;
- const row=await database.prepare(`SELECT id,company_id,branch_id,department_id,order_kind,witness::text witness,${target.kind==='followup'?'owner_id,due_date,status,version':"NULL::text owner_id,NULL::text due_date,NULL::text status,NULL::bigint version"} FROM (${rows}) followup_source WHERE id=? AND company_id=? AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?)`).bind(target.id,actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId).first<Source>();
+ /** Owner-local source read: the command-plan registry owns both rendered
+  * statements; only bounded target/scope identities cross the wire. */
+ const values=[target.id,actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId];
+ const row=target.kind==='followup'
+  ? await nativeSalesReadFirst<Source>(SALES_RD_FOLLOWUP_SOURCE_FOLLOWUP,values,database)
+  : await nativeSalesReadFirst<Source>(SALES_RD_FOLLOWUP_SOURCE_ORDER,values,database);
  if(!row)throw new ApiError(404,'CUSTOMER_FOLLOWUP_SOURCE_NOT_FOUND','The actual customer quotation or Sales source is unavailable in this workspace.');return row;
 }
 async function authority(database:SqlDatabase,actor:WorkContext,permissions:readonly string[],record?:Source){

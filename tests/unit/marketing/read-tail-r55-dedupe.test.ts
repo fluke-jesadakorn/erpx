@@ -85,6 +85,6 @@ describe('marketing read-tail r55 native read-port cutover', () => {
   });
 
   it('retirement:ts-statements stays strictly below BEFORE=16 at 13 after r56', async () => {
-    expect(await ownerTokens()).toEqual({ spaced: 10, bare: 10 });
+    expect(await ownerTokens()).toEqual({ spaced: 9, bare: 9 });
   });
 });

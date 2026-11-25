@@ -111,12 +111,14 @@ describe('People Payroll read-tail r57 dedupe', () => {
     expect(src('people-evaluation.ts'), 'people-evaluation has no foreign r57 symbol').not.toMatch(/ppRd57(?!CompRevisionByEngagementSql)/);
   });
 
-  test('helper keeps its people head and delegates the row-list head to round-2c', () => {
+  test('helper delegates both heads to the shared round-2c/2d builders', () => {
     const helper = src('pp-read-tail-r57-sources.ts');
     expect((helper.match(/export const ppRd57/g) ?? []).length).toBe(2);
-    expect((helper.match(/SELECT /g) ?? []).length).toBe(1);
+    expect((helper.match(/SELECT /g) ?? []).length).toBe(0);
     expect(helper).toContain("from './pp-read-tail-round2c-sources'");
     expect(helper).toContain("ppRdRound2cStarByOnePred('hr_compensation_revisions', 'engagement_id', tail)");
+    expect(helper).toContain("from './pp-read-tail-round2d-sources'");
+    expect(helper).toContain("ppRdRound2dExistsById('hr_people', tail)");
     expect(helper).not.toMatch(/FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory|nativePpStatement/i);
     expect(helper).not.toContain('@erpx/server-');
   });
@@ -149,6 +151,6 @@ describe('People Payroll read-tail r57 dedupe', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(1206);
-    expect(total).toBeLessThanOrEqual(1146);
+    expect(total).toBeLessThanOrEqual(1145);
   });
 });

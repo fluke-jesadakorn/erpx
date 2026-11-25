@@ -210,6 +210,18 @@ const READ_SERVICE_INITIAL_COUNT_ROW: NativeStatement = NativeStatement {
     scope: "holding",
 };
 
+/// Native successor of the TypeScript canonical count-status point read. The
+/// owner plans the byte-identical statement and the caller executes it on its
+/// own already-open unit with the same two scoped binds.
+pub const RD_COUNT_STATUS: &str = "inventory_rd_count_status";
+const SQL_RD_COUNT_STATUS: &str = "SELECT status FROM inventory_counts WHERE id=? AND company_id=?";
+const READ_COUNT_STATUS: NativeStatement = NativeStatement {
+    kind: RD_COUNT_STATUS,
+    sql: SQL_RD_COUNT_STATUS,
+    bind_count: 2,
+    scope: "holding",
+};
+
 /// Native successor of the TypeScript document-posting preview `stockDeltas`
 /// array read. The owner plans this literal and the caller executes it on its
 /// own already-open unit; this crate carries no TypeScript SQL for it.
@@ -581,6 +593,7 @@ pub fn is_read(kind: &str) -> bool {
             | RD_STOCK_COUNT_ROW
             | RD_COUNT_SOURCE_ROW
             | RD_SERVICE_INITIAL_COUNT_ROW
+            | RD_COUNT_STATUS
             | RD_STOCK_COUNT_DELTAS
             | RD_ACTIVE_RESERVATIONS_TOTAL
             | RD_LEDGER_MOVEMENT_AFTER
@@ -623,6 +636,7 @@ pub fn read_statement(kind: &str) -> Option<&'static NativeStatement> {
         RD_STOCK_COUNT_ROW => Some(&READ_STOCK_COUNT_ROW),
         RD_COUNT_SOURCE_ROW => Some(&READ_COUNT_SOURCE_ROW),
         RD_SERVICE_INITIAL_COUNT_ROW => Some(&READ_SERVICE_INITIAL_COUNT_ROW),
+        RD_COUNT_STATUS => Some(&READ_COUNT_STATUS),
         RD_STOCK_COUNT_DELTAS => Some(&READ_STOCK_COUNT_DELTAS),
         RD_ACTIVE_RESERVATIONS_TOTAL => Some(&READ_ACTIVE_RESERVATIONS_TOTAL),
         RD_LEDGER_MOVEMENT_AFTER => Some(&READ_LEDGER_MOVEMENT_AFTER),
@@ -701,6 +715,7 @@ mod tests {
             RD_STOCK_COUNT_ROW,
             RD_COUNT_SOURCE_ROW,
             RD_SERVICE_INITIAL_COUNT_ROW,
+            RD_COUNT_STATUS,
             RD_STOCK_COUNT_DELTAS,
             RD_ACTIVE_RESERVATIONS_TOTAL,
             RD_LEDGER_MOVEMENT_AFTER,
@@ -806,6 +821,16 @@ mod tests {
             source.sql,
             "SELECT 1 FROM inventory_service_initial_physical_sources WHERE count_id=? AND company_id=?"
         );
+    }
+
+    /// Parity witness for the canonical count-status point read shared by the
+    /// four count-source flows: byte-identical statement, two caller-unit binds.
+    #[test]
+    fn count_status_read_plan_matches_retired_owner_statement() {
+        let status = read_statement(RD_COUNT_STATUS).expect("read kind");
+        assert!(is_read(RD_COUNT_STATUS));
+        assert_eq!(status.bind_count, 2);
+        assert_eq!(status.sql, "SELECT status FROM inventory_counts WHERE id=? AND company_id=?");
     }
 
     /// Parity witness for the owner-local `pos-core-facts` read family: each

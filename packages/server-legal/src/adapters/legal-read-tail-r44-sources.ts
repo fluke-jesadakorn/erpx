@@ -1,19 +1,39 @@
 import "server-only";
+import contract from "./legal-read-tail-r44-sources.json" with { type: "json" };
 
-/** Byte-identical parameterized join head shared by the Legal external-upload
- * reads (backfill, canonical image, destruction manifest, submission and the
- * detail service). Callers supply only the fixed projection and the two fixed
- * table aliases; no table, alias or predicate is accepted from a request. */
+/** Native-owned Legal read heads shared by the external-upload/share and
+ * preservation/hold-target read families (round 44). Callers supply only
+ * trusted projections, constant aliases and the fixed state inequality token;
+ * every table, alias and join is owner-controlled in the JSON contract. */
+const fill = (template: string, values: Record<string, string>) => {
+  let rendered = template;
+  for (const [name, value] of Object.entries(values)) {
+    const token = `{${name}}`;
+    if (!rendered.includes(token))
+      throw new Error("LEGAL_READ_TAIL_R44_CONTRACT_INVALID");
+    rendered = rendered.split(token).join(value);
+  }
+  return rendered;
+};
 export const legalExternalUploadShareJoinHead = (
-  projection: string, uploadAlias: string, shareAlias: string,
+  projection: string,
+  uploadAlias: string,
+  shareAlias: string,
 ) =>
-  `SELECT ${projection} FROM legal_external_uploads ${uploadAlias} JOIN legal_shares ${shareAlias} ON ${shareAlias}.id=${uploadAlias}.share_id `;
-
-/** Byte-identical parameterized preservation/hold-target read head shared by
- * the ordinary and MinIO mutation read ports. The fixed projection, aliases
- * and the state inequality token are supplied by the trusted caller and
- * rendered verbatim; no table, alias or predicate comes from a request. */
+  fill(contract.externalUploadShare, {
+    projection,
+    uploadAlias,
+    shareAlias,
+  });
 export const legalFilePreservationHoldTargetHead = (
-  projection: string, targetAlias: string, holdAlias: string, inequality: string,
+  projection: string,
+  targetAlias: string,
+  holdAlias: string,
+  inequality: string,
 ) =>
-  `SELECT ${projection} FROM legal_file_preservations p JOIN legal_hold_targets ${targetAlias} ON ${targetAlias}.item_id=p.item_id JOIN legal_holds ${holdAlias} ON ${holdAlias}.id=${targetAlias}.hold_id WHERE ${holdAlias}.state${inequality}'released'`;
+  fill(contract.filePreservationHoldTarget, {
+    projection,
+    targetAlias,
+    holdAlias,
+    inequality,
+  });

@@ -56,7 +56,7 @@ import { pmsPosFacts } from "@erpx/server-pos/public/pms-command-facts";
 import { pmsWorkflowFacts } from "@erpx/server-workflow/public/pms-command-facts";
 import { pmsFilesFacts } from "@erpx/server-files/public/pms-command-facts";
 import { nativePmsOwnerWrite } from "@erpx/feature-pms/public/native-pms";
-import { nativePmsReadAll, nativePmsReadFirst, PMS_RD_POSTING_CHARGE, PMS_RD_POSTING_BY_RECORD, PMS_RD_CHARGE_CORRECTION_PENDING, PMS_RD_GUEST_COMMAND_RECORD, PMS_RD_STAY_COMMAND, PMS_RD_CASHIER_COMMAND, PMS_RD_POS_COMMAND, PMS_RD_NIGHT_COMMAND, PMS_RD_HOUSEKEEPING_COMMAND } from "./native-pms-read";
+import { nativePmsReadAll, nativePmsReadFirst, PMS_RD_POSTING_CHARGE, PMS_RD_POSTING_BY_RECORD, PMS_RD_CHARGE_CORRECTION_PENDING, PMS_RD_GUEST_COMMAND_RECORD, PMS_RD_STAY_COMMAND, PMS_RD_CASHIER_COMMAND, PMS_RD_POS_COMMAND, PMS_RD_NIGHT_COMMAND, PMS_RD_HOUSEKEEPING_COMMAND, PMS_RD_TRANSFER_REQUESTS, PMS_RD_GUEST_DOCUMENTS } from "./native-pms-read";
 function unit(db: SqlDatabase, companyId = '', actor: LaneActor = {}): PmsUnit<SqlStatement> {
         const write = (kind: string, values: unknown[]): any => nativePmsOwnerWrite(companyId, kind, values);
     const identity_access = pmsIdentityAccessFacts(db);
@@ -123,7 +123,7 @@ function unit(db: SqlDatabase, companyId = '', actor: LaneActor = {}): PmsUnit<S
         readPmsTransferRequests: (facts: {
             companyId: string;
             id: string;
-        }) => query<TransferRequestRow>(db, "SELECT * FROM pms_transfer_requests WHERE company_id=? AND property_id=? ORDER BY created_at DESC LIMIT 100", facts.companyId, facts.id),
+        }) => nativePmsReadAll<TransferRequestRow>(PMS_RD_TRANSFER_REQUESTS, [facts.companyId, facts.id], db).then(result=>result.results),
         readPmsChargeCorrections: (facts: {
             companyId: string;
             id: string;
@@ -256,10 +256,10 @@ function unit(db: SqlDatabase, companyId = '', actor: LaneActor = {}): PmsUnit<S
         readPmsDocuments2: (facts: {
             id: string;
             guestAccountId: string;
-        }) => query<{
+        }) => nativePmsReadAll<{
             id: string;
             snapshot_json: string;
-        }>(db, "SELECT COALESCE(finance_id,id) id,snapshot_json FROM pms_documents WHERE property_id=? AND guest_account_id=? AND (kind='receipt' OR (kind='opening' AND finance_id IS NOT NULL)) ORDER BY created_at,id", facts.id, facts.guestAccountId),
+        }>(PMS_RD_GUEST_DOCUMENTS, [facts.id, facts.guestAccountId], db).then(result=>result.results),
         deleteFinanceAllocations: facts => finance.deleteFinanceAllocations(facts),
         updateFinanceInvoices: facts => finance.updateFinanceInvoices(facts),
         insertFinanceAllocations: facts => finance.insertFinanceAllocations(facts),

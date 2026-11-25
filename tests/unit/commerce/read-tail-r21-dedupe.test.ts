@@ -92,10 +92,10 @@ describe('Commerce read-tail r21 protected families and retirement', () => {
     expect(read(SP)).toContain('COMMERCE_WAREHOUSE_IDENTITY_SQL');
     expect(read(PP)).toContain('COMMERCE_WAREHOUSE_IDENTITY_SQL');
     const plans = read('native_commerce_read_sql.rs');
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 29);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 31);');
   });
 
-  test('pins the owner TypeScript SELECT KPI at 387 (before 388)', () => {
+  test('pins the owner TypeScript SELECT KPI at 385 (before 386)', () => {
     const src = resolve(root, 'packages/server-commerce/src');
     let total = 0;
     const walk = (dir: string) => {
@@ -106,6 +106,6 @@ describe('Commerce read-tail r21 protected families and retirement', () => {
       }
     };
     walk(src);
-    expect(total).toBe(387);
+    expect(total).toBe(385);
   });
 });

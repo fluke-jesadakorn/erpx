@@ -2,7 +2,7 @@ import { Pool, types, type PoolClient, type PoolConfig, type QueryResult } from 
 import { errorMonitor, type EventEmitter } from 'node:events';
 import type { SqlDatabase, SqlResult, SqlStatement } from "@erpx/server-runtime/adapters/runtime/types";
 import { currentReadMetrics, recordReadPoolWait, recordReadQuery, recordReadLockQuery, recordReadTransactionRetry, runWithReadMetrics } from "@erpx/server-runtime/adapters/runtime/read-metrics";
-import { planRuntimeControlPlane, RD_OBJECT_LOCK, RD_OBJECT_UNLOCK, RD_OBJECT_XACT_LOCK, RD_PAIR_LOCK, RD_PAIR_UNLOCK, RD_RUNTIME_HEALTH } from "../native-runtime-control-plane";
+import { planRuntimeControlPlane, RD_LOCK_TIMEOUT_RESTORE, RD_LOCK_TIMEOUT_SET, RD_OBJECT_LOCK, RD_OBJECT_UNLOCK, RD_OBJECT_XACT_LOCK, RD_PAIR_LOCK, RD_PAIR_UNLOCK, RD_RUNTIME_HEALTH } from "../native-runtime-control-plane";
 
 const instrumented = Symbol.for('erpx.postgres.readMetrics');
 const transactionOwnership = Symbol.for('erpx.postgres.transactionOwnership');
@@ -283,7 +283,8 @@ export class PostgresDatabase implements SqlDatabase {
       const healthPlan=await planRuntimeControlPlane(RD_RUNTIME_HEALTH);
       priorTimeout=(await client.query<{value:string}>(healthPlan.sql,[...healthPlan.values])).rows[0]?.value;
       if(!priorTimeout)throw new Error('OBJECT_LOCK_TIMEOUT_UNAVAILABLE');
-      await client.query("SELECT set_config('lock_timeout','10s',false)");
+      const timeoutPlan=await planRuntimeControlPlane(RD_LOCK_TIMEOUT_SET);
+      await client.query(timeoutPlan.sql,[...timeoutPlan.values]);
       for(const key of ordered) {
         const lock=`attachment-object:${company}:${key}`;
         const lockPlan=await planRuntimeControlPlane(RD_OBJECT_LOCK,[lock]);
@@ -303,7 +304,10 @@ export class PostgresDatabase implements SqlDatabase {
         const unlocked=await client.query<{released:boolean}>(unlockPlan.sql,[...unlockPlan.values]);
         if(unlocked.rows[0]?.released!==true)discard=true;
       } catch {discard=true;}
-      if(!discard && priorTimeout)try {await client.query("SELECT set_config('lock_timeout',$1,false)",[priorTimeout]);}catch{discard=true;}
+      if(!discard && priorTimeout)try {
+        const restorePlan=await planRuntimeControlPlane(RD_LOCK_TIMEOUT_RESTORE,[priorTimeout]);
+        await client.query(restorePlan.sql,[...restorePlan.values]);
+      }catch{discard=true;}
       client.release(discard);
     }
   }

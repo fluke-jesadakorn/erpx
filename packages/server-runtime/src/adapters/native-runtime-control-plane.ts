@@ -21,6 +21,10 @@ export const RD_OBJECT_UNLOCK = "runtime_rd_object_unlock";
 export const RD_OBJECT_XACT_LOCK = "runtime_rd_object_xact_lock";
 export const RD_PAIR_LOCK = "runtime_rd_pair_lock";
 export const RD_PAIR_UNLOCK = "runtime_rd_pair_unlock";
+export const RD_MIGRATION_LOCK = "runtime_rd_migration_lock";
+export const RD_MIGRATION_UNLOCK = "runtime_rd_migration_unlock";
+export const RD_LOCK_TIMEOUT_SET = "runtime_rd_lock_timeout_set";
+export const RD_LOCK_TIMEOUT_RESTORE = "runtime_rd_lock_timeout_restore";
 
 export type ControlPlanePlan = Readonly<{ sql: string; values: readonly unknown[] }>;
 type Holding = Readonly<{ origin: string; host: string; holdingSlug: string; holdingId: string }>;
@@ -129,6 +133,10 @@ export async function planRuntimeControlPlane(
       RD_OBJECT_XACT_LOCK,
       RD_PAIR_LOCK,
       RD_PAIR_UNLOCK,
+      RD_MIGRATION_LOCK,
+      RD_MIGRATION_UNLOCK,
+      RD_LOCK_TIMEOUT_SET,
+      RD_LOCK_TIMEOUT_RESTORE,
     ].includes(kind) ||
     values.length > 8
   )

@@ -3,13 +3,15 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { obligationFactHead } from '../../../packages/server-customer_360/src/adapters/obligation-fact-head';
+
 import {
   createNativeCustomerPortalClient,
   nativeCustomerPortalConfiguration,
   NativeCustomerPortalError,
 } from '../../../packages/server-customer_360/src/adapters/native-customer-portal';
 import {
+  RD_OBLIGATION_ACTION_HEAD,
+  RD_OBLIGATION_ACK_HEAD,
   RD_OBLIGATION_AUDIT_EXISTS,
   RD_PORTAL_ACTION_BY_BINDING,
   RD_PORTAL_ACTION_BY_KEY,
@@ -205,26 +207,37 @@ const obligationHeads = {
 
 describe('Customer 360 obligation-fact query-head family', () => {
   it.each([
-    ['action', obligationHeads.action],
-    ['acknowledgement', obligationHeads.acknowledgement],
-  ] as const)('%s renders byte-identically and stays read-only', (_name, member) => {
-    const actual = obligationFactHead(...member.args as [string, string, string, string, string]);
-    expect(actual).toBe(member.sql);
-    expect(c360Sha(actual)).toBe(member.sha);
-    c360ReadOnly(actual);
+    ['action', RD_OBLIGATION_ACTION_HEAD, obligationHeads.action],
+    ['acknowledgement', RD_OBLIGATION_ACK_HEAD, obligationHeads.acknowledgement],
+  ] as const)('%s plan is byte-identical and read-only', async (_name, kind, member) => {
+    const key = 'ERPX_NATIVE_CUSTOMER_360_READ_CONFIG';
+    const previous = process.env[key];
+    process.env[key] = config({
+      privateBaseUrl: 'http://127.0.0.1:44998',
+      holdings: [{ origin: 'https://acme.example.com', holdingSlug: 'acme', holdingId: 'h001', companyId: 'company' }],
+    });
+    try {
+      const send = async () => new Response(JSON.stringify({
+        data: { statement: { sql: member.sql, values: [] } },
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+      const planned = await nativeC360ReadStatement(kind, [], send);
+      expect(planned.sql).toBe(member.sql);
+      expect(c360Sha(planned.sql)).toBe(member.sha);
+      c360ReadOnly(planned.sql);
+    } finally {
+      if (previous === undefined) delete process.env[key];
+      else process.env[key] = previous;
+    }
   });
 
-  it('one generator literal with two call sites and no inlined projection head', () => {
-    const shared = c360Src('obligation-fact-head.ts');
-    expect(shared.match(/export const obligationFactHead\s*=/g) ?? []).toHaveLength(1);
-    expect((shared.match(/SELECT /g) ?? []).length).toBe(1);
-    expect(shared).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
+  it('the helper file is gone; both UNION branches call the mounted registry', () => {
+    expect(existsSync(resolve(c360SrcRoot, 'adapters/obligation-fact-head.ts'))).toBe(false);
     const obligations = c360Src('package-obligations.ts');
-    expect(obligations.match(/obligationFactHead\(/g) ?? []).toHaveLength(2);
+    expect(obligations).toContain('${actionHead.sql}');
+    expect(obligations).toContain('${ackHead.sql}');
     expect(obligations).not.toContain(obligationHeads.action.sql);
     expect(obligations).not.toContain(obligationHeads.acknowledgement.sql);
-    expect(obligations).toContain("obligationFactHead('action',' kind','request.id','request',' fact')");
-    expect(obligations).toContain("obligationFactHead('acknowledgement','','ack.id','ack','')");
+    expect(obligations.match(/nativeC360ReadStatement\(/g) ?? []).toHaveLength(3);
   });
 
   it('r3/r5-r9 families, locks, native reads and cross-owner pins stay independent', () => {
@@ -360,7 +373,7 @@ describe('Customer 360 obligation-fact query-head family', () => {
     }
   });
 
-  it('retirement r16:ts-statements is strictly lower than BEFORE=10 (expected 9)', () => {
+  it('retirement r17:ts-statements is strictly lower than BEFORE=9 (expected 8)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -370,7 +383,7 @@ describe('Customer 360 obligation-fact query-head family', () => {
       }
     };
     walk(c360SrcRoot);
-    expect(total).toBe(9);
-    expect(total).toBeLessThan(10);
+    expect(total).toBe(8);
+    expect(total).toBeLessThan(9);
   });
 });

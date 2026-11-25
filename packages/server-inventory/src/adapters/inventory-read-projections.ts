@@ -7,9 +7,8 @@ export const inventoryLedgerProjectionSql = "SELECT \"id\",\"warehouse_id\",\"pr
 /** Canonical owner-local fixed SQL for raw Inventory lot moves. Every caller-unit
  * settlement source shares this one literal, so no duplicate TS SQL remains. */
 export const inventoryLotMovesSql = "SELECT * FROM inventory_lot_moves";
-/** Canonical owner-local fixed SQL for a Stock Count status probe. Every
- * count-source caller shares this one literal, so no duplicate TS SQL remains. */
-export const inventoryCountStatusSql = "SELECT status FROM inventory_counts WHERE id=? AND company_id=?";
+/** Stock Count status is now owned by the native read registry as
+ * `inventory_rd_count_status`; callers use the SQL-free `countStatus` bridge. */
 /** Canonical owner-local fixed SQL for a purchase command-receipt replay probe.
  * Every purchase-source caller shares this one literal, so no duplicate TS SQL remains. */
 export const inventoryPurchaseReplaySql = `${replayProbePrefixSql} AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?`;

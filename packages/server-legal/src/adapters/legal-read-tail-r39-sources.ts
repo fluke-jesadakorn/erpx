@@ -1,10 +1,22 @@
 import "server-only";
-/** Byte-identical Legal read fragment families shared by owner adapters (round 39).
- * Text only: every call site still prepares, binds and executes its own read with unchanged binds.
- * Callers pass trusted constant aliases/references; no request text is interpolated. */
+import contract from "./legal-read-tail-r39-sources.json" with { type: "json" };
+
+/** Native-owned Legal r39 fragment families. Callers pass trusted constant
+ * aliases/references; no request text is interpolated. Every table, join and
+ * bind is owner-controlled in the JSON contract. */
+const fill = (template: string, values: Record<string, string>) => {
+  let rendered = template;
+  for (const [name, value] of Object.entries(values)) {
+    const token = `{${name}}`;
+    if (!rendered.includes(token))
+      throw new Error("LEGAL_READ_TAIL_R39_CONTRACT_INVALID");
+    rendered = rendered.split(token).join(value);
+  }
+  return rendered;
+};
 /** Disposed-document guard; the caller supplies the fixed alias and item reference. */
 export const legalDisposedGuardSql = (alias: string, ref: string) =>
-  `NOT EXISTS(SELECT 1 FROM legal_disposals ${alias} WHERE ${alias}.document_id=${ref})`;
+  fill(contract.disposedGuard, { alias, ref });
 /** Direct-hold witness on an owned target; the caller supplies the fixed holding alias. */
 export const legalHoldOwnTargetSql = (alias: string) =>
-  `EXISTS(SELECT 1 FROM legal_hold_targets own WHERE own.hold_id=${alias}.id AND own.item_id=?)`;
+  fill(contract.holdOwnTarget, { alias });

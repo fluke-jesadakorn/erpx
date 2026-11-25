@@ -119,8 +119,8 @@ describe('quality read-tail r41 id-source membership evidence head dedupe', () =
   });
 
   test('retirement:ts-statements is strictly lower than the BEFORE=21 baseline', () => {
-    expect(kpi(/INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT /g)).toBeLessThan(21);
-    expect(kpi(/INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT /g)).toBe(20);
-    expect(kpi(/SELECT /g)).toBe(20);
+    expect(kpi(/INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT /g)).toBeLessThan(20);
+    expect(kpi(/INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT /g)).toBe(19);
+    expect(kpi(/SELECT /g)).toBe(19);
   });
 });

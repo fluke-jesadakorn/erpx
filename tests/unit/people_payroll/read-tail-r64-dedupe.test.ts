@@ -82,11 +82,12 @@ describe('People Payroll read-tail r64 dedupe', () => {
     expect(uses('people-payroll.ts', 'ppRd64TimeEntryIdGuard')).toBe(1);
   });
 
-  test('helper owns exactly one SELECT head with no write, lock, advisory or native text', () => {
+  test('helper delegates its SELECT head to the shared round-2d builder', () => {
     const helper = src('pp-read-tail-r64-sources.ts');
     expect((helper.match(/export const ppRd64/g) ?? []).length).toBe(1);
-    expect((helper.match(/SELECT /g) ?? []).length).toBe(1);
-    expect(helper).toContain('`EXISTS(SELECT 1 FROM hr_time_entries WHERE id=?${tail})`');
+    expect((helper.match(/SELECT /g) ?? []).length).toBe(0);
+    expect(helper).toContain("from './pp-read-tail-round2d-sources'");
+    expect(helper).toContain("ppRdRound2dExistsById('hr_time_entries', tail)");
     expect(helper).not.toMatch(/FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory|nativePpStatement/i);
     expect(helper).not.toMatch(/INSERT\s+INTO|DELETE\s+FROM|UPDATE\s+\w+\s+SET/i);
     expect(helper).not.toContain('@erpx/server-');
@@ -116,8 +117,9 @@ describe('People Payroll read-tail r64 dedupe', () => {
     expect(src('people-evaluation.ts')).toContain('SELECT id FROM hr_evaluation_definitions WHERE id=? FOR SHARE');
     expect(src('people-payroll.ts')).toContain('nativePpStatement');
     expect(src('native_read_sql.rs')).toContain('SQL_PAYROLL_OPTIONS_GROUPS');
-    // The r57 SELECT * head and r31/r42 id-status guards remain on their builders.
-    expect(src('pp-read-tail-r57-sources.ts')).toContain('SELECT * FROM hr_compensation_revisions WHERE engagement_id=?');
+    // The r57 row-list and people-id heads now delegate to round-2c/2d; r31/r42 stay local.
+    expect(src('pp-read-tail-r57-sources.ts')).toContain("ppRdRound2cStarByOnePred('hr_compensation_revisions', 'engagement_id', tail)");
+    expect(src('pp-read-tail-r57-sources.ts')).toContain("ppRdRound2dExistsById('hr_people', tail)");
     expect(src('people-evaluation.ts')).toContain("ppRd31StatusGuard(false, 'hr_compensation_revisions', 'id', 'draft')");
     expect(src('people-payroll.ts')).toContain('ppRd42IdVersionLiteralGuard("hr_compensation_revisions","status")');
   });
@@ -135,6 +137,6 @@ describe('People Payroll read-tail r64 dedupe', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(1196);
-    expect(total).toBe(1164);
+    expect(total).toBeLessThanOrEqual(1145);
   });
 });

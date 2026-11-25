@@ -1,5 +1,6 @@
 import 'server-only';
 import { ppRdRound2cStarByOnePred } from './pp-read-tail-round2c-sources';
+import { ppRdRound2dExistsById } from './pp-read-tail-round2d-sources';
 
 /** Canonical parameterized read builders (G4 read-tail r57). The row-list head
  * now renders from the shared round-2c template; this module pins its exact
@@ -10,7 +11,7 @@ import { ppRdRound2cStarByOnePred } from './pp-read-tail-round2c-sources';
 /** People-id existence guard. `tail` is the exact original predicate tail; the fixed
  * head, owner kind and bind arity stay byte-identical. */
 export const ppRd57PeopleIdGuard = (tail: string) =>
-  `EXISTS(SELECT 1 FROM hr_people WHERE id=?${tail})`;
+  ppRdRound2dExistsById('hr_people', tail);
 
 /** Compensation-revision row list by engagement. `tail` is the exact original
  * predicate/ordering tail; the projection head and the caller's binds stay byte-identical. */

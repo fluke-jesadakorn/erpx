@@ -152,6 +152,41 @@ describe('Identity access read-tail r36 wiring', () => {
   });
 });
 
+/**
+ * Next native-plan candidate, pinned but NOT cut in this lane: the Control-side
+ * provider-context store holds an EXCLUSIVE session lease and three additional
+ * source leases across its reads, so moving any of these statements to a
+ * separate native service would break the caller's snapshot semantics. These
+ * SHA-256 values are byte oracles for the composition-mounted Control port the
+ * lead must approve before deletion; they are never live query sources.
+ */
+const PROVIDER_CONTEXT_SELECTS = [
+  "SELECT 1 FROM iam_revoked_sessions revocation WHERE revocation.company_id='platform' AND revocation.user_id=? AND revocation.session_id IN(?,(SELECT parent_session_id FROM sso_session_bindings WHERE session_id=?))",
+  'SELECT assignment.id,assignment.role,assignment.version FROM platform_assignments assignment WHERE assignment.user_id=? AND iam_assignment_active(assignment.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(assignment.user_id,\'platform\',floor(extract(epoch FROM clock_timestamp())*1000)::bigint) ORDER BY assignment.valid_until,assignment.id',
+  'SELECT user_id,assignment_id,revision,updated_at FROM admin_provider_contexts WHERE session_id=?',
+  'SELECT platform_assignment_id FROM account_workspace_preferences WHERE user_id=?',
+  'SELECT company_id,actor_id,request_hash,result FROM iam_receipts WHERE id=?',
+] as const;
+const PROVIDER_CONTEXT_SHAS = [
+  'c8272d0c84cece485749ed6740f81e378d3bca686ff75f3cdc63f71d55e2c628',
+  '0ac70d35203729f01794acb9d25fb03fa72c36056cfdfce0d965b09301ee38d9',
+  '187ae3a29228e8f2216facd5ee409aca9f7f1035d5ee554c17e412929ea0ff1d',
+  'f14064c0ee3a3034aa871d0594e0e63ca6f889601efef5b37b65ac9009ac5469',
+  'def58961eb1edadfd240c2b97b615f7421df74e86d1da5bc2bc5f49742298949',
+] as const;
+
+describe('Identity access provider-context native plan candidate', () => {
+  test('the five Control reads are byte-pinned and still owner-TS held', () => {
+    const source = read('adapters/provider-context-store.ts');
+    PROVIDER_CONTEXT_SELECTS.forEach((sql, index) => {
+      expect(sha256(sql), PROVIDER_CONTEXT_SHAS[index]).toBe(PROVIDER_CONTEXT_SHAS[index]);
+      expect(source, sql).toContain(sql);
+    });
+    expect((source.match(/LOCK TABLE /g) ?? []).length).toBe(3);
+    expect(source).toContain('LOCK TABLE session IN EXCLUSIVE MODE');
+  });
+});
+
 describe('Identity access read-tail r36 retirement check', () => {
   test('retirement:ts-statements is 389 after finance-refund-notice plan retirement', () => {
     let total = 0;

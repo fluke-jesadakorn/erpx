@@ -71,8 +71,8 @@ describe('runtime r19 migration control reads cut over to the native port', () =
 
   test('locks, guards, jobs and unrelated helpers are untouched', () => {
     const migrations = src('runtime/migrations.ts');
-    expect(migrations).toContain("const MIGRATION_LOCK_SQL = 'SELECT pg_advisory_lock(714928001)'");
-    expect(migrations).toContain("const MIGRATION_UNLOCK_SQL = 'SELECT pg_advisory_unlock(714928001)'");
+    expect(migrations).toContain("planRuntimeControlPlane(RD_MIGRATION_LOCK)");
+    expect(migrations).toContain("planRuntimeControlPlane(RD_MIGRATION_UNLOCK)");
     const postgres = src('runtime/postgres.ts');
     expect(postgres).toContain("planRuntimeControlPlane(RD_OBJECT_LOCK,[lock])");
     expect(postgres).not.toContain('migrationControlReadSql');
@@ -80,8 +80,8 @@ describe('runtime r19 migration control reads cut over to the native port', () =
     expect(src('runtime/jobs.ts')).not.toContain('migrationControlReadSql');
   });
 
-  test('retirement:ts-statements records BEFORE=29 strictly lower to 17', () => {
-    expect(kpi()).toBe(17);
+  test('retirement:ts-statements records BEFORE=29 strictly lower to 13', () => {
+    expect(kpi()).toBe(13);
     expect(kpi()).toBeLessThan(29);
   });
 });

@@ -38,6 +38,12 @@ export const RD_MFG_EXISTING_POSTING_SCHEMA = 'commerce_rd_mfg_existing_posting_
 /** Allow-listed legacy attachment owner scope read. */
 export const RD_LEGACY_ATTACHMENT_SCOPE = 'commerce_rd_legacy_attachment_scope';
 
+/** Allow-listed expense-posting prerequisite settings-source read. */
+export const RD_EXPENSE_PREREQUISITE_SETTINGS_SOURCE = 'commerce_rd_expense_prerequisite_settings_source';
+
+/** Allow-listed supplier-bill attachment receipt-id read. */
+export const RD_SUPPLIER_BILL_RECEIPT_IDS = 'commerce_rd_supplier_bill_receipt_ids';
+
 /** Allow-listed warehouse-config read kinds resolved by the mounted owner command-plan route. */
 export const RD_WAREHOUSE_PAGE_ROWS = 'commerce_rd_warehouse_page_rows';
 export const RD_WAREHOUSE_MASTER_ROWS = 'commerce_rd_warehouse_master_rows';

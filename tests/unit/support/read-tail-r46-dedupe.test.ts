@@ -7,6 +7,7 @@ vi.mock('server-only', () => ({}));
 
 import { readTailR43ColumnsFromSql } from '../../../packages/server-support/src/adapters/read-tail-r43-sql';
 import { portalImageSelectedCte } from '../../../packages/server-support/src/adapters/ticket-portal-image-sql';
+import { socialPmsSourceFacts } from '@erpx/server-pms/public/social-source-facts';
 import {
   supportTicketPortalCoreImage,
   supportTicketPortalImage,
@@ -15,6 +16,11 @@ import {
 const srcRoot = resolve(__dirname, '../../../packages/server-support/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
+const rustLiteral = (name: string): string => {
+  const match = src('native_support_read_sql.rs').match(new RegExp(`const SQL_${name}: &str =\\s*("(?:[^"\\\\]|\\\\.)*");`));
+  if (!match) throw new Error(`missing SQL_${name}`);
+  return JSON.parse(match[1]!) as string;
+};
 const totalSelects = () => {
   let total = 0;
   for (const rel of readdirSync(srcRoot, { recursive: true })) {
@@ -96,7 +102,7 @@ describe('support read-tail r46 byte-identical selected-bindings column-projecti
   test('native registry kinds, locks, advisory and earlier r18-r45 helpers stay untouched', () => {
     const registry = src('native_support_read_sql.rs');
     const bridge = src('native-support-read.ts');
-    expect(registry).toContain('assert_eq!(STATEMENTS.len(), 54);');
+    expect(registry).toContain('assert_eq!(STATEMENTS.len(), 55);');
     expect(registry).not.toMatch(/LOCK TABLE|pg_advisory_xact_lock/);
     expect(bridge).toContain('SUPPORT_RD_TICKET_WORK');
     expect(bridge).toContain('SUPPORT_RD_INCIDENT_WORK');
@@ -110,8 +116,27 @@ describe('support read-tail r46 byte-identical selected-bindings column-projecti
     expect(src('eligibility-projection-sources.ts')).toContain('supportEligibleFlagSql');
   });
 
-  test('retirement:ts-statements is 26 after the portal replay-proof native cut', () => {
-    expect(totalSelects()).toBe(26);
-    expect(totalSelects()).toBeLessThan(31);
+  test('r48 retires the PMS attachment source-image read to the native owner', () => {
+    const attachment = src('attachment-read.ts');
+    expect(attachment).not.toContain('SELECT jsonb_agg(to_jsonb(source)');
+    expect(attachment).not.toContain('socialPmsSourceFacts');
+    expect(attachment).toContain('SUPPORT_RD_ATTACHMENT_PMS_SOURCE_IMAGE');
+    expect(attachment).toContain('nativeSupportReadFirst<{image:string}>(SUPPORT_RD_ATTACHMENT_PMS_SOURCE_IMAGE,[source.id,companyId],database)');
+    const bridge = src('native-support-read.ts');
+    expect(bridge).toContain("SUPPORT_RD_ATTACHMENT_PMS_SOURCE_IMAGE = 'support_rd_attachment_pms_source_image'");
+    expect(bridge).toContain('[SUPPORT_RD_ATTACHMENT_PMS_SOURCE_IMAGE]: 2');
+    const registry = src('native_support_read_sql.rs');
+    expect(registry).toContain('pub const RD_ATTACHMENT_PMS_SOURCE_IMAGE: &str = "support_rd_attachment_pms_source_image";');
+    expect(registry).toContain('(RD_ATTACHMENT_PMS_SOURCE_IMAGE, SQL_ATTACHMENT_PMS_SOURCE_IMAGE, 2usize)');
+    expect(registry).toContain('assert_eq!(STATEMENTS.len(), 55);');
+    const expected = `SELECT jsonb_agg(to_jsonb(source) ORDER BY source.kind)::text image FROM (${socialPmsSourceFacts}) source WHERE source.id=? AND source.company_id=?`;
+    expect(rustLiteral('ATTACHMENT_PMS_SOURCE_IMAGE')).toBe(expected);
+    expect((expected.match(/\?/g) ?? [])).toHaveLength(2);
+    expect(expected).not.toMatch(/\bINSERT\b|\bUPDATE\b|\bDELETE\b|FOR UPDATE|FOR SHARE|LOCK TABLE/i);
+  });
+
+  test('retirement:ts-statements is 25 after the PMS attachment image native cut', () => {
+    expect(totalSelects()).toBe(25);
+    expect(totalSelects()).toBeLessThan(26);
   });
 });

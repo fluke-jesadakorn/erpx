@@ -1,4 +1,5 @@
 import 'server-only';
+import { ppRdRound3ExistsByIdTwoPred } from './pp-read-tail-round3-sources';
 /** Canonical byte-identical SELECT-only owner fragments shared across People Payroll
  * adapters (G4 read-tail r22): jsonb_agg projections, snapshot projection tails,
  * workforce scope variants with different extra columns and id/version/status
@@ -19,4 +20,4 @@ export const PP_RD22_ACTIVE_PERSON_VERSION_GUARD =
   "EXISTS(SELECT 1 FROM hr_people WHERE id=? AND company_id=? AND version=? AND status='active' AND merged_into_id IS NULL)";
 /** engagement id/company/version guard without status (not an r21 builder) */
 export const PP_RD22_ENGAGEMENT_VERSION_GUARD =
-  'EXISTS(SELECT 1 FROM hr_engagements WHERE id=? AND company_id=? AND version=?)';
+  ppRdRound3ExistsByIdTwoPred('hr_engagements', 'company_id', 'version');

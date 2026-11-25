@@ -534,7 +534,7 @@ const SQL_RD_REPORT_PROFILE: &str = "SELECT * FROM finance_accounting_profiles W
 const READ_REPORT_PROFILE: NativeReadStatement = NativeReadStatement {
     kind: RD_REPORT_PROFILE,
     sql: SQL_RD_REPORT_PROFILE,
-    bind_count: 4,
+    bind_count: 3,
     scope: "holding",
 };
 
@@ -1084,7 +1084,7 @@ mod tests {
     fn report_reads_match_retired_owner_statements() {
         let expected: &[(&str, &str, usize)] = &[
             (RD_REPORT_REVISION, SQL_RD_REPORT_REVISION, 1),
-            (RD_REPORT_PROFILE, SQL_RD_REPORT_PROFILE, 4),
+            (RD_REPORT_PROFILE, SQL_RD_REPORT_PROFILE, 3),
             (RD_REPORT_PACKAGE_LIST, SQL_RD_REPORT_PACKAGE_LIST, 2),
             (RD_REPORT_CLOSING_LIST, SQL_RD_REPORT_CLOSING_LIST, 2),
             (RD_REPORT_ACCOUNT_LIST, SQL_RD_REPORT_ACCOUNT_LIST, 2),

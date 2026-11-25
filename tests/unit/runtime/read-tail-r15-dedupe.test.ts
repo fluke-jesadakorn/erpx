@@ -77,8 +77,8 @@ describe('Runtime read-tail r15 report guards/share jsonb and holding bindings r
     expect(reports).toContain('const REPORT_VERSION_GUARD_SQL = "EXISTS(SELECT 1 FROM executive_reports WHERE id=? AND owner_id=? AND version=?)"');
     const migrations = src('runtime/migrations.ts');
     const postgres = src('runtime/postgres.ts');
-    expect(migrations).toContain("'SELECT pg_advisory_lock(714928001)'");
-    expect(migrations).toContain("'SELECT pg_advisory_unlock(714928001)'");
+    expect(migrations).toContain('planRuntimeControlPlane(RD_MIGRATION_LOCK)');
+    expect(migrations).toContain('planRuntimeControlPlane(RD_MIGRATION_UNLOCK)');
     expect(migrations).not.toContain('executiveReportsSql');
     expect(migrations).not.toContain('holdingBindingsSql');
     expect(postgres).not.toContain('executiveReportsSql');
@@ -106,7 +106,7 @@ describe('Runtime read-tail r15 report guards/share jsonb and holding bindings r
       }
     };
     walk(srcRoot);
-    expect(total).toBe(17);
+    expect(total).toBe(13);
     expect(total).toBeLessThan(36);
   });
 });

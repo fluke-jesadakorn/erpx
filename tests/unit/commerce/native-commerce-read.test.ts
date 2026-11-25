@@ -470,7 +470,7 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
         `export const ${kind} = '${wire}';`,
       );
     }
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 29);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 31);');
     expect(plans).toContain('fn schema_ready_probes_keep_their_exact_literals()');
     expect(readFileSync(adapters('read-tail-r15-dedupe-sql.ts'), 'utf8')).not.toContain('to_regclass');
   });
@@ -507,7 +507,7 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
     expect(plans).toContain(`"${sql}"`);
     expect(plans).toContain('kind: RD_LEGACY_ATTACHMENT_SCOPE,');
     expect(plans).toContain('fn legacy_attachment_scope_keeps_its_exact_literal()');
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 29);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 31);');
     expect(readFileSync(adapters('native-commerce-read.ts'), 'utf8')).toContain(
       "export const RD_LEGACY_ATTACHMENT_SCOPE = 'commerce_rd_legacy_attachment_scope';",
     );
@@ -519,5 +519,46 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
       'nativeCommerceReadFirst<{company_id:string;branch_id:string|null;department_id:string|null;version:number}>(ownerKind,[id],db)',
     );
     expect(source).toContain('if(!ownerKind)return Promise.resolve(null)');
+  });
+
+  it('owns the expense-posting prerequisite settings source as a native kind', async () => {
+    const sql = 'SELECT to_jsonb(s)::text source FROM commerce_settings s WHERE s.company_id=?';
+    const plans = readFileSync(adapters('native_commerce_read_sql.rs'), 'utf8');
+    expect(plans).toContain('pub const RD_EXPENSE_PREREQUISITE_SETTINGS_SOURCE: &str =');
+    expect(plans).toContain('"commerce_rd_expense_prerequisite_settings_source"');
+    expect(plans).toContain(`"${sql}"`);
+    expect(plans).toContain('kind: RD_EXPENSE_PREREQUISITE_SETTINGS_SOURCE,');
+    expect(plans).toContain('fn expense_prerequisite_settings_source_keeps_its_exact_literal()');
+    expect(readFileSync(adapters('native-commerce-read.ts'), 'utf8')).toContain(
+      "export const RD_EXPENSE_PREREQUISITE_SETTINGS_SOURCE = 'commerce_rd_expense_prerequisite_settings_source';",
+    );
+    const source = await readFile(adapters('expense-posting-prerequisite-sources.ts'), 'utf8');
+    expect(source).not.toContain('SELECT ');
+    expect(source).toContain(
+      'nativeCommerceReadFirst<{source:string}>(RD_EXPENSE_PREREQUISITE_SETTINGS_SOURCE,[actor.companyId],database)',
+    );
+  });
+
+  it('owns the supplier-bill attachment receipt-id read as a native kind', async () => {
+    const sql =
+      "SELECT f.id FROM commerce_fulfillments f JOIN commerce_orders o ON o.id=f.order_id AND o.company_id=? AND o.kind='purchase' WHERE f.invoice_id=? ORDER BY f.id";
+    const plans = readFileSync(adapters('native_commerce_read_sql.rs'), 'utf8');
+    expect(plans).toContain(
+      'pub const RD_SUPPLIER_BILL_RECEIPT_IDS: &str = "commerce_rd_supplier_bill_receipt_ids";',
+    );
+    expect(plans).toContain(`"${sql}"`);
+    expect(plans).toContain('kind: RD_SUPPLIER_BILL_RECEIPT_IDS,');
+    expect(plans).toContain('fn supplier_bill_receipt_ids_keep_their_exact_literal()');
+    expect(readFileSync(adapters('native-commerce-read.ts'), 'utf8')).toContain(
+      "export const RD_SUPPLIER_BILL_RECEIPT_IDS = 'commerce_rd_supplier_bill_receipt_ids';",
+    );
+    const source = await readFile(adapters('supplier-bill-attachment-sources.ts'), 'utf8');
+    expect(source).not.toContain('SELECT ');
+    expect(source).toContain(
+      'nativeCommerceReadAll<{id:string}>(RD_SUPPLIER_BILL_RECEIPT_IDS,[companyId,invoiceId],database)',
+    );
+    expect(source).toContain(
+      "commerceAttachmentReadSourceImage(database,companyId,'commerce_fulfillment',receipt.id)",
+    );
   });
 });

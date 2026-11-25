@@ -80,8 +80,8 @@ describe('runtime r18 catalog-presence family cut over to the native port', () =
 
   test('session locks and unrelated read families are untouched', () => {
     const migrations = src('runtime/migrations.ts');
-    expect(migrations).toContain("const MIGRATION_LOCK_SQL = 'SELECT pg_advisory_lock(714928001)'");
-    expect(migrations).toContain("const MIGRATION_UNLOCK_SQL = 'SELECT pg_advisory_unlock(714928001)'");
+    expect(migrations).toContain("planRuntimeControlPlane(RD_MIGRATION_LOCK)");
+    expect(migrations).toContain("planRuntimeControlPlane(RD_MIGRATION_UNLOCK)");
     const postgres = src('runtime/postgres.ts');
     expect(postgres).toContain("planRuntimeControlPlane(RD_OBJECT_LOCK,[lock])");
     const shared = src('read-tail-sql.ts');
@@ -96,8 +96,8 @@ describe('runtime r18 catalog-presence family cut over to the native port', () =
     ]) expect(shared.split(template)).toHaveLength(2);
   });
 
-  test('retirement:ts-statements records BEFORE=30 strictly lower to 17', () => {
-    expect(kpi()).toBe(17);
+  test('retirement:ts-statements records BEFORE=30 strictly lower to 13', () => {
+    expect(kpi()).toBe(13);
     expect(kpi()).toBeLessThan(30);
   });
 });
@@ -327,5 +327,93 @@ describe('runtime pair-key transaction lock family cut over to the native planne
     expect(initBody(fetchMock)).toBe(
       JSON.stringify({ kind: 'runtime_rd_pair_lock', values: ['transaction', 'aggregate-1'] }),
     );
+  });
+});
+
+describe('runtime migration advisory-lock family cut over to the native planner', () => {
+  const lockSql = 'SELECT pg_advisory_lock(714928001)';
+  const unlockSql = 'SELECT pg_advisory_unlock(714928001)';
+  const oracles = [
+    ['runtime_rd_migration_lock', lockSql, 34, '60698f8193884d5ba81ccadadf6db08300c3cfcb37c93f3f2d6e55e9288103a3'],
+    ['runtime_rd_migration_unlock', unlockSql, 36, 'efbd4e23974b6945dc8e6102bc215bac8b9b572baaaa7af238c47be9553799c1'],
+  ] as const;
+
+  test.each(oracles)('%s is byte-identical in the Rust port', (kind, sql, size, digest) => {
+    const port = rust('adapters/postgres/control_plane.rs');
+    const ingress = rust('adapters/control_plane_read_port.rs');
+    expect(port).toContain(sql);
+    expect(ingress).toContain(kind);
+    expect(sha(sql)).toBe(digest);
+    expect(sql.length).toBe(size);
+    expect(sql).not.toMatch(/\$\d|\?/);
+  });
+
+  test('migrations.ts plans both locks on the caller connection and inlines neither', () => {
+    const migrations = src('runtime/migrations.ts');
+    for (const sql of [lockSql, unlockSql]) expect(migrations).not.toContain(sql);
+    expect(migrations).toContain('async function migrationLock(client: PoolClient)');
+    expect(migrations).toContain('planRuntimeControlPlane(RD_MIGRATION_LOCK)');
+    expect(migrations).toContain('planRuntimeControlPlane(RD_MIGRATION_UNLOCK)');
+    expect(migrations).toContain('await migrationLock(client);');
+    expect(migrations).toContain('await migrationUnlock(client).catch(() => {}); client.release();');
+    const client = src('native-runtime-control-plane.ts');
+    for (const kind of ['runtime_rd_migration_lock', 'runtime_rd_migration_unlock']) expect(client).toContain(kind);
+  });
+
+  test('the planned migration lock is bind-free', async () => {
+    const fetchMock = reply({ data: { sql: lockSql, values: [] } });
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await planRuntimeControlPlane('runtime_rd_migration_lock', [], env())).toEqual({
+      sql: lockSql,
+      values: [],
+    });
+    expect(initBody(fetchMock)).toBe(
+      JSON.stringify({ kind: 'runtime_rd_migration_lock', values: [] }),
+    );
+  });
+});
+
+describe('runtime lock-timeout session family cut over to the native planner', () => {
+  const setSql = "SELECT set_config('lock_timeout','10s',false)";
+  const restoreSql = "SELECT set_config('lock_timeout',$1,false)";
+  const oracles = [
+    ['runtime_rd_lock_timeout_set', setSql, 45, 'b9e9a6159c864803e689ef1c4c8ac7a92f84446c584321e8c642c439a7aca227', 0],
+    ['runtime_rd_lock_timeout_restore', restoreSql, 42, '9d794c5838b4078ba06bd7092af9bb7803acce2e2d06a112f1cc0540e700c4a7', 1],
+  ] as const;
+
+  test.each(oracles)('%s is byte-identical in the Rust port', (kind, sql, size, digest, binds) => {
+    const port = rust('adapters/postgres/control_plane.rs');
+    const ingress = rust('adapters/control_plane_read_port.rs');
+    expect(port).toContain(sql);
+    expect(ingress).toContain(kind);
+    expect(sha(sql)).toBe(digest);
+    expect(sql.length).toBe(size);
+    expect((sql.match(/\$\d/g) ?? []).length).toBe(binds);
+  });
+
+  test('postgres.ts plans both session settings on the pinned client and inlines neither', () => {
+    const postgres = src('runtime/postgres.ts');
+    for (const sql of [setSql, restoreSql]) expect(postgres).not.toContain(sql);
+    expect(postgres).toContain('planRuntimeControlPlane(RD_LOCK_TIMEOUT_SET)');
+    expect(postgres).toContain('planRuntimeControlPlane(RD_LOCK_TIMEOUT_RESTORE,[priorTimeout])');
+    expect(postgres).toContain('client.query(timeoutPlan.sql,[...timeoutPlan.values])');
+    expect(postgres).toContain('client.query(restorePlan.sql,[...restorePlan.values])');
+    expect(postgres).toContain('}catch{discard=true;}');
+    const client = src('native-runtime-control-plane.ts');
+    for (const kind of ['runtime_rd_lock_timeout_set', 'runtime_rd_lock_timeout_restore'])
+      expect(client).toContain(kind);
+  });
+
+  test('restore keeps the prior timeout bind and the health projection is unchanged', async () => {
+    const fetchMock = reply({ data: { sql: restoreSql, values: ['5s'] } });
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await planRuntimeControlPlane('runtime_rd_lock_timeout_restore', ['5s'], env())).toEqual({
+      sql: restoreSql,
+      values: ['5s'],
+    });
+    expect(initBody(fetchMock)).toBe(
+      JSON.stringify({ kind: 'runtime_rd_lock_timeout_restore', values: ['5s'] }),
+    );
+    expect(src('runtime/postgres.ts')).toContain('planRuntimeControlPlane(RD_RUNTIME_HEALTH)');
   });
 });

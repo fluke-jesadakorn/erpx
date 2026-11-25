@@ -27,6 +27,8 @@ pub mod sql {
     pub const COVERAGE_PROCEDURE_PRESENT: &str =
         "SELECT to_regprocedure('ensure_work_cache_coverage()') IS NOT NULL present";
     pub const RUNTIME_HEALTH: &str = "SELECT current_setting('lock_timeout') AS value";
+    pub const LOCK_TIMEOUT_SET: &str = "SELECT set_config('lock_timeout','10s',false)";
+    pub const LOCK_TIMEOUT_RESTORE: &str = "SELECT set_config('lock_timeout',$1,false)";
     pub const MIGRATION_LOCK: &str = "SELECT pg_advisory_lock(714928001)";
     pub const MIGRATION_UNLOCK: &str = "SELECT pg_advisory_unlock(714928001)";
     pub const OBJECT_LOCK: &str = "SELECT pg_advisory_lock(hashtextextended($1,0))";

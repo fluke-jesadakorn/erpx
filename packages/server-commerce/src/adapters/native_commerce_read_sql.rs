@@ -391,6 +391,18 @@ const READ_EXPENSE_PREREQUISITE_SETTINGS_SOURCE: NativeCommerceReadStatement =
         bind_count: 1,
     };
 
+/// Native successor of the supplier-bill attachment receipt-id read. The
+/// caller binds `[company_id, invoice_id]`; the Purchase predicate and id order
+/// stay in the retired statement.
+pub const RD_SUPPLIER_BILL_RECEIPT_IDS: &str = "commerce_rd_supplier_bill_receipt_ids";
+const SQL_SUPPLIER_BILL_RECEIPT_IDS: &str =
+    "SELECT f.id FROM commerce_fulfillments f JOIN commerce_orders o ON o.id=f.order_id AND o.company_id=? AND o.kind='purchase' WHERE f.invoice_id=? ORDER BY f.id";
+const READ_SUPPLIER_BILL_RECEIPT_IDS: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_SUPPLIER_BILL_RECEIPT_IDS,
+    sql: SQL_SUPPLIER_BILL_RECEIPT_IDS,
+    bind_count: 2,
+};
+
 const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_PMS_WAREHOUSE_ACTIVE,
     READ_PMS_SETTINGS_EXISTS,
@@ -421,6 +433,8 @@ const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_BILLING_TEST_FINANCE_SCHEMA,
     READ_MFG_EXISTING_POSTING_SCHEMA,
     READ_LEGACY_ATTACHMENT_SCOPE,
+    READ_EXPENSE_PREREQUISITE_SETTINGS_SOURCE,
+    READ_SUPPLIER_BILL_RECEIPT_IDS,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -488,6 +502,16 @@ mod tests {
                 SQL_LEGACY_ATTACHMENT_SCOPE,
                 1usize,
             ),
+            (
+                RD_EXPENSE_PREREQUISITE_SETTINGS_SOURCE,
+                SQL_EXPENSE_PREREQUISITE_SETTINGS_SOURCE,
+                1usize,
+            ),
+            (
+                RD_SUPPLIER_BILL_RECEIPT_IDS,
+                SQL_SUPPLIER_BILL_RECEIPT_IDS,
+                2usize,
+            ),
         ];
         for (kind, sql, bind_count) in expected {
             let statement = read_statement(kind).expect("registered owner read kind");
@@ -508,7 +532,38 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), bind_count);
         }
-        assert_eq!(STATEMENTS.len(), 29);
+        assert_eq!(STATEMENTS.len(), 31);
+    }
+
+    /// Supplier-bill receipt ids keep the exact Purchase join, two bind
+    /// positions and stable id order of the retired TypeScript read.
+    #[test]
+    fn supplier_bill_receipt_ids_keep_their_exact_literal() {
+        let plan = read_statement(RD_SUPPLIER_BILL_RECEIPT_IDS).expect("supplier bill ids");
+        assert_eq!(
+            plan.sql,
+            "SELECT f.id FROM commerce_fulfillments f JOIN commerce_orders o ON o.id=f.order_id AND o.company_id=? AND o.kind='purchase' WHERE f.invoice_id=? ORDER BY f.id"
+        );
+        assert_eq!(plan.bind_count, 2);
+        assert_eq!(plan.sql.matches('?').count(), 2);
+        assert!(plan.sql.starts_with("SELECT "));
+        assert!(!plan.sql.contains(';'));
+    }
+
+    /// The expense-posting prerequisite settings source keeps its byte-exact
+    /// aliased image projection and single company bind.
+    #[test]
+    fn expense_prerequisite_settings_source_keeps_its_exact_literal() {
+        let plan = read_statement(RD_EXPENSE_PREREQUISITE_SETTINGS_SOURCE)
+            .expect("expense prerequisite source");
+        assert_eq!(
+            plan.sql,
+            "SELECT to_jsonb(s)::text source FROM commerce_settings s WHERE s.company_id=?"
+        );
+        assert_eq!(plan.bind_count, 1);
+        assert_eq!(plan.sql.matches('?').count(), 1);
+        assert!(plan.sql.starts_with("SELECT "));
+        assert!(!plan.sql.contains(';'));
     }
 
     /// Legacy attachment scope byte parity: the single closed descriptor keeps

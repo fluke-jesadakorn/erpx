@@ -11,8 +11,7 @@ use serde::Deserialize;
 use std::sync::OnceLock;
 
 /// Native-owned r44 read-head contract.
-pub const LEGAL_READ_TAIL_R44_SOURCES_JSON: &str =
-    include_str!("legal-read-tail-r44-sources.json");
+pub const LEGAL_READ_TAIL_R44_SOURCES_JSON: &str = include_str!("legal-read-tail-r44-sources.json");
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct LegalReadTailR44Sources {

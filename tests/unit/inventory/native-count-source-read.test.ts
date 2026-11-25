@@ -4,6 +4,7 @@ import {resolve} from 'node:path';
 vi.mock('server-only',()=>({}));
 import {INVENTORY_RD_COUNT_SOURCE_ROW,INVENTORY_RD_SERVICE_INITIAL_COUNT_ROW,nativeInventoryReadFirst} from '../../../packages/server-inventory/src/adapters/native-inventory-read';
 import {serviceInitialCountExists} from '../../../packages/server-inventory/src/adapters/native-service-count-source';
+import {countStatus} from '../../../packages/server-inventory/src/adapters/native-count-status';
 
 const RETIRED_SQL='SELECT id,company_id,branch_id,warehouse_id FROM inventory_counts WHERE id=? AND company_id=? AND (?::text IS NULL OR branch_id=?)';
 const root=resolve(new URL('.',import.meta.url).pathname,'../../..');
@@ -127,5 +128,61 @@ describe('native Inventory service physical-count source probe',()=>{
     expect(rust).toContain(`"${SERVICE_SQL}"`);
     expect(rust).toContain('pub const RD_SERVICE_INITIAL_COUNT_ROW: &str = "inventory_rd_service_initial_count_row";');
     expect(rust).toMatch(/const READ_SERVICE_INITIAL_COUNT_ROW: NativeStatement = NativeStatement \{[\s\S]*?bind_count: 2,/);
+  });
+});
+
+const STATUS_SQL='SELECT status FROM inventory_counts WHERE id=? AND company_id=?';
+
+describe('native Inventory canonical count-status read',()=>{
+  const envKey='ERPX_NATIVE_INVENTORY_CONFIG';
+  const original=process.env[envKey];
+  beforeEach(()=>{
+    process.env[envKey]=JSON.stringify({privateBaseUrl:'http://127.0.0.1:44991',timeoutMs:1000,
+      holdings:[{origin:'https://acme.example.com',holdingSlug:'acme',holdingId:'h001',companyId:'company'}]});
+  });
+  afterEach(()=>{
+    if(original===undefined)delete process.env[envKey]; else process.env[envKey]=original;
+    vi.unstubAllGlobals();
+  });
+  const fakeDb=()=>{
+    const bound:unknown[][]=[];
+    const db={
+      prepare(_sql:string){return {bind(...values:unknown[]){bound.push(values);return this;}};},
+      async batch(){return [{results:[{status:'posted'}],success:true,meta:{changes:0,duration:0}}];},
+      async exec(){return {count:0,duration:0};},
+    };
+    return {db,bound};
+  };
+
+  it('plans the status read in Rust and binds only the scoped identities',async()=>{
+    const bodies:{kind:string;values:unknown[]}[]=[];
+    vi.stubGlobal('fetch',vi.fn(async (_url:URL,init:RequestInit)=>{
+      const body=JSON.parse(String(init.body)) as {kind:string;values:unknown[]};
+      bodies.push(body);
+      return new Response(JSON.stringify({data:{statements:[{sql:STATUS_SQL,values:body.values}]}}),{status:200,headers:{'content-type':'application/json'}});
+    }));
+    const {db,bound}=fakeDb();
+    expect(await countStatus(db as never,'count-1','company')).toEqual({status:'posted'});
+    expect(bodies.map(x=>x.kind)).toEqual(['inventory_rd_count_status']);
+    expect(bodies.map(x=>x.values)).toEqual([['count-1','company']]);
+    expect(bound).toEqual([['count-1','company']]);
+  });
+
+  it('fails closed when the native read service is unavailable',async()=>{
+    vi.stubGlobal('fetch',vi.fn(async ()=>new Response('down',{status:503})));
+    const {db}=fakeDb();
+    await expect(countStatus(db as never,'count-1','company')).rejects.toMatchObject({status:503});
+  });
+
+  it('deleted the canonical TS literal from all four callers and pinned the Rust plan',()=>{
+    expect(readFileSync(`${root}/packages/server-inventory/src/adapters/inventory-read-projections.ts`,'utf8')).not.toContain(STATUS_SQL);
+    for(const file of ['count-purchases.ts','initial-physical-stock-count-source.ts','manufacturing-initial-physical-stock-count-source.ts','pos-initial-physical-stock-count-source.ts']){
+      const source=readFileSync(`${root}/packages/server-inventory/src/adapters/${file}`,'utf8');
+      expect(source).not.toContain('inventoryCountStatusSql');
+      expect(source).toContain('countStatus');
+    }
+    const rust=readFileSync(`${root}/packages/server-inventory/src/adapters/native_command_sql.rs`,'utf8');
+    expect(rust).toContain(`"${STATUS_SQL}"`);
+    expect(rust).toContain('pub const RD_COUNT_STATUS: &str = "inventory_rd_count_status";');
   });
 });

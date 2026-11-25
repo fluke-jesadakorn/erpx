@@ -496,6 +496,19 @@ const READ_INCIDENT_ATTACHMENT_SOURCE_LINKS: NativeSupportReadStatement = Native
     bind_count: 2,
 };
 
+/// Native successor of the TypeScript PMS source-image read used by the
+/// private Support attachment before/after witness at `attachment-read.ts:27`.
+/// The caller binds `[source_id, company_id]` and receives the closed PMS
+/// source/property/bank/correction union image. The exact PMS union is carried
+/// verbatim; no lock, advisory or audit ledger is attached to this read.
+pub const RD_ATTACHMENT_PMS_SOURCE_IMAGE: &str = "support_rd_attachment_pms_source_image";
+const SQL_ATTACHMENT_PMS_SOURCE_IMAGE: &str = "SELECT jsonb_agg(to_jsonb(source) ORDER BY source.kind)::text image FROM (SELECT r.id,r.property_id,r.kind,r.data_json::jsonb data,r.version,r.updated_at,\n    p.company_id,p.branch_id,p.name property_name,p.business_date\n  FROM pms_records r JOIN pms_properties p ON p.id=r.property_id\n  UNION ALL\n  SELECT t.id,t.property_id,'transfer',jsonb_build_object('state',t.state,'recordedBy',t.recorded_by,\n    'guestAccountId',t.guest_account_id),t.version,t.updated_at,p.company_id,p.branch_id,p.name,p.business_date\n  FROM pms_transfer_requests t JOIN pms_properties p ON p.id=t.property_id AND p.company_id=t.company_id\n  UNION ALL\n  SELECT c.id,c.property_id,'correction',jsonb_build_object('state',c.status,'requestedBy',c.requested_by,\n    'guestAccountId',c.guest_account_id),c.version,c.updated_at,p.company_id,p.branch_id,p.name,p.business_date\n  FROM pms_charge_corrections c JOIN pms_properties p ON p.id=c.property_id AND p.company_id=c.company_id) source WHERE source.id=? AND source.company_id=?";
+const READ_ATTACHMENT_PMS_SOURCE_IMAGE: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_ATTACHMENT_PMS_SOURCE_IMAGE,
+    sql: SQL_ATTACHMENT_PMS_SOURCE_IMAGE,
+    bind_count: 2,
+};
+
 /// Native successors of the TypeScript Sales Support projections. The variable
 /// customer-id list is a single JSON bind, so every kind has a fixed bind count
 /// and the command-plan route rejects any other arity. Caller binds are the
@@ -779,6 +792,7 @@ const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_EXEC_INCIDENT_METRIC,
     READ_INCIDENT_ATTACHMENT_SOURCE_IMAGE,
     READ_INCIDENT_ATTACHMENT_SOURCE_LINKS,
+    READ_ATTACHMENT_PMS_SOURCE_IMAGE,
     READ_SALES_SUPPORT_COUNTS,
     READ_SALES_OPEN_SUPPORT_CASES,
     READ_SALES_CUSTOMER_SOURCE_CASES,
@@ -951,6 +965,7 @@ mod tests {
                 SQL_INCIDENT_ATTACHMENT_SOURCE_LINKS,
                 2usize,
             ),
+            (RD_ATTACHMENT_PMS_SOURCE_IMAGE, SQL_ATTACHMENT_PMS_SOURCE_IMAGE, 2usize),
             (RD_SALES_SUPPORT_COUNTS, SQL_SALES_SUPPORT_COUNTS, 14usize),
             (
                 RD_SALES_OPEN_SUPPORT_CASES,
@@ -994,12 +1009,13 @@ mod tests {
                     sql.contains("support_incident_tickets") || sql.contains("support_tickets") ||
                     sql.contains("support_incidents") || sql.contains("support_sla_policies") ||
                     sql.contains("attachment_links") || sql.contains("customer_contact_notes") ||
-                    sql.contains("organization_nodes") || sql.contains("FROM assignments"),
-                "owner read must stay on owner-local Support tables, closed Files/Organization/Sales/Identity projections: {sql}"
+                    sql.contains("organization_nodes") || sql.contains("FROM assignments") ||
+                    sql.contains("pms_records"),
+                "owner read must stay on owner-local Support tables, closed Files/Organization/Sales/Identity/PMS projections: {sql}"
             );
             assert_eq!(sql.matches('?').count(), binds);
         }
-        assert_eq!(STATEMENTS.len(), 54);
+        assert_eq!(STATEMENTS.len(), 55);
     }
 
     #[test]
@@ -1068,6 +1084,8 @@ mod tests {
         assert_eq!(image.bind_count, 3);
         let links = read_statement(RD_INCIDENT_ATTACHMENT_SOURCE_LINKS).expect("incident attachment links");
         assert_eq!(links.bind_count, 2);
+        let pms_image = read_statement(RD_ATTACHMENT_PMS_SOURCE_IMAGE).expect("pms attachment source image");
+        assert_eq!(pms_image.bind_count, 2);
         let counts = read_statement(RD_SALES_SUPPORT_COUNTS).expect("sales support counts");
         assert_eq!(counts.bind_count, 14);
         let cases = read_statement(RD_SALES_OPEN_SUPPORT_CASES).expect("sales open support cases");

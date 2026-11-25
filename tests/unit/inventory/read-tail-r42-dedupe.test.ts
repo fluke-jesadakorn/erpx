@@ -105,9 +105,7 @@ describe('Inventory read-tail r42 package-obligation dedupe', () => {
       'initial-physical-stock-count-source-sql.ts', 'manufacturing-initial-physical-stock-count-source-sql.ts',
       'pos-initial-physical-stock-count-source-sql.ts', 'service-initial-physical-stock-count-source-sql.ts',
     ]) expect(src(f).length).toBeGreaterThan(0);
-    expect(src('inventory-read-projections.ts')).toContain(
-      'export const inventoryCountStatusSql = "SELECT status FROM inventory_counts WHERE id=? AND company_id=?"',
-    );
+    expect(src('inventory-read-projections.ts')).not.toContain('SELECT status FROM inventory_counts');
     expect(readFileSync(resolve(srcRoot, 'adapters', 'native-inventory-read.ts'), 'utf8').length).toBeGreaterThan(0);
     expect(shared).not.toMatch(lockRe);
   });

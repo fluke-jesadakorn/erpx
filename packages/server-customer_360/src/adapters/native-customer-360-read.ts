@@ -14,11 +14,15 @@ import 'server-only';
 export const RD_PORTAL_ACTION_BY_KEY = 'c360_rd_portal_action_by_key';
 export const RD_PORTAL_ACTION_BY_BINDING = 'c360_rd_portal_action_by_binding';
 export const RD_OBLIGATION_AUDIT_EXISTS = 'c360_rd_obligation_audit_exists';
+export const RD_OBLIGATION_ACTION_HEAD = 'c360_rd_obligation_action_head';
+export const RD_OBLIGATION_ACK_HEAD = 'c360_rd_obligation_ack_head';
 
 const KINDS = new Set<string>([
   RD_PORTAL_ACTION_BY_KEY,
   RD_PORTAL_ACTION_BY_BINDING,
   RD_OBLIGATION_AUDIT_EXISTS,
+  RD_OBLIGATION_ACTION_HEAD,
+  RD_OBLIGATION_ACK_HEAD,
 ]);
 const PORT = /(?:^|[\s:,])(?:INSERT\s+INTO|DELETE\s+FROM|UPDATE\s+\w+\s+SET|DROP\s|ALTER\s|TRUNCATE\s|LOCK\s+TABLE|FOR\s+UPDATE|FOR\s+SHARE)/i;
 const BODY_LIMIT = 8 * 1024;
