@@ -24,7 +24,7 @@ import type { OrganizationPerson, OrganizationNode, OrganizationNodeChange } fro
 import {BusinessRuleError} from '@erpx/server-shared/index';
 import {canReadOrganizationChanges} from '@erpx/server-organization/adapters/organization-work';
 import {nativeOrganizationChangeNotice} from './native-organization-change-notice';
-import { nativeOrgStatement } from './native-organization-owner-write';
+import { nativeOrgAll, nativeOrgStatement } from './native-organization-owner-write';
 import {organizationMemberSql} from '@erpx/server-organization/adapters/organization-channels';
 import {canSeeDefaultPay,defaultCatalog} from '@erpx/server-organization/adapters/staff-defaults';
 import {createOrganizationApplication,type OrganizationPorts,type RelocationAuthority} from '@erpx/server-organization/application/organization';
@@ -75,8 +75,8 @@ function portsFor(db:SqlDatabase):OrganizationPorts<SqlStatement>{return {
 clock:{now:()=>Date.now()},authorize:actor=>requirePermission(actor,'organization.manage'),hasPermission,samePerson,canManageUnits:actor=>canReadOrganizationChanges(db,actor),canSeeDefaultPay,defaults:actor=>defaultCatalog(db,actor),spendingTemplate:companyId=>spendingTemplate(db,companyId),monthlyPayGroups:companyId=>organizationMonthlyPayGroups(db,companyId),roster:companyId=>organizationRoster(db,companyId),
  independentReviewer:async(actor,id)=>!(await db.prepare('SELECT iam_same_person(?,?,?) same_person').bind(actor.userId,id,actor.companyId).first<{same_person:boolean}>())?.same_person,
  nodes:async(actor)=>(await db.prepare(fullNodeSelection("company_id=? AND kind IN ('company','branch','department') AND (?::text IS NULL OR id=? OR branch_id=?) AND (?::text IS NULL OR kind!='department' OR id=?) ORDER BY status,display_name")).bind(actor.companyId,actor.branchId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId).all<OrganizationNode>()).results,
- levels:async(companyId)=>(await db.prepare('SELECT id,name,level_number FROM staff_levels WHERE company_id=? AND active=1 AND level_number IS NOT NULL ORDER BY level_number').bind(companyId).all<{id:string;name:string;level_number:number}>()).results,
- templates:async(companyId)=>(await db.prepare('SELECT id,name,version,positions_json FROM organization_templates WHERE company_id=? ORDER BY name').bind(companyId).all<{id:string;name:string;version:number;positions_json:string}>()).results,
+ levels:async(companyId)=>nativeOrgAll<{id:string;name:string;level_number:number}>(db,companyId,'org_access_read_levels',[companyId]),
+ templates:async(companyId)=>nativeOrgAll<{id:string;name:string;version:number;positions_json:string}>(db,companyId,'org_access_read_templates',[companyId]),
  channelNodes:async(actor)=>(await db.prepare(`SELECT n.id FROM organization_nodes n WHERE n.company_id=? AND n.status='active' AND n.kind IN ('company','branch','department') AND ${organizationMemberSql('n','?')}`).bind(actor.companyId,actor.userId).all<{id:string}>()).results.map(n=>n.id),
  managerGrants:async(companyId,from,to)=>(await db.prepare(`SELECT user_id,scope_kind,scope_node_id FROM (${identity_accessPlatformSources.assignments}) assignments WHERE company_id=? AND iam_role_allows(role,company_id,'spending.approve') AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_from<=? AND valid_until>?`).bind(companyId,from,to).all<{user_id:string;scope_kind:string;scope_node_id:string|null}>()).results,
  changeTotal:async(companyId,filters)=>{const {predicate,args}=changeSelection(companyId,filters);return Number((await db.prepare(`${organizationChangeRows('count(*) total')}${predicate}`).bind(...args).first<{total:number}>())?.total??0);},

@@ -69,15 +69,20 @@ pub const DEPT_AUTH_READ_POLICY_CHECK: &str = "dept_auth_read_policy_check";
 pub const ORG_WORK_READ_CHANGE_EXISTS: &str = "org_work_read_change_exists";
 pub const ORG_WORK_READ_CHANGES: &str = "org_work_read_changes";
 
-// -- access.ts: owner-local access projection reads ---------------------------
-// The two `SELECT` reads retired from `adapters/access.ts`. Both are
-// Company-keyed reads of org-owned tables (`organization_nodes` and
-// `staff_levels`); no people_payroll hr_* source is needed for these scoped
-// node/level projections. The `?::text IS NULL` predicates are the branch and
+// -- access.ts / organization.ts: owner-local access projection reads ---------
+// The `SELECT` reads retired from `adapters/access.ts` and the `levels`/
+// `templates` ports of `adapters/organization.ts`. All are Company-keyed reads
+// of org-owned tables (`organization_nodes`, `staff_levels` and
+// `organization_templates`); no people_payroll hr_* source is needed for these
+// scoped projections. The `?::text IS NULL` predicates are the branch and
 // department visibility windows and keep the exact `?` placeholder form the
 // caller binds on its own unit.
 pub const ORG_ACCESS_READ_NODES: &str = "org_access_read_nodes";
 pub const ORG_ACCESS_READ_LEVELS: &str = "org_access_read_levels";
+/// Native-owned Company template list retired from the `templates` port of
+/// `adapters/organization.ts`. SELECT-only and Company keyed over the org-owned
+/// `organization_templates` table; the caller keeps every permission check.
+pub const ORG_ACCESS_READ_TEMPLATES: &str = "org_access_read_templates";
 
 // -- operations-level-history-effects / people-placement-level-history -------
 pub const STAFF_LEVEL_HISTORY_INSERT: &str = "staff_level_history_insert";
@@ -263,6 +268,7 @@ pub const KINDS: &[&str] = &[
     ORG_WORK_READ_CHANGES,
     ORG_ACCESS_READ_NODES,
     ORG_ACCESS_READ_LEVELS,
+    ORG_ACCESS_READ_TEMPLATES,
     STAFF_LEVEL_HISTORY_INSERT,
     STAFF_LEVEL_UPDATE,
     STAFF_LEVEL_INSERT,
@@ -448,6 +454,9 @@ fn sql(kind: &str) -> Option<&'static str> {
         }
         ORG_ACCESS_READ_LEVELS => {
             "SELECT id,name,level_number FROM staff_levels WHERE company_id=? AND active=1 AND level_number IS NOT NULL ORDER BY level_number"
+        }
+        ORG_ACCESS_READ_TEMPLATES => {
+            "SELECT id,name,version,positions_json FROM organization_templates WHERE company_id=? ORDER BY name"
         }
         STAFF_LEVEL_HISTORY_INSERT => {
             "INSERT INTO staff_level_history(id,engagement_id,previous_level_id,level_id,actor_id,reason,command_id,created_at) VALUES(?,?,?,?,?,?,?,?)"
@@ -1505,16 +1514,22 @@ mod tests {
         assert!(owner_statement(ORG_WORK_READ_CHANGE_EXISTS, &[Value::from("change")]).is_err());
     }
 
-    /// Owner-local reads retired from `adapters/access.ts`: two fixed,
-    /// Company-keyed SELECT statements over the org-owned `organization_nodes`
-    /// and `staff_levels` tables. No people_payroll hr_* source is duplicated.
-    /// The `?::text IS NULL` predicates are the retained branch/department
-    /// visibility windows; the statement translation keeps the cast on the
-    /// numbered parameter so a null scope still means "no scope filter".
+    /// Owner-local reads retired from `adapters/access.ts` and the `levels`/
+    /// `templates` ports of `adapters/organization.ts`: fixed, Company-keyed
+    /// SELECT statements over the org-owned `organization_nodes`, `staff_levels`
+    /// and `organization_templates` tables. No people_payroll hr_* source is
+    /// duplicated. The `?::text IS NULL` predicates are the retained
+    /// branch/department visibility windows; the statement translation keeps
+    /// the cast on the numbered parameter so a null scope still means "no
+    /// scope filter".
     #[test]
     fn organization_access_read_kinds_are_select_only_company_scoped_and_cast_safe() {
-        let kinds = [(ORG_ACCESS_READ_NODES, 6usize), (ORG_ACCESS_READ_LEVELS, 1)];
-        assert_eq!(kinds.len(), 2);
+        let kinds = [
+            (ORG_ACCESS_READ_NODES, 6usize),
+            (ORG_ACCESS_READ_LEVELS, 1),
+            (ORG_ACCESS_READ_TEMPLATES, 1),
+        ];
+        assert_eq!(kinds.len(), 3);
         for (kind, expected) in kinds {
             assert!(supported(kind), "read kind must be allow listed: {kind}");
             let statement = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
@@ -1582,10 +1597,27 @@ mod tests {
             &[Value::from("company"), Value::Null],
         )
         .is_err());
+        // The two list reads keep the exact retired literal bytes: the levels
+        // port reuses the registered access kind, the templates port uses the
+        // new kind added for this tail slice. Row shape is unchanged and the
+        // arity gate stays fail-closed for both.
+        assert_eq!(
+            sql(ORG_ACCESS_READ_LEVELS).unwrap(),
+            "SELECT id,name,level_number FROM staff_levels WHERE company_id=? AND active=1 AND level_number IS NOT NULL ORDER BY level_number"
+        );
+        assert_eq!(
+            sql(ORG_ACCESS_READ_TEMPLATES).unwrap(),
+            "SELECT id,name,version,positions_json FROM organization_templates WHERE company_id=? ORDER BY name"
+        );
         let (levels, values) = owner_statement(ORG_ACCESS_READ_LEVELS, &[Value::from("company")])
             .expect("active levels statement");
         assert_eq!(values.len(), 1);
         assert!(levels.contains("active=1"));
         assert!(owner_statement(ORG_ACCESS_READ_LEVELS, &[]).is_err());
+        let (templates, values) = owner_statement(ORG_ACCESS_READ_TEMPLATES, &[Value::from("company")])
+            .expect("organization templates statement");
+        assert_eq!(values.len(), 1);
+        assert!(templates.contains("ORDER BY name"));
+        assert!(owner_statement(ORG_ACCESS_READ_TEMPLATES, &[]).is_err());
     }
 }
