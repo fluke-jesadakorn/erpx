@@ -22,6 +22,8 @@ pub(crate) mod file_source;
 
 pub(crate) mod source_record;
 
+pub(crate) mod record_probe;
+
 pub(crate) mod final_root_projection;
 
 pub(crate) mod final_root_consumer;

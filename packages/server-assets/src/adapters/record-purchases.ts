@@ -7,7 +7,8 @@ import {assignmentReadSql} from "@erpx/server-identity_access/public/record-sour
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {assetsPackageEnforcementMode,checkPurchasedCapability,readPurchasedAccess} from "@erpx/server-commercial/public/purchase-command-boundary";
-import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
+import {purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
+import {nativeAssetsClockScalar} from "./native-assets-read";
 
 export type AssetSourceKind="asset"|"maintenance_work"|"maintenance_plan";
 const definitions={asset:{table:"operational_assets",module:"assets",capability:"assets.register"},maintenance_work:{table:"maintenance_work_orders",module:"maintenance",capability:"assets.maintenance"},maintenance_plan:{table:"maintenance_preventive_plans",module:"maintenance",capability:"assets.preventive"}} as const;
@@ -18,10 +19,6 @@ const definitions={asset:{table:"operational_assets",module:"assets",capability:
  * byte-identically. Callers pass only owner-owned FROM and predicate fragments;
  * no SQL or relation name is accepted from a request. */
 export const assetSourceProbeSql=(from:string,where:string)=>assetProjectionFromSql("1",` ${from}`,` WHERE ${where}`);
-/** Canonical owner-local materialized clock CTE body. The metric and record-source
- * purchase probes share this one literal; callers pass only a fixed CTE alias and
- * compose `WITH <alias> AS MATERIALIZED ${assetClockNowMsSql}`, preserving byte parity. */
-export const assetClockNowMsSql=`(SELECT ${packageClockSql} now_ms)`;
 const assetSourceVisibleSql=(table:string,alias:string,idValue:string,tail="")=>`EXISTS(${assetSourceProbeSql(`${table} ${alias}`,`${alias}.id=${idValue}${tail}`)})`;
 const assetSourceReadSql=(from:string,idColumn:string,tail="")=>assetSourceProbeSql(from,`${idColumn}=?${tail}`);
 /** Fixed owner kinds select the actual source table. Project/Learning worker
@@ -30,7 +27,7 @@ export async function assetSourcePredicate(database:SqlDatabase,actor:WorkContex
  const mode=await assetsPackageEnforcementMode();if(mode==="disabled")return {where:"TRUE",args:[] as (string|number|null)[]};const definition=definitions[kind];
  if(!hasPermission(actor,"records.read")||!hasModuleAccess(actor.modules,definition.module))return {where:"FALSE",args:[] as (string|number|null)[]};
  if(mode==="shadow")await readPurchasedAccess(database,mode,{companyId:actor.companyId,capability:definition.capability});
- const purchase=mode==="enforced"&&purchased?`EXISTS(WITH asset_source_clock AS MATERIALIZED ${assetClockNowMsSql} ${assetSourceProbeSql("asset_source_clock",purchasedCapabilityPredicate(`${alias}.company_id`,definition.capability,"history","asset_source_clock.now_ms"))})`:"TRUE";
+ const purchase=mode==="enforced"&&purchased?`EXISTS(WITH asset_source_clock AS MATERIALIZED (${await nativeAssetsClockScalar()}) ${assetSourceProbeSql("asset_source_clock",purchasedCapabilityPredicate(`${alias}.company_id`,definition.capability,"history","asset_source_clock.now_ms"))})`:"TRUE";
  return {where:`${alias}.company_id=? AND (?::text IS NULL OR ${alias}.branch_id=?) AND (?::text IS NULL OR ${alias}.department_id=?) AND ${assignmentReadSql(alias,"records.read")} AND ${purchase}`,args:[actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId,actor.assignmentId,actor.userId,actor.role]};
 }
 export async function assetSourceReadScope(database:SqlDatabase,actor:WorkContext,surface:"records"|"staff"|"inbox"){

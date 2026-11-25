@@ -152,6 +152,6 @@ describe('marketing read-tail r54 dedupe', () => {
   });
 
   it('pins the owner head KPI to 17 (BEFORE=20; lane 40 retired 2 TS SELECTs)', async () => {
-    expect(await ownerHeadTokens()).toEqual({ spaced: 16, bare: 16 });
+    expect(await ownerHeadTokens()).toEqual({ spaced: 14, bare: 14 });
   });
 });

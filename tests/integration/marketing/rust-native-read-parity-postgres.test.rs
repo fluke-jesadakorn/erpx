@@ -24,7 +24,7 @@ const TS_LIST: &str =
 const TS_OWNER: &str =
     include_str!("../../../packages/server-marketing/src/adapters/owner-point-read-sql.ts");
 const TS_ACTIVE: &str =
-    include_str!("../../../packages/server-marketing/src/adapters/active-form-sql.ts");
+    include_str!("../../../packages/server-marketing/src/adapters/form-asset-read-head.ts");
 const TS_CONTENT: &str =
     include_str!("../../../packages/server-marketing/src/adapters/public-form-content-source.ts");
 const TS_HEAD: &str =
@@ -99,16 +99,22 @@ fn live_statements_match_typescript_authority() {
     assert!(TS_LOCAL.contains("marketingReadTailSql(table, ` WHERE ${predicate}${order}${forUpdate}`)"));
     assert!(TS_LOCAL.contains("marketing_assets"));
     assert!(TS_LOCAL.contains("id=? AND company_id=?"));
-    assert!(TS_ACTIVE.contains("formAssetReadHead({ kind:'form', projection, company, version })"));
+    assert!(TS_ACTIVE.contains("projection: 'source' | 'public'; company?: boolean; version?: boolean"));
     assert!(TS_CONTENT.contains("formAssetReadHead({ kind: 'content', projection })"));
     assert!(TS_HEAD.contains("return `SELECT ${projection} FROM marketing_assets WHERE ${predicate}`"));
     assert!(TS_HEAD.contains("`id=?${read.company ? ' AND company_id=?' : ''}${read.version ? ' AND version=?' : ''} AND kind='form' AND status='active'`"));
     assert!(TS_HEAD.contains("id=? AND company_id=? AND kind='content' AND status='active' AND version=?"));
-    assert!(TS_MARKETING.contains("marketingCompanyListSql('marketing_assets','')"));
+    // r55 cut the workspace asset point/list reads over to the native owner
+    // read ports; no TypeScript fallback statement remains in the repository.
+    assert!(TS_MARKETING.contains("nativeMarketingReadAll<Row>(MARKETING_RD_ASSET_LIST,{companyId:a.companyId},write)"));
+    assert!(TS_MARKETING.contains("nativeMarketingReadFirst<Row>(MARKETING_RD_ASSET_POINT,{assetId:id,companyId:a.companyId},write)"));
+    assert!(!TS_MARKETING.contains("nativeMarketingReadConfigured"));
+    assert!(!TS_MARKETING.contains("marketingCompanyListSql('marketing_assets','')"));
     assert!(TS_LIST.contains("marketingReadTailSql(table, ` WHERE company_id=?${scope} ORDER BY updated_at DESC`)"));
     assert!(TS_CAMPAIGN.contains("marketingOwnerPointReadSql(\"1\", \"marketing_campaigns\")"));
     assert!(TS_OWNER.contains("SELECT ${projection} FROM ${source} WHERE ${q}id=? AND ${q}company_id=?"));
-    assert!(TS_PURCHASE.contains("SELECT ${id}.id,${id}.company_id,${spec.scope},${spec.witness} witness FROM ${spec.source}"));
+    assert!(TS_PURCHASE.contains("const head = `${id}.id,${id}.company_id,${spec.scope},${spec.witness} witness`"));
+    assert!(TS_PURCHASE.contains("marketingSelectHeadSql(head, ` FROM ${spec.source}`)"));
     assert!(TS_PURCHASE.contains("NULL::text branch_id,NULL::text department_id"));
     assert!(TS_PURCHASE.contains("to_jsonb(campaign)"));
     assert!(TS_PURCHASE.contains("marketing_campaigns campaign"));
@@ -117,9 +123,15 @@ fn live_statements_match_typescript_authority() {
         "marketing_campaign_costs cost JOIN marketing_campaigns campaign ON campaign.id=cost.campaign_id AND campaign.company_id=cost.company_id"
     ));
     assert!(TS_PUBLIC_FORM.contains("marketingFormContentSql('1')"));
-    assert!(TS_PUBLIC_FORM.contains("marketingFormContentSql('id,version,preview_json')"));
-    assert!(TS_PUBLIC_FORM.contains("activeFormSql('public')"));
+    assert!(TS_PUBLIC_FORM.contains("LANE40_FORM_CONTENT_ROW"));
+    assert!(!TS_PUBLIC_FORM.contains("marketingFormContentSql('id,version,preview_json')"));
+    assert!(TS_PUBLIC_FORM.contains("MARKETING_RD_FORM_PUBLIC"));
     assert!(TS_CRM_SOURCES.contains(crm_candidates!()));
+    // The retired candidate SELECT family is now rendered from the two shared
+    // owner heads; their fragments must still compose the frozen byte oracle.
+    assert!(TS_PACKAGE.contains("candidates:marketingSelectHeadSql(`c.*,valid.id IS NOT NULL AND EXISTS(${marketingPointExistsSql(`marketing_assets form"));
+    assert!(TS_PACKAGE.contains("'form.id=c.form_id AND form.company_id=c.company_id')}) source_valid`,` FROM marketing_lead_candidates c LEFT JOIN (${crmMarketingCandidateSources}) valid ON valid.id=c.id AND valid.company_id=c.company_id`)"));
+    assert!(!TS_PACKAGE.contains("candidates:`SELECT c.*"));
     assert!(TS_PACKAGE.contains("nativeMarketingReadAll<{kind:string;id:string;fact:unknown;pending:boolean}>(MARKETING_RD_PACKAGE_OBLIGATIONS"));
     assert!(TS_PACKAGE.contains("LOCK TABLE marketing_assets,marketing_asset_events,marketing_lead_candidates,marketing_engagement_events,marketing_campaigns,marketing_campaign_costs,marketing_touches,marketing_public_receipts,marketing_public_limits,command_receipts IN SHARE MODE"));
     assert!(!TS_PACKAGE.contains("WITH scope AS(SELECT ?::text company_id)\n SELECT 'asset' kind"));

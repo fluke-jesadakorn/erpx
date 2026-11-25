@@ -1,4 +1,5 @@
 pub use crate::adapters::cli::validate_foundation_address;
+pub mod control_plane_read_port;
 pub mod native_command;
 pub mod native_command_http;
 pub use crate::adapters::http::{foundation_router, foundation_router_with_inventory};

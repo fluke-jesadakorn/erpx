@@ -125,7 +125,7 @@ describe('read-tail r52 ordinal point-read bare-head fold', () => {
     }
   });
 
-  it('retirement:ts-statements is 28 after the r53 head fold (29->28)', async () => {
+  it('retirement:ts-statements is 26 after the r39 native inventory cut the r53 head fold (29->28)', async () => {
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -136,6 +136,6 @@ describe('read-tail r52 ordinal point-read bare-head fold', () => {
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(30);
-    expect(total).toBe(28);
+    expect(total).toBe(26);
   });
 });

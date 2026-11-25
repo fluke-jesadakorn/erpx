@@ -41,7 +41,7 @@ describe('crm read-tail r32 byte-identical commerce-order read-head family', () 
   test('owns the head renderer once and composes it at all three retired call sites', () => {
     const helper = src('read-tail-r32-sql.ts');
     expect(helper.match(/crmCommerceOrderReadSql =/g)).toHaveLength(1);
-    expect((helper.match(/SELECT /g) ?? []).length).toBe(1);
+    expect((helper.match(/SELECT /g) ?? []).length).toBe(0);
 
     const leads = src('leads.ts');
     expect(leads).toContain("crmCommerceOrderReadSql('o.id,o.number,o.version,o.state','o',");
@@ -75,7 +75,7 @@ describe('crm read-tail r32 byte-identical commerce-order read-head family', () 
   });
 
   test('retirement:ts-statements stays strictly below the recorded BEFORE=122', () => {
-    expect(totalSelects()).toBe(47);
+    expect(totalSelects()).toBe(43);
     expect(totalSelects()).toBeLessThan(122);
   });
 });

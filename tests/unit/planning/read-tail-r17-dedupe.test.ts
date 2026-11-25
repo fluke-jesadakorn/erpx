@@ -91,7 +91,7 @@ describe('Planning read-tail r17 parameterized projection/FROM head', () => {
     expect(src('purchase-sources.ts')).toContain('LOCK TABLE planning_scenarios,planning_recommendations,planning_scenario_events,planning_resource_allocations,production_resources,production_resource_calendar IN ${writer?"SHARE ROW EXCLUSIVE":"SHARE"} MODE');
     expect(src('package-obligations.ts')).toContain('planningPurchaseSourceReadLocks(database)');
     const read = src('production-command-sources-read.ts');
-    expect(read).toContain('planningScopedBranchList(');
+    expect(read).toContain('nativeScenarios(');
     expect(read).toContain('nativeScenario(');
     expect(read).toContain('planningCommandExistsGuard(');
     expect(read).not.toContain('LOCK TABLE');

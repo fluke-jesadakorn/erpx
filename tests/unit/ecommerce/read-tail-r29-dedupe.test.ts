@@ -84,7 +84,8 @@ describe('Ecommerce read-tail r29 ordered-list fold', () => {
     expect(read('adapters/commerce-source-locks.ts')).toContain('LOCK TABLE ecommerce_channels,ecommerce_listings,ecommerce_carts,ecommerce_cart_lines,ecommerce_checkouts,ecommerce_fulfillment_links,ecommerce_return_links IN SHARE ROW EXCLUSIVE MODE');
     expect(read('adapters/package-sources.ts')).toContain("export const ecommerceNativeOrderRoots=ecommerceScalar(`cart.company_id,cart.id cart_id,'order-ecommerce-order-'||cart.id order_id FROM ecommerce_carts cart`);");
     expect(ecommerceNativeOrderRoots).toBe("SELECT cart.company_id,cart.id cart_id,'order-ecommerce-order-'||cart.id order_id FROM ecommerce_carts cart");
-    expect(read('adapters/executive-metric-projections.ts')).toContain('ecommerceScalar(`${label} label,count(*)::text value FROM ${relation} WHERE ${scopedAlias("c")} AND ${extra} GROUP BY 1 ORDER BY 1`)');
+    expect(read('adapters/executive-metric-projections.ts')).toContain('nativeExecutiveMetric');
+    expect(read('adapters/native_exec_metric/domain.rs')).toContain('SELECT c.status label,count(*)::text value FROM ecommerce_carts c WHERE {scope_sql}');
   });
 });
 

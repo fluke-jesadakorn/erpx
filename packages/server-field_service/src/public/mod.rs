@@ -22,6 +22,8 @@ pub mod file_source;
 
 pub mod source_record;
 
+pub mod record_probe;
+
 pub mod final_root_projection;
 
 pub mod final_root_consumer;

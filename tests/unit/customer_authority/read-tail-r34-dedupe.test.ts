@@ -126,6 +126,6 @@ describe('Customer Authority read-tail r34 union fact row scaffold', () => {
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(47);
     // r43 further reduced the tail (26 -> 22); keep the current exact pin.
-    expect(total).toBe(18);
+    expect(total).toBe(17);
   });
 });

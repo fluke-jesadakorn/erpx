@@ -93,7 +93,7 @@ describe('Runtime read-tail r14 executive_generation_jobs generation.ts five rea
       }
     };
     walk(srcRoot);
-    expect(total).toBe(26);
+    expect(total).toBe(24);
     expect(total).toBeLessThan(36);
   });
 });

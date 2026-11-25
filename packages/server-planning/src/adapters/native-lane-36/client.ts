@@ -27,6 +27,7 @@ type Config = Readonly<{ privateBaseUrl: string; timeoutMs: number; holdings: re
 
 export type LaneKind =
   | 'recommendations'
+  | 'scenarios'
   | 'resources'
   | 'calendar'
   | 'scenario'
@@ -70,7 +71,7 @@ const inSet = (value: unknown, values: readonly string[]): boolean =>
   typeof value === 'string' && values.includes(value);
 
 const KINDS: readonly LaneKind[] = [
-  'recommendations', 'resources', 'calendar', 'scenario', 'scoped-recommendation', 'comparison',
+  'recommendations', 'scenarios', 'resources', 'calendar', 'scenario', 'scoped-recommendation', 'comparison',
 ];
 const isRowKind = (kind: LaneKind): boolean =>
   kind === 'scenario' || kind === 'scoped-recommendation' || kind === 'comparison';
@@ -82,6 +83,11 @@ const RECOMMENDATION_KEYS = [
   'id', 'scenario_id', 'scenario_version', 'recommended_quantity_milli', 'required_minutes',
   'feasible_date', 'status', 'created_by', 'reviewed_by', 'version', 'created_at', 'updated_at',
   'company_id', 'branch_id',
+] as const;
+const SCENARIO_LIST_KEYS = [
+  'id', 'company_id', 'branch_id', 'warehouse_id', 'specification_id', 'specification_version',
+  'demand_quantity_milli', 'due_date', 'capacity_minutes', 'shortages_json', 'status',
+  'created_by', 'version', 'created_at', 'updated_at', 'context_json', 'specification_name',
 ] as const;
 const RESOURCE_KEYS = [
   'id', 'company_id', 'branch_id', 'code', 'name', 'daily_minutes', 'work_weekdays_json',
@@ -118,6 +124,17 @@ const recommendationShape = (row: unknown): boolean =>
 
 function rowValidator(kind: LaneKind): (row: unknown) => boolean {
   if (kind === 'recommendations') return recommendationShape;
+  if (kind === 'scenarios')
+    return (row: unknown) =>
+      exact(row, SCENARIO_LIST_KEYS) &&
+      identifier(row.id) && identifier(row.company_id) && identifier(row.branch_id) &&
+      identifier(row.warehouse_id) && identifier(row.specification_id) &&
+      integer(row.specification_version, 1) && integer(row.demand_quantity_milli, 1) &&
+      text(row.due_date, 40) && integer(row.capacity_minutes, 0) &&
+      text(row.shortages_json, 1_048_576) && inSet(row.status, SCENARIO_STATUSES) &&
+      identifier(row.created_by) && integer(row.version, 1) &&
+      integer(row.created_at) && integer(row.updated_at) && text(row.context_json, 1_048_576) &&
+      text(row.specification_name, 400);
   if (kind === 'resources')
     return (row: unknown) =>
       exact(row, RESOURCE_KEYS) &&
@@ -358,6 +375,8 @@ const single = (kind: LaneKind) => async (
 
 /** Scoped recommendation list; sole read authority is the native owner route. */
 export const nativeRecommendations = scoped('recommendations');
+/** Scenario list; sole read authority is the native owner route. */
+export const nativeScenarios = scoped('scenarios');
 /** Production resources list; sole read authority is the native owner route. */
 export const nativeResources = scoped('resources');
 /** Resource calendar list; sole read authority is the native owner route. */

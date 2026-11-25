@@ -17,8 +17,6 @@ pub const ORG_NODES_SOURCE: &str =
 pub const SCOPED_ALIAS: &str =
     "c.company_id=? AND (?::text IS NULL OR c.branch_id=?) AND (?::text IS NULL OR c.department_id=?)";
 
-pub const MAX_LABEL_LEN: usize = 512;
-pub const MAX_SQL_LEN: usize = 16384;
 pub const MAX_ROWS: usize = 1000;
 pub const MAX_RANGE_MS: i64 = 366 * 24 * 60 * 60 * 1000;
 

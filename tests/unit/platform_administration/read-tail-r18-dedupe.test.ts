@@ -85,7 +85,7 @@ describe('Platform Administration read-tail r18 row-head fold', () => {
     expect(predicate).toContain("export function releaseAcceptanceRowSql(columns: string, predicate: string, suffix = '', table = 'company_release_acceptances')");
     expect(predicate).toContain("releaseRevisionReadSql(scope, ' FOR SHARE')");
     expect(predicate).not.toMatch(/SELECT revision FROM \$\{releaseRevisionTable\(scope\)\}/);
-    expect(predicate.split('SELECT ').length - 1).toBe(9);
+    expect(predicate.split('SELECT ').length - 1).toBe(7);
   });
 
   test('callers and their bind arrays are unchanged', () => {
@@ -125,7 +125,7 @@ describe('Platform Administration r18 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(23);
+    expect(total).toBe(21);
     expect(total).toBeLessThan(28);
   });
 });

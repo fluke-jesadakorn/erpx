@@ -502,6 +502,7 @@
 @source "../../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r45-sources.ts";
 @source "../../../../packages/server-customer_authority/src/adapters/last-audit-owner-projection-sources.ts";
 @source "../../../../packages/server-customer_authority/src/adapters/native-customer-authority-wave3.ts";
+@source "../../../../packages/server-customer_authority/src/adapters/native-owner-read.ts";
 @source "../../../../packages/server-customer_authority/src/adapters/portal-access.ts";
 @source "../../../../packages/server-customer_authority/src/adapters/portal-binding-source.ts";
 @source "../../../../packages/server-customer_authority/src/adapters/portal-projection-unit.ts";

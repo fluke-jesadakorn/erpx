@@ -1,0 +1,4 @@
+{
+  "sourceReadScopeProbe": "SELECT 1 FROM (SELECT id FROM field_service_agreements UNION SELECT id FROM field_service_orders) native_field_record WHERE native_field_record.id=workspace_records.id",
+  "workspaceRecordProbe": "SELECT 1 FROM (SELECT id FROM field_service_agreements UNION SELECT id FROM field_service_orders) native_field_record WHERE id=?"
+}

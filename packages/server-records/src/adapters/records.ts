@@ -45,6 +45,8 @@ import { holdingResources as nativeHoldingResources } from '../../../../packages
 import { policyRead as nativePolicyRead, policyNow as nativePolicyNow } from '@erpx/server-identity_access/public/iam-read-snapshot';
 import { replayCommand as nativeReplayCommand, executeCommand as nativeExecuteCommand } from '@erpx/server-workflow/public/commands';
 import { ApiError as NativeApiError } from '@erpx/server-runtime/public/http';
+import { createNativeRecordContextClient, nativeRecordContextConfiguration, nativeRecordContextFailure } from '../public/native-record-context';
+import { projectionColumnHeadSql } from './read-tail-r32-sql';
 import { nativeRecordsStatement } from '@erpx/feature-records/adapters/server/native-records-command';
 import { type RecordRow, updateRecordSchema, createRecordSchema, transitionSchema, addReferenceSchema, suggestionSchema, suggestionDecisionSchema, addPrincipalMentionSchema } from '@erpx/server-records/domain/records';
 import { createRecordsApplication, type RecordsRepository } from '@erpx/server-records/application/records';
@@ -64,9 +66,9 @@ const recordVersionExistsSql = existsGuardSql('workspace_records', 'module_id=? 
 // Shared owner-local workspace-record projection for list/get/page reads; identical SQL.
 const recordRowSelectSql = "SELECT module_id,id,section_id,title,description,status,fields_json,version,created_by,updated_at";
 // One owner-local record read SQL family. Each call renders byte-identical
-// prior SQL; only the admitted literals are shared.
+// prior SQL; the spaced read head now lives only in the shared r32 renderer.
 export const recordContextDetailSql = (table: string, columns: string, where: string, order: string) =>
-    `SELECT ${columns} FROM ${table} WHERE ${where}${order}`;
+    projectionColumnHeadSql(columns, table, ` WHERE ${where}${order}`);
 // Retained record_context edges/count consumers are a thin family over the
 // detail generator; each shape still emits its byte-identical prior SQL.
 export const referenceEdgesSql = (scope: 'host' | 'target', shape: 'references' | 'backlinks' | 'count') => {
@@ -106,24 +108,16 @@ function application(provided?: SqlDatabase,actor?:WorkContext) {
         stageTransitionRecordUpdate() { throw new NativeApiError(503,'NATIVE_RECORDS_UNAVAILABLE','The native Records command is unavailable.'); },
         stageTransitionRecordHistory() { throw new NativeApiError(503,'NATIVE_RECORDS_UNAVAILABLE','The native Records command is unavailable.'); },
         guard9(key: string, value: "record-version", companyId: string, moduleId: string, id: string, version: number) { return assertion(database, key, value, existsGuardSql('workspace_records', 'company_id=? AND module_id=? AND id=? AND version=? AND archived_at IS NULL'), [companyId, moduleId, id, version]); },
-        readRecordContextEdgesbacklinksmentionssuggestionshistory(moduleId: string, id: string) {
-            return database.prepare(referenceEdgesSql('host','references')).bind(moduleId, id).all<{
-                target_module: string;
-                target_id: string;
-                kind: string;
-                ordinal: number;
-            }>();
-        },
-        readRecordContextEdgesbacklinksmentionssuggestionshistory2(moduleId: string, id: string) {
-            return database.prepare(referenceEdgesSql('target','backlinks')).bind(moduleId, id).all<{
-                host_module: string;
-                host_id: string;
-                kind: string;
-            }>();
-        },
-        readRecordContextEdgesbacklinksmentionssuggestionshistory3(moduleId: string, id: string) { return database.prepare(recordContextDetailSql('record_principal_mentions','target_kind,target_id,target_label,created_at','host_module=? AND host_id=?',' ORDER BY created_at')).bind(moduleId, id).all(); },
-        readRecordContextEdgesbacklinksmentionssuggestionshistory4(moduleId: string, id: string) { return database.prepare(recordContextDetailSql('record_field_suggestions','id,field_key,proposed_value_json,source_versions_json,provenance_json,state,created_at','module_id=? AND record_id=?',' ORDER BY created_at DESC LIMIT 20')).bind(moduleId, id).all(); },
-        readRecordContextEdgesbacklinksmentionssuggestionshistory5(moduleId: string, id: string) { return database.prepare(recordContextDetailSql('workspace_record_transitions','from_status,to_status,action,note,actor_id,record_version,created_at','module_id=? AND record_id=?',' ORDER BY created_at DESC LIMIT 20')).bind(moduleId, id).all(); },
+        /** Retired: the context read family executes in the native Rust reader. */
+        readRecordContextEdgesbacklinksmentionssuggestionshistory() { throw new NativeApiError(503,'NATIVE_RECORDS_UNAVAILABLE','The native Records context reader is unavailable.'); },
+        /** Retired: the context read family executes in the native Rust reader. */
+        readRecordContextEdgesbacklinksmentionssuggestionshistory2() { throw new NativeApiError(503,'NATIVE_RECORDS_UNAVAILABLE','The native Records context reader is unavailable.'); },
+        /** Retired: the context read family executes in the native Rust reader. */
+        readRecordContextEdgesbacklinksmentionssuggestionshistory3() { throw new NativeApiError(503,'NATIVE_RECORDS_UNAVAILABLE','The native Records context reader is unavailable.'); },
+        /** Retired: the context read family executes in the native Rust reader. */
+        readRecordContextEdgesbacklinksmentionssuggestionshistory4() { throw new NativeApiError(503,'NATIVE_RECORDS_UNAVAILABLE','The native Records context reader is unavailable.'); },
+        /** Retired: the context read family executes in the native Rust reader. */
+        readRecordContextEdgesbacklinksmentionssuggestionshistory5() { throw new NativeApiError(503,'NATIVE_RECORDS_UNAVAILABLE','The native Records context reader is unavailable.'); },
         async readSearchReferencesResult(args: string[], modules: string[], term: string, term2: string, selection: RecordScopeSelection, placeholders: string) {
             return withExpenseWorkspaceRecordRead(database,actor,async database=>{
             const scope = scopeSql(selection),basePeople=actor?await peopleSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},purchase=actor?await financeWorkspaceSearchScope(database,actor):{clock:"",where:"TRUE",args:[]},commerce=actor?await commerceSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},payroll=actor?await payrollSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},count=actor?await countSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},procurement=actor?await procurementSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},transfer=actor?await transferSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},projects=actor?await projectSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},quality=actor?await qualitySourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},learning=actor?await learningSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},assets=actor?await assetSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},landedCost=actor?await landedCostSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},manufacturing=actor?await manufacturingSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},talent=actor?await talentSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},legal=actor?await legalSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},crm=actor?await crmSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},marketing=actor?await marketingSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},followups=actor?await followupSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},workforce=actor?await workforceSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},benefits=actor?await benefitSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},service=actor?await serviceSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},work=actor?await workSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]};
@@ -189,7 +183,41 @@ async function invoke<Result>(run: () => Promise<Result>) {
 export async function listRecords(actor: WorkContext, moduleId: string, sectionId: string) { return invoke(() => application(undefined,actor).listRecords(actor, moduleId, sectionId)); }
 export async function getRecord(actor: WorkContext, moduleId: string, id: string, provided?: SqlDatabase) { return invoke(() => application(provided,actor).getRecord(actor, moduleId, id)); }
 export async function transitionRecord(actor: WorkContext, moduleId: string, id: string, input: z.infer<typeof transitionSchema>, key: string = crypto.randomUUID()) { return invoke(() => application(undefined,actor).transitionRecord(actor, moduleId, id, input, key)); }
-export async function recordContext(actor: WorkContext, moduleId: string, id: string) { return invoke(() => application(undefined,actor).recordContext(actor, moduleId, id)); }
+/** Native context for a Records-owned workspace record. Never falls back to TS SQL. */
+export async function recordContext(actor: WorkContext, moduleId: string, id: string) {
+    if (!actor.authority || !actor.iam)
+        throw new NativeApiError(409, 'WORK_CONTEXT_CHANGED', 'Your work role changed. Reload and review before retrying.');
+    const raw = process.env.ERPX_NATIVE_RECORDS_CONFIG;
+    if (raw === undefined)
+        throw new NativeApiError(503, 'NATIVE_RECORD_CONTEXT_UNAVAILABLE', 'The native Records reader is unavailable.');
+    try {
+        const client = createNativeRecordContextClient(nativeRecordContextConfiguration(raw));
+        const { headers: requestHeaders } = await import('next/headers');
+        const scope = actor.scope;
+        return await client.context(await requestHeaders(), {
+            userId: actor.userId,
+            holdingId: actor.holdingId,
+            holdingSlug: actor.holdingSlug,
+            companyId: actor.companyId,
+            branchId: actor.branchId,
+            departmentId: actor.departmentId,
+            branchSlug: scope.kind === 'branch' || scope.kind === 'department' ? (scope.branchSlug ?? null) : null,
+            departmentSlug: scope.kind === 'department' ? scope.departmentSlug : null,
+            assignmentId: actor.assignmentId,
+            role: actor.role,
+            assignmentScope: actor.assignmentScope,
+            modules: actor.modules,
+            authority: actor.authority,
+            iam: { permissions: actor.iam.permissions },
+        }, { holdingSlug: actor.holdingSlug, moduleId, recordId: id });
+    }
+    catch (error) {
+        const mapped = nativeRecordContextFailure(error);
+        if (!mapped)
+            throw error;
+        throw new NativeApiError(mapped.status, mapped.code, mapped.message);
+    }
+}
 export async function searchReferences(actor: WorkContext, query: string) { return invoke(() => application(undefined,actor).searchReferences(actor, query)); }
 export async function addPrincipalMention(actor: WorkContext, moduleId: string, id: string, input: z.infer<typeof addPrincipalMentionSchema>, key = crypto.randomUUID()) { return invoke(() => application(undefined,actor).addPrincipalMention(actor, moduleId, id, input, key)); }
 export async function addReference(actor: WorkContext, moduleId: string, id: string, input: z.infer<typeof addReferenceSchema>, key = crypto.randomUUID()) { return invoke(() => application(undefined,actor).addReference(actor, moduleId, id, input, key)); }

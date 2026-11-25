@@ -20,6 +20,8 @@ pub const RD_PKG_LINKS: &str = "package-finance-links";
 pub const RD_OBLIGATIONS_BASE: &str = "package-obligations-base";
 pub const RD_OBLIGATIONS_PREVENTIVE: &str = "package-obligations-preventive";
 pub const RD_OBLIGATIONS_PARTS: &str = "package-obligations-parts";
+/// Cross-owner package clock scalar, inlined by the retired Assets clock CTE.
+pub const RD_PACKAGE_CLOCK: &str = "package-clock-now-ms";
 
 /// A bind position in a planned statement, in wire order.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -92,6 +94,14 @@ macro_rules! parts_refs {
     };
 }
 
+/// Verbatim cross-owner clock expression from the Commercial read authority.
+macro_rules! package_clock {
+    () => {
+        "floor(extract(epoch FROM clock_timestamp())*1000)::bigint"
+    };
+}
+const PLAN_PACKAGE_CLOCK: &str =
+    "SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint now_ms";
 const PLAN_FS_SOURCE_ROWS: &str =
     "SELECT id,company_id,branch_id,department_id,lifecycle_status,warranty_end,version FROM operational_assets";
 const PLAN_FS_IMAGE: &str =
@@ -163,6 +173,20 @@ const PKG_CROSS_PARTS: &[&str] = &[
 ];
 const FS_LOCKS: &str = "operational_assets";
 const PKG_LOCKS: &str = "operational_assets,operational_asset_events,operational_asset_finance_links,organization_nodes,finance_assets,maintenance_work_orders,maintenance_preventive_plans,operational_inventory_consumptions";
+const CLOCK_AUTHORITY: &str = "package-clock-no-locks";
+
+/// Exact cross-owner clock scalar retired from the TypeScript clock CTE. The
+/// caller embeds the returned statement as a materialized CTE body; no TS
+/// statement token remains on the purchase/metric read paths.
+pub const PLAN_PACKAGE_CLOCK_READ: ReadPlan = ReadPlan {
+    kind: RD_PACKAGE_CLOCK,
+    caller: "assets.package-clock",
+    sql: PLAN_PACKAGE_CLOCK,
+    binds: &[],
+    scope: NO_SCOPE,
+    cross_owner: &[package_clock!()],
+    authority: CLOCK_AUTHORITY,
+};
 
 /// Exact live read of `fieldServiceAssetSourceRows`.
 pub const PLAN_FS_SOURCE_ROWS_READ: ReadPlan = ReadPlan {
@@ -232,6 +256,7 @@ pub const PLAN_OBLIGATIONS_PARTS_READ: ReadPlan = ReadPlan {
 
 /// The closed registry, in stable wire order.
 pub const PLANS: &[ReadPlan] = &[
+    PLAN_PACKAGE_CLOCK_READ,
     PLAN_FS_SOURCE_ROWS_READ,
     PLAN_FS_IMAGE_READ,
     PLAN_ASSET_SOURCES_READ,
@@ -265,12 +290,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn closed_registry_of_seven_caller_unit_reads() {
-        assert_eq!(PLANS.len(), 7);
-        assert_eq!(kinds().count(), 7);
+    fn closed_registry_of_eight_caller_unit_reads() {
+        assert_eq!(PLANS.len(), 8);
+        assert_eq!(kinds().count(), 8);
         assert_eq!(
             kinds().collect::<std::collections::BTreeSet<_>>().len(),
-            7,
+            8,
             "read kinds must be unique"
         );
         for kind in kinds() {
@@ -303,6 +328,18 @@ mod tests {
                 assert!(sql.contains(fragment), "{} missing {fragment}", entry.kind);
             }
         }
+    }
+
+    #[test]
+    fn clock_plan_carries_the_cross_owner_scalar_without_binds() {
+        let clock = plan(RD_PACKAGE_CLOCK).expect("clock plan");
+        assert_eq!(
+            clock.sql,
+            concat!("SELECT ", package_clock!(), " now_ms")
+        );
+        assert!(clock.sql.contains(package_clock!()));
+        assert!(clock.binds.is_empty());
+        assert!(clock.cross_owner.contains(&package_clock!()));
     }
 
     #[test]

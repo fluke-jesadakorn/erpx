@@ -120,7 +120,7 @@ describe('crm read-tail r51 byte-identical lead-select head', () => {
   });
 
   test('retirement:ts-statements drops from the r50 AFTER=48 to 47', () => {
-    expect(totalSelects()).toBe(47);
+    expect(totalSelects()).toBe(43);
     expect(totalSelects()).toBeLessThan(48);
   });
 });

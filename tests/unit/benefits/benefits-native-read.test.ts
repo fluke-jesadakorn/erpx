@@ -1,5 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
+
+const source = (path: string) => readFileSync(
+  resolve(__dirname, '../../../packages/server-benefits/src', path),
+  'utf8',
+);
 
 const { nativeWorkspace, nativeDetail } = vi.hoisted(() => ({
   nativeWorkspace: vi.fn(),
@@ -143,5 +150,22 @@ describe('Benefits native work projection', () => {
     const error = new ApiError(503, 'NATIVE_BENEFITS_UNAVAILABLE', 'down');
     nativeWorkspace.mockRejectedValue(error);
     await expect(benefitWork(actor)).rejects.toBe(error);
+  });
+});
+
+describe('Benefits native read port carries no TypeScript SQL', () => {
+  it('contains no SQL, database handle or fallback in the adapter or public barrel', () => {
+    for (const path of ['adapters/benefits-native-read.ts', 'public/benefits-native-read.ts']) {
+      const text = source(path);
+      expect(text, path).not.toMatch(/\bSELECT\s|\bINSERT\s+INTO\b|\bDELETE\s+FROM\b|\bUPDATE\s+\w+\s+SET\b/i);
+      expect(text, path).not.toMatch(/\bdatabase\b|\bprepare\s*\(/);
+      expect(text, path).not.toMatch(/catch\s*\(\s*\(\)\s*=>/);
+    }
+  });
+
+  it('publishes exactly the workspace, detail and work native reads', () => {
+    const barrel = source('public/benefits-native-read.ts');
+    for (const name of ['benefitsWorkspace', 'benefitDetail', 'benefitWork']) expect(barrel).toContain(name);
+    expect(barrel.match(/export\s*\{/g) ?? []).toHaveLength(1);
   });
 });

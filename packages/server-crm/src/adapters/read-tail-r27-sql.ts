@@ -1,4 +1,5 @@
 import {crmSingleKeySourceSql} from './read-tail-r37-sql';
+import { crmProjectionFromSql } from './read-tail-r46-sql';
 
 /** G4 / retire.crm.read-tail-r27 byte-identical read families.
  *
@@ -14,7 +15,7 @@ import {crmSingleKeySourceSql} from './read-tail-r37-sql';
  * EXISTS wrapper vary; the one read token lives here and renders byte-for-byte
  * as both retired inline literals. */
 const crmOpportunityOwnerAnchor = (projection: string, predicates: string, exists = false) => {
-  const read = `SELECT ${projection} FROM crm_opportunities o JOIN crm_leads l ON l.id=o.lead_id${predicates}`;
+  const read = crmProjectionFromSql(projection, `crm_opportunities o JOIN crm_leads l ON l.id=o.lead_id${predicates}`);
   return exists ? `EXISTS(${read})` : read;
 };
 

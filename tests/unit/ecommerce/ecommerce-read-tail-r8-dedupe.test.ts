@@ -2,60 +2,32 @@ import { describe, expect, test, vi } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
-import { readExecutiveMetricProjection } from '../../../packages/server-ecommerce/src/adapters/executive-metric-projections';
-import { commercialOwnerProjectionSources as organizationProjectionSources } from '../../../packages/server-organization/src/public/commercial-owner-projection-sources';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-ecommerce/src');
 const src = readFileSync(resolve(srcRoot, 'adapters/executive-metric-projections.ts'), 'utf8');
+const rust = readFileSync(resolve(srcRoot, 'adapters/native_exec_metric/domain.rs'), 'utf8');
+const nodes = 'SELECT \\"id\\",\\"kind\\",\\"slug\\",\\"display_name\\",\\"parent_id\\",\\"company_id\\",\\"branch_id\\",\\"status\\",\\"hierarchy_revision\\" FROM organization_nodes';
 
-// Pre-dedupe label fragments copied verbatim from HEAD, kept only as byte-identity oracles.
-const nodes = organizationProjectionSources.organization_nodes;
-const head = {
-  branch: `COALESCE((SELECT n.display_name FROM (${nodes}) n WHERE n.id=c.branch_id AND n.company_id=c.company_id),'Branch')`,
-  department: `COALESCE((SELECT n.display_name FROM (${nodes}) n WHERE n.id=c.department_id AND n.company_id=c.company_id),'Unassigned')`,
-};
-
-// Rebuild the r8 shared fragment exactly as the adapter defines it.
-const nodeNameLabel = (col: string, fallback: string) =>
-  `COALESCE((SELECT n.display_name FROM (${nodes}) n WHERE n.id=c.${col} AND n.company_id=c.company_id),'${fallback}')`;
-
-const actor = { companyId: 'c', branchId: null, departmentId: null, modules: ['ecommerce'], permissions: [], userId: 'u', holdingId: 'h' } as any;
-const filters = { from: '2026-01-01', to: '2026-01-31', currency: 'THB' } as any;
-async function sqlFor(id: string, breakdown: string): Promise<string> {
-  let sql = '';
-  const db: any = { prepare(statement: string) { sql = statement; return { bind() { return this; }, all() { return { results: [] }; } }; } };
-  await readExecutiveMetricProjection(db, actor, id as any, filters, breakdown as any);
-  return sql;
-}
-
-describe('Ecommerce read-tail r8 source-node label family', () => {
-  test('node label is byte-identical for branch and department callers', () => {
-    expect(nodeNameLabel('branch_id', 'Branch')).toBe(head.branch);
-    expect(nodeNameLabel('department_id', 'Unassigned')).toBe(head.department);
+describe('Ecommerce read-tail r8 source-node label family, now native-owned', () => {
+  test('Rust owns the byte-identical branch and department labels', () => {
+    expect(rust).toContain(nodes);
+    expect(rust).toContain('node_name_label("branch_id", "Branch")');
+    expect(rust).toContain('node_name_label("department_id", "Unassigned")');
+    expect(rust).toContain('COALESCE((SELECT n.display_name FROM ({ORG_NODES_SOURCE}) n WHERE n.id=c.{column} AND n.company_id=c.company_id),\'{fallback}\')');
+    expect(rust).toContain('WHERE n.id=c.branch_id AND n.company_id=c.company_id),\'Branch\')');
+    expect(rust).toContain('WHERE n.id=c.department_id AND n.company_id=c.company_id),\'Unassigned\')');
   });
 
-  test('family is defined once and composed at both call sites; literals are gone', () => {
-    expect(src.match(/const nodeNameLabel = /g) ?? []).toHaveLength(1);
-    expect(src.match(/nodeNameLabel\('branch_id','Branch'\)/g) ?? []).toHaveLength(1);
-    expect(src.match(/nodeNameLabel\('department_id','Unassigned'\)/g) ?? []).toHaveLength(1);
-    expect(src).not.toContain("n.id=c.branch_id AND n.company_id=c.company_id),'Branch')");
-    expect(src).not.toContain("n.id=c.department_id AND n.company_id=c.company_id),'Unassigned')");
+  test('the TS adapter emits no label text or organisation projection SQL', () => {
+    expect(src).not.toContain('nodeNameLabel');
+    expect(src).not.toContain('organizationProjectionSources');
+    expect(src).not.toContain('SELECT ');
+    expect(src).toContain('nativeExecutiveMetric');
   });
 
-  test('composed labels stay read-only scalar subqueries', () => {
-    for (const sql of [head.branch, head.department]) {
-      expect(sql).toMatch(/^COALESCE\(\(SELECT n\.display_name FROM /);
-      expect(sql).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
-    }
-  });
-
-  test('emitted metric SQL embeds the byte-identical labels without changing binds', async () => {
-    const scopedAlias = 'c.company_id=? AND (?::text IS NULL OR c.branch_id=?) AND (?::text IS NULL OR c.department_id=?)';
-    expect(await sqlFor('open-ecommerce-carts', 'branch')).toContain(head.branch);
-    expect(await sqlFor('open-ecommerce-carts', 'department')).toContain(head.department);
-    expect(await sqlFor('open-ecommerce-carts', 'status')).toBe(
-      `SELECT c.status label,count(*)::text value FROM ecommerce_carts c WHERE ${scopedAlias} AND c.status='open' GROUP BY 1 ORDER BY 1`,
-    );
+  test('the native labels stay read-only scalar subqueries', () => {
+    const statements = rust.slice(0, rust.indexOf("#[cfg(test)]"));
+    expect(statements).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
   });
 });
 

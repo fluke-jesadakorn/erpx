@@ -34,12 +34,11 @@ describe('command-receipt read-tail dedupe (r49)', () => {
   });
 
   it('anchors the remaining floor singles (no byte-identical r1-r48 helper partner)', async () => {
-    const [flow, inbox, aiRequest, hospitality, inventory, worker, aiRevision] = await Promise.all([
+    const [flow, inbox, aiRequest, hospitality, worker, aiRevision] = await Promise.all([
       src('adapters/flow-planning-ports.ts'),
       src('adapters/collaboration-inbox-sources.ts'),
       src('adapters/finance-ai-request-sources.ts'),
       src('adapters/hospitality-owner-projection-sources.ts'),
-      src('adapters/inventory-audit-history-source.ts'),
       src('adapters/project-worker-startup-evidence.ts'),
       src('adapters/finance-ai-revision-sources.ts'),
     ]);
@@ -54,8 +53,8 @@ describe('command-receipt read-tail dedupe (r49)', () => {
     expect(inbox).toContain("from './native-lane-32/client'");
     expect(aiRequest).toContain('`SELECT company_id,month ${recordsFinalSources.');
     expect(hospitality).toContain('approval_decisions: "SELECT');
-    // Inventory history head, project-worker audit/outbox evidence, finance source revision.
-    expect(inventory).toContain('SELECT a.id,a.action,a.created_at,COALESCE(p.legal_name,a.actor_id) actor_name FROM audit_events a');
+    // Inventory history head moved to the native read in r39; project-worker
+    // audit/outbox evidence and finance source revision remain retained fragments.
     expect(worker).toContain("audit:'SELECT command_id,action,record_id,record_version FROM audit_events'");
     expect(worker).toContain("outbox:'SELECT id,command_id,event_type,aggregate_id,aggregate_version,payload_json FROM outbox_events'");
     expect(aiRevision).toContain("`(SELECT count(*) FROM command_receipts WHERE authority_json::jsonb->>'companyId'=?");
@@ -71,7 +70,6 @@ describe('command-receipt read-tail dedupe (r49)', () => {
       'adapters/finance-ai-revision-sources.ts': 1,
       'adapters/flow-planning-ports.ts': 6,
       'adapters/hospitality-owner-projection-sources.ts': 1,
-      'adapters/inventory-audit-history-source.ts': 1,
       'adapters/json-each-sources.ts': 1,
       'adapters/project-worker-startup-evidence.ts': 2,
       'adapters/work-package-obligation-sources.ts': 1,
@@ -93,7 +91,7 @@ describe('command-receipt read-tail dedupe (r49)', () => {
     expect(expected['adapters/receipt-sql.ts'] ?? 0).toBe(0);
   });
 
-  it('retirement:ts-statements is 27 after the lane-32 failed-metrics cut (28->27)', async () => {
+  it('retirement:ts-statements is 26 after the r39 native inventory-history cut (27->26)', async () => {
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -104,6 +102,6 @@ describe('command-receipt read-tail dedupe (r49)', () => {
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(30);
-    expect(total).toBe(27);
+    expect(total).toBe(26);
   });
 });

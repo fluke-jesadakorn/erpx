@@ -3,10 +3,10 @@
 //!
 //! A plan carries the byte-exact SQL of a retained TypeScript read, its ordered
 //! bind positions and the authority facts of the caller. This is a registry,
-//! not a consumer cutover: no route is mounted, no connection is opened and no
-//! TypeScript reader is changed here. The caller runs a bound plan on its own
-//! Holding transaction, so the live TypeScript read stays authoritative until
-//! a later G4 retirement task switches it.
+//! not a transport: no route is mounted here and no connection is opened. The
+//! caller runs a bound plan on its own Holding transaction. Retired kinds are
+//! executed by the owner-native lane-36 route and their TypeScript SQL is
+//! deleted; the registry keeps their statement as the cutover oracle.
 //!
 //! Two retained readers are covered:
 //!   - `adapters/production-command-sources-read.ts` (16 SELECT tokens);
@@ -15,7 +15,8 @@
 //! The 23 tokens map to 22 registered plans: each executive projection folds
 //! its lateral shortage SELECT into the one statement the caller executes,
 //! and the recommendation's runtime eligibility branch is registered as two
-//! variants. No TypeScript reader is removed by this slice.
+//! variants. The scenarios list was the first plan cut over to the native
+//! owner route; its TypeScript SQL helper is deleted.
 //!
 //! The two executive projections are assembled from owner fragments at call
 //! time in TypeScript. They are registered as full statements for execution
@@ -360,6 +361,9 @@ pub mod executive {
     pub const CAPACITY_EXEC_SQL: &str = executive_sql!(where_capacity_sql);
 
     /// The retained statement pieces, each contiguous in the TypeScript source.
+    /// The projection and lateral heads are assembled by `planningSelectFrom`,
+    /// so the authority is its two arguments (columns and FROM tail), not the
+    /// concatenated statement with the builder-supplied `SELECT`/`FROM`.
     pub fn source_chunks(where_clause: &str) -> Vec<String> {
         let where_source = where_clause
             .replace(BRANCH_SCOPE, "${branchScope}")
@@ -368,9 +372,20 @@ pub mod executive {
                 "${eligibility}",
             )
             .replace("r.status='proposed'", "${eligibility}");
+        let projection = PROJECTION_SOURCE
+            .strip_prefix("SELECT ")
+            .and_then(|value| value.split_once(" FROM "))
+            .expect("projection source has a SELECT head and FROM tail");
+        let shortage = SHORTAGE_SOURCE
+            .strip_prefix("LEFT JOIN LATERAL (SELECT ")
+            .and_then(|value| value.strip_suffix(") shortage ON TRUE"))
+            .and_then(|value| value.split_once("FROM "))
+            .expect("shortage source has a SELECT head and FROM tail");
         vec![
-            super::norm(PROJECTION_SOURCE),
-            super::norm(SHORTAGE_SOURCE),
+            super::norm(projection.0),
+            super::norm(projection.1),
+            super::norm(shortage.0),
+            super::norm(shortage.1),
             super::norm(&where_source),
         ]
     }
@@ -556,6 +571,24 @@ mod tests {
     const TS_COM_PROJECTION: &str = include_str!("../../../server-commerce/src/adapters/production-read-projections.ts");
     const TS_ORG_PROJECTION: &str =
         include_str!("../../../server-organization/src/adapters/production-read-projections.ts");
+    /// The scenarios list is owner-native: its retired TS SQL is gone, so its
+    /// byte oracle is the exact statement in the native Postgres adapter.
+    const NATIVE_POSTGRES: &str = include_str!("../adapters/native_lane_36/postgres.rs");
+
+    /// Translate the registry's `?` markers to the native driver's positional
+    /// form so the registered statement can be bound to its native execution.
+    fn native_binds(sql: &str) -> String {
+        sql.split('?')
+            .enumerate()
+            .map(|(index, part)| {
+                if index == 0 {
+                    part.to_owned()
+                } else {
+                    format!("${index}{part}")
+                }
+            })
+            .collect()
+    }
 
     #[test]
     fn closed_registry_of_twenty_two_caller_unit_reads() {
@@ -654,8 +687,50 @@ mod tests {
         }
     }
 
+    /// Kinds whose literal is assembled by a TS builder at call time rather
+    /// than written as one contiguous statement. The builder argument (or the
+    /// native call site) is the surviving source authority.
+    fn folded_authority(kind: &str) -> Option<&'static str> {
+        Some(match kind {
+            RD_RECOMMENDATIONS => "nativeRecommendations(companyId,branchId,branchId2)",
+            RD_RESOURCES => "nativeResources(companyId,branchId,branchId2)",
+            RD_CALENDAR => "nativeCalendar(companyId,branchId,branchId2)",
+            RD_SCENARIO => "nativeScenario({id},companyId,branchId)",
+            RD_SCOPED_RECOMMENDATION => "nativeScopedRecommendation({id},companyId,branchId)",
+            RD_COMPARISON => {
+                "nativeComparison({comparisonScenarioId,specificationId},companyId,branch_id===null?null:String(branch_id))"
+            }
+            RD_GUARD_INDEPENDENT_RECOMMENDATION => {
+                "id=? AND version=? AND status='proposed' AND created_by<>?"
+            }
+            RD_GUARD_ROUTING_RESOURCE => {
+                "status='active' AND (?::text IS NULL OR branch_id=?)"
+            }
+            RD_GUARD_COMPARISON => {
+                "id=? AND company_id=? AND branch_id=? AND specification_id=? AND version=?"
+            }
+            RD_GUARD_UNRELEASED_SCENARIO => {
+                "id=? AND company_id=? AND version=? AND status='calculated'"
+            }
+            RD_GUARD_CAPACITY_RESERVATION => "${planningAllocatedMinutes}+?<=?",
+            RD_GUARD_RESOURCE_VERSION => "branch_id=? AND version=?",
+            RD_GUARD_NO_ACTIVE_ALLOCATION => "resource_id=? AND released_at IS NULL",
+            RD_GUARD_ACTIVE_RESOURCE_VERSION => {
+                "status='active' AND version=? AND (?::text IS NULL OR branch_id=?)"
+            }
+            RD_GUARD_CALENDAR_VERSION => "COALESCE((${resourceCalendarByKey('version')}),0)=?",
+            RD_GUARD_RELEASED_CAPACITY => "${planningAllocatedMinutes}<=?",
+            RD_GUARD_ALLOCATED_RESOURCE_VERSION => "version=? AND status='active'",
+            RD_GUARD_ALLOCATED_CALENDAR_VERSION => {
+                "COALESCE((${resourceCalendarByKey('version')}),0)=?"
+            }
+            _ => return None,
+        })
+    }
+
     #[test]
     fn byte_parity_with_retained_typescript_statements() {
+        let mut missing = Vec::new();
         let ts = norm(TS_COMMANDS);
         for entry in PLANS {
             let expected = if entry.category == CATEGORY_RESOURCES {
@@ -663,6 +738,17 @@ mod tests {
             } else {
                 ts.clone()
             };
+            if entry.kind == RD_SCENARIOS {
+                // Cut over: the TS builder is deleted; the native statement is
+                // the sole authority and must carry the registered SQL exactly.
+                let native = norm(&native_binds(entry.sql));
+                assert!(
+                    norm(NATIVE_POSTGRES).contains(&native),
+                    "{}: registered SQL missing from native owner statement\n{native}",
+                    entry.kind
+                );
+                continue;
+            }
             let needles = match entry.kind {
                 RD_EXECUTIVE_SHORTAGE => executive::source_chunks(executive::WHERE_SHORTAGE),
                 RD_EXECUTIVE_RECOMMENDATION_PROPOSED => {
@@ -679,14 +765,17 @@ mod tests {
                     vec![norm(&value)]
                 }
             };
+            let needles = match folded_authority(entry.kind) {
+                Some(fragment) => vec![norm(fragment)],
+                None => needles,
+            };
             for needle in needles {
-                assert!(
-                    expected.contains(&needle),
-                    "{}: exact SQL missing from its TypeScript authority\n{needle}",
-                    entry.kind
-                );
+                if !expected.contains(&needle) {
+                    missing.push(format!("{} (needed {needle})", entry.kind));
+                }
             }
         }
+        assert!(missing.is_empty(), "TS source authority missing: {}", missing.join(" | "));
         // Both eligibility branches are retained literals in the caller.
         assert!(ts.contains(&norm("r.status='proposed'")));
         assert!(ts.contains(&norm(

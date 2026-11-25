@@ -574,6 +574,41 @@ mod tests {
     }
 
     #[test]
+    fn offer_candidate_cutover_kinds_are_the_owner_authority() {
+        // Exactly the four discriminators the TS command-plan client sends for
+        // the offer/candidate cutover. They must stay registered, SELECT-only
+        // and uniquely resolved; no caller-supplied SQL can impersonate them.
+        let cutover = [
+            (RD_CANDIDATE_SOURCE_IMAGE, 2usize),
+            (RD_CANDIDATE_SOURCE_IMAGE_FILE, 2usize),
+            (RD_CANDIDATE_EVENTS, 1usize),
+            (RD_OFFER_EVENTS, 1usize),
+        ];
+        for (kind, binds) in cutover {
+            let statement = read_statement(kind).expect("registered cutover kind");
+            assert_eq!(statement.kind, kind);
+            assert_eq!(statement.bind_count, binds);
+            assert_eq!(statement.sql.matches('?').count(), binds);
+            assert!(statement.sql.starts_with("SELECT "), "cutover read must be SELECT-only: {kind}");
+            assert_eq!(
+                STATEMENTS.iter().filter(|entry| entry.kind == kind).count(),
+                1,
+                "cutover kind must resolve to exactly one statement: {kind}"
+            );
+        }
+        assert_eq!(STATEMENTS.len(), 20);
+        // A SQL literal, a case variant and a truncated kind never resolve.
+        for forged in [
+            "SELECT * FROM talent_offers",
+            "TALENT_RD_OFFER_EVENTS",
+            "talent_rd_offer",
+            "talent_rd_candidate",
+        ] {
+            assert!(read_statement(forged).is_none(), "forged kind must fail closed: {forged}");
+        }
+    }
+
+    #[test]
     fn unknown_and_mismatched_read_kinds_fail_closed() {
         assert!(read_statement("SELECT * FROM talent_offers").is_none());
         assert!(read_statement("").is_none());

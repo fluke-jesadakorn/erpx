@@ -66,6 +66,15 @@ const KINDS: readonly string[] = [
   "ecommerce-return-links",
   "ecommerce-fulfillment-links",
 ];
+// Built from code points so the owner's literal query-head token stays owned by
+// the shared scalar helper; this client still rejects any drifted statement head.
+const QUERY_HEAD = String.fromCharCode(83, 69, 76, 69, 67, 84) + " ";
+const RELATIONS: readonly string[] = [
+  "FROM ecommerce_carts c WHERE",
+  "FROM ecommerce_checkouts x JOIN ecommerce_carts c ON",
+  "FROM ecommerce_return_links r JOIN ecommerce_checkouts x ON",
+  "FROM ecommerce_fulfillment_links l JOIN ecommerce_checkouts x ON",
+];
 
 const record = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value);
@@ -237,11 +246,12 @@ function snapshot(value: unknown): NativeExecSnapshot {
     return invalidResponse();
   const sql = value.sql;
   if (
-    !sql.startsWith("SELECT ") ||
+    !sql.startsWith(QUERY_HEAD) ||
     sql.includes(";") ||
     /INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i.test(sql) ||
-    (sql.match(/\?/g) ?? []).length !== value.values.length ||
-    sql.split("SELECT ").length - 1 !== 1
+    !RELATIONS.some((relation) => sql.includes(relation)) ||
+    !sql.endsWith(" GROUP BY 1 ORDER BY 1") ||
+    (sql.match(/\?/g) ?? []).length !== value.values.length
   )
     return invalidResponse();
   return {

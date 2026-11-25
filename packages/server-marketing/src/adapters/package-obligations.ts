@@ -6,6 +6,8 @@ import {packageSettlementSource,type PackageSettlementSourceLock} from '@erpx/se
 import {lockMarketingFilePackageObligationSources,marketingFilePackageObligationFacts} from '@erpx/server-files/public/marketing-package-obligation-sources';
 import {crmMarketingCandidateSources} from '@erpx/server-marketing/adapters/crm-purchase-sources';
 import {marketingPlainSourceSql} from './marketing-plain-source-sql';
+import {marketingSelectHeadSql} from './select-head-sql';
+import {marketingPointExistsSql} from './marketing-point-exists-sql';
 import {MARKETING_RD_PACKAGE_OBLIGATIONS,nativeMarketingReadAll} from './native-marketing-read';
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};const sources=new WeakMap<SqlDatabase,string>();
 export async function lockMarketingPackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){const {database,companyId}=packageSettlementSource(owner,lock);await database.prepare('LOCK TABLE marketing_assets,marketing_asset_events,marketing_lead_candidates,marketing_engagement_events,marketing_campaigns,marketing_campaign_costs,marketing_touches,marketing_public_receipts,marketing_public_limits,command_receipts IN SHARE MODE').run();await lockMarketingFilePackageObligationSources(owner,lock);sources.set(database,companyId);}
@@ -17,7 +19,7 @@ export function assertMarketingPackageObligationSources(owner:PostgresDatabase,d
 const settlementSourceRows=(source:'engagements'|'costs'|'touches'|'campaigns'):string=>marketingPlainSourceSql(source);
 /** Raw native sources retain invalid lineage instead of filtering it into zero. */
 export const marketingPackageSettlementSources={
- candidates:`SELECT c.*,valid.id IS NOT NULL AND EXISTS(SELECT 1 FROM marketing_assets form JOIN marketing_asset_events activated ON activated.asset_id=form.id AND activated.version=c.form_version AND activated.action='activate' AND activated.actor_id<>form.created_by JOIN command_receipts command ON activated.id='marketing-asset-event-'||command.command_id AND command.operation='marketing.asset.activate' AND command.record_id=form.id AND command.actor_id=activated.actor_id AND command.authority_json::jsonb->>'companyId'=c.company_id WHERE form.id=c.form_id AND form.company_id=c.company_id) source_valid FROM marketing_lead_candidates c LEFT JOIN (${crmMarketingCandidateSources}) valid ON valid.id=c.id AND valid.company_id=c.company_id`,
+ candidates:marketingSelectHeadSql(`c.*,valid.id IS NOT NULL AND EXISTS(${marketingPointExistsSql(`marketing_assets form JOIN marketing_asset_events activated ON activated.asset_id=form.id AND activated.version=c.form_version AND activated.action='activate' AND activated.actor_id<>form.created_by JOIN command_receipts command ON activated.id='marketing-asset-event-'||command.command_id AND command.operation='marketing.asset.activate' AND command.record_id=form.id AND command.actor_id=activated.actor_id AND command.authority_json::jsonb->>'companyId'=c.company_id`,'form.id=c.form_id AND form.company_id=c.company_id')}) source_valid`,` FROM marketing_lead_candidates c LEFT JOIN (${crmMarketingCandidateSources}) valid ON valid.id=c.id AND valid.company_id=c.company_id`),
  engagements:settlementSourceRows('engagements'),costs:settlementSourceRows('costs'),touches:settlementSourceRows('touches'),campaigns:settlementSourceRows('campaigns'),
 };
 export async function marketingPackageObligations(owner:PostgresDatabase,database:SqlDatabase,input:Input){

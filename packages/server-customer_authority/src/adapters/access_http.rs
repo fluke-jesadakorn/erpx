@@ -247,6 +247,47 @@ fn strict_key(headers: &HeaderMap) -> Result<String, BusinessError> {
 /// exact statement in the owner read registry, which the TypeScript caller
 /// prepares and executes on its own open unit. Reads carry no write ledger and
 /// never execute here.
+
+/// Resolve every owner read the mounted command-plan route may plan: the
+/// general customer-access reads and the registered portal support/binding
+/// read plans. Both registries are closed and carry only fixed SELECT text;
+/// fragments and source leases are never resolvable here.
+fn resolve_read_plan(kind: &str) -> Option<(&'static str, usize)> {
+    if let Some(read) = crate::adapters::owner_read_sql::read_statement(kind) {
+        return Some((read.sql, read.bind_count));
+    }
+    crate::public::portal_read::plan(kind).map(|plan| (plan.sql, plan.binds.len()))
+}
+
+#[cfg(test)]
+mod read_plan_tests {
+    use super::*;
+    use crate::public::portal_read as kinds;
+
+    #[test]
+    fn command_plan_resolves_owner_and_portal_reads() {
+        let (sql, binds) = resolve_read_plan(kinds::RD_SUPPORT_STAFF_BINDING).expect("portal plan");
+        let plan = kinds::plan(kinds::RD_SUPPORT_STAFF_BINDING).expect("registered plan");
+        assert_eq!(sql, plan.sql);
+        assert_eq!(binds, plan.binds.len());
+        assert_eq!(
+            resolve_read_plan("customer_authority_rd_access_events").unwrap().1,
+            1
+        );
+    }
+
+    #[test]
+    fn command_plan_rejects_fragments_leases_and_unknown_kinds() {
+        for name in kinds::fragments() {
+            assert!(resolve_read_plan(name).is_none(), "{name}");
+        }
+        for entry in kinds::LOCKS {
+            assert!(resolve_read_plan(entry.name).is_none(), "{}", entry.name);
+        }
+        assert!(resolve_read_plan("bogus.read").is_none());
+    }
+}
+
 async fn plan_read(
     State(state): State<Arc<CustomerAccessHttpState>>,
     Path(slug): Path<String>,
@@ -263,13 +304,12 @@ async fn plan_read(
             .map_err(|_| malformed())?;
         let body: OwnerReadPlanBody =
             serde_json::from_slice(&bytes).map_err(|_| malformed())?;
-        let read = crate::adapters::owner_read_sql::read_statement(&body.kind)
-            .ok_or_else(malformed)?;
-        if body.values.len() != read.bind_count {
+        let (sql, bind_count) = resolve_read_plan(&body.kind).ok_or_else(malformed)?;
+        if body.values.len() != bind_count {
             return Err(malformed());
         }
         Ok(serde_json::json!({
-            "statements": [{ "sql": read.sql, "values": body.values }]
+            "statements": [{ "sql": sql, "values": body.values }]
         }))
     }
     .await;

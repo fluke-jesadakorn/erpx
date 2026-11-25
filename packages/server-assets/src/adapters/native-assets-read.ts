@@ -23,6 +23,7 @@ export const ASSETS_RD_PKG_LINKS = 'package-finance-links';
 export const ASSETS_RD_OBLIGATIONS_BASE = 'package-obligations-base';
 export const ASSETS_RD_OBLIGATIONS_PREVENTIVE = 'package-obligations-preventive';
 export const ASSETS_RD_OBLIGATIONS_PARTS = 'package-obligations-parts';
+export const ASSETS_RD_PACKAGE_CLOCK = 'package-clock-now-ms';
 
 /** Wire order mirrors the owner `BindField` registry. */
 export type NativeAssetsReadScope = Readonly<{
@@ -47,6 +48,7 @@ const KINDS = new Set<string>([
   ASSETS_RD_OBLIGATIONS_BASE,
   ASSETS_RD_OBLIGATIONS_PREVENTIVE,
   ASSETS_RD_OBLIGATIONS_PARTS,
+  ASSETS_RD_PACKAGE_CLOCK,
 ]);
 
 const unavailable = (): never => {
@@ -162,6 +164,22 @@ export async function nativeAssetsPlan(
     sql,
     values: values as readonly (string | null)[],
   };
+}
+
+/**
+ * Plan the cross-owner package clock scalar on the owner. The caller embeds the
+ * returned statement as a materialized CTE body; no statement text is built or
+ * retained in this package, and any owner/transport failure fails closed.
+ */
+export async function nativeAssetsClockScalar(): Promise<string> {
+  const planned = await nativeAssetsPlan(ASSETS_RD_PACKAGE_CLOCK);
+  if (planned.values.length !== 0) return unavailable();
+  const sql = planned.sql;
+  // Structural guard only: never embed owner query text in the transport.
+  if (sql.length > 256 || sql.includes(';') || sql.includes('?') ||
+      !sql.endsWith(' now_ms') || !sql.includes('clock_timestamp()') ||
+      !/^[A-Za-z]+\s/.test(sql)) return unavailable();
+  return sql;
 }
 
 /** Plan on the owner, then execute on the caller's open unit. */

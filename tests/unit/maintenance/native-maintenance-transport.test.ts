@@ -482,6 +482,19 @@ describe('native downtime-evidence read transport',()=>{
   const foreign={...actor,holdingId:'other'} as typeof actor;
   await expect(nativeDowntimeEvidenceRows(foreign,input)).rejects.toMatchObject({status:409,code:'WORK_CONTEXT_CHANGED'});
  });
+
+ it('keeps both TS transport modules free of owner SQL so the native GET is the sole read authority',async()=>{
+  const {readFileSync}=await import('node:fs');
+  const adapters=new URL('../../../packages/server-maintenance/src/adapters/',import.meta.url);
+  const pub=new URL('../../../packages/server-maintenance/src/public/',import.meta.url);
+  for(const file of [
+   new URL('native-downtime-evidence.ts',adapters),
+   new URL('native-downtime-evidence.ts',pub),
+  ]){
+   const source=readFileSync(file,'utf8');
+   expect(source).not.toMatch(/\b(?:SELECT|INSERT|UPDATE|DELETE)\b/i);
+  }
+ });
 });
 
 /** Fixed-SQL read-tail oracle for the Maintenance finance lineage source.

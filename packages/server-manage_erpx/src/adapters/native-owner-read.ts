@@ -199,3 +199,101 @@ export async function nativeManageOwnerReadFirst<T>(
   const statement = await plan(kind, values);
   return db.prepare(statement.sql).bind(...statement.values).first<T>();
 }
+
+/** Closed point-by-key read kinds resolved by the mounted owner plan route.
+ * The byte-identical statements live only in the Rust registry. */
+export const ME_RD_SLOT_ACTIVE = 'manage_rd_slot_active';
+export const ME_RD_SLOT_OWNER = 'manage_rd_slot_owner';
+export const ME_RD_INVITATION_BY_TOKEN = 'manage_rd_invitation_by_token';
+export const ME_RD_INVITATION_ACCEPTED_USER = 'manage_rd_invitation_accepted_user';
+
+const identifier = (value: unknown): value is string =>
+  typeof value === 'string' &&
+  value.length > 0 &&
+  value.length <= 200 &&
+  !/[\u0000-\u001f\u007f/\\]/.test(value);
+
+type SlotRow = {
+  slug: string;
+  company_name: string;
+  branch_name: string;
+  state: string;
+};
+type InvitationRow = {
+  id: string;
+  email: string;
+  branch_id: string;
+  invited_by: string;
+  expires_at: number;
+  accepted_user_id: string | null;
+  revoked_at: number | null;
+  role: 'employee' | 'it_admin';
+};
+
+/** Native active-slot probe. Only the bounded holding id crosses the wire. */
+export async function nativeBetaSlotActive(db: SqlDatabase, holdingId: string): Promise<boolean> {
+  if (!identifier(holdingId)) return fail();
+  return (await nativeManageOwnerReadFirst(ME_RD_SLOT_ACTIVE, [holdingId], db)) !== null;
+}
+
+/** Native onboarding entrypoint row. The owner owns the projection and key. */
+export async function nativeOwnerOnboardingSlot(
+  db: SqlDatabase,
+  userId: string,
+): Promise<SlotRow | null> {
+  if (!identifier(userId)) return fail();
+  const row = await nativeManageOwnerReadFirst<SlotRow>(ME_RD_SLOT_OWNER, [userId], db);
+  if (row === null) return null;
+  if (
+    !identifier(row.slug) ||
+    !identifier(row.company_name) ||
+    !identifier(row.branch_name) ||
+    !identifier(row.state)
+  )
+    return fail();
+  return row;
+}
+
+/** Native invitation lookup by token hash, with fail-closed row validation. */
+export async function nativeBetaInvitationByToken(
+  db: SqlDatabase,
+  token: string,
+): Promise<InvitationRow | null> {
+  if (!identifier(token)) return fail();
+  const row = await nativeManageOwnerReadFirst<InvitationRow>(
+    ME_RD_INVITATION_BY_TOKEN,
+    [token],
+    db,
+  );
+  if (row === null) return null;
+  if (
+    !identifier(row.id) ||
+    typeof row.email !== 'string' ||
+    row.email.length === 0 ||
+    row.email.length > 320 ||
+    !identifier(row.branch_id) ||
+    !identifier(row.invited_by) ||
+    !Number.isSafeInteger(row.expires_at) ||
+    (row.accepted_user_id !== null && !identifier(row.accepted_user_id)) ||
+    (row.revoked_at !== null && !Number.isSafeInteger(row.revoked_at)) ||
+    !['employee', 'it_admin'].includes(row.role)
+  )
+    return fail();
+  return row;
+}
+
+/** Native accepted-user lookup by invitation id. */
+export async function nativeBetaInvitationAcceptedUser(
+  db: SqlDatabase,
+  id: string,
+): Promise<{ accepted_user_id: string } | null> {
+  if (!identifier(id)) return fail();
+  const row = await nativeManageOwnerReadFirst<{ accepted_user_id: string }>(
+    ME_RD_INVITATION_ACCEPTED_USER,
+    [id],
+    db,
+  );
+  if (row === null) return null;
+  if (!identifier(row.accepted_user_id)) return fail();
+  return row;
+}

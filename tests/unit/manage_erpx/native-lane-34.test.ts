@@ -208,7 +208,7 @@ describe("native manage_erpx lane 34 beta feedback read", () => {
       }
     };
     walk(resolve(root, "packages/server-manage_erpx/src"));
-    expect(total).toBe(16);
+    expect(total).toBe(15);
   });
 });
 

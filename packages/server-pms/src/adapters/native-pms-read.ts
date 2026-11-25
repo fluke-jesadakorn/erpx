@@ -71,6 +71,10 @@ export const PMS_RD_HOUSEKEEPING_COMMAND = 'pms_rd_housekeeping_command';
  * registry with 29 positional binds; no ledger/receipt/outbox and no lock or refund
  * path. The caller runs it on its already-open unit. */
 export const PMS_RD_SECTION_RELATED_RECORDS = 'pms_rd_section_related_records';
+/** Native successor of the owner-local `pms/guest-document.ts` point read. Fixed
+ * SQL with three positional binds, no ledger/receipt/outbox and no lock/refund
+ * path; the guest booking document transaction runs it on its already-open unit. */
+export const PMS_RD_GUEST_BOOKING_DOCUMENT = 'pms_rd_guest_booking_document';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'PMS_NATIVE_READ_UNAVAILABLE', 'The native PMS read service is unavailable.');

@@ -344,3 +344,88 @@ async fn audit_atomicity_and_the_shared_minute_budget_fail_closed() {
     })
     .await;
 }
+
+/// Native executive reorder read oracle. The executive canvas suite used to
+/// read the seeded policy rows through the TypeScript owner client; that read
+/// oracle is now verified here against the native owner statement shape on an
+/// isolated PostgreSQL database.
+const REORDER_READ: &str = "SELECT to_jsonb(__r)::text FROM (\
+  SELECT r.id,r.company_id,r.warehouse_id,r.product_id, \
+    r.current_reorder_point_milli::text current_reorder_point_milli, \
+    r.proposed_reorder_point_milli::text proposed_reorder_point_milli, \
+    r.requested_by,r.approved_by,r.approved_at,r.retired_at,r.last_decision, \
+    r.last_reviewed_by,r.last_review_reason,r.last_reviewed_at,r.version, \
+    r.created_at,r.updated_at,w.name warehouse_name,w.branch_id, \
+    p.sku,p.name product_name,p.unit \
+  FROM inventory_reorder_policies r \
+  JOIN commerce_warehouses w ON w.id=r.warehouse_id AND w.company_id=r.company_id \
+  JOIN commerce_products p ON p.id=r.product_id AND p.company_id=r.company_id \
+  WHERE r.company_id=$1 AND ($2::text IS NULL OR w.branch_id=$2) \
+  ORDER BY w.name,p.sku,r.id LIMIT 500) __r";
+
+async fn reorder_read(pool: &DatabasePool, branch: Option<&str>) -> Vec<serde_json::Value> {
+    let texts = sqlx::query_scalar::<_, String>(sqlx::AssertSqlSafe(REORDER_READ))
+        .bind("exec-company")
+        .bind(branch)
+        .fetch_all(pool.raw())
+        .await
+        .unwrap();
+    texts
+        .into_iter()
+        .map(|text| serde_json::from_str::<serde_json::Value>(&text).unwrap())
+        .collect()
+}
+
+#[tokio::test]
+async fn native_reorder_policy_read_is_company_and_branch_scoped() {
+    fixture::with_database(2, |holding| async move {
+        migrations(&holding, MigrationTrack::HoldingWrite).await;
+        sqlx::raw_sql(
+            "INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status,hierarchy_revision) VALUES \
+             ('exec-company','company','exec','Exec',NULL,'exec-company',NULL,'active',1), \
+             ('ex-branch','branch','ex-branch','Exec branch','exec-company','exec-company',NULL,'active',1), \
+             ('other-company','company','other','Other',NULL,'other-company',NULL,'active',1), \
+             ('other-branch','branch','other-branch','Other branch','other-company','other-company',NULL,'active',1); \
+             INSERT INTO commerce_warehouses(id,company_id,branch_id,code,name) VALUES \
+             ('ex-wh','exec-company','ex-branch','EX-01','Executive warehouse'), \
+             ('other-wh','other-company','other-branch','OT-01','Other warehouse'); \
+             INSERT INTO commerce_products(id,company_id,sku,name,unit,price_minor) VALUES \
+             ('ex-product','exec-company','EX-REORDER-STOCKED','Executive reorder stocked item','each',100), \
+             ('other-product','other-company','OT-REORDER','Other item','each',100); \
+             INSERT INTO inventory_reorder_policies(id,company_id,warehouse_id,product_id,current_reorder_point_milli,requested_by,approved_by,approved_at,last_decision,last_reviewed_by,last_review_reason,last_reviewed_at,version,created_at,updated_at) VALUES \
+             ('exec-policy','exec-company','ex-wh','ex-product',2000,'preparer','approver',1800000000000,'approved','approver','English-only approve reason',1800000000000,6,1800000000000,1800000000000), \
+             ('other-policy','other-company','other-wh','other-product',9000,'preparer','approver',1800000000000,'approved','approver','English-only approve reason',1800000000000,2,1800000000000,1800000000000); \
+             INSERT INTO inventory_reorder_policy_events(id,policy_id,policy_version,action,actor_id,reason,snapshot_json,created_at) VALUES \
+             ('exec-policy:1','exec-policy',1,'propose','preparer','English-only propose reason','{\"reason\":\"English-only propose reason\"}'::jsonb,1800000000000);",
+        )
+        .execute(holding.raw())
+        .await
+        .unwrap();
+
+        // The owner statement projects bounded identities and version/point
+        // facts only; no caller SQL text is accepted by the native read port.
+        let all = reorder_read(&holding, None).await;
+        assert_eq!(all.len(), 1, "the other Company policy must not leak");
+        assert_eq!(all[0]["id"], "exec-policy");
+        assert_eq!(all[0]["current_reorder_point_milli"], "2000");
+        assert!(all[0]["proposed_reorder_point_milli"].is_null());
+        assert_eq!(all[0]["last_decision"], "approved");
+        assert_eq!(all[0]["version"], 6);
+        assert_eq!(all[0]["sku"], "EX-REORDER-STOCKED");
+        assert_eq!(all[0]["warehouse_name"], "Executive warehouse");
+        assert_eq!(all[0]["branch_id"], "ex-branch");
+        assert_eq!(reorder_read(&holding, Some("ex-branch")).await.len(), 1);
+        assert!(reorder_read(&holding, Some("other-branch")).await.is_empty());
+
+        // The event ledger is immutable even through the native owner path.
+        let error = sqlx::query("UPDATE inventory_reorder_policy_events SET reason='changed' WHERE id='exec-policy:1'")
+            .execute(holding.raw())
+            .await
+            .unwrap_err();
+        assert!(
+            format!("{error}").contains("INVENTORY_REORDER_POLICY_EVENT_IMMUTABLE"),
+            "unexpected event mutation error: {error}"
+        );
+    })
+    .await;
+}

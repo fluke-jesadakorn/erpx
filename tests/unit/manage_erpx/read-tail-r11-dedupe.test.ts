@@ -21,60 +21,29 @@ async function tsSources(dir: URL): Promise<string[]> {
   return out;
 }
 
-describe('manage_erpx beta_slots point-read parameterized family', () => {
-  it('emits byte-identical SQL for both admitted call shapes', async () => {
-    const { betaSlotPointSql } = await import(
-      '../../../packages/server-manage_erpx/src/adapters/beta-slot-point-sql'
-    );
-    expect(betaSlotPointSql('1', 'holding_id', " AND state='active'")).toBe(OLD_ACTIVE_SLOT);
-    expect(betaSlotPointSql('slug,company_name,branch_name,state', 'owner_user_id')).toBe(
-      OLD_ONBOARDING_SLOT,
-    );
+describe('manage_erpx beta_slots point-read native cutover (r8)', () => {
+  it('keeps the retired byte-identical statements only in the Rust registry', async () => {
+    const rust = await readFile(adapter('native_owner_read_sql.rs'), 'utf8');
+    expect(rust).toContain(`"${OLD_ACTIVE_SLOT}"`);
+    expect(rust).toContain(`"${OLD_ONBOARDING_SLOT}"`);
+    expect(rust).toContain('ME_RD_SLOT_ACTIVE');
+    expect(rust).toContain('ME_RD_SLOT_OWNER');
   });
 
-  it('keeps one point-read declaration and reuses it at both owner call sites', async () => {
-    const helper = await readFile(adapter('beta-point-by-key-sql.ts'), 'utf8');
-    expect(helper.match(/SELECT \$\{projection\} FROM beta_\$\{table\} WHERE \$\{key\}=\?/g)).toHaveLength(1);
-    const slot = await readFile(adapter('beta-slot-point-sql.ts'), 'utf8');
-    expect(slot).toContain("betaPointByKeySql('slots'");
-    for (const file of ['runtime-active-slot-source.ts', 'people-app-entrypoint-facts.ts']) {
-      const text = await readFile(adapter(file), 'utf8');
-      expect(text).toContain('betaSlotPointSql(');
+  it('cuts both owner callers to the native client without emitted SQL', async () => {
+    const active = await readFile(adapter('runtime-active-slot-source.ts'), 'utf8');
+    const entry = await readFile(adapter('people-app-entrypoint-facts.ts'), 'utf8');
+    expect(active).toContain('nativeBetaSlotActive(db, holdingId)');
+    expect(entry).toContain('nativeOwnerOnboardingSlot(db,userId)');
+    for (const text of [active, entry]) {
+      expect(text).not.toContain('betaSlotPointSql');
       expect(text).not.toMatch(/SELECT .* FROM beta_slots WHERE /);
     }
   });
 
-  it('preserves the exact prepared SQL for both existing callers', async () => {
-    vi.resetModules();
-    vi.doMock('server-only', () => ({}));
-    const { runtimeBetaSlotActive } = await import(
-      '../../../packages/server-manage_erpx/src/adapters/runtime-active-slot-source'
-    );
-    const { ownerOnboardingSlot } = await import(
-      '../../../packages/server-manage_erpx/src/adapters/people-app-entrypoint-facts'
-    );
-    const prepared: string[] = [];
-    const db = {
-      prepare(sql: string) {
-        prepared.push(sql);
-        return {
-          bind() {
-            return {
-              first: async () => ({ ok: 1 }),
-            };
-          },
-          first: async () => ({ ok: 1 }),
-        };
-      },
-    };
-    expect(await runtimeBetaSlotActive(db as never, 'h001')).toBe(true);
-    await ownerOnboardingSlot(db as never, 'u001');
-    expect(prepared).toEqual([OLD_ACTIVE_SLOT, OLD_ONBOARDING_SLOT]);
-  });
-
   it('lowers the owner TS SELECT count from the recorded BEFORE=26 baseline', async () => {
     const total = (await tsSources(srcDir)).join('\n').match(/SELECT /g)?.length ?? 0;
-    expect(total).toBe(16);
+    expect(total).toBe(15);
     expect(total).toBeLessThan(26);
   });
 });
@@ -124,7 +93,7 @@ describe('manage_erpx beta_members count SELECT-head family (r12)', () => {
 
   it('lowers the owner TS SELECT count from the recorded BEFORE=25 baseline', async () => {
     const total = (await tsSources(srcDir)).join('\n').match(/SELECT /g)?.length ?? 0;
-    expect(total).toBe(16);
+    expect(total).toBe(15);
     expect(total).toBeLessThan(25);
   });
 });
@@ -166,7 +135,7 @@ describe('manage_erpx beta_bootstrap point-read parameterized family (r13)', () 
 
   it('lowers the owner TS SELECT count from the recorded BEFORE=24 baseline', async () => {
     const total = (await tsSources(srcDir)).join('\n').match(/SELECT /g)?.length ?? 0;
-    expect(total).toBe(16);
+    expect(total).toBe(15);
     expect(total).toBeLessThan(24);
   });
 });

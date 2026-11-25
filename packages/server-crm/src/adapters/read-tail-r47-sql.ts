@@ -8,6 +8,7 @@
  * the r46 projection/FROM renderer, locks, command-receipt reads and
  * cross-owner exports are untouched.
  */
+import { crmProjectionFromSql } from './read-tail-r46-sql';
 
 /** MATERIALIZED scope-row CTE head. The three owner-local scope facts share
  * this exact MATERIALIZED CTE prefix; callers pass only the row body. */
@@ -21,4 +22,4 @@ export const crmOwnedListSql = (
   source: string,
   alias: string,
   predicates: string,
-) => `SELECT ${projection} FROM (${source}) ${alias} WHERE ${predicates}`;
+) => crmProjectionFromSql(projection, `(${source}) ${alias} WHERE ${predicates}`);

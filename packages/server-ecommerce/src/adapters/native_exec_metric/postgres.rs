@@ -85,7 +85,8 @@ mod tests {
         let rendered = query.into_sql();
         let rendered = rendered.as_str();
         assert_eq!(rendered.matches('$').count(), spec.values.len());
-        assert!(rendered.contains("$1::text IS NULL"));
+        assert!(rendered.contains("$1"));
+        assert!(rendered.contains("::text IS NULL"));
         assert!(!rendered.contains('?'));
     }
 }

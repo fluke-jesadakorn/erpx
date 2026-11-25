@@ -43,7 +43,7 @@ describe('crm read-tail r35 byte-identical read heads', () => {
     const helper = src('read-tail-r35-sql.ts');
     expect(helper.match(/crmContactAccountReadSql =/g)).toHaveLength(1);
     expect(helper.match(/crmAssignmentModuleExistsSql =/g)).toHaveLength(1);
-    expect((helper.match(/SELECT /g) ?? []).length).toBe(2);
+    expect((helper.match(/SELECT /g) ?? []).length).toBe(1);
 
     const identities = src('identities.ts');
     expect(identities.match(/crmContactAccountReadSql\(/g)).toHaveLength(2);
@@ -90,7 +90,7 @@ describe('crm read-tail r35 byte-identical read heads', () => {
   });
 
   test('retirement:ts-statements stays strictly below the r34 BEFORE=116 baseline', () => {
-    expect(totalSelects()).toBe(47);
+    expect(totalSelects()).toBe(43);
     expect(totalSelects()).toBeLessThan(114);
   });
 });

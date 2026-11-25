@@ -1,3 +1,5 @@
+import {readFileSync,readdirSync} from 'node:fs';
+import {resolve} from 'node:path';
 import {describe,it,expect,vi} from 'vitest';
 vi.mock('server-only',()=>({}));
 import {
@@ -264,6 +266,26 @@ describe('native Commerce order transport',()=>{
     await expect(client.goodsReceipt(incoming(),actor,'order-1',
       {...command,lines:[{lineId:'line-1',quantity:'1.0000'}]},'commerce-goods-0003',input))
       .rejects.toMatchObject({code:'NATIVE_COMMERCE_ORDER_REQUEST_INVALID'});
+  });
+
+  it('keeps goods-receipt route authority with the mounted native owner router',()=>{
+    const root=resolve(import.meta.dirname??process.cwd(),'../../..');
+    const source=(path:string)=>readFileSync(resolve(root,path),'utf8');
+    expect(source('packages/server-commerce/src/adapters/receipt_http.rs'))
+      .toContain('"/api/v1/holdings/{holding_slug}/commerce/purchase-orders/{order_id}/goods-receipts"');
+    const mount=source('src/composition/src/private_development_api.rs');
+    expect(mount).toContain('commerce_receipt_targets');
+    expect(mount).toContain('commerce_receipt_http_router_with_origin_policy(');
+    const client=source('packages/feature-commerce/src/public/native-commerce-orders.ts');
+    expect(client).toContain('async goodsReceipt(');
+    expect(client).toContain('${encodeURIComponent(orderId)}/goods-receipts');
+    expect(client).not.toContain('SELECT ');
+    const tsWithRoute=(dir:string):string[]=>readdirSync(dir,{withFileTypes:true}).flatMap(entry=>{
+      const path=resolve(dir,entry.name);
+      if(entry.isDirectory())return tsWithRoute(path);
+      return entry.name.endsWith('.ts')&&readFileSync(path,'utf8').includes('goods-receipts')?[path]:[];
+    });
+    expect(tsWithRoute(resolve(root,'packages/server-commerce/src'))).toEqual([]);
   });
 
   it('maps changed context and request failures to the retained page policy',()=>{

@@ -1,3 +1,6 @@
+import {createHash} from 'node:crypto';
+import {readdirSync,readFileSync} from 'node:fs';
+import {resolve} from 'node:path';
 import {describe,expect,it,vi} from 'vitest';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 
@@ -429,4 +432,61 @@ describe('Organization owner-local read tail', () => {
       strip(p.executive_engagement_source_staff_levels_l_join));
   });
 
+});
+
+describe('Organization read-tail r30 native cutover — finance starter node list', () => {
+  const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+  const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
+  const sha = (value: string) => createHash('sha256').update(value).digest('hex');
+  const KIND = 'finance_starter_organization_nodes';
+  const SQL = "SELECT id,kind,display_name FROM organization_nodes WHERE company_id=? AND kind IN ('branch','department') AND status='active' ORDER BY kind,id";
+  const CALL = `nativeOrgAll<{id:string;kind:string;display_name:string}>(db,companyId,'${KIND}',[companyId])`;
+
+  it('deletes the TS literal and sends only the typed kind and Company bind', async () => {
+    const source = read('finance-starter-sources.ts');
+    expect(source).not.toContain(SQL);
+    expect(source).toContain(CALL);
+    expect(source).toContain("import {nativeOrgAll} from './native-organization-owner-write';");
+    expect(source.split('nativeOrgAll<').length - 1).toBe(1);
+    expect(source.split(KIND).length - 1).toBe(1);
+    // The Company-owning row lock is deliberately untouched by this slice.
+    expect(source).toContain("kind='company' AND status='active' FOR UPDATE");
+    const {financeStarterOrganizationNodes, lockFinanceStarterCompany} = await import(
+      '../../../packages/server-organization/src/adapters/finance-starter-sources'
+    );
+    expect(lockFinanceStarterCompany).toBeTypeOf('function');
+    all.mockClear();
+    const db = {prepare: vi.fn(() => {throw new Error('TS read tail must not build SQL');})} as unknown as SqlDatabase;
+    const rows = [
+      {id: 'n1', kind: 'branch', display_name: 'New York'},
+      {id: 'n2', kind: 'department', display_name: 'Finance'},
+    ];
+    all.mockResolvedValueOnce(rows);
+    await expect(financeStarterOrganizationNodes(db, 'company-1')).resolves.toBe(rows);
+    expect(all).toHaveBeenCalledWith(db, 'company-1', KIND, ['company-1']);
+    expect(db.prepare).not.toHaveBeenCalled();
+  });
+
+  it('pins the byte-identical SQL now owned by the Rust registry', () => {
+    expect(sha(SQL)).toBe('884e6239956ea25739936acc37fdee49c341f7dfa062478905c548507826a501');
+    const registry = read('organization_owner_write.rs');
+    expect(registry).toContain(`pub const FINANCE_STARTER_ORGANIZATION_NODES: &str = "${KIND}";`);
+    expect(registry).toContain(`    FINANCE_STARTER_ORGANIZATION_NODES,\n];`);
+    expect(registry).toContain(`        FINANCE_STARTER_ORGANIZATION_NODES => {\n            "${SQL}"\n        }`);
+    expect(registry).not.toMatch(/FINANCE_STARTER_ORGANIZATION_NODES => \{[\s\S]{0,200}(INSERT|UPDATE|DELETE|FOR UPDATE|LOCK TABLE)/);
+  });
+
+  it('retirement:ts-statements records the 192 -> 191 native cutover', () => {
+    let total = 0;
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, {withFileTypes: true})) {
+        const path = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith('.ts')) total += (readFileSync(path, 'utf8').match(/SELECT /g) ?? []).length;
+      }
+    };
+    walk(srcRoot);
+    expect(total).toBe(191);
+    expect(total).toBeLessThan(192);
+  });
 });

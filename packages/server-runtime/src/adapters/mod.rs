@@ -1,5 +1,6 @@
 pub(crate) mod cli;
 pub(crate) mod composition;
+pub(crate) mod control_plane_read_port;
 pub(crate) mod http;
 pub(crate) mod migration_inventory;
 pub(crate) mod native_command_http;

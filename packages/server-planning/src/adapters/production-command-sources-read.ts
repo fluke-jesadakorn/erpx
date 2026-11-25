@@ -2,8 +2,8 @@ import {productionReadProjection as productionmanufacturingProjection} from '@er
 import {productionReadProjection as productioncommerceProjection} from '@erpx/server-commerce/public/production-read-projections';
 import {productionReadProjection as productionorganizationProjection} from '@erpx/server-organization/public/production-read-projections';
 import {planningSelectFrom} from "./planning-select-from-sql";
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {Row} from '@erpx/server-commerce/public/commerce';import {assertion} from "@erpx/server-workflow/public/command-assertions";import {productionResourcesExists,planningAllocatedMinutes} from "./planning-guard-sql";import {planningCommandExistsGuard} from "./planning-command-guard-sql";import {planningScopedBranchList} from "./planning-scoped-list-sql";
-import {nativeRecommendations,nativeResources,nativeCalendar,nativeScenario,nativeScopedRecommendation,nativeComparison} from './native-lane-36/client';
+import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {Row} from '@erpx/server-commerce/public/commerce';import {assertion} from "@erpx/server-workflow/public/command-assertions";import {productionResourcesExists,planningAllocatedMinutes} from "./planning-guard-sql";import {planningCommandExistsGuard} from "./planning-command-guard-sql";
+import {nativeRecommendations,nativeScenarios,nativeResources,nativeCalendar,nativeScenario,nativeScopedRecommendation,nativeComparison} from './native-lane-36/client';
 
 const sourceJoins = `
     ${productionmanufacturingProjection.executiveSpecification}
@@ -31,12 +31,7 @@ const projection = planningSelectFrom(`s.id scenario_id,s.company_id,s.branch_id
       r.required_minutes::text required_minutes,r.feasible_date,r.version recommendation_version,
       r.scenario_version,r.created_at recommendation_created_at,r.updated_at recommendation_updated_at,
       COALESCE(shortage.shortage_count,'0') shortage_count,COALESCE(shortage.shortage_items_json,'[]') shortage_items_json`, '    ', `planning_scenarios s ${sourceJoins} ${shortageProjection}`);
-export function productionCommandSources(db:SqlDatabase){return {async scenarios(companyId:string,branchId:string | null,branchId2:string | null){return db
-          .prepare(
-            planningScopedBranchList('p.*,s.name specification_name', `planning_scenarios p ${productionmanufacturingProjection.scenarioSpecification}`, 'p.company_id=?', 'p.branch_id=?', 'p.updated_at DESC'),
-          )
-          .bind(companyId, branchId, branchId2)
-          .all<Row>();},
+export function productionCommandSources(db:SqlDatabase){return {async scenarios(companyId:string,branchId:string | null,branchId2:string | null){return nativeScenarios(companyId,branchId,branchId2);},
 async recommendations(companyId:string,branchId:string | null,branchId2:string | null){return nativeRecommendations(companyId,branchId,branchId2);},
 async resources(companyId:string,branchId:string | null,branchId2:string | null){return nativeResources(companyId,branchId,branchId2);},
 async calendar(companyId:string,branchId:string | null,branchId2:string | null){return nativeCalendar(companyId,branchId,branchId2);},

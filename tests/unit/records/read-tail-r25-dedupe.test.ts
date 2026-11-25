@@ -96,7 +96,7 @@ describe('Records read-tail r25 retirement check', () => {
     // family into that generator (24 -> 23); r29 folds the request-events
     // aggregate into childRowAgg (23 -> 22); r30 folds three shared heads
     // (22 -> 19). No other family, lock or native seam changed.
-    expect(total).toBe(18);
+    expect(total).toBe(12);
     expect(total).toBeLessThan(27);
   });
 });

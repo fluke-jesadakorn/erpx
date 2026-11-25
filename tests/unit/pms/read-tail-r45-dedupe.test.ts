@@ -217,8 +217,8 @@ describe('pms read-tail r45 relation-arm, point-head and join-anchor dedupe', ()
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(237);
-    expect(bare).toBe(238);
+    expect(spaced).toBe(236);
+    expect(bare).toBe(237);
     expect(spaced).toBeLessThan(292);
     expect(bare).toBeLessThan(294);
   });

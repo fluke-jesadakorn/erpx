@@ -78,21 +78,32 @@ describe('Assets read-tail r33 projection-from head family',()=>{
 
  it('renders the metric source segment byte-identically with unchanged binds',async()=>{
   const {assetProjectionFromSql}=await import('../../../packages/server-assets/src/adapters/asset-scope-tuple');
-  const {assetClockNowMsSql}=await import('../../../packages/server-assets/src/adapters/record-purchases');
+  const {nativeAssetsClockScalar}=await import('../../../packages/server-assets/src/adapters/native-assets-read');
   const {assignmentReadSql}=await import('@erpx/server-identity_access/public/record-source-authority');
   const {purchasedCapabilityPredicate}=await import('@erpx/server-commercial/public/purchased-capability-sql');
-  // The pre-r33 statement, rebuilt verbatim; only its SELECT segment moves.
+  const key='ERPX_NATIVE_ASSETS_READ_CONFIG',original=process.env[key];
+  const clockSql='SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint now_ms';
+  process.env[key]=JSON.stringify({privateBaseUrl:'http://127.0.0.1:44996',timeoutMs:1000,holdings:[{origin:'https://acme.example.com',holdingSlug:'acme'}]});
+  vi.stubGlobal('fetch',vi.fn(async()=>new Response(JSON.stringify({data:{kind:'package-clock-now-ms',caller:'assets.package-clock',statement:{sql:clockSql,values:[]}}}),{status:200,headers:{'content-type':'application/json'}})));
+  let clock:string;
+  try{clock=await nativeAssetsClockScalar();}
+  finally{if(original===undefined)delete process.env[key];else process.env[key]=original;vi.unstubAllGlobals();}
+  expect(clock).toBe(clockSql);
+  // The pre-r33 statement, rebuilt verbatim; only its clock head moved to Rust.
   const before=(table:string,capability:string)=>
-   `WITH asset_metric_clock AS MATERIALIZED ${assetClockNowMsSql} SELECT asset_metric_owned.* FROM ${table} asset_metric_owned CROSS JOIN asset_metric_clock WHERE ${assignmentReadSql("asset_metric_owned","records.read")} AND ${purchasedCapabilityPredicate("asset_metric_owned.company_id",capability,"history","asset_metric_clock.now_ms")}`;
+   `WITH asset_metric_clock AS MATERIALIZED (${clock}) SELECT asset_metric_owned.* FROM ${table} asset_metric_owned CROSS JOIN asset_metric_clock WHERE ${assignmentReadSql("asset_metric_owned","records.read")} AND ${purchasedCapabilityPredicate("asset_metric_owned.company_id",capability,"history","asset_metric_clock.now_ms")}`;
   for(const [table,capability] of [
    ['operational_assets','assets.register'],
    ['maintenance_work_orders','assets.maintenance'],
    ['maintenance_work_orders','assets.downtime'],
   ] as const){
-   const composed=`WITH asset_metric_clock AS MATERIALIZED ${assetClockNowMsSql} ${assetProjectionFromSql("asset_metric_owned.*",` ${table} asset_metric_owned CROSS JOIN asset_metric_clock`,` WHERE ${assignmentReadSql("asset_metric_owned","records.read")} AND ${purchasedCapabilityPredicate("asset_metric_owned.company_id",capability,"history","asset_metric_clock.now_ms")}`)}`;
+   const composed=`WITH asset_metric_clock AS MATERIALIZED (${clock}) ${assetProjectionFromSql("asset_metric_owned.*",` ${table} asset_metric_owned CROSS JOIN asset_metric_clock`,` WHERE ${assignmentReadSql("asset_metric_owned","records.read")} AND ${purchasedCapabilityPredicate("asset_metric_owned.company_id",capability,"history","asset_metric_clock.now_ms")}`)}`;
    expect(composed).toBe(before(table,capability));
   }
   const text=src('adapters/metric-purchases.ts');
+  expect(text).toContain('import {nativeAssetsClockScalar} from "./native-assets-read"');
+  expect(text).toContain('const clock=await nativeAssetsClockScalar()');
+  expect(text).not.toContain('assetClockNowMsSql');
   expect(text).toContain('import {assetProjectionFromSql} from "./asset-scope-tuple"');
   expect(text).toContain('assetProjectionFromSql("asset_metric_owned.*",` ${definition.table} asset_metric_owned CROSS JOIN asset_metric_clock`');
   expect(text).toContain('assignmentReadSql("asset_metric_owned","records.read")');
@@ -101,15 +112,16 @@ describe('Assets read-tail r33 projection-from head family',()=>{
   expect((text.match(/SELECT/g)??[])).toHaveLength(0);
  });
 
- it('lowers the owner TS SELECT tail from BEFORE=7 to 2 and keeps the two floor tokens untouched',()=>{
-  expect(ownerSelectCount()).toBe(2);
-  // Floor 1: the universal head in asset-scope-tuple.ts (r35 folded the scope tuple into it).
+ it('lowers the owner TS SELECT tail from BEFORE=7 to 0',()=>{
+  expect(ownerSelectCount()).toBe(0);
+  // The universal head now lives in the Rust-owned JSON contract.
   const scope=src('adapters/asset-scope-tuple.ts');
-  expect((scope.match(/SELECT/g)??[])).toHaveLength(1);
-  expect(scope.split('SELECT ${projection}${tail}').length-1).toBe(1);
+  expect((scope.match(/SELECT/g)??[])).toHaveLength(0);
+  expect(scope).toContain('heads.selectHead.replace("{projection}",projection).replace("{tail}",tail)');
   expect(scope.split('(SELECT ?::text company_id,?::text branch_id,?::text department_id)').length-1).toBe(0);
-  // Floor 2: the clock scalar.
-  expect((src('adapters/record-purchases.ts').match(/SELECT/g)??[])).toHaveLength(1);
+  // The clock scalar family is now owner-planned in Rust; no TS token remains.
+  expect((src('adapters/record-purchases.ts').match(/SELECT/g)??[])).toHaveLength(0);
+  expect(src('adapters/record-purchases.ts')).toContain('await nativeAssetsClockScalar()');
   // The r34 image witness delegates to the universal head; no local statement token.
   expect((src('adapters/financial-workflow-sources.ts').match(/SELECT/g)??[])).toHaveLength(0);
   // The four delegated files carry no local statement token.

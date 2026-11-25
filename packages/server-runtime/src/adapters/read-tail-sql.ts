@@ -1,10 +1,4 @@
 /**
- * Single bare head shared by the runtime-owned read-tail renderers. Keeping the
- * prefix literal once stops it from drifting across the folded helper families.
- */
-export const selectHeadSql = 'SELECT ';
-
-/**
  * Runtime-owned canonical SQL for the closed `holding_bindings` read family.
  * Every caller composes the same statement from its column list and optional
  * suffix, so the query text is defined once and cannot drift between owners.
@@ -76,28 +70,6 @@ export const executiveReportRevisionsSql = (columns: string, suffix = '') =>
 export const executiveReportsSql = (columns: string, suffix = '') =>
   `SELECT ${columns} FROM executive_reports${suffix}`;
 
-/**
- * Runtime-owned canonical SQL for the closed catalog-object presence probe
- * family. Migration fallback inspection and coverage refresh project the same
- * `IS NOT NULL present` shape over a fixed catalog function and a trusted
- * literal name; one builder keeps the query text byte-identical across callers.
- * Neither the function nor the name is accepted from an untrusted caller.
- * Control-plane lock statements are not part of this family.
- */
-export const catalogObjectExistsSql = (fn: 'to_regclass' | 'to_regprocedure', name: string) =>
-  `${selectHeadSql}${fn}('${name}') IS NOT NULL present`;
+// The catalog-presence and migration-control read families are now owned by
+// the native control-plane read port; no TypeScript builder renders them.
 
-/**
- * Runtime-owned canonical SQL for the closed migration control read family.
- * Receipt-name inspection and checksum lookup project different columns from
- * the two fixed migration relations; one builder keeps the query text
- * byte-identical across both callers. The relation is a closed literal union
- * owned by the migration adapter, never caller input; binds stay at the call
- * site. Control-plane lock and unlock statements are not part of this family.
- */
-export const migrationControlReadSql = (
-  columns: string,
-  relation: 'erpx_migration_receipts()' | 'erpx_migrations',
-  suffix = '',
-) =>
-  `${selectHeadSql}${columns} FROM ${relation}${suffix}`;

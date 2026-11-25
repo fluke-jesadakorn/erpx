@@ -1839,6 +1839,7 @@
 @source "../../../../packages/server-records/src/public/commerce-owner-sources.ts";
 @source "../../../../packages/server-records/src/public/employee-requests-read.ts";
 @source "../../../../packages/server-records/src/public/legal-attachment-read-sources.ts";
+@source "../../../../packages/server-records/src/public/native-record-context.ts";
 @source "../../../../packages/server-records/src/public/records.ts";
 @source "../../../../packages/server-records/src/public/request-override-read.ts";
 @source "../../../../packages/server-records/src/public/source-record-policy.ts";

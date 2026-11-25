@@ -67,4 +67,45 @@ mod tests {
             "SELECT lead_id FROM crm_lead_activities WHERE id=? AND company_id=?"
         );
     }
+
+    /// Canonical owner form of the projection/FROM read head retired from the
+    /// TypeScript read tail. The owner renderer `crmProjectionFromSql` must
+    /// reproduce this exact prefix; this crate records the native literal.
+    fn projection_from_sql(projection: &str, from: &str) -> String {
+        format!("SELECT {projection} FROM {from}")
+    }
+
+    #[test]
+    fn projection_from_family_matches_retired_owner_literals() {
+        let cases = [
+            (
+                "opportunity owner guard",
+                projection_from_sql("1", "crm_opportunities o JOIN crm_leads l ON l.id=o.lead_id WHERE o.id=?"),
+                "SELECT 1 FROM crm_opportunities o JOIN crm_leads l ON l.id=o.lead_id WHERE o.id=?",
+            ),
+            (
+                "contact account read",
+                projection_from_sql(
+                    "c.id,c.name",
+                    "crm_contacts c JOIN crm_accounts a ON a.id=c.account_id WHERE c.id=?",
+                ),
+                "SELECT c.id,c.name FROM crm_contacts c JOIN crm_accounts a ON a.id=c.account_id WHERE c.id=?",
+            ),
+            (
+                "owned-source list",
+                projection_from_sql("id", "(ROWS) actual WHERE id=? AND company_id=?"),
+                "SELECT id FROM (ROWS) actual WHERE id=? AND company_id=?",
+            ),
+        ];
+        for (name, rendered, expected) in cases {
+            assert_eq!(rendered, expected, "{name}");
+            assert_eq!(rendered.matches("SELECT ").count(), 1, "{name}");
+            let upper = rendered.to_ascii_uppercase();
+            assert!(!upper.contains("INSERT"), "{name}");
+            assert!(!upper.contains("UPDATE"), "{name}");
+            assert!(!upper.contains("DELETE"), "{name}");
+            assert!(!upper.contains("FOR UPDATE"), "{name}");
+            assert!(!upper.contains("LOCK TABLE"), "{name}");
+        }
+    }
 }

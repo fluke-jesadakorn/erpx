@@ -64,7 +64,7 @@ describe('crm read-tail r47 byte-identical MATERIALIZED and owned-source heads',
 
   test('the owner renderer owns exactly the two shared read tokens', () => {
     const helper = src('read-tail-r47-sql.ts');
-    expect((helper.match(/SELECT /g) ?? []).length).toBe(2);
+    expect((helper.match(/SELECT /g) ?? []).length).toBe(1);
     expect(helper.match(/crmMaterializedScopeSql =/g)).toHaveLength(1);
     expect(helper.match(/crmOwnedListSql =/g)).toHaveLength(1);
     expect(crmMaterializedScopeSql('now_ms')).toBe('AS MATERIALIZED(SELECT now_ms)');
@@ -115,7 +115,7 @@ describe('crm read-tail r47 byte-identical MATERIALIZED and owned-source heads',
   });
 
   test('retirement:ts-statements drops from the r46 AFTER=54 to 50', () => {
-    expect(totalSelects()).toBe(47);
+    expect(totalSelects()).toBe(43);
     expect(totalSelects()).toBeLessThan(54);
   });
 });

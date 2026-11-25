@@ -162,6 +162,7 @@ describe('Ecommerce read-tail r30 retirement check', () => {
     expect(po).toContain('LOCK TABLE command_receipts,audit_events,money_transaction_snapshots IN SHARE MODE');
     expect(ps).toContain("export const ecommerceNativeOrderRoots=ecommerceScalar(`cart.company_id,cart.id cart_id,'order-ecommerce-order-'||cart.id order_id FROM ecommerce_carts cart`);");
     expect(ecommerceNativeOrderRoots).toBe("SELECT cart.company_id,cart.id cart_id,'order-ecommerce-order-'||cart.id order_id FROM ecommerce_carts cart");
-    expect(emp).toContain('ecommerceScalar(`${label} label,count(*)::text value FROM ${relation} WHERE ${scopedAlias("c")} AND ${extra} GROUP BY 1 ORDER BY 1`)');
+    expect(emp).toContain('nativeExecutiveMetric');
+    expect(read('adapters/native_exec_metric/domain.rs')).toContain('SELECT c.status label,count(*)::text value FROM ecommerce_carts c WHERE {scope_sql}');
   });
 });

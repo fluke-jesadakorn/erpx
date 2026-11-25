@@ -75,7 +75,7 @@ describe('crm read-tail r39 byte-identical head composition', () => {
     }
     expect((src('read-tail-r37-sql.ts').match(/SELECT /g) ?? []).length).toBe(1);
     expect((src('read-tail-r39-sql.ts').match(/SELECT /g) ?? []).length).toBe(1);
-    expect((src('read-tail-r27-sql.ts').match(/SELECT /g) ?? []).length).toBe(1);
+    expect((src('read-tail-r27-sql.ts').match(/SELECT /g) ?? []).length).toBe(0);
 
     const parties = src('active-customer-parties.ts');
     expect(parties.match(/crmSingleKeySourceSql\(/g)).toHaveLength(1);
@@ -142,7 +142,7 @@ describe('crm read-tail r39 byte-identical head composition', () => {
   });
 
   test('retirement:ts-statements stays strictly below the r38 AFTER=104 baseline', () => {
-    expect(totalSelects()).toBe(47);
+    expect(totalSelects()).toBe(43);
     expect(totalSelects()).toBeLessThan(104);
   });
 });

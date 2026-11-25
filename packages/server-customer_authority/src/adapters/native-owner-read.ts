@@ -24,6 +24,18 @@ export const CA_RD_DUPLICATE_REVIEWS_PENDING = 'customer_authority_rd_duplicate_
 export const CA_RD_IDENTITY_CHANGE_EVENTS_MONTH = 'customer_authority_rd_identity_change_events_month';
 export const CA_RD_IDENTITY_CHANGE_EVENTS_ACTION = 'customer_authority_rd_identity_change_events_action';
 
+/** Registered portal support/binding read kinds. The owner Rust registry owns
+ * their SQL; the `customer-access/command-plan` route plans them for the caller
+ * to execute on its own open unit. No TypeScript SQL mirror is kept. */
+export const CA_RD_PORTAL_INSTALLED = 'portal-support.installed';
+export const CA_RD_PORTAL_LATEST_RESPONSE = 'portal-support.latest-response';
+export const CA_RD_PORTAL_REQUEST_SOURCE = 'portal-support.request-source';
+export const CA_RD_PORTAL_THREADS = 'portal-support.threads';
+export const CA_RD_PORTAL_REQUEST_ID = 'portal-support.request-id';
+export const CA_RD_PORTAL_STAFF_BINDING = 'portal-support.staff-binding';
+export const CA_RD_PORTAL_BINDING_LOCK = 'portal-binding.lock';
+export const CA_RD_PORTAL_IDENTITY_EXISTS = 'portal-binding.identity-exists';
+
 /** An exact owner-planned statement: native SQL and its positional values. */
 export type OwnerReadStatement = Readonly<{ sql: string; values: readonly unknown[] }>;
 

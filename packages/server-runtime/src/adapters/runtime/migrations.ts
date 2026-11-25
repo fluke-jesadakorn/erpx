@@ -6,7 +6,14 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { PostgresDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
 import type { PoolClient } from 'pg';
-import { catalogObjectExistsSql, migrationControlReadSql } from '../read-tail-sql';
+import {
+  planRuntimeControlPlane,
+  RD_COVERAGE_PROCEDURE_PRESENT,
+  RD_COVERAGE_REFRESH,
+  RD_MIGRATION_CHECKSUM,
+  RD_MIGRATION_RECEIPTS,
+  RD_RECEIPT_TABLE_PRESENT,
+} from '../native-runtime-control-plane';
 const MIGRATION_LOCK_SQL = 'SELECT pg_advisory_lock(714928001)';
 const MIGRATION_UNLOCK_SQL = 'SELECT pg_advisory_unlock(714928001)';
 
@@ -39,13 +46,15 @@ export async function inspectMigrations(
     // receipt table. The migration-owned, read-only function exposes only the
     // receipt names needed by the operational screen while preserving that
     // boundary.
-    names = (await db.prepare(migrationControlReadSql('name', 'erpx_migration_receipts()', ' ORDER BY name')).all<{ name: string }>()).results.map(row => row.name);
+    const plan = await planRuntimeControlPlane(RD_MIGRATION_RECEIPTS);
+    names = (await db.prepare(plan.sql).bind(...plan.values).all<{ name: string }>()).results.map(row => row.name);
   } catch (error) {
     if (!['42P01', '42883'].includes((error as { code?: string }).code ?? '')) throw error;
     // A missing function does not prove that no migrations were applied.
     // Older Control tracks have receipts without the narrow read-only reader.
     // Inspect catalogue presence without falling back to privileged table reads.
-    const receiptTable = await db.prepare(catalogObjectExistsSql('to_regclass', 'public.erpx_migrations')).first<boolean>('present');
+    const plan = await planRuntimeControlPlane(RD_RECEIPT_TABLE_PRESENT);
+    const receiptTable = await db.prepare(plan.sql).bind(...plan.values).first<boolean>('present');
     if (receiptTable) throw Object.assign(new Error('MIGRATION_RECEIPTS_UNAVAILABLE'), {
       code: 'MIGRATION_RECEIPTS_UNAVAILABLE', cause: error,
     });
@@ -60,8 +69,11 @@ export async function inspectMigrations(
 }
 
 async function refreshCoverage(client: PoolClient, track: string) {
-  if (track === 'holding-write' && (await client.query(catalogObjectExistsSql('to_regprocedure', 'ensure_work_cache_coverage()'))).rows[0].present)
-    await client.query('SELECT ensure_work_cache_coverage()');
+  if (track !== 'holding-write') return;
+  const probe = await planRuntimeControlPlane(RD_COVERAGE_PROCEDURE_PRESENT);
+  if (!(await client.query(probe.sql, [...probe.values])).rows[0].present) return;
+  const refresh = await planRuntimeControlPlane(RD_COVERAGE_REFRESH);
+  await client.query(refresh.sql, [...refresh.values]);
 }
 
 /** Schema clones still need the migration engine's repair for newly created tables. */
@@ -82,7 +94,8 @@ export async function migrateDatabase(db: PostgresDatabase, track: string, root 
     await client.query('CREATE TABLE IF NOT EXISTS erpx_migrations(name TEXT PRIMARY KEY,checksum TEXT NOT NULL,applied_at TIMESTAMPTZ NOT NULL DEFAULT now())');
     for (const name of (await readdir(join(root, track))).filter(f => f.endsWith('.sql')).sort()) {
       const sql = await readFile(join(root, track, name), 'utf8'), checksum = createHash('sha256').update(sql).digest('hex');
-      const previous = await client.query(migrationControlReadSql('checksum', 'erpx_migrations', ' WHERE name=$1'), [name]);
+      const checksumPlan = await planRuntimeControlPlane(RD_MIGRATION_CHECKSUM, [name]);
+      const previous = await client.query(checksumPlan.sql, [...checksumPlan.values]);
       if (previous.rows.length) {
         // Two shipped 0041 variants exist in development. Preserve the original receipt;
         // 0042 repairs entitlement provenance additively and 0043 normalizes approval kinds.

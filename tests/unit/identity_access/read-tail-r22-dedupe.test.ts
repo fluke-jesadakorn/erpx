@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { organizationGpoRulesProjection } from '../../../packages/server-identity_access/src/adapters/assignment-projection-source';
 import { platformOwnerProjectionSources } from '../../../packages/server-identity_access/src/adapters/platform-owner-projection-sources';
@@ -60,5 +60,59 @@ describe('Identity access read-tail r22 retirement check', () => {
     walk(srcRoot);
     expect(total).toBeLessThan(522);
     expect(total).toBeLessThanOrEqual(521);
+  });
+});
+
+describe('Identity access GPO overview native read retirement', () => {
+  const statements = (text: string) => (text.match(/INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT /g) ?? []).length;
+  // The GPO overview read family: TS authority deleted, native owner port owns it.
+  const BEFORE = 605;
+  const AFTER = 591;
+
+  test('the TypeScript GPO authority files and their SQL are gone', () => {
+    for (const rel of ['adapters/gpo-rules.ts', 'application/gpo-rules.ts', 'public/gpo-rules.ts'])
+      expect(existsSync(resolve(srcRoot, rel)), rel).toBe(false);
+    expect(statements(read('adapters/native-position-gpo.ts'))).toBe(0);
+    expect(read('adapters/native-position-gpo.ts')).not.toMatch(/\bSELECT\b/i);
+  });
+
+  test('the native client serves overview, rules projection and not-required', () => {
+    const client = read('adapters/native-position-gpo.ts');
+    for (const name of [
+      'nativePositionGpoOverview',
+      'nativePositionGpoOverviewFromHeaders',
+      'nativePositionGpoOverviewForHolding',
+      'nativeGpoRulesOverview',
+      'nativeMarkPositionGpoNotRequired',
+    ])
+      expect(client, name).toContain(`export ${name.startsWith('nativePositionGpoOverview') ? 'function' : 'async function'} ${name}`);
+    expect(client).toContain("'not-required'");
+    expect(client).toContain('/technology/position-gpo');
+  });
+
+  test('the owner Rust port carries task status and the guarded not-required write', () => {
+    const domain = read('domain/position_gpo.rs');
+    const adapter = read('adapters/position_gpo_postgres.rs');
+    const http = read('adapters/position_gpo_http.rs');
+    expect(domain).toContain('pub fn task_status');
+    expect(domain).toContain('pub fn present_gpo_task');
+    expect(domain).toContain('pub const NOT_REQUIRED_OPERATION');
+    expect(adapter).toContain('"tasks": tasks');
+    expect(adapter).toContain("disposition='not_required'");
+    expect(http).toContain('not-required');
+  });
+
+  test('retirement:ts-statements records the GPO family drop and stays retired', () => {
+    let total = 0;
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const p = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(p);
+        else if (entry.name.endsWith('.ts')) total += statements(readFileSync(p, 'utf8'));
+      }
+    };
+    walk(srcRoot);
+    expect(total).toBeLessThan(BEFORE);
+    expect(total).toBeLessThanOrEqual(AFTER);
   });
 });

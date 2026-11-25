@@ -346,3 +346,23 @@ impl RecordContextRepository for PgRecordContext<'_> {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn owner_sql_is_bounded_and_read_only() {
+        for sql in [AUTHORITY, SCOPED_SELECT] {
+            assert!(sql.starts_with("SELECT "));
+            let upper = sql.to_ascii_uppercase();
+            assert!(!upper.contains("INSERT INTO"));
+            assert!(!upper.contains("DELETE FROM"));
+            assert!(!upper.contains("UPDATE "));
+            assert!(!upper.contains("FOR UPDATE"));
+        }
+        assert!(AUTHORITY.contains("iam_role_allows(a.role,a.company_id,'records.read')"));
+        assert!(SCOPED_SELECT.contains("archived_at IS NULL"));
+        assert!(SCOPED_SELECT.contains("department_id=$5::text"));
+    }
+}

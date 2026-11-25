@@ -1,9 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { readFile, readdir } from 'node:fs/promises';
+import { readFile, readdir, access } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { betaPointByKeySql } from '../../../packages/server-manage_erpx/src/adapters/beta-point-by-key-sql';
-import { betaInvitationPointSql } from '../../../packages/server-manage_erpx/src/adapters/beta-invitation-point-sql';
-import { betaSlotPointSql } from '../../../packages/server-manage_erpx/src/adapters/beta-slot-point-sql';
 
 vi.mock('server-only', () => ({}));
 
@@ -22,64 +19,62 @@ async function tsSources(dir: URL): Promise<string[]> {
   return out;
 }
 
-/** The folded 54-byte head, shared verbatim by the invitation and slot helpers. */
-const HEAD = 'SELECT ${projection} FROM beta_${table} WHERE ${key}=?';
-
+/** Byte-identical retired statements now owned by the Rust registry. */
 const ORACLES = [
-  ['invitation-all', 'SELECT * FROM beta_team_invitations WHERE token_hash=?', 1,
-    'ebb2e3e0308047e741a2300b769e45751dec94aafed79f8a523c1f61644cbcac'],
-  ['invitation-user', 'SELECT accepted_user_id FROM beta_team_invitations WHERE id=?', 1,
-    '09f3e85d3b000d095db80e4bf4b16825c1c56340a4b87a641807f7c7fc8d3b9b'],
-  ['slot-active', "SELECT 1 FROM beta_slots WHERE holding_id=? AND state='active'", 1,
-    '781c3086f1475d98ed20071149ed9473b5f631b1ee8c6a0ef692e38c68b7cbcf'],
-  ['slot-entry', 'SELECT slug,company_name,branch_name,state FROM beta_slots WHERE owner_user_id=?', 1,
-    '7d0b3edad4db8a5823428b3fdd93d463b8f9cba30e8f52fdb75a1b5923cabdea'],
+  ['manage_rd_slot_active', "SELECT 1 FROM beta_slots WHERE holding_id=? AND state='active'"],
+  ['manage_rd_slot_owner', 'SELECT slug,company_name,branch_name,state FROM beta_slots WHERE owner_user_id=?'],
+  ['manage_rd_invitation_by_token', 'SELECT * FROM beta_team_invitations WHERE token_hash=?'],
+  ['manage_rd_invitation_accepted_user', 'SELECT accepted_user_id FROM beta_team_invitations WHERE id=?'],
 ] as const;
 
-describe('manage_erpx beta point-by-key head family (r15)', () => {
-  it('keeps the folded head byte-identical in exactly one owner-local declaration', async () => {
-    expect(HEAD).toHaveLength(54);
-    expect(sha256(HEAD)).toBe('775dc9cb0e8ec2a5428bfc7d204c73dbb887fedb5b2d90ac887a764f9715b8e4');
-    const text = await readFile(adapter('beta-point-by-key-sql.ts'), 'utf8');
-    expect(text.match(/SELECT \$\{projection\} FROM beta_\$\{table\} WHERE \$\{key\}=\?/g)).toHaveLength(1);
-    expect(text.match(/SELECT /g)).toHaveLength(1);
-    expect(betaPointByKeySql('slots', '1', 'holding_id')).toBe('SELECT 1 FROM beta_slots WHERE holding_id=?');
+describe('manage_erpx beta point-by-key native cutover (r8)', () => {
+  it('owns every byte-identical statement in the Rust read registry only', async () => {
+    const rust = await readFile(adapter('native_owner_read_sql.rs'), 'utf8');
+    for (const [kind, sql] of ORACLES) {
+      expect(rust).toContain(`"${sql}"`);
+      expect(rust).toContain(`pub const ${kind.replace('manage_rd_', 'ME_RD_').toUpperCase()}`);
+    }
+    expect(rust).toContain('READ_SLOT_ACTIVE');
+    expect(rust).toContain('READ_SLOT_OWNER');
+    expect(rust).toContain('READ_INVITATION_BY_TOKEN');
+    expect(rust).toContain('READ_INVITATION_ACCEPTED_USER');
+    expect(rust.match(/pub const ME_RD_/g)).toHaveLength(7);
   });
 
-  it('renders all four retired call shapes byte-identically with unchanged binds', () => {
-    const rendered: Record<string, string> = {
-      'invitation-all': betaInvitationPointSql('*', 'token_hash'),
-      'invitation-user': betaInvitationPointSql('accepted_user_id', 'id'),
-      'slot-active': betaSlotPointSql('1', 'holding_id', " AND state='active'"),
-      'slot-entry': betaSlotPointSql('slug,company_name,branch_name,state', 'owner_user_id'),
-    };
-    for (const [name, sql, binds, hash] of ORACLES) {
-      expect(rendered[name]).toBe(sql);
-      expect(sha256(rendered[name])).toBe(hash);
-      expect(rendered[name].match(/\?/g)).toHaveLength(binds);
+  it('exports closed native kind constants with no statement text in TypeScript', async () => {
+    const { ME_RD_SLOT_ACTIVE, ME_RD_SLOT_OWNER, ME_RD_INVITATION_BY_TOKEN, ME_RD_INVITATION_ACCEPTED_USER } =
+      await import('../../../packages/server-manage_erpx/src/adapters/native-owner-read');
+    expect([ME_RD_SLOT_ACTIVE, ME_RD_SLOT_OWNER, ME_RD_INVITATION_BY_TOKEN, ME_RD_INVITATION_ACCEPTED_USER]).toEqual(
+      ORACLES.map(([kind]) => kind),
+    );
+    const client = await readFile(adapter('native-owner-read.ts'), 'utf8');
+    expect(client).not.toContain('SELECT ');
+    expect(client).not.toContain('beta_slots WHERE');
+    expect(client).not.toContain('beta_team_invitations WHERE');
+  });
+
+  it('deletes the replaced TypeScript SQL helpers', async () => {
+    for (const file of ['beta-point-by-key-sql.ts', 'beta-slot-point-sql.ts', 'beta-invitation-point-sql.ts']) {
+      await expect(access(adapter(file))).rejects.toThrow();
     }
   });
 
-  it('retires both inline heads while keeping every caller statement unchanged', async () => {
-    const invitation = await readFile(adapter('beta-invitation-point-sql.ts'), 'utf8');
-    const slot = await readFile(adapter('beta-slot-point-sql.ts'), 'utf8');
-    for (const text of [invitation, slot]) {
-      expect(text).not.toContain('SELECT ');
-      expect(text).toContain('betaPointByKeySql(');
-    }
-    expect(invitation).toContain("betaPointByKeySql('team_invitations'");
-    expect(slot).toContain("betaPointByKeySql('slots'");
+  it('cuts every point-by-key caller to the native client without emitted SQL', async () => {
     for (const [file, needle] of [
-      ['beta-team.ts', "betaInvitationPointSql('*','token_hash')"],
-      ['runtime-active-slot-source.ts', "betaSlotPointSql('1', 'holding_id'"],
-      ['people-app-entrypoint-facts.ts', "betaSlotPointSql('slug,company_name,branch_name,state'"],
+      ['runtime-active-slot-source.ts', 'nativeBetaSlotActive(db, holdingId)'],
+      ['people-app-entrypoint-facts.ts', 'nativeOwnerOnboardingSlot(db,userId)'],
+      ['beta-team.ts', 'nativeBetaInvitationByToken(db,value)'],
+      ['beta-team.ts', 'nativeBetaInvitationAcceptedUser(db,id)'],
     ] as const) {
       const text = await readFile(adapter(file), 'utf8');
       expect(text).toContain(needle);
+      expect(text).not.toContain('betaSlotPointSql');
+      expect(text).not.toContain('betaInvitationPointSql');
+      expect(text).not.toContain('betaPointByKeySql');
     }
   });
 
-  it('leaves locks, native transports and cross-owner readers byte-identical', async () => {
+  it('leaves locks, authority readers and cross-owner sources byte-identical', async () => {
     const protectedShas: Record<string, string> = {
       'company-provisioning-attachment-read-sources.ts':
         '4a7abe70881636a9cf40893a677c283970fdb0c0770db4b733a2d25f178801f9',
@@ -87,23 +82,18 @@ describe('manage_erpx beta point-by-key head family (r15)', () => {
         'af042402890caee72f86973e02f187bc74b8fba85170812ff9b62211ed540b59',
       'native-owner-write.ts':
         '10ce274f211859eadf3f380912324925c87b954f119d359e614b07274da52a87',
-      'native-owner-read.ts':
-        '3f0d19f6d97e5adda3f1c2f6048077d324d35cf3c5e44a4cdbbc9c25dfdd41e9',
       'beta-policy-point-sql.ts':
         'f843bacaef4fa8b41d7c9a3e43994c54f32117030c4eef2c88aa7b3ea23a8ce4',
-      'beta-team.ts':
-        'd7693cd89c304891c4137f8085516feeb12145c59a23434801bd5ea45f7efc2f',
     };
     for (const [file, hash] of Object.entries(protectedShas)) {
       const text = await readFile(adapter(file), 'utf8');
       expect(sha256(text)).toBe(hash);
-      expect(text).not.toContain('betaPointByKeySql');
     }
   });
 
-  it('lowers the owner TS SELECT count from BEFORE=22 to 19', async () => {
+  it('lowers the owner TS literal SELECT count from BEFORE=16 to 15', async () => {
     const total = (await tsSources(srcDir)).join('\n').match(/SELECT /g)?.length ?? 0;
-    expect(total).toBe(16);
-    expect(total).toBeLessThan(20);
+    expect(total).toBe(15);
+    expect(total).toBeLessThan(16);
   });
 });

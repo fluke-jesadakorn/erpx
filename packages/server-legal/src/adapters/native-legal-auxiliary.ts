@@ -132,7 +132,7 @@ export async function nativeInspectionSourceRead<T>(
     companyId.length > 200 ||
     !documentId ||
     documentId.length > 200 ||
-    !/^[A-Za-z0-9._:-]+$/.test(documentId)
+    !/^[A-Za-z0-9._:\/-]+$/.test(documentId)
   )
     throw new ApiError(
       422,

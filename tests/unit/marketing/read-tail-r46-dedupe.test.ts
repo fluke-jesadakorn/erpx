@@ -157,7 +157,7 @@ describe('marketing read-tail r46 dedupe', () => {
     expect(await src('record-purchases.ts')).toContain("marketingPointExistsSql(`(${nativeIds}) actual`,'id=?')");
     expect(await src('record-purchases.ts')).not.toContain('`SELECT 1 FROM (${nativeIds}) actual WHERE id=?`');
     expect(await src('purchases.ts')).toContain('SELECT 1 FROM command_receipts WHERE command_id=?');
-    expect(await src('package-obligations.ts')).toContain('EXISTS(SELECT 1 FROM marketing_assets form');
+    expect(await src('package-obligations.ts')).toContain('marketingPointExistsSql(');
     expect(await src('native-marketing-read.ts')).toContain('export');
 
     // FOR SHARE locks and ORDER/FOR UPDATE tails stay byte-identical.
@@ -168,8 +168,8 @@ describe('marketing read-tail r46 dedupe', () => {
     expect(await src('marketing-local-point-read-sql.ts')).toContain('FOR UPDATE');
   });
 
-  it('pins the owner SELECT KPI to 16 (lane 40 retired 3) (BEFORE=34)', async () => {
-    expect(await ownerSelectTokens()).toBe(16);
+  it('pins the owner SELECT KPI to 14 (lane 40 retired 3) (BEFORE=34)', async () => {
+    expect(await ownerSelectTokens()).toBe(14);
     expect(await ownerSelectTokens()).toBeLessThan(32);
   });
 });

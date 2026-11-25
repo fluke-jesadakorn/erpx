@@ -85,7 +85,7 @@ describe('pms read-tail r47 native read retirement', () => {
     expect(rust).toContain('const SQL_HOUSEKEEPING_COMMAND: &str = ' + JSON.stringify(HEAD.housekeeping) + ';');
     expect(rust).toContain('bind_count: 11,');
     expect(rust).toContain('bind_count: 4,');
-    expect(rust).toContain('READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS];');
+    expect(rust).toContain('READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT];');
   });
 
   it('routes both call sites through the native transport and removes the inline SQL', async () => {
@@ -168,8 +168,8 @@ describe('pms read-tail r47 native read retirement', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(237);
-    expect(bare).toBe(238);
+    expect(spaced).toBe(236);
+    expect(bare).toBe(237);
     expect(spaced).toBeLessThan(283);
     expect(bare).toBeLessThan(285);
   });

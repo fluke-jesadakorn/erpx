@@ -35,7 +35,10 @@ describe('Customer Authority read-tail r42 support-request family', () => {
     expect(head).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
 
     const portal = src('portal-support.ts');
-    expect(portal.match(/\bSELECT\b/g) ?? []).toHaveLength(1);
+    // The staff-binding read now plans natively; no SELECT literal remains.
+    expect(portal.match(/\bSELECT\b/g) ?? []).toHaveLength(0);
+    expect(portal).toContain('CA_RD_PORTAL_STAFF_BINDING');
+    expect(portal).toContain('nativeOwnerReadStatement');
     expect(portal.match(/supportRequestRead\(/g) ?? []).toHaveLength(2);
     expect(portal).toContain('customer-authority-read-tail-r42-sources');
     expect(portal).toContain('.bind(requestId).first<Source>()');
@@ -103,6 +106,6 @@ describe('Customer Authority read-tail r42 support-request family', () => {
     walk(srcRoot);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(27);
-    expect(total).toBe(18);
+    expect(total).toBe(17);
   });
 });

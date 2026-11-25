@@ -2652,10 +2652,8 @@
 @source "../../../../packages/server-manage_erpx/src/adapters/beta-bootstrap-point-sql.ts";
 @source "../../../../packages/server-manage_erpx/src/adapters/beta-email.ts";
 @source "../../../../packages/server-manage_erpx/src/adapters/beta-http.ts";
-@source "../../../../packages/server-manage_erpx/src/adapters/beta-invitation-point-sql.ts";
 @source "../../../../packages/server-manage_erpx/src/adapters/beta-member-count-sql.ts";
 @source "../../../../packages/server-manage_erpx/src/adapters/beta-onboarding.ts";
-@source "../../../../packages/server-manage_erpx/src/adapters/beta-point-by-key-sql.ts";
 @source "../../../../packages/server-manage_erpx/src/adapters/beta-policy-limit-sql.ts";
 @source "../../../../packages/server-manage_erpx/src/adapters/beta-policy-point-sql.ts";
 @source "../../../../packages/server-manage_erpx/src/adapters/beta-team.ts";
@@ -3640,7 +3638,6 @@
 @source "../../../../packages/server-planning/src/adapters/planning-jsonb-row-sql.ts";
 @source "../../../../packages/server-planning/src/adapters/planning-package-fact-sql.ts";
 @source "../../../../packages/server-planning/src/adapters/planning-resource-allocation-sql.ts";
-@source "../../../../packages/server-planning/src/adapters/planning-scoped-list-sql.ts";
 @source "../../../../packages/server-planning/src/adapters/planning-select-columns-sql.ts";
 @source "../../../../packages/server-planning/src/adapters/planning-select-from-sql.ts";
 @source "../../../../packages/server-planning/src/adapters/production-command-sources-read.ts";
@@ -4686,7 +4683,6 @@
 @source "../../../../packages/server-workflow/src/adapters/flow-routing.ts";
 @source "../../../../packages/server-workflow/src/adapters/flow-work.ts";
 @source "../../../../packages/server-workflow/src/adapters/hospitality-owner-projection-sources.ts";
-@source "../../../../packages/server-workflow/src/adapters/inventory-audit-history-source.ts";
 @source "../../../../packages/server-workflow/src/adapters/inventory-counts-sources.ts";
 @source "../../../../packages/server-workflow/src/adapters/inventory-transfers-sources.ts";
 @source "../../../../packages/server-workflow/src/adapters/json-each-sources.ts";

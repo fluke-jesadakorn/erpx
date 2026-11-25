@@ -1,6 +1,6 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 import { legalRecentItemListSql } from '../../../packages/server-legal/src/adapters/legal-read-tail-r31-sources';
 
@@ -79,5 +79,158 @@ describe('legal read-tail r31 parameterized family dedupe', () => {
     await walk(srcRoot);
     expect(total).toBeLessThan(242);
     expect(total).toBeLessThanOrEqual(241);
+  });
+});
+
+const ENV = 'ERPX_NATIVE_LEGAL_RECORDS_CONFIG';
+const CONFIG = {
+  privateBaseUrl: 'http://127.0.0.1:44999',
+  timeoutMs: 2000,
+  holdings: [
+    {
+      origin: 'http://acme.example.test:3443',
+      holdingSlug: 'acme',
+      holdingId: 'holding-a',
+      companyId: 'company-a',
+      assignmentId: 'assignment-a',
+    },
+    {
+      origin: 'http://north.example.test:3443',
+      holdingSlug: 'north',
+      holdingId: 'holding-b',
+      companyId: 'company-b',
+    },
+  ],
+};
+const native = { id: 'item-one', version: 7 };
+const ownerSrc = (name: string) =>
+  readFile(new URL(`../../../packages/server-legal/src/${name}`, import.meta.url), 'utf8');
+
+let savedConfig: string | undefined;
+let savedFetch: typeof globalThis.fetch;
+afterEach(() => {
+  globalThis.fetch = savedFetch;
+  if (savedConfig === undefined) delete process.env[ENV];
+  else process.env[ENV] = savedConfig;
+});
+function begin(): void {
+  savedConfig = process.env[ENV];
+  savedFetch = globalThis.fetch;
+  process.env[ENV] = JSON.stringify(CONFIG);
+}
+function capture(response: () => Response = () => Response.json(native)) {
+  const calls: { url: string; init?: RequestInit }[] = [];
+  globalThis.fetch = (async (url: RequestInfo | URL, init?: RequestInit) => {
+    calls.push({ url: String(url), init });
+    return response();
+  }) as typeof fetch;
+  return calls;
+}
+
+describe('legal read-tail r31 native inspection-source cutover', () => {
+  it('parity: findInspectionSource returns the exact native projection', async () => {
+    const { findInspectionSource } = await import('@erpx/server-legal/public/legal/processing');
+    begin();
+    const calls = capture();
+    const out = await findInspectionSource({} as never, 'company-a', 'doc/one');
+    expect(out).toEqual(native);
+    expect(calls).toHaveLength(1);
+    expect(new URL(calls[0]!.url).pathname).toBe(
+      '/api/v1/holdings/acme/legal/inspection-source/doc%2Fone',
+    );
+  });
+
+  it('bind: the Company selects the exact registered Holding and reaches the owner read', async () => {
+    const { nativeInspectionSourceRead } = await import(
+      '../../../packages/server-legal/src/adapters/native-legal-auxiliary'
+    );
+    begin();
+    const calls = capture();
+    await nativeInspectionSourceRead('company-b', 'doc-one');
+    expect(calls).toHaveLength(1);
+    const h = new Headers(calls[0]!.init?.headers);
+    expect(new URL(calls[0]!.url).pathname).toBe(
+      '/api/v1/holdings/north/legal/inspection-source/doc-one',
+    );
+    expect(h.get('x-erpx-context-company')).toBe('company-b');
+    expect(h.get('host')).toBe('north.example.test:3443');
+  });
+
+  it('fails closed on unknown Company, invalid ids, missing config and native errors', async () => {
+    const { findInspectionSource } = await import('@erpx/server-legal/public/legal/processing');
+    begin();
+    capture();
+    await expect(findInspectionSource({} as never, 'company-x', 'doc-one')).rejects.toMatchObject({
+      status: 503,
+      code: 'NATIVE_LEGAL_AUTHORITY_INVALID',
+    });
+    await expect(findInspectionSource({} as never, 'company-a', 'bad id')).rejects.toMatchObject({
+      status: 422,
+      code: 'NATIVE_LEGAL_READ_REQUEST_INVALID',
+    });
+    process.env[ENV] = '';
+    await expect(findInspectionSource({} as never, 'company-a', 'doc-one')).rejects.toMatchObject({
+      status: 503,
+      code: 'NATIVE_LEGAL_UNAVAILABLE',
+    });
+    process.env[ENV] = JSON.stringify(CONFIG);
+    capture(() =>
+      Response.json({ error: { code: 'NOT_FOUND', message: 'Denied' } }, { status: 404 }),
+    );
+    await expect(findInspectionSource({} as never, 'company-a', 'doc-one')).rejects.toMatchObject({
+      status: 404,
+      code: 'NOT_FOUND',
+      message: 'Denied',
+    });
+  });
+
+  it('bind: the Rust owner owns the byte-identical SQL, two binds, enum and path', async () => {
+    const [adapter, domain, application] = await Promise.all([
+      ownerSrc('adapters/postgres_auxiliary_reads.rs'),
+      ownerSrc('domain/auxiliary.rs'),
+      ownerSrc('application/auxiliary.rs'),
+    ]);
+    const sql = adapter.slice(
+      adapter.indexOf('const INSPECTION_SOURCE_SQL'),
+      adapter.indexOf('const CLEAN_DOCUMENT'),
+    );
+    expect(sql).toContain(
+      'SELECT i.id,i.version::int version FROM legal_items i JOIN legal_documents d',
+    );
+    expect(sql).toContain('ON d.item_id=i.id WHERE d.id=$1 AND i.company_id=$2');
+    expect(sql).not.toContain('?');
+    expect(adapter).toContain('.bind(document_id)');
+    expect(adapter).toContain('.bind(actor.company_id.as_str())');
+    expect(adapter).toContain('fn inspection_source');
+    expect(domain).toContain('InspectionSource {');
+    expect(domain).toContain('"legal.inspection-source.read"');
+    expect(application).toContain('ports.inspection_source(actor, &document_id).await');
+    expect(application).toContain('one == "inspection-source"');
+  });
+
+  it('KPI: the TypeScript SELECT is deleted and statements are BEFORE=242 -> AFTER=125', async () => {
+    const [processing, client] = await Promise.all([
+      src('legal/processing.ts'),
+      src('native-legal-auxiliary.ts'),
+    ]);
+    expect(processing).toContain(
+      'nativeInspectionSourceRead<{id:string;version:number}>(companyId,documentId)',
+    );
+    expect(processing).not.toContain('SELECT i.id,i.version::int version');
+    expect((processing.match(/SELECT /g) ?? []).length).toBe(0);
+    expect(client).toContain("'inspection-source'");
+    let total = 0;
+    const walk = async (dir: string) => {
+      for (const entry of await readdir(dir, { withFileTypes: true })) {
+        const p = resolve(dir, entry.name);
+        if (entry.isDirectory()) await walk(p);
+        else if (entry.name.endsWith('.ts'))
+          total += ((await readFile(p, 'utf8')).match(/SELECT /g) ?? []).length;
+      }
+    };
+    await walk(srcRoot);
+    expect(total).toBeLessThan(242);
+    expect(total).toBeLessThanOrEqual(125);
+    expect(total).toBe(125);
   });
 });

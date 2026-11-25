@@ -62,18 +62,18 @@ describe('pms read-tail r48 native read retirement', () => {
     expect(KIND.sectionRelatedRecords).not.toMatch(/SELECT|INSERT|UPDATE|DELETE|FOR UPDATE|FOR SHARE|LOCK TABLE/);
   });
 
-  it('carries the byte-identical retired SQL in the Rust registry and pins 33 kinds', async () => {
+  it('carries the byte-identical retired SQL in the Rust registry and pins 34 kinds', async () => {
     const rust = await src('adapters/native_read_sql.rs');
     expect(rust).toContain('pub const PMS_RD_SECTION_RELATED_RECORDS: &str = "pms_rd_section_related_records";');
     expect(rust).toContain('const SQL_SECTION_RELATED_RECORDS: &str = ' + JSON.stringify(HEAD.sectionRelatedRecords) + ';');
     expect(rust).toContain('bind_count: 29,');
-    expect(rust).toContain('READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS];');
+    expect(rust).toContain('READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT];');
     const reads = rust.split('\n').find(line => line.startsWith('const READS:'))!;
-    expect(reads.split('READ_').length - 1).toBe(33);
-    expect((rust.match(/^pub const PMS_RD_/gm) ?? []).length).toBe(33);
+    expect(reads.split('READ_').length - 1).toBe(34);
+    expect((rust.match(/^pub const PMS_RD_/gm) ?? []).length).toBe(34);
     const bridge = await src('adapters/native-pms-read.ts');
     expect(bridge).toContain("export const PMS_RD_SECTION_RELATED_RECORDS = 'pms_rd_section_related_records';");
-    expect((bridge.match(/^export const PMS_RD_/gm) ?? []).length).toBe(33);
+    expect((bridge.match(/^export const PMS_RD_/gm) ?? []).length).toBe(34);
   });
 
   it('routes sectionRelatedRecords through the native transport and removes the inline SQL', async () => {
@@ -140,8 +140,8 @@ describe('pms read-tail r48 native read retirement', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(237);
-    expect(bare).toBe(238);
+    expect(spaced).toBe(236);
+    expect(bare).toBe(237);
     expect(spaced).toBeLessThan(275);
     expect(bare).toBeLessThan(277);
   });

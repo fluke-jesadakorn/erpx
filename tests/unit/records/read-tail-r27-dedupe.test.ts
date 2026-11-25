@@ -67,11 +67,13 @@ describe('Records read-tail r27 recordContextDetailSql family', () => {
     readOnly(actual);
   });
 
-  test('the family is one generator literal with five call sites and the clock stays outside', () => {
+  test('the retained generator delegates its read head to r32; context members are native stubs', () => {
     expect(records.match(/const recordContextDetailSql\s*=/g) ?? []).toHaveLength(1);
-    expect(records.match(/recordContextDetailSql\(/g) ?? []).toHaveLength(5); // mentions/suggestions/transitions + search references + reference-edge family
+    expect(records.match(/recordContextDetailSql\(/g) ?? []).toHaveLength(2); // search references + reference-edge count; context members retired
     expect(records).toContain('const recordContextDetailSql = (table: string, columns: string, where: string, order: string) =>');
-    expect(records).toContain('`SELECT ${columns} FROM ${table} WHERE ${where}${order}`');
+    expect(records).toContain('projectionColumnHeadSql(columns, table, ` WHERE ${where}${order}`)');
+    expect(records).not.toContain('`SELECT ${columns} FROM ${table} WHERE ${where}${order}`');
+    expect(records.match(/readRecordContextEdgesbacklinksmentionssuggestionshistory\d*\(\) \{ throw new NativeApiError\(503/g) ?? []).toHaveLength(5);
     // Search references now routes through the shared generator: the clock is
     // prepended outside it, the embedded newline/indent and binds are unchanged.
     expect(records).toContain("${purchase.clock}${recordContextDetailSql('workspace_records','module_id,id,title,status,version',`archived_at IS NULL AND ${scope.sql}");
@@ -115,7 +117,7 @@ describe('Records read-tail r27 retirement check', () => {
     // the request-events aggregate into childRowAgg (23 -> 22); r30 folds
     // three shared heads (22 -> 19). No lock, cross-owner port or native seam
     // changed.
-    expect(total).toBe(18);
+    expect(total).toBe(12);
     expect(total).toBeLessThan(25);
   });
 });

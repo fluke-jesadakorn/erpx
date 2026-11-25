@@ -76,6 +76,6 @@ describe('company-scoped flow-event history generator family (r38)', () => {
     // r48 deduped the approver union, flow version guard, and settlement sources (37->33);
     // r49 deduped the export-receipt result read onto the closed command-receipt projection (33->32).
     // r53 folded the approver-union bare head onto selectHeadSql (29->28).
-    expect(total).toBe(28);
+    expect(total).toBe(26);
   });
 });

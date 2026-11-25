@@ -1,12 +1,14 @@
 //! Native Quality read-plan registry for the mounted `/quality/read-plan` route.
 //!
-//! Five closed read kinds: the alert-to-hold point lookup and the hold/spec
+//! Six closed read kinds: the alert-to-hold point lookup and the hold/spec
 //! existence probes used by the retained purchase gates (all unscoped, exactly
-//! one caller-supplied bind), plus the two attachment owner CAS guards (three
-//! binds, returned as an `EXISTS(...)` wrapper for the caller's command
-//! assertion). The caller executes the returned statement on its own
-//! already-open unit, so the uncommitted state of the caller's transaction
-//! stays visible and no TypeScript SQL mirror remains.
+//! one caller-supplied bind), the two attachment owner CAS guards (three binds,
+//! returned as an `EXISTS(...)` wrapper for the caller's command assertion),
+//! and the Company-scoped Quality attachment descriptor (the exact statement
+//! owned by the fenced `inventory_quality_holds` descriptor port). The caller
+//! executes the returned statement on its own already-open unit, so the
+//! uncommitted state of the caller's transaction stays visible and no
+//! TypeScript SQL mirror remains.
 
 /// Allow-listed native Quality read kind: alert id to owning hold id.
 pub const RD_ALERT_HOLD_ID: &str = "quality_rd_alert_hold_id";
@@ -23,6 +25,9 @@ pub const RD_ATTACH_HOLD_CAS: &str = "quality_rd_attach_hold_cas";
 /// Allow-listed native Quality read kind: spec attachment version CAS guard.
 pub const RD_ATTACH_SPEC_CAS: &str = "quality_rd_attach_spec_cas";
 
+/// Allow-listed native Quality read kind: Company-scoped hold descriptor.
+pub const RD_ATTACHMENT_DESCRIPTOR: &str = "quality_rd_attachment_descriptor";
+
 /// Exact statement retired from `purchases.ts`. Byte parity is pinned by the
 /// owner Rust test and the TypeScript read-tail r28 witness.
 const SQL_ALERT_HOLD_ID: &str = "SELECT hold_id FROM inventory_quality_alerts WHERE id=?";
@@ -38,6 +43,11 @@ const SQL_ATTACH_HOLD_CAS: &str = "EXISTS(SELECT 1 FROM inventory_quality_holds 
 
 /// Exact three-bind CAS wrapper retired from the operational attachment facts.
 const SQL_ATTACH_SPEC_CAS: &str = "EXISTS(SELECT 1 FROM inventory_quality_specs WHERE id=? AND company_id=? AND version=?)";
+
+/// Exact two-bind descriptor statement retired from `policyQualityFacts`. It is
+/// the fenced owner port's capture statement with `$1/$2` rewritten to `?`;
+/// a Rust test pins that byte identity against `DESCRIPTOR_CAPTURE_SQL`.
+const SQL_ATTACHMENT_DESCRIPTOR: &str = "SELECT CASE WHEN octet_length(company_id)+coalesce(octet_length(branch_id),0)<=2097152 THEN company_id END company_id,CASE WHEN octet_length(company_id)+coalesce(octet_length(branch_id),0)<=2097152 THEN branch_id END branch_id,NULL::text department_id,version::bigint version FROM inventory_quality_holds WHERE id=? AND company_id=?";
 
 pub struct QualityReadStatement {
     pub kind: &'static str,
@@ -75,6 +85,12 @@ const READ_ATTACH_SPEC_CAS: QualityReadStatement = QualityReadStatement {
     bind_count: 3,
 };
 
+const READ_ATTACHMENT_DESCRIPTOR: QualityReadStatement = QualityReadStatement {
+    kind: RD_ATTACHMENT_DESCRIPTOR,
+    sql: SQL_ATTACHMENT_DESCRIPTOR,
+    bind_count: 2,
+};
+
 /// Resolve one allow-listed kind. No SQL is accepted from the wire.
 pub fn read_statement(kind: &str) -> Option<&'static QualityReadStatement> {
     match kind {
@@ -83,6 +99,7 @@ pub fn read_statement(kind: &str) -> Option<&'static QualityReadStatement> {
         RD_SPEC_EXISTS => Some(&READ_SPEC_EXISTS),
         RD_ATTACH_HOLD_CAS => Some(&READ_ATTACH_HOLD_CAS),
         RD_ATTACH_SPEC_CAS => Some(&READ_ATTACH_SPEC_CAS),
+        RD_ATTACHMENT_DESCRIPTOR => Some(&READ_ATTACHMENT_DESCRIPTOR),
         _ => None,
     }
 }
@@ -131,6 +148,20 @@ mod tests {
             assert!(sql.ends_with(')'));
             assert!(sql.contains(" WHERE id=? AND company_id=? AND version=?)"));
         }
+    }
+
+    #[test]
+    fn attachment_descriptor_read_plan_is_exact() {
+        planned(RD_ATTACHMENT_DESCRIPTOR, SQL_ATTACHMENT_DESCRIPTOR, 2);
+        assert!(SQL_ATTACHMENT_DESCRIPTOR.starts_with("SELECT CASE WHEN octet_length(company_id)"));
+        assert!(SQL_ATTACHMENT_DESCRIPTOR.contains("NULL::text department_id,version::bigint version"));
+        assert!(SQL_ATTACHMENT_DESCRIPTOR.ends_with("FROM inventory_quality_holds WHERE id=? AND company_id=?"));
+        assert_eq!(
+            SQL_ATTACHMENT_DESCRIPTOR,
+            crate::adapters::attachment_descriptor::DESCRIPTOR_CAPTURE_SQL
+                .replace("$1", "?")
+                .replace("$2", "?")
+        );
     }
 
     #[test]

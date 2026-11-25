@@ -10,6 +10,14 @@ import {
   CA_RD_IDENTITY_CHANGE_EVENTS_ACTION,
   CA_RD_IDENTITY_CHANGE_EVENTS_MONTH,
   CA_RD_IDENTITY_CHANGE_HISTORY,
+  CA_RD_PORTAL_BINDING_LOCK,
+  CA_RD_PORTAL_IDENTITY_EXISTS,
+  CA_RD_PORTAL_INSTALLED,
+  CA_RD_PORTAL_LATEST_RESPONSE,
+  CA_RD_PORTAL_REQUEST_ID,
+  CA_RD_PORTAL_REQUEST_SOURCE,
+  CA_RD_PORTAL_STAFF_BINDING,
+  CA_RD_PORTAL_THREADS,
   nativeOwnerReadAll,
   nativeOwnerReadStatement,
 } from '../../../packages/server-customer_authority/src/adapters/native-owner-read';
@@ -247,6 +255,56 @@ describe('executive identity-change-events metric owner read', () => {
   });
 });
 
+describe('customer authority portal native read port cutover', () => {
+  const support = () => new URL('../../../packages/server-customer_authority/src/adapters/portal-support.ts', import.meta.url);
+
+  it('advertises the exact registered portal support/binding read discriminators', () => {
+    expect(CA_RD_PORTAL_INSTALLED).toBe('portal-support.installed');
+    expect(CA_RD_PORTAL_LATEST_RESPONSE).toBe('portal-support.latest-response');
+    expect(CA_RD_PORTAL_REQUEST_SOURCE).toBe('portal-support.request-source');
+    expect(CA_RD_PORTAL_THREADS).toBe('portal-support.threads');
+    expect(CA_RD_PORTAL_REQUEST_ID).toBe('portal-support.request-id');
+    expect(CA_RD_PORTAL_STAFF_BINDING).toBe('portal-support.staff-binding');
+    expect(CA_RD_PORTAL_BINDING_LOCK).toBe('portal-binding.lock');
+    expect(CA_RD_PORTAL_IDENTITY_EXISTS).toBe('portal-binding.identity-exists');
+  });
+
+  it('plans the staff-binding read on the native owner port without a TS literal', async () => {
+    process.env[key] = config();
+    const values = ['binding', 'company', 'branch', 'branch', null, null];
+    const sql = 'SELECT binding.id,binding.created_by,binding.status,binding.expires_at FROM customer_access_bindings binding JOIN commerce_orders original ON original.id=binding.order_id AND original.company_id=binding.company_id AND original.party_id=binding.customer_id AND original.kind IN (\'quote\',\'sales\') WHERE binding.id=? AND binding.company_id=? AND (?::text IS NULL OR original.branch_id=?) AND (?::text IS NULL OR original.department_id=?)';
+    const fetchMock = vi.fn(async () => new Response(
+      JSON.stringify({ data: { statements: [{ sql, values }] } }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    ));
+    vi.stubGlobal('fetch', fetchMock);
+    const statement = await nativeOwnerReadStatement(CA_RD_PORTAL_STAFF_BINDING, values, 'acme');
+    expect(statement).toEqual({ sql, values });
+    const body = JSON.parse(((fetchMock.mock.calls[0] as unknown as [URL, RequestInit])[1] as RequestInit).body as string);
+    expect(body.kind).toBe('portal-support.staff-binding');
+    expect(body.values).toEqual(values);
+    vi.unstubAllGlobals();
+    delete process.env[key];
+  });
+
+  it('keeps no TypeScript SQL mirror in the staff-binding consumer', async () => {
+    const src = await readFile(support(), 'utf8');
+    expect(src).not.toContain('SELECT binding.id,binding.created_by,binding.status,binding.expires_at');
+    expect(src).toContain('CA_RD_PORTAL_STAFF_BINDING');
+    expect(src).toContain('nativeOwnerReadStatement');
+    expect(src).toContain('database.prepare(staff.sql).bind(...staff.values)');
+  });
+
+  it('fails closed for the portal read when the native service is unconfigured', async () => {
+    delete process.env[key];
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('must not fetch'); }));
+    await expect(nativeOwnerReadStatement(CA_RD_PORTAL_STAFF_BINDING, ['binding'], 'acme')).rejects.toMatchObject({
+      code: 'CUSTOMER_AUTHORITY_NATIVE_READ_UNAVAILABLE', status: 503,
+    });
+    vi.unstubAllGlobals();
+  });
+});
+
 describe('customer authority portal attachment binding-current read family', () => {
   const adapter = (name: string) => new URL(`../../../packages/server-customer_authority/src/adapters/${name}`, import.meta.url);
 
@@ -255,8 +313,9 @@ describe('customer authority portal attachment binding-current read family', () 
     const read = await readFile(adapter('attachment-read.ts'), 'utf8');
     // One canonical declaration; the other surface reuses it by import so the
     // private read and the Files withdraw proof cannot drift into separate SQL.
-    expect(proof).toContain('export const bindingIdentityCurrentSql = "SELECT 1 FROM customer_access_bindings binding JOIN customer_access_identities');
-    expect(proof.match(/binding\.email=\?"/g)).toHaveLength(1);
+    expect(proof).toContain('export const bindingIdentityCurrentSql = existenceProbe(');
+    expect(proof).toContain("'FROM customer_access_bindings binding JOIN customer_access_identities identity ON identity.binding_id=binding.id'");
+    expect(proof.match(/binding\.email=\?/g)).toHaveLength(1);
     expect(read).not.toContain('binding.email=?');
     expect(read).toContain("import {bindingIdentityCurrentSql} from '@erpx/server-customer_authority/adapters/attachment-withdraw-proof'");
     expect(read).toContain('.prepare(bindingIdentityCurrentSql)');
@@ -313,13 +372,13 @@ describe('customer authority portal release gate dedupe', () => {
     // reach the gate through these two helpers; one source literal prevents the
     // Company alias from drifting. r28 further shares the outer SELECT template
     // across the aliased read and the wrapped command assertion.
-    expect(src.match(/SELECT \?::text company_id/g)).toHaveLength(1);
-    expect(src).toContain('const gateSource=`(SELECT ?::text company_id) ${gateAlias}`;');
+    expect(src.match(/\bSELECT\b/g) ?? []).toHaveLength(0);
+    expect(src).toContain('const gateSource=`(${companyScopeSelect()}) ${gateAlias}`;');
     expect(src).toContain("releaseGateRead(predicate(),gateSource,' allowed')");
     expect(src).toContain("releaseGateRead(predicate(),gateSource,'')");
     const builder = await readFile(shared(), 'utf8');
     expect(builder).toContain('export const releaseGateRead');
-    expect(builder.match(/\bSELECT\b/g)).toHaveLength(0);
+    expect(builder.match(/\bSELECT\b/g) ?? []).toHaveLength(0);
   });
 });
 
@@ -333,10 +392,10 @@ describe('customer authority portal support responses source dedupe', () => {
     // Every support-table reader renders its SQL from one closed core. The
     // caller-owned suffix keeps each verified statement byte-identical while
     // two duplicate SELECTs leave the owner KPI.
-    expect(src).toContain("const supportSource=(table:'responses'|'acknowledgements'|'closures')=>`SELECT * FROM customer_portal_support_${table}`;");
+    expect(src).toContain("const supportSource=(table:'responses'|'acknowledgements'|'closures')=>allColumnsProjection(`customer_portal_support_${table}`);");
     expect(src).toContain("export const portalSupportResponsesSource=supportSource('responses');");
     expect(src).toContain("responses:portalSupportResponsesSource,acknowledgements:supportSource('acknowledgements'),closures:supportSource('closures')");
-    expect(src.match(/SELECT \* FROM customer_portal_support_\$\{table\}/g)).toHaveLength(1);
+    expect(src.match(/\bSELECT\b/g)).toHaveLength(1);
     expect(consumer).toContain('portalSupportInstalled,portalSupportResponsesSource,portalSupportSourceReadLocks');
     expect(consumer).toContain('LEFT JOIN LATERAL(${portalSupportResponsesSource} response WHERE');
     expect(consumer).not.toContain('SELECT * FROM customer_portal_support_responses');

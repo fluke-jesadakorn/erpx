@@ -55,7 +55,8 @@ describe('marketing owner-local point read dedupe', () => {
     expect(repo).not.toContain('FROM marketing_assets WHERE id=? AND company_id=?"');
     expect(repo).not.toContain('`SELECT * FROM marketing_lead_candidates WHERE id=?');
     expect(repo).not.toContain('"SELECT * FROM marketing_engagement_events WHERE candidate_id=?');
-    expect(repo).toContain("marketingLocalPointReadSql('asset')");
+    expect(repo).not.toContain("marketingLocalPointReadSql('asset')");
+    expect(repo).toContain('nativeMarketingReadFirst<Row>(MARKETING_RD_ASSET_POINT');
     expect(repo).toContain("marketingLocalPointReadSql('candidate',lock)");
     expect(repo).toContain('LANE40_CANDIDATE_HISTORY');
 
@@ -69,7 +70,7 @@ describe('marketing owner-local point read dedupe', () => {
     const repo = await readFile(adapter('marketing.ts'), 'utf8');
     const operational = await readFile(adapter('attachments-operational-facts.ts'), 'utf8');
     const policy = await readFile(adapter('attachments-policy-facts.ts'), 'utf8');
-    expect(repo).toContain("marketingLocalPointReadSql('asset'))\n        .bind(id, a.companyId)");
+    expect(repo).toContain('nativeMarketingReadFirst<Row>(MARKETING_RD_ASSET_POINT,{assetId:id,companyId:a.companyId},write)');
     expect(repo).toContain("marketingLocalPointReadSql('candidate',lock),\n    )\n    .bind(id, a.companyId)");
     expect(repo).toContain('readMarketingLane40(LANE40_CANDIDATE_HISTORY, a, {recordId: id})');
     expect(operational).toContain("attachmentOwnerFactReadSql('asset')).bind(facts.targetId,facts.companyId)");

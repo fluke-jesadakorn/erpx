@@ -372,6 +372,15 @@ mod tests {
         }
         assert!(entry.sql.contains("command_receipts"));
         assert!(entry.sql.contains(crm_candidates!()));
+        // The retired TS settlement projection is inlined verbatim by the
+        // native read port: its candidate head and command-receipt witness stay
+        // byte-identical after the TS SELECT family was deleted.
+        assert!(entry.sql.contains(
+            "SELECT c.*,valid.id IS NOT NULL AND EXISTS(SELECT 1 FROM marketing_assets form"
+        ));
+        assert!(entry.sql.contains(
+            "marketing_lead_candidates c LEFT JOIN (SELECT candidate.* FROM marketing_lead_candidates candidate"
+        ));
         assert!(entry.authority.contains("command_receipts"));
         assert_ne!(entry.sql, PLAN_CAMPAIGN_EXISTS);
     }

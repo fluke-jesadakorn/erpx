@@ -26,10 +26,10 @@ const before = {
   renderedSqlSha: 'dda924bb91379e2136d1068f19d519c6cb532274c4f3e616470142badec53f36',
   templateSha: '45bf1315f7d847b5cf7d628ce3911e3e264f617e65e6e79d5007cfdbf5c97466',
   resultSha: 'e0f16b4e271e398789aa652bc1640442f4e466cf980830e0be4d3c95a4a17cd3',
-  // Final wave-2 pins: records 13, customer_authority 18, combined 31.
-  combinedSelect: 31,
-  recordsSelect: 13,
-  customerAuthoritySelect: 18,
+  // Current pins: records 12 (context read family retired), customer_authority 17, combined 29.
+  combinedSelect: 29,
+  recordsSelect: 12,
+  customerAuthoritySelect: 17,
 };
 
 const golden = { companyId: 'acme', branchId: 'b1', departmentId: null, version: 7 };
@@ -96,12 +96,12 @@ describe('wave 2 oracles and KPI pins', () => {
       walk(base);
       return total;
     };
-    expect(ownerCount('customer_authority')).toBe(18);
-    expect(ownerCount('records')).toBe(13);
-    expect(ownerCount('records') + ownerCount('customer_authority')).toBe(31);
-    expect(before.customerAuthoritySelect).toBe(18);
-    expect(before.recordsSelect).toBe(13);
-    expect(before.combinedSelect).toBe(31);
+    expect(ownerCount('customer_authority')).toBe(17);
+    expect(ownerCount('records')).toBe(12);
+    expect(ownerCount('records') + ownerCount('customer_authority')).toBe(29);
+    expect(before.customerAuthoritySelect).toBe(17);
+    expect(before.recordsSelect).toBe(12);
+    expect(before.combinedSelect).toBe(29);
   });
 
   test('replaced adapter has no SQL and delegates to the native client', () => {

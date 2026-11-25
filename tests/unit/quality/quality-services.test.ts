@@ -177,29 +177,31 @@ describe('retired Quality dead read branch',()=>{
 });
 describe('quality attachment target-scope read dedupe',()=>{
  const source=(path:string)=>resolve(process.cwd(),path);
- test('one fixed target-scope SELECT backs all three admitted variants',async()=>{
+ test('one fixed target-scope SELECT backs the two retained variants',async()=>{
   const {qualityAttachmentScopeReadSql}=await import('../../../packages/server-quality/src/adapters/quality-attachment-scope-read-sql');
   expect(qualityAttachmentScopeReadSql('legacy_hold'))
    .toBe('SELECT company_id,branch_id branch_id,NULL department_id,version FROM inventory_quality_holds WHERE id=?');
-  expect(qualityAttachmentScopeReadSql('hold'))
-   .toBe('SELECT company_id,branch_id AS branch_id,NULL AS department_id,version AS version FROM inventory_quality_holds WHERE id=? AND company_id=?');
   expect(qualityAttachmentScopeReadSql('spec'))
    .toBe('SELECT company_id,NULL::text branch_id,NULL::text department_id,version FROM inventory_quality_specs WHERE id=? AND company_id=?');
-  for(const variant of ['legacy_hold','hold','spec'] as const)expect(qualityAttachmentScopeReadSql(variant).match(/SELECT /g)).toHaveLength(1);
+  for(const variant of ['legacy_hold','spec'] as const)expect(qualityAttachmentScopeReadSql(variant).match(/SELECT /g)).toHaveLength(1);
   const helper=readFileSync(source('packages/server-quality/src/adapters/quality-attachment-scope-read-sql.ts'),'utf8');
   expect(helper.match(/SELECT /g) ?? []).toHaveLength(0); // r38 fold
+  expect(helper).not.toContain('"hold"'); // descriptor variant retired to native
  });
- test('owner facts compose the shared SELECT instead of inlining it',()=>{
+ test('descriptor facts run on the native plan; retained facts compose the shared SELECT',()=>{
   const migration='packages/server-quality/src/adapters/attachment-migration-owner.ts';
   const policy='packages/server-quality/src/adapters/attachments-policy-facts.ts';
   const operational='packages/server-quality/src/adapters/attachments-operational-facts.ts';
-  for(const path of [migration,policy,operational])expect(readFileSync(source(path),'utf8')).toContain('qualityAttachmentScopeReadSql');
+  for(const path of [migration,operational])expect(readFileSync(source(path),'utf8')).toContain('qualityAttachmentScopeReadSql');
   expect(readFileSync(source(migration),'utf8')).not.toContain('SELECT ');
   expect(readFileSync(source(operational),'utf8')).not.toContain('SELECT ');
   const policyText=readFileSync(source(policy),'utf8');
   expect(policyText).not.toContain('SELECT ');
+  expect(policyText).not.toContain('qualityAttachmentScopeReadSql');
+  expect(policyText).toContain('readDescriptor');
   expect(policyText).toContain('readQualityHold');
-  expect(policyText.match(/qualityAttachmentScopeReadSql/g)).toHaveLength(3);
+  expect(policyText).toContain('nativeQualityReadFirst');
+  expect(policyText).toContain('RD_ATTACHMENT_DESCRIPTOR');
   expect(readFileSync(source(operational),'utf8')).toContain('nativeQualityGuardAssertion');
  });
 });

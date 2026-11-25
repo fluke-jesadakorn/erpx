@@ -11,6 +11,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 
 pub const KIND_RECOMMENDATIONS: &str = "recommendations";
+pub const KIND_SCENARIOS: &str = "scenarios";
 pub const KIND_RESOURCES: &str = "resources";
 pub const KIND_CALENDAR: &str = "calendar";
 pub const KIND_SCENARIO: &str = "scenario";
@@ -18,8 +19,9 @@ pub const KIND_SCOPED_RECOMMENDATION: &str = "scoped-recommendation";
 pub const KIND_COMPARISON: &str = "comparison";
 
 /// The closed discriminator set. The wire accepts no other value.
-pub const KINDS: [&str; 6] = [
+pub const KINDS: [&str; 7] = [
     KIND_RECOMMENDATIONS,
+    KIND_SCENARIOS,
     KIND_RESOURCES,
     KIND_CALENDAR,
     KIND_SCENARIO,
@@ -152,6 +154,30 @@ pub struct RecommendationListItem {
     pub branch_id: String,
 }
 
+/// Exact row shape of the scenario scoped list. The owner statement projects
+/// the scenario columns and the Manufacturing-owned specification name; the
+/// cross-owner fragment stays inlined until Manufacturing exposes a subquery.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct ScenarioListItem {
+    pub id: String,
+    pub company_id: String,
+    pub branch_id: String,
+    pub warehouse_id: String,
+    pub specification_id: String,
+    pub specification_version: i64,
+    pub demand_quantity_milli: i64,
+    pub due_date: String,
+    pub capacity_minutes: i64,
+    pub shortages_json: String,
+    pub status: String,
+    pub created_by: String,
+    pub version: i64,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub context_json: String,
+    pub specification_name: String,
+}
+
 /// Exact row shape of the production-resources scoped list.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct ResourceListItem {
@@ -272,8 +298,9 @@ mod tests {
     fn closed_kind_set() {
         assert!(KINDS.iter().all(|kind| valid_kind(kind)));
         assert!(is_row_kind(KIND_SCENARIO));
+        assert!(!is_row_kind(KIND_SCENARIOS));
         assert!(!is_row_kind(KIND_RESOURCES));
-        assert!(!valid_kind("scenarios"));
+        assert!(valid_kind(KIND_SCENARIOS));
         assert!(!valid_kind("executive-shortage"));
         assert!(!valid_kind(""));
     }
@@ -295,6 +322,7 @@ mod tests {
         assert!(LaneScope::new_list(KIND_RESOURCES, "", None).is_err());
         assert!(LaneScope::new_list("other", "company-1", None).is_err());
         assert!(LaneScope::new_list(KIND_CALENDAR, "company-1", Some("x/y")).is_err());
+        assert!(LaneScope::new_list(KIND_SCENARIOS, "company-1", None).is_ok());
     }
 
     #[test]
@@ -341,6 +369,29 @@ mod tests {
         assert_eq!(value["company_id"], "company-1");
         assert!(value["reviewed_by"].is_null());
         assert!(value.get("permission").is_none());
+
+        let scenario = ScenarioListItem {
+            id: "s1".into(),
+            company_id: "company-1".into(),
+            branch_id: "branch-1".into(),
+            warehouse_id: "warehouse-1".into(),
+            specification_id: "spec-1".into(),
+            specification_version: 1,
+            demand_quantity_milli: 2000,
+            due_date: "2026-10-04".into(),
+            capacity_minutes: 120,
+            shortages_json: "[]".into(),
+            status: "calculated".into(),
+            created_by: "planner".into(),
+            version: 1,
+            created_at: 10,
+            updated_at: 20,
+            context_json: "{}".into(),
+            specification_name: "Assembly".into(),
+        };
+        let scenario_value = serde_json::to_value(&scenario).unwrap();
+        assert_eq!(scenario_value.as_object().unwrap().len(), 17);
+        assert_eq!(scenario_value["specification_name"], "Assembly");
 
         let list = LaneData::List(vec![value]);
         assert_eq!(list.len(), 1);

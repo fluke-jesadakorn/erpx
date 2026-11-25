@@ -19,6 +19,7 @@ use sqlx::{AssertSqlSafe, Connection, PgConnection, Row};
 const TS_FS: &str = include_str!("../../../packages/server-assets/src/adapters/field-service-references.ts");
 const TS_PKG: &str = include_str!("../../../packages/server-assets/src/adapters/package-obligations.ts");
 const TS_PROBE: &str = include_str!("../../../packages/server-assets/src/adapters/record-purchases.ts");
+const TS_HEAD: &str = include_str!("../../../packages/server-assets/src/adapters/asset-scope-tuple.ts");
 const TS_PLACEMENTS: &str = include_str!("../../../packages/server-organization/src/adapters/talent-settlement-sources.ts");
 const TS_FINANCIAL: &str = include_str!("../../../packages/server-finance/src/adapters/assets-settlement-sources.ts");
 const TS_REFS: &str = include_str!("../../../packages/server-maintenance/src/adapters/asset-settlement-refs.ts");
@@ -77,6 +78,9 @@ const FROZEN_FS_ROWS: &str =
     "SELECT id,company_id,branch_id,department_id,lifecycle_status,warranty_end,version FROM operational_assets";
 const FROZEN_FS_IMAGE: &str =
     "SELECT to_jsonb(source)::text image FROM operational_assets source WHERE source.id=? AND source.company_id=?";
+/// Retired TypeScript clock scalar, now owner-planned on the native read route.
+const FROZEN_PACKAGE_CLOCK: &str =
+    "SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint now_ms";
 
 macro_rules! obligations {
     ($refs:expr) => {
@@ -121,10 +125,24 @@ INSERT INTO operational_inventory_consumptions VALUES ('cons-1','company','work-
 #[test]
 fn cross_owner_fragments_match_typescript_authority() {
     assert!(TS_PROBE.contains("assetProjectionFromSql(\"1\",` ${from}`,` WHERE ${where}`)"));
+    // The universal head token now lives in the Rust-owned JSON contract.
+    assert!(!TS_HEAD.contains("SELECT"));
+    assert!(TS_HEAD.contains("heads.selectHead.replace"));
+    assert_eq!(
+        erpx_server_assets::public::projection_head::render_projection_from(
+            "id,version", " operational_assets", " WHERE id=?"
+        ),
+        "SELECT id,version FROM operational_assets WHERE id=?"
+    );
+    assert!(TS_PROBE.contains("await nativeAssetsClockScalar()"));
+    assert!(!TS_PROBE.contains("assetClockNowMsSql"));
+    assert!(!TS_PROBE.contains("packageClockSql"));
     assert!(TS_PKG.contains("${assetSourceExistsSql(placements"));
-    assert!(TS_PLACEMENTS.contains(placements!()));
+    // The Organization authority now renders this projection from a closed
+    // column/relation pair instead of a literal; the projection is unchanged.
+    assert!(TS_PLACEMENTS.contains("'id,company_id,branch_id,kind,status','organization_nodes'"));
     assert!(TS_FINANCIAL.contains(financial!()));
-    assert!(TS_REFS.contains(preventive!()));
+    assert!(TS_REFS.contains("settlementRefSource(\"company_id,asset_id\",\"maintenance_preventive_plans\")"));
     assert!(TS_REFS.contains("maintenanceSettlementConsumptions"));
     assert!(TS_CONSUMPTIONS.contains(consumptions!()));
 }
@@ -151,6 +169,7 @@ fn retired_statements_are_absent_from_typescript_authority() {
 #[test]
 fn native_plans_match_frozen_literals() {
     let cases = [
+        (plans::RD_PACKAGE_CLOCK, FROZEN_PACKAGE_CLOCK),
         (plans::RD_FS_ASSET_SOURCE_ROWS, FROZEN_FS_ROWS),
         (plans::RD_FS_ASSET_ATTACHMENT_IMAGE, FROZEN_FS_IMAGE),
         (plans::RD_PKG_ASSET_SOURCES, asset_sources!()),
@@ -237,6 +256,11 @@ async fn field_service_and_package_reads_match_native_rows_on_one_transaction() 
             .await
             .unwrap();
 
+        // The clock samples `clock_timestamp()` on every execution, so it is
+        // pinned byte-exactly here rather than compared across two executions.
+        let clock = plans::plan(plans::RD_PACKAGE_CLOCK).expect("clock plan");
+        assert_eq!(clock.sql, FROZEN_PACKAGE_CLOCK);
+        assert!(clock.binds.is_empty());
         parity(
             &mut tx,
             FROZEN_FS_ROWS,

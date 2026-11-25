@@ -98,8 +98,8 @@ describe('Ecommerce read-tail r26 three-rank dedupe', () => {
     expect((reviewSql('allowed ', ecommerceScopeRow('ecommerce_file_review', true)).match(/\?/g) ?? []).length).toBe(9);
     expect((shared.match(/export const ecommerceScalar = /g) ?? []).length).toBe(1);
     expect(shared).toContain('`(${ecommerceScalar(`?::text company_id${branch ? \',?::text branch_id,?::text department_id\' : \'\'}`)})${separator}${alias}`');
-    expect(emp).toContain('const nodeNameLabel = ');
-    expect(emp).toContain('COALESCE((${ecommerceScalar(');
+    expect(emp).toContain('nativeExecutiveMetric');
+    expect(emp).not.toContain('nodeNameLabel');
     expect(emp).not.toContain('COALESCE((SELECT n.display_name');
     expect(pb).toContain('const childAgg=');
     expect(pb).toContain('COALESCE((${ecommerceScalar(');

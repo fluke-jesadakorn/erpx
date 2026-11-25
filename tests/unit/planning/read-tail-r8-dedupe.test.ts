@@ -25,11 +25,12 @@ describe('Planning read-tail r8 parameterized branch-scoped list family', () => 
     expect(generated).toEqual([SCENARIOS, RECOMMENDATIONS, RESOURCES]);
   });
 
-  test('every former list site composes the builder and keeps its own prepare/bind', () => {
+  test('every former list site is native-owned; no TS prepare/bind remains', () => {
     const text = src('production-command-sources-read.ts');
-    expect(text.match(/planningScopedBranchList\(/g) ?? []).toHaveLength(3);
-    expect(text).toContain('planning-scoped-list-sql');
-    expect(text).toContain('.bind(companyId, branchId, branchId2)');
+    expect(text.match(/planningScopedBranchList\(/g) ?? []).toHaveLength(0);
+    for (const kind of ['nativeScenarios', 'nativeRecommendations', 'nativeResources', 'nativeCalendar'])
+      expect(text).toContain(`${kind}(`);
+    expect(text).not.toContain("planningScopedBranchList('p.*,s.name specification_name'");
     expect(text).toContain('planningCommandExistsGuard('); // r7 family untouched
   });
 

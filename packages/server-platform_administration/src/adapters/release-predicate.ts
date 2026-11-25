@@ -21,23 +21,27 @@ export function releaseAcceptanceExistsSql(where: string) {
   return releaseTableExistsSql('company_release_acceptances', where);
 }
 
-/** The parameterized EXISTS SELECT-head shared by the release-configuration
- * guard and the PMS rollout feature-release guard. Both callers previously
- * inlined the same head with a different FROM expression and WHERE predicate;
- * this one owner-local definition renders byte-identical SQL for each. The
- * fixed-table helper above and all earlier helpers remain unchanged, as do
- * row locks and native reads. */
-export function releaseTableExistsSql(from: string, where: string, gap = ' ') {
-  return `EXISTS(SELECT 1 FROM ${from}${gap}WHERE ${where})`;
+/** The single owner-local one-row `FROM … WHERE …` head shared by every table
+ * EXISTS guard and derived-source probe. Both callers previously inlined the
+ * same head; this one definition renders byte-identical SQL for each and only
+ * FROM, WHERE and their separator vary. Fixed-table wrappers, projection reads,
+ * row heads, locks and native reads are unchanged. */
+export function selectOneFromWhereSql(from: string, where: string, gap = ' ') {
+  return `SELECT 1 FROM ${from}${gap}WHERE ${where}`;
 }
 
-/** The single derived-source EXISTS row head shared by the reviews authority
- * guard and the required-permission gate. Both callers previously inlined the
- * same derived-source head with a different source and predicate; this one
- * owner-local definition renders byte-identical SQL for each. Fixed-table
- * EXISTS, projection reads, row heads, locks and native reads are unchanged. */
+/** The parameterized EXISTS SELECT-head shared by the release-configuration
+ * guard and the PMS rollout feature-release guard. It composes the shared
+ * SELECT-1 head; the rendered SQL stays byte-identical for every caller. */
+export function releaseTableExistsSql(from: string, where: string, gap = ' ') {
+  return `EXISTS(${selectOneFromWhereSql(from, where, gap)})`;
+}
+
+/** The derived-source EXISTS row head shared by the reviews authority guard and
+ * the required-permission gate. It composes the same SELECT-1 head with a
+ * derived FROM expression; every rendering stays byte-identical. */
 export function derivedSourceExistsSql(source: string, alias: string, predicate: string) {
-  return `SELECT 1 FROM (${source}) ${alias} WHERE ${predicate}`;
+  return selectOneFromWhereSql(`(${source}) ${alias}`, predicate);
 }
 
 /** The revision read is the same parameterized row-head as the acceptance read;
@@ -82,10 +86,10 @@ export function businessAcceptanceSetupSql(companyExpression: string, options: {
 }
 
 /** The single latest-acceptance subquery shared by release acceptance guards and
- * the native release predicate. Kept here once so the "latest acceptance per
- * company and scope" rule has one owner-local definition. */
+ * the native release predicate. It composes the parameterized row head with an
+ * alias and ORDER BY/LIMIT suffix; the rendered SQL stays byte-identical. */
 export function latestReleaseIdSql(companyExpression: string, scopeExpression: string) {
-  return `(SELECT latest.id FROM company_release_acceptances latest WHERE latest.company_id=${companyExpression} AND latest.scope_version=${scopeExpression} ORDER BY latest.created_at DESC,latest.id DESC LIMIT 1)`;
+  return `(${releaseAcceptanceRowSql('latest.id', `latest.company_id=${companyExpression} AND latest.scope_version=${scopeExpression}`, ' ORDER BY latest.created_at DESC,latest.id DESC LIMIT 1', 'company_release_acceptances latest')})`;
 }
 
 /** The single parameterized row-read head shared by the latest-lookup, the base

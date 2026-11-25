@@ -21,7 +21,7 @@ describe('Planning read-tail r9 parameterized branch-scoped single-row family', 
     expect(text).toContain("from './native-lane-36/client'");
     expect(text).toContain('nativeScenario({id},companyId,branchId)');
     expect(text).toContain('nativeScopedRecommendation({id},companyId,branchId)');
-    expect(text).toContain('planningScopedBranchList('); // r8 family untouched
+    expect(text).toContain('nativeScenarios('); // r26: scenarios list is native-owned
     expect(text).toContain('planningCommandExistsGuard('); // r7 family untouched
     expect(existsSync(resolve(srcRoot, 'adapters/planning-scoped-row-sql.ts'))).toBe(false);
   });

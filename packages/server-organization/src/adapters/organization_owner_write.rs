@@ -238,6 +238,12 @@ pub const PMS_ROLLOUT_ACTIVE_BRANCH: &str = "pms_rollout_active_branch";
 /// `CalendarNode[]` row-list shape through the typed kind.
 pub const CALENDAR_ACCESS_ORGANIZATION_NODES: &str = "calendar_access_organization_nodes";
 
+// -- finance-starter-sources ---------------------------------------------------
+/// Native-owned finance-starter branch/department node list. SELECT-only and
+/// Company keyed over the org-owned `organization_nodes` table; the caller
+/// keeps its own starter authority and the transport never substitutes for it.
+pub const FINANCE_STARTER_ORGANIZATION_NODES: &str = "finance_starter_organization_nodes";
+
 /// Every kind this owner module accepts. Anything else is fail-closed.
 pub const KINDS: &[&str] = &[
     ORG_ATTACHMENT_NODE_VERSION_STEP,
@@ -338,6 +344,7 @@ pub const KINDS: &[&str] = &[
     SPENDING_ACTIVE_POSITION,
     PMS_ROLLOUT_ACTIVE_BRANCH,
     CALENDAR_ACCESS_ORGANIZATION_NODES,
+    FINANCE_STARTER_ORGANIZATION_NODES,
 ];
 
 /// Tables admitted for the generic attachment owner version step. Column is
@@ -662,6 +669,9 @@ fn sql(kind: &str) -> Option<&'static str> {
         }
         CALENDAR_ACCESS_ORGANIZATION_NODES => {
             "SELECT id,parent_id \"parentId\",display_name name,kind,branch_id \"branchId\" FROM organization_nodes WHERE company_id=? ORDER BY id LIMIT 5001"
+        }
+        FINANCE_STARTER_ORGANIZATION_NODES => {
+            "SELECT id,kind,display_name FROM organization_nodes WHERE company_id=? AND kind IN ('branch','department') AND status='active' ORDER BY kind,id"
         }
         _ => return None,
     })
@@ -1619,5 +1629,38 @@ mod tests {
         assert_eq!(values.len(), 1);
         assert!(templates.contains("ORDER BY name"));
         assert!(owner_statement(ORG_ACCESS_READ_TEMPLATES, &[]).is_err());
+    }
+
+    #[test]
+    fn finance_starter_nodes_kind_is_byte_identical_and_read_only() {
+        assert!(supported(FINANCE_STARTER_ORGANIZATION_NODES));
+        const RETIRED: &str = "SELECT id,kind,display_name FROM organization_nodes WHERE company_id=? AND kind IN ('branch','department') AND status='active' ORDER BY kind,id";
+        assert_eq!(sql(FINANCE_STARTER_ORGANIZATION_NODES).unwrap(), RETIRED);
+        let digest = {
+            use sha2::Digest;
+            let mut hasher = sha2::Sha256::new();
+            hasher.update(RETIRED.as_bytes());
+            format!("{:x}", hasher.finalize())
+        };
+        assert_eq!(
+            digest,
+            "884e6239956ea25739936acc37fdee49c341f7dfa062478905c548507826a501"
+        );
+        let (statement, values) =
+            owner_statement(FINANCE_STARTER_ORGANIZATION_NODES, &[Value::from("company")])
+                .expect("finance starter nodes statement");
+        assert_eq!(statement, RETIRED);
+        assert_eq!(values, vec![Value::from("company")]);
+        // Wrong arity and non-text Company keys fail closed.
+        assert!(owner_statement(FINANCE_STARTER_ORGANIZATION_NODES, &[]).is_err());
+        assert!(owner_statement(
+            FINANCE_STARTER_ORGANIZATION_NODES,
+            &[Value::from("company"), Value::from("company")],
+        )
+        .is_err());
+        let upper = statement.to_ascii_uppercase();
+        assert!(upper.starts_with("SELECT "));
+        assert!(!upper.contains(" INSERT ") && !upper.contains(" UPDATE ") && !upper.contains(" DELETE "));
+        assert!(!upper.contains(" FOR UPDATE ") && !upper.contains(" FOR SHARE ") && !upper.contains(" LOCK TABLE "));
     }
 }

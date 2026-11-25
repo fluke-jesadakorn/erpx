@@ -68,7 +68,8 @@ describe('platform administration native owner-write no-op dedupe', () => {
     const latestBody = 'SELECT latest.id FROM company_release_acceptances latest WHERE latest.company_id=';
     const predicate = source('adapters/release-predicate.ts');
     const acceptance = source('adapters/release-acceptance.ts');
-    expect(`${predicate}\n${acceptance}`.split(latestBody).length - 1).toBe(1);
+    expect(`${predicate}\n${acceptance}`.split(latestBody).length - 1).toBe(0);
+    expect(predicate).toContain("releaseAcceptanceRowSql('latest.id', `latest.company_id=${companyExpression} AND latest.scope_version=${scopeExpression}`");
     expect(predicate).toContain("latestReleaseIdSql('release.company_id', 'release.scope_version')");
     expect(acceptance).toContain("latestReleaseIdSql('?', '?')");
     expect(acceptance).not.toContain('WHERE latest.company_id=?');

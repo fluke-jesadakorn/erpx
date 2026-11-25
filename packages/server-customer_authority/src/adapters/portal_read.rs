@@ -139,11 +139,18 @@ mod tests {
 
     #[test]
     fn staff_threads_bind_null_user_and_null_work_scope() {
-        let threads = bind(kinds::RD_SUPPORT_THREADS, &ReadScope::default()).unwrap();
+        let threads = bind(
+            kinds::RD_SUPPORT_THREADS,
+            &ReadScope {
+                binding_id: Some("binding-1"),
+                ..ReadScope::default()
+            },
+        )
+        .unwrap();
         assert_eq!(
             threads.binds,
-            vec![None, None, None],
-            "staff threads pass SQL NULL for the user filter"
+            vec![Some("binding-1".to_owned()), None, None],
+            "staff threads bind the fixed binding id and SQL NULL for the user filter"
         );
         let staff = bind(
             kinds::RD_SUPPORT_STAFF_BINDING,

@@ -126,7 +126,7 @@ describe('marketing read-tail r50 dedupe', () => {
     expect(await src('native-marketing-read.ts')).toContain('export');
   });
 
-  it('pins the owner head KPI to 16 (lane 40 retired 3) (BEFORE=24)', async () => {
-    expect(await ownerHeadTokens()).toEqual({ spaced: 16, bare: 16 });
+  it('pins the owner head KPI to 14 (lane 40 retired 3) (BEFORE=24)', async () => {
+    expect(await ownerHeadTokens()).toEqual({ spaced: 14, bare: 14 });
   });
 });

@@ -11,6 +11,8 @@ pub(crate) mod field_service_workspace;
 pub(crate) mod native_read;
 pub(crate) mod native_read_http;
 
+pub(crate) mod projection_head;
+
 pub (crate) mod record_source;
 
 pub mod retirement_work;

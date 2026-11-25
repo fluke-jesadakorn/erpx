@@ -195,13 +195,14 @@ describe('marketing read-tail r43 dedupe', () => {
     expect(await src('form-asset-lock-sql.ts')).toContain('FOR SHARE');
     expect(await src('purchases.ts')).toContain('SELECT 1 FROM command_receipts WHERE command_id=?');
     const obligations = await src('package-obligations.ts');
-    expect(obligations).toContain('candidates:`SELECT c.*,valid.id IS NOT NULL AND EXISTS(SELECT 1 FROM marketing_assets form');
-    expect(obligations).toContain('SELECT c.*,valid.id IS NOT NULL');
+    expect(obligations).toContain('candidates:marketingSelectHeadSql(');
+    expect(obligations).toContain('marketingPointExistsSql(');
+    expect(obligations).toContain('c.*,valid.id IS NOT NULL');
     expect(await src('native-marketing-read.ts')).toContain('export');
   });
 
-  it('pins the owner SELECT KPI to 16 (lane 40 retired 3) (BEFORE=36)', async () => {
-    expect(await ownerSelectTokens()).toBe(16);
+  it('pins the owner SELECT KPI to 14 (lane 40 retired 3) (BEFORE=36)', async () => {
+    expect(await ownerSelectTokens()).toBe(14);
     expect(await ownerSelectTokens()).toBeLessThan(32);
   });
 });

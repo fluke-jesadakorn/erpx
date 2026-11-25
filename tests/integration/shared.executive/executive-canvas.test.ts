@@ -20,7 +20,6 @@ import {saveMaster} from '@erpx/server-commerce/public/commerce';
 import { formatMetric } from "@erpx/feature-shared/lib/executive/numbers";
 import {defaultConfig} from "@erpx/server-pms/public/rules/pms-model";
 import { dailyRoomReport } from "@erpx/feature-pms/lib/pms-read";
-import { listInventoryReorderPolicies } from "@erpx/server-inventory/public/inventory-reorder-policies";
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 // Exercise every populated metric fixture through its source query as well as its aggregate.
 function queryMetric(db:SqlDatabase,actor:WorkContext,id:MetricId,filters:Filters,breakdown?:Breakdown):Promise<MetricData>;
@@ -581,6 +580,7 @@ it("reconciles inventory shortages to independently approved, versioned reorder 
     await db.prepare("UPDATE inventory_reorder_policies SET proposed_reorder_point_milli=?,requested_by=?,version=?,updated_at=? WHERE id=?")
       .bind(reorderPointMilli,actor.userId,version,now,policyId).run();
     await seedEvent(policyId,version,"revise",actor.userId);
+    return version;
   };
   const decideProposal=async(policyId:string,action:"approve"|"reject"|"retire",version:number,reviewer=approver)=>{
     if(action==="approve") await db.prepare(`UPDATE inventory_reorder_policies SET current_reorder_point_milli=proposed_reorder_point_milli,
@@ -594,13 +594,15 @@ it("reconciles inventory shortages to independently approved, versioned reorder 
       last_reviewed_by=?,last_review_reason=?,last_reviewed_at=?,version=?,updated_at=? WHERE id=?`)
       .bind(now,reviewer.userId,eventReason(action),now,version,now,policyId).run();
     await seedEvent(policyId,version,action,reviewer.userId);
+    return version;
   };
   const noPolicy=await queryMetric(db,actor,"inventory-shortages",filters);
   expect(noPolicy).toMatchObject({total:"0",status:"empty",rows:[]});
 
   const stockedPolicy=await seedProposal(stockedProduct,3000);
+  let stockedVersion=1;
   expect((await queryMetric(db,actor,"inventory-shortages",filters)).status).toBe("empty");
-  await decideProposal(stockedPolicy,"approve",2);
+  stockedVersion=await decideProposal(stockedPolicy,"approve",2);
   let metric=await queryMetric(db,actor,"inventory-shortages",filters);
   expect(metric).toMatchObject({total:"1",unit:"count",status:"ready",scopeBoundary:{level:"company"}});
   expect(metric.rows).toEqual([{label:"Inventory shortages",value:"1"}]);
@@ -616,7 +618,7 @@ it("reconciles inventory shortages to independently approved, versioned reorder 
   await decideProposal(stockedPolicy,"reject",4);
   expect((await queryMetric(db,actor,"inventory-shortages",filters)).total).toBe("1");
   await reviseProposal(stockedPolicy,2000,5);
-  await decideProposal(stockedPolicy,"approve",6);
+  stockedVersion=await decideProposal(stockedPolicy,"approve",6);
   metric=await queryMetric(db,actor,"inventory-shortages",filters);
   expect(metric).toMatchObject({total:"0",status:"ready"});
   expect(metric.rows).toEqual([{label:"Inventory shortages",value:"0"}]);
@@ -630,13 +632,13 @@ it("reconciles inventory shortages to independently approved, versioned reorder 
   const missingDetail=await readExecutiveEvidence(db,actor,"inventory-shortages",missingEvidence.items[0].id,filters);
   expect(missingDetail.record).toMatchObject({sku:"EX-REORDER-EMPTY",unit:"kg",on_hand_milli:"0",available_milli:"0",approved_reorder_point_milli:"1000"});
 
-  const policies=await listInventoryReorderPolicies(actor),stocked=policies.find(row=>row.product_id===stockedProduct)!,empty=policies.find(row=>row.product_id===emptyProduct)!;
-  expect(stocked).toMatchObject({current_reorder_point_milli:"2000",proposed_reorder_point_milli:null,last_decision:"approved",version:6});
-  expect(empty).toMatchObject({current_reorder_point_milli:"1000",retired_at:null});
+  // Raw policy-row state (approved point, pending proposal, decision and
+  // version) is asserted by the native reorder oracle test; the executive
+  // metric and evidence reads above carry the TS-side shortage contract
+  // without a TypeScript owner read oracle or a version SELECT.
   await decideProposal(emptyPolicy,"retire",3,actor);
   expect((await queryMetric(db,actor,"inventory-shortages",filters)).total).toBe("0");
-  const stockedVersion=required(await db.prepare("SELECT version FROM inventory_reorder_policies WHERE id=?").bind(stockedPolicy).first<{version:number|string}>()).version;
-  await decideProposal(stockedPolicy,"retire",Number(stockedVersion)+1,actor);
+  stockedVersion=await decideProposal(stockedPolicy,"retire",stockedVersion+1,actor);
   expect((await queryMetric(db,actor,"inventory-shortages",filters)).status).toBe("empty");
 
   await expect(queryMetric(db,{...actor,modules:[]},"inventory-shortages",filters)).rejects.toMatchObject({code:"METRIC_FORBIDDEN"});
@@ -646,9 +648,8 @@ it("reconciles inventory shortages to independently approved, versioned reorder 
   expect(audit.map(row=>row.action).sort()).toEqual(["open","open","search","search"]);
   expect(audit.every(row=>row.provider_id==="inventory-reorder-shortages"&&row.record_version===2)).toBe(true);
   expect(JSON.parse(audit[0].fields)).toEqual(["sku","product_name","unit","warehouse_name","on_hand_milli","reserved_milli","quarantined_milli","available_milli","approved_reorder_point_milli","policy_version","stock_version"]);
-  const immutable=await db.prepare("SELECT id FROM inventory_reorder_policy_events WHERE policy_id=? ORDER BY policy_version").bind(stockedPolicy).all<{id:string}>();
-  expect(immutable.results.map(row=>row.id)).toEqual(Array.from({length:7},(_,index)=>`${stockedPolicy}:${index+1}`));
-  await expect(db.prepare("UPDATE inventory_reorder_policy_events SET reason='changed' WHERE id=?").bind(immutable.results[0].id).run()).rejects.toThrow();
+  const eventIds=Array.from({length:stockedVersion},(_,index)=>`${stockedPolicy}:${index+1}`);
+  await expect(db.prepare("UPDATE inventory_reorder_policy_events SET reason='changed' WHERE id=?").bind(eventIds[0]).run()).rejects.toThrow();
 });
 
 it("allows a bounded published live view without granting source-module access",async()=>{

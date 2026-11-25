@@ -24,7 +24,7 @@ import {
 import { sha256 } from "@erpx/server-runtime/public/crypto";
 import { nativeOwnerWrite, NATIVE_OWNER_WRITE_NOOP_SQL } from "./native-owner-write";
 import { betaPolicyPointSql } from "./beta-policy-point-sql";
-import { betaInvitationPointSql } from "./beta-invitation-point-sql";
+import { nativeBetaInvitationAcceptedUser, nativeBetaInvitationByToken } from "./native-owner-read";
 import { betaMemberCountSql } from "./beta-member-count-sql";
 import { nativeWorkflowWrite } from "@erpx/server-workflow/public/native-workflow-evidence";
 
@@ -49,19 +49,9 @@ async insertInvitation(id:string,email:string,branchId:string,userId:string,valu
       await nativeOwnerWrite('me_beta_invitation_insert',[id,email,branchId,userId,value,value2,now,role],`me-invite:${id}`,{now},()=>db.prepare(NATIVE_OWNER_WRITE_NOOP_SQL));
       void c;
     },...owner0(db,c),...owner1(db,c),...owner2(db),...owner3(db),validateGrant:async(actor,grant)=>{await inward(()=>validateIamGrant(c,actor,grant));},review:(...args)=>inward(()=>proposeIamReview(c,...args))};}
-function repository(db:SqlDatabase):BetaTeamRepository<SqlStatement>{const people=betaManagementPeopleSources(db),organization=betaManagementOrganizationSources(db);return {async invitation(value:string){return db
-    .prepare(betaInvitationPointSql('*','token_hash'))
-    .bind(value)
-    .first<{
-      id: string;
-      email: string;
-      branch_id: string;
-      invited_by: string;
-      expires_at: number;
-      accepted_user_id: string | null;
-      revoked_at: number | null;
-      role: "employee" | "it_admin";
-    }>();},
+function repository(db:SqlDatabase):BetaTeamRepository<SqlStatement>{const people=betaManagementPeopleSources(db),organization=betaManagementOrganizationSources(db);return {
+// Native axum owner plans the byte-identical invitation point read; no TS SQL remains.
+async invitation(value:string){return nativeBetaInvitationByToken(db,value);},
 guardInvitation(key:string,value:"invite",id:string,value2:string,now:number){return assertion(
         db,
         key,
@@ -77,12 +67,8 @@ guardCapacity(key:string,value:"capacity",company_id:string,company_id2:string){
         [company_id, company_id2],
       );},
 async prepareAcceptedInvitation(id:string,now:number,id2:string){return nativeOwnerWrite('me_beta_invitation_accept',[id,now,id2],`me-invite-accept:${id}`,{now},()=>db.prepare(NATIVE_OWNER_WRITE_NOOP_SQL));},
-async acceptedUser(id:string){return db
-          .prepare(
-            betaInvitationPointSql('accepted_user_id','id'),
-          )
-          .bind(id)
-          .first<{ accepted_user_id: string }>();},
+// Native axum owner plans the byte-identical accepted-user point read.
+async acceptedUser(id:string){return nativeBetaInvitationAcceptedUser(db,id);},
 guardBranchCapacity(key:string,value:"branch-capacity",companyId:string,companyId2:string){return assertion(
         db,
         key,

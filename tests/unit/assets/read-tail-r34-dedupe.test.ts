@@ -77,12 +77,13 @@ describe('Assets read-tail r34 universal select head family',()=>{
    .toBe(`SELECT ${purchaseProjection}::text image${purchaseTail}`);
  });
 
- it('owns one universal head literal with no local statement token in either delegate',()=>{
+ it('owns the universal head in the Rust JSON contract with no local statement token',()=>{
   const scope=src('adapters/asset-scope-tuple.ts');
-  expect(scope.split('SELECT ${projection}${tail}').length-1).toBe(1);
-  expect((scope.match(/SELECT/g)??[])).toHaveLength(1);
+  expect((scope.match(/SELECT/g)??[])).toHaveLength(0);
+  expect(scope).toContain('import contract from "./asset-projection-head-sources.json" with { type: "json" }');
+  expect(scope).toContain('heads.selectHead.replace("{projection}",projection).replace("{tail}",tail)');
+  expect(scope).toContain('heads.fromHead.replace("{from}",from).replace("{tail}",tail)');
   expect(scope).toContain('export const assetSelectProjectionSql = (projection:string,tail="") =>');
-  expect(scope).toContain('assetSelectProjectionSql(projection,` FROM${from}${tail}`)');
   expect(scope.split('SELECT ${projection} FROM${from}${tail}').length-1).toBe(0);
   const financial=src('adapters/financial-workflow-sources.ts');
   expect(financial).toContain('import {assetProjectionFromSql,assetSelectProjectionSql} from "./asset-scope-tuple"');
@@ -92,9 +93,9 @@ describe('Assets read-tail r34 universal select head family',()=>{
   expect(financial.split('SELECT ${projection}::text image${tail}').length-1).toBe(0);
  });
 
- it('lowers the exact owner TS SELECT tail from BEFORE=4 to KPI 2 and leaves excluded families untouched',()=>{
-  expect(ownerSelectCount()).toBe(2);
-  expect((src('adapters/record-purchases.ts').match(/SELECT/g)??[])).toHaveLength(1);
+ it('lowers the exact owner TS SELECT tail from BEFORE=4 to KPI 0 and leaves excluded families untouched',()=>{
+  expect(ownerSelectCount()).toBe(0);
+  expect((src('adapters/record-purchases.ts').match(/SELECT/g)??[])).toHaveLength(0);
   expect((src('adapters/package-obligations.ts').match(/SELECT/g)??[])).toHaveLength(0);
   expect((src('adapters/metric-purchases.ts').match(/SELECT/g)??[])).toHaveLength(0);
   const financial=src('adapters/financial-workflow-sources.ts');

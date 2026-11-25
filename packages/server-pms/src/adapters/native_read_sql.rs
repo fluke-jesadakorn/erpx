@@ -119,6 +119,11 @@ pub const PMS_RD_HOUSEKEEPING_COMMAND: &str = "pms_rd_housekeeping_command";
 /// 29 positional binds in the scout order. No lock, refund or ledger path; the caller
 /// runs it on its already-open unit and decodes rows with `decodePmsRecord`.
 pub const PMS_RD_SECTION_RELATED_RECORDS: &str = "pms_rd_section_related_records";
+/// Native successor of the owner-local `pms/guest-document.ts` document point
+/// read. Fixed SQL with three positional binds, no ledger/receipt/outbox and no
+/// lock/refund path; the guest booking document transaction runs it on its
+/// already-open unit with the same `[id, propertyId, reservationId]` payload.
+pub const PMS_RD_GUEST_BOOKING_DOCUMENT: &str = "pms_rd_guest_booking_document";
 const SQL_INVENTORY_COMMAND: &str = "SELECT id,kind,data_json,version,updated_at FROM pms_records \
 WHERE property_id=? AND kind IN ('room_type','room','rate','block','item','credit') \
 UNION ALL SELECT id,kind,data_json,version,updated_at FROM pms_records \
@@ -389,8 +394,16 @@ const READ_SECTION_RELATED_RECORDS: NativeReadStatement = NativeReadStatement {
     sql: SQL_SECTION_RELATED_RECORDS,
     bind_count: 29,
 };
+/// Retired TypeScript literal from `pms/guest-document.ts`, byte-for-byte, with
+/// the same three positional binds and no lock clause.
+const SQL_GUEST_BOOKING_DOCUMENT: &str = "SELECT d.kind,d.snapshot_json,d.created_at FROM pms_documents d JOIN pms_records f ON f.id=d.guest_account_id AND f.property_id=d.property_id AND f.kind='guest_account'\nWHERE d.id=? AND d.property_id=? AND f.data_json::jsonb->>'reservationId'=? AND d.kind IN ('invoice','receipt','refund','credit_note')";
+const READ_GUEST_BOOKING_DOCUMENT: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_GUEST_BOOKING_DOCUMENT,
+    sql: SQL_GUEST_BOOKING_DOCUMENT,
+    bind_count: 3,
+};
 
-const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG, READ_PENDING_HOTEL_TRANSFERS, READ_UNPOSTED_BOOKING_RECEIPTS, READ_UNPOSTED_COUNTER_RECEIPTS, READ_HOSPITALITY_SETUP_PROPERTIES, READ_ATTACHMENT_PROPERTY_IMAGE, READ_ATTACHMENT_RECORD_IMAGE, READ_DOCUMENT_RELATED_POSTINGS, READ_POS_GUEST_HOTELS, READ_POS_GUEST_CHOICES, READ_POS_STRIPE_PAYMENT, READ_POS_BOOKING_PAYMENT, READ_STRIPE_PAYMENT_BY_ID, READ_STRIPE_PAYMENT_BY_ID_COMPANY, READ_STRIPE_PAYMENT_PROPERTY, READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS];
+const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG, READ_PENDING_HOTEL_TRANSFERS, READ_UNPOSTED_BOOKING_RECEIPTS, READ_UNPOSTED_COUNTER_RECEIPTS, READ_HOSPITALITY_SETUP_PROPERTIES, READ_ATTACHMENT_PROPERTY_IMAGE, READ_ATTACHMENT_RECORD_IMAGE, READ_DOCUMENT_RELATED_POSTINGS, READ_POS_GUEST_HOTELS, READ_POS_GUEST_CHOICES, READ_POS_STRIPE_PAYMENT, READ_POS_BOOKING_PAYMENT, READ_STRIPE_PAYMENT_BY_ID, READ_STRIPE_PAYMENT_BY_ID_COMPANY, READ_STRIPE_PAYMENT_PROPERTY, READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
 pub fn is_read(kind: &str) -> bool {
@@ -818,6 +831,30 @@ ORDER BY id"
         assert!(!upper.contains("PG_ADVISORY"));
         assert!(is_read(read.kind));
         assert!(!is_read("pms_rd_section_related_records_v2"));
-        assert_eq!(READS.len(), 33);
+        assert_eq!(READS.len(), 34);
+    }
+
+    #[test]
+    fn guest_booking_document_read_matches_retired_typescript_literal() {
+        let read = read_statement(PMS_RD_GUEST_BOOKING_DOCUMENT).expect("guest booking document read");
+        assert_eq!(read.kind, "pms_rd_guest_booking_document");
+        assert_eq!(
+            read.sql,
+            "SELECT d.kind,d.snapshot_json,d.created_at FROM pms_documents d JOIN pms_records f ON f.id=d.guest_account_id AND f.property_id=d.property_id AND f.kind='guest_account'\nWHERE d.id=? AND d.property_id=? AND f.data_json::jsonb->>'reservationId'=? AND d.kind IN ('invoice','receipt','refund','credit_note')"
+        );
+        assert_eq!(read.sql.matches('?').count(), 3);
+        assert_eq!(read.bind_count, 3);
+        let upper = read.sql.to_ascii_uppercase();
+        assert!(upper.starts_with("SELECT"));
+        assert!(!upper.contains("INSERT INTO"));
+        assert!(!upper.contains("UPDATE "));
+        assert!(!upper.contains("DELETE FROM"));
+        assert!(!upper.contains("FOR UPDATE"));
+        assert!(!upper.contains("FOR SHARE"));
+        assert!(!upper.contains("LOCK TABLE"));
+        assert!(!upper.contains("PG_ADVISORY"));
+        assert!(is_read(read.kind));
+        assert!(!is_read("pms_rd_guest_booking_document_v2"));
+        assert_eq!(READS.len(), 34);
     }
 }

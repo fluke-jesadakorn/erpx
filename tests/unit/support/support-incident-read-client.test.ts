@@ -83,7 +83,10 @@ describe('Support incident read-tail r16 canonical projection', () => {
 
   it('renders the byte-identical eligibility fragments from one shared owner', async () => {
     const shared = await src('adapters/eligibility-projection-sources.ts');
-    expect(shared.match(/EXISTS\(SELECT 1 FROM \(\$\{identity_accessProjectionSources\.assignments\}\) m WHERE/g)).toHaveLength(1);
+    const witness = await src('adapters/read-tail-r45-sql.ts');
+    expect(witness.match(/EXISTS\(SELECT 1 FROM \(\$\{identity_accessProjectionSources\.assignments\}\) \$\{alias\} WHERE \$\{tail\}\)/g)).toHaveLength(1);
+    expect(shared.match(/EXISTS\(SELECT 1 FROM \(\$\{identity_accessProjectionSources\.assignments\}\) m WHERE/g)).toBeNull();
+    expect(shared.match(/readTailR45AssignmentExistsSql\('m',/g)).toHaveLength(1);
     expect(shared.match(/\(SELECT COUNT\(DISTINCT m\.user_id\) FROM/g)).toHaveLength(1);
     expect(shared).toContain('supportEligibleFlagSql');
     expect(shared).toContain('supportReviewerCountSql');
@@ -221,5 +224,67 @@ describe('Support ticket-portal image read-tail r17 parameterized-family dedupe'
     };
     walk(root);
     expect(total).toBeLessThan(86);
+  });
+});
+
+describe('native Support incident read port', () => {
+  const src = (name: string) =>
+    readFileSync(new URL(`../../../packages/server-support/src/${name}`, import.meta.url), 'utf8');
+
+  it('owns one SELECT-only, scope-filtered projection with no writer or transaction', () => {
+    const adapter = src('adapters/incident.rs');
+    expect(adapter).toContain('pub async fn read_incident(');
+    expect(adapter).toContain('"SELECT id,version,status,title FROM support_incidents');
+    expect(adapter).toMatch(/WHERE id=\$1 AND company_id=\$2/);
+    expect(adapter).toContain('($3::text IS NULL OR branch_id=$3)');
+    expect(adapter).toContain('($4::text IS NULL OR department_id=$4)');
+    expect(adapter).toContain('.fetch_optional(pool)');
+    expect(adapter).not.toMatch(/\.(begin|commit|rollback)\(/);
+    expect(adapter).not.toMatch(/\b(INSERT INTO|UPDATE |DELETE FROM)\b/);
+  });
+
+  it('fails closed on id, authority and scope before the projection is returned', () => {
+    const adapter = src('adapters/incident.rs');
+    expect(adapter).toContain('pub fn scoped_incident_id(');
+    for (const code of [
+      'SUPPORT_INCIDENT_ID_INVALID',
+      'SUPPORT_INCIDENT_READ_UNAVAILABLE',
+      'SUPPORT_INCIDENT_READ_REQUIRED',
+      'SUPPORT_INCIDENT_NOT_FOUND',
+    ]) {
+      expect(adapter).toContain(code);
+    }
+    const app = src('application/incident.rs');
+    expect(app).toContain('pub trait IncidentReadPorts');
+    expect(app).toContain('pub async fn get_incident_read');
+    expect(app).toContain('row.validate()?');
+  });
+
+  it('exposes exactly the five-field bounded row across the owner boundary', () => {
+    const app = src('application/incident.rs');
+    expect(app).toContain('pub struct IncidentRead {');
+    for (const field of [
+      'id: String',
+      'version: i64',
+      'status: String',
+      'title: String',
+      'href: String',
+    ]) {
+      expect(app).toContain(field);
+    }
+    expect(app).toMatch(/#\[serde\(deny_unknown_fields\)\]/);
+    const surface = src('public/incident.rs');
+    expect(surface).toContain('get_incident_read');
+    expect(surface).toContain('IncidentReader');
+    expect(surface).toContain('IncidentReadScope');
+  });
+
+  it('keeps the TypeScript consumer free of statement text and prepare calls', () => {
+    const surface = src('public/support-incident-read.ts');
+    expect(surface).toContain('createSupportIncidentReadClient');
+    expect(surface).toContain('projectSupportIncidentRead');
+    expect(surface).not.toContain('SELECT ');
+    expect(surface).not.toContain('prepare(');
+    expect(surface).not.toContain('nativeSupportReadFirst');
   });
 });

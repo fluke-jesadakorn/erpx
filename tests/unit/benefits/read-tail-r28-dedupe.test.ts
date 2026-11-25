@@ -103,7 +103,8 @@ describe('benefits read-tail r28 exists-head dedupe', () => {
   test('the fold adds no write, row-lock, FOR UPDATE, FOR SHARE, native registry or cross-owner consumer', () => {
     for (const name of ['benefits-read-sql.ts', 'package-obligations.ts']) {
       expect(src(name), name).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE/i);
-      expect(src(name), name).not.toContain('native_');
+      // Wave-3 documents the retired payroll-input SELECT's Rust successor; no import follows.
+      expect((src(name).match(/native_/g) ?? []).length, name).toBeLessThanOrEqual(name === 'benefits-read-sql.ts' ? 1 : 0);
       expect(src(name), name).not.toContain('@erpx/server-benefits/adapters/benefits-native-read');
     }
     for (const [name, count, mode] of [
@@ -116,8 +117,8 @@ describe('benefits read-tail r28 exists-head dedupe', () => {
     }
   });
 
-  test('retirement:ts-statements is 30, strictly below the r28 BEFORE=32 baseline', () => {
-    expect(kpi()).toBe(30);
+  test('retirement:ts-statements is 29, strictly below the r28 BEFORE=32 baseline', () => {
+    expect(kpi()).toBe(29);
     expect(kpi()).toBeLessThan(32);
   });
 });

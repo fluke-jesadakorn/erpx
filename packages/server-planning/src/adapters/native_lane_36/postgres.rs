@@ -8,7 +8,7 @@
 use super::application::{LaneRead, LaneReadFuture};
 use super::domain::{
     CalendarListItem, ComparisonRow, LaneData, LaneScope, RecommendationListItem, ResourceListItem,
-    ScenarioRow, ScopedRecommendationRow, is_row_kind,
+    ScenarioListItem, ScenarioRow, ScopedRecommendationRow, is_row_kind,
 };
 use erpx_server_runtime::public::postgres::{
     DatabasePool, PgTransactionError, PgUnitOfWork, TransactionOptions,
@@ -19,6 +19,12 @@ use sqlx::Row;
 
 /// Scoped recommendations: parent scenario owns the Company/branch identity.
 pub const RECOMMENDATIONS_SQL: &str = "SELECT r.id,r.scenario_id,r.scenario_version,r.recommended_quantity_milli,r.required_minutes,r.feasible_date,r.status,r.created_by,r.reviewed_by,r.version,r.created_at,r.updated_at,s.company_id,s.branch_id FROM planning_recommendations r JOIN planning_scenarios s ON s.id=r.scenario_id WHERE s.company_id=$1 AND ($2::text IS NULL OR s.branch_id=$3) ORDER BY r.updated_at DESC";
+
+/// Scenario scoped list. The registered `command-sources.scenarios` statement
+/// keeps its exact projection/FROM text; only the bind markers change to the
+/// native driver's positional form. The Manufacturing specification join stays
+/// inlined until that owner exposes a native subquery.
+pub const SCENARIOS_SQL: &str = "SELECT p.*,s.name specification_name FROM planning_scenarios p JOIN manufacturing_specifications s ON s.id=p.specification_id WHERE p.company_id=$1 AND ($2::text IS NULL OR p.branch_id=$3) ORDER BY p.updated_at DESC";
 
 /// Scoped production resources.
 pub const RESOURCES_SQL: &str = "SELECT id,company_id,branch_id,code,name,daily_minutes,work_weekdays_json,status,version,created_by,created_at,updated_at FROM production_resources WHERE company_id=$1 AND ($2::text IS NULL OR branch_id=$3) ORDER BY name";
@@ -54,6 +60,7 @@ fn invalid() -> BusinessError {
 pub fn sql_for(kind: &str) -> Option<&'static str> {
     match kind {
         "recommendations" => Some(RECOMMENDATIONS_SQL),
+        "scenarios" => Some(SCENARIOS_SQL),
         "resources" => Some(RESOURCES_SQL),
         "calendar" => Some(CALENDAR_SQL),
         "scenario" => Some(SCENARIO_SQL),
@@ -81,6 +88,31 @@ fn map_recommendation(row: &sqlx::postgres::PgRow) -> Result<Value, BusinessErro
         updated_at: row.try_get("updated_at").map_err(|_| invalid())?,
         company_id: row.try_get("company_id").map_err(|_| invalid())?,
         branch_id: row.try_get("branch_id").map_err(|_| invalid())?,
+    };
+    to_value(item).map_err(|_| invalid())
+}
+
+fn map_scenario_list_item(row: &sqlx::postgres::PgRow) -> Result<Value, BusinessError> {
+    let item = ScenarioListItem {
+        id: row.try_get("id").map_err(|_| invalid())?,
+        company_id: row.try_get("company_id").map_err(|_| invalid())?,
+        branch_id: row.try_get("branch_id").map_err(|_| invalid())?,
+        warehouse_id: row.try_get("warehouse_id").map_err(|_| invalid())?,
+        specification_id: row.try_get("specification_id").map_err(|_| invalid())?,
+        specification_version: row.try_get("specification_version").map_err(|_| invalid())?,
+        demand_quantity_milli: row
+            .try_get("demand_quantity_milli")
+            .map_err(|_| invalid())?,
+        due_date: row.try_get("due_date").map_err(|_| invalid())?,
+        capacity_minutes: row.try_get("capacity_minutes").map_err(|_| invalid())?,
+        shortages_json: row.try_get("shortages_json").map_err(|_| invalid())?,
+        status: row.try_get("status").map_err(|_| invalid())?,
+        created_by: row.try_get("created_by").map_err(|_| invalid())?,
+        version: row.try_get("version").map_err(|_| invalid())?,
+        created_at: row.try_get("created_at").map_err(|_| invalid())?,
+        updated_at: row.try_get("updated_at").map_err(|_| invalid())?,
+        context_json: row.try_get("context_json").map_err(|_| invalid())?,
+        specification_name: row.try_get("specification_name").map_err(|_| invalid())?,
     };
     to_value(item).map_err(|_| invalid())
 }
@@ -179,6 +211,7 @@ fn map_comparison(row: &sqlx::postgres::PgRow) -> Result<Value, BusinessError> {
 fn map(kind: &str, row: &sqlx::postgres::PgRow) -> Result<Value, BusinessError> {
     match kind {
         "recommendations" => map_recommendation(row),
+        "scenarios" => map_scenario_list_item(row),
         "resources" => map_resource(row),
         "calendar" => map_calendar(row),
         "scenario" => map_scenario(row),
@@ -221,7 +254,7 @@ impl LaneRead for PgLaneRead {
                 let specification = specification.clone();
                 Box::pin(async move {
                     let values: Vec<Option<String>> = match kind.as_str() {
-                        "recommendations" | "resources" | "calendar" => {
+                        "recommendations" | "scenarios" | "resources" | "calendar" => {
                             vec![company, branch.clone(), branch]
                         }
                         "scenario" | "scoped-recommendation" => {
@@ -267,8 +300,9 @@ impl LaneRead for PgLaneRead {
 mod tests {
     use super::*;
 
-    const ALL: [(&str, &str); 6] = [
+    const ALL: [(&str, &str); 7] = [
         ("recommendations", RECOMMENDATIONS_SQL),
+        ("scenarios", SCENARIOS_SQL),
         ("resources", RESOURCES_SQL),
         ("calendar", CALENDAR_SQL),
         ("scenario", SCENARIO_SQL),
@@ -281,13 +315,13 @@ mod tests {
         for (kind, sql) in ALL {
             assert_eq!(sql_for(kind), Some(sql));
         }
-        assert_eq!(sql_for("scenarios"), None);
+        assert_eq!(sql_for("scenarios"), Some(SCENARIOS_SQL));
         assert_eq!(sql_for(""), None);
     }
 
     #[test]
     fn list_statements_bind_company_and_both_branch_arguments() {
-        for statement in [RECOMMENDATIONS_SQL, RESOURCES_SQL, CALENDAR_SQL] {
+        for statement in [RECOMMENDATIONS_SQL, SCENARIOS_SQL, RESOURCES_SQL, CALENDAR_SQL] {
             assert!(statement.contains("company_id=$1"));
             assert!(statement.contains("($2::text IS NULL OR "));
             assert!(statement.contains("=$3)"));
@@ -317,6 +351,9 @@ mod tests {
             "planning_scenarios",
             "production_resources",
             "production_resource_calendar",
+            // Manufacturing specification name stays inlined in the registered
+            // scenarios statement until Manufacturing exposes a native subquery.
+            "manufacturing_specifications",
         ];
         for (_, statement) in ALL {
             let mut consumed = statement;

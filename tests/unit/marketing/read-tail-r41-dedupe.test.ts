@@ -58,7 +58,8 @@ describe('marketing company-list head dedupe (r41)', () => {
     const repo = await src('marketing.ts');
     expect(repo).not.toContain('"SELECT * FROM marketing_assets WHERE company_id=? ORDER BY updated_at DESC"');
     expect(repo).not.toContain('`SELECT * FROM marketing_lead_candidates WHERE company_id=? AND ');
-    expect(repo).toContain("marketingCompanyListSql('marketing_assets','')");
+    expect(repo).not.toContain("marketingCompanyListSql('marketing_assets','')");
+    expect(repo).toContain('nativeMarketingReadAll<Row>(MARKETING_RD_ASSET_LIST');
     expect(repo).toContain(
       "marketingCompanyListSql('marketing_lead_candidates',` AND ${await marketingCandidateReadFilter('marketing_lead_candidates')} AND status='pending' AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?)`)",
     );
@@ -133,7 +134,7 @@ describe('marketing purchase union arm dedupe (r41)', () => {
 describe('marketing r41 retirement invariants', () => {
   it('leaves the native guard, FOR SHARE, settlement and native read ports untouched', async () => {
     const repo = await src('marketing.ts');
-    expect(repo).toContain('if(nativeMarketingReadConfigured())return (await nativeMarketingReadAll<Row>(MARKETING_RD_ASSET_LIST');
+    expect(repo).toContain('async assets(){return (await nativeMarketingReadAll<Row>(MARKETING_RD_ASSET_LIST');
     expect(await src('form-asset-lock-sql.ts')).toContain(
       '`SELECT id FROM marketing_assets WHERE id=? AND company_id=?${scope} FOR SHARE`',
     );
@@ -141,7 +142,7 @@ describe('marketing r41 retirement invariants', () => {
     expect(await src('native-marketing-read.ts')).toContain('export');
   });
 
-  it('retirement:ts-statements KPI is 16 (BEFORE=55; lane 40 retired 3)', async () => {
-    expect(await selectTokens()).toBe(16);
+  it('retirement:ts-statements KPI is 14 (BEFORE=55; lane 40 retired 3)', async () => {
+    expect(await selectTokens()).toBe(14);
   });
 });

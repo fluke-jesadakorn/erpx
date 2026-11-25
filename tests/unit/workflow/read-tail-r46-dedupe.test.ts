@@ -111,6 +111,6 @@ describe('approval-step and expense-batch native cutover (r46)', () => {
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(28);
+    expect(total).toBe(26);
   });
 });

@@ -29,21 +29,14 @@ describe('Planning read-tail r18 parameterized single-line projection/FROM head'
     expect(generatedComparison).toBe(ORIG_COMPARISON_SQL);
   });
 
-  test('restoring the builder calls yields the verbatim pre-dedupe declarations', () => {
+  test('calendar and comparison are native-owned; the builder lives only in its oracle', () => {
     const current = src('production-command-sources-read.ts');
-    expect(current).toContain(NEW_CALENDAR_DECL);
-    expect(current).toContain(NEW_COMPARISON_DECL);
-    let restored = current
-      .replace(NEW_CALENDAR_DECL, ORIG_CALENDAR_DECL)
-      .replace(NEW_COMPARISON_DECL, ORIG_COMPARISON_DECL);
-    expect(restored).toContain(ORIG_CALENDAR_DECL);
-    expect(restored).toContain(ORIG_COMPARISON_DECL);
-    expect(restored).not.toContain(NEW_CALENDAR_DECL);
-    expect(restored).not.toContain(NEW_COMPARISON_DECL);
-    expect(restored).toContain(ORIG_CALENDAR_SQL);
-    expect(restored).toContain(ORIG_COMPARISON_SQL);
+    expect(current).toContain('nativeCalendar(companyId,branchId,branchId2)');
+    expect(current).toContain('nativeComparison({comparisonScenarioId,specificationId},companyId,branch_id===null?null:String(branch_id))');
     expect(current).not.toContain(ORIG_CALENDAR_SQL);
     expect(current).not.toContain(ORIG_COMPARISON_SQL);
+    expect(NEW_CALENDAR_DECL).toContain('planningSelectColumnsFrom');
+    expect(NEW_COMPARISON_DECL).toContain('planningSelectColumnsFrom');
   });
 
   test('shared module declares the read literal exactly once and stays read-only', () => {

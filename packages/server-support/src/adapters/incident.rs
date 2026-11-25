@@ -131,6 +131,38 @@ impl IncidentReadPorts for IncidentReader {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::incident::IncidentPermissions;
+
+    fn actor(company: &str, can_read: bool) -> IncidentActor {
+        IncidentActor {
+            user_id: "manager".into(),
+            company_id: company.into(),
+            branch_id: None,
+            department_id: None,
+            permissions: IncidentPermissions {
+                can_read,
+                can_work: false,
+                can_manage: false,
+            },
+            same_person_ids: vec![],
+        }
+    }
+
+    fn reader() -> IncidentReader {
+        use sqlx::postgres::PgPoolOptions;
+        let pool = PgPoolOptions::new()
+            .max_connections(1)
+            .connect_lazy("postgresql://erpx:erpx@127.0.0.1:5432/erpx_support_test")
+            .expect("lazy pool for authority-only test");
+        IncidentReader::new(
+            pool,
+            IncidentReadScope {
+                company: CompanyId::new("company").expect("company id"),
+                branch: None,
+                department: None,
+            },
+        )
+    }
 
     #[test]
     fn accepts_only_bounded_opaque_identifiers() {
@@ -142,5 +174,27 @@ mod tests {
                 "SUPPORT_INCIDENT_ID_INVALID"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn reader_authorize_fails_closed_on_permission_and_company() {
+        let reader = reader();
+        reader.authorize(&actor("company", true)).await.unwrap();
+        assert_eq!(
+            reader
+                .authorize(&actor("company", false))
+                .await
+                .unwrap_err()
+                .code,
+            "SUPPORT_INCIDENT_READ_REQUIRED"
+        );
+        assert_eq!(
+            reader
+                .authorize(&actor("other", true))
+                .await
+                .unwrap_err()
+                .code,
+            "SUPPORT_INCIDENT_NOT_FOUND"
+        );
     }
 }

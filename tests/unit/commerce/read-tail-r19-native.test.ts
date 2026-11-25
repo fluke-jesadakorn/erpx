@@ -152,7 +152,7 @@ describe('commerce read-tail r19 native product kinds', () => {
     for (const { SQL } of kinds) expect(SQL).not.toMatch(/FOR UPDATE|LOCK /);
   });
 
-  it('pins the owner TypeScript SELECT KPI at 406 (before 413)', () => {
+  it('pins the owner TypeScript SELECT KPI at 392 (before 393)', () => {
     const src = resolve(root, 'packages/server-commerce/src');
     let total = 0;
     const walk = (dir: string) => {
@@ -163,6 +163,6 @@ describe('commerce read-tail r19 native product kinds', () => {
       }
     };
     walk(src);
-    expect(total).toBe(406);
+    expect(total).toBe(392);
   });
 });

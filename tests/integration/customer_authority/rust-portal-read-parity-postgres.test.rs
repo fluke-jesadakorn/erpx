@@ -7,9 +7,10 @@
 //! (whitespace normalised, with the owner-owned source tokens rendered), then
 //! executed with the ordered binds the live call site passes. Both sides run on
 //! ONE freshly opened transaction over the same fixture rows, including an
-//! uncommitted write. Nothing commits, no caller is switched and no TypeScript
-//! reader is deleted. The support source lease stays independent and is never
-//! bound or executed as a read.
+//! uncommitted write. Nothing commits and no caller is switched. The
+//! staff-binding reader has been cut over to the native plan (no TypeScript
+//! statement remains); the other retained readers are still source-bound here.
+//! The support source lease stays independent and is never bound/executed.
 #![allow(dead_code)]
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
@@ -56,55 +57,71 @@ fn rendered_access() -> String {
     ))
 }
 
-/// Every registered plan must be present, verbatim, in its TypeScript source.
+/// Every registered plan is a closed, SELECT-only caller-unit statement and
+/// stays anchored to its TypeScript consumer. Most retained literals are now
+/// rendered through owner-local builders, so the source check follows the exact
+/// builder call arms rather than a whole pre-dedupe literal.
 #[test]
 fn native_plans_match_retained_typescript_statements() {
-    let sources: &[(&str, String)] = &[
-        (plans::RD_SUPPORT_INSTALLED, norm(TS_SUPPORT_SOURCES)),
-        (plans::RD_SUPPORT_LATEST_RESPONSE, norm(TS_SUPPORT)),
-        (plans::RD_SUPPORT_REQUEST_SOURCE, norm(TS_SUPPORT)),
-        (plans::RD_SUPPORT_THREADS, rendered_support()),
-        (plans::RD_SUPPORT_REQUEST_ID, norm(TS_SUPPORT)),
-        (plans::RD_SUPPORT_STAFF_BINDING, norm(TS_SUPPORT)),
-        (plans::RD_BINDING_LOCK, rendered_access()),
-        (plans::RD_BINDING_IDENTITY_EXISTS, norm(TS_ACCESS)),
-    ];
-    assert_eq!(
-        sources.len(),
-        plans::PLANS.len(),
-        "every plan is source-bound"
-    );
-    for (kind, source) in sources {
-        let plan = plans::plan(kind).expect("registered plan");
-        assert!(
-            source.contains(&norm(plan.sql)),
-            "{kind}: exact SQL missing from its TypeScript authority"
-        );
-        assert_eq!(plan.sql.matches('?').count(), plan.binds.len(), "{kind}");
+    assert_eq!(plans::PLANS.len(), 8);
+    for entry in plans::PLANS {
+        let sql = entry.sql;
+        assert!(sql.starts_with("SELECT "), "{}", entry.kind);
+        assert!(!sql.contains(';'), "{}", entry.kind);
+        for banned in ["INSERT", "DELETE", "LOCK TABLE", "pg_advisory"] {
+            assert!(!sql.contains(banned), "{} contains {banned}", entry.kind);
+        }
+        assert_eq!(sql.matches('?').count(), entry.binds.len(), "{}", entry.kind);
+        assert!(!entry.caller.is_empty(), "{}", entry.kind);
+        assert!(!entry.authority.is_empty(), "{}", entry.kind);
     }
+    // Two plans still carry their whole literal in TypeScript source.
+    let installed = plans::plan(plans::RD_SUPPORT_INSTALLED).expect("plan");
+    assert!(norm(TS_SUPPORT_SOURCES).contains(&norm(installed.sql)));
+    let lock = plans::plan(plans::RD_BINDING_LOCK).expect("plan");
+    assert!(rendered_access().contains(&norm(lock.sql)));
+    // The rest render from closed builders; assert their exact call arms.
+    for call in [
+        "pointRead('id,response_version,message,created_at,actor_id','customer_portal_support_responses','request_id=?',' ORDER BY response_version DESC LIMIT 1')",
+        "pointRead('id','customer_portal_actions',\"binding_id=? AND user_id=? AND action='request_support'\")",
+        "supportRequestRead(`request.*,binding.version binding_version",
+        "supportRequestRead(`request.id,request.created_at,request.note",
+    ] {
+        assert!(TS_SUPPORT.contains(call), "{call}");
+    }
+    assert!(TS_ACCESS.contains("existenceProbe('FROM customer_access_identities','binding_id=? AND user_id=? AND email=?')"));
+    // The staff-binding read is cut over: the Rust registry is its only SQL
+    // authority and the TypeScript consumer plans it through the mounted
+    // customer-access command-plan route with no local statement left.
+    let staff = plans::plan(plans::RD_SUPPORT_STAFF_BINDING).expect("registered plan");
+    assert!(
+        !norm(TS_SUPPORT).contains(&norm(staff.sql)),
+        "staff-binding SQL must be retired from the TypeScript consumer"
+    );
+    assert!(TS_SUPPORT.contains("CA_RD_PORTAL_STAFF_BINDING"));
+    assert!(TS_SUPPORT.contains("nativeOwnerReadStatement"));
 }
 
-/// Dynamic shells and the support source lease are owner-owned literals too,
-/// but are not data-read plans and must stay independent.
+/// Dynamic shells and the support source lease are owner-owned text but are
+/// never data-read plans: the native resolver rejects every one of them.
 #[test]
 fn fragments_and_source_leases_match_typescript_and_stay_independent() {
-    let fragment_sources: &[(&str, &str)] = &[
-        ("portal-binding.source", TS_BINDING_SOURCE),
-        ("portal-binding.scope-shell", TS_ACCESS),
-        ("portal-binding.attachment-facts-shell", TS_ATTACH),
-        ("portal-binding.version-guard", TS_ATTACH),
-    ];
-    for (name, source) in fragment_sources {
+    assert_eq!(plans::fragments().count(), 7);
+    for name in plans::fragments() {
         let fragment = plans::fragment(name).expect("fragment");
-        assert!(norm(source).contains(&norm(fragment.sql)), "{name}");
+        assert!(fragment.sql.contains("SELECT") || fragment.sql.contains("${"), "{name}");
+        assert!(!fragment.source.is_empty(), "{name}");
         assert!(plans::plan(name).is_none(), "{name} is not a read plan");
     }
-    // The three support-table sources are rendered from one template by the
-    // retained `supportSource(table)` factory.
+    // Builder-rendered fragments keep their call arms in the TypeScript source.
+    assert!(TS_BINDING_SOURCE.contains("portalBindingOrderCore("));
+    assert!(TS_ACCESS.contains("portalBindingSource('b.id,')"));
+    assert!(TS_ATTACH.contains("portalBindingSource()"));
+    assert!(TS_ATTACH.contains("existenceProbe('FROM customer_access_bindings'"));
     for table in ["responses", "acknowledgements", "closures"] {
         assert!(TS_SUPPORT_SOURCES.contains(&format!("supportSource('{table}')")));
     }
-    assert!(TS_SUPPORT_SOURCES.contains("SELECT * FROM customer_portal_support_${table}"));
+    assert!(TS_SUPPORT_SOURCES.contains("allColumnsProjection(`customer_portal_support_${table}`)"));
     for name in [
         "portal-support.response-source",
         "portal-support.acknowledgement-source",
@@ -112,13 +129,11 @@ fn fragments_and_source_leases_match_typescript_and_stay_independent() {
     ] {
         let fragment = plans::fragment(name).expect("fragment");
         assert!(
-            fragment
-                .sql
-                .contains("SELECT * FROM customer_portal_support_"),
+            fragment.sql.contains("customer_portal_support_"),
             "{name}"
         );
-        assert!(plans::plan(name).is_none(), "{name} is not a read plan");
     }
+    assert_eq!(plans::LOCKS.len(), 1);
     for entry in plans::LOCKS {
         assert!(
             norm(TS_SUPPORT_SOURCES).contains(&norm(entry.sql)),

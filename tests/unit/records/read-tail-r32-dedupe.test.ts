@@ -168,7 +168,7 @@ describe('Records read-tail r32 retirement check', () => {
     // ai-usage-projection.ts and one from read-tail-employee-request-columns.ts
     // by delegating both byte-identical heads to one renderer (+1). No bind,
     // lock, registry fallback, native seam or cross-owner consumer changed.
-    expect(total).toBe(18);
+    expect(total).toBe(12);
     expect(total).toBeLessThan(19);
   });
 });

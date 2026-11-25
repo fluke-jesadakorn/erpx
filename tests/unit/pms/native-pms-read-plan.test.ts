@@ -34,6 +34,7 @@ import {
   PMS_RD_CASHIER_COMMAND,
   PMS_RD_POS_COMMAND,
   PMS_RD_NIGHT_COMMAND,
+  PMS_RD_GUEST_BOOKING_DOCUMENT,
 } from '../../../packages/server-pms/src/adapters/native-pms-read';
 import { readPmsInventoryCommand } from '../../../packages/server-pms/src/adapters/pms/read-repository';
 import { pmsAttachmentReadSourceImage } from '../../../packages/server-pms/src/adapters/attachment-read-sources';
@@ -920,7 +921,7 @@ describe('native PMS scoped-records read retirement', () => {
     ] as const) {
       expect(rust).toContain('const SQL_' + suffix + '_COMMAND: &str = ' + JSON.stringify(sql) + ';');
     }
-    expect(rust).toContain('READ_STRIPE_PAYMENT_PROPERTY, READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS];');
+    expect(rust).toContain('READ_STRIPE_PAYMENT_PROPERTY, READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT];');
   });
 
   it('plans all four reads in Rust and runs them on the caller unit with the same binds', async () => {
@@ -961,5 +962,60 @@ describe('native PMS scoped-records read retirement', () => {
     const [url, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
     expect(String(url)).toContain('/api/v1/holdings/acme/pms/command-plan');
     expect(init.headers).toMatchObject({ 'content-type': 'application/json', accept: 'application/json', 'cache-control': 'no-cache' });
+  });
+});
+
+const guestDocumentSql = "SELECT d.kind,d.snapshot_json,d.created_at FROM pms_documents d JOIN pms_records f ON f.id=d.guest_account_id AND f.property_id=d.property_id AND f.kind='guest_account'\nWHERE d.id=? AND d.property_id=? AND f.data_json::jsonb->>'reservationId'=? AND d.kind IN ('invoice','receipt','refund','credit_note')";
+
+describe('native PMS guest booking-document read retirement', () => {
+  it('exposes a fixed allow-listed kind with no SQL on the wire', () => {
+    expect(PMS_RD_GUEST_BOOKING_DOCUMENT).toBe('pms_rd_guest_booking_document');
+    expect(PMS_RD_GUEST_BOOKING_DOCUMENT).not.toMatch(/SELECT|INSERT|UPDATE|DELETE|FOR UPDATE|FOR SHARE/);
+  });
+
+  it('removes the TypeScript SELECT literal and keeps the authorization read', async () => {
+    const adapter = await readFile(new URL('../../../packages/server-pms/src/adapters/pms/guest-document.ts', import.meta.url), 'utf8');
+    expect(adapter).not.toContain(guestDocumentSql);
+    expect(adapter).not.toContain('tx.prepare(');
+    expect(adapter).toContain('nativePmsReadFirst<');
+    expect(adapter).toContain('PMS_RD_GUEST_BOOKING_DOCUMENT');
+    expect(adapter).toContain('authorizedBooking(tx, token, now)');
+  });
+
+  it('carries the byte-identical retired SQL in the Rust registry with three binds', async () => {
+    const rust = await readFile(new URL('../../../packages/server-pms/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
+    expect(rust).toContain('pub const PMS_RD_GUEST_BOOKING_DOCUMENT: &str = "pms_rd_guest_booking_document";');
+    expect(rust).toContain('const SQL_GUEST_BOOKING_DOCUMENT: &str = ' + JSON.stringify(guestDocumentSql) + ';');
+    expect(rust).toContain('READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT];');
+    const documentPlan = rust.slice(rust.indexOf('const READ_GUEST_BOOKING_DOCUMENT:'));
+    expect(documentPlan.slice(0, 300)).toContain('bind_count: 3,');
+    expect(guestDocumentSql.match(/\?/g)).toHaveLength(3);
+    expect(guestDocumentSql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE/);
+  });
+
+  it('plans the document read in Rust and runs it on the caller transaction unit', async () => {
+    const fetchMock = vi.fn(async (_url: URL, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      expect(body.kind).toBe(PMS_RD_GUEST_BOOKING_DOCUMENT);
+      return new Response(JSON.stringify({ data: { statements: [{ sql: guestDocumentSql, values: body.values }] } }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const prepared: string[] = [], bound: unknown[][] = [];
+    const db = {
+      prepare(sql: string) { prepared.push(sql); return { bind(...values: unknown[]) { bound.push(values); return this; } }; },
+      async batch<T>() { return [{ results: [{ kind: 'invoice', snapshot_json: '{}', created_at: 1 }], success: true, meta: { changes: 0, duration: 0 } }] as unknown as { results: T[]; success: boolean; meta: { changes: number; duration: number } }[]; },
+      async exec() { return { count: 0, duration: 0 }; },
+    };
+    const doc = await nativePmsReadFirst<{ kind: string }>(PMS_RD_GUEST_BOOKING_DOCUMENT, ['doc-1', 'prop-1', 'res-1'], db as never);
+    expect(doc).toMatchObject({ kind: 'invoice' });
+    expect(prepared).toEqual([guestDocumentSql]);
+    expect(bound).toEqual([['doc-1', 'prop-1', 'res-1']]);
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
+    expect(String(url)).toContain('/api/v1/holdings/acme/pms/command-plan');
+    const body = JSON.parse(init.body as string) as { kind: string; values: unknown[] };
+    expect(body.values).toEqual(['doc-1', 'prop-1', 'res-1']);
+    expect(JSON.stringify(body)).not.toContain('SELECT');
   });
 });

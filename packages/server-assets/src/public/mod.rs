@@ -11,6 +11,8 @@ pub mod native_read;
 pub mod native_read_http;
 pub use crate::adapters::native_read::{bind, BoundPlan, ReadScope};
 
+pub mod projection_head;
+
 pub mod record_source;
 
 pub mod retirement_work;

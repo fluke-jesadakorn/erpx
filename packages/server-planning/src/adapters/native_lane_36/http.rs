@@ -327,7 +327,7 @@ mod tests {
     async fn rejects_unknown_kind_and_unbounded_branch() {
         let state = state();
         let response = state
-            .read(&headers("company-1"), "acme", "scenarios", None)
+            .read(&headers("company-1"), "acme", "executive-shortage", None)
             .await;
         assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
         let response = state

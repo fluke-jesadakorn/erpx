@@ -1,3 +1,4 @@
+import {readFile,readdir} from 'node:fs/promises';
 import {describe,it,expect,vi} from 'vitest';
 vi.mock('server-only',()=>({}));
 vi.mock('next/headers',()=>({headers:async()=>new Headers({host:'acme.example.com',cookie:'__Host-erpx-product=session'})}));
@@ -534,5 +535,126 @@ describe('native Talent detail read tail', () => {
     } finally {
       if (previous !== undefined) process.env.ERPX_NATIVE_TALENT_READ_CONFIG = previous;
     }
+  });
+});
+
+// G4 / migrate.talent.offer-read-port: the four offer/candidate caller-unit
+// read plans registered by the native port and proved byte-identical by the
+// live-PG parity suite. Exact SQL is pinned so no TS literal can creep back.
+const offerFamily = [
+  {
+    kind: 'talent_rd_candidate_source_image',
+    constant: 'RD_CANDIDATE_SOURCE_IMAGE',
+    sql: 'SELECT to_jsonb(c)::text image FROM talent_candidates c WHERE c.id=? AND c.company_id=?',
+    binds: 2,
+  },
+  {
+    kind: 'talent_rd_candidate_source_image_file',
+    constant: 'RD_CANDIDATE_SOURCE_IMAGE_FILE',
+    sql: "SELECT (to_jsonb(c)-'version'-'updated_at')::text image FROM talent_candidates c WHERE c.id=? AND c.company_id=?",
+    binds: 2,
+  },
+  {
+    kind: 'talent_rd_candidate_events',
+    constant: 'RD_CANDIDATE_EVENTS',
+    sql: 'SELECT * FROM talent_candidate_events WHERE candidate_id=? ORDER BY version',
+    binds: 1,
+  },
+  {
+    kind: 'talent_rd_offer_events',
+    constant: 'RD_OFFER_EVENTS',
+    sql: 'SELECT * FROM talent_offer_events WHERE offer_id=? ORDER BY version',
+    binds: 1,
+  },
+] as const;
+
+const adapter = new URL('../../../packages/server-talent/src/adapters/', import.meta.url);
+const src = (name: string) => readFile(new URL(name, adapter), 'utf8');
+async function tsFiles(directory: URL): Promise<string[]> {
+  const found: string[] = [];
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    if (entry.isDirectory()) found.push(...await tsFiles(new URL(`${entry.name}/`, directory)));
+    else if (entry.isFile() && entry.name.endsWith('.ts')) found.push(new URL(entry.name, directory).pathname);
+  }
+  return found;
+}
+
+describe('talent offer/candidate native read port cutover', () => {
+  it('registers every family kind as an owner-authored SELECT-only plan', async () => {
+    const registry = await src('native_talent_read_sql.rs');
+    for (const read of offerFamily) {
+      expect(registry, read.kind).toContain(`pub const ${read.constant}: &str = "${read.kind}"`);
+      expect(registry, read.kind).toContain(`"${read.sql}"`);
+      expect(registry, read.kind).toContain(`READ_${read.constant.slice(3)},`);
+    }
+    for (const forbidden of ['INSERT INTO', 'UPDATE ', 'DELETE FROM', 'RETURNING', 'FOR UPDATE', ';']) {
+      expect(offerFamily.some((read) => read.sql.includes(forbidden)), forbidden).toBe(false);
+    }
+  });
+
+  it('keeps the offer and candidate detail reads SQL-free on the native client', async () => {
+    const [talent, sensitive, bridge] = await Promise.all([
+      src('talent.ts'), src('attachments-sensitive-facts.ts'), src('native-talent-read.ts'),
+    ]);
+    expect(talent).toContain("nativeTalentReadFirst<Row>('talent_rd_offers',[id],await database())");
+    expect(talent).toContain("nativeTalentReadFirst<Row>('talent_rd_hire_handoffs',[offerId],await database())");
+    expect(sensitive).toContain("'talent_rd_sensitive_offer'");
+    expect(sensitive).toContain('[facts.targetId,facts.companyId],db)');
+    expect(bridge).not.toMatch(/SELECT\s/);
+    expect(bridge).not.toMatch(/INSERT\s|UPDATE\s|DELETE\s/);
+    expect(bridge).toContain('NATIVE_TALENT_READ_UNAVAILABLE');
+    expect(bridge).toContain('return unavailable()');
+  });
+
+  it('sends only kind and positional values for all four native reads', async () => {
+    const previous = process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
+    process.env.ERPX_NATIVE_TALENT_READ_CONFIG = config();
+    const calls: { kind: string; values: unknown[] }[] = [];
+    const fetchMock = vi.fn(async (_url: unknown, init: { body?: string }) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      calls.push(body);
+      const read = offerFamily.find((item) => item.kind === body.kind);
+      expect(read, body.kind).toBeDefined();
+      expect(body.values).toHaveLength(read!.binds);
+      return ok({ data: { statements: [{ sql: read!.sql, values: body.values }] } });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      for (const read of offerFamily) {
+        const values = Array.from({ length: read.binds }, (_, index) => `v${index}`);
+        const seen: string[] = [];
+        const db = {
+          prepare(sql: string) {
+            seen.push(sql);
+            return {
+              bind(...bound: unknown[]) {
+                expect(bound).toEqual(values);
+                return { first: async () => ({ image: 'row' }), all: async () => ({ results: [{ image: 'row' }] }) };
+              },
+            };
+          },
+        } as never;
+        if (read.kind.endsWith('_events')) {
+          expect(await nativeTalentReadAll<{ image: string }>(read.kind, values, db)).toEqual([{ image: 'row' }]);
+        } else {
+          expect(await nativeTalentReadFirst<{ image: string }>(read.kind, values, db)).toEqual({ image: 'row' });
+        }
+        expect(seen).toEqual([read.sql]);
+      }
+      expect(calls.map((call) => call.kind)).toEqual(offerFamily.map((read) => read.kind));
+      expect(String(fetchMock.mock.calls[0][0])).toContain('/api/v1/holdings/acme/talent/command-plan');
+    } finally {
+      vi.unstubAllGlobals();
+      if (previous === undefined) delete process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
+      else process.env.ERPX_NATIVE_TALENT_READ_CONFIG = previous;
+    }
+  });
+
+  it('pins the owner SELECT KPI at the post-r43 baseline of 11', async () => {
+    let count = 0;
+    const srcDir = new URL('../../../packages/server-talent/src/', import.meta.url);
+    for (const file of await tsFiles(srcDir)) count += (await readFile(file, 'utf8')).split('SELECT ').length - 1;
+    expect(count).toBe(11);
+    expect(count).toBeLessThan(12);
   });
 });

@@ -57,14 +57,11 @@ describe('Planning read-tail r25 scoped branch-list head fold', () => {
     expect(head).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
   });
 
-  test('all three callers keep composing the wrapper with unchanged binds', () => {
+  test('all three callers are native-owned with unchanged scope arguments', () => {
     const sources = src('production-command-sources-read.ts');
-    expect(sources.match(/planningScopedBranchList\(/g) ?? []).toHaveLength(3);
-    expect(sources).toContain("planningScopedBranchList('p.*,s.name specification_name', `planning_scenarios p ${productionmanufacturingProjection.scenarioSpecification}`, 'p.company_id=?', 'p.branch_id=?', 'p.updated_at DESC')");
-    expect(sources).toContain("planningScopedBranchList('r.*,s.company_id,s.branch_id', 'planning_recommendations r JOIN planning_scenarios s ON s.id=r.scenario_id', 's.company_id=?', 's.branch_id=?', 'r.updated_at DESC')");
-    expect(sources).toContain("planningScopedBranchList('*', 'production_resources', 'company_id=?', 'branch_id=?', 'name')");
-    expect(sources).toContain('.bind(companyId, branchId, branchId2)');
-    expect(sources).toContain('planning-scoped-list-sql');
+    expect(sources.match(/planningScopedBranchList\(/g) ?? []).toHaveLength(0);
+    for (const kind of ['nativeScenarios', 'nativeRecommendations', 'nativeResources'])
+      expect(sources).toContain(`${kind}(companyId,branchId,branchId2)`);
     expect(sources).not.toContain(SCENARIOS);
     expect(sources).not.toContain(RECOMMENDATIONS);
     expect(sources).not.toContain(RESOURCES);

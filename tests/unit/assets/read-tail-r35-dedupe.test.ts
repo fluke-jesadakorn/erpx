@@ -52,22 +52,24 @@ describe('Assets read-tail r35 scope-tuple universal head family',()=>{
   expect((assetScopeTupleSql('scope').match(/\?::text/g)??[])).toHaveLength(3);
  });
 
- it('owns one universal head literal with no local statement token in the tuple',()=>{
+ it('owns the universal head in the Rust JSON contract with no local statement token',()=>{
   const scope=src('adapters/asset-scope-tuple.ts');
-  expect(scope.split('SELECT ${projection}${tail}').length-1).toBe(1);
-  expect((scope.match(/SELECT/g)??[])).toHaveLength(1);
+  expect((scope.match(/SELECT/g)??[])).toHaveLength(0);
+  expect(scope).toContain('import contract from "./asset-projection-head-sources.json" with { type: "json" }');
+  expect(scope).toContain('heads.selectHead.replace("{projection}",projection).replace("{tail}",tail)');
+  expect(scope).toContain('heads.fromHead.replace("{from}",from).replace("{tail}",tail)');
   expect(scope).toContain('export const assetSelectProjectionSql = (projection:string,tail="") =>');
   expect(scope).toContain('export const assetScopeTupleSql = (alias: string) =>');
   expect(scope).toContain('assetSelectProjectionSql("?::text company_id,?::text branch_id,?::text department_id")');
   expect(scope.split('(SELECT ?::text company_id,?::text branch_id,?::text department_id)').length-1).toBe(0);
  });
 
- it('lowers the exact owner TS SELECT tail from BEFORE=3 to KPI 2 and leaves excluded families untouched',()=>{
-  expect(ownerSelectCount()).toBe(2);
-  // Floor 1: the universal head; Floor 2: the cross-owner clock scalar.
-  expect((src('adapters/asset-scope-tuple.ts').match(/SELECT/g)??[])).toHaveLength(1);
-  expect((src('adapters/record-purchases.ts').match(/SELECT/g)??[])).toHaveLength(1);
-  expect(src('adapters/record-purchases.ts')).toContain('export const assetClockNowMsSql=`(SELECT ${packageClockSql} now_ms)`;');
+ it('lowers the exact owner TS SELECT tail from BEFORE=3 to KPI 0 and leaves excluded families untouched',()=>{
+  expect(ownerSelectCount()).toBe(0);
+  // The universal head and the cross-owner clock scalar are both owner-planned.
+  expect((src('adapters/asset-scope-tuple.ts').match(/SELECT/g)??[])).toHaveLength(0);
+  expect((src('adapters/record-purchases.ts').match(/SELECT/g)??[])).toHaveLength(0);
+  expect(src('adapters/record-purchases.ts')).toContain('await nativeAssetsClockScalar()');
   // Locks, native plans and earlier families are not re-opened.
   expect(src('adapters/financial-workflow-sources.ts')).toContain('LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links,maintenance_work_orders IN SHARE MODE');
   expect(src('adapters/purchases.ts')).toContain('LOCK TABLE operational_assets,operational_asset_finance_links IN SHARE ROW EXCLUSIVE MODE');

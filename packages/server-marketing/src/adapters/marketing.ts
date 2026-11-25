@@ -35,7 +35,6 @@ import {
   MARKETING_RD_ASSET_LIST,
   MARKETING_RD_ASSET_POINT,
   nativeMarketingReadAll,
-  nativeMarketingReadConfigured,
   nativeMarketingReadFirst,
 } from "./native-marketing-read";
 import {listAttachmentPublications} from "@erpx/server-files/public/attachments/service";
@@ -63,14 +62,7 @@ function access(a: WorkContext, write = false) {
 
 function repository(write:SqlDatabase,a:WorkContext,startTransaction:boolean):MarketingRepository<SqlStatement[]>{return {
 ...(startTransaction&&isTransactionalSqlDatabase(write)?{transaction:<Result>(action:(r:MarketingRepository<SqlStatement[]>)=>Promise<Result>)=>write.transaction(tx=>action(repository(tx,a,false)))}:{}),
-async assets(){
-      if(nativeMarketingReadConfigured())return (await nativeMarketingReadAll<Row>(MARKETING_RD_ASSET_LIST,{companyId:a.companyId},write)).results;
-      return (await write
-        .prepare(
-          marketingCompanyListSql('marketing_assets',''),
-        )
-        .bind(a.companyId)
-        .all<Row>()).results;},
+async assets(){return (await nativeMarketingReadAll<Row>(MARKETING_RD_ASSET_LIST,{companyId:a.companyId},write)).results;},
 async candidates(){return readMarketingLane40(LANE40_CANDIDATE_LIST, a, {
         branchId: a.branchId,
         departmentId: a.departmentId,
@@ -91,12 +83,7 @@ async sourceForm(formId,formVersion){
       const rows=await readMarketingLane40(LANE40_ACTIVE_FORM_SOURCE,a,{assetId:formId,version:formVersion});
       const row=rows[0];
       return row&&typeof row.configuration_json==='string'?{configuration_json:row.configuration_json}:null;},
-async asset(id){
-      if(nativeMarketingReadConfigured())return nativeMarketingReadFirst<Row>(MARKETING_RD_ASSET_POINT,{assetId:id,companyId:a.companyId},write);
-      return write
-        .prepare(marketingLocalPointReadSql('asset'))
-        .bind(id, a.companyId)
-        .first<Row>();},
+async asset(id){return nativeMarketingReadFirst<Row>(MARKETING_RD_ASSET_POINT,{assetId:id,companyId:a.companyId},write);},
 candidate:(id,lock=false)=>write
     .prepare(
       marketingLocalPointReadSql('candidate',lock),

@@ -14581,7 +14581,73 @@
         "admin"
       ],
       "packages": [
-        "@erpx/feature-commerce"
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-benefits",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-field_service",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-inventory",
+        "@erpx/feature-legal",
+        "@erpx/feature-operations",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-procurement",
+        "@erpx/feature-projects",
+        "@erpx/feature-quality",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-service",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-billing",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
+        "@erpx/ui",
+        "@erpx/workplace"
       ]
     },
     {
@@ -30480,31 +30546,7 @@
         "sales"
       ],
       "packages": [
-        "@erpx/catalogue",
-        "@erpx/contracts",
-        "@erpx/feature-identity_access",
-        "@erpx/feature-organization",
-        "@erpx/feature-records",
-        "@erpx/feature-runtime",
-        "@erpx/feature-shared",
-        "@erpx/feature-work_projection",
-        "@erpx/native-sdk",
-        "@erpx/server-collaboration",
-        "@erpx/server-commercial",
-        "@erpx/server-ecommerce",
-        "@erpx/server-files",
-        "@erpx/server-identity_access",
-        "@erpx/server-legal",
-        "@erpx/server-manage_erpx",
-        "@erpx/server-organization",
-        "@erpx/server-people_payroll",
-        "@erpx/server-platform_administration",
-        "@erpx/server-runtime",
-        "@erpx/server-shared",
-        "@erpx/server-support",
-        "@erpx/server-talent",
-        "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-ecommerce"
       ],
       "id": "ecommerce.read-tail-r28-dedupe.unit",
       "files": [
@@ -30584,33 +30626,7 @@
       "apps": [
         "sales"
       ],
-      "packages": [
-        "@erpx/catalogue",
-        "@erpx/contracts",
-        "@erpx/feature-identity_access",
-        "@erpx/feature-organization",
-        "@erpx/feature-records",
-        "@erpx/feature-runtime",
-        "@erpx/feature-shared",
-        "@erpx/feature-work_projection",
-        "@erpx/native-sdk",
-        "@erpx/server-collaboration",
-        "@erpx/server-commercial",
-        "@erpx/server-ecommerce",
-        "@erpx/server-files",
-        "@erpx/server-identity_access",
-        "@erpx/server-legal",
-        "@erpx/server-manage_erpx",
-        "@erpx/server-organization",
-        "@erpx/server-people_payroll",
-        "@erpx/server-platform_administration",
-        "@erpx/server-runtime",
-        "@erpx/server-shared",
-        "@erpx/server-support",
-        "@erpx/server-talent",
-        "@erpx/server-work_projection",
-        "@erpx/server-workflow"
-      ],
+      "packages": [],
       "id": "ecommerce.read-tail-r4-dedupe.unit",
       "files": [
         "tests/unit/ecommerce/ecommerce-read-tail-r4-dedupe.test.ts"
@@ -30712,33 +30728,7 @@
       "apps": [
         "sales"
       ],
-      "packages": [
-        "@erpx/catalogue",
-        "@erpx/contracts",
-        "@erpx/feature-identity_access",
-        "@erpx/feature-organization",
-        "@erpx/feature-records",
-        "@erpx/feature-runtime",
-        "@erpx/feature-shared",
-        "@erpx/feature-work_projection",
-        "@erpx/native-sdk",
-        "@erpx/server-collaboration",
-        "@erpx/server-commercial",
-        "@erpx/server-ecommerce",
-        "@erpx/server-files",
-        "@erpx/server-identity_access",
-        "@erpx/server-legal",
-        "@erpx/server-manage_erpx",
-        "@erpx/server-organization",
-        "@erpx/server-people_payroll",
-        "@erpx/server-platform_administration",
-        "@erpx/server-runtime",
-        "@erpx/server-shared",
-        "@erpx/server-support",
-        "@erpx/server-talent",
-        "@erpx/server-work_projection",
-        "@erpx/server-workflow"
-      ],
+      "packages": [],
       "id": "ecommerce.read-tail-r8-dedupe.unit",
       "files": [
         "tests/unit/ecommerce/ecommerce-read-tail-r8-dedupe.test.ts"
@@ -72843,7 +72833,68 @@
         "legal-portal"
       ],
       "packages": [
-        "@erpx/server-legal"
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-benefits",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-inventory",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-procurement",
+        "@erpx/feature-projects",
+        "@erpx/feature-quality",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
+        "@erpx/workplace"
       ],
       "id": "legal.read-tail-r31-dedupe.unit",
       "files": [
@@ -79145,7 +79196,8 @@
         "admin"
       ],
       "packages": [
-        "@erpx/server-manage_erpx"
+        "@erpx/server-manage_erpx",
+        "@erpx/server-runtime"
       ],
       "id": "manage_erpx.read-tail-r15-dedupe.unit",
       "files": [
@@ -99768,29 +99820,66 @@
       "packages": [
         "@erpx/catalogue",
         "@erpx/contracts",
+        "@erpx/feature-benefits",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
         "@erpx/feature-identity_access",
+        "@erpx/feature-inventory",
+        "@erpx/feature-legal",
         "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-procurement",
+        "@erpx/feature-projects",
+        "@erpx/feature-quality",
         "@erpx/feature-records",
         "@erpx/feature-runtime",
+        "@erpx/feature-sales",
         "@erpx/feature-shared",
         "@erpx/feature-work_projection",
         "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
         "@erpx/server-collaboration",
+        "@erpx/server-commerce",
         "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
         "@erpx/server-files",
+        "@erpx/server-finance",
         "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
         "@erpx/server-legal",
+        "@erpx/server-maintenance",
         "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
         "@erpx/server-organization",
         "@erpx/server-people_payroll",
         "@erpx/server-planning",
         "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
         "@erpx/server-runtime",
+        "@erpx/server-sales",
         "@erpx/server-shared",
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-work_projection",
-        "@erpx/server-workflow"
+        "@erpx/server-workflow",
+        "@erpx/workplace"
       ],
       "id": "planning.native-lane-36.unit",
       "files": [
@@ -118764,10 +118853,17 @@
         "supply"
       ],
       "packages": [
+        "@erpx/contracts",
+        "@erpx/feature-records",
+        "@erpx/feature-work_projection",
         "@erpx/server-commerce",
         "@erpx/server-finance",
         "@erpx/server-organization",
-        "@erpx/server-quality"
+        "@erpx/server-quality",
+        "@erpx/server-runtime",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-workflow"
       ],
       "id": "quality.read-tail-r38-dedupe.unit",
       "files": [
@@ -122870,7 +122966,12 @@
         "admin"
       ],
       "packages": [
-        "@erpx/server-runtime"
+        "@erpx/contracts",
+        "@erpx/feature-records",
+        "@erpx/feature-work_projection",
+        "@erpx/server-runtime",
+        "@erpx/server-support",
+        "@erpx/server-talent"
       ],
       "id": "runtime.read-tail-r18-dedupe.unit",
       "files": [
@@ -122896,9 +122997,7 @@
       "apps": [
         "admin"
       ],
-      "packages": [
-        "@erpx/server-runtime"
-      ],
+      "packages": [],
       "id": "runtime.read-tail-r19-dedupe.unit",
       "files": [
         "tests/unit/runtime/read-tail-r19-dedupe.test.ts"
@@ -122923,9 +123022,7 @@
       "apps": [
         "admin"
       ],
-      "packages": [
-        "@erpx/server-runtime"
-      ],
+      "packages": [],
       "id": "runtime.read-tail-r20-dedupe.unit",
       "files": [
         "tests/unit/runtime/read-tail-r20-dedupe.test.ts"
@@ -163414,6 +163511,738 @@
         "@erpx/server-support",
         "@erpx/server-talent",
         "@erpx/server-workflow"
+      ]
+    },
+    {
+      "id": "workflow.read-tail-r39-native-inventory.unit",
+      "lane": "unit",
+      "owner": "workflow",
+      "modules": [
+        "inventory"
+      ],
+      "files": [
+        "tests/unit/workflow/read-tail-r39-native-inventory.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native workflow read-tail cut unit coverage."
+      },
+      "apps": [
+        "supply"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-organization",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-collaboration",
+        "@erpx/server-commercial",
+        "@erpx/server-files",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-legal",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-platform_administration",
+        "@erpx/server-runtime",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow"
+      ]
+    },
+    {
+      "id": "brand.attachment-probe-verification.unit",
+      "lane": "unit",
+      "owner": "brand",
+      "modules": [
+        "brand"
+      ],
+      "files": [
+        "tests/unit/brand/attachment-probe-verification.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [
+        "admin"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-benefits",
+        "@erpx/feature-billing",
+        "@erpx/feature-brand",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-inventory",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-procurement",
+        "@erpx/feature-projects",
+        "@erpx/feature-quality",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
+        "@erpx/workplace"
+      ]
+    },
+    {
+      "id": "collaboration.native-inbox-screen.unit",
+      "lane": "unit",
+      "owner": "collaboration",
+      "modules": [
+        "collaboration",
+        "support",
+        "identity_access",
+        "operations"
+      ],
+      "files": [
+        "tests/unit/collaboration/native-inbox-screen.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [
+        "apps",
+        "support",
+        "account",
+        "admin",
+        "portal"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-benefits",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-customer_authority",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-inventory",
+        "@erpx/feature-legal",
+        "@erpx/feature-marketing",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-procurement",
+        "@erpx/feature-projects",
+        "@erpx/feature-quality",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-support",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
+        "@erpx/ui",
+        "@erpx/workplace"
+      ]
+    },
+    {
+      "id": "crm.read-tail-r21-dedupe.unit",
+      "lane": "unit",
+      "owner": "crm",
+      "modules": [
+        "crm"
+      ],
+      "files": [
+        "tests/unit/crm/read-tail-r21-dedupe.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [
+        "sales"
+      ],
+      "packages": [
+        "@erpx/server-commerce",
+        "@erpx/server-crm",
+        "@erpx/server-finance",
+        "@erpx/server-organization"
+      ]
+    },
+    {
+      "id": "ecommerce.native-exec-metric-consumer.unit",
+      "lane": "unit",
+      "owner": "ecommerce",
+      "modules": [
+        "ecommerce"
+      ],
+      "files": [
+        "tests/unit/ecommerce/native-exec-metric-consumer.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [
+        "sales"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-organization",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-collaboration",
+        "@erpx/server-commercial",
+        "@erpx/server-ecommerce",
+        "@erpx/server-files",
+        "@erpx/server-identity_access",
+        "@erpx/server-legal",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-platform_administration",
+        "@erpx/server-runtime",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow"
+      ]
+    },
+    {
+      "id": "ecommerce.native-exec-metric.unit",
+      "lane": "unit",
+      "owner": "ecommerce",
+      "modules": [
+        "ecommerce"
+      ],
+      "files": [
+        "tests/unit/ecommerce/native-exec-metric.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [
+        "sales"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-organization",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-collaboration",
+        "@erpx/server-commercial",
+        "@erpx/server-ecommerce",
+        "@erpx/server-files",
+        "@erpx/server-identity_access",
+        "@erpx/server-legal",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-platform_administration",
+        "@erpx/server-runtime",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow"
+      ]
+    },
+    {
+      "id": "field_service.read-tail-r3-native-probe.unit",
+      "lane": "unit",
+      "owner": "field_service",
+      "modules": [
+        "field_service",
+        "inventory",
+        "finance",
+        "collaboration"
+      ],
+      "files": [
+        "tests/unit/field_service/read-tail-r3-native-probe.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [
+        "apps",
+        "finance",
+        "supply",
+        "service"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-benefits",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-inventory",
+        "@erpx/feature-legal",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-procurement",
+        "@erpx/feature-projects",
+        "@erpx/feature-quality",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
+        "@erpx/workplace"
+      ]
+    },
+    {
+      "id": "marketing.read-tail-r55-dedupe.unit",
+      "lane": "unit",
+      "owner": "marketing",
+      "modules": [
+        "marketing"
+      ],
+      "files": [
+        "tests/unit/marketing/read-tail-r55-dedupe.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [
+        "sales",
+        "forms"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-benefits",
+        "@erpx/feature-billing",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-inventory",
+        "@erpx/feature-legal",
+        "@erpx/feature-marketing",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-procurement",
+        "@erpx/feature-projects",
+        "@erpx/feature-quality",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
+        "@erpx/workplace"
+      ]
+    },
+    {
+      "id": "planning.read-tail-r26-native-scenarios.unit",
+      "lane": "unit",
+      "owner": "planning",
+      "modules": [
+        "planning",
+        "manufacturing",
+        "inventory",
+        "finance"
+      ],
+      "files": [
+        "tests/unit/planning/read-tail-r26-native-scenarios.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [
+        "finance",
+        "supply",
+        "manufacturing"
+      ],
+      "packages": []
+    },
+    {
+      "id": "platform_administration.read-tail-r21-exists-head-latest-id-dedupe.unit",
+      "lane": "unit",
+      "owner": "platform_administration",
+      "modules": [
+        "platform_administration",
+        "identity_access",
+        "organization",
+        "operations"
+      ],
+      "files": [
+        "tests/unit/platform_administration/read-tail-r21-exists-head-latest-id-dedupe.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [
+        "apps",
+        "account",
+        "admin"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/server-commerce",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos"
+      ]
+    },
+    {
+      "id": "records.context-read-port-cutover.unit",
+      "lane": "unit",
+      "owner": "records",
+      "modules": [
+        "agent"
+      ],
+      "files": [
+        "tests/unit/records/context-read-port-cutover.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-assets",
+        "@erpx/feature-benefits",
+        "@erpx/feature-billing",
+        "@erpx/feature-brand",
+        "@erpx/feature-collaboration",
+        "@erpx/feature-commerce",
+        "@erpx/feature-crm",
+        "@erpx/feature-customer_360",
+        "@erpx/feature-customer_authority",
+        "@erpx/feature-ecommerce",
+        "@erpx/feature-field_service",
+        "@erpx/feature-files",
+        "@erpx/feature-finance",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-inventory",
+        "@erpx/feature-learning",
+        "@erpx/feature-legal",
+        "@erpx/feature-maintenance",
+        "@erpx/feature-manufacturing",
+        "@erpx/feature-marketing",
+        "@erpx/feature-operations",
+        "@erpx/feature-organization",
+        "@erpx/feature-people_payroll",
+        "@erpx/feature-pms",
+        "@erpx/feature-pos",
+        "@erpx/feature-procurement",
+        "@erpx/feature-projects",
+        "@erpx/feature-quality",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-sales",
+        "@erpx/feature-shared",
+        "@erpx/feature-support",
+        "@erpx/feature-talent",
+        "@erpx/feature-work_projection",
+        "@erpx/feature-workflow",
+        "@erpx/front",
+        "@erpx/native-sdk",
+        "@erpx/server-agent",
+        "@erpx/server-assets",
+        "@erpx/server-benefits",
+        "@erpx/server-billing",
+        "@erpx/server-brand",
+        "@erpx/server-collaboration",
+        "@erpx/server-commerce",
+        "@erpx/server-commercial",
+        "@erpx/server-crm",
+        "@erpx/server-customer_360",
+        "@erpx/server-customer_authority",
+        "@erpx/server-ecommerce",
+        "@erpx/server-field_service",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-inventory",
+        "@erpx/server-learning",
+        "@erpx/server-legal",
+        "@erpx/server-maintenance",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-manufacturing",
+        "@erpx/server-marketing",
+        "@erpx/server-operations",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-planning",
+        "@erpx/server-platform_administration",
+        "@erpx/server-pms",
+        "@erpx/server-pos",
+        "@erpx/server-procurement",
+        "@erpx/server-projects",
+        "@erpx/server-quality",
+        "@erpx/server-records",
+        "@erpx/server-runtime",
+        "@erpx/server-sales",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow",
+        "@erpx/ui",
+        "@erpx/workplace"
       ]
     }
   ]

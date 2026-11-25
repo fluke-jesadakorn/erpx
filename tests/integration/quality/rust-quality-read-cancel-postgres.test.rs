@@ -18,6 +18,12 @@ use erpx_server_shared::public::{
     BusinessError, Clock, CommandKey, CompanyId, FailureKind, RecordId, TimestampMillis, UserId,
 };
 
+/// The owner descriptor plan SQL, now the single descriptor statement: the
+/// fenced owner port's capture statement registered as the native read plan.
+/// TypeScript descriptor facts emit no SQL, so parity is checked against this
+/// native statement instead of a captured TypeScript query.
+const DESCRIPTOR_PLAN_SQL: &str = "SELECT CASE WHEN octet_length(company_id)+coalesce(octet_length(branch_id),0)<=2097152 THEN company_id END company_id,CASE WHEN octet_length(company_id)+coalesce(octet_length(branch_id),0)<=2097152 THEN branch_id END branch_id,NULL::text department_id,version::bigint version FROM inventory_quality_holds WHERE id=$1 AND company_id=$2";
+
 // Test-only stand-in for Inventory's same-unit posted Count port. Production
 // composition must use the actual Inventory public witness.
 struct FixtureCount;
@@ -1108,38 +1114,34 @@ async fn workspace_and_detail_require_and_retain_quality_read_locks() {
 }
 
 #[tokio::test]
-async fn quality_attachment_descriptor_matches_actual_typescript_and_revalidates() {
+async fn quality_attachment_descriptor_native_plan_revalidates_under_source_fence() {
     use erpx_server_quality::public::attachment_descriptor::{inspect_quality_attachment_descriptor,lock_quality_attachment_descriptor};
+    // The cutover leaves no TypeScript descriptor SQL; the native plan is the
+    // only descriptor statement the owner serves.
+    let policy = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/adapters/attachments-policy-facts.ts")).unwrap();
+    assert!(policy.contains("nativeQualityReadFirst"));
+    assert!(policy.contains("RD_ATTACHMENT_DESCRIPTOR"));
+    assert!(!policy.contains("qualityAttachmentScopeReadSql"));
+    assert!(!policy.contains("db.prepare"));
     fixture::with_database(2,|pool|async move {
         facts::setup(&pool).await;facts::hold(&pool,"attachment-hold").await;
-        let script=r#"
-if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');
-const {policyQualityFacts}=await import('./packages/server-quality/src/adapters/attachments-policy-facts.ts');
-const queries=[];const db={prepare(sql){return{bind(...args){return{first(){queries.push({sql,args});return Promise.resolve(null)}}}}}};
-for(const targetType of ['quality_hold','inventory_quality_hold'])await policyQualityFacts(db).readDescriptor({targetId:'attachment-hold',companyId:'company',targetType});
-process.stdout.write(JSON.stringify(queries));
-"#;
-        let output=std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required")).current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")).arg("--conditions=react-server").arg("-e").arg(script).output().unwrap();
-        assert!(output.status.success(),"actual Quality TS descriptor unavailable");
-        let oracle:Vec<serde_json::Value>=serde_json::from_slice(&output.stdout).unwrap();assert_eq!(oracle.len(),2);
         let mut tx=pool.raw().begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
         lock_quality_attachment_descriptor(&mut tx).await.unwrap();let company=CompanyId::new("company").unwrap();
         let source=inspect_quality_attachment_descriptor(&mut tx,&company,"attachment-hold").await.unwrap();let value=source.value().unwrap();
-        for q in &oracle {assert_eq!(q["args"],serde_json::json!(["attachment-hold","company"]));let sql=q["sql"].as_str().unwrap().replacen('?',"$1",1).replacen('?',"$2",1);let row:(String,Option<String>,Option<String>,i64)=sqlx::query_as(sqlx::AssertSqlSafe(sql)).bind("attachment-hold").bind("company").fetch_one(&mut *tx).await.unwrap();assert_eq!((&value.company_id,&value.branch_id,&value.department_id,value.version),(&row.0,&row.1,&row.2,row.3));}
+        let row:(String,Option<String>,Option<String>,i64)=sqlx::query_as(sqlx::AssertSqlSafe(DESCRIPTOR_PLAN_SQL)).bind("attachment-hold").bind("company").fetch_one(&mut *tx).await.unwrap();
+        assert_eq!((&value.company_id,&value.branch_id,&value.department_id,value.version),(&row.0,&row.1,&row.2,row.3));
         assert!(inspect_quality_attachment_descriptor(&mut tx,&CompanyId::new("foreign").unwrap(),"attachment-hold").await.unwrap().value().is_none());assert!(inspect_quality_attachment_descriptor(&mut tx,&company,"missing").await.unwrap().value().is_none());
         source.require_current(&mut tx).await.unwrap();
         sqlx::query("SAVEPOINT shadow_quality_hold").execute(&mut *tx).await.unwrap();
         sqlx::query("CREATE TEMP TABLE inventory_quality_holds(id text,company_id text,branch_id text,version bigint)").execute(&mut *tx).await.unwrap();
-        let shadow_oracle=oracle[0]["sql"].as_str().unwrap().replacen('?',"$1",1).replacen('?',"$2",1);
-        let shadow:Option<(String,Option<String>,Option<String>,i32)>=sqlx::query_as(sqlx::AssertSqlSafe(shadow_oracle)).bind("attachment-hold").bind("company").fetch_optional(&mut *tx).await.unwrap();assert!(shadow.is_none(),"actual TS descriptor resolves the shadow relation");
+        let shadow:Option<(String,Option<String>,Option<String>,i32)>=sqlx::query_as(sqlx::AssertSqlSafe(DESCRIPTOR_PLAN_SQL)).bind("attachment-hold").bind("company").fetch_optional(&mut *tx).await.unwrap();assert!(shadow.is_none(),"native descriptor plan resolves the shadow relation");
         assert!(inspect_quality_attachment_descriptor(&mut tx,&company,"attachment-hold").await.is_err());assert!(source.require_current(&mut tx).await.is_err());
         sqlx::query("ROLLBACK TO SAVEPOINT shadow_quality_hold").execute(&mut *tx).await.unwrap();source.require_current(&mut tx).await.unwrap();
         sqlx::query("SAVEPOINT rls_quality_hold").execute(&mut *tx).await.unwrap();
         let bypass:bool=sqlx::query_scalar("SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname=current_user").fetch_one(&mut *tx).await.unwrap();assert!(!bypass,"the leased test role must not bypass row security");
         sqlx::raw_sql("ALTER TABLE public.inventory_quality_holds ENABLE ROW LEVEL SECURITY; ALTER TABLE public.inventory_quality_holds FORCE ROW LEVEL SECURITY").execute(&mut *tx).await.unwrap();
         let active:bool=sqlx::query_scalar("SELECT row_security_active('public.inventory_quality_holds'::regclass)").fetch_one(&mut *tx).await.unwrap();assert!(active,"the actual selected role must see RLS");
-        let rls_oracle=oracle[0]["sql"].as_str().unwrap().replacen('?',"$1",1).replacen('?',"$2",1);
-        let hidden:Option<(String,Option<String>,Option<String>,i32)>=sqlx::query_as(sqlx::AssertSqlSafe(rls_oracle)).bind("attachment-hold").bind("company").fetch_optional(&mut *tx).await.unwrap();assert!(hidden.is_none(),"actual TS descriptor observes the RLS-filtered relation");
+        let hidden:Option<(String,Option<String>,Option<String>,i32)>=sqlx::query_as(sqlx::AssertSqlSafe(DESCRIPTOR_PLAN_SQL)).bind("attachment-hold").bind("company").fetch_optional(&mut *tx).await.unwrap();assert!(hidden.is_none(),"native descriptor plan observes the RLS-filtered relation");
         assert!(inspect_quality_attachment_descriptor(&mut tx,&company,"attachment-hold").await.is_err());assert!(source.require_current(&mut tx).await.is_err());
         sqlx::query("ROLLBACK TO SAVEPOINT rls_quality_hold").execute(&mut *tx).await.unwrap();source.require_current(&mut tx).await.unwrap();
         sqlx::query("UPDATE inventory_quality_holds SET version=version+1 WHERE id='attachment-hold'").execute(&mut *tx).await.unwrap();assert!(source.require_current(&mut tx).await.is_err());tx.rollback().await.unwrap();
@@ -1147,7 +1149,7 @@ process.stdout.write(JSON.stringify(queries));
 }
 
 #[tokio::test]
-async fn quality_attachment_descriptor_read_port_matches_retained_typescript() {
+async fn quality_attachment_descriptor_read_port_matches_native_plan() {
     use erpx_server_quality::public::attachment_descriptor::{
         QualityAttachmentDescriptorRow, QualityAttachmentDescriptorTarget,
         lock_quality_attachment_descriptor, read_quality_attachment_descriptor,
@@ -1155,33 +1157,16 @@ async fn quality_attachment_descriptor_read_port_matches_retained_typescript() {
     fixture::with_database(2, |pool| async move {
         facts::setup(&pool).await;
         facts::hold(&pool, "descriptor-read-hold").await;
-        // Capture the exact retained TS descriptor read for Quality targets.
-        let script = r#"
-if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');
-const {policyQualityFacts}=await import('./packages/server-quality/src/adapters/attachments-policy-facts.ts');
-const queries=[];const db={prepare(sql){return{bind(...args){return{first(){queries.push({sql,args});return Promise.resolve(null)}}}}}};
-for(const targetType of ['quality_hold','inventory_quality_hold','inventory_quality_spec'])await policyQualityFacts(db).readDescriptor({targetId:'descriptor-read-hold',companyId:'company',targetType});
-process.stdout.write(JSON.stringify(queries));
-"#;
-        let output = std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
-            .current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
-            .arg("--conditions=react-server").arg("-e").arg(script).output().unwrap();
-        assert!(output.status.success(), "actual Quality TS descriptor read unavailable");
-        let oracle: Vec<serde_json::Value> = serde_json::from_slice(&output.stdout).unwrap();
-        assert_eq!(oracle.len(), 2, "TS descriptor set admits only the two Quality hold targets");
-
         let mut tx = pool.raw().begin().await.unwrap();
         sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
         lock_quality_attachment_descriptor(&mut tx).await.unwrap();
         let company = CompanyId::new("company").unwrap();
-        let pairs = [
-            (QualityAttachmentDescriptorTarget::QualityHold, &oracle[0]),
-            (QualityAttachmentDescriptorTarget::InventoryQualityHold, &oracle[1]),
+        let targets = [
+            QualityAttachmentDescriptorTarget::QualityHold,
+            QualityAttachmentDescriptorTarget::InventoryQualityHold,
         ];
-        for (target, query) in pairs {
-            assert_eq!(query["args"], serde_json::json!(["descriptor-read-hold", "company"]));
-            let sql = query["sql"].as_str().unwrap().replacen('?', "$1", 1).replacen('?', "$2", 1);
-            let row: (String, Option<String>, Option<String>, i64) = sqlx::query_as(sqlx::AssertSqlSafe(sql))
+        for target in targets {
+            let row: (String, Option<String>, Option<String>, i64) = sqlx::query_as(sqlx::AssertSqlSafe(DESCRIPTOR_PLAN_SQL))
                 .bind("descriptor-read-hold").bind("company").fetch_one(&mut *tx).await.unwrap();
             let native: Option<QualityAttachmentDescriptorRow> =
                 read_quality_attachment_descriptor(&mut tx, &company, target.as_str(), "descriptor-read-hold").await.unwrap();
@@ -1189,11 +1174,11 @@ process.stdout.write(JSON.stringify(queries));
             assert_eq!(
                 (&native.company_id, &native.branch_id, &native.department_id, native.version),
                 (&row.0, &row.1, &row.2, row.3),
-                "native descriptor must match the retained TS read for {}",
+                "owner descriptor port must match the registered native plan for {}",
                 target.as_str()
             );
         }
-        // The owner-local port admits only the retained TS target set.
+        // The owner-local port admits only the two Quality hold targets.
         assert!(read_quality_attachment_descriptor(&mut tx, &company, "inventory_quality_spec", "descriptor-read-hold").await.unwrap().is_none());
         assert!(read_quality_attachment_descriptor(&mut tx, &company, "quality_hold", "missing").await.unwrap().is_none());
         assert!(read_quality_attachment_descriptor(&mut tx, &CompanyId::new("foreign").unwrap(), "quality_hold", "descriptor-read-hold").await.unwrap().is_none());

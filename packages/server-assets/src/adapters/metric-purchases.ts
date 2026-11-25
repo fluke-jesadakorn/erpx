@@ -5,8 +5,8 @@ import type {WorkContext} from "@erpx/server-identity_access/public/authorizatio
 import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
 import {assetPermissionProbeSql} from "./asset-scope-probe";
 import {assetAllRowsSql} from "./asset-all-rows-sql";
-import {assetClockNowMsSql} from "./record-purchases";
 import {assetProjectionFromSql} from "./asset-scope-tuple";
+import {nativeAssetsClockScalar} from "./native-assets-read";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {assetsPackageEnforcementMode,readPurchasedAccesses} from "@erpx/server-commercial/public/purchase-command-boundary";
@@ -24,5 +24,6 @@ export async function assetMetricSource(database:SqlDatabase,actor:WorkContext,i
  const definition=metrics[id as AssetMetricId];if(!definition)throw new ApiError(422,"METRIC_UNSUPPORTED","This Assets metric has no owner source.");
  if(!(await assetMetricHistoryAccess(database,actor))[id])throw new ApiError(403,"METRIC_SOURCE_UNAVAILABLE","This metric requires purchased Assets history and current source authority.");
  if(await assetsPackageEnforcementMode()!=="enforced")return {sql:assetAllRowsSql(definition.table),args:[] as (string|number|null)[]};
- return {sql:`WITH asset_metric_clock AS MATERIALIZED ${assetClockNowMsSql} ${assetProjectionFromSql("asset_metric_owned.*",` ${definition.table} asset_metric_owned CROSS JOIN asset_metric_clock`,` WHERE ${assignmentReadSql("asset_metric_owned","records.read")} AND ${purchasedCapabilityPredicate("asset_metric_owned.company_id",definition.capability,"history","asset_metric_clock.now_ms")}`)}`,args:[actor.assignmentId,actor.userId,actor.role]};
+ const clock=await nativeAssetsClockScalar();
+ return {sql:`WITH asset_metric_clock AS MATERIALIZED (${clock}) ${assetProjectionFromSql("asset_metric_owned.*",` ${definition.table} asset_metric_owned CROSS JOIN asset_metric_clock`,` WHERE ${assignmentReadSql("asset_metric_owned","records.read")} AND ${purchasedCapabilityPredicate("asset_metric_owned.company_id",definition.capability,"history","asset_metric_clock.now_ms")}`)}`,args:[actor.assignmentId,actor.userId,actor.role]};
 }

@@ -76,9 +76,10 @@ describe('Records read-tail r28 referenceEdgesSql family', () => {
 
   test('the edge family now delegates to the one detail generator literal; locks and ports stay independent', () => {
     expect(records.match(/const recordContextDetailSql\s*=/g) ?? []).toHaveLength(1);
-    expect(records.match(/recordContextDetailSql\(/g) ?? []).toHaveLength(5); // mentions/suggestions/transitions + search references + edge family
+    expect(records.match(/recordContextDetailSql\(/g) ?? []).toHaveLength(2); // search references + count; context members retired
     expect(records).toContain('const recordContextDetailSql = (table: string, columns: string, where: string, order: string) =>');
-    expect(records).toContain('`SELECT ${columns} FROM ${table} WHERE ${where}${order}`');
+    expect(records).toContain('projectionColumnHeadSql(columns, table, ` WHERE ${where}${order}`)');
+    expect(records).not.toContain('`SELECT ${columns} FROM ${table} WHERE ${where}${order}`');
     expect(records).toContain("return recordContextDetailSql('record_reference_edges', projection, where, order);");
     expect(records).not.toContain('`SELECT ${projection} FROM record_reference_edges WHERE ${where}${order}`');
 
@@ -113,7 +114,7 @@ describe('Records read-tail r28 retirement check', () => {
     // generator (24 -> 23); r29 folds the request-events aggregate into
     // childRowAgg (23 -> 22); r30 folds three shared heads (22 -> 19). No
     // lock, cross-owner port or native seam changed.
-    expect(total).toBe(18);
+    expect(total).toBe(12);
     expect(total).toBeLessThan(24);
   });
 });

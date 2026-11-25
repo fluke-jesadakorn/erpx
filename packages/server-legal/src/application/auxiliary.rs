@@ -388,7 +388,7 @@ mod tests {
         ) -> LegalAuxiliaryFuture<'a, Value> {
             self.calls.push("inspection_source");
             self.seen.push(document_id.to_owned());
-            Box::pin(async { Ok(serde_json::json!({"id": document_id, "version": 1})) })
+            Box::pin(async move { Ok(serde_json::json!({"id": document_id, "version": 1})) })
         }
         fn trust<'a>(&'a mut self, _: &'a LegalAuxiliaryActor) -> LegalAuxiliaryFuture<'a, Value> {
             self.calls.push("trust");

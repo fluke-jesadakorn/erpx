@@ -214,6 +214,11 @@ pub const WF_NATIVE_CALENDAR_INDEX_FACTS: &str = "wf_native_calendar_index_facts
 /// to the retired TypeScript literal; the TypeScript bridge executes it on the
 /// caller's open company unit and carries no receipt/assertion semantics.
 pub const WF_NATIVE_RECORD_DETAILS_HISTORY: &str = "wf_native_record_details_history";
+/// Owner-authored caller-unit read for the Inventory closed audit-history family.
+/// Byte-identical to the retired TypeScript literal shared by the count and
+/// transfer owner sources; the planner resolves it to one fixed SELECT executed
+/// on the caller's open company unit and carries no receipt/assertion semantics.
+pub const WF_NATIVE_INVENTORY_AUDIT_HISTORY: &str = "wf_native_inventory_audit_history";
 pub const KINDS: &[&str] = &[
     WF_OPENAPPROVAL,
     WF_OPENAPPROVAL2,
@@ -270,6 +275,7 @@ pub const KINDS: &[&str] = &[
     WF_NATIVE_EXPENSE_BATCH_INSTANCES,
     WF_NATIVE_CALENDAR_INDEX_FACTS,
     WF_NATIVE_RECORD_DETAILS_HISTORY,
+    WF_NATIVE_INVENTORY_AUDIT_HISTORY,
 ];
 
 fn statement(kind: &str) -> Option<(&'static str, usize)> {
@@ -592,6 +598,10 @@ fn statement(kind: &str) -> Option<(&'static str, usize)> {
         WF_NATIVE_RECORD_DETAILS_HISTORY => (
             "SELECT action,actor_id,created_at,record_version FROM audit_events WHERE record_id=? ORDER BY created_at DESC LIMIT 50",
             1,
+        ),
+        WF_NATIVE_INVENTORY_AUDIT_HISTORY => (
+            "SELECT a.id,a.action,a.created_at,COALESCE(p.legal_name,a.actor_id) actor_name FROM audit_events a LEFT JOIN hr_people p ON p.user_id=a.actor_id AND p.company_id=? AND p.merged_into_id IS NULL WHERE a.record_id=? ORDER BY a.created_at DESC",
+            2,
         ),
 _ => return None,
     })
@@ -1472,6 +1482,61 @@ mod tests {
         assert!(sql_mentions_company_scope(WF_NATIVE_CALENDAR_INDEX_FACTS));
         assert!(!supported("wf_native_calendar_index_unknown"));
         assert!(!supported("wf_native_record_details_unknown"));
+    }
+
+    /// The Inventory closed audit-history read is byte-identical to the retired
+    /// TypeScript literal shared by count and transfer owner sources. The
+    /// caller-unit bridge carries no receipt/assertion semantics; the planner
+    /// never accepts caller SQL or writes.
+    #[test]
+    fn inventory_audit_history_read_kind_is_fixed_company_scoped_select() {
+        let expected = "SELECT a.id,a.action,a.created_at,COALESCE(p.legal_name,a.actor_id) actor_name FROM audit_events a LEFT JOIN hr_people p ON p.user_id=a.actor_id AND p.company_id=? AND p.merged_into_id IS NULL WHERE a.record_id=? ORDER BY a.created_at DESC";
+        let (sql, expected_binds) =
+            statement(WF_NATIVE_INVENTORY_AUDIT_HISTORY).expect("registered owner read kind");
+        assert_eq!(sql, expected, "SQL must stay byte-identical to the retired TS literal");
+        assert_eq!(sql.len(), 239);
+        assert_eq!(expected_binds, 2);
+        assert_eq!(sql.matches('?').count(), expected_binds);
+        assert!(sql.starts_with("SELECT "), "read must be SELECT-only: {sql}");
+        assert!(
+            sql.contains("p.company_id=?"),
+            "read must keep the company-scoped people join: {sql}"
+        );
+        assert!(
+            sql.contains("a.record_id=?") && sql.contains("ORDER BY a.created_at DESC"),
+            "read must keep the record key and history order: {sql}"
+        );
+        for forbidden in [
+            "INSERT",
+            "UPDATE ",
+            "DELETE",
+            "RETURNING",
+            ";",
+            "FOR UPDATE",
+            "FOR SHARE",
+            "LOCK TABLE",
+        ] {
+            assert!(
+                !sql.contains(forbidden),
+                "read must not mutate or lock: {forbidden}"
+            );
+        }
+        assert!(supported(WF_NATIVE_INVENTORY_AUDIT_HISTORY));
+        let planned = plan(
+            WF_NATIVE_INVENTORY_AUDIT_HISTORY,
+            vec![json!("company"), json!("record-1")],
+        )
+        .expect("valid binds must plan");
+        assert_eq!(planned.sql, expected);
+        assert_eq!(planned.values, vec![json!("company"), json!("record-1")]);
+        assert!(plan(WF_NATIVE_INVENTORY_AUDIT_HISTORY, vec![]).is_err());
+        assert!(plan(WF_NATIVE_INVENTORY_AUDIT_HISTORY, vec![json!("company")]).is_err());
+        assert!(plan(
+            WF_NATIVE_INVENTORY_AUDIT_HISTORY,
+            vec![json!("company"); 3]
+        )
+        .is_err());
+        assert!(!supported("wf_native_inventory_audit_history_unknown"));
     }
 
     fn sql_mentions_company_scope(kind: &str) -> bool {

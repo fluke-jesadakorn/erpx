@@ -3,7 +3,10 @@ import { cookies, headers } from "next/headers";
 import { ApiError } from '@erpx/server-runtime/public/http';
 import type { InboxItem } from "@erpx/contracts/inbox";
 
-/** Strict owner transport for the native Collaboration inbox reads. */
+/** Strict owner transport for the native Collaboration inbox reads.
+ * The workplace SSR inbox screen is native-only through these SSR variants;
+ * configuration or transport failures fail closed (503) here. No TS read
+ * fallback exists behind them. */
 export type NativeInboxConfiguration = Readonly<{
   privateBaseUrl: string;
   timeoutMs: number;

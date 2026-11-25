@@ -9,8 +9,10 @@
 /** Contact-with-account workspace read head shared by the identities contact
  * list and the single-contact read. Callers pass the contact projection, the
  * account alias (the scope fragments bind to the contact alias c) and the tail. */
+import { crmProjectionFromSql } from './read-tail-r46-sql';
+
 export const crmContactAccountReadSql = (projection: string, accountAlias: string, tail: string) =>
-  `SELECT ${projection} FROM crm_contacts c JOIN crm_accounts ${accountAlias} ON ${accountAlias}.id=c.account_id ${tail}`;
+  crmProjectionFromSql(projection, `crm_contacts c JOIN crm_accounts ${accountAlias} ON ${accountAlias}.id=c.account_id ${tail}`);
 
 /** Assignment-module membership EXISTS predicate shared by the metric bare
  * guard and the aliased prefix used by metric/analytics purchases. Callers pass
