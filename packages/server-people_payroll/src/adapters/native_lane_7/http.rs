@@ -12,9 +12,11 @@ use erpx_server_runtime::public::http_support::{
 use erpx_server_runtime::public::postgres::DatabasePool;
 use erpx_server_shared::public::{BusinessError, FailureKind};
 
-use super::application::{self, LegacyPeopleClock};
-use super::domain::{self, READ_KIND, ROUTE};
-use super::postgres::PgLegacyPeopleClock;
+use super::application::{self, LegacyPeopleClock, TransitionFuture, WorkspacePeoplePayments};
+use super::domain::{
+    self, PAYMENTS_READ_KIND, PAYMENTS_ROUTE, READ_KIND, ROUTE, WorkspacePaymentRow,
+};
+use super::postgres::{PgLegacyPeopleClock, PgWorkspacePeoplePayments};
 
 const CONTEXT_COMPANY: HeaderName = HeaderName::from_static("x-erpx-context-company");
 const CONTEXT_OBSERVED_AT: HeaderName = HeaderName::from_static("x-erpx-observed-at");
@@ -29,6 +31,19 @@ pub struct LaneTarget {
 
 struct Lane7State {
     targets: BTreeMap<(String, String), Arc<dyn LegacyPeopleClock>>,
+    payments: BTreeMap<(String, String), Arc<dyn WorkspacePeoplePayments>>,
+}
+
+/// Test/alternative-host reader: the payments route fails closed instead of
+/// borrowing another Holding's pool.
+struct UnavailablePayments;
+impl WorkspacePeoplePayments for UnavailablePayments {
+    fn outstanding<'a>(
+        &'a self,
+        _company: &'a str,
+    ) -> TransitionFuture<'a, Vec<WorkspacePaymentRow>> {
+        Box::pin(async { Err(domain::unavailable()) })
+    }
 }
 
 fn missing() -> BusinessError {
@@ -98,34 +113,35 @@ fn bounded(body: serde_json::Value) -> Response {
 /// its own reader, so a Holding never observes another Holding's pool.
 fn build_state<P>(
     targets: Vec<(LaneTarget, P)>,
-    factory: impl Fn(P) -> Arc<dyn LegacyPeopleClock>,
+    factory: impl Fn(P) -> (Arc<dyn LegacyPeopleClock>, Arc<dyn WorkspacePeoplePayments>),
 ) -> Result<Arc<Lane7State>, BusinessError> {
-    let mut configured = BTreeMap::new();
+    let mut clocks = BTreeMap::new();
+    let mut payments = BTreeMap::new();
     for (target, source) in targets {
         if target.host.is_empty() || !valid_slug(&target.holding_slug) {
             return Err(domain::configuration_invalid());
         }
-        if configured
-            .insert(
-                (target.host.clone(), target.holding_slug.clone()),
-                factory(source),
-            )
-            .is_some()
+        let key = (target.host.clone(), target.holding_slug.clone());
+        let (clock, payment_reader) = factory(source);
+        if clocks.insert(key.clone(), clock).is_some()
+            || payments.insert(key, payment_reader).is_some()
         {
             return Err(domain::configuration_invalid());
         }
     }
-    if configured.is_empty() {
+    if clocks.is_empty() {
         return Err(domain::configuration_invalid());
     }
     Ok(Arc::new(Lane7State {
-        targets: configured,
+        targets: clocks,
+        payments,
     }))
 }
 
 fn router_from_state(state: Arc<Lane7State>) -> Router {
     Router::new()
         .route(ROUTE, get(next_transition))
+        .route(PAYMENTS_ROUTE, get(payments))
         .with_state(state)
 }
 
@@ -141,6 +157,18 @@ fn reader_for(
         .ok_or_else(missing)
 }
 
+fn payments_reader_for(
+    state: &Lane7State,
+    host: &str,
+    slug: &str,
+) -> Result<Arc<dyn WorkspacePeoplePayments>, BusinessError> {
+    state
+        .payments
+        .get(&(host.to_owned(), slug.to_owned()))
+        .cloned()
+        .ok_or_else(missing)
+}
+
 fn build(
     reader: Arc<dyn LegacyPeopleClock>,
     targets: Vec<LaneTarget>,
@@ -150,7 +178,12 @@ fn build(
             .into_iter()
             .map(|target| (target, reader.clone()))
             .collect(),
-        |reader| reader,
+        |reader| {
+            (
+                reader,
+                Arc::new(UnavailablePayments) as Arc<dyn WorkspacePeoplePayments>,
+            )
+        },
     )?;
     Ok(router_from_state(state))
 }
@@ -158,17 +191,34 @@ fn build(
 /// Build the native router over one shared owner pool. The lead mounts it; this
 /// lane never edits composition or another owner's router.
 pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
-    build(Arc::new(PgLegacyPeopleClock::new(pool)), targets)
+    let state = build_state(
+        targets
+            .into_iter()
+            .map(|target| (target, pool.clone()))
+            .collect(),
+        |pool| {
+            (
+                Arc::new(PgLegacyPeopleClock::new(pool.clone())) as Arc<dyn LegacyPeopleClock>,
+                Arc::new(PgWorkspacePeoplePayments::new(pool)) as Arc<dyn WorkspacePeoplePayments>,
+            )
+        },
+    )?;
+    Ok(router_from_state(state))
 }
 
 /// Build the native router with one owner reader per registered Holding pool.
-/// Each `(host, holding_slug)` key resolves to that Holding's own reader, so a
-/// request can never cross a Holding boundary. Composition keeps `targets[i]`
-/// aligned with `pools[i + 1]`.
+/// Both read families get their own per-Holding reader, so a request can never
+/// cross a Holding boundary. Composition keeps `targets[i]` aligned with
+/// `pools[i + 1]`.
 pub fn router_for_holdings(
     targets: Vec<(LaneTarget, DatabasePool)>,
 ) -> Result<Router, BusinessError> {
-    let state = build_state(targets, |pool| Arc::new(PgLegacyPeopleClock::new(pool)))?;
+    let state = build_state(targets, |pool| {
+        (
+            Arc::new(PgLegacyPeopleClock::new(pool.clone())) as Arc<dyn LegacyPeopleClock>,
+            Arc::new(PgWorkspacePeoplePayments::new(pool)) as Arc<dyn WorkspacePeoplePayments>,
+        )
+    })?;
     Ok(router_from_state(state))
 }
 
@@ -201,6 +251,32 @@ async fn next_transition(
         Ok::<_, BusinessError>(json!({
             "kind": READ_KIND,
             "transition": {"deadline": facts.deadline}
+        }))
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn payments(
+    State(state): State<Arc<Lane7State>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let host = unique_header(request.headers(), header::HOST)?
+            .filter(|host| !host.is_empty())
+            .ok_or_else(missing)?;
+        let reader = payments_reader_for(&state, host, &slug)?;
+        let company = unique_header(request.headers(), CONTEXT_COMPANY)?
+            .filter(|value| domain::valid_id(value))
+            .ok_or_else(domain::invalid_company)?;
+        let rows = application::read_workspace_people_payments(reader.as_ref(), company).await?;
+        Ok::<_, BusinessError>(json!({
+            "kind": PAYMENTS_READ_KIND,
+            "payments": rows
         }))
     }
     .await;
@@ -297,6 +373,27 @@ mod tests {
         }
     }
 
+    struct TaggedPayments(&'static str);
+    impl WorkspacePeoplePayments for TaggedPayments {
+        fn outstanding<'a>(
+            &'a self,
+            _company: &'a str,
+        ) -> TransitionFuture<'a, Vec<WorkspacePaymentRow>> {
+            let tag = self.0;
+            Box::pin(async move {
+                Ok(vec![WorkspacePaymentRow {
+                    id: format!("{tag}-batch"),
+                    source_type: "payroll".to_owned(),
+                    source_id: "run-1".to_owned(),
+                    currency: "THB".to_owned(),
+                    status: "approved".to_owned(),
+                    due_date: None,
+                    amount_minor: if tag == "acme" { 11 } else { 22 },
+                }])
+            })
+        }
+    }
+
     #[tokio::test]
     async fn two_holdings_route_to_distinct_readers() {
         let first = LaneTarget {
@@ -308,16 +405,27 @@ mod tests {
             holding_slug: "northstar".to_owned(),
         };
         let state = build_state(vec![(first, "acme"), (second, "northstar")], |tag| {
-            Arc::new(TaggedClock(tag)) as Arc<dyn LegacyPeopleClock>
+            (
+                Arc::new(TaggedClock(tag)) as Arc<dyn LegacyPeopleClock>,
+                Arc::new(TaggedPayments(tag)) as Arc<dyn WorkspacePeoplePayments>,
+            )
         })
         .expect("state");
         let a = reader_for(&state, "acme.jesadakorn.com", "acme").expect("acme reader");
         let b =
             reader_for(&state, "northstar.jesadakorn.com", "northstar").expect("northstar reader");
         assert!(!Arc::ptr_eq(&a, &b));
+        let pa = payments_reader_for(&state, "acme.jesadakorn.com", "acme").expect("acme payments");
+        let pb = payments_reader_for(&state, "northstar.jesadakorn.com", "northstar")
+            .expect("northstar payments");
+        assert!(!Arc::ptr_eq(&pa, &pb));
         assert!(
             reader_for(&state, "unknown.jesadakorn.com", "acme").is_err(),
             "an unregistered host must fail closed"
+        );
+        assert!(
+            payments_reader_for(&state, "unknown.jesadakorn.com", "acme").is_err(),
+            "payments must fail closed for an unregistered host too"
         );
         assert_eq!(
             application::read_next_transition(a.as_ref(), "acme", 1)
@@ -332,6 +440,20 @@ mod tests {
                 .expect("northstar read")
                 .deadline,
             Some(22)
+        );
+        assert_eq!(
+            application::read_workspace_people_payments(pa.as_ref(), "acme")
+                .await
+                .expect("acme payments read")[0]
+                .amount_minor,
+            11
+        );
+        assert_eq!(
+            application::read_workspace_people_payments(pb.as_ref(), "northstar")
+                .await
+                .expect("northstar payments read")[0]
+                .amount_minor,
+            22
         );
     }
 

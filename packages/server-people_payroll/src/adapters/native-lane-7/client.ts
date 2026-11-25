@@ -15,12 +15,28 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
  */
 const ENV = "ERPX_NATIVE_PEOPLE_PAYROLL_LANE7_CONFIG";
 const READ_KIND = "people_payroll_lane_7_legacy_people_transition";
+const PAYMENTS_KIND = "people_payroll_lane_7_workspace_people_payments";
 const RESERVED_PORTS = new Set([3000, 3001, 3100, 3101, 3103, 5432, 5433, 5435, 8080]);
 
 /** SHA-256 of the owner Rust `SQL_LEGACY_PEOPLE_TRANSITION` constant. */
 export const SQL_ORACLE_SHA256 = "79ad85c3c72c22e111f812e45e22068608eeb21fb5e000c23beaa6ec162930f2";
 /** SHA-256 of the pinned non-null native response payload. */
 export const RESPONSE_ORACLE_SHA256 = "b9d5a6988cbe97e37f2c13ff946ff430253e78d54d4ded15907db887ac65b98f";
+/** SHA-256 of the owner Rust `SQL_WORKSPACE_PEOPLE_PAYMENTS` constant. */
+export const PAYMENTS_SQL_ORACLE_SHA256 = "97047147e5dc9782b5de8e4c0659cb6c693f45a398186acb19ddb1f2b0200c2e";
+/** SHA-256 of the pinned People-payments response payload. */
+export const PAYMENTS_RESPONSE_ORACLE_SHA256 = "991dbb8da772de20366554766db436b89235fad81b537272fdf54702bb348f2e";
+
+/** Owner-projected payment row; keys are the original Finance column names. */
+export type WorkspacePaymentRow = {
+  id: string;
+  source_type: string;
+  source_id: string;
+  currency: string;
+  status: string;
+  due_date: string | null;
+  amount_minor: number;
+};
 
 export type Holding = Readonly<{
   origin: string;
@@ -238,4 +254,77 @@ export async function readLegacyPeopleTransition(
     return fail("NATIVE_PEOPLE_PAYROLL_LANE7_RESPONSE_INVALID", 502);
   }
   return deadline;
+}
+
+function paymentRow(value: unknown): value is WorkspacePaymentRow {
+  return (
+    object(value) &&
+    Object.keys(value).length === 7 &&
+    text(value.id, 200) &&
+    text(value.source_type, 40) &&
+    text(value.source_id, 200) &&
+    text(value.currency, 3) &&
+    /^[A-Z]{3}$/.test(value.currency) &&
+    text(value.status, 40) &&
+    (value.due_date === null || text(value.due_date, 20)) &&
+    typeof value.amount_minor === "number" &&
+    Number.isSafeInteger(value.amount_minor) &&
+    value.amount_minor >= 0
+  );
+}
+
+/**
+ * Native-backed replacement of the Finance workspace people-payments SELECT.
+ * Rust owns the statement, the aggregate, the Company scope and the row shape;
+ * this bridge only transports and validates it, with no TypeScript fallback.
+ */
+export async function readFinanceWorkspacePeoplePayments(
+  companyId: string,
+  actor?: Lane7Actor,
+  transport: Transport = direct,
+): Promise<WorkspacePaymentRow[]> {
+  const config = configuration(process.env[ENV]);
+  if (!validId(companyId)) return fail("PEOPLE_PAYROLL_LANE7_COMPANY_INVALID", 422);
+  const target = selectTarget(config, actor, companyId);
+  const headers = new Headers({
+    host: target.host,
+    origin: target.origin,
+    accept: "application/json",
+    "cache-control": "no-cache",
+    "x-erpx-context-holding": target.holdingId,
+    "x-erpx-context-company": companyId,
+  });
+  const url = new URL(
+    `/api/v1/holdings/${encodeURIComponent(target.holdingSlug)}/people-payroll/finance-workspace-payments`,
+    config.base,
+  );
+  let response: Response;
+  try {
+    response = await transport(url, headers, AbortSignal.timeout(config.timeoutMs));
+  } catch {
+    return fail("NATIVE_PEOPLE_PAYROLL_LANE7_UNAVAILABLE");
+  }
+  if (response.redirected) {
+    void response.body?.cancel().catch(() => undefined);
+    return fail("NATIVE_PEOPLE_PAYROLL_LANE7_REDIRECT");
+  }
+  if (response.status !== 200) {
+    void response.body?.cancel().catch(() => undefined);
+    if (response.status >= 400 && response.status < 500) {
+      return fail("NATIVE_PEOPLE_PAYROLL_LANE7_REJECTED", response.status);
+    }
+    return fail("NATIVE_PEOPLE_PAYROLL_LANE7_UNAVAILABLE");
+  }
+  const payload: unknown = await response.json().catch(() => null);
+  if (
+    !object(payload) ||
+    Object.keys(payload).length !== 2 ||
+    payload.kind !== PAYMENTS_KIND ||
+    !Array.isArray(payload.payments) ||
+    payload.payments.length > 500 ||
+    !payload.payments.every(paymentRow)
+  ) {
+    return fail("NATIVE_PEOPLE_PAYROLL_LANE7_RESPONSE_INVALID", 502);
+  }
+  return payload.payments;
 }

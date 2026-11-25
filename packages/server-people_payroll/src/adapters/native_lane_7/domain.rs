@@ -18,6 +18,25 @@ pub struct LegacyPeopleTransition {
     pub deadline: Option<i64>,
 }
 
+/// Wire discriminator and owner route for the second lane-7 read family: the
+/// Company-scoped People payment projection consumed by Finance's workspace.
+pub const PAYMENTS_READ_KIND: &str = "people_payroll_lane_7_workspace_people_payments";
+pub const PAYMENTS_ROUTE: &str =
+    "/api/v1/holdings/{holding_slug}/people-payroll/finance-workspace-payments";
+
+/// Keys are intentionally snake_case: the Finance workspace maps these rows
+/// directly by their original column names.
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+pub struct WorkspacePaymentRow {
+    pub id: String,
+    pub source_type: String,
+    pub source_id: String,
+    pub currency: String,
+    pub status: String,
+    pub due_date: Option<String>,
+    pub amount_minor: i64,
+}
+
 pub fn invalid_company() -> BusinessError {
     BusinessError::invalid(
         "PEOPLE_PAYROLL_LANE7_COMPANY_INVALID",

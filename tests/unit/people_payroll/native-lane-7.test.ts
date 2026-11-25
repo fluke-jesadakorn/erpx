@@ -3,6 +3,9 @@ import { createHash } from "node:crypto";
 vi.mock("server-only", () => ({}));
 import {
   nativeLane7Configured,
+  PAYMENTS_RESPONSE_ORACLE_SHA256,
+  PAYMENTS_SQL_ORACLE_SHA256,
+  readFinanceWorkspacePeoplePayments,
   readLegacyPeopleTransition,
   RESPONSE_ORACLE_SHA256,
   SQL_ORACLE_SHA256,
@@ -217,5 +220,74 @@ describe("native lane-7 multi-holding clock transport", () => {
       status: 422,
     });
     expect(calls).toHaveLength(0);
+  });
+});
+
+describe("native lane-7 Finance workspace people-payments transport", () => {
+  const row = {
+    id: "batch-1",
+    source_type: "payroll",
+    source_id: "run-1",
+    currency: "THB",
+    status: "approved",
+    due_date: "2026-11-25",
+    amount_minor: 1500,
+  };
+  const payments = (rows: unknown[]) => ({
+    kind: "people_payroll_lane_7_workspace_people_payments",
+    payments: rows,
+  });
+
+  it("returns the exact owner-projected rows for the selected Holding", async () => {
+    const result = await readFinanceWorkspacePeoplePayments(
+      "northstar-co",
+      actor("h002", "northstar", "northstar-co"),
+      transport(payments([row])),
+    );
+    expect(result).toEqual([row]);
+    expect(calls[0]!.url.pathname).toBe(
+      "/api/v1/holdings/northstar/people-payroll/finance-workspace-payments",
+    );
+    expect(calls[0]!.headers.get("host")).toBe("northstar.jesadakorn.com");
+    expect(calls[0]!.headers.get("x-erpx-context-holding")).toBe("h002");
+    expect(calls[0]!.headers.get("x-erpx-context-company")).toBe("northstar-co");
+    expect(calls[0]!.headers.get("x-erpx-observed-at")).toBeNull();
+  });
+
+  it("pins the payments SQL and result oracles without SQL on the wire", async () => {
+    expect(PAYMENTS_SQL_ORACLE_SHA256).toBe(
+      "97047147e5dc9782b5de8e4c0659cb6c693f45a398186acb19ddb1f2b0200c2e",
+    );
+    expect(PAYMENTS_RESPONSE_ORACLE_SHA256).toBe(
+      "991dbb8da772de20366554766db436b89235fad81b537272fdf54702bb348f2e",
+    );
+    const wire = JSON.stringify(payments([row]));
+    expect(createHash("sha256").update(wire).digest("hex")).toBe(PAYMENTS_RESPONSE_ORACLE_SHA256);
+    await readFinanceWorkspacePeoplePayments("acme-co", undefined, transport(payments([])));
+    expect(JSON.stringify(calls)).not.toMatch(/SELECT|hr_payment_batches|GROUP BY/i);
+  });
+
+  it("fails closed on unknown targets and malformed rows", async () => {
+    await expect(
+      readFinanceWorkspacePeoplePayments(
+        "acme-co",
+        actor("h099", "acme", "acme-co"),
+        transport(payments([])),
+      ),
+    ).rejects.toMatchObject({
+      status: 503,
+      code: "NATIVE_PEOPLE_PAYROLL_LANE7_TARGET_UNAVAILABLE",
+    });
+    expect(calls).toHaveLength(0);
+    await expect(
+      readFinanceWorkspacePeoplePayments("acme-co", undefined, transport(payments([{ ...row, amount_minor: -1 }]))),
+    ).rejects.toMatchObject({ status: 502, code: "NATIVE_PEOPLE_PAYROLL_LANE7_RESPONSE_INVALID" });
+    await expect(
+      readFinanceWorkspacePeoplePayments("acme-co", undefined, transport(payments([{ ...row, extra: 1 }]))),
+    ).rejects.toMatchObject({ status: 502 });
+    await expect(
+      readFinanceWorkspacePeoplePayments("acme-co", undefined, transport(payments([row]), 500)),
+    ).rejects.toMatchObject({ status: 503 });
+    expect(calls).toHaveLength(3);
   });
 });

@@ -7,7 +7,7 @@ use std::{future::Future, pin::Pin};
 
 use erpx_server_shared::public::BusinessError;
 
-use super::domain::{self, LegacyPeopleTransition};
+use super::domain::{self, LegacyPeopleTransition, WorkspacePaymentRow};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TransitionQuery {
@@ -41,6 +41,22 @@ pub async fn read_next_transition(
             observed_at_ms,
         })
         .await
+}
+
+/// Owner port for the Company-scoped People payment projection.
+pub trait WorkspacePeoplePayments: Send + Sync {
+    fn outstanding<'a>(
+        &'a self,
+        company: &'a str,
+    ) -> TransitionFuture<'a, Vec<WorkspacePaymentRow>>;
+}
+
+pub async fn read_workspace_people_payments(
+    reader: &(dyn WorkspacePeoplePayments + '_),
+    company: &str,
+) -> Result<Vec<WorkspacePaymentRow>, BusinessError> {
+    domain::validate_company(company)?;
+    reader.outstanding(company).await
 }
 
 #[cfg(test)]
@@ -95,5 +111,41 @@ mod tests {
         assert!(read_next_transition(&clock, "../other", 100).await.is_err());
         assert!(read_next_transition(&clock, "acme", -1).await.is_err());
         assert!(clock.seen.lock().expect("lock").is_empty());
+    }
+
+    struct StubPayments;
+    impl WorkspacePeoplePayments for StubPayments {
+        fn outstanding<'a>(
+            &'a self,
+            company: &'a str,
+        ) -> TransitionFuture<'a, Vec<WorkspacePaymentRow>> {
+            let company = company.to_owned();
+            Box::pin(async move {
+                Ok(vec![WorkspacePaymentRow {
+                    id: format!("batch-{company}"),
+                    source_type: "payroll".to_owned(),
+                    source_id: "run-1".to_owned(),
+                    currency: "THB".to_owned(),
+                    status: "approved".to_owned(),
+                    due_date: Some("2026-11-25".to_owned()),
+                    amount_minor: 1_500,
+                }])
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn payments_handler_validates_and_projects() {
+        let rows = read_workspace_people_payments(&StubPayments, "acme")
+            .await
+            .expect("read");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].id, "batch-acme");
+        assert_eq!(rows[0].amount_minor, 1_500);
+        assert!(
+            read_workspace_people_payments(&StubPayments, "../other")
+                .await
+                .is_err()
+        );
     }
 }
