@@ -75,6 +75,6 @@ describe('company-scoped flow-event history generator family (r38)', () => {
     // r47 moved calendar-index-facts and record-details history onto native kinds (41->37);
     // r48 deduped the approver union, flow version guard, and settlement sources (37->33);
     // r49 deduped the export-receipt result read onto the closed command-receipt projection (33->32).
-    expect(total).toBe(30);
+    expect(total).toBe(29);
   });
 });

@@ -76,8 +76,9 @@ describe('read-tail r51 bare-head fold', () => {
     expect(shared.match(/'SELECT '/g) ?? []).toHaveLength(1);
     expect(shared.match(/\$\{selectHeadSql\}/g) ?? []).toHaveLength(2);
     expect(shared.match(/`SELECT \$\{/g) ?? []).toHaveLength(0);
-    // The other three bare-head families are deliberately left for later rounds.
-    expect(approval.match(/`SELECT \$\{columns\}/g) ?? []).toHaveLength(1);
+    // r52 folded the ordinal point-read head; flow-event history and approver union remain.
+    expect(approval.match(/`SELECT \$\{columns\}/g) ?? []).toHaveLength(0);
+    expect(approval.match(/`\$\{selectHeadSql\}\$\{columns\}/g) ?? []).toHaveLength(1);
     expect(flow.match(/`SELECT \$\{columns\}/g) ?? []).toHaveLength(1);
     expect(union.match(/`SELECT \$\{variant/g) ?? []).toHaveLength(1);
   });
@@ -94,7 +95,7 @@ describe('read-tail r51 bare-head fold', () => {
     }
   });
 
-  it('retirement:ts-statements is 30 after the r51 head fold (31->30)', async () => {
+  it('retirement:ts-statements is 29 after the r52 head fold (30->29)', async () => {
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -104,7 +105,7 @@ describe('read-tail r51 bare-head fold', () => {
       }
     };
     await walk(srcRoot);
-    expect(total).toBeLessThan(31);
-    expect(total).toBe(30);
+    expect(total).toBeLessThan(30);
+    expect(total).toBe(29);
   });
 });

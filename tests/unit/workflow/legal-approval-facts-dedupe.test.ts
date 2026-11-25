@@ -32,11 +32,12 @@ describe('legal approval ordinal point-read generator family (r30)', () => {
     legalApprovalFacts(db).nextReviewer({ instanceId: 'inst-2', nextStep: 4 });
     expect(calls).toEqual([{ sql: pointReadSql('approver_user_id'), binds: ['inst-2', 4] }]);
   });
-  it('keeps one generator definition and no inline ordinal point-read literals', async () => {
+  it('keeps one generator definition delegating to the shared bare head (r52)', async () => {
     const { readFile } = await import('node:fs/promises');
     const sources = await readFile(new URL('../../../packages/server-workflow/src/adapters/approval-projection-sources.ts', import.meta.url), 'utf8');
     const facts = await readFile(new URL('../../../packages/server-workflow/src/adapters/legal-approval-facts.ts', import.meta.url), 'utf8');
-    expect(sources.match(/`SELECT \$\{columns\} FROM approval_steps WHERE instance_id=\? AND ordinal=\?`/g)).toHaveLength(1);
+    expect(sources.match(/`SELECT \$\{columns\} FROM approval_steps WHERE instance_id=\? AND ordinal=\?`/g) ?? []).toHaveLength(0);
+    expect(sources.match(/`\$\{selectHeadSql\}\$\{columns\} FROM approval_steps WHERE instance_id=\? AND ordinal=\?`/g)).toHaveLength(1);
     expect(facts).not.toContain('FROM approval_steps WHERE instance_id=? AND ordinal=?');
     expect(facts.match(/approvalStepByOrdinalSql\(/g)).toHaveLength(2);
   });
