@@ -66,7 +66,7 @@ describe('manufacturing read-tail r31 allowed-select head family', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(51); // r30 left 55; r31 parameterizes the allowed-select head family 55->53; r32 metric breakdown head 53->52; r34 r15/r23 head fold 52->51.
+    expect(total).toBe(50); // r30 left 55; r31 parameterizes the allowed-select head family 55->53; r32 metric breakdown head 53->52; r34 r15/r23 head fold 52->51; r35 scope-row head fold 51->50.
     expect(total).toBeLessThan(55);
   });
 });

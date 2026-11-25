@@ -1,10 +1,11 @@
 import "server-only";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
+import {manufacturingSumSelect} from './manufacturing-read-tail-r35-sql';
 /** Text-only journal-line balance witness shared by the debit and credit
  * equalities in the owner posting identity. The two subqueries were
  * byte-identical apart from the summed column; the helper emits each one
  * verbatim on the caller's statement and stays outside the RD_* read registry. */
-const manufacturingJournalLineSum=(column:string)=>`(SELECT sum(${column}) FROM finance_journal_lines WHERE journal_id=journal.id)`;
+const manufacturingJournalLineSum=(column:string)=>manufacturingSumSelect(column," FROM finance_journal_lines WHERE journal_id=journal.id");
 /** Text-only full owner posting select shared by the immutable posting identity
  * and its accounting-profile variant. Both emit the identical FROM/JOIN/WHERE
  * body and differ only in the leading projection columns, so one parameterized
@@ -23,7 +24,7 @@ const manufacturingJournalSelect=(columns:string)=>`SELECT ${columns} FROM manuf
  WHERE posting.amount_minor>0 AND event.action=CASE posting.phase WHEN 'issue' THEN 'issue' WHEN 'report' THEN 'report' WHEN 'output' THEN 'pass-qc' ELSE 'scrap' END
  AND (event.details_json::jsonb->>'expectedVersion')::bigint=posting.source_order_version-1
  AND ${manufacturingJournalLineSum("debit_minor")}=posting.amount_minor AND ${manufacturingJournalLineSum("credit_minor")}=posting.amount_minor
- AND (SELECT sum(amount_minor) FROM manufacturing_cost_movements movement WHERE movement.company_id=posting.company_id AND movement.order_id=production.id AND movement.source_type='production_event' AND movement.source_id=event.id AND movement.journal_id=journal.id)=posting.amount_minor`;
+ AND ${manufacturingSumSelect("amount_minor"," FROM manufacturing_cost_movements movement WHERE movement.company_id=posting.company_id AND movement.order_id=production.id AND movement.source_type='production_event' AND movement.source_id=event.id AND movement.journal_id=journal.id")}=posting.amount_minor`;
 const journal=manufacturingJournalSelect("posting.company_id,posting.journal_id id");
 export const manufacturingFinanceRecordSources={journal,posting:manufacturingJournalSelect("posting.id posting_id,posting.company_id,posting.journal_id id")} as const;
 /** Named relation leases precede the first source snapshot in the complete

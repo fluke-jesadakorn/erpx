@@ -110,12 +110,12 @@ describe('manufacturing read-tail r34 r15/r23 head-fold dedupe', () => {
     }
   });
 
-  it('pins the manufacturing owner SELECT KPI at 51 after the r34 fold (52->51)', async () => {
+  it('pins the manufacturing owner SELECT KPI at 50 after the r35 fold (51->50)', async () => {
     let total = 0;
     for (const file of await tsFiles(new URL('../../../packages/server-manufacturing/src/', import.meta.url))) {
       total += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     }
-    expect(total).toBe(51);
-    expect(total).toBeLessThan(52);
+    expect(total).toBe(50);
+    expect(total).toBeLessThan(51);
   });
 });
