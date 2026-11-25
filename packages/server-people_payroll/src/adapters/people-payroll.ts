@@ -3,6 +3,7 @@ import {ppRd45RunByIdProjection} from './pp-read-tail-r45-sources';
 import {ppRd38SinglePredTail} from './pp-read-tail-r38-sources';
 import {ppRd37StatusGuard5} from './pp-read-tail-r37-sources';
 import {ppRd54RunEvidenceGuard} from './pp-read-tail-r54-sources';
+import {ppRd56EngagementGuard, ppRd56PayrollItemRow} from './pp-read-tail-r56-sources';
 import {ppRd36SinglePred, ppRd36ThreePred, ppRd36TwoPredTail} from './pp-read-tail-r36-sources';
 import { PP_RD23_HR_COMP_REVISIONS_SQL, PP_RD23_HR_PAYROLL_COST_ASSIGNMENTS_SQL, PP_RD23_HR_PAY_GROUPS_ACTIVE_CURRENCY_GUARD, PP_RD23_HR_TIME_ENTRIES_OVERTIME_SQL, PP_RD23_OVERTIME_PAYROLL_HANDOFFS_SQL, PP_RD23_POSTED_PAYROLL_RUN_GUARD } from './pp-read-tail-r23-sources';
 import { ppRd30Exists4Guard } from './pp-read-tail-r30-sources';
@@ -178,7 +179,7 @@ function context(provided?: SqlDatabase, actor?: WorkContext): PeoplePayrollPort
         stageCreateCompensationEffect(id: string, engagementId: string, effectiveFrom: string, value: string | null, payFrequency: "weekly" | "fortnightly" | "semimonthly" | "monthly" | "off_cycle", base: number, hourly: number, daily: number, standardDailyHours: number, expectedHours: number, currency: string, value2: string, userId: string, now: number, now2: number) { return nativePpStatement('people_payroll_stmt_7').bind(id, engagementId, effectiveFrom, value, payFrequency, base, hourly, daily, standardDailyHours, expectedHours, currency, value2, userId, now, now2); },
         async readPayrollOptionsEffect(companyId: string) { return nativePeoplePayrollReadAll<Record<string, unknown>>(PEOPLE_PAYROLL_RD_PAYROLL_OPTIONS_GROUPS, [companyId], database); },
         readAssignPayGroupMissing(...args) { return payrollOrganizationFacts(database).readAssignPayGroupMissing(...args); },
-        guard35(key: string, value: "engagement", engagementId: string, companyId: string, expectedVersion: number, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_engagements WHERE id=? AND company_id=? AND version=? AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?))", [engagementId, companyId, expectedVersion, branchId, branchId2, departmentId, departmentId2]); },
+        guard35(key: string, value: "engagement", engagementId: string, companyId: string, expectedVersion: number, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null) { return assertion(database, key, value, ppRd56EngagementGuard("version=? AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?)"), [engagementId, companyId, expectedVersion, branchId, branchId2, departmentId, departmentId2]); },
         guard36(...args) { return payrollOrganizationFacts(database).guard36(...args); },
         guard37(key: string, value: "pay-group", payGroupId: string | null, engagementId: string, payGroupId2: string | null) { return assertion(database, key, value, "?::text IS NULL OR EXISTS(SELECT 1 FROM hr_pay_groups p JOIN hr_engagements e ON e.id=? WHERE p.id=? AND p.company_id=e.company_id AND p.currency=e.currency AND p.status='active')", [payGroupId, engagementId, payGroupId2]); },
         stageAssignPayGroupEffect(payGroupId: string | null, now: number, engagementId: string) { return nativePpStatement('people_payroll_stmt_8').bind(payGroupId, now, engagementId); },
@@ -499,7 +500,7 @@ function context(provided?: SqlDatabase, actor?: WorkContext): PeoplePayrollPort
             }>();
         },
         readCreatePaymentBatchPosted(sourceId: string) {
-            return database.prepare("SELECT id,engagement_id,net_minor,currency,input_snapshot_json FROM hr_payroll_items WHERE run_id=? AND net_minor>0 AND status='posted' ORDER BY engagement_id").bind(sourceId).all<{
+            return database.prepare(ppRd56PayrollItemRow("net_minor>0 AND status='posted' ORDER BY engagement_id")).bind(sourceId).all<{
                 id: string;
                 engagement_id: string;
                 net_minor: number;
@@ -567,7 +568,7 @@ function context(provided?: SqlDatabase, actor?: WorkContext): PeoplePayrollPort
             }>();
         },
         readExportPaymentBatchV2Posted(source_id: string, reference: string, source_id2: string) {
-            return database.prepare("SELECT id,engagement_id,net_minor,currency,input_snapshot_json FROM hr_payroll_items WHERE run_id=? AND status='posted' AND ?=('PAY-'||?||'-'||id)").bind(source_id, reference, source_id2).first<{
+            return database.prepare(ppRd56PayrollItemRow("status='posted' AND ?=('PAY-'||?||'-'||id)")).bind(source_id, reference, source_id2).first<{
                 id: string;
                 engagement_id: string;
                 net_minor: number;

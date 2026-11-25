@@ -3,6 +3,7 @@ import { ppRd29OpenFinancePeriodSql } from './pp-read-tail-r29-sources';
 import { ppRd48FinanceExpenseVersionGuard } from './pp-read-tail-r48-sources';
 import { ppRd49ExpenseClaimReceiptV2, ppRd49ExpenseClaimReceiptV1 } from './pp-read-tail-r49-sources';
 import { ppRd51AccountingCategoryGuard } from './pp-read-tail-r51-sources';
+import { ppRd56ExpenseClaimStatusGuard } from './pp-read-tail-r56-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import{nativeExpensePayers,expensePayers,nativeExpenseWorkflowFields,expenseWorkflowFields}from '@erpx/server-people_payroll/adapters/expense-workflow-read';
 export{nativeExpensePayers,expensePayers,nativeExpenseWorkflowFields,expenseWorkflowFields};
@@ -197,7 +198,7 @@ function originalNativeExpenseTransitions(write: SqlDatabase) {
           write,
           key,
           "expense-version",
-          "EXISTS(SELECT 1 FROM finance_expenses WHERE id=? AND company_id=? AND version=? AND cancelled_at IS NULL AND status IN ('draft','rejected','in_review'))",
+          ppRd56ExpenseClaimStatusGuard("'draft','rejected','in_review'"),
           [id, actor.companyId, input.expectedVersion],
         ),
         ...closeApprovals(

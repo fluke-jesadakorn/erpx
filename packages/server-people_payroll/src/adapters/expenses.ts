@@ -7,6 +7,7 @@ import { ppRd48ExpenseClaimInvoice } from './pp-read-tail-r48-sources';
 import { ppRd49ExpenseClaimReceiptV2, ppRd49ExpenseClaimReceiptV1, ppRd49AttachmentLinkPoint, ppRd49DraftLinkGuard } from './pp-read-tail-r49-sources';
 import { ppRd50SlipOwnerGuard } from './pp-read-tail-r50-sources';
 import { ppRd51AttachmentListV2, ppRd51AttachmentListV1 } from './pp-read-tail-r51-sources';
+import { ppRd56ExpenseClaimStatusGuard } from './pp-read-tail-r56-sources';
 import{canAccountExpenses,canPostExpenses,visibility,currentExpenseReader,approvalFields,expenseSelect,originalNativeExpenseReads,listExpenses,getExpense,expenseFromDatabase,canEditExpense,canReviewExpense,nativeExpenseReads,expensePresentationRows,expenseVisibleRecordIds,type ExpenseRow}from '@erpx/server-people_payroll/adapters/expense-read';
 export{canAccountExpenses,canPostExpenses,visibility,currentExpenseReader,approvalFields,expenseSelect,originalNativeExpenseReads,listExpenses,getExpense,expenseFromDatabase,canEditExpense,canReviewExpense,nativeExpenseReads,expensePresentationRows,expenseVisibleRecordIds};
 export type{ExpenseRow};
@@ -196,7 +197,7 @@ function versionGuard(
     write,
     key,
     "expense-version",
-    `EXISTS(SELECT 1 FROM finance_expenses WHERE id=? AND company_id=? AND version=? AND cancelled_at IS NULL AND status IN (${states.map(() => "?").join(",")}))`,
+    ppRd56ExpenseClaimStatusGuard(states.map(() => "?").join(",")),
     [id, actor.companyId, version, ...states],
   );
 }

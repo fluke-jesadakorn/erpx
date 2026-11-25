@@ -137,7 +137,10 @@ describe('People Payroll read-tail r48 three-family dedupe', () => {
     expect(src('people-payroll.ts')).toContain('nativePpStatement');
     expect(src('pp-read-tail-r51-sources.ts')).toContain('financeProjectionSources.finance_accounts');
     expect(src('expenses.ts')).toContain("financeProjectionSources.finance_journals}) finance_journals WHERE id=? AND company_id=? AND source_type='expense_claim' AND source_id=? AND status='posted'");
-    expect(src('expenses.ts')).toContain('`EXISTS(SELECT 1 FROM finance_expenses WHERE id=? AND company_id=? AND version=? AND cancelled_at IS NULL AND status IN (${states.map(() => "?").join(",")}))`');
+    // The expense-claim status guard head now delegates to the r56 renderer; the
+    // caller keeps its ${states.map(() => "?").join(",")} bind construction.
+    expect(src('expenses.ts')).toContain('ppRd56ExpenseClaimStatusGuard(states.map(() => "?").join(","))');
+    expect(src('pp-read-tail-r56-sources.ts')).toContain('EXISTS(SELECT 1 FROM finance_expenses WHERE id=? AND company_id=? AND version=? AND cancelled_at IS NULL AND status IN (${statuses}))');
     expect(src('pp-read-tail-r47-sources.ts')).toContain('export const ppRd47GraphSnapshotProjection');
     expect(src('pp-read-tail-r46-sources.ts')).toContain('export const ppRd46OwnerFileProbe');
     expect(src('pp-read-tail-r48-sources.ts')).toContain('hospitalityOwnerProjectionSources as financeProjectionSources');
@@ -160,6 +163,6 @@ describe('People Payroll read-tail r48 three-family dedupe', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(1245);
-    expect(total).toBe(1210);
+    expect(total).toBe(1206);
   });
 });

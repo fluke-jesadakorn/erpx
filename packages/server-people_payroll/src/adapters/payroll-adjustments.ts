@@ -1,5 +1,6 @@
 import {ppRd38SinglePredTail} from './pp-read-tail-r38-sources';
 import {ppRd54RunEvidenceGuard} from './pp-read-tail-r54-sources';
+import {ppRd56EngagementGuard} from './pp-read-tail-r56-sources';
 import {ppRd36TwoPredTail} from './pp-read-tail-r36-sources';
 import {ppRd46ByIdCompanyStatusIn} from './pp-read-tail-r46-sources';
 import { PP_RD22_ACTIVE_PERSON_VERSION_GUARD } from './pp-read-tail-r22-sources';
@@ -76,7 +77,7 @@ function application(provided?: SqlDatabase) {
         stagePayrollAdjustmentGuardsEffect(id: string) { return database.prepare("SELECT run_id FROM hr_payroll_adjustments WHERE run_id=? FOR UPDATE").bind(id); },
         guard34(key: string, value: "adjustment-revision", id: string, company_id: string, sourceRevision: number, value2: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_payroll_adjustments WHERE run_id=? AND company_id=? AND source_revision=? AND source_digest=? AND active)", [id, company_id, sourceRevision, value2]); },
         guard35(key: string, value: "adjustment-current-payee", value2: string, company_id: string, value3: number) { return assertion(database, key, value, PP_RD22_ACTIVE_PERSON_VERSION_GUARD, [value2, company_id, value3]); },
-        guard36(key: string, value: "adjustment-current-engagement", value2: string, company_id: string, value3: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_engagements WHERE id=? AND company_id=? AND version=? AND status IN ('active','ended'))", [value2, company_id, value3]); },
+        guard36(key: string, value: "adjustment-current-engagement", value2: string, company_id: string, value3: number) { return assertion(database, key, value, ppRd56EngagementGuard("version=? AND status IN ('active','ended')"), [value2, company_id, value3]); },
         guard37(key: string, value: "adjustment-prior-count", value2: string, id: string, length: number) { return assertion(database, key, value, "(SELECT COUNT(*) FROM hr_payroll_adjustments a JOIN hr_payroll_runs r ON r.id=a.run_id WHERE a.original_item_id=? AND r.status='posted' AND r.id<>?)=?", [value2, id, length]); },
         stagePayrollAdjustmentGuardsEffect2(id: unknown) { return database.prepare("SELECT id FROM hr_time_entries WHERE id=? FOR SHARE").bind(id); },
         guard39(key: string, value: string, value2: string, value3: number, id: string, sourceRevision: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_time_entries t JOIN hr_payroll_adjustment_time_claims c ON c.time_entry_id=t.id WHERE t.id=? AND t.version=? AND t.status='approved' AND c.run_id=? AND c.source_revision=? AND c.active)", [value2, value3, id, sourceRevision]); } };
