@@ -33,7 +33,10 @@ describe('legal read-tail r30 parameterized family dedupe', () => {
       src('legal/operations.ts'),
     ]);
     expect(shared.match(/export const legalOrderedHistorySql/g) ?? []).toHaveLength(1);
-    expect(executedCopies).toContain('legalOrderedHistorySql("legal_executed_reviews","executed_copy_id")');
+    // Lane 26 moved the executed-copy ordered-history read to the native owner;
+    // the TypeScript caller is now a strict transport only.
+    expect(executedCopies).toContain("from '../native-lane-26/client'");
+    expect(executedCopies).not.toContain('legalOrderedHistorySql');
     expect(operations).toContain('legalOrderedHistorySql("legal_feature_history","item_id")');
     for (const file of [executedCopies, operations]) {
       expect(file).not.toMatch(/SELECT \* FROM legal_\w+ WHERE \w+=\? ORDER BY created_at,id"/);

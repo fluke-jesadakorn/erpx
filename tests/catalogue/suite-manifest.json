@@ -58189,6 +58189,33 @@
       }
     },
     {
+      "lane": "unit",
+      "owner": "legal",
+      "modules": [
+        "legal"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Legal native executed-copy route must stay tenant-isolated."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-legal"
+      ],
+      "id": "legal.native-lane-26.unit",
+      "files": [
+        "tests/unit/legal/native-lane-26.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "legal.privacy-workflows.integration",
       "lane": "integration",
       "owner": "legal",

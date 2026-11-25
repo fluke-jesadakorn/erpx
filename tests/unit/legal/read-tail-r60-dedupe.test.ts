@@ -63,7 +63,9 @@ describe('legal read-tail r60 approved-cycle head reuse', () => {
     expect((r36.match(/SELECT /g) ?? []).length).toBe(1);
     // Both callers keep their exact projections, binds and first<T> shapes.
     expect(documents).toContain("approvedVersion:(facts:{id:string;})=>db.prepare(legalApprovedCycleSql('cycle,document_id,document_hash')).bind(facts.id).first<{cycle:number;document_id:string;document_hash:string}>(),");
-    expect(copies).toContain("approval:id=>db.prepare(legalApprovedCycleSql('cycle')).bind(id).first<{cycle:number}>(),");
+    // Lane 26 moved the executed-copy approved-cycle read to the native owner.
+    expect(copies).toContain('approval:async id=>(await readFor(id)).approval,');
+    expect(copies).not.toContain('legalApprovedCycleSql');
   });
 
   it('leaves law-corpus, destruction, point heads, citations and locks untouched', async () => {
