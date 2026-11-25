@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12856,
+    "revision": 12862,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -188028,7 +188028,7 @@
         "owner": "quality",
         "title": "quality read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -188039,22 +188039,37 @@
         "resources": [
           "owner:quality"
         ],
-        "claim": {
-          "runId": "run-20261125-d",
-          "agentId": "wH4n191",
-          "claimedAt": "2026-11-25T01:06:54.607Z",
-          "heartbeatAt": "2026-11-25T01:11:42.039Z",
-          "expiresAt": "2026-11-25T01:41:42.039Z",
-          "generation": 174
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-quality/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "38aef6aa4",
+            "owner": "quality",
+            "before": 29,
+            "after": 28,
+            "note": "Three UNION arms compose qualitySourceArmHead; helper deleted, binds and separators unchanged. Vitest targeted."
+          },
+          {
+            "command": "targeted vitest + scoped tsc",
+            "result": "passed",
+            "sourceSha": "38aef6aa4"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Union head into arm head (-1): 29->28. BEFORE=29.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n191",
+          "at": "2026-11-25T01:13:43.780Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -188203,7 +188218,7 @@
         "owner": "legal",
         "title": "legal read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -188214,22 +188229,37 @@
         "resources": [
           "owner:legal"
         ],
-        "claim": {
-          "runId": "run-20261125-d",
-          "agentId": "wH4n196",
-          "claimedAt": "2026-11-25T01:07:08.838Z",
-          "heartbeatAt": "2026-11-25T01:11:42.039Z",
-          "expiresAt": "2026-11-25T01:41:42.039Z",
-          "generation": 174
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-legal/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "a163d3970",
+            "owner": "legal",
+            "before": 139,
+            "after": 138,
+            "note": "Approved-cycle head composes legalItemKeyHeadSql + fixed tail; both projections SHA-verified, 1 bind unchanged. Vitest 412."
+          },
+          {
+            "command": "targeted vitest + scoped tsc",
+            "result": "passed",
+            "sourceSha": "a163d3970"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Approved cycle head via item-key head (-1): 139->138. BEFORE=139.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n196",
+          "at": "2026-11-25T01:14:24.725Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -188343,7 +188373,7 @@
         "owner": "benefits",
         "title": "benefits read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -188354,22 +188384,37 @@
         "resources": [
           "owner:benefits"
         ],
-        "claim": {
-          "runId": "run-20261125-d",
-          "agentId": "wH4n200",
-          "claimedAt": "2026-11-25T01:07:49.126Z",
-          "heartbeatAt": "2026-11-25T01:11:42.039Z",
-          "expiresAt": "2026-11-25T01:41:42.039Z",
-          "generation": 174
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-benefits/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "762462bf1",
+            "owner": "benefits",
+            "before": 37,
+            "after": 35,
+            "note": "Source probe head and shared scope prefix folded; rendered SQL/binds byte-identical, r8 assertion adapted. Vitest targeted."
+          },
+          {
+            "command": "targeted vitest + scoped tsc",
+            "result": "passed",
+            "sourceSha": "762462bf1"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Source probe head plus scope prefix (-2): 37->35. BEFORE=37.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n200",
+          "at": "2026-11-25T01:14:38.753Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -188411,17 +188456,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 11,
+        "in_progress": 8,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1530,
+        "blocked": 1533,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 174,
-    "updatedAt": "2026-11-25T01:13:29.016Z",
+    "updatedAt": "2026-11-25T01:14:38.762Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
