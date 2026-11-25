@@ -448,6 +448,29 @@ const READ_LANDED_COST_DETAIL_EVENTS: NativeStatement = NativeStatement {
     scope: "holding",
 };
 
+/// Native successors of the TypeScript `inventory-transit` detail-lot child
+/// reads. Each plan is the exact statement the retired TypeScript adapter bound
+/// on the inventory owner's own tables, with the caller-unit bind intact and
+/// the same `.all()` result shape. Authorization stays in the preceding
+/// `requireTransferPurchasedRead` gate.
+pub const RD_TRANSIT_DETAIL_LOTS: &str = "inventory_rd_transit_detail_lots";
+const SQL_RD_TRANSIT_DETAIL_LOTS: &str = "SELECT tl.*,l.lot_code,l.serial_number,l.expiry_date,COALESCE((SELECT SUM(le.quantity_milli) FROM inventory_transit_lot_events le JOIN inventory_transit_events e ON e.id=le.event_id WHERE le.transit_lot_id=tl.id AND e.kind='loss_requested' AND NOT EXISTS(SELECT 1 FROM inventory_transit_events r WHERE r.proposal_id=e.id)),0) pending_loss_milli FROM inventory_transit_lots tl JOIN inventory_lots l ON l.id=tl.lot_id JOIN inventory_transit_lines line ON line.id=tl.transit_line_id WHERE line.transit_id=? ORDER BY line.id,l.expiry_date NULLS LAST,l.id";
+const READ_TRANSIT_DETAIL_LOTS: NativeStatement = NativeStatement {
+    kind: RD_TRANSIT_DETAIL_LOTS,
+    sql: SQL_RD_TRANSIT_DETAIL_LOTS,
+    bind_count: 1,
+    scope: "holding",
+};
+
+pub const RD_SELECTABLE_TRANSIT_LOTS: &str = "inventory_rd_selectable_transit_lots";
+const SQL_RD_SELECTABLE_TRANSIT_LOTS: &str = "SELECT tl.*,COALESCE((SELECT SUM(le.quantity_milli) FROM inventory_transit_lot_events le JOIN inventory_transit_events e ON e.id=le.event_id WHERE le.transit_lot_id=tl.id AND e.kind='loss_requested' AND NOT EXISTS(SELECT 1 FROM inventory_transit_events r WHERE r.proposal_id=e.id)),0) pending_loss_milli FROM inventory_transit_lots tl WHERE tl.transit_line_id=? ORDER BY tl.id";
+const READ_SELECTABLE_TRANSIT_LOTS: NativeStatement = NativeStatement {
+    kind: RD_SELECTABLE_TRANSIT_LOTS,
+    sql: SQL_RD_SELECTABLE_TRANSIT_LOTS,
+    bind_count: 1,
+    scope: "holding",
+};
+
 /// Native successor of the TypeScript `pos-startup-sources` posting-state
 /// read. Owner-local: the statement touches only Inventory's own
 /// `inventory_counts` table and the caller executes it on its already-open
@@ -542,6 +565,8 @@ pub fn is_read(kind: &str) -> bool {
             | RD_TRANSIT_DISPATCH_LINES
             | RD_LANDED_COST_DETAIL_LOTS
             | RD_LANDED_COST_DETAIL_EVENTS
+            | RD_TRANSIT_DETAIL_LOTS
+            | RD_SELECTABLE_TRANSIT_LOTS
     )
 }
 
@@ -579,6 +604,8 @@ pub fn read_statement(kind: &str) -> Option<&'static NativeStatement> {
         RD_TRANSIT_DISPATCH_LINES => Some(&READ_TRANSIT_DISPATCH_LINES),
         RD_LANDED_COST_DETAIL_LOTS => Some(&READ_LANDED_COST_DETAIL_LOTS),
         RD_LANDED_COST_DETAIL_EVENTS => Some(&READ_LANDED_COST_DETAIL_EVENTS),
+        RD_TRANSIT_DETAIL_LOTS => Some(&READ_TRANSIT_DETAIL_LOTS),
+        RD_SELECTABLE_TRANSIT_LOTS => Some(&READ_SELECTABLE_TRANSIT_LOTS),
         _ => None,
     }
 }
@@ -652,6 +679,8 @@ mod tests {
             RD_TRANSIT_DISPATCH_LINES,
             RD_LANDED_COST_DETAIL_LOTS,
             RD_LANDED_COST_DETAIL_EVENTS,
+            RD_TRANSIT_DETAIL_LOTS,
+            RD_SELECTABLE_TRANSIT_LOTS,
         ] {
             assert!(is_read(kind));
             let read = read_statement(kind).expect("read kind");
@@ -987,6 +1016,32 @@ mod tests {
             (
                 RD_LANDED_COST_DETAIL_EVENTS,
                 "SELECT * FROM inventory_landed_cost_events WHERE landed_cost_id=? ORDER BY created_at,id",
+            ),
+        ];
+        for (kind, expected) in cases {
+            let read = read_statement(kind).expect("read kind");
+            assert_eq!(read.sql, expected, "{kind}");
+            assert_eq!(read.bind_count, 1, "{kind}");
+            assert_eq!(read.sql.matches('?').count(), read.bind_count, "{kind}");
+            assert_eq!(read.scope, "holding", "{kind}");
+            assert!(is_read(kind), "{kind}");
+        }
+    }
+
+    /// Parity witness for the `inventory-transit` detail-lot child reads: each
+    /// native plan is the exact statement the retired TypeScript adapter bound,
+    /// with the resolved pending-loss SUM, caller-unit bind and `.all()` shape.
+    #[test]
+    fn transit_detail_lot_read_plans_match_retired_owner_statements() {
+        let pending_loss = "COALESCE((SELECT SUM(le.quantity_milli) FROM inventory_transit_lot_events le JOIN inventory_transit_events e ON e.id=le.event_id WHERE le.transit_lot_id=tl.id AND e.kind='loss_requested' AND NOT EXISTS(SELECT 1 FROM inventory_transit_events r WHERE r.proposal_id=e.id)),0)";
+        let cases = [
+            (
+                RD_TRANSIT_DETAIL_LOTS,
+                format!("SELECT tl.*,l.lot_code,l.serial_number,l.expiry_date,{pending_loss} pending_loss_milli FROM inventory_transit_lots tl JOIN inventory_lots l ON l.id=tl.lot_id JOIN inventory_transit_lines line ON line.id=tl.transit_line_id WHERE line.transit_id=? ORDER BY line.id,l.expiry_date NULLS LAST,l.id"),
+            ),
+            (
+                RD_SELECTABLE_TRANSIT_LOTS,
+                format!("SELECT tl.*,{pending_loss} pending_loss_milli FROM inventory_transit_lots tl WHERE tl.transit_line_id=? ORDER BY tl.id"),
             ),
         ];
         for (kind, expected) in cases {

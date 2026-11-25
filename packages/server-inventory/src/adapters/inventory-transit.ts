@@ -17,7 +17,7 @@ import {ApiError} from "@erpx/server-runtime/public/http";
 import {prepareBusinessEvidence} from "@erpx/server-records/public/business-evidence";
 import {transitWorkItem} from '@erpx/server-inventory/domain/transit';
 import {BusinessRuleError} from '@erpx/server-shared/index';import {createInventoryTransitApplication,type InventoryTransitRepository} from '@erpx/server-inventory/application/transit';
-import {nativeInventoryReadAll,nativeInventoryReadFirst,INVENTORY_RD_TRANSIT_EVENTS_WITH_RESOLUTION,INVENTORY_RD_POSTED_TRANSIT_TRANSFER,INVENTORY_RD_TRANSFER_BY_ID,INVENTORY_RD_TRANSIT_DISPATCH_LINES} from './native-inventory-read';
+import {nativeInventoryReadAll,nativeInventoryReadFirst,INVENTORY_RD_TRANSIT_EVENTS_WITH_RESOLUTION,INVENTORY_RD_POSTED_TRANSIT_TRANSFER,INVENTORY_RD_TRANSFER_BY_ID,INVENTORY_RD_TRANSIT_DISPATCH_LINES,INVENTORY_RD_TRANSIT_DETAIL_LOTS,INVENTORY_RD_SELECTABLE_TRANSIT_LOTS} from './native-inventory-read';
 import {inventoryTransitSources as owner0} from '@erpx/server-finance/public/inventory-transit-sources';
 import {inventoryTransitSources as owner1} from '@erpx/server-collaboration/adapters/native-inventory-transit-notification';
 import {inventoryTransitSources as owner2} from '@erpx/server-commerce/public/inventory-transit-sources';
@@ -31,7 +31,9 @@ async function exposed<T>(action:()=>Promise<T>){try{return await action();}catc
 function application(db:SqlDatabase,a:WorkContext){const repository={async scopedTransit(id:string,companyId:string,branchId:string | null,branchId2:string | null,branchId3:string | null){return db.prepare(`${select} WHERE d.id=? AND ${activeScope}`).bind(id,companyId,branchId,branchId2,branchId3).first<Row>();},
 async transits(companyId:string,branchId:string | null,branchId2:string | null,branchId3:string | null){return db.prepare(`${select} WHERE ${activeScope} ORDER BY d.due_date,d.id`).bind(companyId,branchId,branchId2,branchId3).all<Row>();},
 async transitLines(id:string){return db.prepare(`SELECT l.*,p.sku,p.name,p.tracking_mode,${pendingLossSumSql('e.quantity_milli', 'FROM inventory_transit_events e', "e.line_id=l.id AND e.kind='loss_requested' AND "+transitLossDecisionPendingSql('r','e.id'))} pending_loss_milli FROM inventory_transit_lines l ${inventorycommerceProjection.lineProduct} WHERE l.transit_id=? ORDER BY l.id`).bind(id).all<Row>();},
-async transitLots(id:string){return db.prepare(`SELECT tl.*,l.lot_code,l.serial_number,l.expiry_date,${pendingLossSumSql('le.quantity_milli', 'FROM inventory_transit_lot_events le JOIN inventory_transit_events e ON e.id=le.event_id', "le.transit_lot_id=tl.id AND e.kind='loss_requested' AND "+transitLossDecisionPendingSql('r','e.id'))} pending_loss_milli FROM inventory_transit_lots tl JOIN inventory_lots l ON l.id=tl.lot_id JOIN inventory_transit_lines line ON line.id=tl.transit_line_id WHERE line.transit_id=? ORDER BY line.id,l.expiry_date NULLS LAST,l.id`).bind(id).all<Row>();},
+/** Owner-native read: planned by `RD_TRANSIT_DETAIL_LOTS` and executed on the
+ * caller's unit; this module carries no SQL for it. */
+async transitLots(id:string){return nativeInventoryReadAll<Row>(INVENTORY_RD_TRANSIT_DETAIL_LOTS,[id],db);},
 /** Owner-native read: planned by `RD_TRANSIT_EVENTS_WITH_RESOLUTION` and executed
  * on the caller's unit; this module carries no SQL for it. */
 async transitEvents(id:string){return nativeInventoryReadAll<Row>(INVENTORY_RD_TRANSIT_EVENTS_WITH_RESOLUTION,[id],db);},
@@ -52,7 +54,9 @@ guardApprovedTransfer(key:string,value:"approved-source",transfer_id:string | nu
 async dispatchLots(id:string | number | null){return db.prepare(childLineRowsSql('inventory_transit_lots','transit_line_id')).bind(id).all<Row>();},
 guardDispatchDate(key:string,value:string,source_warehouse_id:string | number | null,product_id:string | number | null,date:string){return assertion(db,key,value,noLaterLedgerMovementSql,[source_warehouse_id,product_id,date]);},
 guardDispatchLot(key:string,value:string,lot_id:string | number | null,source_warehouse_id:string | number | null,quantity_milli:string | number | null){return assertion(db,key,value,lotBalanceGuardSql(' AND quantity_milli>=?'),[lot_id,source_warehouse_id,quantity_milli]);},
-async selectableTransitLots(id:string | number | null){return db.prepare(`SELECT tl.*,${pendingLossSumSql('le.quantity_milli', 'FROM inventory_transit_lot_events le JOIN inventory_transit_events e ON e.id=le.event_id', "le.transit_lot_id=tl.id AND e.kind='loss_requested' AND "+transitLossDecisionPendingSql('r','e.id'))} pending_loss_milli FROM inventory_transit_lots tl WHERE tl.transit_line_id=? ORDER BY tl.id`).bind(id).all<Row>();},
+/** Owner-native read: planned by `RD_SELECTABLE_TRANSIT_LOTS` and executed on
+ * the caller's unit; this module carries no SQL for it. */
+async selectableTransitLots(id:string | number | null){return nativeInventoryReadAll<Row>(INVENTORY_RD_SELECTABLE_TRANSIT_LOTS,[id],db);},
 guardReceiveDate(key:string,value:string,target_warehouse_id:string | number | null,product_id:string | number | null,date:string){return assertion(db,key,value,noLaterLedgerMovementSql,[target_warehouse_id,product_id,date]);},
 async targetLotBalance(lot_id:string | number | null,target_warehouse_id:string | number | null){return db.prepare(scopedFieldSql('version','inventory_lot_balances','lot_id','warehouse_id')).bind(lot_id,target_warehouse_id).first<Row>();},
 guardTargetLotVersion(key:string,value:string,lot_id:string | number | null,target_warehouse_id:string | number | null,version:string | number | null){return assertion(db,key,value,lotBalanceGuardSql(' AND version=?'),[lot_id,target_warehouse_id,version]);},

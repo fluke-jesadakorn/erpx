@@ -113,7 +113,7 @@ describe('Inventory read-tail r46 dedupe', () => {
     expect(shared).not.toMatch(lockRe);
   });
 
-  test('retirement:ts-statements KPI is 305 after the r50 landed-cost detail read cutover (strictly below r49 307)', () => {
+  test('retirement:ts-statements KPI is 303 after the r51 transit detail-lot read cutover (strictly below r50 305)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -132,7 +132,8 @@ describe('Inventory read-tail r46 dedupe', () => {
     // and 5 in inventory-transit (event resolution subquery, posted transfer,
     // transfer by id, dispatch-lines join): 314 -> 307.
     // r50 retires 2 landed-cost detail child reads (lots join, events): 307 -> 305.
-    expect(total).toBe(305);
-    expect(total).toBeLessThan(307);
+    // r51 retires 2 transit detail-lot reads (transitLots join, selectableTransitLots): 305 -> 303.
+    expect(total).toBe(303);
+    expect(total).toBeLessThan(305);
   });
 });

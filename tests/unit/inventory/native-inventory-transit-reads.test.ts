@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
 import {
@@ -11,10 +11,14 @@ import {
   INVENTORY_RD_POSTED_TRANSIT_TRANSFER,
   INVENTORY_RD_TRANSFER_BY_ID,
   INVENTORY_RD_TRANSIT_DISPATCH_LINES,
+  INVENTORY_RD_TRANSIT_DETAIL_LOTS,
+  INVENTORY_RD_SELECTABLE_TRANSIT_LOTS,
 } from '../../../packages/server-inventory/src/adapters/native-inventory-read';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-inventory/src/adapters');
 const src = (name: string) => readFileSync(resolve(srcRoot, name), 'utf8');
+const srcDir = resolve(__dirname, '../../../packages/server-inventory/src');
+const selectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;
 
 /** Byte oracles captured verbatim from the retired HEAD TypeScript literals. */
 const RETIRED = {
@@ -24,6 +28,8 @@ const RETIRED = {
   INVENTORY_RD_POSTED_TRANSIT_TRANSFER: "SELECT id,version FROM inventory_transfers WHERE id=? AND company_id=? AND status='posted' AND delivery_mode='transit'",
   INVENTORY_RD_TRANSFER_BY_ID: 'SELECT * FROM inventory_transfers WHERE id=?',
   INVENTORY_RD_TRANSIT_DISPATCH_LINES: 'SELECT l.*,s.source_version,s.source_quantity_milli,s.source_value_minor,s.product_version FROM inventory_transit_lines l JOIN inventory_transfer_lines s ON s.id=l.source_line_id WHERE l.transit_id=? ORDER BY l.id',
+  INVENTORY_RD_TRANSIT_DETAIL_LOTS: "SELECT tl.*,l.lot_code,l.serial_number,l.expiry_date,COALESCE((SELECT SUM(le.quantity_milli) FROM inventory_transit_lot_events le JOIN inventory_transit_events e ON e.id=le.event_id WHERE le.transit_lot_id=tl.id AND e.kind='loss_requested' AND NOT EXISTS(SELECT 1 FROM inventory_transit_events r WHERE r.proposal_id=e.id)),0) pending_loss_milli FROM inventory_transit_lots tl JOIN inventory_lots l ON l.id=tl.lot_id JOIN inventory_transit_lines line ON line.id=tl.transit_line_id WHERE line.transit_id=? ORDER BY line.id,l.expiry_date NULLS LAST,l.id",
+  INVENTORY_RD_SELECTABLE_TRANSIT_LOTS: "SELECT tl.*,COALESCE((SELECT SUM(le.quantity_milli) FROM inventory_transit_lot_events le JOIN inventory_transit_events e ON e.id=le.event_id WHERE le.transit_lot_id=tl.id AND e.kind='loss_requested' AND NOT EXISTS(SELECT 1 FROM inventory_transit_events r WHERE r.proposal_id=e.id)),0) pending_loss_milli FROM inventory_transit_lots tl WHERE tl.transit_line_id=? ORDER BY tl.id",
 } as const;
 
 describe('native Inventory inventory-transit / commerce-facts fixed reads', () => {
@@ -69,6 +75,8 @@ describe('native Inventory inventory-transit / commerce-facts fixed reads', () =
     [INVENTORY_RD_POSTED_TRANSIT_TRANSFER, ['transfer1', 'company'], true],
     [INVENTORY_RD_TRANSFER_BY_ID, ['transfer1'], true],
     [INVENTORY_RD_TRANSIT_DISPATCH_LINES, ['transit1'], false],
+    [INVENTORY_RD_TRANSIT_DETAIL_LOTS, ['transit1'], false],
+    [INVENTORY_RD_SELECTABLE_TRANSIT_LOTS, ['line1'], false],
   ] as const;
 
   it('routes each retired fixed read through its native kind with caller-unit binds and shape', async () => {
@@ -105,6 +113,11 @@ describe('native Inventory inventory-transit / commerce-facts fixed reads', () =
     expect(transit).toContain('INVENTORY_RD_POSTED_TRANSIT_TRANSFER');
     expect(transit).toContain('INVENTORY_RD_TRANSFER_BY_ID');
     expect(transit).toContain('INVENTORY_RD_TRANSIT_DISPATCH_LINES');
+    expect(transit).toContain('INVENTORY_RD_TRANSIT_DETAIL_LOTS');
+    expect(transit).toContain('INVENTORY_RD_SELECTABLE_TRANSIT_LOTS');
+    // Bridge emits no SQL of its own.
+    const bridge = src('native-inventory-read.ts');
+    for (const lit of Object.values(RETIRED)) expect(bridge).not.toContain(lit);
   });
 
   it('registered native SQL is byte-identical to the retired TypeScript literals', () => {
@@ -116,5 +129,31 @@ describe('native Inventory inventory-transit / commerce-facts fixed reads', () =
       expect(m, constName).not.toBeNull();
       expect(m![1].replace(/\\"/g, '"'), constName).toBe(sql);
     }
+    for (const name of ['INVENTORY_RD_TRANSIT_DETAIL_LOTS', 'INVENTORY_RD_SELECTABLE_TRANSIT_LOTS']) {
+      const suffix = name.replace('INVENTORY_RD_', '');
+      const block = rust.match(new RegExp('const READ_' + suffix + ': NativeStatement = NativeStatement \\{([\\s\\S]*?)\\};'));
+      expect(block, suffix).not.toBeNull();
+      expect(block![1]).toContain(`kind: RD_${suffix},`);
+      expect(block![1]).toContain('bind_count: 1');
+      expect(block![1]).toContain('scope: "holding"');
+      expect(rust).toContain(`| RD_${suffix}`);
+      expect(rust).toContain(`RD_${suffix} => Some(&READ_${suffix})`);
+    }
+  });
+
+  it('retirement:ts-statements KPI is 303 after the r51 transit detail-lot read cutover (strictly below r50 305)', () => {
+    let total = 0;
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith('.ts')) total += selectCount(readFileSync(path, 'utf8'));
+      }
+    };
+    walk(srcDir);
+    // r49 ended at 307; r50 retired 2 landed-cost detail child reads: 307 -> 305.
+    // r51 retires 2 transit detail-lot reads (transitLots join, selectableTransitLots): 305 -> 303.
+    expect(total).toBe(303);
+    expect(total).toBeLessThan(305);
   });
 });

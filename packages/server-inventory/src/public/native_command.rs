@@ -14,8 +14,8 @@ pub use crate::adapters::native_command_sql::{
     RD_TRANSIT_ATTACHMENT_DESCRIPTOR, RD_ORDER_RESERVATIONS_BY_LINE,
     RD_LOT_BALANCE_BY_LOT_WAREHOUSE, RD_TRANSIT_EVENTS_WITH_RESOLUTION,
     RD_POSTED_TRANSIT_TRANSFER, RD_TRANSFER_BY_ID, RD_TRANSIT_DISPATCH_LINES,
-    RD_LANDED_COST_DETAIL_LOTS, RD_LANDED_COST_DETAIL_EVENTS,
-    is_read, read_statement, statement, supported,
+    RD_LANDED_COST_DETAIL_LOTS, RD_LANDED_COST_DETAIL_EVENTS, RD_TRANSIT_DETAIL_LOTS,
+    RD_SELECTABLE_TRANSIT_LOTS, is_read, read_statement, statement, supported,
 };
 pub use crate::application::native_command::{
     NativeCommandFuture, NativeCommandOutcome, NativeCommandRepository, admit,
