@@ -52,7 +52,8 @@ describe('platform administration native owner-write no-op dedupe', () => {
       'adapters/pms-rollout-guards.ts',
       'adapters/release-acceptance.ts',
     ].map(source).join('\n');
-    expect(all.split(revisionRead).length - 1).toBe(1);
+    expect(all.split(revisionRead).length - 1).toBe(0);
+    expect(source('adapters/release-predicate.ts')).toContain("return releaseAcceptanceRowSql('revision', 'company_id=?', suffix, releaseRevisionTable(scope));");
     expect(source('adapters/release-predicate.ts')).toContain("releaseRevisionReadSql(scope, ' FOR SHARE')");
     expect(source('adapters/release-acceptance.ts')).toContain('releaseRevisionReadSql(scope)');
     for (const file of ['adapters/pms-rollout-guards.ts', 'adapters/release-acceptance.ts']) {

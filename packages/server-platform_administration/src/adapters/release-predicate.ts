@@ -31,11 +31,12 @@ export function releaseTableExistsSql(from: string, where: string, gap = ' ') {
   return `EXISTS(SELECT 1 FROM ${from}${gap}WHERE ${where})`;
 }
 
-/** The single revision read shared by release-acceptance inputs and the share-lock
- * guards. Kept here once so the base revision SQL has one owner-local definition;
- * each caller supplies its own suffix (e.g. ' FOR SHARE'). */
+/** The revision read is the same parameterized row-head as the acceptance read;
+ * the scope table is the only difference. It now composes the shared renderer,
+ * so callers still supply just a suffix (e.g. ' FOR SHARE') and every rendering
+ * stays byte-identical. */
 export function releaseRevisionReadSql(scope: ReleaseScopeVersion, suffix = '') {
-  return `SELECT revision FROM ${releaseRevisionTable(scope)} WHERE company_id=?${suffix}`;
+  return releaseAcceptanceRowSql('revision', 'company_id=?', suffix, releaseRevisionTable(scope));
 }
 
 /** The single revision share-lock statement shared by release acceptance and
@@ -78,13 +79,13 @@ export function latestReleaseIdSql(companyExpression: string, scopeExpression: s
   return `(SELECT latest.id FROM company_release_acceptances latest WHERE latest.company_id=${companyExpression} AND latest.scope_version=${scopeExpression} ORDER BY latest.created_at DESC,latest.id DESC LIMIT 1)`;
 }
 
-/** The single parameterized release-acceptance row-read head shared by the
- * latest-lookup and the base evidence/finance-attachment reads. The two former
- * helpers emitted byte-identical output; only the WHERE predicate and optional
- * ORDER BY suffix differed. Keeping one owner-local definition removes the
- * duplicate head without changing any rendered SQL. */
-export function releaseAcceptanceRowSql(columns: string, predicate: string, suffix = '') {
-  return `SELECT ${columns} FROM company_release_acceptances WHERE ${predicate}${suffix}`;
+/** The single parameterized row-read head shared by the latest-lookup, the base
+ * evidence/finance-attachment reads and the revision read. The former acceptance
+ * and revision heads were byte-identical apart from the table name, so the table
+ * is now a parameter with the acceptance table as its default: every existing
+ * caller renders exactly the same SQL, and no duplicate row-head is retained. */
+export function releaseAcceptanceRowSql(columns: string, predicate: string, suffix = '', table = 'company_release_acceptances') {
+  return `SELECT ${columns} FROM ${table} WHERE ${predicate}${suffix}`;
 }
 
 /** The latest-acceptance row lookup composes the same byte-identical head with

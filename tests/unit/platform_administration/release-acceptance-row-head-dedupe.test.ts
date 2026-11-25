@@ -29,7 +29,7 @@ describe('Platform Administration release-acceptance row SELECT-head family dedu
     const predicate = source('adapters/release-predicate.ts');
     const acceptance = source('adapters/release-acceptance.ts');
     const finance = source('adapters/attachments-finance-facts.ts');
-    const head = 'FROM company_release_acceptances WHERE ${predicate}${suffix}';
+    const head = 'FROM ${table} WHERE ${predicate}${suffix}';
     expect(predicate.split(head).length - 1).toBe(1);
     expect(predicate.match(/export function releaseAcceptanceRowSql/g)).toHaveLength(1);
     expect(predicate.match(/export function latestReleaseRowSql/g)).toHaveLength(1);

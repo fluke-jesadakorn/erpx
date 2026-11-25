@@ -66,6 +66,6 @@ describe('Platform Administration release-table EXISTS SELECT-head family dedupe
       }
     };
     walk(srcRoot);
-    expect(total).toBe(28);
+    expect(total).toBe(27);
   });
 });
