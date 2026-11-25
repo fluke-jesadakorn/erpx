@@ -3,6 +3,7 @@ import { ppRd27IdCompanyVersionStatusLiteralGuard } from './pp-read-tail-r27-sou
 import { ppRd48IdCompanyVersionPairGuard, ppRd48ExpenseClaimInvoice } from './pp-read-tail-r48-sources';
 import { ppRd49AttachmentLinkPoint, ppRd49DraftLinkGuard } from './pp-read-tail-r49-sources';
 import { ppRd50SlipOwnerGuard } from './pp-read-tail-r50-sources';
+import { ppRd55AttachmentPresenceV2, ppRd55AttachmentPresenceV1 } from './pp-read-tail-r55-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import{paymentDraft,nativeExpensePaymentReader,paymentFromDatabase}from '@erpx/server-people_payroll/adapters/expense-payment-read';
 export{paymentDraft,nativeExpensePaymentReader,paymentFromDatabase};
@@ -40,12 +41,8 @@ import { prepareAttachmentBinding } from "@erpx/server-files/public/attachments/
 
 function paymentSlipExistsSql() {
   return attachmentsV2Readable()
-    ? `EXISTS(SELECT 1 FROM (${filesProjectionSources.attachments}) a JOIN (${filesProjectionSources.attachment_links}) l ON l.attachment_id=a.id JOIN (${filesProjectionSources.attachment_sets}) s ON s.id=l.set_id
-        WHERE a.owner_type='expense_payment' AND a.owner_id=?
-          AND a.media_type IN ('image/jpeg','image/png','image/webp','application/pdf')
-          AND a.revoked_at IS NULL AND a.source_state='available' AND l.state='bound'
-          AND s.target_type='expense_payment' AND s.target_id=a.owner_id)`
-    : `EXISTS(SELECT 1 FROM (${filesProjectionSources.attachments}) attachments WHERE owner_type='expense_payment' AND owner_id=? AND media_type IN ('image/jpeg','image/png','image/webp','application/pdf') AND revoked_at IS NULL)`;
+    ? ppRd55AttachmentPresenceV2('exists', true, true, false)
+    : ppRd55AttachmentPresenceV1('exists', true, true, false);
 }
 
 async function preparePaymentEvidence(

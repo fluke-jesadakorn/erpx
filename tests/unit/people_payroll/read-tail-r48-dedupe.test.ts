@@ -160,6 +160,6 @@ describe('People Payroll read-tail r48 three-family dedupe', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(1245);
-    expect(total).toBe(1214);
+    expect(total).toBe(1210);
   });
 });

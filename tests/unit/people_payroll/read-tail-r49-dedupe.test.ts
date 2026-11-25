@@ -115,7 +115,7 @@ describe('People Payroll read-tail r49 four-family dedupe', () => {
     expect(src('people-payroll.ts')).toContain('nativePpStatement');
     expect(src('pp-read-tail-r51-sources.ts')).toContain('financeProjectionSources.finance_accounts');
     expect(src('expenses.ts')).toContain("financeProjectionSources.finance_journals}) finance_journals WHERE id=? AND company_id=? AND source_type='expense_claim' AND source_id=? AND status='posted'");
-    expect(src('expense-payments.ts')).toContain("a.owner_type='expense_payment' AND a.owner_id=?");
+    expect(src('pp-read-tail-r55-sources.ts')).toContain("a.owner_type='${owner}' AND a.owner_id${id}");
     expect(src('expenses.ts')).toContain("ppRd50SlipOwnerGuard('expense_claim')");
     expect(src('pp-read-tail-r50-sources.ts')).toContain("owner_id=? AND owner_type='${ownerType}'");
     expect(src('expenses.ts')).toContain('ppRd51AttachmentListV1(false)');
@@ -141,6 +141,6 @@ describe('People Payroll read-tail r49 four-family dedupe', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(1240);
-    expect(total).toBe(1214);
+    expect(total).toBe(1210);
   });
 });

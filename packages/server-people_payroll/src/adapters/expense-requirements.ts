@@ -1,8 +1,7 @@
 
 
-import { hospitalityOwnerProjectionSources as filesProjectionSources } from "@erpx/server-files/public/hospitality-owner-projection-sources";
-
 import { hospitalityOwnerProjectionSources as operationsProjectionSources } from "@erpx/server-operations/public/hospitality-owner-projection-sources";
+import { ppRd55AttachmentPresenceV2, ppRd55AttachmentPresenceV1 } from './pp-read-tail-r55-sources';
 import { createExpenseRequirements, type ExpenseRequirementsPorts } from "@erpx/server-people_payroll/application/expense-evidence";
 
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
@@ -32,12 +31,8 @@ export function nativeExpenseRequirements(db: SqlDatabase, readReceipt?: (row:Ex
     async hasReceipt(row) {
       if (readReceipt) return readReceipt(row);
       return Boolean(await db.prepare(attachmentsV2Readable()
-        ? `SELECT 1 FROM (${filesProjectionSources.attachments}) a JOIN (${filesProjectionSources.attachment_links}) l ON l.attachment_id=a.id
-             JOIN (${filesProjectionSources.attachment_sets}) s ON s.id=l.set_id
-             WHERE a.owner_type='expense_claim' AND a.owner_id=? AND a.revoked_at IS NULL
-               AND a.source_state='available' AND l.state='bound'
-               AND s.target_type='expense_claim' AND s.target_id=a.owner_id LIMIT 1`
-        : `SELECT 1 FROM (${filesProjectionSources.attachments}) attachments WHERE owner_type='expense_claim' AND owner_id=? AND revoked_at IS NULL LIMIT 1`).bind(row.id).first());
+        ? ppRd55AttachmentPresenceV2('probe', false, false, false)
+        : ppRd55AttachmentPresenceV1('probe', false, false, false)).bind(row.id).first());
     },
   });
 }

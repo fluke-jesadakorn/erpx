@@ -4,11 +4,11 @@ import type {StaffActor} from "@erpx/server-operations/public/staff-policy";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {hospitalityOwnerProjectionSources as identitySources} from "@erpx/server-identity_access/public/hospitality-owner-projection-sources";
 import {hospitalityOwnerProjectionSources as workflowSources} from "@erpx/server-workflow/public/hospitality-owner-projection-sources";
-import {hospitalityOwnerProjectionSources as filesSources} from "@erpx/server-files/public/hospitality-owner-projection-sources";
 import {expenseApprovalReadBatch} from '@erpx/server-workflow/public/approval-planning';
 import {type ApprovalView} from '@erpx/server-workflow/public/approvals';
 import {attachmentsV2Readable} from "@erpx/server-files/public/attachments/feature";
 import {nativeExpenseEmployment,nativeExpenseRequirements} from '@erpx/server-people_payroll/adapters/expense-requirements';
+import {ppRd55AttachmentPresenceV2,ppRd55AttachmentPresenceV1} from './pp-read-tail-r55-sources';
 import type {ExpenseRow} from '@erpx/server-people_payroll/adapters/expenses';
 
 export interface ExpenseBatchFacts {
@@ -30,8 +30,8 @@ export async function expenseBatchFacts(db:SqlDatabase, actor:WorkContext, rows:
     readerIds.length ? db.prepare(`SELECT x.id FROM finance_expenses x WHERE x.company_id=? AND x.id IN(SELECT value FROM erpx_json_each(?)) AND EXISTS(SELECT 1 FROM (${identitySources.assignments}) assignments WHERE company_id=? AND id=? AND iam_role_allows(role,company_id,'expense.audit.read') AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_from<=? AND valid_until>? AND (scope_kind='holding' OR (scope_kind='branch' AND scope_node_id=x.branch_id) OR (scope_kind='department' AND scope_node_id=x.department_id)))`).bind(actor.companyId,readerEncoded,actor.companyId,actor.assignmentId,now,now).all<{id:string}>() : Promise.resolve({results:[]}),
     readerIds.length ? db.prepare(`SELECT DISTINCT i.record_id id FROM (${workflowSources.approval_decisions}) d JOIN (${workflowSources.approval_instances}) i ON i.id=d.instance_id WHERE i.record_type='expense' AND i.record_id IN(SELECT value FROM erpx_json_each(?)) AND i.company_id=? AND d.actor_user_id=? AND d.action IN('approve','reject')`).bind(readerEncoded,actor.companyId,actor.userId).all<{id:string}>() : Promise.resolve({results:[]}),
     receiptRows.length ? db.prepare(attachmentsV2Readable()
-      ? `SELECT DISTINCT a.owner_id id FROM (${filesSources.attachments}) a JOIN (${filesSources.attachment_links}) l ON l.attachment_id=a.id JOIN (${filesSources.attachment_sets}) s ON s.id=l.set_id WHERE a.owner_type='expense_claim' AND a.owner_id IN(SELECT value FROM erpx_json_each(?)) AND a.revoked_at IS NULL AND a.source_state='available' AND l.state='bound' AND s.target_type='expense_claim' AND s.target_id=a.owner_id`
-      : `SELECT DISTINCT owner_id id FROM (${filesSources.attachments}) attachments WHERE owner_type='expense_claim' AND owner_id IN(SELECT value FROM erpx_json_each(?)) AND revoked_at IS NULL`).bind(receiptEncoded).all<{id:string}>() : Promise.resolve({results:[]}),
+      ? ppRd55AttachmentPresenceV2('distinct', false, false, true)
+      : ppRd55AttachmentPresenceV1('distinct', false, false, true)).bind(receiptEncoded).all<{id:string}>() : Promise.resolve({results:[]}),
     expenseApprovalReadBatch(db,actor,workflowIds),
   ]);
   const auditors=new Set(audit.results.map(row=>row.id)), participantsById=new Set(participants.results.map(row=>row.id)), receiptIds=new Set(receipts.results.map(row=>row.id));
