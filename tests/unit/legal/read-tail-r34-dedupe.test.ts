@@ -106,7 +106,7 @@ describe('legal read-tail r34 id+key point-read family', () => {
     for (const symbol of symbols) {
       expect(texts.slice(0, 19).join('\n')).toContain(`export const ${symbol}`);
     }
-    expect(texts[19]).toContain('legal_law_source_checks');
+    expect(texts[19]).toContain("nativeLegalAuxiliaryRead<LawCorpusView>(a,'laws',ruleId)");
     expect(texts[20]).toContain('export function legalCitation');
     expect(texts[21]).toContain('legalCompanyAdvisoryLockSql');
     expect(texts[22]).toContain('FOR UPDATE OF x,i');

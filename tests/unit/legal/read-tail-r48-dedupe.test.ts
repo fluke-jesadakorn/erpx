@@ -107,8 +107,8 @@ describe('legal read-tail r48 compound corpus source-clean and members/settings 
       src('legal/law-corpus.ts'), src('legal/citations.ts'), src('legal/knowledge.ts'),
       src('legal-read-tail-r9-sources.ts'), src('legal/destruction-worker.ts'),
     ]);
-    expect(corpus).toContain('legal_law_source_checks');
-    expect(corpus).toContain("legalActiveDestructionGuardHead('x','i')");
+    expect(corpus).toContain("nativeLegalAuxiliaryRead<LawCorpusView>(a,'laws',ruleId)");
+    expect(corpus).not.toContain("legalActiveDestructionGuardHead('x','i')");
     expect(corpus).toContain('legalAttachmentAvailableSql()');
     expect(corpus).toContain("legalDisposedGuardSql('x','d.id')");
     expect(citations).toContain('export function legalCitation');

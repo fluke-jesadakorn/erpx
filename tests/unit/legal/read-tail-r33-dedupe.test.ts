@@ -69,7 +69,7 @@ describe('legal read-tail r33 state-constrained point-read family', () => {
     for (const symbol of symbols) {
       expect(texts.slice(0, 17).join('\n')).toContain(`export const ${symbol}`);
     }
-    expect(texts[17]).toContain('legal_law_source_checks');
+    expect(texts[17]).toContain("nativeLegalAuxiliaryRead<LawCorpusView>(a,'laws',ruleId)");
     expect(texts[18]).toContain('export function legalCitation');
     expect(texts[19]).toContain('legalCompanyAdvisoryLockSql');
     expect(texts[20]).toContain('FOR UPDATE OF x,i');

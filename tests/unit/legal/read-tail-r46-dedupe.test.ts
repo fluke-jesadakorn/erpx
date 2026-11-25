@@ -64,7 +64,7 @@ describe('legal read-tail r46 destruction-guard and executive-spine head family'
     expect(knowledge.match(/legalActiveDestructionGuardHead\(/g) ?? []).toHaveLength(1);
     expect(knowledge).not.toContain(defaultGuard);
     const corpus = await src('legal/law-corpus.ts');
-    expect(corpus.match(/legalActiveDestructionGuardHead\(/g) ?? []).toHaveLength(1);
+    expect(corpus).not.toContain('legalActiveDestructionGuardHead');
     expect(corpus).not.toContain(xGuard);
 
     const projections = await src('executive-metric-projections.ts');
@@ -103,7 +103,7 @@ describe('legal read-tail r46 destruction-guard and executive-spine head family'
       src('legal-read-tail-r9-sources.ts'), src('legal-read-tail-r23-sources.ts'),
       src('legal-read-tail-r24-sources.ts'), src('legal/destruction-worker.ts'),
     ]);
-    expect(corpus).toContain('legal_law_source_checks');
+    expect(corpus).toContain("nativeLegalAuxiliaryRead<LawCorpusView>(a,'laws',ruleId)");
     expect(citations).toContain('export function legalCitation');
     expect(r9).toContain('legalFilesAdvisoryLockSql');
     expect(r9).toContain('legalCompanyAdvisoryLockSql');

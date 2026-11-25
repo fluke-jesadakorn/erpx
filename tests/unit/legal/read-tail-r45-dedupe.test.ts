@@ -78,7 +78,7 @@ describe('legal read-tail r45 parameterized item-by-id-and-company head family',
       src('legal-read-tail-r9-sources.ts'), src('legal-read-tail-r23-sources.ts'),
       src('legal-read-tail-r24-sources.ts'), src('legal/destruction-worker.ts'),
     ]);
-    expect(corpus).toContain('legal_law_source_checks');
+    expect(corpus).toContain("nativeLegalAuxiliaryRead<LawCorpusView>(a,'laws',ruleId)");
     expect(citations).toContain('export function legalCitation');
     expect(r9).toContain('legalFilesAdvisoryLockSql');
     expect(r9).toContain('legalCompanyAdvisoryLockSql');

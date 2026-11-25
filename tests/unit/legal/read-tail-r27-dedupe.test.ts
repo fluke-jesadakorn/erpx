@@ -55,7 +55,7 @@ describe('legal read-tail r27 parameterized family dedupe', () => {
     expect(r16).toContain('export const legalItemSelectSql');
     expect(r25).toContain('export const legalJsonbAggByItemSql');
     expect(r26).toContain('export const legalVersionExistsSql');
-    expect(corpus).toContain('legal_law_source_checks');
+    expect(corpus).toContain("nativeLegalAuxiliaryRead<LawCorpusView>(a,'laws',ruleId)");
     expect(citations).toContain('export function legalCitation');
     expect(access).toContain('legalCompanyAdvisoryLockSql');
     expect(r9).toContain('legalCompanyAdvisoryLockSql');

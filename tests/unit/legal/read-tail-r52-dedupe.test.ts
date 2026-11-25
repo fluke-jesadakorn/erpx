@@ -102,7 +102,7 @@ describe('legal read-tail r52 ordered, point and destruction guard delegation', 
     expect(r9).toContain('legalFilesAdvisoryLockSql');
     expect(r9).toContain('legalCompanyAdvisoryLockSql');
     expect(worker).toContain('FOR UPDATE OF x,i');
-    expect(corpus).toContain('legal_law_source_checks');
+    expect(corpus).toContain("nativeLegalAuxiliaryRead<LawCorpusView>(a,'laws',ruleId)");
     expect(corpus).toContain('legalCorpusSourceCleanHead(');
     expect(citations).toContain('export function legalCitation');
   });

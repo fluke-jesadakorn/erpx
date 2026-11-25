@@ -66,7 +66,7 @@ describe('legal read-tail r51 law state guard reuse', () => {
     expect(corpus).toContain('requireLawRevisionCurrent:');
     expect(corpus).toContain('legalCorpusSourceCleanHead(');
     expect(corpus).toContain('legalDisposedGuardSql(');
-    expect(corpus).toContain('legal_law_source_checks');
+    expect(corpus).toContain("nativeLegalAuxiliaryRead<LawCorpusView>(a,'laws',ruleId)");
     expect(r9).toContain('legalFilesAdvisoryLockSql');
     expect(r9).toContain('legalCompanyAdvisoryLockSql');
     expect(worker).toContain('FOR UPDATE OF x,i');

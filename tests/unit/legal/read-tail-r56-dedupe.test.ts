@@ -131,7 +131,7 @@ describe('legal read-tail r56 law point-guard and counsel-entry dedupe', () => {
     expect(closedProjection).toContain('cols.map((c) => `"${c}"`).join(sep)');
   });
 
-  it('retirement:ts-statements is BEFORE=153 -> AFTER=145', async () => {
+  it('retirement:ts-statements is BEFORE=153 / AFTER=145 (r57 lowers to 142)', async () => {
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -142,6 +142,6 @@ describe('legal read-tail r56 law point-guard and counsel-entry dedupe', () => {
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(153);
-    expect(total).toBe(145);
+    expect(total).toBeLessThanOrEqual(145);
   });
 });

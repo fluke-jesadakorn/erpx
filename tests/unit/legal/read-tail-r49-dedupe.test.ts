@@ -103,7 +103,7 @@ describe('legal read-tail r49 share/document and clean-document guard head reuse
       src('legal/law-corpus.ts'), src('legal/citations.ts'), src('legal/knowledge.ts'),
       src('legal-read-tail-r9-sources.ts'), src('legal/destruction-worker.ts'),
     ]);
-    expect(corpus).toContain('legal_law_source_checks');
+    expect(corpus).toContain("nativeLegalAuxiliaryRead<LawCorpusView>(a,'laws',ruleId)");
     expect(corpus).toContain('legalCorpusSourceCleanHead(');
     expect(citations).toContain('export function legalCitation');
     expect(knowledge).toContain('export const legalEvidenceDocumentAvailableSql');

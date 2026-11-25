@@ -62,15 +62,15 @@ describe('legal read-tail r47 attachment-availability spine and disposal-guard r
     ]);
     expect(knowledge.match(/legalAttachmentAvailableSql\(/g) ?? []).toHaveLength(1);
     expect(knowledge.match(/legalDisposedGuardSql\(/g) ?? []).toHaveLength(1);
-    expect(corpus.match(/legalAttachmentAvailableSql\(/g) ?? []).toHaveLength(2);
-    expect(corpus.match(/legalDisposedGuardSql\(/g) ?? []).toHaveLength(2);
+    expect(corpus.match(/legalAttachmentAvailableSql\(/g) ?? []).toHaveLength(1);
+    expect(corpus.match(/legalDisposedGuardSql\(/g) ?? []).toHaveLength(1);
     for (const text of [knowledge, corpus]) {
       expect(text).not.toContain('object_key IS NULL OR EXISTS(SELECT 1 FROM (');
       expect(text).not.toContain('NOT EXISTS(SELECT 1 FROM legal_disposals');
       expect(text).not.toContain('final-root-owner-projection-sources');
     }
     expect(knowledge).toContain('legalAttachmentAvailableSql(\'clean_link\',\'clean_file\')');
-    expect(corpus).toContain("legalDisposedGuardSql('x','c.document_id')");
+    expect(corpus).not.toContain("legalDisposedGuardSql('x','c.document_id')");
     expect(corpus).toContain("legalDisposedGuardSql('x','d.id')");
   });
 
@@ -90,8 +90,8 @@ describe('legal read-tail r47 attachment-availability spine and disposal-guard r
       src('legal/law-corpus.ts'), src('legal/citations.ts'), src('legal/knowledge.ts'),
       src('legal-read-tail-r9-sources.ts'), src('legal/destruction-worker.ts'),
     ]);
-    expect(corpus).toContain('legal_law_source_checks');
-    expect(corpus).toContain("legalActiveDestructionGuardHead('x','i')");
+    expect(corpus).toContain("nativeLegalAuxiliaryRead<LawCorpusView>(a,'laws',ruleId)");
+    expect(corpus).not.toContain("legalActiveDestructionGuardHead('x','i')");
     expect(citations).toContain('export function legalCitation');
     expect(knowledge).toContain('export const legalEvidenceDocumentAvailableSql');
     expect(r9).toContain('legalFilesAdvisoryLockSql');

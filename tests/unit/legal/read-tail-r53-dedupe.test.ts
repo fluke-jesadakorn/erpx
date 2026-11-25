@@ -59,7 +59,7 @@ describe('legal read-tail r53 three-key law reads and id+key head consolidation'
     expect(corpus).toContain("legalPointByIdKeyAndCompanySql('id,version,state,created_by','legal_law_applicability','rule_id')).bind(facts.applicabilityId,facts.id,facts.companyId).first<ReviewRow>()");
     expect(corpus).toContain("legalPointByIdKeyAndCompanySql('*',reviewTables[facts.reviewKind].table,reviewTables[facts.reviewKind].column)).bind(facts.id,facts.id2,facts.companyId).first<ReviewRow>()");
     // Corpus SELECT-only reads, assertions, advisory locks and FOR UPDATE OF locks are untouched.
-    expect(corpus).toContain('legal_law_source_checks');
+    expect(corpus).toContain("nativeLegalAuxiliaryRead<LawCorpusView>(a,'laws',ruleId)");
     expect(corpus).toContain('legalCorpusSourceCleanHead(');
     expect(corpus).toContain('requireLawApplicabilityCurrent:');
     expect(corpus).toContain('requireLawReviewCurrent:');

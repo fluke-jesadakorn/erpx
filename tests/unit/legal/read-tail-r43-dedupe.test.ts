@@ -70,7 +70,7 @@ describe('legal read-tail r43 parameterized envelope/signer read head family', (
       src('legal/law-corpus.ts'), src('legal/citations.ts'),
       src('legal-read-tail-r9-sources.ts'), src('legal/destruction-worker.ts'),
     ]);
-    expect(corpus).toContain('legal_law_source_checks');
+    expect(corpus).toContain("nativeLegalAuxiliaryRead<LawCorpusView>(a,'laws',ruleId)");
     expect(citations).toContain('export function legalCitation');
     expect(r9).toContain('legalFilesAdvisoryLockSql');
     expect(r9).toContain('legalCompanyAdvisoryLockSql');

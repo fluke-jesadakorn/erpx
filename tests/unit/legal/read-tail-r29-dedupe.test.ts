@@ -60,7 +60,7 @@ describe('legal read-tail r29 parameterized family dedupe', () => {
     for (const symbol of symbols) {
       expect(texts.slice(0, 14).join('\n')).toContain(`export const ${symbol}`);
     }
-    expect(texts[14]).toContain('legal_law_source_checks');
+    expect(texts[14]).toContain("nativeLegalAuxiliaryRead<LawCorpusView>(a,'laws',ruleId)");
     expect(texts[15]).toContain('export function legalCitation');
     expect(texts[16]).toContain('legalCompanyAdvisoryLockSql');
     expect(texts[17]).toContain('FOR UPDATE OF x,i');

@@ -49,7 +49,7 @@ describe('legal read-tail r35 item-scoped ordered-list family', () => {
     const [corpus, citations, access, destructionWorker] = await Promise.all([
       src('legal/law-corpus.ts'), src('legal/citations.ts'), src('legal/access.ts'), src('legal/destruction-worker.ts'),
     ]);
-    expect(corpus).toContain('legal_law_source_checks');
+    expect(corpus).toContain("nativeLegalAuxiliaryRead<LawCorpusView>(a,'laws',ruleId)");
     expect(citations).toContain('export function legalCitation');
     expect(access).toContain('legalCompanyAdvisoryLockSql');
     expect(destructionWorker).toContain('FOR UPDATE OF x,i');
