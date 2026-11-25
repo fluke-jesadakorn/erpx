@@ -44,7 +44,7 @@ describe('Benefits read-tail r23 parameterized source-probe family', () => {
     expect(src('benefits-read-sql.ts').match(/benefitSourceProbe\s*=/g) ?? []).toHaveLength(1);
     const attach = src('attachment-purchases.ts');
     expect(attach).not.toContain('`SELECT 1 FROM (${source(type)}) benefit_file_source WHERE`');
-    expect(attach.match(/benefitSourceProbe\(/g) ?? []).toHaveLength(1);
+    expect(attach.match(/benefitSourceProbe\(/g) ?? []).toHaveLength(2);
     const record = src('record-purchases.ts');
     expect(record).not.toContain('`SELECT 1 FROM (${nativeSources}) ${alias}`');
     expect(record.match(/benefitSourceProbe\(/g) ?? []).toHaveLength(2);

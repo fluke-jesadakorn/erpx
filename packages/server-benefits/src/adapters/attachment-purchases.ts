@@ -31,7 +31,7 @@ const benefitFileSourceProbe = (type: Target) => `${benefitSourceProbe(source(ty
 function access(actor:WorkContext,type:Target,purposeKey:string,read=false){
  const permission=read?"benefits.documents.read":"benefits.documents.manage",manager=hasPermission(actor,permission)?`iam_role_allows(?,?,'${permission}')`:"FALSE",args:(string|number|null)[]=hasPermission(actor,permission)?[actor.role,actor.companyId]:[];
  let self="FALSE";
- if(type==="benefit_plan"&&read){self=`(benefit_file_source.status IN ('published','retired') AND EXISTS(SELECT 1 FROM (${people.people}) p JOIN (${people.engagements}) e ON e.person_id=p.id AND e.company_id=p.company_id WHERE p.company_id=benefit_file_source.company_id AND p.user_id=? AND p.status='active' AND p.merged_into_id IS NULL AND e.status='active'))`;args.push(actor.userId);}
+ if(type==="benefit_plan"&&read){self=`(benefit_file_source.status IN ('published','retired') AND EXISTS(${benefitSourceProbe(people.people,'p')} JOIN (${people.engagements}) e ON e.person_id=p.id AND e.company_id=p.company_id WHERE p.company_id=benefit_file_source.company_id AND p.user_id=? AND p.status='active' AND p.merged_into_id IS NULL AND e.status='active'))`;args.push(actor.userId);}
  if(type!=="benefit_plan"){
   const phase=type==="benefit_dependent"?(read?"TRUE":"benefit_file_source.status='pending'"):purposeKey==="election_document"?(read?"TRUE":"benefit_file_source.status IN ('elected','submitted')"):read?"benefit_file_source.status IN ('acknowledged','released')":"FALSE";
   self=`(iam_same_person(benefit_file_source.person_user_id,?,benefit_file_source.company_id) AND ${phase})`;args.push(actor.userId);
