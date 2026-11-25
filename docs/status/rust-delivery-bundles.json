@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 13395,
+    "revision": 13397,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -195982,6 +195982,62 @@
         "nextAction": "Next field_service head family (-1): 3->2. BEFORE=3.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.brand.read-tail-r2",
+        "goalId": "G4",
+        "owner": "brand",
+        "title": "brand read slice",
+        "kind": "migration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-brand/src/**",
+          "tests/unit/brand/**"
+        ],
+        "resources": [
+          "owner:brand"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next brand head family (-1): 3->2. BEFORE=3.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.ecommerce.read-tail-r31",
+        "goalId": "G4",
+        "owner": "ecommerce",
+        "title": "ecommerce read slice",
+        "kind": "migration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-ecommerce/src/**",
+          "tests/unit/ecommerce/**"
+        ],
+        "resources": [
+          "owner:ecommerce"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next ecommerce head family (-1): 1->0. BEFORE=1.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -195990,10 +196046,10 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 2073,
+      "totalPackets": 2075,
       "migratedPackets": 330,
       "statusCounts": {
-        "pending": 18,
+        "pending": 20,
         "in_progress": 40,
         "ready_for_integration": 0,
         "integrating": 0,
@@ -196004,7 +196060,7 @@
       }
     },
     "lastCoordinatorGeneration": 175,
-    "updatedAt": "2026-11-25T03:43:27.355Z",
+    "updatedAt": "2026-11-25T03:43:44.976Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
