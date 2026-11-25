@@ -20,6 +20,7 @@ import {marketingModuleMemberSql} from "./module-membership";
 import {formAssetReadHead} from "./form-asset-read-head";
 import {marketingPurchaseRowsSql} from "./marketing-purchase-rows-sql";
 import {marketingSourceRowGuardSql} from "./attachment-owner-version-guard";
+import {marketingSelectHeadSql} from "./select-head-sql";
 export type MarketingPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 export type MarketingPurchaseTarget={kind:"asset"|"candidate"|"campaign"|"campaign-cost";id:string};
 export const marketingPurchaseAssetRows=marketingPurchaseRowsSql('asset');
@@ -35,7 +36,7 @@ export async function marketingCandidateReadFilter(alias:'c'|'marketing_lead_can
 type Source={id:string;company_id:string;branch_id:string|null;department_id:string|null;witness:string};
 const marketingAssignmentAllowedSql=(alias:string,permission:string)=>actorScopeAssignmentSql(assignmentReadSql(alias,permission),alias,' allowed');
 export function marketingPurchaseSourceReadLocks(database:SqlDatabase){return [...marketingExpenseSourceReadLocks(database),...crmMarketingSourceReadLocks(database),database.prepare("LOCK TABLE marketing_campaign_costs,marketing_public_limits,marketing_public_receipts IN SHARE ROW EXCLUSIVE MODE")];}
-async function source(database:SqlDatabase,actor:WorkContext,target:MarketingPurchaseTarget){const result=await database.prepare(`SELECT id,company_id,branch_id,department_id,witness::text witness FROM (${rows[target.kind]}) actual WHERE id=? AND company_id=? AND (?::text IS NULL OR branch_id IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id IS NULL OR department_id=?)`).bind(target.id,actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId).first<Source>();if(!result)throw new ApiError(404,"MARKETING_SOURCE_NOT_FOUND","The original Marketing source is unavailable in this workspace.");return result;}
+async function source(database:SqlDatabase,actor:WorkContext,target:MarketingPurchaseTarget){const result=await database.prepare(marketingSelectHeadSql('id,company_id,branch_id,department_id,witness::text witness',` FROM (${rows[target.kind]}) actual WHERE id=? AND company_id=? AND (?::text IS NULL OR branch_id IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id IS NULL OR department_id=?)`)).bind(target.id,actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId).first<Source>();if(!result)throw new ApiError(404,"MARKETING_SOURCE_NOT_FOUND","The original Marketing source is unavailable in this workspace.");return result;}
 export async function requireMarketingCurrentAuthority(database:SqlDatabase,actor:WorkContext,permissions:readonly string[],key:string){
  if(!actor.modules.includes('marketing'))throw new ApiError(403,'MODULE_FORBIDDEN','Your current role cannot access Marketing.');
  for(const permission of new Set(permissions)){

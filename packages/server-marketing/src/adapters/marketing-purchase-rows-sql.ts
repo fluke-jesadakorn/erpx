@@ -1,5 +1,6 @@
 import "server-only";
 import { crmMarketingCandidateSources } from "./crm-purchase-sources";
+import { marketingSelectHeadSql } from "./select-head-sql";
 
 /** Owner-local fixed witness-row projections for Marketing purchase reads.
  * The four admitted variants share one branch/department/witness frame; callers
@@ -32,5 +33,6 @@ export const marketingPurchaseRowsSql = (
     },
   }[variant];
   const id = variant === "campaign-cost" ? "cost" : variant;
-  return `SELECT ${id}.id,${id}.company_id,${spec.scope},${spec.witness} witness FROM ${spec.source}`;
+  const head = `${id}.id,${id}.company_id,${spec.scope},${spec.witness} witness`;
+  return marketingSelectHeadSql(head, ` FROM ${spec.source}`);
 };

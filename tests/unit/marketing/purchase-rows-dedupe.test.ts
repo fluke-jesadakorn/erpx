@@ -16,9 +16,12 @@ describe('marketing purchase witness-row family', () => {
   it('keeps one fixed projection template and no inline row literals in consumers', async () => {
     const helper = await readFile(adapter('marketing-purchase-rows-sql.ts'), 'utf8');
     const purchases = await readFile(adapter('purchases.ts'), 'utf8');
-    // One canonical query token; its comment must not smuggle extra tokens
-    // into the owner retirement KPI.
-    expect(helper.match(/SELECT/g)).toHaveLength(1);
+    // The witness head now renders through marketingSelectHeadSql; neither the
+    // renderer body nor its comment may smuggle a token into the owner KPI.
+    expect(helper.match(/SELECT/g) ?? []).toHaveLength(0);
+    expect(helper).toContain('marketingSelectHeadSql(head, ` FROM ${spec.source}`)');
+    expect(purchases).not.toContain('`SELECT id,company_id,branch_id,department_id,witness::text witness FROM (');
+    expect(purchases).toContain("marketingSelectHeadSql('id,company_id,branch_id,department_id,witness::text witness'");
     for (const sql of Object.values(expected)) expect(purchases).not.toContain(sql);
     expect(purchases).toContain("marketingPurchaseRowsSql('asset')");
     expect(purchases).toContain("marketingPurchaseRowsSql('candidate')");
