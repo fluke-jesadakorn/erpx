@@ -19,6 +19,7 @@ import {ATTACHMENT_STAR_ID_HEAD_SQL} from "../read-tail-r44-source-sql";
 import {ATTACHMENT_EVENTS_WHERE_HEAD_SQL,ATTACHMENT_SETS_STAR_WHERE_HEAD_SQL} from "../read-tail-r45-source-sql";
 import {SET_DRAFT_BOUND_COUNT_SQL} from "../read-tail-r46-source-sql";
 import {SET_ROW_DRAFT_LINK_EXISTS_HEAD_SQL} from "../read-tail-r47-source-sql";
+import {UPLOAD_INTENT_STAR_WHERE_HEAD_SQL} from "../read-tail-r49-source-sql";
 const setByIdSql = ATTACHMENT_SETS_STAR_WHERE_HEAD_SQL + "id=? AND company_id=?";
 export const usedStorageSql = "SELECT COALESCE(sum(bytes),0) FROM attachment_storage_ledger WHERE company_id=? AND state IN ('reserved','stored')";
 export const pendingStorageSql = "SELECT COALESCE(sum(declared_bytes),0) FROM upload_intents WHERE company_id=? AND status='pending' AND expires_at>?";
@@ -27,7 +28,7 @@ const attachmentChecksumSql = attachmentsByIdCompanySql('checksum_sha256,source_
 const setLockSql = "SELECT state FROM attachment_sets WHERE id=? AND company_id=? FOR UPDATE";
 const publicationByIdSql = attachmentPublicationByIdSql(true);
 const publicationOrderVersionSql = "SELECT version FROM attachment_publication_orders WHERE company_id=? AND target_type=? AND target_id=?";
-const uploadIntentForSetSql = "SELECT * FROM upload_intents WHERE id=? AND attachment_set_id IS NOT NULL AND created_by=? AND company_id=?";
+const uploadIntentForSetSql = UPLOAD_INTENT_STAR_WHERE_HEAD_SQL + "id=? AND attachment_set_id IS NOT NULL AND created_by=? AND company_id=?";
 const attachmentLinkSql = `${ATTACHMENT_LINK_PROJECTION_HEAD_SQL}s.state set_state,s.company_id FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.id=? AND s.company_id=?`;
 /** Byte-identical latest-change witness shared by the attested sanitization
  * read and its command assertion. The rendered SQL and binds are unchanged;

@@ -33,10 +33,13 @@ const HEADS = [P1, P2, H1, H2];
 /** r47 folded the draft-link EXISTS witness; rendered back only so this
  * r46 oracle still compares against pre-r47 BASE bytes. */
 const R47_A = 'SELECT 1 FROM attachment_links link WHERE link.set_id=set_row.id';
+/** r49 folded the upload-intent star head; rendered back only so this r46
+ * oracle still compares against pre-r49 BASE bytes. */
+const R49_A = 'SELECT * FROM upload_intents WHERE ';
 
 const stripImport = (text: string) => text
   .split('\n')
-  .filter(line => !line.includes('read-tail-r46-source-sql') && !line.includes('read-tail-r47-source-sql'))
+  .filter(line => !line.includes('read-tail-r46-source-sql') && !line.includes('read-tail-r47-source-sql') && !line.includes('read-tail-r49-source-sql'))
   .join('\n');
 /** Render the two closed-union helpers back to their original inline literals. */
 const renderMigration = (text: string) => stripImport(text)
@@ -45,7 +48,8 @@ const renderMigration = (text: string) => stripImport(text)
 const renderRepository = (text: string) => stripImport(text)
   .replaceAll('db.prepare(SET_DRAFT_BOUND_COUNT_SQL(true))', `db.prepare("${H1}")`)
   .replaceAll('db.prepare(SET_DRAFT_BOUND_COUNT_SQL(false))', `db.prepare("${H2}")`)
-  .replaceAll('${SET_ROW_DRAFT_LINK_EXISTS_HEAD_SQL}', R47_A);
+  .replaceAll('${SET_ROW_DRAFT_LINK_EXISTS_HEAD_SQL}', R47_A)
+  .replaceAll('UPLOAD_INTENT_STAR_WHERE_HEAD_SQL + "', '"' + R49_A);
 
 const tsFiles = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
   const path = resolve(dir, entry.name);
@@ -140,8 +144,8 @@ describe('Files read-tail r46 byte-oracle dedupe', () => {
     }
     // Two closed-union families fold two sites into one helper each (-2):
     // the orphan-preservation event head and the draft/bound link count head.
-    expect(literal).toBe(229);
-    expect(total).toBe(230);
+    expect(literal).toBe(226);
+    expect(total).toBe(227);
     expect(literal).toBeLessThan(239);
     expect(total).toBeLessThan(240);
   });

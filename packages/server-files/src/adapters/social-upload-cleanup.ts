@@ -5,6 +5,7 @@ import {ApiError} from '@erpx/server-runtime/public/http';
 import {recordAttachmentVersionSteps} from '@erpx/server-files/adapters/record-version-receipts';
 import {jsonbRowsSql} from './social-upload-cleanup-rows-sql';
 import {CLEANUP_LINK_ROWS_HEAD_SQL,CLEANUP_BOUND_COMMAND_ID_HEAD_SQL} from './read-tail-r47-source-sql';
+import {UPLOAD_INTENT_STAR_WHERE_HEAD_SQL} from './read-tail-r49-source-sql';
 type Row=Record<string,unknown>;
 type Graph={attachments:Row[];uploads:Row[];sets:Row[];links:Row[];events:Row[];receipts:Row[];audits:Row[];publications:Row[];steps:Row[]};
 export type SocialUploadCleanupFiles=Readonly<{kind:'social-upload-cleanup-files'}>;
@@ -15,7 +16,7 @@ const image=(value:unknown)=>createHash('sha256').update(JSON.stringify(canonica
 export function socialUploadCleanupFileLocks(db:SqlDatabase){return db.prepare('LOCK TABLE attachments,upload_intents,attachment_links,attachment_sets,attachment_events,attachment_publications,audit_events IN SHARE ROW EXCLUSIVE MODE');}
 async function graph(db:SqlDatabase,input:{id:string;companyId:string}){
  const raw=await db.prepare(`WITH owned_sets AS(SELECT * FROM attachment_sets WHERE target_type='social_draft' AND target_id=?),
- uploads AS(SELECT * FROM upload_intents WHERE owner_type='social_draft' AND owner_id=?),
+ uploads AS(${UPLOAD_INTENT_STAR_WHERE_HEAD_SQL}owner_type='social_draft' AND owner_id=?),
  files AS(SELECT * FROM attachments a WHERE a.owner_type='social_draft' AND a.owner_id=? OR EXISTS(SELECT 1 FROM uploads u WHERE u.id=a.upload_id)),
  direct_links AS(${CLEANUP_LINK_ROWS_HEAD_SQL}set_id IN(SELECT id FROM owned_sets) OR l.attachment_id IN(SELECT id FROM files) OR l.upload_intent_id IN(SELECT id FROM uploads)),
  links AS(${CLEANUP_LINK_ROWS_HEAD_SQL}id IN(SELECT id FROM direct_links) OR l.supersedes_link_id IN(SELECT id FROM direct_links)),

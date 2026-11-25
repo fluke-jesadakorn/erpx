@@ -37,20 +37,27 @@ const D = 'SELECT source.id source_id\n                          FROM ';
 /** The helper stores D with an escaped newline, so its source text is distinct. */
 const D_SRC = 'SELECT source.id source_id\\n                          FROM ';
 const HEADS = [A, B, C, D];
+/** r49 folded the upload-intent star head and the leave count head; rendered
+ * back only so this r47 oracle still compares against pre-r49 HEAD bytes. */
+const R49_A = 'SELECT * FROM upload_intents WHERE ';
+const R49_D = 'SELECT count(*)\n';
 
 const stripImport = (text: string) => text
   .split('\n')
-  .filter(line => !line.includes('read-tail-r47-source-sql'))
+  .filter(line => !line.includes('read-tail-r47-source-sql') && !line.includes('read-tail-r49-source-sql'))
   .join('\n');
 /** Render each site back to its exact pre-r47 inline literals. */
 const renderSR = (text: string) => stripImport(text)
-  .replaceAll('${SET_ROW_DRAFT_LINK_EXISTS_HEAD_SQL}', A);
+  .replaceAll('${SET_ROW_DRAFT_LINK_EXISTS_HEAD_SQL}', A)
+  .replaceAll('UPLOAD_INTENT_STAR_WHERE_HEAD_SQL + "', '"' + R49_A);
 const renderCleanup = (text: string) => stripImport(text)
   .replaceAll('${CLEANUP_LINK_ROWS_HEAD_SQL}', B)
   .replaceAll("'c.command_id IN('+CLEANUP_BOUND_COMMAND_ID_HEAD_SQL", "'c.command_id IN(" + C + "'")
-  .replaceAll("'a.command_id IN('+CLEANUP_BOUND_COMMAND_ID_HEAD_SQL", "'a.command_id IN(" + C + "'");
+  .replaceAll("'a.command_id IN('+CLEANUP_BOUND_COMMAND_ID_HEAD_SQL", "'a.command_id IN(" + C + "'")
+  .replaceAll('${UPLOAD_INTENT_STAR_WHERE_HEAD_SQL}', R49_A);
 const renderLeave = (text: string) => stripImport(text)
-  .replaceAll('${LEAVE_LEGACY_SOURCE_ID_HEAD_SQL}', D);
+  .replaceAll('${LEAVE_LEGACY_SOURCE_ID_HEAD_SQL}', D)
+  .replaceAll('${LEAVE_COUNT_HEAD_SQL}', R49_D);
 
 const tsFiles = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
   const path = resolve(dir, entry.name);
@@ -162,8 +169,8 @@ describe('Files read-tail r47 byte-oracle dedupe', () => {
     // Four closed-union families fold two sites into one helper each (-4):
     // draft-link EXISTS witness, cleanup direct-link CTE, cleanup bound-command
     // id witness and leave-evidence legacy source-id projection.
-    expect(literal).toBe(229);
-    expect(total).toBe(230);
+    expect(literal).toBe(226);
+    expect(total).toBe(227);
     expect(literal).toBeLessThan(237);
     expect(total).toBeLessThan(238);
   });

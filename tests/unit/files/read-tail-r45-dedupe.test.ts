@@ -33,6 +33,9 @@ const C2 = "SELECT count(*) FROM attachment_links l JOIN attachment_sets s ON s.
 /** r47 folded the draft-link EXISTS witness; rendered back only so this
  * r45 oracle still compares against pre-r46/r47 HEAD bytes. */
 const R47_A = 'SELECT 1 FROM attachment_links link WHERE link.set_id=set_row.id';
+/** r49 folded the upload-intent star head; rendered back only so this r45
+ * oracle still compares against pre-r49 HEAD bytes. */
+const R49_A = 'SELECT * FROM upload_intents WHERE ';
 
 /** The single r45 family-2 site: guardPublishImage's own inline literal. The
  * other three collaboration-home sites already used socialDraftImageExistsSql
@@ -42,7 +45,7 @@ const F2_SITE = '${socialDraftImageExistsSql}upload_intents u ON u.id=a.upload_i
 
 const stripImport = (text: string) => text
   .split('\n')
-  .filter(line => !line.includes('read-tail-r45-source-sql') && !line.includes('read-tail-r46-source-sql') && !line.includes('read-tail-r47-source-sql'))
+  .filter(line => !line.includes('read-tail-r45-source-sql') && !line.includes('read-tail-r46-source-sql') && !line.includes('read-tail-r47-source-sql') && !line.includes('read-tail-r49-source-sql'))
   .join('\n');
 /** Render the r45 heads (and the later r46 substitutions) back to literals. */
 const render = (text: string) => stripImport(text)
@@ -54,7 +57,8 @@ const render = (text: string) => stripImport(text)
   .replaceAll("${ORPHAN_PRESERVATION_EVENT_HEAD_SQL('restored')}", P2)
   .replaceAll('db.prepare(SET_DRAFT_BOUND_COUNT_SQL(true))', `db.prepare("${C1}")`)
   .replaceAll('db.prepare(SET_DRAFT_BOUND_COUNT_SQL(false))', `db.prepare("${C2}")`)
-  .replaceAll('${SET_ROW_DRAFT_LINK_EXISTS_HEAD_SQL}', R47_A);
+  .replaceAll('${SET_ROW_DRAFT_LINK_EXISTS_HEAD_SQL}', R47_A)
+  .replaceAll('UPLOAD_INTENT_STAR_WHERE_HEAD_SQL + "', '"' + R49_A);
 
 const tsFiles = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
   const path = resolve(dir, entry.name);
@@ -150,8 +154,8 @@ describe('Files read-tail r45 byte-oracle dedupe', () => {
     // Three heads fold two sites into one each (-3): unaliased attachment_events,
     // attachment_sets star and the guardPublishImage EXISTS prefix.
     // r46 folds two closed-union heads (orphan-preservation event, draft/bound count): 239->237.
-    expect(literal).toBe(229);
-    expect(total).toBe(230);
+    expect(literal).toBe(226);
+    expect(total).toBe(227);
     expect(literal).toBeLessThan(242);
     expect(total).toBeLessThan(243);
   });
