@@ -90,8 +90,8 @@ describe('support read-tail r43 byte-identical column-projection head', () => {
     expect(portalValidBindingSelect).toBe(portalRead);
   });
 
-  test('retirement:ts-statements drops from the r42 AFTER=34 to 33', () => {
-    expect(totalSelects()).toBe(33);
-    expect(totalSelects()).toBeLessThan(34);
+  test('retirement:ts-statements drops from the r43 AFTER=33 to 32', () => {
+    expect(totalSelects()).toBe(32);
+    expect(totalSelects()).toBeLessThan(33);
   });
 });

@@ -1,4 +1,5 @@
 import 'server-only';
+import { readTailR44ImageAggregateSql } from './read-tail-r44-sql';
 
 /** Canonical parameterized fragments for the Support ticket-portal image reads.
  * `supportTicketPortalImage` and `supportTicketPortalCoreImage` share one
@@ -10,10 +11,10 @@ export const portalImageSelectedCte = (ids: string[]) =>
   `WITH selected AS(SELECT * FROM support_ticket_portal_bindings WHERE id IN (${ids.map(() => '?').join(',')}))`;
 
 export const portalBindingImageSql = () =>
-  `(SELECT jsonb_agg(to_jsonb(binding) ORDER BY binding.id) FROM selected binding)`;
+  readTailR44ImageAggregateSql('binding', 'binding.id', 'selected binding');
 
 export const portalBoundImageSql = (alias: string, table: string, orderBy: string, predicate: string) =>
-  `(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.${orderBy}) FROM ${table} ${alias} WHERE EXISTS(SELECT 1 FROM selected binding WHERE ${predicate}))`;
+  readTailR44ImageAggregateSql(alias, `${alias}.${orderBy}`, `${table} ${alias} WHERE EXISTS(SELECT 1 FROM selected binding WHERE ${predicate})`);
 
 /** One byte-identical outer image aggregate for the full and core portal image
  * readers. They differ only by the bound-row image list; both keep their own

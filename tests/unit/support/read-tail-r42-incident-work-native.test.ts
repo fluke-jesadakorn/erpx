@@ -99,9 +99,9 @@ describe('Support read-tail r42 incident work native kind', () => {
         expect(registry).not.toContain('LOCK TABLE');
     });
 
-    test('retirement:ts-statements drops 35->33 and the registry grows 49->50', () => {
-        expect(countSelect(true)).toBe(33);
-        expect(countSelect(false)).toBe(33);
+    test('retirement:ts-statements drops 35->32 and the registry grows 49->50', () => {
+        expect(countSelect(true)).toBe(32);
+        expect(countSelect(false)).toBe(32);
         expect(registry).toContain('assert_eq!(STATEMENTS.len(), 50);');
     });
 });

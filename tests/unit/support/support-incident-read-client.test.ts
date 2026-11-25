@@ -193,7 +193,8 @@ describe('Support ticket-portal image read-tail r17 parameterized-family dedupe'
 
   it('renders byte-identical bound-row image SQL from one canonical helper', async () => {
     const shared = await src('adapters/ticket-portal-image-sql.ts');
-    expect(shared.match(/\(SELECT jsonb_agg\(to_jsonb\(\$\{alias\}\) ORDER BY \$\{alias\}\.\$\{orderBy\}\) FROM \$\{table\} \$\{alias\} WHERE EXISTS\(SELECT 1 FROM selected binding WHERE \$\{predicate\}\)\)/g)).toHaveLength(1);
+    expect(shared.match(/readTailR44ImageAggregateSql\(/g)).toHaveLength(2);
+    expect(shared).toContain('readTailR44ImageAggregateSql(alias, `${alias}.${orderBy}`, `${table} ${alias} WHERE EXISTS(SELECT 1 FROM selected binding WHERE ${predicate})`)');
     expect(shared).toContain('portalBoundImageSql');
     expect(shared).toContain('portalImageSelectedCte');
     expect(shared).toContain('portalBindingImageSql');
