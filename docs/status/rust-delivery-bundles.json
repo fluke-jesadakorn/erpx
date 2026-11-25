@@ -191981,9 +191981,18 @@
           "generation": 174
         },
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "c17fd9c7e93b28b8fae6e2357b096982fb6bbf85",
+        "lastPushedSha": "c17fd9c7e93b28b8fae6e2357b096982fb6bbf85",
+        "checks": [
+          {
+            "command": "retirement:ts-statements",
+            "result": "passed",
+            "sourceSha": "c17fd9c7e93b28b8fae6e2357b096982fb6bbf85",
+            "before": 133,
+            "after": 132,
+            "note": "Byte-identical literal fold integrated; acceptance deferred."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Next legal head family (-1): 133->132. BEFORE=133.",
@@ -192016,9 +192025,18 @@
           "generation": 174
         },
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "c17fd9c7e93b28b8fae6e2357b096982fb6bbf85",
+        "lastPushedSha": "c17fd9c7e93b28b8fae6e2357b096982fb6bbf85",
+        "checks": [
+          {
+            "command": "retirement:ts-statements",
+            "result": "passed",
+            "sourceSha": "c17fd9c7e93b28b8fae6e2357b096982fb6bbf85",
+            "before": 295,
+            "after": 294,
+            "note": "Byte-identical literal fold integrated; acceptance deferred."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Next inventory head family (-1): 295->294. BEFORE=295.",
@@ -192051,9 +192069,18 @@
           "generation": 174
         },
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "c17fd9c7e93b28b8fae6e2357b096982fb6bbf85",
+        "lastPushedSha": "c17fd9c7e93b28b8fae6e2357b096982fb6bbf85",
+        "checks": [
+          {
+            "command": "retirement:ts-statements",
+            "result": "passed",
+            "sourceSha": "c17fd9c7e93b28b8fae6e2357b096982fb6bbf85",
+            "before": 23,
+            "after": 22,
+            "note": "Byte-identical literal fold integrated; acceptance deferred."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Next quality head family (-1): 23->22. BEFORE=23.",
@@ -192121,9 +192148,18 @@
           "generation": 174
         },
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "c17fd9c7e93b28b8fae6e2357b096982fb6bbf85",
+        "lastPushedSha": "c17fd9c7e93b28b8fae6e2357b096982fb6bbf85",
+        "checks": [
+          {
+            "command": "retirement:ts-statements",
+            "result": "passed",
+            "sourceSha": "c17fd9c7e93b28b8fae6e2357b096982fb6bbf85",
+            "before": 31,
+            "after": 30,
+            "note": "Byte-identical literal fold integrated; acceptance deferred."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Next workflow head family (-1): 31->30. BEFORE=31.",
@@ -192156,9 +192192,18 @@
           "generation": 174
         },
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "c17fd9c7e93b28b8fae6e2357b096982fb6bbf85",
+        "lastPushedSha": "c17fd9c7e93b28b8fae6e2357b096982fb6bbf85",
+        "checks": [
+          {
+            "command": "retirement:ts-statements",
+            "result": "passed",
+            "sourceSha": "c17fd9c7e93b28b8fae6e2357b096982fb6bbf85",
+            "before": 8,
+            "after": 7,
+            "note": "Byte-identical literal fold integrated; acceptance deferred."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Next billing head family (-1): 8->7. BEFORE=8.",
@@ -192191,9 +192236,18 @@
           "generation": 174
         },
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "c17fd9c7e93b28b8fae6e2357b096982fb6bbf85",
+        "lastPushedSha": "c17fd9c7e93b28b8fae6e2357b096982fb6bbf85",
+        "checks": [
+          {
+            "command": "retirement:ts-statements",
+            "result": "passed",
+            "sourceSha": "c17fd9c7e93b28b8fae6e2357b096982fb6bbf85",
+            "before": 1198,
+            "after": 1197,
+            "note": "Byte-identical literal fold integrated; acceptance deferred."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Next payroll head family (-1): 1198->1197. BEFORE=1198.",
@@ -192226,9 +192280,18 @@
           "generation": 174
         },
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "c17fd9c7e93b28b8fae6e2357b096982fb6bbf85",
+        "lastPushedSha": "c17fd9c7e93b28b8fae6e2357b096982fb6bbf85",
+        "checks": [
+          {
+            "command": "retirement:ts-statements",
+            "result": "passed",
+            "sourceSha": "c17fd9c7e93b28b8fae6e2357b096982fb6bbf85",
+            "before": 1704,
+            "after": 1703,
+            "note": "Byte-identical literal fold integrated; acceptance deferred."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Next finance head family (-1): 1704->1703. BEFORE=1704.",
@@ -192261,9 +192324,18 @@
           "generation": 174
         },
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "c17fd9c7e93b28b8fae6e2357b096982fb6bbf85",
+        "lastPushedSha": "c17fd9c7e93b28b8fae6e2357b096982fb6bbf85",
+        "checks": [
+          {
+            "command": "retirement:ts-statements",
+            "result": "passed",
+            "sourceSha": "c17fd9c7e93b28b8fae6e2357b096982fb6bbf85",
+            "before": 172,
+            "after": 171,
+            "note": "Byte-identical literal fold integrated; acceptance deferred."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Next pos head family (-1): 172->171. BEFORE=172.",
@@ -192331,9 +192403,18 @@
           "generation": 174
         },
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "c17fd9c7e93b28b8fae6e2357b096982fb6bbf85",
+        "lastPushedSha": "c17fd9c7e93b28b8fae6e2357b096982fb6bbf85",
+        "checks": [
+          {
+            "command": "retirement:ts-statements",
+            "result": "passed",
+            "sourceSha": "c17fd9c7e93b28b8fae6e2357b096982fb6bbf85",
+            "before": 409,
+            "after": 408,
+            "note": "Byte-identical literal fold integrated; acceptance deferred."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Next commerce head family (-1): 409->408. BEFORE=409.",
@@ -192611,9 +192692,18 @@
           "generation": 174
         },
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "c17fd9c7e93b28b8fae6e2357b096982fb6bbf85",
+        "lastPushedSha": "c17fd9c7e93b28b8fae6e2357b096982fb6bbf85",
+        "checks": [
+          {
+            "command": "retirement:ts-statements",
+            "result": "passed",
+            "sourceSha": "c17fd9c7e93b28b8fae6e2357b096982fb6bbf85",
+            "before": 35,
+            "after": 34,
+            "note": "Byte-identical literal fold integrated; acceptance deferred."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Next learning head family (-1): 35->34. BEFORE=35.",
