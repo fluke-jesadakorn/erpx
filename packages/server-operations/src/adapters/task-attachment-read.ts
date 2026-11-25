@@ -1,6 +1,7 @@
 import 'server-only';
 import {workforceActorScopeSql} from './workforce-actor-scope-source';
 import {OPERATIONS_TASK_DELEGATION_SOURCE_SQL,OPERATIONS_TASK_TEMPLATE_SOURCE_SQL,OPERATIONS_TASK_SCHEDULE_SOURCE_SQL} from './task-delegation-source';
+import {operationsJsonbImageHead} from './read-tail-r61-sources';
 import {randomUUID} from 'node:crypto';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {lockQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
@@ -23,14 +24,14 @@ import {ApiError} from '@erpx/server-runtime/public/http';
 import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 
 async function taskImage(database:SqlDatabase,actor:WorkContext,id:string){
- return database.prepare(`SELECT jsonb_build_object('task',to_jsonb(t),'project',project.image,
+ return database.prepare(operationsJsonbImageHead(`task',to_jsonb(t),'project',project.image,
  'template',${OPERATIONS_TASK_TEMPLATE_SOURCE_SQL},
  'schedule',${OPERATIONS_TASK_SCHEDULE_SOURCE_SQL},
  'delegations',${OPERATIONS_TASK_DELEGATION_SOURCE_SQL},
  'social',social.image,'native_social',social.work_social)::text image
  FROM staff_tasks t LEFT JOIN (${projectTaskAttachmentReadSources}) project ON project.task_id=t.id AND project.company_id=t.company_id
  LEFT JOIN (${workTaskSocialFileSourceRows}) social ON social.id=t.id AND social.company_id=t.company_id
- WHERE t.id=? AND t.company_id=?`).bind(id,actor.companyId).first<string>('image');
+ WHERE t.id=? AND t.company_id=?`)).bind(id,actor.companyId).first<string>('image');
 }
 function changed(){return new ApiError(409,'WORK_TASK_FILE_READ_CHANGED','The private task evidence, source or current authority changed while the file was being read.');}
 async function current(database:SqlDatabase,actor:WorkContext){

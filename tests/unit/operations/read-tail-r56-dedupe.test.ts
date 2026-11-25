@@ -113,7 +113,7 @@ describe('operations read-tail r56 bare SELECT-1-FROM head consolidation', () =>
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(63);
+    expect(total).toBe(62);
     expect(total).toBeLessThan(68);
   });
 });

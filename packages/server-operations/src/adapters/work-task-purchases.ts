@@ -1,5 +1,6 @@
 import 'server-only';
 import {operationsChildJsonByBoundId} from './task-delegation-source';
+import {operationsJsonbImageHead} from './read-tail-r61-sources';
 import {operationsClockProbe,operationsActorScopeInputExists} from './workforce-actor-scope-source';
 import {randomUUID} from 'node:crypto';
 import {nativeOperationsReadFirst,OPERATIONS_RD_WORK_TASK_SOURCE,OPERATIONS_RD_WORK_TASK_IMAGE,OPERATIONS_RD_WORK_TASK_REPLAY_RECEIPT} from './native-operations-read';
@@ -39,7 +40,7 @@ async function capabilities(database:SqlDatabase,actor:StaffActor,task:TaskSourc
  * literal; the caller runs it on its open unit with the unchanged `[id, company]`
  * bind, and `first('image')` becomes the first row's `image` column. */
 const taskImage=(database:SqlDatabase,id:string,companyId:string)=>nativeOperationsReadFirst<{image:string}>(OPERATIONS_RD_WORK_TASK_IMAGE,[id,companyId],database).then(row=>row?.image??null);
-const referencesImageSql=`SELECT jsonb_build_object('template',${operationsChildJsonByBoundId('routine_templates','t')},'schedule',${operationsChildJsonByBoundId('routine_schedules','s')})::text image`;
+const referencesImageSql=operationsJsonbImageHead(`template',${operationsChildJsonByBoundId('routine_templates','t')},'schedule',${operationsChildJsonByBoundId('routine_schedules','s')})::text image`);
 /** A complete existing owner unit composes both actual Project and ordinary
  * Work sources. No Work purchase is added to Project-only task foundations. */
 export async function withWorkTaskPurchasedCommand<Result>(owner:SqlDatabase,actor:StaffActor,command:Command,run:(database:SqlDatabase)=>Promise<Result>){

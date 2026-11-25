@@ -122,7 +122,7 @@ describe('operations read-tail r57 explicit-column projection head consolidation
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(63);
+    expect(total).toBe(62);
     expect(total).toBeLessThan(67);
   });
 });
