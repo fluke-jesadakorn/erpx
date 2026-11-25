@@ -2,7 +2,7 @@ import {ppRd42FourColOwnerProjection} from './pp-read-tail-r42-sources';
 import {ppRd45EngagementProjection,ppRd45PeopleProjection} from './pp-read-tail-r45-sources';
 import {ppRd32TwoColProjection} from './pp-read-tail-r32-sources';
 import "server-only";
-import {PP_RD15_COMMAND_RECEIPT_PRIOR_SQL} from './pp-read-tail-r15-sources';
+import {commandReceiptPrior} from './pp-read-tail-r53-native';
 import {PP_RD29_IAM_ROLE_ACTIVE_SQL} from './pp-read-tail-r29-sources';
 import {randomUUID} from "node:crypto";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
@@ -53,7 +53,7 @@ export async function withPeoplePurchasedCommand<Result>(actor:WorkContext,comma
  const execute=async(database:SqlDatabase)=>{
   const composition=compositions.get(database);if(!composition||composition.companyId&&composition.companyId!==actor.companyId)throw new ApiError(503,"PEOPLE_COMPOSITION_REQUIRED","People requires the complete owned Holding transaction.");
   await database.batch(companyPurchaseReadLocks(database,actor.companyId));
-  const replay=await database.prepare(PP_RD15_COMMAND_RECEIPT_PRIOR_SQL).bind(command.key,command.operation,actor.userId,actor.companyId).first();
+  const replay=await commandReceiptPrior(database,command.key,command.operation,actor.userId,actor.companyId);
   const scope={companyId:actor.companyId,capability:command.capability,purpose:replay?"history" as const:command.purpose},key=`people-purchase:${randomUUID()}`,boundary=purchaseCommandBoundary(database,mode,key,scope)!;
   const before=command.target?await source(database,command.target):null;
   if(command.target&&(!before||before.company_id!==actor.companyId))throw new ApiError(404,"PEOPLE_SOURCE_NOT_FOUND","The People source was not found in this Company.");

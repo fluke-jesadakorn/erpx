@@ -212,6 +212,47 @@ const READ_EVALUATION_PAY_BASIS_ROW: NativeReadStatement = NativeReadStatement {
     bind_count: 3,
 };
 
+/// Native successors of the four TypeScript `pp-read-tail-r20` roster-assignment
+/// point reads. The owner plans each literal once; callers execute it on their
+/// open unit with the original `[id]` / `[shift_id]` binds. Locked variants stay
+/// at the caller and are never registered here.
+pub const RD_ROSTER_ASSIGNMENT_BY_ID: &str = "people_payroll_rd_roster_assignment_by_id";
+const SQL_ROSTER_ASSIGNMENT_BY_ID: &str = "SELECT * FROM people_roster_assignments WHERE id=?";
+const READ_ROSTER_ASSIGNMENT_BY_ID: NativeReadStatement = NativeReadStatement {
+    kind: RD_ROSTER_ASSIGNMENT_BY_ID,
+    sql: SQL_ROSTER_ASSIGNMENT_BY_ID,
+    bind_count: 1,
+};
+
+pub const RD_ROSTER_ASSIGNMENT_BY_SHIFT: &str = "people_payroll_rd_roster_assignment_by_shift";
+const SQL_ROSTER_ASSIGNMENT_BY_SHIFT: &str = "SELECT * FROM people_roster_assignments WHERE shift_id=? AND state='assigned'";
+const READ_ROSTER_ASSIGNMENT_BY_SHIFT: NativeReadStatement = NativeReadStatement {
+    kind: RD_ROSTER_ASSIGNMENT_BY_SHIFT,
+    sql: SQL_ROSTER_ASSIGNMENT_BY_SHIFT,
+    bind_count: 1,
+};
+
+/// Native successor of the six TypeScript `pp-read-tail-r15` command-receipt
+/// replay-prior reads. Same literal, same `[command_id, operation, actor_id,
+/// company_id]` binds; the surrounding purchase/lock fences stay at the caller.
+pub const RD_COMMAND_RECEIPT_PRIOR: &str = "people_payroll_rd_command_receipt_prior";
+const SQL_COMMAND_RECEIPT_PRIOR: &str = "SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?";
+const READ_COMMAND_RECEIPT_PRIOR: NativeReadStatement = NativeReadStatement {
+    kind: RD_COMMAND_RECEIPT_PRIOR,
+    sql: SQL_COMMAND_RECEIPT_PRIOR,
+    bind_count: 4,
+};
+
+/// Native successor of the three TypeScript `pp-read-tail-r15` active-payee
+/// reads. Same literal and `[id, company_id]` binds.
+pub const RD_ACTIVE_PAYEE: &str = "people_payroll_rd_active_payee";
+const SQL_ACTIVE_PAYEE: &str = "SELECT id,version,legal_name,preferred_name FROM hr_people WHERE id=? AND company_id=? AND status='active' AND merged_into_id IS NULL";
+const READ_ACTIVE_PAYEE: NativeReadStatement = NativeReadStatement {
+    kind: RD_ACTIVE_PAYEE,
+    sql: SQL_ACTIVE_PAYEE,
+    bind_count: 2,
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_RECORD_SUPPLEMENT_ROWS,
     READ_ORG_ROSTER_EXIT_ENGAGEMENT_IDS,
@@ -230,6 +271,10 @@ const READS: &[NativeReadStatement] = &[
     READ_PAYROLL_ITEM_SOURCE_ROWS,
     READ_EVALUATION_ENGAGEMENT_TIMEZONE,
     READ_EVALUATION_PAY_BASIS_ROW,
+    READ_ROSTER_ASSIGNMENT_BY_ID,
+    READ_ROSTER_ASSIGNMENT_BY_SHIFT,
+    READ_COMMAND_RECEIPT_PRIOR,
+    READ_ACTIVE_PAYEE,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -429,6 +474,33 @@ mod tests {
         assert_eq!(read.sql.matches('?').count(), 3);
         assert!(read.sql.contains("hr_evaluation_pay_basis"));
         assert!(is_read(RD_EVALUATION_PAY_BASIS_ROW));
+    }
+
+    #[test]
+    fn r53_read_registry_matches_retired_literals_and_binds() {
+        let cases = [
+            (RD_ROSTER_ASSIGNMENT_BY_ID, "SELECT * FROM people_roster_assignments WHERE id=?", 1usize),
+            (RD_ROSTER_ASSIGNMENT_BY_SHIFT, "SELECT * FROM people_roster_assignments WHERE shift_id=? AND state='assigned'", 1usize),
+            (RD_COMMAND_RECEIPT_PRIOR, "SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?", 4usize),
+            (RD_ACTIVE_PAYEE, "SELECT id,version,legal_name,preferred_name FROM hr_people WHERE id=? AND company_id=? AND status='active' AND merged_into_id IS NULL", 2usize),
+        ];
+        for (kind, literal, binds) in cases {
+            let read = read_statement(kind).expect("read kind");
+            assert_eq!(read.kind, kind);
+            assert_eq!(read.sql, literal);
+            assert_eq!(read.bind_count, binds);
+            assert_eq!(read.sql.matches('?').count(), binds);
+            let upper = read.sql.to_ascii_uppercase();
+            assert!(upper.starts_with("SELECT"));
+            assert!(!upper.contains("INSERT"));
+            assert!(!upper.contains("UPDATE"));
+            assert!(!upper.contains("DELETE"));
+            assert!(!upper.contains("FOR UPDATE"));
+            assert!(!upper.contains("FOR SHARE"));
+            assert!(is_read(kind));
+        }
+        assert_eq!(READS.len(), 21);
+        assert!(!is_read("people_payroll_stmt_1"));
     }
 
     #[test]

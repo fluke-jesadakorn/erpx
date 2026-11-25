@@ -34,6 +34,10 @@ export const PEOPLE_PAYROLL_RD_PROJECT_WORKER_PERSON_USER = 'people_payroll_rd_p
 export const PEOPLE_PAYROLL_RD_PAYROLL_ITEM_SOURCE_ROWS = 'people_payroll_rd_payroll_item_source_rows';
 export const PEOPLE_PAYROLL_RD_EVALUATION_ENGAGEMENT_TIMEZONE = 'people_payroll_rd_evaluation_engagement_timezone';
 export const PEOPLE_PAYROLL_RD_EVALUATION_PAY_BASIS_ROW = 'people_payroll_rd_evaluation_pay_basis_row';
+export const PEOPLE_PAYROLL_RD_ROSTER_ASSIGNMENT_BY_ID = 'people_payroll_rd_roster_assignment_by_id';
+export const PEOPLE_PAYROLL_RD_ROSTER_ASSIGNMENT_BY_SHIFT = 'people_payroll_rd_roster_assignment_by_shift';
+export const PEOPLE_PAYROLL_RD_COMMAND_RECEIPT_PRIOR = 'people_payroll_rd_command_receipt_prior';
+export const PEOPLE_PAYROLL_RD_ACTIVE_PAYEE = 'people_payroll_rd_active_payee';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'PEOPLE_PAYROLL_NATIVE_READ_UNAVAILABLE', 'The native People Payroll read service is unavailable.');

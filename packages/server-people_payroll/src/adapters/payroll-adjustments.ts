@@ -7,7 +7,7 @@ import { ppRd35PayrollItemsByRun } from './pp-read-tail-r35-sources';
 import { ppRd27IdCompanyEngagementApprovedVersionGuard } from './pp-read-tail-r27-sources';
 import { ppRd21IdCompanyStatusVersionGuard } from './pp-read-tail-r21-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
-import {PP_RD15_ACTIVE_PAYEE_SQL} from './pp-read-tail-r15-sources';
+import {activePayee} from './pp-read-tail-r53-native';
 import { withPayrollPurchasedCommand, withPayrollPurchasedRead } from "@erpx/server-people_payroll/adapters/payroll-purchases";
 import "server-only";
 import { z } from "zod";
@@ -55,7 +55,7 @@ function application(provided?: SqlDatabase) {
         stageEditPayrollAdjustmentEffect4(now: number, runId: string) { return nativePpStatement('pp_payroll_adjustments_stmt_7').bind(now, runId); },
         readPayrollAdjustmentInputsRow(id: string, company_id: string) { return database.prepare("SELECT a.*,v.id revision_id,v.taxable_arrears_minor,v.non_taxable_arrears_minor,v.social_security_wage_minor,v.time_entries_json,v.reason,v.evidence_ref FROM hr_payroll_adjustments a JOIN hr_payroll_adjustment_revisions v ON v.run_id=a.run_id AND v.revision=a.source_revision WHERE a.run_id=? AND a.company_id=? AND a.active").bind(id, company_id).first<Row>(); },
         readPayrollAdjustmentInputsEngagement(engagement_id: unknown, company_id: string) { return database.prepare(ppRd46ByIdCompanyStatusIn('id,version,person_id,worker_type,employment_type,start_date,end_date,job_title,branch_id,department_id','hr_engagements',"'active','ended'")).bind(engagement_id, company_id).first<Row>(); },
-        readPayrollAdjustmentInputsPayee(value: unknown, company_id: string) { return database.prepare(PP_RD15_ACTIVE_PAYEE_SQL).bind(value, company_id).first<Row>(); },
+        readPayrollAdjustmentInputsPayee(value: unknown, company_id: string) { return activePayee<Row>(database, value, company_id); },
         readPayrollAdjustmentInputsPriorAdjustments(original_item_id: unknown, id: string) { return database.prepare("SELECT a.run_id,i.result_json,r.input_digest FROM hr_payroll_adjustments a JOIN hr_payroll_runs r ON r.id=a.run_id JOIN hr_payroll_items i ON i.run_id=r.id WHERE a.original_item_id=? AND r.status='posted' AND r.id<>? ORDER BY r.pay_date,r.id").bind(original_item_id, id).all<Row>(); },
         stageCalculatePayrollAdjustmentRunEffect(id: string) { return database.prepare("SELECT id FROM hr_payroll_runs WHERE id=? FOR UPDATE").bind(id); },
         guard23(key: string, value: "adjustment-run-version", id: string, companyId: string, version: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_payroll_runs WHERE id=? AND company_id=? AND version=? AND status IN ('draft','calculating','preview','failed') AND (submitted_by IS NULL OR status='calculating' AND approved_by IS NULL))", [id, companyId, version]); },

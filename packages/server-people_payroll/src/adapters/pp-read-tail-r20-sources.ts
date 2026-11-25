@@ -1,11 +1,10 @@
 import 'server-only';
 /** Canonical byte-identical SELECT-only owner fragments shared across People Payroll
- * adapters (G4 read-tail r20): roster assignment point reads, payroll posting/run
- * selects and snapshot projection tails. Each constant owns one literal copied verbatim
- * from its former inline copies; consumers import it and keep no local copy. All are pure
- * reads: no INSERT, UPDATE, DELETE, LOCK TABLE, FOR UPDATE/SHARE or advisory lock. */
-export const PP_RD20_ROSTER_ASSIGN_BY_ID_SQL = "SELECT * FROM people_roster_assignments WHERE id=?";
-export const PP_RD20_ROSTER_ASSIGN_BY_SHIFT_SQL = "SELECT * FROM people_roster_assignments WHERE shift_id=? AND state='assigned'";
+ * adapters (G4 read-tail r20): payroll posting/run selects and snapshot projection tails.
+ * Each constant owns one literal copied verbatim from its former inline copies; consumers
+ * import it and keep no local copy. All are pure reads: no INSERT, UPDATE, DELETE,
+ * LOCK TABLE, FOR UPDATE/SHARE or advisory lock. The former roster assignment point
+ * reads are now owner-native kinds in `pp-read-tail-r53-native`. */
 export const PP_RD20_PAYROLL_RUNS_SQL = "SELECT * FROM hr_payroll_runs";
 export const PP_RD20_PAYROLL_POSTINGS_SQL = "SELECT * FROM hr_payroll_postings";
 export const PP_RD20_STATUTORY_REMITTANCES_SQL = "SELECT * FROM hr_payroll_statutory_remittances";

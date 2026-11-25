@@ -16,7 +16,7 @@ import { PP_RD28_ADVANCE_REPAYMENTS_SQL } from './pp-read-tail-r28-sources';
 import { PP_RD24_TIME_ENTRY_REVIEWABLE_GUARD, PP_RD24_STATUTORY_PACK_GUARD, PP_RD24_APPROVED_RUN_EVIDENCE_GUARD } from './pp-read-tail-r24-sources';
 import { ppRd21IdCompanyStatusVersionGuard } from './pp-read-tail-r21-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
-import {PP_RD15_ACTIVE_PAYEE_SQL} from './pp-read-tail-r15-sources';
+import {activePayee} from './pp-read-tail-r53-native';
 import {PP_RD19_ACTIVE_ENGAGEMENT_EXISTS_SQL} from './pp-read-tail-r19-sources';
 import { nativePeoplePayrollReadAll, PEOPLE_PAYROLL_RD_PAYROLL_OPTIONS_GROUPS } from './native-people-payroll-read';
 import {hireHandoffPayGroupSchema,type HireHandoffPayGroupResult} from '@erpx/server-people_payroll/domain/hire-handoff-pay-group';
@@ -239,12 +239,12 @@ function context(provided?: SqlDatabase, actor?: WorkContext): PeoplePayrollPort
         stageTransitionCountryPackEffect(status: "superseded" | "active" | "validated", proof: string, userId: string, now: number, packId: string) { return nativePpStatement('people_payroll_stmt_18').bind(status, proof, userId, now, packId); },
         stageTransitionCountryPackEffect2(...args) { return payrollWorkflowFacts(database).stageTransitionCountryPackEffect2(...args); },
         readCalculateItemPayee(person_id: string, company_id: string) {
-            return database.prepare(PP_RD15_ACTIVE_PAYEE_SQL).bind(person_id, company_id).first<{
+            return activePayee<{
                 id: string;
                 version: number;
                 legal_name: string;
                 preferred_name: string | null;
-            }>();
+            }>(database, person_id, company_id);
         },
         readCalculateItemCompensation(id: string, period_end: string, period_start: string) { return database.prepare(`${PP_RD23_HR_COMP_REVISIONS_SQL}`).bind(id, period_end, period_start).first<Record<string, string | number | null>>(); },
         readCalculateItemTime(id: string, period_start: string, period_end: string) {

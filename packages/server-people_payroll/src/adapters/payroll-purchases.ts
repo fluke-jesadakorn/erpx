@@ -1,5 +1,5 @@
 import "server-only";
-import {PP_RD15_COMMAND_RECEIPT_PRIOR_SQL} from './pp-read-tail-r15-sources';
+import {commandReceiptPrior} from './pp-read-tail-r53-native';
 import {ppRd32TwoColProjection} from './pp-read-tail-r32-sources';
 import { randomUUID } from "node:crypto";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
@@ -62,8 +62,7 @@ export async function withPayrollPurchasedCommand<Result>(actor: PayrollActor & 
   try {
     const execute = async (transaction: SqlDatabase) => {
       await transaction.batch(companyPurchaseReadLocks(transaction, actor.companyId));
-      const replay = await transaction.prepare(PP_RD15_COMMAND_RECEIPT_PRIOR_SQL)
-        .bind(command.key, command.operation, actor.userId, actor.companyId).first();
+      const replay = await commandReceiptPrior(transaction, command.key, command.operation, actor.userId, actor.companyId);
       const scope = { companyId: actor.companyId, capability: "people.payroll", purpose: replay ? "history" as const : command.purpose };
       await checkPurchasedCapability(transaction, mode, scope);
       const key = `payroll-purchase:${randomUUID()}`, boundary = purchaseCommandBoundary(transaction, mode, key, scope)!;

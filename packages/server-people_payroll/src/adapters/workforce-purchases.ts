@@ -1,6 +1,6 @@
 import {ppRd44PurchaseClockProbe} from './pp-read-tail-r44-sources';
 import "server-only";
-import {PP_RD15_COMMAND_RECEIPT_PRIOR_SQL} from './pp-read-tail-r15-sources';
+import {commandReceiptPrior} from './pp-read-tail-r53-native';
 import {randomUUID} from "node:crypto";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
@@ -33,7 +33,7 @@ export async function withWorkforcePurchasedCommand<Result>(actor:WorkContext,co
  const mode=await peoplePackageEnforcementMode();if(mode==="disabled")return run();const owner=(await holdingResources(actor.holdingId)).write;if(!isTransactionalSqlDatabase(owner))throw new ApiError(503,"WORKFORCE_TRANSACTION_REQUIRED","Workforce changes require the original Holding transaction.");
  try{return await owner.transaction(async database=>{
   const locks=companyPurchaseReadLocks(database,actor.companyId);await database.batch([locks[0],...workforceSourceReadLocks(database),...locks.slice(1)]);
-  const prior=await database.prepare(PP_RD15_COMMAND_RECEIPT_PRIOR_SQL).bind(command.key,command.operation,actor.userId,actor.companyId).first(),purchase={companyId:actor.companyId,capability:"people.workforce",purpose:prior?"history" as const:command.purpose},key=`workforce-purchase:${randomUUID()}`;
+  const prior=await commandReceiptPrior(database,command.key,command.operation,actor.userId,actor.companyId),purchase={companyId:actor.companyId,capability:"people.workforce",purpose:prior?"history" as const:command.purpose},key=`workforce-purchase:${randomUUID()}`;
   await checkPurchasedCapability(database,mode,purchase);await requirePeopleCurrentAuthority(database,actor,key,command.permission);if(command.target&&!await database.prepare(sourceQuery(command.target)).bind(...sourceArgs(actor.companyId,command.target)).first("image"))throw new ApiError(404,"WORKFORCE_SOURCE_NOT_FOUND","The original Workforce source was not found in this Company.");
   const boundary=purchaseCommandBoundary(database,mode,key,purchase)!;await database.batch(boundary.before);const result=await run(database),created=command.resultKind&&result&&typeof result==="object"&&"id" in result?{kind:command.resultKind,id:String(result.id)}:undefined,target=command.target??created,witness=target?await database.prepare(sourceQuery(target)).bind(...sourceArgs(actor.companyId,target)).first<string>("image"):null;if(target&&!witness)throw new ApiError(409,"WORKFORCE_SOURCE_CHANGED","The original Workforce source changed before commit.");
   await flushFinanceDeferredEffects(database);await requirePeopleCurrentAuthority(database,actor,key,command.permission);const observed=await database.batch([...(target?[assertion(database,key,"workforce-owner-source",`(${sourceQuery(target)})=?`,[...sourceArgs(actor.companyId,target),witness])]:[]),...boundary.after,clearWorkflowCommandAssertions(database, key)]);boundary.observe?.(observed);return result;

@@ -1,8 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
 import {
-  PP_RD20_ROSTER_ASSIGN_BY_ID_SQL,
-  PP_RD20_ROSTER_ASSIGN_BY_SHIFT_SQL,
   PP_RD20_PAYROLL_RUNS_SQL,
   PP_RD20_PAYROLL_POSTINGS_SQL,
   PP_RD20_STATUTORY_REMITTANCES_SQL,
@@ -26,8 +24,6 @@ const src = (name: string) => readFileSync(new URL(`../../../packages/server-peo
 const quoted = (literal: string) => JSON.stringify(literal);
 
 const literals = [
-  PP_RD20_ROSTER_ASSIGN_BY_ID_SQL,
-  PP_RD20_ROSTER_ASSIGN_BY_SHIFT_SQL,
   PP_RD20_PAYROLL_RUNS_SQL,
   PP_RD20_PAYROLL_POSTINGS_SQL,
   PP_RD20_STATUTORY_REMITTANCES_SQL,
@@ -49,8 +45,6 @@ const literals = [
 
 describe('People Payroll read-tail r20 byte-identical dedupe', () => {
   test('canonical constants own exact read-only point reads, payroll selects and projection tails', () => {
-    expect(PP_RD20_ROSTER_ASSIGN_BY_ID_SQL).toBe('SELECT * FROM people_roster_assignments WHERE id=?');
-    expect(PP_RD20_ROSTER_ASSIGN_BY_SHIFT_SQL).toBe("SELECT * FROM people_roster_assignments WHERE shift_id=? AND state='assigned'");
     expect(PP_RD20_PAYROLL_RUNS_SQL).toBe('SELECT * FROM hr_payroll_runs');
     expect(PP_RD20_PAYROLL_POSTINGS_SQL).toBe('SELECT * FROM hr_payroll_postings');
     expect(PP_RD20_HR_ENGAGEMENTS_COMPACT_SQL).toContain('FROM hr_engagements');
@@ -63,8 +57,6 @@ describe('People Payroll read-tail r20 byte-identical dedupe', () => {
 
   test('each duplicate family has one shared literal and composed callers keep no local copy', () => {
     const families = [
-      { constant: 'PP_RD20_ROSTER_ASSIGN_BY_ID_SQL', literal: PP_RD20_ROSTER_ASSIGN_BY_ID_SQL, callers: [['people-roster.ts', 4]] as [string, number][] },
-      { constant: 'PP_RD20_ROSTER_ASSIGN_BY_SHIFT_SQL', literal: PP_RD20_ROSTER_ASSIGN_BY_SHIFT_SQL, callers: [['people-roster.ts', 2]] as [string, number][] },
       { constant: 'PP_RD20_PAYROLL_RUNS_SQL', literal: PP_RD20_PAYROLL_RUNS_SQL, callers: [['package-obligations.ts', 1], ['addon-package-obligations.ts', 1], ['benefits-package-obligations.ts', 1], ['payroll-other-remittance-sources.ts', 1]] as [string, number][] },
       { constant: 'PP_RD20_PAYROLL_POSTINGS_SQL', literal: PP_RD20_PAYROLL_POSTINGS_SQL, callers: [['package-obligations.ts', 1], ['addon-package-obligations.ts', 1], ['benefits-package-obligations.ts', 1], ['payroll-other-remittance-sources.ts', 1]] as [string, number][] },
       { constant: 'PP_RD20_STATUTORY_REMITTANCES_SQL', literal: PP_RD20_STATUTORY_REMITTANCES_SQL, callers: [['package-obligations.ts', 1], ['addon-package-obligations.ts', 1], ['payroll-other-remittance-sources.ts', 1]] as [string, number][] },
@@ -83,7 +75,6 @@ describe('People Payroll read-tail r20 byte-identical dedupe', () => {
         expect(s.match(new RegExp(f.constant, 'g')) ?? [], name).toHaveLength(count + 1);
       }
     }
-    expect(src('people-roster.ts')).toContain('database.prepare(PP_RD20_ROSTER_ASSIGN_BY_ID_SQL).bind(fact0)');
     expect(src('payroll-other-remittance-sources.ts')).toContain("runs:PP_RD20_PAYROLL_RUNS_SQL,postings:PP_RD20_PAYROLL_POSTINGS_SQL");
     expect(src('identity-snapshot-sources.ts')).toContain('"payroll_owner_facts_hr_engagements_from": PP_RD20_HR_ENGAGEMENTS_FROM_SQL');
   });
@@ -106,6 +97,6 @@ describe('People Payroll read-tail r20 byte-identical dedupe', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(1552);
-    expect(total).toBe(1221);
+    expect(total).toBe(1217);
   });
 });

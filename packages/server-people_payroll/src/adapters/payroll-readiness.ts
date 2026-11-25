@@ -10,7 +10,7 @@ import { ppRd33FourColByIdCompany } from './pp-read-tail-r33-sources';
 import { ppRd34ActivePayGroupProjection } from './pp-read-tail-r34-sources';
 import { PP_RD28_ADVANCE_REPAYMENTS_SQL, PP_RD28_CONTRACTOR_COUNT_SQL, PP_RD28_PENDING_TIME_COUNT_SQL } from './pp-read-tail-r28-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
-import {PP_RD15_ACTIVE_PAYEE_SQL} from './pp-read-tail-r15-sources';
+import {activePayee} from './pp-read-tail-r53-native';
 import { payrollItemSourceRows } from './payroll-item-source-read';
 import { withPayrollPurchasedCommand, withPayrollPurchasedRead, withPayrollJobsPurchasedTransaction } from "@erpx/server-people_payroll/adapters/payroll-purchases";
 import { peoplePackageEnforcementMode, type PackageEnforcementMode } from "@erpx/server-commercial/public/purchase-command-boundary";
@@ -89,7 +89,7 @@ function context(provided?: SqlDatabase, mode: PackageEnforcementMode = "disable
             }>();
         },
         readSourceBlockersEngagement(engagementId: string, company_id: string) { return database.prepare("SELECT e.id,e.version,e.person_id,e.worker_type,e.employment_type,e.start_date,e.end_date,e.job_title,e.branch_id,e.department_id FROM hr_engagements e WHERE e.id=? AND e.company_id=?").bind(engagementId, company_id).first(); },
-        readSourceBlockersPayee(value: string, company_id: string) { return database.prepare(PP_RD15_ACTIVE_PAYEE_SQL).bind(value, company_id).first(); },
+        readSourceBlockersPayee(value: string, company_id: string) { return activePayee<Record<string, unknown>>(database, value, company_id); },
         readSourceBlockersCompensation(engagementId: string, period_end: string, period_start: string) { return database.prepare(PP_RD23_HR_COMP_REVISIONS_SQL).bind(engagementId, period_end, period_start).first(); },
         readSourceBlockersEntries(engagementId: string, period_start: string, period_end: string) { return database.prepare(PP_RD23_HR_TIME_ENTRIES_OVERTIME_SQL).bind(engagementId, period_start, period_end).all(); },
         readSourceBlockersCostAssignments(engagementId: string, company_id: string, activeEnd: string, activeStart: string) { return database.prepare(PP_RD23_HR_PAYROLL_COST_ASSIGNMENTS_SQL).bind(engagementId, company_id, activeEnd, activeStart).all(); },

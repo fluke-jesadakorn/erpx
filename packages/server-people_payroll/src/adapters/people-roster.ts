@@ -1,6 +1,6 @@
 import {ppRd36TwoPredTail} from './pp-read-tail-r36-sources';
 import {ppRd36SinglePred, ppRd36ThreePred} from './pp-read-tail-r36-sources';
-import { PP_RD20_ROSTER_ASSIGN_BY_ID_SQL, PP_RD20_ROSTER_ASSIGN_BY_SHIFT_SQL } from './pp-read-tail-r20-sources';
+import { rosterAssignmentById, rosterAssignmentsByShift } from './pp-read-tail-r53-native';
 import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import "server-only";
@@ -91,8 +91,8 @@ function context(database: SqlDatabase, purchase?: {actor: WorkContext; input: R
             readRescheduleRosterShift3(fact0: number, fact1: string) { return nativePpStatement('people_roster_stmt_6').bind(fact0, fact1).first<RosterWeek>(); },
             readReadRequest(fact0: string, fact1: string) { return database.prepare(ppRd25ByIdCompany('people_roster_requests')).bind(fact0, fact1).first<RosterRequest>(); },
             readRequestParticipants(fact0: string, fact1: string, fact2: string) { return database.prepare("SELECT 1 FROM hr_people WHERE id=? AND company_id=? AND iam_same_person(user_id,?,company_id)").bind(fact0, fact1, fact2).first<Record<string, unknown>>(); },
-            readRequestCheck(fact0: string) { return database.prepare(PP_RD20_ROSTER_ASSIGN_BY_ID_SQL).bind(fact0).first<RosterAssignment>(); },
-            readRequestCheck2(fact0: string) { return database.prepare(PP_RD20_ROSTER_ASSIGN_BY_ID_SQL).bind(fact0).first<RosterAssignment>(); },
+            readRequestCheck(fact0: string) { return rosterAssignmentById<RosterAssignment>(database, fact0); },
+            readRequestCheck2(fact0: string) { return rosterAssignmentById<RosterAssignment>(database, fact0); },
             applyRosterCommand(fact0: string) { return nativePpStatement('people_roster_stmt_7').bind(fact0).run(); },
             readRosterCommand(...args) { return rosterIdentityFacts(database).readRosterCommand(...args); },
             readRosterCommand2(fact0: string, fact1: string, fact2: string) { return database.prepare(ppRd36ThreePred("*", "people_roster_templates", "id", "company_id", "department_id")).bind(fact0, fact1, fact2).first<ShiftTemplate>(); },
@@ -104,9 +104,9 @@ function context(database: SqlDatabase, purchase?: {actor: WorkContext; input: R
             applyRosterCommand3(fact0: string, fact1: string, fact2: string | null, fact3: string, fact4: string, fact5: string, fact6: string, fact7: number, fact8: number) { return nativePpStatement('people_roster_stmt_9').bind(fact0, fact1, fact2, fact3, fact4, fact5, fact6, fact7, fact8).run(); },
             async readRosterCommand5(fact0: string) { return (await database.prepare("SELECT * FROM people_roster_shifts WHERE week_id=? AND state='active' ORDER BY starts_at,id").bind(fact0).all<RosterShift>()).results; },
             applyRosterCommand4(fact0: string, fact1: string, fact2: string | null, fact3: string, fact4: string, fact5: string, fact6: string, fact7: number, fact8: number, fact9: number) { return nativePpStatement('people_roster_stmt_10').bind(fact0, fact1, fact2, fact3, fact4, fact5, fact6, fact7, fact8, fact9).run(); },
-            async readRosterCommand6(fact0: string) { return (await database.prepare(PP_RD20_ROSTER_ASSIGN_BY_SHIFT_SQL).bind(fact0).all<RosterAssignment>()).results; },
+            readRosterCommand6(fact0: string) { return rosterAssignmentsByShift<RosterAssignment>(database, fact0); },
             async readRosterCommand7(fact0: string) { return (await database.prepare("SELECT * FROM people_roster_shifts WHERE week_id=? AND state='active'").bind(fact0).all<RosterShift>()).results; },
-            async readRosterCommand8(fact0: string) { return (await database.prepare(PP_RD20_ROSTER_ASSIGN_BY_SHIFT_SQL).bind(fact0).all<RosterAssignment>()).results; },
+            readRosterCommand8(fact0: string) { return rosterAssignmentsByShift<RosterAssignment>(database, fact0); },
             applyRosterCommand5(fact0: string, fact1: number, fact2: string) { return nativePpStatement('people_roster_stmt_11').bind(fact0, fact1, fact2).run(); },
             readRosterCommand9(fact0: string, fact1: string, fact2: string) { return database.prepare("SELECT 1 FROM people_roster_templates WHERE id=? AND company_id=? AND department_id=? AND active").bind(fact0, fact1, fact2).first<Record<string, unknown>>(); },
             async readRosterCommand10(fact0: string) { return (await database.prepare("SELECT * FROM people_roster_assignments WHERE shift_id=? AND state='assigned' FOR UPDATE").bind(fact0).all<RosterAssignment>()).results; },
@@ -120,8 +120,8 @@ function context(database: SqlDatabase, purchase?: {actor: WorkContext; input: R
             applyRosterCommand9(fact0: string) { return nativePpStatement('people_roster_stmt_15').bind(fact0).run(); },
             applyRosterCommand10(fact0: string) { return nativePpStatement('people_roster_stmt_16').bind(fact0).run(); },
             readRosterCommand13(fact0: number, fact1: string) { return nativePpStatement('people_roster_stmt_17').bind(fact0, fact1).first<RosterWeek>(); },
-            readRosterCommand14(fact0: string) { return database.prepare(PP_RD20_ROSTER_ASSIGN_BY_ID_SQL).bind(fact0).first<RosterAssignment>(); },
-            readRosterCommand15(fact0: string) { return database.prepare(PP_RD20_ROSTER_ASSIGN_BY_ID_SQL).bind(fact0).first<RosterAssignment>(); },
+            readRosterCommand14(fact0: string) { return rosterAssignmentById<RosterAssignment>(database, fact0); },
+            readRosterCommand15(fact0: string) { return rosterAssignmentById<RosterAssignment>(database, fact0); },
             readRosterCommand16(fact0: string, fact1: string, fact2: string) { return database.prepare(`SELECT 1 FROM people_roster_requests WHERE company_id=? AND requester_person_id=? AND target_shift_id=? AND state IN ${pending}`).bind(fact0, fact1, fact2).first<Record<string, unknown>>(); },
             applyRosterCommand11(fact0: string, fact1: string, fact2: string, fact3: "extra" | "move" | "swap", fact4: string, fact5: string | null, fact6: string | null, fact7: number | null, fact8: string, fact9: string | null, fact10: number | null, fact11: "pending_coworker" | "pending_manager" | "approved" | "rejected" | "withdrawn" | "invalidated", fact12: string, fact13: string, fact14: number, fact15: number) { return nativePpStatement('people_roster_stmt_18').bind(fact0, fact1, fact2, fact3, fact4, fact5, fact6, fact7, fact8, fact9, fact10, fact11, fact12, fact13, fact14, fact15).run(); },
             async readRosterCommand17(fact0: string) { return (await database.prepare("SELECT id FROM people_roster_shifts WHERE id=ANY(?::text[]) ORDER BY id FOR UPDATE").bind(fact0).all<Record<string, unknown>>()).results; },
