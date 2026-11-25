@@ -37,7 +37,7 @@ describe('work_projection read-tail r30 dedupe', () => {
     const shared = await readFile(src('read-tail-sql.ts'), 'utf8');
     for (const helper of [
       'inList', 'versionById', 'noopSql', 'appointmentProbe', 'invitedAttendeeSql',
-      'workCacheRevisionsSql', 'overlapProbe', 'occurrenceExceptionsSql', 'occurrenceExceptionPointSql',
+      'workCacheRevisionsSql', 'occurrenceExceptionsSql', 'occurrenceExceptionPointSql',
       'appointmentAttendeesSql', 'reminderAttendeesSql', 'reminderAttendeePointSql',
       'attendeeScopeExistsSql', 'participantScopeExistsSql', 'receiptByIdSql', 'dailyPlanSql',
       'calendarImageSql', 'appointmentAttendeeSeriesSql', 'appointmentChildImageSql',

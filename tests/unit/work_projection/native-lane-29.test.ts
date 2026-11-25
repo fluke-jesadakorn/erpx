@@ -109,6 +109,8 @@ describe('native lane 29 contract', () => {
       version: 1,
     };
     expect(parseNativeLane29Response({series: [series]}, 'series_batch', company)).toEqual([series]);
+    expect(parseNativeLane29Response({conflict: true}, 'conflict_probe', company)).toEqual({conflict: true});
+    expect(parseNativeLane29Response({conflict: false}, 'conflict_probe', company)).toEqual({conflict: false});
   });
 
   it('rejects malformed, widened or extra-field responses', () => {
@@ -119,6 +121,8 @@ describe('native lane 29 contract', () => {
       [{occurrences: [{occurrence_key: 'k', start_local: 'a'}]}, 'moved_occurrences'],
       [{appointments: [{id: appointment}]}, 'availability_sources'],
       [{series: [{appointment_id: appointment}]}, 'series_batch'],
+      [{conflict: 'yes'}, 'conflict_probe'],
+      [{conflict: true, extra: 1}, 'conflict_probe'],
     ] as const;
     for (const [payload, kind] of bad)
       expectCode(
@@ -259,6 +263,49 @@ describe('native lane 29 contract', () => {
     ).resolves.toEqual([]);
   });
 
+  it('pins the conflict-probe wire shape and fails closed on unbounded input', async () => {
+    const seen: string[] = [];
+    await expect(
+      readNativeLane29(
+        {
+          kind: 'conflict_probe',
+          companyId: company,
+          scope: 'attendee',
+          excludeId: 'appointment-2',
+          before: 2_000,
+          after: 1_000,
+          ids: ['person-1'],
+        },
+        context,
+        async (_url, headers, body) => {
+          seen.push(String(headers.get('x-erpx-context-company')));
+          const parsed = JSON.parse(body) as Record<string, unknown>;
+          expect(parsed.scope).toBe('attendee');
+          expect(parsed.before).toBe(2_000);
+          expect(parsed.after).toBe(1_000);
+          expect(parsed.ids).toEqual(['person-1']);
+          return json({conflict: true});
+        },
+      ),
+    ).resolves.toEqual({conflict: true});
+    expect(seen).toEqual([company]);
+    await expect(
+      readNativeLane29(
+        {
+          kind: 'conflict_probe',
+          companyId: company,
+          scope: 'participant',
+          excludeId: 'appointment-2',
+          before: 1_000,
+          after: 2_000,
+          ids: [],
+        },
+        context,
+        ok({conflict: false}),
+      ),
+    ).rejects.toMatchObject({status: 422});
+  });
+
   it('pins the SQL oracle and proves TypeScript SQL was deleted', async () => {
     const rust = await readFile(src('adapters/native_lane_29/postgres.rs'), 'utf8');
     const facts = await readFile(src('adapters/calendar-availability-facts.ts'), 'utf8');
@@ -273,9 +320,16 @@ describe('native lane 29 contract', () => {
     expect(hash(
       'SELECT * FROM calendar_series WHERE company_id=$1 AND appointment_id IN (SELECT jsonb_array_elements_text($2::jsonb))',
     )).toBe('46ae301749a20a402fc7dfc7560f0007a805bace47c5df793e1280aafec2d336');
+    expect(hash(
+      'SELECT 1 FROM calendar_appointments a JOIN calendar_appointment_participants p ON p.appointment_id=a.id WHERE a.company_id=$1 AND a.status=\'scheduled\' AND a.id!=$2 AND a.starts_at<$3 AND a.ends_at>$4 AND p.person_id IN (SELECT jsonb_array_elements_text($5::jsonb)) LIMIT 1',
+    )).toBe('613db35276b9d29e8ab019c00ad5b4b72381621d7543fe8266eebebfa6e487c1');
+    expect(hash(
+      'SELECT 1 FROM calendar_appointments a JOIN calendar_attendees p ON p.appointment_id=a.id WHERE a.company_id=$1 AND a.status=\'scheduled\' AND a.id!=$2 AND a.starts_at<$3 AND a.ends_at>$4 AND p.response!=\'declined\' AND p.user_id IN (SELECT jsonb_array_elements_text($5::jsonb)) LIMIT 1',
+    )).toBe('fa8e749772b2dc348cf49b54bbb5d4f06a4802ef132e8e49fe7aafc41ae52a31');
     const appointments = await readFile(src('adapters/calendar-appointments-facts.ts'), 'utf8');
-    expect(appointments).not.toMatch(/byAppointmentIds/);
+    expect(appointments).not.toMatch(/byAppointmentIds|overlapProbe/);
     expect(appointments).toContain('nativeSeriesBatch');
+    expect(appointments).toContain('nativeConflictProbe');
     expect(facts).not.toMatch(/\bSELECT\b/);
     expect(facts).toContain('nativeAvailabilitySources');
     expect(facts).toContain('nativeMovedOccurrences');

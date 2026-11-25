@@ -13,6 +13,7 @@ pub const KIND_OCCURRENCE_EXCEPTION: &str = "occurrence_exception";
 pub const KIND_MOVED_OCCURRENCES: &str = "moved_occurrences";
 pub const KIND_AVAILABILITY_SOURCES: &str = "availability_sources";
 pub const KIND_SERIES_BATCH: &str = "series_batch";
+pub const KIND_CONFLICT_PROBE: &str = "conflict_probe";
 
 const MAX_USER_IDS: usize = 64;
 const MAX_OCCURRENCE_KEY: usize = 128;
@@ -25,6 +26,22 @@ pub enum ReadKind {
     MovedOccurrences,
     AvailabilitySources,
     SeriesBatch,
+    ConflictProbe,
+}
+
+/// Which owner-local attendee source the conflict probe joins. The wire never
+/// carries a table or column name; only these two closed variants are accepted.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConflictScope {
+    Participant,
+    Attendee,
+}
+
+impl Default for ConflictScope {
+    fn default() -> Self {
+        Self::Participant
+    }
 }
 
 impl ReadKind {
@@ -34,6 +51,7 @@ impl ReadKind {
             Self::MovedOccurrences => KIND_MOVED_OCCURRENCES,
             Self::AvailabilitySources => KIND_AVAILABILITY_SOURCES,
             Self::SeriesBatch => KIND_SERIES_BATCH,
+            Self::ConflictProbe => KIND_CONFLICT_PROBE,
         }
     }
 }
@@ -55,6 +73,14 @@ pub struct ReadRequest {
     pub user_ids: Vec<String>,
     #[serde(default)]
     pub appointment_ids: Vec<String>,
+    #[serde(default)]
+    pub exclude_id: String,
+    #[serde(default)]
+    pub after: i64,
+    #[serde(default)]
+    pub probe_ids: Vec<String>,
+    #[serde(default)]
+    pub conflict_scope: ConflictScope,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -82,6 +108,11 @@ pub struct SeriesRow {
     pub occurrence_count: Option<i32>,
     pub until_date: Option<String>,
     pub version: i32,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ConflictProbe {
+    pub conflict: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -161,6 +192,20 @@ pub fn validate(request: &ReadRequest) -> Result<(), BusinessError> {
                 ));
             }
         }
+        ReadKind::ConflictProbe => {
+            if !valid_id(&request.exclude_id)
+                || request.after <= 0
+                || request.after >= request.before
+                || request.before > MAX_BEFORE_MS
+                || request.probe_ids.len() > MAX_USER_IDS
+                || request.probe_ids.iter().any(|id| !valid_id(id))
+            {
+                return Err(invalid(
+                    "LANE29_CONFLICT_REQUEST_INVALID",
+                    "Use a bounded appointment window and recipient list.",
+                ));
+            }
+        }
         ReadKind::AvailabilitySources => {
             if request.before <= 0 || request.before > MAX_BEFORE_MS {
                 return Err(invalid(
@@ -195,6 +240,10 @@ mod tests {
             before: 1_764_000_000_000,
             user_ids: vec!["user-1".into(), "user-2".into()],
             appointment_ids: vec!["appointment-1".into()],
+            exclude_id: "appointment-2".into(),
+            after: 1_000,
+            probe_ids: vec!["person-1".into()],
+            conflict_scope: ConflictScope::Participant,
         }
     }
 
@@ -205,6 +254,7 @@ mod tests {
             ReadKind::MovedOccurrences,
             ReadKind::AvailabilitySources,
             ReadKind::SeriesBatch,
+            ReadKind::ConflictProbe,
         ] {
             assert!(validate(&request(kind)).is_ok());
         }
@@ -227,6 +277,12 @@ mod tests {
         r = request(ReadKind::AvailabilitySources);
         r.before = MAX_BEFORE_MS + 1;
         assert_eq!(validate(&r).unwrap_err().code, "LANE29_TIME_WINDOW_INVALID");
+        let mut r = request(ReadKind::ConflictProbe);
+        r.exclude_id = String::new();
+        assert_eq!(
+            validate(&r).unwrap_err().code,
+            "LANE29_CONFLICT_REQUEST_INVALID"
+        );
     }
 
     #[test]
@@ -241,6 +297,9 @@ mod tests {
             KIND_AVAILABILITY_SOURCES
         );
         assert_eq!(ReadKind::SeriesBatch.as_str(), KIND_SERIES_BATCH);
+        assert_eq!(ReadKind::ConflictProbe.as_str(), KIND_CONFLICT_PROBE);
+        let scope: ConflictScope = serde_json::from_str("\"attendee\"").unwrap();
+        assert_eq!(scope, ConflictScope::Attendee);
         let decoded: ReadKind = serde_json::from_str("\"availability_sources\"").unwrap();
         assert_eq!(decoded, ReadKind::AvailabilitySources);
     }

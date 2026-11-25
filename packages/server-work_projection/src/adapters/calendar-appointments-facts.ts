@@ -5,8 +5,13 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { type RecurrenceRule } from "@erpx/feature-work_projection/lib/calendar-recurrence";
 import type { AppointmentRow } from "@erpx/server-work_projection/domain/calendar/appointments";
 import { ApiError } from '@erpx/server-runtime/public/http';
-import { lane29ContextFor, nativeSeriesBatch } from './native-lane-29/client';
-import { inList, overlapProbe, attendeeScopeExistsSql, participantScopeExistsSql, derivedProbeSql } from './read-tail-sql';
+import {
+  lane29ContextFor,
+  nativeConflictProbe,
+  nativeSeriesBatch,
+  type NativeConflictScope,
+} from './native-lane-29/client';
+import { inList, attendeeScopeExistsSql, participantScopeExistsSql, derivedProbeSql } from './read-tail-sql';
 
 /** The series batch read is now an owner-native lane 29 read; no TypeScript SQL
  * remains for it. The caller's JSON id list is validated before transport. */
@@ -19,6 +24,28 @@ function appointmentIds(value: string): string[] {
     } catch { /* fall through to the named failure */ }
     throw new ApiError(422, 'LANE29_SERIES_REQUEST_INVALID', 'Use between one and 64 bounded appointments.');
 }
+
+/** Conflict-probe recipient list may be empty; an empty list has no conflicts. */
+function probeIds(value: string): string[] {
+    try {
+        const parsed: unknown = JSON.parse(value);
+        if (Array.isArray(parsed) && parsed.length <= 64 &&
+            parsed.every(id => typeof id === 'string' && id.length > 0 && id.length <= 200))
+            return parsed as string[];
+    } catch { /* fall through to the named failure */ }
+    throw new ApiError(422, 'LANE29_CONFLICT_REQUEST_INVALID', 'Use at most 64 bounded recipients.');
+}
+
+/** The conflict probes are native lane 29 reads; no TypeScript SQL remains. */
+function conflictProbe(db: SqlDatabase, scope: NativeConflictScope, facts: {
+    value1: string; value2: string; value3: number; value4: number; value5: string;
+}) {
+    return nativeConflictProbe(
+        lane29ContextFor(db, facts.value1), facts.value1, scope, facts.value2,
+        facts.value3, facts.value4, probeIds(facts.value5),
+    ).then(probe => probe.conflict ? {conflict: true} : null);
+}
+
 export function calendarAppointmentsWorkProjectionFacts(db: SqlDatabase) {
     return { read1: (facts: {
             value1: boolean;
@@ -92,14 +119,12 @@ export function calendarAppointmentsWorkProjectionFacts(db: SqlDatabase) {
             value3: number;
             value4: number;
             value5: string;
-        }) => { return db.prepare(overlapProbe('calendar_appointment_participants', 'p.person_id')).bind(facts.value1, facts.value2, facts.value3, facts.value4, facts.value5).first<Record<string, unknown>>(); },
+        }) => conflictProbe(db, 'participant', facts),
         read8: (facts: {
             value1: string;
             value2: string;
             value3: number;
             value4: number;
             value5: string;
-        }) => {
-            return db.prepare(overlapProbe('calendar_attendees', 'p.user_id', " AND p.response!='declined'")).bind(facts.value1, facts.value2, facts.value3, facts.value4, facts.value5).first<Record<string, unknown>>();
-        } };
+        }) => conflictProbe(db, 'attendee', facts) };
 }

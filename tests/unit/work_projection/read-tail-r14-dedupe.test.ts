@@ -20,14 +20,17 @@ const original = {
 describe('work_projection read-tail r14 dedupe', () => {
   it('keeps one canonical builder per shared family and no inline copies', async () => {
     const shared = await readFile(src('read-tail-sql.ts'), 'utf8');
-    expect(shared.split('export const overlapProbe =')).toHaveLength(2);
+    // Lane 29 owns the conflict probes in Rust; the TS helper is retired.
+    expect(shared).not.toContain('export const overlapProbe =');
     expect(shared.split('export const occurrenceExceptionPointSql =')).toHaveLength(2);
 
     const appointments = await readFile(src('calendar-appointments-facts.ts'), 'utf8');
     expect(appointments).not.toContain("JOIN calendar_appointment_participants p ON p.appointment_id=a.id WHERE");
     expect(appointments).not.toContain("JOIN calendar_attendees p ON p.appointment_id=a.id\n");
-    expect(appointments).toContain("overlapProbe('calendar_appointment_participants', 'p.person_id')");
-    expect(appointments).toContain("overlapProbe('calendar_attendees', 'p.user_id', \" AND p.response!='declined'\")");
+    expect(appointments).not.toContain('overlapProbe');
+    expect(appointments).toContain("nativeConflictProbe(");
+    expect(appointments).toContain("conflictProbe(db, 'participant', facts)");
+    expect(appointments).toContain("conflictProbe(db, 'attendee', facts)");
 
     const availability = await readFile(src('calendar-availability-facts.ts'), 'utf8');
     expect(availability).not.toContain('"SELECT start_local,end_local,cancelled FROM calendar_occurrence_exceptions');
@@ -40,16 +43,15 @@ describe('work_projection read-tail r14 dedupe', () => {
     expect(reminders).toContain("occurrenceExceptionPointSql('cancelled,start_local')");
   });
 
-  it('emits the original SQL for every parameterized caller', async () => {
-    const { overlapProbe, occurrenceExceptionPointSql } = await import(
+  it('keeps the original SQL in Rust and the retired baselines as evidence', async () => {
+    const rust = await readFile(src('native_lane_29/postgres.rs'), 'utf8');
+    expect(rust).toContain('SELECT 1 FROM calendar_appointments a JOIN calendar_appointment_participants p');
+    expect(rust).toContain("AND p.response!='declined'");
+    expect(rust).toContain('AND p.user_id IN (');
+    expect(norm(original.participantOverlap)).toContain('p.person_id IN (SELECT jsonb_array_elements_text(?::jsonb)) LIMIT 1');
+    expect(norm(original.attendeeOverlap)).toContain("p.response!='declined' AND p.user_id IN (");
+    const { occurrenceExceptionPointSql } = await import(
       '../../../packages/server-work_projection/src/adapters/read-tail-sql.ts'
-    );
-    expect(overlapProbe('calendar_appointment_participants', 'p.person_id')).toBe(original.participantOverlap);
-    expect(norm(overlapProbe('calendar_attendees', 'p.user_id', " AND p.response!='declined'"))).toBe(
-      norm(original.attendeeOverlap),
-    );
-    expect(overlapProbe('calendar_attendees', 'p.user_id', " AND p.response!='declined'")).toContain(
-      "AND p.response!='declined' AND p.user_id IN (",
     );
     expect(occurrenceExceptionPointSql('start_local,end_local,cancelled')).toBe(
       original.exceptionReads.availability,

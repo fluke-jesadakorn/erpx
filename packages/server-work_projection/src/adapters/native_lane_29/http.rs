@@ -199,7 +199,8 @@ async fn read(
             ReadKind::OccurrenceException
             | ReadKind::MovedOccurrences
             | ReadKind::AvailabilitySources
-            | ReadKind::SeriesBatch => {}
+            | ReadKind::SeriesBatch
+            | ReadKind::ConflictProbe => {}
         }
         service.read(request).await
     }

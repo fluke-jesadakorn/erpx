@@ -15,7 +15,9 @@ use sha2::{Digest, Sha256};
 use sqlx::Row;
 
 use super::application::{Lane29Future, Lane29Read};
-use super::domain::{AvailabilitySource, MovedOccurrence, OccurrenceException, SeriesRow};
+use super::domain::{
+    AvailabilitySource, ConflictProbe, ConflictScope, MovedOccurrence, OccurrenceException, SeriesRow,
+};
 
 /// `occurrenceExceptionPointSql('start_local,end_local,cancelled')`.
 pub const SQL_OCCURRENCE_EXCEPTION: &str = "SELECT start_local,end_local,cancelled FROM calendar_occurrence_exceptions \
@@ -50,6 +52,20 @@ pub fn sql_availability_sources(user_count: usize) -> String {
 /// `calendar-appointments-facts.ts` `byAppointmentIds('calendar_series')`.
 pub const SQL_SERIES_BATCH: &str = "SELECT * FROM calendar_series WHERE company_id=$1 \
      AND appointment_id IN (SELECT jsonb_array_elements_text($2::jsonb))";
+
+/// `overlapProbe('calendar_appointment_participants', 'p.person_id')`.
+pub const SQL_CONFLICT_PARTICIPANT: &str =
+    "SELECT 1 FROM calendar_appointments a JOIN calendar_appointment_participants p \
+     ON p.appointment_id=a.id WHERE a.company_id=$1 AND a.status='scheduled' AND a.id!=$2 \
+     AND a.starts_at<$3 AND a.ends_at>$4 \
+     AND p.person_id IN (SELECT jsonb_array_elements_text($5::jsonb)) LIMIT 1";
+
+/// `overlapProbe('calendar_attendees', 'p.user_id', " AND p.response!='declined'")`.
+pub const SQL_CONFLICT_ATTENDEE: &str =
+    "SELECT 1 FROM calendar_appointments a JOIN calendar_attendees p \
+     ON p.appointment_id=a.id WHERE a.company_id=$1 AND a.status='scheduled' AND a.id!=$2 \
+     AND a.starts_at<$3 AND a.ends_at>$4 AND p.response!='declined' \
+     AND p.user_id IN (SELECT jsonb_array_elements_text($5::jsonb)) LIMIT 1";
 
 fn unavailable() -> BusinessError {
     BusinessError::new(
@@ -303,6 +319,48 @@ impl Lane29Read for PgLane29Read {
             .map_err(transaction)
         })
     }
+
+    fn conflict_probe<'a>(
+        &'a self,
+        company: &'a str,
+        scope: ConflictScope,
+        exclude: &'a str,
+        before: i64,
+        after: i64,
+        ids: &'a [String],
+    ) -> Lane29Future<'a, ConflictProbe> {
+        let unit = PgUnitOfWork::new(self.pool.clone());
+        let company = company.to_owned();
+        let exclude = exclude.to_owned();
+        let ids = serde_json::to_string(ids).unwrap_or_else(|_| "[]".to_owned());
+        Box::pin(async move {
+            unit.run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                let company = company.clone();
+                let exclude = exclude.clone();
+                let ids = ids.clone();
+                Box::pin(async move {
+                    let sql = match scope {
+                        ConflictScope::Participant => SQL_CONFLICT_PARTICIPANT,
+                        ConflictScope::Attendee => SQL_CONFLICT_ATTENDEE,
+                    };
+                    let row = sqlx::query(sql)
+                        .bind(company.as_str())
+                        .bind(exclude.as_str())
+                        .bind(before)
+                        .bind(after)
+                        .bind(ids.as_str())
+                        .fetch_optional(&mut *connection)
+                        .await
+                        .map_err(|_| unavailable())?;
+                    Ok(ConflictProbe {
+                        conflict: row.is_some(),
+                    })
+                })
+            })
+            .await
+            .map_err(transaction)
+        })
+    }
 }
 
 #[cfg(test)]
@@ -341,6 +399,18 @@ mod tests {
         assert_eq!(
             hash(SQL_MOVED_OCCURRENCES),
             "a57f2c260b73dd27eb8ab93a5bb4d5ecc13e6b1aee1a0327354dc2137addddd8"
+        );
+    }
+
+    #[test]
+    fn conflict_probe_sql_is_byte_identical() {
+        assert_eq!(
+            hash(SQL_CONFLICT_PARTICIPANT),
+            "613db35276b9d29e8ab019c00ad5b4b72381621d7543fe8266eebebfa6e487c1"
+        );
+        assert_eq!(
+            hash(SQL_CONFLICT_ATTENDEE),
+            "fa8e749772b2dc348cf49b54bbb5d4f06a4802ef132e8e49fe7aafc41ae52a31"
         );
     }
 

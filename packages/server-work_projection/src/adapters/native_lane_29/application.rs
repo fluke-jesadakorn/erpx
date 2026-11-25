@@ -8,8 +8,8 @@ use erpx_server_shared::public::BusinessError;
 use std::{future::Future, pin::Pin};
 
 use super::domain::{
-    AvailabilitySource, MovedOccurrence, OccurrenceException, ReadKind, ReadRequest, SeriesRow,
-    validate,
+    AvailabilitySource, ConflictProbe, ConflictScope, MovedOccurrence, OccurrenceException,
+    ReadKind, ReadRequest, SeriesRow, validate,
 };
 
 pub type Lane29Future<'a, T> = Pin<Box<dyn Future<Output = Result<T, BusinessError>> + Send + 'a>>;
@@ -42,6 +42,16 @@ pub trait Lane29Read: Send + Sync {
         company: &'a str,
         appointment_ids: &'a [String],
     ) -> Lane29Future<'a, Vec<SeriesRow>>;
+
+    fn conflict_probe<'a>(
+        &'a self,
+        company: &'a str,
+        scope: ConflictScope,
+        exclude: &'a str,
+        before: i64,
+        after: i64,
+        ids: &'a [String],
+    ) -> Lane29Future<'a, ConflictProbe>;
 }
 
 /// Maps a validated request onto the owner port and pins the exact JSON shape
@@ -89,6 +99,20 @@ impl<R: Lane29Read> Lane29Service<R> {
                     .series_batch(&request.company_id, &request.appointment_ids)
                     .await?;
                 Ok(serde_json::json!({ "series": series }))
+            }
+            ReadKind::ConflictProbe => {
+                let probe = self
+                    .reader
+                    .conflict_probe(
+                        &request.company_id,
+                        request.conflict_scope,
+                        &request.exclude_id,
+                        request.before,
+                        request.after,
+                        &request.probe_ids,
+                    )
+                    .await?;
+                Ok(serde_json::json!({ "conflict": probe.conflict }))
             }
         }
     }
@@ -150,6 +174,22 @@ mod tests {
             })
         }
 
+        fn conflict_probe<'a>(
+            &'a self,
+            _company: &'a str,
+            _scope: ConflictScope,
+            _exclude: &'a str,
+            _before: i64,
+            _after: i64,
+            _ids: &'a [String],
+        ) -> Lane29Future<'a, ConflictProbe> {
+            Box::pin(async {
+                Ok(ConflictProbe {
+                    conflict: true,
+                })
+            })
+        }
+
         fn availability_sources<'a>(
             &'a self,
             _company: &'a str,
@@ -186,6 +226,10 @@ mod tests {
             before: 1_764_000_000_000,
             user_ids: vec!["user-1".into()],
             appointment_ids: vec!["appointment-1".into()],
+            exclude_id: "appointment-2".into(),
+            after: 1_000,
+            probe_ids: vec!["person-1".into()],
+            conflict_scope: ConflictScope::Participant,
         }
     }
 
@@ -236,6 +280,13 @@ mod tests {
         assert_eq!(series.len(), 1);
         assert_eq!(series[0]["appointment_id"], "appointment-1");
         assert_eq!(series[0].as_object().unwrap().len(), 9);
+    }
+
+    #[tokio::test]
+    async fn pins_conflict_projection() {
+        let service = Lane29Service::new(Stub);
+        let value = service.read(request(ReadKind::ConflictProbe)).await.unwrap();
+        assert_eq!(value, serde_json::json!({"conflict": true}));
     }
 
     #[tokio::test]

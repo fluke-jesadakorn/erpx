@@ -43,7 +43,7 @@ describe('work_projection read-tail r23 dedupe', () => {
     const shared = await readFile(src('read-tail-sql.ts'), 'utf8');
     for (const helper of [
       'inList', 'versionById', 'noopSql', 'appointmentProbe', 'invitedAttendeeSql',
-      'workCacheRevisionsSql', 'overlapProbe', 'occurrenceExceptionPointSql',
+      'workCacheRevisionsSql', 'occurrenceExceptionPointSql',
       'reminderAttendeePointSql', 'attendeeScopeExistsSql', 'receiptByIdSql', 'dailyPlanSql',
       'calendarImageSql', 'appointmentAttendeeSeriesSql', 'appointmentChildImageSql',
       'commandReceiptSql',
@@ -54,8 +54,9 @@ describe('work_projection read-tail r23 dedupe', () => {
     const facts = await readFile(src('calendar-appointments-facts.ts'), 'utf8');
     expect(facts).toContain('nativeSeriesBatch(');
     expect(facts).not.toContain('byAppointmentIds');
-    expect(facts).toContain("overlapProbe('calendar_appointment_participants', 'p.person_id')");
-    expect(facts).toContain("overlapProbe('calendar_attendees', 'p.user_id', \" AND p.response!='declined'\")");
+    expect(facts).not.toContain('overlapProbe');
+    expect(facts).toContain("conflictProbe(db, 'participant', facts)");
+    expect(facts).toContain("conflictProbe(db, 'attendee', facts)");
     expect(facts).toContain('attendeeScopeExistsSql');
 
     const purchases = await readFile(src('calendar/purchases.ts'), 'utf8');
@@ -86,8 +87,9 @@ describe('work_projection read-tail r23 dedupe', () => {
 });
 
 /** r34 native cutover: READ_67/61/63/64 replace the three retired SQL literals.
- * Lane 29 then moved byAppointmentIds to its native owner route, so the final
- * owner SELECT count is 46 (50 -> 48 at r34, 48 -> 46 at lane 29). */
+ * Lane 29 then moved byAppointmentIds and the conflict probes to its native
+ * owner route, so the final owner SELECT count is 45 (50 -> 48 at r34,
+ * 48 -> 46 then 46 -> 45 at lane 29). */
 const retiredSql = {
   authorization: 'SELECT * FROM calendar_reminder_execution_authorizations WHERE appointment_id=? AND company_id=? AND recipient_id=? ORDER BY source_version DESC,created_at DESC,command_id DESC LIMIT 1',
   response: 'SELECT response FROM calendar_occurrence_responses WHERE appointment_id=? AND company_id=? AND occurrence_key=? AND user_id=?',
@@ -240,6 +242,6 @@ describe('work_projection native read r34 cutover', () => {
         .split('\n')
         .filter(Boolean).length,
     );
-    expect(count).toBe(46);
+    expect(count).toBe(45);
   });
 });

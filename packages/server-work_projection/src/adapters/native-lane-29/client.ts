@@ -16,7 +16,8 @@ export type NativeLane29Kind =
   | 'occurrence_exception'
   | 'moved_occurrences'
   | 'availability_sources'
-  | 'series_batch';
+  | 'series_batch'
+  | 'conflict_probe';
 
 export type NativeOccurrenceException = {
   start_local: string | null;
@@ -59,11 +60,16 @@ export type NativeSeriesRow = {
   version: number;
 };
 
+export type NativeConflictScope = 'participant' | 'attendee';
+
+export type NativeConflictProbe = {conflict: boolean};
+
 export type NativeLane29Input =
   | {kind: 'occurrence_exception'; companyId: string; appointmentId: string; occurrenceKey: string}
   | {kind: 'moved_occurrences'; companyId: string; appointmentId: string}
   | {kind: 'availability_sources'; companyId: string; before: number; userIds: string[]}
-  | {kind: 'series_batch'; companyId: string; appointmentIds: string[]};
+  | {kind: 'series_batch'; companyId: string; appointmentIds: string[]}
+  | {kind: 'conflict_probe'; companyId: string; scope: NativeConflictScope; excludeId: string; before: number; after: number; ids: string[]};
 
 export type NativeLane29Transport = (
   url: URL,
@@ -284,7 +290,7 @@ export function validateNativeLane29Input(input: NativeLane29Input): void {
       !input.userIds.every(identifier)
     )
       return fail(422, 'LANE29_RECIPIENTS_INVALID', 'Use between one and 64 bounded recipients.');
-  } else {
+  } else if (input.kind === 'series_batch') {
     if (
       !Array.isArray(input.appointmentIds) ||
       input.appointmentIds.length < 1 ||
@@ -292,6 +298,19 @@ export function validateNativeLane29Input(input: NativeLane29Input): void {
       !input.appointmentIds.every(identifier)
     )
       return fail(422, 'LANE29_SERIES_REQUEST_INVALID', 'Use between one and 64 bounded appointments.');
+  } else {
+    if (
+      !identifier(input.excludeId) ||
+      !integer(input.after, MAX_BEFORE_MS) ||
+      !integer(input.before, MAX_BEFORE_MS) ||
+      input.after <= 0 ||
+      input.after >= input.before ||
+      (input.scope !== 'participant' && input.scope !== 'attendee') ||
+      !Array.isArray(input.ids) ||
+      input.ids.length > 64 ||
+      !input.ids.every(identifier)
+    )
+      return fail(422, 'LANE29_CONFLICT_REQUEST_INVALID', 'Use a bounded appointment window and recipient list.');
   }
 }
 
@@ -342,6 +361,12 @@ function validateAvailability(value: unknown): NativeAvailabilitySource {
   return value as unknown as NativeAvailabilitySource;
 }
 
+function validateConflict(value: unknown): NativeConflictProbe {
+  if (!object(value) || Object.keys(value).length !== 1 || typeof value.conflict !== 'boolean')
+    return invalidResponse();
+  return value as unknown as NativeConflictProbe;
+}
+
 function validateSeriesRow(value: unknown): NativeSeriesRow {
   if (
     !object(value) ||
@@ -370,7 +395,8 @@ export function parseNativeLane29Response(
   | null
   | NativeMovedOccurrence[]
   | NativeAvailabilitySource[]
-  | NativeSeriesRow[] {
+  | NativeSeriesRow[]
+  | NativeConflictProbe {
   if (!object(payload) || Object.keys(payload).length !== 1) return invalidResponse();
   if (kind === 'occurrence_exception') {
     if (!Object.prototype.hasOwnProperty.call(payload, 'exception')) return invalidResponse();
@@ -387,8 +413,11 @@ export function parseNativeLane29Response(
     if (!identifier(companyId)) return fail(409, 'WORK_CONTEXT_CHANGED', 'The current Company changed.');
     return payload.appointments.map(validateAvailability);
   }
-  if (!Array.isArray(payload.series)) return invalidResponse();
-  return payload.series.map(validateSeriesRow);
+  if (kind === 'series_batch') {
+    if (!Array.isArray(payload.series)) return invalidResponse();
+    return payload.series.map(validateSeriesRow);
+  }
+  return validateConflict(payload);
 }
 
 function direct(
@@ -506,6 +535,16 @@ function wire(input: NativeLane29Input) {
       };
     case 'series_batch':
       return {kind: input.kind, companyId: input.companyId, appointmentIds: input.appointmentIds};
+    case 'conflict_probe':
+      return {
+        kind: input.kind,
+        companyId: input.companyId,
+        scope: input.scope,
+        excludeId: input.excludeId,
+        before: input.before,
+        after: input.after,
+        ids: input.ids,
+      };
   }
 }
 
@@ -589,3 +628,14 @@ export const nativeSeriesBatch = (
   appointmentIds: string[],
 ): Promise<NativeSeriesRow[]> =>
   readNativeLane29({kind: 'series_batch', companyId, appointmentIds}, context);
+
+export const nativeConflictProbe = (
+  context: Lane29Context,
+  companyId: string,
+  scope: NativeConflictScope,
+  excludeId: string,
+  before: number,
+  after: number,
+  ids: string[],
+): Promise<NativeConflictProbe> =>
+  readNativeLane29({kind: 'conflict_probe', companyId, scope, excludeId, before, after, ids}, context);

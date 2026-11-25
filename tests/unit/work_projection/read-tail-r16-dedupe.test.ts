@@ -28,7 +28,7 @@ describe('work_projection read-tail r16 dedupe', () => {
     const shared = await readFile(src('read-tail-sql.ts'), 'utf8');
     for (const helper of [
       'inList', 'versionById', 'noopSql', 'appointmentProbe', 'invitedAttendeeSql',
-      'workCacheRevisionsSql', 'overlapProbe', 'occurrenceExceptionPointSql',
+      'workCacheRevisionsSql', 'occurrenceExceptionPointSql',
       'reminderAttendeePointSql',
     ]) {
       expect(shared).toContain(`export const ${helper} =`);
