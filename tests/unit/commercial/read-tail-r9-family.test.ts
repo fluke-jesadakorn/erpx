@@ -59,7 +59,7 @@ describe('Commercial read-tail r9 parameterized Holding-scoped usage-snapshot fa
       }
     };
     walk(srcRoot);
-    expect(total).toBe(16);
+    expect(total).toBe(15);
     expect(total).toBeLessThan(29);
   });
 });

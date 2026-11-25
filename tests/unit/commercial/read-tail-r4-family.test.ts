@@ -55,7 +55,7 @@ describe('Commercial read-tail r4 byte-identical / parameterized family', () => 
 
   test('shared module declares each read literal exactly once', () => {
     const shared = adapters('commercial-read-tail-r4-sources.ts');
-    expect(shared.match(/SELECT /g)).toHaveLength(2); // one literal per builder
+    expect(shared.match(/SELECT /g)).toHaveLength(1); // only coverageProbe remains local
   });
 
   test('retirement:ts-statements stays strictly below the r4 BEFORE=38 baseline', () => {
@@ -68,7 +68,7 @@ describe('Commercial read-tail r4 byte-identical / parameterized family', () => 
       }
     };
     walk(srcRoot);
-    expect(total).toBe(16);
+    expect(total).toBe(15);
     expect(total).toBeLessThan(38);
   });
 });

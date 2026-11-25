@@ -81,6 +81,6 @@ describe('Commercial read-tail r11 parameterized package-source projection famil
     };
     walk(srcRoot);
     expect(total).toBeLessThan(25);
-    expect(total).toBe(16);
+    expect(total).toBe(15);
   });
 });

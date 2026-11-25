@@ -78,7 +78,7 @@ describe('Commercial read-tail r6 byte-identical / parameterized family', () => 
       }
     };
     walk(srcRoot);
-    expect(total).toBe(16);
+    expect(total).toBe(15);
     expect(total).toBeLessThan(34);
   });
 });

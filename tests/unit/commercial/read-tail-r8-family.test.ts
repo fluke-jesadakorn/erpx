@@ -67,7 +67,7 @@ describe('Commercial read-tail r8 parameterized Company-scoped star-read family'
       }
     };
     walk(srcRoot);
-    expect(total).toBe(16);
+    expect(total).toBe(15);
     expect(total).toBeLessThan(31);
   });
 });
