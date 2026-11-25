@@ -23,6 +23,7 @@ import {marketingFormReadiness,marketingPresentationAssertions} from "@erpx/serv
 import {activeFormSql} from "./active-form-sql";
 import {marketingCompanyListSql} from "./marketing-company-list-sql";
 import {marketingLocalPointReadSql} from "./marketing-local-point-read-sql";
+import {marketingSelectHeadSql} from './select-head-sql';
 import {
   MARKETING_RD_ASSET_LIST,
   MARKETING_RD_ASSET_POINT,
@@ -78,7 +79,7 @@ async candidates(){return (await write
         .all<Row>()).results;},
 async branches(){return (await write
         .prepare(
-          `SELECT id,display_name name FROM (${organizationProjectionSources.organization_nodes}) organization_nodes WHERE company_id=? AND kind IN ('branch','headquarters') AND status='active' AND (?::text IS NULL OR id=?) ORDER BY display_name`,
+          `${marketingSelectHeadSql('id,display_name name', ` FROM (${organizationProjectionSources.organization_nodes}) organization_nodes WHERE company_id=? AND kind IN ('branch','headquarters') AND status='active' AND (?::text IS NULL OR id=?) ORDER BY display_name`)}`,
         )
         .bind(a.companyId, a.branchId, a.branchId)
         .all<Row>()).results;},
