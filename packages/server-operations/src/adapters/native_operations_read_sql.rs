@@ -247,6 +247,59 @@ const READ_WORK_TASK_ALERT_IMAGE: NativeReadStatement = NativeReadStatement {
     scope: "holding",
 };
 
+/// Native successor of the TypeScript `handover` recovery publication probe.
+/// The owner plans the exact `UNION ALL` literal; the caller executes it on its
+/// open purchase unit with the same `[key, key-publish, post-draft-key]` bind.
+pub const RD_HANDOVER_RECOVERY_RECEIPT: &str = "operations_rd_handover_recovery_receipt";
+const SQL_HANDOVER_RECOVERY_RECEIPT: &str =
+    "SELECT 1 FROM command_receipts WHERE command_id IN(?,?) UNION ALL SELECT 1 FROM social_post_drafts WHERE id=?";
+const READ_HANDOVER_RECOVERY_RECEIPT: NativeReadStatement = NativeReadStatement {
+    kind: RD_HANDOVER_RECOVERY_RECEIPT,
+    sql: SQL_HANDOVER_RECOVERY_RECEIPT,
+    bind_count: 3,
+    scope: "holding",
+};
+
+/// Native successor of the TypeScript `workflow-document-sources` staff-task
+/// detail read. The owner plans the fixed literal; the caller executes it on
+/// its open unit with the same `[company_id, id]` bind and takes the first row.
+pub const RD_WORKFLOW_DOCUMENT_DETAIL: &str = "operations_rd_workflow_document_detail";
+const SQL_WORKFLOW_DOCUMENT_DETAIL: &str =
+    "SELECT * FROM staff_tasks WHERE company_id=? AND id=?";
+const READ_WORKFLOW_DOCUMENT_DETAIL: NativeReadStatement = NativeReadStatement {
+    kind: RD_WORKFLOW_DOCUMENT_DETAIL,
+    sql: SQL_WORKFLOW_DOCUMENT_DETAIL,
+    bind_count: 2,
+    scope: "holding",
+};
+
+/// Native successor of the TypeScript `workflow-document-sources` staff-task
+/// page read. The owner plans the fixed literal; the caller executes it on its
+/// open unit with the same `[company_id, after]` bind.
+pub const RD_WORKFLOW_DOCUMENT_PAGE: &str = "operations_rd_workflow_document_page";
+const SQL_WORKFLOW_DOCUMENT_PAGE: &str =
+    "SELECT * FROM staff_tasks WHERE company_id=? AND id>? ORDER BY id LIMIT 100";
+const READ_WORKFLOW_DOCUMENT_PAGE: NativeReadStatement = NativeReadStatement {
+    kind: RD_WORKFLOW_DOCUMENT_PAGE,
+    sql: SQL_WORKFLOW_DOCUMENT_PAGE,
+    bind_count: 2,
+    scope: "holding",
+};
+
+/// Native successor of the TypeScript `work-task-purchases` replay receipt
+/// lookup. The owner plans the exact literal; the caller executes it on its
+/// open purchase unit with the same `[key, actor_id, company_id]` bind and
+/// reads the `operation` column exactly as the retired `.first()` did.
+pub const RD_WORK_TASK_REPLAY_RECEIPT: &str = "operations_rd_work_task_replay_receipt";
+const SQL_WORK_TASK_REPLAY_RECEIPT: &str =
+    "SELECT operation FROM command_receipts WHERE command_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?";
+const READ_WORK_TASK_REPLAY_RECEIPT: NativeReadStatement = NativeReadStatement {
+    kind: RD_WORK_TASK_REPLAY_RECEIPT,
+    sql: SQL_WORK_TASK_REPLAY_RECEIPT,
+    bind_count: 3,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_TASK_PROJECTION_SOURCE,
     READ_APP_UPLOAD_TASK_STATE,
@@ -265,6 +318,10 @@ const READS: &[NativeReadStatement] = &[
     READ_WORK_TASK_ALERT_SOURCE,
     READ_WORK_TASK_IMAGE,
     READ_WORK_TASK_ALERT_IMAGE,
+    READ_HANDOVER_RECOVERY_RECEIPT,
+    READ_WORKFLOW_DOCUMENT_DETAIL,
+    READ_WORKFLOW_DOCUMENT_PAGE,
+    READ_WORK_TASK_REPLAY_RECEIPT,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -603,5 +660,61 @@ mod tests {
             queued.sql,
             "SELECT jsonb_build_object('task',to_jsonb(t),'template',(SELECT to_jsonb(template) FROM routine_templates template WHERE template.id=t.template_id AND template.company_id=t.company_id),'schedule',(SELECT to_jsonb(schedule) FROM routine_schedules schedule WHERE schedule.id=t.schedule_id AND schedule.company_id=t.company_id),'delegations',(SELECT jsonb_agg(to_jsonb(delegation) ORDER BY delegation.id) FROM staff_task_delegations delegation WHERE delegation.task_id=t.id AND delegation.company_id=t.company_id),'approval',(SELECT jsonb_agg(jsonb_build_object('instance',to_jsonb(instance),'steps',(SELECT jsonb_agg(to_jsonb(step) ORDER BY step.id) FROM (SELECT * FROM approval_steps) step WHERE step.instance_id=instance.id),'decisions',(SELECT jsonb_agg(to_jsonb(decision) ORDER BY decision.id) FROM (SELECT * FROM approval_decisions) decision WHERE decision.instance_id=instance.id)) ORDER BY instance.id) FROM (SELECT * FROM approval_instances WHERE record_type='task') instance WHERE instance.record_id=t.id AND instance.company_id=t.company_id))::text image FROM staff_tasks t WHERE t.id=? AND t.company_id=?"
         );
+    }
+
+    #[test]
+    fn r51_plans_are_holding_scoped_and_ledger_free() {
+        for (kind, binds) in [
+            (RD_HANDOVER_RECOVERY_RECEIPT, 3),
+            (RD_WORKFLOW_DOCUMENT_DETAIL, 2),
+            (RD_WORKFLOW_DOCUMENT_PAGE, 2),
+            (RD_WORK_TASK_REPLAY_RECEIPT, 3),
+        ] {
+            let read = read_statement(kind).expect("read kind");
+            let upper = read.sql.to_ascii_uppercase();
+            assert!(upper.starts_with("SELECT"), "{}", read.kind);
+            assert!(!upper.contains("INSERT"));
+            assert!(!upper.contains("UPDATE"));
+            assert!(!upper.contains("DELETE"));
+            assert_eq!(read.bind_count, binds, "{}", read.kind);
+            assert_eq!(read.sql.matches('?').count(), binds, "{}", read.kind);
+            assert_eq!(read.scope, "holding");
+            assert!(is_read(kind));
+        }
+    }
+
+    #[test]
+    fn r51_sql_matches_retired_typescript_literals() {
+        let receipt = read_statement(RD_HANDOVER_RECOVERY_RECEIPT).expect("read kind");
+        assert_eq!(
+            receipt.sql,
+            "SELECT 1 FROM command_receipts WHERE command_id IN(?,?) UNION ALL SELECT 1 FROM social_post_drafts WHERE id=?"
+        );
+        assert_eq!(receipt.sql.matches("SELECT ").count(), 2);
+        let detail = read_statement(RD_WORKFLOW_DOCUMENT_DETAIL).expect("read kind");
+        assert_eq!(detail.sql, "SELECT * FROM staff_tasks WHERE company_id=? AND id=?");
+        let page = read_statement(RD_WORKFLOW_DOCUMENT_PAGE).expect("read kind");
+        assert_eq!(
+            page.sql,
+            "SELECT * FROM staff_tasks WHERE company_id=? AND id>? ORDER BY id LIMIT 100"
+        );
+        let replay = read_statement(RD_WORK_TASK_REPLAY_RECEIPT).expect("read kind");
+        assert_eq!(
+            replay.sql,
+            "SELECT operation FROM command_receipts WHERE command_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?"
+        );
+    }
+
+    #[test]
+    fn r51_registry_grows_by_four_read_kinds() {
+        assert_eq!(READS.len(), 21);
+        for kind in [
+            RD_HANDOVER_RECOVERY_RECEIPT,
+            RD_WORKFLOW_DOCUMENT_DETAIL,
+            RD_WORKFLOW_DOCUMENT_PAGE,
+            RD_WORK_TASK_REPLAY_RECEIPT,
+        ] {
+            assert_eq!(READS.iter().filter(|read| read.kind == kind).count(), 1);
+        }
     }
 }

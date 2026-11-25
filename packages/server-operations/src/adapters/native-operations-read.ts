@@ -34,6 +34,10 @@ export const OPERATIONS_RD_TASK_ATTACHMENT_ASSIGNEE = 'operations_rd_task_attach
 export const OPERATIONS_RD_WORK_TASK_ALERT_SOURCE = 'operations_rd_work_task_alert_source';
 export const OPERATIONS_RD_WORK_TASK_IMAGE = 'operations_rd_work_task_image';
 export const OPERATIONS_RD_WORK_TASK_ALERT_IMAGE = 'operations_rd_work_task_alert_image';
+export const OPERATIONS_RD_HANDOVER_RECOVERY_RECEIPT = 'operations_rd_handover_recovery_receipt';
+export const OPERATIONS_RD_WORKFLOW_DOCUMENT_DETAIL = 'operations_rd_workflow_document_detail';
+export const OPERATIONS_RD_WORKFLOW_DOCUMENT_PAGE = 'operations_rd_workflow_document_page';
+export const OPERATIONS_RD_WORK_TASK_REPLAY_RECEIPT = 'operations_rd_work_task_replay_receipt';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'OPERATIONS_NATIVE_READ_UNAVAILABLE', 'The native Operations read service is unavailable.');

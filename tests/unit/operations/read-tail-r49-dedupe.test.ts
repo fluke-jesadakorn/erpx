@@ -81,7 +81,7 @@ describe('operations read-tail r49 EXISTS/CTE-head retirement', () => {
     expect(purchases).toContain('nativeOperationsReadFirst');
   });
 
-  it('retirement:ts-statements lowers the operations SELECT KPI from 89 to 82', async () => {
+  it('retirement:ts-statements lowers the operations SELECT KPI from 89 to 78', async () => {
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -91,7 +91,7 @@ describe('operations read-tail r49 EXISTS/CTE-head retirement', () => {
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(82);
+    expect(total).toBe(78);
     expect(total).toBeLessThan(89);
   });
 });

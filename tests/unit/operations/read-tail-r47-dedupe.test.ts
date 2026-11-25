@@ -132,7 +132,7 @@ describe('operations read-tail r47 EXISTS-family dedupe', () => {
     expect(all).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|LOCK\s+TABLE/i);
   });
 
-  it('retirement:ts-statements reaches the r50 AFTER=82 from BEFORE=105', async () => {
+  it('retirement:ts-statements reaches the r51 AFTER=78 from BEFORE=105', async () => {
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -142,7 +142,7 @@ describe('operations read-tail r47 EXISTS-family dedupe', () => {
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(82);
+    expect(total).toBe(78);
     expect(total).toBeLessThan(105);
   });
 });
