@@ -154,7 +154,8 @@ describe('marketing read-tail r46 dedupe', () => {
     expect((await src('read-tail-sql.ts')).match(/SELECT/g)).toHaveLength(1);
 
     // Native read kinds and settlement receipts keep their own statements.
-    expect(await src('record-purchases.ts')).toContain('`SELECT 1 FROM (${nativeIds}) actual WHERE id=?`');
+    expect(await src('record-purchases.ts')).toContain("marketingPointExistsSql(`(${nativeIds}) actual`,'id=?')");
+    expect(await src('record-purchases.ts')).not.toContain('`SELECT 1 FROM (${nativeIds}) actual WHERE id=?`');
     expect(await src('purchases.ts')).toContain('SELECT 1 FROM command_receipts WHERE command_id=?');
     expect(await src('package-obligations.ts')).toContain('EXISTS(SELECT 1 FROM marketing_assets form');
     expect(await src('native-marketing-read.ts')).toContain('export');
@@ -167,8 +168,8 @@ describe('marketing read-tail r46 dedupe', () => {
     expect(await src('marketing-local-point-read-sql.ts')).toContain('FOR UPDATE');
   });
 
-  it('pins the owner SELECT KPI to 20 (BEFORE=34)', async () => {
-    expect(await ownerSelectTokens()).toBe(20);
+  it('pins the owner SELECT KPI to 19 (BEFORE=34)', async () => {
+    expect(await ownerSelectTokens()).toBe(19);
     expect(await ownerSelectTokens()).toBeLessThan(32);
   });
 });

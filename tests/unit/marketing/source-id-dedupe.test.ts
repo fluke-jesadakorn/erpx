@@ -29,6 +29,7 @@ describe('marketing source-id projection dedupe', () => {
   it('keeps downstream interpolation and binds unchanged', async () => {
     const record = await readFile(adapter('record-purchases.ts'), 'utf8');
     expect(record).toContain("marketingSourceRowGuardSql('('+nativeIds+') native_marketing','native_marketing.id='+id)");
-    expect(record).toContain('SELECT 1 FROM (${nativeIds}) actual WHERE id=?');
+    expect(record).toContain("marketingPointExistsSql(`(${nativeIds}) actual`,'id=?')");
+    expect(record).not.toContain('`SELECT 1 FROM (${nativeIds}) actual WHERE id=?`');
   });
 });

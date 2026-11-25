@@ -97,15 +97,16 @@ describe('marketing read-tail r44 dedupe', () => {
   });
 
   it('leaves the cross-owner-pinned guard, FOR SHARE, command_receipts settlement and native ports untouched', async () => {
-    expect(await src('record-purchases.ts')).toContain('`SELECT 1 FROM (${nativeIds}) actual WHERE id=?`');
+    expect(await src('record-purchases.ts')).toContain("marketingPointExistsSql(`(${nativeIds}) actual`,'id=?')");
+    expect(await src('record-purchases.ts')).not.toContain('`SELECT 1 FROM (${nativeIds}) actual WHERE id=?`');
     expect(await src('form-asset-lock-sql.ts')).toContain('FOR SHARE');
     expect(await src('purchases.ts')).toContain('SELECT 1 FROM command_receipts WHERE command_id=?');
     expect(await src('package-obligations.ts')).toContain('EXISTS(SELECT 1 FROM marketing_assets form');
     expect(await src('native-marketing-read.ts')).toContain('export');
   });
 
-  it('pins the owner SELECT KPI to 20 (BEFORE=36)', async () => {
-    expect(await ownerSelectTokens()).toBe(20);
+  it('pins the owner SELECT KPI to 19 (BEFORE=36)', async () => {
+    expect(await ownerSelectTokens()).toBe(19);
     expect(await ownerSelectTokens()).toBeLessThan(32);
   });
 });

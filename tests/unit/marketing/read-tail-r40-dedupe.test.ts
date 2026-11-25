@@ -179,6 +179,6 @@ describe('marketing projection-source and point-read head dedupe (r40)', () => {
     // heads through marketingSelectHeadSql (29 -> 27); r49 folds the three
     // parenthesized subquery heads (27 -> 24); r50 folds the actor-scope
     // assignment guard head (24 -> 23).
-    expect(await selectTokens()).toBe(20);
+    expect(await selectTokens()).toBe(19);
   });
 });

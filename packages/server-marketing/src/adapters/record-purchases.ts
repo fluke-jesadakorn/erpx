@@ -14,6 +14,7 @@ import {marketingModuleMemberSql} from './module-membership';
 import {marketingRecordScopeAuthoritySql} from './record-scope-authority';
 import {marketingSourceIdsSql} from './marketing-source-id-sql';
 import {marketingOwnerPointReadSql} from './owner-point-read-sql';
+import {marketingPointExistsSql} from './marketing-point-exists-sql';
 import {marketingSourceRowGuardSql} from './attachment-owner-version-guard';
 const nativeIds=marketingSourceIdsSql();
 const rows=marketingPurchaseUnionSql([
@@ -34,7 +35,7 @@ export async function marketingSourceReadScope(database:SqlDatabase,actor:WorkCo
 }
 export async function requireMarketingWorkspaceRecordRead(database:SqlDatabase,actor:WorkContext,_moduleId:string,id:string){
  if(await commercePackageEnforcementMode()==='disabled')return;const row=await database.prepare(marketingOwnerPointReadSql('kind',`(${rows}) actual`)).bind(id,actor.companyId).first<{kind:MarketingPurchaseTarget['kind']}>();
- if(row)await requireMarketingPurchasedRead(database,actor,{kind:row.kind,id});else if(await database.prepare(`SELECT 1 FROM (${nativeIds}) actual WHERE id=?`).bind(id).first())throw new ApiError(404,'MARKETING_SOURCE_NOT_FOUND','The original Marketing source is unavailable in this workspace.');
+ if(row)await requireMarketingPurchasedRead(database,actor,{kind:row.kind,id});else if(await database.prepare(marketingPointExistsSql(`(${nativeIds}) actual`,'id=?')).bind(id).first())throw new ApiError(404,'MARKETING_SOURCE_NOT_FOUND','The original Marketing source is unavailable in this workspace.');
 }
 export async function filterMarketingPurchasedWork(database:SqlDatabase,actor:WorkContext,items:WorkItem[]){
  const selected=items.filter(item=>item.type==='marketing_candidate');if(!selected.length||await commercePackageEnforcementMode()!=='enforced')return items;

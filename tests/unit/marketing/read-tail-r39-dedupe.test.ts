@@ -96,6 +96,6 @@ describe('marketing NULL-scope analytics row-frame dedupe (r39)', () => {
     // r48 routes the two purchase witness heads through marketingSelectHeadSql (29 -> 27);
     // r49 folds the three parenthesized subquery heads (27 -> 24); r50 folds the
     // actor-scope assignment guard head (24 -> 23).
-    expect(await selectTokens()).toBe(20);
+    expect(await selectTokens()).toBe(19);
   });
 });
