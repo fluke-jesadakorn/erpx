@@ -1,8 +1,9 @@
 import { lastAuditOwnerProjectionSources as people_payrollLastAuditProjectionSources } from "@erpx/server-people_payroll/public/last-audit-owner-projection-sources";
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {NO_ATTACHMENT_LINK_SQL} from './read-tail-dedupe-sql';
+import {DISTINCT_SET_ROW_HEAD_SQL} from './read-tail-r50-source-sql';
 export function leaveEvidenceSources(database:SqlDatabase){return {availableCanonical(leaveRequestId:string,purposeKey:"medical_certificate" | "leave_supporting_photo"){return database.prepare(
-	        `SELECT DISTINCT set_row.id,source.id source_id
+	        `${DISTINCT_SET_ROW_HEAD_SQL}id,source.id source_id
 	         FROM attachment_sets set_row
 	         JOIN (${people_payrollLastAuditProjectionSources.leave_requests}) request ON request.id=set_row.target_id
 	           AND request.company_id=set_row.company_id

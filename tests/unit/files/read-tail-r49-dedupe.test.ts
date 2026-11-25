@@ -33,14 +33,15 @@ const INDENT_2 = '                  '; // 18 spaces, legacy count
 
 const stripImport = (text: string) => text
   .split('\n')
-  .filter(line => !line.includes('read-tail-r49-source-sql'))
+  .filter(line => !line.includes('read-tail-r49-source-sql') && !line.includes('read-tail-r50-source-sql'))
   .join('\n');
 /** Render each of the five sites back to its exact pre-r49 inline literal. */
 const render = (text: string) => stripImport(text)
   .replaceAll('${SUM_BYTES_ATTACHMENT_HEAD_SQL}', B)
   .replaceAll('${LEAVE_COUNT_HEAD_SQL}', D)
   .replaceAll('${UPLOAD_INTENT_STAR_WHERE_HEAD_SQL}', A)
-  .replaceAll('UPLOAD_INTENT_STAR_WHERE_HEAD_SQL + "', '"' + A);
+  .replaceAll('UPLOAD_INTENT_STAR_WHERE_HEAD_SQL + "', '"' + A)
+  .replaceAll('${DISTINCT_SET_ROW_HEAD_SQL}', 'SELECT DISTINCT set_row.');
 
 const tsFiles = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
   const path = resolve(dir, entry.name);
@@ -154,7 +155,7 @@ describe('Files read-tail r49 byte-oracle dedupe', () => {
     expect(cleanup).toContain('.bind(input.id,input.id,input.id,input.companyId,input.id)');
   });
 
-  test('retirement:ts-statements is 226, strictly below the r48 BEFORE=229 (229->226)', () => {
+  test('retirement:ts-statements is 225, strictly below the r48 BEFORE=229 (229->225)', () => {
     let literal = 0, total = 0;
     for (const path of tsFiles(srcRoot)) {
       const text = readFileSync(path, 'utf8');
@@ -162,8 +163,8 @@ describe('Files read-tail r49 byte-oracle dedupe', () => {
       total += (text.match(/SELECT\s/g) ?? []).length;
     }
     // B, D and A each fold two inline sites into one helper (-3 total).
-    expect(literal).toBe(226);
-    expect(total).toBe(227);
+    expect(literal).toBe(225);
+    expect(total).toBe(226);
     expect(literal).toBeLessThan(229);
     expect(total).toBeLessThan(230);
   });

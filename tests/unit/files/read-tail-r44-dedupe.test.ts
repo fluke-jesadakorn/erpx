@@ -57,7 +57,7 @@ const TARGETS = [
 
 const stripR44Import = (text: string) => text
   .split('\n')
-  .filter(line => !line.includes('read-tail-r44-source-sql') && !line.includes('read-tail-r45-source-sql') && !line.includes('read-tail-r46-source-sql') && !line.includes('read-tail-r47-source-sql') && !line.includes('read-tail-r48-source-sql') && !line.includes('read-tail-r49-source-sql'))
+  .filter(line => !line.includes('read-tail-r44-source-sql') && !line.includes('read-tail-r45-source-sql') && !line.includes('read-tail-r46-source-sql') && !line.includes('read-tail-r47-source-sql') && !line.includes('read-tail-r48-source-sql') && !line.includes('read-tail-r49-source-sql') && !line.includes('read-tail-r50-source-sql'))
   .join('\n');
 /** Reconstruct the pre-r44 bytes: quoted splices and template/bare references
  * are rendered back to their original literals without touching tails. */
@@ -78,7 +78,8 @@ const render = (text: string) => text
   .replaceAll('${SET_ROW_DRAFT_LINK_EXISTS_HEAD_SQL}', R47_A)
   .replaceAll('${MESSAGING_SETTLEMENT_HEAD_SQL}', R48_B)
   .replaceAll('${SUM_BYTES_ATTACHMENT_HEAD_SQL}', R49_B)
-  .replaceAll('UPLOAD_INTENT_STAR_WHERE_HEAD_SQL + "', '"' + R49_A);
+  .replaceAll('UPLOAD_INTENT_STAR_WHERE_HEAD_SQL + "', '"' + R49_A)
+  .replaceAll('${DISTINCT_SET_ROW_HEAD_SQL}', 'SELECT DISTINCT set_row.');
 
 const tsFiles = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
   const path = resolve(dir, entry.name);
@@ -166,8 +167,8 @@ describe('Files read-tail r44 byte-oracle dedupe', () => {
     // (-2), while the attachment star-id and scan OR-EXISTS heads each fold
     // two sites into one (-1 each). Three heads live in the r44 helper.
     // r46 folds two closed-union heads (orphan-preservation event, draft/bound count): 239->237.
-    expect(literal).toBe(226);
-    expect(total).toBe(227);
+    expect(literal).toBe(225);
+    expect(total).toBe(226);
     expect(literal).toBeLessThan(246);
     expect(total).toBeLessThan(247);
   });

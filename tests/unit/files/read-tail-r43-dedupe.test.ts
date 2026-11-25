@@ -160,8 +160,8 @@ describe('Files read-tail r43 byte-oracle dedupe', () => {
     // carries no SELECT and both commerce sites keep their projections (0).
     // r44 lowers 246->242 (three more shared heads folded).
     // r46 folds two closed-union heads (orphan-preservation event, draft/bound count): 239->237.
-    expect(literal).toBe(226);
-    expect(total).toBe(227);
+    expect(literal).toBe(225);
+    expect(total).toBe(226);
     expect(literal).toBeLessThan(248);
     expect(total).toBeLessThan(249);
   });

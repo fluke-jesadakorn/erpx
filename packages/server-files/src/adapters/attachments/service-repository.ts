@@ -20,6 +20,7 @@ import {ATTACHMENT_EVENTS_WHERE_HEAD_SQL,ATTACHMENT_SETS_STAR_WHERE_HEAD_SQL} fr
 import {SET_DRAFT_BOUND_COUNT_SQL} from "../read-tail-r46-source-sql";
 import {SET_ROW_DRAFT_LINK_EXISTS_HEAD_SQL} from "../read-tail-r47-source-sql";
 import {UPLOAD_INTENT_STAR_WHERE_HEAD_SQL} from "../read-tail-r49-source-sql";
+import {DISTINCT_SET_ROW_HEAD_SQL} from "../read-tail-r50-source-sql";
 const setByIdSql = ATTACHMENT_SETS_STAR_WHERE_HEAD_SQL + "id=? AND company_id=?";
 export const usedStorageSql = "SELECT COALESCE(sum(bytes),0) FROM attachment_storage_ledger WHERE company_id=? AND state IN ('reserved','stored')";
 export const pendingStorageSql = "SELECT COALESCE(sum(declared_bytes),0) FROM upload_intents WHERE company_id=? AND status='pending' AND expires_at>?";
@@ -914,7 +915,7 @@ export function repository(db: SqlDatabase) {
             now: number;
             arg2: number;
         }) => {
-            return db.prepare(`SELECT DISTINCT set_row.company_id,set_row.target_id
+            return db.prepare(`${DISTINCT_SET_ROW_HEAD_SQL}company_id,set_row.target_id
     FROM attachment_sets set_row
     WHERE set_row.target_type='leave_request' AND set_row.state='draft' AND (
       EXISTS(${SET_ROW_DRAFT_LINK_EXISTS_HEAD_SQL} AND link.state='draft' AND link.expires_at<=?)
