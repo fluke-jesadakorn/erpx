@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
+import { crmSelectBodySql } from '../../../packages/server-crm/src/adapters/read-tail-r46-sql';
 import { crmCompanyScopeSql } from '../../../packages/server-crm/src/adapters/read-tail-r48-sql';
 
 const owner = resolve(__dirname, '../../../packages/server-crm/src');
@@ -41,9 +42,9 @@ describe('crm read-tail r48 byte-identical company-scope read head', () => {
     expect(rendered).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
   });
 
-  test('the owner renderer owns exactly the one shared read token', () => {
+  test('the company-scope head folds into the select-body plan with no token of its own', () => {
     const helper = src('read-tail-r48-sql.ts');
-    expect((helper.match(/SELECT /g) ?? []).length).toBe(1);
+    expect((helper.match(/SELECT /g) ?? []).length).toBe(0);
     expect(helper.match(/crmCompanyScopeSql =/g)).toHaveLength(1);
     expect(crmCompanyScopeSql('')).toBe('SELECT ?::text company_id');
     expect(crmCompanyScopeSql(',?::text branch_id,?::text department_id')).toBe(
@@ -79,8 +80,17 @@ describe('crm read-tail r48 byte-identical company-scope read head', () => {
     expect(src('marketing-package-obligations.ts')).toContain('@erpx/server-marketing/public/package-obligations');
   });
 
-  test('retirement:ts-statements drops from the r48 AFTER=50 to 49', () => {
-    expect(totalSelects()).toBe(34);
-    expect(totalSelects()).toBeLessThan(51);
+  test.each([
+    '',
+    ',?::text branch_id,?::text department_id',
+    ',?::text branch_id',
+  ])('the company-scope head folds into the owner select-body plan for %#', (tail) => {
+    expect(crmCompanyScopeSql(tail)).toBe(crmSelectBodySql(`?::text company_id${tail}`));
+    expect(crmCompanyScopeSql(tail)).toBe(`SELECT ?::text company_id${tail}`);
+  });
+
+  test('retirement:ts-statements folds the company-scope head (34 -> 33)', () => {
+    expect(totalSelects()).toBe(33);
+    expect(totalSelects()).toBeLessThan(34);
   });
 });

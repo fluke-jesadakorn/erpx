@@ -3,6 +3,7 @@ import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import type {Row} from "@erpx/server-files/public/contracts/attachments-finance";
 import { pmsRecordPropertyPointHeadSql } from "./pms-read-tail-r36-sql";
+import { nativePmsReadFirst, PMS_RD_ATTACHMENT_OWNER_FACT, PMS_RD_ATTACHMENT_PROPERTY_OWNER } from "./native-pms-read";
 const versionDescriptors:Record<string,{table:string;column?:string;extra?:string}>={"pms_room_type": {"table": "pms_records", "extra": "kind='room_type'"}, "pms_guest": {"table": "pms_records", "extra": "kind='guest'"}, "pms_reservation": {"table": "pms_records", "extra": "kind='reservation'"}, "pms_stay": {"table": "pms_records", "extra": "kind='stay'"}, "pms_task": {"table": "pms_records", "extra": "kind='task'"}, "pms_lost_property": {"table": "pms_records", "extra": "kind='lost'"}, "pms_property": {"table": "pms_properties"}};
 const pmsKinds:Record<string,string>={"pms_room_type": "room_type", "pms_guest": "guest", "pms_reservation": "reservation", "pms_stay": "stay", "pms_task": "task", "pms_lost_property": "lost"};
 const allowedTargets=new Set(["pms_room_type", "pms_guest", "pms_reservation", "pms_stay", "pms_task", "pms_lost_property", "pms_property"]);
@@ -38,7 +39,6 @@ if(!allowedTargets.has(targetType))return null;
     .bind(now, targetId, expectedVersion);
 }
 export function FinanceAttachmentPmsFacts(db:SqlDatabase){return {
-readOwner4:(facts:{companyId:string;targetId:string;targetType:string;purposeKey:string;})=>{return db.prepare(`${pmsRecordPropertyPointHeadSql('ownerFact')}
-       WHERE r.id=? AND p.company_id=?`).bind(facts.targetId,facts.companyId).first<Row>();},
-readOwner5:(facts:{companyId:string;targetId:string;targetType:string;purposeKey:string;})=>{return db.prepare("SELECT company_id,branch_id,NULL::text department_id,version FROM pms_properties WHERE id=? AND company_id=?").bind(facts.targetId,facts.companyId).first<Row>();},versionGuard:(commandId:string,targetType:string,targetId:string,companyId:string,version:number,index:number)=>financeOperationsAttachmentTargetVersionGuard(db,commandId,targetType,targetId,companyId,version,index),versionStep:(targetType:string,targetId:string,expectedVersion:number,now:number)=>financeOperationsAttachmentRecordVersionStep(db,targetType,targetId,expectedVersion,now)
+readOwner4:(facts:{companyId:string;targetId:string;targetType:string;purposeKey:string;})=>nativePmsReadFirst<Row>(PMS_RD_ATTACHMENT_OWNER_FACT,[facts.targetId,facts.companyId],db),
+readOwner5:(facts:{companyId:string;targetId:string;targetType:string;purposeKey:string;})=>nativePmsReadFirst<Row>(PMS_RD_ATTACHMENT_PROPERTY_OWNER,[facts.targetId,facts.companyId],db),versionGuard:(commandId:string,targetType:string,targetId:string,companyId:string,version:number,index:number)=>financeOperationsAttachmentTargetVersionGuard(db,commandId,targetType,targetId,companyId,version,index),versionStep:(targetType:string,targetId:string,expectedVersion:number,now:number)=>financeOperationsAttachmentRecordVersionStep(db,targetType,targetId,expectedVersion,now)
 };}

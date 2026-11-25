@@ -74,7 +74,7 @@ describe('crm read-tail r50 byte-identical parenthesized-select head', () => {
     expect(src('read-tail-r44-sql.ts')).toContain('export const crmUnionAllSql = (body: string) => `UNION ALL ${crmSelectBodySql(body)}`');
     expect(src('read-tail-r46-sql.ts')).toContain('crmProjectionFromSql = (projection: string, from: string)');
     expect(src('read-tail-r47-sql.ts')).toContain('crmOwnedListSql = (');
-    expect(src('read-tail-r48-sql.ts')).toContain('crmCompanyScopeSql = (tail: string) => `SELECT ?::text company_id${tail}`');
+    expect(src('read-tail-r48-sql.ts')).toContain('crmCompanyScopeSql = (tail: string) => crmSelectBodySql(`?::text company_id${tail}`)');
     expect(src('read-tail-r49-sql.ts')).toContain('crmJsonbAggregateSql = (body: string) => crmSelectBodySql(`jsonb_agg(to_jsonb(${body}`)');
     const a = src('attachment-read.ts');
     expect(a).toContain('`SELECT 1 FROM${actorScopeSql}workforce_actor_scope WHERE ${current.where}`');
@@ -98,7 +98,7 @@ describe('crm read-tail r50 byte-identical parenthesized-select head', () => {
   });
 
   test('retirement:ts-statements folds the select-expression head (36 -> 35)', () => {
-    expect(totalSelects()).toBe(34);
+    expect(totalSelects()).toBe(33);
     expect(totalSelects()).toBeLessThan(36);
   });
 });

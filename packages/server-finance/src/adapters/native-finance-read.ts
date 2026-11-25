@@ -118,6 +118,14 @@ export const FINANCE_RD_INVOICE2_PAYMENT_ALLOCATIONS = 'finance_rd_invoice2_paym
 export const FINANCE_RD_INVOICE2_BANK_CANDIDATES = 'finance_rd_invoice2_bank_candidates';
 export const FINANCE_RD_INVOICE2_BANK_ACCOUNTS = 'finance_rd_invoice2_bank_accounts';
 export const FINANCE_RD_INVOICE2_BANK_STATEMENT = 'finance_rd_invoice2_bank_statement';
+export const FINANCE_RD_AI_POLICY = 'finance_rd_ai_policy';
+export const FINANCE_RD_AI_PROPOSAL_EXACT = 'finance_rd_ai_proposal_exact';
+export const FINANCE_RD_AI_CLAIMABLE = 'finance_rd_ai_claimable';
+export const FINANCE_RD_AI_EVENTS = 'finance_rd_ai_events';
+export const FINANCE_RD_AI_DUE_POLICIES = 'finance_rd_ai_due_policies';
+export const FINANCE_RD_AI_BANK_CANDIDATES = 'finance_rd_ai_bank_candidates';
+export const FINANCE_RD_AI_REPORT_CHARTS = 'finance_rd_ai_report_charts';
+export const FINANCE_RD_AI_PROPOSAL_BY_SOURCE = 'finance_rd_ai_proposal_by_source';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'FINANCE_NATIVE_READ_UNAVAILABLE', 'The native Finance read service is unavailable.');

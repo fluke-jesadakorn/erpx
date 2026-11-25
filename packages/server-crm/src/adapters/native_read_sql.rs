@@ -116,6 +116,30 @@ mod tests {
     }
 
     #[test]
+    fn company_scope_head_is_the_owner_select_body_plan() {
+        // Canonical native form of the r48 company-scope head: the select-body
+        // plan over `?::text company_id${tail}`. The TS `crmCompanyScopeSql`
+        // delegates on this identity; the caller tail and bind order stay verbatim.
+        let select_body = |body: &str| format!("SELECT {body}");
+        let company_scope = |tail: &str| select_body(&format!("?::text company_id{tail}"));
+        let cases = [
+            ("obligation scope CTE", "", "SELECT ?::text company_id"),
+            ("actor scope row", ",?::text branch_id,?::text department_id", "SELECT ?::text company_id,?::text branch_id,?::text department_id"),
+        ];
+        for (name, tail, expected) in cases {
+            let rendered = company_scope(tail);
+            assert_eq!(rendered, expected, "{name}");
+            assert_eq!(rendered.matches("SELECT ").count(), 1, "{name}");
+            let upper = rendered.to_ascii_uppercase();
+            assert!(!upper.contains("INSERT"), "{name}");
+            assert!(!upper.contains("UPDATE"), "{name}");
+            assert!(!upper.contains("DELETE"), "{name}");
+            assert!(!upper.contains("FOR UPDATE"), "{name}");
+            assert!(!upper.contains("LOCK TABLE"), "{name}");
+        }
+    }
+
+    #[test]
     fn jsonb_aggregate_head_is_the_owner_select_body_plan() {
         // Canonical native form of the r49 JSONB-aggregate head: the select-body
         // plan over `jsonb_agg(to_jsonb(${body}`. The TS `crmJsonbAggregateSql`

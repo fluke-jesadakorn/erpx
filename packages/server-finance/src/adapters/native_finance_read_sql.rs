@@ -1042,6 +1042,82 @@ const READ_INVOICE2_BANK_STATEMENT: NativeReadStatement = NativeReadStatement {
     scope: "holding",
 };
 
+
+/// Native successors of the static `finance-ai` point/list reads. Owner-write
+/// statements and assertion guards stay in caller transactions; these plans
+/// are byte-identical reads with the exact positional payloads.
+pub const RD_AI_POLICY: &str = "finance_rd_ai_policy";
+const SQL_RD_AI_POLICY: &str = "SELECT * FROM finance_ai_policies WHERE company_id=?";
+const READ_AI_POLICY: NativeReadStatement = NativeReadStatement {
+    kind: RD_AI_POLICY,
+    sql: SQL_RD_AI_POLICY,
+    bind_count: 1,
+    scope: "holding",
+};
+
+pub const RD_AI_PROPOSAL_EXACT: &str = "finance_rd_ai_proposal_exact";
+const SQL_RD_AI_PROPOSAL_EXACT: &str = "SELECT * FROM finance_ai_proposals WHERE company_id=? AND kind=? AND source_id=? AND source_hash=? AND provider_json=? AND policy_version=?";
+const READ_AI_PROPOSAL_EXACT: NativeReadStatement = NativeReadStatement {
+    kind: RD_AI_PROPOSAL_EXACT,
+    sql: SQL_RD_AI_PROPOSAL_EXACT,
+    bind_count: 6,
+    scope: "holding",
+};
+
+pub const RD_AI_CLAIMABLE: &str = "finance_rd_ai_claimable";
+const SQL_RD_AI_CLAIMABLE: &str = "SELECT id FROM finance_ai_proposals WHERE attempts<3 AND (state='queued' OR (state='running' AND claim_until<?)) ORDER BY created_at,id LIMIT 2";
+const READ_AI_CLAIMABLE: NativeReadStatement = NativeReadStatement {
+    kind: RD_AI_CLAIMABLE,
+    sql: SQL_RD_AI_CLAIMABLE,
+    bind_count: 1,
+    scope: "holding",
+};
+
+pub const RD_AI_EVENTS: &str = "finance_rd_ai_events";
+const SQL_RD_AI_EVENTS: &str = "SELECT proposal_id,action,evidence_json,created_at FROM finance_ai_events WHERE company_id=? AND proposal_id IS NOT NULL ORDER BY created_at DESC LIMIT 120";
+const READ_AI_EVENTS: NativeReadStatement = NativeReadStatement {
+    kind: RD_AI_EVENTS,
+    sql: SQL_RD_AI_EVENTS,
+    bind_count: 1,
+    scope: "holding",
+};
+
+pub const RD_AI_DUE_POLICIES: &str = "finance_rd_ai_due_policies";
+const SQL_RD_AI_DUE_POLICIES: &str = "SELECT * FROM finance_ai_policies WHERE enabled AND next_scan_at<=? ORDER BY next_scan_at,company_id LIMIT 3";
+const READ_AI_DUE_POLICIES: NativeReadStatement = NativeReadStatement {
+    kind: RD_AI_DUE_POLICIES,
+    sql: SQL_RD_AI_DUE_POLICIES,
+    bind_count: 1,
+    scope: "holding",
+};
+
+pub const RD_AI_BANK_CANDIDATES: &str = "finance_rd_ai_bank_candidates";
+const SQL_RD_AI_BANK_CANDIDATES: &str = "SELECT id FROM finance_bank_transactions WHERE company_id=? AND match_status<>'matched' AND NOT EXISTS(SELECT 1 FROM finance_ai_proposals p WHERE p.company_id=finance_bank_transactions.company_id AND p.source_id=finance_bank_transactions.id AND p.kind='bank_match' AND p.policy_version=? AND p.source_version=finance_bank_transactions.version) ORDER BY transaction_date,id LIMIT 20";
+const READ_AI_BANK_CANDIDATES: NativeReadStatement = NativeReadStatement {
+    kind: RD_AI_BANK_CANDIDATES,
+    sql: SQL_RD_AI_BANK_CANDIDATES,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_AI_REPORT_CHARTS: &str = "finance_rd_ai_report_charts";
+const SQL_RD_AI_REPORT_CHARTS: &str = "SELECT id FROM finance_charts WHERE company_id=? AND NOT EXISTS(SELECT 1 FROM finance_ai_proposals p WHERE p.company_id=finance_charts.company_id AND p.source_id=finance_charts.id AND p.kind='report_explanation' AND p.policy_version=? AND p.source_query_json::jsonb->>'endDate'=?) ORDER BY id LIMIT 5";
+const READ_AI_REPORT_CHARTS: NativeReadStatement = NativeReadStatement {
+    kind: RD_AI_REPORT_CHARTS,
+    sql: SQL_RD_AI_REPORT_CHARTS,
+    bind_count: 3,
+    scope: "holding",
+};
+
+pub const RD_AI_PROPOSAL_BY_SOURCE: &str = "finance_rd_ai_proposal_by_source";
+const SQL_RD_AI_PROPOSAL_BY_SOURCE: &str = "SELECT id FROM finance_ai_proposals WHERE company_id=? AND kind=? AND source_id=? AND policy_version=? AND (?::boolean OR source_version=?) AND (?::text IS NULL OR source_query_json::jsonb->>'endDate'=?) LIMIT 1";
+const READ_AI_PROPOSAL_BY_SOURCE: NativeReadStatement = NativeReadStatement {
+    kind: RD_AI_PROPOSAL_BY_SOURCE,
+    sql: SQL_RD_AI_PROPOSAL_BY_SOURCE,
+    bind_count: 8,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_ASSET_POLICY_ROW,
     READ_ASSET_POLICY_RUNS,
@@ -1144,6 +1220,14 @@ const READS: &[NativeReadStatement] = &[
     READ_INVOICE2_BANK_CANDIDATES,
     READ_INVOICE2_BANK_ACCOUNTS,
     READ_INVOICE2_BANK_STATEMENT,
+    READ_AI_POLICY,
+    READ_AI_PROPOSAL_EXACT,
+    READ_AI_CLAIMABLE,
+    READ_AI_EVENTS,
+    READ_AI_DUE_POLICIES,
+    READ_AI_BANK_CANDIDATES,
+    READ_AI_REPORT_CHARTS,
+    READ_AI_PROPOSAL_BY_SOURCE,
 ];
 
 /// Whether a discriminator is an owner read kind (never a write kind).
@@ -1264,6 +1348,14 @@ mod tests {
             RD_INVOICE2_BANK_CANDIDATES,
             RD_INVOICE2_BANK_ACCOUNTS,
             RD_INVOICE2_BANK_STATEMENT,
+            RD_AI_POLICY,
+            RD_AI_PROPOSAL_EXACT,
+            RD_AI_CLAIMABLE,
+            RD_AI_EVENTS,
+            RD_AI_DUE_POLICIES,
+            RD_AI_BANK_CANDIDATES,
+            RD_AI_REPORT_CHARTS,
+            RD_AI_PROPOSAL_BY_SOURCE,
         ] {
             assert!(is_read(kind), "{kind}");
             let read = read_statement(kind).expect("read kind");
@@ -1278,7 +1370,7 @@ mod tests {
             assert_eq!(read.sql.matches('?').count(), read.bind_count, "{kind}");
             assert_eq!(read.scope, "holding", "{kind}");
         }
-        assert_eq!(READS.len(), 101);
+        assert_eq!(READS.len(), 109);
         assert!(!is_read("finance_stmt_1"));
         assert!(read_statement("finance_stmt_1").is_none());
     }
@@ -1925,6 +2017,38 @@ mod tests {
                 RD_INVOICE2_BANK_STATEMENT,
                 SQL_RD_INVOICE2_BANK_STATEMENT,
                 2,
+            ),
+        ];
+        assert_eq!(expected.len(), 8);
+        for (kind, sql, binds) in expected {
+            let read = read_statement(kind).unwrap_or_else(|| panic!("{kind}: unregistered"));
+            assert_eq!(read.kind, *kind, "{kind}: discriminator");
+            assert_eq!(read.sql, *sql, "{kind}: byte-identical SQL");
+            assert_eq!(read.bind_count, *binds, "{kind}: bind count");
+            assert_eq!(read.sql.matches('?').count(), *binds, "{kind}: binds");
+            assert_eq!(read.scope, "holding", "{kind}: scope");
+            assert!(is_read(kind), "{kind}");
+            assert!(!read.sql.contains("FOR UPDATE"), "{kind}");
+            assert!(!read.sql.contains("INSERT"), "{kind}");
+        }
+    }
+
+    /// The finance-ai point/list family plans the exact retired literals;
+    /// owner-write statements and assertion guards stay in caller units.
+    #[test]
+    fn ai_reads_match_retired_owner_statements() {
+        let expected: &[(&str, &str, usize)] = &[
+            (RD_AI_POLICY, SQL_RD_AI_POLICY, 1),
+            (RD_AI_PROPOSAL_EXACT, SQL_RD_AI_PROPOSAL_EXACT, 6),
+            (RD_AI_CLAIMABLE, SQL_RD_AI_CLAIMABLE, 1),
+            (RD_AI_EVENTS, SQL_RD_AI_EVENTS, 1),
+            (RD_AI_DUE_POLICIES, SQL_RD_AI_DUE_POLICIES, 1),
+            (RD_AI_BANK_CANDIDATES, SQL_RD_AI_BANK_CANDIDATES, 2),
+            (RD_AI_REPORT_CHARTS, SQL_RD_AI_REPORT_CHARTS, 3),
+            (
+                RD_AI_PROPOSAL_BY_SOURCE,
+                SQL_RD_AI_PROPOSAL_BY_SOURCE,
+                8,
             ),
         ];
         assert_eq!(expected.len(), 8);

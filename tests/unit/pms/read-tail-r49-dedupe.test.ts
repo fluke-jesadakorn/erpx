@@ -112,10 +112,10 @@ describe('pms read-tail r49 settlement source head dedupe', () => {
 
   it('leaves native registry, r47/r48 pins, locks and prior helpers untouched', async () => {
     const rust = await src('adapters/native_read_sql.rs');
-    expect((rust.match(/^pub const PMS_RD_/gm) ?? []).length).toBe(58);
+    expect((rust.match(/^pub const PMS_RD_/gm) ?? []).length).toBe(60);
     expect(rust).toContain('pub const PMS_RD_SECTION_RELATED_RECORDS: &str = "pms_rd_section_related_records";');
     const bridge = await src('adapters/native-pms-read.ts');
-    expect((bridge.match(/^export const PMS_RD_/gm) ?? []).length).toBe(58);
+    expect((bridge.match(/^export const PMS_RD_/gm) ?? []).length).toBe(60);
     expect(await src('adapters/pms.ts')).toContain('FOR UPDATE OF p');
     expect(await src('adapters/pms-stripe.ts')).toContain('FOR UPDATE');
     expect(await src('adapters/feature-availability.ts')).toContain('FOR SHARE');
@@ -132,8 +132,8 @@ describe('pms read-tail r49 settlement source head dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(215);
-    expect(bare).toBe(216);
+    expect(spaced).toBe(214);
+    expect(bare).toBe(215);
     expect(spaced).toBeLessThan(258);
     expect(bare).toBeLessThan(260);
   });

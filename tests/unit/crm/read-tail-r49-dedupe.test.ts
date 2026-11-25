@@ -65,7 +65,7 @@ describe('crm read-tail r49 byte-identical JSONB-aggregate read head', () => {
     expect(src('read-tail-r44-sql.ts')).toContain('export const crmUnionAllSql = (body: string) => `UNION ALL ${crmSelectBodySql(body)}`');
     expect(src('read-tail-r46-sql.ts')).toContain('crmProjectionFromSql = (projection: string, from: string)');
     expect(src('read-tail-r47-sql.ts')).toContain('crmOwnedListSql = (');
-    expect(src('read-tail-r48-sql.ts')).toContain('crmCompanyScopeSql = (tail: string) => `SELECT ?::text company_id${tail}`');
+    expect(src('read-tail-r48-sql.ts')).toContain('crmCompanyScopeSql = (tail: string) => crmSelectBodySql(`?::text company_id${tail}`)');
     const a = src('attachment-read.ts');
     expect(a).toContain('`SELECT 1 FROM${actorScopeSql}workforce_actor_scope WHERE ${current.where}`');
     expect(a).toContain('await database.batch([crmAttachmentCustomerSourceLocks(database)');
@@ -85,7 +85,7 @@ describe('crm read-tail r49 byte-identical JSONB-aggregate read head', () => {
   });
 
   test('retirement:ts-statements folds the JSONB-aggregate head (35 -> 34)', () => {
-    expect(totalSelects()).toBe(34);
+    expect(totalSelects()).toBe(33);
     expect(totalSelects()).toBeLessThan(35);
   });
 });

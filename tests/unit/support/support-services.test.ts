@@ -428,6 +428,39 @@ it('plans the three active-organization-node scope probes in Rust with kind-scop
     }
 });
 
+it('plans a native fragment head and rejects tail shapes outside the server-pinned list', async () => {
+    process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG = JSON.stringify({
+        privateBaseUrl: 'http://127.0.0.1:3997',
+        timeoutMs: 1000,
+        holdings: [{ origin: 'https://acme.jesadakorn.com', holdingSlug: 'acme', holdingId: 'h1', companyId: 'company' }],
+    });
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
+        new Response(JSON.stringify({
+            data: {
+                statements: [{
+                    sql: 'SELECT binding.* FROM support_ticket_portal_bindings binding',
+                    values: [],
+                    fragment: true,
+                    tailBindCounts: [1, 4, 9],
+                }],
+            },
+        }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    );
+    try {
+        const { nativeSupportReadFragment, SUPPORT_RD_TICKET_PORTAL_VALID_BINDINGS } =
+            await import('@erpx/server-support/adapters/native-support-read');
+        await expect(nativeSupportReadFragment(SUPPORT_RD_TICKET_PORTAL_VALID_BINDINGS, 4))
+            .resolves.toBe('SELECT binding.* FROM support_ticket_portal_bindings binding');
+        await expect(nativeSupportReadFragment(SUPPORT_RD_TICKET_PORTAL_VALID_BINDINGS, 2))
+            .rejects.toMatchObject({ status: 422, code: 'SUPPORT_NATIVE_READ_TAIL_INVALID' });
+        await expect(nativeSupportReadFragment('support_rd_ticket_work', 1))
+            .rejects.toMatchObject({ status: 422, code: 'SUPPORT_NATIVE_READ_TAIL_INVALID' });
+    } finally {
+        fetchMock.mockRestore();
+        delete process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG;
+    }
+});
+
 it('keeps one parameterized assignment-access witness for the Support ticket and incident read predicates', async () => {
     const { readFile } = await import('node:fs/promises');
     const [helperSource, ticketSource, incidentSource] = await Promise.all([

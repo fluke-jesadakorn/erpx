@@ -102,7 +102,7 @@ describe('crm read-tail r35 byte-identical read heads', () => {
   });
 
   test('retirement:ts-statements folds the assignment EXISTS head (39 -> 38)', () => {
-    expect(totalSelects()).toBe(34);
+    expect(totalSelects()).toBe(33);
     expect(totalSelects()).toBeLessThan(39);
   });
 });

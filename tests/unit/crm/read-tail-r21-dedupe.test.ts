@@ -149,7 +149,7 @@ describe('crm read-tail r21 byte-identical projection/FROM head', () => {
     expect(src('read-tail-r42-sql.ts')).toContain('export const crmSelectOneSql = (body: string) => `SELECT 1 FROM ${body}`');
     expect(src('read-tail-r43-sql.ts')).toContain('export const crmScalarSubquerySql = (projection: string, body: string)');
     expect(src('read-tail-r44-sql.ts')).toContain('export const crmUnionAllSql = (body: string) => `UNION ALL ${crmSelectBodySql(body)}`');
-    expect(src('read-tail-r48-sql.ts')).toContain('crmCompanyScopeSql = (tail: string) => `SELECT ?::text company_id${tail}`');
+    expect(src('read-tail-r48-sql.ts')).toContain('crmCompanyScopeSql = (tail: string) => crmSelectBodySql(`?::text company_id${tail}`)');
     expect(src('read-tail-r49-sql.ts')).toContain('crmJsonbAggregateSql = (body: string) => crmSelectBodySql(`jsonb_agg(to_jsonb(${body}`)');
     expect(src('read-tail-r50-sql.ts')).toContain('export const crmSelectExprSql = (body: string) => crmSelectBodySql(`(${body}`)');
     expect(src('read-tail-r51-sql.ts')).toContain("export const crmLeadSelectSql = (tail: string) => crmSelectOneSql(`crm_leads ${tail}`)");
@@ -162,7 +162,7 @@ describe('crm read-tail r21 byte-identical projection/FROM head', () => {
   });
 
   test('retirement:ts-statements drops from the r51 AFTER=47 to 43', () => {
-    expect(totalSelects()).toBe(34);
+    expect(totalSelects()).toBe(33);
     expect(totalSelects()).toBeLessThan(47);
   });
 });
