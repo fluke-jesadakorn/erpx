@@ -62,7 +62,7 @@ describe('runtime read-tail r19 migration control read head family', () => {
 
   test('the head lives once and no other owner file calls it', () => {
     const shared = src('read-tail-sql.ts');
-    expect(shared.split('`SELECT ${columns} FROM ${relation}${suffix}`')).toHaveLength(2);
+    expect(shared.split('`${selectHeadSql}${columns} FROM ${relation}${suffix}`')).toHaveLength(2);
     const ownerFiles = new Set([
       resolve(adapterDir, 'read-tail-sql.ts'),
       resolve(adapterDir, 'runtime/migrations.ts'),
@@ -100,12 +100,12 @@ describe('runtime read-tail r19 migration control read head family', () => {
       '`SELECT ${columns} FROM executive_report_shares${suffix}`',
       '`SELECT ${columns} FROM executive_report_revisions WHERE report_id=?${suffix}`',
       '`SELECT ${columns} FROM executive_reports${suffix}`',
-      "`SELECT ${fn}('${name}') IS NOT NULL present`",
+      "`${selectHeadSql}${fn}('${name}') IS NOT NULL present`",
     ]) expect(shared.split(template)).toHaveLength(2);
   });
 
-  test('retirement:ts-statements records BEFORE=29 strictly lower to 28', () => {
-    expect(kpi()).toBe(28);
+  test('retirement:ts-statements records BEFORE=29 strictly lower to 27', () => {
+    expect(kpi()).toBe(27);
     expect(kpi()).toBeLessThan(29);
   });
 });

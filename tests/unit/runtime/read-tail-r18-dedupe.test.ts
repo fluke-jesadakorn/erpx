@@ -63,7 +63,7 @@ describe('runtime read-tail r18 catalog-object presence head family', () => {
 
   test('the head lives once and no other owner file calls it', () => {
     const shared = src('read-tail-sql.ts');
-    expect(shared.match(/SELECT \$\{fn\}\('\$\{name\}'\) IS NOT NULL present/g)).toHaveLength(1);
+    expect(shared.match(/\$\{selectHeadSql\}\$\{fn\}\('\$\{name\}'\) IS NOT NULL present/g)).toHaveLength(1);
     // No foreign call site: the only helper calls are the two in migrations.ts.
     const ownerFiles = new Set([
       resolve(adapterDir, 'read-tail-sql.ts'),
@@ -104,8 +104,8 @@ describe('runtime read-tail r18 catalog-object presence head family', () => {
     ]) expect(shared.split(template)).toHaveLength(2);
   });
 
-  test('retirement:ts-statements records BEFORE=30 strictly lower to 28', () => {
-    expect(kpi()).toBe(28);
+  test('retirement:ts-statements records BEFORE=30 strictly lower to 27', () => {
+    expect(kpi()).toBe(27);
     expect(kpi()).toBeLessThan(30);
   });
 });

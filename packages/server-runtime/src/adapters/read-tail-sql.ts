@@ -1,4 +1,10 @@
 /**
+ * Single bare head shared by the runtime-owned read-tail renderers. Keeping the
+ * prefix literal once stops it from drifting across the folded helper families.
+ */
+export const selectHeadSql = 'SELECT ';
+
+/**
  * Runtime-owned canonical SQL for the closed `holding_bindings` read family.
  * Every caller composes the same statement from its column list and optional
  * suffix, so the query text is defined once and cannot drift between owners.
@@ -79,7 +85,7 @@ export const executiveReportsSql = (columns: string, suffix = '') =>
  * Control-plane lock statements are not part of this family.
  */
 export const catalogObjectExistsSql = (fn: 'to_regclass' | 'to_regprocedure', name: string) =>
-  `SELECT ${fn}('${name}') IS NOT NULL present`;
+  `${selectHeadSql}${fn}('${name}') IS NOT NULL present`;
 
 /**
  * Runtime-owned canonical SQL for the closed migration control read family.
@@ -94,4 +100,4 @@ export const migrationControlReadSql = (
   relation: 'erpx_migration_receipts()' | 'erpx_migrations',
   suffix = '',
 ) =>
-  `SELECT ${columns} FROM ${relation}${suffix}`;
+  `${selectHeadSql}${columns} FROM ${relation}${suffix}`;
