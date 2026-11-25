@@ -114,7 +114,7 @@ describe('Identity access read-tail r39 wiring', () => {
 });
 
 describe('Identity access read-tail r39 retirement check', () => {
-  test('retirement:ts-statements is 441 after r38=442', () => {
+  test('retirement:ts-statements is 440 after r39=441', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -125,6 +125,6 @@ describe('Identity access read-tail r39 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(442);
-    expect(total).toBe(441);
+    expect(total).toBe(440);
   });
 });

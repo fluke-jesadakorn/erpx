@@ -249,7 +249,7 @@ describe('Identity access read-tail r38 wiring', () => {
   test('post-dedupe files match their pinned byte oracles', () => {
     const pins: [string, string][] = [
       ['adapters/operations-staff-policy-facts.ts', '8609823a7c3ba90fe9a37ab65608da7ad836379dc122df42735ccb73716b9721'],
-      ['adapters/executive-metric-projections.ts', '7150522f15483cc80fcfbbbcddf91a7f071e329d733a1eca76c642478d6c5374'],
+      ['adapters/executive-metric-projections.ts', 'b93aa61f9ea991ca199fe69131e013fbc272f90aaddc6ec8f37eb3566c3644de'],
       ['adapters/attachment-read-sources.ts', '3cedcaf49a89f99df88a5fbe324b20046c2aeb2cd1a298e9b300039b6b38b3ab'],
     ];
     for (const [rel, sha] of pins) expect(hash(rel), rel).toBe(sha);
@@ -257,7 +257,7 @@ describe('Identity access read-tail r38 wiring', () => {
 });
 
 describe('Identity access read-tail r38 retirement check', () => {
-  test('retirement:ts-statements is 442 after r36=448', () => {
+  test('retirement:ts-statements is 440 after r39=441', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -268,6 +268,6 @@ describe('Identity access read-tail r38 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(448);
-    expect(total).toBe(442);
+    expect(total).toBe(440);
   });
 });

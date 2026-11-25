@@ -8,6 +8,7 @@ import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import { specs } from '@erpx/server-runtime/public/executive/metric-projection-contract';
 import type { MetricSnapshot, RawMetricRow } from '@erpx/server-runtime/public/executive/metric-projection-contract';
 import { scopeLabel, branchScopeClauseSql } from './read-tail-family-r38';
+import { execMetricLabelHead } from './read-tail-family-r40';
 export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown): Promise<MetricSnapshot> {
     const spec = specs[id];
     let sql = '', values: unknown[] = [];
@@ -29,7 +30,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
                 ? branchScopeClauseSql('x', organizationSources.executive_metric_projections_organization_nodes_from)
                 : "";
         const now = Date.now();
-        sql = `SELECT ${label} label,count(*)::text value FROM assignments x WHERE x.company_id=? AND x.revoked_at IS NULL AND x.valid_from<=? AND x.valid_until>? AND iam_assignment_active(x.id,?) ${scopeClause} GROUP BY 1 ORDER BY 1`;
+        sql = `${execMetricLabelHead(label)}assignments x WHERE x.company_id=? AND x.revoked_at IS NULL AND x.valid_from<=? AND x.valid_until>? AND iam_assignment_active(x.id,?) ${scopeClause} GROUP BY 1 ORDER BY 1`;
         values = [a.companyId, now, now, now, ...(a.departmentId ? [a.branchId, a.departmentId] : a.branchId ? [a.branchId, a.branchId] : [])];
     }
     if (id === "pending-access-reviews") {
@@ -48,7 +49,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
             : a.branchId
                 ? branchScopeClauseSql('i', organizationSources.executive_metric_projections_organization_nodes_from)
                 : "";
-        sql = `SELECT ${label} label,count(*)::text value FROM iam_access_review_items i JOIN iam_access_review_campaigns c ON c.id=i.campaign_id AND c.company_id=i.company_id WHERE i.company_id=? AND i.decision='pending' AND c.status='open' ${scopeClause} GROUP BY 1 ORDER BY 1`;
+        sql = `${execMetricLabelHead(label)}iam_access_review_items i JOIN iam_access_review_campaigns c ON c.id=i.campaign_id AND c.company_id=i.company_id WHERE i.company_id=? AND i.decision='pending' AND c.status='open' ${scopeClause} GROUP BY 1 ORDER BY 1`;
         values = [a.companyId, ...(a.departmentId ? [a.branchId, a.departmentId] : a.branchId ? [a.branchId, a.branchId] : [])];
     }
     const raw = (await sourceDb.prepare(sql).bind(...values).all<RawMetricRow>()).results;

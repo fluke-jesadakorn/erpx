@@ -55,7 +55,7 @@ it('keeps one fixed POS Stripe holding-assignment role projection for both facts
     const { readFile } = await import("node:fs/promises");
     const source = await readFile(new URL("../../../packages/server-identity_access/src/adapters/pos-stripe-facts.ts", import.meta.url), "utf8");
     expect(source).toContain("const holdingAssignmentRoleSql");
-    expect(source.split("SELECT role FROM assignments WHERE id=?").length - 1).toBe(1);
+    expect(source.split('assignmentRoleSql("scope_kind=\'holding\' AND revoked_at IS NULL AND valid_from<=? AND valid_until>?")').length - 1).toBe(1);
     expect(source.split("one(db,holdingAssignmentRoleSql,").length - 1).toBe(2);
 });
 
