@@ -18,6 +18,7 @@ import {LEDGER_OBJECT_KEY_PROJECTION_HEAD_SQL} from "../read-tail-r42-source-sql
 import {ATTACHMENT_STAR_ID_HEAD_SQL} from "../read-tail-r44-source-sql";
 import {ATTACHMENT_EVENTS_WHERE_HEAD_SQL,ATTACHMENT_SETS_STAR_WHERE_HEAD_SQL} from "../read-tail-r45-source-sql";
 import {SET_DRAFT_BOUND_COUNT_SQL} from "../read-tail-r46-source-sql";
+import {SET_ROW_DRAFT_LINK_EXISTS_HEAD_SQL} from "../read-tail-r47-source-sql";
 const setByIdSql = ATTACHMENT_SETS_STAR_WHERE_HEAD_SQL + "id=? AND company_id=?";
 export const usedStorageSql = "SELECT COALESCE(sum(bytes),0) FROM attachment_storage_ledger WHERE company_id=? AND state IN ('reserved','stored')";
 export const pendingStorageSql = "SELECT COALESCE(sum(declared_bytes),0) FROM upload_intents WHERE company_id=? AND status='pending' AND expires_at>?";
@@ -915,8 +916,8 @@ export function repository(db: SqlDatabase) {
             return db.prepare(`SELECT DISTINCT set_row.company_id,set_row.target_id
     FROM attachment_sets set_row
     WHERE set_row.target_type='leave_request' AND set_row.state='draft' AND (
-      EXISTS(SELECT 1 FROM attachment_links link WHERE link.set_id=set_row.id AND link.state='draft' AND link.expires_at<=?)
-      OR (NOT EXISTS(SELECT 1 FROM attachment_links link WHERE link.set_id=set_row.id) AND set_row.created_at<=?)
+      EXISTS(${SET_ROW_DRAFT_LINK_EXISTS_HEAD_SQL} AND link.state='draft' AND link.expires_at<=?)
+      OR (NOT EXISTS(${SET_ROW_DRAFT_LINK_EXISTS_HEAD_SQL}) AND set_row.created_at<=?)
     ) ORDER BY set_row.company_id,set_row.target_id`).bind(facts.now, facts.arg2).all<{
                 company_id: string;
                 target_id: string;

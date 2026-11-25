@@ -1,5 +1,6 @@
 import {NO_ATTACHMENT_LINK_SQL} from './read-tail-dedupe-sql';
 import {SET_ROW_JOIN_HEAD_SQL} from './read-tail-r42-source-sql';
+import {LEAVE_LEGACY_SOURCE_ID_HEAD_SQL} from './read-tail-r47-source-sql';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import {assertion} from "@erpx/server-workflow/public/command-assertions";export function leaveReviewEvidenceFacts(database:SqlDatabase){return {guard11(key:string,value:"leave-evidence-canonical-count",id:string,company_id:string,length:number){return assertion(database,
           key,
           value,
@@ -114,8 +115,7 @@ guard16(key:string,value:"leave-evidence-required-count",value2:(string | number
                       `(
                         SELECT count(DISTINCT evidence.source_id)
                         FROM (
-                          SELECT source.id source_id
-                          FROM attachment_sets set_row
+                          ${LEAVE_LEGACY_SOURCE_ID_HEAD_SQL}attachment_sets set_row
                           JOIN attachment_links link ON link.set_id=set_row.id
                           JOIN attachments source ON source.id=link.attachment_id
                             AND source.company_id=set_row.company_id
@@ -125,8 +125,7 @@ guard16(key:string,value:"leave-evidence-required-count",value2:(string | number
                             AND link.state IN ('draft','bound')
                             AND source.source_state='available'
                           ${legacyIncluded ? `UNION ALL
-                          SELECT source.id source_id
-                          FROM attachments source
+                          ${LEAVE_LEGACY_SOURCE_ID_HEAD_SQL}attachments source
                           WHERE source.owner_type='leave_request' AND source.owner_id=?
                             AND source.company_id=? AND source.purpose=?
                             AND source.revoked_at IS NULL AND source.source_state='available'

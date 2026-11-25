@@ -4,6 +4,7 @@ import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {recordAttachmentVersionSteps} from '@erpx/server-files/adapters/record-version-receipts';
 import {jsonbRowsSql} from './social-upload-cleanup-rows-sql';
+import {CLEANUP_LINK_ROWS_HEAD_SQL,CLEANUP_BOUND_COMMAND_ID_HEAD_SQL} from './read-tail-r47-source-sql';
 type Row=Record<string,unknown>;
 type Graph={attachments:Row[];uploads:Row[];sets:Row[];links:Row[];events:Row[];receipts:Row[];audits:Row[];publications:Row[];steps:Row[]};
 export type SocialUploadCleanupFiles=Readonly<{kind:'social-upload-cleanup-files'}>;
@@ -16,16 +17,16 @@ async function graph(db:SqlDatabase,input:{id:string;companyId:string}){
  const raw=await db.prepare(`WITH owned_sets AS(SELECT * FROM attachment_sets WHERE target_type='social_draft' AND target_id=?),
  uploads AS(SELECT * FROM upload_intents WHERE owner_type='social_draft' AND owner_id=?),
  files AS(SELECT * FROM attachments a WHERE a.owner_type='social_draft' AND a.owner_id=? OR EXISTS(SELECT 1 FROM uploads u WHERE u.id=a.upload_id)),
- direct_links AS(SELECT * FROM attachment_links l WHERE l.set_id IN(SELECT id FROM owned_sets) OR l.attachment_id IN(SELECT id FROM files) OR l.upload_intent_id IN(SELECT id FROM uploads)),
- links AS(SELECT * FROM attachment_links l WHERE l.id IN(SELECT id FROM direct_links) OR l.supersedes_link_id IN(SELECT id FROM direct_links)),
+ direct_links AS(${CLEANUP_LINK_ROWS_HEAD_SQL}set_id IN(SELECT id FROM owned_sets) OR l.attachment_id IN(SELECT id FROM files) OR l.upload_intent_id IN(SELECT id FROM uploads)),
+ links AS(${CLEANUP_LINK_ROWS_HEAD_SQL}id IN(SELECT id FROM direct_links) OR l.supersedes_link_id IN(SELECT id FROM direct_links)),
  sets AS(SELECT * FROM attachment_sets s WHERE s.id IN(SELECT id FROM owned_sets UNION SELECT set_id FROM links))
  SELECT jsonb_build_object('attachments',${jsonbRowsSql('a','files','a.id')},
  'uploads',${jsonbRowsSql('u','uploads','u.id')},
  'sets',${jsonbRowsSql('s','sets','s.id')},
  'links',${jsonbRowsSql('l','links','l.id')},
  'events',${jsonbRowsSql('e','attachment_events','e.id',"e.attachment_id IN(SELECT id FROM files) OR e.link_id IN(SELECT id FROM links) OR e.set_id IN(SELECT id FROM sets)")},
- 'receipts',${jsonbRowsSql('c','command_receipts','c.command_id','c.command_id IN(SELECT bound_command_id FROM sets)')},
- 'audits',${jsonbRowsSql('a','audit_events','a.id','a.command_id IN(SELECT bound_command_id FROM sets)')},
+ 'receipts',${jsonbRowsSql('c','command_receipts','c.command_id','c.command_id IN('+CLEANUP_BOUND_COMMAND_ID_HEAD_SQL)},
+ 'audits',${jsonbRowsSql('a','audit_events','a.id','a.command_id IN('+CLEANUP_BOUND_COMMAND_ID_HEAD_SQL)},
  'steps',${jsonbRowsSql('s',`(${recordAttachmentVersionSteps})`,'s.next_version,s.command_id',"s.company_id=? AND s.target_type='social_draft' AND s.target_id=?")},
  'publications',${jsonbRowsSql('p','attachment_publications','p.id','p.source_link_id IN(SELECT id FROM links)')})::text image`).bind(input.id,input.id,input.id,input.companyId,input.id).first<string>('image');
  if(!raw)throw changed();return JSON.parse(raw) as Graph;
