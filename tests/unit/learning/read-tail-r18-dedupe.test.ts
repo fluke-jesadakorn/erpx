@@ -91,7 +91,7 @@ describe('Learning read-tail r18 deferred families and invariants', () => {
     expect(locks).toBe(7);
   });
 
-  test('retirement:ts-statements is strictly lower than the r18 BEFORE=39 baseline (r19 pins 37)', () => {
+  test('retirement:ts-statements is strictly lower than the r18 BEFORE=39 baseline (r20 pins 36)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -102,9 +102,9 @@ describe('Learning read-tail r18 deferred families and invariants', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(39);
-    expect(total).toBe(37);
+    expect(total).toBe(36);
     expect(selectCount(src('learning.ts'))).toBe(0);
-    expect(selectCount(src('learning-read-sql.ts'))).toBe(35);
+    expect(selectCount(src('learning-read-sql.ts'))).toBe(34);
     expect(selectCount(src('executive-metric-projections.ts'))).toBe(1);
     expect(selectCount(src('learning-completion-evidence.ts'))).toBe(1);
   });

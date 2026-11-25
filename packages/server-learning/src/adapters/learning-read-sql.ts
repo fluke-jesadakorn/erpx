@@ -91,9 +91,11 @@ export const currentAssignmentScopeHead = (alias: string, permission: string, gr
 
 /** r10 — single-row learning_courses reads share the same FROM/WHERE tail and differ
  * only by projected columns. Only the projection and its separator vary, so every
- * rendered query keeps its exact pre-dedupe bytes. */
+ * rendered query keeps its exact pre-dedupe bytes.
+ * r20 — that frame is exactly the r13 identitySourceRead head with key 'c.'; its one
+ * query head now lives in that owner-local renderer. */
 export const learningCourseProjection = (projection: string, separator = ' ') =>
-  `SELECT ${projection}${separator}FROM learning_courses c WHERE c.id=? AND c.company_id=?`;
+  identitySourceRead(projection, 'learning_courses c', separator, 'c.');
 
 /** r10 — assignment x course single-row reads share the same join head and differ
  * only by projected columns and WHERE tail. Only the projection and its separator

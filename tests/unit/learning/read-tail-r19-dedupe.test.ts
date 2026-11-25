@@ -113,7 +113,7 @@ describe('Learning read-tail r19 assignment-child delegation', () => {
     expect(locks).toBe(7);
   });
 
-  test('retirement:ts-statements KPI is 37 (strictly below the r19 BEFORE=38 baseline)', () => {
+  test('retirement:ts-statements KPI is 36 (strictly below the r20 BEFORE=37 baseline)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -124,9 +124,9 @@ describe('Learning read-tail r19 assignment-child delegation', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(38);
-    expect(total).toBe(37);
+    expect(total).toBe(36);
     expect(selectCount(src('learning.ts'))).toBe(0);
-    expect(selectCount(src('learning-read-sql.ts'))).toBe(35);
+    expect(selectCount(src('learning-read-sql.ts'))).toBe(34);
     expect(selectCount(src('executive-metric-projections.ts'))).toBe(1);
     expect(selectCount(src('learning-completion-evidence.ts'))).toBe(1);
   });
