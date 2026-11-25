@@ -63,6 +63,6 @@ describe('quality read-tail r28 native alert-to-hold point read', () => {
       }
     };
     walk(src);
-    expect(total).toBe(31);
+    expect(total).toBe(30);
   });
 });

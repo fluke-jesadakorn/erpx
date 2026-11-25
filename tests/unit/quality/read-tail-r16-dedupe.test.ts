@@ -82,7 +82,7 @@ describe('quality read-tail r16 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(75);
-    expect(total).toBe(31);
+    expect(total).toBe(30);
   });
   test('the three helpers are read-only and leave locks and prior families untouched', () => {
     for (const name of ['quality-work-scope-sql', 'native-source-wrapper-sql', 'inspection-evidence-source-sql']) {

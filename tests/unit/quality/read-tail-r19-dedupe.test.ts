@@ -41,7 +41,7 @@ describe('quality attachment source projection family dedupe (r19)', () => {
     const counts: Record<string, number> = {
       'quality-work-scope-sql': 1, 'native-source-wrapper-sql': 1, 'inspection-evidence-source-sql': 1,
       'quality-lineage-recursion-sql': 2, 'quality-child-agg-sql': 1,
-      'quality-receipt-guard-sql': 1, 'quality-source-rows-sql': 1, 'quality-scope-sql': 2,
+      'quality-receipt-guard-sql': 1, 'quality-source-rows-sql': 1, 'quality-scope-sql': 1,
       'quality-alert-recipient-sql': 1, 'quality-attachment-scope-read-sql': 1, 'quality-id-source-sql': 1,
     };
     for (const [name, count] of Object.entries(counts)) {
@@ -62,6 +62,6 @@ describe('quality read-tail r19 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(73);
-    expect(total).toBe(31);
+    expect(total).toBe(30);
   });
 });
