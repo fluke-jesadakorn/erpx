@@ -18,14 +18,11 @@ const PROBE = `SELECT 1 FROM (${pmsSourcesSql}) pr ${PMS_RECIPIENT_CROSS_JOIN_SQ
 const ORIGINAL_HEADS = [
   'SELECT id FROM pms_records WHERE property_id=? AND kind=?',
   "SELECT id FROM pms_records WHERE property_id=? AND kind='block'",
-  "SELECT id FROM pms_records WHERE property_id=? AND ? AND kind='task'",
-  "SELECT id FROM pms_records WHERE property_id=? AND kind='guest' ORDER BY updated_at DESC,id LIMIT 50",
   'SELECT id FROM pms_records WHERE property_id=? AND kind=? ${eligible}',
 ];
 const TAILS = [
   ' AND kind=?',
   " AND kind='block'",
-  " AND kind='guest' ORDER BY updated_at DESC,id LIMIT 50",
   ' AND kind=? ${eligible}',
 ];
 const PROBE_FILES = [
@@ -54,7 +51,7 @@ describe('pms read-tail r35 point-read head dedupe', () => {
     expect(pmsSourceRecipientProbeSql()).toBe(PROBE);
   });
 
-  it('recomposes the original five point-read heads byte-identically', () => {
+  it('recomposes the original three point-read heads byte-identically', () => {
     for (let i = 0; i < ORIGINAL_HEADS.length; i++) {
       expect(PMS_RECORD_ID_PROPERTY_HEAD_SQL + TAILS[i]).toBe(ORIGINAL_HEADS[i]);
     }

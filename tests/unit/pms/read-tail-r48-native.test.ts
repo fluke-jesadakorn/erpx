@@ -85,6 +85,7 @@ describe('pms read-tail r48 native read retirement', () => {
     const at = repo.indexOf('nativePmsReadAll<PmsStoredRecord>(PMS_RD_SECTION_RELATED_RECORDS, [');
     const chunk = repo.slice(at, at + 900);
     expect(chunk).toContain('facts.propertyId, facts.seedsJson, facts.propertyId2, facts.propertyId3, facts.propertyId3, facts.roomView');
+    expect(repo).toContain("[facts.propertyId, facts.seedsJson, facts.propertyId2, facts.propertyId3, facts.propertyId3, facts.roomView, facts.inventoryView, facts.nightView, facts.businessDate, facts.propertyId4, facts.roomView2, facts.propertyId5, facts.inventoryView2, facts.from, facts.to, facts.from2, facts.to2, facts.propertyId6, facts.inventoryView3, facts.inventoryView4, facts.propertyId7, facts.roomView3, facts.nightView2, facts.roomView4, facts.roomView5, facts.fact24, facts.nightView3, facts.nightView4, facts.propertyId6]");
     expect(chunk).toContain('facts.fact24, facts.nightView3, facts.nightView4, facts.propertyId6], db');
     expect(chunk).toContain('.then(rows => rows.results.map(decodePmsRecord))');
     expect(repo.split('PMS_RD_SECTION_RELATED_RECORDS').length - 1).toBe(2);
