@@ -1,9 +1,15 @@
 import "server-only";
 
-/** Parameterized scoped-row template. The visibility EXISTS branches differ only
- * by projected column, relation and alias; one template keeps their SQL byte-identical. */
+/** Parameterized byte-identical projection head shared by the scoped CTE family, the timeline
+ * customer set, the directory/visible-customer reads and the scoped EXISTS rows. Only the
+ * columns/source/predicate vary, so emitted SQL stays unchanged; r5-r12 helpers, source locks
+ * and cross-owner pins remain authoritative. */
+export const scopedProjection = (columns: string, from: string, where: string) =>
+  `SELECT ${columns} FROM ${from} WHERE ${where}`;
+/** Scoped EXISTS row template. The visibility branches differ only by projected column,
+ * relation and alias; r13 composes them through the single scopedProjection head. */
 const scopedRow = (column: string, relation: string, alias: string, key: string) =>
-  `SELECT ${column} FROM ${relation} ${alias} WHERE ${alias}.${key}=p.id`;
+  scopedProjection(column, `${relation} ${alias}`, `${alias}.${key}=p.id`);
 const existsScoped = (relation: string, alias: string, key: string) =>
   `EXISTS(${scopedRow('1', relation, alias, key)})`;
 

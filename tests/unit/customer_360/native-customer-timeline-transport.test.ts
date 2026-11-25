@@ -332,7 +332,8 @@ describe('native Customer 360 timeline transport',()=>{
  it('shares one parameterized company/scope projection across the scoped CTE family (r9)',async()=>{
  const read=async(path:string)=> (await import('node:fs/promises')).readFile(new URL(path,import.meta.url),'utf8');
  const timeline=await read('../../../packages/server-customer_360/src/adapters/timeline.ts');
- expect(timeline.match(/const scopedProjection = \(/g)).toHaveLength(1);
+ expect(timeline).not.toContain('const scopedProjection = ('); // r13 single head now in customer-read-sources
+ expect(timeline).toContain('scopedProjection } from "./customer-read-sources"');
  expect(timeline.match(/\$\{scopedProjection\(/g)).toHaveLength(8); // r9 six scoped CTE reads + r10 two directory/visible-customer reads
  for(const literal of [
   'WITH scoped_orders AS (SELECT id,company_id,party_id',
@@ -369,7 +370,8 @@ describe('native Customer 360 timeline transport',()=>{
    expect(directory).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|LOCK\s+TABLE/i);
    expect(visible).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|LOCK\s+TABLE/i);
    // One definition; eight composed sites (six r9 + two r10); the pre-r5 helper is gone.
-   expect(timeline.match(/const scopedProjection = \(/g)).toHaveLength(1);
+   expect(timeline).not.toContain('const scopedProjection = ('); // r13: head moved to customer-read-sources
+   expect(timeline).toContain('scopedProjection } from "./customer-read-sources"');
    expect(timeline.match(/\$\{scopedProjection\(/g)).toHaveLength(8);
    expect(timeline).not.toContain('customerPartySelect');
    expect(timeline).not.toContain('SELECT p.id,p.name,p.code');
@@ -388,7 +390,7 @@ describe('native Customer 360 timeline transport',()=>{
    expect(timeline).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|LOCK\s+TABLE/i);
   });
 
-  it('r9 obligation-fact head family: retirement:ts-statements is strictly below BEFORE=14',async()=>{
+  it('r13 scoped-projection head family: retirement:ts-statements is strictly below BEFORE=13',async()=>{
    const fs=await import('node:fs/promises');
    const {fileURLToPath}=await import('node:url');
    const {resolve}=await import('node:path');
@@ -402,7 +404,7 @@ describe('native Customer 360 timeline transport',()=>{
     }
    };
    await walk(root);
-   expect(total).toBe(13);
-   expect(total).toBeLessThan(14);
+   expect(total).toBe(12);
+   expect(total).toBeLessThan(13);
   });
 });

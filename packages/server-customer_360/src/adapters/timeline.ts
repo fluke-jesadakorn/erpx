@@ -19,7 +19,7 @@ import {ApiError} from "@erpx/server-runtime/public/http";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import {hasModuleAccess} from '@erpx/catalogue/module-access';
 import {visibility as legalVisibility} from "@erpx/server-legal/public/legal/access";
-import { customerVisiblePredicate } from "./customer-read-sources";
+import { customerVisiblePredicate, scopedProjection } from "./customer-read-sources";
 const cursorSchema=z.object({at:z.number().int().nonnegative(),id:z.string().min(1).max(250)});
 const querySchema=z.object({cursor:z.string().max(1000).optional(),limit:z.coerce.number().int().min(1).max(100).default(30)});
 /** Parameterized event-row projection shared by action/version/created_at timeline events.
@@ -29,12 +29,6 @@ const eventSelect=(prefix:string,sourceId:string,sourceType:string,title:string,
  * (fulfillment/return/contact/invoice/CRM activity). Complements but does not alter the r6 `eventSelect`
  * helper, which stays authoritative for the fixed `e`-alias events. Callers keep their own FROM/WHERE/bindings. */
 const eventRow=(id:string,sourceId:string,sourceType:string,title:string,status:string,version:string,at:string,href:string,customerId:string)=>`SELECT ${id},${sourceId},'${sourceType}',${title},${status},${version},${at},${href},${customerId},p.name`;
-/** Parameterized byte-identical projection shared by the scoped CTE family, the timeline customer set
- * and the directory/visible-customer reads. Callers keep their own source, WHERE and bindings; only
- * columns/source/predicate vary, so emitted SQL is unchanged. The r5-r9 helpers and all lock
- * statements stay authoritative and untouched. */
-const scopedProjection = (columns: string, from: string, where: string) =>
-  `SELECT ${columns} FROM ${from} WHERE ${where}`;
 function visible(a:WorkContext){const legal=legalVisibility(a);return {sql:`WITH scoped_orders AS (${scopedProjection('id,company_id,party_id,kind,number,state,version,created_at,updated_at',`(${commerceProjectionSources.commerce_orders}) commerce_orders`,`company_id=? AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?) AND kind IN ('sales','quote')`)}),scoped_leads AS (${scopedProjection('l.id,l.title,l.status,l.version,l.created_at,l.updated_at,v.customer_id,v.stage',`(${crmProjectionSources.crm_leads}) l JOIN (${crmProjectionSources.crm_opportunities}) v ON v.lead_id=l.id`,`l.company_id=? AND (?::text IS NULL OR l.branch_id=?) AND (?::text IS NULL OR l.department_id=?)`)}),scoped_service AS (${scopedProjection('g.id,g.customer_id,g.branch_id,g.department_id','field_service_agreements g',`g.company_id=? AND (?::text IS NULL OR g.branch_id=?) AND (?::text IS NULL OR g.department_id=?)`)}),scoped_invoices AS (${scopedProjection('i.id,i.party_id',`(${financeProjectionSources.finance_invoices}) i`,'i.company_id=?')}),scoped_legal AS (${scopedProjection('i.id,i.title,i.state,i.version,i.updated_at,n.target_id order_id',`(${legalProjectionSources.legal_items}) i JOIN (${legalProjectionSources.legal_native_references}) n ON n.item_id=i.id`,`${legal.sql} AND n.target_module='commerce_order'`)})`,args:[a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId,a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId,a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId,a.companyId,...legal.values]};}
 /** Shared Customer 360 projection used by its timeline, Executive aggregates, and audited evidence reads. */
 function timelineEvents(a:WorkContext, purchasedSupport:boolean){

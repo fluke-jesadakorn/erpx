@@ -228,7 +228,8 @@ describe('Customer 360 obligation-fact query-head family', () => {
     const timeline = c360Src('timeline.ts');
     expect(timeline).toContain('const eventSelect='); // r6
     expect(timeline).toContain('const eventRow='); // r7
-    expect(timeline).toContain('const scopedProjection ='); // r9
+    expect(reads).toContain('export const scopedProjection ='); // r13 head family
+    expect(timeline).toContain('scopedProjection } from "./customer-read-sources"'); // r13
     const obligations = c360Src('package-obligations.ts');
     expect(obligations).toContain('const supportConclusionExists='); // r3
     expect(obligations).toContain('LOCK TABLE customer_portal_actions IN SHARE ROW EXCLUSIVE MODE');
@@ -268,7 +269,7 @@ describe('Customer 360 obligation-fact query-head family', () => {
     expect(consumer).not.toContain('customer360ProjectionSources');
   });
 
-  it('retirement:ts-statements is strictly lower than BEFORE=14 (expected 13)', () => {
+  it('retirement r13:ts-statements is strictly lower than BEFORE=13 (expected 12)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -278,7 +279,7 @@ describe('Customer 360 obligation-fact query-head family', () => {
       }
     };
     walk(c360SrcRoot);
-    expect(total).toBe(13);
-    expect(total).toBeLessThan(14);
+    expect(total).toBe(12);
+    expect(total).toBeLessThan(13);
   });
 });
