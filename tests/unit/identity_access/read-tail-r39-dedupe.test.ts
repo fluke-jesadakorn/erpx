@@ -80,7 +80,9 @@ describe('Identity access read-tail r39 wiring', () => {
     expect(helper).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory|iam_role_allows|iam_assignment_active|iam_principal_active/i);
 
     const plf = read('adapters/people-lifecycle-facts.ts');
-    expect(calls('adapters/people-lifecycle-facts.ts', 'verifiedLifecycleAccountSql')).toBe(2);
+    // Count call sites only (import line has no '('); the plain `calls` helper
+    // would include the import and incorrectly report 3.
+    expect((plf.match(/\bverifiedLifecycleAccountSql\(/g) ?? []).length).toBe(2);
     expect(plf).toContain("import { verifiedLifecycleAccountSql } from './read-tail-family-r39';");
     expect(plf).toContain("NOT EXISTS(${verifiedLifecycleAccountSql('plain')})");
     expect(plf).toContain("NOT EXISTS(${verifiedLifecycleAccountSql('disable-probe')})");
