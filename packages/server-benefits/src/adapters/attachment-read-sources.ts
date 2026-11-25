@@ -7,11 +7,12 @@ import {benefitEligibilitySourceWitness} from '@erpx/server-learning/public/bene
 const tables={benefit_plan:'benefit_plans',benefit_dependent:'benefit_dependents',benefit_election:'benefit_elections'} as const;
 export function isBenefitAttachmentReadTarget(target:string):target is keyof typeof tables{return Object.hasOwn(tables,target);}
 
-/** Byte-identical owner-local election related-fact selectors. Point lookups
- * and array aggregations share one template per shape; generated SQL, column
- * references and bind order are unchanged. */
-export const attachmentPointFact=(key:string,alias:string,table:string,fk:string)=>`'${key}',(SELECT to_jsonb(${alias}) FROM ${table} ${alias} WHERE ${alias}.id=record.${fk} AND ${alias}.company_id=record.company_id)`;
-export const attachmentArrayFact=(key:string,alias:string,table:string,predicate:string)=>`'${key}',(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM ${table} ${alias} WHERE ${alias}.company_id=record.company_id AND ${predicate})`;
+/** Byte-identical owner-local election related-fact selectors. The point and
+ * array shapes share one head renderer; generated SQL, column references and
+ * bind order are unchanged. */
+export const attachmentFactSelect=(key:string,projection:string,table:string,alias:string,predicate:string)=>`'${key}',(SELECT ${projection} FROM ${table} ${alias} WHERE ${predicate})`;
+export const attachmentPointFact=(key:string,alias:string,table:string,fk:string)=>attachmentFactSelect(key,`to_jsonb(${alias})`,table,alias,`${alias}.id=record.${fk} AND ${alias}.company_id=record.company_id`);
+export const attachmentArrayFact=(key:string,alias:string,table:string,predicate:string)=>attachmentFactSelect(key,`jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id)`,table,alias,`${alias}.company_id=record.company_id AND ${predicate}`);
 const dependentJsonArray="dependent.id IN (SELECT jsonb_array_elements_text(CASE WHEN record.dependent_ids_json IS JSON ARRAY THEN record.dependent_ids_json::jsonb ELSE '[]'::jsonb END))";
 
 /** Full owner facts protect deferred and lazy reads without changing the

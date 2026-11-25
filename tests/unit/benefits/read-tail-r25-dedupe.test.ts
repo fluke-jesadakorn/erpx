@@ -86,8 +86,8 @@ describe('benefits read-tail r25 source-probe head dedupe', () => {
     expect(src('package-obligations.ts')).toContain('LOCK TABLE benefit_plans,benefit_plan_events,benefit_enrollment_windows,benefit_window_events,benefit_dependents,benefit_dependent_events,benefit_elections,benefit_election_events,benefit_payroll_inputs,command_receipts IN SHARE MODE');
   });
 
-  test('retirement:ts-statements is 33, strictly below the r25 BEFORE=35 baseline', () => {
-    expect(kpi()).toBe(33);
+  test('retirement:ts-statements is 32, strictly below the r25 BEFORE=35 baseline', () => {
+    expect(kpi()).toBe(32);
     expect(kpi()).toBeLessThan(35);
   });
 });
