@@ -9,3 +9,9 @@
  */
 export const crmProjectionFromSql = (projection: string, from: string) =>
   `SELECT ${projection} FROM ${from}`;
+
+/** Bare projection/body head owned by the r40 scoped-list, distinct-owner and
+ *  lead-row-source families. Callers pass their own modifier (DISTINCT / lead.*)
+ *  and ORDER tail inside `body`, so rendered SQL stays byte-identical to the
+ *  retired inline literals. */
+export const crmSelectBodySql = (body: string) => `SELECT ${body}`;

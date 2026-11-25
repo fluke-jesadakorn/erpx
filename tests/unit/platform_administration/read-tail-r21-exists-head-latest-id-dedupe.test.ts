@@ -81,7 +81,7 @@ describe('Platform Administration EXISTS-head and latest-id parameterized fold',
       }
     };
     walk(srcRoot);
-    expect(total).toBe(21);
+    expect(total).toBe(20);
     expect(total).toBeLessThan(23);
   });
 });

@@ -27,6 +27,8 @@ pub mod postgres_attachment_scan_receipt;
 
 pub mod postgres_attachment_scan_settlement;
 
+pub mod scan_pending_head;
+
 pub mod local_sanitization_io;
 
 pub mod local_quarantine_store;

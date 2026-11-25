@@ -193,7 +193,7 @@ describe('Projects read-tail r39 closed scope-bind and point-read dedupe', () =>
     // r38 left 81. r39 folds four scope bind heads into one closed helper (-3)
     // and three aliased point-read tails into one closed helper (-2): 81-5 = 76.
     // The assignment-viewer authority tail (S3) is not a byte-identical family.
-    expect(total).toBe(66); // lane 27 wave 2 moved the two handoff list/work reads to native (-2) // lane 27 moved the two actuals reads to native Rust (-2)
+    expect(total).toBe(65); // r44 final-root projection family folded into read-tail-r40 (66->65)
     expect(total).toBeLessThan(81);
   });
 });

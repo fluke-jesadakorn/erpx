@@ -75,7 +75,7 @@ describe('operations read-tail r54 viewer-clock head retirement', () => {
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(61);
+    expect(total).toBe(60);
     expect(total).toBeLessThan(72);
   });
 });

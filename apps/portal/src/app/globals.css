@@ -348,7 +348,6 @@
 @source "../../../../packages/server-commerce/src/adapters/read-tail-r21-dedupe-sql.ts";
 @source "../../../../packages/server-commerce/src/adapters/read-tail-r25-dedupe-sql.ts";
 @source "../../../../packages/server-commerce/src/adapters/read-tail-r26-dedupe-sql.ts";
-@source "../../../../packages/server-commerce/src/adapters/read-tail-r28-dedupe-sql.ts";
 @source "../../../../packages/server-commerce/src/adapters/records-source-facts.ts";
 @source "../../../../packages/server-commerce/src/adapters/service-initial-physical-stock-sources.ts";
 @source "../../../../packages/server-commerce/src/adapters/service-parts-posting-proof.ts";
@@ -1440,6 +1439,7 @@
 @source "../../../../packages/server-platform_administration/src/adapters/company-release-attachment-read.ts";
 @source "../../../../packages/server-platform_administration/src/adapters/engineering-verification.ts";
 @source "../../../../packages/server-platform_administration/src/adapters/native-engineering-enrollment-command.ts";
+@source "../../../../packages/server-platform_administration/src/adapters/native-engineering-verification-read/client.ts";
 @source "../../../../packages/server-platform_administration/src/adapters/native-lane-33/client.ts";
 @source "../../../../packages/server-platform_administration/src/adapters/native-owner-write.ts";
 @source "../../../../packages/server-platform_administration/src/adapters/release-predicate.ts";

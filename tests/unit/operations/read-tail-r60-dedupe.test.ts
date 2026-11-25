@@ -117,7 +117,7 @@ describe('operations read-tail r60 routine point-read head retirement', () => {
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(61);
+    expect(total).toBe(60);
     expect(total).toBeLessThan(64);
   });
 });

@@ -66,7 +66,7 @@ const FAMILY: readonly {
 const PROFILE_HELPER_SHA256 = '2510a8a0c83112502c07211a7069b7451095438fa3e4de26d333997a968836e7';
 const FOOTPRINT_HELPER_SHA256 = '6050531a7afd11b1a4b53e4c6a724821800da447a198548763f74ca8b73098da';
 /** Lock-bearing, native and cross-owner witnesses are untouched by r36. */
-const NATIVE_COMMAND_SHA256 = '4490ed9f88eab69ba6f920cb33c09f46b59606b3fb2412f5c3a6e2fd4c90e951';
+const NATIVE_COMMAND_SHA256 = '51cda9ad07a4ecbdd6c098f1b2e859a947b8309cea74dfec26fe975b842b25a7';
 
 async function tsFiles(directory: URL): Promise<URL[]> {
   const found: URL[] = [];
@@ -138,12 +138,12 @@ describe('manufacturing read-tail r36 owner-table head-family fold', () => {
     expect(command).toContain('${manufacturingIdSelect("manufacturing_orders")} WHERE id=? FOR UPDATE');
   });
 
-  it('pins the manufacturing owner SELECT KPI at 48 after the r37 fold (49->48)', async () => {
+  it('pins the manufacturing owner SELECT KPI at 45 after the r22 native detail-read cut (46->45)', async () => {
     let total = 0;
     for (const file of await tsFiles(new URL('../../../packages/server-manufacturing/src/', import.meta.url))) {
       total += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     }
-    expect(total).toBe(46);
+    expect(total).toBe(45);
     expect(total).toBeLessThan(50);
   });
 });

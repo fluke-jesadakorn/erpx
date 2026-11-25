@@ -7867,7 +7867,7 @@
           "POS receipt deep-link gate fix",
           "browser refund request + independent approval"
         ],
-        "evidence": "receipt deep link 200 (was PRODUCT_ROLE_REQUIRED); browser refund.request 200 {id:b1470068}; reviewer refund.approve 200 {version:2}; pos_refunds completed approved_by usr_nisa; pos_lines returned 1000/refunded 2500; pos_payments refunded 2500; pos_refund_payments succeeded 2500; finance_payments refund settled POS-REF-…; journal-refund and journal-refund-payment posted 2 lines each balanced 2500; typecheck and POS 13/13 + 17/17",
+        "evidence": "receipt deep link 200 (was PRODUCT_ROLE_REQUIRED); browser refund.request 200 {id:b1470068}; reviewer refund.approve 200 {version:2}; pos_refunds completed approved_by usr_nisa; pos_lines returned 1000/refunded 2500; pos_payments refunded 2500; pos_refund_payments succeeded 2500; finance_payments refund settled POS-REF-\u2026; journal-refund and journal-refund-payment posted 2 lines each balanced 2500; typecheck and POS 13/13 + 17/17",
         "counts": {
           "owners": 3,
           "verified": 30,
@@ -7965,7 +7965,7 @@
           "Identity recipient validation",
           "full exception browser lifecycle"
         ],
-        "evidence": "browser exception open from POS sale adcdf454 v4 → 200; acknowledge v2, start v3, assign v4, escalate v5, resolve v6, approve v7 (reviewed_by usr_nisa), close v8, reopen v9, prioritize high v10, resolve v11, reject v12, cancel v13; final operations_exceptions row cancelled/high/version 13; Operations tests 13/13, 7/7, 5/5, 6/6, 6/6, 3/3; native transport 11/11; typecheck passes",
+        "evidence": "browser exception open from POS sale adcdf454 v4 \u2192 200; acknowledge v2, start v3, assign v4, escalate v5, resolve v6, approve v7 (reviewed_by usr_nisa), close v8, reopen v9, prioritize high v10, resolve v11, reject v12, cancel v13; final operations_exceptions row cancelled/high/version 13; Operations tests 13/13, 7/7, 5/5, 6/6, 6/6, 3/3; native transport 11/11; typecheck passes",
         "counts": {
           "owners": 3,
           "verified": 36,
@@ -7998,7 +7998,7 @@
           "native Maintenance work/plan history",
           "assets package fixtures"
         ],
-        "evidence": "browser maintenance list 200 with AST-ACCEPT · Forklift inspection; work detail history Version 1 · open · Opened for acceptance; plan detail history activate; POS history and Operations pages still 200; Maintenance tests 6/6, 3/3, 2/2, 1/1, 1/1, 2/2, 2/2; Assets tests 4/4, 10/10, 17/17, 2/2, 13/13; typecheck passes",
+        "evidence": "browser maintenance list 200 with AST-ACCEPT \u00b7 Forklift inspection; work detail history Version 1 \u00b7 open \u00b7 Opened for acceptance; plan detail history activate; POS history and Operations pages still 200; Maintenance tests 6/6, 3/3, 2/2, 1/1, 1/1, 2/2, 2/2; Assets tests 4/4, 10/10, 17/17, 2/2, 13/13; typecheck passes",
         "counts": {
           "owners": 4,
           "verified": 38,
@@ -8032,7 +8032,7 @@
           "native Maintenance create",
           "maintenance owner completion"
         ],
-        "evidence": "browser create form 200 {id:maintenance-eaaf2f20…,version:1,status:open}; DB row open/v1/usr_mali and event version 1 create; detail history Version 1 · create · Created natively for the acceptance journey; Maintenance tests 6/6,3/3,2/2,1/1,1/1,2/2,2/2; Assets tests 4/4,10/10,17/17,2/2,13/13; typecheck passes",
+        "evidence": "browser create form 200 {id:maintenance-eaaf2f20\u2026,version:1,status:open}; DB row open/v1/usr_mali and event version 1 create; detail history Version 1 \u00b7 create \u00b7 Created natively for the acceptance journey; Maintenance tests 6/6,3/3,2/2,1/1,1/1,2/2,2/2; Assets tests 4/4,10/10,17/17,2/2,13/13; typecheck passes",
         "counts": {
           "owners": 5,
           "verified": 42,
@@ -8047,7 +8047,7 @@
         "bundles": [
           "payroll summary browser investigation"
         ],
-        "evidence": "native payroll summary target mounted via existing operations company binding; /people/people/payroll/dashboard stays Loading your workspace…; alternate canonical paths 404/403; experiment reverted without changing counts",
+        "evidence": "native payroll summary target mounted via existing operations company binding; /people/people/payroll/dashboard stays Loading your workspace\u2026; alternate canonical paths 404/403; experiment reverted without changing counts",
         "counts": {
           "owners": 5,
           "verified": 42,
@@ -8200,7 +8200,7 @@
         "bundles": [
           "native platform migration run"
         ],
-        "evidence": "browser erpx-management run succeeded 412→412 pending0; platform_migration_runs succeeded h001 receipt; replay same run id/one row; platform tests 26/26, organization 2/2, typecheck/health pass",
+        "evidence": "browser erpx-management run succeeded 412\u2192412 pending0; platform_migration_runs succeeded h001 receipt; replay same run id/one row; platform tests 26/26, organization 2/2, typecheck/health pass",
         "counts": {
           "owners": 5,
           "verified": 47,
@@ -8883,7 +8883,7 @@
           "Common Records create / Billing cost / Work Projection quick-access / Runtime outbox / Shared fences (23 commits)",
           "Distribute Field Count/Parts/Finance source witnesses (unmounted)"
         ],
-        "evidence": "ab06f19aa repaired the clean-HEAD catalogue for the committed Files business-evidence and Assets cost-composition suites; clean-archive catalogue 997 suites and both suites passed. Field source-only suites on the working tree: service_initial_count_revision_postgres 3/3, field_service_parts_postgres focused 1/1, inventory consumption_postgres 26/26, Finance journal_source_postgres 22/22. These are source predicates, not workflow closure; no Field workflow promoted. Finance period-close workpaper candidate: period_close_postgres 6/6 and Files business_evidence_postgres 3/3, but reviewer-blocked and not committed because it crosses Common-owned Files and the Commercial↔Finance lock order is unresolved.",
+        "evidence": "ab06f19aa repaired the clean-HEAD catalogue for the committed Files business-evidence and Assets cost-composition suites; clean-archive catalogue 997 suites and both suites passed. Field source-only suites on the working tree: service_initial_count_revision_postgres 3/3, field_service_parts_postgres focused 1/1, inventory consumption_postgres 26/26, Finance journal_source_postgres 22/22. These are source predicates, not workflow closure; no Field workflow promoted. Finance period-close workpaper candidate: period_close_postgres 6/6 and Files business_evidence_postgres 3/3, but reviewer-blocked and not committed because it crosses Common-owned Files and the Commercial\u2194Finance lock order is unresolved.",
         "counts": {
           "owners": 0,
           "verified": 65,
@@ -9245,7 +9245,7 @@
           }
         ],
         "nextActions": [
-          "Coordinator handoff: obtain Common acknowledgment before using shared Files/Records/Workflow/Work Projection/Runtime/Shared files or the shared build/DB/browser queue. The Finance period-close workpaper candidate crosses Common-owned packages/server-files; do not commit or mount it until Common accepts the frozen Files port contract and the Commercial↔Finance lock order is resolved with the Field parts consumer.",
+          "Coordinator handoff: obtain Common acknowledgment before using shared Files/Records/Workflow/Work Projection/Runtime/Shared files or the shared build/DB/browser queue. The Finance period-close workpaper candidate crosses Common-owned packages/server-files; do not commit or mount it until Common accepts the frozen Files port contract and the Commercial\u2194Finance lock order is resolved with the Field parts consumer.",
           "Audit each owner against the strict native, frontend, legacy-retirement, local-gate, review and pushed-source requirements before certifying completion; the former eight and three owner claims are historical and were not sufficient under this gate.",
           "Resolve the recorded server-assets/composition API drift, validate affected consumers and normal-authenticated registration; container preparation is deferred until after this goal.",
           "Recheck the integrated Files/Workflow attachment modules and the full service on the final frozen source; the historical clean archive build predates current shared work.",
@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 13847,
+    "revision": 13904,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261125-g",
       "agentId": "lead",
       "startedAt": "2026-11-25T13:28:24.118Z",
-      "heartbeatAt": "2026-11-25T17:05:43.196Z",
-      "expiresAt": "2026-11-25T17:35:43.196Z",
+      "heartbeatAt": "2026-11-25T17:29:43.169Z",
+      "expiresAt": "2026-11-25T17:59:43.169Z",
       "generation": 177,
       "tokenHash": "58dfe8b75da5fd46cf77c2d0cb6291dea94bb80da105d8ed790ca1a07326d35d"
     },
@@ -10635,8 +10635,15 @@
         "resources": [
           "owner:platform_administration"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-platform-administration",
+          "claimedAt": "2026-11-25T17:27:48.072Z",
+          "heartbeatAt": "2026-11-25T17:29:43.169Z",
+          "expiresAt": "2026-11-25T17:59:43.169Z",
+          "generation": 177
+        },
         "baseSha": "0807b7d6ff9921cac319f5bc37fb02233edcbb52",
         "implementedCommit": "44ab017744a96545f6a230bb551d0f3b32365133",
         "lastPushedSha": "44ab017744a96545f6a230bb551d0f3b32365133",
@@ -10720,7 +10727,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "retireTaskId": "retire.platform_administration.operations-writers",
         "nextAction": "Checks recorded; claim released",
         "handoff": {
@@ -11098,7 +11105,7 @@
             "command": "cargo test -p erpx-server-customer-360 --test customer_portal",
             "result": "passed",
             "sourceSha": "77b57db71c7d58608a71d7155a21a0dcc32c30b5",
-            "note": "9 passed on current uncommitted WIP: notify → independent ID → audit → independent ID → outbox, replay consumes no IDs and failures short-circuit; real UUID producer and whole-transaction collision retry remain unimplemented."
+            "note": "9 passed on current uncommitted WIP: notify \u2192 independent ID \u2192 audit \u2192 independent ID \u2192 outbox, replay consumes no IDs and failures short-circuit; real UUID producer and whole-transaction collision retry remain unimplemented."
           },
           {
             "command": "cargo test -p erpx-server-identity-access --test portal_private_session_lease_postgres -- --nocapture",
@@ -11110,7 +11117,7 @@
             "command": "cargo test -p erpx-server-identity-access --test portal_private_session_lease_postgres -- --nocapture",
             "result": "passed",
             "sourceSha": "77b57db71c7d58608a71d7155a21a0dcc32c30b5",
-            "note": "5 passed on uncommitted WIP and isolated leased dev Control PG: direct/SSO, optional device after prior proof, expiry/email verification, parent/child/binding revoke, real 5s contention→SESSION_AUTHORITY_BUSY/reacquire, writer blocked until commit. Actual TS same-source differential and Control+Holding composition remain unproved."
+            "note": "5 passed on uncommitted WIP and isolated leased dev Control PG: direct/SSO, optional device after prior proof, expiry/email verification, parent/child/binding revoke, real 5s contention\u2192SESSION_AUTHORITY_BUSY/reacquire, writer blocked until commit. Actual TS same-source differential and Control+Holding composition remain unproved."
           },
           {
             "command": "cargo test -p erpx-server-identity-access --test portal_private_session_lease_postgres -- --nocapture",
@@ -11248,7 +11255,7 @@
             "command": "cargo test -p erpx-server-commercial --test portal_purchase_postgres -- --nocapture",
             "result": "passed",
             "sourceSha": "77b57db71c7d58608a71d7155a21a0dcc32c30b5",
-            "note": "3 passed on WIP and isolated leased dev PG + pinned Node TS oracle: shadow checked observation, scoped cleanup and unknown capability real 23514→409. Enforced SQL, expiry, duplicate-key, before/release/route parity not complete; temporary helper removalTaskId migrate.customer_360."
+            "note": "3 passed on WIP and isolated leased dev PG + pinned Node TS oracle: shadow checked observation, scoped cleanup and unknown capability real 23514\u2192409. Enforced SQL, expiry, duplicate-key, before/release/route parity not complete; temporary helper removalTaskId migrate.customer_360."
           },
           {
             "command": "cargo test -p erpx-server-commercial --test portal_purchase_postgres -- --nocapture",
@@ -11260,13 +11267,13 @@
             "command": "cargo test -p erpx-server-commercial --test portal_purchase_postgres -- --nocapture",
             "result": "passed",
             "sourceSha": "77b57db71c7d58608a71d7155a21a0dcc32c30b5",
-            "note": "4 passed on WIP with isolated leased dev PG + pinned Node actual TS after wrapper: enforced active/expired/future × history/settle, scoped cleanup, duplicate SQLSTATE 23505 after real dependency. DB clock sampled but seeded away from exact transition instant. Temporary oracle removalTaskId migrate.customer_360."
+            "note": "4 passed on WIP with isolated leased dev PG + pinned Node actual TS after wrapper: enforced active/expired/future \u00d7 history/settle, scoped cleanup, duplicate SQLSTATE 23505 after real dependency. DB clock sampled but seeded away from exact transition instant. Temporary oracle removalTaskId migrate.customer_360."
           },
           {
             "command": "cargo test -p erpx-server-commercial --test portal_purchase_postgres -- --nocapture",
             "result": "passed",
             "sourceSha": "77b57db71c7d58608a71d7155a21a0dcc32c30b5",
-            "note": "5 passed on uncommitted WIP, isolated leased dev PG + pinned Node actual TS before wrapper: active/missing, enforced assertion→after cleanup, real blocking company advisory/release and shadow no assertion. Exact clock transition, release/source/session/route authority unproved; temporary TS helper removalTaskId migrate.customer_360."
+            "note": "5 passed on uncommitted WIP, isolated leased dev PG + pinned Node actual TS before wrapper: active/missing, enforced assertion\u2192after cleanup, real blocking company advisory/release and shadow no assertion. Exact clock transition, release/source/session/route authority unproved; temporary TS helper removalTaskId migrate.customer_360."
           }
         ],
         "retainedLegacy": [
@@ -11596,7 +11603,7 @@
         "workstream": "S04",
         "kind": "inventory",
         "title": "Inventory finance source and consumers",
-        "scope": "Finish goods receipt/issue/fulfillment, lot/serial and valuation source ports; mount the Inventory receipt seam in actual Commerce writers. Close foreign-currency goods-carrying/matched post/void and Finance auxiliary jobs/bank automation. Freeze Commerce–Inventory–Finance transaction/lock order first, then implement disjoint adapters and integrate sequentially.",
+        "scope": "Finish goods receipt/issue/fulfillment, lot/serial and valuation source ports; mount the Inventory receipt seam in actual Commerce writers. Close foreign-currency goods-carrying/matched post/void and Finance auxiliary jobs/bank automation. Freeze Commerce\u2013Inventory\u2013Finance transaction/lock order first, then implement disjoint adapters and integrate sequentially.",
         "dependsOn": [
           "coordination.bootstrap"
         ],
@@ -11660,7 +11667,7 @@
         "resources": [
           "owner:finance"
         ],
-        "status": "blocked",
+        "status": "ready_for_integration",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "19580e0835c1dde972e2d399e77a681c8f890638",
@@ -11709,14 +11716,14 @@
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
-        "nextAction": "Worker ledger/source review at a741f2319; tests not rerun. Rerun owner all-targets compile and commerce goods journal fixture test; record actual retirement delta.",
+        "nextAction": "KPI 1701->1678 verified; lead mounts record_facts_router_for_holdings + ERPX_NATIVE_FINANCE_CUSTOMER_READ_CONFIG; thread WorkContext at 4 record-details sites",
         "handoff": {
-          "runId": "run-20261123-codex",
-          "agentId": "hy4-heartbeat-1",
-          "at": "2026-11-23T15:59:04.974Z",
-          "previousStatus": "integrating",
+          "runId": "run-20261125-g",
+          "agentId": "retire-finance",
+          "at": "2026-11-25T17:37:21.231Z",
+          "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Worker ledger/source review at a741f2319; tests not rerun. Rerun owner all-targets compile and commerce goods journal fixture test; record actual retirement delta."
+          "nextAction": "Lead commits the reported cut; next family attached"
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-finance",
@@ -11903,14 +11910,14 @@
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
-        "nextAction": "Query boundary fix integrated; payload parity decision is lead",
+        "nextAction": "Lead decision/next family recorded",
         "handoff": {
-          "runId": "run-20261123-f",
-          "agentId": "wA05",
-          "at": "2026-11-23T17:13:50.564Z",
-          "previousStatus": "in_progress",
+          "runId": "run-20261125-g",
+          "agentId": "retire-pos",
+          "at": "2026-11-25T17:24:39.457Z",
+          "previousStatus": "blocked",
           "reason": "handoff",
-          "nextAction": "Query boundary fix integrated; payload parity decision is lead"
+          "nextAction": "Lead decision/next family recorded"
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-pos",
@@ -12228,7 +12235,7 @@
         "workstream": "S04",
         "kind": "inventory",
         "title": "Inventory inventory source and consumers",
-        "scope": "Finish goods receipt/issue/fulfillment, lot/serial and valuation source ports; mount the Inventory receipt seam in actual Commerce writers. Close foreign-currency goods-carrying/matched post/void and Finance auxiliary jobs/bank automation. Freeze Commerce–Inventory–Finance transaction/lock order first, then implement disjoint adapters and integrate sequentially.",
+        "scope": "Finish goods receipt/issue/fulfillment, lot/serial and valuation source ports; mount the Inventory receipt seam in actual Commerce writers. Close foreign-currency goods-carrying/matched post/void and Finance auxiliary jobs/bank automation. Freeze Commerce\u2013Inventory\u2013Finance transaction/lock order first, then implement disjoint adapters and integrate sequentially.",
         "dependsOn": [
           "coordination.bootstrap"
         ],
@@ -13239,7 +13246,7 @@
         "workstream": "S11",
         "kind": "inventory",
         "title": "Inventory crm source and consumers",
-        "scope": "Finish accounts/activities/leads, create/qualify/win-PMS and Marketing→CRM→Sales handoffs; mount remaining Marketing commands with Files/Finance/CRM sources. Preserve attribution/cohort/posted-cost ROI, consent and Unicode receipt compatibility.",
+        "scope": "Finish accounts/activities/leads, create/qualify/win-PMS and Marketing\u2192CRM\u2192Sales handoffs; mount remaining Marketing commands with Files/Finance/CRM sources. Preserve attribution/cohort/posted-cost ROI, consent and Unicode receipt compatibility.",
         "dependsOn": [
           "coordination.bootstrap"
         ],
@@ -13299,7 +13306,7 @@
         "resources": [
           "owner:crm"
         ],
-        "status": "blocked",
+        "status": "ready_for_integration",
         "claim": null,
         "baseSha": "213fccf859788ae3c32a44bb4068c5501a8aea9a",
         "implementedCommit": null,
@@ -13334,15 +13341,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Operator authorized takeover. Prior OpenCode session ended idle/interrupted; reviewed checkout and preserved all WIP for task-by-task reconciliation.",
-        "nextAction": "Lead integrated, worker claim released",
+        "blocker": "handoff",
+        "nextAction": "41 SELECTs remain: 20 renderer heads + 21 direct inline queries need composition/presenter wiring",
         "handoff": {
-          "runId": "run-20261123-e",
-          "agentId": "lead",
-          "at": "2026-11-23T15:20:03.262Z",
-          "previousStatus": "integrating",
-          "reason": "Recovery: Operator authorized takeover. Prior OpenCode session ended idle/interrupted; reviewed checkout and preserved all WIP for task-by-task reconciliation.",
-          "nextAction": "Lead integrated, worker claim released"
+          "runId": "run-20261125-g",
+          "agentId": "retire-crm",
+          "at": "2026-11-25T17:17:23.290Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "41 SELECTs remain: 20 renderer heads + 21 direct inline queries need composition/presenter wiring"
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-crm",
@@ -13366,7 +13373,7 @@
         "workstream": "S11",
         "kind": "inventory",
         "title": "Inventory marketing source and consumers",
-        "scope": "Finish accounts/activities/leads, create/qualify/win-PMS and Marketing→CRM→Sales handoffs; mount remaining Marketing commands with Files/Finance/CRM sources. Preserve attribution/cohort/posted-cost ROI, consent and Unicode receipt compatibility.",
+        "scope": "Finish accounts/activities/leads, create/qualify/win-PMS and Marketing\u2192CRM\u2192Sales handoffs; mount remaining Marketing commands with Files/Finance/CRM sources. Preserve attribution/cohort/posted-cost ROI, consent and Unicode receipt compatibility.",
         "dependsOn": [
           "coordination.bootstrap"
         ],
@@ -14807,7 +14814,7 @@
         "resources": [
           "owner:field_service"
         ],
-        "status": "blocked",
+        "status": "ready_for_integration",
         "claim": null,
         "baseSha": "17e74d6fe622e46ec30b590f7f155b2d969c665a",
         "implementedCommit": null,
@@ -14839,15 +14846,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Operator authorized takeover. Prior OpenCode session ended idle/interrupted; reviewed checkout and preserved all WIP for task-by-task reconciliation.",
-        "nextAction": "Lead integrated bd999f847; parent released for child claim",
+        "blocker": "handoff",
+        "nextAction": "Cross-owner tail in records/runtime/finance is lead-owned",
         "handoff": {
-          "runId": "run-20261123-e",
-          "agentId": "worker-field3",
-          "at": "2026-11-23T15:20:03.262Z",
+          "runId": "run-20261125-g",
+          "agentId": "retire-field-service",
+          "at": "2026-11-25T17:17:23.480Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Operator authorized takeover. Prior OpenCode session ended idle/interrupted; reviewed checkout and preserved all WIP for task-by-task reconciliation.",
-          "nextAction": "Lead integrated bd999f847; parent released for child claim"
+          "reason": "handoff",
+          "nextAction": "Cross-owner tail in records/runtime/finance is lead-owned"
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-field-service",
@@ -15881,7 +15888,7 @@
         "workstream": "S04",
         "kind": "inventory",
         "title": "Inventory commerce source and consumers",
-        "scope": "Finish goods receipt/issue/fulfillment, lot/serial and valuation source ports; mount the Inventory receipt seam in actual Commerce writers. Close foreign-currency goods-carrying/matched post/void and Finance auxiliary jobs/bank automation. Freeze Commerce–Inventory–Finance transaction/lock order first, then implement disjoint adapters and integrate sequentially.",
+        "scope": "Finish goods receipt/issue/fulfillment, lot/serial and valuation source ports; mount the Inventory receipt seam in actual Commerce writers. Close foreign-currency goods-carrying/matched post/void and Finance auxiliary jobs/bank automation. Freeze Commerce\u2013Inventory\u2013Finance transaction/lock order first, then implement disjoint adapters and integrate sequentially.",
         "dependsOn": [
           "coordination.bootstrap"
         ],
@@ -15936,14 +15943,7 @@
           "owner:commerce"
         ],
         "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-commerce",
-          "claimedAt": "2026-11-25T15:29:57.942Z",
-          "heartbeatAt": "2026-11-25T17:05:43.196Z",
-          "expiresAt": "2026-11-25T17:35:43.196Z",
-          "generation": 177
-        },
+        "claim": null,
         "baseSha": "0807b7d6ff9921cac319f5bc37fb02233edcbb52",
         "implementedCommit": "c72232bb04d975affe8c46c2a2cddc1f8d98b3fc",
         "lastPushedSha": "c72232bb04d975affe8c46c2a2cddc1f8d98b3fc",
@@ -16016,15 +16016,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Lead commits the read-tail cut with the wave checkpoint",
+        "blocker": "handoff",
+        "nextAction": "Lead commits; next commerce family attached",
         "handoff": {
-          "runId": "run-20261123-codex",
-          "agentId": "hy4-wave-3",
-          "at": "2026-11-23T15:27:50.374Z",
-          "previousStatus": "integrating",
+          "runId": "run-20261125-g",
+          "agentId": "retire-commerce",
+          "at": "2026-11-25T17:10:38.468Z",
+          "previousStatus": "ready_for_integration",
           "reason": "handoff",
-          "nextAction": "Read-only worker review at be30e2e27; no runtime test rerun. Verify native receipt route authority at HEAD and rerun scoped receipt HTTP checks before recording cutover."
+          "nextAction": "Lead commits; next commerce family attached"
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-commerce",
@@ -16591,7 +16591,7 @@
             "command": "POST same route 36KB condition",
             "result": "passed",
             "sourceSha": "2f9a795973bc3125e38bbd4f3e081d3bc850bcba",
-            "note": "lead live proof; 422 WORKFLOW_WAVE3_WRITE_INVALID — bound still enforced"
+            "note": "lead live proof; 422 WORKFLOW_WAVE3_WRITE_INVALID \u2014 bound still enforced"
           },
           {
             "command": "POST same route missing company context",
@@ -16710,8 +16710,15 @@
         "resources": [
           "owner:files"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-files",
+          "claimedAt": "2026-11-25T17:18:45.970Z",
+          "heartbeatAt": "2026-11-25T17:29:43.169Z",
+          "expiresAt": "2026-11-25T17:59:43.169Z",
+          "generation": 177
+        },
         "baseSha": "0807b7d6ff9921cac319f5bc37fb02233edcbb52",
         "implementedCommit": "cf0ff01964a108c70a7a6239e40405bbdfcc89f5",
         "lastPushedSha": null,
@@ -16738,7 +16745,7 @@
             "command": "bun scripts/testing/test.ts unit --suite=files.rust-attachment-read-policy.unit",
             "result": "passed",
             "sourceSha": "fa78514975f2eb26c9df2e51b3e051665ef7c66f",
-            "note": "worker-files reported 12/12 via runner (direct cargo run fails on missing pinned-Node env — pre-existing)."
+            "note": "worker-files reported 12/12 via runner (direct cargo run fails on missing pinned-Node env \u2014 pre-existing)."
           },
           {
             "command": "typecheck packages/server-files",
@@ -16758,7 +16765,7 @@
             "command": "repro SR_058 in vivo",
             "result": "passed",
             "sourceSha": "fa78514975f2eb26c9df2e51b3e051665ef7c66f",
-            "note": "worker-files: single bind case passes (1.7s, /files/command-plan hit 3x, zero FILES_COMMAND errors). Concurrent two-Company case fails IDENTICALLY before/after with WORKFLOW_WAVE3_WRITE_INVALID from wave3-execute: workflow-owner allow-list gap (plan_workflow_wave3 rejects the kind), out of files scope — handed to workflow worker."
+            "note": "worker-files: single bind case passes (1.7s, /files/command-plan hit 3x, zero FILES_COMMAND errors). Concurrent two-Company case fails IDENTICALLY before/after with WORKFLOW_WAVE3_WRITE_INVALID from wave3-execute: workflow-owner allow-list gap (plan_workflow_wave3 rejects the kind), out of files scope \u2014 handed to workflow worker."
           },
           {
             "command": "cargo check -p erpx-server-files --offline",
@@ -16885,7 +16892,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Worker source review at be30e2e27; runtime gates not rerun. Check upload scan bind primary result and residual SQL reachability.",
         "handoff": {
           "runId": "run-20261123-codex",
@@ -16967,15 +16974,15 @@
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "Recovery: Operator authorized takeover. Prior OpenCode session ended idle/interrupted; reviewed checkout and preserved all WIP for task-by-task reconciliation.",
-        "nextAction": "BLOCKED on presentation/flow facts: native snapshot + home-unread + navigation/report reads are implemented and the snapshot/home-unread routes are mounted (1a9480f26, 4be98c9de), but navigation/summary/CSV need title/detail/status/dueAt/blocker/flow and report owner facts that still live in every source owner TS (Finance expansion, Legal, Organization, POS, CRM, Support, Maintenance, Projects, Field, Collaboration, Operations). Porting all source-owner work projections is required before switching navigation/summary/CSV.",
+        "blocker": "handoff",
+        "nextAction": "Blocked on per-owner presentation/flow fact ports; navigation route unmounted",
         "handoff": {
-          "runId": "run-20261123-e",
-          "agentId": "worker-wproj",
-          "at": "2026-11-23T15:20:03.262Z",
+          "runId": "run-20261125-g",
+          "agentId": "retire-work-projection",
+          "at": "2026-11-25T17:17:23.864Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Operator authorized takeover. Prior OpenCode session ended idle/interrupted; reviewed checkout and preserved all WIP for task-by-task reconciliation.",
-          "nextAction": "BLOCKED on presentation/flow facts: native snapshot + home-unread + navigation/report reads are implemented and the snapshot/home-unread routes are mounted (1a9480f26, 4be98c9de), but navigation/summary/CSV need title/detail/status/dueAt/blocker/flow and report owner facts that still live in every source owner TS (Finance expansion, Legal, Organization, POS, CRM, Support, Maintenance, Projects, Field, Collaboration, Operations). Porting all source-owner work projections is required before switching navigation/summary/CSV."
+          "reason": "handoff",
+          "nextAction": "Lead commits the reported cut; next family attached"
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-work-projection",
@@ -18603,13 +18610,13 @@
             "command": "clean-shell transit lane",
             "result": "passed",
             "sourceSha": "8757695688d3ff09d98f6920f8a4a586774141b0",
-            "note": "lead; no manual exports: lane now resolves all wired keys and fails only at unwired COMMERCE_WAVE2 — identical stage to manual-matrix runs"
+            "note": "lead; no manual exports: lane now resolves all wired keys and fails only at unwired COMMERCE_WAVE2 \u2014 identical stage to manual-matrix runs"
           },
           {
             "command": "green-lane regression audit",
             "result": "passed",
             "sourceSha": "8757695688d3ff09d98f6920f8a4a586774141b0",
-            "note": "lead; UNAVAILABLE-asserting tests use offline/stub clients or unwired keys (MANUFACTURING/DIRECTORY absent) or target-miss codes — loader backfill cannot flip them"
+            "note": "lead; UNAVAILABLE-asserting tests use offline/stub clients or unwired keys (MANUFACTURING/DIRECTORY absent) or target-miss codes \u2014 loader backfill cannot flip them"
           },
           {
             "command": "bunx tsc --noEmit (root)",
@@ -18656,14 +18663,14 @@
         ],
         "retainedLegacy": [],
         "blocker": "Recovery: Lease run-d expired at 13:35Z during worker integration; WIP reconciled, no live coordinator process, tree preserved",
-        "nextAction": "Harness boot probe LANDED (worker final report reconciled with lead re-run; both green independently). Step 2 wiring spec from worker: (1) lease control+h001+h002 per suite (Development parser rejects single-holding); (2) config needs financeJournalReads + operationsCompanies or native routes do not mount; (3) substitute lane fixture companyId for probe-co in matrix; (4) lane wiring must mirror migrate_database semantics (lock 714928001, receipts, whole-file txns) — consider shared oracle; (5) add drop-only cleanup entrypoint + signal-forwarding for --keep children before lane adoption. Then transit oracle native seeding. Smoke still user-blocked.",
+        "nextAction": "Harness boot probe LANDED (worker final report reconciled with lead re-run; both green independently). Step 2 wiring spec from worker: (1) lease control+h001+h002 per suite (Development parser rejects single-holding); (2) config needs financeJournalReads + operationsCompanies or native routes do not mount; (3) substitute lane fixture companyId for probe-co in matrix; (4) lane wiring must mirror migrate_database semantics (lock 714928001, receipts, whole-file txns) \u2014 consider shared oracle; (5) add drop-only cleanup entrypoint + signal-forwarding for --keep children before lane adoption. Then transit oracle native seeding. Smoke still user-blocked.",
         "handoff": {
           "runId": "run-20261123-d",
           "agentId": "lead",
           "at": "2026-11-23T13:55:48.687Z",
           "previousStatus": "in_progress",
           "reason": "Recovery: Lease run-d expired at 13:35Z during worker integration; WIP reconciled, no live coordinator process, tree preserved",
-          "nextAction": "Harness boot probe LANDED (worker final report reconciled with lead re-run; both green independently). Step 2 wiring spec from worker: (1) lease control+h001+h002 per suite (Development parser rejects single-holding); (2) config needs financeJournalReads + operationsCompanies or native routes do not mount; (3) substitute lane fixture companyId for probe-co in matrix; (4) lane wiring must mirror migrate_database semantics (lock 714928001, receipts, whole-file txns) — consider shared oracle; (5) add drop-only cleanup entrypoint + signal-forwarding for --keep children before lane adoption. Then transit oracle native seeding. Smoke still user-blocked."
+          "nextAction": "Harness boot probe LANDED (worker final report reconciled with lead re-run; both green independently). Step 2 wiring spec from worker: (1) lease control+h001+h002 per suite (Development parser rejects single-holding); (2) config needs financeJournalReads + operationsCompanies or native routes do not mount; (3) substitute lane fixture companyId for probe-co in matrix; (4) lane wiring must mirror migrate_database semantics (lock 714928001, receipts, whole-file txns) \u2014 consider shared oracle; (5) add drop-only cleanup entrypoint + signal-forwarding for --keep children before lane adoption. Then transit oracle native seeding. Smoke still user-blocked."
         },
         "procedureRef": "executionPlan.sliceProcedure"
       },
@@ -19972,14 +19979,14 @@
         ],
         "retainedLegacy": [],
         "blocker": "released with work preserved",
-        "nextAction": "BLOCKED: container gateway proof impossible in macOS checkout (evidence 2026-11-22) — dev-container-start.ts:12 gates linux+root+/.dockerenv; docker daemon down (no /var/run/docker.sock); native listener hardwired 127.0.0.1:44817 with Linux identity checks (setpriv 65532, /proc, pgrep); no legal macOS port (AGENTS.md 3200-3299 only, transport validator rejects them). TS removal (inboxPage/messagingOverview/notificationWorkspace/visibleNotifications + TS exports, delta vs baseline 45) waits on proof. RESUME on Linux/container host: keyed dev-container bootstrap, authenticated gateway GETs on inbox notifications?view=unread + summary + SSR screen diffed vs TS fallback (denied/unknown/field-service, stock hrefs, badge); THEN remove fallbacks, delete TS handlers, record ts-statements delta, combined gates.",
+        "nextAction": "BLOCKED: container gateway proof impossible in macOS checkout (evidence 2026-11-22) \u2014 dev-container-start.ts:12 gates linux+root+/.dockerenv; docker daemon down (no /var/run/docker.sock); native listener hardwired 127.0.0.1:44817 with Linux identity checks (setpriv 65532, /proc, pgrep); no legal macOS port (AGENTS.md 3200-3299 only, transport validator rejects them). TS removal (inboxPage/messagingOverview/notificationWorkspace/visibleNotifications + TS exports, delta vs baseline 45) waits on proof. RESUME on Linux/container host: keyed dev-container bootstrap, authenticated gateway GETs on inbox notifications?view=unread + summary + SSR screen diffed vs TS fallback (denied/unknown/field-service, stock hrefs, badge); THEN remove fallbacks, delete TS handlers, record ts-statements delta, combined gates.",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
           "at": "2026-11-22T15:17:51.167Z",
           "previousStatus": "blocked",
           "reason": "released with work preserved",
-          "nextAction": "BLOCKED: container gateway proof impossible in macOS checkout (evidence 2026-11-22) — dev-container-start.ts:12 gates linux+root+/.dockerenv; docker daemon down (no /var/run/docker.sock); native listener hardwired 127.0.0.1:44817 with Linux identity checks (setpriv 65532, /proc, pgrep); no legal macOS port (AGENTS.md 3200-3299 only, transport validator rejects them). TS removal (inboxPage/messagingOverview/notificationWorkspace/visibleNotifications + TS exports, delta vs baseline 45) waits on proof. RESUME on Linux/container host: keyed dev-container bootstrap, authenticated gateway GETs on inbox notifications?view=unread + summary + SSR screen diffed vs TS fallback (denied/unknown/field-service, stock hrefs, badge); THEN remove fallbacks, delete TS handlers, record ts-statements delta, combined gates."
+          "nextAction": "BLOCKED: container gateway proof impossible in macOS checkout (evidence 2026-11-22) \u2014 dev-container-start.ts:12 gates linux+root+/.dockerenv; docker daemon down (no /var/run/docker.sock); native listener hardwired 127.0.0.1:44817 with Linux identity checks (setpriv 65532, /proc, pgrep); no legal macOS port (AGENTS.md 3200-3299 only, transport validator rejects them). TS removal (inboxPage/messagingOverview/notificationWorkspace/visibleNotifications + TS exports, delta vs baseline 45) waits on proof. RESUME on Linux/container host: keyed dev-container bootstrap, authenticated gateway GETs on inbox notifications?view=unread + summary + SSR screen diffed vs TS fallback (denied/unknown/field-service, stock hrefs, badge); THEN remove fallbacks, delete TS handlers, record ts-statements delta, combined gates."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-collaboration",
@@ -26836,7 +26843,7 @@
           "at": "2026-11-20T12:22:03.261Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "BLOCKED 2026-11-20 (parallel explorer verified): receiptQualityHoldSteps (server-quality/application/quality.ts:16 → adapters/quality.ts:30) emits 3 statements (spec assertion, inventory_quality_holds INSERT, quality_hold staff_notifications INSERT via collaboration/quality-notifications.ts:24). Only production callers: server-commerce/application/commerce.ts:1620,1623 inside approveCommerceReturn, wired via adapters/commerce.ts:651-685. Native port goods_receipt_hold.rs::prepare_goods_receipt_hold + inventory/quality_receipt_hold.rs exist and are PG-tested, but there is NO TS↔Rust FFI: the only bridge is HTTP, and native quality.hold (composition/quality.rs:591) opens its own SERIALIZABLE transaction (cannot nest in the TS commerce command unit). Removing the TS writer without a native commerce-return-approval command would break atomicity. removalTaskId=migrate.commerce.return-approval-native, removalCondition=native commerce return-approval command owns hold+notification effects in the same unit and the workplace return route is switched with full payload parity. Other Quality residuals (purchases boundary 3, alerts/acknowledge 3, attachment-purchases 2, product-entry 1) likewise have live TS callers."
+          "nextAction": "BLOCKED 2026-11-20 (parallel explorer verified): receiptQualityHoldSteps (server-quality/application/quality.ts:16 \u2192 adapters/quality.ts:30) emits 3 statements (spec assertion, inventory_quality_holds INSERT, quality_hold staff_notifications INSERT via collaboration/quality-notifications.ts:24). Only production callers: server-commerce/application/commerce.ts:1620,1623 inside approveCommerceReturn, wired via adapters/commerce.ts:651-685. Native port goods_receipt_hold.rs::prepare_goods_receipt_hold + inventory/quality_receipt_hold.rs exist and are PG-tested, but there is NO TS\u2194Rust FFI: the only bridge is HTTP, and native quality.hold (composition/quality.rs:591) opens its own SERIALIZABLE transaction (cannot nest in the TS commerce command unit). Removing the TS writer without a native commerce-return-approval command would break atomicity. removalTaskId=migrate.commerce.return-approval-native, removalCondition=native commerce return-approval command owns hold+notification effects in the same unit and the workplace return route is switched with full payload parity. Other Quality residuals (purchases boundary 3, alerts/acknowledge 3, attachment-purchases 2, product-entry 1) likewise have live TS callers."
         }
       },
       {
@@ -27622,7 +27629,7 @@
             "sourceKind": "committed"
           },
           {
-            "command": "ERPX_BUN_BIN=… cargo test -p erpx-server-collaboration --test social_postgres -- --test-threads=1",
+            "command": "ERPX_BUN_BIN=\u2026 cargo test -p erpx-server-collaboration --test social_postgres -- --test-threads=1",
             "result": "passed",
             "sourceSha": "a8e51c1bf39991005354d41ed9ddaa4ae555e20e",
             "sourceKind": "committed",
@@ -27679,7 +27686,7 @@
           "at": "2026-11-21T00:00:00.000Z",
           "previousStatus": "blocked",
           "reason": "handoff-cleared",
-          "nextAction": "Cleared after review: native social command cutover is complete (collaboration wf1a7 owner-write registry covers social post/comment/reaction/follow/report/mention/topic kinds; social-home writes can migrate via SqlStatement-shaped native descriptors without changing the sync SocialHomeRepository interface). Historical external WIP on 4b1723… is superseded by the current integrated tree; no external reservation remains. Proceed with full retirement under axum.wf1a7 / worker-wf1a7.",
+          "nextAction": "Cleared after review: native social command cutover is complete (collaboration wf1a7 owner-write registry covers social post/comment/reaction/follow/report/mention/topic kinds; social-home writes can migrate via SqlStatement-shaped native descriptors without changing the sync SocialHomeRepository interface). Historical external WIP on 4b1723\u2026 is superseded by the current integrated tree; no external reservation remains. Proceed with full retirement under axum.wf1a7 / worker-wf1a7.",
           "wipReviewed": true,
           "previousRunStopped": true
         },
@@ -29501,13 +29508,13 @@
             "command": "native payroll schedule triple on rebuilt 3198",
             "result": "passed",
             "sourceSha": "acad72b15b161a52899b699c5c460a81cea3e59d",
-            "note": "lead; POST groups/g1/schedule UNAUTHENTICATED (resolved, session-gated), wrong-origin ORIGIN_FORBIDDEN, unknown-holding NOT_FOUND — SaveSchedule mount live on the fresh build"
+            "note": "lead; POST groups/g1/schedule UNAUTHENTICATED (resolved, session-gated), wrong-origin ORIGIN_FORBIDDEN, unknown-holding NOT_FOUND \u2014 SaveSchedule mount live on the fresh build"
           },
           {
             "command": "bun test lane people_payroll.core with full native env (27 keys)",
             "result": "passed",
             "sourceSha": "acad72b15b161a52899b699c5c460a81cea3e59d",
-            "note": "lead; lane still 22/22 red — key matrix now complete (added FINANCE_OWNER_WRITE, WORKFLOW_WAVE3) but composition serves dev DB while suites use leased DBs: fixture company unknown to 3198 backend (503->UNAVAILABLE) + PACKAGE_DEPENDENCY_REQUIRED in-lane. Needs per-suite composition harness epic, not more keys."
+            "note": "lead; lane still 22/22 red \u2014 key matrix now complete (added FINANCE_OWNER_WRITE, WORKFLOW_WAVE3) but composition serves dev DB while suites use leased DBs: fixture company unknown to 3198 backend (503->UNAVAILABLE) + PACKAGE_DEPENDENCY_REQUIRED in-lane. Needs per-suite composition harness epic, not more keys."
           },
           {
             "command": "cargo check -p erpx-server-people-payroll --offline",
@@ -40261,7 +40268,7 @@
             "sourceKind": "committed"
           },
           {
-            "command": "ERPX_BUN_BIN=… ERPX_NODE_BIN=… cargo test -p erpx-server-crm -- --test-threads=1",
+            "command": "ERPX_BUN_BIN=\u2026 ERPX_NODE_BIN=\u2026 cargo test -p erpx-server-crm -- --test-threads=1",
             "result": "passed",
             "sourceSha": "6eb575de4759a9eda363b328d9f1e926336437a9",
             "sourceKind": "committed",
@@ -42193,7 +42200,7 @@
             "command": "cargo test -p erpx-server-legal --test auxiliary_postgres document_citation_ --locked -- --test-threads=1",
             "result": "passed",
             "sourceSha": "4b1723460963f08f7c236e7fb223b3c1d56d269f",
-            "note": "WIP 2 PG tests pass: disposed→LEGAL_DOCUMENT_DISPOSED, executing→LEGAL_RETENTION_FROZEN, completed/law executing→LEGAL_CITATION_UNAVAILABLE; no audit on denial. Purchase precedence and HTTP remain to prove."
+            "note": "WIP 2 PG tests pass: disposed\u2192LEGAL_DOCUMENT_DISPOSED, executing\u2192LEGAL_RETENTION_FROZEN, completed/law executing\u2192LEGAL_CITATION_UNAVAILABLE; no audit on denial. Purchase precedence and HTTP remain to prove."
           },
           {
             "command": "cargo test -p erpx-service --test legal_queued_authority --features legal-pdf-worker,legal-document-worker,legal-queue citation_http_uses_actual_account_authority_and_retains_legal_sources --locked",
@@ -46290,8 +46297,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-inventory",
           "claimedAt": "2026-11-25T15:29:58.730Z",
-          "heartbeatAt": "2026-11-25T17:05:43.196Z",
-          "expiresAt": "2026-11-25T17:35:43.196Z",
+          "heartbeatAt": "2026-11-25T17:29:43.169Z",
+          "expiresAt": "2026-11-25T17:59:43.169Z",
           "generation": 177
         },
         "baseSha": null,
@@ -46595,7 +46602,7 @@
             "command": "targeted purchase-guard case (TS-side fix)",
             "result": "passed",
             "sourceSha": "fa78514975f2eb26c9df2e51b3e051665ef7c66f",
-            "note": "worker-mfg: CROSS_DATABASE_TRANSACTION eliminated (owner-unit effects run on caller tx via runOwnerUnitEffects; clearCommandAssertions is now a local owner statement). Execution now reaches the purchase-boundary guard and 404s on the unmounted native Commercial route — mount gap outside worker scope (lead-verified: commercial_owner_write.rs exists but is not declared in lib.rs nor mounted in private_development_api.rs)."
+            "note": "worker-mfg: CROSS_DATABASE_TRANSACTION eliminated (owner-unit effects run on caller tx via runOwnerUnitEffects; clearCommandAssertions is now a local owner statement). Execution now reaches the purchase-boundary guard and 404s on the unmounted native Commercial route \u2014 mount gap outside worker scope (lead-verified: commercial_owner_write.rs exists but is not declared in lib.rs nor mounted in private_development_api.rs)."
           },
           {
             "command": "no-regression: disabled-mode posts-material case",
@@ -50710,7 +50717,7 @@
             "sourceSha": "e4427d3b964df7c74f0de0ae03fab2772c21dda7",
             "before": 585,
             "after": 548,
-            "note": "worker-inv: family 49->12 (delta -37, strictly lower). Play A (counts.ts) correctly STOPped (fixture outside paths). KNOWN TREE DAMAGE: inventory-transit.test.ts + 3 out-of-scope suites (manufacturing/procurement/sales) now fail-closed on the deleted main read — lead integration required: composition mount (proposal 1) + transit helper rewrite (proposal 3) + suite switches (proposal 4)."
+            "note": "worker-inv: family 49->12 (delta -37, strictly lower). Play A (counts.ts) correctly STOPped (fixture outside paths). KNOWN TREE DAMAGE: inventory-transit.test.ts + 3 out-of-scope suites (manufacturing/procurement/sales) now fail-closed on the deleted main read \u2014 lead integration required: composition mount (proposal 1) + transit helper rewrite (proposal 3) + suite switches (proposal 4)."
           },
           {
             "command": "cargo check -p erpx-server-inventory --offline",
@@ -52298,7 +52305,7 @@
             "sourceSha": "fa78514975f2eb26c9df2e51b3e051665ef7c66f",
             "before": 383,
             "after": 379,
-            "note": "worker-pos measured posWork family 4->0 (pos.ts 48->44); strictly lower. Residual table recorded (write-path guards, cross-owner sources, portable next candidates). Mount proposal: pos_owner_writes.rs exists but undeclared/unmounted (same disease as commercial) — lead mount queued."
+            "note": "worker-pos measured posWork family 4->0 (pos.ts 48->44); strictly lower. Residual table recorded (write-path guards, cross-owner sources, portable next candidates). Mount proposal: pos_owner_writes.rs exists but undeclared/unmounted (same disease as commercial) \u2014 lead mount queued."
           },
           {
             "command": "cargo check -p erpx-server-pos --offline",
@@ -52715,13 +52722,13 @@
             "command": "cargo test -q -p erpx-service --features existing-business --test marketing_work_context_postgres -- --nocapture",
             "result": "passed",
             "sourceSha": "77b57db71c7d58608a71d7155a21a0dcc32c30b5",
-            "note": "1 passed current WIP, separately leased dev Control/Holding PG + pinned Node: actual work-role HTTP→TS mapper accepted roles 128/129/130 UTF8 bytes at rev7, rev0 and MAX_SAFE; MAX_SAFE+1 denied native HTTP 409. Mapper transport is not full Next requireWorkContext or Marketing command authority. Temporary TS helper removalTaskId retire.marketing.asset-writers."
+            "note": "1 passed current WIP, separately leased dev Control/Holding PG + pinned Node: actual work-role HTTP\u2192TS mapper accepted roles 128/129/130 UTF8 bytes at rev7, rev0 and MAX_SAFE; MAX_SAFE+1 denied native HTTP 409. Mapper transport is not full Next requireWorkContext or Marketing command authority. Temporary TS helper removalTaskId retire.marketing.asset-writers."
           },
           {
             "command": "cargo test -q -p erpx-service --features existing-business --test marketing_work_context_postgres -- --nocapture",
             "result": "passed",
             "sourceSha": "77b57db71c7d58608a71d7155a21a0dcc32c30b5",
-            "note": "2 passed on WIP, isolated leased dev Control/Holding PG: real authenticated Marketing HTTP with IAM and audited grants accepts 128/129 ASCII byte role, 130-byte multibyte role, revision0 and MAX_SAFE with asset+receipt; actual WorkRole→TS mapper accepts them. Existing Workflow CommandActor.validate would newly reject 129/130/rev0, but current Marketing does not use it. Full TS wrapper parity remains unproved; temporary helper removalTaskId retire.marketing.asset-writers."
+            "note": "2 passed on WIP, isolated leased dev Control/Holding PG: real authenticated Marketing HTTP with IAM and audited grants accepts 128/129 ASCII byte role, 130-byte multibyte role, revision0 and MAX_SAFE with asset+receipt; actual WorkRole\u2192TS mapper accepts them. Existing Workflow CommandActor.validate would newly reject 129/130/rev0, but current Marketing does not use it. Full TS wrapper parity remains unproved; temporary helper removalTaskId retire.marketing.asset-writers."
           },
           {
             "command": "cargo test -q -p erpx-server-workflow --test source_ordered_json",
@@ -53570,14 +53577,14 @@
             "sourceKind": "committed"
           },
           {
-            "command": "ERPX_BUN_BIN=… ERPX_NODE_BIN=… cargo test -p erpx-server-learning --test learning",
+            "command": "ERPX_BUN_BIN=\u2026 ERPX_NODE_BIN=\u2026 cargo test -p erpx-server-learning --test learning",
             "result": "passed",
             "sourceSha": "d98446f320ffea4b9ad88024f8623375e52d87de",
             "sourceKind": "committed",
             "note": "25/25 unit cases."
           },
           {
-            "command": "ERPX_BUN_BIN=… ERPX_NODE_BIN=… cargo test -p erpx-server-learning --test learning_postgres -- --test-threads=1",
+            "command": "ERPX_BUN_BIN=\u2026 ERPX_NODE_BIN=\u2026 cargo test -p erpx-server-learning --test learning_postgres -- --test-threads=1",
             "result": "passed",
             "sourceSha": "d98446f320ffea4b9ad88024f8623375e52d87de",
             "sourceKind": "committed",
@@ -54891,15 +54898,8 @@
           "owner:files",
           "resource:composition"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-brand",
-          "claimedAt": "2026-11-25T15:29:24.167Z",
-          "heartbeatAt": "2026-11-25T17:05:43.196Z",
-          "expiresAt": "2026-11-25T17:35:43.196Z",
-          "generation": 177
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": "89bc7d952fa849d4a3955cf1c626ea2d640a3e59",
         "implementedCommit": "8d71a830a618fe647e40dffaf92ee55c423b6821",
         "lastPushedSha": "8d71a830a618fe647e40dffaf92ee55c423b6821",
@@ -55046,15 +55046,15 @@
             "removalCondition": "Steps now emit nativeWrite descriptors; retained orchestration stays. Nothing further to remove here."
           }
         ],
-        "blocker": null,
-        "nextAction": "Publication switch already landed (8d71a830a). Remaining tail: lane verification with a real session only.",
+        "blocker": "handoff",
+        "nextAction": "Brand residual 1 SELECT needs business sign-off plus lead composition cut; resource released",
         "handoff": {
-          "runId": "run-20261123-d",
-          "agentId": "lead",
-          "at": "2026-11-23T10:31:26.401Z",
+          "runId": "run-20261125-g",
+          "agentId": "retire-brand",
+          "at": "2026-11-25T17:18:24.783Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Publication switch already landed (8d71a830a). Remaining tail: lane verification with a real session only."
+          "nextAction": "Brand residual 1 SELECT needs business sign-off plus lead composition cut; resource released"
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -110131,7 +110131,7 @@
         "resources": [
           "owner:commerce"
         ],
-        "status": "blocked",
+        "status": "ready_for_integration",
         "claim": null,
         "baseSha": "89cf1fc2547a1bad396f281fe620266bf9914034",
         "implementedCommit": null,
@@ -110220,14 +110220,14 @@
         "retainedLegacy": [],
         "blocker": "handoff",
         "handoff": {
-          "runId": "run-20261123-f",
-          "agentId": "wX05",
-          "at": "2026-11-23T19:32:12.645Z",
+          "runId": "run-20261125-g",
+          "agentId": "retire-commerce",
+          "at": "2026-11-25T17:37:21.527Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "564 recorded; currency router mounted; next read family"
+          "nextAction": "Lead commits the reported cut; next family attached"
         },
-        "nextAction": "564 recorded; currency router mounted; next read family",
+        "nextAction": "Cut 392->391; next r27 settings-image renderer (expense-posting-setup + manufacturing-existing-posting-setup) 391->390",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -110857,8 +110857,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-pms",
           "claimedAt": "2026-11-25T15:39:00.528Z",
-          "heartbeatAt": "2026-11-25T17:05:43.196Z",
-          "expiresAt": "2026-11-25T17:35:43.196Z",
+          "heartbeatAt": "2026-11-25T17:29:43.169Z",
+          "expiresAt": "2026-11-25T17:59:43.169Z",
           "generation": 177
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -111427,7 +111427,7 @@
           "at": "2026-11-22T10:45:02.729Z",
           "previousStatus": "integrating",
           "reason": "released with work preserved",
-          "nextAction": "Route cut integrated at d50ab9f (pushed, graph+tsc green, gateway proof on record). Presenter residual scoped: messagingWorkspace SSR consumers are workplace inbox/messages + inbox/teams _screen.tsx (outside this task paths) calling via presentation-queries (signature has no Request/headers; native needs HTTP). Blocked on environment: ERPX_NATIVE_COLLABORATION_CONFIG is set only by the isolated container bootstrap (dev-container-start.ts, linux/root only) — absent in this macOS shared-dev checkout by design. Next: run the presenter switch inside the container workspace (or widen task paths), then delete TS messagingOverview + record ts-statements delta."
+          "nextAction": "Route cut integrated at d50ab9f (pushed, graph+tsc green, gateway proof on record). Presenter residual scoped: messagingWorkspace SSR consumers are workplace inbox/messages + inbox/teams _screen.tsx (outside this task paths) calling via presentation-queries (signature has no Request/headers; native needs HTTP). Blocked on environment: ERPX_NATIVE_COLLABORATION_CONFIG is set only by the isolated container bootstrap (dev-container-start.ts, linux/root only) \u2014 absent in this macOS shared-dev checkout by design. Next: run the presenter switch inside the container workspace (or widen task paths), then delete TS messagingOverview + record ts-statements delta."
         },
         "id": "retire.collaboration.messaging-overview-transport",
         "implementedCommit": null,
@@ -111548,8 +111548,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-collaboration",
           "claimedAt": "2026-11-25T15:29:57.808Z",
-          "heartbeatAt": "2026-11-25T17:05:43.196Z",
-          "expiresAt": "2026-11-25T17:35:43.196Z",
+          "heartbeatAt": "2026-11-25T17:29:43.169Z",
+          "expiresAt": "2026-11-25T17:59:43.169Z",
           "generation": 177
         },
         "dependsOn": [
@@ -111851,7 +111851,7 @@
             "command": "admin 15-diagnostic baseline",
             "result": "passed",
             "sourceSha": "e4427d3b964df7c74f0de0ae03fab2772c21dda7",
-            "note": "Lead verified: 15 diagnostics are in Executive/Directory/Records/shared files that are CLEAN at HEAD (unmodified) and do not import the slice modules — pre-existing on e4427d3b, slice-independent."
+            "note": "Lead verified: 15 diagnostics are in Executive/Directory/Records/shared files that are CLEAN at HEAD (unmodified) and do not import the slice modules \u2014 pre-existing on e4427d3b, slice-independent."
           },
           {
             "command": "zero deep-subpath refs",
@@ -111863,7 +111863,7 @@
             "command": "agent.ai-providers.integration PG run",
             "result": "failed",
             "sourceSha": "e4427d3b964df7c74f0de0ae03fab2772c21dda7",
-            "note": "Lead attempted with free PG slot: runner reports No test files found + REGISTERED_REQUIRED_CASE_MISSING + vite sourcemap TypeError before any import executes — runner/discovery-level failure, definitionally independent of the 1-line import change. Recorded as environmental blocker, not a slice failure. tsc (which type-resolves the new subpath) is the effective gate and passes."
+            "note": "Lead attempted with free PG slot: runner reports No test files found + REGISTERED_REQUIRED_CASE_MISSING + vite sourcemap TypeError before any import executes \u2014 runner/discovery-level failure, definitionally independent of the 1-line import change. Recorded as environmental blocker, not a slice failure. tsc (which type-resolves the new subpath) is the effective gate and passes."
           }
         ],
         "retainedLegacy": [],
@@ -111887,7 +111887,7 @@
         "workstream": "s04-stock-accounting",
         "kind": "inventory",
         "title": "Commerce refund notification via dedicated Finance public facade (cycle-free)",
-        "scope": "Create packages/server-finance/src/public/refund-notifications.ts re-exporting ONLY commerce-free nativeRefundNotification (never the commerce-coupled adapters/refunds barrel that cycles back into Commerce); switch the single import in packages/server-commerce/src/adapters/commerce.ts to the new facade; ensure the ./public/refund-notifications export resolves (finance package.json already lists it — fix target only if mismatched). No behavior, route, or mount change.",
+        "scope": "Create packages/server-finance/src/public/refund-notifications.ts re-exporting ONLY commerce-free nativeRefundNotification (never the commerce-coupled adapters/refunds barrel that cycles back into Commerce); switch the single import in packages/server-commerce/src/adapters/commerce.ts to the new facade; ensure the ./public/refund-notifications export resolves (finance package.json already lists it \u2014 fix target only if mismatched). No behavior, route, or mount change.",
         "dependsOn": [],
         "requiredPorts": [],
         "allowedPaths": [
@@ -112201,7 +112201,7 @@
             "sourceSha": "d891936209a2fc29f62961d70edf5ffc748066a6",
             "before": 2327,
             "after": 2326,
-            "note": "Worker measured -1 (SELECT in deleted adapter static JOIN). 2 dynamic UPDATE writers RETAINED (live Files consumers; no covering retire task — follow-ups filed). Dead pair deleted with finance-qualified zero-ref proof + reachability UNREACHABLE x2."
+            "note": "Worker measured -1 (SELECT in deleted adapter static JOIN). 2 dynamic UPDATE writers RETAINED (live Files consumers; no covering retire task \u2014 follow-ups filed). Dead pair deleted with finance-qualified zero-ref proof + reachability UNREACHABLE x2."
           }
         ],
         "retainedLegacy": [],
@@ -112851,7 +112851,7 @@
         "resources": [
           "owner:field_service"
         ],
-        "status": "blocked",
+        "status": "ready_for_integration",
         "claim": null,
         "baseSha": "f09f0d6724a881fd0b7f4a062f0f03a2304dd428",
         "implementedCommit": null,
@@ -112870,14 +112870,14 @@
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
-        "nextAction": "Read-only worker review at be30e2e27; no runtime test rerun. Compare native FinalRootConsumerScope statements, binding order and rows with retained timeline.ts including branch/department NULL widening before deleting TS.",
+        "nextAction": "Verified native-owned, 0->0; remaining is customer_360/authority timeline cutover",
         "handoff": {
-          "runId": "run-20261123-codex",
-          "agentId": "hy4-wave-13",
-          "at": "2026-11-23T15:27:50.603Z",
-          "previousStatus": "integrating",
+          "runId": "run-20261125-g",
+          "agentId": "retire-field-service",
+          "at": "2026-11-25T17:37:22.150Z",
+          "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Read-only worker review at be30e2e27; no runtime test rerun. Compare native FinalRootConsumerScope statements, binding order and rows with retained timeline.ts including branch/department NULL widening before deleting TS."
+          "nextAction": "Lead commits the reported cut; next family attached"
         },
         "scopeRefinementRequired": false
       },
@@ -114906,7 +114906,7 @@
         "owner": "crm",
         "title": "Native CRM activity workspace read port (owner-side prep)",
         "kind": "migration",
-        "status": "blocked",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [
@@ -114928,7 +114928,14 @@
         "resources": [
           "owner:crm"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-crm",
+          "claimedAt": "2026-11-25T17:27:47.875Z",
+          "heartbeatAt": "2026-11-25T17:29:43.169Z",
+          "expiresAt": "2026-11-25T17:59:43.169Z",
+          "generation": 177
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -114955,7 +114962,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Integrated; mount/consumer task follow-up",
         "handoff": {
           "runId": "run-20261123-f",
@@ -115176,8 +115183,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-identity-access",
           "claimedAt": "2026-11-25T15:29:58.591Z",
-          "heartbeatAt": "2026-11-25T17:05:43.196Z",
-          "expiresAt": "2026-11-25T17:35:43.196Z",
+          "heartbeatAt": "2026-11-25T17:29:43.169Z",
+          "expiresAt": "2026-11-25T17:59:43.169Z",
           "generation": 177
         },
         "baseSha": null,
@@ -115239,8 +115246,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-support",
           "claimedAt": "2026-11-25T15:30:00.430Z",
-          "heartbeatAt": "2026-11-25T17:05:43.196Z",
-          "expiresAt": "2026-11-25T17:35:43.196Z",
+          "heartbeatAt": "2026-11-25T17:29:43.169Z",
+          "expiresAt": "2026-11-25T17:59:43.169Z",
           "generation": 177
         },
         "baseSha": null,
@@ -115782,14 +115789,7 @@
         "resources": [
           "owner:maintenance"
         ],
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-maintenance",
-          "claimedAt": "2026-11-25T15:29:58.870Z",
-          "heartbeatAt": "2026-11-25T17:05:43.196Z",
-          "expiresAt": "2026-11-25T17:35:43.196Z",
-          "generation": 177
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -115841,15 +115841,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Lead commits the read-tail cut with the wave checkpoint",
+        "blocker": "handoff",
+        "nextAction": "Lead commits; next maintenance family attached",
         "handoff": {
-          "runId": "run-20261123-f",
-          "agentId": "wU05",
-          "at": "2026-11-23T19:32:12.566Z",
-          "previousStatus": "in_progress",
+          "runId": "run-20261125-g",
+          "agentId": "retire-maintenance",
+          "at": "2026-11-25T17:10:39.071Z",
+          "previousStatus": "ready_for_integration",
           "reason": "handoff",
-          "nextAction": "Integrated; switch runtime executive consumer next"
+          "nextAction": "Lead commits; next maintenance family attached"
         },
         "scopeRefinementRequired": false
       },
@@ -115961,14 +115961,7 @@
         "resources": [
           "owner:benefits"
         ],
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-benefits",
-          "claimedAt": "2026-11-25T15:29:57.636Z",
-          "heartbeatAt": "2026-11-25T17:05:43.196Z",
-          "expiresAt": "2026-11-25T17:35:43.196Z",
-          "generation": 177
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -115999,15 +115992,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Lead commits the read-tail cut with the wave checkpoint",
+        "blocker": "handoff",
+        "nextAction": "Lead commits; next benefits family attached",
         "handoff": {
-          "runId": "run-20261123-f",
-          "agentId": "wV01",
-          "at": "2026-11-23T19:13:27.385Z",
-          "previousStatus": "in_progress",
+          "runId": "run-20261125-g",
+          "agentId": "retire-benefits",
+          "at": "2026-11-25T17:10:38.623Z",
+          "previousStatus": "ready_for_integration",
           "reason": "handoff",
-          "nextAction": "Integrated; consumers switch next"
+          "nextAction": "Lead commits; next benefits family attached"
         },
         "scopeRefinementRequired": false
       },
@@ -117232,7 +117225,7 @@
         "owner": "projects",
         "title": "Projects TS read tail native cutover",
         "kind": "migration",
-        "status": "blocked",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -117244,7 +117237,14 @@
         "resources": [
           "owner:projects"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-projects",
+          "claimedAt": "2026-11-25T17:16:56.147Z",
+          "heartbeatAt": "2026-11-25T17:29:43.169Z",
+          "expiresAt": "2026-11-25T17:59:43.169Z",
+          "generation": 177
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -117270,7 +117270,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Integrated; claim released",
         "handoff": {
           "runId": "run-20261123-f",
@@ -118559,28 +118559,21 @@
         "resources": [
           "owner:field_service"
         ],
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-field-service",
-          "claimedAt": "2026-11-25T15:29:58.428Z",
-          "heartbeatAt": "2026-11-25T17:05:43.196Z",
-          "expiresAt": "2026-11-25T17:35:43.196Z",
-          "generation": 177
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Field Service TS backend at 0; lead commits and dispatches cross-owner records/finance follow-up",
+        "blocker": "handoff",
+        "nextAction": "Lead commits; next field-service family attached",
         "handoff": {
-          "runId": "run-20261123-g",
-          "agentId": "wACfie",
-          "at": "2026-11-23T21:02:31.785Z",
-          "previousStatus": "in_progress",
+          "runId": "run-20261125-g",
+          "agentId": "retire-field-service",
+          "at": "2026-11-25T17:10:38.923Z",
+          "previousStatus": "ready_for_integration",
           "reason": "handoff",
-          "nextAction": "Blocked on scope: 10 finance-lineage SELECT consumers + 4 registry-fallback + 2 final-root pins; needs cross-owner finance cutover task"
+          "nextAction": "Lead commits; next field-service family attached"
         },
         "scopeRefinementRequired": false
       },
@@ -119721,7 +119714,7 @@
         "owner": "agent",
         "title": "agent TS read tail native cutover (round 1)",
         "kind": "migration",
-        "status": "blocked",
+        "status": "ready_for_integration",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -119760,14 +119753,14 @@
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
-        "nextAction": "Integrated; claim released",
+        "nextAction": "Verified 96->93 integrated; 38 residual literals are transaction-bound/cross-owner; needs widened composition paths",
         "handoff": {
-          "runId": "run-20261123-g",
-          "agentId": "wANage",
-          "at": "2026-11-23T21:27:28.749Z",
+          "runId": "run-20261125-g",
+          "agentId": "retire-agent",
+          "at": "2026-11-25T17:37:21.069Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Integrated; claim released"
+          "nextAction": "Lead commits the reported cut; next family attached"
         },
         "scopeRefinementRequired": false
       },
@@ -124426,7 +124419,7 @@
         "owner": "operations",
         "title": "operations TS read tail native cutover (round 10)",
         "kind": "migration",
-        "status": "blocked",
+        "status": "ready_for_integration",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -124465,14 +124458,14 @@
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
-        "nextAction": "Integrated; claim released",
+        "nextAction": "Cut 61->60 (operations_rd_attachment_owner_scope); residual 60 needs widened composition/cross-owner paths",
         "handoff": {
-          "runId": "run-20261123-h",
-          "agentId": "wCP1ope",
-          "at": "2026-11-23T23:03:44.130Z",
+          "runId": "run-20261125-g",
+          "agentId": "retire-operations",
+          "at": "2026-11-25T17:37:21.380Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Integrated; claim released"
+          "nextAction": "Lead commits the reported cut; next family attached"
         },
         "scopeRefinementRequired": false
       },
@@ -136369,7 +136362,7 @@
         "owner": "benefits",
         "title": "benefits TS read tail native cutover (new lane)",
         "kind": "migration",
-        "status": "blocked",
+        "status": "ready_for_integration",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -136408,14 +136401,14 @@
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
-        "nextAction": "Integrated; claim released",
+        "nextAction": "Owner 29 unique generators/probes; next cut needs new claim, composition and cross-owner consumers",
         "handoff": {
-          "runId": "run-20261123-i",
-          "agentId": "wGAYben",
-          "at": "2026-11-24T01:50:38.104Z",
+          "runId": "run-20261125-g",
+          "agentId": "retire-benefits",
+          "at": "2026-11-25T17:17:23.108Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Integrated; claim released"
+          "nextAction": "Owner 29 unique generators/probes; next cut needs new claim, composition and cross-owner consumers"
         },
         "scopeRefinementRequired": false
       },
@@ -136425,7 +136418,7 @@
         "owner": "learning",
         "title": "learning TS read tail native cutover (new lane)",
         "kind": "migration",
-        "status": "blocked",
+        "status": "ready_for_integration",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -136459,14 +136452,14 @@
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
-        "nextAction": "Integrated; claim released",
+        "nextAction": "Residual 32 SELECTs need a lead-owned native executive-metric route/mount plus oracle migration",
         "handoff": {
-          "runId": "run-20261123-i",
-          "agentId": "wGAZlea",
-          "at": "2026-11-24T01:57:50.913Z",
+          "runId": "run-20261125-g",
+          "agentId": "retire-learning",
+          "at": "2026-11-25T17:27:29.232Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Integrated; claim released"
+          "nextAction": "Lead commits the verified report; next family recorded"
         },
         "scopeRefinementRequired": false
       },
@@ -136977,8 +136970,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-records",
           "claimedAt": "2026-11-25T15:30:00.140Z",
-          "heartbeatAt": "2026-11-25T17:05:43.196Z",
-          "expiresAt": "2026-11-25T17:35:43.196Z",
+          "heartbeatAt": "2026-11-25T17:29:43.169Z",
+          "expiresAt": "2026-11-25T17:59:43.169Z",
           "generation": 177
         },
         "baseSha": null,
@@ -137020,7 +137013,7 @@
         "owner": "customer_360",
         "title": "customer 360 timeline activity native port",
         "kind": "migration",
-        "status": "blocked",
+        "status": "ready_for_integration",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -137055,14 +137048,14 @@
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
-        "nextAction": "Port integrated; mount/cutover queued.",
+        "nextAction": "Lead mounts the timeline-activity router and cuts the server-commerce consumer",
         "handoff": {
-          "runId": "run-20261123-i",
-          "agentId": "wGBScus",
-          "at": "2026-11-24T03:48:44.576Z",
+          "runId": "run-20261125-g",
+          "agentId": "retire-customer-360",
+          "at": "2026-11-25T17:17:23.660Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Port integrated; mount/cutover queued."
+          "nextAction": "Lead mounts the timeline-activity router and cuts the server-commerce consumer"
         },
         "scopeRefinementRequired": false
       },
@@ -137088,8 +137081,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-ecom",
           "claimedAt": "2026-11-25T15:20:02.304Z",
-          "heartbeatAt": "2026-11-25T17:05:43.196Z",
-          "expiresAt": "2026-11-25T17:35:43.196Z",
+          "heartbeatAt": "2026-11-25T17:29:43.169Z",
+          "expiresAt": "2026-11-25T17:59:43.169Z",
           "generation": 177
         },
         "baseSha": null,
@@ -140841,7 +140834,7 @@
         "owner": "platform_administration",
         "title": "platform engineering verification native read",
         "kind": "migration",
-        "status": "blocked",
+        "status": "ready_for_integration",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -140876,14 +140869,14 @@
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
-        "nextAction": "Port integrated; binding queued.",
+        "nextAction": "Lead mounted engineering_verification_read_http_router on Control pool; active/reply_rollout_guard remain",
         "handoff": {
-          "runId": "run-20261123-j",
-          "agentId": "wGCspad",
-          "at": "2026-11-24T04:32:52.522Z",
+          "runId": "run-20261125-g",
+          "agentId": "retire-platform-administration",
+          "at": "2026-11-25T17:27:29.526Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Port integrated; binding queued."
+          "nextAction": "Lead commits the verified report; next family recorded"
         },
         "scopeRefinementRequired": false
       },
@@ -140909,8 +140902,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-quality",
           "claimedAt": "2026-11-25T15:29:59.996Z",
-          "heartbeatAt": "2026-11-25T17:05:43.196Z",
-          "expiresAt": "2026-11-25T17:35:43.196Z",
+          "heartbeatAt": "2026-11-25T17:29:43.169Z",
+          "expiresAt": "2026-11-25T17:59:43.169Z",
           "generation": 177
         },
         "baseSha": null,
@@ -140968,8 +140961,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-runtime",
           "claimedAt": "2026-11-25T15:30:00.284Z",
-          "heartbeatAt": "2026-11-25T17:05:43.196Z",
-          "expiresAt": "2026-11-25T17:35:43.196Z",
+          "heartbeatAt": "2026-11-25T17:29:43.169Z",
+          "expiresAt": "2026-11-25T17:59:43.169Z",
           "generation": 177
         },
         "baseSha": null,
@@ -140990,7 +140983,7 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Lead commits the 26→24 runtime cut and keeps the catalogue gate green",
+        "nextAction": "Lead commits the 26\u219224 runtime cut and keeps the catalogue gate green",
         "handoff": {
           "runId": "run-20261123-j",
           "agentId": "wGCurun",
@@ -141023,8 +141016,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-talent",
           "claimedAt": "2026-11-25T15:30:00.573Z",
-          "heartbeatAt": "2026-11-25T17:05:43.196Z",
-          "expiresAt": "2026-11-25T17:35:43.196Z",
+          "heartbeatAt": "2026-11-25T17:29:43.169Z",
+          "expiresAt": "2026-11-25T17:59:43.169Z",
           "generation": 177
         },
         "baseSha": null,
@@ -142807,8 +142800,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-marketing",
           "claimedAt": "2026-11-25T15:29:59.196Z",
-          "heartbeatAt": "2026-11-25T17:05:43.196Z",
-          "expiresAt": "2026-11-25T17:35:43.196Z",
+          "heartbeatAt": "2026-11-25T17:29:43.169Z",
+          "expiresAt": "2026-11-25T17:59:43.169Z",
           "generation": 177
         },
         "baseSha": null,
@@ -143121,8 +143114,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-customer-authority",
           "claimedAt": "2026-11-25T15:29:58.292Z",
-          "heartbeatAt": "2026-11-25T17:05:43.196Z",
-          "expiresAt": "2026-11-25T17:35:43.196Z",
+          "heartbeatAt": "2026-11-25T17:29:43.169Z",
+          "expiresAt": "2026-11-25T17:59:43.169Z",
           "generation": 177
         },
         "baseSha": null,
@@ -145118,8 +145111,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-planning",
           "claimedAt": "2026-11-25T15:29:59.490Z",
-          "heartbeatAt": "2026-11-25T17:05:43.196Z",
-          "expiresAt": "2026-11-25T17:35:43.196Z",
+          "heartbeatAt": "2026-11-25T17:29:43.169Z",
+          "expiresAt": "2026-11-25T17:59:43.169Z",
           "generation": 177
         },
         "baseSha": null,
@@ -150523,7 +150516,7 @@
         "owner": "assets",
         "title": "assets TS read tail native cutover (r18)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -150535,28 +150528,21 @@
         "resources": [
           "owner:assets"
         ],
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-assets",
-          "claimedAt": "2026-11-25T16:52:41.386Z",
-          "heartbeatAt": "2026-11-25T17:05:43.196Z",
-          "expiresAt": "2026-11-25T17:35:43.196Z",
-          "generation": 177
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=27.",
+        "blocker": "handoff",
+        "nextAction": "Lead commits the reported cut; next family attached",
         "handoff": {
-          "runId": "run-20261123-j",
-          "agentId": "wGCBas",
-          "at": "2026-11-24T05:11:55.444Z",
+          "runId": "run-20261125-g",
+          "agentId": "retire-assets",
+          "at": "2026-11-25T17:17:24.067Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
-          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=27."
+          "reason": "handoff",
+          "nextAction": "Lead commits the reported cut; next family attached"
         },
         "scopeRefinementRequired": false
       },
@@ -151469,7 +151455,7 @@
         "owner": "billing",
         "title": "billing TS read tail native cutover (round 21)",
         "kind": "migration",
-        "status": "blocked",
+        "status": "ready_for_integration",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -151487,15 +151473,15 @@
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "released with work preserved",
-        "nextAction": "BLOCKED at 69: all reads are 5 advisory locks, 3 FOR UPDATE, 17 already-deduped helpers, 44 unique point reads; beta_billing near-miss rejected in r18. No strictly lower family.",
+        "blocker": "handoff",
+        "nextAction": "Owner literal KPI 5: 4 transaction-bound locks + 1 shared r35 head; needs widened scope for TS=0",
         "handoff": {
-          "runId": "run-20261123-j",
-          "agentId": "wGCEbil",
-          "at": "2026-11-24T05:23:45.128Z",
-          "previousStatus": "blocked",
-          "reason": "released with work preserved",
-          "nextAction": "BLOCKED at 69: all reads are 5 advisory locks, 3 FOR UPDATE, 17 already-deduped helpers, 44 unique point reads; beta_billing near-miss rejected in r18. No strictly lower family."
+          "runId": "run-20261125-g",
+          "agentId": "retire-billing",
+          "at": "2026-11-25T17:37:21.844Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Lead commits the reported cut; next family attached"
         },
         "scopeRefinementRequired": false
       },
@@ -155054,8 +155040,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-workflow",
           "claimedAt": "2026-11-25T15:30:00.718Z",
-          "heartbeatAt": "2026-11-25T17:05:43.196Z",
-          "expiresAt": "2026-11-25T17:35:43.196Z",
+          "heartbeatAt": "2026-11-25T17:29:43.169Z",
+          "expiresAt": "2026-11-25T17:59:43.169Z",
           "generation": 177
         },
         "baseSha": null,
@@ -155780,7 +155766,7 @@
         "owner": "sales",
         "title": "sales TS read tail native cutover (r18)",
         "kind": "migration",
-        "status": "blocked",
+        "status": "ready_for_integration",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -155798,15 +155784,15 @@
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "released with work preserved",
-        "nextAction": "BLOCKED at 68: AST scan shows 49 literals with zero exact duplicate groups; cross-file assignmentReadSql pattern differs in alias/permission/scope/binds so no byte-identical family. Do not re-open r7-r17 or touch LOCK TABLE. Refinement requires named generator + bind-equivalence ruling.",
+        "blocker": "handoff",
+        "nextAction": "No duplicate groups; new AST test needs catalogue registration; no further safe cut",
         "handoff": {
-          "runId": "run-20261123-l",
-          "agentId": "wGCPsal",
-          "at": "2026-11-24T05:59:42.806Z",
-          "previousStatus": "blocked",
-          "reason": "released with work preserved",
-          "nextAction": "BLOCKED at 68: AST scan shows 49 literals with zero exact duplicate groups; cross-file assignmentReadSql pattern differs in alias/permission/scope/binds so no byte-identical family. Do not re-open r7-r17 or touch LOCK TABLE. Refinement requires named generator + bind-equivalence ruling."
+          "runId": "run-20261125-g",
+          "agentId": "retire-sales",
+          "at": "2026-11-25T17:27:29.379Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Lead commits the verified report; next family recorded"
         },
         "scopeRefinementRequired": false
       },
@@ -155981,28 +155967,21 @@
         "resources": [
           "owner:crm"
         ],
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-crm",
-          "claimedAt": "2026-11-25T15:29:58.118Z",
-          "heartbeatAt": "2026-11-25T17:05:43.196Z",
-          "expiresAt": "2026-11-25T17:35:43.196Z",
-          "generation": 177
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Lead commits the read-tail cut with the next wave checkpoint",
+        "blocker": "handoff",
+        "nextAction": "Lead commits; next crm family attached",
         "handoff": {
-          "runId": "run-20261123-k",
-          "agentId": "wGCPcrm",
-          "at": "2026-11-24T05:56:18.484Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired at 05:55Z; WIP reviewed in shared checkout; release claims and continue under new generation.",
-          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=151."
+          "runId": "run-20261125-g",
+          "agentId": "retire-crm",
+          "at": "2026-11-25T17:10:38.773Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Lead commits; next crm family attached"
         },
         "scopeRefinementRequired": false
       },
@@ -160051,8 +160030,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-organization",
           "claimedAt": "2026-11-25T15:29:59.337Z",
-          "heartbeatAt": "2026-11-25T17:05:43.196Z",
-          "expiresAt": "2026-11-25T17:35:43.196Z",
+          "heartbeatAt": "2026-11-25T17:29:43.169Z",
+          "expiresAt": "2026-11-25T17:59:43.169Z",
           "generation": 177
         },
         "baseSha": null,
@@ -160252,7 +160231,7 @@
         "owner": "manufacturing",
         "title": "manufacturing TS read tail native cutover (r22)",
         "kind": "migration",
-        "status": "blocked",
+        "status": "ready_for_integration",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -160270,15 +160249,15 @@
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "released with work preserved",
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=77.",
+        "blocker": "handoff",
+        "nextAction": "Cut 46->45; lead provisions config/mount, regenerates 18 @source styles, then ports remaining projections",
         "handoff": {
-          "runId": "run-20261123-n",
-          "agentId": "wGCMmfg2",
-          "at": "2026-11-24T07:24:56.024Z",
+          "runId": "run-20261125-g",
+          "agentId": "retire-manufacturing",
+          "at": "2026-11-25T17:37:21.696Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
-          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=77."
+          "reason": "handoff",
+          "nextAction": "Lead commits the reported cut; next family attached"
         },
         "scopeRefinementRequired": false
       },
@@ -160454,15 +160433,15 @@
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "released with work preserved",
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=67.",
+        "blocker": "handoff",
+        "nextAction": "Lead decision/next family recorded",
         "handoff": {
-          "runId": "run-20261123-n",
-          "agentId": "wGCMwp3",
-          "at": "2026-11-24T07:24:56.565Z",
+          "runId": "run-20261125-g",
+          "agentId": "retire-work-projection",
+          "at": "2026-11-25T17:24:39.267Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
-          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=67."
+          "reason": "handoff",
+          "nextAction": "Lead decision/next family recorded"
         },
         "scopeRefinementRequired": false
       },
@@ -160772,15 +160751,15 @@
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "released with work preserved",
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=1416.",
+        "blocker": "handoff",
+        "nextAction": "Lead records 1416->1412 and commits; only lock-bearing reads remain",
         "handoff": {
-          "runId": "run-20261123-n",
-          "agentId": "wGCMppl",
-          "at": "2026-11-24T07:24:56.216Z",
+          "runId": "run-20261125-g",
+          "agentId": "retire-people-payroll",
+          "at": "2026-11-25T17:27:39.892Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
-          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=1416."
+          "reason": "handoff",
+          "nextAction": "Lead records 1416->1412 and commits; only lock-bearing reads remain"
         },
         "scopeRefinementRequired": false
       },
@@ -160925,28 +160904,21 @@
         "resources": [
           "owner:platform_administration"
         ],
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-platform-administration",
-          "claimedAt": "2026-11-25T15:29:59.630Z",
-          "heartbeatAt": "2026-11-25T17:05:43.196Z",
-          "expiresAt": "2026-11-25T17:35:43.196Z",
-          "generation": 177
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Lead commits the read-tail cut with the next wave checkpoint",
+        "blocker": "handoff",
+        "nextAction": "Lead commits; next platform family attached",
         "handoff": {
-          "runId": "run-20261123-n",
-          "agentId": "wGCMpad",
-          "at": "2026-11-24T07:24:55.508Z",
-          "previousStatus": "in_progress",
-          "reason": "released with work preserved",
-          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=35."
+          "runId": "run-20261125-g",
+          "agentId": "retire-platform-administration",
+          "at": "2026-11-25T17:10:39.222Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Lead commits; next platform family attached"
         },
         "scopeRefinementRequired": false
       },
@@ -160972,8 +160944,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-manage-erpx",
           "claimedAt": "2026-11-25T15:29:59.013Z",
-          "heartbeatAt": "2026-11-25T17:05:43.196Z",
-          "expiresAt": "2026-11-25T17:35:43.196Z",
+          "heartbeatAt": "2026-11-25T17:29:43.169Z",
+          "expiresAt": "2026-11-25T17:59:43.169Z",
           "generation": 177
         },
         "baseSha": null,
@@ -160982,7 +160954,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Lead commits the 16→15 cut; remaining literals need cross-owner sign-off",
+        "nextAction": "Lead commits the 16\u219215 cut; remaining literals need cross-owner sign-off",
         "handoff": {
           "runId": "run-20261123-n",
           "agentId": "wGCMmng",
@@ -161188,7 +161160,7 @@
         "owner": "maintenance",
         "title": "maintenance TS read tail native cutover (r17)",
         "kind": "migration",
-        "status": "blocked",
+        "status": "ready_for_integration",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -161206,15 +161178,15 @@
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "released with work preserved",
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=35.",
+        "blocker": "handoff",
+        "nextAction": "Cut 17->16 (subqueryHead fold); next is runtime executive asset-downtime consumer cutover in separate paths",
         "handoff": {
-          "runId": "run-20261123-n",
-          "agentId": "wGCMmai4",
-          "at": "2026-11-24T07:24:55.187Z",
+          "runId": "run-20261125-g",
+          "agentId": "retire-maintenance",
+          "at": "2026-11-25T17:37:22.004Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
-          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=35."
+          "reason": "handoff",
+          "nextAction": "Lead commits the reported cut; next family attached"
         },
         "scopeRefinementRequired": false
       },
@@ -161495,8 +161467,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-legal",
           "claimedAt": "2026-11-25T15:20:01.088Z",
-          "heartbeatAt": "2026-11-25T17:05:43.196Z",
-          "expiresAt": "2026-11-25T17:35:43.196Z",
+          "heartbeatAt": "2026-11-25T17:29:43.169Z",
+          "expiresAt": "2026-11-25T17:59:43.169Z",
           "generation": 177
         },
         "baseSha": null,
@@ -186161,7 +186133,7 @@
         "owner": "procurement",
         "title": "procurement read slice",
         "kind": "migration",
-        "status": "blocked",
+        "status": "ready_for_integration",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -186189,14 +186161,14 @@
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
-        "nextAction": "Blocked with evidence; claim released",
+        "nextAction": "Lead decision/next family recorded",
         "handoff": {
-          "runId": "run-20261125-d",
-          "agentId": "lead-opencode",
-          "at": "2026-11-25T00:16:53.434Z",
-          "previousStatus": "blocked",
+          "runId": "run-20261125-g",
+          "agentId": "retire-procurement",
+          "at": "2026-11-25T17:24:39.663Z",
+          "previousStatus": "ready_for_integration",
           "reason": "handoff",
-          "nextAction": "Blocked with evidence; claim released"
+          "nextAction": "Lead decision/next family recorded"
         },
         "scopeRefinementRequired": false
       },
@@ -200871,22 +200843,22 @@
       "migratedPackets": 368,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 10,
-        "ready_for_integration": 18,
+        "in_progress": 12,
+        "ready_for_integration": 26,
         "integrating": 0,
         "migrated": 368,
-        "blocked": 1701,
+        "blocked": 1691,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 177,
-    "updatedAt": "2026-11-25T17:05:43.204Z",
+    "updatedAt": "2026-11-25T17:37:22.157Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
       "remoteVerifiedAt": "HEAD==origin==cfc105b0990deb5889c24472a78d5f50e23f1e2d; tree clean after coordinator close commit",
-      "summary": "Continued retirement-first slices with coordinator run-20261120-k. Authoritative KPI re-measured at 1832 (baseline 2894, target 0). Closed bounded native-authority slices: customer-return handoff notice, identity-access notifications (payroll advance/correction statements + native access-review worker), payroll-decision explicit notice, customer-portal notice, company-acceptance notices, law-source notice, test-only inventory-count notices, inventory-transit notice, native staff-task alert worker, social-task origin binding, workflow invoicing notice, the workflow next-action notice, staff-policy notifications via a company-keyed system transport, roster notifications (3 writers) through native roster coverage + explicit statements, the 4 legal-reminder notice writers via a holding-keyed system transport with fragment-input native generators, the 5 social-text mention/topic/reply writers via dedicated native statement generators, both customer-portal and support-ticket attachment access audit events, the POS attachment content-read event, the 3 legal destruction source/ledger/event writers, the 3 legal portal attachment binding writers, the 3 expense attachment withdrawal/revocation writers, the 3 document derivative writers, the beta upload expiry writer, the 2 legal portal access-event writers, the 4 legal portal attachment staging writers, the customer portal action writer, the 3 release acceptance event writers, the customer receipt issuance writer, the 4 legal portal draft/staging writers (completing legal-portal-repository.ts), the legal file preservation writer, the legal retention execution authorization writer, the finance hotel account creation writer, the payroll bank observation ignore writer, the 5 legal feature writers (dynamic table via table_name transport), the 5 legal approval writers, the 4 legal executed-copy review writers, the 6 legal signing/reference writers, the 3 legal trust/processing writers, the legal access event writer, the 2 legal document access-event writers (citation/knowledge), the 7 legal governance writers, the 7 legal retention writers, the 7 legal operations writers, the 11 legal document writers, the 10 legal law-corpus writers, the 11 legal service writers, the 14 legal destruction-worker writers, the 14 legal portal writers, the 2 residual legal access/event writers, the legal envelope-expiry writer (holding-keyed fragment transport), the 3 finance book-adjustment writers, the 3 finance planning/report writers, the 3 finance journal-reversal writers, the 4 finance tax-identity writers, the 2 finance due-draft writers, the 4 finance intercompany-pair writers, the 3 payroll advance-deduction writers, the 3 payroll final-pay cancellation writers, the 2 payroll expense-draft writers, the 3 finance sales-defaults writers, the 2 payroll statutory-profile writers, the 2 finance accounting-profile writers, the 2 finance hospitality tax-document writers, the 2 finance PMS-import writers, the 2 finance journal-planning writers, the finance invoice line-version writer, the finance expansion review-file writer, the finance/commerce journal-line base-carry writer, the finance/payroll remittance-match writer, the finance/POS party writer, the finance/payroll other-remittance match writer, the 3 finance group-edition writers, the finance company-tool writer, the 2 finance payroll-owner writers, the 2 finance due-draft worker writers, the finance supplier-bill draft-void writer, 3 people/payroll writers (employee, payslip, expense-payment cancel), 3 more (leave evidence manifest, 2 calendar prep-task writes), 2 more (statutory remittance, staff level assignment), and 9 workflow command-assertion cleanup writers, then 4 more, then 17 more via async guards conversion, then 5 more in async callbacks, then 8 more (3 flatMap + 5 dynamic IN), then 8 more (key/guard/flatMap async), then 2 more (customer-portal, layout wrappers), then 6 more (agent, executive, guided-intake, approval, evaluation), then 5 more (records-request 2, pms 1, pos 2), then 5 more (collab agent/ai 5), then 4 more (people-eval-ai, beta, manufacturing 2, workflow commands), then 4 more (assets×2, legal, marketing) via native workflow_command_assertion_clear, 2 organization-channel statements, and 2 legal backfill attachment statements, and 2 beta AI reservation-expiry statements, and 2 legacy leave statements, and 2 project-worker starter statements, and 3 beta onboarding statements, and 2 organization relocation statements, and 3 hire handoff statements, and 3 organization node-channel statements (also repaired a malformed handoff adapter from the prior commit), 1 messaging backfill statement, 4 legal job-health statements, 5 finance collection statements, 5 finance calculation-engine statements, 5 finance intercompany statements, 5 finance starter statements, and 3 organization draft-placement statements, and 6 orphan customer-authority write statements deleted (no callers, native owns commands), and the last command_assertions writer moved to native-owned SQL contract (KPI command_assertions=0). Each recorded native statement/worker authority, full SQL parity, TS writer+barrel deletion, tagged oracle fixtures with removalTaskId/removalCondition, and before/after KPI checks. Verified cargo check/test, both typechecks, targeted unit suites, ledger validate, non-force push and remote SHA. Native finance reporting statement package/event + year closing generators added. Native inbox event/delivery/notice/target statements added. Native accrual schedule/journal/run/event generators added. Two remaining orphan 1-write helpers deleted (marketing crm reservation touch, runtime holding binding effects). Native PMS finance fact statements added (party/invoice/payment/allocation/bank-match). Native finance book opening/rule/dimension statements added. Native finance withholding assessment/line/document statements added. Native Thai document sequence/issue/event/change statements added. Native Thai document and billing correction statements added. Native finance asset/event/disposal/depreciation statements added. Native finance instrument edition/run/bank-match statements added. Native finance refund obligation/instruction/payment statements added. Native withholding remittance package/remittance/bank-match statements added. Native asset-policy SQL contract (11 statements) added; sync repository signature preserved. Native business-contract SQL contract (9 statements) added. Native bank automation CSV/import/match-group/target statements added. Native tax-register entry/correction/statutory-package/calculation-run statements added. Native group-ownership SQL contract (10 statements) added. Native commerce-facts SQL contract (10 statements) added. Native consolidation SQL contract (13 statements incl dynamic fragment) added. Native POS core-facts SQL contract (11 statements) added. Native company-money SQL contract (7 statements) added. Native finance-AI SQL contract (17 statements) added. Native expense-effects SQL contract (6 statements) added. Native main-finance SQL contract (49 statements) added; finance owner almost fully retired. Finance owner KPI writer count is now 0 (all finance SQL literals native-owned). Native technology-provisioning SQL contract (15 literals / 14 KPI writes) added; people_payroll owner started. Native leave self-service SQL contract (15 statements) added. Native people-evaluation SQL contract (16 statements) added. Native people-roster SQL contract (21 statements) added. Native people-lifecycle SQL contract (25 statements) added. Native main people-payroll SQL contract (44 KPI writes) added. People payroll owner KPI writer count is now 0 (all 118 remaining SQL literals native-owned via 24 file contracts).",
+      "summary": "Continued retirement-first slices with coordinator run-20261120-k. Authoritative KPI re-measured at 1832 (baseline 2894, target 0). Closed bounded native-authority slices: customer-return handoff notice, identity-access notifications (payroll advance/correction statements + native access-review worker), payroll-decision explicit notice, customer-portal notice, company-acceptance notices, law-source notice, test-only inventory-count notices, inventory-transit notice, native staff-task alert worker, social-task origin binding, workflow invoicing notice, the workflow next-action notice, staff-policy notifications via a company-keyed system transport, roster notifications (3 writers) through native roster coverage + explicit statements, the 4 legal-reminder notice writers via a holding-keyed system transport with fragment-input native generators, the 5 social-text mention/topic/reply writers via dedicated native statement generators, both customer-portal and support-ticket attachment access audit events, the POS attachment content-read event, the 3 legal destruction source/ledger/event writers, the 3 legal portal attachment binding writers, the 3 expense attachment withdrawal/revocation writers, the 3 document derivative writers, the beta upload expiry writer, the 2 legal portal access-event writers, the 4 legal portal attachment staging writers, the customer portal action writer, the 3 release acceptance event writers, the customer receipt issuance writer, the 4 legal portal draft/staging writers (completing legal-portal-repository.ts), the legal file preservation writer, the legal retention execution authorization writer, the finance hotel account creation writer, the payroll bank observation ignore writer, the 5 legal feature writers (dynamic table via table_name transport), the 5 legal approval writers, the 4 legal executed-copy review writers, the 6 legal signing/reference writers, the 3 legal trust/processing writers, the legal access event writer, the 2 legal document access-event writers (citation/knowledge), the 7 legal governance writers, the 7 legal retention writers, the 7 legal operations writers, the 11 legal document writers, the 10 legal law-corpus writers, the 11 legal service writers, the 14 legal destruction-worker writers, the 14 legal portal writers, the 2 residual legal access/event writers, the legal envelope-expiry writer (holding-keyed fragment transport), the 3 finance book-adjustment writers, the 3 finance planning/report writers, the 3 finance journal-reversal writers, the 4 finance tax-identity writers, the 2 finance due-draft writers, the 4 finance intercompany-pair writers, the 3 payroll advance-deduction writers, the 3 payroll final-pay cancellation writers, the 2 payroll expense-draft writers, the 3 finance sales-defaults writers, the 2 payroll statutory-profile writers, the 2 finance accounting-profile writers, the 2 finance hospitality tax-document writers, the 2 finance PMS-import writers, the 2 finance journal-planning writers, the finance invoice line-version writer, the finance expansion review-file writer, the finance/commerce journal-line base-carry writer, the finance/payroll remittance-match writer, the finance/POS party writer, the finance/payroll other-remittance match writer, the 3 finance group-edition writers, the finance company-tool writer, the 2 finance payroll-owner writers, the 2 finance due-draft worker writers, the finance supplier-bill draft-void writer, 3 people/payroll writers (employee, payslip, expense-payment cancel), 3 more (leave evidence manifest, 2 calendar prep-task writes), 2 more (statutory remittance, staff level assignment), and 9 workflow command-assertion cleanup writers, then 4 more, then 17 more via async guards conversion, then 5 more in async callbacks, then 8 more (3 flatMap + 5 dynamic IN), then 8 more (key/guard/flatMap async), then 2 more (customer-portal, layout wrappers), then 6 more (agent, executive, guided-intake, approval, evaluation), then 5 more (records-request 2, pms 1, pos 2), then 5 more (collab agent/ai 5), then 4 more (people-eval-ai, beta, manufacturing 2, workflow commands), then 4 more (assets\u00d72, legal, marketing) via native workflow_command_assertion_clear, 2 organization-channel statements, and 2 legal backfill attachment statements, and 2 beta AI reservation-expiry statements, and 2 legacy leave statements, and 2 project-worker starter statements, and 3 beta onboarding statements, and 2 organization relocation statements, and 3 hire handoff statements, and 3 organization node-channel statements (also repaired a malformed handoff adapter from the prior commit), 1 messaging backfill statement, 4 legal job-health statements, 5 finance collection statements, 5 finance calculation-engine statements, 5 finance intercompany statements, 5 finance starter statements, and 3 organization draft-placement statements, and 6 orphan customer-authority write statements deleted (no callers, native owns commands), and the last command_assertions writer moved to native-owned SQL contract (KPI command_assertions=0). Each recorded native statement/worker authority, full SQL parity, TS writer+barrel deletion, tagged oracle fixtures with removalTaskId/removalCondition, and before/after KPI checks. Verified cargo check/test, both typechecks, targeted unit suites, ledger validate, non-force push and remote SHA. Native finance reporting statement package/event + year closing generators added. Native inbox event/delivery/notice/target statements added. Native accrual schedule/journal/run/event generators added. Two remaining orphan 1-write helpers deleted (marketing crm reservation touch, runtime holding binding effects). Native PMS finance fact statements added (party/invoice/payment/allocation/bank-match). Native finance book opening/rule/dimension statements added. Native finance withholding assessment/line/document statements added. Native Thai document sequence/issue/event/change statements added. Native Thai document and billing correction statements added. Native finance asset/event/disposal/depreciation statements added. Native finance instrument edition/run/bank-match statements added. Native finance refund obligation/instruction/payment statements added. Native withholding remittance package/remittance/bank-match statements added. Native asset-policy SQL contract (11 statements) added; sync repository signature preserved. Native business-contract SQL contract (9 statements) added. Native bank automation CSV/import/match-group/target statements added. Native tax-register entry/correction/statutory-package/calculation-run statements added. Native group-ownership SQL contract (10 statements) added. Native commerce-facts SQL contract (10 statements) added. Native consolidation SQL contract (13 statements incl dynamic fragment) added. Native POS core-facts SQL contract (11 statements) added. Native company-money SQL contract (7 statements) added. Native finance-AI SQL contract (17 statements) added. Native expense-effects SQL contract (6 statements) added. Native main-finance SQL contract (49 statements) added; finance owner almost fully retired. Finance owner KPI writer count is now 0 (all finance SQL literals native-owned). Native technology-provisioning SQL contract (15 literals / 14 KPI writes) added; people_payroll owner started. Native leave self-service SQL contract (15 statements) added. Native people-evaluation SQL contract (16 statements) added. Native people-roster SQL contract (21 statements) added. Native people-lifecycle SQL contract (25 statements) added. Native main people-payroll SQL contract (44 KPI writes) added. People payroll owner KPI writer count is now 0 (all 118 remaining SQL literals native-owned via 24 file contracts).",
       "lastKpi": 994,
       "statusCounts": {
         "pending": 25,

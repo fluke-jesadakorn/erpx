@@ -67,7 +67,7 @@ describe('Projects read-tail r30 visible project rows retired to native Rust', (
     walk(srcRoot);
     expect(total).toBeLessThan(88);
     // r30 visible-row head retired to native Rust (-1): 67 -> 66.
-    expect(total).toBe(66);
+    expect(total).toBe(65); // r44 final-root projection family folded into read-tail-r40 (66->65)
   });
 });
 

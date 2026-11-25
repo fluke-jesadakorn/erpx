@@ -198,7 +198,7 @@ describe('crm read-tail r42 byte-identical existence-probe reuse', () => {
   });
 
   test('retirement:ts-statements drops from the r42 AFTER=61 to 57 (r45)', () => {
-    expect(totalSelects()).toBe(43);
+    expect(totalSelects()).toBe(41);
     expect(totalSelects()).toBeLessThan(61);
   });
 });

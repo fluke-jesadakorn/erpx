@@ -67,9 +67,9 @@ const FAMILY: readonly {
 const SETTLEMENT_HELPER_SHA256 = '6148599099b4f976ed67ce0b00159ace964e446d550ad4bc2d4ee3c2a8b7a846';
 const SCOPED_HELPER_SHA256 = 'adff1bbe57ae0038ac67e0fef8cd0bfcf3d43fd00f256828c0e01e57318b2baa';
 /** Lock-bearing, native and cross-owner witnesses are untouched by r37. */
-const NATIVE_COMMAND_SHA256 = '4490ed9f88eab69ba6f920cb33c09f46b59606b3fb2412f5c3a6e2fd4c90e951';
+const NATIVE_COMMAND_SHA256 = '51cda9ad07a4ecbdd6c098f1b2e859a947b8309cea74dfec26fe975b842b25a7';
 const FINANCE_RECORD_SHA256 = '1940f9f739ebdd8d82cd3b1d9c7efff88a227a5aeef132d79680ffaa1f1d331b';
-const COMMAND_CALLER_SHA256 = 'b822b23d0fd0950ab3fbc2ede90954216f90232788cf263c8acd56d7ed0c090c';
+const COMMAND_CALLER_SHA256 = '9714b3ac0a43d89829d97fdbbf72c24ab13913d739c5ea80a24f2a16d371610a';
 const OBLIGATIONS_CALLER_SHA256 = '6c9c061a3925be32af4efe6bd1dd8b63806eadbfee171cb10278f4050943f173';
 
 async function tsFiles(directory: URL): Promise<URL[]> {
@@ -149,12 +149,12 @@ describe('manufacturing read-tail r37 projection-from-source head-family fold', 
     expect(obligations).toContain('LOCK TABLE manufacturing_material_reservations,manufacturing_genealogy');
   });
 
-  it('pins the manufacturing owner SELECT KPI at 48 after the r37 fold (49->48)', async () => {
+  it('pins the manufacturing owner SELECT KPI at 45 after the r22 native detail-read cut (46->45)', async () => {
     let total = 0;
     for (const file of await tsFiles(new URL('../../../packages/server-manufacturing/src/', import.meta.url))) {
       total += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     }
-    expect(total).toBe(46);
+    expect(total).toBe(45);
     expect(total).toBeLessThan(49);
   });
 });

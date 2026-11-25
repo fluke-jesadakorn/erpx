@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { manufacturingPurchaseScopedSelect } from '../../../packages/server-manufacturing/src/adapters/manufacturing-read-tail-r24-sql';
@@ -80,7 +80,7 @@ describe('manufacturing read-tail r24 purchased-scope select family', () => {
     expect(src('manufacturing-read-tail-r19-sql.ts')).toContain('export const manufacturingAccountingProfileSelect');
     expect(src('manufacturing-read-tail-r20-sql.ts')).toContain('export const manufacturingExistsGuard');
     expect(src('manufacturing-read-tail-r21-sql.ts')).toContain('export const manufacturingAttachmentImageSelect');
-    expect(src('manufacturing-read-tail-r22-sql.ts')).toContain('export const manufacturingOrderDetailSelect');
+    expect(existsSync(resolve(srcRoot, 'adapters/manufacturing-read-tail-r22-sql.ts'))).toBe(false); // r22 detail family retired to native owner
     expect(src('manufacturing-read-tail-r23-sql.ts')).toContain('export const manufacturingStockFootprintSelect');
     expect(src('purchases.ts')).toContain('LOCK TABLE planning_scenarios,planning_recommendations,planning_scenario_events');
     expect(src('production-command-sources.ts')).toContain('WHERE id=? FOR UPDATE');
@@ -98,7 +98,7 @@ describe('manufacturing read-tail r24 purchased-scope select family', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(46); // r23 left 72; r24 72->70; r25 70->65; r26 EXISTS guards -> 60; r27 journal projection family 60->58; r28 cost-allocation probe 58->57; r29 scoped EXISTS probe 57->56; r30 scope CTE family 56->55; r31 allowed-select head family 55->53; r32 metric breakdown head 53->52; r34 r15/r23 head fold 52->51; r35 scope-row head fold 51->50; r36 owner-table head fold 50->49; r37 projection-from-source head fold 49->48.
+    expect(total).toBe(45); // r23 left 72; r24 72->70; r25 70->65; r26 EXISTS guards -> 60; r27 journal projection family 60->58; r28 cost-allocation probe 58->57; r29 scoped EXISTS probe 57->56; r30 scope CTE family 56->55; r31 allowed-select head family 55->53; r32 metric breakdown head 53->52; r34 r15/r23 head fold 52->51; r35 scope-row head fold 51->50; r36 owner-table head fold 50->49; r37 projection-from-source head fold 49->48; r22 native detail-read cut 46->45.
     expect(total).toBeLessThan(60);
   });
 });

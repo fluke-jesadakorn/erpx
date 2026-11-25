@@ -16,4 +16,5 @@ pub(crate) mod project_attachment_intake_http;
 pub(crate) mod project_attachment_read_http;
 
 pub(crate) mod staff_facts;
+pub(crate) mod native_read_sql;
 pub mod native_lane_27;

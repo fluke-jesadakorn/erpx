@@ -6,6 +6,11 @@ import {
   MANUFACTURING_RD_ORDERS,
   MANUFACTURING_RD_SPECIFICATION,
   MANUFACTURING_RD_ORDER_EVENTS,
+  MANUFACTURING_RD_ORDER_SPECIFICATION_LINES,
+  MANUFACTURING_RD_MATERIAL_RESERVATIONS,
+  MANUFACTURING_RD_ORDER_POSTINGS,
+  MANUFACTURING_RD_ORDER_OPERATIONS,
+  MANUFACTURING_RD_LOT_GENEALOGY,
 } from '../../../packages/server-manufacturing/src/adapters/native-manufacturing-read';
 
 const CONFIG_KEY = 'ERPX_NATIVE_MANUFACTURING_READ_CONFIG';
@@ -110,6 +115,32 @@ describe('native Manufacturing read-plan transport', () => {
     })));
     await expect(nativeManufacturingPlan(MANUFACTURING_RD_ORDER_EVENTS))
       .rejects.toMatchObject({ code: 'MANUFACTURING_NATIVE_READ_UNAVAILABLE' });
+  });
+
+  it('admits the five r22 detail kinds and forwards their exact bounded scope', async () => {
+    const cases = [
+      [MANUFACTURING_RD_ORDER_SPECIFICATION_LINES, { specificationId: 'spec-1' },
+        'SELECT l.* FROM manufacturing_specification_lines l WHERE l.specification_id=?', ['spec-1']],
+      [MANUFACTURING_RD_MATERIAL_RESERVATIONS, { orderId: 'order-1' },
+        'SELECT r.* FROM manufacturing_material_reservations r WHERE r.order_id=?', ['order-1']],
+      [MANUFACTURING_RD_ORDER_POSTINGS, { orderId: 'order-1' },
+        'SELECT p.* FROM manufacturing_order_postings p WHERE p.order_id=?', ['order-1']],
+      [MANUFACTURING_RD_ORDER_OPERATIONS, { orderId: 'order-1', specificationId: 'spec-1' },
+        'SELECT op.* FROM manufacturing_specification_operations op WHERE e.order_id=? AND op.specification_id=?', ['order-1', 'spec-1']],
+      [MANUFACTURING_RD_LOT_GENEALOGY, { orderId: 'order-1' },
+        'SELECT g.* FROM manufacturing_lot_genealogy g WHERE g.order_id=?', ['order-1']],
+    ] as const;
+    for (const [kind, scope, sql, values] of cases) {
+      let body: unknown;
+      vi.stubGlobal('fetch', vi.fn(async (_u: URL, i: RequestInit) => {
+        body = JSON.parse(String(i.body));
+        return ok({ data: { kind, caller: 'records.detail', statement: { sql, values } } });
+      }));
+      const planned = await nativeManufacturingPlan(kind, scope);
+      expect(planned.sql, kind).toBe(sql);
+      expect(planned.values, kind).toEqual(values);
+      expect(body, kind).toEqual({ kind, scope });
+    }
   });
 
   it('rejects malformed configuration before any fetch', async () => {

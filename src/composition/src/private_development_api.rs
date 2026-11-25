@@ -3389,6 +3389,7 @@ async fn assemble_checked(
         let mut customer_metric_targets = Vec::new();
         let mut customer_notes_targets = Vec::new();
         let mut customer_activity_targets = Vec::new();
+        let mut customer_timeline_activity_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut customer_authority_targets = Vec::new();
         #[cfg(feature = "existing-business")]
@@ -3397,6 +3398,10 @@ async fn assemble_checked(
         let mut customer_identity_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut ecommerce_targets = Vec::new();
+        let mut ecom_exec_metric_targets: Vec<(
+            erpx_server_ecommerce::public::native_exec_metric::ExecMetricTarget,
+            erpx_server_runtime::public::postgres::DatabasePool,
+        )> = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut ecommerce_listing_targets = Vec::new();
         #[cfg(feature = "existing-business")]
@@ -4352,6 +4357,15 @@ async fn assemble_checked(
                         .map_err(|_| "PRIVATE_API_PLATFORM_ADMIN_CONFIGURATION_INVALID")?,
                     );
                     control_native_routers.push(
+                        crate::platform_administration_wave2::engineering_verification_read_router(
+                            holding.host.clone(),
+                            holding.registration.slug.clone(),
+                            format!("https://{}", holding.host),
+                            pools[0].clone(),
+                        )
+                        .map_err(|_| "PRIVATE_API_PLATFORM_ADMIN_CONFIGURATION_INVALID")?,
+                    );
+                    control_native_routers.push(
                         crate::manage_erpx_wave2::email_delivery_router(
                             holding.host.clone(),
                             holding.registration.slug.clone(),
@@ -4832,6 +4846,13 @@ async fn assemble_checked(
                         )),
                     },
                 );
+                ecom_exec_metric_targets.push((
+                    erpx_server_ecommerce::public::native_exec_metric::ExecMetricTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                    },
+                    pools[i + 1].clone(),
+                ));
                 ecommerce_listing_targets.push(
                     erpx_server_ecommerce::public::ecommerce_http::EcommerceListingHttpTarget {
                         host: holding.host.clone(),
@@ -5298,6 +5319,14 @@ async fn assemble_checked(
                 );
                 customer_360_targets.push(
                     erpx_server_customer_360::public::customer_timeline_http::CustomerTimelineHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: customer_360_backend.clone(),
+                    },
+                );
+                customer_timeline_activity_targets.push(
+                    erpx_server_customer_360::public::customer_timeline_activity_http::CustomerTimelineActivityHttpTarget {
                         host: holding.host.clone(),
                         holding_slug: holding.registration.slug.clone(),
                         origin: format!("https://{}", holding.host),
@@ -7079,6 +7108,15 @@ async fn assemble_checked(
             );
         }
         #[cfg(feature = "existing-business")]
+        if !customer_timeline_activity_targets.is_empty() {
+            router = router.merge(
+                erpx_server_customer_360::public::customer_timeline_activity_http::customer_timeline_activity_http_router(
+                    customer_timeline_activity_targets,
+                )
+                .map_err(|_| "PRIVATE_API_CUSTOMER_TIMELINE_ACTIVITY_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
         if !customer_authority_targets.is_empty() {
             router = router.merge(
                 erpx_server_customer_authority::public::access_http::customer_access_http_router(
@@ -7169,10 +7207,32 @@ async fn assemble_checked(
             );
         }
         #[cfg(feature = "existing-business")]
+        if !config.holdings.is_empty() {
+            router = router.merge(
+                erpx_server_runtime::public::control_plane_read_port::control_plane_read_router(
+                    config
+                        .holdings
+                        .iter()
+                        .map(|holding| format!("https://{}", holding.host))
+                        .collect(),
+                )
+                .map_err(|_| "PRIVATE_API_CONTROL_PLANE_READ_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
         if !ecommerce_targets.is_empty() {
             router = router.merge(
                 erpx_server_ecommerce::public::ecommerce_http::ecommerce_router(ecommerce_targets)
                     .map_err(|_| "PRIVATE_API_ECOMMERCE_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !ecom_exec_metric_targets.is_empty() {
+            router = router.merge(
+                erpx_server_ecommerce::public::native_exec_metric::router_for_holdings(
+                    ecom_exec_metric_targets,
+                )
+                .map_err(|_| "PRIVATE_API_ECOM_EXEC_METRIC_CONFIGURATION_INVALID")?,
             );
         }
         #[cfg(feature = "existing-business")]

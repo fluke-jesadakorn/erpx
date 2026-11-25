@@ -901,7 +901,6 @@
 @source "../../../../packages/server-commerce/src/adapters/read-tail-r21-dedupe-sql.ts";
 @source "../../../../packages/server-commerce/src/adapters/read-tail-r25-dedupe-sql.ts";
 @source "../../../../packages/server-commerce/src/adapters/read-tail-r26-dedupe-sql.ts";
-@source "../../../../packages/server-commerce/src/adapters/read-tail-r28-dedupe-sql.ts";
 @source "../../../../packages/server-commerce/src/adapters/record-purchases.ts";
 @source "../../../../packages/server-commerce/src/adapters/records-employee-requests-owned-facts.ts";
 @source "../../../../packages/server-commerce/src/adapters/records-record-details-owned-facts.ts";
@@ -2459,7 +2458,6 @@
 @source "../../../../packages/server-manufacturing/src/adapters/manufacturing-read-tail-r19-sql.ts";
 @source "../../../../packages/server-manufacturing/src/adapters/manufacturing-read-tail-r20-sql.ts";
 @source "../../../../packages/server-manufacturing/src/adapters/manufacturing-read-tail-r21-sql.ts";
-@source "../../../../packages/server-manufacturing/src/adapters/manufacturing-read-tail-r22-sql.ts";
 @source "../../../../packages/server-manufacturing/src/adapters/manufacturing-read-tail-r23-sql.ts";
 @source "../../../../packages/server-manufacturing/src/adapters/manufacturing-read-tail-r24-sql.ts";
 @source "../../../../packages/server-manufacturing/src/adapters/manufacturing-read-tail-r30-sql.ts";
@@ -2471,6 +2469,7 @@
 @source "../../../../packages/server-manufacturing/src/adapters/metric-purchases.ts";
 @source "../../../../packages/server-manufacturing/src/adapters/native-accounting-profile.ts";
 @source "../../../../packages/server-manufacturing/src/adapters/native-lane-28/client.ts";
+@source "../../../../packages/server-manufacturing/src/adapters/native-manufacturing-read.ts";
 @source "../../../../packages/server-manufacturing/src/adapters/native-owner-write.ts";
 @source "../../../../packages/server-manufacturing/src/adapters/posting-setup-entry.ts";
 @source "../../../../packages/server-manufacturing/src/adapters/posting-setup-sources.ts";
@@ -3271,7 +3270,6 @@
 @source "../../../../packages/server-planning/src/adapters/planning-select-columns-sql.ts";
 @source "../../../../packages/server-planning/src/adapters/planning-select-from-sql.ts";
 @source "../../../../packages/server-planning/src/adapters/production-command-sources-read.ts";
-@source "../../../../packages/server-planning/src/adapters/production-read-projections.ts";
 @source "../../../../packages/server-planning/src/adapters/purchase-sources.ts";
 @source "../../../../packages/server-planning/src/adapters/resources-read.ts";
 @source "../../../../packages/server-planning/src/adapters/scenarios.ts";
@@ -3287,7 +3285,6 @@
 @source "../../../../packages/server-planning/src/public/attachments-service-facts.ts";
 @source "../../../../packages/server-planning/src/public/capacity.ts";
 @source "../../../../packages/server-planning/src/public/executive-metric-projections.ts";
-@source "../../../../packages/server-planning/src/public/production-read-projections.ts";
 @source "../../../../packages/server-planning/src/public/purchase-sources.ts";
 @source "../../../../packages/server-planning/src/public/scenarios.ts";
 @source "../../../../packages/server-platform_administration/src/adapters/attachments-finance-facts.ts";
@@ -3295,6 +3292,7 @@
 @source "../../../../packages/server-platform_administration/src/adapters/company-release-attachment-read.ts";
 @source "../../../../packages/server-platform_administration/src/adapters/engineering-verification.ts";
 @source "../../../../packages/server-platform_administration/src/adapters/native-engineering-enrollment-command.ts";
+@source "../../../../packages/server-platform_administration/src/adapters/native-engineering-verification-read/client.ts";
 @source "../../../../packages/server-platform_administration/src/adapters/native-lane-33/client.ts";
 @source "../../../../packages/server-platform_administration/src/adapters/native-owner-write.ts";
 @source "../../../../packages/server-platform_administration/src/adapters/pms-rollout-guards.ts";

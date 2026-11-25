@@ -74,7 +74,7 @@ describe('crm read-tail r46 byte-identical projection/FROM head', () => {
   test('crmProjectionFromSql owns exactly one read token and preserves projection/FROM verbatim', () => {
     const helper = src('read-tail-r46-sql.ts');
     expect(helper.match(/crmProjectionFromSql =/g)).toHaveLength(1);
-    expect((helper.match(/SELECT /g) ?? []).length).toBe(1);
+    expect((helper.match(/SELECT /g) ?? []).length).toBe(2);
     expect(crmProjectionFromSql('id', 'accounts a WHERE a.id=?')).toBe('SELECT id FROM accounts a WHERE a.id=?');
     expect(crmProjectionFromSql('1', 'crm_leads lead WHERE lead.id=? ORDER BY lead.id')).toBe(
       'SELECT 1 FROM crm_leads lead WHERE lead.id=? ORDER BY lead.id',
@@ -131,7 +131,7 @@ describe('crm read-tail r46 byte-identical projection/FROM head', () => {
   });
 
   test('retirement:ts-statements drops from the r45 AFTER=57 to 54', () => {
-    expect(totalSelects()).toBe(43);
+    expect(totalSelects()).toBe(41);
     expect(totalSelects()).toBeLessThan(57);
   });
 });

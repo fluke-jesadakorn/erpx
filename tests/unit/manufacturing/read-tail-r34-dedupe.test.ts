@@ -46,7 +46,7 @@ const FAMILY: readonly {
 
 /** sha256 of the pre-fold HEAD `production-command-sources.ts`; pinning the
  * whole caller proves its four call sites and their binds are byte-unchanged. */
-const CALLER_SHA256 = 'b822b23d0fd0950ab3fbc2ede90954216f90232788cf263c8acd56d7ed0c090c';
+const CALLER_SHA256 = '9714b3ac0a43d89829d97fdbbf72c24ab13913d739c5ea80a24f2a16d371610a';
 
 async function tsFiles(directory: URL): Promise<URL[]> {
   const found: URL[] = [];
@@ -113,12 +113,12 @@ describe('manufacturing read-tail r34 r15/r23 head-fold dedupe', () => {
     }
   });
 
-  it('pins the manufacturing owner SELECT KPI at 48 after the r37 fold (49->48)', async () => {
+  it('pins the manufacturing owner SELECT KPI at 45 after the r22 native detail-read cut (46->45)', async () => {
     let total = 0;
     for (const file of await tsFiles(new URL('../../../packages/server-manufacturing/src/', import.meta.url))) {
       total += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     }
-    expect(total).toBe(46);
+    expect(total).toBe(45);
     expect(total).toBeLessThan(50);
   });
 });

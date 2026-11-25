@@ -95,12 +95,17 @@ describe('Agent workspace-turns monthly usage fixed-SQL read family',()=>{
   expect(agentWorkspaceMonthlyUsageSql).toBe(sql);
   const {readFile}=await import('node:fs/promises');
   const base=new URL('../../../packages/server-agent/src/adapters/',import.meta.url);
-  for(const name of ['records-ai-quota.ts','collaboration-agent-sources.ts','collaboration-ai-sources.ts']){
-   const source=await readFile(new URL(name,base),'utf8');
+  const read=async(name:string)=>(await readFile(new URL(name,base),'utf8'));
+  for(const name of ['agent-monthly-usage-source.ts','records-ai-quota.ts','collaboration-agent-sources.ts','collaboration-ai-sources.ts']){
+   const source=await read(name);
    const literals=source.match(/SELECT company_id,to_char\(to_timestamp\(created_at\/1000\.0\) AT TIME ZONE 'UTC','YYYY-MM'\) AS month FROM ai_workspace_turns/g)??[];
-   expect(literals,name).toHaveLength(name==='records-ai-quota.ts'?1:0);
-   if(name!=='records-ai-quota.ts')expect(source,name).toContain('agentWorkspaceMonthlyUsageSql');
+   expect(literals,name).toHaveLength(0);
   }
+  expect(await read('agent-monthly-usage-source.ts')).toContain("SELECT company_id,to_char(to_timestamp(created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM')");
+  expect(await read('records-ai-quota.ts')).toContain("import { agentMonthlyUsageColsSql } from './agent-monthly-usage-source';");
+  expect(await read('records-ai-quota.ts')).toContain('`${agentMonthlyUsageColsSql} AS month FROM ai_workspace_turns`');
+  expect(await read('collaboration-agent-sources.ts')).toContain('recordsQuotaCountSql');
+  expect(await read('collaboration-ai-sources.ts')).toContain('agentWorkspaceMonthlyUsageSql');
  });
  test('quota reads compose the one fixed SQL with unchanged binds',async()=>{
   const reads:[(db:never)=>Promise<unknown>,unknown[]][]=[

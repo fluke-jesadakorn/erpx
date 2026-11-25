@@ -116,12 +116,12 @@ describe('Commerce read-tail r27 settings-image head retirement', () => {
     expect(read('commerce.ts')).toContain("'SELECT id FROM commerce_returns WHERE id=? FOR UPDATE'");
     expect(read('commerce-goods-accounting.ts')).toContain('"SELECT id FROM commerce_fulfillments WHERE id=? FOR UPDATE"');
     expect(read('commerce-goods-accounting.ts')).toContain('SELECT * FROM commerce_invoice_goods_carrying WHERE invoice_id=? AND company_id=?');
-    expect(read('native_commerce_read_sql.rs')).toContain('assert_eq!(STATEMENTS.len(), 20);');
+    expect(read('native_commerce_read_sql.rs')).toContain('assert_eq!(STATEMENTS.len(), 22);');
     expect(read('sales-package-sources.ts')).toContain('LOCK TABLE commerce_orders,commerce_order_lines,commerce_fulfillments,commerce_fulfillment_lines,commerce_fulfillment_evidence,commerce_returns,commerce_return_lines,commerce_return_lot_allocations,commerce_return_stock_moves,commerce_goods_valuations,commerce_invoice_goods_carrying,commerce_stock,commerce_stock_moves,commerce_warehouses,commerce_products,commerce_settings IN SHARE MODE');
     expect(read('supply-package-sources.ts')).toContain('LOCK TABLE commerce_orders,commerce_order_lines,commerce_fulfillments,commerce_fulfillment_lines,commerce_returns,commerce_return_lines,commerce_warehouses,commerce_products,commerce_goods_valuations,commerce_invoice_goods_carrying IN SHARE MODE');
   });
 
-  test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 392 (before 393)', () => {
+  test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 391 (before 392)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -131,7 +131,7 @@ describe('Commerce read-tail r27 settings-image head retirement', () => {
       }
     };
     walk(src);
-    expect(total).toBe(392);
+    expect(total).toBe(391);
     expect((read('expense-posting-setup.ts').match(/SELECT /g) ?? []).length).toBe(1);
     expect((read('manufacturing-existing-posting-setup.ts').match(/SELECT /g) ?? []).length).toBe(2);
     expect((read('read-tail-r27-dedupe-sql.ts').match(/SELECT /g) ?? []).length).toBe(1);

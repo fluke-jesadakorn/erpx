@@ -54,8 +54,8 @@ const FAMILY: readonly {
  * surrounding SQL are byte-unchanged beyond the delegated sum subqueries. */
 const FINANCE_AFTER_SHA256 = '1940f9f739ebdd8d82cd3b1d9c7efff88a227a5aeef132d79680ffaa1f1d331b';
 /** Lock-bearing, native and cross-owner witnesses are untouched by r35. */
-const NATIVE_COMMAND_SHA256 = '4490ed9f88eab69ba6f920cb33c09f46b59606b3fb2412f5c3a6e2fd4c90e951';
-const COMMAND_CALLER_SHA256 = 'b822b23d0fd0950ab3fbc2ede90954216f90232788cf263c8acd56d7ed0c090c';
+const NATIVE_COMMAND_SHA256 = '51cda9ad07a4ecbdd6c098f1b2e859a947b8309cea74dfec26fe975b842b25a7';
+const COMMAND_CALLER_SHA256 = '9714b3ac0a43d89829d97fdbbf72c24ab13913d739c5ea80a24f2a16d371610a';
 
 async function tsFiles(directory: URL): Promise<URL[]> {
   const found: URL[] = [];
@@ -118,12 +118,12 @@ describe('manufacturing read-tail r35 sum-subquery head-family fold', () => {
     expect(helper).not.toMatch(/LOCK\s+TABLE|FOR\s+UPDATE|FOR\s+SHARE|pg_advisory/i);
   });
 
-  it('pins the manufacturing owner SELECT KPI at 48 after the r37 fold (49->48)', async () => {
+  it('pins the manufacturing owner SELECT KPI at 45 after the r22 native detail-read cut (46->45)', async () => {
     let total = 0;
     for (const file of await tsFiles(new URL('../../../packages/server-manufacturing/src/', import.meta.url))) {
       total += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     }
-    expect(total).toBe(46);
+    expect(total).toBe(45);
     expect(total).toBeLessThan(50);
   });
 });

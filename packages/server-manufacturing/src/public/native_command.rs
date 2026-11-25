@@ -46,6 +46,7 @@ pub const OWNER_READ_OPERATION: &str = "manufacturing.owner-read.v1";
 pub const RD_SPECIFICATION: &str = "specification";
 pub const RD_SPECIFICATION_VERSION: &str = "specification-version";
 pub const RD_SPECIFICATION_LINES: &str = "specification-lines";
+pub const RD_ORDER_SPECIFICATION_LINES: &str = "order-specification-lines";
 pub const RD_ORDERS: &str = "orders";
 pub const RD_ORDER_DETAIL: &str = "order-detail";
 pub const RD_MATERIAL_RESERVATIONS: &str = "material-reservations";
@@ -165,6 +166,26 @@ pub const PLAN_SPECIFICATION_LINES: ReadPlan = ReadPlan {
     },
     authority: READ,
     cross_owner: &[],
+};
+
+/// Exact live SQL for `productionCommandSources.orderSpecificationLines`
+/// (Commerce material-product fragment inlined). This is the fifth r22 detail
+/// select; unlike `specification-lines` it joins the material product tracking
+/// mode, so it needs its own closed kind rather than the plain line list.
+pub const PLAN_ORDER_SPECIFICATION_LINES: ReadPlan = ReadPlan {
+    kind: RD_ORDER_SPECIFICATION_LINES,
+    caller: "records.detail|production.detail|product.get",
+    sql: "SELECT l.*,p.tracking_mode FROM manufacturing_specification_lines l JOIN commerce_products p ON p.id=l.product_id WHERE l.specification_id=? ORDER BY l.ordinal",
+    binds: &[BindField::SpecificationId],
+    scope: ScopeRequirement {
+        company: false,
+        branch: false,
+        order: false,
+        specification: true,
+        version: false,
+    },
+    authority: READ,
+    cross_owner: &["JOIN commerce_products p ON p.id=l.product_id"],
 };
 
 /// Exact live SQL for `productionCommandSources.orders` (Commerce fragments inlined).
@@ -337,6 +358,7 @@ pub const PLANS: &[ReadPlan] = &[
     PLAN_SPECIFICATION,
     PLAN_SPECIFICATION_VERSION,
     PLAN_SPECIFICATION_LINES,
+    PLAN_ORDER_SPECIFICATION_LINES,
     PLAN_ORDERS,
     PLAN_ORDER_DETAIL,
     PLAN_MATERIAL_RESERVATIONS,
@@ -375,16 +397,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn closed_registry_of_twelve_caller_unit_reads() {
-        assert_eq!(PLANS.len(), 12);
-        assert_eq!(kinds().count(), 12);
+    fn closed_registry_of_thirteen_caller_unit_reads() {
+        assert_eq!(PLANS.len(), 13);
+        assert_eq!(kinds().count(), 13);
         for kind in kinds() {
             assert!(plan(kind).is_some(), "{kind}");
             assert!(is_owner_read(kind), "{kind}");
         }
         assert_eq!(
             kinds().collect::<std::collections::BTreeSet<_>>().len(),
-            12,
+            13,
             "read kinds must be unique"
         );
         assert_eq!(plan("bogus.read"), None);
@@ -447,6 +469,10 @@ mod tests {
         assert_eq!(
             plan(RD_SPECIFICATION_LINES).unwrap().sql,
             "SELECT * FROM manufacturing_specification_lines WHERE specification_id=? ORDER BY ordinal"
+        );
+        assert_eq!(
+            plan(RD_ORDER_SPECIFICATION_LINES).unwrap().sql,
+            "SELECT l.*,p.tracking_mode FROM manufacturing_specification_lines l JOIN commerce_products p ON p.id=l.product_id WHERE l.specification_id=? ORDER BY l.ordinal"
         );
         assert_eq!(
             plan(RD_ORDERS).unwrap().sql,

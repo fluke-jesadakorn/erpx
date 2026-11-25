@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
 import { resolve } from 'node:path';
 import { selectProjectionFrom } from '../../../packages/server-projects/src/adapters/read-tail-r40';
+import { finalRootOwnerProjectionSources } from '../../../packages/server-projects/src/adapters/final-root-owner-projection-sources';
 import { projectPointReadHead } from '../../../packages/server-projects/src/adapters/read-tail-r33';
 import {
   staffTaskPointHead, staffProjectByRefHead,
@@ -126,11 +127,13 @@ describe('Projects read-tail r40 universal projection head family', () => {
     expect(src('project-id-source.ts')).toContain('projectPointReadHead(\'project_id\',table,\'company_id\')');
   });
 
-  test('cross-owner final-root projections are excluded and unchanged', () => {
+  test('cross-owner final-root projections now delegate to the universal head', () => {
     const fr = src('final-root-owner-projection-sources.ts');
-    expect(fr).toContain('const quotedProjection = (columns: string, relation: string) => `SELECT ${columns} FROM ${relation}`;');
+    expect(fr).toContain("import {selectProjectionFrom} from './read-tail-r40';");
+    expect(fr).toContain('const quotedProjection = (columns: string, relation: string) => selectProjectionFrom(columns, relation);');
+    expect(fr).not.toContain('`SELECT ${columns} FROM ${relation}`');
+    expect(fr.match(/SELECT /g)).toBeNull();
     expect(fr).toContain('finalRootOwnerProjectionSources');
-    expect(fr).not.toContain('read-tail-r40');
     expect(fr).toContain('staff_project_members: quotedProjection(');
     expect(fr).toContain('staff_projects: quotedProjection(');
     expect(src('../public/final-root-owner-projection-sources.ts')).toContain('finalRootOwnerProjectionSources');
@@ -151,9 +154,67 @@ describe('Projects read-tail r40 universal projection head family', () => {
     };
     walk(srcRoot);
     // r39 left 76. Three named heads (one inline SELECT each) delegate to one
-    // closed universal head: 76-3+1 = 74. The final-root cross-owner projection
-    // keeps its own quoted head and is deliberately not folded.
-    expect(total).toBe(66); // lane 27 wave 2 moved the two handoff list/work reads to native (-2) // lane 27 moved the two actuals reads to native Rust (-2)
+    // closed universal head: 76-3+1 = 74. r44 folds the last cross-owner
+    // final-root projection head into that same universal head (66->65).
+    expect(total).toBe(65)
     expect(total).toBeLessThan(76);
+  });
+});
+
+describe('Projects read-tail r44 final-root projection family', () => {
+  // Verbatim pre-r44 renders captured at BEFORE=66. Byte-identity oracles only,
+  // never live query sources. Both closed sources keep their quoted column lists
+  // and relation names byte-for-byte after delegating to read-tail-r40.
+  const members = 'SELECT "project_id","user_id","added_by","created_at" FROM staff_project_members';
+  const projects = 'SELECT "id","company_id","branch_id","department_id","title","description","owner_user_id","version","created_at","updated_at","lifecycle_status" FROM staff_projects';
+  const oracleSha = {
+    members: '98d50a4444d878531802bfa3df3aa8fa09402bb120141301927fe9230233c534',
+    projects: 'ef76ea1ac381d082bfe4a8559f4b6d5e036af68cb5ff4a152d3de622decf9e04',
+  } as const;
+
+  test('the universal head reproduces both retired final-root statements byte for byte', () => {
+    expect(selectProjectionFrom('"project_id","user_id","added_by","created_at"', 'staff_project_members')).toBe(members);
+    expect(selectProjectionFrom('"id","company_id","branch_id","department_id","title","description","owner_user_id","version","created_at","updated_at","lifecycle_status"', 'staff_projects')).toBe(projects);
+    expect(finalRootOwnerProjectionSources.staff_project_members).toBe(members);
+    expect(finalRootOwnerProjectionSources.staff_projects).toBe(projects);
+    for (const [name, sql] of [['members', members], ['projects', projects]] as const) {
+      expect(sql.match(/SELECT /g), name).toHaveLength(1);
+      expect(sql.toUpperCase(), name).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
+      expect(sha256(sql), name).toBe(oracleSha[name]);
+    }
+  });
+
+  test('the final-root source delegates and owns no inline SELECT literal', () => {
+    const fr = src('final-root-owner-projection-sources.ts');
+    expect(fr).toContain("import {selectProjectionFrom} from './read-tail-r40';");
+    expect(fr).toContain('selectProjectionFrom(columns, relation)');
+    expect(fr.match(/SELECT /g)).toBeNull();
+    expect(fr).toContain('staff_project_members: quotedProjection(');
+    expect(fr).toContain('staff_projects: quotedProjection(');
+    expect(src('../public/final-root-owner-projection-sources.ts')).toContain('finalRootOwnerProjectionSources');
+  });
+
+  test('the Rust owner records both final-root statements with no write or lock text', () => {
+    const rs = src('native_read_sql.rs');
+    expect(rs).toContain('projects_rd_final_root_members');
+    expect(rs).toContain('projects_rd_final_root_projects');
+    expect(rs).toContain('SELECT \\"project_id\\",\\"user_id\\",\\"added_by\\",\\"created_at\\" FROM staff_project_members');
+    expect(rs).toContain('SELECT \\"id\\",\\"company_id\\",\\"branch_id\\",\\"department_id\\",\\"title\\",\\"description\\",\\"owner_user_id\\",\\"version\\",\\"created_at\\",\\"updated_at\\",\\"lifecycle_status\\" FROM staff_projects');
+    expect(src('mod.rs')).toContain('pub(crate) mod native_read_sql;');
+  });
+
+  test('retirement:ts-statements drops to 65 from the r43 BEFORE=66 baseline', () => {
+    let total = 0;
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {
+        const path = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith('.ts')) total += (readFileSync(path, 'utf8').match(/SELECT /g) ?? []).length;
+      }
+    };
+    walk(srcRoot);
+    // One duplicated projection/from head removed: 66 -> 65.
+    expect(total).toBe(65);
+    expect(total).toBeLessThan(66);
   });
 });

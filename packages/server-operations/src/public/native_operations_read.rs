@@ -3,7 +3,7 @@
 //! read kinds and resolver so composition can mount or verify the plan route
 //! without importing adapter internals.
 pub use crate::adapters::native_operations_read_sql::{
-    is_read, read_statement, NativeReadStatement, RD_APP_UPLOAD_TASK_STATE,
+    is_read, read_statement, NativeReadStatement, RD_APP_UPLOAD_TASK_STATE, RD_ATTACHMENT_OWNER_SCOPE,
     RD_BETA_MANAGEMENT_TASK_COMPANY, RD_BETA_MANAGEMENT_TASK_FILE_OWNER,
     RD_FIELD_EXCEPTION, RD_FIELD_POLICY, RD_FLOW_DEFINITIONS_DELEGATION,
     RD_HANDOVER_RECOVERY_RECEIPT, RD_LEGACY_ROUTINE_TEMPLATES,

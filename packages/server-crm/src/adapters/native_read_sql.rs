@@ -108,4 +108,41 @@ mod tests {
             assert!(!upper.contains("LOCK TABLE"), "{name}");
         }
     }
+
+    /// Canonical owner form of the bare `SELECT ` head retired from the r40
+    /// scoped-list, distinct-owner and lead-row-source families.
+    fn select_body_sql(body: &str) -> String {
+        format!("SELECT {body}")
+    }
+
+    #[test]
+    fn bare_select_head_matches_retired_r40_owner_literals() {
+        let cases = [
+            (
+                "scoped descending list",
+                select_body_sql("g.id,g.version FROM crm_guest_links g ORDER BY g.created_at DESC LIMIT 200"),
+                "SELECT g.id,g.version FROM crm_guest_links g ORDER BY g.created_at DESC LIMIT 200",
+            ),
+            (
+                "distinct owner directory",
+                select_body_sql("DISTINCT l.owner_id id FROM crm_leads l ORDER BY name"),
+                "SELECT DISTINCT l.owner_id id FROM crm_leads l ORDER BY name",
+            ),
+            (
+                "lead row source",
+                select_body_sql("lead.* FROM crm_leads lead WHERE lead.company_id=?"),
+                "SELECT lead.* FROM crm_leads lead WHERE lead.company_id=?",
+            ),
+        ];
+        for (name, rendered, expected) in cases {
+            assert_eq!(rendered, expected, "{name}");
+            assert_eq!(rendered.matches("SELECT ").count(), 1, "{name}");
+            let upper = rendered.to_ascii_uppercase();
+            assert!(!upper.contains("INSERT"), "{name}");
+            assert!(!upper.contains("UPDATE"), "{name}");
+            assert!(!upper.contains("DELETE"), "{name}");
+            assert!(!upper.contains("FOR UPDATE"), "{name}");
+            assert!(!upper.contains("LOCK TABLE"), "{name}");
+        }
+    }
 }

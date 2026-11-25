@@ -509,7 +509,7 @@ describe('Maintenance finance record source fixed SQL',()=>{
   expect(source.match(/const journalLineSum=/g)).toHaveLength(1);
   expect(source).not.toContain('(SELECT sum(debit_minor) FROM finance_journal_lines');
   expect(source).not.toContain('(SELECT sum(credit_minor) FROM finance_journal_lines');
-  expect(source.match(/SELECT/g)).toHaveLength(2);
+  expect(source.match(/SELECT/g)).toHaveLength(1);
   const {maintenanceFinanceRecordSources}=await import('../../../packages/server-maintenance/src/adapters/finance-record-sources');
   const journal=maintenanceFinanceRecordSources.journal;
   expect(journal.startsWith("SELECT consumption.company_id,consumption.journal_id id")).toBe(true);
@@ -722,7 +722,7 @@ describe('Maintenance record-image fixed SQL',()=>{
    }
   };
   walk(srcRoot);
-  expect(total).toBe(17);
+  expect(total).toBe(16);
   expect(total).toBeLessThan(18);
  });
 });
@@ -778,9 +778,10 @@ describe('Maintenance scheduled-source fixed SQL',()=>{
   it('single-sources the scheduled projection and keeps both composed branches byte-identical',async()=>{
    const {readFileSync}=await import('node:fs');
    const helper=readFileSync(new URL(`${dir}calendar-maintenance-facts.ts`,import.meta.url),'utf8');
-   expect(helper.match(/SELECT/g)).toHaveLength(2);
+   expect(helper.match(/SELECT/g)).toHaveLength(1);
    // r14 removed the two inline scheduled-branch literals; r31 routed the outer
-   // alias-qualified row head through aliasRowsSql (3 -> 2); the inList read remains.
+   // alias-qualified row head through aliasRowsSql (3 -> 2); r17 routed the inList
+   // head through subqueryHead (2 -> 1).
    expect(helper).not.toContain("SELECT p.id,'maintenance_plan' source_kind");
    expect(helper).not.toContain("UNION ALL SELECT w.id,'maintenance_work'");
    expect(helper.match(/scheduledSourceSql\(/g)).toHaveLength(2);
@@ -818,8 +819,9 @@ describe('Maintenance projection lookup fixed SQL',()=>{
    const executive=readFileSync(new URL(`${dir}executive-metric-projections.ts`,import.meta.url),'utf8');
    const packageSources=readFileSync(new URL(`${dir}package-obligations.ts`,import.meta.url),'utf8');
    expect(helper.match(/export const projectionLookup = \(select: string, source: string, alias: string, where: string\): string =>/g)).toHaveLength(1);
-   expect(helper.match(/SELECT/g)).toHaveLength(2);
+   expect(helper.match(/SELECT/g)).toHaveLength(3);
    expect(helper).toContain('export const existsGuardPrefix = (source: string): string => `EXISTS(SELECT 1 FROM ${source} WHERE `;');
+   expect(helper).toContain('export const subqueryHead = (body: string): string => `(SELECT ${body})`;');
    expect(helper).not.toMatch(/LOCK\s+TABLE/);
    expect(calendar).toContain('projectionLookup("user_id",people_payrollProjectionSources.hr_people,"hr_people","id=? AND company_id=s.company_id")');
    expect(executive).toContain('projectionLookup("n.display_name",organizationProjectionSources.organization_nodes,"n",');
@@ -1027,7 +1029,8 @@ describe('Maintenance facts UNION fact-row fixed SQL',()=>{
   // settlementRefSource (this file 4 -> 3, owner total 21 -> 20, below BEFORE=21);
   // r30 folds the Work/Plan alias-qualified row head into aliasRowsSql (this file
   // 3 -> 1, owner total 19 -> 18, below BEFORE=19); r31 routes the Calendar head
-  // through that same renderer (owner total 18 -> 17, below BEFORE=18).
+  // through that same renderer (owner total 18 -> 17, below BEFORE=18); r17
+  // unifies the parenthesized subquery head (owner total 17 -> 16).
   expect(source.match(/SELECT/g)).toHaveLength(1);
   // The owner lock and the scope CTE stay untouched; no write/row-lock introduced.
   expect(source).toContain('LOCK TABLE maintenance_work_orders,maintenance_work_events,maintenance_preventive_plans,maintenance_preventive_events,maintenance_preventive_occurrences IN SHARE MODE');
@@ -1213,3 +1216,57 @@ describe('Maintenance row-projection head reuse fixed SQL',()=>{
    }
   });
  });
+
+/** r17: the Calendar in-list scope witness and the Finance journal-line balance
+ * sums share one owner-local parenthesized subquery head. Both composed
+ * statements stay byte-identical to their pre-dedupe literals, no inline head
+ * remains in either caller, and no lock/native read is touched. */
+describe('Maintenance parenthesized subquery head reuse fixed SQL',()=>{
+ const dir='../../../packages/server-maintenance/src/adapters/';
+ const inListHead='(SELECT jsonb_array_elements_text(?::jsonb))';
+ const debitHead='(SELECT sum(debit_minor) FROM finance_journal_lines WHERE journal_id=journal.id)';
+ it('renders both heads byte-identically through the one owner-local renderer',async()=>{
+  const {createHash}=await import('node:crypto');
+  const sha=(s:string)=>createHash('sha256').update(s).digest('hex');
+  expect(sha(inListHead)).toBe('7b5aaea382b10517a1d91b8fd08c077e1f00ecbefe55766dc786a21db2465e03');
+  expect(sha(debitHead)).toBe('4a0e186c481285cb5e5ab500d46ce481a14b3e8458cc74655496e4953959a93e');
+  const {subqueryHead}=await import('../../../packages/server-maintenance/src/adapters/projection-lookup');
+  expect(subqueryHead('jsonb_array_elements_text(?::jsonb)')).toBe(inListHead);
+  expect(subqueryHead('sum(debit_minor) FROM finance_journal_lines WHERE journal_id=journal.id')).toBe(debitHead);
+ });
+ it('keeps the full Calendar statement byte-identical at the prepare boundary',async()=>{
+  const {createHash}=await import('node:crypto');
+  const {calendarMaintenanceMaintenanceFacts}=await import('../../../packages/server-maintenance/src/adapters/calendar-maintenance-facts');
+  let sql='';
+  const db={prepare(statement:string){sql=statement;return{bind(){return this;},all(){return Promise.resolve({results:[]});}};}};
+  await calendarMaintenanceMaintenanceFacts(db as never).read1({value1:'c',value2:null,value3:null,value4:'',value5:0,value6:0,value7:'mine',value8:'',value9:null,value10:'',value11:1});
+  expect(sql).toContain(`coalesce(s.department_id,s.branch_id) IN ${inListHead}`);
+  expect(createHash('sha256').update(sql).digest('hex')).toBe('58dc60282dbee2a712a70cea5f229d74009318f79e8edcdd3458c04f9af48b0f');
+ });
+ it('keeps the Finance journal source byte-identical',async()=>{
+  const {createHash}=await import('node:crypto');
+  const {maintenanceFinanceRecordSources}=await import('../../../packages/server-maintenance/src/adapters/finance-record-sources');
+  const journal=maintenanceFinanceRecordSources.journal;
+  expect(journal).toContain(`${debitHead}=consumption.value_minor`);
+  expect(journal).toContain('(SELECT sum(credit_minor) FROM finance_journal_lines WHERE journal_id=journal.id)=consumption.value_minor');
+  expect(createHash('sha256').update(journal).digest('hex')).toBe('2cedd9f3f0a17c66a377638267556278a60c0c79c695f3dd7dde751097d539cc');
+ });
+ it('single-sources the head definition and leaves both callers inline-copy-free',async()=>{
+  const {readFileSync}=await import('node:fs');
+  const shared=readFileSync(new URL(`${dir}projection-lookup.ts`,import.meta.url),'utf8');
+  const calendar=readFileSync(new URL(`${dir}calendar-maintenance-facts.ts`,import.meta.url),'utf8');
+  const finance=readFileSync(new URL(`${dir}finance-record-sources.ts`,import.meta.url),'utf8');
+  expect(shared.split('export const subqueryHead =').length-1).toBe(1);
+  expect(calendar).toContain('import {projectionLookup,subqueryHead} from "./projection-lookup"');
+  expect(calendar).toContain('IN ${subqueryHead("jsonb_array_elements_text(?::jsonb)")}');
+  expect(calendar.match(/SELECT/g)).toHaveLength(1);
+  expect(finance).toContain('import {subqueryHead} from "./projection-lookup"');
+  expect(finance).toContain('=>subqueryHead(`sum(${column}) FROM finance_journal_lines WHERE journal_id=journal.id`)');
+  expect(finance.match(/SELECT/g)).toHaveLength(1);
+  for(const text of [calendar,finance]){
+   expect(text).not.toMatch(/INSERT\s+INTO|DELETE\s+FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|pg_advisory/i);
+  }
+  expect(calendar).not.toContain('LOCK TABLE');
+  expect(finance).toContain('LOCK TABLE operational_inventory_consumptions,maintenance_work_orders,operational_assets IN SHARE MODE');
+ });
+});

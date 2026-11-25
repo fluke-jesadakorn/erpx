@@ -15,6 +15,10 @@ export const RD_PRODUCT_ACTIVE_OPTIONS = 'commerce_rd_product_active_options';
 export const RD_PRODUCT_MASTER_DETAIL = 'commerce_rd_product_master_detail';
 export const RD_PRODUCT_POINT = 'commerce_rd_product_point';
 
+/** Allow-listed r28 Inventory count product selectors resolved by the mounted owner command-plan route. */
+export const RD_COUNT_ACTIVE_STOCK_PRODUCTS = 'commerce_rd_count_active_stock_products';
+export const RD_COUNT_ACTIVE_PRODUCTS = 'commerce_rd_count_active_products';
+
 /** Allow-listed warehouse-config read kinds resolved by the mounted owner command-plan route. */
 export const RD_WAREHOUSE_PAGE_ROWS = 'commerce_rd_warehouse_page_rows';
 export const RD_WAREHOUSE_MASTER_ROWS = 'commerce_rd_warehouse_master_rows';

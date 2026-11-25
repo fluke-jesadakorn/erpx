@@ -59,7 +59,7 @@ describe('Projects read-tail r42 closed row-source head family', () => {
     expect(src('scheduled-tasks.ts')).toContain('SELECT id FROM staff_projects WHERE id=? AND company_id=? FOR SHARE');
     expect(src('scheduled-tasks.ts')).toContain('FOR UPDATE OF t');
     expect(src('final-root-owner-projection-sources.ts')).toContain(
-      'const quotedProjection = (columns: string, relation: string) => `SELECT ${columns} FROM ${relation}`;');
+      'const quotedProjection = (columns: string, relation: string) => selectProjectionFrom(columns, relation);');
     // The folded head region emits no write, lock or native text.
     const head = obl.slice(obl.indexOf('const tableRowsSql'), obl.indexOf('export const projectAssignmentScopeSql'));
     expect(head).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
@@ -85,7 +85,7 @@ describe('Projects read-tail r42 closed row-source head family', () => {
     // projects source and the settlement table prefix) now share one closed head:
     // 73-2+1 = 72. Locks, native SQL and cross-owner projections keep their own
     // literals and are not folded.
-    expect(total).toBe(66); // lane 27 wave 2 moved the two handoff list/work reads to native (-2) // lane 27 moved the two actuals reads to native Rust (-2)
+    expect(total).toBe(65); // r44 final-root projection family folded into read-tail-r40 (66->65)
     expect(total).toBeLessThan(73);
   });
 });

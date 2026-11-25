@@ -29,6 +29,15 @@ use erpx_server_customer_360::public::customer_timeline::{
     CustomerTimelineActor, CustomerTimelineQuery, CustomerTimelineSupportEntitlement,
     FinalRootEventSources, PgCustomerTimelineRead, customer_timeline,
 };
+use erpx_server_customer_360::public::customer_timeline_activity::{
+    CustomerTimelineActivityQuery, CustomerTimelineActivityRow, PgCustomerTimelineActivityRead,
+    customer_timeline_activity,
+};
+use erpx_server_customer_360::public::customer_timeline_activity_http::{
+    CustomerTimelineActivityHttpBackend, CustomerTimelineActivityHttpFuture,
+    CustomerTimelineActivityHttpReadRequest, CustomerTimelineActivityHttpTarget,
+    customer_timeline_activity_http_router,
+};
 use erpx_server_customer_360::public::customer_timeline_http::{
     CustomerTimelineHttpBackend, CustomerTimelineHttpFuture, CustomerTimelineHttpResponse,
     CustomerTimelineHttpTarget, customer_timeline_http_router,
@@ -439,6 +448,102 @@ impl<C: Clock + Send + Sync + 'static> Customer360Service<C> {
             .await
     }
 
+    pub async fn timeline_activity(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: HoldingWorkspaceRequest,
+        query: CustomerTimelineActivityQuery,
+    ) -> Result<Vec<CustomerTimelineActivityRow>, Error> {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(move || Ok(input)),
+                Self::access(),
+                Customer360Sources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let query = query.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("commerce.read")?;
+                        let actor = customer_timeline_actor(current)?;
+                        let witness = inspect_final_root_projection_sources(connection).await?;
+                        let (agreement_events, order_events) = final_root_event_sql(&witness);
+                        let sources = FinalRootEventSources {
+                            agreement_events,
+                            order_events,
+                        };
+                        let purchased = if current.has_permission("support.read") {
+                            let catalogue = current_package_catalogue()
+                                .map_err(|_| PgTransactionError::Business(unavailable()))?;
+                            let mut reader = PgCompanyPurchaseReader::new(
+                                current.holding_id().clone(),
+                                current.selection().workspace().company_id.clone(),
+                                connection,
+                                &catalogue,
+                            );
+                            let inspection = reader
+                                .inspect(
+                                    &PurchaseRequest {
+                                        capabilities: vec!["support.tickets".into()],
+                                        purpose: CapabilityPurpose::History,
+                                        mode: PackageEnforcementMode::Enforced,
+                                    },
+                                    clock.now(),
+                                )
+                                .await
+                                .map_err(|error| match error {
+                                    PgTransactionError::Business(error) => {
+                                        PgTransactionError::Business(error)
+                                    }
+                                    PgTransactionError::Persistence(_) => {
+                                        PgTransactionError::Business(unavailable())
+                                    }
+                                })?;
+                            inspection.require_allowed().is_ok()
+                        } else {
+                            false
+                        };
+                        let rows = {
+                            let mut repository =
+                                PgCustomerTimelineActivityRead::with_sources(connection, sources);
+                            let mut entitlement = SupportEntitlement { purchased };
+                            customer_timeline_activity(
+                                &actor,
+                                &query,
+                                &mut repository,
+                                &mut entitlement,
+                                clock.now(),
+                            )
+                            .await
+                            .map_err(|error| match error {
+                                PgTransactionError::Business(error) => {
+                                    PgTransactionError::Business(error)
+                                }
+                                PgTransactionError::Persistence(_) => {
+                                    PgTransactionError::Business(unavailable())
+                                }
+                            })?
+                        };
+                        witness.require_current(connection).await?;
+                        Ok(rows)
+                    })
+                },
+            )
+            .await
+    }
+
     pub async fn directory_page(
         &self,
         host: &str,
@@ -650,6 +755,30 @@ impl<C: Clock + Send + Sync + 'static> CustomerActivityHttpBackend for Customer3
                 .map_err(business)
         })
     }
+}
+
+impl<C: Clock + Send + Sync + 'static> CustomerTimelineActivityHttpBackend
+    for Customer360Backend<C>
+{
+    fn read<'a>(
+        &'a self,
+        request: CustomerTimelineActivityHttpReadRequest<'a>,
+    ) -> CustomerTimelineActivityHttpFuture<'a, Vec<CustomerTimelineActivityRow>> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .timeline_activity(request.host, proof, selection, request.query.clone())
+                .await
+                .map_err(business)
+        })
+    }
+}
+
+#[allow(dead_code)]
+fn _timeline_activity_router(
+    targets: Vec<CustomerTimelineActivityHttpTarget>,
+) -> Result<axum::Router, BusinessError> {
+    customer_timeline_activity_http_router(targets)
 }
 
 #[allow(dead_code)]

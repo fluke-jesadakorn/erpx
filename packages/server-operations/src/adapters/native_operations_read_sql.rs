@@ -300,6 +300,20 @@ const READ_WORK_TASK_REPLAY_RECEIPT: NativeReadStatement = NativeReadStatement {
     scope: "holding",
 };
 
+/// Native successor of the TypeScript `attachment-migration-owner` staff_task
+/// scope read. The owner plans the exact literal; the caller executes it on its
+/// open unit with the same `[id]` bind and reads the company/branch/department/
+/// version columns exactly as the retired `.first()` did.
+pub const RD_ATTACHMENT_OWNER_SCOPE: &str = "operations_rd_attachment_owner_scope";
+const SQL_ATTACHMENT_OWNER_SCOPE: &str =
+    "SELECT company_id,branch_id,department_id,version FROM staff_tasks WHERE id=?";
+const READ_ATTACHMENT_OWNER_SCOPE: NativeReadStatement = NativeReadStatement {
+    kind: RD_ATTACHMENT_OWNER_SCOPE,
+    sql: SQL_ATTACHMENT_OWNER_SCOPE,
+    bind_count: 1,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_TASK_PROJECTION_SOURCE,
     READ_APP_UPLOAD_TASK_STATE,
@@ -322,6 +336,7 @@ const READS: &[NativeReadStatement] = &[
     READ_WORKFLOW_DOCUMENT_DETAIL,
     READ_WORKFLOW_DOCUMENT_PAGE,
     READ_WORK_TASK_REPLAY_RECEIPT,
+    READ_ATTACHMENT_OWNER_SCOPE,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -707,7 +722,7 @@ mod tests {
 
     #[test]
     fn r51_registry_grows_by_four_read_kinds() {
-        assert_eq!(READS.len(), 21);
+        assert_eq!(READS.len(), 22);
         for kind in [
             RD_HANDOVER_RECOVERY_RECEIPT,
             RD_WORKFLOW_DOCUMENT_DETAIL,
@@ -716,5 +731,20 @@ mod tests {
         ] {
             assert_eq!(READS.iter().filter(|read| read.kind == kind).count(), 1);
         }
+    }
+
+    #[test]
+    fn r62_attachment_owner_scope_sql_matches_retired_typescript_literal() {
+        let read = read_statement(RD_ATTACHMENT_OWNER_SCOPE).expect("read kind");
+        assert_eq!(
+            read.sql,
+            "SELECT company_id,branch_id,department_id,version FROM staff_tasks WHERE id=?"
+        );
+        assert_eq!(read.sql.matches("SELECT ").count(), 1);
+        assert_eq!(read.bind_count, 1);
+        assert_eq!(read.sql.matches('?').count(), 1);
+        assert_eq!(read.scope, "holding");
+        assert_eq!(READS.iter().filter(|r| r.kind == RD_ATTACHMENT_OWNER_SCOPE).count(), 1);
+        assert!(is_read(RD_ATTACHMENT_OWNER_SCOPE));
     }
 }

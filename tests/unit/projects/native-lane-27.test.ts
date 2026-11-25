@@ -157,7 +157,7 @@ describe("native lane 27 projects actuals transport", () => {
     walk(root);
     // Before lane 27: 71. Actuals (2), handoff list/work (2) and the r30
     // visible-row head (1) are native; other owners keep the shared heads (66).
-    expect(total).toBe(66);
+    expect(total).toBe(65); // r44 final-root projection family folded into read-tail-r40 (66->65)
   });
 
   it("pins the native SQL and result oracle", () => {

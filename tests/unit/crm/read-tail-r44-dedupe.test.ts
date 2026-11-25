@@ -162,7 +162,7 @@ describe('crm read-tail r44 byte-identical UNION-ALL reuse', () => {
   });
 
   test('retirement:ts-statements drops from the r44 AFTER=61 to 57 (r45)', () => {
-    expect(totalSelects()).toBe(43);
+    expect(totalSelects()).toBe(41);
     expect(totalSelects()).toBeLessThan(61);
   });
 });

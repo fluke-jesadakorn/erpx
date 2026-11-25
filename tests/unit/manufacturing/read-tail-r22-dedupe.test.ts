@@ -1,129 +1,134 @@
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { manufacturingOrderDetailSelect } from '../../../packages/server-manufacturing/src/adapters/manufacturing-read-tail-r22-sql';
+import {
+  MANUFACTURING_RD_ORDER_SPECIFICATION_LINES,
+  MANUFACTURING_RD_MATERIAL_RESERVATIONS,
+  MANUFACTURING_RD_ORDER_POSTINGS,
+  MANUFACTURING_RD_ORDER_OPERATIONS,
+  MANUFACTURING_RD_LOT_GENEALOGY,
+} from '../../../packages/server-manufacturing/src/adapters/native-manufacturing-read';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-manufacturing/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
+const registry = readFileSync(resolve(srcRoot, 'public/native_command.rs'), 'utf8');
+const transport = readFileSync(resolve(srcRoot, 'adapters/native-manufacturing-read.ts'), 'utf8');
 
-/** Owner-supplied projection fragments are placeholders here: the helper only
- * concatenates its four arguments, so whole-string byte identity of the
- * surrounding SQL is the oracle. Originals were captured verbatim from HEAD.
- * `${...}` fragments are literal text and multi-line join tails keep their
- * newline plus six-space indent, exactly as the five former inline literals. */
-const MP = '${productioncommerceProjection.materialProduct}';
-const RP = '${productioncommerceProjection.reservationProduct}';
-const PJ = '${productionfinanceProjection.journal}';
-const OR = '${productionplanningProjection.operationResource}';
-const GI = '${productioninventoryProjection.genealogyInputLot}';
-const GO = '${productioninventoryProjection.genealogyOutputLot}';
-
+/** The five r22 detail selects, captured byte-for-byte before the cutover.
+ * Their text now lives only in the frozen native owner registry; the TS caller
+ * emits none of it and plans the matching closed kind on the caller's unit. */
 const FAMILY: readonly {
   method: string;
-  args: readonly [string, string, string, string];
-  original: string;
+  constant: string;
+  kind: string;
+  oracle: string;
+  binds: string;
+  scope: string;
 }[] = [
   {
     method: 'orderSpecificationLines',
-    args: [
-      'l.*,p.tracking_mode',
-      ` FROM manufacturing_specification_lines l ${MP}`,
-      'l.specification_id=?',
-      'l.ordinal',
-    ],
-    original: `SELECT l.*,p.tracking_mode FROM manufacturing_specification_lines l ${MP} WHERE l.specification_id=? ORDER BY l.ordinal`,
+    constant: 'MANUFACTURING_RD_ORDER_SPECIFICATION_LINES',
+    kind: MANUFACTURING_RD_ORDER_SPECIFICATION_LINES,
+    oracle: 'SELECT l.*,p.tracking_mode FROM manufacturing_specification_lines l JOIN commerce_products p ON p.id=l.product_id WHERE l.specification_id=? ORDER BY l.ordinal',
+    binds: '&[BindField::SpecificationId]',
+    scope: '{specificationId:String(specification_id)}',
   },
   {
     method: 'orderReservations',
-    args: [
-      'r.*,p.name product_name,p.tracking_mode',
-      ` FROM manufacturing_material_reservations r ${RP}`,
-      'r.order_id=?',
-      'p.name',
-    ],
-    original: `SELECT r.*,p.name product_name,p.tracking_mode FROM manufacturing_material_reservations r ${RP} WHERE r.order_id=? ORDER BY p.name`,
+    constant: 'MANUFACTURING_RD_MATERIAL_RESERVATIONS',
+    kind: MANUFACTURING_RD_MATERIAL_RESERVATIONS,
+    oracle: 'SELECT r.*,p.name product_name,p.tracking_mode FROM manufacturing_material_reservations r JOIN commerce_products p ON p.id=r.product_id WHERE r.order_id=? ORDER BY p.name',
+    binds: '&[BindField::OrderId]',
+    scope: '{orderId:id}',
   },
   {
     method: 'orderPostings',
-    args: [
-      'p.*,j.status journal_status',
-      ` FROM manufacturing_order_postings p ${PJ}`,
-      'p.order_id=?',
-      'p.source_order_version',
-    ],
-    original: `SELECT p.*,j.status journal_status FROM manufacturing_order_postings p ${PJ} WHERE p.order_id=? ORDER BY p.source_order_version`,
+    constant: 'MANUFACTURING_RD_ORDER_POSTINGS',
+    kind: MANUFACTURING_RD_ORDER_POSTINGS,
+    oracle: 'SELECT p.*,j.status journal_status FROM manufacturing_order_postings p JOIN finance_journals j ON j.id=p.journal_id WHERE p.order_id=? ORDER BY p.source_order_version',
+    binds: '&[BindField::OrderId]',
+    scope: '{orderId:id}',
   },
   {
     method: 'orderOperations',
-    args: [
-      `op.*,r.name resource_name,e.labor_minutes,e.machine_minutes,e.evidence,e.created_at completed_at`,
-      `\n      FROM manufacturing_specification_operations op ${OR}\n      LEFT JOIN manufacturing_operation_events e ON e.operation_id=op.id AND e.order_id=?`,
-      'op.specification_id=?',
-      'op.ordinal',
-    ],
-    original: `SELECT op.*,r.name resource_name,e.labor_minutes,e.machine_minutes,e.evidence,e.created_at completed_at\n      FROM manufacturing_specification_operations op ${OR}\n      LEFT JOIN manufacturing_operation_events e ON e.operation_id=op.id AND e.order_id=? WHERE op.specification_id=? ORDER BY op.ordinal`,
+    constant: 'MANUFACTURING_RD_ORDER_OPERATIONS',
+    kind: MANUFACTURING_RD_ORDER_OPERATIONS,
+    oracle: 'SELECT op.*,r.name resource_name,e.labor_minutes,e.machine_minutes,e.evidence,e.created_at completed_at FROM manufacturing_specification_operations op JOIN production_resources r ON r.id=op.resource_id LEFT JOIN manufacturing_operation_events e ON e.operation_id=op.id AND e.order_id=? WHERE op.specification_id=? ORDER BY op.ordinal',
+    binds: '&[BindField::OrderId, BindField::SpecificationId]',
+    scope: '{orderId:id,specificationId:String(specification_id)}',
   },
   {
     method: 'lotGenealogy',
-    args: [
-      `g.*,i.lot_id input_lot_id,il.lot_code input_lot_code,il.serial_number input_serial_number,\n      ol.lot_id output_lot_id,l.lot_code output_lot_code,l.serial_number output_serial_number`,
-      ` FROM manufacturing_lot_genealogy g\n      JOIN manufacturing_material_lot_issues i ON i.id=g.input_issue_id ${GI}\n      JOIN manufacturing_output_lots ol ON ol.id=g.output_lot_id ${GO}`,
-      'g.order_id=?',
-      'g.id',
-    ],
-    original: `SELECT g.*,i.lot_id input_lot_id,il.lot_code input_lot_code,il.serial_number input_serial_number,\n      ol.lot_id output_lot_id,l.lot_code output_lot_code,l.serial_number output_serial_number FROM manufacturing_lot_genealogy g\n      JOIN manufacturing_material_lot_issues i ON i.id=g.input_issue_id ${GI}\n      JOIN manufacturing_output_lots ol ON ol.id=g.output_lot_id ${GO} WHERE g.order_id=? ORDER BY g.id`,
+    constant: 'MANUFACTURING_RD_LOT_GENEALOGY',
+    kind: MANUFACTURING_RD_LOT_GENEALOGY,
+    oracle: 'SELECT g.*,i.lot_id input_lot_id,il.lot_code input_lot_code,il.serial_number input_serial_number,ol.lot_id output_lot_id,l.lot_code output_lot_code,l.serial_number output_serial_number FROM manufacturing_lot_genealogy g JOIN manufacturing_material_lot_issues i ON i.id=g.input_issue_id JOIN inventory_lots il ON il.id=i.lot_id JOIN manufacturing_output_lots ol ON ol.id=g.output_lot_id JOIN inventory_lots l ON l.id=ol.lot_id WHERE g.order_id=? ORDER BY g.id',
+    binds: '&[BindField::OrderId]',
+    scope: '{orderId:id}',
   },
 ];
 
-describe('manufacturing read-tail r22 production detail select family', () => {
-  it('renders the shared detail select byte-identically to all five originals and stays read-only', () => {
-    for (const { args, original } of FAMILY) {
-      expect(manufacturingOrderDetailSelect(...args)).toBe(original);
-      expect(original).toContain('SELECT ');
-      expect(original).toContain(' ORDER BY ');
-      expect(original).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
-    }
-  });
-
-  it('defines one text-only helper, routes all five callers and leaves no residual inline SQL', () => {
-    const helper = src('manufacturing-read-tail-r22-sql.ts');
-    expect(helper.match(/export const manufacturingOrderDetailSelect/g) ?? []).toHaveLength(1);
-    expect(helper).not.toMatch(/prepare\(|\.run\(|\.all\(|\.first\(/);
+describe('manufacturing read-tail r22 native detail-read cutover', () => {
+  it('deletes the parameterized TS builder and routes all five callers to native kinds', () => {
+    expect(existsSync(resolve(srcRoot, 'adapters/manufacturing-read-tail-r22-sql.ts'))).toBe(false);
     const caller = src('production-command-sources.ts');
-    expect(caller.split('manufacturingOrderDetailSelect(').length - 1).toBe(5);
-    expect(caller).toContain("from './manufacturing-read-tail-r22-sql'");
-    for (const { method, args, original } of FAMILY) {
+    expect(caller).not.toContain('manufacturingOrderDetailSelect');
+    expect(caller).not.toContain('manufacturing-read-tail-r22-sql');
+    expect(caller).toContain("from './native-manufacturing-read'");
+    expect(caller).toContain('nativeManufacturingReadAll<Row>');
+    for (const { method, constant, kind, scope, oracle } of FAMILY) {
       expect(caller).toContain(`async ${method}`);
-      for (const arg of args) expect(caller).toContain(arg);
-      expect(caller).not.toContain(original);
+      expect(caller).toContain(`nativeManufacturingReadAll<Row>(${constant},${scope},db)`);
+      expect(caller).not.toContain(oracle);
+      expect(kind).toMatch(/^[a-z-]+$/);
     }
     for (const needle of [
-      'SELECT l.*,p.tracking_mode FROM',
-      'SELECT r.*,p.name product_name FROM',
-      'SELECT p.*,j.status journal_status FROM',
-      'SELECT op.*,r.name resource_name FROM',
-      'SELECT g.*,i.lot_id input_lot_id FROM',
+      'FROM manufacturing_specification_lines l ',
+      'FROM manufacturing_material_reservations r ',
+      'FROM manufacturing_order_postings p ',
+      'FROM manufacturing_specification_operations op ',
+      'FROM manufacturing_lot_genealogy g',
     ]) expect(caller).not.toContain(needle);
   });
 
-  it('leaves the r4/r11/r15-r21 helpers, locks and FOR UPDATE witness untouched', () => {
+  it('registers byte-identical owner plans with the caller bind order for all five kinds', () => {
+    for (const { oracle, binds, kind } of FAMILY) {
+      expect(registry).toContain(`"${oracle}"`);
+      expect(registry).toContain(`kind: RD_${kind.replace(/-/g, '_').toUpperCase()}`);
+      expect(registry).toContain(binds);
+      expect(oracle).toContain('SELECT ');
+      expect(oracle).toContain(' ORDER BY ');
+      expect(oracle).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
+    }
+    expect(registry).toContain('assert_eq!(PLANS.len(), 13)');
+    expect(registry).toContain('plan(RD_ORDER_SPECIFICATION_LINES).unwrap().sql');
+  });
+
+  it('admits all five kinds in the fail-closed native transport with no SQL of its own', () => {
+    for (const { constant, kind } of FAMILY) {
+      expect(transport).toContain(`export const ${constant} = '${kind}'`);
+      expect(transport).toContain(`  ${constant},`);
+    }
+    expect(transport).not.toMatch(/FROM manufacturing_(order_postings|lot_genealogy|material_reservations)/);
+    expect(transport).toContain("throw new ApiError(503, 'MANUFACTURING_READ_PLAN_INVALID'");
+  });
+
+  it('leaves the earlier helpers, locks and FOR UPDATE witness untouched', () => {
     const fragments = src('manufacturing-read-sql-fragments.ts');
     expect(fragments).toContain('export const manufacturingRowsSelect');
     expect(fragments).toContain('export const manufacturingIdSelect');
     expect(fragments).toContain('export const manufacturingAttachmentVersionGuard');
-    expect(src('manufacturing-read-tail-r15-sql.ts')).toContain('export const manufacturingOrderJoinSelect');
-    expect(src('manufacturing-read-tail-r16-sql.ts')).toContain('export const manufacturingPurchaseRecordSelect');
-    expect(src('manufacturing-read-tail-r17-sql.ts')).toContain('export const manufacturingSettlementFactSelect');
-    expect(src('manufacturing-read-tail-r18-sql.ts')).toContain('export const manufacturingPurchaseRecordBranchSelect');
-    expect(src('manufacturing-read-tail-r19-sql.ts')).toContain('export const manufacturingAccountingProfileSelect');
-    expect(src('manufacturing-read-tail-r20-sql.ts')).toContain('export const manufacturingExistsGuard');
-    expect(src('manufacturing-read-tail-r21-sql.ts')).toContain('export const manufacturingAttachmentImageSelect');
+    for (const [name, symbol] of [
+      ['manufacturing-read-tail-r15-sql.ts', 'manufacturingOrderJoinSelect'],
+      ['manufacturing-read-tail-r16-sql.ts', 'manufacturingPurchaseRecordSelect'],
+      ['manufacturing-read-tail-r17-sql.ts', 'manufacturingSettlementFactSelect'],
+      ['manufacturing-read-tail-r18-sql.ts', 'manufacturingPurchaseRecordBranchSelect'],
+      ['manufacturing-read-tail-r19-sql.ts', 'manufacturingAccountingProfileSelect'],
+      ['manufacturing-read-tail-r20-sql.ts', 'manufacturingExistsGuard'],
+      ['manufacturing-read-tail-r21-sql.ts', 'manufacturingAttachmentImageSelect'],
+    ] as const) expect(src(name)).toContain(`export const ${symbol}`);
     expect(src('package-obligations.ts')).toContain('LOCK TABLE manufacturing_material_reservations,manufacturing_genealogy');
-    expect(src('finance-record-sources.ts')).toContain('LOCK TABLE planning_scenarios');
     expect(src('attachment-read-sources.ts')).toContain('LOCK TABLE manufacturing_material_reservations,manufacturing_genealogy,manufacturing_cost_snapshots,manufacturing_operation_events');
-    expect(src('purchases.ts')).toContain('LOCK TABLE planning_scenarios,planning_recommendations,planning_scenario_events');
     expect(src('production-command-sources.ts')).toContain('WHERE id=? FOR UPDATE');
-    expect(src('manufacturing-read-tail-r22-sql.ts')).not.toMatch(/LOCK\s+TABLE|FOR\s+UPDATE|FOR\s+SHARE/i);
   });
 
   it('keeps retirement:ts-statements strictly below the r21 BEFORE=77 baseline', () => {
@@ -136,7 +141,8 @@ describe('manufacturing read-tail r22 production detail select family', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBeLessThanOrEqual(72); // r21 left 77; r22 lowers 77->73 (five detail selects -> one helper); r23 lowers 73->72.
+    expect(total).toBe(45); // r21 left 77; the r22-r37 folds reach 46; this cut retires the last r22 SELECT 46->45.
+    expect(total).toBeLessThan(46);
     expect(total).toBeLessThan(77);
   });
 });

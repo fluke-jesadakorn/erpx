@@ -589,7 +589,7 @@ const R18_GROUPS: [string, string, string, string[]][] = [
   ['REFUND_OBLIGATION_PROJECTION_SQL', REFUND_OBLIGATION_PROJECTION_SQL, R18_REFUND_OBLIGATION_LITERAL, ['final-root-owner-projection-sources.ts', 'commercial-owner-projection-sources.ts']],
   ['ACCOUNT_CHART_ID_SQL', ACCOUNT_CHART_ID_SQL, R18_ACCOUNT_CHART_LITERAL, ['record-presentation.ts', 'assets-financial-workflow.ts']],
   ['ALLOCATION_PROJECTION_SQL', ALLOCATION_PROJECTION_SQL, R18_ALLOCATION_LITERAL, ['hospitality-owner-projection-sources.ts', 'commercial-owner-projection-sources.ts']],
-  ['PERIOD_DATES_SQL', PERIOD_DATES_SQL, R18_PERIOD_DATES_LITERAL, ['finance-invoice-read.ts', 'records-record-details-owned-facts.ts']],
+  ['PERIOD_DATES_SQL', PERIOD_DATES_SQL, R18_PERIOD_DATES_LITERAL, ['finance-invoice-read.ts']],
   ['COLLECTIONS_TOOL_GUARD_SQL', COLLECTIONS_TOOL_GUARD_SQL, R18_COLLECTIONS_TOOL_LITERAL, ['finance-collections.ts']],
   ['BANK_STATEMENT_VERSION_GUARD_SQL', BANK_STATEMENT_VERSION_GUARD_SQL, R18_BANK_STATEMENT_VERSION_LITERAL, ['payroll-other-remittance.ts', 'payroll-owner-facts.ts']],
 ];
@@ -622,6 +622,10 @@ describe('finance read-tail r18 byte-identical SQL dedupe', () => {
         if (bindFiles.has(file)) expect(text).toContain('.bind(');
       }
     }
+    const nativeRecordFacts = await readFile(new URL('../../../packages/server-finance/src/adapters/records-record-details-owned-facts.ts', import.meta.url), 'utf8');
+    expect(nativeRecordFacts.split(R18_PERIOD_DATES_LITERAL).length - 1).toBe(0);
+    expect(nativeRecordFacts).not.toContain('PERIOD_DATES_SQL');
+    expect(nativeRecordFacts).toContain('FINANCE_LANE5B_RD_PERIOD');
   });
 
   it('leaves every lock-taking variant inline outside the shared text', async () => {

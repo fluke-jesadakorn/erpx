@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { manufacturingStockFootprintSelect } from '../../../packages/server-manufacturing/src/adapters/manufacturing-read-tail-r23-sql';
@@ -56,7 +56,7 @@ describe('manufacturing read-tail r23 stock-footprint select family', () => {
     expect(caller).not.toContain('SELECT o.id,o.company_id,o.warehouse_id,line.product_id');
   });
 
-  it('leaves the r4/r11/r15-r22 helpers, locks and FOR UPDATE witness untouched', () => {
+  it('leaves the r4/r11/r15-r21 helpers (r22 retired to native owner), locks and FOR UPDATE witness untouched', () => {
     const fragments = src('manufacturing-read-sql-fragments.ts');
     expect(fragments).toContain('export const manufacturingRowsSelect');
     expect(fragments).toContain('export const manufacturingIdSelect');
@@ -68,7 +68,7 @@ describe('manufacturing read-tail r23 stock-footprint select family', () => {
     expect(src('manufacturing-read-tail-r19-sql.ts')).toContain('export const manufacturingAccountingProfileSelect');
     expect(src('manufacturing-read-tail-r20-sql.ts')).toContain('export const manufacturingExistsGuard');
     expect(src('manufacturing-read-tail-r21-sql.ts')).toContain('export const manufacturingAttachmentImageSelect');
-    expect(src('manufacturing-read-tail-r22-sql.ts')).toContain('export const manufacturingOrderDetailSelect');
+    expect(existsSync(resolve(srcRoot, 'adapters/manufacturing-read-tail-r22-sql.ts'))).toBe(false); // r22 detail family retired to native owner
     expect(src('package-obligations.ts')).toContain('LOCK TABLE manufacturing_material_reservations,manufacturing_genealogy');
     expect(src('finance-record-sources.ts')).toContain('LOCK TABLE planning_scenarios');
     expect(src('attachment-read-sources.ts')).toContain('LOCK TABLE manufacturing_material_reservations,manufacturing_genealogy,manufacturing_cost_snapshots,manufacturing_operation_events');
@@ -87,7 +87,7 @@ describe('manufacturing read-tail r23 stock-footprint select family', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(46); // r23 left 72; r24 72->70; r25 70->65; r26 EXISTS guards -> 60; r27 journal projection family 60->58; r28 cost-allocation probe 58->57; r29 scoped EXISTS probe 57->56; r30 scope CTE family 56->55; r31 allowed-select head family 55->53; r32 metric breakdown head 53->52; r34 r15/r23 head fold 52->51; r35 scope-row head fold 51->50; r36 owner-table head fold 50->49; r37 projection-from-source head fold 49->48.
+    expect(total).toBe(45); // r23 left 72; r24 72->70; r25 70->65; r26 EXISTS guards -> 60; r27 journal projection family 60->58; r28 cost-allocation probe 58->57; r29 scoped EXISTS probe 57->56; r30 scope CTE family 56->55; r31 allowed-select head family 55->53; r32 metric breakdown head 53->52; r34 r15/r23 head fold 52->51; r35 scope-row head fold 51->50; r36 owner-table head fold 50->49; r37 projection-from-source head fold 49->48; r22 native detail-read cut 46->45.
     expect(total).toBeLessThan(60);
   });
 });

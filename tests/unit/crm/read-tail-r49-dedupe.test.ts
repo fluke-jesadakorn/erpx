@@ -75,7 +75,7 @@ describe('crm read-tail r49 byte-identical JSONB-aggregate read head', () => {
   });
 
   test('retirement:ts-statements drops from the r48 AFTER=50 to 49', () => {
-    expect(totalSelects()).toBe(43);
+    expect(totalSelects()).toBe(41);
     expect(totalSelects()).toBeLessThan(50);
   });
 });

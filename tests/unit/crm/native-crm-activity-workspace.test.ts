@@ -1,3 +1,5 @@
+import { readFileSync, readdirSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 import {
@@ -178,5 +180,39 @@ describe('native CRM activity workspace strict client', () => {
     expect(() =>
       nativeCrmActivityWorkspaceConfiguration(JSON.stringify({ privateBaseUrl: 'nope' })),
     ).toThrow(NativeCrmActivityWorkspaceError);
+  });
+});
+
+/** Retirement guard for the integrated activity-workspace port. The five owner
+ *  SELECTs now live only in the Rust adapter (byte-pinned by the
+ *  crm_activity_workspace unit test); the replaced TS reader and its transport
+ *  carry no SQL, no fallback and no new owner statements. */
+describe('CRM activity workspace TS authority retirement', () => {
+  const owner = resolve(__dirname, '../../../packages/server-crm/src');
+  const src = (name: string) => readFileSync(resolve(owner, 'adapters', name), 'utf8');
+  const sql = /SELECT\s|INSERT\s+INTO|DELETE\s+FROM|UPDATE\s+[a-z_]+\s+SET/i;
+
+  it('keeps the replaced reader and the native transport SQL-free', () => {
+    expect(src('activities.ts')).not.toMatch(sql);
+    expect(src('native-activity-workspace.ts')).not.toMatch(sql);
+  });
+
+  it('routes both reads through the native client with no TypeScript fallback', () => {
+    const reader = src('activities.ts');
+    expect(reader).toContain(
+      "import { nativeCrmActivityWorkspace, nativeCrmActivityWork } from './native-activity-workspace'",
+    );
+    expect(reader).toContain('return nativeCrmActivityWorkspace(a, id)');
+    expect(reader).toContain('return nativeCrmActivityWork(a)');
+  });
+
+  it('does not regrow owner TS statements past the integrated floor of 41', () => {
+    let total = 0;
+    for (const rel of readdirSync(owner, { recursive: true })) {
+      if (!String(rel).endsWith('.ts')) continue;
+      total +=
+        readFileSync(resolve(owner, String(rel)), 'utf8').match(/SELECT /g)?.length ?? 0;
+    }
+    expect(total).toBeLessThanOrEqual(41);
   });
 });

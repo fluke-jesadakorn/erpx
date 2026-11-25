@@ -9,6 +9,7 @@ import {validateNativeEngineeringRoster,type NativeEngineeringRoster} from "@erp
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { createEngineeringVerificationApplication } from "@erpx/server-platform_administration/application/engineering-verification";
 import {NativeEngineeringEnrollmentError,nativeEnrollEngineeringVerification} from "./native-engineering-enrollment-command";
+import {nativeEngineeringPriorRead} from "./native-engineering-verification-read/client";
 import { selectOneSql } from "./native-owner-write";
 import { isEngineeringVerificationOrigin as acceptsOrigin, type EngineeringAttestation, type EngineeringAttestationFacts } from "@erpx/server-platform_administration/domain/engineering-verification";
 
@@ -74,7 +75,8 @@ function readAttestation(input: string, run: string, child?:Record<string,string
 function application(db?: SqlDatabase): ReturnType<typeof createEngineeringVerificationApplication> { return createEngineeringVerificationApplication({ artifactVersion: artifact.softwareVersion, clock: { now: () => Date.now() }, readAttestation, nativeEnrollmentContext:()=>application().engineeringVerificationContext(process.env), repository: db ? {
   identity: roster => db.prepare(`SELECT current_database() name,current_user owner,${roster?nativeEngineeringIdentityPredicate(roster):"false"} native_match`).first<{ name: string; owner: string; native_match:boolean }>(),
   companyExists: id => engineeringCompanySource(db, id),
-  prior: (companyId, run) => db.prepare("SELECT source_fingerprint,software_version,release_manifest_sha256 FROM engineering_verification_contexts WHERE company_id=? AND run_id=?").bind(companyId, run).first<{ source_fingerprint: string; software_version: string; release_manifest_sha256: string }>(),
+  // Owner-local native axum read; no TypeScript SQL remains for this family.
+  prior: (companyId, run) => nativeEngineeringPriorRead(companyId, run),
   // Native axum command owns the multi-row enrollment write. No
   // TypeScript SQL writer remains for this capability.
   enroll: async (input, _entries, now, expiresAt) => {

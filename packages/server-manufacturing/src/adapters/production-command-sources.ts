@@ -1,13 +1,15 @@
 import {productionReadProjection as productioncommerceProjection} from '@erpx/server-commerce/public/production-read-projections';
-import {productionReadProjection as productionfinanceProjection} from '@erpx/server-finance/public/production-read-projections';
-import {productionReadProjection as productionplanningProjection} from '@erpx/server-planning/public/production-read-projections';
-import {productionReadProjection as productioninventoryProjection} from '@erpx/server-inventory/public/production-read-projections';
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {Row} from '@erpx/server-commerce/public/commerce';import {assertion} from "@erpx/server-workflow/public/command-assertions";import {ownerWrite} from '@erpx/server-manufacturing/adapters/native-owner-write';
+import type {SqlDatabase,SqlResult} from '@erpx/server-runtime/public/runtime/types';import type {Row} from '@erpx/server-commerce/public/commerce';import {assertion} from "@erpx/server-workflow/public/command-assertions";import {ownerWrite} from '@erpx/server-manufacturing/adapters/native-owner-write';
+import {nativeManufacturingReadAll,MANUFACTURING_RD_ORDER_SPECIFICATION_LINES,MANUFACTURING_RD_MATERIAL_RESERVATIONS,MANUFACTURING_RD_ORDER_POSTINGS,MANUFACTURING_RD_ORDER_OPERATIONS,MANUFACTURING_RD_LOT_GENEALOGY} from './native-manufacturing-read';
 import {manufacturingExistsSelect,manufacturingRowsSelect,manufacturingIdSelect} from './manufacturing-read-sql-fragments';
 import {manufacturingOrderJoinSelect} from './manufacturing-read-tail-r15-sql';
 import {manufacturingAccountingProfileSelect} from './manufacturing-read-tail-r19-sql';
 import {manufacturingExistsGuard} from './manufacturing-read-tail-r20-sql';
-import {manufacturingOrderDetailSelect} from './manufacturing-read-tail-r22-sql';
+
+/** A null specification id binds SQL NULL on the live unit and matches no row;
+ * the native plan requires a specification id, so fail with the same empty
+ * projection instead of planning an invalid scope. No SQL is emitted here. */
+const emptyRows = <T>():SqlResult<T> => ({results:[],success:true,meta:{changes:0,duration:0}});
 
 /** Owner-local fixed read: the latest output-report actor on a production
  * order. `lastReportActor` (QC pass) and `lastOutputReportActor` (scrap approval)
@@ -95,12 +97,9 @@ async scopedOrder(id:string,companyId:string,branchId:string | null,branchId2:st
       )
       .bind(id, companyId, branchId, branchId2)
       .first<Row>();},
-async orderSpecificationLines(specification_id:string | number | null){return db
-        .prepare(
-          manufacturingOrderDetailSelect("l.*,p.tracking_mode", ` FROM manufacturing_specification_lines l ${productioncommerceProjection.materialProduct}`, "l.specification_id=?", "l.ordinal"),
-        )
-        .bind(specification_id)
-        .all<Row>();},
+async orderSpecificationLines(specification_id:string | number | null){return specification_id==null
+        ? emptyRows<Row>()
+        : nativeManufacturingReadAll<Row>(MANUFACTURING_RD_ORDER_SPECIFICATION_LINES,{specificationId:String(specification_id)},db);},
 lockOrder(id:string){return db.prepare(`${manufacturingIdSelect("manufacturing_orders")} WHERE id=? FOR UPDATE`).bind(id);},
 guardOrderVersion(key:string,value:"order",id:string,expectedVersion:number,status:string | number | null){return assertion(db, key, value, manufacturingExistsGuard("manufacturing_orders","id=? AND version=? AND status=?"), [id, expectedVersion, status]);},
  prepareMaterialReservation(value:string,id:string,warehouse_id:string | number | null,product_id:string | number | null,required:number,expiresAt:number,userId:string,now:number){return ownerWrite('order.reservation',[value,id,warehouse_id,product_id,required,expiresAt,userId,now],String(id));},
@@ -145,12 +144,7 @@ async detailedOrder(id:string,companyId:string,branchId:string | null,branchId2:
       )
       .bind(id, companyId, branchId, branchId2)
       .first<Row>();},
-async orderReservations(id:string){return db
-        .prepare(
-          manufacturingOrderDetailSelect("r.*,p.name product_name,p.tracking_mode", ` FROM manufacturing_material_reservations r ${productioncommerceProjection.reservationProduct}`, "r.order_id=?", "p.name"),
-        )
-        .bind(id)
-        .all<Row>();},
+async orderReservations(id:string){return nativeManufacturingReadAll<Row>(MANUFACTURING_RD_MATERIAL_RESERVATIONS,{orderId:id},db);},
 async orderEvents(id:string){return db
         .prepare(
           manufacturingRowsSelect("manufacturing_order_events", "order_id=? ORDER BY version"),
@@ -165,17 +159,11 @@ async productGenealogy(id:string){return db
         .prepare(manufacturingRowsSelect("manufacturing_genealogy", "order_id=?"))
         .bind(id)
         .all<Row>();},
-async orderPostings(id:string){return db.prepare(manufacturingOrderDetailSelect("p.*,j.status journal_status", ` FROM manufacturing_order_postings p ${productionfinanceProjection.journal}`, "p.order_id=?", "p.source_order_version"))
-      .bind(id).all<Row>();},
-async orderOperations(id:string,specification_id:string | number | null){return db.prepare(manufacturingOrderDetailSelect(`op.*,r.name resource_name,e.labor_minutes,e.machine_minutes,e.evidence,e.created_at completed_at`, `
-      FROM manufacturing_specification_operations op ${productionplanningProjection.operationResource}
-      LEFT JOIN manufacturing_operation_events e ON e.operation_id=op.id AND e.order_id=?`, "op.specification_id=?", "op.ordinal"))
-      .bind(id, specification_id).all<Row>();},
-async lotGenealogy(id:string){return db.prepare(manufacturingOrderDetailSelect(`g.*,i.lot_id input_lot_id,il.lot_code input_lot_code,il.serial_number input_serial_number,
-      ol.lot_id output_lot_id,l.lot_code output_lot_code,l.serial_number output_serial_number`, ` FROM manufacturing_lot_genealogy g
-      JOIN manufacturing_material_lot_issues i ON i.id=g.input_issue_id ${productioninventoryProjection.genealogyInputLot}
-      JOIN manufacturing_output_lots ol ON ol.id=g.output_lot_id ${productioninventoryProjection.genealogyOutputLot}`, "g.order_id=?", "g.id"))
-      .bind(id).all<Row>();},
+async orderPostings(id:string){return nativeManufacturingReadAll<Row>(MANUFACTURING_RD_ORDER_POSTINGS,{orderId:id},db);},
+async orderOperations(id:string,specification_id:string | number | null){return specification_id==null
+      ? emptyRows<Row>()
+      : nativeManufacturingReadAll<Row>(MANUFACTURING_RD_ORDER_OPERATIONS,{orderId:id,specificationId:String(specification_id)},db);},
+async lotGenealogy(id:string){return nativeManufacturingReadAll<Row>(MANUFACTURING_RD_LOT_GENEALOGY,{orderId:id},db);},
 async openOrders(companyId:string,branchId:string | null,branchId2:string | null){return db
         .prepare(
           manufacturingOrderJoinSelect(

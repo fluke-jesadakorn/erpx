@@ -27,3 +27,9 @@ export const existsGuardPrefix = (source: string): string => `EXISTS(SELECT 1 FR
  * TS read tail. The composed guard stays byte-identical to its pre-dedupe
  * literal. No LOCK statement is accepted or changed. */
 export const notExistsGuardPrefix = (source: string): string => `NOT ${existsGuardPrefix(source)}`;
+/** Canonical owner-local parenthesized subquery head shared by the
+ * Calendar in-list scope witness and the Finance journal-line balance sums.
+ * Callers pass only owner-fixed closed bodies; each composed subquery stays
+ * byte-identical to its pre-dedupe literal. No LOCK statement is accepted or
+ * changed. */
+export const subqueryHead = (body: string): string => `(SELECT ${body})`;

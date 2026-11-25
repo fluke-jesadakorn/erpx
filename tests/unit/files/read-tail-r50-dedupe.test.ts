@@ -98,7 +98,7 @@ describe('Files read-tail r50 byte-oracle dedupe', () => {
     expect(sr).toContain('ORDER BY set_row.company_id,set_row.target_id');
   });
 
-  test('retirement:ts-statements is 211, strictly below the r49 BEFORE=226 (226->225)', () => {
+  test('retirement:ts-statements is 210, strictly below the r49 BEFORE=226 (226->225)', () => {
     let literal = 0, total = 0;
     for (const path of tsFiles(srcRoot)) {
       const text = readFileSync(path, 'utf8');
@@ -106,8 +106,8 @@ describe('Files read-tail r50 byte-oracle dedupe', () => {
       total += (text.match(/SELECT\s/g) ?? []).length;
     }
     // The two inline DISTINCT set-row sites fold into one helper (-1 total).
-    expect(literal).toBe(211);
-    expect(total).toBe(212);
+    expect(literal).toBe(210);
+    expect(total).toBe(211);
     expect(literal).toBeLessThan(226);
     expect(total).toBeLessThan(227);
   });

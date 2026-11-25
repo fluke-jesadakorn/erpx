@@ -68,7 +68,7 @@ describe('manufacturing read-tail r32 metric breakdown head family', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(46); // r31 left 53; r32 parameterizes the metric breakdown head family 53->52; r34 r15/r23 head fold 52->51; r35 scope-row head fold 51->50; r36 owner-table head fold 50->49; r37 projection-from-source head fold 49->48.
+    expect(total).toBe(45); // r31 left 53; r32 parameterizes the metric breakdown head family 53->52; r34 r15/r23 head fold 52->51; r35 scope-row head fold 51->50; r36 owner-table head fold 50->49; r37 projection-from-source head fold 49->48; r22 native detail-read cut 46->45.
     expect(total).toBeLessThan(53);
   });
 });

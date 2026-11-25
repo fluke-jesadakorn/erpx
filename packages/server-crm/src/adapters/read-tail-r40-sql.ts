@@ -12,14 +12,16 @@
  * predicates and interpolations (native read filters and scope fragments);
  * the caller passes the fixed ORDER BY / LIMIT tail. The leading read head and
  * its " ORDER BY " separator live here so every former literal renders unchanged. */
-export const crmScopedDescListSql = (body: string, order: string) => `SELECT ${body} ORDER BY ${order}`;
+import { crmSelectBodySql } from './read-tail-r46-sql';
+
+export const crmScopedDescListSql = (body: string, order: string) => crmSelectBodySql(`${body} ORDER BY ${order}`);
 
 /** Distinct owner directory head. DISTINCT stays in the head; callers pass the
  * full projection/join/predicate/ORDER BY body (including inner source calls),
  * so both former literals render byte-for-byte identically. */
-export const crmDistinctOwnerSql = (body: string) => `SELECT DISTINCT ${body}`;
+export const crmDistinctOwnerSql = (body: string) => crmSelectBodySql(`DISTINCT ${body}`);
 
 /** Lead row source head. Both callers pass the full FROM/WHERE body, including
  * any interpolation boundaries and NOT EXISTS / EXISTS tails; the shared lead
  * projection lives only here. */
-export const crmLeadRowSourceSql = (body: string) => `SELECT lead.* ${body}`;
+export const crmLeadRowSourceSql = (body: string) => crmSelectBodySql(`lead.* ${body}`);

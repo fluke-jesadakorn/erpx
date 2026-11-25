@@ -181,6 +181,28 @@ const READ_PRODUCT_POINT: NativeCommerceReadStatement = NativeCommerceReadStatem
     bind_count: 2,
 };
 
+/// Native successor of the r28 stock-products selector shared by the Inventory
+/// initial-count master choices. The caller binds `[company_id]`.
+pub const RD_COUNT_ACTIVE_STOCK_PRODUCTS: &str = "commerce_rd_count_active_stock_products";
+const SQL_COUNT_ACTIVE_STOCK_PRODUCTS: &str =
+    "SELECT id,sku,name,unit,tracking_mode FROM commerce_products WHERE company_id=? AND status='active' AND item_type='stock' ORDER BY sku,id";
+const READ_COUNT_ACTIVE_STOCK_PRODUCTS: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_COUNT_ACTIVE_STOCK_PRODUCTS,
+    sql: SQL_COUNT_ACTIVE_STOCK_PRODUCTS,
+    bind_count: 1,
+};
+
+/// Native successor of the r28 active-products selector used by the Inventory
+/// count-source `activeProducts` reader. The caller binds `[company_id]`.
+pub const RD_COUNT_ACTIVE_PRODUCTS: &str = "commerce_rd_count_active_products";
+const SQL_COUNT_ACTIVE_PRODUCTS: &str =
+    "SELECT id,sku,name,unit,tracking_mode FROM commerce_products WHERE company_id=? AND status='active' ORDER BY sku";
+const READ_COUNT_ACTIVE_PRODUCTS: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_COUNT_ACTIVE_PRODUCTS,
+    sql: SQL_COUNT_ACTIVE_PRODUCTS,
+    bind_count: 1,
+};
+
 /// Native successor of the TypeScript `commercePages.warehouses` page-row read.
 /// The caller binds `[company_id, branch_id, branch_id]`; the two branch
 /// positions stay distinct and carry the caller's values verbatim.
@@ -254,6 +276,8 @@ const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_PRODUCT_ACTIVE_OPTIONS,
     READ_PRODUCT_MASTER_DETAIL,
     READ_PRODUCT_POINT,
+    READ_COUNT_ACTIVE_STOCK_PRODUCTS,
+    READ_COUNT_ACTIVE_PRODUCTS,
     READ_WAREHOUSE_PAGE_ROWS,
     READ_WAREHOUSE_MASTER_ROWS,
     READ_WAREHOUSE_ACTIVE,
@@ -288,6 +312,12 @@ mod tests {
             (RD_PRODUCT_ACTIVE_OPTIONS, SQL_PRODUCT_ACTIVE_OPTIONS, 1usize),
             (RD_PRODUCT_MASTER_DETAIL, SQL_PRODUCT_MASTER_DETAIL, 2usize),
             (RD_PRODUCT_POINT, SQL_PRODUCT_POINT, 2usize),
+            (
+                RD_COUNT_ACTIVE_STOCK_PRODUCTS,
+                SQL_COUNT_ACTIVE_STOCK_PRODUCTS,
+                1usize,
+            ),
+            (RD_COUNT_ACTIVE_PRODUCTS, SQL_COUNT_ACTIVE_PRODUCTS, 1usize),
             (RD_WAREHOUSE_PAGE_ROWS, SQL_WAREHOUSE_PAGE_ROWS, 3usize),
             (RD_WAREHOUSE_MASTER_ROWS, SQL_WAREHOUSE_MASTER_ROWS, 3usize),
             (RD_WAREHOUSE_ACTIVE, SQL_WAREHOUSE_ACTIVE, 4usize),
@@ -309,7 +339,25 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), bind_count);
         }
-        assert_eq!(STATEMENTS.len(), 20);
+        assert_eq!(STATEMENTS.len(), 22);
+    }
+
+    /// The two r28 selectors share a head but differ in predicate and order;
+    /// both keep the retired literal byte-for-byte with one company bind.
+    #[test]
+    fn inventory_count_product_selectors_keep_their_exact_literals() {
+        let head = "SELECT id,sku,name,unit,tracking_mode FROM commerce_products WHERE company_id=? AND status='active'";
+        let stock = read_statement(RD_COUNT_ACTIVE_STOCK_PRODUCTS).expect("stock selector");
+        let active = read_statement(RD_COUNT_ACTIVE_PRODUCTS).expect("active selector");
+        assert_eq!(stock.sql, format!("{head} AND item_type='stock' ORDER BY sku,id"));
+        assert_eq!(active.sql, format!("{head} ORDER BY sku"));
+        for statement in [stock, active] {
+            assert_eq!(statement.bind_count, 1);
+            assert_eq!(statement.sql.matches('?').count(), 1);
+            assert!(statement.sql.starts_with("SELECT "));
+            assert!(!statement.sql.contains(';'));
+            assert!(!statement.sql.contains("FOR UPDATE"));
+        }
     }
 
     #[test]

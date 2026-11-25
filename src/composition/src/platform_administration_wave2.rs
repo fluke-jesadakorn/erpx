@@ -15,6 +15,14 @@ use erpx_server_platform_administration::public::owner_write_http::{
 use erpx_server_platform_administration::public::engineering_enrollment::{
     PgEngineeringEnrollment, enroll_engineering_verification,
 };
+use erpx_server_platform_administration::public::native_engineering_verification_read::{
+    PgEngineeringVerificationRead, read_prior,
+};
+use erpx_server_platform_administration::public::native_engineering_verification_read_http::{
+    EngineeringVerificationReadHttpBackend, EngineeringVerificationReadHttpFuture,
+    EngineeringVerificationReadHttpRequest, EngineeringVerificationReadHttpResponse,
+    EngineeringVerificationReadHttpTarget, engineering_verification_read_http_router,
+};
 use erpx_server_platform_administration::public::engineering_enrollment_http::{
     EngineeringEnrollmentHttpBackend, EngineeringEnrollmentHttpFuture,
     EngineeringEnrollmentHttpKind, EngineeringEnrollmentHttpRequest,
@@ -189,4 +197,66 @@ pub fn platform_administration_owner_write_router(
             })
             .collect(),
     )
+}
+
+/// Execute the native engineering verification `prior` read on one Control
+/// transaction per request. No SQL or authority decision lives here.
+pub struct EngineeringVerificationReadBackend {
+    control: DatabasePool,
+}
+
+impl EngineeringVerificationReadBackend {
+    pub fn new(control: DatabasePool) -> Self {
+        Self { control }
+    }
+}
+
+impl EngineeringVerificationReadHttpBackend for EngineeringVerificationReadBackend {
+    fn prior<'a>(
+        &'a self,
+        request: EngineeringVerificationReadHttpRequest<'a>,
+    ) -> EngineeringVerificationReadHttpFuture<'a, EngineeringVerificationReadHttpResponse> {
+        Box::pin(async move {
+            let control = self.control.clone();
+            let company_id = request.prior.company_id.clone();
+            let run = request.prior.run.clone();
+            let data = PgUnitOfWork::new(control)
+                .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                    let company_id = company_id.clone();
+                    let run = run.clone();
+                    Box::pin(async move {
+                        let mut repository = PgEngineeringVerificationRead::new(&mut *connection);
+                        let prior = read_prior(&mut repository, &company_id, &run)
+                            .await
+                            .map_err(business)?;
+                        Ok(match prior {
+                            None => erpx_server_runtime::public::http_support::serde_json::Value::Null,
+                            Some(prior) => erpx_server_runtime::public::http_support::serde_json::json!({
+                                "source_fingerprint": prior.source_fingerprint,
+                                "software_version": prior.software_version,
+                                "release_manifest_sha256": prior.release_manifest_sha256,
+                            }),
+                        })
+                    })
+                })
+                .await
+                .map_err(business)?;
+            Ok(EngineeringVerificationReadHttpResponse { data })
+        })
+    }
+}
+
+/// Build one Holding's engineering verification read router on the Control pool.
+pub fn engineering_verification_read_router(
+    host: impl Into<String>,
+    holding_slug: impl Into<String>,
+    origin: impl Into<String>,
+    control: DatabasePool,
+) -> Result<Router, BusinessError> {
+    engineering_verification_read_http_router(vec![EngineeringVerificationReadHttpTarget {
+        host: host.into(),
+        holding_slug: holding_slug.into(),
+        origin: origin.into(),
+        backend: Arc::new(EngineeringVerificationReadBackend::new(control)),
+    }])
 }

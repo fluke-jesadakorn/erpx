@@ -1,10 +1,11 @@
 import "server-only";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
+import {subqueryHead} from "./projection-lookup";
 /** Owner-local fixed SQL for the single journal-line balance witness. The
  * debit and credit sums share this one definition; the native Maintenance
  * finance lineage states the same fixed source, so no duplicate TS query
  * literal remains. The column is a closed union, never caller-supplied text. */
-const journalLineSum=(column:"debit_minor"|"credit_minor")=>`(SELECT sum(${column}) FROM finance_journal_lines WHERE journal_id=journal.id)`;
+const journalLineSum=(column:"debit_minor"|"credit_minor")=>subqueryHead(`sum(${column}) FROM finance_journal_lines WHERE journal_id=journal.id`);
 /** Exact immutable part consumption, its real Work/physical Asset and original
  * draft/post journal establish ownership. A source label alone grants nothing. */
 export const maintenanceFinanceRecordSources={journal:`SELECT consumption.company_id,consumption.journal_id id

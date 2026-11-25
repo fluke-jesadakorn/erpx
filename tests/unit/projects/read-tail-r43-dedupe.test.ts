@@ -75,9 +75,9 @@ describe('Projects read-tail r43 closed dependency-head family', () => {
     expect(st).toContain('FOR UPDATE OF t');
     expect(src('purchases.ts')).toContain('LOCK TABLE staff_projects,staff_project_members IN SHARE ROW EXCLUSIVE MODE');
     expect(src('social-purchase-sources.ts')).toContain('LOCK TABLE staff_projects,staff_project_members IN SHARE MODE');
-    // Cross-owner / native projections keep their own literals and do not import r43.
+    // Cross-owner final-root projections delegate to r40 and do not import r43.
     expect(src('final-root-owner-projection-sources.ts')).toContain(
-      'const quotedProjection = (columns: string, relation: string) => `SELECT ${columns} FROM ${relation}`;');
+      'const quotedProjection = (columns: string, relation: string) => selectProjectionFrom(columns, relation);');
     expect(src('final-root-owner-projection-sources.ts')).not.toContain('read-tail-r43');
     for (const f of ['project_actuals.rs', 'project_attachment.rs', 'project_graph_read.rs']) {
       expect(readFileSync(resolve(srcRoot, 'adapters', f), 'utf8')).not.toContain('projectDependencyRowsHead');
@@ -105,7 +105,7 @@ describe('Projects read-tail r43 closed dependency-head family', () => {
     // (one per executive witness) now share one closed, bind-free head:
     // 72-2+1 = 71. The witness tails, locks, native SQL and cross-owner
     // projections keep their own literals and are not folded.
-    expect(total).toBe(66); // lane 27 wave 2 moved the two handoff list/work reads to native (-2) // lane 27 moved the two actuals reads to native Rust (-2)
+    expect(total).toBe(65); // r44 final-root projection family folded into read-tail-r40 (66->65)
     expect(total).toBeLessThan(72);
   });
 });

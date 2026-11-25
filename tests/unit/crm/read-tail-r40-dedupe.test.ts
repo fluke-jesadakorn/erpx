@@ -7,6 +7,7 @@ import {
   crmLeadRowSourceSql,
 } from '../../../packages/server-crm/src/adapters/read-tail-r40-sql';
 import { crmSingleKeySourceSql } from '../../../packages/server-crm/src/adapters/read-tail-r37-sql';
+import { crmSelectBodySql } from '../../../packages/server-crm/src/adapters/read-tail-r46-sql';
 
 const owner = resolve(__dirname, '../../../packages/server-crm/src');
 const src = (name: string) => readFileSync(resolve(owner, 'adapters', name), 'utf8');
@@ -86,6 +87,18 @@ describe('crm read-tail r40 byte-identical tail composition', () => {
     expect(rendered).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
   });
 
+  test('the three r40 heads route through the owner bare-SELECT renderer', () => {
+    const helper = src('read-tail-r40-sql.ts');
+    expect(helper).toContain("import { crmSelectBodySql } from './read-tail-r46-sql';");
+    expect(helper.match(/crmSelectBodySql\(/g)).toHaveLength(3);
+    const r46 = src('read-tail-r46-sql.ts');
+    expect(r46.match(/crmSelectBodySql =/g)).toHaveLength(1);
+    expect((r46.match(/SELECT /g) ?? []).length).toBe(2);
+    expect(crmSelectBodySql('lead.* FROM crm_leads')).toBe('SELECT lead.* FROM crm_leads');
+    expect(crmSelectBodySql('DISTINCT id FROM assignments')).toBe('SELECT DISTINCT id FROM assignments');
+    expect(crmSelectBodySql('id FROM accounts ORDER BY id')).toBe('SELECT id FROM accounts ORDER BY id');
+  });
+
   test('scoped list keeps multiline body indentation verbatim', () => {
     const body = `g.id,g.contact_id,g.guest_id
   FROM crm_guest_links g
@@ -101,7 +114,7 @@ describe('crm read-tail r40 byte-identical tail composition', () => {
     for (const name of ['crmScopedDescListSql', 'crmDistinctOwnerSql', 'crmLeadRowSourceSql']) {
       expect(helper.match(new RegExp(`${name} =`, 'g'))).toHaveLength(1);
     }
-    expect((helper.match(/SELECT /g) ?? []).length).toBe(3);
+    expect((helper.match(/SELECT /g) ?? []).length).toBe(0);
 
     const i = src('identities.ts');
     expect(i.match(/crmScopedDescListSql\(/g)).toHaveLength(2);
@@ -172,7 +185,7 @@ describe('crm read-tail r40 byte-identical tail composition', () => {
   });
 
   test('retirement:ts-statements drops from the r39 AFTER=99 to 91 after r41 reuse', () => {
-    expect(totalSelects()).toBe(43);
+    expect(totalSelects()).toBe(41);
     expect(totalSelects()).toBeLessThan(95);
   });
 });

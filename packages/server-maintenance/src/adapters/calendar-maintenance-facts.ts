@@ -2,11 +2,11 @@ import type {WorkContext} from "@erpx/server-identity_access/public/authorizatio
 import {assetSourcePredicate} from "@erpx/server-assets/public/record-purchases";
 import { finalRootOwnerProjectionSources as people_payrollProjectionSources } from "@erpx/server-people_payroll/public/final-root-owner-projection-sources";
 import {maintenanceOwnerName} from "./maintenance-owner-name";
-import {projectionLookup} from "./projection-lookup";
+import {projectionLookup,subqueryHead} from "./projection-lookup";
 import {aliasRowsSql} from "./read-tail-r30-alias-rows";
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-const inList = (expression: string) => `${expression} IN (SELECT jsonb_array_elements_text(?::jsonb))`;
+const inList = (expression: string) => `${expression} IN ${subqueryHead("jsonb_array_elements_text(?::jsonb)")}`;
 /** Canonical owner-local scheduled-source projection shared by the preventive
  * plan and work-order branches of the calendar read. Both branches project the
  * same owner columns into one scheduled shape; callers pass only owner-fixed

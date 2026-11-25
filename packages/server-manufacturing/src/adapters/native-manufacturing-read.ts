@@ -19,6 +19,7 @@ type Settings = Readonly<{ base: string; timeoutMs: number; holdings: readonly H
 export const MANUFACTURING_RD_SPECIFICATION = 'specification';
 export const MANUFACTURING_RD_SPECIFICATION_VERSION = 'specification-version';
 export const MANUFACTURING_RD_SPECIFICATION_LINES = 'specification-lines';
+export const MANUFACTURING_RD_ORDER_SPECIFICATION_LINES = 'order-specification-lines';
 export const MANUFACTURING_RD_ORDERS = 'orders';
 export const MANUFACTURING_RD_ORDER_DETAIL = 'order-detail';
 export const MANUFACTURING_RD_MATERIAL_RESERVATIONS = 'material-reservations';
@@ -51,6 +52,7 @@ const KINDS = new Set<string>([
   MANUFACTURING_RD_SPECIFICATION,
   MANUFACTURING_RD_SPECIFICATION_VERSION,
   MANUFACTURING_RD_SPECIFICATION_LINES,
+  MANUFACTURING_RD_ORDER_SPECIFICATION_LINES,
   MANUFACTURING_RD_ORDERS,
   MANUFACTURING_RD_ORDER_DETAIL,
   MANUFACTURING_RD_MATERIAL_RESERVATIONS,

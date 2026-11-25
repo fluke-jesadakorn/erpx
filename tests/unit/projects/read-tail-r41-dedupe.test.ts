@@ -73,7 +73,7 @@ describe('Projects read-tail r41 closed clock head family', () => {
     expect(src('social-purchase-sources.ts')).toContain('LOCK TABLE staff_projects,staff_project_members IN SHARE MODE');
     expect(src('people-evaluation-facts.ts')).toContain('LOCK TABLE staff_projects,staff_project_members IN SHARE ROW EXCLUSIVE MODE');
     const fr = src('final-root-owner-projection-sources.ts');
-    expect(fr).toContain('const quotedProjection = (columns: string, relation: string) => `SELECT ${columns} FROM ${relation}`;');
+    expect(fr).toContain('const quotedProjection = (columns: string, relation: string) => selectProjectionFrom(columns, relation);');
     expect(fr).not.toContain('read-tail-r41');
     expect(src('clock-cte.ts')).not.toContain('FOR UPDATE');
     expect(src('read-tail-r41.ts')).not.toContain('staff_projects');
@@ -93,7 +93,7 @@ describe('Projects read-tail r41 closed clock head family', () => {
     // helper, one inline in the collaboration audience CTE) delegate to one
     // closed universal head: 74-2+1 = 73. Cross-owner final-root projections,
     // locks and native SQL keep their own literals and are not folded.
-    expect(total).toBe(66); // lane 27 wave 2 moved the two handoff list/work reads to native (-2) // lane 27 moved the two actuals reads to native Rust (-2)
+    expect(total).toBe(65); // r44 final-root projection family folded into read-tail-r40 (66->65)
     expect(total).toBeLessThan(74);
   });
 });

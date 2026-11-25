@@ -54,9 +54,17 @@ transaction until their own owner exposes a native subquery.
 
 ## Registered owner read kinds (RD_*)
 
-`specification`, `specification-version`, `specification-lines`, `orders`,
-`order-detail`, `material-reservations`, `order-events`, `order-postings`,
-`order-operations`, `lot-genealogy`, `product-genealogy`, `accounting-profiles`.
+`specification`, `specification-version`, `specification-lines`,
+`order-specification-lines`, `orders`, `order-detail`, `material-reservations`,
+`order-events`, `order-postings`, `order-operations`, `lot-genealogy`,
+`product-genealogy`, `accounting-profiles`.
+
+The r22 detail-select cutover switched `orderSpecificationLines`,
+`orderReservations`, `orderPostings`, `orderOperations` and `lotGenealogy` in
+`production-command-sources.ts` to `nativeManufacturingReadAll` on these closed
+kinds and deleted `manufacturing-read-tail-r22-sql.ts`. The owner route and
+`ERPX_NATIVE_MANUFACTURING_READ_CONFIG` provisioning remain lead integration
+steps; this transport fails closed when they are absent.
 
 The SQL literal for every kind is frozen byte-for-byte against the live caller in
 the in-crate unit tests (`byte_parity_with_live_caller_sql`) and the bind order is

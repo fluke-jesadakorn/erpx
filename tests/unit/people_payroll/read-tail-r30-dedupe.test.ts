@@ -44,6 +44,21 @@ describe('People Payroll read-tail r30 parameterized family dedupe', () => {
     expect(s.includes('EXISTS(SELECT 1 FROM ${table} WHERE ${c1}=? AND ${c2}=? AND ${c3}=? AND ${c4}=?)')).toBe(true);
   });
 
+  test('all five r30 families render byte-identically from the shared builder', () => {
+    const families: Array<[string, string, string, string, string, string]> = [
+      ['hr_evaluation_definitions', 'id', 'company_id', 'kind', 'version', 'EXISTS(SELECT 1 FROM hr_evaluation_definitions WHERE id=? AND company_id=? AND kind=? AND version=?)'],
+      ['hr_thai_payroll_profiles', 'id', 'company_id', 'status', 'version', 'EXISTS(SELECT 1 FROM hr_thai_payroll_profiles WHERE id=? AND company_id=? AND status=? AND version=?)'],
+      ['hr_country_packs', 'id', 'status', 'record_version', 'source_digest', 'EXISTS(SELECT 1 FROM hr_country_packs WHERE id=? AND status=? AND record_version=? AND source_digest=?)'],
+      ['hr_engagements', 'id', 'company_id', 'pay_group_id', 'currency', 'EXISTS(SELECT 1 FROM hr_engagements WHERE id=? AND company_id=? AND pay_group_id=? AND currency=?)'],
+      ['people_position_packages', 'company_id', 'position_id', 'package_id', 'revision', 'EXISTS(SELECT 1 FROM people_position_packages WHERE company_id=? AND position_id=? AND package_id=? AND revision=?)'],
+    ];
+    for (const [table, c1, c2, c3, c4, expected] of families) {
+      const rendered = ppRd30Exists4Guard(table, c1, c2, c3, c4);
+      expect(rendered).toBe(expected);
+      readOnly(rendered);
+    }
+  });
+
   test('lock-bearing reads in touched owners remain untouched', () => {
     expect(src('people-evaluation.ts')).toContain('SELECT id FROM hr_engagements WHERE id=? FOR UPDATE');
     expect(src('people-evaluation.ts')).toContain('SELECT pg_advisory_xact_lock(hashtextextended(?,0))');
@@ -62,7 +77,9 @@ describe('People Payroll read-tail r30 parameterized family dedupe', () => {
     };
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
+    // r30 folds five 4-column guards into one builder: 1416 -> 1412. Later
+    // read-tail families reduce the count further, so the bound stays robust.
     expect(total).toBeLessThan(1416);
-    expect(total).toBe(1164);
+    expect(total).toBeLessThanOrEqual(1412);
   });
 });

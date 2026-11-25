@@ -53149,13 +53149,17 @@
       "packages": [
         "@erpx/catalogue",
         "@erpx/contracts",
+        "@erpx/feature-records",
         "@erpx/feature-runtime",
         "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
         "@erpx/server-commercial",
         "@erpx/server-organization",
         "@erpx/server-platform_administration",
         "@erpx/server-runtime",
-        "@erpx/server-shared"
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent"
       ]
     },
     {
@@ -80130,7 +80134,13 @@
         "manufacturing"
       ],
       "packages": [
-        "@erpx/server-manufacturing"
+        "@erpx/contracts",
+        "@erpx/feature-records",
+        "@erpx/feature-work_projection",
+        "@erpx/server-manufacturing",
+        "@erpx/server-runtime",
+        "@erpx/server-support",
+        "@erpx/server-talent"
       ],
       "id": "manufacturing.read-tail-r22-dedupe.unit",
       "files": [
@@ -143652,7 +143662,7 @@
         "reason": "Development dependency selection exercises this suite when affected; historical PR metadata is retained only for older receipt readers."
       },
       "serial": {
-        "reason": "Owns the exclusive isolated gateway listener3104 and disposable process-fixture app ports3290–3291."
+        "reason": "Owns the exclusive isolated gateway listener3104 and disposable process-fixture app ports3290\u20133291."
       },
       "verificationInputs": [
         "scripts/local/dev.ts",
@@ -164244,6 +164254,155 @@
         "@erpx/ui",
         "@erpx/workplace"
       ]
+    },
+    {
+      "id": "field_service.retained-cross-owner-tail.unit",
+      "lane": "unit",
+      "owner": "field_service",
+      "modules": [
+        "field_service",
+        "inventory",
+        "finance",
+        "collaboration"
+      ],
+      "files": [
+        "tests/unit/field_service/retained-cross-owner-tail.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "field_service.shared-projection-native-ownership.unit",
+      "lane": "unit",
+      "owner": "field_service",
+      "modules": [
+        "field_service",
+        "inventory",
+        "finance",
+        "collaboration"
+      ],
+      "files": [
+        "tests/unit/field_service/shared-projection-native-ownership.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "files.scan-pending-native-head.unit",
+      "lane": "unit",
+      "owner": "files",
+      "modules": [
+        "learning"
+      ],
+      "files": [
+        "tests/unit/files/scan-pending-native-head.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "operations.read-tail-r62-native.unit",
+      "lane": "unit",
+      "owner": "operations",
+      "modules": [
+        "operations"
+      ],
+      "files": [
+        "tests/unit/operations/read-tail-r62-native.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "platform_administration.native-engineering-verification-read.unit",
+      "lane": "unit",
+      "owner": "platform_administration",
+      "modules": [
+        "platform_administration",
+        "identity_access",
+        "organization",
+        "operations"
+      ],
+      "files": [
+        "tests/unit/platform_administration/native-engineering-verification-read.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "sales.read-tail-r18-dedupe.unit",
+      "lane": "unit",
+      "owner": "sales",
+      "modules": [
+        "sales",
+        "inventory",
+        "finance"
+      ],
+      "files": [
+        "tests/unit/sales/read-tail-r18-dedupe.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
     }
   ]
 }

@@ -61,11 +61,11 @@ describe('maintenance read-tail r31 alias-row head reuse', () => {
     expect(helper).toContain('export const aliasRowsSql');
     expect(calendar).toContain('import {aliasRowsSql} from "./read-tail-r30-alias-rows"');
     expect(calendar).toContain('${aliasRowsSql("s", `,${maintenanceOwnerName(\'s\')} owner_name`)}');
-    expect(calendar.match(/SELECT/g)).toHaveLength(2);
+    expect(calendar.match(/SELECT/g)).toHaveLength(1);
     expect(calendar).not.toContain('  SELECT s.*,');
     // The scheduled projection family, in-list read and owner-image read stay.
     expect(calendar).toContain('export const scheduledSourceSql');
-    expect(calendar).toContain('IN (SELECT jsonb_array_elements_text(?::jsonb))');
+    expect(calendar).toContain('IN ${subqueryHead("jsonb_array_elements_text(?::jsonb)")}');
     expect(calendar).toContain('projectionLookup("user_id",people_payrollProjectionSources.hr_people');
     expect(calendar).not.toContain('LOCK TABLE');
   });
@@ -104,7 +104,7 @@ describe('maintenance read-tail r31 alias-row head reuse', () => {
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(17);
+    expect(total).toBe(16);
     expect(total).toBeLessThan(18);
   });
 });

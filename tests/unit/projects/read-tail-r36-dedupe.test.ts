@@ -130,7 +130,7 @@ describe('Projects read-tail r36 package-actual source and event-fact arm dedupe
     // the two package-actual source NOT EXISTS
     // witnesses into one helper (96-in-file -> 95-in-file, -1) and Rank2 folds
     // the work-log/cost-allocation UNION arms into one closed helper (-1).
-    expect(total).toBe(66); // lane 27 wave 2 moved the two handoff list/work reads to native (-2) // lane 27 moved the two actuals reads to native Rust (-2) // r38 member EXISTS closed helper (-4) + evidence super-head (-3): 88->81
+    expect(total).toBe(65); // r44 final-root projection family folded into read-tail-r40 (66->65)
     expect(total).toBeLessThan(88);
   });
 });

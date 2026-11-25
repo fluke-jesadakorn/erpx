@@ -29,15 +29,14 @@ describe('Finance read-tail r49 Rank1 table-by-id', () => {
     expect(tableByIdSql('finance_recognition_runs')).not.toBe(POSTED);
   });
 
-  test('all 25 safe sites delegate while locks, binds and dynamic tables stay intact', () => {
+  test('all 24 safe sites delegate while locks, binds and dynamic tables stay intact', () => {
     const perFile: Array<[string, number]> = [
       ['finance-intercompany-pairs.ts', 1], ['accounting-profiles.ts', 1], ['supplier-payment-corrections.ts', 1],
       ['finance-asset-policies.ts', 2], ['finance-group-ownership.ts', 1], ['finance-due-drafts.ts', 2],
       ['finance-assets.ts', 2], ['finance-books.ts', 1], ['finance-business-contracts.ts', 3],
       ['finance-book-adjustments.ts', 1], ['finance-instruments.ts', 2], ['finance-bank-automation.ts', 1],
       ['finance-collections.ts', 1], ['inventory-landed-costs-sources.ts', 1], ['refund-bank-evidence.ts', 1],
-      ['records-record-details-owned-facts.ts', 1], ['finance-thai-documents.ts', 1],
-      ['document-posting-preview.ts', 1], ['workflow-document-sources.ts', 1],
+      ['finance-thai-documents.ts', 1], ['document-posting-preview.ts', 1], ['workflow-document-sources.ts', 1],
     ];
     let total = 0;
     for (const [file, expected] of perFile) {
@@ -46,7 +45,11 @@ describe('Finance read-tail r49 Rank1 table-by-id', () => {
       expect(src).toContain("from './finance-read-tail-r49-sql'");
       total += expected;
     }
-    expect(total).toBe(25); // 16 scout files plus the dynamic-source, Thai-document and two reversed-order sites
+    expect(total).toBe(24); // 15 scout files plus the dynamic-source, Thai-document and two reversed-order sites
+    const nativeRecordFacts = read('records-record-details-owned-facts.ts');
+    expect(nativeRecordFacts).not.toContain('tableByIdSql(');
+    expect(nativeRecordFacts).not.toContain("from './finance-read-tail-r49-sql'");
+    expect(nativeRecordFacts).toContain('FINANCE_LANE5B_RD_PARTY');
     const bank = read('finance-bank-automation.ts'), books = read('finance-books.ts');
     expect(bank).toContain("tableByIdSql('finance_bank_match_groups') + ' FOR UPDATE'");
     expect(books).toContain("tableByIdSql('finance_book_rules') + ' FOR UPDATE'");

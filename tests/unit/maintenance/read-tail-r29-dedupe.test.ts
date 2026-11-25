@@ -65,7 +65,7 @@ describe('maintenance read-tail r29 descriptor-head delegation', () => {
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(17);
+    expect(total).toBe(16);
     expect(total).toBeLessThan(18);
   });
 });
