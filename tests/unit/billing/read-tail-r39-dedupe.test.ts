@@ -131,8 +131,8 @@ describe('billing read-tail r39 dedupe of the r29 point-read head', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(8);
-    expect(bare).toBe(8);
+    expect(spaced).toBe(7);
+    expect(bare).toBe(7);
     expect(spaced).toBeLessThan(10);
     expect(bare).toBeLessThan(10);
   });

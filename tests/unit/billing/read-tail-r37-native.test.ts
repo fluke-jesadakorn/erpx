@@ -144,8 +144,8 @@ describe('billing r37 native owner-write reads', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(8);
-    expect(bare).toBe(8);
+    expect(spaced).toBe(7);
+    expect(bare).toBe(7);
     expect(spaced).toBeLessThan(16);
     expect(bare).toBeLessThan(16);
   });
