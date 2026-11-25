@@ -34,7 +34,7 @@ describe('Planning read-tail r9 parameterized branch-scoped single-row family', 
 
   test('shared module declares the read literal exactly once and stays read-only', () => {
     const shared = src('planning-scoped-row-sql.ts');
-    expect(selectCount(shared)).toBe(1);
+    expect(selectCount(shared)).toBe(0); // r24: scoped single-row literal folded into the single-line projection/FROM builder
     for (const sql of generated) {
       expect(sql.toUpperCase()).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
     }

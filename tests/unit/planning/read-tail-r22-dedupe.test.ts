@@ -103,7 +103,8 @@ describe('Planning read-tail r22 resource-allocation point-lookup fold', () => {
     };
     walk(srcRoot);
     // r23 folded the resource-calendar point lookup into the single-line projection/FROM builder (16 -> 15).
-    expect(total).toBe(15);
+    // r24 folded the scoped single-row family into that same builder (15 -> 14).
+    expect(total).toBe(14);
     expect(total).toBeLessThan(17);
   });
 });

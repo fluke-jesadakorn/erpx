@@ -108,7 +108,8 @@ describe('Planning read-tail r23 resource-calendar point-lookup fold', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(15);
+    // r24 folded the scoped single-row family into the single-line projection/FROM builder (15 -> 14).
+    expect(total).toBe(14);
     expect(total).toBeLessThan(16);
   });
 });
