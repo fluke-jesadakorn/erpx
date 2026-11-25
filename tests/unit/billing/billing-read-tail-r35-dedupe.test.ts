@@ -200,7 +200,7 @@ describe('billing read-tail r35 dedupe of residual point and projection heads', 
   });
 
   it('keeps the prior per-file head call counts with the two new billing.ts heads', async () => {
-    expect((await src('billing.ts')).split('billingPointReadSql(').length - 1).toBe(9);
+    expect((await src('billing.ts')).split('billingPointReadSql(').length - 1).toBe(8); // native retry removed selectedJob
     expect((await src('billing-jobs.ts')).split('billingPointReadSql(').length - 1).toBe(8);
     expect((await src('billing-target.ts')).split('billingPointReadSql(').length - 1).toBe(4);
   });

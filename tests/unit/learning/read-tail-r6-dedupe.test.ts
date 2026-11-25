@@ -36,7 +36,7 @@ describe('Learning read-tail r6 parameterized org-node label family dedupe', () 
     expect(r3.match(/export const learningNativeSources=/g) ?? []).toHaveLength(1);
     expect(r3.match(/export const overdueEvidenceColumns =/g) ?? []).toHaveLength(1);
     expect(r3.match(/export const learningModuleGrantProbe =/g) ?? []).toHaveLength(1);
-    expect(src('learning-completion-evidence.ts').match(/export const completionEvidenceColumns =/g) ?? []).toHaveLength(1);
+    expect(src('native_lane_31/postgres.rs')).toContain('SELECT e.id,e.assignment_id,e.version event_version,e.status,e.created_at,c.title course_title');
     const text = src('executive-metric-projections.ts');
     expect(src('learning.ts')).toContain('const assignmentChildImage =');
     expect(text).not.toMatch(/LOCK TABLE|FOR UPDATE|FOR SHARE|pg_advisory/i);

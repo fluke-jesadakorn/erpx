@@ -49,7 +49,7 @@ describe('Records record_context native read port cutover', () => {
     expect(records).not.toMatch(/readRecordContextEdgesbacklinksmentionssuggestionshistory\d*\([^)]*\) \{\s*return database\.prepare/);
   });
 
-  test('owner retirement:ts-statements drops 13 -> 12', () => {
+  test('owner retirement:ts-statements is 11 (context cut 13 -> 12, row-projection fold 12 -> 11)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -59,7 +59,7 @@ describe('Records record_context native read port cutover', () => {
       }
     };
     walk(resolve(root, 'packages/server-records/src'));
-    expect(total).toBe(12);
+    expect(total).toBe(11);
     expect(total).toBeLessThan(13);
   });
 

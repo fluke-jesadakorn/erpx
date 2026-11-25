@@ -249,3 +249,7 @@ export const socialPostIdHead=(tail:string)=>`SELECT p.id FROM social_posts p WH
  * subscription session reader. Only the FROM expression varies; the projected
  * count, bind order and lock semantics stay unchanged at the call sites. */
 export const countIntNFrom=(from:string)=>`SELECT count(*)::int n FROM ${from}`;
+/** Byte-identical Work-source CTE shared by the tasks and templates rows in the
+ * package-obligation fact reader. Only the CTE name and registered rowset vary;
+ * the scope cross-join, projection, bind order and locks stay at the call site. */
+export const workScopeSourceCte=(name:string,rows:string)=>`${name} AS MATERIALIZED(SELECT t.* FROM (${rows})t CROSS JOIN scope WHERE t.company_id=scope.company_id AND t.project_id IS NULL),`;

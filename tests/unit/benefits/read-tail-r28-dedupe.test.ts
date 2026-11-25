@@ -87,8 +87,8 @@ describe('benefits read-tail r28 exists-head dedupe', () => {
   test('the renderer owns the single EXISTS head and both shape callers delegate to it', () => {
     const head = src('benefits-read-sql.ts');
     expect(head).toContain('export const benefitExistsHead = (table: string, tail: string) =>');
-    expect(head).toContain('`EXISTS(SELECT 1 FROM ${table} ${tail})`');
-    expect(head.match(/EXISTS\(SELECT 1 FROM \$\{table\} \$\{tail\}\)/g) ?? []).toHaveLength(1);
+    expect(head).toContain('`EXISTS(${selectOneFrom(table, ` ${tail}`)})`');
+    expect(head.match(/`SELECT 1 FROM \$\{source\}\$\{tail\}`/g) ?? []).toHaveLength(1);
     expect(head).toContain('benefitOwnerExistsGuard = (table: string, conditions: string) =>');
     expect(head).toContain('benefitExistsHead(table, `WHERE id=? AND ${conditions}`)');
     expect(head.match(/export const benefitExistsHead = \(/g) ?? []).toHaveLength(1);
@@ -117,8 +117,8 @@ describe('benefits read-tail r28 exists-head dedupe', () => {
     }
   });
 
-  test('retirement:ts-statements is 29, strictly below the r28 BEFORE=32 baseline', () => {
-    expect(kpi()).toBe(29);
+  test('retirement:ts-statements is 28, strictly below the r28 BEFORE=32 baseline', () => {
+    expect(kpi()).toBe(28);
     expect(kpi()).toBeLessThan(32);
   });
 });

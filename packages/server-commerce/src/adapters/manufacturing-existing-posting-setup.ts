@@ -25,7 +25,7 @@ import {manufacturingExistingPostingSetupSchema,type ManufacturingExistingPostin
 import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 import { COMMERCE_MFG_INITIALIZED_GUARD_SQL } from "./guarded-source-dedupe-sql";
 import { COMMERCE_SCHEMA_READY_SQL } from "./read-tail-r15-dedupe-sql";
-import { commerceSettingsImageSql } from './read-tail-r27-dedupe-sql';
+import { nativeCommerceReadFirst, RD_MFG_EXISTING_SETTINGS_IMAGE } from './native-commerce-read';
 
 /** Native owner statement for the existing-posting confirmation. No SQL is
  * staged in TypeScript: the axum command owns the write and the statement's
@@ -48,7 +48,7 @@ async function leases(database:SqlDatabase,companyId:string,write=false){
 async function schema(database:SqlDatabase){return !!await database.prepare(COMMERCE_SCHEMA_READY_SQL('commerce_mfg_existing_posting_confirmations')).first<boolean>('ready');}
 async function snapshot(database:SqlDatabase,actor:WorkContext){
  const [configuration,mapping,finance,documents,production,stock,financialHistory]=await Promise.all([
-  manufacturingPostingMappingState(database,actor.companyId),database.prepare(commerceSettingsImageSql('company_id=?')).bind(actor.companyId).first<string>('image'),
+  manufacturingPostingMappingState(database,actor.companyId),nativeCommerceReadFirst<string>(RD_MFG_EXISTING_SETTINGS_IMAGE, [actor.companyId], database),
   manufacturingPostingFinanceState(database,actor),manufacturingPostingDocumentState(database,actor.companyId),manufacturingPostingSourceState(database,actor.companyId),manufacturingPostingInventoryState(database,actor.companyId),
   manufacturingExistingPostingFinancialHistory(database,actor),
  ]);

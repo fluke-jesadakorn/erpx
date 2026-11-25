@@ -19,6 +19,10 @@ export const RD_PRODUCT_POINT = 'commerce_rd_product_point';
 export const RD_COUNT_ACTIVE_STOCK_PRODUCTS = 'commerce_rd_count_active_stock_products';
 export const RD_COUNT_ACTIVE_PRODUCTS = 'commerce_rd_count_active_products';
 
+/** Allow-listed r27 posting-setup settings-image reads resolved by the mounted owner command-plan route. */
+export const RD_EXPENSE_SETTINGS_IMAGE = 'commerce_rd_expense_settings_image';
+export const RD_MFG_EXISTING_SETTINGS_IMAGE = 'commerce_rd_mfg_existing_settings_image';
+
 /** Allow-listed warehouse-config read kinds resolved by the mounted owner command-plan route. */
 export const RD_WAREHOUSE_PAGE_ROWS = 'commerce_rd_warehouse_page_rows';
 export const RD_WAREHOUSE_MASTER_ROWS = 'commerce_rd_warehouse_master_rows';

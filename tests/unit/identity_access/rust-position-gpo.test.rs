@@ -420,3 +420,22 @@ fn task_status_and_presentation_follow_the_oracle_precedence() {
         })
     );
 }
+
+#[test]
+fn overview_presentation_defaults_missing_facts_and_keeps_null_reason() {
+    use erpx_server_identity_access::public::position_gpo::present_gpo_task;
+    let sparse = json!({"positionId": "position-2", "positionName": "Staff"});
+    assert_eq!(
+        present_gpo_task(&sparse),
+        json!({
+            "positionId": "position-2", "positionName": "Staff",
+            "version": serde_json::Value::Null, "reason": serde_json::Value::Null,
+            "mappingCount": 0, "verifiedCount": 0, "status": "pending"
+        })
+    );
+    let blocked = json!({
+        "positionId": "position-3", "positionName": "Lead", "version": 1,
+        "mappingCount": 1, "verifiedCount": 1, "blockedCount": 1
+    });
+    assert_eq!(present_gpo_task(&blocked)["status"], "blocked");
+}

@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 vi.mock('server-only', () => ({}));
-import { benefitExistsHead } from '../../../packages/server-benefits/src/adapters/benefits-read-sql';
+import { benefitExistsHead, benefitSourceProbe } from '../../../packages/server-benefits/src/adapters/benefits-read-sql';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-benefits/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
@@ -38,6 +38,17 @@ const kpi = () => {
 };
 
 describe('benefits read-tail r29 exists-head extension dedupe', () => {
+  test('the settlement EXISTS head and native-source probe share one SELECT-1 renderer', () => {
+    expect(benefitExistsHead('benefit_plans', 'WHERE id=?'))
+      .toBe('EXISTS(SELECT 1 FROM benefit_plans WHERE id=?)');
+    expect(benefitSourceProbe('native_sources', 'benefit_source'))
+      .toBe('SELECT 1 FROM (native_sources) benefit_source');
+    const head = src('benefits-read-sql.ts');
+    expect(head.match(/`SELECT 1 FROM \$\{source\}\$\{tail\}`/g) ?? []).toHaveLength(1);
+    expect(head).toContain('selectOneFrom(`(${source})`, ` ${alias}`)');
+    expect(head).toContain('`EXISTS(${selectOneFrom(table, ` ${tail}`)})`');
+  });
+
   test('the release guard EXISTS head is byte-identical to the pre-dedupe literal', () => {
     const rendered = benefitExistsHead('benefit_election_events', electionTail);
     expect(rendered).toBe(preDedupe);
@@ -61,8 +72,8 @@ describe('benefits read-tail r29 exists-head extension dedupe', () => {
   test('the renderer owns the single EXISTS head and the people guard delegates to it', () => {
     const renderer = src('benefits-read-sql.ts');
     expect(renderer).toContain('export const benefitExistsHead = (table: string, tail: string) =>');
-    expect(renderer).toContain('`EXISTS(SELECT 1 FROM ${table} ${tail})`');
-    expect(renderer.match(/EXISTS\(SELECT 1 FROM \$\{table\} \$\{tail\}\)/g) ?? []).toHaveLength(1);
+    expect(renderer).toContain('`EXISTS(${selectOneFrom(table, ` ${tail}`)})`');
+    expect(renderer.match(/`SELECT 1 FROM \$\{source\}\$\{tail\}`/g) ?? []).toHaveLength(1);
     const people = src('people-package-obligations.ts');
     expect(people).toContain('benefitExistsHead');
     expect(people).toContain("benefitExistsHead('benefit_election_events', `event WHERE");
@@ -88,8 +99,8 @@ describe('benefits read-tail r29 exists-head extension dedupe', () => {
     }
   });
 
-  test('retirement:ts-statements is 29, strictly below the r29 BEFORE=31 baseline', () => {
-    expect(kpi()).toBe(29);
+  test('retirement:ts-statements is 28, strictly below the r29 BEFORE=31 baseline', () => {
+    expect(kpi()).toBe(28);
     expect(kpi()).toBeLessThan(31);
   });
 });

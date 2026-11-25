@@ -175,11 +175,11 @@ describe('Learning read-tail r22 invariants', () => {
     ]) {
       expect(shared.match(new RegExp(`export const ${name} ?=`, 'g')) ?? []).toHaveLength(1);
     }
-    expect(src('learning-completion-evidence.ts').match(/export const completionEvidenceColumns =/g) ?? []).toHaveLength(1);
+    expect(src('native_lane_31/postgres.rs')).toContain('SELECT e.id,e.assignment_id,e.version event_version,e.status,e.created_at,c.title course_title');
     expect(src('executive-metric-projections.ts').match(/const orgNodeLabel =/g) ?? []).toHaveLength(1);
   });
 
-  test('retirement:ts-statements KPI is 32 (strictly below the r24 BEFORE=33 baseline)', () => {
+  test('retirement:ts-statements KPI is 31 (strictly below the r24 BEFORE=33 baseline)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -190,10 +190,10 @@ describe('Learning read-tail r22 invariants', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(33);
-    expect(total).toBe(32);
+    expect(total).toBe(31);
     expect(selectCount(src('learning-read-sql.ts'))).toBe(30);
     expect(selectCount(src('executive-metric-projections.ts'))).toBe(1);
-    expect(selectCount(src('learning-completion-evidence.ts'))).toBe(1);
+    expect(src('native_lane_31/postgres.rs')).toContain('SELECT e.id,e.assignment_id,e.version event_version,e.status,e.created_at,c.title course_title');
     expect(selectCount(src('learning.ts'))).toBe(0);
   });
 });

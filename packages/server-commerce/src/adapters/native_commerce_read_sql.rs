@@ -260,6 +260,29 @@ const READ_WAREHOUSE_BRANCH_ACTIVE: NativeCommerceReadStatement = NativeCommerce
     bind_count: 2,
 };
 
+/// Native successor of the r27 expense posting-setup settings-image read. The
+/// caller binds `[company_id]`; the `s` alias is part of the retired literal.
+pub const RD_EXPENSE_SETTINGS_IMAGE: &str = "commerce_rd_expense_settings_image";
+const SQL_EXPENSE_SETTINGS_IMAGE: &str =
+    "SELECT to_jsonb(s)::text image FROM commerce_settings s WHERE s.company_id=?";
+const READ_EXPENSE_SETTINGS_IMAGE: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_EXPENSE_SETTINGS_IMAGE,
+    sql: SQL_EXPENSE_SETTINGS_IMAGE,
+    bind_count: 1,
+};
+
+/// Native successor of the r27 existing Manufacturing posting-setup settings
+/// image read. The caller binds `[company_id]`; the unaliased predicate stays
+/// byte-for-byte.
+pub const RD_MFG_EXISTING_SETTINGS_IMAGE: &str = "commerce_rd_mfg_existing_settings_image";
+const SQL_MFG_EXISTING_SETTINGS_IMAGE: &str =
+    "SELECT to_jsonb(s)::text image FROM commerce_settings s WHERE company_id=?";
+const READ_MFG_EXISTING_SETTINGS_IMAGE: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_MFG_EXISTING_SETTINGS_IMAGE,
+    sql: SQL_MFG_EXISTING_SETTINGS_IMAGE,
+    bind_count: 1,
+};
+
 const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_PMS_WAREHOUSE_ACTIVE,
     READ_PMS_SETTINGS_EXISTS,
@@ -283,6 +306,8 @@ const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_WAREHOUSE_ACTIVE,
     READ_WAREHOUSES_ACTIVE,
     READ_WAREHOUSE_BRANCH_ACTIVE,
+    READ_EXPENSE_SETTINGS_IMAGE,
+    READ_MFG_EXISTING_SETTINGS_IMAGE,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -323,6 +348,12 @@ mod tests {
             (RD_WAREHOUSE_ACTIVE, SQL_WAREHOUSE_ACTIVE, 4usize),
             (RD_WAREHOUSES_ACTIVE, SQL_WAREHOUSES_ACTIVE, 3usize),
             (RD_WAREHOUSE_BRANCH_ACTIVE, SQL_WAREHOUSE_BRANCH_ACTIVE, 2usize),
+            (RD_EXPENSE_SETTINGS_IMAGE, SQL_EXPENSE_SETTINGS_IMAGE, 1usize),
+            (
+                RD_MFG_EXISTING_SETTINGS_IMAGE,
+                SQL_MFG_EXISTING_SETTINGS_IMAGE,
+                1usize,
+            ),
         ];
         for (kind, sql, bind_count) in expected {
             let statement = read_statement(kind).expect("registered owner read kind");
@@ -339,7 +370,25 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), bind_count);
         }
-        assert_eq!(STATEMENTS.len(), 22);
+        assert_eq!(STATEMENTS.len(), 24);
+    }
+
+    /// The two r27 settings-image reads differ only in the company predicate
+    /// alias; both keep the retired literal byte-for-byte with one company bind.
+    #[test]
+    fn posting_setup_settings_image_reads_keep_their_exact_literals() {
+        let head = "SELECT to_jsonb(s)::text image FROM commerce_settings s WHERE ";
+        let expense = read_statement(RD_EXPENSE_SETTINGS_IMAGE).expect("expense image read");
+        let mfg = read_statement(RD_MFG_EXISTING_SETTINGS_IMAGE).expect("mfg image read");
+        assert_eq!(expense.sql, format!("{head}s.company_id=?"));
+        assert_eq!(mfg.sql, format!("{head}company_id=?"));
+        for statement in [expense, mfg] {
+            assert_eq!(statement.bind_count, 1);
+            assert_eq!(statement.sql.matches('?').count(), 1);
+            assert!(statement.sql.starts_with("SELECT "));
+            assert!(!statement.sql.contains(';'));
+            assert!(!statement.sql.contains("FOR UPDATE"));
+        }
     }
 
     /// The two r28 selectors share a head but differ in predicate and order;

@@ -159,7 +159,7 @@ describe('Files read-tail r44 byte-oracle dedupe', () => {
     expect(src('adapters/portal-package-obligation-sources.ts')).toContain('${SCAN_ATTEMPTS_OR_EXISTS_HEAD_SQL}attempt WHERE attempt.attachment_id=attachment.id AND attempt.state IN (\'pending\',\'running\',\'error\'))');
   });
 
-  test('retirement:ts-statements is 210, strictly below the r43 BEFORE=246 (246->242)', () => {
+  test('retirement:ts-statements is 207, strictly below the r43 BEFORE=246 (246->242)', () => {
     let literal = 0, total = 0;
     for (const path of tsFiles(srcRoot)) {
       const text = readFileSync(path, 'utf8');
@@ -170,8 +170,8 @@ describe('Files read-tail r44 byte-oracle dedupe', () => {
     // (-2), while the attachment star-id and scan OR-EXISTS heads each fold
     // two sites into one (-1 each). Three heads live in the r44 helper.
     // r46 folds two closed-union heads (orphan-preservation event, draft/bound count): 239->237.
-    expect(literal).toBe(210);
-    expect(total).toBe(211);
+    expect(literal).toBe(207);
+    expect(total).toBe(208);
     expect(literal).toBeLessThan(246);
     expect(total).toBeLessThan(247);
   });

@@ -158,7 +158,7 @@ describe('Files read-tail r49 byte-oracle dedupe', () => {
     expect(cleanup).toContain('.bind(input.id,input.id,input.id,input.companyId,input.id)');
   });
 
-  test('retirement:ts-statements is 210, strictly below the r48 BEFORE=229 (229->225)', () => {
+  test('retirement:ts-statements is 207, strictly below the r48 BEFORE=229 (229->225)', () => {
     let literal = 0, total = 0;
     for (const path of tsFiles(srcRoot)) {
       const text = readFileSync(path, 'utf8');
@@ -166,8 +166,8 @@ describe('Files read-tail r49 byte-oracle dedupe', () => {
       total += (text.match(/SELECT\s/g) ?? []).length;
     }
     // B, D and A each fold two inline sites into one helper (-3 total).
-    expect(literal).toBe(210);
-    expect(total).toBe(211);
+    expect(literal).toBe(207);
+    expect(total).toBe(208);
     expect(literal).toBeLessThan(229);
     expect(total).toBeLessThan(230);
   });

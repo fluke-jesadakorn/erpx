@@ -68,8 +68,8 @@ describe('benefits read-tail r25 source-probe head dedupe', () => {
   test('the renderer owns the single source-probe SELECT and the caller routes through it', () => {
     const head = src('benefits-read-sql.ts');
     expect(head).toContain('export const benefitSourceProbe = (source: string, alias: string) =>');
-    expect(head).toContain('`SELECT 1 FROM (${source}) ${alias}`');
-    expect(head.match(/SELECT 1 FROM \(\$\{source\}\) \$\{alias\}/g) ?? []).toHaveLength(1);
+    expect(head).toContain('selectOneFrom(`(${source})`, ` ${alias}`)');
+    expect(head.match(/`SELECT 1 FROM \$\{source\}\$\{tail\}`/g) ?? []).toHaveLength(1);
     const record = src('record-purchases.ts');
     expect(record).toContain('benefitSourceProbe(people.engagements,\'e\')');
     expect(record).toContain('EXISTS(${benefitSourceProbe(people.engagements,\'e\')} WHERE e.person_id=p.id');
@@ -86,8 +86,8 @@ describe('benefits read-tail r25 source-probe head dedupe', () => {
     expect(src('package-obligations.ts')).toContain('LOCK TABLE benefit_plans,benefit_plan_events,benefit_enrollment_windows,benefit_window_events,benefit_dependents,benefit_dependent_events,benefit_elections,benefit_election_events,benefit_payroll_inputs,command_receipts IN SHARE MODE');
   });
 
-  test('retirement:ts-statements is 29, strictly below the r25 BEFORE=35 baseline', () => {
-    expect(kpi()).toBe(29);
+  test('retirement:ts-statements is 28, strictly below the r25 BEFORE=35 baseline', () => {
+    expect(kpi()).toBe(28);
     expect(kpi()).toBeLessThan(35);
   });
 });

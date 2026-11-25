@@ -24,13 +24,8 @@ const ORIGINALS = [
     sha256: 'bbdee083a1b236222b804747181ee9830a76583d07cb8d415b6a22ac2b87bbcb',
     routed: "billingPointReadSql('id,total_satang,status,stripe_id','billing_invoices','id=$1')",
   },
-  {
-    file: 'billing.ts',
-    full: 'SELECT * FROM billing_jobs WHERE id=$1 AND holding_id=$2',
-    columns: '*', table: 'billing_jobs', suffix: 'id=$1 AND holding_id=$2', binds: 2,
-    sha256: '6f37e40564012526a62bae0c0c9e365f16d1f7cca68e8fb9e4e8996336c9fa8d',
-    routed: "billingPointReadSql('*','billing_jobs','id=$1 AND holding_id=$2')",
-  },
+  // Native retry retired the third (billing_jobs by id) point read; its
+  // byte-oracle SHA-256 was 6f37e40564012526a62bae0c0c9e365f16d1f7cca68e8fb9e4e8996336c9fa8d.
 ] as const;
 
 async function tsFiles(directory: URL): Promise<string[]> {
@@ -50,7 +45,7 @@ describe('billing read-tail r29 point-read-by-id dedupe', () => {
     expect(helper).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
   });
 
-  it('recomposes all three point reads byte-for-byte with unchanged binds', () => {
+  it('recomposes both remaining point reads byte-for-byte with unchanged binds', () => {
     for (const oracle of ORIGINALS) {
       expect(sha256(oracle.full)).toBe(oracle.sha256);
       expect(billingPointReadSql(oracle.columns, oracle.table, oracle.suffix)).toBe(oracle.full);
@@ -68,7 +63,7 @@ describe('billing read-tail r29 point-read-by-id dedupe', () => {
       expect(text.split(oracle.full).length - 1).toBe(0);
       expect(text.split(oracle.routed).length - 1).toBe(1);
     }
-    expect(billing.split('billingPointReadSql(').length - 1).toBe(9); // r35 effective-month guard + provider total
+    expect(billing.split('billingPointReadSql(').length - 1).toBe(8); // r35 effective-month guard + provider total; native retry removed selectedJob
     expect(target.split('billingPointReadSql(').length - 1).toBe(4);
   });
 

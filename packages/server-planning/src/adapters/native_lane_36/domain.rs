@@ -17,9 +17,11 @@ pub const KIND_CALENDAR: &str = "calendar";
 pub const KIND_SCENARIO: &str = "scenario";
 pub const KIND_SCOPED_RECOMMENDATION: &str = "scoped-recommendation";
 pub const KIND_COMPARISON: &str = "comparison";
+pub const KIND_EXECUTIVE_SHORTAGE: &str = "executive-shortage";
+pub const KIND_EXECUTIVE_RECOMMENDATION: &str = "executive-recommendation";
 
 /// The closed discriminator set. The wire accepts no other value.
-pub const KINDS: [&str; 7] = [
+pub const KINDS: [&str; 9] = [
     KIND_RECOMMENDATIONS,
     KIND_SCENARIOS,
     KIND_RESOURCES,
@@ -27,6 +29,8 @@ pub const KINDS: [&str; 7] = [
     KIND_SCENARIO,
     KIND_SCOPED_RECOMMENDATION,
     KIND_COMPARISON,
+    KIND_EXECUTIVE_SHORTAGE,
+    KIND_EXECUTIVE_RECOMMENDATION,
 ];
 
 pub fn valid_kind(value: &str) -> bool {
@@ -35,7 +39,19 @@ pub fn valid_kind(value: &str) -> bool {
 
 /// Row reads return one optional row; list reads return an array.
 pub fn is_row_kind(kind: &str) -> bool {
-    matches!(kind, KIND_SCENARIO | KIND_SCOPED_RECOMMENDATION | KIND_COMPARISON)
+    matches!(
+        kind,
+        KIND_SCENARIO
+            | KIND_SCOPED_RECOMMENDATION
+            | KIND_COMPARISON
+            | KIND_EXECUTIVE_SHORTAGE
+            | KIND_EXECUTIVE_RECOMMENDATION
+    )
+}
+
+/// The recommendation projection has exactly two retained eligibility branches.
+pub fn valid_eligibility(value: &str) -> bool {
+    matches!(value, "proposed" | "capacity")
 }
 
 /// Bounded record identifier. Postgres ids are text; only the same safe
@@ -72,6 +88,11 @@ pub struct LaneScope {
     pub id: Option<String>,
     pub comparison_scenario_id: Option<String>,
     pub specification_id: Option<String>,
+    /// Executive evidence window, echoed by the owner as bound facts.
+    pub from: Option<String>,
+    pub to: Option<String>,
+    /// Closed eligibility branch of the executive recommendation read.
+    pub eligibility: Option<String>,
 }
 
 impl LaneScope {
@@ -112,7 +133,49 @@ impl LaneScope {
             id,
             comparison_scenario_id,
             specification_id,
+            from: None,
+            to: None,
+            eligibility: None,
         })
+    }
+
+    /// Executive evidence reads carry the record id, the bounded window and,
+    /// for recommendations, one of the two closed eligibility branches.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_executive(
+        kind: &str,
+        company_id: &str,
+        branch: Option<&str>,
+        id: Option<&str>,
+        from: Option<&str>,
+        to: Option<&str>,
+        eligibility: Option<&str>,
+    ) -> Result<Self, BusinessError> {
+        if kind != KIND_EXECUTIVE_SHORTAGE && kind != KIND_EXECUTIVE_RECOMMENDATION {
+            return Err(invalid());
+        }
+        let bounded = |value: &str| {
+            if valid_scope(value) {
+                Ok(value.to_owned())
+            } else {
+                Err(invalid())
+            }
+        };
+        let from = from.map(bounded).transpose()?.ok_or_else(invalid)?;
+        let to = to.map(bounded).transpose()?.ok_or_else(invalid)?;
+        let eligibility = match (kind, eligibility) {
+            (KIND_EXECUTIVE_RECOMMENDATION, Some(value)) if valid_eligibility(value) => {
+                Some(value.to_owned())
+            }
+            (KIND_EXECUTIVE_RECOMMENDATION, _) => return Err(invalid()),
+            (_, None) => None,
+            (_, _) => return Err(invalid()),
+        };
+        let mut scope = Self::new(kind, company_id, branch, id, None, None)?;
+        scope.from = Some(from);
+        scope.to = Some(to);
+        scope.eligibility = eligibility;
+        Ok(scope)
     }
 
     /// List reads carry only Company and optional branch scope.
@@ -129,6 +192,9 @@ impl LaneScope {
             self.id.as_deref(),
             self.comparison_scenario_id.as_deref(),
             self.specification_id.as_deref(),
+            self.from.as_deref(),
+            self.to.as_deref(),
+            self.eligibility.as_deref(),
         ])
     }
 }
@@ -260,6 +326,42 @@ pub struct ComparisonRow {
     pub shortages_json: String,
     pub required_minutes: i64,
     pub feasible_date: String,
+}
+
+/// Exact row shape of the executive evidence projection. Left-joined owner
+/// facts stay nullable so the runtime evidence presenter keeps its existing
+/// fallback labels. The duplicate `scenario_version` projection in the
+/// registered statement resolves to the scenario's version, as in TS.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct ExecutiveRow {
+    pub scenario_id: String,
+    pub company_id: String,
+    pub branch_id: String,
+    pub branch_name: Option<String>,
+    pub warehouse_id: String,
+    pub warehouse_name: Option<String>,
+    pub specification_id: String,
+    pub specification_name: Option<String>,
+    pub output_product_id: Option<String>,
+    pub output_product_name: Option<String>,
+    pub specification_version: i64,
+    pub demand_quantity_milli: String,
+    pub due_date: String,
+    pub capacity_minutes: String,
+    pub scenario_status: String,
+    pub scenario_version: i64,
+    pub scenario_created_at: i64,
+    pub scenario_updated_at: i64,
+    pub recommendation_id: Option<String>,
+    pub recommendation_status: Option<String>,
+    pub recommended_quantity_milli: Option<String>,
+    pub required_minutes: Option<String>,
+    pub feasible_date: Option<String>,
+    pub recommendation_version: Option<i64>,
+    pub recommendation_created_at: Option<i64>,
+    pub recommendation_updated_at: Option<i64>,
+    pub shortage_count: String,
+    pub shortage_items_json: String,
 }
 
 /// One closed response. List reads return an array; row reads return one row

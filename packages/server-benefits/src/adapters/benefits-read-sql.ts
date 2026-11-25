@@ -42,11 +42,15 @@ export const benefitMetricCountSql = (label: string, table: string, alias: strin
  *  and People package-settlement fact unions; generated SQL is unchanged. */
 export const benefitFactFinalSelect = (pending: string, tail: string) =>
   `) SELECT kind,id,version,state,image,${pending} pending FROM facts${tail}`;
+/** Byte-identical owner-local SELECT-1 source head shared by the settlement
+ *  EXISTS guard (package obligations) and the native-source/attachment probes
+ *  (record purchases); rendered SQL and bind order are unchanged. */
+export const selectOneFrom = (source: string, tail: string) => `SELECT 1 FROM ${source}${tail}`;
 /** Byte-identical owner-local EXISTS existence head shared by the owner
  *  existence guard and the Benefits settlement terminal predicate; generated
  *  SQL, binds and column references are unchanged. */
 export const benefitExistsHead = (table: string, tail: string) =>
-  `EXISTS(SELECT 1 FROM ${table} ${tail})`;
+  `EXISTS(${selectOneFrom(table, ` ${tail}`)})`;
 /** Parameterized owner-local existence guard shared by the sensitive-attachment
  *  version guard and the payroll-source fact guard; generated SQL is unchanged. */
 export const benefitOwnerExistsGuard = (table: string, conditions: string) =>
@@ -62,4 +66,4 @@ export const benefitSubqueryNotExists = (source: string, alias: string, predicat
 /** Parameterized owner-local source existence probe shared by the Benefits
  *  attachment file-source and native-source read scopes; generated SQL is unchanged. */
 export const benefitSourceProbe = (source: string, alias: string) =>
-  `SELECT 1 FROM (${source}) ${alias}`;
+  selectOneFrom(`(${source})`, ` ${alias}`);

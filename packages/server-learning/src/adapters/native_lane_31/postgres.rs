@@ -273,6 +273,24 @@ mod tests {
         }
     }
 
+    /// Byte oracle migrated from the retired TypeScript source
+    /// `adapters/learning-completion-evidence.ts`. The native owner is now the
+    /// single source of truth for these bytes; no TypeScript fallback remains.
+    #[test]
+    fn completion_evidence_oracle_migrated_from_typescript() {
+        const MIGRATED_ORACLE: &str = concat!(
+            "SELECT e.id,e.assignment_id,e.version event_version,e.status,e.created_at,c.title course_title",
+            " FROM learning_assignment_events e",
+            " JOIN learning_assignments a ON a.id=e.assignment_id",
+            " JOIN learning_courses c ON c.id=a.course_id",
+            " WHERE e.id=$1 AND a.company_id=$2 AND ($3::text IS NULL OR a.branch_id=$3)",
+            " AND ($4::text IS NULL OR a.department_id=$4)",
+            " AND e.action='complete' AND e.status='completed' AND e.created_at>=$5 AND e.created_at<$6",
+            " LIMIT 1",
+        );
+        assert_eq!(COMPLETION_SQL, MIGRATED_ORACLE);
+    }
+
     #[test]
     fn search_predicates_are_owner_local_and_company_scoped() {
         // The search family renders every predicate from fixed owner-local

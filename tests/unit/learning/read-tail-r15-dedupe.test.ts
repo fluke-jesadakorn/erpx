@@ -100,7 +100,7 @@ describe('Learning read-tail r15 invariants', () => {
     expect(native).toBeDefined();
     expect((native!.match(/SELECT /g) ?? []).length).toBe(7);
     expect((native!.match(/UNION ALL SELECT /g) ?? []).length).toBe(6);
-    expect(src('learning-completion-evidence.ts').match(/export const completionEvidenceColumns =/g) ?? []).toHaveLength(1);
+    expect(src('native_lane_31/postgres.rs')).toContain('SELECT e.id,e.assignment_id,e.version event_version,e.status,e.created_at,c.title course_title');
     expect(src('learning.ts').match(/const assignmentChildImage =/g) ?? []).toHaveLength(1);
     expect(src('learning.ts').match(/const learnerEligible =/g) ?? []).toHaveLength(1);
     expect(src('executive-metric-projections.ts').match(/const orgNodeLabel =/g) ?? []).toHaveLength(1);

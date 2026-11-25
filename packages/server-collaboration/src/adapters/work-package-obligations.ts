@@ -6,7 +6,7 @@ import {packageSettlementSource,type PackageSettlementSourceLock} from '@erpx/se
 import {workOperationsSettlementSources as operations,lockWorkOperationsSettlementSources} from '@erpx/server-operations/public/work-package-obligation-sources';
 import {workCalendarSettlementSources as calendar,lockWorkCalendarSettlementSources} from '@erpx/server-work_projection/public/work-calendar-package-obligation-sources';
 import {workSocialNativePostPredicate,workSocialUnresolvedPostPredicate,operationalHandoverReceiptPredicate} from '@erpx/server-collaboration/adapters/work-social-source';
-import {socialPostPublishReceipt,socialPostRecipientExists,absentSocialPostGuard,operationsSourceExists} from './read-tail-sql';
+import {socialPostPublishReceipt,socialPostRecipientExists,absentSocialPostGuard,operationsSourceExists,workScopeSourceCte} from './read-tail-sql';
 import {projectSocialSourceReadLocks} from '@erpx/server-projects/public/social-purchase-sources';
 import {socialPmsSourceReadLocks} from '@erpx/server-pms/public/social-source-facts';
 import {messagingFileWithdrawalSources,messagingFileIntakeSources,messagingFileSettlementSourceLocks} from '@erpx/server-files/public/messaging-file-settlements';
@@ -23,8 +23,8 @@ export async function workCollaborationPackageObligations(owner:PostgresDatabase
  owner.assertActiveTransaction(database);if(sources.get(database)!==input.companyId)throw Error('WORK_COLLABORATION_OBLIGATION_SOURCE_REQUIRED');
  if(input.moduleId!=='collaboration'||!['work','work-social','work-messages','work-routines'].includes(input.packageId)||input.packageVersion!==1||!Number.isSafeInteger(input.now)||input.now<0)throw Error('WORK_COLLABORATION_OBLIGATION_SCOPE_REQUIRED');
  const facts=(await database.prepare(`WITH scope AS(SELECT ?::text company_id,?::text package_id,?::bigint now_ms,to_char(to_timestamp(?::bigint/1000.0) AT TIME ZONE 'UTC','YYYY-MM-DD') today),
- tasks AS MATERIALIZED(SELECT t.* FROM (${operations.tasks})t CROSS JOIN scope WHERE t.company_id=scope.company_id AND t.project_id IS NULL),
- templates AS MATERIALIZED(SELECT t.* FROM (${operations.templates})t CROSS JOIN scope WHERE t.company_id=scope.company_id AND t.project_id IS NULL),
+ ${workScopeSourceCte('tasks',operations.tasks)}
+ ${workScopeSourceCte('templates',operations.templates)}
  posts AS MATERIALIZED(SELECT p.* FROM social_posts p CROSS JOIN scope WHERE p.company_id=scope.company_id AND (
  scope.package_id IN ('work','work-social') AND ${workSocialNativePostPredicate('p')}
  OR scope.package_id IN ('work','work-routines') AND (${operationalHandoverReceiptPredicate('p')} OR scope.package_id='work-routines' AND ${workSocialNativePostPredicate('p')}) AND EXISTS(SELECT 1 FROM social_post_sources routine_source JOIN (${operations.tasks}) routine_task ON routine_task.id=routine_source.source_id AND routine_task.company_id=p.company_id WHERE routine_source.post_id=p.id AND routine_source.source_kind='staff_task' AND routine_task.project_id IS NULL AND (scope.package_id='work' OR routine_task.template_id IS NOT NULL)))),

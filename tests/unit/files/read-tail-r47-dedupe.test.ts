@@ -169,7 +169,7 @@ describe('Files read-tail r47 byte-oracle dedupe', () => {
     expect(leave).toContain('${LEAVE_LEGACY_SOURCE_ID_HEAD_SQL}attachments source');
   });
 
-  test('retirement:ts-statements is 210, strictly below the r46 BEFORE=237 (237->233)', () => {
+  test('retirement:ts-statements is 207, strictly below the r46 BEFORE=237 (237->233)', () => {
     let literal = 0, total = 0;
     for (const path of tsFiles(srcRoot)) {
       const text = readFileSync(path, 'utf8');
@@ -179,8 +179,8 @@ describe('Files read-tail r47 byte-oracle dedupe', () => {
     // Four closed-union families fold two sites into one helper each (-4):
     // draft-link EXISTS witness, cleanup direct-link CTE, cleanup bound-command
     // id witness and leave-evidence legacy source-id projection.
-    expect(literal).toBe(210);
-    expect(total).toBe(211);
+    expect(literal).toBe(207);
+    expect(total).toBe(208);
     expect(literal).toBeLessThan(237);
     expect(total).toBeLessThan(238);
   });

@@ -124,6 +124,12 @@ pub const PMS_RD_SECTION_RELATED_RECORDS: &str = "pms_rd_section_related_records
 /// lock/refund path; the guest booking document transaction runs it on its
 /// already-open unit with the same `[id, propertyId, reservationId]` payload.
 pub const PMS_RD_GUEST_BOOKING_DOCUMENT: &str = "pms_rd_guest_booking_document";
+/// Native successor of the owner-local home `hotelMetrics` property-scope read.
+/// The exact retained statement (the same bytes as the owner read port in
+/// `home_metrics_postgres.rs`, with `$1..$5` numbered by `?` placeholders) with
+/// five positional binds; no ledger/receipt/outbox and no lock/refund path. The
+/// caller runs it on its already-open unit with the retained Company/branch scope.
+pub const PMS_RD_HOTEL_METRICS: &str = "pms_rd_hotel_metrics";
 const SQL_INVENTORY_COMMAND: &str = "SELECT id,kind,data_json,version,updated_at FROM pms_records \
 WHERE property_id=? AND kind IN ('room_type','room','rate','block','item','credit') \
 UNION ALL SELECT id,kind,data_json,version,updated_at FROM pms_records \
@@ -402,8 +408,29 @@ const READ_GUEST_BOOKING_DOCUMENT: NativeReadStatement = NativeReadStatement {
     sql: SQL_GUEST_BOOKING_DOCUMENT,
     bind_count: 3,
 };
+/// Retired owner `hotelMetrics` statement, expanded byte-for-byte from the
+/// retained property-scope projection with `?` placeholders. Five positional
+/// binds in the source order: company, branch twice, property twice.
+const SQL_HOTEL_METRICS: &str = r#"SELECT p.id,p.name,p.branch_id,p.business_date,p.state,p.config_json::jsonb->>'currency' currency,
+    (SELECT count(*) FROM pms_records r WHERE r.property_id=p.id AND r.kind='room' AND r.data_json::jsonb->>'active'='true') room_count,
+    (SELECT count(*) FROM pms_records r WHERE r.property_id=p.id AND r.kind='room' AND r.data_json::jsonb->>'active'='true'
+      AND r.data_json::jsonb->>'cleanliness'='inspected') inspected,
+    (SELECT count(*) FROM pms_records r WHERE r.property_id=p.id AND r.kind='room' AND r.data_json::jsonb->>'active'='true'
+      AND NOT EXISTS(SELECT 1 FROM pms_records b WHERE b.property_id=p.id AND b.kind='block' AND b.data_json::jsonb->>'state'='active'
+        AND b.data_json::jsonb->>'kind'='maintenance' AND b.data_json::jsonb->>'from'<=p.business_date AND b.data_json::jsonb->>'roomId'=r.id)) capacity,
+    (SELECT count(*) FROM pms_records s WHERE s.property_id=p.id AND s.kind='stay' AND s.data_json::jsonb->>'state' IN ('in_house','checked_out')
+      AND s.data_json::jsonb->>'arrival'<=p.business_date AND s.data_json::jsonb->>'departure'>p.business_date) sold,
+    (SELECT count(*) FROM pms_records s WHERE s.property_id=p.id AND s.kind='stay' AND s.data_json::jsonb->>'state'='reserved' AND s.data_json::jsonb->>'arrival'<=p.business_date) arrivals,
+    (SELECT count(*) FROM pms_records s WHERE s.property_id=p.id AND s.kind='stay' AND s.data_json::jsonb->>'state'='in_house' AND s.data_json::jsonb->>'departure'<=p.business_date) departures
+    FROM pms_properties p WHERE p.company_id=? AND (?::text IS NULL OR p.branch_id=?) AND (?::text IS NULL OR p.id=?)
+    ORDER BY p.name,p.id"#;
+const READ_HOTEL_METRICS: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_HOTEL_METRICS,
+    sql: SQL_HOTEL_METRICS,
+    bind_count: 5,
+};
 
-const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG, READ_PENDING_HOTEL_TRANSFERS, READ_UNPOSTED_BOOKING_RECEIPTS, READ_UNPOSTED_COUNTER_RECEIPTS, READ_HOSPITALITY_SETUP_PROPERTIES, READ_ATTACHMENT_PROPERTY_IMAGE, READ_ATTACHMENT_RECORD_IMAGE, READ_DOCUMENT_RELATED_POSTINGS, READ_POS_GUEST_HOTELS, READ_POS_GUEST_CHOICES, READ_POS_STRIPE_PAYMENT, READ_POS_BOOKING_PAYMENT, READ_STRIPE_PAYMENT_BY_ID, READ_STRIPE_PAYMENT_BY_ID_COMPANY, READ_STRIPE_PAYMENT_PROPERTY, READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT];
+const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG, READ_PENDING_HOTEL_TRANSFERS, READ_UNPOSTED_BOOKING_RECEIPTS, READ_UNPOSTED_COUNTER_RECEIPTS, READ_HOSPITALITY_SETUP_PROPERTIES, READ_ATTACHMENT_PROPERTY_IMAGE, READ_ATTACHMENT_RECORD_IMAGE, READ_DOCUMENT_RELATED_POSTINGS, READ_POS_GUEST_HOTELS, READ_POS_GUEST_CHOICES, READ_POS_STRIPE_PAYMENT, READ_POS_BOOKING_PAYMENT, READ_STRIPE_PAYMENT_BY_ID, READ_STRIPE_PAYMENT_BY_ID_COMPANY, READ_STRIPE_PAYMENT_PROPERTY, READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
 pub fn is_read(kind: &str) -> bool {
@@ -831,7 +858,7 @@ ORDER BY id"
         assert!(!upper.contains("PG_ADVISORY"));
         assert!(is_read(read.kind));
         assert!(!is_read("pms_rd_section_related_records_v2"));
-        assert_eq!(READS.len(), 34);
+        assert_eq!(READS.len(), 35);
     }
 
     #[test]
@@ -855,6 +882,29 @@ ORDER BY id"
         assert!(!upper.contains("PG_ADVISORY"));
         assert!(is_read(read.kind));
         assert!(!is_read("pms_rd_guest_booking_document_v2"));
-        assert_eq!(READS.len(), 34);
+        assert_eq!(READS.len(), 35);
+    }
+
+    #[test]
+    fn hotel_metrics_read_matches_the_retained_owner_statement() {
+        let read = read_statement(PMS_RD_HOTEL_METRICS).expect("hotel metrics read");
+        assert_eq!(read.kind, "pms_rd_hotel_metrics");
+        assert_eq!(read.bind_count, 5);
+        assert_eq!(read.sql.matches('?').count(), 5);
+        assert!(read.sql.starts_with("SELECT p.id,p.name,p.branch_id,p.business_date,p.state,p.config_json::jsonb->>'currency' currency,"));
+        assert!(read.sql.ends_with("ORDER BY p.name,p.id"));
+        assert!(read.sql.contains("'maintenance' AND b.data_json::jsonb->>'from'<=p.business_date AND b.data_json::jsonb->>'roomId'=r.id"));
+        assert!(read.sql.contains("WHERE p.company_id=? AND (?::text IS NULL OR p.branch_id=?) AND (?::text IS NULL OR p.id=?)"));
+        let upper = read.sql.to_ascii_uppercase();
+        assert!(!upper.contains("INSERT INTO"));
+        assert!(!upper.contains("UPDATE "));
+        assert!(!upper.contains("DELETE FROM"));
+        assert!(!upper.contains("FOR UPDATE"));
+        assert!(!upper.contains("FOR SHARE"));
+        assert!(!upper.contains("LOCK TABLE"));
+        assert!(!upper.contains("PG_ADVISORY"));
+        assert!(is_read(read.kind));
+        assert!(!is_read("pms_rd_hotel_metrics_v2"));
+        assert_eq!(READS.len(), 35);
     }
 }

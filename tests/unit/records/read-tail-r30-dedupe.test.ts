@@ -172,7 +172,7 @@ describe('Records read-tail r30 retirement check', () => {
     // delegating to existsGuardSql, one from workflow-flow-routing-facts.ts by
     // sharing the employee_requests head, and one from ai-usage-projection.ts
     // by sharing the request_ai table head. No bind, lock or native seam changed.
-    expect(total).toBe(12);
+    expect(total).toBe(11);
     expect(total).toBeLessThan(22);
   });
 });

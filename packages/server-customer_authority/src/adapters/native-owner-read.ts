@@ -12,7 +12,7 @@ import type { SqlDatabase, SqlResult } from '@erpx/server-runtime/public/runtime
  * configuration or any configured failure fails closed with no TS fallback.
  */
 type Holding = Readonly<{ origin: string; holdingSlug: string; companyId: string }>;
-type Settings = Readonly<{ privateBaseUrl: string; timeoutMs: number; holdings: readonly Holding[] }>;
+type Settings = Readonly<{ privateBaseUrl: string; timeoutMs: number; holdings: readonly Holding[]; portalHoldingSlug?: string }>;
 
 export const CA_RD_SALES_REVIEW_COUNTS = 'customer_authority_rd_sales_review_counts';
 export const CA_RD_IDENTITY_CHANGE_HISTORY = 'customer_authority_rd_identity_change_history';
@@ -68,7 +68,16 @@ function configuration(): Settings {
     if (origin.protocol !== 'https:' || origin.username || origin.password || item.origin !== origin.origin) return unavailable();
     return { origin: item.origin, holdingSlug: item.holdingSlug, companyId: item.companyId };
   });
-  return { privateBaseUrl: base.origin, timeoutMs: value.timeoutMs, holdings };
+  let portalHoldingSlug: string | undefined;
+  if (value.portalHoldingSlug !== undefined) {
+    if (
+      typeof value.portalHoldingSlug !== 'string' ||
+      !/^[a-z0-9][a-z0-9_-]{0,127}$/.test(value.portalHoldingSlug) ||
+      !holdings.some(h => h.holdingSlug === value.portalHoldingSlug)
+    ) return unavailable();
+    portalHoldingSlug = value.portalHoldingSlug;
+  }
+  return { privateBaseUrl: base.origin, timeoutMs: value.timeoutMs, holdings, portalHoldingSlug };
 }
 
 /** Plan one owner read without executing it. The returned statement is the
@@ -120,6 +129,22 @@ export async function nativeOwnerReadStatement(
   const statement = statements[0];
   if (!record(statement) || typeof statement.sql !== 'string' || !Array.isArray(statement.values)) return unavailable();
   return { sql: statement.sql, values: statement.values };
+}
+
+/** Plan a portal read for a caller that only holds a holding-scoped unit and
+ * never carries a WorkContext (the installed probe and binding fence). The
+ * native read config designates the portal holding; a single configured
+ * holding is used otherwise. Ambiguity or a bad designation fails closed, so
+ * no caller can pick a holding or fall back to TypeScript SQL. */
+export async function nativePortalReadStatement(
+  kind: string,
+  values: readonly unknown[],
+): Promise<OwnerReadStatement> {
+  const config = configuration();
+  const holdingSlug = config.portalHoldingSlug
+    ?? (config.holdings.length === 1 ? config.holdings[0].holdingSlug : undefined);
+  if (!holdingSlug) return unavailable();
+  return nativeOwnerReadStatement(kind, values, holdingSlug);
 }
 
 /** Plan one owner read and execute it on the caller's open unit. */

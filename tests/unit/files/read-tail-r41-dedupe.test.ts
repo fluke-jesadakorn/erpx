@@ -35,7 +35,7 @@ const PRIOR_HELPERS = [
   'read-tail-r34-source-sql.ts', 'read-tail-r35-source-sql.ts', 'read-tail-r36-source-sql.ts',
   'read-tail-r37-source-sql.ts', 'read-tail-r38-source-sql.ts',
   'read-tail-r40-source-sql.ts',
-  'commerce-delivery-dedupe-sql.ts', 'owner-projection-dedupe-sql.ts',
+  'commerce-delivery-dedupe-sql.ts',
   'preservation-presence-dedupe-sql.ts', 'scan-pending-dedupe-sql.ts',
   'social-draft-image-guard-sql.ts', 'social-upload-cleanup-rows-sql.ts',
 ] as const;
@@ -168,8 +168,8 @@ describe('Files read-tail r41 byte-oracle dedupe', () => {
     // r42 left 248; r43 lowers 248->246 (two SELECT-bearing shared heads folded).
     // r44 lowers 246->242 (three more shared heads folded).
     // r46 folds two closed-union heads (orphan-preservation event, draft/bound count): 239->237.
-    expect(literal).toBe(210);
-    expect(total).toBe(211);
+    expect(literal).toBe(207);
+    expect(total).toBe(208);
     expect(literal).toBeLessThan(254);
     expect(total).toBeLessThan(255);
   });

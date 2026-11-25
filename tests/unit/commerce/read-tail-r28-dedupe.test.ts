@@ -100,7 +100,7 @@ describe('Commerce r28 products master-selector family native cutover', () => {
       expect(plans).toContain(`"${site.sql}"`);
       expect(plans).toContain(`kind: ${constant},`);
     }
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 22);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 24);');
     expect(plans).toContain('fn inventory_count_product_selectors_keep_their_exact_literals()');
     expect(sha(FAMILY.map((site) => site.sql).join('\n'))).toBe(
       '8e79df210ce8ad27cffa3c548605370f0c5085579c6fb949db45574a0300f397',
@@ -112,7 +112,7 @@ describe('Commerce r28 products master-selector family native cutover', () => {
     expect(read('read-tail-r21-dedupe-sql.ts')).toContain('`SELECT ${columns} FROM commerce_orders WHERE ${tail}`');
     expect(read('read-tail-r25-dedupe-sql.ts')).toContain('`SELECT line.* FROM commerce_order_lines line JOIN commerce_orders parent ON parent.id=line.order_id WHERE ${tail}`');
     expect(read('read-tail-r26-dedupe-sql.ts')).toContain('`SELECT to_jsonb(source)::text image FROM commerce_orders source WHERE ${tail}`');
-    expect(read('read-tail-r27-dedupe-sql.ts')).toContain('`SELECT to_jsonb(s)::text image FROM commerce_settings s WHERE ${tail}`');
+    expect(existsSync(resolve(adapters, 'read-tail-r27-dedupe-sql.ts'))).toBe(false);
     expect(read('guarded-source-dedupe-sql.ts')).toContain('`SELECT 1 FROM command_receipts WHERE ${tail}`');
     expect(read('guarded-source-dedupe-sql.ts')).toContain('`SELECT 1 FROM commerce_fulfillments WHERE ${tail}`');
     expect(read('attachment-parent-guard-sql.ts')).toContain('`EXISTS(SELECT 1 FROM commerce_fulfillments f WHERE f.${parent}=child.${child} AND f.order_id=o.id)`');
@@ -123,8 +123,8 @@ describe('Commerce r28 products master-selector family native cutover', () => {
     expect(read('supply-package-sources.ts')).toContain('LOCK TABLE commerce_orders,commerce_order_lines,commerce_fulfillments,commerce_fulfillment_lines,commerce_returns,commerce_return_lines,commerce_warehouses,commerce_products,commerce_goods_valuations,commerce_invoice_goods_carrying IN SHARE MODE');
   });
 
-  test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 391 (before 392)', () => {
-    expect(count(src, /SELECT /g)).toBe(391);
+  test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 390 (before 391)', () => {
+    expect(count(src, /SELECT /g)).toBe(390);
     expect((read('initial-physical-stock-count-sources.ts').match(/SELECT /g) ?? []).length).toBe(4);
     expect((read('inventory-counts-sources.ts').match(/SELECT /g) ?? []).length).toBe(3);
   });
