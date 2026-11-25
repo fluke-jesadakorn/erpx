@@ -139,7 +139,7 @@ describe('Organization read-tail r50 dedupe', () => {
     // r50 collapsed three node-existence guards and three active-position
     // lookups into two shared helpers (-2, -2 = -4); r53 routes the two
     // remaining inline node-EXISTS bodies through nodeExistsGuard (-2).
-    expect(space).toBe(218);
+    expect(space).toBe(216);
     expect(space).toBeLessThan(234);
   });
 });

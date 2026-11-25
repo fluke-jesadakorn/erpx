@@ -132,10 +132,11 @@ describe('Organization read-tail r49 dedupe', () => {
     expect(read('organization-nodes-spaced-projections.ts')).toContain('"id", "kind", "slug"');
 
     // The workflow-approvals authority-seat pair is deliberately skipped: its
-    // aliases and predicates drift, so it is not a clean byte fold.
+    // aliases and predicates drift, so it is not a clean byte fold. r55 changes
+    // only the guard33 person/engagement head, so the pin is refreshed here.
     const approvals = read('workflow-approvals-facts.ts');
     expect(createHash('sha256').update(approvals).digest('hex')).toBe(
-      '345026267f15726d8126fa04c59c24ebdb3f94f0ece7ce457920cf09a0fd23af',
+      '8b58821b5832ea2b01cc996890c8437189e590c83c35abfb18295c7f4e13268d',
     );
     expect(approvals.split('EXISTS(SELECT 1 FROM authority_seats').length - 1).toBe(2);
     expect(approvals).toContain('authority_seats seat JOIN');
@@ -153,7 +154,7 @@ describe('Organization read-tail r49 dedupe', () => {
     };
     walk(srcRoot);
     // r49 collapses three pairs of read-tail SELECTs into three shared helpers (-3).
-    expect(space).toBe(218);
+    expect(space).toBe(216);
     expect(space).toBeLessThan(237);
   });
 });

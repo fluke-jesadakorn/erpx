@@ -6,6 +6,7 @@ import {twoColumnLookup} from './organization-column-alias-families-r27';
 import {activeLevelAbsent} from './organization-column-alias-families-r30';
 import {activeNodeKindList} from './organization-read-tail-sources-r43';
 import {nodeExistsGuard} from './organization-read-tail-sources-r50';
+import {latestEmployeeEngagementId} from './organization-read-tail-sources-r55';
 const ROSTER_REQUIRED_SOURCE = twoColumnLookup('roster_required','organization_positions','company_id','id');
 export function peopleDirectoryOrganizationFacts(database: SqlDatabase) {
     return { readDirectoryOptionsNodes(companyId: string, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null) {
@@ -15,7 +16,7 @@ export function peopleDirectoryOrganizationFacts(database: SqlDatabase) {
         },
         readDirectoryPersonPerson(value: string | null, value2: string | null, personId: string, companyId: string, value3: string | null, value4: string | null, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null) {
             return database.prepare(`SELECT p.*,e.id AS engagement_id,e.version AS engagement_version,e.branch_id,e.department_id,e.job_title,e.worker_type,e.employment_type,e.start_date,e.end_date,e.currency,e.status AS engagement_status,e.manager_person_id,e.pay_group_id,e.position_id,e.level_id,(SELECT name FROM staff_levels WHERE id=e.level_id) level_name,(SELECT level_number FROM staff_levels WHERE id=e.level_id) level_number
-    FROM (${people_payrollPlatformSources.hr_people}) p LEFT JOIN (${people_payrollPlatformSources.hr_engagements}) e ON e.id=(SELECT x.id FROM (${people_payrollPlatformSources.hr_engagements}) x WHERE x.person_id=p.id AND x.company_id=p.company_id AND x.worker_type='employee' AND (?::text IS NULL OR x.id=?) ORDER BY CASE WHEN x.status IN ('active','onboarding','suspended') THEN 0 ELSE 1 END,x.start_date DESC,x.id LIMIT 1)
+    FROM (${people_payrollPlatformSources.hr_people}) p LEFT JOIN (${people_payrollPlatformSources.hr_engagements}) e ON e.id=${latestEmployeeEngagementId("AND x.worker_type='employee' AND (?::text IS NULL OR x.id=?) ")}
     WHERE p.id=? AND p.company_id=? AND p.merged_into_id IS NULL AND e.worker_type='employee' AND (?::text IS NULL OR e.id=?) AND (?::text IS NULL OR e.branch_id=?) AND (?::text IS NULL OR e.department_id=?)`)
                 .bind(value, value2, personId, companyId, value3, value4, branchId, branchId2, departmentId, departmentId2)
                 .first<Record<string, string | number | null>>();
