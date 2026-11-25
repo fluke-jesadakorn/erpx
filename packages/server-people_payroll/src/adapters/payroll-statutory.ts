@@ -1,4 +1,5 @@
 import {ppRd36SinglePred} from './pp-read-tail-r36-sources';
+import { ppRd59ThaiProfilesByCompanySql } from './pp-read-tail-r59-sources';
 import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
 import { ppRd34ActivePayGroupProjection } from './pp-read-tail-r34-sources';
 import { ppRd35PayrollItemsByRun } from './pp-read-tail-r35-sources';
@@ -41,9 +42,9 @@ function application(provided?: SqlDatabase) {
         guardNonOverlappingApproval(key: string, value: "overlap", engagement_id: string, companyId: string, tax_year: number, effective_to: string, effective_from: string) { return assertion(database, key, value, "NOT EXISTS(SELECT 1 FROM hr_thai_payroll_profiles WHERE engagement_id=? AND company_id=? AND tax_year=? AND status='approved' AND effective_from<=? AND effective_to>=?)", [engagement_id, companyId, tax_year, effective_to, effective_from]); },
         decideProfile(status: "approved" | "superseded", status2: "approved" | "superseded", userId: string, now: number, id: string, companyId: string) { return payrollStatutory(database).decideProfile({ status, status2, userId, now, id, companyId }); },
         ...payrollStatutoryDecisionEffects(()=>database),
-        profiles(companyId: string, value: string | null, value2: string | null) { return database.prepare("SELECT * FROM hr_thai_payroll_profiles WHERE company_id=? AND (?::text IS NULL OR engagement_id=?) ORDER BY created_at DESC,id").bind(companyId, value, value2).all(); },
+        profiles(companyId: string, value: string | null, value2: string | null) { return database.prepare(ppRd59ThaiProfilesByCompanySql(" AND (?::text IS NULL OR engagement_id=?) ORDER BY created_at DESC,id")).bind(companyId, value, value2).all(); },
         employees(companyId: string) { return database.prepare("SELECT e.id,e.version,e.status,e.worker_type,e.employment_type,p.legal_name FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id WHERE e.company_id=? AND e.currency='THB' AND e.worker_type='employee' ORDER BY p.legal_name,e.id").bind(companyId).all(); },
-        employeeProfiles(company_id: string, engagementId: string, year: number, pay_date: string | undefined, pay_date2: string | undefined) { return database.prepare("SELECT * FROM hr_thai_payroll_profiles WHERE company_id=? AND engagement_id=? AND tax_year=? AND status='approved' AND effective_from<=? AND effective_to>=?").bind(company_id, engagementId, year, pay_date, pay_date2).all<Profile>(); },
+        employeeProfiles(company_id: string, engagementId: string, year: number, pay_date: string | undefined, pay_date2: string | undefined) { return database.prepare(ppRd59ThaiProfilesByCompanySql(" AND engagement_id=? AND tax_year=? AND status='approved' AND effective_from<=? AND effective_to>=?")).bind(company_id, engagementId, year, pay_date, pay_date2).all<Profile>(); },
         priorItems(company_id: string, engagementId: string, opening_through_date: string, pay_date: string | undefined, id: string, value: string) {
             return database.prepare(`SELECT i.id,i.run_id,r.version run_version,r.input_digest,i.result_json,r.pay_date FROM hr_payroll_items i JOIN hr_payroll_runs r ON r.id=i.run_id WHERE r.company_id=? AND i.engagement_id=? AND r.status='posted' AND r.currency='THB' AND r.pay_date>? AND r.pay_date<=? AND r.id<>? AND r.pay_date>=? ORDER BY r.pay_date,i.id`)
                 .bind(company_id, engagementId, opening_through_date, pay_date, id, value).all<PriorItem>();
