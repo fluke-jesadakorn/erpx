@@ -201,7 +201,7 @@ describe('Customer 360 obligation-fact query-head family', () => {
     ['action', obligationHeads.action],
     ['acknowledgement', obligationHeads.acknowledgement],
   ] as const)('%s renders byte-identically and stays read-only', (_name, member) => {
-    const actual = obligationFactHead(...member.args);
+    const actual = obligationFactHead(...member.args as [string, string, string, string, string]);
     expect(actual).toBe(member.sql);
     expect(c360Sha(actual)).toBe(member.sha);
     c360ReadOnly(actual);
