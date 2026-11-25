@@ -1,5 +1,6 @@
 import "server-only";
 import {companyNodeByIdKind} from './organization-column-alias-families-r31';
+import {activeNodeByKind} from './organization-column-alias-families-r27';
 import {ownerProjection} from './organization-column-alias-families-r35';
 
 /** Canonical fixed SQL projections shared by the owner projection source maps.
@@ -11,7 +12,7 @@ export const ORG_POSITIONS_SOURCE =
 /** Canonical branch-Company read shared by the beta invitation readers.
  * Each caller keeps its own binding, scope and supplied transaction. */
 export const ORG_BRANCH_COMPANY_SOURCE =
-  "SELECT company_id FROM organization_nodes WHERE id=? AND kind='branch' AND status='active'";
+  activeNodeByKind('company_id','branch');
 /** Canonical Company display-name read shared by the PMS/POS owner facts.
  * Each caller keeps its own binding and supplied transaction. */
 export const ORG_NODE_DISPLAY_NAME_SOURCE =

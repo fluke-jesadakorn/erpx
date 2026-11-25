@@ -18,6 +18,8 @@ const posDaily = read('pos-daily-facts.ts');
 const staffSettings = read('operations-staff-settings-facts.ts');
 const peopleDirectory = read('people-directory-facts.ts');
 const attachmentService = read('attachments-service-facts.ts');
+const orgSources = read('org-sources.ts');
+const productCompany = read('product-company.ts');
 
 describe('Organization read-tail r27 column/kind-parameterized families', () => {
   test('activeNodeByKind stays byte-identical to the finance and legacy-brand literals', () => {
@@ -26,6 +28,20 @@ describe('Organization read-tail r27 column/kind-parameterized families', () => 
     );
     expect(activeNodeByKind('company_id', 'company')).toBe(
       "SELECT company_id FROM organization_nodes WHERE id=? AND kind='company' AND status='active'",
+    );
+    // r54 point reads: the branch two-column projection, the canonical branch
+    // constant, the company display-name projection and the holding-brand EXISTS.
+    expect(activeNodeByKind('company_id,id branch_id', 'branch')).toBe(
+      "SELECT company_id,id branch_id FROM organization_nodes WHERE id=? AND kind='branch' AND status='active'",
+    );
+    expect(activeNodeByKind('company_id', 'branch')).toBe(
+      "SELECT company_id FROM organization_nodes WHERE id=? AND kind='branch' AND status='active'",
+    );
+    expect(activeNodeByKind('id,display_name AS name', 'company')).toBe(
+      "SELECT id,display_name AS name FROM organization_nodes WHERE id=? AND kind='company' AND status='active'",
+    );
+    expect(`?=1 AND EXISTS(${activeNodeByKind('1', 'company')})`).toBe(
+      "?=1 AND EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND kind='company' AND status='active')",
     );
   });
 
@@ -70,7 +86,17 @@ describe('Organization read-tail r27 column/kind-parameterized families', () => 
     expect(financeIntercompany).not.toContain("SELECT id FROM organization_nodes WHERE id=? AND kind='company' AND status='active'");
     expect(financeIntercompany.split('activeNodeByKind(').length - 1).toBe(1);
     expect(attachmentMigration).not.toContain("SELECT company_id FROM organization_nodes WHERE id=? AND kind='company' AND status='active'");
-    expect(attachmentMigration.split('activeNodeByKind(').length - 1).toBe(1);
+    expect(attachmentMigration).not.toContain("SELECT company_id,id branch_id FROM organization_nodes WHERE id=? AND kind='branch' AND status='active'");
+    expect(attachmentMigration.split('activeNodeByKind(').length - 1).toBe(2);
+    expect(attachmentMigration).toContain("activeNodeByKind('company_id,id branch_id','branch')");
+    expect(attachmentMigration).toContain('.bind(id).first<{company_id:string;branch_id:string}>()');
+    expect(orgSources).not.toContain("SELECT company_id FROM organization_nodes WHERE id=? AND kind='branch' AND status='active'");
+    expect(orgSources.split('activeNodeByKind(').length - 1).toBe(1);
+    expect(orgSources).toContain("activeNodeByKind('company_id','branch');");
+    expect(orgSources).toContain("ORG_BRANCH_COMPANY_SOURCE =\n  activeNodeByKind('company_id','branch');");
+    expect(productCompany).not.toContain("SELECT id,display_name AS name FROM organization_nodes WHERE id=? AND kind='company' AND status='active'");
+    expect(productCompany.split('activeNodeByKind(').length - 1).toBe(1);
+    expect(productCompany).toContain(".bind(companyId).first<{ id: string; name: string }>()");
     expect(posDaily).not.toContain("SELECT id FROM organization_nodes WHERE id=? AND company_id=? AND kind='branch'");
     expect(posDaily.split('nodeKindByIdCompany(').length - 1).toBe(1);
     expect(staffSettings).not.toContain('SELECT level_number FROM staff_levels WHERE id=? AND company_id=?');
@@ -82,6 +108,9 @@ describe('Organization read-tail r27 column/kind-parameterized families', () => 
     expect(attachmentService).not.toContain("?=1 AND EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND kind='branch' AND status='active')");
     expect(attachmentService).not.toContain("?=1 AND EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND id=? AND kind='company' AND status='active')");
     expect(attachmentService.split('versionedNodeActiveGuard(').length - 1).toBe(2);
+    expect(attachmentService).not.toContain("?=1 AND EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND kind='company' AND status='active')");
+    expect(attachmentService.split('activeNodeByKind(').length - 1).toBe(1);
+    expect(attachmentService).toContain("`?=1 AND EXISTS(${activeNodeByKind('1','company')})`, [version, companyId]");
   });
 });
 

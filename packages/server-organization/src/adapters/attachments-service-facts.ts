@@ -4,7 +4,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import {ownerVersionGuardSource} from './organization-read-tail-sources';
-import {versionedNodeActiveGuard} from './organization-column-alias-families-r27';
+import {activeNodeByKind,versionedNodeActiveGuard} from './organization-column-alias-families-r27';
 const allowedTargets = new Set<string>(["branch_brand", "company_storefront_brand", "holding_brand"]);
 const recordVersionTables: Record<string, {
     table: string;
@@ -15,7 +15,7 @@ function ownerVersionGuard(db: SqlDatabase, commandId: string, targetType: strin
         return null;
     const companyId = actor.companyId;
     if (targetType === "holding_brand")
-        return assertion(db, commandId, `attachment-owner-${index}`, "?=1 AND EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND kind='company' AND status='active')", [version, companyId]);
+        return assertion(db, commandId, `attachment-owner-${index}`, `?=1 AND EXISTS(${activeNodeByKind('1','company')})`, [version, companyId]);
     if (targetType === "branch_brand")
         return assertion(db, commandId, `attachment-owner-${index}`, versionedNodeActiveGuard('company_id','branch'), [version, targetId, companyId]);
     if (targetType === "company_storefront_brand")
