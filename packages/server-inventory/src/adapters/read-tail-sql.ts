@@ -377,3 +377,11 @@ export const countSelectHeadSql = 'SELECT c.*,w.name warehouse_name,';
  *  every caller keeps its own statement, binds and guard/ORDER tail. */
 export const packageObligationStockHeadSql = (kind: string) =>
   `SELECT '${kind}',concat(stock.warehouse_id,':',stock.product_id),to_jsonb(stock),stock.quantity_milli<0 OR stock.value_minor<0`;
+
+/** r55: the sales quality-hold and supply transit-cancel purchase guards share
+ *  one byte-identical command-receipt record-id head; only the record id varies.
+ *  Only the SQL text is shared; every caller keeps its own guard/ORDER tail,
+ *  binds and independent statement. Locks, native transport, count
+ *  sources/adapters and r11-r54 helpers stay untouched. */
+export const commandReceiptRecordIdGuardSql = (id: string) =>
+  `SELECT 1 FROM command_receipts receipt WHERE receipt.record_id=${id}`;

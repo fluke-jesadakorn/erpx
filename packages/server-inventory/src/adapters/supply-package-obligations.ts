@@ -10,7 +10,7 @@ import type {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgre
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/server-commercial/public/package-settlement-sources";
 import {qualityPurchaseSourceRows,qualityPurchaseSourceReadLocks} from "@erpx/server-quality/public/purchase-sources";
-import {allInitialPhysicalStockMarkedRowsSql,childJsonAggSql,childJoinJsonAggSql,packageObligationStockHeadSql,scopeExistsSql,terminalReceiptMatchSql,transitEventQuantitySumSql,transitLossDecisionPendingSql} from './read-tail-sql';
+import {allInitialPhysicalStockMarkedRowsSql,childJsonAggSql,childJoinJsonAggSql,commandReceiptRecordIdGuardSql,packageObligationStockHeadSql,scopeExistsSql,terminalReceiptMatchSql,transitEventQuantitySumSql,transitLossDecisionPendingSql} from './read-tail-sql';
 
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
 const sources=new WeakMap<SqlDatabase,string>();
@@ -75,7 +75,7 @@ export async function supplyInventoryPackageObligations(owner:PostgresDatabase,d
  ${childJsonAggSql('inventory_transit_lines','line','line.transit_id=t.id')},
  ${childJsonAggSql('inventory_transit_events','event','event.transit_id=t.id')},
  ${childJoinJsonAggSql('inventory_transit_lots','lot','inventory_transit_lines line ON line.id=lot.transit_line_id','line.transit_id=t.id')}),
- NOT COALESCE((t.status='cancelled' AND EXISTS(SELECT 1 FROM command_receipts receipt WHERE receipt.record_id=t.id AND receipt.operation='inventory.transit.cancel'
+ NOT COALESCE((t.status='cancelled' AND EXISTS(${commandReceiptRecordIdGuardSql('t.id')} AND receipt.operation='inventory.transit.cancel'
  AND receipt.authority_json::jsonb->>'companyId'=t.company_id AND receipt.result_json::jsonb->>'version'=t.version::text)
  AND ${scopeExistsSql('inventory_transit_events','event','transit_id','t.id','kind',"'cancel'")})
  OR(t.status='completed' AND EXISTS(SELECT 1 FROM inventory_transit_lines line WHERE line.transit_id=t.id)
