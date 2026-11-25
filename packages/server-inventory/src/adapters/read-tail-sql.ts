@@ -385,3 +385,10 @@ export const packageObligationStockHeadSql = (kind: string) =>
  *  sources/adapters and r11-r54 helpers stay untouched. */
 export const commandReceiptRecordIdGuardSql = (id: string) =>
   `SELECT 1 FROM command_receipts receipt WHERE receipt.record_id=${id}`;
+
+/** r56: the commerce return-lot allocation read and the transfer-lot allocation
+ *  read share one byte-identical, bind-free projection head. Only the literal
+ *  text is shared; every caller keeps its own guard/projection tail, binds,
+ *  statement and ORDER clause. Locks, native transport, count sources/adapters
+ *  and r11-r55 helpers stay untouched. */
+export const lotAllocationRowsHeadSql = 'SELECT a.*,l.lot_code,l.serial_number,l.expiry_date,';

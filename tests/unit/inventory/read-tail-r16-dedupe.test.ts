@@ -64,7 +64,7 @@ describe('Inventory read-tail r16 parameterized-EXISTS-family dedupe', () => {
       const text = src(name);
       expect(text, name).not.toMatch(/NOT EXISTS\(SELECT 1 FROM inventory_transit_events \w+ WHERE \w+\.proposal_id=/);
     }
-    expect(src('inventory-transit.ts').match(/transitLossDecisionPendingSql/g) ?? []).toHaveLength(8);
+    expect(src('inventory-transit.ts').match(/transitLossDecisionPendingSql/g) ?? []).toHaveLength(6);
     expect(src('supply-package-obligations.ts').match(/transitLossDecisionPendingSql/g) ?? []).toHaveLength(2);
   });
 

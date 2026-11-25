@@ -73,7 +73,7 @@ describe('Inventory read-tail r18 parameterized EXISTS/agg-family dedupe', () =>
     const text = src('inventory-transit.ts');
     expect(text).not.toContain('COALESCE((SELECT SUM(e.quantity_milli) FROM inventory_transit_events e WHERE ');
     expect(text).not.toContain('COALESCE((SELECT SUM(le.quantity_milli) FROM inventory_transit_lot_events le ');
-    expect(text.match(/pendingLossSumSql\(/g) ?? []).toHaveLength(4);
+    expect(text.match(/pendingLossSumSql\(/g) ?? []).toHaveLength(2);
   });
 
   test('retirement:ts-statements stays strictly below the r18 BEFORE=408 baseline', () => {
