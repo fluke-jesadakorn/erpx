@@ -55,7 +55,7 @@ describe('Customer Authority read-tail r23 JSONB image projection family', () =>
   test('r21/r22 builders, source locks and portal consumers stay untouched', () => {
     // r21 builder module is unchanged.
     const r21 = src('customer-authority-read-sql.ts');
-    expect(r21.match(/\bSELECT\b/g) ?? []).toHaveLength(2);
+    expect(r21.match(/\bSELECT\b/g) ?? []).toHaveLength(1);
     expect(r21).toContain('export const jsonbAggFact');
     expect(r21).toContain('export const bindingsExists');
     // r22 builder module is unchanged.

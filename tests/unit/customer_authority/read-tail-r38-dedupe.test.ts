@@ -53,7 +53,7 @@ describe('Customer Authority read-tail r38 canonical projection/source head fami
     expect(r34).toContain('o.id=b.order_id AND o.company_id=b.company_id');
 
     const counts: Array<[string, number, string]> = [
-      ['customer-authority-read-sql.ts', 2, 'export const jsonbAggFact'],
+      ['customer-authority-read-sql.ts', 1, 'export const jsonbAggFact'],
       ['package-obligation-sql.ts', 1, 'export const latestSupportVersion'],
       ['customer-authority-read-tail-r23-sources.ts', 1, 'export const jsonbImageProjection'],
       ['customer-authority-read-tail-r24-sources.ts', 1, 'export const bindingFactProjection'],
@@ -118,6 +118,6 @@ describe('Customer Authority read-tail r38 canonical projection/source head fami
     walk(srcRoot);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(40);
-    expect(total).toBe(21);
+    expect(total).toBe(20);
   });
 });

@@ -1,3 +1,4 @@
+import {jsonbAggregateHead} from './customer-authority-read-tail-r45-sources';
 /** Owner-local canonical SQL fragments shared by the Customer Authority TS read tail.
  *  One text source keeps repeated projection subselects and binding probes
  *  byte-identical across every caller. A builder's only input is a closed
@@ -7,9 +8,10 @@
 
 /** JSONB fact projection shared by the customer document and Support enrichment
  *  reads. Callers append their own ` FROM ...` source so the rendered SQL stays
- *  exactly the same as the pre-dedupe literals. */
+ *  exactly the same as the pre-dedupe literals. The shared aggregate head now
+ *  comes from the r45 builder (G4 read-tail r45). */
 export const jsonbAggFact = (alias: string) =>
-  `(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id)`;
+  jsonbAggregateHead(`${alias}) ORDER BY ${alias}.id)`);
 
 /** The single owner-local probe literal behind every Customer Authority
  *  existence read (G4 read-tail r39). Callers supply only the closed `FROM`/

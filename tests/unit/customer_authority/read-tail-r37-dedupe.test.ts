@@ -57,7 +57,7 @@ describe('Customer Authority read-tail r37 full-row projection family', () => {
 
   test('r21-r36 builders and source locks stay untouched', () => {
     const counts: Array<[string, number, string]> = [
-      ['customer-authority-read-sql.ts', 2, 'export const jsonbAggFact'],
+      ['customer-authority-read-sql.ts', 1, 'export const jsonbAggFact'],
       ['package-obligation-sql.ts', 1, 'export const latestSupportVersion'],
       ['customer-authority-read-tail-r23-sources.ts', 1, 'export const jsonbImageProjection'],
       ['customer-authority-read-tail-r24-sources.ts', 1, 'export const bindingFactProjection'],

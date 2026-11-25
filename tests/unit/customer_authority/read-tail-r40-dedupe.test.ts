@@ -74,7 +74,7 @@ describe('Customer Authority read-tail r40 universal projection head family', ()
 
   test('portal probe and r39 named probe wrappers stay intact; locks, kinds and eligibility untouched', () => {
     const shared = src('customer-authority-read-sql.ts');
-    expect(shared.match(/\bSELECT\b/g) ?? []).toHaveLength(2);
+    expect(shared.match(/\bSELECT\b/g) ?? []).toHaveLength(1);
     expect(shared).toContain('export const selectOneProbe');
     expect(shared).toContain('export const bindingsExists');
 
@@ -108,6 +108,6 @@ describe('Customer Authority read-tail r40 universal projection head family', ()
     walk(srcRoot);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(34);
-    expect(total).toBe(21);
+    expect(total).toBe(20);
   });
 });

@@ -43,7 +43,7 @@ describe('Customer Authority read-tail r25 column/table projection family', () =
 
   test('r21-r24 builders, source locks and native kinds stay untouched', () => {
     const r21 = src('customer-authority-read-sql.ts');
-    expect(r21.match(/\bSELECT\b/g) ?? []).toHaveLength(2);
+    expect(r21.match(/\bSELECT\b/g) ?? []).toHaveLength(1);
     expect(r21).toContain('export const jsonbAggFact');
     expect(r21).toContain('export const bindingsExists');
 

@@ -62,7 +62,7 @@ describe('Customer Authority read-tail r22 byte-identical / parameterized famili
 
   test('r21 builders, source locks and portal consumers stay untouched', () => {
     const shared = adapter('customer-authority-read-sql.ts');
-    expect(shared.match(/\bSELECT\b/g) ?? []).toHaveLength(2);
+    expect(shared.match(/\bSELECT\b/g) ?? []).toHaveLength(1);
     expect(shared).toContain('export const jsonbAggFact');
     expect(shared).toContain('export const bindingsExists');
     const pkg = adapter('package-obligations.ts');

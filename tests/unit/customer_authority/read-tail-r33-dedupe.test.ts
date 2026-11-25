@@ -53,7 +53,7 @@ describe('Customer Authority read-tail r33 company-scope probe family', () => {
 
   test('r21-r32 builders, source locks, native kinds and eligibility helpers stay untouched', () => {
     const counts: Array<[string, number, string]> = [
-      ['customer-authority-read-sql.ts', 2, 'export const jsonbAggFact'],
+      ['customer-authority-read-sql.ts', 1, 'export const jsonbAggFact'],
       ['package-obligation-sql.ts', 1, 'export const latestSupportVersion'],
       ['customer-authority-read-tail-r23-sources.ts', 1, 'export const jsonbImageProjection'],
       ['customer-authority-read-tail-r24-sources.ts', 1, 'export const bindingFactProjection'],
@@ -90,6 +90,6 @@ describe('Customer Authority read-tail r33 company-scope probe family', () => {
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(49);
     // r43 further reduced the tail (26 -> 22); keep the current exact pin.
-    expect(total).toBe(21);
+    expect(total).toBe(20);
   });
 });

@@ -16,10 +16,11 @@ import {bindingIdentityCurrentSql} from '@erpx/server-customer_authority/adapter
 import {existenceProbe} from './customer-authority-read-tail-r30-sources';
 import {companyScopeSelect} from './customer-authority-read-tail-r33-sources';
 import {portalPurchaseBindingSource} from './portal-purchase-binding-source';
+import {jsonbAggregateHead} from './customer-authority-read-tail-r45-sources';
 
 export async function portalAttachmentSourceWitness(database:SqlDatabase,actor:WorkContext,id:string){
  return database.prepare(`${portalPurchaseBindingSource(`jsonb_build_object('binding',to_jsonb(b),'order',to_jsonb(o),
- 'identities',(SELECT jsonb_agg(to_jsonb(i) ORDER BY i.user_id) FROM customer_access_identities i WHERE i.binding_id=b.id))::text image`)}
+ 'identities',${jsonbAggregateHead('i) ORDER BY i.user_id) FROM customer_access_identities i WHERE i.binding_id=b.id)')})::text image`)}
  WHERE b.id=? AND b.company_id=?`).bind(id,actor.companyId).first<string>('image');
 }
 /** Verified external customers keep binding/identity/expiry policy; scoped

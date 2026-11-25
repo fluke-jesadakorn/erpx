@@ -142,7 +142,7 @@ describe('Customer Authority read-tail r43 universal-head delegation family', ()
 
   test('r21-r42 heads stay pinned; locks, native kinds and eligibility untouched', () => {
     const counts: Array<[string, number, string]> = [
-      ['customer-authority-read-sql.ts', 2, 'export const jsonbAggFact'],
+      ['customer-authority-read-sql.ts', 1, 'export const jsonbAggFact'],
       ['package-obligation-sql.ts', 1, 'export const latestSupportVersion'],
       ['customer-authority-read-tail-r23-sources.ts', 1, 'export const jsonbImageProjection'],
       ['customer-authority-read-tail-r24-sources.ts', 1, 'export const bindingFactProjection'],
@@ -188,6 +188,6 @@ describe('Customer Authority read-tail r43 universal-head delegation family', ()
     walk(srcRoot);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(26);
-    expect(total).toBe(21);
+    expect(total).toBe(20);
   });
 });

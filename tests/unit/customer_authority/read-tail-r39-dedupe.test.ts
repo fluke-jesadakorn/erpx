@@ -52,7 +52,7 @@ describe('Customer Authority read-tail r39 canonical select-one probe family', (
   test('one canonical probe literal and six thin named wrappers', () => {
     const shared = src('customer-authority-read-sql.ts');
     // jsonbAggFact + selectOneProbe; bindingsExists now delegates.
-    expect(shared.match(/\bSELECT\b/g) ?? []).toHaveLength(2);
+    expect(shared.match(/\bSELECT\b/g) ?? []).toHaveLength(1);
     expect(shared).toContain('export const selectOneProbe');
     expect(shared).toContain('export const bindingsExists');
     expect(shared).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
@@ -107,6 +107,6 @@ describe('Customer Authority read-tail r39 canonical select-one probe family', (
     walk(srcRoot);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(39);
-    expect(total).toBe(21);
+    expect(total).toBe(20);
   });
 });

@@ -48,7 +48,7 @@ describe('Customer Authority read-tail r21 byte-identical families', () => {
 
   test('the shared module owns the only literal copies and is read-only', () => {
     const family = src('customer-authority-read-sql.ts');
-    expect(family.match(/\bSELECT\b/g) ?? []).toHaveLength(2);
+    expect(family.match(/\bSELECT\b/g) ?? []).toHaveLength(1);
     expect(family).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
     const caller = src('portal-projection-unit.ts');
     expect(caller).not.toContain('(SELECT jsonb_agg(to_jsonb(');
