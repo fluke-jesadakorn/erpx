@@ -11,6 +11,14 @@ import {
   type Lane9Actor,
   type Transport,
 } from "../../../packages/server-people_payroll/src/adapters/native-lane-9/client";
+import {
+  DETAIL_RESPONSE_ORACLE_SHA256,
+  LIST_RESPONSE_ORACLE_SHA256,
+  paymentBatchBySource,
+  paymentBatches,
+  SQL_DETAIL_ORACLE_SHA256,
+  SQL_LIST_ORACLE_SHA256,
+} from "../../../packages/server-people_payroll/src/adapters/native-lane-9/flow-routing-client";
 
 const ENV = "ERPX_NATIVE_PEOPLE_PAYROLL_LANE9_CONFIG";
 const ORIGINAL = process.env[ENV];
@@ -227,5 +235,133 @@ describe("native lane-9 multi-holding person-image transport", () => {
       status: 422,
     });
     expect(calls).toHaveLength(0);
+  });
+});
+
+describe("native lane-9 payment-batch flow-routing transport", () => {
+  const row = {
+    created_by: "user-1",
+    id: "batch-1",
+    source_id: "payroll-1",
+    status: "exported",
+  };
+  const detail = { created_by: "user-1", id: "batch-1", status: "exported" };
+  const listPayload = { batches: [row] };
+  const detailPayload = { batch: detail };
+  const flowTransport = (body: unknown, status = 200): Transport => {
+    return async (url, headers) => {
+      calls.push({ url, headers });
+      return new Response(JSON.stringify(body), {
+        status,
+        headers: { "content-type": "application/json" },
+      });
+    };
+  };
+
+  it("selects the exact Holding from the caller's WorkContext", async () => {
+    const a = actor("h002", "northstar", "northstar-co");
+    expect(await paymentBatches(db, "northstar-co", a, flowTransport(listPayload))).toEqual([row]);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url.origin).toBe("http://127.0.0.1:3198");
+    expect(calls[0]!.url.pathname).toBe("/api/v1/holdings/northstar/people-payroll/payment-batches");
+    expect(calls[0]!.headers.get("host")).toBe("northstar.jesadakorn.com");
+    expect(calls[0]!.headers.get("x-erpx-context-company")).toBe("northstar-co");
+    expect(calls[0]!.headers.get("x-erpx-context-source")).toBeNull();
+  });
+
+  it("routes the third registered Holding point read to its own host", async () => {
+    const a = actor("h003", "erpx", "erpx-co");
+    expect(await paymentBatchBySource(db, "erpx-co", "payroll-1", a, flowTransport(detailPayload))).toEqual(detail);
+    expect(calls[0]!.url.pathname).toBe("/api/v1/holdings/erpx/people-payroll/payment-batch");
+    expect(calls[0]!.headers.get("host")).toBe("erpx-internal.jesadakorn.com");
+    expect(calls[0]!.headers.get("x-erpx-context-source")).toBe("payroll-1");
+  });
+
+  it("resolves no-actor callers only through a configured companyId", async () => {
+    expect(await paymentBatches(db, "acme-co", undefined, flowTransport(listPayload))).toEqual([row]);
+    expect(calls[0]!.headers.get("host")).toBe("acme.jesadakorn.com");
+    await expect(paymentBatches(db, "unknown-co", undefined, flowTransport(listPayload))).rejects.toMatchObject({
+      status: 503,
+      code: "NATIVE_PEOPLE_PAYROLL_LANE9_TARGET_UNAVAILABLE",
+    });
+    expect(calls).toHaveLength(1);
+  });
+
+  it("fails closed on an unknown WorkContext target or mismatched company", async () => {
+    await expect(
+      paymentBatches(db, "acme-co", actor("h099", "acme", "acme-co"), flowTransport(listPayload)),
+    ).rejects.toMatchObject({ status: 503, code: "NATIVE_PEOPLE_PAYROLL_LANE9_TARGET_UNAVAILABLE" });
+    await expect(
+      paymentBatches(db, "acme-co", actor("h001", "acme", "northstar-co"), flowTransport(listPayload)),
+    ).rejects.toMatchObject({ status: 422, code: "NATIVE_PEOPLE_PAYROLL_LANE9_ACTOR_INVALID" });
+    expect(calls).toHaveLength(0);
+  });
+
+  it("pins SQL and rendered-result oracles and carries no SQL on the wire", async () => {
+    expect(SQL_LIST_ORACLE_SHA256).toBe(
+      "567f9caef077f1fa5ff662a809bdca5e31e9a992b45ebbe583c3590d9bccf6f5",
+    );
+    expect(SQL_DETAIL_ORACLE_SHA256).toBe(
+      "fb3b7bf6130a99a6c91cea4eb88390885b4a70b8b50ecadffffca51d42d63220",
+    );
+    expect(createHash("sha256").update(JSON.stringify(listPayload)).digest("hex")).toBe(
+      LIST_RESPONSE_ORACLE_SHA256,
+    );
+    expect(createHash("sha256").update(JSON.stringify(detailPayload)).digest("hex")).toBe(
+      DETAIL_RESPONSE_ORACLE_SHA256,
+    );
+    await paymentBatches(db, "acme-co", actor("h001", "acme", "acme-co"), flowTransport(listPayload));
+    const wire = JSON.stringify(calls);
+    expect(wire).not.toMatch(/SELECT|DISTINCT ON|hr_payment_batches|company_id=/i);
+  });
+
+  it("replaced both TypeScript SQL literals completely", () => {
+    const source = readFileSync(
+      resolve(__dirname, "../../../packages/server-people_payroll/src/adapters/workflow-flow-routing-facts.ts"),
+      "utf8",
+    );
+    expect(source).not.toMatch(/SELECT DISTINCT ON \(source_id\)/);
+    expect(source).not.toMatch(/FROM hr_payment_batches WHERE company_id=\?/);
+    expect(source).toContain("native-lane-9/flow-routing-client");
+  });
+
+  it("fails closed on malformed or widened response shapes", async () => {
+    const a = actor("h001", "acme", "acme-co");
+    await expect(paymentBatches(db, "acme-co", a, flowTransport({}))).rejects.toMatchObject({
+      status: 502,
+      code: "NATIVE_PEOPLE_PAYROLL_LANE9_FLOW_RESPONSE_INVALID",
+    });
+    await expect(paymentBatches(db, "acme-co", a, flowTransport({ ...listPayload, extra: 1 }))).rejects.toMatchObject({
+      status: 502,
+    });
+    const widened = { ...row, extra: 1 };
+    await expect(
+      paymentBatches(db, "acme-co", a, flowTransport({ batches: [widened] })),
+    ).rejects.toMatchObject({ status: 502 });
+    await expect(
+      paymentBatchBySource(db, "acme-co", "payroll-1", a, flowTransport({ batch: { ...detail, extra: 1 } })),
+    ).rejects.toMatchObject({ status: 502 });
+    calls = [];
+    expect(await paymentBatchBySource(db, "acme-co", null, a, flowTransport(detailPayload))).toBeUndefined();
+    expect(calls).toHaveLength(0);
+  });
+
+  it("maps native failures without inventing a fallback", async () => {
+    const a = actor("h001", "acme", "acme-co");
+    await expect(
+      paymentBatches(db, "acme-co", a, async () => {
+        throw new Error("offline");
+      }),
+    ).rejects.toMatchObject({ status: 503, code: "NATIVE_PEOPLE_PAYROLL_LANE9_FLOW_UNAVAILABLE" });
+    const redirected: Transport = async () => ({ redirected: true, status: 200 }) as Response;
+    await expect(paymentBatches(db, "acme-co", a, redirected)).rejects.toMatchObject({ status: 503 });
+    await expect(paymentBatches(db, "acme-co", a, flowTransport({}, 422))).rejects.toMatchObject({
+      status: 422,
+      code: "NATIVE_PEOPLE_PAYROLL_LANE9_FLOW_REJECTED",
+    });
+    await expect(paymentBatches(db, "acme-co", a, flowTransport({}, 500))).rejects.toMatchObject({
+      status: 503,
+      code: "NATIVE_PEOPLE_PAYROLL_LANE9_FLOW_UNAVAILABLE",
+    });
   });
 });

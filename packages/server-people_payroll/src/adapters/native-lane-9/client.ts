@@ -31,7 +31,7 @@ export type Holding = Readonly<{
   holdingSlug: string;
   companyId?: string;
 }>;
-type Config = Readonly<{ base: string; timeoutMs: number; holdings: readonly Holding[] }>;
+export type Config = Readonly<{ base: string; timeoutMs: number; holdings: readonly Holding[] }>;
 /** The caller's trusted Holding identity. Both ids must match a registered target. */
 export type Lane9Actor = Pick<WorkContext, "holdingId" | "holdingSlug"> &
   Partial<Pick<WorkContext, "companyId">>;
@@ -55,7 +55,7 @@ export function nativeLane9Configured(
   return typeof environment[ENV] === "string";
 }
 
-function configuration(raw: string | undefined): Config {
+export function configuration(raw: string | undefined): Config {
   if (!raw) return fail("NATIVE_PEOPLE_PAYROLL_LANE9_CONFIG_REQUIRED");
   let value: unknown;
   try {
@@ -140,7 +140,7 @@ function configuration(raw: string | undefined): Config {
 }
 
 /** Resolve one registered target. Never infer a Holding from the first entry. */
-function selectTarget(config: Config, actor: Lane9Actor | undefined, companyId: string): Holding {
+export function selectTarget(config: Config, actor: Lane9Actor | undefined, companyId: string): Holding {
   if (actor !== undefined) {
     if (
       !object(actor) ||

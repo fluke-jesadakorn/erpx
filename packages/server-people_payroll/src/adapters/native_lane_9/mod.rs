@@ -6,6 +6,7 @@
 
 mod application;
 mod domain;
+pub mod flow_routing;
 mod http;
 mod postgres;
 

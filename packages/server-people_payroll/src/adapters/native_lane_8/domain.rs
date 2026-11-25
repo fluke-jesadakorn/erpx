@@ -14,6 +14,20 @@ pub const READ_PEOPLE: &str = "hire_handoff_people";
 pub const READ_APPROVER_NAME: &str = "request_approver_legal_name";
 pub const READ_ROSTER_SHIFT: &str = "overtime_roster_shift";
 
+// Payslip read family (wave 2). Values are flat: an empty string is the
+// explicit "absent" sentinel for an optional run/user filter.
+pub const READ_ISSUABLE_RUN: &str = "payslip_issuable_run";
+pub const READ_ISSUABLE_ITEMS: &str = "payslip_issuable_items";
+pub const READ_OWN_SLIPS: &str = "payslip_own_slips";
+pub const READ_SLIP: &str = "payslip_slip";
+pub const READ_PAYMENT: &str = "payslip_payment";
+pub const READ_EXPORT_BYTES: &str = "payslip_export_bytes";
+pub const READ_STATUTORY_COUNTRY_PACK: &str = "statutory_country_pack";
+pub const READ_STATUTORY_PAY_GROUP: &str = "statutory_pay_group";
+pub const READ_STATUTORY_RUN: &str = "statutory_run";
+pub const READ_STATUTORY_ITEMS: &str = "statutory_items";
+pub const READ_STATUTORY_RETAINED_PACK: &str = "statutory_retained_pack";
+
 /// The only discriminators the native route accepts.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ReadKind {
@@ -21,6 +35,17 @@ pub enum ReadKind {
     People,
     ApproverName,
     RosterShift,
+    IssuableRun,
+    IssuableItems,
+    OwnSlips,
+    Slip,
+    Payment,
+    ExportBytes,
+    CountryPack,
+    PayGroupFacts,
+    StatutoryRun,
+    StatutoryItems,
+    RetainedPack,
 }
 
 impl ReadKind {
@@ -30,6 +55,17 @@ impl ReadKind {
             READ_PEOPLE => Ok(Self::People),
             READ_APPROVER_NAME => Ok(Self::ApproverName),
             READ_ROSTER_SHIFT => Ok(Self::RosterShift),
+            READ_ISSUABLE_RUN => Ok(Self::IssuableRun),
+            READ_ISSUABLE_ITEMS => Ok(Self::IssuableItems),
+            READ_OWN_SLIPS => Ok(Self::OwnSlips),
+            READ_SLIP => Ok(Self::Slip),
+            READ_PAYMENT => Ok(Self::Payment),
+            READ_EXPORT_BYTES => Ok(Self::ExportBytes),
+            READ_STATUTORY_COUNTRY_PACK => Ok(Self::CountryPack),
+            READ_STATUTORY_PAY_GROUP => Ok(Self::PayGroupFacts),
+            READ_STATUTORY_RUN => Ok(Self::StatutoryRun),
+            READ_STATUTORY_ITEMS => Ok(Self::StatutoryItems),
+            READ_STATUTORY_RETAINED_PACK => Ok(Self::RetainedPack),
             _ => Err(invalid()),
         }
     }
@@ -40,6 +76,17 @@ impl ReadKind {
             Self::People => READ_PEOPLE,
             Self::ApproverName => READ_APPROVER_NAME,
             Self::RosterShift => READ_ROSTER_SHIFT,
+            Self::IssuableRun => READ_ISSUABLE_RUN,
+            Self::IssuableItems => READ_ISSUABLE_ITEMS,
+            Self::OwnSlips => READ_OWN_SLIPS,
+            Self::Slip => READ_SLIP,
+            Self::Payment => READ_PAYMENT,
+            Self::ExportBytes => READ_EXPORT_BYTES,
+            Self::CountryPack => READ_STATUTORY_COUNTRY_PACK,
+            Self::PayGroupFacts => READ_STATUTORY_PAY_GROUP,
+            Self::StatutoryRun => READ_STATUTORY_RUN,
+            Self::StatutoryItems => READ_STATUTORY_ITEMS,
+            Self::RetainedPack => READ_STATUTORY_RETAINED_PACK,
         }
     }
 
@@ -50,7 +97,18 @@ impl ReadKind {
             Self::PayGroups | Self::People => 0,
             Self::ApproverName => 1,
             Self::RosterShift => 2,
+            Self::IssuableRun | Self::IssuableItems | Self::ExportBytes => 1,
+            Self::Payment => 2,
+            Self::OwnSlips | Self::Slip => 3,
+            Self::CountryPack | Self::PayGroupFacts | Self::StatutoryRun | Self::StatutoryItems
+            | Self::RetainedPack => 1,
         }
+    }
+
+    /// Optional payslip filters use an empty-string sentinel; all other values
+    /// must be bounded identifiers. The Company never travels in `values`.
+    pub fn accepts_absent(self) -> bool {
+        matches!(self, Self::OwnSlips | Self::Slip)
     }
 }
 
@@ -83,6 +141,128 @@ pub struct RosterShift {
     pub end_time: Option<String>,
     pub end_local: String,
     pub timezone: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct IssuableRun {
+    pub id: String,
+    pub input_digest: String,
+    pub revision: i64,
+    pub version: i64,
+    pub mode: String,
+    pub period_start: String,
+    pub period_end: String,
+    pub pay_date: String,
+    pub currency: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct PayslipItemRow {
+    pub id: String,
+    pub engagement_id: String,
+    pub person_id: String,
+    pub recipient_user_id: Option<String>,
+    pub input_snapshot_json: String,
+    pub result_json: String,
+    pub gross_minor: i64,
+    pub deductions_minor: i64,
+    pub employer_cost_minor: i64,
+    pub net_minor: i64,
+    pub currency: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct OwnSlipRow {
+    pub id: String,
+    pub run_id: String,
+    pub run_revision: i64,
+    pub pay_date: String,
+    pub currency: String,
+    pub gross_minor: i64,
+    pub deductions_minor: i64,
+    pub net_minor: i64,
+    pub source_digest: String,
+    pub export_sha256: String,
+    pub issued_at: i64,
+    pub snapshot_json: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct SlipRow {
+    pub id: String,
+    pub run_id: String,
+    pub person_id: String,
+    pub recipient_user_id: Option<String>,
+    pub snapshot_json: String,
+    pub export_html: String,
+    pub export_sha256: String,
+    pub issued_at: i64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct PaymentRow {
+    pub status: String,
+    pub settled_at: Option<String>,
+    pub batch_status: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct ExportBytesRow {
+    pub export_html: String,
+    pub export_sha256: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct CountryPackRow {
+    pub id: String,
+    pub country_code: String,
+    pub version: i64,
+    pub status: String,
+    pub rules_json: String,
+    pub adapter_id: String,
+    pub source_digest: String,
+    pub record_version: i64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct PayGroupFacts {
+    pub country_code: String,
+    pub currency: String,
+    pub frequency: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct StatutoryRun {
+    pub mode: String,
+    pub country_pack_id: Option<String>,
+    pub currency: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct PayrollItemTotals {
+    pub gross_minor: i64,
+    pub deductions_minor: i64,
+    pub net_minor: i64,
+    pub result_json: String,
+}
+
+/// Values are bounded identities; the payslip filter kinds additionally allow
+/// an empty-string "absent" sentinel, with user filters always paired.
+pub fn valid_values(kind: ReadKind, values: &[String]) -> bool {
+    if values.len() != kind.arity() {
+        return false;
+    }
+    if !kind.accepts_absent() {
+        return values.iter().all(|item| valid_id(item));
+    }
+    if kind == ReadKind::Slip && !valid_id(&values[0]) {
+        return false;
+    }
+    if kind == ReadKind::OwnSlips && !values[0].is_empty() && !valid_id(&values[0]) {
+        return false;
+    }
+    (values[1].is_empty() && values[2].is_empty())
+        || (valid_id(&values[1]) && valid_id(&values[2]))
 }
 
 pub fn invalid() -> BusinessError {

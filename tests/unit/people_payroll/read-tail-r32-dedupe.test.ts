@@ -19,14 +19,13 @@ describe('People Payroll read-tail r32 two-column projection family dedupe', () 
     readOnly(reversed);
   });
 
-  test('each of the 11 callers keeps no local copy and uses the shared builder', () => {
+  test('each of the 10 live callers keeps no local copy and uses the shared builder', () => {
     const callers: Array<[string, string, string]> = [
       ['people-evaluation.ts', 'SELECT id,observed_on FROM hr_evaluation_evidence WHERE assessment_id=? AND company_id=?', "ppRd32TwoColProjection('id,observed_on', 'hr_evaluation_evidence', 'assessment_id', 'company_id')"],
       ['people-evaluation.ts', 'SELECT pay_group_id,status FROM hr_engagements WHERE id=? AND company_id=?', "ppRd32TwoColProjection('pay_group_id,status', 'hr_engagements', 'id', 'company_id')"],
       ['workflow-approvals-facts.ts', 'SELECT created_by,prepared_by FROM finance_expenses WHERE id=? AND company_id=?', "ppRd32TwoColProjection('created_by,prepared_by', 'finance_expenses', 'id', 'company_id')"],
       ['workflow-approvals-facts.ts', 'SELECT claimant_user_id,prepared_by FROM finance_expenses WHERE id=? AND company_id=?', "ppRd32TwoColProjection('claimant_user_id,prepared_by', 'finance_expenses', 'id', 'company_id')"],
       ['payroll-purchases.ts', 'SELECT source_type,source_id FROM hr_payment_batches WHERE id=? AND company_id=?', "ppRd32TwoColProjection('source_type,source_id', 'hr_payment_batches', 'id', 'company_id')"],
-      ['payroll-payslips.ts', 'SELECT export_html,export_sha256 FROM hr_issued_payslips WHERE id=? AND company_id=?', "ppRd32TwoColProjection('export_html,export_sha256', 'hr_issued_payslips', 'id', 'company_id')"],
       ['calendar-commands-facts.ts', 'SELECT assignee_id,responsibility FROM people_preparation_tasks WHERE id=? AND company_id=?', "ppRd32TwoColProjection('assignee_id,responsibility', 'people_preparation_tasks', 'id', 'company_id')"],
       ['people-payroll.ts', 'SELECT pay_group_id,period_end FROM hr_payroll_runs WHERE id=? AND company_id=?', "ppRd32TwoColProjection('pay_group_id,period_end', 'hr_payroll_runs', 'id', 'company_id')"],
       ['expense-purchases.ts', 'SELECT status,workflow_stage FROM finance_expenses WHERE company_id=? AND id=?', "ppRd32TwoColProjection('status,workflow_stage', 'finance_expenses', 'company_id', 'id')"],
@@ -41,7 +40,9 @@ describe('People Payroll read-tail r32 two-column projection family dedupe', () 
     expect(uses('people-evaluation.ts', 'ppRd32TwoColProjection\\(')).toBe(2);
     expect(uses('workflow-approvals-facts.ts', 'ppRd32TwoColProjection\\(')).toBe(2);
     expect(uses('payroll-purchases.ts', 'ppRd32TwoColProjection\\(')).toBe(2);
-    expect(uses('payroll-payslips.ts', 'ppRd32TwoColProjection\\(')).toBe(1);
+    // payroll-payslips.ts export-byte read is native-lane-8 delegated.
+    expect(uses('payroll-payslips.ts', 'ppRd32TwoColProjection\\(')).toBe(0);
+    expect(src('payroll-payslips.ts')).toContain('readExportBytes');
     expect(uses('calendar-commands-facts.ts', 'ppRd32TwoColProjection\\(')).toBe(1);
     expect(uses('people-payroll.ts', 'ppRd32TwoColProjection\\(')).toBe(10);
     expect(uses('expense-purchases.ts', 'ppRd32TwoColProjection\\(')).toBe(1);
@@ -74,6 +75,6 @@ describe('People Payroll read-tail r32 two-column projection family dedupe', () 
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(1409);
-    expect(total).toBe(1175);
+    expect(total).toBe(1167);
   });
 });

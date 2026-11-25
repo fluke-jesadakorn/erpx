@@ -50,20 +50,14 @@ const oracles: Row[] = [
     literal: 'EXISTS(SELECT 1 FROM leave_requests l WHERE l.id=a.owner_id AND l.company_id=?)',
     call: `ppRd46OwnerFileProbe('leave_requests','l')`,
   },
-  // Family 2 — by-id/by-company status IN point read (2 -> 1, -1)
+  // Family 2 — by-id/by-company status IN point read; the payslips caller is
+  // now native-lane-8 delegated, leaving one live builder caller.
   {
     file: 'payroll-adjustments.ts',
     sym: 'ppRd46ByIdCompanyStatusIn',
     args: [engagementCols, 'hr_engagements', "'active','ended'"],
     literal: `SELECT ${engagementCols} FROM hr_engagements WHERE id=? AND company_id=? AND status IN ('active','ended')`,
     call: `ppRd46ByIdCompanyStatusIn('${engagementCols}','hr_engagements',"'active','ended'")`,
-  },
-  {
-    file: 'payroll-payslips.ts',
-    sym: 'ppRd46ByIdCompanyStatusIn',
-    args: ['*', 'hr_payroll_runs', "'approved','posted'"],
-    literal: `SELECT * FROM hr_payroll_runs WHERE id=? AND company_id=? AND status IN ('approved','posted')`,
-    call: `ppRd46ByIdCompanyStatusIn('*','hr_payroll_runs',"'approved','posted'")`,
   },
   // Family 3 — named JOIN source fragment (2 -> 1, -1)
   {
@@ -94,7 +88,7 @@ describe('People Payroll read-tail r46 three-family dedupe', () => {
       expect(render[o.sym](o.args), o.file + ' ' + o.sym).toBe(o.literal);
       readOnly(o.literal);
     }
-    expect(oracles.length).toBe(7);
+    expect(oracles.length).toBe(6);
   });
 
   test('each caller uses its builder, keeps no inline head and keeps its binds', () => {
@@ -102,7 +96,6 @@ describe('People Payroll read-tail r46 three-family dedupe', () => {
     const expectedCounts: Record<string, [Sym, number][]> = {
       'beta-management-sources.ts': [['ppRd46OwnerFileProbe', 3]],
       'payroll-adjustments.ts': [['ppRd46ByIdCompanyStatusIn', 1]],
-      'payroll-payslips.ts': [['ppRd46ByIdCompanyStatusIn', 1]],
       'finance-owned-snapshot-sources.ts': [['ppRd46NamedJoinSource', 1]],
       'identity-snapshot-sources.ts': [['ppRd46NamedJoinSource', 1]],
     };
@@ -118,7 +111,9 @@ describe('People Payroll read-tail r46 three-family dedupe', () => {
     expect(src('finance-owned-snapshot-sources.ts')).not.toContain('JOIN (SELECT \\"id\\",\\"company_id\\",\\"pay_group_id\\"');
     expect(src('identity-snapshot-sources.ts')).not.toMatch(/"people_lifecycle_worker_effects_people_package_revisions_r_join": "JOIN \(SELECT/);
     expect(src('payroll-adjustments.ts')).toContain('.bind(engagement_id, company_id).first<Row>()');
-    expect(src('payroll-payslips.ts')).toContain('.bind(runId, companyId).first<Row>()');
+    // payroll-payslips.ts issuable-run read is native-lane-8 delegated.
+    expect(src('payroll-payslips.ts')).toContain('readIssuableRun');
+    expect(uses('payroll-payslips.ts', 'ppRd46ByIdCompanyStatusIn')).toBe(0);
     for (const [name, pairs] of Object.entries(expectedCounts)) {
       for (const [sym, count] of pairs) expect(uses(name, sym), name + ' ' + sym).toBe(count);
     }
@@ -156,6 +151,6 @@ describe('People Payroll read-tail r46 three-family dedupe', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(1265);
-    expect(total).toBe(1175);
+    expect(total).toBe(1167);
   });
 });

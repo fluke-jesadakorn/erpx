@@ -44,10 +44,111 @@ impl LeaveDayPage {
     }
 }
 
+/// Bounded request for the owner-local Company person-scope probe. `scope_ids`
+/// is a JSON array string consumed by `jsonb_array_elements_text`; it is data,
+/// never an identifier or an SQL fragment.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonScopeQuery {
+    pub person_id: String,
+    pub scope_ids: String,
+}
+
+/// Strict response envelope for the presence probe. The caller only cares
+/// whether the Company-scoped person is inside the requested workspace scope.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonScopeResult {
+    pub present: bool,
+}
+
+impl PersonScopeResult {
+    pub fn new(present: bool) -> Self {
+        Self { present }
+    }
+}
+
+/// Bounded request for the Company calendar-access people list. `people_ids`
+/// is serialized to the JSON array the owner binds to `jsonb_array_elements_text`.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CalendarPeopleQuery {
+    pub people_ids: Vec<String>,
+    pub lifecycle_reader: bool,
+    pub search: String,
+    pub take: i64,
+    pub cursor: i64,
+}
+
+/// Owner projection of the retired `CalendarPerson` row. Optional fields stay
+/// nullable; the wire shape matches the work-projection consumer exactly.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CalendarPerson {
+    pub id: String,
+    pub name: String,
+    pub user_id: Option<String>,
+    pub department_id: Option<String>,
+    pub branch_id: Option<String>,
+    pub manager_id: Option<String>,
+    pub status: String,
+}
+
+/// Strict response envelope for the people list.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CalendarPeoplePage {
+    pub people: Vec<CalendarPerson>,
+}
+
+impl CalendarPeoplePage {
+    pub fn new(people: Vec<CalendarPerson>) -> Self {
+        Self { people }
+    }
+}
+
+pub const MAX_SCOPE_IDS: usize = 200;
+pub const MAX_SEARCH_LEN: usize = 200;
+pub const MAX_PAGE_SIZE: i64 = 1000;
+const MAX_SCOPE_BYTES: usize = 16 * 1024;
+
+/// Validate the probe entirely before a connection is leased. Every scope id
+/// must be a safe bind value; the Company comes from the trusted header.
+pub fn validate_person_scope(company: &str, query: &PersonScopeQuery) -> Result<(), BusinessError> {
+    if !valid_id(company) || !valid_id(&query.person_id) || query.scope_ids.len() > MAX_SCOPE_BYTES
+    {
+        return Err(invalid());
+    }
+    let ids: Vec<String> = serde_json::from_str(&query.scope_ids).map_err(|_| invalid())?;
+    if ids.is_empty() || ids.len() > MAX_SCOPE_IDS || ids.iter().any(|id| !valid_id(id)) {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
+/// Validate the people-list probe before any connection is leased.
+pub fn validate_calendar_people(
+    company: &str,
+    query: &CalendarPeopleQuery,
+) -> Result<(), BusinessError> {
+    if !valid_id(company)
+        || query.people_ids.is_empty()
+        || query.people_ids.len() > MAX_SCOPE_IDS
+        || query.people_ids.iter().any(|id| !valid_id(id))
+        || query.search.len() > MAX_SEARCH_LEN
+        || query.take < 1
+        || query.take > MAX_PAGE_SIZE
+        || query.cursor < 0
+    {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
 fn invalid() -> BusinessError {
     BusinessError::invalid(
         "PEOPLE_PAYROLL_LANE6_QUERY_INVALID",
-        "Use a bounded Company calendar availability request.",
+        "Use a bounded Company calendar request.",
     )
 }
 
@@ -168,6 +269,90 @@ mod tests {
             ..ok
         };
         assert!(validate("company-1", &reversed).is_err());
+    }
+
+    #[test]
+    fn validates_company_scoped_person_scope_probes() {
+        let ok = PersonScopeQuery {
+            person_id: "person-1".into(),
+            scope_ids: r#"["branch-1","department-2","company-1"]"#.into(),
+        };
+        assert!(validate_person_scope("company-1", &ok).is_ok());
+        assert!(validate_person_scope("", &ok).is_err());
+        assert!(validate_person_scope("bad company", &ok).is_err());
+        assert!(
+            validate_person_scope(
+                "company-1",
+                &PersonScopeQuery {
+                    person_id: "".into(),
+                    ..ok.clone()
+                }
+            )
+            .is_err()
+        );
+        assert!(
+            validate_person_scope(
+                "company-1",
+                &PersonScopeQuery {
+                    scope_ids: "not-json".into(),
+                    ..ok.clone()
+                }
+            )
+            .is_err()
+        );
+        assert!(
+            validate_person_scope(
+                "company-1",
+                &PersonScopeQuery {
+                    scope_ids: "[]".into(),
+                    ..ok.clone()
+                }
+            )
+            .is_err()
+        );
+        assert!(
+            validate_person_scope(
+                "company-1",
+                &PersonScopeQuery {
+                    scope_ids: r#"["bad id"]"#.into(),
+                    ..ok
+                }
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn validates_company_calendar_people_pages() {
+        let ok = CalendarPeopleQuery {
+            people_ids: vec!["branch-1".into()],
+            lifecycle_reader: true,
+            search: "Alice".into(),
+            take: 25,
+            cursor: 0,
+        };
+        assert!(validate_calendar_people("company-1", &ok).is_ok());
+        assert!(validate_calendar_people("", &ok).is_err());
+        assert!(validate_calendar_people(
+            "company-1",
+            &CalendarPeopleQuery { people_ids: vec![], ..ok.clone() }
+        )
+        .is_err());
+        assert!(validate_calendar_people(
+            "company-1",
+            &CalendarPeopleQuery { take: 0, ..ok.clone() }
+        )
+        .is_err());
+        assert!(validate_calendar_people(
+            "company-1",
+            &CalendarPeopleQuery { cursor: -1, ..ok.clone() }
+        )
+        .is_err());
+        assert!(validate_calendar_people(
+            "company-1",
+            &CalendarPeopleQuery { search: "x".repeat(MAX_SEARCH_LEN + 1), ..ok }
+        )
+        .is_err());
     }
 
     #[test]

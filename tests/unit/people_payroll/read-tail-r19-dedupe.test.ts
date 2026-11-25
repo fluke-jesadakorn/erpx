@@ -49,9 +49,9 @@ describe('People Payroll read-tail r19 byte-identical dedupe', () => {
     expect(src('identity-snapshot-sources.ts')).toContain('"account_access_hr_people_p_from": PP_RD19_HR_PEOPLE_P_FROM_SQL');
   });
 
-  test('the six calendar inList helpers import one shared builder and keep no local copy', () => {
+  test('the five calendar inList helpers import one shared builder; index read1 is native', () => {
     const builders = [
-      'calendar-leave-facts.ts', 'calendar-appointments-facts.ts', 'calendar-index-facts.ts',
+      'calendar-leave-facts.ts', 'calendar-appointments-facts.ts',
       'calendar-roster-facts.ts', 'calendar-lifecycle-facts.ts', 'calendar-access-facts.ts',
     ];
     for (const name of builders) {
@@ -60,6 +60,13 @@ describe('People Payroll read-tail r19 byte-identical dedupe', () => {
       expect(s, name).not.toContain('const inList = (expression: string) =>');
       expect(s, name).toContain('inList(');
     }
+    // calendar-index-facts.ts read1 now executes in the native lane-6 owner;
+    // its retained read3 projection uses the direct builder, not the alias.
+    const index = src('calendar-index-facts.ts');
+    expect(index).toContain("import { ppRd19InList } from './pp-read-tail-r19-sources';");
+    expect(index).not.toContain('ppRd19InList as inList');
+    expect(index).toContain('nativeCalendarPersonScope');
+    expect(index).not.toContain('const inList = (expression: string) =>');
     expect(ppRd19InList('e.company_id')).toBe('e.company_id IN (SELECT jsonb_array_elements_text(?::jsonb))');
     expect(src('calendar-access-facts.ts')).toContain('const idList = (ids: string[]) => JSON.stringify(ids);');
   });

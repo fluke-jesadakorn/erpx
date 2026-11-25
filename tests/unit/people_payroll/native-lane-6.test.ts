@@ -10,9 +10,11 @@ import {
   LANE6_TARGET_UNAVAILABLE,
   LANE6_UNAVAILABLE,
   nativeCalendarAvailabilityLeaveDays,
+  nativeCalendarPersonScope,
   type LaneHoldingScope,
 } from '../../../packages/server-people_payroll/src/adapters/native-lane-6/client';
 import { calendarAvailabilityPeoplePayrollFacts } from '../../../packages/server-people_payroll/src/adapters/calendar-availability-facts';
+import { calendarIndexPeoplePayrollFacts } from '../../../packages/server-people_payroll/src/adapters/calendar-index-facts';
 
 const src = (name: string) => readFileSync(new URL(`../../../packages/server-people_payroll/src/${name}`, import.meta.url), 'utf8');
 const sha = (value: string) => createHash('sha256').update(value).digest('hex');
@@ -28,6 +30,9 @@ const RETIRED_SQL = `SELECT DISTINCT p.user_id,d.leave_date::text leave_date
     ) d
     WHERE l.company_id=? AND l.state='approved' AND p.user_id IN (\${facts.value2.map(() => "?").join(",")})
     AND d.leave_date BETWEEN ?::date AND ?::date`;
+
+/** Verbatim retired `read1` literal from calendar-index-facts.ts. */
+const RETIRED_PERSON_SCOPE_SQL = `SELECT 1 FROM hr_people p JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id WHERE p.id=? AND p.company_id=? AND \${inList("coalesce(e.department_id,e.branch_id,e.company_id)")} LIMIT 1`;
 
 const ENV = 'ERPX_NATIVE_PEOPLE_PAYROLL_CONFIG';
 const CONFIG = {
@@ -213,6 +218,65 @@ describe('native lane 6 — People Payroll calendar availability leave reads', (
     await expect503(nativeCalendarAvailabilityLeaveDays(undefined, '', ['u1'], '2026-03-01', '2026-03-02'), LANE6_RESPONSE_INVALID);
     await expect503(nativeCalendarAvailabilityLeaveDays(undefined, 'company-1', [], '2026-03-01', '2026-03-02'), LANE6_RESPONSE_INVALID);
     await expect503(nativeCalendarAvailabilityLeaveDays(undefined, 'company-1', ['u1'], '2026-02-30', '2026-03-02'), LANE6_RESPONSE_INVALID);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  test('person-scope SQL oracle: retired literal is byte-identical in Rust and gone from TS', () => {
+    expect(sha(RETIRED_PERSON_SCOPE_SQL)).toBe('d60b2b715e9da1d1d2f1ff3222c6749c856e875f7f097161443667049c696702');
+    const rs = src('adapters/native_lane_6/postgres.rs');
+    expect(rs).toContain(RETIRED_PERSON_SCOPE_SQL);
+    expect(rs).toContain('p.id=$1 AND p.company_id=$2');
+    expect(rs).toContain('jsonb_array_elements_text($3::jsonb)');
+    const ts = src('adapters/calendar-index-facts.ts');
+    expect(ts).not.toMatch(/\bSELECT\b/i);
+    expect(ts).toContain('nativeCalendarPersonScope');
+  });
+
+  test('person-scope client sends the exact bounded request and pins the boolean reply', async () => {
+    const calls: { url: string; headers: Record<string, string>; body: unknown }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL, init: RequestInit) => {
+      const headers: Record<string, string> = {};
+      new Headers(init.headers).forEach((value, key) => { headers[key] = value; });
+      calls.push({ url: String(url), headers, body: JSON.parse(String(init.body)) });
+      return reply({ present: true });
+    }));
+    const present = await calendarIndexPeoplePayrollFacts({} as never, scopeOf(1)).read1({
+      value1: 'person-7',
+      value2: 'company-2',
+      value3: '["branch-1","department-2"]',
+    });
+    expect(present).toEqual({ present: 1 });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.url).toBe('http://127.0.0.1:3198/api/v1/holdings/northstar/people-payroll/lane6/calendar-person-scope');
+    expect(calls[0]?.headers['host']).toBe('northstar.jesadakorn.com');
+    expect(calls[0]?.headers['x-erpx-context-company']).toBe('company-2');
+    expect(calls[0]?.body).toEqual({ personId: 'person-7', scopeIds: '["branch-1","department-2"]' });
+  });
+
+  test('person-scope client pins the absence reply', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => reply({ present: false })));
+    await expect(nativeCalendarPersonScope(scopeOf(2), 'company-3', 'person-9', '["company-3"]')).resolves.toBe(false);
+  });
+
+  test.each([
+    ['non-boolean', () => reply({ present: 'yes' }), LANE6_RESPONSE_INVALID],
+    ['extra key', () => reply({ present: true, extra: 1 }), LANE6_RESPONSE_INVALID],
+    ['missing key', () => reply({}), LANE6_RESPONSE_INVALID],
+    ['non-200', () => reply({}, 503), LANE6_UNAVAILABLE],
+  ])('person-scope fails closed on %s', async (_name, build, code) => {
+    vi.stubGlobal('fetch', vi.fn(async () => build()));
+    await expect503(nativeCalendarPersonScope(undefined, 'company-1', 'person-1', '["company-1"]'), code);
+  });
+
+  test('person-scope rejects malformed scope or unknown target before any fetch', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('must not be called'); }));
+    await expect503(nativeCalendarPersonScope(undefined, 'company-1', 'person-1', 'not-json'), LANE6_RESPONSE_INVALID);
+    await expect503(nativeCalendarPersonScope(undefined, 'company-1', 'person-1', '[]'), LANE6_RESPONSE_INVALID);
+    await expect503(nativeCalendarPersonScope(undefined, 'company-1', 'person-1', '["bad id"]'), LANE6_RESPONSE_INVALID);
+    await expect503(nativeCalendarPersonScope(
+      { holdingId: 'h999', holdingSlug: 'acme', companyId: 'company-1' },
+      'company-1', 'person-1', '["company-1"]',
+    ), LANE6_TARGET_UNAVAILABLE);
     expect(fetch).not.toHaveBeenCalled();
   });
 });

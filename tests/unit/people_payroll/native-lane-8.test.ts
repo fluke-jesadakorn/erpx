@@ -8,12 +8,24 @@ import {
   LANE8_RD_PAY_GROUPS,
   LANE8_RD_PEOPLE,
   LANE8_RD_ROSTER_SHIFT,
+  LANE8_RD_ISSUABLE_RUN,
+  LANE8_RD_ISSUABLE_ITEMS,
+  LANE8_RD_OWN_SLIPS,
+  LANE8_RD_SLIP,
+  LANE8_RD_PAYMENT,
+  LANE8_RD_EXPORT_BYTES,
   lane8Configuration,
   nativeLane8Configured,
   readApproverName,
+  readExportBytes,
   readHireHandoffPayGroups,
   readHireHandoffPeople,
+  readIssuableItems,
+  readIssuableRun,
+  readOwnSlips,
+  readPayment,
   readRosterShift,
+  readSlip,
   type Lane8Actor,
 } from "../../../packages/server-people_payroll/src/adapters/native-lane-8/client";
 
@@ -59,6 +71,26 @@ const shift = {
   end_local: "2026-11-25T17:00",
   timezone: "Asia/Bangkok",
 };
+const issuableRun = {
+  id: "run", input_digest: "d", revision: 1, version: 2, mode: "production",
+  period_start: "2026-11-01", period_end: "2026-11-30", pay_date: "2026-11-30", currency: "THB",
+};
+const issuableItems = [{
+  id: "item", engagement_id: "eng", person_id: "person", recipient_user_id: null,
+  input_snapshot_json: "{}", result_json: "{}", gross_minor: 1000, deductions_minor: 10,
+  employer_cost_minor: 5, net_minor: 990, currency: "THB",
+}];
+const ownSlips = [{
+  id: "slip", run_id: "run", run_revision: 1, pay_date: "2026-11-30", currency: "THB",
+  gross_minor: 1000, deductions_minor: 10, net_minor: 990, source_digest: "s",
+  export_sha256: "e", issued_at: 100, snapshot_json: "{}",
+}];
+const slip = {
+  id: "slip", run_id: "run", person_id: "person", recipient_user_id: null,
+  snapshot_json: "{}", export_html: "<p>x</p>", export_sha256: "e", issued_at: 100,
+};
+const payment = { status: "settled", settled_at: null, batch_status: "settled" };
+const exportBytes = { export_html: "<p>x</p>", export_sha256: "e" };
 
 beforeEach(() => {
   process.env[ENV] = config();
@@ -212,5 +244,73 @@ describe("native People Payroll lane 8 app-entrypoint reads", () => {
     ]) {
       expect(() => lane8Configuration(value)).toThrow();
     }
+  });
+
+  it("reads payslip source facts with pinned result oracles", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok(issuableRun)));
+    expect(await readIssuableRun(db, "run", "company-acme")).toEqual(issuableRun);
+    expect(digest(issuableRun)).toBe("c740a1993671aa8a82c6e3e67cc9de49d907012e00878d141bcb7effe36606c9");
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))).toEqual({
+      kind: LANE8_RD_ISSUABLE_RUN, values: ["run"],
+    });
+
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok(issuableItems)));
+    expect((await readIssuableItems(db, "company-acme", "run")).results).toEqual(issuableItems);
+    expect(digest(issuableItems)).toBe("e429224f435614c083e792bb65d850ac7cc3b495f4dc43424debd45e9671f585");
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))).toEqual({
+      kind: LANE8_RD_ISSUABLE_ITEMS, values: ["run"],
+    });
+  });
+
+  it("preserves broad and user-scoped payslip filter arity and bind order", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(() => Promise.resolve(ok(ownSlips))));
+    expect((await readOwnSlips(db, "company-acme", undefined, undefined)).results).toEqual(ownSlips);
+    expect(digest(ownSlips)).toBe("010f9a605bd304837de5533ed221bc2ec8a482baf01a43fe4b9b4c5fac543927");
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))).toEqual({
+      kind: LANE8_RD_OWN_SLIPS, values: ["", "", ""],
+    });
+    await readOwnSlips(db, "company-acme", "run", "user");
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[1][1]?.body))).toEqual({
+      kind: LANE8_RD_OWN_SLIPS, values: ["run", "user", "user"],
+    });
+
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok(slip)));
+    expect(await readSlip(db, "slip", "company-acme", undefined)).toEqual(slip);
+    expect(digest(slip)).toBe("1f280cbc458f237097109645d5e7758c35e05e02bd95566d172990dffaa368fd");
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))).toEqual({
+      kind: LANE8_RD_SLIP, values: ["slip", "", ""],
+    });
+  });
+
+  it("reads payment and export bytes with pinned result oracles", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok(payment)));
+    expect(await readPayment(db, "company-acme", "run", "person")).toEqual(payment);
+    expect(digest(payment)).toBe("6c04de5a525f186a4e17afb724a82f9a8e93237698b34f2ae4a36f8cb052754b");
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))).toEqual({
+      kind: LANE8_RD_PAYMENT, values: ["run", "person"],
+    });
+
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok(exportBytes)));
+    expect(await readExportBytes(db, "slip", "company-acme")).toEqual(exportBytes);
+    expect(digest(exportBytes)).toBe("cbc0927106c063723f699388bb76e08db7ce5e7cfe84b493efcd457f50d3fd24");
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))).toEqual({
+      kind: LANE8_RD_EXPORT_BYTES, values: ["slip"],
+    });
+  });
+
+  it("fails closed on malformed payslip rows and null single-row reads", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok([{ ...ownSlips[0], extra: "field" }])));
+    await expect(readOwnSlips(db, "company-acme", undefined, undefined)).rejects.toMatchObject({
+      code: "PEOPLE_PAYROLL_LANE8_UNAVAILABLE", status: 503,
+    });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok({ ...issuableRun, revision: "1" })));
+    await expect(readIssuableRun(db, "run", "company-acme")).rejects.toMatchObject({
+      code: "PEOPLE_PAYROLL_LANE8_UNAVAILABLE",
+    });
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(() => Promise.resolve(ok(null))));
+    expect(await readIssuableRun(db, "run", "company-acme")).toBeNull();
+    expect(await readSlip(db, "slip", "company-acme", "user")).toBeNull();
+    expect(await readPayment(db, "company-acme", "run", "person")).toBeNull();
+    expect(await readExportBytes(db, "slip", "company-acme")).toBeNull();
   });
 });

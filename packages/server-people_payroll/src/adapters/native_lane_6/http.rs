@@ -14,15 +14,27 @@ use erpx_server_shared::public::{BusinessError, FailureKind};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use super::application::CalendarAvailabilityRead;
-use super::domain::{LeaveDayQuery, valid_id, validate};
-use super::postgres::PgCalendarAvailabilityRead;
+use super::application::{
+    CalendarAvailabilityRead, CalendarPeopleRead, CalendarPersonScopeRead,
+    UnavailableCalendarPeopleRead, UnavailableCalendarPersonScopeRead,
+};
+use super::domain::{
+    CalendarPeoplePage, CalendarPeopleQuery, LeaveDayQuery, PersonScopeQuery, PersonScopeResult,
+    valid_id, validate, validate_calendar_people, validate_person_scope,
+};
+use super::postgres::{
+    PgCalendarAvailabilityRead, PgCalendarPeopleRead, PgCalendarPersonScopeRead,
+};
 
 const BODY_LIMIT: usize = 8 * 1024;
 const CONTEXT_COMPANY: HeaderName = HeaderName::from_static("x-erpx-context-company");
 
 pub const READ_PATH: &str =
     "/api/v1/holdings/{holding_slug}/people-payroll/lane6/calendar-availability-leave";
+pub const PERSON_SCOPE_PATH: &str =
+    "/api/v1/holdings/{holding_slug}/people-payroll/lane6/calendar-person-scope";
+pub const CALENDAR_PEOPLE_PATH: &str =
+    "/api/v1/holdings/{holding_slug}/people-payroll/lane6/calendar-access-people";
 
 /// Exact registered Holding target. No wildcard or caller-supplied host is
 /// accepted; the lead mounts this router with the same targets as the owner.
@@ -34,6 +46,8 @@ pub struct LaneTarget {
 
 struct LaneState {
     targets: BTreeMap<(String, String), Arc<dyn CalendarAvailabilityRead>>,
+    scope_targets: BTreeMap<(String, String), Arc<dyn CalendarPersonScopeRead>>,
+    people_targets: BTreeMap<(String, String), Arc<dyn CalendarPeopleRead>>,
 }
 
 fn missing() -> BusinessError {
@@ -106,26 +120,38 @@ fn bounded(body: serde_json::Value) -> Response {
     response
 }
 
-/// Build the native read router. The lead mounts it alongside the other
-/// People/Payroll owner routers; no new TypeScript SQL or business rule is
-/// introduced here.
-pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
-    let reader: Arc<dyn CalendarAvailabilityRead> = Arc::new(PgCalendarAvailabilityRead::new(pool));
-    router_with_reader(reader, targets)
-}
-
 /// Single shared validation and state construction. Every public constructor
-/// funnels through here, so target isolation and error mapping stay identical.
+/// funnels through here, so target isolation and error mapping stay identical
+/// for all owner-local reads on this router.
 fn configure_entries(
-    entries: Vec<(LaneTarget, Arc<dyn CalendarAvailabilityRead>)>,
+    entries: Vec<(
+        LaneTarget,
+        Arc<dyn CalendarAvailabilityRead>,
+        Arc<dyn CalendarPersonScopeRead>,
+        Arc<dyn CalendarPeopleRead>,
+    )>,
 ) -> Result<Arc<LaneState>, BusinessError> {
     let mut configured = BTreeMap::new();
-    for (target, reader) in entries {
+    let mut scope_configured = BTreeMap::new();
+    let mut people_configured = BTreeMap::new();
+    for (target, reader, scope_reader, people_reader) in entries {
         if target.host.is_empty()
             || target.host.len() > 512
             || !valid_slug(&target.holding_slug)
             || configured
                 .insert((target.host.clone(), target.holding_slug.clone()), reader)
+                .is_some()
+            || scope_configured
+                .insert(
+                    (target.host.clone(), target.holding_slug.clone()),
+                    scope_reader,
+                )
+                .is_some()
+            || people_configured
+                .insert(
+                    (target.host.clone(), target.holding_slug.clone()),
+                    people_reader,
+                )
                 .is_some()
         {
             return Err(configuration_invalid());
@@ -136,11 +162,48 @@ fn configure_entries(
     }
     Ok(Arc::new(LaneState {
         targets: configured,
+        scope_targets: scope_configured,
+        people_targets: people_configured,
     }))
 }
 
+fn router_from_state(state: Arc<LaneState>) -> Router {
+    Router::new()
+        .route(READ_PATH, post(read))
+        .route(PERSON_SCOPE_PATH, post(person_scope))
+        .route(CALENDAR_PEOPLE_PATH, post(calendar_people))
+        .with_state(state)
+}
+
+/// Build the native read router. The lead mounts it alongside the other
+/// People/Payroll owner routers; no new TypeScript SQL or business rule is
+/// introduced here.
+pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
+    let reader: Arc<dyn CalendarAvailabilityRead> =
+        Arc::new(PgCalendarAvailabilityRead::new(pool.clone()));
+    let scope_reader: Arc<dyn CalendarPersonScopeRead> =
+        Arc::new(PgCalendarPersonScopeRead::new(pool.clone()));
+    let people_reader: Arc<dyn CalendarPeopleRead> =
+        Arc::new(PgCalendarPeopleRead::new(pool));
+    let state = configure_entries(
+        targets
+            .into_iter()
+            .map(|target| {
+                (
+                    target,
+                    reader.clone(),
+                    scope_reader.clone(),
+                    people_reader.clone(),
+                )
+            })
+            .collect(),
+    )?;
+    Ok(router_from_state(state))
+}
+
 /// Testable construction seam: composition and unit tests inject the reader;
-/// both paths use the exact same transport checks.
+/// all paths use the exact same transport checks. The other reads fail closed
+/// here because no reader was injected for them.
 pub fn router_with_reader(
     reader: Arc<dyn CalendarAvailabilityRead>,
     targets: Vec<LaneTarget>,
@@ -148,14 +211,22 @@ pub fn router_with_reader(
     let state = configure_entries(
         targets
             .into_iter()
-            .map(|target| (target, reader.clone()))
+            .map(|target| {
+                (
+                    target,
+                    reader.clone(),
+                    Arc::new(UnavailableCalendarPersonScopeRead)
+                        as Arc<dyn CalendarPersonScopeRead>,
+                    Arc::new(UnavailableCalendarPeopleRead) as Arc<dyn CalendarPeopleRead>,
+                )
+            })
             .collect(),
     )?;
-    Ok(Router::new().route(READ_PATH, post(read)).with_state(state))
+    Ok(router_from_state(state))
 }
 
 /// Per-Holding construction: each registered Holding carries its own database
-/// pool, so its reader executes against that Holding's database only. A target
+/// pool, so every reader executes against that Holding's database only. A target
 /// (host, holding_slug) can never fall back to another Holding's pool.
 pub fn router_for_holdings(
     targets: Vec<(LaneTarget, DatabasePool)>,
@@ -165,12 +236,16 @@ pub fn router_for_holdings(
             .into_iter()
             .map(|(target, pool)| {
                 let reader: Arc<dyn CalendarAvailabilityRead> =
-                    Arc::new(PgCalendarAvailabilityRead::new(pool));
-                (target, reader)
+                    Arc::new(PgCalendarAvailabilityRead::new(pool.clone()));
+                let scope_reader: Arc<dyn CalendarPersonScopeRead> =
+                    Arc::new(PgCalendarPersonScopeRead::new(pool.clone()));
+                let people_reader: Arc<dyn CalendarPeopleRead> =
+                    Arc::new(PgCalendarPeopleRead::new(pool));
+                (target, reader, scope_reader, people_reader)
             })
             .collect(),
     )?;
-    Ok(Router::new().route(READ_PATH, post(read)).with_state(state))
+    Ok(router_from_state(state))
 }
 
 async fn read(
@@ -206,6 +281,92 @@ async fn read(
                 .map(|day| serde_json::json!({"userId": day.user_id, "leaveDate": day.leave_date}))
                 .collect::<Vec<_>>()
         }))
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn person_scope(
+    State(state): State<Arc<LaneState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async {
+        let host = unique_header(request.headers(), header::HOST)?
+            .filter(|host| !host.is_empty())
+            .ok_or_else(missing)?;
+        let reader = state
+            .scope_targets
+            .get(&(host.to_owned(), slug))
+            .ok_or_else(missing)?
+            .clone();
+        let company = unique_header(request.headers(), CONTEXT_COMPANY)?
+            .filter(|value| valid_id(value))
+            .ok_or_else(invalid)?
+            .to_owned();
+        if request.uri().query().is_some() {
+            return Err(invalid());
+        }
+        let bytes = to_bytes(request.into_body(), BODY_LIMIT)
+            .await
+            .map_err(|_| invalid())?;
+        let query: PersonScopeQuery = serde_json::from_slice(&bytes).map_err(|_| invalid())?;
+        validate_person_scope(&company, &query)?;
+        let present = reader
+            .present(&company, &query.person_id, &query.scope_ids)
+            .await?;
+        serde_json::to_value(PersonScopeResult::new(present)).map_err(|_| {
+            BusinessError::new(
+                FailureKind::Unavailable,
+                "PEOPLE_PAYROLL_LANE6_RESPONSE_INVALID",
+                "The native People Payroll reply could not be rendered.",
+            )
+        })
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn calendar_people(
+    State(state): State<Arc<LaneState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async {
+        let host = unique_header(request.headers(), header::HOST)?
+            .filter(|host| !host.is_empty())
+            .ok_or_else(missing)?;
+        let reader = state
+            .people_targets
+            .get(&(host.to_owned(), slug))
+            .ok_or_else(missing)?
+            .clone();
+        let company = unique_header(request.headers(), CONTEXT_COMPANY)?
+            .filter(|value| valid_id(value))
+            .ok_or_else(invalid)?
+            .to_owned();
+        if request.uri().query().is_some() {
+            return Err(invalid());
+        }
+        let bytes = to_bytes(request.into_body(), BODY_LIMIT)
+            .await
+            .map_err(|_| invalid())?;
+        let query: CalendarPeopleQuery = serde_json::from_slice(&bytes).map_err(|_| invalid())?;
+        validate_calendar_people(&company, &query)?;
+        let people = reader.people(&company, &query).await?;
+        serde_json::to_value(CalendarPeoplePage::new(people)).map_err(|_| {
+            BusinessError::new(
+                FailureKind::Unavailable,
+                "PEOPLE_PAYROLL_LANE6_RESPONSE_INVALID",
+                "The native People Payroll reply could not be rendered.",
+            )
+        })
     }
     .await;
     match result {
@@ -255,6 +416,29 @@ mod tests {
         }
     }
 
+    struct FakeScopeReader {
+        present: bool,
+    }
+
+    impl CalendarPersonScopeRead for FakeScopeReader {
+        fn present<'a>(
+            &'a self,
+            company: &'a str,
+            person: &'a str,
+            scope_ids: &'a str,
+        ) -> super::super::application::PersonScopeFuture<'a, bool> {
+            assert!(valid_id(company));
+            assert!(valid_id(person));
+            assert!(scope_ids.starts_with('['));
+            let present = self.present;
+            Box::pin(async move { Ok(present) })
+        }
+    }
+
+    fn scope_reader(present: bool) -> Arc<dyn CalendarPersonScopeRead> {
+        Arc::new(FakeScopeReader { present })
+    }
+
     fn reader() -> Arc<dyn CalendarAvailabilityRead> {
         tagged_reader("u1")
     }
@@ -299,8 +483,18 @@ mod tests {
         let acme_reader = tagged_reader("acme-user");
         let northstar_reader = tagged_reader("northstar-user");
         let state = configure_entries(vec![
-            (acme.clone(), acme_reader.clone()),
-            (northstar.clone(), northstar_reader.clone()),
+            (
+                acme.clone(),
+                acme_reader.clone(),
+                scope_reader(true),
+                people_reader(true),
+            ),
+            (
+                northstar.clone(),
+                northstar_reader.clone(),
+                scope_reader(false),
+                people_reader(false),
+            ),
         ])
         .expect("two distinct holding targets configure");
 
@@ -325,6 +519,40 @@ mod tests {
                 .targets
                 .contains_key(&("other.example.test".into(), "acme".into()))
         );
+    }
+
+    #[test]
+    fn person_scope_reader_is_isolated_per_holding() {
+        let acme = LaneTarget {
+            host: "acme.example.test".into(),
+            holding_slug: "acme".into(),
+        };
+        let northstar = LaneTarget {
+            host: "northstar.example.test".into(),
+            holding_slug: "northstar".into(),
+        };
+        let acme_scope = scope_reader(true);
+        let northstar_scope = scope_reader(false);
+        let state = configure_entries(vec![
+            (acme.clone(), reader(), acme_scope.clone()),
+            (northstar.clone(), reader(), northstar_scope.clone()),
+        ])
+        .expect("both scope readers configure");
+        assert_eq!(state.scope_targets.len(), 2);
+        assert!(Arc::ptr_eq(
+            state
+                .scope_targets
+                .get(&(acme.host.clone(), acme.holding_slug.clone()))
+                .unwrap(),
+            &acme_scope
+        ));
+        assert!(Arc::ptr_eq(
+            state
+                .scope_targets
+                .get(&(northstar.host.clone(), northstar.holding_slug.clone()))
+                .unwrap(),
+            &northstar_scope
+        ));
     }
 
     #[test]
