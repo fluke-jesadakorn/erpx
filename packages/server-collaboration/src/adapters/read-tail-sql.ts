@@ -45,7 +45,12 @@ export const messagingTeamMembersAgg=(teamId:string)=>messagingMembersAgg('messa
  * `messaging_teams t` head, bind order and lock semantics stay unchanged. */
 export const messagingTeamImage=(teamRef:string,companyRef:string,redact=false)=>`(SELECT to_jsonb(t)${redact?`-'version'`:''} FROM messaging_teams t WHERE t.id=${teamRef} AND t.company_id=${companyRef})`;
 export const workSocialPostsAgg=`(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.id) FROM posts p)`;
-export const workSocialCommentsAgg=`(SELECT jsonb_agg(to_jsonb(c) ORDER BY c.id) FROM social_comments c JOIN posts p ON p.id=c.post_id)`;
+/** Byte-identical Social comment aggregate head shared by the Work social
+ * purchase image, the Work purchase-source image and the task purchase-source
+ * readers. Only the trailing WHERE/JOIN expression varies; the fixed
+ * `jsonb_agg(to_jsonb(c) ORDER BY c.id) FROM social_comments c` head, bind
+ * order and lock semantics stay unchanged. */
+export const workSocialCommentsAgg=(tail:string)=>`(SELECT jsonb_agg(to_jsonb(c) ORDER BY c.id) FROM social_comments c ${tail})`;
 export const workSocialSourcesAgg=`(SELECT jsonb_agg(to_jsonb(s) ORDER BY s.post_id,s.ordinal) FROM social_post_sources s JOIN posts p ON p.id=s.post_id)`;
 export const requestedSourcesJsonb=`(SELECT kind,id FROM jsonb_to_recordset(?::jsonb) AS r(kind text,id text))`;
 export const jsonbTextIds=`(SELECT jsonb_array_elements_text(?::jsonb))`;

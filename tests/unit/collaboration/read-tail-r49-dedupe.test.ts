@@ -176,7 +176,7 @@ describe('Collaboration read-tail r49 protected SQL isolation', () => {
 });
 
 describe('Collaboration read-tail r49 KPI pins', () => {
-  test('retirement:ts-statements is pinned at 330, below the r49 BEFORE=334 baseline', () => {
+  test('retirement:ts-statements is pinned at 329, below the r49 BEFORE=334 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -189,7 +189,7 @@ describe('Collaboration read-tail r49 KPI pins', () => {
     // Two byte-identical 35-byte AI-usage heads -> one shared renderer with two
     // thin wrappers: 334 -> 333. r50 folds the two revisions aggregates into one
     // alias-parameterized renderer: 333 -> 332.
-    expect(total).toBe(330);
+    expect(total).toBe(329);
     expect(total).toBeLessThan(334);
   });
 });

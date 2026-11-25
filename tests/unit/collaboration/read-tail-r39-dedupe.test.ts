@@ -131,7 +131,7 @@ describe('Collaboration read-tail r39 KPI pins', () => {
     // r43 retired draft-by-id reuse, messaging team image and target image: 350 -> 344.
     // r44 retired the latest-message tail, absent-social-post guard and handover
     // ack join: 344 -> 341. Prior pins were refreshed only where 341 replaced 344.
-    expect(total).toBe(330);
+    expect(total).toBe(329);
     expect(total).toBeLessThan(360);
   });
 });

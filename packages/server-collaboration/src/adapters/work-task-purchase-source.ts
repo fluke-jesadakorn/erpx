@@ -15,7 +15,7 @@ export function workTaskSocialAudienceSourceLocks(database:SqlDatabase){return d
 export async function workTaskSocialPurchaseSource(database:SqlDatabase,companyId:string,taskId:string,requestedPostId?:string){
  const row=await database.prepare(`WITH origins AS(SELECT * FROM social_task_origins WHERE task_id=?),ids AS(SELECT post_id id FROM origins UNION SELECT ?::text WHERE ?::text IS NOT NULL),posts AS(SELECT p.* FROM social_posts p JOIN ids ON ids.id=p.id WHERE p.company_id=?)
  SELECT COALESCE((SELECT bool_or(${workSocialNativePostPredicate('p')}) FROM posts p),false) work_social,
- jsonb_build_object('posts',${workSocialPostsAgg},'comments',${workSocialCommentsAgg},'sources',${workSocialSourcesAgg},'revisions',${socialPostRevisionsAgg('JOIN posts p ON p.id=r.post_id')})::text posts_image,
+ jsonb_build_object('posts',${workSocialPostsAgg},'comments',${workSocialCommentsAgg('JOIN posts p ON p.id=c.post_id')},'sources',${workSocialSourcesAgg},'revisions',${socialPostRevisionsAgg('JOIN posts p ON p.id=r.post_id')})::text posts_image,
  (SELECT COALESCE(jsonb_agg(to_jsonb(o) ORDER BY o.post_id),'[]'::jsonb)::text FROM origins o) origin_image`).bind(taskId,requestedPostId??null,requestedPostId??null,companyId).first<{work_social:boolean;posts_image:string;origin_image:string}>();
  return {workSocial:row?.work_social??false,postsImage:row?.posts_image??'',originImage:row?.origin_image??''};
 }
