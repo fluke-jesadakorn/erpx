@@ -1,6 +1,7 @@
 import { tableByIdSql } from './finance-read-tail-r49-sql';
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
 import { acquisitionReadSql, acquisitionVersionGuardSql } from './finance-read-tail-r48-sql';
+import { groupEntitiesByHoldingSql } from './finance-read-tail-r60-sql';
 import { nativeFinanceOwnerWriteSystem } from './native-finance-owner-write';
 import { groupCompanyPurchases, groupRecordPurchases, groupHistoryPredicate, groupSourceSql, groupRecordHistorySql } from "@erpx/server-finance/adapters/group-purchase-sources";
 import "server-only";
@@ -32,7 +33,7 @@ function nativePorts(provided?: SqlDatabase, owned = false, inheritedHistory?: (
                 .first<Row>();
         },
         readOwnershipSourceEntities(holdingId: string, investorCompanyId: string, investeeCompanyId: string) {
-            return database.prepare("SELECT * FROM finance_group_entities WHERE holding_id=? AND company_id IN (?,?) AND status='active' ORDER BY company_id")
+            return database.prepare(groupEntitiesByHoldingSql(" AND company_id IN (?,?) AND status='active' ORDER BY company_id"))
                 .bind(holdingId, investorCompanyId, investeeCompanyId)
                 .all<Row>();
         },
@@ -106,7 +107,7 @@ function nativePorts(provided?: SqlDatabase, owned = false, inheritedHistory?: (
                 .all<Row>();
         },
         readGroupOwnershipWorkspaceOwnershipacquisitionsentities3(holdingId: string) {
-            return database.prepare("SELECT * FROM finance_group_entities WHERE holding_id=? AND status='active' ORDER BY reporting_name,id")
+            return database.prepare(groupEntitiesByHoldingSql(" AND status='active' ORDER BY reporting_name,id"))
                 .bind(holdingId)
                 .all<Row>();
         } };

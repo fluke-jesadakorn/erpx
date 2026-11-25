@@ -145,7 +145,7 @@ describe('Finance read-tail r55 protected families and retirement', () => {
     expect(read(ir)).toContain("import { UNMATCHED_BANK_TXN_COUNT_SQL } from './finance-read-tail-r44-sql';");
   });
 
-  test('retirement:ts-statements pins the r59 target of 1707', () => {
+  test('retirement:ts-statements pins the r60 target of 1705', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -157,7 +157,7 @@ describe('Finance read-tail r55 protected families and retirement', () => {
     walk(srcRoot);
     // 18 count literals collapse into two helpers (-18 literals, +2 declarations: 1742 -> 1726).
     expect(CASES).toHaveLength(18);
-    expect(total).toBe(1707);
+    expect(total).toBe(1705);
     expect(total).toBeLessThan(1742);
   });
 });

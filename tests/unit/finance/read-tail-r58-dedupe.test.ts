@@ -131,7 +131,7 @@ describe('Finance read-tail r58 protected families and retirement', () => {
     expect(helper).toContain('`SELECT id,name,currency FROM finance_parties WHERE company_id=?${tail}`');
   });
 
-  test('retirement:ts-statements pins the r59 target of 1707', () => {
+  test('retirement:ts-statements pins the r60 target of 1705', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -141,10 +141,10 @@ describe('Finance read-tail r58 protected families and retirement', () => {
       }
     };
     walk(srcRoot);
-    // 4 head literals collapse into two renderers (-4 literals, +2 declarations: 1710 -> 1708); r59 then 1708 -> 1707).
+    // 4 head literals collapse into two renderers (-4 literals, +2 declarations: 1710 -> 1708); r59 then 1708 -> 1707; r60 then 1707 -> 1705).
     expect(CASES).toHaveLength(4);
-    expect(total).toBe(1707);
-    expect(total).toBe(1710 - 3);
+    expect(total).toBe(1705);
+    expect(total).toBe(1710 - 5);
     expect(total).toBeLessThan(1710);
   });
 });

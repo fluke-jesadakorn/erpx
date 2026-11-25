@@ -1,5 +1,6 @@
 import { tableByIdSql } from './finance-read-tail-r49-sql';
 import { intercompanyPairPointSql } from './finance-read-tail-r42-sql';
+import { groupEntitiesByHoldingSql } from './finance-read-tail-r60-sql';
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
 import { groupCompanyPurchases, groupRecordPurchases, requireGroupCompanyHistory, groupHistoryPredicate, groupSourceSql, groupRecordHistorySql } from "@erpx/server-finance/adapters/group-purchase-sources";
 import "server-only";
@@ -23,7 +24,7 @@ import { financeIntercompanyPairs } from '@erpx/server-collaboration/adapters/na
 export {intercompanyPairSchema,intercompanyPairDecisionSchema} from '@erpx/server-finance/domain/intercompany-pairs';
 function nativePairRepository(db:SqlDatabase,historySql:(company:string)=>string=()=>"TRUE"):IntercompanyPairRepository{return {moneyScale:(companyId,currency)=>requireFinanceMoneyScale(db,companyId,currency),tool:companyId=>requireFinanceTool(db,companyId,'group_reporting'),replay:(actor,key,op,id,input)=>replayCommand(db,actor,key,op,id,input),entity:async(holdingId,companyId)=>db
         .prepare(
-          "SELECT * FROM finance_group_entities WHERE holding_id=? AND company_id=? AND status='active'",
+          groupEntitiesByHoldingSql(" AND company_id=? AND status='active'"),
         )
         .bind(holdingId, companyId)
         .first<Row>(),
