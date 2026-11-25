@@ -120,7 +120,7 @@ describe('Organization read-tail r40 byte-identical families', () => {
     };
     walk(srcRoot);
     // r40 collapses five families (-2, -1, -1, -1, -1 = -6) into shared sources.
-    expect(space).toBe(216);
+    expect(space).toBe(214);
     expect(space).toBeLessThan(257);
   });
 });
