@@ -165,7 +165,7 @@ describe('Finance read-tail r56 protected families and retirement', () => {
     expect(count(helper, 'SELECT ')).toBe(3);
   });
 
-  test('retirement:ts-statements pins the r56 target of 1718', () => {
+  test('retirement:ts-statements pins the r57 target of 1710', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -177,7 +177,7 @@ describe('Finance read-tail r56 protected families and retirement', () => {
     walk(srcRoot);
     // 11 head literals collapse into three helpers (-11 literals, +3 declarations: 1726 -> 1718).
     expect(CASES).toHaveLength(11);
-    expect(total).toBe(1718);
+    expect(total).toBe(1710);
     expect(total).toBe(1726 - 8);
     expect(total).toBeLessThan(1726);
   });
