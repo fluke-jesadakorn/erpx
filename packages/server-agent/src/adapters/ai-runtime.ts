@@ -90,7 +90,7 @@ async function revision(
 ) {
   const result = await db
     .prepare(
-      'SELECT * FROM ai_connection_revisions WHERE connection_id=? AND revision=?',
+      agentSelectColsFromSql('*', 'ai_connection_revisions WHERE connection_id=? AND revision=?'),
     )
     .bind(row.id, active ? row.active_revision : row.draft_revision)
     .first<Revision>();

@@ -83,7 +83,7 @@ describe('Agent read-tail r24 dedupe (BEFORE=53)', () => {
     expect(renderedQuery(GuidedIntakeAgentFacts(db).guard3('id', 'assistant-rate', 'c', 42))).toBe(oracle.f3Rate);
   });
 
-  it('KPI: TS SELECT tokens in packages/server-agent/src drop from 53 to 44', async () => {
-    expect(await agentSelectCount(new URL('../../../packages/server-agent/src/', import.meta.url))).toBe(44);
+  it('KPI: TS SELECT tokens in packages/server-agent/src drop from 53 to 43', async () => {
+    expect(await agentSelectCount(new URL('../../../packages/server-agent/src/', import.meta.url))).toBe(43);
   });
 });
