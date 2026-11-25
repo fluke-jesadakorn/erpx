@@ -145,7 +145,7 @@ describe('Files read-tail r54 publication-id head fold', () => {
 });
 
 describe('Files read-tail r54 KPI pins', () => {
-  test('retirement:ts-statements is 221, strictly below the r53 BEFORE=222 (222->221)', () => {
+  test('retirement:ts-statements is 215, strictly below the r53 BEFORE=222 (222->221)', () => {
     let literal = 0, total = 0;
     for (const path of tsFiles(srcRoot)) {
       const text = readFileSync(path, 'utf8');
@@ -153,8 +153,8 @@ describe('Files read-tail r54 KPI pins', () => {
       total += (text.match(/SELECT\s/g) ?? []).length;
     }
     // Two inline heads -> one alias-free owner-local renderer (-1).
-    expect(literal).toBe(221);
-    expect(total).toBe(222);
+    expect(literal).toBe(215);
+    expect(total).toBe(216);
     expect(literal).toBeLessThan(222);
     expect(total).toBeLessThan(223);
   });

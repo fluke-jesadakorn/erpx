@@ -1,22 +1,69 @@
-import 'server-only';
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
-import type {CommercialStorageRow as StorageRow} from "@erpx/server-commercial/public/usage-contract";
-import {reconciliationReadySql} from "./read-tail-r30-source-sql";
-export function commercialStoredOriginals(db:SqlDatabase,start:number,end:number,branchId:string|null){return db.prepare(`SELECT l.id,l.company_id,s.branch_id,l.bytes,l.created_at,l.destroyed_at
-      FROM attachment_storage_ledger l
-      JOIN attachments a ON a.id=l.attachment_id
-      LEFT JOIN upload_intents u ON u.id=a.upload_id
-      LEFT JOIN attachment_sets s ON s.id=u.attachment_set_id AND s.company_id=l.company_id
-      WHERE l.variant='original' AND l.state IN ('stored','destroyed')
-        AND l.created_at<? AND (l.destroyed_at IS NULL OR l.destroyed_at>?)
-        AND (?::text IS NULL OR s.branch_id=?)
-      ORDER BY l.created_at DESC,l.id DESC`).bind(end, start, branchId, branchId).all<StorageRow>();}
-export function commercialUnreconciledOriginals(db:SqlDatabase,end:number,branchId:string|null){return db.prepare(`SELECT COUNT(*)::int AS count FROM attachments a
-      LEFT JOIN upload_intents u ON u.id=a.upload_id
-      LEFT JOIN attachment_sets s ON s.id=u.attachment_set_id AND s.company_id=a.company_id
-      WHERE a.source_state<>'destroyed' AND a.created_at<?
-        AND NOT EXISTS(SELECT 1 FROM attachment_storage_ledger l WHERE l.attachment_id=a.id AND l.variant='original')
-        AND (?::text IS NULL OR s.branch_id=?)`).bind(end, branchId, branchId).first<{count:number}>();}
-export function commercialFileReconciliation(db:SqlDatabase,){return db.prepare(reconciliationReadySql("")).first<{ready:boolean}>();}
-export function commercialEarliestOriginal(db:SqlDatabase,){return db.prepare("SELECT MIN(created_at) earliest FROM attachment_storage_ledger WHERE variant='original'")
-          .first<{ earliest: number | null }>();}
+import "server-only";
+import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
+import {
+  FILES_CU_EARLIEST_ORIGINAL,
+  FILES_CU_RECONCILIATION,
+  FILES_CU_STORED_ORIGINALS,
+  FILES_CU_UNRECONCILED_ORIGINALS,
+  readFilesCommercialUsage,
+  type CommercialStorageRow,
+  type FilesCommercialActor,
+} from "./native-lane-21/client";
+
+/**
+ * Files-owned commercial usage facts. The SQL, projection and response shape
+ * belong to the native Files lane-21 axum router; these functions are a thin
+ * transport that keeps the original caller contract. The `db` argument is
+ * retained for signature compatibility only and never issues a fallback query.
+ *
+ * `actor` carries the caller's WorkContext holding identity. It is appended
+ * (optional) so existing call sites keep compiling; the native client selects
+ * exactly one registered Holding from it and fails closed when it is absent.
+ */
+
+export async function commercialStoredOriginals(
+  _db: SqlDatabase,
+  start: number,
+  end: number,
+  branchId: string | null,
+  actor?: FilesCommercialActor,
+): Promise<{ results: CommercialStorageRow[] }> {
+  void _db;
+  const result = await readFilesCommercialUsage(
+    { kind: FILES_CU_STORED_ORIGINALS, start, end, branchId },
+    actor,
+  );
+  return { results: result.rows };
+}
+
+export async function commercialUnreconciledOriginals(
+  _db: SqlDatabase,
+  end: number,
+  branchId: string | null,
+  actor?: FilesCommercialActor,
+): Promise<{ count: number }> {
+  void _db;
+  const result = await readFilesCommercialUsage(
+    { kind: FILES_CU_UNRECONCILED_ORIGINALS, end, branchId },
+    actor,
+  );
+  return { count: result.count };
+}
+
+export async function commercialFileReconciliation(
+  _db: SqlDatabase,
+  actor?: FilesCommercialActor,
+): Promise<{ ready: boolean }> {
+  void _db;
+  const result = await readFilesCommercialUsage({ kind: FILES_CU_RECONCILIATION }, actor);
+  return { ready: result.ready };
+}
+
+export async function commercialEarliestOriginal(
+  _db: SqlDatabase,
+  actor?: FilesCommercialActor,
+): Promise<{ earliest: number | null }> {
+  void _db;
+  const result = await readFilesCommercialUsage({ kind: FILES_CU_EARLIEST_ORIGINAL }, actor);
+  return { earliest: result.earliest };
+}

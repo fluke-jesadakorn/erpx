@@ -26282,6 +26282,60 @@
       "lane": "unit",
       "owner": "files",
       "modules": [
+        "commercial"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Files native lane 21 route must stay tenant-isolated."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-files"
+      ],
+      "id": "files.native-lane-21.unit",
+      "files": [
+        "tests/unit/files/native-lane-21.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "files",
+      "modules": [
+        "commercial"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Files native lane 22 route must stay tenant-isolated."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-files"
+      ],
+      "id": "files.native-lane-22.unit",
+      "files": [
+        "tests/unit/files/native-lane-22.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "files",
+      "modules": [
         "manage_erpx"
       ],
       "fixture": "none",

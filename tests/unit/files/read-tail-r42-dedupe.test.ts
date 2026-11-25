@@ -142,10 +142,14 @@ describe('Files read-tail r42 byte-oracle dedupe', () => {
       // r53 read-tail call site and helper (assigned owner paths).
       'packages/server-files/src/adapters/attachments/service-repository.ts',
       'packages/server-files/src/adapters/read-tail-r53-source-sql.ts',
+      // lane 21 + 22 native cutovers: call sites and per-holding module export.
+      'packages/server-files/src/adapters/commercial-usage-facts.ts',
+      'packages/server-files/src/adapters/native_lane_21/mod.rs',
+      'packages/server-files/src/adapters/work-read-facts.ts',
     ].includes(p))).toBe(true);
   });
 
-  test('retirement:ts-statements is 242, strictly below the r42 BEFORE=248 (248->246->242)', () => {
+  test('retirement:ts-statements is 215, strictly below the r42 BEFORE=248 (248->246->242)', () => {
     let literal = 0, total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -162,8 +166,8 @@ describe('Files read-tail r42 byte-oracle dedupe', () => {
     // r42 left 248; r43 lowers 248->246 (two SELECT-bearing shared heads folded).
     // r44 lowers 246->242 (three more shared heads folded).
     // r46 folds two closed-union heads (orphan-preservation event, draft/bound count): 239->237.
-    expect(literal).toBe(221);
-    expect(total).toBe(222);
+    expect(literal).toBe(215);
+    expect(total).toBe(216);
     expect(literal).toBeLessThan(248);
     expect(total).toBeLessThan(249);
   });

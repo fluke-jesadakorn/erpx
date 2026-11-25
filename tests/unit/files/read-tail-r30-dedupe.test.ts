@@ -24,14 +24,20 @@ describe('Files read-tail r30 parameterized readiness SELECT-head family', () =>
     );
   });
 
-  test('helper is defined once and both call sites compose it', () => {
+  test('helper is defined once; the live call site composes it and the retired one delegates to the native client', () => {
     expect(src('read-tail-r30-source-sql.ts').split('export const reconciliationReadySql =').length - 1).toBe(1);
     const app = src('app-attachment-sources.ts');
-    const com = src('commercial-usage-facts.ts');
     expect(app.match(/reconciliationReadySql\(/g) ?? []).toHaveLength(1);
-    expect(com.match(/reconciliationReadySql\(/g) ?? []).toHaveLength(1);
     expect(app).not.toContain(HEAD.app);
+
+    // Lane 21 cut the commercial call site over to the native Files client.
+    // It no longer composes the local SQL helper and carries no inline SQL.
+    const com = src('commercial-usage-facts.ts');
+    expect(com).not.toMatch(/SELECT /i);
     expect(com).not.toContain(HEAD.commercial);
+    expect(com).not.toContain('reconciliationReadySql(');
+    expect(com).toContain('readFilesCommercialUsage');
+    expect(com).toContain('./native-lane-21/client');
   });
 
   test('locks, advisory statements, native writes and r1-r29 helpers stay untouched', () => {

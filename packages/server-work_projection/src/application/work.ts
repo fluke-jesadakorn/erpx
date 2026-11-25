@@ -3,7 +3,7 @@ import type {WorkRow} from "@erpx/feature-work_projection/lib/work-queue";
 import type {approvalView} from '@erpx/server-workflow/public/approval-planning';
 import type {getLeave} from '@erpx/server-people_payroll/public/leave-read';
 type WorkReadResult<Row>={results:Row[]};
-export type WorkReadUnit={pendingLeave(facts:{companyId:string;}):Promise<WorkReadResult<{ id: string; }>>;visibleLeave(facts:{companyId:string;userId:string;assignmentId:string;}):Promise<WorkReadResult<WorkRow>>;evidenceSets(facts:{recordId:string;companyId:string;}):Promise<WorkReadResult<{ id: string; set_id: string; purpose_key: string; original_name: string; bytes: number | null; media_type: string | null; source_state: string | null; link_state: string; preview_available: boolean; created_at: number; }>>;legacyEvidence(facts:{recordId:string;companyId:string;}):Promise<WorkReadResult<{ id: string; original_name: string; bytes: number; media_type: string; set_id: string | null; purpose_key: string; source_state: string; link_state: string; preview_available: boolean; created_at: number; }>>;approval(actor:WorkContext,id:string):ReturnType<typeof approvalView>;leave(holdingId:string,id:string,actor:WorkContext):ReturnType<typeof getLeave>;evidenceAccess(actor:WorkContext,input:{leaveRequestId:string;purposeKey:"medical_certificate";operation:"read"}):Promise<unknown>;};
+export type WorkReadUnit={pendingLeave(facts:{companyId:string;}):Promise<WorkReadResult<{ id: string; }>>;visibleLeave(facts:{companyId:string;userId:string;assignmentId:string;}):Promise<WorkReadResult<WorkRow>>;evidenceSets(facts:{recordId:string;companyId:string;holdingId:string;holdingSlug:string;origin?:string;}):Promise<WorkReadResult<{ id: string; set_id: string; purpose_key: string; original_name: string; bytes: number | null; media_type: string | null; source_state: string | null; link_state: string; preview_available: boolean; created_at: number; }>>;legacyEvidence(facts:{recordId:string;companyId:string;holdingId:string;holdingSlug:string;origin?:string;}):Promise<WorkReadResult<{ id: string; original_name: string; bytes: number; media_type: string; set_id: string | null; purpose_key: string; source_state: string; link_state: string; preview_available: boolean; created_at: number; }>>;approval(actor:WorkContext,id:string):ReturnType<typeof approvalView>;leave(holdingId:string,id:string,actor:WorkContext):ReturnType<typeof getLeave>;evidenceAccess(actor:WorkContext,input:{leaveRequestId:string;purposeKey:"medical_certificate";operation:"read"}):Promise<unknown>;};
 export function createWorkRead(ports:{resource(holdingId:string):Promise<WorkReadUnit>;readable():boolean}){
 async function getWork(holdingId: string, context: WorkContext) {
   const write = await ports.resource(holdingId);
@@ -59,11 +59,11 @@ async function getLeaveEvidence(
   });
   if (ports.readable()) {
     return (
-      await write.evidenceSets({recordId:recordId,companyId:context.companyId})
+      await write.evidenceSets({recordId:recordId,companyId:context.companyId,holdingId:context.holdingId,holdingSlug:context.holdingSlug})
     ).results;
   }
   return (
-    await write.legacyEvidence({recordId:recordId,companyId:context.companyId})
+    await write.legacyEvidence({recordId:recordId,companyId:context.companyId,holdingId:context.holdingId,holdingSlug:context.holdingSlug})
   ).results;
 }
 
