@@ -1,5 +1,9 @@
 import "server-only";
+import { legalItemKeyHeadSql } from './legal-read-tail-r54-sources';
+
 /** Byte-identical latest-approved-cycle read shared by Legal owner adapters (round 22).
- * Text only: every call site still prepares and executes its own projection with unchanged binds. */
+ * R60: the base head delegates to the r54 item-key renderer; each call site still appends
+ * the same fixed literal tail, prepares and executes its own projection with unchanged
+ * binds. No SQL text is inlined here. */
 export const legalApprovedCycleSql = (columns: string) =>
-  `SELECT ${columns} FROM legal_approvals WHERE item_id=? AND decision='approved' ORDER BY cycle DESC LIMIT 1`;
+  legalItemKeyHeadSql(columns, 'legal_approvals') + " AND decision='approved' ORDER BY cycle DESC LIMIT 1";
