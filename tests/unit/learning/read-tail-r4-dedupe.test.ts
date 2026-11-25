@@ -31,12 +31,14 @@ describe('Learning read-tail r4 byte-identical completion-evidence family dedupe
   });
 
   test('both native evidence call sites are composed, never inlined', () => {
-    for (const name of ['learning.ts', 'executive-evidence-sources.ts']) {
-      const text = src(name);
-      expect(text).not.toContain(preCompletionColumns);
-      expect(text).toContain('${completionEvidenceColumns}');
-      expect(text).toContain('learning-completion-evidence');
-    }
+    const search = src('executive-evidence-sources.ts');
+    expect(search).not.toContain(preCompletionColumns);
+    expect(search).toContain('${completionEvidenceColumns}');
+    expect(search).toContain('learning-completion-evidence');
+    // Lane 31 moved the single-row completion detail read to the native axum port.
+    const detail = src('learning.ts');
+    expect(detail).toContain('nativeLearningEvidenceRow(');
+    expect(detail).not.toContain('${completionEvidenceColumns}');
     expect(src('learning-completion-evidence.ts').match(/export const completionEvidenceColumns =/g) ?? []).toHaveLength(1);
   });
 

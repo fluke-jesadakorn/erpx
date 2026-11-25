@@ -44,10 +44,10 @@ const RENDERER = 'const refundPaymentSumSql = (): string => ';
 const CALL = '${refundPaymentSumSql()}';
 
 describe('POS read-tail r40 refund-payment subquery dedupe', () => {
-  test('fold: byte-identical head is authored once in a zero-arg owner-local renderer', () => {
+  test('fold: byte-identical head is authored once in the native owner (lane 25)', () => {
+    const rust = read('native_lane_25/postgres.rs');
     const ev = read('executive-evidence-sources.ts');
-    expect(ev).toContain(RENDERER + '`' + ORACLE_BLOCK + '`');
-    expect(occurrences(ev, ORACLE_BLOCK)).toBe(1);
+    expect(occurrences(rust, ORACLE_BLOCK)).toBe(2);
     expect(sha(ORACLE_BLOCK)).toBe(BLOCK_SHA);
     expect(ORACLE_BLOCK.length).toBe(223);
     expect(binds(ORACLE_BLOCK)).toBe(0);
@@ -58,20 +58,17 @@ describe('POS read-tail r40 refund-payment subquery dedupe', () => {
     expect(ORACLE_BLOCK.endsWith('\n')).toBe(false);
   });
 
-  test('both sites delegate; rendered payment SQL stays byte-identical with 9 binds and 3 SELECTs', () => {
+  test('native owner renders payment SQL byte-identically with 9 binds and 3 SELECTs', () => {
+    const rust = read('native_lane_25/postgres.rs');
     const ev = read('executive-evidence-sources.ts');
-    expect(occurrences(ev, CALL)).toBe(2);
-    expect(ev).toContain(`(p.amount_minor::numeric-COALESCE(${CALL}) contribution_minor,`);
-    expect(ev).toContain(`COALESCE(${CALL} refunded_minor,`);
-    const start = ev.indexOf("return `SELECT 'payment:'");
-    expect(start).toBeGreaterThanOrEqual(0);
-    const bodyStart = ev.indexOf('`', start) + 1;
-    const bodyEnd = ev.indexOf('`;', bodyStart);
-    const rendered = ev.slice(bodyStart, bodyEnd).split(CALL).join(ORACLE_BLOCK);
-    expect(rendered).toBe(ORACLE_PAYMENT_LEG);
-    expect(sha(rendered)).toBe(PAYMENT_LEG_SHA);
-    expect(binds(rendered)).toBe(9);
-    expect(selects(rendered)).toBe(3);
+    expect(rust).toContain('pub const LEG_PAYMENT: &str = r#"SELECT \'payment:\'||p.id id');
+    expect(rust).toContain(ORACLE_PAYMENT_LEG);
+    expect(sha(ORACLE_PAYMENT_LEG)).toBe(PAYMENT_LEG_SHA);
+    expect(binds(ORACLE_PAYMENT_LEG)).toBe(9);
+    expect(selects(ORACLE_PAYMENT_LEG)).toBe(3);
+    expect(ev).not.toContain(RENDERER);
+    expect(ev).not.toContain(CALL);
+    expect(ev).toContain('nativePosEvidenceRows');
   });
 
   test('protected r35-r39 renderers, registries, advisory locks, PMS fragments, addon mirrors and lock tails stay untouched', () => {
@@ -83,7 +80,9 @@ describe('POS read-tail r40 refund-payment subquery dedupe', () => {
     expect(core).toContain('${pmsProjectionSources.pms_properties}');
     expect(read('pos.ts')).toContain('const allocatedTotalsHeadSql = (): string => `WITH allocated AS (');
     expect(read('pos.ts')).toContain('${pmsProjectionSources.pms_sources}');
-    expect(read('executive-evidence-sources.ts')).toContain('const posSalesLegSql = (): string => `SELECT \'sale:\'||s.id id');
+    expect(read('executive-evidence-sources.ts')).toContain('nativePosEvidenceRows');
+    expect(read('executive-evidence-sources.ts')).not.toMatch(/\bSELECT\b/);
+    expect(read('native_lane_25/postgres.rs')).toContain('LEG_POS_SALES');
     expect(read('native-pos-day-report.ts')).toContain("'pos_day_report_");
     expect(read('native-pos-stripe-reads.ts')).toContain("'pos_stripe_");
     expect(read('pos-stripe.ts')).toContain('SELECT * FROM pos_sales WHERE id=? AND company_id=? FOR UPDATE');
@@ -102,7 +101,7 @@ describe('POS read-tail r40 refund-payment subquery dedupe', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(169);
+    expect(total).toBe(164);
     expect(total).toBeLessThan(176);
   });
 });

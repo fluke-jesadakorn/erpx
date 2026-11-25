@@ -51,11 +51,13 @@ describe('Learning read-tail r3 byte-identical / parameterized family dedupe', (
   test('overdue evidence head is byte-identical at its two call sites', () => {
     expect(overdueEvidenceColumns).toBe(preOverdueColumns);
     readOnly(overdueEvidenceColumns);
-    for (const name of ['learning.ts', 'executive-evidence-sources.ts']) {
-      const text = src(name);
-      expect(text).not.toContain(preOverdueColumns);
-      expect(text).toContain('${overdueEvidenceColumns}');
-    }
+    const search = src('executive-evidence-sources.ts');
+    expect(search).not.toContain(preOverdueColumns);
+    expect(search).toContain('${overdueEvidenceColumns}');
+    // Lane 31 moved the single-row overdue detail read to the native axum port.
+    const detail = src('learning.ts');
+    expect(detail).toContain('nativeLearningEvidenceRow(');
+    expect(detail).not.toContain('${overdueEvidenceColumns}');
   });
 
   test('module-grant probe renders byte-identical SQL for both aliases', () => {

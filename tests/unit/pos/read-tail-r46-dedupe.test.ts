@@ -99,8 +99,9 @@ describe('POS read-tail r46 existence-guard head dedupe', () => {
     expect(core).toContain("SELECT pg_advisory_xact_lock(hashtextextended('pos-daily:'||?,0))");
     expect(core).toContain('${pmsProjectionSources.pms_properties}');
     expect(read('pos.ts')).toContain('${pmsProjectionSources.pms_sources}');
-    expect(read('executive-evidence-sources.ts')).toContain('const refundPaymentSumSql = (): string => `');
-    expect(read('executive-evidence-sources.ts')).toContain('const posSalesLegSql = (): string => `');
+    expect(read('executive-evidence-sources.ts')).toContain('nativePosEvidenceRows');
+    expect(read('executive-evidence-sources.ts')).not.toMatch(/\bSELECT\b/);
+    expect(read('native_lane_25/postgres.rs')).toContain('LEG_POS_SALES');
     expect(read('executive-metric-projections.ts')).toContain('const orgNodeLabelHeadSql = (): string => `');
     expect(read('pos.ts')).toContain('const allocatedTotalsHeadSql = (): string => `WITH allocated AS (');
     expect(read('pos.ts')).toContain('const refundPaymentSumTextSql = (): string => `');
@@ -125,7 +126,7 @@ describe('POS read-tail r46 existence-guard head dedupe', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(169);
+    expect(total).toBe(164);
     expect(total).toBeLessThan(170);
   });
 });

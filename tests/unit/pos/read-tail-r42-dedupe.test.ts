@@ -100,8 +100,9 @@ describe('POS read-tail r42 org-node label head dedupe', () => {
     expect(core).toContain("SELECT pg_advisory_xact_lock(hashtextextended('pos-daily:'||?,0))");
     expect(core).toContain('${pmsProjectionSources.pms_properties}');
     expect(read('pos.ts')).toContain('${pmsProjectionSources.pms_sources}');
-    expect(read('executive-evidence-sources.ts')).toContain('const refundPaymentSumSql = (): string => `');
-    expect(read('executive-evidence-sources.ts')).toContain('const posSalesLegSql = (): string => `');
+    expect(read('executive-evidence-sources.ts')).toContain('nativePosEvidenceRows');
+    expect(read('executive-evidence-sources.ts')).not.toMatch(/\bSELECT\b/);
+    expect(read('native_lane_25/postgres.rs')).toContain('LEG_POS_SALES');
     expect(read('pos.ts')).toContain('const allocatedTotalsHeadSql = (): string => `WITH allocated AS (');
     expect(read('native-pos-day-report.ts')).toContain("'pos_day_report_");
     expect(read('native-pos-stripe-reads.ts')).toContain("'pos_stripe_");
@@ -121,7 +122,7 @@ describe('POS read-tail r42 org-node label head dedupe', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(169);
+    expect(total).toBe(164);
     expect(total).toBeLessThan(174);
   });
 });

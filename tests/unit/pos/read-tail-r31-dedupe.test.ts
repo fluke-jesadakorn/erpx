@@ -56,7 +56,7 @@ describe('POS read-tail r31 list-read native cutover', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(169);
+    expect(total).toBe(164);
     expect(total).toBeLessThan(191);
   });
 });

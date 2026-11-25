@@ -20,8 +20,8 @@ import { createChangeLearningCourse, createChangeLearningAssignment, createLearn
 import type { LearningAssignment as Assignment } from "@erpx/server-learning/domain/learning";
 import {courseActionSchema,learningActionSchema} from "@erpx/server-learning/domain/learning";
 import {withLearningPurchasedCommand,withLearningPurchasedRead,requireLearningPurchasedRead,type LearningCapability} from "@erpx/server-learning/adapters/purchases";
-import {assignmentCourseReadHead,existsRowProbe,identitySourceRead,imageChildFrame,jsonbAggImageHead,learningCourseProjection,overdueEvidenceColumns} from "./learning-read-sql";
-import {completionEvidenceColumns} from "./learning-completion-evidence";
+import {assignmentCourseReadHead,existsRowProbe,identitySourceRead,imageChildFrame,jsonbAggImageHead,learningCourseProjection} from "./learning-read-sql";
+import {nativeLearningEvidenceRow,type NativeLearningEvidenceRow} from "./native-lane-31/client";
 export type { LearningExecutiveEvidenceMetric } from "@erpx/server-learning/application/learning";
 const learnerEligible = `EXISTS(${existsRowProbe(`${identityaccessSources.learning_adapters_learning_assignments_x_from} ${peoplepayrollSources.learning_adapters_learning_hr_people_p_join} ON p.user_id=x.user_id AND p.company_id=x.company_id ${peoplepayrollSources.learning_adapters_learning_hr_engagements_e_join} ON e.person_id=p.id AND e.company_id=p.company_id`, `x.company_id=a.company_id AND x.user_id=a.learner_id AND iam_assignment_active(x.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(x.user_id,x.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (x.scope_kind='holding' OR (x.scope_kind='branch' AND x.scope_node_id=a.branch_id) OR (x.scope_kind='department' AND x.scope_node_id=a.department_id)) AND p.status='active' AND p.merged_into_id IS NULL AND e.status='active'`)})`;
 function access(a: WorkContext, write = false) {
@@ -86,25 +86,14 @@ export function nativeLearningAssignmentChanges(source:DatabaseSource){return as
 export async function changeLearningAssignment(a:WorkContext,id:string,raw:unknown,key:string){return nativeLearningAssignmentChanges(lazyDatabase(a))(a,id,raw,key);}
 /* Native learning assignment detail (history/handoff/certificate) is owned by
  * the mounted axum port; the TS detail reader and its export are retired. */
-export function nativeLearningExecutiveEvidence(db:SqlDatabase){return createLearningExecutiveEvidence({authorize:access,error:violation=>new ApiError(violation.status,violation.code,violation.message),
- completions:(a,id,range)=>db.prepare(`${completionEvidenceColumns}
-      FROM learning_assignment_events e
-      JOIN learning_assignments a ON a.id=e.assignment_id
-      JOIN learning_courses c ON c.id=a.course_id
-      WHERE e.id=? AND a.company_id=? AND (?::text IS NULL OR a.branch_id=?)
-        AND (?::text IS NULL OR a.department_id=?)
-        AND e.action='complete' AND e.status='completed' AND e.created_at>=? AND e.created_at<?
-      LIMIT 1`)
-      .bind(id, a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId, range.from, range.toExclusive)
-      .first<Row>(),overdue:(a,id)=>db.prepare(`${overdueEvidenceColumns}
-    FROM learning_assignments a JOIN learning_courses c ON c.id=a.course_id
-    WHERE a.id=? AND a.company_id=? AND (?::text IS NULL OR a.branch_id=?)
-      AND (?::text IS NULL OR a.department_id=?) AND c.required_for IS NOT NULL
-      AND a.due_date<to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD')
-      AND a.status IN ('assigned','in_progress')
-    LIMIT 1`)
-    .bind(id, a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId)
-    .first<Row>(),
+/* Native evidence-detail reads are owned by the mounted axum port
+ * (native_lane_31). The two former inline SQL readers are retired; the retained
+ * TypeScript consumer only transports bounded identities and validates the
+ * projected row. There is no SQL fallback. */
+const evidenceRow=(row:NativeLearningEvidenceRow|null)=>row?(Object.fromEntries(Object.entries(row).filter(([,value])=>value!==undefined)) as Row):null;
+export function nativeLearningExecutiveEvidence(_db:SqlDatabase){return createLearningExecutiveEvidence({authorize:access,error:violation=>new ApiError(violation.status,violation.code,violation.message),
+ completions:(a,id,range)=>nativeLearningEvidenceRow(a,"learning-completions",id,range).then(evidenceRow),
+ overdue:(a,id)=>nativeLearningEvidenceRow(a,"overdue-required-learning",id).then(evidenceRow),
  });}
 export async function learningExecutiveEvidenceRow(db:SqlDatabase,a:WorkContext,metric:LearningExecutiveEvidenceMetric,recordId:string,range?:{from:number;toExclusive:number}){await requireLearningPurchasedRead(db,a,metric==="learning-completions"?"learn.results":"learn.assignments");return nativeLearningExecutiveEvidence(db)(a,metric,recordId,range);}
 /* Native learning work read. The mounted axum workspace route owns the scoped

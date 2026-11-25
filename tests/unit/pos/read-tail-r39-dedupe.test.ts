@@ -59,17 +59,19 @@ describe('POS read-tail r39 allocated-totals head and evidence sale-leg dedupe',
     expect(occurrences(pos, '${pmsProjectionSources.pms_sources}')).toBe(3);
   });
 
-  test('fold 2: byte-identical sale leg is authored once and reused by both metrics', () => {
+  test('fold 2: the byte-identical sale leg is authored once in the native owner (lane 25)', () => {
+    const rust = read('native_lane_25/postgres.rs');
     const ev = read('executive-evidence-sources.ts');
-    expect(ev).toContain(LEG_RENDERER + '`' + POS_SALES_LEG + '`');
-    expect(occurrences(ev, POS_SALES_LEG)).toBe(1);
+    expect(occurrences(rust, POS_SALES_LEG)).toBe(1);
     expect(binds(POS_SALES_LEG)).toBe(8);
     expect(selects(POS_SALES_LEG)).toBe(1);
     expect(POS_SALES_LEG.endsWith('>0)')).toBe(true);
     expect(POS_SALES_LEG.endsWith('\n')).toBe(false);
-    expect(ev).toContain('if (metric === "pos-sales")\n        return posSalesLegSql();');
-    expect(occurrences(ev, '${posSalesLegSql()}')).toBe(1);
-    expect(ev).toContain('return `${posSalesLegSql()}\n    UNION ALL');
+    expect(rust).toContain('LEG_REFUND');
+    expect(rust).toContain('UNION ALL');
+    expect(ev).not.toContain('posSalesLegSql');
+    expect(ev).toContain('nativePosEvidenceRows');
+    expect(ev).not.toMatch(/\bSELECT\b/);
   });
 
   test('protected r38 lock renderer, sale-child registry, PMS fragments, advisory locks and settlement mirrors stay untouched', () => {
@@ -96,7 +98,7 @@ describe('POS read-tail r39 allocated-totals head and evidence sale-leg dedupe',
       }
     };
     walk(srcRoot);
-    expect(total).toBe(169);
+    expect(total).toBe(164);
     expect(total).toBeLessThan(179);
   });
 });

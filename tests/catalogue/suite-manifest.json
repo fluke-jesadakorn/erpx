@@ -55944,6 +55944,33 @@
       }
     },
     {
+      "lane": "unit",
+      "owner": "learning",
+      "modules": [
+        "learning"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Learning native evidence route must stay tenant-isolated."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-learning"
+      ],
+      "id": "learning.native-lane-31.unit",
+      "files": [
+        "tests/unit/learning/native-lane-31.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "learning.native-learning-transport.unit",
       "lane": "unit",
       "owner": "learning",
@@ -86101,6 +86128,33 @@
       "id": "pos.native-hotel-reads-statement.unit",
       "files": [
         "tests/unit/pos/native-pos-hotel-reads-statement.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "pos",
+      "modules": [
+        "pos"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "POS native evidence route must stay tenant-isolated."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-pos"
+      ],
+      "id": "pos.native-lane-25.unit",
+      "files": [
+        "tests/unit/pos/native-lane-25.test.ts"
       ],
       "framework": "vitest"
     },
