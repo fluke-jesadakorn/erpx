@@ -107,7 +107,7 @@ describe('Inventory read-tail r57 count-line product guard dedupe', () => {
     // and r56 at 296. r57 folds the byte-identical count-line product guard
     // head shared by the quality-disposal same-product and cross-product reads
     // into one owner-local renderer: 2 source tokens -> 1, i.e. 296 -> 295.
-    expect(total).toBe(295);
-    expect(total).toBeLessThan(296);
+    expect(total).toBe(294);
+    expect(total).toBeLessThan(295);
   });
 });

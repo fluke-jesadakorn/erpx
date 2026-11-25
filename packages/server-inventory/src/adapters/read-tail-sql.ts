@@ -400,3 +400,9 @@ export const lotAllocationRowsHeadSql = 'SELECT a.*,l.lot_code,l.serial_number,l
  *  count sources/adapters and r11-r56 helpers stay untouched. */
 export const countLineProductGuardSql = (tail: string) =>
   `EXISTS(SELECT 1 FROM inventory_count_lines line WHERE line.count_id=c.id AND line.product_id${tail}`;
+
+/** r58: the count-line and transfer-line detail reads share one byte-identical
+ *  projection head. Only the literal text is shared; every caller keeps its own
+ *  projection tail, table/join scope, bind and independent statement. Locks,
+ *  native transport, count sources/adapters and r11-r57 helpers stay untouched. */
+export const countLineStockHeadSql = 'SELECT l.*,p.sku,p.tracking_mode,';
