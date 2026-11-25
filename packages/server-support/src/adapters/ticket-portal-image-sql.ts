@@ -1,4 +1,5 @@
 import 'server-only';
+import { readTailR43ColumnsFromSql } from './read-tail-r43-sql';
 import { readTailR44ImageAggregateSql } from './read-tail-r44-sql';
 
 /** Canonical parameterized fragments for the Support ticket-portal image reads.
@@ -8,7 +9,7 @@ import { readTailR44ImageAggregateSql } from './read-tail-r44-sql';
  * Every caller keeps its own binds and its own independent statement. The
  * native ticket-portal reader remains the authority. */
 export const portalImageSelectedCte = (ids: string[]) =>
-  `WITH selected AS(SELECT * FROM support_ticket_portal_bindings WHERE id IN (${ids.map(() => '?').join(',')}))`;
+  `WITH selected AS(${readTailR43ColumnsFromSql('*', `support_ticket_portal_bindings WHERE id IN (${ids.map(() => '?').join(',')})`)})`;
 
 export const portalBindingImageSql = () =>
   readTailR44ImageAggregateSql('binding', 'binding.id', 'selected binding');

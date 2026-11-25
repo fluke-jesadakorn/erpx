@@ -95,8 +95,8 @@ describe('support read-tail r45 byte-identical active-assignment EXISTS head', (
     expect(src('read-tail-r44-sql.ts')).toContain('readTailR44ImageAggregateSql =');
   });
 
-  test('retirement:ts-statements drops from the r44 AFTER=32 to 31', () => {
-    expect(totalSelects()).toBe(31);
+  test('retirement:ts-statements drops from the r45 AFTER=31 to 30', () => {
+    expect(totalSelects()).toBe(30);
     expect(totalSelects()).toBeLessThan(32);
   });
 });

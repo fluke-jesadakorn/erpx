@@ -83,7 +83,7 @@ describe('Support read-tail r36 ticket-portal installed native kind', () => {
     });
 
     test('retirement:ts-statements drops from 43 to 42', () => {
-        expect(selectCount()).toBe(31);
+        expect(selectCount()).toBe(30);
         expect(selectCount()).toBeLessThan(43);
     });
 });

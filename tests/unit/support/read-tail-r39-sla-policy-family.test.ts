@@ -99,7 +99,7 @@ describe('Support SLA policy workspace/work native read family (r39)', () => {
     });
 
     test('retirement:ts-statements 37->31 and the registry grows 46->50', () => {
-        expect(selectCount()).toBe(31);
+        expect(selectCount()).toBe(30);
         expect(selectCount()).toBeLessThan(38);
         expect(registry).toContain('assert_eq!(STATEMENTS.len(), 50);');
     });
