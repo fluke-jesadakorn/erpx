@@ -63,6 +63,7 @@ const kinds = [
   },
   {
     kind: 'commerce_rd_warehouses_active',
+    registryKind: 'warehouses.active',
     constName: 'RD_WAREHOUSES_ACTIVE',
     planConst: 'PLAN_WAREHOUSES_ACTIVE',
     SQL: "SELECT id,name,branch_id FROM commerce_warehouses WHERE company_id=? AND status='active' AND (?::text IS NULL OR branch_id=?) ORDER BY name",
@@ -74,6 +75,7 @@ const kinds = [
   },
   {
     kind: 'commerce_rd_warehouse_branch_active',
+    registryKind: 'warehouse.branch-active',
     constName: 'RD_WAREHOUSE_BRANCH_ACTIVE',
     planConst: 'PLAN_WAREHOUSE_BRANCH_ACTIVE',
     SQL: "SELECT id,name FROM commerce_warehouses WHERE company_id=? AND branch_id=? AND status='active'",
@@ -113,8 +115,8 @@ describe('commerce read-tail r20 native warehouse kinds', () => {
     ]) {
       expect(registry, file).toContain(`include_str!("../adapters/${file}")`);
     }
-    for (const { kind, constName, planConst, SQL } of kinds) {
-      expect(registry, kind).toContain(`"${kind}"`);
+    for (const { kind, registryKind, constName, planConst, SQL } of kinds) {
+      expect(registry, kind).toContain(`"${registryKind}"`);
       expect(registry, constName).toContain(`pub const ${constName}`);
       expect(registry, planConst).toContain(`pub const ${planConst}`);
       expect(registry, `${kind} registry SQL`).toContain(SQL);
