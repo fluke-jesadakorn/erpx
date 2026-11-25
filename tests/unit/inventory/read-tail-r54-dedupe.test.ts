@@ -17,7 +17,12 @@ const tailsAfter = (text: string, marker: string) => {
     const at = text.indexOf(marker, i);
     if (at < 0) break;
     const start = at + marker.length;
-    out.push(text.slice(start, text.indexOf('`', start)));
+    // Stop at the next UNION ALL, not the statement's closing backtick: two
+    // heads share one statement, so the rest of it contains the sibling fold.
+    const close = text.indexOf('`', start);
+    const next = text.indexOf(' UNION ALL ', start);
+    const end = next >= 0 && next < close ? next : close;
+    out.push(text.slice(start, end));
     i = start;
   }
   return out;
@@ -35,9 +40,12 @@ const HEAD_SHAS: Record<string, string> = {
   'stock-invalid': 'c7b9afd0b5ccc9d80b4e0d8f278bd9fef2e2c2d845ee977585fa6dffc0d877ff',
   'invalid-stock': '32ff32f725bed6191841b81724e873fbfa4f270958997d20d84612273279ad8f',
 };
-// SHA of the guard/FROM/ORDER tail following each head in its original caller.
+// SHA of each LOCAL guard/FROM/ORDER tail from the pre-r54 parent blob, read up
+// to the next UNION ALL. The initial-physical-stock statement also holds the
+// stock-invalid head, so pinning the local tail keeps the oracle on the guard
+// text rather than on the sibling fold. Verified byte-identical to the parent.
 const TAIL_SHAS: Record<string, string> = {
-  'initial-physical-stock': 'd14d2b428ffc5e6e7fec1aa3343346c0d60e32c36054d04ac59af833b0a5b9fa',
+  'initial-physical-stock': 'bb248329070742fe8118f15e6577e4c7317ef4e427fd8ebe513c386b36bd7c56',
   'stock-invalid': 'a9a0c259ae7939602aa0561d4e0c355ccdebce6efa395ab520c0e1ce54b47673',
   'invalid-stock': 'c37d8f022c7292cffa3c9b10c19af7fd44b0622ce5f7c960617acdc508a90e87',
 };
