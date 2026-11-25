@@ -426,9 +426,10 @@ it('shares one canonical lineage aggregate projection across the Assets financia
    const {readFile}=await import('node:fs/promises');
    const adapter=await readFile(new URL('../../../packages/server-assets/src/adapters/financial-workflow-sources.ts',import.meta.url),'utf8');
    const count=(text:string,needle:string)=>text.split(needle).length-1;
-   // r33 folds the JSON aggregate head into the generic projection-from head; the
-   // helper renders byte-identically at all four call sites with no local token.
-   expect(adapter.match(/SELECT/g)).toHaveLength(1);
+   // r33 folds the JSON aggregate head into the generic projection-from head and
+   // r34 folds the image witness into the universal head; both render byte-identically
+   // with no local token left in this file.
+   expect((adapter.match(/SELECT/g)??[])).toHaveLength(0);
    expect(adapter).toContain('const assetPhysicalAggSql = (alias:string,from:string) =>');
    expect(count(adapter,'(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM ${from})')).toBe(0);
    expect(adapter).toContain('assetProjectionFromSql(`jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id)`,` ${from}`)');
@@ -465,7 +466,7 @@ it('shares one canonical current-assignment scope probe across the Assets privat
  expect(helper).toContain('export const assetScopeTupleSql = (alias: string) =>');
  expect(helper).toContain('export const assetCurrentScopeProbeSql = (projection:string,from:string,tail="") =>');
  expect(count(helper,tuple)).toBe(1);
- expect(count(helper,'SELECT ${projection} FROM${from}${tail}')).toBe(1);
+ expect(count(helper,'SELECT ${projection}${tail}')).toBe(1);
  for(const caller of [authority,read]){
   expect(caller).toMatch(/import \{assetCurrentScopeProbeSql,assetScopeTupleSql\} from ['"]\.\/asset-scope-tuple['"]/);
   expect(count(caller,tuple)).toBe(0);
@@ -562,7 +563,7 @@ describe('Assets read-tail r17 byte-identical family dedupe',()=>{
   // r24 shares the fixed operational_assets projection;
   // r25 retires the field-service image literal already byte-identical to the native plan;
   // r26 retires the package-obligation fallback (BEFORE=20, strictly lower).
-  expect(selects).toBe(4);
+  expect(selects).toBe(3);
   const financial=readFileSync(resolve(srcRoot,'adapters/financial-workflow-sources.ts'),'utf8');
   expect(financial).toContain("LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links,maintenance_work_orders IN SHARE MODE");
   const purchases=readFileSync(resolve(srcRoot,'adapters/purchases.ts'),'utf8');
@@ -612,7 +613,7 @@ describe('Assets read-tail r21 id+company keyed-row family',()=>{
   // r23 shares the all-rows projection; r24 shares the fixed operational_assets projection;
   // r25 retires the field-service image literal byte-identical to PLAN_FS_IMAGE;
   // r26 retires the package-obligation fallback (BEFORE=20, strictly lower).
-  expect(selects).toBe(4);
+  expect(selects).toBe(3);
   // r2-r20 lock/cascade families are untouched.
   expect(readFileSync(resolve(srcRoot,'adapters/financial-workflow-sources.ts'),'utf8'))
    .toContain("LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links,maintenance_work_orders IN SHARE MODE");
@@ -649,10 +650,10 @@ describe('Assets read-tail r22 Finance-link keyed read family',()=>{
   const {assetFinanceLinkReadSql}=await import('../../../packages/server-assets/src/adapters/financial-workflow-sources');
   const text=await readFile(new URL('../../../packages/server-assets/src/adapters/financial-workflow-sources.ts',import.meta.url),'utf8');
   expect(text).toContain('export const assetFinanceLinkReadSql = (projection:string,alias="",tail="") =>');
-  expect((text.match(/SELECT/g)??[])).toHaveLength(1);
+  expect((text.match(/SELECT/g)??[])).toHaveLength(0);
   // r32 folds the keyed-read head into the generic projection-from head; the
   // helper renders byte-identically at both call sites with no local token.
-  expect(text).toContain('import {assetProjectionFromSql} from "./asset-scope-tuple"');
+  expect(text).toContain('import {assetProjectionFromSql,assetSelectProjectionSql} from "./asset-scope-tuple"');
   expect(text).toContain('assetProjectionFromSql(projection,` operational_assets${alias?` ${alias}`:""}`');
   // Physical lineage witness (aliased) is byte-identical to its pre-r22 literal.
   expect(assetFinanceLinkReadSql("a.*","a")).toBe('SELECT a.* FROM operational_assets a WHERE a.company_id=? AND a.finance_asset_id=?');
@@ -673,7 +674,7 @@ describe('Assets read-tail r20 source-image witness family',()=>{
   const financial=await readFile(new URL('financial-workflow-sources.ts',base),'utf8');
   const purchases=await readFile(new URL('purchases.ts',base),'utf8');
   expect(financial).toContain('export const assetSourceImageSql = (projection:string,tail="") =>');
-  expect(financial.match(/SELECT/g)).toHaveLength(1);
+  expect((financial.match(/SELECT/g)??[])).toHaveLength(0);
   expect(purchases.match(/SELECT/g)??[]).toHaveLength(0);
   expect(purchases).toContain('import {assetPhysicalAggSql,assetSourceImageSql} from "./financial-workflow-sources"');
   expect(financial).not.toContain("SELECT jsonb_build_object('assets'");
@@ -731,7 +732,7 @@ describe('Assets read-tail r23 all-rows projection family',()=>{
  });
  it('leaves r11-r22 families, locks and the native read transport untouched',async()=>{
   expect((src('record-purchases.ts').match(/SELECT/g)??[])).toHaveLength(1);
-  expect((src('financial-workflow-sources.ts').match(/SELECT/g)??[])).toHaveLength(1);
+  expect((src('financial-workflow-sources.ts').match(/SELECT/g)??[])).toHaveLength(0);
   // r29 folds the keyed-row head into the generic projection-from head; the
   // helper delegates with no local SELECT token but renders byte-identically.
   expect((src('attachments-policy-facts.ts').match(/SELECT/g)??[])).toHaveLength(0);
@@ -782,7 +783,7 @@ describe('Assets read-tail r24 fixed operational_assets projection family',()=>{
  });
  it('leaves r11-r23 families, locks and the native read transport untouched',async()=>{
   expect((src('record-purchases.ts').match(/SELECT/g)??[])).toHaveLength(1);
-  expect((src('financial-workflow-sources.ts').match(/SELECT/g)??[])).toHaveLength(1);
+  expect((src('financial-workflow-sources.ts').match(/SELECT/g)??[])).toHaveLength(0);
   // r29 folds the keyed-row head into the generic projection-from head; the
   // helper delegates with no local SELECT token but renders byte-identically.
   expect((src('attachments-policy-facts.ts').match(/SELECT/g)??[])).toHaveLength(0);
@@ -811,7 +812,7 @@ describe('Assets read-tail r25 byte-identical field-service image family',()=>{
   return selects;
  };
  it('lowers the owner TS SELECT tail strictly below BEFORE=21',()=>{
-  expect(ownerSelectCount()).toBe(4);
+  expect(ownerSelectCount()).toBe(3);
  });
  it('routes the field-service image unconditionally to the byte-identical native plan',()=>{
   const field=read('adapters/field-service-references.ts');
@@ -843,7 +844,7 @@ describe('Assets read-tail r26 package-obligation native cutover',()=>{
   return selects;
  };
  it('lowers the owner TS SELECT tail strictly below BEFORE=20',()=>{
-  expect(ownerSelectCount()).toBe(4);
+  expect(ownerSelectCount()).toBe(3);
  });
  it('routes package obligations unconditionally to the registered native plans',()=>{
   const pkg=read('adapters/package-obligations.ts');
@@ -904,16 +905,16 @@ describe('Assets read-tail r27 parameterized projection-head family',()=>{
     expect(assetOperationalRowsSql("id,version")).toBe(`SELECT id,version FROM operational_assets`);
     expect(assetProjectionFromSql("id,version"," operational_assets")).toBe(assetOperationalRowsSql("id,version"));
     // Exactly one owner literal carries the parameterized head.
-    expect(src('asset-scope-tuple.ts').split('SELECT ${projection} FROM${from}${tail}').length-1).toBe(1);
+    expect(src('asset-scope-tuple.ts').split('SELECT ${projection}${tail}').length-1).toBe(1);
     expect(src('asset-operational-rows-sql.ts')).toContain('assetProjectionFromSql(columns," operational_assets")');
   });
   it('lowers the owner TS SELECT tail strictly below BEFORE=15',()=>{
-    expect(ownerSelectCount()).toBe(4);
+    expect(ownerSelectCount()).toBe(3);
   });
   it('leaves locks, native plans and cross-owner settlement sources untouched',()=>{
     const financial=src('financial-workflow-sources.ts');
     expect(financial).toContain("LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links,maintenance_work_orders IN SHARE MODE");
-    expect(financial.match(/SELECT/g)).toHaveLength(1);
+    expect((financial.match(/SELECT/g)??[])).toHaveLength(0);
     expect(src('purchases.ts')).toContain('LOCK TABLE operational_assets,operational_asset_finance_links IN SHARE ROW EXCLUSIVE MODE');
     const pkg=src('package-obligations.ts');
     expect(pkg).toContain('export const assetPackageSettlementSources={assets:');
@@ -950,9 +951,9 @@ describe('Assets read-tail r28 all-rows/projection-from head family',()=>{
   }
  });
  it('lowers the owner TS SELECT tail strictly below BEFORE=14',()=>{
-  expect(ownerSelectCount()).toBe(4);
+  expect(ownerSelectCount()).toBe(3);
   expect(src('asset-all-rows-sql.ts').match(/SELECT/g)??[]).toHaveLength(0);
-  expect(src('asset-scope-tuple.ts').split('SELECT ${projection} FROM${from}${tail}').length-1).toBe(1);
+  expect(src('asset-scope-tuple.ts').split('SELECT ${projection}${tail}').length-1).toBe(1);
  });
  it('leaves locks, native plans and cross-owner settlement sources untouched',()=>{
   expect(src('financial-workflow-sources.ts')).toContain("LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links,maintenance_work_orders IN SHARE MODE");
@@ -994,11 +995,11 @@ describe('Assets read-tail r29 keyed-row/projection-from head family',()=>{
    .toBe('SELECT company_id,branch_id AS branch_id,department_id AS department_id,version AS version FROM operational_assets WHERE id=? AND company_id=? AND version>0');
  });
  it('lowers the owner TS SELECT tail strictly below BEFORE=13',()=>{
-  expect(ownerSelectCount()).toBe(4);
+  expect(ownerSelectCount()).toBe(3);
   expect(src('attachments-policy-facts.ts').match(/SELECT/g)??[]).toHaveLength(0);
   expect(src('attachments-policy-facts.ts')).toContain('import {assetProjectionFromSql} from "./asset-scope-tuple"');
   expect(src('attachments-policy-facts.ts')).toContain('assetProjectionFromSql(projection,` ${from}`,` WHERE id=? AND company_id=?${tail}`)');
-  expect(src('asset-scope-tuple.ts').split('SELECT ${projection} FROM${from}${tail}').length-1).toBe(1);
+  expect(src('asset-scope-tuple.ts').split('SELECT ${projection}${tail}').length-1).toBe(1);
  });
  it('leaves locks, native plans and cross-owner settlement sources untouched',()=>{
   expect(src('financial-workflow-sources.ts')).toContain("LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links,maintenance_work_orders IN SHARE MODE");
@@ -1038,11 +1039,11 @@ describe('Assets read-tail r31 permission-probe/projection-from head family',()=
   expect(sql).toContain('g.id=? AND g.user_id=? AND g.role=? AND g.company_id=assets_scope.company_id');
   expect(sql).toContain('iam_role_allows(g.role,g.company_id,\'records.read\')');
  });
- it('lowers the owner TS SELECT tail from BEFORE=11 to 4 after r33 with no local probe token',()=>{
-  expect(ownerSelectCount()).toBe(4);
+ it('lowers the owner TS SELECT tail from BEFORE=11 to 3 after r34 with no local probe token',()=>{
+  expect(ownerSelectCount()).toBe(3);
   expect(src('asset-scope-probe.ts').match(/SELECT/g)??[]).toHaveLength(0);
   expect(src('asset-scope-probe.ts')).toContain('assetProjectionFromSql(');
-  expect(src('asset-scope-tuple.ts').split('SELECT ${projection} FROM${from}${tail}').length-1).toBe(1);
+  expect(src('asset-scope-tuple.ts').split('SELECT ${projection}${tail}').length-1).toBe(1);
  });
  it('leaves locks, native plans and cross-owner settlement sources untouched',()=>{
   expect(src('financial-workflow-sources.ts')).toContain("LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links,maintenance_work_orders IN SHARE MODE");
@@ -1103,13 +1104,13 @@ describe('Assets read-tail r32 projection-from head family',()=>{
 
   // The shared base itself is frozen and owns the only projection head.
   expect(assetProjectionFromSql('x',' y',' WHERE z')).toBe('SELECT x FROM y WHERE z');
-  expect(src('adapters/asset-scope-tuple.ts').split('SELECT ${projection} FROM${from}${tail}').length-1).toBe(1);
+  expect(src('adapters/asset-scope-tuple.ts').split('SELECT ${projection}${tail}').length-1).toBe(1);
  });
- it('lowers the owner TS SELECT tail from BEFORE=10 to 4 after r33 and keeps base, locks and native plans untouched',()=>{
-  expect(ownerSelectCount()).toBe(4);
+ it('lowers the owner TS SELECT tail from BEFORE=10 to 3 after r34 and keeps base, locks and native plans untouched',()=>{
+  expect(ownerSelectCount()).toBe(3);
   const finance=src('adapters/financial-workflow-sources.ts');
   const executive=src('adapters/executive-metric-projections.ts');
-  expect(finance.match(/SELECT/g)).toHaveLength(1);
+  expect((finance.match(/SELECT/g)??[])).toHaveLength(0);
   expect(executive.match(/SELECT/g)??[]).toHaveLength(0);
   expect(finance).not.toContain('return `SELECT ${projection} FROM operational_assets');
   expect(executive).not.toContain('`SELECT ${label} label,count(*)::text value FROM`');

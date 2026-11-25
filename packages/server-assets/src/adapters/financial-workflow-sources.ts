@@ -4,7 +4,7 @@ import type {WorkContext} from '@erpx/server-identity_access/public/authorizatio
 import {hasPermission} from '@erpx/feature-identity_access/lib/permissions';
 import {hasModuleAccess} from '@erpx/catalogue/module-access';
 import {assetSourceProbeSql} from "./record-purchases";
-import {assetProjectionFromSql} from "./asset-scope-tuple";
+import {assetProjectionFromSql,assetSelectProjectionSql} from "./asset-scope-tuple";
 /** Exact native physical links and original retirement/Maintenance sources.
  * No physical record is created or relabelled by the Finance continuation. */
 /** Canonical owner-local fixed JSON aggregate for the physical lineage sources.
@@ -18,7 +18,7 @@ export const assetPhysicalAggSql = (alias:string,from:string) =>
  * duplicate image statement. Callers pass only a fixed JSON projection and an
  * owner-owned tail; no SQL or relation name is accepted from a request. */
 export const assetSourceImageSql = (projection:string,tail="") =>
-  `SELECT ${projection}::text image${tail}`;
+  assetSelectProjectionSql(projection,`::text image${tail}`);
 /** Canonical owner-local Finance-link keyed asset read. The physical lineage
  * witness and the Finance-visible asset links share this one statement so the
  * TS read tail carries no duplicate literal. Callers pass only a fixed

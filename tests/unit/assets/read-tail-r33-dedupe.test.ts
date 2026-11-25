@@ -101,18 +101,18 @@ describe('Assets read-tail r33 projection-from head family',()=>{
   expect((text.match(/SELECT/g)??[])).toHaveLength(0);
  });
 
- it('lowers the owner TS SELECT tail from BEFORE=7 to 4 and keeps the four floor tokens untouched',()=>{
-  expect(ownerSelectCount()).toBe(4);
-  // Floor 1 and 2: the canonical head and the scope tuple, both in asset-scope-tuple.ts.
+ it('lowers the owner TS SELECT tail from BEFORE=7 to 3 and keeps the three floor tokens untouched',()=>{
+  expect(ownerSelectCount()).toBe(3);
+  // Floor 1 and 2: the universal head and the scope tuple, both in asset-scope-tuple.ts.
   const scope=src('adapters/asset-scope-tuple.ts');
   expect((scope.match(/SELECT/g)??[])).toHaveLength(2);
-  expect(scope.split('SELECT ${projection} FROM${from}${tail}').length-1).toBe(1);
+  expect(scope.split('SELECT ${projection}${tail}').length-1).toBe(1);
   expect(scope.split('(SELECT ?::text company_id,?::text branch_id,?::text department_id)').length-1).toBe(1);
   // Floor 3: the clock scalar.
   expect((src('adapters/record-purchases.ts').match(/SELECT/g)??[])).toHaveLength(1);
-  // Floor 4: the image witness.
-  expect((src('adapters/financial-workflow-sources.ts').match(/SELECT/g)??[])).toHaveLength(1);
-  // The three delegated files carry no local statement token.
+  // The r34 image witness delegates to the universal head; no local statement token.
+  expect((src('adapters/financial-workflow-sources.ts').match(/SELECT/g)??[])).toHaveLength(0);
+  // The four delegated files carry no local statement token.
   expect((src('adapters/package-obligations.ts').match(/SELECT/g)??[])).toHaveLength(0);
   expect((src('adapters/metric-purchases.ts').match(/SELECT/g)??[])).toHaveLength(0);
   expect(src('adapters/financial-workflow-sources.ts').split('(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM ${from})').length-1).toBe(0);
