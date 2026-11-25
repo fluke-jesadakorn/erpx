@@ -14,6 +14,7 @@ import { policyRead as nativePolicyRead, policyNow as nativePolicyNow } from '@e
 import { replayCommand as nativeReplayCommand, executeCommand as nativeExecuteCommand } from '@erpx/server-workflow/public/commands';
 import { ApiError as NativeApiError } from '@erpx/server-runtime/public/http';
 import {nativeOperationsReadFirst,OPERATIONS_RD_HANDOVER_RECOVERY_RECEIPT} from './native-operations-read';
+import {OPERATIONS_STAFF_TASK_HEAD} from './read-tail-r53-sources';
 import {handoverPublishSchema, type HandoverView, type HandoverAcknowledgement } from '@erpx/server-operations/domain/handover';
 import {withOperationsHandoverPurchaseUnit,withOperationsHandoverAcknowledgement} from '@erpx/server-collaboration/public/work-social-purchases';
 import { createHandoverApplication, type HandoverRepository } from '@erpx/server-operations/application/handover';
@@ -30,7 +31,7 @@ function application(provided?: SqlDatabase) {
         readPublishHandoverExisting(...args) { return HandoverCollaborationFacts(database).readPublishHandoverExisting(...args); },
         readPublishHandoverAccessible(...args) { return HandoverPmsFacts(database).readPublishHandoverAccessible(...args); },
         readPublishHandoverAccessible2(recipientId: string, id: string, companyId: string) {
-            return database.prepare(`SELECT 1 FROM staff_tasks ht CROSS JOIN (SELECT ?::text user_id) recipient
+            return database.prepare(`${OPERATIONS_STAFF_TASK_HEAD('ht')}CROSS JOIN (SELECT ?::text user_id) recipient
         WHERE ht.id=? AND ht.company_id=? AND ${handoverTaskAccessSql("ht", "recipient.user_id")}`)
                 .bind(recipientId, id, companyId).first();
         },

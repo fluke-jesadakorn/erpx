@@ -91,7 +91,7 @@ describe('operations read-tail r49 EXISTS/CTE-head retirement', () => {
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(75);
+    expect(total).toBe(72);
     expect(total).toBeLessThan(89);
   });
 });

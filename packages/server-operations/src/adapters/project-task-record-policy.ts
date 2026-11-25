@@ -3,12 +3,13 @@ import {sourceAccessSql} from '@erpx/server-collaboration/public/social-source-p
 import {operationsActiveDelegationSql} from './task-delegation-source';
 import {approverJsonExistsSql} from './task-approver-access-source';
 import {operationsTableExists} from './identity-policy-version-guard';
+import {OPERATIONS_STAFF_TASK_HEAD} from './read-tail-r53-sources';
 
 /** SQL counterpart of the original task reader's participant and social-source
  * policy, for consumers that must apply source policy before their own LIMIT. */
 function participantQuery(id:string,company:string,viewer:string){
  const user=`${viewer}.user_id`;
- const sql=`EXISTS(SELECT 1 FROM staff_tasks project_task_record LEFT JOIN staff_projects parent_project ON parent_project.id=project_task_record.project_id
+ const sql=`EXISTS(${OPERATIONS_STAFF_TASK_HEAD('project_task_record')}LEFT JOIN staff_projects parent_project ON parent_project.id=project_task_record.project_id
  LEFT JOIN LATERAL (${operationsActiveDelegationSql('sd.delegate_user_id','sd','project_task_record.id','project_task_record.company_id',`${viewer}.now_ms`,' ORDER BY sd.created_at DESC,sd.id DESC LIMIT 1')}) delegation ON TRUE
  WHERE project_task_record.id=${id} AND project_task_record.company_id=${company} AND (
  iam_same_person(project_task_record.creator_user_id,${user},project_task_record.company_id) OR iam_same_person(project_task_record.assignee_user_id,${user},project_task_record.company_id)

@@ -1,5 +1,6 @@
 import {workTaskProjectionReadScope} from "@erpx/server-operations/adapters/record-purchases";
 import {operationsOverdueAlertSql} from './executive-task-cohort';
+import {OPERATIONS_TASK_LIST_HEAD} from './read-tail-r53-sources';
 import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
@@ -9,7 +10,7 @@ const overdueAlert = `(${operationsOverdueAlertSql('min(n.created_at)', 't')})`;
 /** Canonical Operations evidence projection shared by the search and read
  * readers; one fixed text keeps the two SELECTs from drifting. Binds unchanged. */
 const evidenceSelect = (metric: string, alertSelect: string, extra = '') =>
-    `SELECT t.id,t.title,t.state,t.due_at,t.created_at,t.updated_at,t.version,t.branch_id,t.department_id,
+    `${OPERATIONS_TASK_LIST_HEAD}due_at,t.created_at,t.updated_at,t.version,t.branch_id,t.department_id,
       ${metric === "exception-resolution-time" ? "(t.updated_at-t.due_at)::text" : "NULL::text"} exception_duration_ms,
       ${alertSelect} alert_created_at${extra}`;
 export function executiveMainEvidenceSources(db: SqlDatabase) {

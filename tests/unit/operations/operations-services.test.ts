@@ -885,7 +885,7 @@ describe('Operations read-tail r41 retirement',()=>{
     walk(root);
     // r42 deduped the social task-origin EXISTS family and r43 deduped the
     // command-receipt version guard; the r41 BEFORE=110 baseline is unchanged.
-    expect(space).toBe(75);
+    expect(space).toBe(72);
     expect(space).toBeLessThan(110);
   });
 });
@@ -925,7 +925,7 @@ describe('Operations read-tail r42 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(75);
+    expect(space).toBe(72);
     expect(space).toBeLessThan(110);
   });
 });
@@ -970,7 +970,7 @@ describe('Operations read-tail r43 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(75);
+    expect(space).toBe(72);
     expect(space).toBeLessThan(109);
   });
 });
@@ -991,7 +991,8 @@ describe('Operations read-tail r44 retirement',()=>{
     expect(records.match(/operationsStaffTaskExists\(/g)).toHaveLength(2);
     expect(records).not.toContain('EXISTS(SELECT 1 FROM staff_tasks work_record_project WHERE');
     expect(records).not.toContain('EXISTS(SELECT 1 FROM staff_tasks work_record_task WHERE');
-    expect(source('operations-staff-task-exists.ts').match(/SELECT /g)).toHaveLength(1);
+    expect(source('operations-staff-task-exists.ts').match(/SELECT /g) ?? []).toHaveLength(0);
+    expect(source('read-tail-r53-sources.ts')).toContain('SELECT 1 FROM staff_tasks ${alias} ');
   });
   test('LOCK TABLE and the r29-r43 helpers remain untouched',()=>{
     expect(source('work-package-obligation-sources.ts')).toContain('LOCK TABLE');
@@ -1014,7 +1015,7 @@ describe('Operations read-tail r44 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(75);
+    expect(space).toBe(72);
     expect(space).toBeLessThan(108);
   });
 });
@@ -1062,7 +1063,7 @@ describe('Operations read-tail r45 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(75);
+    expect(space).toBe(72);
     expect(space).toBeLessThan(107);
   });
 });
@@ -1110,7 +1111,7 @@ describe('Operations read-tail r46 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(75);
+    expect(space).toBe(72);
     expect(space).toBeLessThan(106);
   });
 });
