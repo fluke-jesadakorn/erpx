@@ -133,8 +133,8 @@ describe('Organization read-tail r56 dedupe', () => {
     // r60 folds two level-history head literals (-2 literals, +1 renderer): 208 - 1 = 207.
     // r61 folds two position-package projection heads (-2 literals, +1 renderer): 207 - 1 = 206.
     expect(CASES).toHaveLength(3);
-    expect(total).toBe(206);
-    expect(total).toBe(216 - 10);
+    expect(total).toBe(205);
+    expect(total).toBe(216 - 11);
     expect(total).toBeLessThan(216);
   });
 });

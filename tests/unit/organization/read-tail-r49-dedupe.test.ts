@@ -159,7 +159,7 @@ describe('Organization read-tail r49 dedupe', () => {
     // r59 folds two executive-metric count heads (-2 literals, +1 renderer): 209 - 1 = 208.
     // r60 folds two level-history head literals (-2 literals, +1 renderer): 208 - 1 = 207.
     // r61 folds two position-package projection heads (-2 literals, +1 renderer): 207 - 1 = 206.
-    expect(space).toBe(206);
+    expect(space).toBe(205);
     expect(space).toBeLessThan(237);
   });
 });
