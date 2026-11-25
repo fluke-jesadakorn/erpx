@@ -33,8 +33,10 @@ describe('manage_erpx beta_slots point-read parameterized family', () => {
   });
 
   it('keeps one point-read declaration and reuses it at both owner call sites', async () => {
-    const helper = await readFile(adapter('beta-slot-point-sql.ts'), 'utf8');
-    expect(helper.match(/SELECT \$\{projection\} FROM beta_slots WHERE \$\{key\}=\?/g)).toHaveLength(1);
+    const helper = await readFile(adapter('beta-point-by-key-sql.ts'), 'utf8');
+    expect(helper.match(/SELECT \$\{projection\} FROM beta_\$\{table\} WHERE \$\{key\}=\?/g)).toHaveLength(1);
+    const slot = await readFile(adapter('beta-slot-point-sql.ts'), 'utf8');
+    expect(slot).toContain("betaPointByKeySql('slots'");
     for (const file of ['runtime-active-slot-source.ts', 'people-app-entrypoint-facts.ts']) {
       const text = await readFile(adapter(file), 'utf8');
       expect(text).toContain('betaSlotPointSql(');
@@ -72,7 +74,7 @@ describe('manage_erpx beta_slots point-read parameterized family', () => {
 
   it('lowers the owner TS SELECT count from the recorded BEFORE=26 baseline', async () => {
     const total = (await tsSources(srcDir)).join('\n').match(/SELECT /g)?.length ?? 0;
-    expect(total).toBe(22);
+    expect(total).toBe(21);
     expect(total).toBeLessThan(26);
   });
 });
@@ -122,7 +124,7 @@ describe('manage_erpx beta_members count SELECT-head family (r12)', () => {
 
   it('lowers the owner TS SELECT count from the recorded BEFORE=25 baseline', async () => {
     const total = (await tsSources(srcDir)).join('\n').match(/SELECT /g)?.length ?? 0;
-    expect(total).toBe(22);
+    expect(total).toBe(21);
     expect(total).toBeLessThan(25);
   });
 });
@@ -164,7 +166,7 @@ describe('manage_erpx beta_bootstrap point-read parameterized family (r13)', () 
 
   it('lowers the owner TS SELECT count from the recorded BEFORE=24 baseline', async () => {
     const total = (await tsSources(srcDir)).join('\n').match(/SELECT /g)?.length ?? 0;
-    expect(total).toBe(22);
+    expect(total).toBe(21);
     expect(total).toBeLessThan(24);
   });
 });
