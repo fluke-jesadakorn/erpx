@@ -73,7 +73,9 @@ describe('legal read-tail r59 point-read head reuse', () => {
     const [r32, r33, r34] = await Promise.all([
       src('legal-read-tail-r32-sources.ts'), src('legal-read-tail-r33-sources.ts'), src('legal-read-tail-r34-sources.ts'),
     ]);
-    expect(r32.match(/SELECT /g) ?? []).toHaveLength(1);
+    expect(r32.match(/SELECT /g) ?? []).toHaveLength(0);
+    expect(r32).toContain("from './legal-read-tail-r36-sources'");
+    expect(r32).toContain("legalPointByKeySql(columns, table, 'id')");
     expect(r33.match(/SELECT /g) ?? []).toHaveLength(0);
     expect(r34.match(/SELECT /g) ?? []).toHaveLength(0);
     expect(r33).toContain("from './legal-read-tail-r32-sources'");

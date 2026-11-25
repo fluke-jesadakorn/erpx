@@ -78,7 +78,7 @@ describe('legal read-tail r56 law point-guard and counsel-entry dedupe', () => {
     expect(r56.match(/SELECT /g) ?? []).toHaveLength(0);
     expect(r56).toContain("from './legal-read-tail-r32-sources'");
     expect(r56).toContain("from './legal-read-tail-r36-sources'");
-    expect(r32).toContain('`SELECT ${columns} FROM ${table} WHERE id=?`');
+    expect(r32).toContain("legalPointByKeySql(columns, table, 'id')");
     expect(r36).toContain('`SELECT ${columns} FROM ${table} WHERE ${key}=?`');
     const names = [
       'legalLawSourceCheckPendingSql', 'legalLawSourceCurrentSql', 'legalLawSourceCheckCurrentSql',
