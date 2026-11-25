@@ -1,4 +1,5 @@
 import 'server-only';
+import {OPERATIONS_EXISTS_HEAD} from './read-tail-r55-sources';
 
 /** Canonical two-source JOIN EXISTS probe shared by the Operations cohort,
  *  policy and alert readers. The two projections, aliases, ON predicate and
@@ -16,4 +17,4 @@ export const operationsJoinSourceExists = (
   aliasSep = ' ',
   whereSep = ' ',
 ) =>
-  `EXISTS(SELECT 1 FROM (${source})${aliasSep}${alias} JOIN (${joinSource})${aliasSep}${joinAlias} ON ${on}${whereSep}WHERE ${predicate})`;
+  `${OPERATIONS_EXISTS_HEAD()}(${source})${aliasSep}${alias} JOIN (${joinSource})${aliasSep}${joinAlias} ON ${on}${whereSep}WHERE ${predicate})`;

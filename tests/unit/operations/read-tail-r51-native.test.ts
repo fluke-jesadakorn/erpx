@@ -171,7 +171,7 @@ describe('operations read-tail r51 native read plans', () => {
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(71);
+    expect(total).toBe(68);
     expect(total).toBeLessThan(82);
   });
 });

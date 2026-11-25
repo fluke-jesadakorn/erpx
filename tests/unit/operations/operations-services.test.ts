@@ -888,7 +888,7 @@ describe('Operations read-tail r41 retirement',()=>{
     walk(root);
     // r42 deduped the social task-origin EXISTS family and r43 deduped the
     // command-receipt version guard; the r41 BEFORE=110 baseline is unchanged.
-    expect(space).toBe(71);
+    expect(space).toBe(68);
     expect(space).toBeLessThan(110);
   });
 });
@@ -928,7 +928,7 @@ describe('Operations read-tail r42 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(71);
+    expect(space).toBe(68);
     expect(space).toBeLessThan(110);
   });
 });
@@ -973,7 +973,7 @@ describe('Operations read-tail r43 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(71);
+    expect(space).toBe(68);
     expect(space).toBeLessThan(109);
   });
 });
@@ -1018,7 +1018,7 @@ describe('Operations read-tail r44 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(71);
+    expect(space).toBe(68);
     expect(space).toBeLessThan(108);
   });
 });
@@ -1042,7 +1042,8 @@ describe('Operations read-tail r45 retirement',()=>{
     expect(cohort.match(/operationsProjectSourceExists\(/g)).toHaveLength(2);
     expect(cohort).not.toContain('EXISTS(SELECT 1 FROM (${projectsProjectionSources.staff_projects}) sp WHERE');
     expect(cohort).not.toContain('EXISTS(SELECT 1 FROM (${projectsProjectionSources.staff_project_members}) pm WHERE');
-    expect(source('project-source-exists.ts').match(/SELECT /g)).toHaveLength(1);
+    expect(source('project-source-exists.ts').match(/SELECT /g) ?? []).toHaveLength(0);
+    expect(source('read-tail-r55-sources.ts').match(/SELECT 1 FROM /g)).toHaveLength(1);
   });
   test('LOCK TABLE and the r29-r44 helpers remain untouched',()=>{
     expect(source('work-package-obligation-sources.ts')).toContain('LOCK TABLE');
@@ -1066,7 +1067,7 @@ describe('Operations read-tail r45 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(71);
+    expect(space).toBe(68);
     expect(space).toBeLessThan(107);
   });
 });
@@ -1114,7 +1115,7 @@ describe('Operations read-tail r46 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(71);
+    expect(space).toBe(68);
     expect(space).toBeLessThan(106);
   });
 });

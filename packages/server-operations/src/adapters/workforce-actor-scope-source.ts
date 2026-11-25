@@ -17,7 +17,7 @@ export const OPERATIONS_TASK_SCOPE_SQL = '(SELECT t.company_id,t.branch_id,t.dep
 /** Canonical bound actor-scope input projection shared by Operations owner reads. */
 export const OPERATIONS_ACTOR_SCOPE_INPUT_SQL = '(SELECT ?::text company_id,?::text branch_id,?::text department_id)';
 /** Canonical current-workforce scope existence clause shared by Operations owner reads. */
-export const workforceActorScopeSql = (where: string) => `SELECT 1 FROM${OPERATIONS_ACTOR_SCOPE_INPUT_SQL}workforce_actor_scope WHERE ${where}`;
+export const workforceActorScopeSql = (where: string) => operationsActorScopeInputExists(where, '', '');
 /** Canonical materialized-clock existence probe shared by Operations owner predicate families. */
 export const operationsClockProbe = (name: string) => `WITH ${name} AS MATERIALIZED${OPERATIONS_CLOCK_CTE_SQL} SELECT 1 FROM ${name}`;
 /** Canonical actor-scope input projection with caller-supplied segments. Company,
@@ -26,9 +26,9 @@ export const operationsClockProbe = (name: string) => `WITH ${name} AS MATERIALI
 export const operationsActorScopeInput = (company: string, branch: string, department: string, clock = '') =>
   `(SELECT ${company},${branch},${department}${clock})`;
 /** Canonical bound actor-scope existence clause preserving original spacing.
- *  The FROM separator and predicate are the only varying bytes. */
-export const operationsActorScopeInputExists = (where: string, fromSep = ' ') =>
-  `SELECT 1 FROM${fromSep}${OPERATIONS_ACTOR_SCOPE_INPUT_SQL} workforce_actor_scope WHERE ${where}`;
+ *  The FROM and table separators and the predicate are the only varying bytes. */
+export const operationsActorScopeInputExists = (where: string, fromSep = ' ', tableSep = ' ') =>
+  `SELECT 1 FROM${fromSep}${OPERATIONS_ACTOR_SCOPE_INPUT_SQL}${tableSep}workforce_actor_scope WHERE ${where}`;
 /** Canonical purchased Work actor-scope clock probe shared by the two record
  * workspace guards. The scope input segments and the current actor scope are
  * the only varying bytes; the purchased-history and feature clauses are fixed. */

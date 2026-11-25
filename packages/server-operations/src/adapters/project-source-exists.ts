@@ -1,4 +1,5 @@
 import 'server-only';
+import {OPERATIONS_EXISTS_HEAD} from './read-tail-r55-sources';
 
 /** Canonical project-source membership EXISTS probe shared by the Operations
  *  executive visibility arms. The projection source, alias and predicate are
@@ -12,4 +13,4 @@ export const operationsProjectSourceExists = (
   predicate: string,
   aliasSep = ' ',
   openSep = '',
-) => `EXISTS(${openSep}SELECT 1 FROM (${source})${aliasSep}${alias} WHERE ${predicate})`;
+) => `${OPERATIONS_EXISTS_HEAD(openSep)}(${source})${aliasSep}${alias} WHERE ${predicate})`;

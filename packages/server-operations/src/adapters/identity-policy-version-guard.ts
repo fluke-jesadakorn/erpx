@@ -1,5 +1,6 @@
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
+import {OPERATIONS_EXISTS_HEAD} from './read-tail-r55-sources';
 /** Canonical owner-version EXISTS guard shared by Operations owner writes.
  *  Source, trailing filter and key predicate are the only varying bytes; every
  *  rendering is byte-identical to the original inline literals. */
@@ -7,7 +8,7 @@ export const operationsOwnerVersionExists = (
   from: string,
   tail = '',
   predicate = 'id=? AND company_id=? AND version=?',
-) => `EXISTS(SELECT 1 FROM ${from} WHERE ${predicate}${tail})`;
+) => `${OPERATIONS_EXISTS_HEAD()}${from} WHERE ${predicate}${tail})`;
 /** Thin read-only alias over the canonical owner-version guard for table
  *  existence probes. It delegates the rendering, so the family keeps a single
  *  definition and every r47 caller stays byte-identical. */
