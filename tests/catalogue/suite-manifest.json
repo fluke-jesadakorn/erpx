@@ -51615,6 +51615,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "inventory",
+      "modules": [
+        "inventory"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Inventory detail line and lot allocation heads must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-inventory"
+      ],
+      "id": "inventory.read-tail-r54-dedupe.unit",
+      "files": [
+        "tests/unit/inventory/read-tail-r54-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "inventory.rust-commerce-order-cancellation-postgres.integration",
       "lane": "integration",
       "owner": "inventory",
@@ -68404,6 +68431,33 @@
       "id": "organization.read-tail-r55-dedupe.unit",
       "files": [
         "tests/unit/organization/read-tail-r55-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "organization",
+      "modules": [
+        "organization"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Organization engagement exists and node-not-exists heads must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-organization"
+      ],
+      "id": "organization.read-tail-r56-dedupe.unit",
+      "files": [
+        "tests/unit/organization/read-tail-r56-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
