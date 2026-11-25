@@ -68,7 +68,8 @@ describe('Collaboration read-tail r41 AI-usage row projection family', () => {
     expect(socialAiUsageProjection('company_id,month')).not.toContain('?');
     expect(socialAiUsageProjection('"id","company_id","actor_id","month","state","input_tokens","output_tokens","lease_until","created_at"')).not.toContain('?');
     expect(shared.match(/export const socialAiUsageProjection=/g) ?? []).toHaveLength(1);
-    expect(sha(line(shared, 'export const socialAiUsageProjection='))).toBe('15e5141a906dd4872985df30842aac07e5272549e2826681b195829a1fd99c9f');
+    expect(sha(line(shared, 'export const socialAiUsageProjection='))).toBe('871b54166f9ae07c4d255f7b746aa2509aaaaf151da98d07d6de1a9ab716726d');
+    expect(sha(line(shared, 'export const socialAiUsageRead='))).toBe('cc14834e954b46ffa6f07a81d97ccf47964eba4e7aea19a00ce829f540c0ec8b');
   });
 
   test('agent, downstream quota and hospitality consumers keep their exact values', () => {
@@ -121,7 +122,7 @@ describe('Collaboration read-tail r41 protected SQL isolation', () => {
   test('new renderers add no lock, write or notification statement', () => {
     for (const marker of [
       'export const socialTaskOriginBy=',
-      'export const socialAiUsageProjection=',
+      'export const socialAiUsageRead=',
       'export const messagingMemberExists=',
     ]) {
       const added = line(shared, marker);
@@ -163,7 +164,7 @@ describe('Collaboration read-tail r41 KPI pins', () => {
     // r43 retired draft-by-id reuse, messaging team image and target image: 350 -> 344.
     // r44 retired the latest-message tail, absent-social-post guard and handover
     // ack join: 344 -> 341. Prior pins were refreshed only where 341 replaced 344.
-    expect(total).toBe(334);
+    expect(total).toBe(333);
     expect(total).toBeLessThan(355);
   });
 });

@@ -133,7 +133,7 @@ describe('Collaboration read-tail r48 protected SQL isolation', () => {
 });
 
 describe('Collaboration read-tail r48 KPI pins', () => {
-  test('retirement:ts-statements is pinned at 334, below the r48 BEFORE=335 baseline', () => {
+  test('retirement:ts-statements is pinned at 333, below the r48 BEFORE=335 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -145,7 +145,7 @@ describe('Collaboration read-tail r48 KPI pins', () => {
     walk(srcRoot);
     // Two byte-identical member-aggregate heads -> one member-local renderer
     // with two thin table/scope wrappers. Net: 335 -> 334.
-    expect(total).toBe(334);
+    expect(total).toBe(333);
     expect(total).toBeLessThan(335);
   });
 });

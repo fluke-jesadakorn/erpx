@@ -51,14 +51,16 @@ export const requestedSourcesJsonb=`(SELECT kind,id FROM jsonb_to_recordset(?::j
 export const jsonbTextIds=`(SELECT jsonb_array_elements_text(?::jsonb))`;
 export const workforceActorScopeExists=(where:string)=>`EXISTS(SELECT 1 FROM ${workforceActorScopeColumns} workforce_actor_scope WHERE ${where})`;
 export const messagingRoomTeamId=`(SELECT team_id FROM messaging_rooms WHERE id=?)`;
-/** Byte-identical AI-usage row projection shared by the agent and hospitality
- * owner readers. Only the projected column list varies; the fixed table head,
- * zero binds and lock semantics stay unchanged. */
-export const socialAiUsageProjection=(cols:string)=>`SELECT ${cols} FROM social_ai_usage`;
-/** Byte-identical monthly AI-usage projection shared by the budget, records and
- * agent readers. Only the projected column list varies; the fixed company/month
- * bind order, lock semantics and notification helpers stay unchanged. */
-export const socialAiMonthlyUsageCount=(cols:string)=>`SELECT ${cols} FROM social_ai_usage WHERE company_id=? AND month=?`;
+/** Byte-identical AI-usage read head shared by the agent/hospitality projection
+ * and the monthly-count readers. Only the trailing predicate varies; the fixed
+ * `social_ai_usage` table head, bind order and lock semantics stay unchanged. */
+export const socialAiUsageRead=(cols:string,tail='')=>`SELECT ${cols} FROM social_ai_usage${tail}`;
+/** Retained projection wrapper: renders through socialAiUsageRead so consumers
+ * and zero-bind semantics stay unchanged. */
+export const socialAiUsageProjection=(cols:string)=>socialAiUsageRead(cols);
+/** Retained monthly-count wrapper: renders through socialAiUsageRead so the
+ * company/month bind order and lock semantics stay unchanged. */
+export const socialAiMonthlyUsageCount=(cols:string)=>socialAiUsageRead(cols,' WHERE company_id=? AND month=?');
 /** Byte-identical published-comment read shared by the agent, Social home and
  * Social home-read call sites. Only the projected column list varies; the fixed
  * `id=? AND post_id=? AND state='published'` prefix, bind order and lock
