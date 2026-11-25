@@ -71,7 +71,7 @@ describe('crm read-tail r41 byte-identical head reuse', () => {
     expect(scoped.match(/crmScopedDescListSql =/g)).toHaveLength(1);
     expect(sales.match(/crmSalesOpportunitySql =/g)).toHaveLength(1);
     expect((scoped.match(/SELECT /g) ?? []).length).toBe(3);
-    expect((sales.match(/SELECT /g) ?? []).length).toBe(2);
+    expect((sales.match(/SELECT /g) ?? []).length).toBe(1);
 
     const l = src('leads.ts');
     expect(l.match(/crmScopedDescListSql\(/g)).toHaveLength(2);
