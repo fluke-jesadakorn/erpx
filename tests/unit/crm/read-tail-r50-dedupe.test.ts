@@ -87,8 +87,8 @@ describe('crm read-tail r50 byte-identical parenthesized-select head', () => {
     expect(src('native-crm-command.ts')).toContain('export async function nativeCrmExecute(');
   });
 
-  test('retirement:ts-statements drops from the r49 AFTER=49 to 48', () => {
-    expect(totalSelects()).toBe(48);
+  test('retirement:ts-statements drops from the r49 AFTER=49 to 47', () => {
+    expect(totalSelects()).toBe(47);
     expect(totalSelects()).toBeLessThan(49);
   });
 });

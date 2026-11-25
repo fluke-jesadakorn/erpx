@@ -4,6 +4,7 @@
  * All transaction lock and row-lock statements stay inline in the calling
  * adapters. r8-r23 families are untouched.
  */
+import {crmLeadSelectSql} from './read-tail-r51-sql';
 
 /** One parameterized renderer for the creator (created_by) lead-scope EXISTS
  * guard shared by the CRM identity, attachment and command-authority reads.
@@ -15,4 +16,4 @@ export const crmCreatorLeadScopeSql = (
   fieldExpr: string,
   companyExpr: string,
   tail = '',
-) => `(?::text IS NULL OR ${creator}.created_by=? OR EXISTS(SELECT 1 FROM crm_leads ${leadAlias} WHERE ${fieldExpr}${companyExpr ? ` AND ${companyExpr}` : ''} AND ${leadAlias}.branch_id=? AND (?::text IS NULL OR ${leadAlias}.department_id=?)${tail}))`;
+) => `(?::text IS NULL OR ${creator}.created_by=? OR EXISTS(${crmLeadSelectSql(`${leadAlias} WHERE ${fieldExpr}${companyExpr ? ` AND ${companyExpr}` : ''} AND ${leadAlias}.branch_id=? AND (?::text IS NULL OR ${leadAlias}.department_id=?)${tail}`)}))`;

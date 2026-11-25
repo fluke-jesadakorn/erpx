@@ -72,7 +72,7 @@ describe('crm read-tail r29 byte-identical read families', () => {
     ]) {
       expect(helper.match(new RegExp(`${name} =`, 'g'))).toHaveLength(1);
     }
-    expect((helper.match(/SELECT /g) ?? []).length).toBe(2);
+    expect((helper.match(/SELECT /g) ?? []).length).toBe(1);
 
     expect(src('attachment-purchases.ts')).toContain('crmAccountAttachmentSourceSql(crmPurchaseAccountRows,`${crmAccountCreatedByScopeSql}`)');
     expect(src('attachments-policy-facts.ts')).toContain('crmAccountPolicyReadSql(`${crmAccountCreatedByScopeSql}`)');
@@ -129,7 +129,7 @@ describe('crm read-tail r29 byte-identical read families', () => {
   });
 
   test('retirement:ts-statements stays strictly below the r28 BEFORE=130 baseline', () => {
-    expect(totalSelects()).toBe(48);
+    expect(totalSelects()).toBe(47);
     expect(totalSelects()).toBeLessThan(130);
   });
 });

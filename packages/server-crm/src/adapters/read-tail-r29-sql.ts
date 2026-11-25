@@ -6,6 +6,7 @@
  * verbatim. Locks, command-receipt reads, native command kinds and the r8-r28
  * families are untouched.
  */
+import {crmLeadSelectSql} from './read-tail-r51-sql';
 
 /** Shared crm_accounts anchor. The one read token renders byte-identically as
  * the source witness, policy read, version guard, image read and contact probe.
@@ -53,7 +54,7 @@ export const crmAccountContactProbeSql = () => crmAccountReadAnchor(
 /** Shared eligible-owner probe. The one read token renders byte-identically at
  * the lead guard, purchase eligibility check and work-filter probe. */
 const crmLeadOwnerProbe = (join: string, predicates: string, eligible: string) =>
-  `SELECT 1 FROM crm_leads l${join} WHERE ${predicates} AND ${eligible}`;
+  crmLeadSelectSql(`l${join} WHERE ${predicates} AND ${eligible}`);
 
 /** leads.ts owner version guard. */
 export const crmLeadOwnerGuardSql = (scope: string, eligible: string) =>
