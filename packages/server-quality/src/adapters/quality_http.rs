@@ -422,7 +422,7 @@ async fn read_plan(
         Err(_) => return error_response(read_plan_invalid()),
     };
     let result = (|| {
-        let _target = target(&state, parts.headers(), &slug)?;
+        let _target = target(&state, &parts.headers, &slug)?;
         if parts.uri.query().is_some_and(|value| !value.is_empty()) {
             return Err(read_plan_invalid());
         }
