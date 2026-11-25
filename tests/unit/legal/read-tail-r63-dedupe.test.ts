@@ -53,7 +53,8 @@ describe('legal read-tail r63 later-approval guard head reuse', () => {
     // The head is exactly the r36 renderer with the fixed 'item_id' key; the
     // trusted `cycle>?` tail is appended verbatim and remains the last bind.
     expect(legalPointByKeySql('1', 'legal_approvals', 'item_id')).toBe(HEAD);
-    expect(`${legalPointByKeySql('1', 'legal_approvals', 'item_id')} AND cycle>?`).toBe(GUARD);
+    expect(`${legalPointByKeySql('1', 'legal_approvals', 'item_id')} AND cycle>?`)
+      .toBe(GUARD.slice('NOT EXISTS('.length, -1));
     expect(legalLaterApprovalGuardSql).toBe(`NOT EXISTS(${HEAD} AND cycle>?)`);
     expect(GUARD.indexOf('item_id=?')).toBeLessThan(GUARD.indexOf('cycle>?'));
     expect((GUARD.match(/\?/g) ?? []).length).toBe(2);
