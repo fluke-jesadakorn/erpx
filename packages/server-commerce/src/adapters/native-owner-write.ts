@@ -2,6 +2,11 @@ import 'server-only';
 import { Agent, request as httpRequest } from 'node:http';
 import type { SqlResult, SqlStatement } from '@erpx/server-runtime/public/runtime/types';
 
+/** No-op statement text for native-owner write call sites that must return a
+ * SqlStatement inside a caller transaction. The write itself is executed by
+ * nativeCommerceOwnerWrite, never by this SQL. */
+export const COMMERCE_OWNER_WRITE_NOOP_SQL = "SELECT 1";
+
 /** Thin fail-closed transport to the single native Commerce owner axum router.
  * `values` is a positional data array, never SQL text. */
 type NativeConfig = Readonly<{ base: string; host: string; holdingSlug: string; origin: string; timeoutMs: number }>;

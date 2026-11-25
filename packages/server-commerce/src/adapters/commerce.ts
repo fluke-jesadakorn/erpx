@@ -2,7 +2,7 @@ import{commercePages,commerceSalesDocuments}from '@erpx/server-commerce/adapters
 import {COMMERCE_RETURN_REQUESTED_VERSION_GUARD_SQL} from "./guarded-source-dedupe-sql";
 import {COMMERCE_FULFILLMENT_ORDER_ID_SQL} from "./projection-source-dedupe-sql";
 
-import { nativeCommerceOwnerWrite, NativeCommerceOwnerWriteError } from "@erpx/server-commerce/adapters/native-owner-write";
+import { COMMERCE_OWNER_WRITE_NOOP_SQL, nativeCommerceOwnerWrite, NativeCommerceOwnerWriteError } from "@erpx/server-commerce/adapters/native-owner-write";
 import { ApiError as NativeApiError } from "@erpx/server-runtime/public/http";
 async function nativeOrder(kind: any, values: readonly unknown[], recordId: string, key: string, actorId: string, companyId: string) {
   try { await nativeCommerceOwnerWrite(kind, values, recordId, actorId, key, companyId); }
@@ -153,7 +153,7 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
         prepareCommerceOrders1: async (facts: {
             now: number;
             id: string;
-        }) => { await nativeOrder('order.version-bump', [facts.now, facts.id], facts.id, `commerce:owner-write:order.version-bump:${facts.id}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare('SELECT 1'); },
+        }) => { await nativeOrder('order.version-bump', [facts.now, facts.id], facts.id, `commerce:owner-write:order.version-bump:${facts.id}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare(COMMERCE_OWNER_WRITE_NOOP_SQL); },
         readCommerceFulfillments2: facts => commerceFinanceJoinedFacts(db).readCommerceFulfillments2(facts),
         readCommerceFulfillmentLines1: (facts: {
             lineId: string;
@@ -194,7 +194,7 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             userId: string;
             now: number;
             now2: number;
-        }) => { await nativeOrder('return.create', [facts.id, facts.companyId, facts.branch_id, facts.order_id, facts.fulfillmentId, facts.invoice_id, facts.kind, facts.number, facts.date, facts.reason, facts.subtotal, facts.tax, facts.total, facts.userId, facts.now, facts.now2], facts.id, `commerce:owner-write:return.create:${facts.id}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare('SELECT 1'); },
+        }) => { await nativeOrder('return.create', [facts.id, facts.companyId, facts.branch_id, facts.order_id, facts.fulfillmentId, facts.invoice_id, facts.kind, facts.number, facts.date, facts.reason, facts.subtotal, facts.tax, facts.total, facts.userId, facts.now, facts.now2], facts.id, `commerce:owner-write:return.create:${facts.id}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare(COMMERCE_OWNER_WRITE_NOOP_SQL); },
         prepareCommerceReturnLines1: async (facts: {
             returnLineId: string;
             id: string;
@@ -209,7 +209,7 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             fact10: string | number | null;
             fact11: string | number | null;
             expectedSubtotal: string | number | null;
-        }) => { await nativeOrder('return.line', [facts.returnLineId, facts.id, facts.id2, facts.product_id, facts.quantity, facts.returnValue, facts.returnSubtotal, facts.returnTax, facts.index, facts.condition, facts.fact10, facts.fact11, facts.expectedSubtotal], facts.returnLineId, `commerce:owner-write:return.line:${facts.returnLineId}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare('SELECT 1'); },
+        }) => { await nativeOrder('return.line', [facts.returnLineId, facts.id, facts.id2, facts.product_id, facts.quantity, facts.returnValue, facts.returnSubtotal, facts.returnTax, facts.index, facts.condition, facts.fact10, facts.fact11, facts.expectedSubtotal], facts.returnLineId, `commerce:owner-write:return.line:${facts.returnLineId}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare(COMMERCE_OWNER_WRITE_NOOP_SQL); },
         prepareCommerceReturnLotAllocations1: async (facts: {
             id: string;
             returnLineId: string;
@@ -220,18 +220,18 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             snapshotQuantity: number;
             snapshotValue: number;
             snapshotVersion: number;
-        }) => { await nativeOrder('return.lot-allocation', [facts.id, facts.returnLineId, facts.fulfillmentAllocationId, facts.lotId, facts.quantity, facts.value, facts.snapshotQuantity, facts.snapshotValue, facts.snapshotVersion], facts.id, `commerce:owner-write:return.lot-allocation:${facts.id}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare('SELECT 1'); },
+        }) => { await nativeOrder('return.lot-allocation', [facts.id, facts.returnLineId, facts.fulfillmentAllocationId, facts.lotId, facts.quantity, facts.value, facts.snapshotQuantity, facts.snapshotValue, facts.snapshotVersion], facts.id, `commerce:owner-write:return.lot-allocation:${facts.id}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare(COMMERCE_OWNER_WRITE_NOOP_SQL); },
         prepareCommerceFulfillments1: async (facts: {
             fulfillmentId: string;
             expectedVersion: number;
-        }) => { await nativeOrder('fulfillment.version-guarded', [facts.fulfillmentId, facts.expectedVersion], facts.fulfillmentId, `commerce:owner-write:fulfillment.version-guarded:${facts.fulfillmentId}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare('SELECT 1'); },
+        }) => { await nativeOrder('fulfillment.version-guarded', [facts.fulfillmentId, facts.expectedVersion], facts.fulfillmentId, `commerce:owner-write:fulfillment.version-guarded:${facts.fulfillmentId}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare(COMMERCE_OWNER_WRITE_NOOP_SQL); },
         readCommerceReturns2: facts => commerceFinanceJoinedFacts(db).readCommerceReturns2(facts),
         prepareCommerceReturns2: async (facts: {
             userId: string;
             reason: string;
             fact2: number;
             returnId: string;
-        }) => { await nativeOrder('return.reject', [facts.userId, facts.reason, facts.fact2, facts.returnId], facts.returnId, `commerce:owner-write:return.reject:${facts.returnId}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare('SELECT 1'); },
+        }) => { await nativeOrder('return.reject', [facts.userId, facts.reason, facts.fact2, facts.returnId], facts.returnId, `commerce:owner-write:return.reject:${facts.returnId}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare(COMMERCE_OWNER_WRITE_NOOP_SQL); },
         readCommerceFulfillments3: facts => commerceFinanceJoinedFacts(db).readCommerceFulfillments3(facts),
         readFinanceJournalLines1: facts => CommerceFinanceFacts(db).readFinanceJournalLines1(facts),
         readCommerceReturnLines3: (facts: {
@@ -261,7 +261,7 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             fact5: string | number | null;
             return_date: string | number | null;
             now: number;
-        }) => { await nativeOrder('return.stock-move', [facts.fact0, facts.returnId, facts.warehouse_id, facts.product_id, facts.fact4, facts.fact5, facts.return_date, facts.now], facts.fact0, `commerce:owner-write:return.stock-move:${facts.fact0}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare('SELECT 1'); },
+        }) => { await nativeOrder('return.stock-move', [facts.fact0, facts.returnId, facts.warehouse_id, facts.product_id, facts.fact4, facts.fact5, facts.return_date, facts.now], facts.fact0, `commerce:owner-write:return.stock-move:${facts.fact0}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare(COMMERCE_OWNER_WRITE_NOOP_SQL); },
         readCommerceReturnLotAllocations4: facts => commerceInventoryJoinedFacts(db).readCommerceReturnLotAllocations4(facts),
         prepareInventoryLotBalances1: facts => CommerceInventoryFacts(db).prepareInventoryLotBalances1(facts),
         prepareInventoryLots1: facts => CommerceInventoryFacts(db).prepareInventoryLots1(facts),
@@ -276,7 +276,7 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             fact4: string | null;
             now: number;
             returnId: string;
-        }) => { await nativeOrder('return.approve', [facts.userId, facts.stockJournal, facts.creditJournal, facts.baseCreditMinor, facts.fact4, facts.now, facts.returnId], facts.returnId, `commerce:owner-write:return.approve:${facts.returnId}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare('SELECT 1'); },
+        }) => { await nativeOrder('return.approve', [facts.userId, facts.stockJournal, facts.creditJournal, facts.baseCreditMinor, facts.fact4, facts.now, facts.returnId], facts.returnId, `commerce:owner-write:return.approve:${facts.returnId}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare(COMMERCE_OWNER_WRITE_NOOP_SQL); },
         readCommerceReturns3: facts => commerceFinanceJoinedFacts(db).readCommerceReturns3(facts),
         readFinanceJournalLines2: facts => CommerceFinanceFacts(db).readFinanceJournalLines2(facts),
         readFinanceCharts1: facts => CommerceFinanceFacts(db).readFinanceCharts1(facts),
@@ -292,7 +292,7 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             fact5: string | null;
             now: number;
             returnId: string;
-        }) => { await nativeOrder('return.post', [facts.credited, facts.refund, facts.carried, facts.baseCreditedMinor, facts.baseRefundMinor, facts.fact5, facts.now, facts.returnId], facts.returnId, `commerce:owner-write:return.post:${facts.returnId}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare('SELECT 1'); },
+        }) => { await nativeOrder('return.post', [facts.credited, facts.refund, facts.carried, facts.baseCreditedMinor, facts.baseRefundMinor, facts.fact5, facts.now, facts.returnId], facts.returnId, `commerce:owner-write:return.post:${facts.returnId}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare(COMMERCE_OWNER_WRITE_NOOP_SQL); },
         prepareFinanceRefundObligations1: facts => CommerceFinanceFacts(db).prepareFinanceRefundObligations1(facts),
         readEmployeeRequests1: (facts: {
             companyId: string;
@@ -326,10 +326,10 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             fact11: 0 | 1;
             now: number;
             record: string;
-        }) => { await nativeOrder('order.update-parties', [facts.partyId, facts.warehouseId, facts.branch_id, facts.orderDate, facts.dueDate, facts.note, facts.subtotal, facts.tax, facts.fact8, facts.fact9, facts.fact10, facts.fact11, facts.now, facts.record], facts.record, `commerce:owner-write:order.update-parties:${facts.record}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare('SELECT 1'); },
+        }) => { await nativeOrder('order.update-parties', [facts.partyId, facts.warehouseId, facts.branch_id, facts.orderDate, facts.dueDate, facts.note, facts.subtotal, facts.tax, facts.fact8, facts.fact9, facts.fact10, facts.fact11, facts.now, facts.record], facts.record, `commerce:owner-write:order.update-parties:${facts.record}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare(COMMERCE_OWNER_WRITE_NOOP_SQL); },
         prepareCommerceOrderLines1: async (facts: {
             record: string;
-        }) => { await nativeOrder('order.lines-delete', [facts.record], facts.record, `commerce:owner-write:order.lines-delete:${facts.record}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare('SELECT 1'); },
+        }) => { await nativeOrder('order.lines-delete', [facts.record], facts.record, `commerce:owner-write:order.lines-delete:${facts.record}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare(COMMERCE_OWNER_WRITE_NOOP_SQL); },
         prepareCommerceOrders3: async (facts: {
             record: string;
             companyId: string;
@@ -352,7 +352,7 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             userId: string;
             now: number;
             now2: number;
-        }) => { await nativeOrder('order.create', [facts.record, facts.companyId, facts.branch_id, facts.departmentId, facts.kind, facts.kind, facts.companyId, facts.orderDate, facts.fact5, facts.partyId, facts.warehouseId, facts.currency, facts.orderDate, facts.dueDate, facts.note, facts.subtotal, facts.tax, facts.fact14, facts.fact15, facts.fact16, facts.fact17, facts.userId, facts.now, facts.now2], facts.record, `commerce:owner-write:order.create:${facts.record}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare('SELECT 1'); },
+        }) => { await nativeOrder('order.create', [facts.record, facts.companyId, facts.branch_id, facts.departmentId, facts.kind, facts.kind, facts.companyId, facts.orderDate, facts.fact5, facts.partyId, facts.warehouseId, facts.currency, facts.orderDate, facts.dueDate, facts.note, facts.subtotal, facts.tax, facts.fact14, facts.fact15, facts.fact16, facts.fact17, facts.userId, facts.now, facts.now2], facts.record, `commerce:owner-write:order.create:${facts.record}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare(COMMERCE_OWNER_WRITE_NOOP_SQL); },
         prepareCommerceOrderLines2: async (facts: {
             id: string;
             record: string;
@@ -367,7 +367,7 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             listPrice: number;
             discountBps: number;
             itemType: "stock" | "service";
-        }) => { await nativeOrder('order.lines-create', [facts.id, facts.record, facts.productId, facts.name, facts.qty, facts.price, facts.taxBps, facts.subtotal, facts.tax, facts.index, facts.listPrice, facts.discountBps, facts.itemType], facts.id, `commerce:owner-write:order.lines-create:${facts.id}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare('SELECT 1'); },
+        }) => { await nativeOrder('order.lines-create', [facts.id, facts.record, facts.productId, facts.name, facts.qty, facts.price, facts.taxBps, facts.subtotal, facts.tax, facts.index, facts.listPrice, facts.discountBps, facts.itemType], facts.id, `commerce:owner-write:order.lines-create:${facts.id}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare(COMMERCE_OWNER_WRITE_NOOP_SQL); },
         readCommerceFulfillments4: (facts: {
             id: string;
         }) => db.prepare("SELECT id FROM commerce_fulfillments WHERE order_id=? LIMIT 1").bind(facts.id).first(),
@@ -383,7 +383,7 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             fact7: boolean;
             fact8: number;
             id: string;
-        }) => { await nativeOrder('order.transition', [facts.state, facts.fact1, facts.fact2, facts.userId, facts.fact4, facts.fact5, facts.fact6, facts.fact7, facts.fact8, facts.id], facts.id, `commerce:owner-write:order.transition:${facts.id}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare('SELECT 1'); },
+        }) => { await nativeOrder('order.transition', [facts.state, facts.fact1, facts.fact2, facts.userId, facts.fact4, facts.fact5, facts.fact6, facts.fact7, facts.fact8, facts.id], facts.id, `commerce:owner-write:order.transition:${facts.id}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare(COMMERCE_OWNER_WRITE_NOOP_SQL); },
         prepareFinanceParties1: facts => CommerceFinanceFacts(db).prepareFinanceParties1(facts),
         prepareCommerceOrders5: async (facts: {
             salesId: string;
@@ -392,12 +392,12 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             fact3: number;
             fact4: number;
             id: string;
-        }) => { await nativeOrder('order.convert', [facts.salesId, facts.fact1, facts.userId, facts.fact3, facts.fact4, facts.id], facts.salesId, `commerce:owner-write:order.convert:${facts.salesId}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare('SELECT 1'); },
+        }) => { await nativeOrder('order.convert', [facts.salesId, facts.fact1, facts.userId, facts.fact3, facts.fact4, facts.id], facts.salesId, `commerce:owner-write:order.convert:${facts.salesId}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare(COMMERCE_OWNER_WRITE_NOOP_SQL); },
         prepareCommerceOrderLines3: async (facts: {
             salesId: string;
             salesId2: string;
             id: string;
-        }) => { await nativeOrder('order.lines-convert', [facts.salesId, facts.salesId2, facts.id], facts.salesId, `commerce:owner-write:order.lines-convert:${facts.salesId}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare('SELECT 1'); },
+        }) => { await nativeOrder('order.lines-convert', [facts.salesId, facts.salesId2, facts.id], facts.salesId, `commerce:owner-write:order.lines-convert:${facts.salesId}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare(COMMERCE_OWNER_WRITE_NOOP_SQL); },
         prepareFinanceJournals1: facts => CommerceFinanceFacts(db).prepareFinanceJournals1(facts),
         prepareFinanceJournalLines1: facts => CommerceFinanceFacts(db).prepareFinanceJournalLines1(facts),
         readAttachments2: facts => CommerceFilesFacts(db).readAttachments2(facts),
@@ -444,7 +444,7 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
         prepareCommerceFulfillments4: async (facts: {
             invoice: string;
             fulfillmentId: string;
-        }) => { await nativeOrder('fulfillment.invoice-link', [facts.invoice, facts.fulfillmentId], facts.fulfillmentId, `commerce:owner-write:fulfillment.invoice-link:${facts.fulfillmentId}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare('SELECT 1'); },
+        }) => { await nativeOrder('fulfillment.invoice-link', [facts.invoice, facts.fulfillmentId], facts.fulfillmentId, `commerce:owner-write:fulfillment.invoice-link:${facts.fulfillmentId}:${ownerWriteNonce(facts)}`, (ownerWriteActor(facts)), (ownerWriteCompany(facts, actor))); return db.prepare(COMMERCE_OWNER_WRITE_NOOP_SQL); },
         readFinanceInvoices1: facts => CommerceFinanceFacts(db).readFinanceInvoices1(facts),
         readCommerceFulfillments6: (facts: {
             source_id: string | number | null;
