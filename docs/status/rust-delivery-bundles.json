@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12823,
+    "revision": 12825,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -187763,7 +187763,7 @@
         "owner": "procurement",
         "title": "procurement read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -187774,22 +187774,37 @@
         "resources": [
           "owner:procurement"
         ],
-        "claim": {
-          "runId": "run-20261125-d",
-          "agentId": "wH4n186",
-          "claimedAt": "2026-11-25T00:49:51.174Z",
-          "heartbeatAt": "2026-11-25T01:02:20.441Z",
-          "expiresAt": "2026-11-25T01:32:20.441Z",
-          "generation": 174
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-procurement/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "f08b34787",
+            "owner": "procurement",
+            "before": 88,
+            "after": 85,
+            "note": "Policy/receipt/order heads through r31 sourceImage; 3/3 byte parity, binds unchanged, protected SHAs intact. Vitest 28."
+          },
+          {
+            "command": "targeted vitest + scoped tsc",
+            "result": "passed",
+            "sourceSha": "f08b34787"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Requisition/PO heads (-3): 88->85. BEFORE=88.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n186",
+          "at": "2026-11-25T01:06:21.766Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -187938,17 +187953,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 5,
+        "in_progress": 4,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1525,
+        "blocked": 1526,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 174,
-    "updatedAt": "2026-11-25T01:05:52.675Z",
+    "updatedAt": "2026-11-25T01:06:21.771Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
