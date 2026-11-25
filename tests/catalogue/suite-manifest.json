@@ -4867,6 +4867,33 @@
       }
     },
     {
+      "lane": "unit",
+      "owner": "brand",
+      "modules": [
+        "brand"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Brand authority guard head must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-brand"
+      ],
+      "id": "brand.read-tail-r1-dedupe.unit",
+      "files": [
+        "tests/unit/brand/read-tail-r1-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "brand.rust-brand-identity-http-postgres.integration",
       "lane": "integration",
       "owner": "brand",
