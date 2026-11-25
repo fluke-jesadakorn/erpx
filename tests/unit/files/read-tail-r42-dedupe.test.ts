@@ -153,7 +153,7 @@ describe('Files read-tail r42 byte-oracle dedupe', () => {
     ].includes(p) || /native_lane_\d+|native-lane-\d+/.test(p))).toBe(true);
   });
 
-  test('retirement:ts-statements is 204, strictly below the r42 BEFORE=248 (248->246->242)', () => {
+  test('retirement:ts-statements is 201, strictly below the r42 BEFORE=248 (248->246->242)', () => {
     let literal = 0, total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -170,8 +170,8 @@ describe('Files read-tail r42 byte-oracle dedupe', () => {
     // r42 left 248; r43 lowers 248->246 (two SELECT-bearing shared heads folded).
     // r44 lowers 246->242 (three more shared heads folded).
     // r46 folds two closed-union heads (orphan-preservation event, draft/bound count): 239->237.
-    expect(literal).toBe(204);
-    expect(total).toBe(205);
+    expect(literal).toBe(201);
+    expect(total).toBe(202);
     expect(literal).toBeLessThan(248);
     expect(total).toBeLessThan(249);
   });

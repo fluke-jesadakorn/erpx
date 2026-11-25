@@ -423,6 +423,7 @@ pub const KINDS: &[&str] = &[
     crate::adapters::stripe_reads::CONNECTIONS_READY,
     crate::adapters::stripe_reads::SALE_NUMBER_BY_ID,
     crate::adapters::stripe_reads::REFUND_PAYMENT_BY_REFUND,
+    crate::adapters::stripe_reads::SETTLEMENT_BY_JOURNAL,
     // POS audit actor read kinds: closed, SELECT-only owner statements on the
     // owner's pos_audit table. Row locks, advisory/LOCK, PMS reads and the
     // day-report/Stripe registries stay inline in their callers and modules.
@@ -693,7 +694,7 @@ mod tests {
     use super::*;
     #[test]
     fn every_kind_is_allow_listed_with_parameterized_owner_sql() {
-        assert_eq!(KINDS.len(), 198);
+        assert_eq!(KINDS.len(), 199);
         for kind in KINDS {
             assert!(supported(kind), "kind must be allow listed: {kind}");
             let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
@@ -1319,7 +1320,7 @@ mod tests {
                 );
             }
         }
-        assert_eq!(crate::adapters::stripe_reads::KINDS.len(), 12);
+        assert_eq!(crate::adapters::stripe_reads::KINDS.len(), 13);
     }
 
     /// The retired audit actor reads are SELECT-only, lock-free owner

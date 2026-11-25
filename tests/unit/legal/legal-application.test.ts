@@ -9,6 +9,7 @@ import accessContract from "../../../packages/server-legal/src/adapters/legal-ac
 import operationsContract from "../../../packages/server-legal/src/adapters/legal-operations-sources.json" with {type:"json"};
 import recordContract from "../../../packages/server-legal/src/adapters/legal-record-sources.json" with {type:"json"};
 import integrationsContract from "../../../packages/server-legal/src/adapters/legal-integrations-sources.json" with {type:"json"};
+import serviceContract from "../../../packages/server-legal/src/adapters/legal-service-sources.json" with {type:"json"};
 type LegalReferenceRepository=Parameters<typeof import("@erpx/server-legal/application/references").createLegalReferencesApplication>[0]["repository"];
 import { expect, it } from "vitest";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
@@ -599,8 +600,8 @@ it("keeps the approval reviewer-membership and current-route guards in the nativ
     }
   };
   await walk(resolve(__dirname, "../../../packages/server-legal/src"));
-  expect(total).toBeLessThan(73);
-  expect(total).toBe(68);
+  expect(total).toBeLessThan(68);
+  expect(total).toBe(60);
 });
 
 
@@ -724,4 +725,42 @@ it("keeps the integrations task, approval and calendar reads in the native contr
   expect(rust).toContain('render_legal_calendar_feature');
   expect(rust).toContain('render_legal_calendar_rows');
   expect(rust).toContain('ba25c8d2234a49630ba7df9caaa14b5c47642700a28da066c7872749a7b24e13');
+});
+
+
+it("keeps the register list, count, hold, link and hold-preservable reads in the native contract", async () => {
+  const [shared, rust] = await Promise.all([
+    readFile(new URL("../../../packages/server-legal/src/adapters/legal/service.ts", import.meta.url), "utf8"),
+    readFile(new URL("../../../packages/server-legal/src/adapters/legal_service_sources.rs", import.meta.url), "utf8"),
+  ]);
+  expect(shared.match(/SELECT /g) ?? []).toHaveLength(0);
+  expect(shared).toContain("legal-service-sources.json");
+  expect(shared).toContain("fill(contract.listClause");
+  expect(shared).toContain("fill(contract.total");
+  expect(shared).toContain("fill(contract.stateCounts");
+  expect(shared).toContain("fill(contract.holds");
+  expect(shared).toContain("fill(contract.links");
+  expect(shared).toContain("fill(contract.holdPreservable");
+  expect(serviceContract.listClause.startsWith("{visibility} AND (?::text IS NULL OR i.kind=?)")).toBe(true);
+  expect(serviceContract.listClause).toContain("SELECT 1 FROM legal_documents d");
+  expect(serviceContract.listClause).toContain("SELECT 1 FROM legal_document_inspections x");
+  expect(serviceContract.total).toBe(
+    "SELECT count(*)::int n FROM legal_items i WHERE {clause} AND {purchase}",
+  );
+  expect(serviceContract.stateCounts).toBe(
+    "SELECT i.state,count(*)::int count FROM legal_items i WHERE {visibility} AND {purchase} GROUP BY i.state",
+  );
+  expect(serviceContract.holds).toContain("{holdScope}");
+  expect(serviceContract.holds).toContain("acknowledged_at");
+  expect(serviceContract.links).toContain("{linkScope}");
+  expect(serviceContract.holdPreservable).toContain("{holdOwnTarget}");
+  expect(serviceContract.holdPreservable).toContain("d.state IN ('executing','completed')");
+  expect(rust).toContain('include_str!("legal-service-sources.json")');
+  expect(rust).toContain('render_legal_list_clause');
+  expect(rust).toContain('render_legal_total');
+  expect(rust).toContain('render_legal_state_counts');
+  expect(rust).toContain('render_legal_holds');
+  expect(rust).toContain('render_legal_links');
+  expect(rust).toContain('render_legal_hold_preservable');
+  expect(rust).toContain('88908af744d8fe2de5d815f8e92e49e22fd2179cb30c82e5500346983b187405');
 });

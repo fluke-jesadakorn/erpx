@@ -488,7 +488,7 @@ describe('Organization read-tail r30 native cutover — finance starter node lis
       }
     };
     walk(srcRoot);
-    expect(total).toBe(181);
+    expect(total).toBe(180);
     expect(total).toBeLessThan(189);
     // The worker-position cut deleted the shared r38 helper literal after both
     // former consumers moved to the native owner, so the KPI falls by one.
@@ -806,5 +806,45 @@ describe('Organization attachment node/change source image native cutover', () =
       expect(registry).toContain(`${kind}: &str = `);
       expect(registry).toContain(`        ${kind} => {\n            "${escaped}"\n        }`);
     }
+  });
+});
+
+describe('Organization staff settings levels read native cutover', () => {
+  const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+  const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
+  const sha = (value: string) => createHash('sha256').update(value).digest('hex');
+  const KIND = 'staff_settings_list_levels';
+  const SQL = 'SELECT * FROM staff_levels WHERE company_id=? ORDER BY level_number ASC NULLS LAST,rank DESC,code';
+
+  it('deletes the TS literal and keeps the retained {results} shape', async () => {
+    const source = read('operations-staff-settings-facts.ts');
+    expect(source).not.toContain(SQL);
+    expect(source).toContain(`}>(database, companyId, '${KIND}', [companyId]).then(results => ({ results }));`);
+    expect(source.split(KIND).length - 1).toBe(1);
+    // The version guard and department lookup stay untouched.
+    expect(source).toContain('ownerVersionGuardSource');
+    expect(source).toContain('nodeKindByIdCompany');
+    const {StaffSettingsOrganizationFacts} = await import(
+      '../../../packages/server-organization/src/adapters/operations-staff-settings-facts'
+    );
+    all.mockClear();
+    const handle = db();
+    const rows = [{id: 'level', company_id: 'company-1', code: 'L1'}];
+    all.mockResolvedValueOnce(rows);
+    await expect(StaffSettingsOrganizationFacts(handle).readListLevelsEffect('company-1')).resolves.toEqual({results: rows});
+    expect(all).toHaveBeenCalledWith(handle, 'company-1', KIND, ['company-1']);
+    expect(handle.prepare).not.toHaveBeenCalled();
+  });
+
+  it('pins the byte-identical SQL now owned by the Rust registry', () => {
+    expect(sha(SQL)).toBe('b1fdab87dcf08acf4996e6279eae4cf67715507f6d61d3d448fbdc4a1453bfdf');
+    const registry = read('organization_owner_write.rs');
+    expect(registry).toContain(`pub const STAFF_SETTINGS_LIST_LEVELS: &str = "${KIND}";`);
+    expect(registry).toContain(`    STAFF_SETTINGS_LIST_LEVELS,\n`);
+    expect(registry).toContain(`        STAFF_SETTINGS_LIST_LEVELS => {\n            "${SQL}"\n        }`);
+    const arm = registry.match(/STAFF_SETTINGS_LIST_LEVELS => \{\n            "([^"]+)"\n        \}/)?.[1] ?? '';
+    expect(arm).toBe(SQL);
+    expect(arm.toUpperCase().startsWith('SELECT ')).toBe(true);
+    expect(arm).not.toMatch(/INSERT|UPDATE|DELETE|FOR UPDATE|FOR SHARE|LOCK TABLE/);
   });
 });

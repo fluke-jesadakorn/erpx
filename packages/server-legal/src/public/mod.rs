@@ -119,6 +119,7 @@ pub mod legal_records;
 pub mod legal_integrations_sources;
 pub mod legal_operations_sources;
 pub mod legal_runtime_gate_sources;
+pub mod legal_service_sources;
 pub mod package_obligation_read;
 pub mod queued_purchases;
 pub mod trust_http;

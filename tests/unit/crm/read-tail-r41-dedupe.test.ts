@@ -71,7 +71,7 @@ describe('crm read-tail r41 byte-identical head reuse', () => {
     expect(scoped.match(/crmScopedDescListSql =/g)).toHaveLength(1);
     expect(sales.match(/crmSalesOpportunitySql =/g)).toHaveLength(1);
     expect((scoped.match(/SELECT /g) ?? []).length).toBe(0);
-    expect((sales.match(/SELECT /g) ?? []).length).toBe(1);
+    expect((sales.match(/SELECT /g) ?? []).length).toBe(0);
 
     const l = src('leads.ts');
     expect(l.match(/crmScopedDescListSql\(/g)).toHaveLength(2);
@@ -129,7 +129,7 @@ describe('crm read-tail r41 byte-identical head reuse', () => {
   });
 
   test('retirement:ts-statements drops from the r40 AFTER=95 to 91', () => {
-    expect(totalSelects()).toBe(31);
+    expect(totalSelects()).toBe(30);
     expect(totalSelects()).toBeLessThan(95);
   });
 });

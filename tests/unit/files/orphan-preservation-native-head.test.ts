@@ -69,7 +69,7 @@ describe('Files orphan-preservation witnesses are native-owned', () => {
     }
   });
 
-  test('retirement:ts-statements is 204, strictly below the owner-projection BEFORE=207 baseline', () => {
+  test('retirement:ts-statements is 201, strictly below the owner-projection BEFORE=207 baseline', () => {
     let literal = 0, total = 0, broad = 0;
     for (const path of tsFiles(srcRoot)) {
       const text = readFileSync(path, 'utf8');
@@ -77,9 +77,9 @@ describe('Files orphan-preservation witnesses are native-owned', () => {
       total += (text.match(/SELECT\s/g) ?? []).length;
       broad += (text.match(/\b(SELECT|INSERT|UPDATE|DELETE)\b/g) ?? []).length;
     }
-    expect(literal).toBe(204);
-    expect(total).toBe(205);
-    expect(broad).toBe(223);
+    expect(literal).toBe(201);
+    expect(total).toBe(202);
+    expect(broad).toBe(220);
     expect(literal).toBeLessThan(207);
     expect(total).toBeLessThan(208);
   });

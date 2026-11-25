@@ -144,7 +144,7 @@ describe('Finance read-tail r55 protected families and retirement', () => {
     expect(read(ir)).not.toContain("import { UNMATCHED_BANK_TXN_COUNT_SQL } from './finance-read-tail-r44-sql';");
   });
 
-  test('retirement:ts-statements pins the current owner target of 1597', () => {
+  test('retirement:ts-statements pins the current owner target of 1586', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -157,7 +157,7 @@ describe('Finance read-tail r55 protected families and retirement', () => {
     // 18 count literals collapsed into two helpers (-18 literals, +2 declarations: 1742 -> 1726);
     // native lane 2 then retired the six invoice-read TS sites (12 retained).
     expect(CASES).toHaveLength(12);
-    expect(total).toBe(1597);
+    expect(total).toBe(1586);
     expect(total).toBeLessThan(1742);
   });
 });

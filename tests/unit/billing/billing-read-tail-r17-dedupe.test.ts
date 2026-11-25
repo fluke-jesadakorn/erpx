@@ -44,7 +44,8 @@ describe('billing read-tail r17 alias-parameterized family dedupe', () => {
     const billing = await src('billing.ts');
     for (const call of [
       'billingEffectiveMonthGuardSql("billing_target_rollout_approvals")',
-      'billingEffectiveMonthGuardSql("billing_target_assignments")',
+      // The billing_target_assignments guard was retired with the native
+      // approve-target-extra cut; the shared helper itself is still used above.
       'billingPlanByRevisionSql(" AND effective_month<=$2")',
       'billingPlanByRevisionSql()',
       'billingPeriodByEnrollmentSql(" ORDER BY month DESC LIMIT 1")',

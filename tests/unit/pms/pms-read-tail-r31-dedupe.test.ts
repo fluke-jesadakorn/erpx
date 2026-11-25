@@ -120,8 +120,8 @@ describe('pms read-tail r31 closed-family dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(214);
-    expect(bare).toBe(215);
+    expect(spaced).toBe(207);
+    expect(bare).toBe(208);
     expect(spaced).toBeLessThan(358);
     expect(bare).toBeLessThan(360);
   });

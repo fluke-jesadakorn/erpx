@@ -24,6 +24,7 @@ const STRIPE_EVENT_BY_ID = 'pos_stripe_event_by_id';
 const CONNECTIONS_READY = 'pos_stripe_connections_ready';
 const SALE_NUMBER_BY_ID = 'pos_stripe_sale_number_by_id';
 const REFUND_PAYMENT_BY_REFUND = 'pos_stripe_refund_payment_by_refund';
+const SETTLEMENT_BY_JOURNAL = 'pos_stripe_settlement_by_journal';
 
 type Scope = {
   company_id: string | number | boolean | null;
@@ -67,6 +68,14 @@ export async function nativePosSettlementBalanceRowStatement<T = Record<string, 
   id: string;
 }): Promise<T | null> {
   return nativePosOne<T>(db, '', SETTLEMENT_BALANCE_ROW, [f.account_id, f.livemode, f.id]);
+}
+
+/** Existing POS settlement id for a Finance journal, used as an idempotency guard. */
+export async function nativePosSettlementByJournalStatement<T = Record<string, unknown>>(
+  db: SqlDatabase,
+  journalId: string,
+): Promise<T | null> {
+  return nativePosOne<T>(db, '', SETTLEMENT_BY_JOURNAL, [journalId]);
 }
 
 /** Payment by id scoped to Stripe company/account/livemode. */

@@ -116,6 +116,33 @@ mod tests {
     }
 
     #[test]
+    fn metric_breakdown_head_is_the_owner_select_body_plan() {
+        // Canonical native form of the r37 executive metric projection: the
+        // label/value projection is the bare select-body plan. The TS
+        // `crmMetricBreakdownSql` delegates on this identity; the caller tail,
+        // binds and ORDER BY stay verbatim.
+        let select_body = |body: &str| format!("SELECT {body}");
+        let breakdown = |label: &str, value: &str, tail: &str| {
+            select_body(&format!("{label} label,{value} value{tail}"))
+        };
+        let cases = [
+            ("opportunity pipeline", "v.stage", "sum(v.expected_minor)::text", " FROM crm_opportunities v GROUP BY 1 ORDER BY 1"),
+            ("overdue followups", "c.status", "count(*)::text", " FROM (PURCHASED) c GROUP BY 1 ORDER BY 1"),
+        ];
+        for (name, label, value, tail) in cases {
+            let rendered = breakdown(label, value, tail);
+            assert_eq!(rendered, format!("SELECT {label} label,{value} value{tail}"), "{name}");
+            assert_eq!(rendered.matches("SELECT ").count(), 1, "{name}");
+            let upper = rendered.to_ascii_uppercase();
+            assert!(!upper.contains("INSERT"), "{name}");
+            assert!(!upper.contains("UPDATE"), "{name}");
+            assert!(!upper.contains("DELETE"), "{name}");
+            assert!(!upper.contains("FOR UPDATE"), "{name}");
+            assert!(!upper.contains("LOCK TABLE"), "{name}");
+        }
+    }
+
+    #[test]
     fn clocked_read_head_is_the_owner_select_body_plan() {
         // Canonical native form of the r39 clocked CTE head: the caller's body
         // is the bare select-body plan, prefixed by the caller's own CTE. The TS

@@ -8,6 +8,7 @@ import { ASSET_DEPRECIATION_COUNT_SQL, ASSET_POLICY_EDITION_PENDING_SQL, ASSET_P
 import { OPEN_PERIOD_COVERED_SQL, OPEN_PERIOD_LIST_ASC_SQL } from './finance-read-tail-r34-sql';
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
 import { nativeFinanceOwnerWriteSystem } from './native-finance-owner-write';
+import { nativeFinanceReadAll, nativeFinanceReadFirst, FINANCE_RD_ASSET_POLICY_RULE, FINANCE_RD_ASSET_POLICY_MAPPINGS, FINANCE_RD_ASSET_POLICY_POSTED_RUNS, FINANCE_RD_ASSET_POLICY_LEGACY, FINANCE_RD_ASSET_POLICY_WORKSPACE_ASSETS, FINANCE_RD_ASSET_POLICY_WORKSPACE_BOOKS, FINANCE_RD_ASSET_POLICY_DISPOSAL, FINANCE_RD_ASSET_POLICY_GAIN_LOSS } from './native-finance-read';
 import { assetPolicyRunSchema } from '@erpx/server-finance/domain/due-inputs';
 import "server-only";
 import { z } from "zod";
@@ -59,12 +60,10 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
                 .first();
         }, async bookRules(companyId: string, chart_id: string | number | null, date: string) {
             const db = read();
-            return db
-                nativeFinanceReadAll<Row>(FINANCE_RD_ASSET_POLICY_RULE, [companyId, chart_id, date], db);
+            return nativeFinanceReadAll<Row>(FINANCE_RD_ASSET_POLICY_RULE, [companyId, chart_id, date], db);
         }, async bookMappings(id: string | number | null, account_id: string | number | null, depreciation_account_id: string | number | null, depreciation_expense_account_id: string | number | null) {
             const db = read();
-            return db
-                nativeFinanceReadAll<Row>(FINANCE_RD_ASSET_POLICY_MAPPINGS, [id, account_id, depreciation_account_id, depreciation_expense_account_id], db);
+            return nativeFinanceReadAll<Row>(FINANCE_RD_ASSET_POLICY_MAPPINGS, [id, account_id, depreciation_account_id, depreciation_expense_account_id], db);
         }, async bookAccounts(companyId: string, accountIds: string[]) {
             const db = read();
             return db
@@ -85,8 +84,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
                 .first<number>("n");
         }, async postedRuns(id: string | number | null) {
             const db = read();
-            return db
-                nativeFinanceReadAll<Row>(FINANCE_RD_ASSET_POLICY_POSTED_RUNS, [id], db);
+            return nativeFinanceReadAll<Row>(FINANCE_RD_ASSET_POLICY_POSTED_RUNS, [id], db);
         }, async policyLegacyCount(id: string | number | null) {
             const db = read();
             return db
@@ -149,8 +147,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
             return await nativeFinanceOwnerWriteSystem(db, 'system', 'decide_policy_run', [value, userId, value2, now, id]);
         }, async laterRuns(id: string | number | null, ordinal: string | number | null) {
             const db = read();
-            return db
-                nativeFinanceReadFirst(FINANCE_RD_ASSET_POLICY_LEGACY, [id, ordinal], db);
+            return nativeFinanceReadFirst(FINANCE_RD_ASSET_POLICY_LEGACY, [id, ordinal], db);
         }, async pendingPolicy(id: string | number | null) {
             const db = read();
             return db
@@ -180,12 +177,10 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
                 .all<Row>();
         }, async workspaceAssets(companyId: string) {
             const db = read();
-            return db
-                nativeFinanceReadAll<Row>(FINANCE_RD_ASSET_POLICY_WORKSPACE_ASSETS, [companyId], db);
+            return nativeFinanceReadAll<Row>(FINANCE_RD_ASSET_POLICY_WORKSPACE_ASSETS, [companyId], db);
         }, async workspaceBooks(companyId: string) {
             const db = read();
-            return db
-                nativeFinanceReadAll<Row>(FINANCE_RD_ASSET_POLICY_WORKSPACE_BOOKS, [companyId], db);
+            return nativeFinanceReadAll<Row>(FINANCE_RD_ASSET_POLICY_WORKSPACE_BOOKS, [companyId], db);
         }, async workspacePeriods(companyId: string) {
             const db = read();
             return db
@@ -194,8 +189,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
                 .all<Row>();
         }, async activeDisposalPolicy(assetId: string, companyId: string) {
             const db = read();
-            return db
-                nativeFinanceReadFirst<Row>(FINANCE_RD_ASSET_POLICY_DISPOSAL, [assetId, companyId], db);
+            return nativeFinanceReadFirst<Row>(FINANCE_RD_ASSET_POLICY_DISPOSAL, [assetId, companyId], db);
         }, async disposalAsset(assetId: string, companyId: string) {
             const db = read();
             return db
@@ -216,8 +210,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
                 .first();
         }, async disposalBookMappings(ruleId: string | null, gainAccountId: string, lossAccountId: string) {
             const db = read();
-            return db
-                nativeFinanceReadAll<Row>(FINANCE_RD_ASSET_POLICY_GAIN_LOSS, [ruleId, gainAccountId, lossAccountId], db);
+            return nativeFinanceReadAll<Row>(FINANCE_RD_ASSET_POLICY_GAIN_LOSS, [ruleId, gainAccountId, lossAccountId], db);
         } };
     return { repository, prepare, clock: { now: () => Date.now() }, identifiers: { next: () => crypto.randomUUID() }, hash: sha256, requirePermission: (actor, permission) => { try {
             return requirePermission(actor, permission);

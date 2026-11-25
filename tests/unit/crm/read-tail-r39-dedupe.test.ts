@@ -74,7 +74,7 @@ describe('crm read-tail r39 byte-identical head composition', () => {
     ] as const) {
       expect(src(file).match(new RegExp(`${name} =`, 'g'))).toHaveLength(count);
     }
-    expect((src('read-tail-r37-sql.ts').match(/SELECT /g) ?? []).length).toBe(1);
+    expect((src('read-tail-r37-sql.ts').match(/SELECT /g) ?? []).length).toBe(0);
     expect((src('read-tail-r39-sql.ts').match(/SELECT /g) ?? []).length).toBe(0);
     expect((src('read-tail-r27-sql.ts').match(/SELECT /g) ?? []).length).toBe(0);
 
@@ -152,7 +152,7 @@ describe('crm read-tail r39 byte-identical head composition', () => {
   });
 
   test('retirement:ts-statements folds the clocked CTE head (32 -> 31)', () => {
-    expect(totalSelects()).toBe(31);
+    expect(totalSelects()).toBe(30);
     expect(totalSelects()).toBeLessThan(32);
   });
 });

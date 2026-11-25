@@ -27,7 +27,7 @@ describe('pms read-tail r24 byte-identical pms_records projection prefix dedupe'
     const pms = await src(PMS);
     const repo = await src(REPO);
     expect(pms.split('PMS_RECORDS_PROJECTION_PREFIX_SQL').length - 1).toBe(5); // import + 4 uses
-    expect(repo.split('PMS_RECORDS_PROJECTION_PREFIX_SQL').length - 1).toBe(11); // import + 10 uses after r48
+    expect(repo.split('PMS_RECORDS_PROJECTION_PREFIX_SQL').length - 1).toBe(6); // import + 5 uses after the dashboard native cut
     expect(pms).not.toContain(PREFIX);
     expect(repo).not.toContain(PREFIX);
   });
@@ -53,7 +53,7 @@ describe('pms read-tail r24 byte-identical pms_records projection prefix dedupe'
   it('lowers the pms owner SELECT KPI strictly below the r23 after=435 baseline', async () => {
     let count = 0;
     for (const file of await tsFiles(dir)) count += (await readFile(file, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(214);
+    expect(count).toBe(207);
     expect(count).toBeLessThan(435);
   });
 });

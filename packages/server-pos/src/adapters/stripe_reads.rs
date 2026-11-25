@@ -4,10 +4,10 @@
 //! is selected here. These re-exports and the registry assertions let the
 //! transport parity oracle assert byte equality with the runtime registry.
 //!
-//! Only the twelve lock-free, SELECT-only owner reads in `pos-stripe.ts` are
-//! part of this family. Row-lock (`FOR UPDATE`/`FOR SHARE`), advisory/`LOCK
-//! TABLE`, PMS cross-owner reads and the day-report registry stay inline in
-//! their TypeScript callers and dedicated modules.
+//! Only the thirteen lock-free, SELECT-only owner reads in `pos-stripe.ts` and
+//! `pos-core.ts` are part of this family. Row-lock (`FOR UPDATE`/`FOR SHARE`),
+//! advisory/`LOCK TABLE`, PMS cross-owner reads and the day-report registry stay
+//! inline in their TypeScript callers and dedicated modules.
 
 pub const SETTLEMENT_BY_KEY: &str = "pos_stripe_settlement_by_key";
 pub const SETTLEMENT_BALANCE_STATE: &str = "pos_stripe_settlement_balance_state";
@@ -21,6 +21,7 @@ pub const STRIPE_EVENT_BY_ID: &str = "pos_stripe_event_by_id";
 pub const CONNECTIONS_READY: &str = "pos_stripe_connections_ready";
 pub const SALE_NUMBER_BY_ID: &str = "pos_stripe_sale_number_by_id";
 pub const REFUND_PAYMENT_BY_REFUND: &str = "pos_stripe_refund_payment_by_refund";
+pub const SETTLEMENT_BY_JOURNAL: &str = "pos_stripe_settlement_by_journal";
 
 pub const KINDS: &[&str] = &[
     SETTLEMENT_BY_KEY,
@@ -35,13 +36,14 @@ pub const KINDS: &[&str] = &[
     CONNECTIONS_READY,
     SALE_NUMBER_BY_ID,
     REFUND_PAYMENT_BY_REFUND,
+    SETTLEMENT_BY_JOURNAL,
 ];
 
 pub fn supported(kind: &str) -> bool {
     KINDS.contains(&kind)
 }
 
-/// Authoritative SQL for the twelve Stripe settlement/provider reads,
+/// Authoritative SQL for the thirteen Stripe settlement/provider reads,
 /// byte-identical to the retired TypeScript literals. Every statement is a
 /// caller-transaction `SELECT` scoped by caller-supplied company/account/
 /// livemode and id values. None carries a row lock, advisory lock or `LOCK
@@ -60,6 +62,7 @@ pub fn sql(kind: &str) -> Option<&'static str> {
         CONNECTIONS_READY => "SELECT company_id FROM pos_connections WHERE company_id=? AND account_id=? AND livemode=? AND state='ready'",
         SALE_NUMBER_BY_ID => "SELECT number FROM pos_sales WHERE id=?",
         REFUND_PAYMENT_BY_REFUND => "SELECT rp.* FROM pos_refund_payments rp JOIN pos_refunds r ON r.id=rp.refund_id WHERE rp.id=? AND r.company_id=?",
+        SETTLEMENT_BY_JOURNAL => "SELECT id FROM pos_settlements WHERE journal_id=?",
         _ => return None,
     })
 }
@@ -85,12 +88,13 @@ mod tests {
         (CONNECTIONS_READY, "SELECT company_id FROM pos_connections WHERE company_id=? AND account_id=? AND livemode=? AND state='ready'", 3),
         (SALE_NUMBER_BY_ID, "SELECT number FROM pos_sales WHERE id=?", 1),
         (REFUND_PAYMENT_BY_REFUND, "SELECT rp.* FROM pos_refund_payments rp JOIN pos_refunds r ON r.id=rp.refund_id WHERE rp.id=? AND r.company_id=?", 2),
+        (SETTLEMENT_BY_JOURNAL, "SELECT id FROM pos_settlements WHERE journal_id=?", 1),
     ];
 
     #[test]
     fn stripe_sql_is_byte_identical_with_expected_binds() {
-        assert_eq!(KINDS.len(), 12);
-        assert_eq!(EXPECTED.len(), 12);
+        assert_eq!(KINDS.len(), 13);
+        assert_eq!(EXPECTED.len(), 13);
         for (kind, expected, binds) in EXPECTED {
             assert!(supported(kind), "stripe read kind must be allow listed: {kind}");
             let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));

@@ -98,7 +98,7 @@ describe('crm read-tail r47 byte-identical MATERIALIZED and owned-source heads',
     expect(r34).toContain('crmOwnedListSql(projection, source, alias, `id=? AND company_id=?${tail}`)');
     expect(r37).toContain('crmOwnedListSql(projection, source, alias, `company_id=?${tail}`)');
     expect((r34.match(/SELECT /g) ?? []).length).toBe(0);
-    expect((r37.match(/SELECT /g) ?? []).length).toBe(1);
+    expect((r37.match(/SELECT /g) ?? []).length).toBe(0);
   });
 
   test('leaves crmSelectOneSql/crmUnionAllSql/crmProjectionFromSql, locks and exports untouched', () => {
@@ -125,7 +125,7 @@ describe('crm read-tail r47 byte-identical MATERIALIZED and owned-source heads',
   });
 
   test('retirement:ts-statements folds the MATERIALIZED head (37 -> 36)', () => {
-    expect(totalSelects()).toBe(31);
+    expect(totalSelects()).toBe(30);
     expect(totalSelects()).toBeLessThan(37);
   });
 });

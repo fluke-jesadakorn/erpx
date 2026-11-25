@@ -1,0 +1,5 @@
+{
+  "distinctSetRow": "SELECT DISTINCT set_row.",
+  "eventId": "SELECT event.id,",
+  "sourceState": "SELECT source_state"
+}

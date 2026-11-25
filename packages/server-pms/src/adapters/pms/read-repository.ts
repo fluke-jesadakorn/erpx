@@ -10,28 +10,13 @@ import { PMS_RECORD_POINT_PREFIX_SQL } from "../pms-read-tail-r31-sql";
 import { PMS_RECORD_ID_PROPERTY_HEAD_SQL } from "../pms-read-tail-r35-sql";
 import { PMS_STAY_SOURCE_PROJECTION_SQL } from "../pms-read-tail-r38-sql";
 import { pmsGuestIdJoinSql } from "../pms-read-tail-r41-sql";
-import { PMS_ORDERED_RECORDS_TAIL_SQL, pmsStayExistsHeadSql } from "../pms-read-tail-r42-sql";
+import { pmsStayExistsHeadSql } from "../pms-read-tail-r42-sql";
 import { pmsBookingEmailPendingSql } from "../pms-read-tail-r43-sql";
 import { pmsChosenKindPointSql, pmsReservationRelationArmSql } from "../pms-read-tail-r45-sql";
-import { nativePmsReadAll, PMS_RD_INVENTORY_COMMAND, PMS_RD_SECTION_RELATED_RECORDS } from "../native-pms-read";
+import { nativePmsReadAll, PMS_RD_INVENTORY_COMMAND, PMS_RD_SECTION_RELATED_RECORDS, PMS_RD_DASHBOARD_RECORDS } from "../native-pms-read";
 import { propertyReadinessFacts, type LaneActor } from "../native-lane-20/client";
 import { roomSummaryFacts } from "../native-lane-20/room-summary-client";
 import * as application from "@erpx/server-pms/application/read-repository";
-const stayPredicate = `(data_json::jsonb->>'state' IN ('reserved','in_house') OR
-    data_json::jsonb->>'arrival'=? OR data_json::jsonb->>'departure'=?)`;
-export const pmsDashboardRecordsSql = `WITH selected_stays AS MATERIALIZED (
- ${PMS_RECORDS_PROJECTION_PREFIX_SQL} WHERE property_id=? AND kind='stay' AND ${stayPredicate}
-), scope AS (SELECT ?::text property_id), selected_records AS (
- SELECT * FROM selected_stays
- UNION ALL ${PMS_RECORDS_PROJECTION_PREFIX_SQL}
- WHERE property_id=(SELECT property_id FROM scope) AND kind IN ('room_type','room','rate')
- UNION ALL ${PMS_RECORDS_PROJECTION_PREFIX_SQL}
- WHERE property_id=(SELECT property_id FROM scope) AND kind='task' AND data_json::jsonb->>'state' NOT IN ('done','superseded')
- UNION ALL ${PMS_RECORDS_PROJECTION_PREFIX_SQL}
- WHERE property_id=(SELECT property_id FROM scope) AND kind='guest_account' AND data_json::jsonb->>'state'!='closed' AND (data_json::jsonb->>'due')::bigint>0
- UNION ALL ${PMS_RECORDS_PROJECTION_PREFIX_SQL}
- WHERE property_id=(SELECT property_id FROM scope) AND kind='guest' AND id IN (SELECT data_json::jsonb->>'guestId' FROM selected_stays)
-) ${PMS_ORDERED_RECORDS_TAIL_SQL}`;
 function repository(db: SqlDatabase, actor: LaneActor = {}): application.PmsReadRepository {
     return {
         // Room aggregates belong to the native axum owner. No SQL is issued
@@ -182,7 +167,7 @@ function repository(db: SqlDatabase, actor: LaneActor = {}): application.PmsRead
             propertyId2: string;
             date3: string;
             date4: string;
-        }) => db.prepare(pmsDashboardRecordsSql).bind(facts.propertyId, facts.date, facts.date2, facts.propertyId2).all<PmsStoredRecord>().then(rows => rows.results.map(decodePmsRecord)),
+        }) => nativePmsReadAll<PmsStoredRecord>(PMS_RD_DASHBOARD_RECORDS, [facts.propertyId, facts.date, facts.date2, facts.propertyId2], db).then(rows => rows.results.map(decodePmsRecord)),
         calendar: (facts: {
             propertyId: string;
             to: string;

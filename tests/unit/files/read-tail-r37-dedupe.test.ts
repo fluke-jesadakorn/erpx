@@ -69,6 +69,8 @@ describe('Files read-tail r37 parameterized family', () => {
     // new r37 helper is untracked until the lead integrates. Robust to a clean tree.
     const changed = git('diff', '--name-only', '--', 'packages/server-files/src').trim().split('\n').filter(Boolean);
     expect(changed.every(p => [
+      'packages/server-files/src/adapters/mod.rs',
+      'packages/server-files/src/public/mod.rs',
       'packages/server-files/src/adapters/commerce-facts.ts',
       sr,
       'packages/server-files/src/adapters/app-attachment-sources.ts',
@@ -139,8 +141,8 @@ describe('Files read-tail r37 parameterized family', () => {
     // r42 left 248; r43 lowers 248->246 (two SELECT-bearing shared heads folded).
     // r44 lowers 246->242 (three more shared heads folded).
     // r46 folds two closed-union heads (orphan-preservation event, draft/bound count): 239->237.
-    expect(literal).toBe(204);
-    expect(total).toBe(205);
+    expect(literal).toBe(201);
+    expect(total).toBe(202);
     expect(literal).toBeLessThan(255);
     expect(total).toBeLessThan(256);
   });

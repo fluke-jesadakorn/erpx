@@ -1,0 +1,8 @@
+{
+  "listClause": "{visibility} AND (?::text IS NULL OR i.kind=?) AND (?='' OR strpos(lower(i.title||' '||i.description),lower(?))>0 OR EXISTS(SELECT 1 FROM legal_documents d WHERE d.item_id=i.id AND strpos(lower(d.name||' '||d.body),lower(?))>0) OR EXISTS(SELECT 1 FROM legal_document_inspections x JOIN legal_documents d ON d.id=x.document_id WHERE d.item_id=i.id AND x.kind='ocr' AND strpos(lower(x.result_json::jsonb->>'text'),lower(?))>0)) AND (?='' OR i.state=?) AND (?='false' OR i.owner_id=?)",
+  "total": "SELECT count(*)::int n FROM legal_items i WHERE {clause} AND {purchase}",
+  "stateCounts": "SELECT i.state,count(*)::int count FROM legal_items i WHERE {visibility} AND {purchase} GROUP BY i.state",
+  "holds": "SELECT h.id,CASE WHEN {holdScope} THEN h.reason ELSE 'Protected by a related legal hold' END reason,h.state,(h.item_id=?) direct,(SELECT n.acknowledged_at FROM legal_hold_notices n WHERE n.hold_id=h.id AND n.item_id=t.item_id AND n.user_id=?) acknowledged_at FROM legal_holds h JOIN legal_hold_targets t ON t.hold_id=h.id JOIN legal_items source ON source.id=h.item_id WHERE t.item_id=? AND h.state!='released'",
+  "links": "SELECT l.target_id,l.relation,t.title FROM legal_links l JOIN legal_items t ON t.id=l.target_id WHERE l.source_id=? AND {linkScope}",
+  "holdPreservable": "NOT EXISTS(SELECT 1 FROM legal_hold_targets t JOIN legal_holds h ON h.id=t.hold_id JOIN legal_destructions d ON d.item_id=t.item_id WHERE h.state!='released' AND d.state IN ('executing','completed') AND (h.item_id=? OR {holdOwnTarget}))"
+}

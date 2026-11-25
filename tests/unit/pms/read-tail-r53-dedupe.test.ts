@@ -104,12 +104,12 @@ describe('pms read-tail r53 owner projection head dedupe', () => {
     expect(r20).toContain('export const PMS_PROPERTIES_PROJECTION_SQL = "SELECT \\"id\\",\\"company_id\\",');
     expect(r29).toContain('export const PMS_PROPERTIES_TEN_COL_JOIN_SQL = "JOIN (SELECT \\"id\\",\\"company_id\\",');
     const rust = await src('adapters/native_read_sql.rs');
-    expect((rust.match(/^pub const PMS_RD_/gm) ?? []).length).toBe(60);
+    expect((rust.match(/^pub const PMS_RD_/gm) ?? []).length).toBe(61);
     expect(rust).toContain('const SQL_STAY_COMMAND: &str = "WITH scope AS (');
     expect(rust).toContain('pub const PMS_RD_STAY_COMMAND: &str = "pms_rd_stay_command";');
     expect(rust).toContain('pub const PMS_RD_SECTION_RELATED_RECORDS: &str = "pms_rd_section_related_records";');
     const bridge = await src('adapters/native-pms-read.ts');
-    expect((bridge.match(/^export const PMS_RD_/gm) ?? []).length).toBe(60);
+    expect((bridge.match(/^export const PMS_RD_/gm) ?? []).length).toBe(61);
     expect(await src('adapters/pms.ts')).toContain('FOR UPDATE OF p');
     expect(await src('adapters/pms-stripe.ts')).toContain('FOR UPDATE');
     expect(await src('adapters/feature-availability.ts')).toContain('FOR SHARE');
@@ -126,8 +126,8 @@ describe('pms read-tail r53 owner projection head dedupe', () => {
       spaced += count(text, 'SELECT ');
       bare += count(text, 'SELECT');
     }
-    expect(spaced).toBe(214);
-    expect(bare).toBe(215);
+    expect(spaced).toBe(207);
+    expect(bare).toBe(208);
     expect(spaced).toBeLessThan(246);
     expect(bare).toBeLessThan(248);
   });

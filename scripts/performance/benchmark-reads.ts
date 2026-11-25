@@ -11,7 +11,6 @@ import { modulesForRole } from "@erpx/feature-identity_access/lib/business-roles
 import { getWorkPage } from "@erpx/server-work_projection/public/work-summary";
 import { holdingPeopleDirectory } from "@erpx/server-organization/public/holding-people-directory";
 import { pmsWorkspace } from "../../packages/server-pms/src/public/pms";
-import { pmsDashboardRecordsSql } from "@erpx/server-pms/public/pms/read-repository";
 import type { WorkAssignment, WorkContext } from "@erpx/server-identity_access/public/authorization";
 
 if (process.env.NODE_ENV !== "development" || !["local", "development"].includes(process.env.ERPX_ENVIRONMENT ?? ""))
@@ -63,20 +62,7 @@ try {
       }
     }
   }
-  const pms = await db.prepare("SELECT id,business_date FROM pms_properties WHERE company_id=? ORDER BY name LIMIT 1")
-    .bind(companyId).first<{ id: string; business_date: string }>();
-  let dashboardPlan: unknown;
-  if (pms) {
-    const row = await db.prepare(`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${pmsDashboardRecordsSql}`)
-      .bind(pms.id, pms.business_date, pms.business_date, pms.id, pms.business_date, pms.business_date)
-      .first<{ "QUERY PLAN": string }>();
-    const raw = row ? JSON.parse(row["QUERY PLAN"])[0] : undefined;
-    function summarize(plan: Record<string, unknown>): unknown {
-      return Object.fromEntries(Object.entries(plan).filter(([key]) => ["Node Type", "Index Name", "Actual Rows", "Actual Loops", "Actual Total Time", "Plan Rows", "Shared Hit Blocks", "Shared Read Blocks", "Rows Removed by Filter", "Plans"].includes(key))
-        .map(([key, value]) => [key, key === "Plans" ? (value as Record<string, unknown>[]).map(summarize) : value]));
-    }
-    if (raw) dashboardPlan = { planningMs: raw["Planning Time"], executionMs: raw["Execution Time"], plan: summarize(raw.Plan) };
-  }
+  const dashboardPlan: unknown = null;
   const output = resolve(process.env.ERPX_PERF_OUTPUT ?? ".scratch/dev/backend-reads.json");
   if (!output.startsWith(resolve(".scratch/dev") + "/")) throw new Error("PRIVATE_BENCHMARK_OUTPUT_REQUIRED");
   await mkdir(resolve(".scratch/dev"), { recursive: true });

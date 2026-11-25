@@ -606,6 +606,10 @@ pub fn plan_values_statement(
         "work_social_witness_post_ids" => "post_ids AS(SELECT ?::text id WHERE ?='social_post' UNION SELECT published_post_id FROM drafts UNION SELECT edit_post_id FROM drafts UNION SELECT comment_parent_post_id FROM drafts),",
         "work_social_witness_posts" => "posts AS(SELECT p.* FROM social_posts p JOIN post_ids selected ON selected.id=p.id WHERE p.company_id=?),",
         "work_social_witness_native_sources" => "native_sources AS(SELECT source.source_kind kind,source.source_id id FROM social_post_sources source JOIN posts p ON p.id=source.post_id\n UNION SELECT element->>'kind',element->>'id' FROM drafts d CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN pg_input_is_valid(d.sources_json,'jsonb') THEN CASE WHEN jsonb_typeof(d.sources_json::jsonb)='array' THEN d.sources_json::jsonb ELSE '[]'::jsonb END ELSE '[]'::jsonb END) element WHERE element->>'kind' IN('staff_task','staff_project','pms_record') AND length(element->>'id')>0)",
+        "work_social_witness_image_head" => " SELECT jsonb_build_object('root',(SELECT image FROM native_root),'posts',",
+        "work_social_witness_participants" => " 'participants',(SELECT jsonb_agg(to_jsonb(member) ORDER BY member.post_id,member.user_id) FROM social_post_participants member JOIN posts p ON p.id=member.post_id),\n",
+        "work_social_witness_teams" => " 'teams',(SELECT jsonb_agg(jsonb_build_object('team',to_jsonb(team),'members',(SELECT jsonb_agg(to_jsonb(member) ORDER BY member.user_id) FROM messaging_team_members member WHERE member.team_id=team.id)) ORDER BY team.id) FROM messaging_teams team WHERE team.company_id=? AND EXISTS(SELECT 1 FROM posts p WHERE p.audience_kind='team' AND p.audience_id=team.id)),\n ",
+        "work_social_witness_sources" => " COALESCE((SELECT jsonb_agg(jsonb_build_object('kind',kind,'id',id) ORDER BY kind,id) FROM native_sources),'[]'::jsonb)::text sources",
         _ => return None,
     };
     Some(
@@ -1158,7 +1162,7 @@ mod tests {
             (
                 "work_social_audience_by_draft",
                 " UNION SELECT p.audience_id FROM social_post_drafts d JOIN social_posts p ON p.id=COALESCE(d.published_post_id,d.comment_parent_post_id,d.edit_post_id) AND p.company_id=d.company_id WHERE d.id=? AND d.company_id=? AND p.audience_kind='project'",
-                4,
+                2,
             ),
             (
                 "work_social_witness_drafts",
@@ -1178,6 +1182,40 @@ mod tests {
             (
                 "work_social_witness_native_sources",
                 "native_sources AS(SELECT source.source_kind kind,source.source_id id FROM social_post_sources source JOIN posts p ON p.id=source.post_id\n UNION SELECT element->>'kind',element->>'id' FROM drafts d CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN pg_input_is_valid(d.sources_json,'jsonb') THEN CASE WHEN jsonb_typeof(d.sources_json::jsonb)='array' THEN d.sources_json::jsonb ELSE '[]'::jsonb END ELSE '[]'::jsonb END) element WHERE element->>'kind' IN('staff_task','staff_project','pms_record') AND length(element->>'id')>0)",
+                0,
+            ),
+        ];
+        for (kind, sql, binds) in cases {
+            let values = vec!["bind"; binds];
+            let planned = super::plan_values_statement(kind, &read_input(kind, &values))
+                .expect("registered kind")
+                .expect("planned statement");
+            assert_eq!(planned.sql, sql, "{kind}");
+            assert_eq!(planned.sql.matches('?').count(), binds, "{kind}");
+        }
+    }
+
+    #[test]
+    fn attachment_witness_projection_kinds_render_the_retired_sql_byte_for_byte() {
+        let cases = [
+            (
+                "work_social_witness_image_head",
+                " SELECT jsonb_build_object('root',(SELECT image FROM native_root),'posts',",
+                0,
+            ),
+            (
+                "work_social_witness_participants",
+                " 'participants',(SELECT jsonb_agg(to_jsonb(member) ORDER BY member.post_id,member.user_id) FROM social_post_participants member JOIN posts p ON p.id=member.post_id),\n",
+                0,
+            ),
+            (
+                "work_social_witness_teams",
+                " 'teams',(SELECT jsonb_agg(jsonb_build_object('team',to_jsonb(team),'members',(SELECT jsonb_agg(to_jsonb(member) ORDER BY member.user_id) FROM messaging_team_members member WHERE member.team_id=team.id)) ORDER BY team.id) FROM messaging_teams team WHERE team.company_id=? AND EXISTS(SELECT 1 FROM posts p WHERE p.audience_kind='team' AND p.audience_id=team.id)),\n ",
+                1,
+            ),
+            (
+                "work_social_witness_sources",
+                " COALESCE((SELECT jsonb_agg(jsonb_build_object('kind',kind,'id',id) ORDER BY kind,id) FROM native_sources),'[]'::jsonb)::text sources",
                 0,
             ),
         ];

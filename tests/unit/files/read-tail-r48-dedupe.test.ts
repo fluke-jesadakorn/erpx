@@ -136,7 +136,7 @@ describe('Files read-tail r48 byte-oracle dedupe', () => {
     expect(src(MKT)).toContain('${PACKAGE_FILE_LINK_TARGET_HEAD_SQL}type,s.target_id,to_jsonb(l)||');
   });
 
-  test('retirement:ts-statements is 204, strictly below the r47 BEFORE=233 (233->225)', () => {
+  test('retirement:ts-statements is 201, strictly below the r47 BEFORE=233 (233->225)', () => {
     let literal = 0, total = 0;
     for (const path of tsFiles(srcRoot)) {
       const text = readFileSync(path, 'utf8');
@@ -146,8 +146,8 @@ describe('Files read-tail r48 byte-oracle dedupe', () => {
     // Three families fold two sites into one helper each: the scoped-existence
     // head (-2, two SELECT tokens), the messaging settlement head (-1) and the
     // ecommerce/marketing file-link target_ head (-1).
-    expect(literal).toBe(204);
-    expect(total).toBe(205);
+    expect(literal).toBe(201);
+    expect(total).toBe(202);
     expect(literal).toBeLessThan(233);
     expect(total).toBeLessThan(234);
   });

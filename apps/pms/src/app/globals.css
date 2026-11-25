@@ -3577,6 +3577,7 @@
 @source "../../../../packages/server-pos/src/adapters/native-pos-list-reads.ts";
 @source "../../../../packages/server-pos/src/adapters/native-pos-registers-statement.ts";
 @source "../../../../packages/server-pos/src/adapters/native-pos-sale-child.ts";
+@source "../../../../packages/server-pos/src/adapters/native-pos-stripe-reads.ts";
 @source "../../../../packages/server-pos/src/adapters/platform-owner-projection-sources.ts";
 @source "../../../../packages/server-pos/src/adapters/pms-booking-change-facts.ts";
 @source "../../../../packages/server-pos/src/adapters/pms-booking-facts.ts";

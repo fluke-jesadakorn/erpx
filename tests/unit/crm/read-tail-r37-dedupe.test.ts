@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
+import { crmSelectBodySql } from '../../../packages/server-crm/src/adapters/read-tail-r46-sql';
 import {
   crmMetricBreakdownSql,
   crmSalesOpportunitySql,
@@ -57,7 +58,7 @@ describe('crm read-tail r37 byte-identical read heads', () => {
     for (const name of ['crmSingleKeySourceSql', 'crmMetricBreakdownSql', 'crmSalesOpportunitySql']) {
       expect(helper.match(new RegExp(`${name} =`, 'g'))).toHaveLength(1);
     }
-    expect((helper.match(/SELECT /g) ?? []).length).toBe(1);
+    expect((helper.match(/SELECT /g) ?? []).length).toBe(0);
 
     const leads = src('leads.ts');
     expect(leads.match(/crmSingleKeySourceSql\(/g)).toHaveLength(2);
@@ -110,8 +111,20 @@ describe('crm read-tail r37 byte-identical read heads', () => {
     ] as const) expect(src(file)).toContain(token);
   });
 
-  test('retirement:ts-statements stays strictly below the r36 BEFORE=113 baseline', () => {
-    expect(totalSelects()).toBe(31);
-    expect(totalSelects()).toBeLessThan(111);
+  test.each([
+    ['v.stage', 'sum(v.expected_minor)::text', ' FROM crm_opportunities v GROUP BY 1 ORDER BY 1'],
+    ['c.status', 'count(*)::text', ' FROM (PURCHASED) c GROUP BY 1 ORDER BY 1'],
+  ])('the option projection folds into the owner select-body plan for %#', (label, value, tail) => {
+    expect(crmMetricBreakdownSql(label, value, tail)).toBe(
+      crmSelectBodySql(`${label} label,${value} value${tail}`),
+    );
+    expect(crmMetricBreakdownSql(label, value, tail)).toBe(
+      `SELECT ${label} label,${value} value${tail}`,
+    );
+  });
+
+  test('retirement:ts-statements folds the option-projection head (31 -> 30)', () => {
+    expect(totalSelects()).toBe(30);
+    expect(totalSelects()).toBeLessThan(31);
   });
 });

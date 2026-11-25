@@ -151,7 +151,7 @@ describe('Files read-tail r51 state-witness fold', () => {
 });
 
 describe('Files read-tail r51 KPI pins', () => {
-  test('retirement:ts-statements is 204, strictly below the r50 BEFORE=225 (225->224)', () => {
+  test('retirement:ts-statements is 201, strictly below the r50 BEFORE=225 (225->224)', () => {
     let literal = 0, total = 0;
     for (const path of tsFiles(srcRoot)) {
       const text = readFileSync(path, 'utf8');
@@ -159,8 +159,8 @@ describe('Files read-tail r51 KPI pins', () => {
       total += (text.match(/SELECT\s/g) ?? []).length;
     }
     // Two inline state-witness heads -> one alias-parameterized renderer (-1).
-    expect(literal).toBe(204);
-    expect(total).toBe(205);
+    expect(literal).toBe(201);
+    expect(total).toBe(202);
     expect(literal).toBeLessThan(225);
     expect(total).toBeLessThan(226);
   });

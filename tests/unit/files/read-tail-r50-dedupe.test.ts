@@ -52,13 +52,14 @@ describe('Files read-tail r50 byte-oracle dedupe', () => {
     expect('id,source.id source_id').not.toBe('company_id,set_row.target_id');
     const helper = src(HELPER);
     expect(count(helper, 'export const DISTINCT_SET_ROW_HEAD_SQL =')).toBe(1);
+    expect(helper).toContain('projection-head-sources.json');
     expect(helper).not.toMatch(/prepare\(|\.bind\(|nativeWrite\(/);
   });
 
   test('no residual inline literal: the head lives only in its helper', () => {
     let residual = 0;
     for (const path of tsFiles(srcRoot)) residual += count(readFileSync(path, 'utf8'), HEAD);
-    expect(residual).toBe(1); // the helper's own declaration
+    expect(residual).toBe(0);
     for (const rel of [LEAVE, SR]) {
       const text = src(rel);
       expect(count(text, HEAD)).toBe(0);
@@ -98,7 +99,7 @@ describe('Files read-tail r50 byte-oracle dedupe', () => {
     expect(sr).toContain('ORDER BY set_row.company_id,set_row.target_id');
   });
 
-  test('retirement:ts-statements is 204, strictly below the r49 BEFORE=226 (226->225)', () => {
+  test('retirement:ts-statements is 201, strictly below the r49 BEFORE=226 (226->225)', () => {
     let literal = 0, total = 0;
     for (const path of tsFiles(srcRoot)) {
       const text = readFileSync(path, 'utf8');
@@ -106,8 +107,8 @@ describe('Files read-tail r50 byte-oracle dedupe', () => {
       total += (text.match(/SELECT\s/g) ?? []).length;
     }
     // The two inline DISTINCT set-row sites fold into one helper (-1 total).
-    expect(literal).toBe(204);
-    expect(total).toBe(205);
+    expect(literal).toBe(201);
+    expect(total).toBe(202);
     expect(literal).toBeLessThan(226);
     expect(total).toBeLessThan(227);
   });

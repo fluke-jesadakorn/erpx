@@ -2,6 +2,7 @@ import { nativePosOne, nativePosRun } from './native-owner-write';
 import { nativePosAuditChargeToRoomStatement, nativePosAuditKitchenStartStatement } from './native-pos-audit-reads';
 import { nativePosKeyedPendingReversalStatement, nativePosKeyedPreparedDayCloseStatement, nativePosKeyedReceiptByIdStatement, nativePosKeyedReversalBySaleStatement, nativePosKeyedSettingsStatement, nativePosOpenShiftByIdStatement, nativePosOpenShiftByRegisterStatement, nativePosPaymentByIdPlainStatement, nativePosPaymentByIdStatement, nativePosPostingJournalStatement, nativePosRegisterByIdStatement, nativePosRegisterByNameStatement, nativePosRegisterCatalogStatement, nativePosRegistersByKindStatement, nativePosRestaurantRegisterPropertyStatement, nativePosSaleByIdStatement, nativePosTableByNameStatement } from './native-pos-core-statement';
 import { nativePosFulfilledLinesStatement, nativePosFirstPaymentIdStatement, nativePosLinesBySaleStatement, nativePosLinesTotalStatement, nativePosOpenPaymentIdStatement, nativePosPaymentIdBySaleStatement, nativePosPendingPaymentIdStatement, nativePosRefundablePaymentsStatement, nativePosSucceededPaymentTotalStatement } from './native-pos-sale-child';
+import { nativePosSettlementByJournalStatement } from './native-pos-stripe-reads';
 import { nativePosChildTailCompletedLineStatement, nativePosChildTailCreatedByStatement, nativePosChildTailLinesSumStatement, nativePosChildTailRefundPaymentStatement } from './native-pos-child-tail';
 import { nativePosFulfillmentPropertyStatement, nativePosRegisterPropertyStatement } from './native-pos-hotel-reads';
 import { posGuestAccountInterface } from "@erpx/server-pms/public/pos-guest-account-interface";
@@ -449,7 +450,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         readFinanceJournals1: facts => posCoreFinanceFacts(db).readFinanceJournals1(facts),
         readPosSettlements2: (facts: {
             journalId: string;
-        }) => one(db, 'SELECT id FROM pos_settlements WHERE journal_id=?', facts.journalId),
+        }) => nativePosSettlementByJournalStatement(db, facts.journalId),
         readFinanceJournalLines1: facts => posCoreFinanceFacts(db).readFinanceJournalLines1(facts),
         writePosSettlements1: (facts: {
             fact0: "paid" | "mapped";

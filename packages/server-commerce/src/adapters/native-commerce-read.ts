@@ -82,6 +82,12 @@ export const RD_PMS_PRODUCT_WAREHOUSE_SCOPE = 'commerce_rd_pms_product_warehouse
 /** Allow-listed attachment product source image read. */
 export const RD_ATTACHMENT_PRODUCT_IMAGE = 'commerce_rd_attachment_product_image';
 
+/** Allow-listed executive order-evidence plans (closed metric variants). */
+export const RD_EXEC_SALES_ORDERS_EVIDENCE = 'commerce_rd_exec_sales_orders_evidence';
+export const RD_EXEC_SALES_CANCELLATIONS_EVIDENCE = 'commerce_rd_exec_sales_cancellations_evidence';
+export const RD_EXEC_SALES_CANCELLATION_VALUE_EVIDENCE = 'commerce_rd_exec_sales_cancellation_value_evidence';
+export const RD_EXEC_SALES_FULFILLMENT_EVIDENCE = 'commerce_rd_exec_sales_fulfillment_evidence';
+
 /** Allow-listed warehouse-config read kinds resolved by the mounted owner command-plan route. */
 export const RD_WAREHOUSE_PAGE_ROWS = 'commerce_rd_warehouse_page_rows';
 export const RD_WAREHOUSE_MASTER_ROWS = 'commerce_rd_warehouse_master_rows';

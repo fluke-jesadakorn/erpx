@@ -1,15 +1,13 @@
 import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import { nativeOrgStatement } from "./native-organization-owner-write";
+import { nativeOrgStatement, nativeOrgAll } from "./native-organization-owner-write";
 import { twoColumnLookup, nodeKindByIdCompany } from './organization-column-alias-families-r27';
 import { activeNodeKindExists } from './organization-column-alias-families-r34';
 import { ownerVersionGuardSource } from './organization-read-tail-sources';
 import { activeStaffLevelSource } from './organization-read-tail-sources-r39';
 export function StaffSettingsOrganizationFacts(database: SqlDatabase, companyId = '') {
     return { readListLevelsEffect(companyId: string) {
-            return database.prepare("SELECT * FROM staff_levels WHERE company_id=? ORDER BY level_number ASC NULLS LAST,rank DESC,code")
-                .bind(companyId)
-                .all<{
+            return nativeOrgAll<{
                 id: string;
                 company_id: string;
                 code: string;
@@ -18,7 +16,7 @@ export function StaffSettingsOrganizationFacts(database: SqlDatabase, companyId 
                 level_number: number | null;
                 active: number;
                 version: number;
-            }>();
+            }>(database, companyId, 'staff_settings_list_levels', [companyId]).then(results => ({ results }));
         },
         readSaveLevelPrevious(id: string, companyId: string) { return database.prepare(twoColumnLookup('level_number','staff_levels','id','company_id')).bind(id, companyId).first<{
             level_number: number | null;

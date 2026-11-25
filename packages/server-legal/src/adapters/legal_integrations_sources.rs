@@ -147,7 +147,12 @@ mod tests {
         assert!(approvals.contains("(s.$1) st"));
         assert!(approvals.contains("v.$2"));
         assert!(approvals.contains("p.$3"));
-        for token in ["{approvalInstances}", "{approvalSteps}", "{visibility}", "{purchase}"] {
+        for token in [
+            "{approvalInstances}",
+            "{approvalSteps}",
+            "{visibility}",
+            "{purchase}",
+        ] {
             assert!(!approvals.contains(token), "{token}");
         }
         let rows = render_legal_calendar_rows("s.$&", "v.$1", "p.$2");

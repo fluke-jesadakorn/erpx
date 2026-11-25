@@ -610,6 +610,51 @@ const READ_ATTACHMENT_PRODUCT_IMAGE: NativeCommerceReadStatement = NativeCommerc
     bind_count: 2,
 };
 
+/// Native evidence plan for the sales-orders metric. Optional query, cursor
+/// and record selectors are NULL-safe fixed bind positions, so every live
+/// variant of the retired builder is one owner-authored statement.
+pub const RD_EXEC_SALES_ORDERS_EVIDENCE: &str = "commerce_rd_exec_sales_orders_evidence";
+const SQL_EXEC_SALES_ORDERS_EVIDENCE: &str =
+    "SELECT o.id,o.number,o.order_date,o.updated_at,o.currency,o.subtotal_minor::text subtotal_minor,o.tax_minor::text tax_minor,(o.subtotal_minor::numeric+o.tax_minor::numeric)::text total_minor,o.state status,o.version,(o.approved_by IS NOT NULL) prior_approval FROM commerce_orders o WHERE o.company_id=? AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?) AND o.kind='sales' AND o.state IN ('confirmed','partially_fulfilled','fulfilled') AND o.order_date BETWEEN ? AND ? AND o.currency=? AND (?::text IS NULL OR position(lower(?) in lower(o.number))>0) AND (?::text IS NULL OR (o.order_date,o.id)<(?,?)) AND (?::text IS NULL OR o.id=?) ORDER BY o.order_date DESC,o.id DESC LIMIT ?";
+const READ_EXEC_SALES_ORDERS_EVIDENCE: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_EXEC_SALES_ORDERS_EVIDENCE,
+    sql: SQL_EXEC_SALES_ORDERS_EVIDENCE,
+    bind_count: 16,
+};
+
+/// Native evidence plan for the sales-cancellations metric.
+pub const RD_EXEC_SALES_CANCELLATIONS_EVIDENCE: &str = "commerce_rd_exec_sales_cancellations_evidence";
+const SQL_EXEC_SALES_CANCELLATIONS_EVIDENCE: &str =
+    "SELECT o.id,o.number,o.order_date,o.updated_at,o.currency,o.subtotal_minor::text subtotal_minor,o.tax_minor::text tax_minor,(o.subtotal_minor::numeric+o.tax_minor::numeric)::text total_minor,o.state status,o.version,(o.approved_by IS NOT NULL) prior_approval FROM commerce_orders o WHERE o.company_id=? AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?) AND o.kind='sales' AND o.state='cancelled' AND o.updated_at>=? AND o.updated_at<? AND (?::text IS NULL OR position(lower(?) in lower(o.number))>0) AND (?::text IS NULL OR (o.updated_at,o.id)<(?,?)) AND (?::text IS NULL OR o.id=?) ORDER BY o.updated_at DESC,o.id DESC LIMIT ?";
+const READ_EXEC_SALES_CANCELLATIONS_EVIDENCE: NativeCommerceReadStatement =
+    NativeCommerceReadStatement {
+        kind: RD_EXEC_SALES_CANCELLATIONS_EVIDENCE,
+        sql: SQL_EXEC_SALES_CANCELLATIONS_EVIDENCE,
+        bind_count: 15,
+    };
+
+/// Native evidence plan for the sales-cancellation-value metric.
+pub const RD_EXEC_SALES_CANCELLATION_VALUE_EVIDENCE: &str = "commerce_rd_exec_sales_cancellation_value_evidence";
+const SQL_EXEC_SALES_CANCELLATION_VALUE_EVIDENCE: &str =
+    "SELECT o.id,o.number,o.order_date,o.updated_at,o.currency,o.subtotal_minor::text subtotal_minor,o.tax_minor::text tax_minor,(o.subtotal_minor::numeric+o.tax_minor::numeric)::text total_minor,o.state status,o.version,(o.approved_by IS NOT NULL) prior_approval FROM commerce_orders o WHERE o.company_id=? AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?) AND o.kind='sales' AND o.state='cancelled' AND o.updated_at>=? AND o.updated_at<? AND o.approved_by IS NOT NULL AND o.currency=? AND (?::text IS NULL OR position(lower(?) in lower(o.number))>0) AND (?::text IS NULL OR (o.updated_at,o.id)<(?,?)) AND (?::text IS NULL OR o.id=?) ORDER BY o.updated_at DESC,o.id DESC LIMIT ?";
+const READ_EXEC_SALES_CANCELLATION_VALUE_EVIDENCE: NativeCommerceReadStatement =
+    NativeCommerceReadStatement {
+        kind: RD_EXEC_SALES_CANCELLATION_VALUE_EVIDENCE,
+        sql: SQL_EXEC_SALES_CANCELLATION_VALUE_EVIDENCE,
+        bind_count: 16,
+    };
+
+/// Native evidence plan for the sales-fulfillment-rate metric.
+pub const RD_EXEC_SALES_FULFILLMENT_EVIDENCE: &str = "commerce_rd_exec_sales_fulfillment_evidence";
+const SQL_EXEC_SALES_FULFILLMENT_EVIDENCE: &str =
+    "SELECT o.id,o.number,o.order_date,o.state status,o.version FROM commerce_orders o WHERE o.company_id=? AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?) AND o.kind='sales' AND o.state IN ('confirmed','partially_fulfilled','fulfilled') AND o.order_date BETWEEN ? AND ? AND EXISTS(SELECT 1 FROM commerce_order_lines l WHERE l.order_id=o.id) AND (?::text IS NULL OR position(lower(?) in lower(o.number))>0) AND (?::text IS NULL OR (o.order_date,o.id)<(?,?)) AND (?::text IS NULL OR o.id=?) ORDER BY o.order_date DESC,o.id DESC LIMIT ?";
+const READ_EXEC_SALES_FULFILLMENT_EVIDENCE: NativeCommerceReadStatement =
+    NativeCommerceReadStatement {
+        kind: RD_EXEC_SALES_FULFILLMENT_EVIDENCE,
+        sql: SQL_EXEC_SALES_FULFILLMENT_EVIDENCE,
+        bind_count: 15,
+    };
+
 const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_PMS_WAREHOUSE_ACTIVE,
     READ_PMS_SETTINGS_EXISTS,
@@ -660,6 +705,10 @@ const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_PMS_WAREHOUSE_ID,
     READ_PMS_PRODUCT_WAREHOUSE_SCOPE,
     READ_ATTACHMENT_PRODUCT_IMAGE,
+    READ_EXEC_SALES_ORDERS_EVIDENCE,
+    READ_EXEC_SALES_CANCELLATIONS_EVIDENCE,
+    READ_EXEC_SALES_CANCELLATION_VALUE_EVIDENCE,
+    READ_EXEC_SALES_FULFILLMENT_EVIDENCE,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -791,6 +840,26 @@ mod tests {
                 SQL_ATTACHMENT_PRODUCT_IMAGE,
                 2usize,
             ),
+            (
+                RD_EXEC_SALES_ORDERS_EVIDENCE,
+                SQL_EXEC_SALES_ORDERS_EVIDENCE,
+                16usize,
+            ),
+            (
+                RD_EXEC_SALES_CANCELLATIONS_EVIDENCE,
+                SQL_EXEC_SALES_CANCELLATIONS_EVIDENCE,
+                15usize,
+            ),
+            (
+                RD_EXEC_SALES_CANCELLATION_VALUE_EVIDENCE,
+                SQL_EXEC_SALES_CANCELLATION_VALUE_EVIDENCE,
+                16usize,
+            ),
+            (
+                RD_EXEC_SALES_FULFILLMENT_EVIDENCE,
+                SQL_EXEC_SALES_FULFILLMENT_EVIDENCE,
+                15usize,
+            ),
         ];
         for (kind, sql, bind_count) in expected {
             let statement = read_statement(kind).expect("registered owner read kind");
@@ -815,7 +884,27 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), bind_count);
         }
-        assert_eq!(STATEMENTS.len(), 49);
+        assert_eq!(STATEMENTS.len(), 53);
+    }
+
+    /// Executive evidence plans cover every live condition variant with
+    /// NULL-safe optional selectors and fixed bind positions.
+    #[test]
+    fn executive_evidence_plans_cover_the_closed_metric_variants() {
+        for (kind, binds, marker) in [
+            (RD_EXEC_SALES_ORDERS_EVIDENCE, 16, "o.state IN ('confirmed','partially_fulfilled','fulfilled') AND o.order_date BETWEEN ? AND ? AND o.currency=?"),
+            (RD_EXEC_SALES_CANCELLATIONS_EVIDENCE, 15, "o.state='cancelled' AND o.updated_at>=? AND o.updated_at<?"),
+            (RD_EXEC_SALES_CANCELLATION_VALUE_EVIDENCE, 16, "AND o.approved_by IS NOT NULL AND o.currency=?"),
+            (RD_EXEC_SALES_FULFILLMENT_EVIDENCE, 15, "EXISTS(SELECT 1 FROM commerce_order_lines l WHERE l.order_id=o.id)"),
+        ] {
+            let plan = read_statement(kind).expect("executive evidence plan");
+            assert_eq!(plan.bind_count, binds, "{kind}");
+            assert_eq!(plan.sql.matches('?').count(), binds, "{kind}");
+            assert!(plan.sql.contains(marker), "{kind}");
+            assert_eq!(plan.sql.matches("?::text IS NULL OR").count(), 5, "{kind}");
+            assert!(plan.sql.starts_with("SELECT "), "{kind}");
+            assert!(!plan.sql.contains(';'), "{kind}");
+        }
     }
 
     /// The attachment product image keeps its exact alias, projection and

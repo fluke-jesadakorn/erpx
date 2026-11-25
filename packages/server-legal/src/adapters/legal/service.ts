@@ -14,6 +14,16 @@ import { legalHoldOwnTargetSql } from "../legal-read-tail-r39-sources";
 import { legalExternalUploadShareJoinHead } from "../legal-read-tail-r44-sources";
 import { legalPointByKeySql } from "../legal-read-tail-r36-sources";
 import { legalOrderedKeyHeadSql } from "../legal-read-tail-r54-sources";
+import contract from '../legal-service-sources.json' with {type:'json'};
+const fill = (template: string, values: Record<string, string>) => {
+  let rendered = template;
+  for (const [name, value] of Object.entries(values)) {
+    const token = `{${name}}`;
+    if (!rendered.includes(token)) throw new Error('LEGAL_SERVICE_CONTRACT_INVALID');
+    rendered = rendered.split(token).join(value);
+  }
+  return rendered;
+};
 import { finalRootOwnerProjectionSources as workflowProjectionSources } from "@erpx/server-workflow/public/final-root-owner-projection-sources";
 import {nativeLegalHoldNotice} from "../native-legal-hold-notice";
 import "server-only";
@@ -38,7 +48,7 @@ function application(db:SqlDatabase,a:WorkContext,readScope?:Promise<Awaited<Ret
 const v=visibility(a),linkScope=visibility(a,"t"),holdScope=visibility(a,"source"),nativeWrites=new WeakMap<LegalWrite,SqlStatement>();
 const stage=(statement:SqlStatement):LegalWrite=>{const write:LegalWrite={owner:"legal"};nativeWrites.set(write,statement);return write;};
 function listScope(q:LegalListQuery){
-  const clause = `${v.sql} AND (?::text IS NULL OR i.kind=?) AND (?='' OR strpos(lower(i.title||' '||i.description),lower(?))>0 OR EXISTS(SELECT 1 FROM legal_documents d WHERE d.item_id=i.id AND strpos(lower(d.name||' '||d.body),lower(?))>0) OR EXISTS(SELECT 1 FROM legal_document_inspections x JOIN legal_documents d ON d.id=x.document_id WHERE d.item_id=i.id AND x.kind='ocr' AND strpos(lower(x.result_json::jsonb->>'text'),lower(?))>0)) AND (?='' OR i.state=?) AND (?='false' OR i.owner_id=?)`;
+  const clause = fill(contract.listClause,{visibility:v.sql});
   const args = [
     ...v.values,
     q.kind ?? null,
@@ -61,12 +71,12 @@ items:async(query:LegalListQuery)=>{const {clause,args}=listScope(query),purchas
       .bind(...args, (query.page - 1) * 30)
       .all<LegalItem>();},
 total:async(query:LegalListQuery)=>{const {clause,args}=listScope(query),purchase=await purchasedRead();return db
-      .prepare(`SELECT count(*)::int n FROM legal_items i WHERE ${clause} AND ${purchase.where}`)
+      .prepare(fill(contract.total,{clause,purchase:purchase.where}))
       .bind(...args)
       .first<{ n: number }>();},
 counts:async()=>{const purchase=await purchasedRead();return db
       .prepare(
-        `SELECT i.state,count(*)::int count FROM legal_items i WHERE ${v.sql} AND ${purchase.where} GROUP BY i.state`,
+        fill(contract.stateCounts,{visibility:v.sql,purchase:purchase.where}),
       )
       .bind(...v.values)
       .all<{ state: string; count: number }>();},
@@ -88,13 +98,13 @@ members:(id:string)=>{return db
         .all<LegalDetail["members"][number]>();},
 holds:(id:string)=>{return db
         .prepare(
-          `SELECT h.id,CASE WHEN ${holdScope.sql} THEN h.reason ELSE 'Protected by a related legal hold' END reason,h.state,(h.item_id=?) direct,(SELECT n.acknowledged_at FROM legal_hold_notices n WHERE n.hold_id=h.id AND n.item_id=t.item_id AND n.user_id=?) acknowledged_at FROM legal_holds h JOIN legal_hold_targets t ON t.hold_id=h.id JOIN legal_items source ON source.id=h.item_id WHERE t.item_id=? AND h.state!='released'`,
+          fill(contract.holds,{holdScope:holdScope.sql}),
         )
         .bind(...holdScope.values, id, a.userId, id)
         .all<LegalDetail["holds"][number]>();},
 links:(id:string)=>{return db
         .prepare(
-          `SELECT l.target_id,l.relation,t.title FROM legal_links l JOIN legal_items t ON t.id=l.target_id WHERE l.source_id=? AND ${linkScope.sql}`,
+          fill(contract.links,{linkScope:linkScope.sql}),
         )
         .bind(id, ...linkScope.values)
         .all<LegalDetail["links"][number]>();},
@@ -153,7 +163,7 @@ requireHoldPreservable:(key:string,id:string)=>stage(assertion(
         db,
         key,
         "hold-preservable",
-        `NOT EXISTS(SELECT 1 FROM legal_hold_targets t JOIN legal_holds h ON h.id=t.hold_id JOIN legal_destructions d ON d.item_id=t.item_id WHERE h.state!='released' AND d.state IN ('executing','completed') AND (h.item_id=? OR ${legalHoldOwnTargetSql('h')}))`,
+        fill(contract.holdPreservable,{holdOwnTarget:legalHoldOwnTargetSql('h')}),
         [id, id],
       )),
 requireHoldSourcesPreservable:(key:string,id:string)=>stage(assertion(

@@ -73,7 +73,8 @@ describe('pms read-tail r42 stay-witness, correction-fact and order-tail dedupe'
     expect(rr.split("pmsStayExistsHeadSql('roomId')").length - 1).toBe(0);
     expect(rr).toContain('roomSummaryFacts(db, actor, {');
     expect(rr.split("pmsStayExistsHeadSql('reservationId')").length - 1).toBe(1);
-    expect(rr.split('${PMS_ORDERED_RECORDS_TAIL_SQL}').length - 1).toBe(1); // one after r48
+    expect(rr.split('${PMS_ORDERED_RECORDS_TAIL_SQL}').length - 1).toBe(0); // dashboard tail moved to the native plan
+    expect(rr).toContain('PMS_RD_DASHBOARD_RECORDS');
     expect(rr.split(HEAD.stayRoom).length - 1).toBe(0);
     expect(rr.split(HEAD.stayReservation).length - 1).toBe(0);
     expect(rr.split(HEAD.orderedRecords).length - 1).toBe(0);
@@ -129,8 +130,8 @@ describe('pms read-tail r42 stay-witness, correction-fact and order-tail dedupe'
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(214);
-    expect(bare).toBe(215);
+    expect(spaced).toBe(207);
+    expect(bare).toBe(208);
     expect(spaced).toBeLessThan(302);
   });
 });

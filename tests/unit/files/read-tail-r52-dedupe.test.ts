@@ -103,14 +103,15 @@ describe('Files read-tail r52 audit-head fold', () => {
   test('one owner-local renderer replaces the two inline heads', () => {
     const helper = src(HELPER);
     expect(count(helper, 'export const EVENT_ID_PROJECTION_HEAD_SQL =')).toBe(1);
-    expect(count(helper, 'SELECT ')).toBe(1);
+    expect(helper).toContain('projection-head-sources.json');
+    expect(count(helper, 'SELECT ')).toBe(0);
     expect(helper).not.toMatch(/prepare\(|\.bind\(|nativeWrite\(/);
     expect(helper.split('\n').find(l => l.startsWith('export const'))!).not.toMatch(lockRe);
 
-    // No residual exact literal anywhere in the owner source except the helper.
+    // No statement token remains in TypeScript; the head lives in the native contract.
     let residual = 0;
     for (const path of tsFiles(srcRoot)) residual += count(readFileSync(path, 'utf8'), HEAD);
-    expect(residual).toBe(1);
+    expect(residual).toBe(0);
   });
 
   test('each site keeps its own tail, binds and ORDER BY', () => {
@@ -148,7 +149,7 @@ describe('Files read-tail r52 audit-head fold', () => {
 });
 
 describe('Files read-tail r52 KPI pins', () => {
-  test('retirement:ts-statements is 204, strictly below the r51 BEFORE=224 (224->223)', () => {
+  test('retirement:ts-statements is 201, strictly below the r51 BEFORE=224 (224->223)', () => {
     let literal = 0, total = 0;
     for (const path of tsFiles(srcRoot)) {
       const text = readFileSync(path, 'utf8');
@@ -156,8 +157,8 @@ describe('Files read-tail r52 KPI pins', () => {
       total += (text.match(/SELECT\s/g) ?? []).length;
     }
     // Two inline heads -> one alias-free owner-local renderer (-1).
-    expect(literal).toBe(204);
-    expect(total).toBe(205);
+    expect(literal).toBe(201);
+    expect(total).toBe(202);
     expect(literal).toBeLessThan(224);
     expect(total).toBeLessThan(225);
   });

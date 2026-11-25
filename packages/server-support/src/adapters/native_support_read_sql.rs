@@ -1464,7 +1464,11 @@ mod tests {
         assert_eq!(core.sql.matches('?').count(), 0);
 
         for fragment in FRAGMENTS {
-            assert!(fragment.sql.starts_with("SELECT "));
+            assert!(
+                fragment.sql.starts_with("SELECT ") || fragment.sql.starts_with("EXISTS("),
+                "fragment must be a closed read expression: {}",
+                fragment.kind
+            );
             assert!(!fragment.sql.contains(';'));
         }
     }

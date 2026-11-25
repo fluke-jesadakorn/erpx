@@ -784,7 +784,6 @@ describe('native Billing transport', () => {
     // authority until their Holding-host cutovers land; the native client must
     // not map them. `approve` is an invoice command.
     for (const action of [
-      'approve-target-extra',
       'rate-target',
       'approve',
     ] as const)

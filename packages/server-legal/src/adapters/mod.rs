@@ -48,6 +48,7 @@ pub(crate) mod legal_read_tail_r44;
 pub(crate) mod legal_read_tail_r48;
 pub(crate) mod legal_record_sources;
 pub(crate) mod legal_runtime_gate_sources;
+pub(crate) mod legal_service_sources;
 pub(crate) mod native_read_plan;
 pub(crate) mod queued_purchases;
 pub(crate) mod work_purchases;

@@ -84,7 +84,8 @@ describe('crm read-tail r46 byte-identical projection/FROM head', () => {
   test('consumer helpers route their former inline heads through the one renderer', () => {
     const r28 = src('read-tail-r28-sql.ts'), r36 = src('read-tail-r36-sql.ts'), r37 = src('read-tail-r37-sql.ts');
     for (const [name, text] of [['r28', r28], ['r36', r36], ['r37', r37]] as const) {
-      expect(text).toContain("import { crmProjectionFromSql } from './read-tail-r46-sql'");
+      expect(text).toContain('crmProjectionFromSql');
+      expect(text).toContain("'./read-tail-r46-sql'");
       expect(text).toContain('crmProjectionFromSql(');
       expect(text).not.toContain('`SELECT ${projection} FROM crm_case_events WHERE');
       expect(text).not.toContain('`SELECT ${projection} FROM crm_opportunities WHERE');
@@ -98,7 +99,7 @@ describe('crm read-tail r46 byte-identical projection/FROM head', () => {
     // r37 keeps the two read heads it did not retire this round.
     expect((r28.match(/SELECT /g) ?? []).length).toBe(0);
     expect((r36.match(/SELECT /g) ?? []).length).toBe(0);
-    expect((r37.match(/SELECT /g) ?? []).length).toBe(1);
+    expect((r37.match(/SELECT /g) ?? []).length).toBe(0);
   });
 
   test('every retired call site keeps its projection, tail, binds and ORDER BY verbatim', () => {
@@ -141,7 +142,7 @@ describe('crm read-tail r46 byte-identical projection/FROM head', () => {
   });
 
   test('retirement:ts-statements folds the projection/FROM head (40 -> 39)', () => {
-    expect(totalSelects()).toBe(31);
+    expect(totalSelects()).toBe(30);
     expect(totalSelects()).toBeLessThan(40);
   });
 });

@@ -470,7 +470,7 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
         `export const ${kind} = '${wire}';`,
       );
     }
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 49);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 53);');
     expect(plans).toContain('fn schema_ready_probes_keep_their_exact_literals()');
     expect(readFileSync(adapters('read-tail-r15-dedupe-sql.ts'), 'utf8')).not.toContain('to_regclass');
   });
@@ -507,7 +507,7 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
     expect(plans).toContain(`"${sql}"`);
     expect(plans).toContain('kind: RD_LEGACY_ATTACHMENT_SCOPE,');
     expect(plans).toContain('fn legacy_attachment_scope_keeps_its_exact_literal()');
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 49);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 53);');
     expect(readFileSync(adapters('native-commerce-read.ts'), 'utf8')).toContain(
       "export const RD_LEGACY_ATTACHMENT_SCOPE = 'commerce_rd_legacy_attachment_scope';",
     );
@@ -783,5 +783,32 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
     expect(source).not.toContain(sql);
     expect(source).toContain('nativeCommerceReadFirst<string>(RD_ATTACHMENT_PRODUCT_IMAGE,[id,companyId],database)');
     expect(source).toContain('commerceAttachmentPosSourceImage(database,companyId,id)');
+  });
+
+  it('owns all executive order-evidence variants as four native metric plans', async () => {
+    const plans = readFileSync(adapters('native_commerce_read_sql.rs'), 'utf8');
+    for (const [kind, wire, marker, binds] of [
+      ['RD_EXEC_SALES_ORDERS_EVIDENCE', 'commerce_rd_exec_sales_orders_evidence', "o.state IN ('confirmed','partially_fulfilled','fulfilled') AND o.order_date BETWEEN ? AND ? AND o.currency=?", 16],
+      ['RD_EXEC_SALES_CANCELLATIONS_EVIDENCE', 'commerce_rd_exec_sales_cancellations_evidence', "o.state='cancelled' AND o.updated_at>=? AND o.updated_at<?", 15],
+      ['RD_EXEC_SALES_CANCELLATION_VALUE_EVIDENCE', 'commerce_rd_exec_sales_cancellation_value_evidence', 'o.approved_by IS NOT NULL AND o.currency=?', 16],
+      ['RD_EXEC_SALES_FULFILLMENT_EVIDENCE', 'commerce_rd_exec_sales_fulfillment_evidence', 'EXISTS(SELECT 1 FROM commerce_order_lines l WHERE l.order_id=o.id)', 15],
+    ] as const) {
+      expect(plans).toContain(`pub const ${kind}: &str = "${wire}";`);
+      expect(plans).toContain(marker);
+      expect(plans).toContain(`kind: ${kind},`);
+      expect(plans).toContain(`${binds}usize`);
+      expect(readFileSync(adapters('native-commerce-read.ts'), 'utf8')).toContain(
+        `export const ${kind} = '${wire}';`,
+      );
+    }
+    expect(plans).toContain('fn executive_evidence_plans_cover_the_closed_metric_variants()');
+    const source = await readFile(adapters('executive-main-evidence-sources.ts'), 'utf8');
+    expect(source).not.toContain('SELECT ');
+    expect(source).not.toContain('db.prepare(');
+    expect(source).toContain('nativeCommerceReadAll<SalesOrderEvidenceRow>(orderEvidencePlan(metric)');
+    expect(source).toContain('nativeCommerceReadAll<SalesFulfillmentEvidenceRow>(RD_EXEC_SALES_FULFILLMENT_EVIDENCE');
+    expect(source).toContain('EVIDENCE_CURSOR_INVALID');
+    expect(source).toContain('factsSearchSalesOrderEvidence');
+    expect(source).toContain('factsReadSalesFulfillmentEvidence');
   });
 });

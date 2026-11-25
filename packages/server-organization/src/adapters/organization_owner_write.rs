@@ -182,6 +182,9 @@ pub const SPENDING_TEMPLATE_PUBLISH: &str = "spending_template_publish";
 // -- staff-defaults -----------------------------------------------------------
 pub const POSITION_PAY_DEFAULT_INSERT: &str = "position_pay_default_insert";
 pub const LEVEL_LEAVE_DEFAULT_INSERT: &str = "level_leave_default_insert";
+/// Native-owned staff-levels list for operations staff settings. SELECT-only,
+/// Company keyed over the org-owned `staff_levels` table; no lock.
+pub const STAFF_SETTINGS_LIST_LEVELS: &str = "staff_settings_list_levels";
 
 // -- presentation-reads (draft / company identity) ------------------------------
 /// Native-owned draft/presentation company-name read. Read-only and Company
@@ -362,6 +365,7 @@ pub const KINDS: &[&str] = &[
     SPENDING_TEMPLATE_PUBLISH,
     POSITION_PAY_DEFAULT_INSERT,
     LEVEL_LEAVE_DEFAULT_INSERT,
+    STAFF_SETTINGS_LIST_LEVELS,
     PRESENTATION_DRAFT_COMPANY_NAME,
     PRESENTATION_ACTIVE_COMPANY_IDENTITY,
     PRESENTATION_ACTIVE_COMPANY_SLUG,
@@ -666,6 +670,9 @@ fn sql(kind: &str) -> Option<&'static str> {
         }
         LEVEL_LEAVE_DEFAULT_INSERT => {
             "INSERT INTO level_leave_defaults(id,company_id,level_id,version,policy_version_id,created_by,created_at) VALUES(?,?,?,?,?,?,?)"
+        }
+        STAFF_SETTINGS_LIST_LEVELS => {
+            "SELECT * FROM staff_levels WHERE company_id=? ORDER BY level_number ASC NULLS LAST,rank DESC,code"
         }
         PRESENTATION_DRAFT_COMPANY_NAME => {
             "SELECT display_name FROM organization_nodes WHERE id=? AND company_id=?"
@@ -1984,5 +1991,39 @@ mod tests {
             assert!(!upper.contains(" INSERT ") && !upper.contains(" UPDATE ") && !upper.contains(" DELETE "));
             assert!(!upper.contains(" FOR UPDATE ") && !upper.contains(" FOR SHARE ") && !upper.contains(" LOCK TABLE "));
         }
+    }
+
+    #[test]
+    fn staff_settings_list_levels_is_byte_identical_and_read_only() {
+        assert!(supported(STAFF_SETTINGS_LIST_LEVELS));
+        const RETIRED: &str =
+            "SELECT * FROM staff_levels WHERE company_id=? ORDER BY level_number ASC NULLS LAST,rank DESC,code";
+        assert_eq!(sql(STAFF_SETTINGS_LIST_LEVELS).unwrap(), RETIRED);
+        let digest = {
+            use sha2::Digest;
+            let mut hasher = sha2::Sha256::new();
+            hasher.update(RETIRED.as_bytes());
+            format!("{:x}", hasher.finalize())
+        };
+        assert_eq!(
+            digest,
+            "b1fdab87dcf08acf4996e6279eae4cf67715507f6d61d3d448fbdc4a1453bfdf"
+        );
+        let (statement, values) =
+            owner_statement(STAFF_SETTINGS_LIST_LEVELS, &[Value::from("company")])
+                .expect("staff settings list levels statement");
+        assert_eq!(statement, RETIRED);
+        assert_eq!(values, vec![Value::from("company")]);
+        // Missing or extra positional values fail closed.
+        assert!(owner_statement(STAFF_SETTINGS_LIST_LEVELS, &[]).is_err());
+        assert!(owner_statement(
+            STAFF_SETTINGS_LIST_LEVELS,
+            &[Value::from("company"), Value::from("extra")],
+        )
+        .is_err());
+        let upper = statement.to_ascii_uppercase();
+        assert!(upper.starts_with("SELECT "));
+        assert!(!upper.contains(" INSERT ") && !upper.contains(" UPDATE ") && !upper.contains(" DELETE "));
+        assert!(!upper.contains(" FOR UPDATE ") && !upper.contains(" FOR SHARE ") && !upper.contains(" LOCK TABLE "));
     }
 }

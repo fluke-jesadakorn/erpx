@@ -60,9 +60,11 @@ describe('Collaboration read-tail r43 draft-by-id reuse family', () => {
     expect(handover).toContain("socialPostDraftById('body,participants_json,sources_json,published_post_id','\\n    ',' AND author_id=?')");
     expect(purchases.match(/socialPostDraftById\('/g) ?? []).toHaveLength(2);
     expect(handover.match(/socialPostDraftById\('/g) ?? []).toHaveLength(1);
-    expect(purchases).toContain("UNION SELECT p.audience_id FROM social_post_drafts d JOIN social_posts p");
+    expect(purchases).toContain("${await nativeInboxSqlFragment(actor.companyId,'work_social_audience_by_draft')}");
     expect(handover).toContain('.bind(value, companyId, userId)');
-    expect(sha(line(purchases, " const rows=command.type==='post'"))).toBe('6415b911a8a2139755c5b88dd37ff9d58031abcde1711ce536087ea151ec067a');
+    // The UNION arm is now an owner-planned fragment; the draft-by-id head,
+    // bind order and comma gap are unchanged.
+    expect(sha(line(purchases, " const rows=command.type==='post'"))).toBe('149fb90cb4e498dc976fdbd88b5b13c40edc0e06c8c0cb426c84fa0a684590b4');
     expect(sha(line(handover, '            return database.prepare(socialPostDraftById('))).toBe('3cb56a561a0185c7b6ffe84ea2dc2f8db0dbac8b8e00654a347985870af9fb10');
     expect(purchases).not.toContain('"SELECT audience_id id FROM social_post_drafts WHERE id=?');
     expect(handover).not.toContain('`SELECT body,participants_json,sources_json,published_post_id FROM social_post_drafts');
