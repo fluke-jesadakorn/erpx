@@ -364,3 +364,10 @@ export const markedCountExistsSql = (rows: string) =>
  *  purchase probe and the unscoped initial-count probe; only the trailing
  *  record_id and actor/company predicates vary, in their original bind order. */
 export const replayProbePrefixSql = 'SELECT 1 FROM command_receipts WHERE command_id=? AND operation=?';
+
+/** r53: the count-list projection head is byte-identical across the list, page
+ *  and scoped-count reads. Only the literal text is shared; every caller keeps
+ *  its own markers, rows, binds, guard/ORDER tails and independent statement.
+ *  Locks, native transport, count sources/adapters and r11-r47 helpers stay
+ *  untouched. */
+export const countSelectHeadSql = 'SELECT c.*,w.name warehouse_name,';

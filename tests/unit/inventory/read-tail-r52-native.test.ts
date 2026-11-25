@@ -66,7 +66,7 @@ describe('r52 landed-cost detail-lines native read', () => {
     expect(bridge).not.toContain(EXPECTED_SQL);
   });
 
-  it('retirement:ts-statements KPI is 302 after the r52 native read cutover (strictly below r51 303)', () => {
+  it('retirement:ts-statements KPI is 300 after the r53 count-list head fold (strictly below r52 302)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -79,7 +79,8 @@ describe('r52 landed-cost detail-lines native read', () => {
     // r49 ended at 307; r50 retired 2 landed-cost detail child reads: 307 -> 305;
     // r51 retired 2 transit detail-lot reads: 305 -> 303;
     // r52 retires the single landed-cost detail-lines read: 303 -> 302.
-    expect(total).toBe(302);
-    expect(total).toBeLessThan(303);
+    // r53 folds 3 byte-identical count-list projection heads into one helper: 302 -> 300.
+    expect(total).toBe(300);
+    expect(total).toBeLessThan(302);
   });
 });

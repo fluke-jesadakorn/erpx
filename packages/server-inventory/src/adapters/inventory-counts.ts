@@ -18,7 +18,7 @@ import {inventoryReadProjection as inventorycommerceProjection} from '@erpx/serv
 import {inventoryReadProjection as inventoryfinanceProjection} from '@erpx/server-finance/public/inventory-read-projections';
 import {inventoryReadProjection as inventorypeople_payrollProjection} from '@erpx/server-people_payroll/public/inventory-read-projections';
 import {readListPage} from "@erpx/server-work_projection/public/list-page";
-import {allInitialPhysicalStockMarkedRowsSql,clockCteSql,countInitialPhysicalSourceMarkersSql,decisionActorRowsSql} from './read-tail-sql';
+import {allInitialPhysicalStockMarkedRowsSql,clockCteSql,countInitialPhysicalSourceMarkersSql,countSelectHeadSql,decisionActorRowsSql} from './read-tail-sql';
 
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import "server-only";
@@ -50,16 +50,16 @@ async function requireCountListHistory(db:SqlDatabase,actor:WorkContext){
 }
 function repository(db:SqlDatabase,context?:WorkContext){
  return {
- async counts(companyId:string,branchId:string | null,branchId2:string | null){const purchase=context?await countListScope(db,context):"TRUE";return db.prepare(`SELECT c.*,w.name warehouse_name,${countInitialPhysicalSourceMarkersSql(initialPhysicalStockCountSourceRows,manufacturingInitialPhysicalStockCountSourceRows,posInitialPhysicalStockCountSourceRows,serviceInitialPhysicalStockCountSourceRows)} FROM inventory_counts c ${inventorycommerceProjection.countWarehouse} WHERE c.company_id=? AND (?::text IS NULL OR c.branch_id=?) AND ${purchase} ORDER BY c.updated_at DESC LIMIT 250`).bind(companyId,branchId,branchId2).all<CountRow>();},
+ async counts(companyId:string,branchId:string | null,branchId2:string | null){const purchase=context?await countListScope(db,context):"TRUE";return db.prepare(`${countSelectHeadSql}${countInitialPhysicalSourceMarkersSql(initialPhysicalStockCountSourceRows,manufacturingInitialPhysicalStockCountSourceRows,posInitialPhysicalStockCountSourceRows,serviceInitialPhysicalStockCountSourceRows)} FROM inventory_counts c ${inventorycommerceProjection.countWarehouse} WHERE c.company_id=? AND (?::text IS NULL OR c.branch_id=?) AND ${purchase} ORDER BY c.updated_at DESC LIMIT 250`).bind(companyId,branchId,branchId2).all<CountRow>();},
  async readPage(actor:WorkContext,query:{q?:string;status?:string;cursor?:string}){const purchase=await countListScope(db,actor);return readListPage<CountRow & {id:string;page_key:string}>(db,{
-   sql:`SELECT c.*,w.name warehouse_name,chart.base_currency currency,c.updated_at::text AS page_key,${countInitialPhysicalSourceMarkersSql(initialPhysicalStockCountSourceRows,manufacturingInitialPhysicalStockCountSourceRows,posInitialPhysicalStockCountSourceRows,serviceInitialPhysicalStockCountSourceRows)} FROM inventory_counts c
+   sql:`${countSelectHeadSql}chart.base_currency currency,c.updated_at::text AS page_key,${countInitialPhysicalSourceMarkersSql(initialPhysicalStockCountSourceRows,manufacturingInitialPhysicalStockCountSourceRows,posInitialPhysicalStockCountSourceRows,serviceInitialPhysicalStockCountSourceRows)} FROM inventory_counts c
     ${inventorycommerceProjection.countWarehouse} ${inventorycommerceProjection.countSettings} ${inventoryfinanceProjection.countCurrency}
     WHERE c.company_id=? AND (?::text IS NULL OR c.branch_id=?) AND (?='' OR c.status=?)
     AND (?='' OR strpos(lower(c.number||' '||w.name||' '||c.reason),lower(?))>0) AND ${purchase}`,
    args:[actor.companyId,actor.branchId,actor.branchId,query.status??'',query.status??'',query.q??'',query.q??''],
    cursor:query.cursor,descending:true,scope:[actor.companyId,actor.branchId,'counts',query.q??'',query.status??''],
  });},
- async scopedCount(id:string,companyId:string,branchId:string | null,branchId2:string | null){return db.prepare(`SELECT c.*,w.name warehouse_name,chart.base_currency currency FROM inventory_counts c ${inventorycommerceProjection.countWarehouse} ${inventorycommerceProjection.countSettings} ${inventoryfinanceProjection.countCurrency} WHERE c.id=? AND c.company_id=? AND (?::text IS NULL OR c.branch_id=?)`).bind(id,companyId,branchId,branchId2).first<CountRow>();},
+ async scopedCount(id:string,companyId:string,branchId:string | null,branchId2:string | null){return db.prepare(`${countSelectHeadSql}chart.base_currency currency FROM inventory_counts c ${inventorycommerceProjection.countWarehouse} ${inventorycommerceProjection.countSettings} ${inventoryfinanceProjection.countCurrency} WHERE c.id=? AND c.company_id=? AND (?::text IS NULL OR c.branch_id=?)`).bind(id,companyId,branchId,branchId2).first<CountRow>();},
  async countLines(warehouse_id:string | number | null,id:string){return db.prepare(`SELECT l.*,p.sku,p.tracking_mode,s.quantity_milli current_quantity_milli,s.value_minor current_value_minor,COALESCE(s.version,0) current_version FROM inventory_count_lines l ${inventorycommerceProjection.lineProduct} ${inventorycommerceProjection.lineStock} WHERE l.count_id=? ORDER BY l.ordinal`).bind(warehouse_id,id).all<CountRow>();},
  async countLotLines(warehouse_id:string | number | null,id:string){return db.prepare("SELECT cl.*,b.quantity_milli current_quantity_milli,b.value_minor current_value_minor,COALESCE(b.version,0) current_version FROM inventory_count_lot_lines cl JOIN inventory_count_lines l ON l.id=cl.count_line_id LEFT JOIN inventory_lot_balances b ON b.lot_id=cl.result_lot_id AND b.warehouse_id=? WHERE l.count_id=? ORDER BY l.ordinal,cl.id").bind(warehouse_id,id).all<CountRow>();},
  async countDecisions(companyId:string,id:string){return db.prepare(decisionActorRowsSql('inventory_count_decisions','count_id',inventorypeople_payrollProjection.decisionActor)).bind(companyId,id).all<CountRow>();},
