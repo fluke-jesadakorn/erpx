@@ -3,9 +3,10 @@ import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {scansAggSql} from './read-tail-dedupe-sql';
 import {ATTACHMENT_EVENT_EVENT_HEAD_SQL} from './read-tail-r38-source-sql';
 import {SCAN_ATTEMPTS_OR_EXISTS_HEAD_SQL} from './read-tail-r44-source-sql';
+import {MESSAGING_SETTLEMENT_HEAD_SQL} from './read-tail-r48-source-sql';
 /** Original immutable Files withdrawal witness; raw software withdrawal never
  * filters this source by purchase, current UI visibility, or the reader's role. */
-export const messagingFileWithdrawalSources=`SELECT l.id link_id,s.id set_id,l.attachment_id source_id,s.company_id,s.target_id room_id,s.component_ref file_id,l.created_by,l.withdrawn_by,l.withdrawn_at,l.withdrawal_reason
+export const messagingFileWithdrawalSources=`${MESSAGING_SETTLEMENT_HEAD_SQL}l.attachment_id source_id,s.company_id,s.target_id room_id,s.component_ref file_id,l.created_by,l.withdrawn_by,l.withdrawn_at,l.withdrawal_reason
  FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id
  JOIN attachments source ON source.id=l.attachment_id AND source.company_id=s.company_id
  WHERE s.target_type='messaging_room' AND s.component_kind='message' AND s.purpose_key='message_attachment' AND l.state='withdrawn'
@@ -14,7 +15,7 @@ export const messagingFileWithdrawalSources=`SELECT l.id link_id,s.id set_id,l.a
 /** Generic Files can stage original conversation evidence before the native
  * message uploader creates its row. Keep that actual intake visible to raw
  * withdrawal even when it is absent from every Messages/Work projection. */
-export const messagingFileIntakeSources=`SELECT l.id link_id,s.id set_id,s.company_id,s.target_id room_id,l.attachment_id source_id,l.created_by,l.state,
+export const messagingFileIntakeSources=`${MESSAGING_SETTLEMENT_HEAD_SQL}s.company_id,s.target_id room_id,l.attachment_id source_id,l.created_by,l.state,
  jsonb_build_object('set',to_jsonb(s),'link',to_jsonb(l),'source',to_jsonb(source),'intent',to_jsonb(intent),'withdrawal',to_jsonb(withdrawn),'scans',${scansAggSql('source')})) image,
  withdrawn.link_id IS NULL OR source.id IS NULL OR source.source_state<>'available' OR intent.id IS NULL OR intent.status NOT IN ('uploaded','ready') ${SCAN_ATTEMPTS_OR_EXISTS_HEAD_SQL}scan WHERE scan.attachment_id=source.id AND scan.state IN ('pending','running')) pending
  FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id

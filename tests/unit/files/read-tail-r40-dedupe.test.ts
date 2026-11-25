@@ -99,6 +99,10 @@ describe('Files read-tail r40 parameterized family', () => {
       'packages/server-files/src/adapters/messaging-upload-rollback.ts',
       // r47 read-tail call site (assigned owner path).
       'packages/server-files/src/adapters/social-upload-cleanup.ts',
+      // r48 read-tail call sites and helper (assigned owner paths).
+      'packages/server-files/src/adapters/ecommerce-package-obligation-sources.ts',
+      'packages/server-files/src/adapters/marketing-package-obligation-sources.ts',
+      'packages/server-files/src/adapters/read-tail-r48-source-sql.ts',
     ].includes(p))).toBe(true);
   });
 
@@ -120,8 +124,8 @@ describe('Files read-tail r40 parameterized family', () => {
     // r42 left 248; r43 lowers 248->246 (two SELECT-bearing shared heads folded).
     // r44 lowers 246->242 (three more shared heads folded).
     // r46 folds two closed-union heads (orphan-preservation event, draft/bound count): 239->237.
-    expect(literal).toBe(233);
-    expect(total).toBe(234);
+    expect(literal).toBe(229);
+    expect(total).toBe(230);
     expect(literal).toBeLessThan(255);
     expect(total).toBeLessThan(256);
   });

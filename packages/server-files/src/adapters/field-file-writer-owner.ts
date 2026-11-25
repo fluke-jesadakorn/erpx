@@ -9,6 +9,7 @@ import {FIELD_UPLOAD_OWNER_HEAD_SQL} from './read-tail-r35-source-sql';
 import {FIELD_SET_OWNER_HEAD_SQL} from './read-tail-r36-source-sql';
 import {FIELD_ATTACHMENT_OWNED_HEAD_SQL,FIELD_SET_MARKER_EXISTS_HEAD_SQL} from './read-tail-r41-source-sql';
 import {FIELD_UPLOAD_ANCESTOR_EXISTS_SQL,FIELD_SET_UPLOAD_EXISTS_HEAD_SQL} from './read-tail-r43-source-sql';
+import {ATTACHMENT_EXISTS_HEAD_SQL} from './read-tail-r48-source-sql';
 /** Byte-identical scoped-existence witnesses shared by the two Field owner
  * preflights. Text only: the table token comes from a fixed closed set and every
  * call site still prepares its own statement with its own binds. */
@@ -33,7 +34,7 @@ async function financeFileOwnerInDatabase(db:SqlDatabase,actor:Pick<WorkContext,
   set:`${FIELD_SET_OWNER_HEAD_SQL}${serviceSetMarker}) marker,${scopedByCompanySql('attachment_sets')}`,
   upload:`${FIELD_UPLOAD_OWNER_HEAD_SQL}${serviceOwner} OR ${serviceSet})) OR ${LINK_SET_WHERE_EXISTS_SQL}upload_intent_id=? AND ${serviceSet}) marker,${scopedByCompanySql('upload_intents')}`,
   link:`${FIELD_LINK_EXISTS_SQL}LEFT JOIN attachments a ON a.id=l.attachment_id WHERE l.id=? AND (${serviceSet} OR ${serviceOwner} OR ${serviceAncestor} OR ${serviceSource})) marker,${scopedLinkSql}`,
-  attachment:`SELECT EXISTS(SELECT 1 FROM attachments a WHERE a.id=? AND (${serviceSource} OR ${LINK_SET_WHERE_EXISTS_SQL}attachment_id=a.id AND ${serviceSet}))) marker,${scopedByCompanySql('attachments')}`,
+  attachment:`${ATTACHMENT_EXISTS_HEAD_SQL}s a WHERE a.id=? AND (${serviceSource} OR ${LINK_SET_WHERE_EXISTS_SQL}attachment_id=a.id AND ${serviceSet}))) marker,${scopedByCompanySql('attachments')}`,
  } as const;
  const values=resource.kind==='upload'?[resource.id,resource.id,resource.id,actor.companyId]:[resource.id,resource.id,actor.companyId];
  const row=await db.prepare(queries[resource.kind]).bind(...values).first<{marker:boolean;scoped:boolean}>();
@@ -85,7 +86,7 @@ export async function fieldTargetHasNativeFilesInDatabase(db:SqlDatabase,actor:P
  if(target.targetType==='field_service_visit')return true;
  if(target.targetType==='finance_journal'&&await fieldJournalFilesTargetInDatabase(db,target.targetId))return true;
  if(target.targetType==='finance_payment'&&await servicePaymentFilesTargetInDatabase(db,target.targetId))return true;
- const row=await db.prepare(`SELECT EXISTS(SELECT 1 FROM attachment_sets s WHERE s.company_id=? AND s.target_type=? AND s.target_id=? AND ${fieldSetMarker}) marker`).bind(actor.companyId,target.targetType,target.targetId).first<{marker:boolean}>();
+ const row=await db.prepare(`${ATTACHMENT_EXISTS_HEAD_SQL}_sets s WHERE s.company_id=? AND s.target_type=? AND s.target_id=? AND ${fieldSetMarker}) marker`).bind(actor.companyId,target.targetType,target.targetId).first<{marker:boolean}>();
  if(!row||typeof row.marker!=='boolean')throw new ApiError(503,'ATTACHMENT_OWNER_UNAVAILABLE','File evidence ownership is unavailable.');
  return row.marker;
 }

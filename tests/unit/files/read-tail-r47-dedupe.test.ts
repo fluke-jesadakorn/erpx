@@ -162,8 +162,8 @@ describe('Files read-tail r47 byte-oracle dedupe', () => {
     // Four closed-union families fold two sites into one helper each (-4):
     // draft-link EXISTS witness, cleanup direct-link CTE, cleanup bound-command
     // id witness and leave-evidence legacy source-id projection.
-    expect(literal).toBe(233);
-    expect(total).toBe(234);
+    expect(literal).toBe(229);
+    expect(total).toBe(230);
     expect(literal).toBeLessThan(237);
     expect(total).toBeLessThan(238);
   });

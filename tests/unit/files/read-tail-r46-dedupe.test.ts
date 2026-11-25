@@ -140,8 +140,8 @@ describe('Files read-tail r46 byte-oracle dedupe', () => {
     }
     // Two closed-union families fold two sites into one helper each (-2):
     // the orphan-preservation event head and the draft/bound link count head.
-    expect(literal).toBe(233);
-    expect(total).toBe(234);
+    expect(literal).toBe(229);
+    expect(total).toBe(230);
     expect(literal).toBeLessThan(239);
     expect(total).toBeLessThan(240);
   });

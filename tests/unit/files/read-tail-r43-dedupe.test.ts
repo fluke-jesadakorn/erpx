@@ -21,6 +21,9 @@ const norm = (text: string) => text.replace(/\s+/g, ' ').trim();
 const H1 = 'EXISTS(SELECT 1 FROM attachments a WHERE a.upload_id=u.id AND erpx_files_field_attachment_owned(a.id))';
 const H2 = 'OR EXISTS(SELECT 1 FROM upload_intents u WHERE u.attachment_set_id=s.id AND ';
 const H3 = 'FROM attachments a WHERE a.id=? AND ';
+/** r48 folded the scoped-existence prefix at the Field attachment site; the
+ * H3 substring now lives only in the helper and the legal-preservation site. */
+const R48_A = 'SELECT EXISTS(SELECT 1 FROM attachment';
 
 const TARGETS = [
   'adapters/field-file-writer-owner.ts',
@@ -30,7 +33,6 @@ const TARGETS = [
 /** The id/AND head stays literal at the two sites with a different tail. */
 const UNFOLDED_H3 = [
   'adapters/legal-preservation-source-facts.ts',
-  'adapters/field-file-writer-owner.ts',
 ] as const;
 
 const PRIOR_HELPERS = [
@@ -47,12 +49,13 @@ const PRIOR_HELPERS = [
 
 const stripR43Import = (text: string) => text
   .split('\n')
-  .filter(line => !line.includes('read-tail-r43-source-sql'))
+  .filter(line => !line.includes('read-tail-r43-source-sql') && !line.includes('read-tail-r48-source-sql'))
   .join('\n');
 const render = (text: string) => text
   .replaceAll('${FIELD_UPLOAD_ANCESTOR_EXISTS_SQL}', H1)
   .replaceAll('${FIELD_SET_UPLOAD_EXISTS_HEAD_SQL}', H2)
-  .replaceAll('${ATTACHMENT_ID_AND_HEAD_SQL}', H3);
+  .replaceAll('${ATTACHMENT_ID_AND_HEAD_SQL}', H3)
+  .replaceAll('${ATTACHMENT_EXISTS_HEAD_SQL}', R48_A);
 
 describe('Files read-tail r43 byte-oracle dedupe', () => {
   test('the three shared heads are exact read-only byte oracles with one definition each', () => {
@@ -94,7 +97,7 @@ describe('Files read-tail r43 byte-oracle dedupe', () => {
       }
     };
     walk(srcRoot);
-    expect(residual).toEqual({ H1: 1, H2: 1, H3: 3 });
+    expect(residual).toEqual({ H1: 1, H2: 1, H3: 2 });
     for (const rel of UNFOLDED_H3) expect(src(rel)).toContain(H3);
     expect(count(src('adapters/field-file-writer-owner.ts'), H1)).toBe(0);
     expect(count(src('adapters/field-file-writer-owner.ts'), H2)).toBe(0);
@@ -157,8 +160,8 @@ describe('Files read-tail r43 byte-oracle dedupe', () => {
     // carries no SELECT and both commerce sites keep their projections (0).
     // r44 lowers 246->242 (three more shared heads folded).
     // r46 folds two closed-union heads (orphan-preservation event, draft/bound count): 239->237.
-    expect(literal).toBe(233);
-    expect(total).toBe(234);
+    expect(literal).toBe(229);
+    expect(total).toBe(230);
     expect(literal).toBeLessThan(248);
     expect(total).toBeLessThan(249);
   });

@@ -37,6 +37,9 @@ const R46_C2 = "SELECT count(*) FROM attachment_links l JOIN attachment_sets s O
 /** r47 folded the draft-link EXISTS witness; rendered back so this r44 oracle
  * still compares against the pinned pre-r47 baseline. */
 const R47_A = 'SELECT 1 FROM attachment_links link WHERE link.set_id=set_row.id';
+/** r48 folded the messaging settlement projection head; rendered back so this
+ * r44 oracle still compares against the pinned pre-r48 baseline. */
+const R48_B = 'SELECT l.id link_id,s.id set_id,';
 
 const TARGETS = [
   'adapters/attachments/service.ts',
@@ -50,7 +53,7 @@ const TARGETS = [
 
 const stripR44Import = (text: string) => text
   .split('\n')
-  .filter(line => !line.includes('read-tail-r44-source-sql') && !line.includes('read-tail-r45-source-sql') && !line.includes('read-tail-r46-source-sql') && !line.includes('read-tail-r47-source-sql'))
+  .filter(line => !line.includes('read-tail-r44-source-sql') && !line.includes('read-tail-r45-source-sql') && !line.includes('read-tail-r46-source-sql') && !line.includes('read-tail-r47-source-sql') && !line.includes('read-tail-r48-source-sql'))
   .join('\n');
 /** Reconstruct the pre-r44 bytes: quoted splices and template/bare references
  * are rendered back to their original literals without touching tails. */
@@ -68,7 +71,8 @@ const render = (text: string) => text
   .replaceAll("${ORPHAN_PRESERVATION_EVENT_HEAD_SQL('restored')}", R46_P2)
   .replaceAll('db.prepare(SET_DRAFT_BOUND_COUNT_SQL(true))', `db.prepare("${R46_C1}")`)
   .replaceAll('db.prepare(SET_DRAFT_BOUND_COUNT_SQL(false))', `db.prepare("${R46_C2}")`)
-  .replaceAll('${SET_ROW_DRAFT_LINK_EXISTS_HEAD_SQL}', R47_A);
+  .replaceAll('${SET_ROW_DRAFT_LINK_EXISTS_HEAD_SQL}', R47_A)
+  .replaceAll('${MESSAGING_SETTLEMENT_HEAD_SQL}', R48_B);
 
 const tsFiles = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
   const path = resolve(dir, entry.name);
@@ -156,8 +160,8 @@ describe('Files read-tail r44 byte-oracle dedupe', () => {
     // (-2), while the attachment star-id and scan OR-EXISTS heads each fold
     // two sites into one (-1 each). Three heads live in the r44 helper.
     // r46 folds two closed-union heads (orphan-preservation event, draft/bound count): 239->237.
-    expect(literal).toBe(233);
-    expect(total).toBe(234);
+    expect(literal).toBe(229);
+    expect(total).toBe(230);
     expect(literal).toBeLessThan(246);
     expect(total).toBeLessThan(247);
   });

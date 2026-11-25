@@ -69,8 +69,8 @@ describe('Files read-tail r33 parameterized family', () => {
     // two attestation witnesses now delegate to the r40 head helper; r41 folds three shared read heads.
     // r43 left 246; r44 folds three more shared heads to reach 242.
     // r46 folds two closed-union heads (orphan-preservation event, draft/bound count): 239->237.
-    expect(literal).toBe(233);
-    expect(total).toBe(234);
+    expect(literal).toBe(229);
+    expect(total).toBe(230);
     expect(literal).toBeLessThan(266);
     expect(total).toBeLessThan(267);
   });
