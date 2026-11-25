@@ -115,7 +115,7 @@ describe('Platform Administration read-tail r18 row-head fold', () => {
 });
 
 describe('Platform Administration r18 retirement check', () => {
-  test('retirement:ts-statements is pinned at the post-dedupe 27 baseline (BEFORE=28)', () => {
+  test('retirement:ts-statements is pinned at the post-r19 26 baseline (BEFORE=28)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -125,7 +125,7 @@ describe('Platform Administration r18 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(27);
+    expect(total).toBe(26);
     expect(total).toBeLessThan(28);
   });
 });
