@@ -76,7 +76,7 @@ describe('quality lineage terminal head dedupe (r24)', () => {
     expect(purchase).toContain('import {qualityLineageTerminalSql} from "./quality-lineage-terminal-sql"');
     expect(sales).toContain("import {qualityLineageTerminalSql} from './quality-lineage-terminal-sql'");
     expect(ecommerce).toContain("import {qualityLineageTerminalSql} from './quality-lineage-terminal-sql'");
-    expect(read('adapters/quality-lineage-terminal-sql.ts').match(/SELECT /g)).toHaveLength(1);
+    expect(read('adapters/quality-lineage-terminal-sql.ts').match(/SELECT /g) ?? []).toHaveLength(0); // r39 fold
   });
 });
 
@@ -123,7 +123,7 @@ describe('quality read-tail r24 protected families', () => {
       'quality-receipt-guard-sql': 1, 'quality-source-rows-sql': 0, 'quality-scope-sql': 1,
       'quality-alert-recipient-sql': 0, 'quality-attachment-scope-read-sql': 0, 'quality-id-source-sql': 1,
       'quality-attachment-source-select-sql': 0, 'quality-return-anchor-sql': 0,
-      'quality-obligation-fact-arm-sql': 0, 'quality-lineage-terminal-sql': 1, 'quality-source-arm-head': 1,
+      'quality-obligation-fact-arm-sql': 0, 'quality-lineage-terminal-sql': 0, 'quality-source-arm-head': 1,
     };
     for (const [name, count] of Object.entries(counts)) {
       expect(read(`adapters/${name}.ts`).match(/SELECT /g) ?? []).toHaveLength(count);
@@ -143,6 +143,6 @@ describe('quality read-tail r23 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(63);
-    expect(total).toBe(23);
+    expect(total).toBe(22);
   });
 });

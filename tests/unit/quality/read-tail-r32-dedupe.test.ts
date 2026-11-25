@@ -87,11 +87,11 @@ describe('quality read-tail r32 lineage head dedupe', () => {
     expect(read('adapters/purchase-sources.ts')).toContain('qualityPurchaseSourceReadLocks');
     expect(read('adapters/sales-package-sources.ts')).toContain('LOCK TABLE inventory_quality_holds');
     // The terminal head is a different shape and stays independent.
-    expect(read('adapters/quality-lineage-terminal-sql.ts').match(/SELECT /g)).toHaveLength(1);
+    expect(read('adapters/quality-lineage-terminal-sql.ts').match(/SELECT /g) ?? []).toHaveLength(0); // r39 fold
   });
 
   test('retirement:ts-statements is strictly lower than the BEFORE=30 baseline', () => {
     expect(kpi()).toBeLessThan(30);
-    expect(kpi()).toBe(23);
+    expect(kpi()).toBe(22);
   });
 });
