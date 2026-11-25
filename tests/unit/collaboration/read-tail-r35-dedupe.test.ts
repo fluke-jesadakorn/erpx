@@ -58,7 +58,7 @@ describe('Collaboration read-tail r35 lock/notification isolation', () => {
 });
 
 describe('Collaboration read-tail r35 KPI pins', () => {
-  test('retirement:ts-statements is pinned at 350 after r42, below the r35 BEFORE=371 baseline', () => {
+  test('retirement:ts-statements is pinned at 344 after r43, below the r35 BEFORE=371 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -79,7 +79,8 @@ describe('Collaboration read-tail r35 KPI pins', () => {
     // r41 deduped task-origin/by-key, AI-usage row and team/room member guards:
     // 355 -> 352.
     // r42 deduped the comment head and UNION projection pair: 352 -> 350.
-    expect(total).toBe(350);
+    // r43 retired draft-by-id reuse, messaging team image and target image: 350 -> 344.
+    expect(total).toBe(344);
     expect(total).toBeLessThan(370);
   });
 });

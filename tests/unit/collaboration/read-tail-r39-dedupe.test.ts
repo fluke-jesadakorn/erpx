@@ -76,7 +76,7 @@ describe('Collaboration read-tail r39 call sites and binds', () => {
     expect(purchases).toContain('EXISTS(${socialPurchaseActorCte(`' + queuedBody + '`)}SELECT 1 FROM social_purchase_actor WHERE ');
     expect(readPolicy).not.toContain('prefix:`WITH social_purchase_actor AS MATERIALIZED(SELECT');
     expect(purchases).not.toContain('EXISTS(WITH social_purchase_actor AS MATERIALIZED(SELECT');
-    expect(purchases).toContain("import {requestedSourcesJsonb,workSocialPostsAgg,workSocialCommentsAgg,workSocialSourcesAgg,socialPurchaseActorFeature,socialPostByIdPredicate,socialAgentReplyLeaseIdentity,socialPostPublishReceipt,socialPostByIdGuard,socialAiPhaseImageSql,socialPostRevisionsAgg,socialPostRevisionsFileAgg,socialPostDraftById,commandReceiptById,socialPurchaseActorCte,requestedSourcesSelect} from './read-tail-sql';");
+    expect(purchases).toContain("import {requestedSourcesJsonb,workSocialPostsAgg,workSocialCommentsAgg,workSocialSourcesAgg,socialPurchaseActorFeature,socialPostByIdPredicate,socialAgentReplyLeaseIdentity,socialPostPublishReceipt,socialPostByIdGuard,socialAiPhaseImageSql,socialPostRevisionsAgg,socialPostRevisionsFileAgg,socialPostDraftById,socialTargetImage,commandReceiptById,socialPurchaseActorCte,requestedSourcesSelect} from './read-tail-sql';");
   });
 
   test('Rank3 both sites pass their original bodies and keep the JSON bind order', () => {
@@ -94,7 +94,7 @@ describe('Collaboration read-tail r39 isolation of protected SQL', () => {
   test('locks, notification targets and field-outbox files are unchanged', () => {
     expect(sha(fixed('adapters/inbox.ts'))).toBe('add8defc4e1a0b3d369362e96d00acb93e34d0d0734cd0a1783b98a7382eb721');
     expect(sha(fixed('adapters/staff-notifications.ts'))).toBe('3ce65abf55973c3a41228531a9d2778739a6a7f859a37591c016bda9f9a2508a');
-    expect(sha(fixed('adapters/messaging-purchases.ts'))).toBe('8e0d08a9216c43e1b989aba9b8768d6cb775e0aa06c9764adcc3d482091385e0');
+    expect(sha(fixed('adapters/messaging-purchases.ts'))).toBe('6921fd7a922dccbab407a37ecf8544b26494388c442871f4b084c45b39133c9b');
     expect(sha(fixed('public/field-outbox-predicate.generated.ts'))).toBe('1c1945bec812a3981738b0d36af5483786ff8e372c669453c0bc8683976a6c84');
     expect(purchases).toContain('LOCK TABLE social_posts,social_comments,social_post_sources,social_post_revisions,social_task_origins,social_post_drafts,social_post_participants,social_handover_acknowledgements,social_stories,social_reactions,social_follows,social_reports,social_mentions,social_topics,social_post_topics,social_comment_topics,social_ai_drafts,social_ai_usage,social_agent_replies IN SHARE ROW EXCLUSIVE MODE');
     expect(purchases).toContain('LOCK TABLE command_receipts IN SHARE ROW EXCLUSIVE MODE');
@@ -114,7 +114,7 @@ describe('Collaboration read-tail r39 isolation of protected SQL', () => {
 });
 
 describe('Collaboration read-tail r39 KPI pins', () => {
-  test('retirement:ts-statements is pinned at 350 after r42, below the r39 BEFORE=360 baseline', () => {
+  test('retirement:ts-statements is pinned at 344 after r43, below the r39 BEFORE=360 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -128,7 +128,8 @@ describe('Collaboration read-tail r39 KPI pins', () => {
     // r40 deduped the two source-rows absence heads into one renderer: 356 -> 355.
     // r41 deduped task-origin/by-key, AI-usage row and member guards: 355 -> 352.
     // r42 deduped the comment head and UNION projection pair: 352 -> 350.
-    expect(total).toBe(350);
+    // r43 retired draft-by-id reuse, messaging team image and target image: 350 -> 344.
+    expect(total).toBe(344);
     expect(total).toBeLessThan(360);
   });
 });

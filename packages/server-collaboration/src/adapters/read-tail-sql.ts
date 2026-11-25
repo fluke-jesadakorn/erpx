@@ -30,6 +30,11 @@ export const messagingTeamAccessSql=(prefix:string,managedSql:string,suffix:stri
 export const legacyNativeUnion=`(SELECT * FROM legacy_rows UNION ALL SELECT * FROM native_rows)`;
 export const workforceActorScopeColumns=`(SELECT ?::text company_id,?::text branch_id,?::text department_id)`;
 export const messagingTeamMembersAgg=(teamId:string)=>`(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.user_id) FROM messaging_team_members m WHERE m.team_id=${teamId})`;
+/** Byte-identical messaging team image subquery shared by the attachment purchase
+ * witness, the private attachment reader and the messaging purchase image. Only
+ * the team/company references and the `-'version'` redaction vary; the fixed
+ * `messaging_teams t` head, bind order and lock semantics stay unchanged. */
+export const messagingTeamImage=(teamRef:string,companyRef:string,redact=false)=>`(SELECT to_jsonb(t)${redact?`-'version'`:''} FROM messaging_teams t WHERE t.id=${teamRef} AND t.company_id=${companyRef})`;
 export const workSocialPostsAgg=`(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.id) FROM posts p)`;
 export const workSocialCommentsAgg=`(SELECT jsonb_agg(to_jsonb(c) ORDER BY c.id) FROM social_comments c JOIN posts p ON p.id=c.post_id)`;
 export const workSocialSourcesAgg=`(SELECT jsonb_agg(to_jsonb(s) ORDER BY s.post_id,s.ordinal) FROM social_post_sources s JOIN posts p ON p.id=s.post_id)`;
@@ -50,10 +55,16 @@ export const socialAiMonthlyUsageCount=(cols:string)=>`SELECT ${cols} FROM socia
  * `id=? AND post_id=? AND state='published'` prefix, bind order and lock
  * semantics stay unchanged. */
 export const publishedCommentRead=(cols:string)=>`SELECT ${cols} FROM social_comments WHERE id=? AND post_id=? AND state='published'`;
-/** Byte-identical draft identity read shared by the Social home, purchase and
- * draft-policy call sites. Only the projected column list varies; the fixed
- * `id=? AND company_id=?` prefix, bind order and lock semantics stay unchanged. */
-export const socialPostDraftById=(cols:string)=>`SELECT ${cols} FROM social_post_drafts WHERE id=? AND company_id=?`;
+/** Byte-identical by-table Social target image / draft identity head shared by
+ * the purchase target, attachment root, draft-policy, home and handover readers.
+ * Only the table, projection, alias, WHERE qualifier, whitespace gap and trailing
+ * predicate vary; the fixed `id=? AND company_id=?` binds and locks stay unchanged. */
+export const socialTargetImage=(table:string,cols:string,alias='',whereAlias='',gap=' ',tail='')=>`SELECT ${cols} FROM ${table}${alias?` ${alias}`:''}${gap}WHERE ${whereAlias?`${whereAlias}.`:''}id=? AND ${whereAlias?`${whereAlias}.`:''}company_id=?${tail}`;
+/** Byte-identical draft identity read shared by the Social home, purchase, draft
+ * policy and handover readers. Only the projected column list, whitespace gap and
+ * trailing predicate vary; the fixed `id=? AND company_id=?` prefix, bind order
+ * and lock semantics stay unchanged. */
+export const socialPostDraftById=(cols:string,gap=' ',tail='')=>socialTargetImage('social_post_drafts',cols,'','',gap,tail);
 export const socialPurchaseActorFeature=(predicate:string)=>`SELECT 1 FROM social_purchase_actor WHERE ${predicate}`;
 export const socialPurchaseActorExists=(predicate:string)=>`EXISTS(${socialPurchaseActorFeature(predicate)})`;
 export const socialPostByIdPredicate=(predicate:string)=>`SELECT 1 FROM social_posts p WHERE p.id=? AND p.company_id=? AND ${predicate}`;

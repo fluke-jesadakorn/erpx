@@ -3,6 +3,7 @@ const operationsSources=operationsSnapshotSources();
 import "server-only";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {nativeOwnerWriteSystemUnscoped} from "@erpx/server-collaboration/adapters/native-owner-write";
+import {socialPostDraftById} from './read-tail-sql';
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 export function HandoverCollaborationFacts(database: SqlDatabase) {
     return { readHandoverViewVersions(companyId: string, ids: string[]) {
@@ -15,8 +16,7 @@ export function HandoverCollaborationFacts(database: SqlDatabase) {
             }>();
         },
         readPublishHandoverExisting(value: string, companyId: string, userId: string) {
-            return database.prepare(`SELECT body,participants_json,sources_json,published_post_id FROM social_post_drafts
-    WHERE id=? AND company_id=? AND author_id=?`).bind(value, companyId, userId)
+            return database.prepare(socialPostDraftById('body,participants_json,sources_json,published_post_id','\n    ',' AND author_id=?')).bind(value, companyId, userId)
                 .first<{
                 body: string;
                 participants_json: string;

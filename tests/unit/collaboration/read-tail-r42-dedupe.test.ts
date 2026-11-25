@@ -142,7 +142,7 @@ describe('Collaboration read-tail r42 protected SQL isolation', () => {
   test('agent-replies lock pair, notification targets and locks stay unchanged', () => {
     expect(sha(fixed('adapters/inbox.ts'))).toBe('add8defc4e1a0b3d369362e96d00acb93e34d0d0734cd0a1783b98a7382eb721');
     expect(sha(fixed('adapters/staff-notifications.ts'))).toBe('3ce65abf55973c3a41228531a9d2778739a6a7f859a37591c016bda9f9a2508a');
-    expect(sha(fixed('adapters/messaging-purchases.ts'))).toBe('8e0d08a9216c43e1b989aba9b8768d6cb775e0aa06c9764adcc3d482091385e0');
+    expect(sha(fixed('adapters/messaging-purchases.ts'))).toBe('6921fd7a922dccbab407a37ecf8544b26494388c442871f4b084c45b39133c9b');
     expect(sha(fixed('public/field-outbox-predicate.generated.ts'))).toBe('1c1945bec812a3981738b0d36af5483786ff8e372c669453c0bc8683976a6c84');
     const claim = purchases.split('\n').find(l => l.includes("SELECT pending.* FROM social_agent_replies pending WHERE pending.state='pending'"))!;
     const finalize = purchases.split('\n').find(l => l.includes('SELECT count(*)::int n FROM social_agent_replies pending JOIN'))!;
@@ -154,7 +154,7 @@ describe('Collaboration read-tail r42 protected SQL isolation', () => {
 });
 
 describe('Collaboration read-tail r42 KPI pins', () => {
-  test('retirement:ts-statements is pinned at 350, below the r42 BEFORE=352 baseline', () => {
+  test('retirement:ts-statements is pinned at 344, below the r43 BEFORE=350 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -166,7 +166,8 @@ describe('Collaboration read-tail r42 KPI pins', () => {
     walk(srcRoot);
     // Two 2->1 comment-projection retirements, one SELECT head each: 352 -> 350.
     // Prior exact pins were refreshed only where 350 replaced 352.
-    expect(total).toBe(350);
-    expect(total).toBeLessThan(352);
+    // r43 retired draft-by-id reuse, messaging team image and target image: 350 -> 344.
+    expect(total).toBe(344);
+    expect(total).toBeLessThan(350);
   });
 });
