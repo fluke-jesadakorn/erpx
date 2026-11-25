@@ -42,9 +42,13 @@ describe('marketing owner-local point read dedupe', () => {
     const operational = await readFile(adapter('attachments-operational-facts.ts'), 'utf8');
     const policy = await readFile(adapter('attachments-policy-facts.ts'), 'utf8');
 
-    // The local helper owns one query token; r40 moved the owner-fact token
-    // into the shared point-read head, so this wrapper only delegates.
-    expect(local.match(/SELECT/g)).toHaveLength(1);
+    // r45 moved the local helper's query token into the shared read-tail head;
+    // r40 moved the owner-fact token into the shared point-read head, so both
+    // wrappers only delegate.
+    const head = await readFile(adapter('read-tail-sql.ts'), 'utf8');
+    expect(head.match(/SELECT/g)).toHaveLength(1);
+    expect(local.match(/SELECT/g)).toBeNull();
+    expect(local).toContain('marketingReadTailSql(table,');
     expect(ownerFact.match(/SELECT/g)).toBeNull();
     expect(ownerFact).toContain('marketingOwnerPointReadSql(columns, table)');
 

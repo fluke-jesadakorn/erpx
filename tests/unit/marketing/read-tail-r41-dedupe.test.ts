@@ -52,8 +52,9 @@ describe('marketing company-list head dedupe (r41)', () => {
     expect(candidateList.match(/\?/g)).toHaveLength(5);
   });
 
-  it('keeps one token in the head and no inline list in the repository', async () => {
-    expect((await src('marketing-company-list-sql.ts')).match(/SELECT /g)).toHaveLength(1);
+  it('keeps one token in the shared head and no inline list in the repository', async () => {
+    expect((await src('read-tail-sql.ts')).match(/SELECT /g)).toHaveLength(1);
+    expect((await src('marketing-company-list-sql.ts')).match(/SELECT /g)).toBeNull();
     const repo = await src('marketing.ts');
     expect(repo).not.toContain('"SELECT * FROM marketing_assets WHERE company_id=? ORDER BY updated_at DESC"');
     expect(repo).not.toContain('`SELECT * FROM marketing_lead_candidates WHERE company_id=? AND ');
@@ -140,7 +141,7 @@ describe('marketing r41 retirement invariants', () => {
     expect(await src('native-marketing-read.ts')).toContain('export');
   });
 
-  it('retirement:ts-statements KPI is 36 (BEFORE=55)', async () => {
-    expect(await selectTokens()).toBe(36);
+  it('retirement:ts-statements KPI is 34 (BEFORE=55)', async () => {
+    expect(await selectTokens()).toBe(34);
   });
 });

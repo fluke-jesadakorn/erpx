@@ -13,11 +13,14 @@ const original = {
 const candidate = 'SELECT * FROM marketing_lead_candidates';
 
 describe('marketing settlement source dedupe', () => {
-  it('keeps one canonical SELECT literal in the shared helper and no inline copies in the source', async () => {
+  it('keeps one canonical SELECT literal in the shared head and no inline copies in the source', async () => {
+    const head = await readFile(adapter('read-tail-sql.ts'), 'utf8');
     const helper = await readFile(adapter('marketing-plain-source-sql.ts'), 'utf8');
     const source = await readFile(adapter('package-obligations.ts'), 'utf8');
     for (const sql of Object.values(original)) expect(source).not.toContain(`'${sql}'`);
-    expect(helper.match(/SELECT /g)).toHaveLength(1);
+    expect(head.match(/SELECT /g)).toHaveLength(1);
+    expect(helper.match(/SELECT /g)).toBeNull();
+    expect(helper).toContain('marketingReadTailSql(table)');
     expect(source).toContain('settlementSourceRows');
     expect(source).toContain('marketingPlainSourceSql(source)');
   });
