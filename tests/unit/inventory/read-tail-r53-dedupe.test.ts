@@ -107,7 +107,8 @@ describe('Inventory read-tail r53 dedupe', () => {
     // r52 ended at 302. r53 folds the byte-identical `SELECT c.*,w.name
     // warehouse_name,` head shared by the list, page and scoped-count reads
     // into one owner-local helper: 3 source tokens -> 1, i.e. 302 -> 300.
-    expect(total).toBe(300);
-    expect(total).toBeLessThan(302);
+    // r54 folds 3 package-obligation stock heads into one kind-parameterized renderer: 300 -> 298.
+    expect(total).toBe(298);
+    expect(total).toBeLessThan(300);
   });
 });

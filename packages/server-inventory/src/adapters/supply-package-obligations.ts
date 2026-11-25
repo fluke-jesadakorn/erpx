@@ -10,7 +10,7 @@ import type {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgre
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/server-commercial/public/package-settlement-sources";
 import {qualityPurchaseSourceRows,qualityPurchaseSourceReadLocks} from "@erpx/server-quality/public/purchase-sources";
-import {allInitialPhysicalStockMarkedRowsSql,childJsonAggSql,childJoinJsonAggSql,scopeExistsSql,terminalReceiptMatchSql,transitEventQuantitySumSql,transitLossDecisionPendingSql} from './read-tail-sql';
+import {allInitialPhysicalStockMarkedRowsSql,childJsonAggSql,childJoinJsonAggSql,packageObligationStockHeadSql,scopeExistsSql,terminalReceiptMatchSql,transitEventQuantitySumSql,transitLossDecisionPendingSql} from './read-tail-sql';
 
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
 const sources=new WeakMap<SqlDatabase,string>();
@@ -92,7 +92,7 @@ export async function supplyInventoryPackageObligations(owner:PostgresDatabase,d
  NOT COALESCE(${terminalReceiptMatchSql(supplyInventoryTerminalReceipts,'landed-cost','cost.id','cost.company_id','cost.status','cost.version')}
  AND (cost.status<>'posted' OR cost.amount_minor=COALESCE((SELECT sum(move.value_minor) FROM inventory_landed_cost_moves move WHERE move.landed_cost_id=cost.id),0)),false)
  FROM inventory_landed_costs cost,scope WHERE (scope.full OR scope.advanced_addon) AND cost.company_id=scope.company_id
- UNION ALL SELECT 'invalid-stock',concat(stock.warehouse_id,':',stock.product_id),to_jsonb(stock),stock.quantity_milli<0 OR stock.value_minor<0
+ UNION ALL ${packageObligationStockHeadSql('invalid-stock')}
  FROM commerce_stock stock JOIN commerce_warehouses warehouse ON warehouse.id=stock.warehouse_id CROSS JOIN scope WHERE warehouse.company_id=scope.company_id AND scope.full
  ORDER BY kind,id`).bind(input.companyId,input.packageId==="supply",input.packageId==="supply-quality",input.packageId==="supply-advanced").all<{kind:string;id:string;fact:unknown;pending:boolean}>()).results;
  return {companyId:input.companyId,packageId:input.packageId,moduleId:"inventory",observedAt:input.now,

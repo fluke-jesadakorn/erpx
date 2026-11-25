@@ -371,3 +371,9 @@ export const replayProbePrefixSql = 'SELECT 1 FROM command_receipts WHERE comman
  *  Locks, native transport, count sources/adapters and r11-r47 helpers stay
  *  untouched. */
 export const countSelectHeadSql = 'SELECT c.*,w.name warehouse_name,';
+
+/** r54: the three package-obligation stock heads share one byte-identical
+ *  projection; only the kind literal varies. Only the SQL text is shared;
+ *  every caller keeps its own statement, binds and guard/ORDER tail. */
+export const packageObligationStockHeadSql = (kind: string) =>
+  `SELECT '${kind}',concat(stock.warehouse_id,':',stock.product_id),to_jsonb(stock),stock.quantity_milli<0 OR stock.value_minor<0`;

@@ -80,7 +80,8 @@ describe('r52 landed-cost detail-lines native read', () => {
     // r51 retired 2 transit detail-lot reads: 305 -> 303;
     // r52 retires the single landed-cost detail-lines read: 303 -> 302.
     // r53 folds 3 byte-identical count-list projection heads into one helper: 302 -> 300.
-    expect(total).toBe(300);
-    expect(total).toBeLessThan(302);
+    // r54 folds 3 package-obligation stock heads into one kind-parameterized renderer: 300 -> 298.
+    expect(total).toBe(298);
+    expect(total).toBeLessThan(300);
   });
 });

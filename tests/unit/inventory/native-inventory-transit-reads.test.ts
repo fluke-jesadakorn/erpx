@@ -155,7 +155,8 @@ describe('native Inventory inventory-transit / commerce-facts fixed reads', () =
     // r51 retires 2 transit detail-lot reads (transitLots join, selectableTransitLots): 305 -> 303.
     // r52 retires 1 landed-cost detail-lines read: 303 -> 302.
     // r53 folds 3 byte-identical count-list projection heads into one helper: 302 -> 300.
-    expect(total).toBe(300);
-    expect(total).toBeLessThan(302);
+    // r54 folds 3 package-obligation stock heads into one kind-parameterized renderer: 300 -> 298.
+    expect(total).toBe(298);
+    expect(total).toBeLessThan(300);
   });
 });
