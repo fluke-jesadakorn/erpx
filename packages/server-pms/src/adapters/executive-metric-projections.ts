@@ -11,6 +11,7 @@ import { pmsBranchLabelSql } from "./pms-read-tail-r40-sql";
 import { pmsNightLineageStepSql, pmsNightSourceWitnessSql } from "./pms-read-tail-r43-sql";
 import { pmsNightLineageAnchorSql } from "./pms-read-tail-r44-sql";
 import { pmsRecordPropertyAnchorSql, pmsRecordPropertyJoinSql } from "./pms-read-tail-r45-sql";
+import { pmsExecutiveMetricLabelHeadSql } from "./pms-read-tail-r51-sql";
 /** Closed branch label shared by the occupancy and guest-account-balance metrics. No caller SQL is accepted. */
 const EXEC_BRANCH_LABEL_SQL = pmsBranchLabelSql('n');
 export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown): Promise<MetricSnapshot> {
@@ -29,7 +30,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
         const capacity = "(r.data_json::jsonb->'roomMetrics'->>'capacity')";
         const sold = "(r.data_json::jsonb->'roomMetrics'->>'sold')";
         const valid = `(CASE WHEN ${capacity} ~ '^[1-9][0-9]{0,8}$' AND ${sold} ~ '^(0|[1-9][0-9]{0,8})$' THEN CASE WHEN ${capacity}::numeric>0 THEN ${sold}::numeric<=${capacity}::numeric ELSE FALSE END ELSE FALSE END)`;
-        sql = `SELECT ${label} label,
+        sql = `${pmsExecutiveMetricLabelHeadSql(label)}
         COALESCE(sum(CASE WHEN ${valid} THEN ${sold}::numeric ELSE 0::numeric END),0)::text numerator,
         COALESCE(sum(CASE WHEN ${valid} THEN ${capacity}::numeric ELSE 0::numeric END),0)::text denominator,
         count(*) FILTER (WHERE NOT ${valid})::text partial_count
@@ -77,7 +78,7 @@ ${pmsNightLineageStepSql('entry_lineage')}
         WHERE r.kind='night' AND r.data_json::jsonb->>'state'='completed'
           AND r.data_json::jsonb->>'date' BETWEEN ? AND ?
       )
-      SELECT ${label} label,
+      ${pmsExecutiveMetricLabelHeadSql(label)}
         COALESCE(sum(CASE WHEN n.valid_metrics THEN COALESCE(rr.revenue_minor,0::numeric) ELSE 0::numeric END),0)::text numerator,
         COALESCE(sum(CASE WHEN n.valid_metrics THEN ${denominator} ELSE 0::numeric END),0)::text denominator,
         (count(*) FILTER (WHERE NOT n.valid_metrics)+COALESCE(sum(CASE WHEN n.valid_metrics THEN COALESCE(rr.invalid_revenue_count,0) ELSE 0 END),0))::text partial_count
@@ -90,7 +91,7 @@ ${pmsNightLineageStepSql('entry_lineage')}
         const label = breakdown === "branch"
             ? EXEC_BRANCH_LABEL_SQL
             : breakdown === "property" ? "p.name" : "'Open guest account balances'";
-        sql = `SELECT ${label} label,
+        sql = `${pmsExecutiveMetricLabelHeadSql(label)}
         COALESCE(sum(l.debit_minor::numeric-l.credit_minor::numeric),0)::text value
       FROM pms_properties p
       JOIN pms_records f ON f.property_id=p.id AND f.kind='guest_account'

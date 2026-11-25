@@ -106,8 +106,8 @@ describe('pms read-tail r46 two-column point read dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(254);
-    expect(bare).toBe(256);
+    expect(spaced).toBe(252);
+    expect(bare).toBe(254);
     expect(spaced).toBeLessThan(286);
     expect(bare).toBeLessThan(288);
   });
