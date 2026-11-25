@@ -153,7 +153,7 @@ describe('crm read-tail r43 byte-identical scalar-subquery reuse', () => {
   });
 
   test('retirement:ts-statements folds the scalar-subquery head (33 -> 32)', () => {
-    expect(totalSelects()).toBe(32);
+    expect(totalSelects()).toBe(31);
     expect(totalSelects()).toBeLessThan(33);
   });
 });

@@ -66,7 +66,7 @@ describe('Support read-tail r18 replay-proof family', () => {
             }
         };
         walk(srcRoot);
-        expect(total).toBe(20);
+        expect(total).toBe(18);
         expect(total).toBeLessThan(27);
     });
 });

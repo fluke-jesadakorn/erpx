@@ -119,8 +119,8 @@ describe('Support SLA policy workspace/work native read family (r39)', () => {
         expect(registry).toContain('reviewer_count FROM support_incidents t');
     });
 
-    test('retirement:ts-statements is 20 after the portal bind-shape fragment cut; the registry stays 55', () => {
-        expect(selectCount()).toBe(20);
+    test('retirement:ts-statements is 18 after the customer purchase-scope fragment cut; the registry stays 55', () => {
+        expect(selectCount()).toBe(18);
         expect(selectCount()).toBeLessThan(38);
         expect(registry).toContain('assert_eq!(STATEMENTS.len(), 55);');
     });

@@ -95,8 +95,8 @@ describe('support read-tail r45 byte-identical active-assignment EXISTS head', (
     expect(existsSync(resolve(srcRoot, 'adapters', 'read-tail-r44-sql.ts'))).toBe(false);
   });
 
-  test('retirement:ts-statements is 20 after the portal bind-shape fragment cut', () => {
-    expect(totalSelects()).toBe(20);
+  test('retirement:ts-statements is 18 after the customer purchase-scope fragment cut', () => {
+    expect(totalSelects()).toBe(18);
     expect(totalSelects()).toBeLessThan(32);
   });
 });

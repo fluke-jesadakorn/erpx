@@ -19,6 +19,7 @@ import {
     supportTicketPortalCoreImage,
     supportTicketPortalImage,
 } from '@erpx/server-support/adapters/ticket-portal-sources';
+import { packageClockSql, purchasedCapabilityPredicate } from '@erpx/server-commercial/public/purchased-capability-sql';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-support/src');
 const src = (f: string) => readFileSync(resolve(srcRoot, f), 'utf8');
@@ -33,6 +34,10 @@ const staffBefore = `SELECT * FROM (${validBefore}) binding WHERE binding.id=?`;
 const prefixBefore = `SELECT binding.* FROM (${validBefore}) binding`;
 const beforeFull = `WITH selected AS(SELECT * FROM support_ticket_portal_bindings WHERE id IN (?,?)) SELECT jsonb_build_array((SELECT jsonb_agg(to_jsonb(binding) ORDER BY binding.id) FROM selected binding),(SELECT jsonb_agg(to_jsonb(ticket) ORDER BY ticket.id) FROM support_tickets ticket WHERE EXISTS(SELECT 1 FROM selected binding WHERE binding.ticket_id=ticket.id)),(SELECT jsonb_agg(to_jsonb(event) ORDER BY event.id) FROM support_ticket_portal_events event WHERE EXISTS(SELECT 1 FROM selected binding WHERE binding.id=event.binding_id)),(SELECT jsonb_agg(to_jsonb(identity) ORDER BY identity.binding_id) FROM support_ticket_portal_identities identity WHERE EXISTS(SELECT 1 FROM selected binding WHERE binding.id=identity.binding_id)),(SELECT jsonb_agg(to_jsonb(read) ORDER BY read.id) FROM support_ticket_portal_reads read WHERE EXISTS(SELECT 1 FROM selected binding WHERE binding.id=read.binding_id)),(SELECT jsonb_agg(to_jsonb(response) ORDER BY response.id) FROM support_ticket_portal_responses response WHERE EXISTS(SELECT 1 FROM selected binding WHERE binding.id=response.binding_id)),(SELECT jsonb_agg(to_jsonb(ack) ORDER BY ack.id) FROM support_ticket_portal_acknowledgements ack WHERE EXISTS(SELECT 1 FROM selected binding WHERE binding.id=ack.binding_id)))::text image`;
 const beforeCore = `WITH selected AS(SELECT * FROM support_ticket_portal_bindings WHERE id IN (?,?)) SELECT jsonb_build_array((SELECT jsonb_agg(to_jsonb(binding) ORDER BY binding.id) FROM selected binding),(SELECT jsonb_agg(to_jsonb(ticket) ORDER BY ticket.id) FROM support_tickets ticket WHERE EXISTS(SELECT 1 FROM selected binding WHERE binding.ticket_id=ticket.id)),(SELECT jsonb_agg(to_jsonb(event) ORDER BY event.id) FROM support_ticket_portal_events event WHERE EXISTS(SELECT 1 FROM selected binding WHERE binding.id=event.binding_id)),(SELECT jsonb_agg(to_jsonb(response) ORDER BY response.id) FROM support_ticket_portal_responses response WHERE EXISTS(SELECT 1 FROM selected binding WHERE binding.id=response.binding_id)))::text image`;
+const purchased = ['support.tickets', 'support.portal']
+    .map(capability => purchasedCapabilityPredicate('binding.company_id', capability, 'history', 'support_portal_clock.now_ms'))
+    .join(' AND ');
+const purchaseBefore = `EXISTS(WITH support_portal_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms) SELECT 1 FROM support_portal_clock WHERE ${purchased})`;
 
 const aggregate = (sql: string) => sql.slice(sql.indexOf(') SELECT jsonb_build_array') + 2);
 
@@ -62,6 +67,16 @@ describe('Support read-tail r29 valid-binding + image family', () => {
         expect(registry).toContain('pub const RD_TICKET_PORTAL_VALID_BINDINGS: &str = "support_rd_ticket_portal_valid_bindings";');
         expect(registry).toContain('tail_bind_counts: &[1, 4, 9]');
         expect(registry).toContain('const FRAGMENTS: &[NativeSupportReadFragment] = &[');
+    });
+
+    test('the static customer purchase scope is byte-identical in the native fragment', () => {
+        expect(rustFragment('TICKET_PORTAL_CUSTOMER_PURCHASE')).toBe(purchaseBefore);
+        expect(registry).toContain('pub const RD_TICKET_PORTAL_CUSTOMER_PURCHASE: &str = "support_rd_ticket_portal_customer_purchase";');
+        const customer = src('adapters/ticket-portal-customer.ts');
+        expect(customer).toContain('nativeSupportReadFragment(SUPPORT_RD_TICKET_PORTAL_CUSTOMER_PURCHASE,0)');
+        expect(customer).toContain("scheduledFeaturePredicate('binding.company_id','support')");
+        expect(customer).not.toContain('purchasedCapabilityPredicate');
+        expect(customer).not.toContain('packageClockSql');
     });
 
     test('the staff 1-bind tail still renders byte-identically over the native head', async () => {
@@ -96,7 +111,7 @@ describe('Support read-tail r29 valid-binding + image family', () => {
         expect(sources).toContain('nativeSupportReadFragment(SUPPORT_RD_TICKET_PORTAL_IMAGE_AGGREGATE_FULL,0)');
     });
 
-    test('retirement:ts-statements drops from the r11 AFTER=24 to 20', () => {
+    test('retirement:ts-statements drops from the r11 AFTER=24 to 18', () => {
         let total = 0;
         const walk = (dir: string) => {
             for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -106,7 +121,7 @@ describe('Support read-tail r29 valid-binding + image family', () => {
             }
         };
         walk(srcRoot);
-        expect(total).toBe(20);
+        expect(total).toBe(18);
         expect(total).toBeLessThan(24);
     });
 });

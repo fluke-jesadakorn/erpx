@@ -172,7 +172,7 @@ describe('crm read-tail r44 byte-identical UNION-ALL reuse', () => {
   });
 
   test('retirement:ts-statements folds the UNION ALL head (38 -> 37)', () => {
-    expect(totalSelects()).toBe(32);
+    expect(totalSelects()).toBe(31);
     expect(totalSelects()).toBeLessThan(38);
   });
 });

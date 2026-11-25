@@ -1,6 +1,16 @@
 import {legalReadScope} from '@erpx/server-legal/adapters/purchases';
 import {legalItemSelectSql} from '../legal-read-tail-r16-sources';
 import { legalEnvelopeSignerReadHead } from '../legal-read-tail-r43-sources';
+import contract from '../legal-integrations-sources.json' with {type:'json'};
+const fill = (template: string, values: Record<string, string>) => {
+  let rendered = template;
+  for (const [name, value] of Object.entries(values)) {
+    const token = `{${name}}`;
+    if (!rendered.includes(token)) throw new Error('LEGAL_INTEGRATIONS_CONTRACT_INVALID');
+    rendered = rendered.split(token).join(value);
+  }
+  return rendered;
+};
 import {filterLegalPurchasedWork} from '@erpx/server-legal/adapters/work-purchases';
 import { finalRootOwnerProjectionSources as workflowProjectionSources } from "@erpx/server-workflow/public/final-root-owner-projection-sources";
 import "server-only";
@@ -19,7 +29,7 @@ function application(db:SqlDatabase,a:WorkContext){const v=visibility(a);let pur
       .bind(...v.values, a.userId, a.userId, now, a.userId)
       .all<LegalItem>();},tasks:async(category)=>{const purchase=await readScope();return db
         .prepare(
-          `SELECT f.*,i.title record_title FROM ${featureSpecs[category as keyof typeof featureSpecs].table} f JOIN legal_items i ON i.id=f.item_id WHERE ${v.sql} AND ${purchase.where} AND f.owner_id=? AND f.state NOT IN ('completed','closed','cancelled','acknowledged','waived','accepted','billed') AND NOT(f.category='custody' AND f.state='received') ORDER BY f.due_date NULLS LAST,f.id LIMIT 200`,
+          fill(contract.tasks,{table:featureSpecs[category as keyof typeof featureSpecs].table,visibility:v.sql,purchase:purchase.where}),
         )
         .bind(...v.values, a.userId)
         .all<{
@@ -31,21 +41,12 @@ function application(db:SqlDatabase,a:WorkContext){const v=visibility(a);let pur
           updated_at: number;
         }>();},approvals:async()=>{const purchase=await readScope();return db
       .prepare(
-        `SELECT i.* FROM legal_items i JOIN (${workflowProjectionSources.approval_instances}) ai ON ai.record_type='legal' AND ai.record_id=i.id AND ai.state='pending' JOIN (${workflowProjectionSources.approval_steps}) st ON st.instance_id=ai.id AND st.ordinal=ai.current_step WHERE ${v.sql} AND ${purchase.where} AND iam_same_person(st.approver_user_id,?,i.company_id) ORDER BY i.updated_at DESC LIMIT 200`,
+        fill(contract.approvals,{approvalInstances:workflowProjectionSources.approval_instances,approvalSteps:workflowProjectionSources.approval_steps,visibility:v.sql,purchase:purchase.where}),
       )
       .bind(...v.values, a.userId)
       .all<LegalItem>();},calendar:async(q,from,to,take)=>{const purchase=await readScope();return db
       .prepare(
-        `SELECT i.* FROM (SELECT id,id item_id,title,description,due_date,timezone,department_id,branch_id,owner_id,state,version,company_id,classification,kind,created_by FROM legal_items UNION ALL ${Object.values(
-          featureSpecs,
-        )
-          .map(
-            (spec) =>
-              `SELECT f.id,i.id item_id,f.title,i.description,f.due_date,i.timezone,i.department_id,i.branch_id,f.owner_id,f.state,f.version,i.company_id,i.classification,i.kind,i.created_by FROM ${spec.table} f JOIN legal_items i ON i.id=f.item_id`,
-          )
-          .join(
-            " UNION ALL ",
-          )}) i WHERE ${v.sql.replace("lm.item_id=i.id", "lm.item_id=i.item_id")} AND ${purchase.where} AND i.due_date>=? AND i.due_date<? AND i.state NOT IN ('archived','cancelled') AND (?='team' OR i.owner_id=?) AND (?='' OR strpos(lower(i.title),lower(?))>0) ORDER BY i.id LIMIT ?`,
+        fill(contract.calendarRows,{sources:[contract.calendarBase,...Object.values(featureSpecs).map(spec=>fill(contract.calendarFeature,{table:spec.table}))].join(" UNION ALL "),visibility:v.sql.replace("lm.item_id=i.id", "lm.item_id=i.item_id"),purchase:purchase.where}),
       )
       .bind(
         ...v.values,

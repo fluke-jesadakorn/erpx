@@ -151,7 +151,7 @@ describe('Sales read-tail r29 scope-tuple family', () => {
     expect(native).toContain('export const SALES_RD_PRICE_LIST_ITEMS_ACTIVE');
     expect(native).toContain('export const SALES_RD_NOTIFICATION_ATTEMPT');
     expect(native).toContain('export const SALES_RD_NOTIFICATION_RECONCILIATION_INSTALLED');
-    expect((rustRegistry.match(/pub const RD_\w+: &str =/g) ?? []).length).toBe(26);
+    expect((rustRegistry.match(/pub const RD_\w+: &str =/g) ?? []).length).toBe(27);
     expect((commercial.match(/SELECT/g) ?? []).length).toBe(0);
   });
 });
@@ -171,7 +171,7 @@ describe('Sales read-tail r29 retirement check', () => {
     // tableRead (-3) and priceListSelect (-1).
     // r33 folds the tail generator into the primary read generator (-1).
     // r35: delivery-presence head shared by order/return/notice guards (-1).
-    expect(total).toBe(20);
+    expect(total).toBe(19);
     expect(total).toBeLessThan(54);
   });
 });

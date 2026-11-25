@@ -597,6 +597,15 @@ pub fn plan_values_statement(
         "work_social_image_sources" => ",'sources',(SELECT jsonb_agg(to_jsonb(s) ORDER BY s.ordinal) FROM social_post_sources s WHERE s.post_id=?),'participants',(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.user_id) FROM social_post_participants p WHERE p.post_id=?),'revisions',",
         "work_social_image_tail" => ",'reactions',(SELECT jsonb_agg(to_jsonb(r) ORDER BY r.principal_id) FROM social_reactions r WHERE r.post_id=?),'follows',(SELECT jsonb_agg(to_jsonb(f) ORDER BY f.principal_id) FROM social_follows f WHERE f.target_type='post' AND f.target_id=?),'drafts',(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM social_post_drafts d WHERE d.company_id=? AND (d.published_post_id=? OR d.comment_parent_post_id=? OR d.edit_post_id=?)),'acknowledgements',(SELECT jsonb_agg(to_jsonb(a) ORDER BY a.user_id) FROM social_handover_acknowledgements a WHERE a.post_id=?),'ai_drafts',(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM social_ai_drafts d WHERE d.post_id=?),'ai_usage',(SELECT jsonb_agg(to_jsonb(u) ORDER BY u.id) FROM social_ai_usage u JOIN social_ai_drafts d ON d.id=u.id WHERE d.post_id=?),'agent_replies',(SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM social_agent_replies r WHERE r.post_id=?))::text image",
         "work_social_ai_phase_image" => "SELECT jsonb_build_object('draft',(SELECT to_jsonb(d) FROM social_ai_drafts d WHERE d.id=?),'usage',(SELECT to_jsonb(u) FROM social_ai_usage u WHERE u.id=?),'reply',(SELECT to_jsonb(r) FROM social_agent_replies r WHERE r.id=?))::text image",
+        // Audience and attachment source-witness reads. Owner bytes only;
+        // callers insert their registered root/aggregate fragments and bind
+        // in the original order. Locked queue reads stay in the caller.
+        "work_social_audience_by_post" => "SELECT audience_id id FROM social_posts WHERE id=? AND company_id=? AND audience_kind='project'",
+        "work_social_audience_by_draft" => " UNION SELECT p.audience_id FROM social_post_drafts d JOIN social_posts p ON p.id=COALESCE(d.published_post_id,d.comment_parent_post_id,d.edit_post_id) AND p.company_id=d.company_id WHERE d.id=? AND d.company_id=? AND p.audience_kind='project'",
+        "work_social_witness_drafts" => "drafts AS(SELECT d.* FROM social_post_drafts d WHERE d.id=? AND d.company_id=? AND ?='social_draft'),",
+        "work_social_witness_post_ids" => "post_ids AS(SELECT ?::text id WHERE ?='social_post' UNION SELECT published_post_id FROM drafts UNION SELECT edit_post_id FROM drafts UNION SELECT comment_parent_post_id FROM drafts),",
+        "work_social_witness_posts" => "posts AS(SELECT p.* FROM social_posts p JOIN post_ids selected ON selected.id=p.id WHERE p.company_id=?),",
+        "work_social_witness_native_sources" => "native_sources AS(SELECT source.source_kind kind,source.source_id id FROM social_post_sources source JOIN posts p ON p.id=source.post_id\n UNION SELECT element->>'kind',element->>'id' FROM drafts d CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN pg_input_is_valid(d.sources_json,'jsonb') THEN CASE WHEN jsonb_typeof(d.sources_json::jsonb)='array' THEN d.sources_json::jsonb ELSE '[]'::jsonb END ELSE '[]'::jsonb END) element WHERE element->>'kind' IN('staff_task','staff_project','pms_record') AND length(element->>'id')>0)",
         _ => return None,
     };
     Some(
@@ -1136,6 +1145,50 @@ mod tests {
         );
         assert_eq!(planned.sql.matches("SELECT ").count(), 4);
         assert_eq!(planned.values.len(), 3);
+    }
+
+    #[test]
+    fn audience_and_source_witness_kinds_render_the_retired_sql_byte_for_byte() {
+        let cases = [
+            (
+                "work_social_audience_by_post",
+                "SELECT audience_id id FROM social_posts WHERE id=? AND company_id=? AND audience_kind='project'",
+                2,
+            ),
+            (
+                "work_social_audience_by_draft",
+                " UNION SELECT p.audience_id FROM social_post_drafts d JOIN social_posts p ON p.id=COALESCE(d.published_post_id,d.comment_parent_post_id,d.edit_post_id) AND p.company_id=d.company_id WHERE d.id=? AND d.company_id=? AND p.audience_kind='project'",
+                4,
+            ),
+            (
+                "work_social_witness_drafts",
+                "drafts AS(SELECT d.* FROM social_post_drafts d WHERE d.id=? AND d.company_id=? AND ?='social_draft'),",
+                3,
+            ),
+            (
+                "work_social_witness_post_ids",
+                "post_ids AS(SELECT ?::text id WHERE ?='social_post' UNION SELECT published_post_id FROM drafts UNION SELECT edit_post_id FROM drafts UNION SELECT comment_parent_post_id FROM drafts),",
+                2,
+            ),
+            (
+                "work_social_witness_posts",
+                "posts AS(SELECT p.* FROM social_posts p JOIN post_ids selected ON selected.id=p.id WHERE p.company_id=?),",
+                1,
+            ),
+            (
+                "work_social_witness_native_sources",
+                "native_sources AS(SELECT source.source_kind kind,source.source_id id FROM social_post_sources source JOIN posts p ON p.id=source.post_id\n UNION SELECT element->>'kind',element->>'id' FROM drafts d CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN pg_input_is_valid(d.sources_json,'jsonb') THEN CASE WHEN jsonb_typeof(d.sources_json::jsonb)='array' THEN d.sources_json::jsonb ELSE '[]'::jsonb END ELSE '[]'::jsonb END) element WHERE element->>'kind' IN('staff_task','staff_project','pms_record') AND length(element->>'id')>0)",
+                0,
+            ),
+        ];
+        for (kind, sql, binds) in cases {
+            let values = vec!["bind"; binds];
+            let planned = super::plan_values_statement(kind, &read_input(kind, &values))
+                .expect("registered kind")
+                .expect("planned statement");
+            assert_eq!(planned.sql, sql, "{kind}");
+            assert_eq!(planned.sql.matches('?').count(), binds, "{kind}");
+        }
     }
 }
 

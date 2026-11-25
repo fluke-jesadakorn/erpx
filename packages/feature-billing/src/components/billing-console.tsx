@@ -175,6 +175,7 @@ export function BillingConsole({
         "verify-provider-cost",
         "record-operating-cost",
         "review-target-capacity",
+        "approve-target-extra",
       ].includes(action)
     )
       return null;

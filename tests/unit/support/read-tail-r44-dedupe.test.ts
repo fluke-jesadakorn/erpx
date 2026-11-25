@@ -57,8 +57,8 @@ describe('Support read-tail r44 bound-row image aggregate retirement', () => {
     expect(src('read-tail-r43-sql.ts')).toContain('readTailR43ColumnsFromSql =');
   });
 
-  test('retirement:ts-statements drops from the r11 AFTER=24 to 20', () => {
-    expect(totalSelects()).toBe(20);
+  test('retirement:ts-statements drops from the r11 AFTER=24 to 18', () => {
+    expect(totalSelects()).toBe(18);
     expect(totalSelects()).toBeLessThan(24);
   });
 });

@@ -126,6 +126,14 @@ export const FINANCE_RD_AI_DUE_POLICIES = 'finance_rd_ai_due_policies';
 export const FINANCE_RD_AI_BANK_CANDIDATES = 'finance_rd_ai_bank_candidates';
 export const FINANCE_RD_AI_REPORT_CHARTS = 'finance_rd_ai_report_charts';
 export const FINANCE_RD_AI_PROPOSAL_BY_SOURCE = 'finance_rd_ai_proposal_by_source';
+export const FINANCE_RD_ASSET_POLICY_RULE = 'finance_rd_asset_policy_rule';
+export const FINANCE_RD_ASSET_POLICY_MAPPINGS = 'finance_rd_asset_policy_mappings';
+export const FINANCE_RD_ASSET_POLICY_POSTED_RUNS = 'finance_rd_asset_policy_posted_runs';
+export const FINANCE_RD_ASSET_POLICY_LEGACY = 'finance_rd_asset_policy_legacy';
+export const FINANCE_RD_ASSET_POLICY_WORKSPACE_ASSETS = 'finance_rd_asset_policy_workspace_assets';
+export const FINANCE_RD_ASSET_POLICY_WORKSPACE_BOOKS = 'finance_rd_asset_policy_workspace_books';
+export const FINANCE_RD_ASSET_POLICY_DISPOSAL = 'finance_rd_asset_policy_disposal';
+export const FINANCE_RD_ASSET_POLICY_GAIN_LOSS = 'finance_rd_asset_policy_gain_loss';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'FINANCE_NATIVE_READ_UNAVAILABLE', 'The native Finance read service is unavailable.');

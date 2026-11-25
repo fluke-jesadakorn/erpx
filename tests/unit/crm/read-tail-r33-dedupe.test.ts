@@ -77,7 +77,7 @@ describe('crm read-tail r33 byte-identical clocked-source SELECT-head family', (
   });
 
   test('retirement:ts-statements stays strictly below the recorded BEFORE=120', () => {
-    expect(totalSelects()).toBe(32);
+    expect(totalSelects()).toBe(31);
     expect(totalSelects()).toBeLessThan(120);
   });
 });

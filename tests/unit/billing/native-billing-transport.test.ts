@@ -616,7 +616,7 @@ describe('native Billing transport', () => {
     expect(sent.get('origin')).toBe('https://acme.example.test');
     expect(JSON.parse(body!)).toEqual(input.body);
   });
-  it('maps the exact native-authoritative command fields (cost review, retry, rollout, provider/statement verification, operating cost and capacity review) onto the owner request body', () => {
+  it('maps the exact native-authoritative command fields (cost review, retry, rollout, provider/statement verification, operating cost, capacity review and extra approval) onto the owner request body', () => {
     const base = { version: 4, reason: 'Reviewed native command' };
     const cases = [
       [

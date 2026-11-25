@@ -66,7 +66,7 @@ describe('Support read-tail r20 portal image aggregate family', () => {
         expect(shared.match(/readTailR43ColumnsFromSql\('\*'/g) ?? []).toHaveLength(1);
     });
 
-    test('retirement:ts-statements drops from the r11 AFTER=24 to 20', () => {
+    test('retirement:ts-statements drops from the r11 AFTER=24 to 18', () => {
         let total = 0;
         const walk = (dir: string) => {
             for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -76,7 +76,7 @@ describe('Support read-tail r20 portal image aggregate family', () => {
             }
         };
         walk(srcRoot);
-        expect(total).toBe(20);
+        expect(total).toBe(18);
         expect(total).toBeLessThan(24);
     });
 });

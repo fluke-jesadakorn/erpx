@@ -90,8 +90,8 @@ describe('support read-tail r43 byte-identical column-projection head', () => {
     expect(src('ticket-portal-sources.ts')).toContain('SUPPORT_RD_TICKET_PORTAL_VALID_BINDINGS');
   });
 
-  test('retirement:ts-statements is 20 after the portal bind-shape fragment cut', () => {
-    expect(totalSelects()).toBe(20);
+  test('retirement:ts-statements is 18 after the customer purchase-scope fragment cut', () => {
+    expect(totalSelects()).toBe(18);
     expect(totalSelects()).toBeLessThan(32);
   });
 });

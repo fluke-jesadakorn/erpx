@@ -48,7 +48,7 @@ describe('Support read-tail r19 valid-binding outer read family', () => {
         expect(customer).not.toContain('SELECT binding.* FROM (');
     });
 
-    test('retirement:ts-statements drops from the r11 AFTER=24 to 20', () => {
+    test('retirement:ts-statements drops from the r11 AFTER=24 to 18', () => {
         let total = 0;
         const walk = (dir: string) => {
             for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -58,7 +58,7 @@ describe('Support read-tail r19 valid-binding outer read family', () => {
             }
         };
         walk(srcRoot);
-        expect(total).toBe(20);
+        expect(total).toBe(18);
         expect(total).toBeLessThan(24);
     });
 });

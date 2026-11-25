@@ -97,9 +97,9 @@ describe('Files read-tail r46 byte-oracle dedupe', () => {
       const text = readFileSync(path, 'utf8');
       for (const [name, head] of Object.entries({ P1, P2, H1, H2 })) residual[name] += count(text, head);
     }
-    // P2 also occurs once inside the out-of-scope preservation-presence helper.
-    expect(residual).toEqual({ P1: 0, P2: 1, H1: 0, H2: 0 });
-    expect(src('adapters/preservation-presence-dedupe-sql.ts')).toContain(P2);
+    // P2 now lives only in the Rust-owned orphan-preservation JSON contract.
+    expect(residual).toEqual({ P1: 0, P2: 0, H1: 0, H2: 0 });
+    expect(src('adapters/orphan-preservation-head-sources.json')).toContain(P2);
     for (const prior of [
       'read-tail-dedupe-sql.ts', 'read-tail-r27-source-sql.ts', 'read-tail-r29-source-sql.ts',
       'read-tail-r31-source-sql.ts', 'read-tail-r42-source-sql.ts', 'read-tail-r44-source-sql.ts',

@@ -1118,6 +1118,82 @@ const READ_AI_PROPOSAL_BY_SOURCE: NativeReadStatement = NativeReadStatement {
     scope: "holding",
 };
 
+
+/// Native successors of the static `finance-asset-policies` point/list reads.
+/// Every plan is byte-identical to the retired literal; owner writes and
+/// assertion guards remain in the caller's transaction.
+pub const RD_ASSET_POLICY_RULE: &str = "finance_rd_asset_policy_rule";
+const SQL_RD_ASSET_POLICY_RULE: &str = "SELECT DISTINCT ON (secondary_chart_id) id,secondary_chart_id,effective_date FROM finance_book_rules WHERE company_id=? AND primary_chart_id=? AND status='approved' AND effective_date<=? ORDER BY secondary_chart_id,effective_date DESC";
+const READ_ASSET_POLICY_RULE: NativeReadStatement = NativeReadStatement {
+    kind: RD_ASSET_POLICY_RULE,
+    sql: SQL_RD_ASSET_POLICY_RULE,
+    bind_count: 3,
+    scope: "holding",
+};
+
+pub const RD_ASSET_POLICY_MAPPINGS: &str = "finance_rd_asset_policy_mappings";
+const SQL_RD_ASSET_POLICY_MAPPINGS: &str = "SELECT primary_account_id,secondary_account_id FROM finance_book_account_mappings WHERE rule_id=? AND primary_account_id IN (?,?,?) ORDER BY primary_account_id";
+const READ_ASSET_POLICY_MAPPINGS: NativeReadStatement = NativeReadStatement {
+    kind: RD_ASSET_POLICY_MAPPINGS,
+    sql: SQL_RD_ASSET_POLICY_MAPPINGS,
+    bind_count: 4,
+    scope: "holding",
+};
+
+pub const RD_ASSET_POLICY_POSTED_RUNS: &str = "finance_rd_asset_policy_posted_runs";
+const SQL_RD_ASSET_POLICY_POSTED_RUNS: &str = "SELECT * FROM finance_asset_policy_runs WHERE asset_id=? AND status='posted' ORDER BY ordinal";
+const READ_ASSET_POLICY_POSTED_RUNS: NativeReadStatement = NativeReadStatement {
+    kind: RD_ASSET_POLICY_POSTED_RUNS,
+    sql: SQL_RD_ASSET_POLICY_POSTED_RUNS,
+    bind_count: 1,
+    scope: "holding",
+};
+
+pub const RD_ASSET_POLICY_LEGACY: &str = "finance_rd_asset_policy_legacy";
+const SQL_RD_ASSET_POLICY_LEGACY: &str = "SELECT 1 FROM finance_asset_policy_runs WHERE asset_id=? AND ((status='posted' AND ordinal>?) OR status='draft')";
+const READ_ASSET_POLICY_LEGACY: NativeReadStatement = NativeReadStatement {
+    kind: RD_ASSET_POLICY_LEGACY,
+    sql: SQL_RD_ASSET_POLICY_LEGACY,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_ASSET_POLICY_WORKSPACE_ASSETS: &str = "finance_rd_asset_policy_workspace_assets";
+const SQL_RD_ASSET_POLICY_WORKSPACE_ASSETS: &str = "SELECT a.*,c.chart_id,(SELECT count(*) FROM finance_asset_depreciations old WHERE old.asset_id=a.id)+(SELECT count(*) FROM finance_asset_policy_runs run WHERE run.asset_id=a.id AND run.status='posted') completed_depreciation_months FROM finance_assets a JOIN finance_accounts c ON c.id=a.account_id WHERE a.company_id=? AND a.status='in_service' ORDER BY asset_number";
+const READ_ASSET_POLICY_WORKSPACE_ASSETS: NativeReadStatement = NativeReadStatement {
+    kind: RD_ASSET_POLICY_WORKSPACE_ASSETS,
+    sql: SQL_RD_ASSET_POLICY_WORKSPACE_ASSETS,
+    bind_count: 1,
+    scope: "holding",
+};
+
+pub const RD_ASSET_POLICY_WORKSPACE_BOOKS: &str = "finance_rd_asset_policy_workspace_books";
+const SQL_RD_ASSET_POLICY_WORKSPACE_BOOKS: &str = "SELECT c.id,c.name,r.primary_chart_id FROM finance_charts c LEFT JOIN (SELECT DISTINCT secondary_chart_id,primary_chart_id FROM finance_book_rules WHERE status='approved') r ON r.secondary_chart_id=c.id WHERE c.company_id=? AND c.status='active' ORDER BY c.id";
+const READ_ASSET_POLICY_WORKSPACE_BOOKS: NativeReadStatement = NativeReadStatement {
+    kind: RD_ASSET_POLICY_WORKSPACE_BOOKS,
+    sql: SQL_RD_ASSET_POLICY_WORKSPACE_BOOKS,
+    bind_count: 1,
+    scope: "holding",
+};
+
+pub const RD_ASSET_POLICY_DISPOSAL: &str = "finance_rd_asset_policy_disposal";
+const SQL_RD_ASSET_POLICY_DISPOSAL: &str = "SELECT * FROM finance_asset_policy_editions WHERE asset_id=? AND company_id=? AND status='active'";
+const READ_ASSET_POLICY_DISPOSAL: NativeReadStatement = NativeReadStatement {
+    kind: RD_ASSET_POLICY_DISPOSAL,
+    sql: SQL_RD_ASSET_POLICY_DISPOSAL,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_ASSET_POLICY_GAIN_LOSS: &str = "finance_rd_asset_policy_gain_loss";
+const SQL_RD_ASSET_POLICY_GAIN_LOSS: &str = "SELECT m.primary_account_id,m.secondary_account_id,a.version,a.status FROM finance_book_account_mappings m JOIN finance_accounts a ON a.id=m.secondary_account_id WHERE m.rule_id=? AND m.primary_account_id IN (?,?) ORDER BY m.primary_account_id";
+const READ_ASSET_POLICY_GAIN_LOSS: NativeReadStatement = NativeReadStatement {
+    kind: RD_ASSET_POLICY_GAIN_LOSS,
+    sql: SQL_RD_ASSET_POLICY_GAIN_LOSS,
+    bind_count: 3,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_ASSET_POLICY_ROW,
     READ_ASSET_POLICY_RUNS,
@@ -1228,6 +1304,14 @@ const READS: &[NativeReadStatement] = &[
     READ_AI_BANK_CANDIDATES,
     READ_AI_REPORT_CHARTS,
     READ_AI_PROPOSAL_BY_SOURCE,
+    READ_ASSET_POLICY_RULE,
+    READ_ASSET_POLICY_MAPPINGS,
+    READ_ASSET_POLICY_POSTED_RUNS,
+    READ_ASSET_POLICY_LEGACY,
+    READ_ASSET_POLICY_WORKSPACE_ASSETS,
+    READ_ASSET_POLICY_WORKSPACE_BOOKS,
+    READ_ASSET_POLICY_DISPOSAL,
+    READ_ASSET_POLICY_GAIN_LOSS,
 ];
 
 /// Whether a discriminator is an owner read kind (never a write kind).
@@ -1356,6 +1440,14 @@ mod tests {
             RD_AI_BANK_CANDIDATES,
             RD_AI_REPORT_CHARTS,
             RD_AI_PROPOSAL_BY_SOURCE,
+            RD_ASSET_POLICY_RULE,
+            RD_ASSET_POLICY_MAPPINGS,
+            RD_ASSET_POLICY_POSTED_RUNS,
+            RD_ASSET_POLICY_LEGACY,
+            RD_ASSET_POLICY_WORKSPACE_ASSETS,
+            RD_ASSET_POLICY_WORKSPACE_BOOKS,
+            RD_ASSET_POLICY_DISPOSAL,
+            RD_ASSET_POLICY_GAIN_LOSS,
         ] {
             assert!(is_read(kind), "{kind}");
             let read = read_statement(kind).expect("read kind");
@@ -1370,7 +1462,7 @@ mod tests {
             assert_eq!(read.sql.matches('?').count(), read.bind_count, "{kind}");
             assert_eq!(read.scope, "holding", "{kind}");
         }
-        assert_eq!(READS.len(), 109);
+        assert_eq!(READS.len(), 117);
         assert!(!is_read("finance_stmt_1"));
         assert!(read_statement("finance_stmt_1").is_none());
     }
@@ -2049,6 +2141,50 @@ mod tests {
                 RD_AI_PROPOSAL_BY_SOURCE,
                 SQL_RD_AI_PROPOSAL_BY_SOURCE,
                 8,
+            ),
+        ];
+        assert_eq!(expected.len(), 8);
+        for (kind, sql, binds) in expected {
+            let read = read_statement(kind).unwrap_or_else(|| panic!("{kind}: unregistered"));
+            assert_eq!(read.kind, *kind, "{kind}: discriminator");
+            assert_eq!(read.sql, *sql, "{kind}: byte-identical SQL");
+            assert_eq!(read.bind_count, *binds, "{kind}: bind count");
+            assert_eq!(read.sql.matches('?').count(), *binds, "{kind}: binds");
+            assert_eq!(read.scope, "holding", "{kind}: scope");
+            assert!(is_read(kind), "{kind}");
+            assert!(!read.sql.contains("FOR UPDATE"), "{kind}");
+            assert!(!read.sql.contains("INSERT"), "{kind}");
+        }
+    }
+
+    /// The finance-asset-policies point/list family plans the exact retired
+    /// literals; two plans carry nested SELECT 1 subqueries.
+    #[test]
+    fn asset_policy_reads_match_retired_owner_statements() {
+        let expected: &[(&str, &str, usize)] = &[
+            (RD_ASSET_POLICY_RULE, SQL_RD_ASSET_POLICY_RULE, 3),
+            (RD_ASSET_POLICY_MAPPINGS, SQL_RD_ASSET_POLICY_MAPPINGS, 4),
+            (
+                RD_ASSET_POLICY_POSTED_RUNS,
+                SQL_RD_ASSET_POLICY_POSTED_RUNS,
+                1,
+            ),
+            (RD_ASSET_POLICY_LEGACY, SQL_RD_ASSET_POLICY_LEGACY, 2),
+            (
+                RD_ASSET_POLICY_WORKSPACE_ASSETS,
+                SQL_RD_ASSET_POLICY_WORKSPACE_ASSETS,
+                1,
+            ),
+            (
+                RD_ASSET_POLICY_WORKSPACE_BOOKS,
+                SQL_RD_ASSET_POLICY_WORKSPACE_BOOKS,
+                1,
+            ),
+            (RD_ASSET_POLICY_DISPOSAL, SQL_RD_ASSET_POLICY_DISPOSAL, 2),
+            (
+                RD_ASSET_POLICY_GAIN_LOSS,
+                SQL_RD_ASSET_POLICY_GAIN_LOSS,
+                3,
             ),
         ];
         assert_eq!(expected.len(), 8);

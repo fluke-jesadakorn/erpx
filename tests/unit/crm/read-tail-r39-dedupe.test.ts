@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import { crmSingleKeySourceSql } from '../../../packages/server-crm/src/adapters/read-tail-r37-sql';
 import { crmCampaignOptionsSql } from '../../../packages/server-crm/src/adapters/read-tail-r27-sql';
+import { crmSelectBodySql } from '../../../packages/server-crm/src/adapters/read-tail-r46-sql';
 import { crmClockedReadSql } from '../../../packages/server-crm/src/adapters/read-tail-r39-sql';
 
 const owner = resolve(__dirname, '../../../packages/server-crm/src');
@@ -74,7 +75,7 @@ describe('crm read-tail r39 byte-identical head composition', () => {
       expect(src(file).match(new RegExp(`${name} =`, 'g'))).toHaveLength(count);
     }
     expect((src('read-tail-r37-sql.ts').match(/SELECT /g) ?? []).length).toBe(1);
-    expect((src('read-tail-r39-sql.ts').match(/SELECT /g) ?? []).length).toBe(1);
+    expect((src('read-tail-r39-sql.ts').match(/SELECT /g) ?? []).length).toBe(0);
     expect((src('read-tail-r27-sql.ts').match(/SELECT /g) ?? []).length).toBe(0);
 
     const parties = src('active-customer-parties.ts');
@@ -142,7 +143,7 @@ describe('crm read-tail r39 byte-identical head composition', () => {
   });
 
   test('retirement:ts-statements stays strictly below the r38 AFTER=104 baseline', () => {
-    expect(totalSelects()).toBe(32);
+    expect(totalSelects()).toBe(31);
     expect(totalSelects()).toBeLessThan(104);
   });
 });

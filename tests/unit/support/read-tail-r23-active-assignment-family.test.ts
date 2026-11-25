@@ -102,7 +102,7 @@ describe('Support read-tail r23 active-assignment family', () => {
         expect(src('adapters/attachment-read.ts')).toContain('LOCK TABLE support_tickets,support_ticket_events IN SHARE ROW EXCLUSIVE MODE');
     });
 
-    test('retirement:ts-statements drops from the r46 AFTER=30 to 20', () => {
+    test('retirement:ts-statements drops from the r46 AFTER=30 to 18', () => {
         let total = 0;
         const walk = (dir: string) => {
             for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -112,7 +112,7 @@ describe('Support read-tail r23 active-assignment family', () => {
             }
         };
         walk(srcRoot);
-        expect(total).toBe(20);
+        expect(total).toBe(18);
         expect(total).toBeLessThan(30);
     });
 });

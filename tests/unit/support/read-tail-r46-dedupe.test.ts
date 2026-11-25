@@ -152,8 +152,8 @@ describe('support read-tail r46 byte-identical selected-bindings column-projecti
     expect(expected).not.toMatch(/\bINSERT\b|\bUPDATE\b|\bDELETE\b|FOR UPDATE|FOR SHARE|LOCK TABLE/i);
   });
 
-  test('retirement:ts-statements is 20 after the portal bind-shape fragment cut', () => {
-    expect(totalSelects()).toBe(20);
+  test('retirement:ts-statements is 18 after the customer purchase-scope fragment cut', () => {
+    expect(totalSelects()).toBe(18);
     expect(totalSelects()).toBeLessThan(24);
   });
 });

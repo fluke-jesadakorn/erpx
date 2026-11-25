@@ -106,7 +106,7 @@ describe('Sales read-tail r35 retirement check', () => {
     expect((commercial.match(/SELECT/g) ?? []).length).toBe(0);
   });
 
-  test('retirement:ts-statements drops from 45 to 20', () => {
+  test('retirement:ts-statements drops from 45 to 19', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -117,7 +117,7 @@ describe('Sales read-tail r35 retirement check', () => {
     };
     walk(srcRoot);
     // r35: deliveryPresence shares one head across order/return/notice guards (-1).
-    expect(total).toBe(20);
+    expect(total).toBe(19);
     expect(total).toBeLessThan(45);
   });
 });

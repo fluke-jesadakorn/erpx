@@ -101,7 +101,7 @@ describe('POS read-tail r40 refund-payment subquery dedupe', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(157);
+    expect(total).toBe(156);
     expect(total).toBeLessThan(176);
   });
 });

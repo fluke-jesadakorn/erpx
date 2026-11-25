@@ -89,8 +89,8 @@ describe('Sales read-tail r31 tail-parameterized followup order join', () => {
     expect(tailRead).toContain('followupCustomerOrderRead(orders, columns, scope, purchaseWhere, whereTail, order, joinTail)');
     expect(followups).toContain('followupCustomerOrderTailRead(');
     expect(calendar).toContain('followupCustomerOrderTailRead(');
-    expect(followups).not.toContain('`SELECT c.*,${ownerNameProjection},o.number order_number');
-    expect(calendar).not.toContain('`SELECT c.*,o.branch_id,o.department_id,${ownerNameProjection}');
+    expect(followups).not.toContain('`SELECT c.*,${ownerName},o.number order_number');
+    expect(calendar).not.toContain('`SELECT c.*,o.branch_id,o.department_id,${ownerName}');
     for (const source of [tailRead, orderRead, followups, calendar]) {
       expect(source).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
     }
@@ -99,8 +99,8 @@ describe('Sales read-tail r31 tail-parameterized followup order join', () => {
   test('purchase.where, ownerNameProjection and both tails stay in the rendered head', () => {
     expect(followups).toContain('scope,purchase.where,');
     expect(calendar).toContain('`,purchase.where,\'ORDER BY c.due_date,c.id LIMIT ?\')');
-    expect(followups).toContain('`c.*,${ownerNameProjection},o.number order_number');
-    expect(calendar).toContain('`c.*,o.branch_id,o.department_id,${ownerNameProjection}`');
+    expect(followups).toContain('`c.*,${ownerName},o.number order_number');
+    expect(calendar).toContain('`c.*,o.branch_id,o.department_id,${ownerName}`');
     expect(list).toContain('WHERE SCOPE AND PURCHASE AND (?::text IS NULL OR c.id=?)');
     expect(list.endsWith('ORDER BY c.due_date,c.id')).toBe(true);
     expect(calendarHead.endsWith('AND PURCHASE ORDER BY c.due_date,c.id LIMIT ?')).toBe(true);
@@ -197,10 +197,10 @@ describe('Sales read-tail r31 retirement check', () => {
     expect(native).toContain('export const SALES_RD_PRICE_LIST_ITEMS_ACTIVE');
     expect(native).toContain('export const SALES_RD_NOTIFICATION_ATTEMPT');
     expect(native).toContain('export const SALES_RD_NOTIFICATION_RECONCILIATION_INSTALLED');
-    expect((rustRegistry.match(/pub const RD_\w+: &str =/g) ?? []).length).toBe(26);
+    expect((rustRegistry.match(/pub const RD_\w+: &str =/g) ?? []).length).toBe(27);
   });
 
-  test('retirement:ts-statements drops from 50 to 20', () => {
+  test('retirement:ts-statements drops from 50 to 19', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -214,7 +214,7 @@ describe('Sales read-tail r31 retirement check', () => {
     // r33: tail generator delegates to the primary generator (-1).
     // r34: pointRead delegates to the shared tableRead generator (-1).
     // r35: delivery-presence head shared by order/return/notice guards (-1).
-    expect(total).toBe(20);
+    expect(total).toBe(19);
     expect(total).toBeLessThan(50);
   });
 });

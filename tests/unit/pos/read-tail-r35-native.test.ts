@@ -132,7 +132,7 @@ describe('POS read-tail r35 native Stripe keyed reads', () => {
     ]) expect(stripe).toMatch(new RegExp(`${fn}<PosRow>\\(db`));
   });
 
-  it('pins the r36/r40 KPIs: stripe kinds 12, sale-child kinds 13, owner kinds 198, TS SELECT tokens 157', () => {
+  it('pins the r36/r40 KPIs: stripe kinds 12, sale-child kinds 13, owner kinds 198, TS SELECT tokens 156', () => {
     const registry = read('stripe_reads.rs');
     const owner = read('owner_writes.rs');
     expect(registry).toContain('assert_eq!(KINDS.len(), 12)');
@@ -152,7 +152,7 @@ describe('POS read-tail r35 native Stripe keyed reads', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(157);
+    expect(total).toBe(156);
     expect(total).toBeLessThan(188);
   });
 
@@ -161,7 +161,7 @@ describe('POS read-tail r35 native Stripe keyed reads', () => {
     expect(stripe).toContain('SELECT * FROM pos_sales WHERE id=? AND company_id=? FOR UPDATE');
     expect(stripe).not.toContain("SELECT COALESCE(SUM(amount_minor-refunded_minor),0) n FROM pos_payments WHERE sale_id=? AND state='succeeded'");
     expect(stripe).toContain('nativePosSucceededPaymentTotalStatement(db, facts.id)');
-    expect(read('application/pos-stripe.ts')).toContain("num(paid!, 'amount')");
+    expect(readFileSync(resolve(srcRoot, 'application/pos-stripe.ts'), 'utf8')).toContain("num(paid!, 'amount')");
     expect(stripe).toContain("SELECT to_regclass('pos_jobs') name");
     expect(stripe).toContain("SELECT * FROM pos_oauth_states WHERE id=? AND company_id=? AND user_id=? AND used_at IS NULL AND expires_at>? FOR UPDATE");
     const owner = read('owner_writes.rs');

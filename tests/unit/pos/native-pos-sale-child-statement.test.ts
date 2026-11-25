@@ -174,11 +174,15 @@ describe('native POS sale-child detail read bridge', () => {
     const pos = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos.ts', import.meta.url), 'utf8');
     const core = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos-core.ts', import.meta.url), 'utf8');
     const daily = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos-daily.ts', import.meta.url), 'utf8');
+    const stripe = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos-stripe.ts', import.meta.url), 'utf8');
     for (const item of cases) {
       expect(pos).not.toContain(item.sql);
       expect(core).not.toContain(item.sql);
       expect(daily).not.toContain(item.sql);
+      expect(stripe).not.toContain(item.sql);
     }
+    expect(stripe).toContain('nativePosSucceededPaymentTotalStatement(db, facts.id)');
+    expect(readFileSync(new URL('../../../packages/server-pos/src/application/pos-stripe.ts', import.meta.url), 'utf8')).toContain("num(paid!, 'amount')");
     expect(pos.match(/nativePosSale(Lines|Payments)Statement\(db/g)).toHaveLength(2);
     expect(core.match(/nativePos(LinesBySale|SucceededPaymentTotal|PendingPaymentId|RefundablePayments|PaymentIdBySale|FulfilledLines|FirstPaymentId|LinesTotal|OpenPaymentId)Statement\(db/g)).toHaveLength(9);
     expect(daily.match(/nativePosDayPlanner(Lines|Payments)Statement\(db/g)).toHaveLength(2);

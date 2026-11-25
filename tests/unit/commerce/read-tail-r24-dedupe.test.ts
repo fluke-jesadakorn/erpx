@@ -199,6 +199,6 @@ describe('Commerce read-tail r24 fulfillment guard-head retirement', () => {
     expect((read('commerce.ts').match(/SELECT /g) ?? []).length).toBe(22);
     expect((read('ecommerce-sources.ts').match(/SELECT /g) ?? []).length).toBe(0);
     expect((read('workflow-flow-routing-facts.ts').match(/SELECT /g) ?? []).length).toBe(8);
-    expect((read('attachment-read-sources.ts').match(/SELECT /g) ?? []).length).toBe(8);
+    expect((read('attachment-read-sources.ts').match(/SELECT /g) ?? []).length).toBe(15);
   });
 });

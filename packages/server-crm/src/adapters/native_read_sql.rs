@@ -116,6 +116,31 @@ mod tests {
     }
 
     #[test]
+    fn clocked_read_head_is_the_owner_select_body_plan() {
+        // Canonical native form of the r39 clocked CTE head: the caller's body
+        // is the bare select-body plan, prefixed by the caller's own CTE. The TS
+        // `crmClockedReadSql` delegates on this identity; body and binds stay verbatim.
+        let select_body = |body: &str| format!("SELECT {body}");
+        let clocked = |clock: &str, body: &str| format!("WITH {clock} {}", select_body(body));
+        let cases = [
+            ("property options", "report_clock AS MATERIALIZED(... now_ms)", "property.id,property.name FROM pms_properties property CROSS JOIN report_clock WHERE property.company_id=? ORDER BY property.name"),
+            ("costs", "report_clock AS MATERIALIZED(... now_ms)", "cost.campaign_id,COALESCE(SUM(line.debit_minor-line.credit_minor),0) amount FROM (COST_SOURCES) cost GROUP BY cost.campaign_id"),
+            ("multiline body", "report_clock AS MATERIALIZED(... now_ms)", "l.id,l.account_id,\n     CASE WHEN v.win_source='pms' THEN r.id IS NOT NULL ELSE TRUE END source_visible,\n     FROM crm_leads l CROSS JOIN report_clock"),
+        ];
+        for (name, clock, body) in cases {
+            let rendered = clocked(clock, body);
+            assert_eq!(rendered, format!("WITH {clock} SELECT {body}"), "{name}");
+            assert_eq!(rendered.matches("SELECT ").count(), 1, "{name}");
+            let upper = rendered.to_ascii_uppercase();
+            assert!(!upper.contains("INSERT"), "{name}");
+            assert!(!upper.contains("UPDATE"), "{name}");
+            assert!(!upper.contains("DELETE"), "{name}");
+            assert!(!upper.contains("FOR UPDATE"), "{name}");
+            assert!(!upper.contains("LOCK TABLE"), "{name}");
+        }
+    }
+
+    #[test]
     fn scalar_subquery_head_is_the_owner_select_body_plan() {
         // Canonical native form of the r43 scalar subquery: the select-body
         // plan over `${projection} FROM ${body}`, wrapped in parentheses. The TS

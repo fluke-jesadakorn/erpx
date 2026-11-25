@@ -68,7 +68,7 @@ async function target(database:SqlDatabase,actor:Pick<StaffActor,'companyId'>,co
 async function actualAudienceProjects(database:SqlDatabase,actor:StaffActor,command:Command){
  if(command.audienceProjectId!==undefined)return command.audienceProjectId?[command.audienceProjectId]:[];
  if(!command.id||command.type==='story')return [];
- const rows=command.type==='post'?await database.prepare("SELECT audience_id id FROM social_posts WHERE id=? AND company_id=? AND audience_kind='project'").bind(command.id,actor.companyId).all<{id:string}>():await database.prepare(`${socialPostDraftById('audience_id id',' '," AND audience_kind='project'")} UNION SELECT p.audience_id FROM social_post_drafts d JOIN social_posts p ON p.id=COALESCE(d.published_post_id,d.comment_parent_post_id,d.edit_post_id) AND p.company_id=d.company_id WHERE d.id=? AND d.company_id=? AND p.audience_kind='project'`).bind(command.id,actor.companyId,command.id,actor.companyId).all<{id:string}>();
+ const rows=command.type==='post'?await database.prepare(await nativeInboxSqlFragment(actor.companyId,'work_social_audience_by_post')).bind(command.id,actor.companyId).all<{id:string}>():await database.prepare(`${socialPostDraftById('audience_id id',' '," AND audience_kind='project'")}${await nativeInboxSqlFragment(actor.companyId,'work_social_audience_by_draft')}`).bind(command.id,actor.companyId,command.id,actor.companyId).all<{id:string}>();
  return [...new Set(rows.results.map(row=>row.id))];
 }
 async function sourceFacts(database:SqlDatabase,companyId:string,sources:Source[]){
@@ -211,11 +211,10 @@ export async function withWorkSocialQueueMaintenance<Result>(owner:SqlDatabase,n
 export async function workSocialAttachmentSourceImage(database:SqlDatabase,companyId:string,type:'social_draft'|'social_post',id:string){
  const root=type==='social_draft'?'social_post_drafts':'social_posts';
  const row=await database.prepare(`WITH native_root AS(${socialTargetImage(root,'to_jsonb(root) image','root','root')}),
- drafts AS(SELECT d.* FROM social_post_drafts d WHERE d.id=? AND d.company_id=? AND ?='social_draft'),
- post_ids AS(SELECT ?::text id WHERE ?='social_post' UNION SELECT published_post_id FROM drafts UNION SELECT edit_post_id FROM drafts UNION SELECT comment_parent_post_id FROM drafts),
- posts AS(SELECT p.* FROM social_posts p JOIN post_ids selected ON selected.id=p.id WHERE p.company_id=?),
- native_sources AS(SELECT source.source_kind kind,source.source_id id FROM social_post_sources source JOIN posts p ON p.id=source.post_id
- UNION SELECT element->>'kind',element->>'id' FROM drafts d CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN pg_input_is_valid(d.sources_json,'jsonb') THEN CASE WHEN jsonb_typeof(d.sources_json::jsonb)='array' THEN d.sources_json::jsonb ELSE '[]'::jsonb END ELSE '[]'::jsonb END) element WHERE element->>'kind' IN('staff_task','staff_project','pms_record') AND length(element->>'id')>0)
+ ${await nativeInboxSqlFragment(companyId,'work_social_witness_drafts')}
+ ${await nativeInboxSqlFragment(companyId,'work_social_witness_post_ids')}
+ ${await nativeInboxSqlFragment(companyId,'work_social_witness_posts')}
+ ${await nativeInboxSqlFragment(companyId,'work_social_witness_native_sources')}
  SELECT jsonb_build_object('root',(SELECT image FROM native_root),'posts',${workSocialPostsAgg},
  'comments',${workSocialCommentsAgg('JOIN posts p ON p.id=c.post_id')},
  'sources',${workSocialSourcesAgg},
