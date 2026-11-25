@@ -108,7 +108,7 @@ describe('read-tail r50 table-EXISTS head fold', () => {
     }
   });
 
-  it('retirement:ts-statements is 31 after the r50 head fold (32->31)', async () => {
+  it('retirement:ts-statements is 30 after the r51 head fold (31->30)', async () => {
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -118,7 +118,7 @@ describe('read-tail r50 table-EXISTS head fold', () => {
       }
     };
     await walk(srcRoot);
-    expect(total).toBeLessThan(32);
-    expect(total).toBe(31);
+    expect(total).toBeLessThan(31);
+    expect(total).toBe(30);
   });
 });

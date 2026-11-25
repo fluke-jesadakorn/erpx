@@ -35,7 +35,7 @@ describe('workflow command-receipt projection generator family (r31)', () => {
       readFile(new URL('../../../packages/server-workflow/src/adapters/department-override-facts.ts', import.meta.url), 'utf8'),
       readFile(new URL('../../../packages/server-workflow/src/adapters/closed-projection-sources.ts', import.meta.url), 'utf8'),
     ]);
-    expect(projections.match(/`SELECT \$\{columns\.join\(separator\)\} FROM command_receipts\$\{tail\}`/g)).toHaveLength(1);
+    expect(projections.match(/`\$\{selectHeadSql\}\$\{columns\.join\(separator\)\} FROM command_receipts\$\{tail\}`/g) ?? []).toHaveLength(1);
     expect(shared).toContain("commandReceiptsProjectionSql([column], ',', ' WHERE command_id=?')");
     expect(shared).not.toContain('`SELECT ${column} FROM command_receipts');
     expect(shared).toContain("commandReceiptByCommandSql('record_id')");

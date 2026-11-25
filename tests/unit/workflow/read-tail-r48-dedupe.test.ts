@@ -147,6 +147,6 @@ describe('r48 source retirement pins', () => {
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(31);
+    expect(total).toBe(30);
   });
 });

@@ -117,6 +117,6 @@ describe('calendar-index and record-details native cutover (r47)', () => {
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(41);
-    expect(total).toBe(31);
+    expect(total).toBe(30);
   });
 });

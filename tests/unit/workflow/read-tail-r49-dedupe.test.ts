@@ -63,7 +63,7 @@ describe('command-receipt read-tail dedupe (r49)', () => {
       'adapters/approval-participant-projection.ts': 3,
       'adapters/approval-planning.ts': 3,
       'adapters/approval-projection-sources.ts': 6,
-      'adapters/closed-projection-sources.ts': 3,
+      'adapters/closed-projection-sources.ts': 2,
       'adapters/collaboration-inbox-sources.ts': 1,
       'adapters/finance-ai-request-sources.ts': 1,
       'adapters/finance-ai-revision-sources.ts': 1,
@@ -91,7 +91,7 @@ describe('command-receipt read-tail dedupe (r49)', () => {
     expect(expected['adapters/receipt-sql.ts'] ?? 0).toBe(0);
   });
 
-  it('retirement:ts-statements is 32 after the r49 receipt dedupe (33->32)', async () => {
+  it('retirement:ts-statements is 30 after the r51 head fold (31->30)', async () => {
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -101,7 +101,7 @@ describe('command-receipt read-tail dedupe (r49)', () => {
       }
     };
     await walk(srcRoot);
-    expect(total).toBeLessThan(32);
-    expect(total).toBe(31);
+    expect(total).toBeLessThan(31);
+    expect(total).toBe(30);
   });
 });
