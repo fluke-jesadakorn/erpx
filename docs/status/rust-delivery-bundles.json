@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 13104,
+    "revision": 13177,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261125-d",
       "agentId": "lead-opencode",
       "startedAt": "2026-11-25T00:01:42.553Z",
-      "heartbeatAt": "2026-11-25T01:52:06.128Z",
-      "expiresAt": "2026-11-25T02:22:06.128Z",
+      "heartbeatAt": "2026-11-25T02:09:28.955Z",
+      "expiresAt": "2026-11-25T02:39:28.955Z",
       "generation": 174,
       "tokenHash": "cf222ac0057bbc60cd2e4596b697fcb2a16b48b6efe49a05d6a51f51f9993333"
     },
@@ -190538,6 +190538,916 @@
         "owner": "legal",
         "title": "legal read slice",
         "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-legal/src/**",
+          "tests/unit/legal/**"
+        ],
+        "resources": [
+          "owner:legal"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Integrated and pushed; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n258",
+          "at": "2026-11-25T02:20:57.133Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated and pushed; claim released"
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.pos.read-tail-r43",
+        "goalId": "G4",
+        "owner": "pos",
+        "title": "pos read slice",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-pos/src/**",
+          "tests/unit/pos/**"
+        ],
+        "resources": [
+          "owner:pos"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Integrated and pushed; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n259",
+          "at": "2026-11-25T02:20:55.735Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated and pushed; claim released"
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.people_payroll.read-tail-r61",
+        "goalId": "G4",
+        "owner": "people_payroll",
+        "title": "people_payroll read slice",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-people_payroll/src/**",
+          "tests/unit/people_payroll/**"
+        ],
+        "resources": [
+          "owner:people_payroll"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Integrated and pushed; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n260",
+          "at": "2026-11-25T02:20:56.342Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated and pushed; claim released"
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.finance.read-tail-r61",
+        "goalId": "G4",
+        "owner": "finance",
+        "title": "finance read slice",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-finance/src/**",
+          "tests/unit/finance/**"
+        ],
+        "resources": [
+          "owner:finance"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Integrated and pushed; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n261",
+          "at": "2026-11-25T02:20:55.554Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated and pushed; claim released"
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.quality.read-tail-r38",
+        "goalId": "G4",
+        "owner": "quality",
+        "title": "quality read slice",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-quality/src/**",
+          "tests/unit/quality/**"
+        ],
+        "resources": [
+          "owner:quality"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Integrated and pushed; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n262",
+          "at": "2026-11-25T02:20:56.648Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated and pushed; claim released"
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.collaboration.read-tail-r50",
+        "goalId": "G4",
+        "owner": "collaboration",
+        "title": "collaboration read slice",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-collaboration/src/**",
+          "tests/unit/collaboration/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Integrated and pushed; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n263",
+          "at": "2026-11-25T02:20:56.831Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated and pushed; claim released"
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.inventory.read-tail-r57",
+        "goalId": "G4",
+        "owner": "inventory",
+        "title": "inventory read slice",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-inventory/src/**",
+          "tests/unit/inventory/**"
+        ],
+        "resources": [
+          "owner:inventory"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Integrated and pushed; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n264",
+          "at": "2026-11-25T02:20:56.497Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated and pushed; claim released"
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.identity_access.read-tail-r41",
+        "goalId": "G4",
+        "owner": "identity_access",
+        "title": "identity_access read slice",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-identity_access/src/**",
+          "tests/unit/identity_access/**"
+        ],
+        "resources": [
+          "owner:identity_access"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Integrated and pushed; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n265",
+          "at": "2026-11-25T02:20:56.983Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated and pushed; claim released"
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.assets.read-tail-r34",
+        "goalId": "G4",
+        "owner": "assets",
+        "title": "assets read slice",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-assets/src/**",
+          "tests/unit/assets/**"
+        ],
+        "resources": [
+          "owner:assets"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Integrated and pushed; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n266",
+          "at": "2026-11-25T02:20:55.243Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated and pushed; claim released"
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.workflow.read-tail-r50",
+        "goalId": "G4",
+        "owner": "workflow",
+        "title": "workflow read slice",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-workflow/src/**",
+          "tests/unit/workflow/**"
+        ],
+        "resources": [
+          "owner:workflow"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Integrated and pushed; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n267",
+          "at": "2026-11-25T02:20:56.037Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated and pushed; claim released"
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.billing.read-tail-r40",
+        "goalId": "G4",
+        "owner": "billing",
+        "title": "billing read slice",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-billing/src/**",
+          "tests/unit/billing/**"
+        ],
+        "resources": [
+          "owner:billing"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Integrated and pushed; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n268",
+          "at": "2026-11-25T02:20:55.887Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated and pushed; claim released"
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.sales.read-tail-r34",
+        "goalId": "G4",
+        "owner": "sales",
+        "title": "sales read slice",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-sales/src/**",
+          "tests/unit/sales/**"
+        ],
+        "resources": [
+          "owner:sales"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Integrated and pushed; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n269",
+          "at": "2026-11-25T02:20:55.399Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated and pushed; claim released"
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.projects.read-tail-r40",
+        "goalId": "G4",
+        "owner": "projects",
+        "title": "projects read slice",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-projects/src/**",
+          "tests/unit/projects/**"
+        ],
+        "resources": [
+          "owner:projects"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Integrated and pushed; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n270",
+          "at": "2026-11-25T02:20:53.723Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated and pushed; claim released"
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.manufacturing.read-tail-r34",
+        "goalId": "G4",
+        "owner": "manufacturing",
+        "title": "manufacturing read slice",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-manufacturing/src/**",
+          "tests/unit/manufacturing/**"
+        ],
+        "resources": [
+          "owner:manufacturing"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Integrated and pushed; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n271",
+          "at": "2026-11-25T02:20:56.190Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated and pushed; claim released"
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.pms.read-tail-r54",
+        "goalId": "G4",
+        "owner": "pms",
+        "title": "pms read slice",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-pms/src/**",
+          "tests/unit/pms/**"
+        ],
+        "resources": [
+          "owner:pms"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Integrated and pushed; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n272",
+          "at": "2026-11-25T02:20:53.284Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated and pushed; claim released"
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.commerce.read-tail-r26",
+        "goalId": "G4",
+        "owner": "commerce",
+        "title": "commerce read slice",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-commerce/src/**",
+          "tests/unit/commerce/**"
+        ],
+        "resources": [
+          "owner:commerce"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Integrated and pushed; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n273",
+          "at": "2026-11-25T02:20:55.090Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated and pushed; claim released"
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.operations.read-tail-r58",
+        "goalId": "G4",
+        "owner": "operations",
+        "title": "operations read slice",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-operations/src/**",
+          "tests/unit/operations/**"
+        ],
+        "resources": [
+          "owner:operations"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Integrated and pushed; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n274",
+          "at": "2026-11-25T02:20:53.434Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated and pushed; claim released"
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.files.read-tail-r51",
+        "goalId": "G4",
+        "owner": "files",
+        "title": "files read slice",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-files/src/**",
+          "tests/unit/files/**"
+        ],
+        "resources": [
+          "owner:files"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Integrated and pushed; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n275",
+          "at": "2026-11-25T02:20:53.867Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated and pushed; claim released"
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.procurement.read-tail-r52",
+        "goalId": "G4",
+        "owner": "procurement",
+        "title": "procurement read slice",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-procurement/src/**",
+          "tests/unit/procurement/**"
+        ],
+        "resources": [
+          "owner:procurement"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Integrated and pushed; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n276",
+          "at": "2026-11-25T02:20:54.448Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated and pushed; claim released"
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.benefits.read-tail-r26",
+        "goalId": "G4",
+        "owner": "benefits",
+        "title": "benefits read slice",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-benefits/src/**",
+          "tests/unit/benefits/**"
+        ],
+        "resources": [
+          "owner:benefits"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Integrated and pushed; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n277",
+          "at": "2026-11-25T02:20:54.156Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated and pushed; claim released"
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.crm.read-tail-r49",
+        "goalId": "G4",
+        "owner": "crm",
+        "title": "crm read slice",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-crm/src/**",
+          "tests/unit/crm/**"
+        ],
+        "resources": [
+          "owner:crm"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Integrated and pushed; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n278",
+          "at": "2026-11-25T02:20:54.012Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated and pushed; claim released"
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.marketing.read-tail-r52",
+        "goalId": "G4",
+        "owner": "marketing",
+        "title": "marketing read slice",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-marketing/src/**",
+          "tests/unit/marketing/**"
+        ],
+        "resources": [
+          "owner:marketing"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Integrated and pushed; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n279",
+          "at": "2026-11-25T02:20:54.605Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated and pushed; claim released"
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.organization.read-tail-r60",
+        "goalId": "G4",
+        "owner": "organization",
+        "title": "organization read slice",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-organization/src/**",
+          "tests/unit/organization/**"
+        ],
+        "resources": [
+          "owner:organization"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Integrated and pushed; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n280",
+          "at": "2026-11-25T02:20:54.301Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated and pushed; claim released"
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.learning.read-tail-r21",
+        "goalId": "G4",
+        "owner": "learning",
+        "title": "learning read slice",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-learning/src/**",
+          "tests/unit/learning/**"
+        ],
+        "resources": [
+          "owner:learning"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Integrated and pushed; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n281",
+          "at": "2026-11-25T02:20:54.782Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated and pushed; claim released"
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.support.read-tail-r43",
+        "goalId": "G4",
+        "owner": "support",
+        "title": "support read slice",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-support/src/**",
+          "tests/unit/support/**"
+        ],
+        "resources": [
+          "owner:support"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Integrated and pushed; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n282",
+          "at": "2026-11-25T02:20:53.579Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated and pushed; claim released"
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.commercial.read-tail-r25",
+        "goalId": "G4",
+        "owner": "commercial",
+        "title": "commercial read slice",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-commercial/src/**",
+          "tests/unit/commercial/**"
+        ],
+        "resources": [
+          "owner:commercial"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Integrated and pushed; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n283",
+          "at": "2026-11-25T02:20:54.934Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated and pushed; claim released"
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.legal.read-tail-r66",
+        "goalId": "G4",
+        "owner": "legal",
+        "title": "legal read slice",
+        "kind": "migration",
         "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
@@ -190551,10 +191461,10 @@
         ],
         "claim": {
           "runId": "run-20261125-d",
-          "agentId": "wH4n258",
-          "claimedAt": "2026-11-25T02:03:43.243Z",
-          "heartbeatAt": "2026-11-25T02:03:43.243Z",
-          "expiresAt": "2026-11-25T02:33:43.243Z",
+          "agentId": "wH4n284",
+          "claimedAt": "2026-11-25T02:20:57.475Z",
+          "heartbeatAt": "2026-11-25T02:20:57.475Z",
+          "expiresAt": "2026-11-25T02:50:57.475Z",
           "generation": 174
         },
         "baseSha": null,
@@ -190563,187 +191473,12 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Next legal head family (-1): 134->133. BEFORE=134.",
+        "nextAction": "Next legal head family (-1): 133->132. BEFORE=133.",
         "handoff": null,
         "scopeRefinementRequired": false
       },
       {
-        "id": "retire.pos.read-tail-r43",
-        "goalId": "G4",
-        "owner": "pos",
-        "title": "pos read slice",
-        "kind": "migration",
-        "status": "in_progress",
-        "dependsOn": [],
-        "requiredPorts": [],
-        "workflowIds": [],
-        "allowedPaths": [
-          "packages/server-pos/src/**",
-          "tests/unit/pos/**"
-        ],
-        "resources": [
-          "owner:pos"
-        ],
-        "claim": {
-          "runId": "run-20261125-d",
-          "agentId": "wH4n259",
-          "claimedAt": "2026-11-25T02:03:43.697Z",
-          "heartbeatAt": "2026-11-25T02:03:43.697Z",
-          "expiresAt": "2026-11-25T02:33:43.697Z",
-          "generation": 174
-        },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next pos head family (-1): 173->172. BEFORE=173.",
-        "handoff": null,
-        "scopeRefinementRequired": false
-      },
-      {
-        "id": "retire.people_payroll.read-tail-r61",
-        "goalId": "G4",
-        "owner": "people_payroll",
-        "title": "people_payroll read slice",
-        "kind": "migration",
-        "status": "in_progress",
-        "dependsOn": [],
-        "requiredPorts": [],
-        "workflowIds": [],
-        "allowedPaths": [
-          "packages/server-people_payroll/src/**",
-          "tests/unit/people_payroll/**"
-        ],
-        "resources": [
-          "owner:people_payroll"
-        ],
-        "claim": {
-          "runId": "run-20261125-d",
-          "agentId": "wH4n260",
-          "claimedAt": "2026-11-25T02:03:44.150Z",
-          "heartbeatAt": "2026-11-25T02:03:44.150Z",
-          "expiresAt": "2026-11-25T02:33:44.150Z",
-          "generation": 174
-        },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next payroll head family (-1): 1199->1198. BEFORE=1199.",
-        "handoff": null,
-        "scopeRefinementRequired": false
-      },
-      {
-        "id": "retire.finance.read-tail-r61",
-        "goalId": "G4",
-        "owner": "finance",
-        "title": "finance read slice",
-        "kind": "migration",
-        "status": "in_progress",
-        "dependsOn": [],
-        "requiredPorts": [],
-        "workflowIds": [],
-        "allowedPaths": [
-          "packages/server-finance/src/**",
-          "tests/unit/finance/**"
-        ],
-        "resources": [
-          "owner:finance"
-        ],
-        "claim": {
-          "runId": "run-20261125-d",
-          "agentId": "wH4n261",
-          "claimedAt": "2026-11-25T02:03:44.563Z",
-          "heartbeatAt": "2026-11-25T02:03:44.563Z",
-          "expiresAt": "2026-11-25T02:33:44.563Z",
-          "generation": 174
-        },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next finance head family (-1): 1705->1704. BEFORE=1705.",
-        "handoff": null,
-        "scopeRefinementRequired": false
-      },
-      {
-        "id": "retire.quality.read-tail-r38",
-        "goalId": "G4",
-        "owner": "quality",
-        "title": "quality read slice",
-        "kind": "migration",
-        "status": "in_progress",
-        "dependsOn": [],
-        "requiredPorts": [],
-        "workflowIds": [],
-        "allowedPaths": [
-          "packages/server-quality/src/**",
-          "tests/unit/quality/**"
-        ],
-        "resources": [
-          "owner:quality"
-        ],
-        "claim": {
-          "runId": "run-20261125-d",
-          "agentId": "wH4n262",
-          "claimedAt": "2026-11-25T02:03:45.084Z",
-          "heartbeatAt": "2026-11-25T02:03:45.084Z",
-          "expiresAt": "2026-11-25T02:33:45.084Z",
-          "generation": 174
-        },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next quality head family (-1): 24->23. BEFORE=24.",
-        "handoff": null,
-        "scopeRefinementRequired": false
-      },
-      {
-        "id": "retire.collaboration.read-tail-r50",
-        "goalId": "G4",
-        "owner": "collaboration",
-        "title": "collaboration read slice",
-        "kind": "migration",
-        "status": "in_progress",
-        "dependsOn": [],
-        "requiredPorts": [],
-        "workflowIds": [],
-        "allowedPaths": [
-          "packages/server-collaboration/src/**",
-          "tests/unit/collaboration/**"
-        ],
-        "resources": [
-          "owner:collaboration"
-        ],
-        "claim": {
-          "runId": "run-20261125-d",
-          "agentId": "wH4n263",
-          "claimedAt": "2026-11-25T02:03:45.489Z",
-          "heartbeatAt": "2026-11-25T02:03:45.489Z",
-          "expiresAt": "2026-11-25T02:33:45.489Z",
-          "generation": 174
-        },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next collaboration head family (-1): 333->332. BEFORE=333.",
-        "handoff": null,
-        "scopeRefinementRequired": false
-      },
-      {
-        "id": "retire.inventory.read-tail-r57",
+        "id": "retire.inventory.read-tail-r58",
         "goalId": "G4",
         "owner": "inventory",
         "title": "inventory read slice",
@@ -190761,10 +191496,10 @@
         ],
         "claim": {
           "runId": "run-20261125-d",
-          "agentId": "wH4n264",
-          "claimedAt": "2026-11-25T02:03:45.919Z",
-          "heartbeatAt": "2026-11-25T02:03:45.919Z",
-          "expiresAt": "2026-11-25T02:33:45.919Z",
+          "agentId": "wH4n285",
+          "claimedAt": "2026-11-25T02:20:57.798Z",
+          "heartbeatAt": "2026-11-25T02:20:57.798Z",
+          "expiresAt": "2026-11-25T02:50:57.798Z",
           "generation": 174
         },
         "baseSha": null,
@@ -190773,33 +191508,33 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Next inventory head family (-1): 296->295. BEFORE=296.",
+        "nextAction": "Next inventory head family (-1): 295->294. BEFORE=295.",
         "handoff": null,
         "scopeRefinementRequired": false
       },
       {
-        "id": "retire.identity_access.read-tail-r41",
+        "id": "retire.quality.read-tail-r39",
         "goalId": "G4",
-        "owner": "identity_access",
-        "title": "identity_access read slice",
+        "owner": "quality",
+        "title": "quality read slice",
         "kind": "migration",
         "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
         "allowedPaths": [
-          "packages/server-identity_access/src/**",
-          "tests/unit/identity_access/**"
+          "packages/server-quality/src/**",
+          "tests/unit/quality/**"
         ],
         "resources": [
-          "owner:identity_access"
+          "owner:quality"
         ],
         "claim": {
           "runId": "run-20261125-d",
-          "agentId": "wH4n265",
-          "claimedAt": "2026-11-25T02:03:46.378Z",
-          "heartbeatAt": "2026-11-25T02:03:46.378Z",
-          "expiresAt": "2026-11-25T02:33:46.378Z",
+          "agentId": "wH4n286",
+          "claimedAt": "2026-11-25T02:20:58.101Z",
+          "heartbeatAt": "2026-11-25T02:20:58.101Z",
+          "expiresAt": "2026-11-25T02:50:58.101Z",
           "generation": 174
         },
         "baseSha": null,
@@ -190808,33 +191543,33 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Next identity head family (-1): 440->439. BEFORE=440.",
+        "nextAction": "Next quality head family (-1): 23->22. BEFORE=23.",
         "handoff": null,
         "scopeRefinementRequired": false
       },
       {
-        "id": "retire.assets.read-tail-r34",
+        "id": "retire.collaboration.read-tail-r51",
         "goalId": "G4",
-        "owner": "assets",
-        "title": "assets read slice",
+        "owner": "collaboration",
+        "title": "collaboration read slice",
         "kind": "migration",
         "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
         "allowedPaths": [
-          "packages/server-assets/src/**",
-          "tests/unit/assets/**"
+          "packages/server-collaboration/src/**",
+          "tests/unit/collaboration/**"
         ],
         "resources": [
-          "owner:assets"
+          "owner:collaboration"
         ],
         "claim": {
           "runId": "run-20261125-d",
-          "agentId": "wH4n266",
-          "claimedAt": "2026-11-25T02:03:46.835Z",
-          "heartbeatAt": "2026-11-25T02:03:46.835Z",
-          "expiresAt": "2026-11-25T02:33:46.835Z",
+          "agentId": "wH4n287",
+          "claimedAt": "2026-11-25T02:20:58.400Z",
+          "heartbeatAt": "2026-11-25T02:20:58.400Z",
+          "expiresAt": "2026-11-25T02:50:58.400Z",
           "generation": 174
         },
         "baseSha": null,
@@ -190843,12 +191578,12 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Next assets head family (-1): 4->3. BEFORE=4.",
+        "nextAction": "Next collaboration head family (-1): 332->331. BEFORE=332.",
         "handoff": null,
         "scopeRefinementRequired": false
       },
       {
-        "id": "retire.workflow.read-tail-r50",
+        "id": "retire.workflow.read-tail-r51",
         "goalId": "G4",
         "owner": "workflow",
         "title": "workflow read slice",
@@ -190866,10 +191601,10 @@
         ],
         "claim": {
           "runId": "run-20261125-d",
-          "agentId": "wH4n267",
-          "claimedAt": "2026-11-25T02:03:47.305Z",
-          "heartbeatAt": "2026-11-25T02:03:47.305Z",
-          "expiresAt": "2026-11-25T02:33:47.305Z",
+          "agentId": "wH4n288",
+          "claimedAt": "2026-11-25T02:20:58.707Z",
+          "heartbeatAt": "2026-11-25T02:20:58.707Z",
+          "expiresAt": "2026-11-25T02:50:58.707Z",
           "generation": 174
         },
         "baseSha": null,
@@ -190878,12 +191613,12 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Next workflow head family (-1): 32->31. BEFORE=32.",
+        "nextAction": "Next workflow head family (-1): 31->30. BEFORE=31.",
         "handoff": null,
         "scopeRefinementRequired": false
       },
       {
-        "id": "retire.billing.read-tail-r40",
+        "id": "retire.billing.read-tail-r41",
         "goalId": "G4",
         "owner": "billing",
         "title": "billing read slice",
@@ -190901,10 +191636,10 @@
         ],
         "claim": {
           "runId": "run-20261125-d",
-          "agentId": "wH4n268",
-          "claimedAt": "2026-11-25T02:03:47.738Z",
-          "heartbeatAt": "2026-11-25T02:03:47.738Z",
-          "expiresAt": "2026-11-25T02:33:47.738Z",
+          "agentId": "wH4n289",
+          "claimedAt": "2026-11-25T02:20:59.011Z",
+          "heartbeatAt": "2026-11-25T02:20:59.011Z",
+          "expiresAt": "2026-11-25T02:50:59.011Z",
           "generation": 174
         },
         "baseSha": null,
@@ -190913,33 +191648,33 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Next billing head family (-1): 9->8. BEFORE=9.",
+        "nextAction": "Next billing head family (-1): 8->7. BEFORE=8.",
         "handoff": null,
         "scopeRefinementRequired": false
       },
       {
-        "id": "retire.sales.read-tail-r34",
+        "id": "retire.people_payroll.read-tail-r62",
         "goalId": "G4",
-        "owner": "sales",
-        "title": "sales read slice",
+        "owner": "people_payroll",
+        "title": "people_payroll read slice",
         "kind": "migration",
         "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
         "allowedPaths": [
-          "packages/server-sales/src/**",
-          "tests/unit/sales/**"
+          "packages/server-people_payroll/src/**",
+          "tests/unit/people_payroll/**"
         ],
         "resources": [
-          "owner:sales"
+          "owner:people_payroll"
         ],
         "claim": {
           "runId": "run-20261125-d",
-          "agentId": "wH4n269",
-          "claimedAt": "2026-11-25T02:06:26.730Z",
-          "heartbeatAt": "2026-11-25T02:06:26.730Z",
-          "expiresAt": "2026-11-25T02:36:26.730Z",
+          "agentId": "wH4n290",
+          "claimedAt": "2026-11-25T02:20:59.313Z",
+          "heartbeatAt": "2026-11-25T02:20:59.313Z",
+          "expiresAt": "2026-11-25T02:50:59.313Z",
           "generation": 174
         },
         "baseSha": null,
@@ -190948,33 +191683,33 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Read-tail r34: pointRead delegates to tableRead (46->45). BEFORE=46.",
+        "nextAction": "Next payroll head family (-1): 1198->1197. BEFORE=1198.",
         "handoff": null,
         "scopeRefinementRequired": false
       },
       {
-        "id": "retire.projects.read-tail-r40",
+        "id": "retire.finance.read-tail-r62",
         "goalId": "G4",
-        "owner": "projects",
-        "title": "projects read slice",
+        "owner": "finance",
+        "title": "finance read slice",
         "kind": "migration",
         "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
         "allowedPaths": [
-          "packages/server-projects/src/**",
-          "tests/unit/projects/**"
+          "packages/server-finance/src/**",
+          "tests/unit/finance/**"
         ],
         "resources": [
-          "owner:projects"
+          "owner:finance"
         ],
         "claim": {
           "runId": "run-20261125-d",
-          "agentId": "wH4n270",
-          "claimedAt": "2026-11-25T02:06:27.265Z",
-          "heartbeatAt": "2026-11-25T02:06:27.265Z",
-          "expiresAt": "2026-11-25T02:36:27.265Z",
+          "agentId": "wH4n291",
+          "claimedAt": "2026-11-25T02:20:59.623Z",
+          "heartbeatAt": "2026-11-25T02:20:59.623Z",
+          "expiresAt": "2026-11-25T02:50:59.623Z",
           "generation": 174
         },
         "baseSha": null,
@@ -190983,33 +191718,33 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Read-tail r40: universal projection head (76->74). BEFORE=76.",
+        "nextAction": "Next finance head family (-1): 1704->1703. BEFORE=1704.",
         "handoff": null,
         "scopeRefinementRequired": false
       },
       {
-        "id": "retire.manufacturing.read-tail-r34",
+        "id": "retire.pos.read-tail-r44",
         "goalId": "G4",
-        "owner": "manufacturing",
-        "title": "manufacturing read slice",
+        "owner": "pos",
+        "title": "pos read slice",
         "kind": "migration",
         "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
         "allowedPaths": [
-          "packages/server-manufacturing/src/**",
-          "tests/unit/manufacturing/**"
+          "packages/server-pos/src/**",
+          "tests/unit/pos/**"
         ],
         "resources": [
-          "owner:manufacturing"
+          "owner:pos"
         ],
         "claim": {
           "runId": "run-20261125-d",
-          "agentId": "wH4n271",
-          "claimedAt": "2026-11-25T02:06:27.725Z",
-          "heartbeatAt": "2026-11-25T02:06:27.725Z",
-          "expiresAt": "2026-11-25T02:36:27.726Z",
+          "agentId": "wH4n292",
+          "claimedAt": "2026-11-25T02:20:59.925Z",
+          "heartbeatAt": "2026-11-25T02:20:59.925Z",
+          "expiresAt": "2026-11-25T02:50:59.925Z",
           "generation": 174
         },
         "baseSha": null,
@@ -191018,12 +191753,12 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Read-tail r34: r15 delegates to r23 footprint head (52->51). BEFORE=52.",
+        "nextAction": "Next pos head family (-1): 172->171. BEFORE=172.",
         "handoff": null,
         "scopeRefinementRequired": false
       },
       {
-        "id": "retire.pms.read-tail-r54",
+        "id": "retire.pms.read-tail-r55",
         "goalId": "G4",
         "owner": "pms",
         "title": "pms read slice",
@@ -191041,10 +191776,10 @@
         ],
         "claim": {
           "runId": "run-20261125-d",
-          "agentId": "wH4n272",
-          "claimedAt": "2026-11-25T02:08:23.935Z",
-          "heartbeatAt": "2026-11-25T02:08:23.935Z",
-          "expiresAt": "2026-11-25T02:38:23.935Z",
+          "agentId": "wH4n293",
+          "claimedAt": "2026-11-25T02:21:00.266Z",
+          "heartbeatAt": "2026-11-25T02:21:00.266Z",
+          "expiresAt": "2026-11-25T02:51:00.266Z",
           "generation": 174
         },
         "baseSha": null,
@@ -191053,12 +191788,12 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Next PMS head family (-1): 245->244. BEFORE=245.",
+        "nextAction": "Next PMS head family (-1): 244->243. BEFORE=244.",
         "handoff": null,
         "scopeRefinementRequired": false
       },
       {
-        "id": "retire.commerce.read-tail-r26",
+        "id": "retire.commerce.read-tail-r27",
         "goalId": "G4",
         "owner": "commerce",
         "title": "commerce read slice",
@@ -191076,10 +191811,10 @@
         ],
         "claim": {
           "runId": "run-20261125-d",
-          "agentId": "wH4n273",
-          "claimedAt": "2026-11-25T02:08:24.409Z",
-          "heartbeatAt": "2026-11-25T02:08:24.409Z",
-          "expiresAt": "2026-11-25T02:38:24.409Z",
+          "agentId": "wH4n294",
+          "claimedAt": "2026-11-25T02:21:00.583Z",
+          "heartbeatAt": "2026-11-25T02:21:00.583Z",
+          "expiresAt": "2026-11-25T02:51:00.583Z",
           "generation": 174
         },
         "baseSha": null,
@@ -191088,12 +191823,12 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Next commerce head family (-1): 410->409. BEFORE=410.",
+        "nextAction": "Next commerce head family (-1): 409->408. BEFORE=409.",
         "handoff": null,
         "scopeRefinementRequired": false
       },
       {
-        "id": "retire.operations.read-tail-r58",
+        "id": "retire.operations.read-tail-r59",
         "goalId": "G4",
         "owner": "operations",
         "title": "operations read slice",
@@ -191111,10 +191846,10 @@
         ],
         "claim": {
           "runId": "run-20261125-d",
-          "agentId": "wH4n274",
-          "claimedAt": "2026-11-25T02:08:24.858Z",
-          "heartbeatAt": "2026-11-25T02:08:24.858Z",
-          "expiresAt": "2026-11-25T02:38:24.858Z",
+          "agentId": "wH4n295",
+          "claimedAt": "2026-11-25T02:21:00.897Z",
+          "heartbeatAt": "2026-11-25T02:21:00.897Z",
+          "expiresAt": "2026-11-25T02:51:00.897Z",
           "generation": 174
         },
         "baseSha": null,
@@ -191123,12 +191858,12 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Next operations head family (-1): 66->65. BEFORE=66.",
+        "nextAction": "Next operations head family (-1): 65->64. BEFORE=65.",
         "handoff": null,
         "scopeRefinementRequired": false
       },
       {
-        "id": "retire.files.read-tail-r51",
+        "id": "retire.files.read-tail-r52",
         "goalId": "G4",
         "owner": "files",
         "title": "files read slice",
@@ -191146,10 +191881,10 @@
         ],
         "claim": {
           "runId": "run-20261125-d",
-          "agentId": "wH4n275",
-          "claimedAt": "2026-11-25T02:08:25.337Z",
-          "heartbeatAt": "2026-11-25T02:08:25.337Z",
-          "expiresAt": "2026-11-25T02:38:25.337Z",
+          "agentId": "wH4n296",
+          "claimedAt": "2026-11-25T02:21:01.229Z",
+          "heartbeatAt": "2026-11-25T02:21:01.229Z",
+          "expiresAt": "2026-11-25T02:51:01.229Z",
           "generation": 174
         },
         "baseSha": null,
@@ -191158,12 +191893,12 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Next files head family (-1): 225->224. BEFORE=225.",
+        "nextAction": "Next files head family (-1): 224->223. BEFORE=224.",
         "handoff": null,
         "scopeRefinementRequired": false
       },
       {
-        "id": "retire.procurement.read-tail-r52",
+        "id": "retire.procurement.read-tail-r53",
         "goalId": "G4",
         "owner": "procurement",
         "title": "procurement read slice",
@@ -191181,10 +191916,10 @@
         ],
         "claim": {
           "runId": "run-20261125-d",
-          "agentId": "wH4n276",
-          "claimedAt": "2026-11-25T02:08:25.814Z",
-          "heartbeatAt": "2026-11-25T02:08:25.814Z",
-          "expiresAt": "2026-11-25T02:38:25.814Z",
+          "agentId": "wH4n297",
+          "claimedAt": "2026-11-25T02:21:01.539Z",
+          "heartbeatAt": "2026-11-25T02:21:01.539Z",
+          "expiresAt": "2026-11-25T02:51:01.539Z",
           "generation": 174
         },
         "baseSha": null,
@@ -191193,12 +191928,12 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Next procurement head family (-1): 81->80. BEFORE=81.",
+        "nextAction": "Next procurement head family (-1): 80->79. BEFORE=80.",
         "handoff": null,
         "scopeRefinementRequired": false
       },
       {
-        "id": "retire.benefits.read-tail-r26",
+        "id": "retire.benefits.read-tail-r27",
         "goalId": "G4",
         "owner": "benefits",
         "title": "benefits read slice",
@@ -191216,10 +191951,10 @@
         ],
         "claim": {
           "runId": "run-20261125-d",
-          "agentId": "wH4n277",
-          "claimedAt": "2026-11-25T02:08:26.367Z",
-          "heartbeatAt": "2026-11-25T02:08:26.367Z",
-          "expiresAt": "2026-11-25T02:38:26.367Z",
+          "agentId": "wH4n298",
+          "claimedAt": "2026-11-25T02:21:01.850Z",
+          "heartbeatAt": "2026-11-25T02:21:01.850Z",
+          "expiresAt": "2026-11-25T02:51:01.850Z",
           "generation": 174
         },
         "baseSha": null,
@@ -191228,12 +191963,12 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Next benefits head family (-1): 34->33. BEFORE=34.",
+        "nextAction": "Next benefits head family (-1): 33->32. BEFORE=33.",
         "handoff": null,
         "scopeRefinementRequired": false
       },
       {
-        "id": "retire.crm.read-tail-r49",
+        "id": "retire.crm.read-tail-r50",
         "goalId": "G4",
         "owner": "crm",
         "title": "crm read slice",
@@ -191251,10 +191986,10 @@
         ],
         "claim": {
           "runId": "run-20261125-d",
-          "agentId": "wH4n278",
-          "claimedAt": "2026-11-25T02:08:26.789Z",
-          "heartbeatAt": "2026-11-25T02:08:26.789Z",
-          "expiresAt": "2026-11-25T02:38:26.789Z",
+          "agentId": "wH4n299",
+          "claimedAt": "2026-11-25T02:21:02.155Z",
+          "heartbeatAt": "2026-11-25T02:21:02.155Z",
+          "expiresAt": "2026-11-25T02:51:02.155Z",
           "generation": 174
         },
         "baseSha": null,
@@ -191263,12 +191998,12 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Next CRM head family (-1): 50->49. BEFORE=50.",
+        "nextAction": "Next CRM head family (-1): 49->48. BEFORE=49.",
         "handoff": null,
         "scopeRefinementRequired": false
       },
       {
-        "id": "retire.marketing.read-tail-r52",
+        "id": "retire.marketing.read-tail-r53",
         "goalId": "G4",
         "owner": "marketing",
         "title": "marketing read slice",
@@ -191286,10 +192021,10 @@
         ],
         "claim": {
           "runId": "run-20261125-d",
-          "agentId": "wH4n279",
-          "claimedAt": "2026-11-25T02:08:27.226Z",
-          "heartbeatAt": "2026-11-25T02:08:27.226Z",
-          "expiresAt": "2026-11-25T02:38:27.226Z",
+          "agentId": "wH4n300",
+          "claimedAt": "2026-11-25T02:21:02.491Z",
+          "heartbeatAt": "2026-11-25T02:21:02.491Z",
+          "expiresAt": "2026-11-25T02:51:02.491Z",
           "generation": 174
         },
         "baseSha": null,
@@ -191298,12 +192033,12 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Next marketing head family (-1): 22->21. BEFORE=22.",
+        "nextAction": "Next marketing head family (-1): 21->20. BEFORE=21.",
         "handoff": null,
         "scopeRefinementRequired": false
       },
       {
-        "id": "retire.organization.read-tail-r60",
+        "id": "retire.organization.read-tail-r61",
         "goalId": "G4",
         "owner": "organization",
         "title": "organization read slice",
@@ -191321,10 +192056,10 @@
         ],
         "claim": {
           "runId": "run-20261125-d",
-          "agentId": "wH4n280",
-          "claimedAt": "2026-11-25T02:08:27.684Z",
-          "heartbeatAt": "2026-11-25T02:08:27.684Z",
-          "expiresAt": "2026-11-25T02:38:27.684Z",
+          "agentId": "wH4n301",
+          "claimedAt": "2026-11-25T02:21:02.799Z",
+          "heartbeatAt": "2026-11-25T02:21:02.799Z",
+          "expiresAt": "2026-11-25T02:51:02.799Z",
           "generation": 174
         },
         "baseSha": null,
@@ -191333,12 +192068,12 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Next organization head family (-1): 208->207. BEFORE=208.",
+        "nextAction": "Next organization head family (-1): 207->206. BEFORE=207.",
         "handoff": null,
         "scopeRefinementRequired": false
       },
       {
-        "id": "retire.learning.read-tail-r21",
+        "id": "retire.learning.read-tail-r22",
         "goalId": "G4",
         "owner": "learning",
         "title": "learning read slice",
@@ -191356,10 +192091,10 @@
         ],
         "claim": {
           "runId": "run-20261125-d",
-          "agentId": "wH4n281",
-          "claimedAt": "2026-11-25T02:08:28.207Z",
-          "heartbeatAt": "2026-11-25T02:08:28.207Z",
-          "expiresAt": "2026-11-25T02:38:28.208Z",
+          "agentId": "wH4n302",
+          "claimedAt": "2026-11-25T02:21:03.101Z",
+          "heartbeatAt": "2026-11-25T02:21:03.101Z",
+          "expiresAt": "2026-11-25T02:51:03.101Z",
           "generation": 174
         },
         "baseSha": null,
@@ -191368,12 +192103,12 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Next learning head family (-1): 36->35. BEFORE=36.",
+        "nextAction": "Next learning head family (-1): 35->34. BEFORE=35.",
         "handoff": null,
         "scopeRefinementRequired": false
       },
       {
-        "id": "retire.support.read-tail-r43",
+        "id": "retire.support.read-tail-r44",
         "goalId": "G4",
         "owner": "support",
         "title": "support read slice",
@@ -191391,10 +192126,10 @@
         ],
         "claim": {
           "runId": "run-20261125-d",
-          "agentId": "wH4n282",
-          "claimedAt": "2026-11-25T02:08:28.667Z",
-          "heartbeatAt": "2026-11-25T02:08:28.667Z",
-          "expiresAt": "2026-11-25T02:38:28.667Z",
+          "agentId": "wH4n303",
+          "claimedAt": "2026-11-25T02:21:03.423Z",
+          "heartbeatAt": "2026-11-25T02:21:03.423Z",
+          "expiresAt": "2026-11-25T02:51:03.423Z",
           "generation": 174
         },
         "baseSha": null,
@@ -191403,12 +192138,12 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Next support head family (-1): 34->33. BEFORE=34.",
+        "nextAction": "Next support head family (-1): 33->32. BEFORE=33.",
         "handoff": null,
         "scopeRefinementRequired": false
       },
       {
-        "id": "retire.commercial.read-tail-r25",
+        "id": "retire.commercial.read-tail-r26",
         "goalId": "G4",
         "owner": "commercial",
         "title": "commercial read slice",
@@ -191426,10 +192161,10 @@
         ],
         "claim": {
           "runId": "run-20261125-d",
-          "agentId": "wH4n283",
-          "claimedAt": "2026-11-25T02:08:29.132Z",
-          "heartbeatAt": "2026-11-25T02:08:29.132Z",
-          "expiresAt": "2026-11-25T02:38:29.132Z",
+          "agentId": "wH4n304",
+          "claimedAt": "2026-11-25T02:21:03.727Z",
+          "heartbeatAt": "2026-11-25T02:21:03.727Z",
+          "expiresAt": "2026-11-25T02:51:03.727Z",
           "generation": 174
         },
         "baseSha": null,
@@ -191438,7 +192173,77 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Next commercial head family (-1): 16->15. BEFORE=16.",
+        "nextAction": "Next commercial head family (-1): 15->14. BEFORE=15.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.projects.read-tail-r41",
+        "goalId": "G4",
+        "owner": "projects",
+        "title": "projects read slice",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-projects/src/**",
+          "tests/unit/projects/**"
+        ],
+        "resources": [
+          "owner:projects"
+        ],
+        "claim": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n305",
+          "claimedAt": "2026-11-25T02:21:04.036Z",
+          "heartbeatAt": "2026-11-25T02:21:04.036Z",
+          "expiresAt": "2026-11-25T02:51:04.036Z",
+          "generation": 174
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next projects head family (-1): 74->73. BEFORE=74.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.manufacturing.read-tail-r35",
+        "goalId": "G4",
+        "owner": "manufacturing",
+        "title": "manufacturing read slice",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-manufacturing/src/**",
+          "tests/unit/manufacturing/**"
+        ],
+        "resources": [
+          "owner:manufacturing"
+        ],
+        "claim": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n306",
+          "claimedAt": "2026-11-25T02:21:04.348Z",
+          "heartbeatAt": "2026-11-25T02:21:04.348Z",
+          "expiresAt": "2026-11-25T02:51:04.348Z",
+          "generation": 174
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next manufacturing head family (-1): 51->50. BEFORE=51.",
         "handoff": null,
         "scopeRefinementRequired": false
       }
@@ -191449,21 +192254,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1974,
+      "totalPackets": 1997,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 26,
+        "in_progress": 23,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1598,
+        "blocked": 1624,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 174,
-    "updatedAt": "2026-11-25T02:08:29.136Z",
+    "updatedAt": "2026-11-25T02:21:04.351Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
