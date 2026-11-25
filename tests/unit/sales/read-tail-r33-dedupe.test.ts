@@ -88,7 +88,7 @@ describe('Sales read-tail r33 folded followup order-join generator', () => {
 });
 
 describe('Sales read-tail r33 retirement check', () => {
-  test('retirement:ts-statements drops from 47 to 45', () => {
+  test('retirement:ts-statements drops from 47 to 44', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -98,7 +98,8 @@ describe('Sales read-tail r33 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(45);
+    // r35: delivery-presence head shared by order/return/notice guards (-1).
+    expect(total).toBe(44);
     expect(total).toBeLessThan(47);
   });
 });

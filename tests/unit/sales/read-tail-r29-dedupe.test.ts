@@ -172,7 +172,8 @@ describe('Sales read-tail r29 retirement check', () => {
     // Three scope-tuple literals collapse into one generator (-2); r30 shares
     // tableRead (-3) and priceListSelect (-1).
     // r33 folds the tail generator into the primary read generator (-1).
-    expect(total).toBe(45);
+    // r35: delivery-presence head shared by order/return/notice guards (-1).
+    expect(total).toBe(44);
     expect(total).toBeLessThan(54);
   });
 });

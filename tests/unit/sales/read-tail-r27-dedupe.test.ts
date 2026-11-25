@@ -85,7 +85,7 @@ describe('Sales read-tail r27 parameterized ecommerce order-scope family', () =>
     expect(obligations).not.toContain(pre.note);
     expect(obligations).not.toContain(pre.followup);
     expect(obligations).not.toContain(pre.notice);
-    const family = obligations.slice(obligations.indexOf('const ecommerceOrderScope='), obligations.indexOf('const orderDeliveryExistsSql='));
+    const family = obligations.slice(obligations.indexOf('const ecommerceOrderScope='), obligations.indexOf('const deliveryPresence='));
     expect((family.match(/SELECT/g) ?? []).length).toBe(1);
     expect(family).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
   });
@@ -152,7 +152,8 @@ describe('Sales read-tail r27 retirement check', () => {
     // scope-tuple literals into one generator (-2); r30 shared tableRead (-3)
     // and priceListSelect (-1).
     // r33 folds the tail generator into the primary read generator (-1).
-    expect(total).toBe(45);
+    // r35: delivery-presence head shared by order/return/notice guards (-1).
+    expect(total).toBe(44);
     expect(total).toBeLessThan(60);
   });
 });

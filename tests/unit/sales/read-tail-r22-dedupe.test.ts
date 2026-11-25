@@ -19,12 +19,13 @@ const pre = {
 type Gen = (alias: string, tail: string) => string;
 function loadGenerator(): Gen {
   const file = ts.createSourceFile('package-obligations.ts', obligations, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const names = ['deliveryPresence', 'deliveryFactExists'];
   const decls = file.statements
     .filter(ts.isVariableStatement)
     .flatMap(s => [...s.declarationList.declarations])
-    .filter(d => d.name.getText(file) === 'deliveryFactExists');
-  expect(decls).toHaveLength(1);
-  const code = ts.transpileModule(`const ${decls[0].getText(file)};`, {
+    .filter(d => names.includes(d.name.getText(file)));
+  expect(decls).toHaveLength(2);
+  const code = ts.transpileModule(decls.map(d => `const ${d.getText(file)};`).join('\n'), {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
   }).outputText;
   return new Function(`${code}\nreturn deliveryFactExists;`)() as Gen;
@@ -46,10 +47,14 @@ describe('Sales read-tail r22 parameterized delivery-fulfillment existence famil
     },
   );
 
-  test('the family is one generator literal with two callers and no inlining', () => {
+  test('the family is one shared head, one delegator and two callers, with no inlining', () => {
+    expect(obligations.match(/const deliveryPresence\s*=/g) ?? []).toHaveLength(1);
     expect(obligations.match(/const deliveryFactExists\s*=/g) ?? []).toHaveLength(1);
+    const head = obligations.slice(obligations.indexOf('const deliveryPresence='), obligations.indexOf('const orderDeliveryExistsSql='));
+    expect((head.match(/SELECT/g) ?? []).length).toBe(1);
     const helper = obligations.slice(obligations.indexOf('const deliveryFactExists='), obligations.indexOf('type Input='));
-    expect((helper.match(/SELECT/g) ?? []).length).toBe(1);
+    expect((helper.match(/SELECT/g) ?? []).length).toBe(0);
+    expect(helper).toContain('deliveryPresence(');
     expect(obligations).toContain("deliveryFactExists('r',' AND f.invoice_id=r.invoice_id')");
     expect(obligations).toContain("deliveryFactExists('notice',' AND f.company_id=notice.company_id AND f.party_id=notice.party_id')");
     expect(obligations).not.toContain(pre.return);
@@ -112,7 +117,8 @@ describe('Sales read-tail r22 retirement check', () => {
     // r29 collapsed three scope-tuple literals into one generator (-2).
     // r30 shared tableRead (-3) and priceListSelect (-1).
     // r33 folds the tail generator into the primary read generator (-1).
-    expect(total).toBe(45);
+    // r35: delivery-presence head shared by order/return/notice guards (-1).
+    expect(total).toBe(44);
     expect(total).toBeLessThan(60);
   });
 });

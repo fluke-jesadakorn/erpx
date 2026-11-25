@@ -12,7 +12,10 @@ const reconciledAttempt=`EXISTS(SELECT 1 FROM sales_notification_reconciliations
  * owner-local SQL token, never caller input, so each call renders a
  * byte-identical statement to its original literal. */
 const ecommerceOrderScope=(alias:string)=>`EXISTS(SELECT 1 FROM orders o WHERE o.id=${alias}.order_id)`;
-const orderDeliveryExistsSql=`SELECT 1 FROM deliveries f WHERE f.order_id=o.id`;
+/** One parameterized delivery-presence head. The tail is owner-local SQL, never
+ * caller input, so each call renders a byte-identical statement to its literal. */
+const deliveryPresence=(tail:string)=>`SELECT 1 FROM deliveries f WHERE f.${tail}`;
+const orderDeliveryExistsSql=deliveryPresence('order_id=o.id');
 const commandAuditPrefixSql=`SELECT 1 FROM command_receipts receipt JOIN audit_events audit ON audit.command_id=receipt.command_id AND audit.record_id=`;
 const allRows=(table:string)=>`SELECT * FROM ${table}`;
 const factKind=(kind:string)=>`SELECT '${kind}',`;
@@ -30,7 +33,7 @@ const attemptGuard=(predicate:string)=>`SELECT 1 FROM sales_notification_executi
 /** One parameterized delivery-fulfillment existence read family. The
  * alias and fixed tail predicate are owner-local tokens; no caller input enters
  * the rendered statement, so each call stays byte-identical to its literal. */
-const deliveryFactExists=(alias:string,tail:string)=>`SELECT 1 FROM deliveries f WHERE f.id=${alias}.fulfillment_id AND f.order_id=${alias}.order_id${tail}`;
+const deliveryFactExists=(alias:string,tail:string)=>deliveryPresence(`id=${alias}.fulfillment_id AND f.order_id=${alias}.order_id${tail}`);
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};const sources=new WeakMap<SqlDatabase,string>();
 export async function lockSalesPackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){const {database,companyId}=packageSettlementSource(owner,lock);await database.batch([...salesCommerceSettlementSourceReadLocks(database),...crmFinanceSourceReadLocks(database)]);await database.prepare('LOCK TABLE sales_price_lists,sales_price_list_items,customer_followups,customer_followup_events,customer_contact_notes,customer_contact_note_history,commerce_customer_notifications,commerce_customer_notification_settings,sales_notification_execution_authorizations,sales_notification_execution_attempts,sales_notification_reconciliations,command_receipts,audit_events IN SHARE MODE').run();sources.set(database,companyId);}
 export function assertSalesPackageObligationSources(owner:PostgresDatabase,database:SqlDatabase,companyId:string){owner.assertActiveTransaction(database);if(sources.get(database)!==companyId)throw Error('SALES_PACKAGE_OBLIGATION_SOURCE_REQUIRED');}
