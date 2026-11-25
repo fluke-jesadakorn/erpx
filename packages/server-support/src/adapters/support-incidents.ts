@@ -1,4 +1,5 @@
 import{getSupportIncident,supportIncidentReadPredicate}from '@erpx/server-support/public/support-incident-read';
+import { readTailR43ColumnsFromSql } from './read-tail-r43-sql';
 import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type {Row} from '@erpx/server-commerce/public/commerce';
@@ -14,7 +15,7 @@ const args = (a: WorkContext) => [a.companyId, a.branchId, a.branchId, a.departm
  * predicate. Rendering stays byte-identical and the native read ports remain
  * the authority. */
 const scopedWorkspaceListSql = (columns: string, table: string, extra: string) =>
-    `SELECT ${columns} FROM ${table} t WHERE ${scope} AND ${extra} ORDER BY t.updated_at DESC,t.id LIMIT 200`;
+    readTailR43ColumnsFromSql(columns, `${table} t WHERE ${scope} AND ${extra} ORDER BY t.updated_at DESC,t.id LIMIT 200`);
 
 export async function incidentWorkspace(a: WorkContext) { const runtime = nativeSupportRuntime(a), access = await runtime.requirePurchase("support.incidents"); const data = await createIncidentWorkspace({ ...runtime, incidents: async (a) => { const write = await runtime.database(), permission = supportIncidentReadPredicate(a); return (await write.prepare(scopedWorkspaceListSql('t.*','support_incidents',permission.sql)).bind(...args(a), ...permission.bindings).all<Row>()).results; }, tickets: async (a) => { const write = await runtime.database(); return (await write.prepare(scopedWorkspaceListSql('t.id,t.title,t.version,t.status','support_tickets',"t.source_kind='sales_order'")).bind(...args(a)).all<Row>()).results; } })(a); return { ...data, canManage: data.canManage && access.newWork, tickets: access.newWork ? data.tickets : [] }; }
 export async function incidentDetail(a: WorkContext, id: string) { const runtime = nativeSupportRuntime(a), access = await runtime.requirePurchase("support.incidents"); const data = await createIncidentDetail({ incident: getSupportIncident, ticket: getSupportTicket, recipients: (actor, id) => access.settleExisting ? supportRecipients(actor, id) : Promise.resolve([]), links: async (id) => { const write = await runtime.database(); return (await nativeSupportReadAll<Row>(SUPPORT_RD_INCIDENT_TICKET_LINKS, [id], write)).results; }, candidates: async (a, row, id) => { const write = await runtime.database(); return (await nativeSupportReadAll<Row>(SUPPORT_RD_INCIDENT_TICKET_CANDIDATES, [a.companyId, row.branch_id, row.department_id, id], write)).results; }, history: async (id) => { const write = await runtime.database(); return (await nativeSupportReadAll<Row>(SUPPORT_RD_INCIDENT_EVENT_HISTORY, [id], write)).results; } })(a, id); return { ...data, canManage: data.canManage && access.settleExisting, canWork: data.canWork && access.settleExisting, canReview: data.canReview && access.settleExisting, canReopen: data.canManage && access.newWork }; }

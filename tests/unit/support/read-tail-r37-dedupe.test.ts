@@ -175,9 +175,9 @@ describe('Support read-tail r37 service-team members named kind', () => {
         }
     });
 
-    it('pins the KPI: 46->50 registry kinds and 37->34 owner SELECT tokens', () => {
+    it('pins the KPI: 46->50 registry kinds and 37->33 owner SELECT tokens', () => {
         expect(registry).toContain('assert_eq!(STATEMENTS.len(), 50);');
-        expect(selectCount()).toBe(34);
+        expect(selectCount()).toBe(33);
         expect(selectCount()).toBeLessThan(42);
     });
 

@@ -2,6 +2,7 @@ import 'server-only';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {nativeSupportReadAll,SUPPORT_RD_TICKET_PORTAL_INSTALLED,SUPPORT_RD_TICKET_PORTAL_TICKET_IMAGE} from './native-support-read';
 import {portalImageSelectedCte,portalBindingImageSql,portalBoundImageSql,portalImageAggregateSql} from './ticket-portal-image-sql';
+import { readTailR43ColumnsFromSql } from './read-tail-r43-sql';
 export async function supportTicketPortalInstalled(database:SqlDatabase){return Boolean((await nativeSupportReadAll<{installed:boolean}>(SUPPORT_RD_TICKET_PORTAL_INSTALLED, [], database)).results[0]?.installed);}
 export function supportTicketPortalSourceLocks(database:SqlDatabase){return [database.prepare('LOCK TABLE support_tickets,support_ticket_events,support_ticket_portal_bindings,support_ticket_portal_events,support_ticket_portal_identities,support_ticket_portal_reads,support_ticket_portal_responses,support_ticket_portal_acknowledgements IN SHARE ROW EXCLUSIVE MODE')];}
 export const supportTicketPortalIdentitySql=(alias:string)=>`jsonb_build_object('companyId',${alias}.company_id,'branchId',${alias}.branch_id,'departmentId',${alias}.department_id,'sourceKind',${alias}.source_kind,'orderId',${alias}.order_id,'customerId',${alias}.customer_id,'sourceRecord',${alias}.source_record_json)`;
@@ -19,7 +20,7 @@ export const supportTicketPortalValidBindings=`SELECT binding.* FROM support_tic
  * byte-identically; only the projected columns and their own trailing clauses
  * vary. Locks, purchase gates and the earlier r19 prefix constant stay intact;
  * the native ticket-portal reader remains the authority. */
-export const portalValidBindingRead=(columns:string)=>`SELECT ${columns} FROM (${supportTicketPortalValidBindings}) binding`;
+export const portalValidBindingRead=(columns:string)=>readTailR43ColumnsFromSql(columns,`(${supportTicketPortalValidBindings}) binding`);
 /** One byte-identical outer read prefix over the reviewed valid-binding source. The
  * customer identity join and the staff work-list join share this exact text;
  * only their own JOIN/WHERE/ORDER clauses vary. Each caller keeps its own binds

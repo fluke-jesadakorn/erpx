@@ -17,13 +17,13 @@ const beforeTickets = `SELECT t.id,t.title,t.version,t.status FROM support_ticke
 describe('Support read-tail r21 workspace list family', () => {
     test('authors one parameterized workspace list projection', () => {
         expect(incidents.match(/const scopedWorkspaceListSql\s*=/g) ?? []).toHaveLength(1);
-        const def = incidents.match(/const scopedWorkspaceListSql = \(columns: string, table: string, extra: string\) =>\s*`(SELECT [^`]*?)`;/)?.[1];
-        expect(def).toBe('SELECT ${columns} FROM ${table} t WHERE ${scope} AND ${extra} ORDER BY t.updated_at DESC,t.id LIMIT 200');
+        const body = incidents.match(/const scopedWorkspaceListSql = \(columns: string, table: string, extra: string\) =>\s*readTailR43ColumnsFromSql\(columns, `([^`]*)`\);/)?.[1];
+        expect(body).toBe('${table} t WHERE ${scope} AND ${extra} ORDER BY t.updated_at DESC,t.id LIMIT 200');
     });
 
     test('both call sites render byte-identically with unchanged binds', () => {
-        const def = incidents.match(/const scopedWorkspaceListSql = \(columns: string, table: string, extra: string\) =>\s*`(SELECT [^`]*?)`;/)?.[1]!;
-        const render = (columns: string, table: string, extra: string) => def
+        const body = incidents.match(/const scopedWorkspaceListSql = \(columns: string, table: string, extra: string\) =>\s*readTailR43ColumnsFromSql\(columns, `([^`]*)`\);/)?.[1]!;
+        const render = (columns: string, table: string, extra: string) => `SELECT ${columns} FROM ${body}`
             .replace('${columns}', columns)
             .replace('${table}', table)
             .replace('${scope}', scope)
