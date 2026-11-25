@@ -49,8 +49,10 @@ describe('talent read-tail r22 source-row family dedupe', () => {
   it('keeps source consumers and locks unchanged', async () => {
     const text = await readFile(file, 'utf8');
     for (const ref of [
-      '(${sources}) talent_source',
-      '(${sources}) actual_talent_source',
+      "from './talent-read-tail-r41-sources'",
+      'talentSourceSubqueryExists(sources,',
+      'talent_source CROSS JOIN ${talentActorScopeCte} talent_viewer',
+      'actual_talent_source WHERE actual_talent_source.id=',
       "nativeTalentReadFirst<{capability:string;company_id:string}>('talent_rd_workspace_record_source',[id],database)",
       'export async function talentSourceReadScope',
       'export async function requireTalentWorkspaceRecordRead',
@@ -61,7 +63,7 @@ describe('talent read-tail r22 source-row family dedupe', () => {
   it('lowers the talent owner SELECT KPI strictly below BEFORE=48 to 47', async () => {
     let count = 0;
     for (const f of await tsFiles(srcDir)) count += (await readFile(f, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(14);
+    expect(count).toBe(13);
     expect(count).toBeLessThan(40);
   });
 });
