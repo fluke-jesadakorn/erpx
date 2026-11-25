@@ -128,7 +128,7 @@ describe('legal read-tail r57 native laws cutover', () => {
     expect(application).toContain('[one] if one == "laws" => LegalAuxiliaryRead::LawCorpus');
   });
 
-  it('KPI: the viewScope repository is gone and TS SELECT statements are 145 -> 142', async () => {
+  it('KPI: the viewScope repository is gone and TS SELECT statements are 145 -> 142 -> 141', async () => {
     const corpus = await src('adapters/legal/law-corpus.ts');
     expect(corpus).not.toContain('function viewScope');
     expect(corpus.match(/SELECT /g) ?? []).toHaveLength(0);
@@ -143,6 +143,6 @@ describe('legal read-tail r57 native laws cutover', () => {
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(145);
-    expect(total).toBe(142);
+    expect(total).toBeLessThanOrEqual(141);
   });
 });

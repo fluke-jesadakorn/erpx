@@ -5,11 +5,12 @@ import type {DestructionDocument,DestructionUpload,LegalDestructionManifest} fro
 import {createLegalDestructionApplication} from "@erpx/server-legal/application/destruction-sources";
 import { legalDestructionStatements } from '@erpx/server-collaboration/adapters/native-legal-destruction-events';
 import {legalDisposedGuardSql} from '../legal-read-tail-r39-sources';
+import {legalItemKeyHeadSql} from '../legal-read-tail-r54-sources';
 import {legalExternalUploadShareJoinHead} from '../legal-read-tail-r44-sources';
 import {legalCleanDocumentGuardHead} from '../legal-read-tail-r49-sources';
 export type {LegalDestructionManifest} from "@erpx/server-legal/domain/destruction-sources";
 function application(db:SqlDatabase){const files=legalDestructionSourceFacts(db),native=legalDestructionStatements(db);return createLegalDestructionApplication({clock:{now:()=>Date.now()},repository:{
-documents:(facts:{itemId:string;})=>db.prepare(`SELECT id,checksum,object_key,attachment_source_id,attachment_link_id FROM legal_documents WHERE item_id=? AND ${legalDisposedGuardSql('disposed','legal_documents.id')}`).bind(facts.itemId).all<DestructionDocument>(),
+documents:(facts:{itemId:string;})=>db.prepare(legalItemKeyHeadSql('id,checksum,object_key,attachment_source_id,attachment_link_id','legal_documents')+` AND ${legalDisposedGuardSql('disposed','legal_documents.id')}`).bind(facts.itemId).all<DestructionDocument>(),
 uploads:(facts:{itemId:string;})=>db.prepare(legalExternalUploadShareJoinHead('upload.id,upload.object_key,upload.checksum,upload.attachment_source_id,upload.attachment_link_id','upload','share')+'WHERE share.item_id=?').bind(facts.itemId).all<DestructionUpload>(),
 canonicalSource:facts=>files.canonicalSource(facts),
 storedLedger:facts=>files.storedLedger(facts),
