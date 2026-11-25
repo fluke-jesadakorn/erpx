@@ -175,10 +175,10 @@ describe('Finance read-tail r56 protected families and retirement', () => {
       }
     };
     walk(srcRoot);
-    // 11 head literals collapse into three helpers (-11 literals, +3 declarations: 1726 -> 1718).
+    // 11 head literals collapse into three helpers (-11 literals, +3 declarations: 1726 -> 1718; r57 then 1718 -> 1710).
     expect(CASES).toHaveLength(11);
     expect(total).toBe(1710);
-    expect(total).toBe(1726 - 8);
+    expect(total).toBe(1726 - 16);
     expect(total).toBeLessThan(1726);
   });
 });
