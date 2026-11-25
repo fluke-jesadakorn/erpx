@@ -3,8 +3,6 @@
  * holding predicate and indentation; the r18 plan-name lateral is reused, not
  * copied. Nothing is executed or cached here. */
 import { BILLING_PLAN_NAME_LATERAL_SQL } from './billing-read-tail-r18-sql';
+import { billingProjectionSql } from './billing-read-tail-r35-sql';
 export const billingEnrollmentSubscriptionSql = (projection: string, from: string, holding: string, pad: string) =>
-  `${pad}SELECT ${projection}
-${from}
-${pad}${BILLING_PLAN_NAME_LATERAL_SQL}
-${pad}WHERE ${holding}`;
+  `${pad}${billingProjectionSql(projection, `\n${from}\n${pad}${BILLING_PLAN_NAME_LATERAL_SQL}\n${pad}WHERE ${holding}`)}`;

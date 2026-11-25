@@ -108,9 +108,11 @@ async function tsFiles(directory: URL): Promise<string[]> {
 describe('billing read-tail r33 residual dedupe', () => {
   it('authors the enrollment subscription head exactly once as read-only text reusing r18 lateral', async () => {
     const helper = await src('billing-read-tail-r33-sql.ts');
-    expect(helper.split('SELECT').length - 1).toBe(1);
+    expect(helper.split('SELECT').length - 1).toBe(0);
     expect(helper.split('billingEnrollmentSubscriptionSql').length - 1).toBe(1);
+    expect(helper.split('billingProjectionSql(').length - 1).toBe(1);
     expect(helper).toContain("import { BILLING_PLAN_NAME_LATERAL_SQL } from './billing-read-tail-r18-sql';");
+    expect(helper).toContain("import { billingProjectionSql } from './billing-read-tail-r35-sql';");
     expect(helper).not.toContain('LEFT JOIN LATERAL');
     expect(helper).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
   });
@@ -190,8 +192,8 @@ describe('billing read-tail r33 residual dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(7);
-    expect(bare).toBe(7);
+    expect(spaced).toBe(6);
+    expect(bare).toBe(6);
     expect(spaced).toBeLessThan(48);
     expect(bare).toBeLessThan(48);
   });

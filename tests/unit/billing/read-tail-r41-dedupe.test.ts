@@ -130,7 +130,9 @@ describe('billing read-tail r41 dedupe of the r18 plan-name lateral', () => {
     const r33 = await src('billing-read-tail-r33-sql.ts');
     expect(r33.split("from './billing-read-tail-r18-sql'").length - 1).toBe(1);
     expect(r33.split('${BILLING_PLAN_NAME_LATERAL_SQL}').length - 1).toBe(1);
-    expect(r33.split('SELECT').length - 1).toBe(1);
+    expect(r33.split('SELECT').length - 1).toBe(0);
+    expect(r33.split('billingProjectionSql(').length - 1).toBe(1);
+    expect(r33).toContain("import { billingProjectionSql } from './billing-read-tail-r35-sql';");
     expect((await src('billing-read-tail-r32-sql.ts')).split('SELECT').length - 1).toBe(1);
   });
 
@@ -154,8 +156,8 @@ describe('billing read-tail r41 dedupe of the r18 plan-name lateral', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(7);
-    expect(bare).toBe(7);
+    expect(spaced).toBe(6);
+    expect(bare).toBe(6);
     expect(spaced).toBeLessThan(8);
     expect(bare).toBeLessThan(8);
   });

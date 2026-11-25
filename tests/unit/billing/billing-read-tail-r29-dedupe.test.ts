@@ -97,8 +97,8 @@ describe('billing read-tail r29 point-read-by-id dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(7);
-    expect(bare).toBe(7);
+    expect(spaced).toBe(6);
+    expect(bare).toBe(6);
     expect(spaced).toBeLessThan(48);
     expect(bare).toBeLessThan(48);
   });

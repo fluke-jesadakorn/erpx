@@ -226,8 +226,8 @@ describe('billing read-tail r35 dedupe of residual point and projection heads', 
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(7);
-    expect(bare).toBe(7);
+    expect(spaced).toBe(6);
+    expect(bare).toBe(6);
     expect(spaced).toBeLessThan(36);
     expect(bare).toBeLessThan(36);
   });

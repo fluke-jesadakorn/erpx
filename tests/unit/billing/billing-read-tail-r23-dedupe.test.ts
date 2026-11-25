@@ -56,6 +56,6 @@ describe('billing read-tail r23 parameterized family dedupe', () => {
     let count = 0;
     for (const file of files) count += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     expect(count).toBeLessThan(63);
-    expect(count).toBe(7); // r36 routed the six residual heads; r40 folded the r22 head; r41 folded the r18 lateral.
+    expect(count).toBe(6); // r36 routed the six residual heads; r40 folded the r22 head; r41 folded the r18 lateral; r42 folded the r33 head.
   });
 });
