@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 14485,
+    "revision": 14491,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -205734,25 +205734,25 @@
       {
         "goalId": "G4",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-organization",
-          "claimedAt": "2026-11-25T20:11:56.775Z",
-          "heartbeatAt": "2026-11-25T20:17:43.158Z",
-          "expiresAt": "2026-11-25T20:47:43.158Z",
-          "generation": 177
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-organization",
+          "at": "2026-11-25T20:18:33.022Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Reported cut landed; next family queued"
+        },
         "scopeRefinementRequired": false,
         "id": "retire.organization.next-read-family-5",
         "owner": "organization",
@@ -205764,7 +205764,7 @@
         "resources": [
           "owner:organization"
         ],
-        "nextAction": "Cut both organizationAttachmentReadSourceImage jsonb branches (185->183); locks/cross-owner excluded"
+        "nextAction": "Reported cut landed; next family queued"
       },
       {
         "goalId": "G4",
@@ -205804,25 +205804,25 @@
       {
         "goalId": "G4",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-files",
-          "claimedAt": "2026-11-25T20:12:58.311Z",
-          "heartbeatAt": "2026-11-25T20:17:43.158Z",
-          "expiresAt": "2026-11-25T20:47:43.158Z",
-          "generation": 177
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-files",
+          "at": "2026-11-25T20:18:33.167Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Reported cut landed; next family queued"
+        },
         "scopeRefinementRequired": false,
         "id": "retire.files.next-read-family-1",
         "owner": "files",
@@ -205834,7 +205834,7 @@
         "resources": [
           "owner:files"
         ],
-        "nextAction": "Cut the next safe files read family (207->lower); delete replaced SQL; tests"
+        "nextAction": "Reported cut landed; next family queued"
       },
       {
         "goalId": "G4",
@@ -206185,6 +206185,76 @@
           "owner:commerce"
         ],
         "nextAction": "Cut executive-main-evidence-sources order evidence reads (367->lower); verify bounded variants; tests"
+      },
+      {
+        "goalId": "G4",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-organization",
+          "claimedAt": "2026-11-25T20:18:33.513Z",
+          "heartbeatAt": "2026-11-25T20:18:33.513Z",
+          "expiresAt": "2026-11-25T20:48:33.513Z",
+          "generation": 177
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false,
+        "id": "retire.organization.next-read-family-6",
+        "owner": "organization",
+        "title": "organization next read family",
+        "allowedPaths": [
+          "packages/server-organization/src/**",
+          "tests/unit/organization/**"
+        ],
+        "resources": [
+          "owner:organization"
+        ],
+        "nextAction": "Cut staff_levels list read (181->180); locks/cross-owner excluded; tests"
+      },
+      {
+        "goalId": "G4",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-files",
+          "claimedAt": "2026-11-25T20:18:33.807Z",
+          "heartbeatAt": "2026-11-25T20:18:33.807Z",
+          "expiresAt": "2026-11-25T20:48:33.807Z",
+          "generation": 177
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false,
+        "id": "retire.files.next-read-family-2",
+        "owner": "files",
+        "title": "files next read family",
+        "allowedPaths": [
+          "packages/server-files/src/**",
+          "tests/unit/files/**"
+        ],
+        "resources": [
+          "owner:files"
+        ],
+        "nextAction": "Cut the next safe files read family (204->lower); tests"
       }
     ],
     "migrationProgress": {
@@ -206193,7 +206263,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 2274,
+      "totalPackets": 2276,
       "migratedPackets": 369,
       "statusCounts": {
         "pending": 21,
@@ -206201,13 +206271,13 @@
         "ready_for_integration": 37,
         "integrating": 0,
         "migrated": 369,
-        "blocked": 1833,
+        "blocked": 1835,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 177,
-    "updatedAt": "2026-11-25T20:17:55.068Z",
+    "updatedAt": "2026-11-25T20:18:33.811Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",

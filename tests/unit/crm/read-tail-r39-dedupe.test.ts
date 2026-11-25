@@ -142,8 +142,17 @@ describe('crm read-tail r39 byte-identical head composition', () => {
     ] as const) expect(src(file)).toContain(token);
   });
 
-  test('retirement:ts-statements stays strictly below the r38 AFTER=104 baseline', () => {
+  test.each([
+    'property.id,property.name FROM pms_properties property CROSS JOIN report_clock WHERE property.company_id=? ORDER BY property.name',
+    'cost.campaign_id,COALESCE(SUM(line.debit_minor-line.credit_minor),0) amount FROM (COST_SOURCES) cost GROUP BY cost.campaign_id',
+    "l.id,l.account_id,\n     CASE WHEN v.win_source='pms' THEN r.id IS NOT NULL ELSE TRUE END source_visible,\n     FROM crm_leads l CROSS JOIN report_clock",
+  ])('the clocked head folds into the owner select-body plan for %#', (body) => {
+    expect(crmClockedReadSql(CLOCK, body)).toBe(`WITH ${CLOCK} ${crmSelectBodySql(body)}`);
+    expect(crmClockedReadSql(CLOCK, body)).toBe(`WITH ${CLOCK} SELECT ${body}`);
+  });
+
+  test('retirement:ts-statements folds the clocked CTE head (32 -> 31)', () => {
     expect(totalSelects()).toBe(31);
-    expect(totalSelects()).toBeLessThan(104);
+    expect(totalSelects()).toBeLessThan(32);
   });
 });

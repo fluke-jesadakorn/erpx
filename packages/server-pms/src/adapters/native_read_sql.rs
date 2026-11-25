@@ -1484,4 +1484,26 @@ ORDER BY id"
         assert!(!is_read("pms_rd_attachment_owner_fact_v2"));
         assert_eq!(READS.len(), 61);
     }
+
+    #[test]
+    fn dashboard_records_read_matches_retired_typescript_template() {
+        let read = read_statement(PMS_RD_DASHBOARD_RECORDS).expect("dashboard records read");
+        assert_eq!(read.kind, "pms_rd_dashboard_records");
+        assert_eq!(read.bind_count, 4);
+        assert_eq!(read.sql.matches('?').count(), 4);
+        assert!(read.sql.starts_with("WITH selected_stays AS MATERIALIZED (\n SELECT id,kind,data_json,version,updated_at FROM pms_records WHERE property_id=? AND kind='stay' AND (data_json::jsonb->>'state' IN ('reserved','in_house') OR"));
+        assert!(read.sql.contains("), scope AS (SELECT ?::text property_id), selected_records AS ("));
+        assert!(read.sql.contains(" id IN (SELECT data_json::jsonb->>'guestId' FROM selected_stays)"));
+        assert!(read.sql.ends_with(") SELECT * FROM selected_records ORDER BY updated_at,id"));
+        let upper = read.sql.to_ascii_uppercase();
+        assert!(!upper.contains("INSERT INTO"));
+        assert!(!upper.contains("UPDATE "));
+        assert!(!upper.contains("DELETE FROM"));
+        assert!(!upper.contains("FOR UPDATE"));
+        assert!(!upper.contains("FOR SHARE"));
+        assert!(!upper.contains("LOCK TABLE"));
+        assert!(is_read(read.kind));
+        assert!(!is_read("pms_rd_dashboard_records_v2"));
+        assert_eq!(READS.len(), 61);
+    }
 }

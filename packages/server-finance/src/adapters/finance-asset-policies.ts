@@ -60,15 +60,11 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async bookRules(companyId: string, chart_id: string | number | null, date: string) {
             const db = read();
             return db
-                .prepare("SELECT DISTINCT ON (secondary_chart_id) id,secondary_chart_id,effective_date FROM finance_book_rules WHERE company_id=? AND primary_chart_id=? AND status='approved' AND effective_date<=? ORDER BY secondary_chart_id,effective_date DESC")
-                .bind(companyId, chart_id, date)
-                .all<Row>();
+                nativeFinanceReadAll<Row>(FINANCE_RD_ASSET_POLICY_RULE, [companyId, chart_id, date], db);
         }, async bookMappings(id: string | number | null, account_id: string | number | null, depreciation_account_id: string | number | null, depreciation_expense_account_id: string | number | null) {
             const db = read();
             return db
-                .prepare("SELECT primary_account_id,secondary_account_id FROM finance_book_account_mappings WHERE rule_id=? AND primary_account_id IN (?,?,?) ORDER BY primary_account_id")
-                .bind(id, account_id, depreciation_account_id, depreciation_expense_account_id)
-                .all<Row>();
+                nativeFinanceReadAll<Row>(FINANCE_RD_ASSET_POLICY_MAPPINGS, [id, account_id, depreciation_account_id, depreciation_expense_account_id], db);
         }, async bookAccounts(companyId: string, accountIds: string[]) {
             const db = read();
             return db
@@ -90,9 +86,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async postedRuns(id: string | number | null) {
             const db = read();
             return db
-                .prepare("SELECT * FROM finance_asset_policy_runs WHERE asset_id=? AND status='posted' ORDER BY ordinal")
-                .bind(id)
-                .all<Row>();
+                nativeFinanceReadAll<Row>(FINANCE_RD_ASSET_POLICY_POSTED_RUNS, [id], db);
         }, async policyLegacyCount(id: string | number | null) {
             const db = read();
             return db
@@ -156,9 +150,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async laterRuns(id: string | number | null, ordinal: string | number | null) {
             const db = read();
             return db
-                .prepare("SELECT 1 FROM finance_asset_policy_runs WHERE asset_id=? AND ((status='posted' AND ordinal>?) OR status='draft')")
-                .bind(id, ordinal)
-                .first();
+                nativeFinanceReadFirst(FINANCE_RD_ASSET_POLICY_LEGACY, [id, ordinal], db);
         }, async pendingPolicy(id: string | number | null) {
             const db = read();
             return db
@@ -189,15 +181,11 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async workspaceAssets(companyId: string) {
             const db = read();
             return db
-                .prepare("SELECT a.*,c.chart_id,(SELECT count(*) FROM finance_asset_depreciations old WHERE old.asset_id=a.id)+(SELECT count(*) FROM finance_asset_policy_runs run WHERE run.asset_id=a.id AND run.status='posted') completed_depreciation_months FROM finance_assets a JOIN finance_accounts c ON c.id=a.account_id WHERE a.company_id=? AND a.status='in_service' ORDER BY asset_number")
-                .bind(companyId)
-                .all<Row>();
+                nativeFinanceReadAll<Row>(FINANCE_RD_ASSET_POLICY_WORKSPACE_ASSETS, [companyId], db);
         }, async workspaceBooks(companyId: string) {
             const db = read();
             return db
-                .prepare("SELECT c.id,c.name,r.primary_chart_id FROM finance_charts c LEFT JOIN (SELECT DISTINCT secondary_chart_id,primary_chart_id FROM finance_book_rules WHERE status='approved') r ON r.secondary_chart_id=c.id WHERE c.company_id=? AND c.status='active' ORDER BY c.id")
-                .bind(companyId)
-                .all<Row>();
+                nativeFinanceReadAll<Row>(FINANCE_RD_ASSET_POLICY_WORKSPACE_BOOKS, [companyId], db);
         }, async workspacePeriods(companyId: string) {
             const db = read();
             return db
@@ -207,9 +195,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async activeDisposalPolicy(assetId: string, companyId: string) {
             const db = read();
             return db
-                .prepare("SELECT * FROM finance_asset_policy_editions WHERE asset_id=? AND company_id=? AND status='active'")
-                .bind(assetId, companyId)
-                .first<Row>();
+                nativeFinanceReadFirst<Row>(FINANCE_RD_ASSET_POLICY_DISPOSAL, [assetId, companyId], db);
         }, async disposalAsset(assetId: string, companyId: string) {
             const db = read();
             return db
@@ -231,9 +217,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async disposalBookMappings(ruleId: string | null, gainAccountId: string, lossAccountId: string) {
             const db = read();
             return db
-                .prepare("SELECT m.primary_account_id,m.secondary_account_id,a.version,a.status FROM finance_book_account_mappings m JOIN finance_accounts a ON a.id=m.secondary_account_id WHERE m.rule_id=? AND m.primary_account_id IN (?,?) ORDER BY m.primary_account_id")
-                .bind(ruleId, gainAccountId, lossAccountId)
-                .all<Row>();
+                nativeFinanceReadAll<Row>(FINANCE_RD_ASSET_POLICY_GAIN_LOSS, [ruleId, gainAccountId, lossAccountId], db);
         } };
     return { repository, prepare, clock: { now: () => Date.now() }, identifiers: { next: () => crypto.randomUUID() }, hash: sha256, requirePermission: (actor, permission) => { try {
             return requirePermission(actor, permission);

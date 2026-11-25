@@ -753,6 +753,30 @@ describe('native Billing transport', () => {
           evidenceId: 'evidence-1',
         },
       ],
+      [
+        {
+          action: 'approve-target-extra' as const,
+          ...base,
+          targetMonth: '2026-12',
+          extraKind: 'setup' as const,
+          amountSatang: 10_000,
+          serviceStart: 100,
+          serviceEnd: 200,
+          note: 'Initial setup',
+          evidenceId: 'evidence-1',
+        },
+        'approve-target-extra',
+        {
+          ...base,
+          targetMonth: '2026-12',
+          extraKind: 'setup',
+          amountSatang: 10_000,
+          serviceStart: 100,
+          serviceEnd: 200,
+          note: 'Initial setup',
+          evidenceId: 'evidence-1',
+        },
+      ],
     ] as const;
     for (const [input, action, body] of cases)
       expect(nativeBillingCommandRequest(input)).toEqual({ action, body });

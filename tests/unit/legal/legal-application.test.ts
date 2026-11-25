@@ -8,6 +8,7 @@ import runtimeContract from "../../../packages/server-legal/src/adapters/legal-r
 import accessContract from "../../../packages/server-legal/src/adapters/legal-access-sources.json" with {type:"json"};
 import operationsContract from "../../../packages/server-legal/src/adapters/legal-operations-sources.json" with {type:"json"};
 import recordContract from "../../../packages/server-legal/src/adapters/legal-record-sources.json" with {type:"json"};
+import integrationsContract from "../../../packages/server-legal/src/adapters/legal-integrations-sources.json" with {type:"json"};
 type LegalReferenceRepository=Parameters<typeof import("@erpx/server-legal/application/references").createLegalReferencesApplication>[0]["repository"];
 import { expect, it } from "vitest";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
@@ -598,8 +599,8 @@ it("keeps the approval reviewer-membership and current-route guards in the nativ
     }
   };
   await walk(resolve(__dirname, "../../../packages/server-legal/src"));
-  expect(total).toBeLessThan(76);
-  expect(total).toBe(73);
+  expect(total).toBeLessThan(73);
+  expect(total).toBe(68);
 });
 
 
@@ -692,4 +693,35 @@ it("keeps the record-source guards in the native contract", async () => {
   expect(rust).toContain('render_legal_actual_source');
   expect(rust).toContain('render_legal_workspace_guard');
   expect(rust).toContain('87383a387e26c6a0b271882ec448a6168421c23e7f111ebc3ab672171db64038');
+});
+
+
+it("keeps the integrations task, approval and calendar reads in the native contract", async () => {
+  const [shared, rust] = await Promise.all([
+    readFile(new URL("../../../packages/server-legal/src/adapters/legal/integrations.ts", import.meta.url), "utf8"),
+    readFile(new URL("../../../packages/server-legal/src/adapters/legal_integrations_sources.rs", import.meta.url), "utf8"),
+  ]);
+  expect(shared.match(/SELECT /g) ?? []).toHaveLength(0);
+  expect(shared).toContain("legal-integrations-sources.json");
+  expect(shared).toContain("fill(contract.tasks");
+  expect(shared).toContain("fill(contract.approvals");
+  expect(shared).toContain("fill(contract.calendarRows");
+  expect(integrationsContract.tasks).toContain("FROM {table} f JOIN legal_items i");
+  expect(integrationsContract.tasks).toContain("{visibility} AND {purchase}");
+  expect(integrationsContract.tasks).toContain("LIMIT 200");
+  expect(integrationsContract.approvals).toContain("({approvalInstances}) ai");
+  expect(integrationsContract.approvals).toContain("({approvalSteps}) st");
+  expect(integrationsContract.approvals).toContain("iam_same_person");
+  expect(integrationsContract.calendarBase).toBe(
+    "SELECT id,id item_id,title,description,due_date,timezone,department_id,branch_id,owner_id,state,version,company_id,classification,kind,created_by FROM legal_items",
+  );
+  expect(integrationsContract.calendarFeature).toContain("FROM {table} f JOIN legal_items i");
+  expect(integrationsContract.calendarRows).toContain("FROM ({sources}) i");
+  expect(integrationsContract.calendarRows).toContain("LIMIT ?");
+  expect(rust).toContain('include_str!("legal-integrations-sources.json")');
+  expect(rust).toContain('render_legal_tasks');
+  expect(rust).toContain('render_legal_approvals');
+  expect(rust).toContain('render_legal_calendar_feature');
+  expect(rust).toContain('render_legal_calendar_rows');
+  expect(rust).toContain('ba25c8d2234a49630ba7df9caaa14b5c47642700a28da066c7872749a7b24e13');
 });
