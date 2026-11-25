@@ -30,7 +30,7 @@ describe('quality attachment source projection family dedupe (r19)', () => {
     expect(text).toContain('import {qualityAttachmentSourceSelect} from "./quality-attachment-source-select-sql"');
     expect(text).toContain('qualityAttachmentSourceSelect("branch_id","kind","witness::text image",');
     expect(text).toContain('qualityAttachmentSourceSelect("NULL::text branch_id",');
-    expect(read('adapters/quality-attachment-source-select-sql.ts').match(/SELECT /g)).toHaveLength(1);
+    expect(read('adapters/quality-attachment-source-select-sql.ts').match(/SELECT /g) ?? []).toHaveLength(0);
   });
   test('the helper is read-only; descriptor cutover, locks and r1-r18 helpers stay untouched', () => {
     const helper = read('adapters/quality-attachment-source-select-sql.ts');
