@@ -40,8 +40,8 @@ describe('quality customer-return id-source family dedupe (r18)', () => {
       'quality-receipt-guard-sql', 'quality-source-rows-sql', 'quality-scope-sql',
       'quality-attachment-scope-read-sql',
     ]) {
-      const expected = 1;
-      expect(read(`adapters/${name}.ts`).match(/SELECT /g)).toHaveLength(expected);
+      const expected = name === 'native-source-wrapper-sql' ? 0 : 1;
+      expect(read(`adapters/${name}.ts`).match(/SELECT /g) ?? []).toHaveLength(expected);
     }
     expect(read('adapters/quality-alert-recipient-sql.ts').match(/SELECT /g) ?? []).toHaveLength(0);
   });
@@ -59,6 +59,6 @@ describe('quality read-tail r18 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(75);
-    expect(total).toBe(27);
+    expect(total).toBe(26);
   });
 });

@@ -45,7 +45,7 @@ describe('quality native source wrapper family dedupe (r16)', () => {
     const text = read('adapters/ecommerce-package-sources.ts');
     expect(text.match(/nativeSourceWhere\(/g)).toHaveLength(2);
     expect(text).not.toContain('SELECT native.* FROM (');
-    expect(read('adapters/native-source-wrapper-sql.ts').match(/SELECT /g)).toHaveLength(1);
+    expect(read('adapters/native-source-wrapper-sql.ts').match(/SELECT /g) ?? []).toHaveLength(0);
   });
 });
 
@@ -82,7 +82,7 @@ describe('quality read-tail r16 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(75);
-    expect(total).toBe(27);
+    expect(total).toBe(26);
   });
   test('the three helpers are read-only and leave locks and prior families untouched', () => {
     for (const name of ['quality-work-scope-sql', 'native-source-wrapper-sql', 'inspection-evidence-source-sql']) {
