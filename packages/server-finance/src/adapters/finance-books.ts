@@ -1,4 +1,5 @@
 import { activeAccountListSql } from './finance-read-tail-r51-sql';
+import { finPeriodProbeByCompanySql } from './finance-read-tail-r57-sql';
 import { financeReferenceListSql } from './finance-read-tail-r42-sql';
 import { tableByIdSql } from './finance-read-tail-r49-sql';
 import { openingBalanceSql } from './finance-read-tail-r39-sql';
@@ -238,7 +239,7 @@ targetPosted:async(secondaryChartId)=>write
       .first(),
 openingPeriod:async(actor,periodId,effectiveDate)=>write
     .prepare(
-      "SELECT 1 FROM finance_periods WHERE company_id=? AND id=? AND state='open' AND start_date<=? AND end_date>=?",
+      finPeriodProbeByCompanySql(" AND id=? AND state='open' AND start_date<=? AND end_date>=?"),
     )
     .bind(
       actor.companyId,

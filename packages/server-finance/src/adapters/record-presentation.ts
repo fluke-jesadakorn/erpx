@@ -1,4 +1,5 @@
 import { financeReferenceListSql } from './finance-read-tail-r42-sql';
+import { finPartiesAllByCompanySql } from './finance-read-tail-r57-sql';
 import { ASSIGNMENT_VERSION_SQL } from './finance-read-tail-r40-sql';
 import { DIMENSION_VALUES_ACTIVE_SQL } from './finance-read-tail-r38-sql';
 import {posInitialStockJournalMarked} from '@erpx/server-finance/adapters/pos-initial-stock-journal-sources';
@@ -45,7 +46,7 @@ export async function invoiceRecordWorkspace(actor:WorkContext,id:string){
  const account=await db.prepare(ACCOUNT_CHART_ID_SQL).bind(detail.invoice.debit_account_id,actor.companyId).first<{chart_id:string}>();
  if(!account)throw new ApiError(404,"ACCOUNT_NOT_FOUND","The invoice account is unavailable.");
  const refs=await references(db,actor,account.chart_id);
- const parties=await db.prepare(`SELECT * FROM finance_parties WHERE company_id=? AND (id=? OR (? AND status='active' AND person_id IS NULL)) ORDER BY name,id`).bind(actor.companyId,detail.invoice.party_id,detail.invoice.status==="draft"&&detail.invoice.source_type==="standalone").all<FinanceRow>();
+ const parties=await db.prepare(finPartiesAllByCompanySql(` AND (id=? OR (? AND status='active' AND person_id IS NULL)) ORDER BY name,id`)).bind(actor.companyId,detail.invoice.party_id,detail.invoice.status==="draft"&&detail.invoice.source_type==="standalone").all<FinanceRow>();
  return {...detail,options:{charts:[refs.chart],accounts:refs.accounts,periods:refs.periods,parties:parties.results,invoices:[] as FinanceRow[]}};
 }
 

@@ -1,4 +1,5 @@
 import { ACTIVE_ACCOUNT_CATEGORY_PROBE_SQL } from './finance-read-tail-r40-sql';
+import { finPeriodIdByCompanySql, finPartiesAllByCompanySql } from './finance-read-tail-r57-sql';
 import { paymentSlipChecksumGuardSql } from './finance-read-tail-r50-sql';
 import { accountChartGuardSql, partyKindGuardSql } from './finance-read-tail-r46-sql';
 import { OPEN_PERIOD_GUARD_SQL, OPEN_PERIOD_IDS_SQL } from './finance-read-tail-r16-sql';
@@ -15,8 +16,8 @@ import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import type {Row} from "@erpx/server-commerce/public/commerce-contracts";
 export function CommerceFinanceFacts(db:SqlDatabase){return {
 invoiceVersion:(key:string,label:string,values:(string|number)[],states:string[])=>assertion(db,key,label,`EXISTS(SELECT 1 FROM finance_invoices WHERE id=? AND version=? AND status IN (${states.map(()=>"?").join(",")}))`,values),
-readFinancePeriods1:(facts:{companyId:string;date:string;date2:string;fact3:string | null;fact4:string | null;})=>db.prepare("SELECT id FROM finance_periods WHERE company_id=? AND start_date<=? AND end_date>=? AND state='open' AND (?::text IS NULL OR id=?)").bind(facts.companyId,facts.date,facts.date2,facts.fact3,facts.fact4).all<Row>(),
-readFinanceParties1:(facts:{companyId:string;})=>db.prepare("SELECT * FROM finance_parties WHERE company_id=? AND kind IN ('customer','supplier') AND person_id IS NULL ORDER BY name").bind(facts.companyId).all<Row>(),
+readFinancePeriods1:(facts:{companyId:string;date:string;date2:string;fact3:string | null;fact4:string | null;})=>db.prepare(finPeriodIdByCompanySql(" AND start_date<=? AND end_date>=? AND state='open' AND (?::text IS NULL OR id=?)")).bind(facts.companyId,facts.date,facts.date2,facts.fact3,facts.fact4).all<Row>(),
+readFinanceParties1:(facts:{companyId:string;})=>db.prepare(finPartiesAllByCompanySql(" AND kind IN ('customer','supplier') AND person_id IS NULL ORDER BY name")).bind(facts.companyId).all<Row>(),
 readFinanceJournalLines1:(facts:{id:string | number | null;})=>db.prepare("SELECT account_id,debit_minor,credit_minor FROM finance_journal_lines WHERE journal_id=? ORDER BY ordinal").bind(facts.id).all<Row>(),
 prepareFinanceInvoices1:(facts:{invoice_id:string | number | null;})=>db.prepare('SELECT id FROM finance_invoices WHERE id=? FOR UPDATE').bind(facts.invoice_id),
 readFinanceJournalLines2:(facts:{incoming:boolean;credit_journal_id:string | number | null;control:string;})=>db.prepare(`SELECT SUM(CASE WHEN ? THEN base_credit_minor-base_debit_minor ELSE base_debit_minor-base_credit_minor END) value FROM finance_journal_lines WHERE journal_id=? AND account_id=?`).bind(facts.incoming,facts.credit_journal_id,facts.control).first<number>('value'),

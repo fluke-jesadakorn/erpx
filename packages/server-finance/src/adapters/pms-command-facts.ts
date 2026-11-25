@@ -1,5 +1,6 @@
 import {financeOwnedSnapshotSources as pmsSnapshotSources} from "@erpx/server-pms/public/finance-owned-snapshot-sources";
 import { ACCOUNT_SELECT_PREFIX } from './finance-read-tail-r30-sql';
+import { finPartyIdNameByCompanySql } from './finance-read-tail-r57-sql';
 import { nativePmsFinanceFacts } from '@erpx/server-collaboration/adapters/native-pms-finance-facts';
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
@@ -33,7 +34,7 @@ export function pmsFinanceFacts(db: SqlDatabase) {
         }) => query<{
             id: string;
             name: string;
-        }>(db, "SELECT id,name FROM finance_parties WHERE company_id=? AND kind='customer' AND status='active' AND currency='THB' AND person_id IS NULL", facts.companyId),
+        }>(db, finPartyIdNameByCompanySql(" AND kind='customer' AND status='active' AND currency='THB' AND person_id IS NULL"), facts.companyId),
         readReceiptAllocationCredits: (facts: {
             companyId: string; propertyId: string; branchId: string;
             chartId: string; currency: string; receivableAccountId: string;
