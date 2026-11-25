@@ -10,8 +10,7 @@ use serde::Deserialize;
 use std::sync::OnceLock;
 
 /// Native-owned r25 read-head contract.
-pub const LEGAL_READ_TAIL_R25_SOURCES_JSON: &str =
-    include_str!("legal-read-tail-r25-sources.json");
+pub const LEGAL_READ_TAIL_R25_SOURCES_JSON: &str = include_str!("legal-read-tail-r25-sources.json");
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct LegalReadTailR25Sources {
@@ -99,6 +98,9 @@ mod tests {
         assert!(!render_legal_jsonb_agg_by_item("d", "legal_documents", "id").contains("{alias}"));
         assert!(!render_legal_jsonb_agg_by_item("d", "legal_documents", "id").contains("{table}"));
         assert!(!render_legal_jsonb_agg_by_item("d", "legal_documents", "id").contains("{order}"));
-        assert_eq!(render_legal_member_edit_exists("em").matches('?').count(), 1);
+        assert_eq!(
+            render_legal_member_edit_exists("em").matches('?').count(),
+            1
+        );
     }
 }

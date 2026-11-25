@@ -74,7 +74,7 @@ describe('People Payroll read-tail r19 byte-identical dedupe', () => {
     expect(index).toContain('nativeCalendarPersonScope');
     expect(index).not.toContain('const inList = (expression: string) =>');
     expect(ppRd19InList('e.company_id')).toBe('e.company_id IN (SELECT jsonb_array_elements_text(?::jsonb))');
-    expect(src('calendar-access-facts.ts')).toContain('const idList = (ids: string[]) => JSON.stringify(ids);');
+    expect(access).not.toContain('const idList = (ids: string[]) => JSON.stringify(ids);');
   });
 
   test('the shared module declares each literal once, or delegates to round-5', () => {

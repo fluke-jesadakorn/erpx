@@ -55,10 +55,13 @@ describe('People Payroll read-tail r29 parameterized family dedupe', () => {
       expect(src(name), name).not.toContain('NOT EXISTS(SELECT 1 FROM (${projectWorkerPlacementTerminalRows}) terminal WHERE terminal.id=c.id');
       expect(uses(name, 'ppRd29PlacementTerminalSql\\('), name).toBe(1);
     }
-    for (const name of ['people-lifecycle.ts', 'calendar-access-facts.ts']) {
+    for (const name of ['people-lifecycle.ts']) {
       expect(src(name), name).not.toContain('EXISTS(SELECT 1 FROM people_lifecycle_cases lc WHERE lc.engagement_id=e.id AND lc.company_id=e.company_id)');
       expect(uses(name, 'PP_RD29_LIFECYCLE_CASE_FOR_ENGAGEMENT_SQL'), name).toBe(2); // import + interpolation
     }
+    // calendar-access-facts.ts now executes its people list in native lane 6.
+    expect(src('calendar-access-facts.ts')).toContain('nativeCalendarAccessPeople');
+    expect(src('calendar-access-facts.ts')).not.toContain('PP_RD29_LIFECYCLE_CASE_FOR_ENGAGEMENT_SQL');
     for (const name of ['expense-payment-cancellation.ts', 'expenses.ts']) {
       expect(src(name), name).not.toContain('EXISTS(SELECT 1 FROM finance_expenses e WHERE e.id=? AND e.company_id=? AND (${expensePaymentTreasurySql');
       expect(uses(name, 'ppRd29FinanceExpenseTreasurySql\\('), name).toBe(1);
@@ -104,6 +107,6 @@ describe('People Payroll read-tail r29 parameterized family dedupe', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(1423);
-    expect(total).toBe(1164);
+    expect(total).toBeLessThanOrEqual(1140);
   });
 });

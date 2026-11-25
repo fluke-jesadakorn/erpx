@@ -35,7 +35,7 @@ import { pmsPropertyPurchaseAllowed, pmsPropertyPurchaseFlags, requirePmsPropert
 import { pmsPackageEnforcementMode } from "@erpx/server-commercial/public/purchase-command-boundary";
 import { purchasedCapabilityPredicate } from "@erpx/server-commercial/public/purchased-capability-sql";
 import { nativePmsOwnerWrite } from "@erpx/feature-pms/public/native-pms";
-import { nativePmsReadAll, nativePmsReadFirst, PMS_RD_BOOKING_RECEIPT_BY_KEY, PMS_RD_BOOKING_RECEIPT_BY_ATTEMPT, PMS_RD_BOOKING_DOCUMENTS, PMS_RD_CHANGE_PAYMENT_PENDING } from "./native-pms-read";
+import { nativePmsReadAll, nativePmsReadFirst, PMS_RD_BOOKING_RECEIPT_BY_KEY, PMS_RD_BOOKING_RECEIPT_BY_ATTEMPT, PMS_RD_BOOKING_DOCUMENTS, PMS_RD_CHANGE_PAYMENT_PENDING, PMS_RD_BOOKING_PROPERTY_SCOPE, PMS_RD_BOOKING_PROPERTY_SCOPE_BRANCH, PMS_RD_BOOKING_RECORDS, PMS_RD_BOOKING_RECORDS_SEARCH } from "./native-pms-read";
 export async function bookingEnv(): Promise<BookingEnv> {
     const env = await runtimeEnv();
     return {
@@ -294,7 +294,9 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase, companyId = '')
             companyId: string;
             fact2: Array<string>;
             actor: WorkContext;
-        }) => db.prepare(`SELECT id FROM pms_properties WHERE id=? AND company_id=?${facts.actor.branchId ? " AND branch_id=?" : ""}`).bind(facts.propertyId, facts.companyId, ...facts.fact2).first(),
+        }) => nativePmsReadFirst<{ id: string }>(
+            facts.actor.branchId ? PMS_RD_BOOKING_PROPERTY_SCOPE_BRANCH : PMS_RD_BOOKING_PROPERTY_SCOPE,
+            [facts.propertyId, facts.companyId, ...facts.fact2], db),
         writePmsBookingLimits1: (facts: {
             fact0: number;
         }) => write('pms_w043', [facts.fact0]),
@@ -336,7 +338,13 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase, companyId = '')
             data_json: string;
             version: number;
             updated_at: number;
-        }>(db, `SELECT * FROM pms_records WHERE property_id=?${facts.search ? " AND (kind IN ('room_type','room','rate') OR (kind='block' AND data_json::jsonb->>'state'='active') OR (kind='stay' AND data_json::jsonb->>'state' IN ('reserved','in_house') AND data_json::jsonb->>'arrival' < ? AND data_json::jsonb->>'departure' > ?))" : ""} ORDER BY id`, facts.propertyId, ...facts.fact1),
+        }>(nativePmsReadAll<{
+            id: string;
+            kind: Kind;
+            data_json: string;
+            version: number;
+            updated_at: number;
+        }>(facts.search ? PMS_RD_BOOKING_RECORDS_SEARCH : PMS_RD_BOOKING_RECORDS, [facts.propertyId, ...facts.fact1], db).then(result => result.results)),
         readPmsProperties3: async () => {
             const mode = await pmsPackageEnforcementMode(), enforced = mode === "enforced";
             const clock = enforced ? PMS_PURCHASE_CLOCK_CTE_SQL : "";

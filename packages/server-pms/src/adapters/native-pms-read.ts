@@ -106,6 +106,14 @@ export const PMS_RD_GUEST_DOCUMENTS = 'pms_rd_guest_documents';
  * ledger/receipt/outbox and no lock/refund path; caller runs them on its unit. */
 export const PMS_RD_BOOKING_ALLOCATION_EXISTS = 'pms_rd_booking_allocation_exists';
 export const PMS_RD_PENDING_JOBS = 'pms_rd_pending_jobs';
+/** Native successors of the owner-local `pms-booking.ts` property-scope and
+ * records-list reads, including their closed branch/search variants. Fixed
+ * SQL with 2/3 and 1/3 positional binds, no ledger/receipt/outbox and no
+ * lock/refund path; the caller runs them on its already-open booking unit. */
+export const PMS_RD_BOOKING_PROPERTY_SCOPE = 'pms_rd_booking_property_scope';
+export const PMS_RD_BOOKING_PROPERTY_SCOPE_BRANCH = 'pms_rd_booking_property_scope_branch';
+export const PMS_RD_BOOKING_RECORDS = 'pms_rd_booking_records';
+export const PMS_RD_BOOKING_RECORDS_SEARCH = 'pms_rd_booking_records_search';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'PMS_NATIVE_READ_UNAVAILABLE', 'The native PMS read service is unavailable.');

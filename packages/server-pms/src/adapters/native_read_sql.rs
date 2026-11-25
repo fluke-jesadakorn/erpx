@@ -1174,4 +1174,34 @@ ORDER BY id"
         assert!(!is_read("pms_rd_pending_jobs_v2"));
         assert_eq!(READS.len(), 49);
     }
+
+    #[test]
+    fn booking_property_and_records_variants_match_retired_typescript_literals() {
+        let scope = read_statement(PMS_RD_BOOKING_PROPERTY_SCOPE).expect("property scope read");
+        let branch = read_statement(PMS_RD_BOOKING_PROPERTY_SCOPE_BRANCH).expect("branch property scope read");
+        let records = read_statement(PMS_RD_BOOKING_RECORDS).expect("booking records read");
+        let search = read_statement(PMS_RD_BOOKING_RECORDS_SEARCH).expect("booking records search read");
+        assert_eq!(scope.sql, "SELECT id FROM pms_properties WHERE id=? AND company_id=?");
+        assert_eq!(scope.bind_count, 2);
+        assert_eq!(branch.sql, "SELECT id FROM pms_properties WHERE id=? AND company_id=? AND branch_id=?");
+        assert_eq!(branch.bind_count, 3);
+        assert_eq!(records.sql, "SELECT * FROM pms_records WHERE property_id=? ORDER BY id");
+        assert_eq!(records.bind_count, 1);
+        assert_eq!(search.sql, "SELECT * FROM pms_records WHERE property_id=? AND (kind IN ('room_type','room','rate') OR (kind='block' AND data_json::jsonb->>'state'='active') OR (kind='stay' AND data_json::jsonb->>'state' IN ('reserved','in_house') AND data_json::jsonb->>'arrival' < ? AND data_json::jsonb->>'departure' > ?)) ORDER BY id");
+        assert_eq!(search.bind_count, 3);
+        for read in [scope, branch, records, search] {
+            assert_eq!(read.sql.matches('?').count(), read.bind_count);
+            let upper = read.sql.to_ascii_uppercase();
+            assert!(upper.starts_with("SELECT"));
+            assert!(!upper.contains("INSERT INTO"));
+            assert!(!upper.contains("UPDATE "));
+            assert!(!upper.contains("DELETE FROM"));
+            assert!(!upper.contains("FOR UPDATE"));
+            assert!(!upper.contains("FOR SHARE"));
+            assert!(!upper.contains("LOCK TABLE"));
+            assert!(is_read(read.kind));
+        }
+        assert!(!is_read("pms_rd_booking_records_search_v2"));
+        assert_eq!(READS.len(), 49);
+    }
 }

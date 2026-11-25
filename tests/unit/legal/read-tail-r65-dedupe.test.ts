@@ -49,7 +49,8 @@ describe('legal read-tail r65 members jsonb-agg head reuse', () => {
     expect(r9).toContain("legalMembersAggSql = legalJsonbAggByItemSql('m','legal_members','user_id')");
     const line = r9.split('\n').find(l => l.includes('legalMembersAggSql ='))!;
     expect(line).not.toContain('SELECT ');
-    expect((r25.match(/SELECT /g) ?? []).length).toBe(2);
+    expect(r25).toContain('legal-read-tail-r25-sources.json');
+    expect((r25.match(/SELECT /g) ?? []).length).toBe(0);
     expect((r25.match(/export const legalJsonbAggByItemSql/g) ?? []).length).toBe(1);
     expect((r25.match(/export const legalMemberEditExistsSql/g) ?? []).length).toBe(1);
   });

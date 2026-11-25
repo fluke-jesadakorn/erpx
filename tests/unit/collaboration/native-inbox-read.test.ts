@@ -126,7 +126,7 @@ describe('retirement:ts-statements', () => {
       }
     };
     walk(root);
-    expect(total).toBe(302);
+    expect(total).toBe(300);
     expect(total).toBeLessThan(316);
   });
 });
