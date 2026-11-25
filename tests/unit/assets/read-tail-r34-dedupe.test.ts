@@ -80,7 +80,7 @@ describe('Assets read-tail r34 universal select head family',()=>{
  it('owns one universal head literal with no local statement token in either delegate',()=>{
   const scope=src('adapters/asset-scope-tuple.ts');
   expect(scope.split('SELECT ${projection}${tail}').length-1).toBe(1);
-  expect((scope.match(/SELECT/g)??[])).toHaveLength(2);
+  expect((scope.match(/SELECT/g)??[])).toHaveLength(1);
   expect(scope).toContain('export const assetSelectProjectionSql = (projection:string,tail="") =>');
   expect(scope).toContain('assetSelectProjectionSql(projection,` FROM${from}${tail}`)');
   expect(scope.split('SELECT ${projection} FROM${from}${tail}').length-1).toBe(0);
@@ -92,8 +92,8 @@ describe('Assets read-tail r34 universal select head family',()=>{
   expect(financial.split('SELECT ${projection}::text image${tail}').length-1).toBe(0);
  });
 
- it('lowers the exact owner TS SELECT tail from BEFORE=4 to KPI 3 and leaves excluded families untouched',()=>{
-  expect(ownerSelectCount()).toBe(3);
+ it('lowers the exact owner TS SELECT tail from BEFORE=4 to KPI 2 and leaves excluded families untouched',()=>{
+  expect(ownerSelectCount()).toBe(2);
   expect((src('adapters/record-purchases.ts').match(/SELECT/g)??[])).toHaveLength(1);
   expect((src('adapters/package-obligations.ts').match(/SELECT/g)??[])).toHaveLength(0);
   expect((src('adapters/metric-purchases.ts').match(/SELECT/g)??[])).toHaveLength(0);

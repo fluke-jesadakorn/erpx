@@ -101,14 +101,14 @@ describe('Assets read-tail r33 projection-from head family',()=>{
   expect((text.match(/SELECT/g)??[])).toHaveLength(0);
  });
 
- it('lowers the owner TS SELECT tail from BEFORE=7 to 3 and keeps the three floor tokens untouched',()=>{
-  expect(ownerSelectCount()).toBe(3);
-  // Floor 1 and 2: the universal head and the scope tuple, both in asset-scope-tuple.ts.
+ it('lowers the owner TS SELECT tail from BEFORE=7 to 2 and keeps the two floor tokens untouched',()=>{
+  expect(ownerSelectCount()).toBe(2);
+  // Floor 1: the universal head in asset-scope-tuple.ts (r35 folded the scope tuple into it).
   const scope=src('adapters/asset-scope-tuple.ts');
-  expect((scope.match(/SELECT/g)??[])).toHaveLength(2);
+  expect((scope.match(/SELECT/g)??[])).toHaveLength(1);
   expect(scope.split('SELECT ${projection}${tail}').length-1).toBe(1);
-  expect(scope.split('(SELECT ?::text company_id,?::text branch_id,?::text department_id)').length-1).toBe(1);
-  // Floor 3: the clock scalar.
+  expect(scope.split('(SELECT ?::text company_id,?::text branch_id,?::text department_id)').length-1).toBe(0);
+  // Floor 2: the clock scalar.
   expect((src('adapters/record-purchases.ts').match(/SELECT/g)??[])).toHaveLength(1);
   // The r34 image witness delegates to the universal head; no local statement token.
   expect((src('adapters/financial-workflow-sources.ts').match(/SELECT/g)??[])).toHaveLength(0);

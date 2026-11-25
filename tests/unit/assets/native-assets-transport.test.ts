@@ -462,10 +462,10 @@ it('shares one canonical current-assignment scope probe across the Assets privat
  const count=(text:string,needle:string)=>text.split(needle).length-1;
  const tuple='(SELECT ?::text company_id,?::text branch_id,?::text department_id)';
  // The canonical helpers own the single tuple and probe statements; no comment adds a KPI token.
- expect(helper.match(/SELECT/g)).toHaveLength(2);
+ expect(helper.match(/SELECT/g)).toHaveLength(1);
  expect(helper).toContain('export const assetScopeTupleSql = (alias: string) =>');
  expect(helper).toContain('export const assetCurrentScopeProbeSql = (projection:string,from:string,tail="") =>');
- expect(count(helper,tuple)).toBe(1);
+ expect(count(helper,tuple)).toBe(0);
  expect(count(helper,'SELECT ${projection}${tail}')).toBe(1);
  for(const caller of [authority,read]){
   expect(caller).toMatch(/import \{assetCurrentScopeProbeSql,assetScopeTupleSql\} from ['"]\.\/asset-scope-tuple['"]/);
@@ -563,7 +563,7 @@ describe('Assets read-tail r17 byte-identical family dedupe',()=>{
   // r24 shares the fixed operational_assets projection;
   // r25 retires the field-service image literal already byte-identical to the native plan;
   // r26 retires the package-obligation fallback (BEFORE=20, strictly lower).
-  expect(selects).toBe(3);
+  expect(selects).toBe(2);
   const financial=readFileSync(resolve(srcRoot,'adapters/financial-workflow-sources.ts'),'utf8');
   expect(financial).toContain("LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links,maintenance_work_orders IN SHARE MODE");
   const purchases=readFileSync(resolve(srcRoot,'adapters/purchases.ts'),'utf8');
@@ -613,7 +613,7 @@ describe('Assets read-tail r21 id+company keyed-row family',()=>{
   // r23 shares the all-rows projection; r24 shares the fixed operational_assets projection;
   // r25 retires the field-service image literal byte-identical to PLAN_FS_IMAGE;
   // r26 retires the package-obligation fallback (BEFORE=20, strictly lower).
-  expect(selects).toBe(3);
+  expect(selects).toBe(2);
   // r2-r20 lock/cascade families are untouched.
   expect(readFileSync(resolve(srcRoot,'adapters/financial-workflow-sources.ts'),'utf8'))
    .toContain("LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links,maintenance_work_orders IN SHARE MODE");
@@ -812,7 +812,7 @@ describe('Assets read-tail r25 byte-identical field-service image family',()=>{
   return selects;
  };
  it('lowers the owner TS SELECT tail strictly below BEFORE=21',()=>{
-  expect(ownerSelectCount()).toBe(3);
+  expect(ownerSelectCount()).toBe(2);
  });
  it('routes the field-service image unconditionally to the byte-identical native plan',()=>{
   const field=read('adapters/field-service-references.ts');
@@ -844,7 +844,7 @@ describe('Assets read-tail r26 package-obligation native cutover',()=>{
   return selects;
  };
  it('lowers the owner TS SELECT tail strictly below BEFORE=20',()=>{
-  expect(ownerSelectCount()).toBe(3);
+  expect(ownerSelectCount()).toBe(2);
  });
  it('routes package obligations unconditionally to the registered native plans',()=>{
   const pkg=read('adapters/package-obligations.ts');
@@ -909,7 +909,7 @@ describe('Assets read-tail r27 parameterized projection-head family',()=>{
     expect(src('asset-operational-rows-sql.ts')).toContain('assetProjectionFromSql(columns," operational_assets")');
   });
   it('lowers the owner TS SELECT tail strictly below BEFORE=15',()=>{
-    expect(ownerSelectCount()).toBe(3);
+    expect(ownerSelectCount()).toBe(2);
   });
   it('leaves locks, native plans and cross-owner settlement sources untouched',()=>{
     const financial=src('financial-workflow-sources.ts');
@@ -951,7 +951,7 @@ describe('Assets read-tail r28 all-rows/projection-from head family',()=>{
   }
  });
  it('lowers the owner TS SELECT tail strictly below BEFORE=14',()=>{
-  expect(ownerSelectCount()).toBe(3);
+  expect(ownerSelectCount()).toBe(2);
   expect(src('asset-all-rows-sql.ts').match(/SELECT/g)??[]).toHaveLength(0);
   expect(src('asset-scope-tuple.ts').split('SELECT ${projection}${tail}').length-1).toBe(1);
  });
@@ -995,7 +995,7 @@ describe('Assets read-tail r29 keyed-row/projection-from head family',()=>{
    .toBe('SELECT company_id,branch_id AS branch_id,department_id AS department_id,version AS version FROM operational_assets WHERE id=? AND company_id=? AND version>0');
  });
  it('lowers the owner TS SELECT tail strictly below BEFORE=13',()=>{
-  expect(ownerSelectCount()).toBe(3);
+  expect(ownerSelectCount()).toBe(2);
   expect(src('attachments-policy-facts.ts').match(/SELECT/g)??[]).toHaveLength(0);
   expect(src('attachments-policy-facts.ts')).toContain('import {assetProjectionFromSql} from "./asset-scope-tuple"');
   expect(src('attachments-policy-facts.ts')).toContain('assetProjectionFromSql(projection,` ${from}`,` WHERE id=? AND company_id=?${tail}`)');
@@ -1039,8 +1039,8 @@ describe('Assets read-tail r31 permission-probe/projection-from head family',()=
   expect(sql).toContain('g.id=? AND g.user_id=? AND g.role=? AND g.company_id=assets_scope.company_id');
   expect(sql).toContain('iam_role_allows(g.role,g.company_id,\'records.read\')');
  });
- it('lowers the owner TS SELECT tail from BEFORE=11 to 3 after r34 with no local probe token',()=>{
-  expect(ownerSelectCount()).toBe(3);
+ it('lowers the owner TS SELECT tail from BEFORE=11 to 2 after r35 with no local probe token',()=>{
+  expect(ownerSelectCount()).toBe(2);
   expect(src('asset-scope-probe.ts').match(/SELECT/g)??[]).toHaveLength(0);
   expect(src('asset-scope-probe.ts')).toContain('assetProjectionFromSql(');
   expect(src('asset-scope-tuple.ts').split('SELECT ${projection}${tail}').length-1).toBe(1);
@@ -1106,8 +1106,8 @@ describe('Assets read-tail r32 projection-from head family',()=>{
   expect(assetProjectionFromSql('x',' y',' WHERE z')).toBe('SELECT x FROM y WHERE z');
   expect(src('adapters/asset-scope-tuple.ts').split('SELECT ${projection}${tail}').length-1).toBe(1);
  });
- it('lowers the owner TS SELECT tail from BEFORE=10 to 3 after r34 and keeps base, locks and native plans untouched',()=>{
-  expect(ownerSelectCount()).toBe(3);
+ it('lowers the owner TS SELECT tail from BEFORE=10 to 2 after r35 and keeps base, locks and native plans untouched',()=>{
+  expect(ownerSelectCount()).toBe(2);
   const finance=src('adapters/financial-workflow-sources.ts');
   const executive=src('adapters/executive-metric-projections.ts');
   expect((finance.match(/SELECT/g)??[])).toHaveLength(0);
