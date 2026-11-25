@@ -109,6 +109,79 @@ pub fn valid_slug(value: &str) -> bool {
             .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
 }
 
+/// Byte-identical successor of the TypeScript invitations literal retired from
+/// `adapters/beta-api.ts`. The `organization_nodes` join is the inherited
+/// Company scope for `beta_team_invitations`; `company_id` is the only bind.
+/// The `invitation_state` CASE is preserved so the projection stays exact.
+pub const INVITATIONS_SQL: &str = concat!(
+    "SELECT i.id,i.email,i.branch_id,i.expires_at,i.accepted_at,i.revoked_at,",
+    "CASE WHEN i.revoked_at IS NOT NULL THEN 'Revoked' ",
+    "WHEN i.accepted_at IS NOT NULL THEN 'Joined' ",
+    "WHEN i.expires_at<=(floor(extract(epoch FROM clock_timestamp()))::bigint*1000) THEN 'Expired' ",
+    "ELSE 'Invited' END invitation_state ",
+    "FROM beta_team_invitations i JOIN organization_nodes b ON b.id=i.branch_id ",
+    "WHERE b.company_id=? ORDER BY i.created_at DESC LIMIT 100",
+);
+
+/// Closed set of states produced by the owner CASE expression.
+pub const INVITATION_STATES: [&str; 4] = ["Revoked", "Joined", "Expired", "Invited"];
+const MAX_EMAIL: usize = 320;
+
+/// One pinned invitation row. `accepted_at` and `revoked_at` are nullable;
+/// field names and order are part of the wire contract.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct InvitationItem {
+    pub id: String,
+    pub email: String,
+    pub branch_id: String,
+    pub expires_at: i64,
+    pub accepted_at: Option<i64>,
+    pub revoked_at: Option<i64>,
+    pub invitation_state: String,
+}
+
+/// The owner invitation result before transport shaping.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct InvitationPage {
+    pub items: Vec<InvitationItem>,
+}
+
+impl InvitationPage {
+    /// Fail closed on any state outside the owner CASE or any impossible row.
+    pub fn validated(self) -> Result<Self, BusinessError> {
+        if self.items.len() > MAX_FEEDBACK
+            || self.items.iter().any(|item| {
+                item.id.is_empty()
+                    || item.id.len() > MAX_ID
+                    || item.email.is_empty()
+                    || item.email.len() > MAX_EMAIL
+                    || item.branch_id.is_empty()
+                    || item.branch_id.len() > MAX_ID
+                    || item.expires_at < 0
+                    || item.accepted_at.is_some_and(|value| value < 0)
+                    || item.revoked_at.is_some_and(|value| value < 0)
+                    || !INVITATION_STATES.contains(&item.invitation_state.as_str())
+            })
+        {
+            return Err(unavailable());
+        }
+        Ok(self)
+    }
+}
+
+/// The exact response envelope consumed by the TypeScript client.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct InvitationResponse {
+    #[serde(rename = "invitations")]
+    pub items: Vec<InvitationItem>,
+}
+
+impl From<InvitationPage> for InvitationResponse {
+    fn from(page: InvitationPage) -> Self {
+        Self { items: page.items }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -201,6 +274,66 @@ mod tests {
                 items: vec![FeedbackItem {
                     body: "x".repeat(MAX_BODY + 1),
                     ..row
+                }],
+            }
+            .validated()
+            .unwrap_err(),
+            unavailable()
+        );
+    }
+
+    fn invitation(state: &str) -> InvitationItem {
+        InvitationItem {
+            id: "inv-1".to_owned(),
+            email: "owner@example.test".to_owned(),
+            branch_id: "branch-1".to_owned(),
+            expires_at: 1_700_000_000_000,
+            accepted_at: None,
+            revoked_at: None,
+            invitation_state: state.to_owned(),
+        }
+    }
+
+    #[test]
+    fn invitations_sql_keeps_one_bind_and_no_write_or_lock() {
+        assert_eq!(INVITATIONS_SQL.matches('?').count(), 1);
+        assert!(INVITATIONS_SQL.starts_with("SELECT "));
+        assert!(INVITATIONS_SQL.contains("JOIN organization_nodes b ON b.id=i.branch_id"));
+        assert!(INVITATIONS_SQL.contains("WHERE b.company_id=?"));
+        assert!(INVITATIONS_SQL.contains("ORDER BY i.created_at DESC LIMIT 100"));
+        assert!(!INVITATIONS_SQL.contains("FOR UPDATE"));
+        assert!(!INVITATIONS_SQL.contains("LOCK "));
+        assert!(!INVITATIONS_SQL.contains(';'));
+    }
+
+    #[test]
+    fn validates_the_invitation_projection_and_envelope() {
+        let row = invitation("Invited");
+        let page = InvitationPage {
+            items: vec![row.clone()],
+        };
+        assert_eq!(page.clone().validated(), Ok(page.clone()));
+        assert_eq!(
+            serde_json::to_string(&InvitationResponse::from(page)).expect("json"),
+            concat!(
+                r#"{"invitations":[{"id":"inv-1","email":"owner@example.test","#,
+                r#""branch_id":"branch-1","expires_at":1700000000000,"accepted_at":null,"#,
+                r#""revoked_at":null,"invitation_state":"Invited"}]}"#
+            )
+        );
+        assert_eq!(
+            InvitationPage {
+                items: vec![invitation("Unknown")],
+            }
+            .validated()
+            .unwrap_err(),
+            unavailable()
+        );
+        assert_eq!(
+            InvitationPage {
+                items: vec![InvitationItem {
+                    id: String::new(),
+                    ..invitation("Invited")
                 }],
             }
             .validated()

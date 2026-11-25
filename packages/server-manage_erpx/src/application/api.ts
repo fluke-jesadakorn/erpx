@@ -18,7 +18,7 @@ postDrafts(userId:string,companyId:string):Promise<(Record<string,unknown>)[]>;
 policy(companyId:string):Promise<Record<string,unknown>|null>;
 usage(companyId:string,month:string,companyId2:string,month2:string):Promise<Record<string,unknown>|null>;
 files(companyId:string,companyId2:string,companyId3:string,companyId4:string,companyId5:string,companyId6:string):Promise<Record<string,unknown>|null>;
-invitations(companyId:string):Promise<(Record<string,unknown>)[]>;
+invitations(companyId:string,holdingSlug:string):Promise<(Record<string,unknown>)[]>;
 feedback(companyId:string):Promise<(Record<string,unknown>)[]>;
 reports(companyId:string):Promise<(Record<string,unknown>)[]>;
 billing(holdingId:string):Promise<Record<string,unknown>|null>;
@@ -100,7 +100,7 @@ export function createBetaApiApplication<Effect>(ports:BetaApiPorts<Effect>){con
             policy: await r.policy(actor.companyId),
             usage: await r.usage(actor.companyId,new Date(ports.clock.now()).toISOString().slice(0, 7),actor.companyId,new Date(ports.clock.now()).toISOString().slice(0, 7)),
             files: await r.files(actor.companyId,actor.companyId,actor.companyId,actor.companyId,actor.companyId,actor.companyId),
-            invites: (await r.invitations(actor.companyId)),
+            invites: (await r.invitations(actor.companyId,actor.holdingSlug)),
             feedback: (await r.feedback(actor.companyId)),
             reports: (await r.reports(actor.companyId)),
             billing: await r.billing(actor.holdingId),

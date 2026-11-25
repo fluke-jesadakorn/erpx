@@ -1,7 +1,6 @@
 import { applicationOrigin } from "@erpx/feature-runtime/lib/application-origins";
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import {betaManagementPeopleSources} from '@erpx/server-people_payroll/public/beta-management-sources';
-import {betaManagementOrganizationSources} from '@erpx/server-organization/public/beta-management-sources';
 import {betaManagementCollaborationSources} from '@erpx/server-collaboration/public/beta-management-sources';
 import {betaManagementFinanceSources} from '@erpx/server-finance/public/beta-management-sources';
 import {betaManagementRequestSources} from '@erpx/server-records/public/beta-management-sources';
@@ -31,6 +30,7 @@ import { sendBetaEmail } from "@erpx/server-manage_erpx/adapters/beta-email";
 import { nativeOwnerWrite, NATIVE_OWNER_WRITE_NOOP_SQL } from "./native-owner-write";
 import { betaPolicyPointKind } from "./beta-policy-point-sql";
 import { nativeManageOwnerReadFirst } from "./native-owner-read";
+import { nativeBetaFeedback, nativeBetaInvitations } from "./native-lane-34/client";
 import { usageHeadSql } from "./usage-head-sql";
 import { billingLink } from "@erpx/server-billing/public/beta-billing";
 
@@ -44,7 +44,7 @@ import {betaManagementFacts as owner2} from '@erpx/server-files/public/beta-mana
 import {betaManagementFacts as owner3} from '@erpx/server-billing/public/beta-management-facts';
 import {betaManagementFacts as owner4} from '@erpx/server-identity_access/public/beta-management-facts';
 async function inward<T>(action:()=>Promise<T>){try{return await action();}catch(error){if(error instanceof ApiError)throw new BusinessRuleError(error.status,error.code,error.message);throw error;}}
-function repository(db:SqlDatabase,env:RuntimeEnv):BetaApiRepository<SqlStatement>{const people=betaManagementPeopleSources(db),organization=betaManagementOrganizationSources(db),collaboration=betaManagementCollaborationSources(db),finance=betaManagementFinanceSources(db),requests=betaManagementRequestSources(db);return {async policy(companyId:string){return nativeManageOwnerReadFirst(betaPolicyPointKind['*'], [companyId], db);},
+function repository(db:SqlDatabase,env:RuntimeEnv):BetaApiRepository<SqlStatement>{const people=betaManagementPeopleSources(db),collaboration=betaManagementCollaborationSources(db),finance=betaManagementFinanceSources(db),requests=betaManagementRequestSources(db);return {async policy(companyId:string){return nativeManageOwnerReadFirst(betaPolicyPointKind['*'], [companyId], db);},
 async usage(companyId:string,month:string,companyId2:string,month2:string){return db
               .prepare(
                 `${usageHeadSql('count(*) requests,sum(input_tokens) inputTokens,sum(output_tokens) outputTokens')}${collaboration.aiUsageSource} UNION ALL ${usageHeadSql('input_tokens,output_tokens')}${people.aiUsageSource} UNION ALL ${requests.aiUsageSource} UNION ALL ${finance.aiUsageSource}) WHERE company_id=? AND month=?)`,
@@ -56,18 +56,12 @@ async usage(companyId:string,month:string,companyId2:string,month2:string){retur
                 month2,
               )
               .first();},
-async invitations(companyId:string){return (await db
-                .prepare(
-                  `SELECT i.id,i.email,i.branch_id,i.expires_at,i.accepted_at,i.revoked_at,CASE WHEN i.revoked_at IS NOT NULL THEN 'Revoked' WHEN i.accepted_at IS NOT NULL THEN 'Joined' WHEN i.expires_at<=(floor(extract(epoch FROM clock_timestamp()))::bigint*1000) THEN 'Expired' ELSE 'Invited' END invitation_state FROM beta_team_invitations i ${organization.invitationCompanySource} ORDER BY i.created_at DESC LIMIT 100`,
-                )
-                .bind(companyId)
-                .all()).results;},
-async feedback(companyId:string){return (await db
-                .prepare(
-                  "SELECT id,body,created_at FROM beta_feedback WHERE company_id=? ORDER BY created_at DESC LIMIT 100",
-                )
-                .bind(companyId)
-                .all()).results;},
+// Native axum owner owns the company-scoped invitations query and the
+// invitation_state projection. This adapter only transports the named Holding.
+async invitations(companyId:string,holdingSlug:string){return nativeBetaInvitations(companyId,holdingSlug);},
+// Native axum owner owns the beta_feedback SELECT, Company scope and projection.
+// This adapter only transports the returned rows; no TypeScript query remains.
+async feedback(companyId:string){return nativeBetaFeedback(companyId);},
 // Native axum owner-write commands execute both writes in Rust. The returned
 // statements are inert placeholders; no write SQL remains in TypeScript.
 async prepareFeedback(key:string,companyId:string,userId:string,body:string,month:number){return nativeOwnerWrite('me_beta_feedback_insert',[key,companyId,userId,body,month],`me-feedback:${key}`,{companyId,now:month},()=>db.prepare(NATIVE_OWNER_WRITE_NOOP_SQL));},

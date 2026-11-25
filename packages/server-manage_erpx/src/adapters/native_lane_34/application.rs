@@ -3,7 +3,9 @@
 //! No SQL lives here: the sqlx adapter implements the owner port and this
 //! handler only enforces the Company boundary and the response invariants.
 
-use crate::adapters::native_lane_34::domain::{FeedbackPage, invalid_request, valid_company_id};
+use crate::adapters::native_lane_34::domain::{
+    FeedbackPage, InvitationPage, invalid_request, valid_company_id,
+};
 use erpx_server_shared::public::BusinessError;
 use std::{future::Future, pin::Pin};
 
@@ -21,6 +23,26 @@ pub async fn load(
     query: &dyn BetaFeedbackQuery,
     company: &str,
 ) -> Result<FeedbackPage, BusinessError> {
+    if !valid_company_id(company) {
+        return Err(invalid_request());
+    }
+    query.list(company).await?.validated()
+}
+
+pub type InvitationFuture<'a> =
+    Pin<Box<dyn Future<Output = Result<InvitationPage, BusinessError>> + Send + 'a>>;
+
+/// Owner invitation-list port. The sqlx adapter owns the company-scoped join,
+/// bind order and transaction; this handler only enforces the Company boundary.
+pub trait BetaInvitationQuery: Send + Sync {
+    fn list<'a>(&'a self, company: &'a str) -> InvitationFuture<'a>;
+}
+
+/// Validate the Company scope, run the owner read and pin the invitation shape.
+pub async fn load_invitations(
+    query: &dyn BetaInvitationQuery,
+    company: &str,
+) -> Result<InvitationPage, BusinessError> {
     if !valid_company_id(company) {
         return Err(invalid_request());
     }
@@ -87,6 +109,58 @@ mod tests {
     async fn load_fails_closed_when_owner_read_fails() {
         assert_eq!(
             load(&stub(true), "acme:co").await.unwrap_err(),
+            unavailable()
+        );
+    }
+
+    struct InvitationStub {
+        fail: bool,
+    }
+
+    impl BetaInvitationQuery for InvitationStub {
+        fn list<'a>(&'a self, company: &'a str) -> InvitationFuture<'a> {
+            let company = company.to_owned();
+            let fail = self.fail;
+            Box::pin(async move {
+                if fail {
+                    return Err(unavailable());
+                }
+                Ok(InvitationPage {
+                    items: vec![crate::adapters::native_lane_34::domain::InvitationItem {
+                        id: format!("inv-{company}"),
+                        email: "owner@example.test".to_owned(),
+                        branch_id: "branch-1".to_owned(),
+                        expires_at: 1_700_000_000_000,
+                        accepted_at: None,
+                        revoked_at: None,
+                        invitation_state: "Invited".to_owned(),
+                    }],
+                })
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn load_invitations_returns_the_pinned_projection() {
+        let page = load_invitations(&InvitationStub { fail: false }, "acme:co")
+            .await
+            .expect("page");
+        assert_eq!(page.items[0].id, "inv-acme:co");
+        assert_eq!(page.items[0].invitation_state, "Invited");
+    }
+
+    #[tokio::test]
+    async fn load_invitations_fails_closed_on_bad_company_and_owner_failure() {
+        assert_eq!(
+            load_invitations(&InvitationStub { fail: false }, "bad/id")
+                .await
+                .unwrap_err(),
+            invalid_request()
+        );
+        assert_eq!(
+            load_invitations(&InvitationStub { fail: true }, "acme:co")
+                .await
+                .unwrap_err(),
             unavailable()
         );
     }

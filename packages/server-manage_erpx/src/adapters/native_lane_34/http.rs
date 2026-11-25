@@ -6,11 +6,14 @@
 //! status mapping as the other owner routers. No TypeScript business fallback
 //! exists behind this route.
 
-use crate::adapters::native_lane_34::application::{BetaFeedbackQuery, load};
-use crate::adapters::native_lane_34::domain::{
-    FeedbackResponse, configuration_invalid, invalid_request, missing, valid_company_id, valid_slug,
+use crate::adapters::native_lane_34::application::{
+    BetaFeedbackQuery, BetaInvitationQuery, load, load_invitations,
 };
-use crate::adapters::native_lane_34::postgres::PgBetaFeedbackQuery;
+use crate::adapters::native_lane_34::domain::{
+    FeedbackResponse, InvitationResponse, configuration_invalid, invalid_request, missing,
+    valid_company_id, valid_slug,
+};
+use crate::adapters::native_lane_34::postgres::{PgBetaFeedbackQuery, PgBetaInvitationQuery};
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
     StatusCode, get, header, serde_json,
@@ -33,9 +36,11 @@ pub struct LaneTarget {
 /// Reader-per-target map. The key is exactly `(host, holding_slug)` so one
 /// Holding can never borrow another Holding's database pool.
 type Targets = BTreeMap<(String, String), Arc<dyn BetaFeedbackQuery>>;
+type InvitationTargets = BTreeMap<(String, String), Arc<dyn BetaInvitationQuery>>;
 
 struct LaneState {
     targets: Targets,
+    invitation_targets: InvitationTargets,
 }
 
 /// Validate the exact distinct target set and insert each reader under its
@@ -60,13 +65,20 @@ fn configure_targets<R>(
     Ok(configured)
 }
 
-fn from_targets(targets: Targets) -> Router {
+fn from_targets(targets: Targets, invitation_targets: InvitationTargets) -> Router {
     Router::new()
         .route(
             "/api/v1/holdings/{holding_slug}/manage-erpx/beta-feedback",
             get(feedback),
         )
-        .with_state(Arc::new(LaneState { targets }))
+        .route(
+            "/api/v1/holdings/{holding_slug}/manage-erpx/beta-invitations",
+            get(invitations),
+        )
+        .with_state(Arc::new(LaneState {
+            targets,
+            invitation_targets,
+        }))
 }
 
 /// Reader-injection constructor retained for tests and for composition code
@@ -75,29 +87,34 @@ pub fn router_with_reader(
     reader: Arc<dyn BetaFeedbackQuery>,
     targets: Vec<LaneTarget>,
 ) -> Result<Router, BusinessError> {
-    Ok(from_targets(configure_targets(
+    let feedback = configure_targets(
         targets
             .into_iter()
             .map(|target| (target, reader.clone()))
             .collect(),
-    )?))
+    )?;
+    Ok(from_targets(feedback, BTreeMap::new()))
 }
 
 /// Per-Holding constructor: every target carries its own database pool, so
-/// composition binds one `PgBetaFeedbackQuery` per Holding. Cross-Holding
-/// reads are impossible because the resolved reader comes from the same map
-/// entry that matched the Host and slug.
+/// composition binds one `PgBetaFeedbackQuery` and one `PgBetaInvitationQuery`
+/// per Holding from that same pool. Cross-Holding reads are impossible because
+/// the resolved reader comes from the map entry that matched Host and slug.
 pub fn router_for_holdings(
     targets: Vec<(LaneTarget, DatabasePool)>,
 ) -> Result<Router, BusinessError> {
-    let entries = targets
-        .into_iter()
-        .map(|(target, pool)| {
-            let reader: Arc<dyn BetaFeedbackQuery> = Arc::new(PgBetaFeedbackQuery::new(pool));
-            (target, reader)
-        })
-        .collect();
-    Ok(from_targets(configure_targets(entries)?))
+    let mut feedback_entries = Vec::new();
+    let mut invitation_entries = Vec::new();
+    for (target, pool) in targets {
+        let feedback: Arc<dyn BetaFeedbackQuery> = Arc::new(PgBetaFeedbackQuery::new(pool.clone()));
+        let invitation: Arc<dyn BetaInvitationQuery> = Arc::new(PgBetaInvitationQuery::new(pool));
+        feedback_entries.push((target.clone(), feedback));
+        invitation_entries.push((target, invitation));
+    }
+    Ok(from_targets(
+        configure_targets(feedback_entries)?,
+        configure_targets(invitation_entries)?,
+    ))
 }
 
 /// Single-pool compatibility constructor. The caller supplies the pool; the
@@ -141,7 +158,7 @@ fn error_response(error: BusinessError) -> Response {
         .into_response()
 }
 
-fn bounded(body: FeedbackResponse) -> Response {
+fn bounded<T: serde::Serialize>(body: T) -> Response {
     let mut response = (StatusCode::OK, Json(body)).into_response();
     for (name, value) in [
         (header::CACHE_CONTROL, "private, no-store"),
@@ -181,11 +198,39 @@ async fn feedback(
     }
 }
 
+async fn invitations(
+    State(state): State<Arc<LaneState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let host = unique_header(request.headers(), header::HOST)?
+            .filter(|host| !host.is_empty())
+            .ok_or_else(missing)?;
+        let reader = state
+            .invitation_targets
+            .get(&(host.to_owned(), slug.clone()))
+            .ok_or_else(missing)?;
+        let company = unique_header(request.headers(), CONTEXT_COMPANY)?
+            .filter(|value| valid_company_id(value))
+            .ok_or_else(invalid_request)?;
+        let page = load_invitations(reader.as_ref(), company).await?;
+        Ok::<_, BusinessError>(InvitationResponse::from(page))
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::adapters::native_lane_34::application::FeedbackFuture;
-    use crate::adapters::native_lane_34::domain::{FeedbackItem, FeedbackPage};
+    use crate::adapters::native_lane_34::application::{FeedbackFuture, InvitationFuture};
+    use crate::adapters::native_lane_34::domain::{
+        FeedbackItem, FeedbackPage, InvitationItem, InvitationPage,
+    };
     use erpx_server_runtime::public::http_support::{Body, to_bytes};
 
     struct StaticReader {
@@ -205,6 +250,33 @@ mod tests {
                 })
             })
         }
+    }
+
+    struct InvitationStubReader {
+        id: &'static str,
+    }
+
+    impl BetaInvitationQuery for InvitationStubReader {
+        fn list<'a>(&'a self, _company: &'a str) -> InvitationFuture<'a> {
+            let id = self.id.to_owned();
+            Box::pin(async move {
+                Ok(InvitationPage {
+                    items: vec![InvitationItem {
+                        id: format!("inv-{id}"),
+                        email: "owner@example.test".to_owned(),
+                        branch_id: "branch-1".to_owned(),
+                        expires_at: 1_700_000_000_000,
+                        accepted_at: None,
+                        revoked_at: None,
+                        invitation_state: "Invited".to_owned(),
+                    }],
+                })
+            })
+        }
+    }
+
+    fn invitation_reader(id: &'static str) -> Arc<dyn BetaInvitationQuery> {
+        Arc::new(InvitationStubReader { id })
     }
 
     fn acme() -> LaneTarget {
@@ -308,7 +380,10 @@ mod tests {
             "northstar-row"
         );
 
-        let state = Arc::new(LaneState { targets });
+        let state = Arc::new(LaneState {
+            targets,
+            invitation_targets: BTreeMap::new(),
+        });
         assert!(
             call(state.clone(), "acme.example.test", "acme")
                 .await
@@ -319,6 +394,45 @@ mod tests {
                 .await
                 .contains("northstar-row")
         );
+    }
+
+    #[tokio::test]
+    async fn invitations_route_uses_each_holdings_own_reader() {
+        let first = invitation_reader("acme");
+        let second = invitation_reader("northstar");
+        let targets =
+            configure_targets(vec![(acme(), first.clone()), (northstar(), second.clone())])
+                .expect("targets");
+        assert!(!Arc::ptr_eq(
+            targets
+                .get(&("acme.example.test".to_owned(), "acme".to_owned()))
+                .expect("acme"),
+            targets
+                .get(&("northstar.example.test".to_owned(), "northstar".to_owned()))
+                .expect("northstar")
+        ));
+        let state = Arc::new(LaneState {
+            targets: BTreeMap::new(),
+            invitation_targets: targets,
+        });
+        for (host, slug, expected) in [
+            ("acme.example.test", "acme", "inv-acme"),
+            ("northstar.example.test", "northstar", "inv-northstar"),
+        ] {
+            let request = Request::builder()
+                .header(header::HOST, host)
+                .header(CONTEXT_COMPANY, "acme:co")
+                .body(Body::empty())
+                .expect("request");
+            let response = invitations(State(state.clone()), Path(slug.to_owned()), request).await;
+            assert_eq!(response.status(), StatusCode::OK);
+            let bytes = to_bytes(response.into_body(), 1 << 20).await.expect("body");
+            assert!(
+                String::from_utf8(bytes.to_vec())
+                    .expect("utf8")
+                    .contains(expected)
+            );
+        }
     }
 
     #[test]
