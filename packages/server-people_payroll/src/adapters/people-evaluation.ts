@@ -1,4 +1,5 @@
 import {ppRd36TwoPredTail} from './pp-read-tail-r36-sources';
+import {ppRd57CompRevisionByEngagementSql} from './pp-read-tail-r57-sources';
 import { ppRd38SinglePredTail } from './pp-read-tail-r38-sources';
 import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
 import { ppRd30Exists4Guard } from './pp-read-tail-r30-sources';
@@ -65,7 +66,7 @@ function application(provided?: SqlDatabase) {
             }>();
         },
         readEvaluationWorkspaceAssessments(companyId: string, id: string, date: string) { return database.prepare("SELECT * FROM hr_evaluation_assessments WHERE company_id=? AND cycle_id=? AND period_start<=? ORDER BY period_start,id").bind(companyId, id, date).all<AssessmentRow>(); },
-        readEvaluationWorkspaceWages(id: string, date: string, date2: string) { return database.prepare("SELECT * FROM hr_compensation_revisions WHERE engagement_id=? AND status='approved' AND effective_from<=? AND (effective_to IS NULL OR effective_to>=?) ORDER BY effective_from DESC").bind(id, date, date2).all<Compensation>(); },
+        readEvaluationWorkspaceWages(id: string, date: string, date2: string) { return database.prepare(ppRd57CompRevisionByEngagementSql(" AND status='approved' AND effective_from<=? AND (effective_to IS NULL OR effective_to>=?) ORDER BY effective_from DESC")).bind(id, date, date2).all<Compensation>(); },
         readEvaluationWorkspaceBasisRow(id: string, companyId: string, date: string) {
             return evaluationPayBasisRow(database, id, companyId, date);
         },
@@ -110,7 +111,7 @@ function application(provided?: SqlDatabase) {
         stageTransitionEvaluationAssessmentEffect4(value: string, userId: string, value2: string | null, value3: string, reason: string, now: number, assessmentId: string) { return nativePpStatement('people_eval_stmt_6').bind(value, userId, value2, value3, reason, now, assessmentId); },
         readEvaluationDetailEvidence(assessmentId: string, companyId: string) { return database.prepare(ppRd36TwoPredTail("id,source_type,source_id,description,observed_on,created_by,created_at","hr_evaluation_evidence","assessment_id","company_id"," ORDER BY created_at,id")).bind(assessmentId, companyId).all<Row>(); },
         readEvaluationDetailHistory(assessmentId: string, companyId: string) { return database.prepare(ppRd36TwoPredTail("version,status,content_json,actor_id,reason,created_at,period_start,period_end,role_id,role_version","hr_evaluation_assessment_history","id","company_id"," ORDER BY version DESC")).bind(assessmentId, companyId).all<Row>(); },
-        readEvaluationDetailSalary(id: string) { return database.prepare("SELECT * FROM hr_compensation_revisions WHERE engagement_id=? AND status IN ('approved','superseded') ORDER BY effective_from DESC").bind(id).all<Compensation>(); },
+        readEvaluationDetailSalary(id: string) { return database.prepare(ppRd57CompRevisionByEngagementSql(" AND status IN ('approved','superseded') ORDER BY effective_from DESC")).bind(id).all<Compensation>(); },
         readEvaluationDetailSalary2(assessmentId: string, companyId: string) { return database.prepare("SELECT d.id,d.compensation_id,d.version,d.status,d.reason,d.review_reason,d.created_by,d.approved_by,d.previous_json,d.proposed_json,c.effective_from,c.base_amount_minor,c.hourly_rate_minor,c.daily_rate_minor FROM hr_evaluation_compensation_drafts d JOIN hr_compensation_revisions c ON c.id=d.compensation_id WHERE d.assessment_id=? AND d.company_id=? ORDER BY d.created_at DESC").bind(assessmentId, companyId).all<Row>(); },
         readEvaluationDetailFiles(...args) { return peopleEvaluationFilesFacts(database).readEvaluationDetailFiles(...args); },
         readEvaluationEvidenceSourcesTasksprojectslearning(...args) { return peopleEvaluationStaffWorkFacts(database).readEvaluationEvidenceSourcesTasksprojectslearning(...args); },
@@ -142,7 +143,7 @@ function application(provided?: SqlDatabase) {
             }>();
         },
         readCreateEvaluationCompensationDraftWages(id: string, effectiveFrom: string, effectiveFrom2: string) {
-            return database.prepare("SELECT * FROM hr_compensation_revisions WHERE engagement_id=? AND status='approved' AND effective_from<=? AND (effective_to IS NULL OR effective_to>=?)").bind(id, effectiveFrom, effectiveFrom2).all<Compensation & {
+            return database.prepare(ppRd57CompRevisionByEngagementSql(" AND status='approved' AND effective_from<=? AND (effective_to IS NULL OR effective_to>=?)")).bind(id, effectiveFrom, effectiveFrom2).all<Compensation & {
                 components_json: string;
             }>();
         },

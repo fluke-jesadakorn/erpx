@@ -1,4 +1,5 @@
 import {ppRd36TwoPredTail} from './pp-read-tail-r36-sources';
+import {ppRd57PeopleIdGuard} from './pp-read-tail-r57-sources';
 import { PP_RD23_HR_ENGAGEMENTS_ACTIVE_FOR_PERSON_NOT_EXISTS } from './pp-read-tail-r23-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import { PP_RD19_HR_ENGAGEMENT_VERSION_EXISTS_SQL } from './pp-read-tail-r19-sources';
@@ -42,7 +43,7 @@ function application(provided?: SqlDatabase) {
             return assertion(database, commandId, value, "NOT EXISTS(SELECT 1 FROM hr_people WHERE company_id=? AND lower(email)=? AND id!=? AND merged_into_id IS NULL)", [companyId, email, id]);
         },
         guard10(commandId: string, value: "version", id: string, expectedVersion: number) {
-            return assertion(database, commandId, value, "EXISTS(SELECT 1 FROM hr_people WHERE id=? AND version=? AND status!='archived')", [id, expectedVersion]);
+            return assertion(database, commandId, value, ppRd57PeopleIdGuard(" AND version=? AND status!='archived'"), [id, expectedVersion]);
         },
         stageSaveDirectoryPersonEffect(legalName: string, value: string | null, email: string, value2: string | null, value3: string | number | null, value4: string | number | null, countryCode: string, now: number, id: string) {
             return nativePpStatement('pp_people_directory_stmt_1')
@@ -78,7 +79,7 @@ function application(provided?: SqlDatabase) {
         readSetDirectoryStatusEffect(companyId: string, personId: string) { return database.prepare(ppRd36TwoPredTail("1","people_access_cutoffs","company_id","person_id"," AND cancelled_at IS NULL AND restored_at IS NULL")).bind(companyId, personId).first(); },
         guard25(commandId: string, value: "ended-engagements", companyId: string, personId: string) { return assertion(database, commandId, value, PP_RD23_HR_ENGAGEMENTS_ACTIVE_FOR_PERSON_NOT_EXISTS, [companyId, personId]); },
         guard26(commandId: string, value: "version", personId: string, expectedVersion: number) {
-            return assertion(database, commandId, value, "EXISTS(SELECT 1 FROM hr_people WHERE id=? AND version=?)", [personId, expectedVersion]);
+            return assertion(database, commandId, value, ppRd57PeopleIdGuard(" AND version=?"), [personId, expectedVersion]);
         },
         guard27(...args) { return peopleDirectoryOrganizationFacts(database).guard27(...args); },
         stageSetDirectoryStatusEffect(status: "active" | "inactive" | "archived", now: number, personId: string) {
