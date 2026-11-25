@@ -10,6 +10,12 @@ export const supportEligibleFlagSql = (predicate: string, alias: string) =>
 export const supportReviewerCountSql = (predicate: string) =>
     `(SELECT COUNT(DISTINCT m.user_id) FROM (${identity_accessProjectionSources.assignments}) m WHERE ${predicate})`;
 
+/** Shared owner-local eligibility projection prefix for the work-list readers.
+ * With both by-id readers now native, the ticket and incident projections are
+ * the only consumers; one prefix keeps their rendered SQL byte-identical. */
+export const eligibilitySelect = (projection: string) =>
+    `SELECT t.*,${projection}`;
+
 /** One parameterized assignment-access read witness shared by the Support ticket
  * and incident read predicates. The active assignment/principal prefix and each
  * caller's trailing scope/role clause render byte-identically; the native readers

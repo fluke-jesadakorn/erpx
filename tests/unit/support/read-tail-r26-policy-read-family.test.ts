@@ -110,7 +110,7 @@ describe('Support SLA policy native read port (r28)', () => {
             }
         };
         walk(srcRoot);
-        expect(total).toBe(37);
+        expect(total).toBe(36);
         expect(total).toBeLessThan(50);
     });
 });

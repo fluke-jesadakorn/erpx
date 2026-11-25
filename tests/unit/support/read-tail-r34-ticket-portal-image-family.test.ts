@@ -45,7 +45,7 @@ describe('Support read-tail r34 ticket-portal ticket-image native kind', () => {
         expect(registry).toContain(`"${retiredSelect}"`);
         expect(registry).toContain('kind: RD_TICKET_PORTAL_TICKET_IMAGE,');
         expect(registry).toContain('    READ_TICKET_PORTAL_TICKET_IMAGE,\n');
-        expect(registry).toContain('assert_eq!(STATEMENTS.len(), 46);');
+        expect(registry).toContain('assert_eq!(STATEMENTS.len(), 48);');
         expect(registry).toContain('                RD_TICKET_PORTAL_TICKET_IMAGE,\n                SQL_TICKET_PORTAL_TICKET_IMAGE,\n                1usize,');
         expect(registry).toContain('ticket_portal_ticket_image_read_renders_the_retired_owner_literal_byte_for_byte');
     });
@@ -69,7 +69,7 @@ describe('Support read-tail r34 ticket-portal ticket-image native kind', () => {
     });
 
     test('retirement:ts-statements is strictly below the r34 BEFORE=45 baseline', () => {
-        expect(selectCount()).toBe(37);
+        expect(selectCount()).toBe(35);
         expect(selectCount()).toBeLessThan(44);
     });
 });

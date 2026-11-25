@@ -97,9 +97,9 @@ describe('Support SLA policy workspace/work native read family (r39)', () => {
         expect(registry).not.toContain('LOCK TABLE support_sla_policies');
     });
 
-    test('retirement:ts-statements 38->37 and the registry grows 44->46', () => {
-        expect(selectCount()).toBe(37);
+    test('retirement:ts-statements 37->35 and the registry grows 46->48', () => {
+        expect(selectCount()).toBe(35);
         expect(selectCount()).toBeLessThan(38);
-        expect(registry).toContain('assert_eq!(STATEMENTS.len(), 46);');
+        expect(registry).toContain('assert_eq!(STATEMENTS.len(), 48);');
     });
 });

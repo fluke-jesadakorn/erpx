@@ -63,6 +63,8 @@ export const SUPPORT_RD_SERVICE_SCOPE_COMPANY = 'support_rd_service_scope_compan
 export const SUPPORT_RD_SERVICE_SCOPE_BRANCH = 'support_rd_service_scope_branch';
 export const SUPPORT_RD_SERVICE_SCOPE_DEPARTMENT = 'support_rd_service_scope_department';
 export const SUPPORT_RD_SERVICE_TEAM_OPTION_NODES = 'support_rd_service_team_option_nodes';
+export const SUPPORT_RD_TICKET_BY_ID = 'support_rd_ticket_by_id';
+export const SUPPORT_RD_INCIDENT_BY_ID = 'support_rd_incident_by_id';
 
 /** Fixed arity of every registered kind, mirrored from the Rust read registry.
  * The command-plan route re-validates it; rejecting a mismatch here avoids an
@@ -114,6 +116,8 @@ const BIND_COUNTS: Readonly<Record<string, number>> = {
   [SUPPORT_RD_SERVICE_SCOPE_BRANCH]: 2,
   [SUPPORT_RD_SERVICE_SCOPE_DEPARTMENT]: 3,
   [SUPPORT_RD_SERVICE_TEAM_OPTION_NODES]: 6,
+  [SUPPORT_RD_TICKET_BY_ID]: 9,
+  [SUPPORT_RD_INCIDENT_BY_ID]: 10,
 };
 
 const unavailable = (): never => {
@@ -215,6 +219,16 @@ export async function nativeSupportReadAll<T>(
   db: SqlDatabase,
 ): Promise<SqlResult<T>> {
   return (await planAndRun<T>(kind, values, db)).result;
+}
+
+/** Single-row form of the strict native read. The kind selects the SQL; only
+ * routing-scoped values cross the wire and no SQL fallback remains. */
+export async function nativeSupportReadFirst<T>(
+  kind: string,
+  values: readonly unknown[],
+  db: SqlDatabase,
+): Promise<T | null> {
+  return (await planAndRun<T>(kind, values, db)).result.results[0] ?? null;
 }
 
 /** Same strict native plan, but also returns the owner-planned SQL for the

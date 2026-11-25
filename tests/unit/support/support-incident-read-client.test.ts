@@ -126,7 +126,7 @@ describe('Support incident read-tail r16 canonical projection', () => {
   it('composes the projection in both incident readers with no local copy', async () => {
     const byId = await src('adapters/support-incident-read.ts');
     const work = await src('adapters/support-incidents.ts');
-    expect(byId).toContain('${incidentEligibilitySelect(eligible, reviewer)}');
+    expect(byId).toContain('nativeSupportReadFirst<Row>(SUPPORT_RD_INCIDENT_BY_ID, [a.userId, id, ...args(a), ...supportIncidentReadPredicate(a).bindings], write)');
     expect(work).toContain('${incidentEligibilitySelect(eligible, reviewer)}');
     expect(work).not.toContain('owner_eligible');
     expect(work).not.toContain('reviewer_eligible');
@@ -152,7 +152,7 @@ describe('Support ticket read-tail r17 canonical eligibility projection', () => 
   it('composes the projection in both ticket readers with no local copy', async () => {
     const byId = await src('adapters/support-ticket-read.ts');
     const work = await src('adapters/support.ts');
-    expect(byId).toContain('${ticketEligibilitySelect(eligible, reviewers,');
+    expect(byId).toContain('nativeSupportReadFirst<Row>(SUPPORT_RD_TICKET_BY_ID, [id, ...args(a), ...supportTicketReadPredicate(a).bindings], write)');
     expect(work).toContain('${ticketEligibilitySelect(eligible, reviewers)}');
     expect(work).not.toContain('owner_eligible');
     expect(work).not.toContain('reviewer_count');
