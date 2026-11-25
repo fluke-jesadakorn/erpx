@@ -48,7 +48,7 @@ describe('Support read-tail r22 ticket guard family', () => {
         expect(src('adapters/ticket-portal-sources.ts')).toContain('export const portalValidBindingSelect=');
         expect(src('adapters/ticket-portal-image-sql.ts')).toContain('export const portalImageAggregateSql = (images: string[]) =>');
         expect(src('adapters/support-incidents.ts')).toContain('const scopedWorkspaceListSql = (columns: string, table: string, extra: string) =>');
-        expect(ticketRead).toContain('export const ticketEligibilitySelect =');
+        expect(ticketRead).not.toContain('ticketEligibilitySelect');
         expect(evidence).toContain('const evidenceEligibilitySelect = () =>');
         expect(ticketRead).toContain('SELECT id FROM support_tickets WHERE id=? AND company_id=? FOR SHARE');
         expect(ticketRead).toContain('await runtime.requirePurchase("support.tickets")');

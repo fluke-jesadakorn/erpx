@@ -1,4 +1,4 @@
-export { getSupportIncident, supportIncidentReadPredicate, incidentEligibilitySelect } from '@erpx/server-support/adapters/support-incident-read';
+export { getSupportIncident, supportIncidentReadPredicate } from '@erpx/server-support/adapters/support-incident-read';
 
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 import { ApiError } from '@erpx/server-runtime/public/http';

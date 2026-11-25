@@ -1,1 +1,1 @@
-export{createNativeSupportTicketRead,supportTicketReadPredicate,ticketEligibilitySelect}from '@erpx/server-support/adapters/support-ticket-read';
+export{createNativeSupportTicketRead,supportTicketReadPredicate}from '@erpx/server-support/adapters/support-ticket-read';

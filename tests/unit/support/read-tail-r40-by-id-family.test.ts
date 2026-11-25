@@ -5,13 +5,9 @@ import { describe, expect, test, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 
 import { finalRootOwnerProjectionSources as identityAccessProjections } from '@erpx/server-identity_access/public/final-root-owner-projection-sources';
-import { finalRootOwnerProjectionSources as payrollProjections } from '@erpx/server-people_payroll/public/final-root-owner-projection-sources';
-import { finalRootOwnerProjectionSources as commerceProjections } from '@erpx/server-commerce/public/final-root-owner-projection-sources';
-import { finalRootOwnerProjectionSources as financeProjections } from '@erpx/server-finance/public/final-root-owner-projection-sources';
-import { supportRecipientEligibility } from '../../../packages/server-support/src/adapters/support-recipient';
-import { ticketEligibilitySelect, supportTicketReadPredicate } from '../../../packages/server-support/src/adapters/support-ticket-read';
-import { incidentEligibilitySelect, supportIncidentReadPredicate } from '../../../packages/server-support/src/adapters/support-incident-read';
-import { scope, args, eligible, reviewers } from '../../../packages/server-support/src/adapters/support-ticket-read-sources';
+import { supportTicketReadPredicate } from '../../../packages/server-support/src/adapters/support-ticket-read';
+import { supportIncidentReadPredicate } from '../../../packages/server-support/src/adapters/support-incident-read';
+import { args } from '../../../packages/server-support/src/adapters/support-ticket-read-sources';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-support/src');
 const src = (p: string) => readFileSync(resolve(srcRoot, p), 'utf8');
@@ -36,16 +32,6 @@ const actor = {
     assignmentId: 'assignment', userId: 'user', role: 'support.read',
 } as unknown as Parameters<typeof supportTicketReadPredicate>[0];
 
-/** Re-render the same literals from the unchanged owner projection helpers. */
-const ticketExtra = `o.number order_number,p.name customer_name,(SELECT legal_name FROM (${payrollProjections.hr_people}) hr_people WHERE company_id=t.company_id AND user_id=t.owner_id AND merged_into_id IS NULL LIMIT 1) owner_name,`;
-const renderedTicket = `${ticketEligibilitySelect(eligible, reviewers, ticketExtra)} FROM support_tickets t LEFT JOIN (${commerceProjections.commerce_orders}) o ON o.id=t.order_id AND o.company_id=t.company_id LEFT JOIN (${financeProjections.finance_parties}) p ON p.id=t.customer_id AND p.company_id=t.company_id WHERE t.id=? AND ${scope} AND ${supportTicketReadPredicate(actor).sql}`;
-const reviewer = `m.company_id=t.company_id AND m.user_id<>t.owner_id AND m.user_id IS DISTINCT FROM t.mitigated_by
- AND iam_assignment_active(m.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(m.role,m.company_id,'support.manage')
- AND (m.scope_kind='holding' OR (m.scope_kind='branch' AND m.scope_node_id=t.branch_id) OR (m.scope_kind='department' AND m.scope_node_id=t.department_id))
- AND ${eligible.replaceAll('t.owner_id', 'm.user_id')}`;
-const renderedIncident = `${incidentEligibilitySelect(eligible, reviewer)}
-  FROM support_incidents t WHERE t.id=? AND ${scope} AND ${supportIncidentReadPredicate(actor).sql}`;
-
 const selectCount = (): number => {
     let total = 0;
     const walk = (dir: string) => {
@@ -63,8 +49,6 @@ describe('Support read-tail r40 by-id native family', () => {
     test('both retired by-id literals are inlined byte-for-byte in Rust', () => {
         expect(rustLiteral('TICKET_BY_ID')).toBe(goldenTicket);
         expect(rustLiteral('INCIDENT_BY_ID')).toBe(goldenIncident);
-        expect(goldenTicket).toBe(renderedTicket);
-        expect(goldenIncident).toBe(renderedIncident);
         expect(goldenTicket.startsWith('SELECT t.*,o.number order_number,p.name customer_name,')).toBe(true);
         expect(goldenTicket).toContain('FROM support_tickets t LEFT JOIN (');
         expect(goldenIncident.startsWith('SELECT t.*,CASE WHEN')).toBe(true);
@@ -111,8 +95,8 @@ describe('Support read-tail r40 by-id native family', () => {
     test('locks, guards, advisory locks and LOCK TABLE stay untouched', () => {
         expect(ticketSource).toContain('SELECT id FROM support_tickets WHERE id=? AND company_id=? FOR SHARE');
         expect(ticketSource).toContain('ticketGuardExistsSql(');
-        expect(ticketSource).toContain('export const ticketEligibilitySelect =');
-        expect(incidentSource).toContain('incidentEligibilitySelect');
+        expect(ticketSource).not.toContain('ticketEligibilitySelect');
+        expect(incidentSource).not.toContain('incidentEligibilitySelect');
         expect(src('adapters/ticket-guard-sources.ts')).toContain('export const ticketGuardExistsSql = (predicate: string) =>');
         expect(src('adapters/ticket-portal-unit.ts')).toContain('SELECT pg_advisory_xact_lock(hashtextextended(?,0))');
         expect(src('adapters/ticket-portal-unit.ts')).toContain('LOCK TABLE command_receipts,command_assertions,audit_events,outbox_events IN SHARE ROW EXCLUSIVE MODE');
@@ -121,9 +105,9 @@ describe('Support read-tail r40 by-id native family', () => {
         expect(registry).not.toContain('LOCK TABLE');
     });
 
-    test('retirement:ts-statements 37->35 and the registry grows 46->48', () => {
-        expect(selectCount()).toBe(35);
+    test('retirement:ts-statements drops 37->34 and the registry grows 46->50', () => {
+        expect(selectCount()).toBe(34);
         expect(selectCount()).toBeLessThan(37);
-        expect(registry).toContain('assert_eq!(STATEMENTS.len(), 48);');
+        expect(registry).toContain('assert_eq!(STATEMENTS.len(), 50);');
     });
 });

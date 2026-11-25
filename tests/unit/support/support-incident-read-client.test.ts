@@ -71,12 +71,12 @@ describe('Support incident read-tail r16 canonical projection', () => {
   const src = (name: string) =>
     readFile(new URL(`../../../packages/server-support/src/${name}`, import.meta.url), 'utf8');
 
-  it('keeps one canonical eligibility projection owner', async () => {
+  it('retires the incident eligibility projection wrapper', async () => {
     const source = await src('adapters/support-incident-read.ts');
-    expect(source).toContain('export const incidentEligibilitySelect');
-    expect(source.match(/eligibilitySelect\(`CASE WHEN \$\{ownerEligible\}/g)).toHaveLength(1);
-    expect(source.match(/\$\{supportEligibleFlagSql\(reviewerPredicate, 'reviewer_eligible'\)\}/g)).toHaveLength(1);
-    expect(source.match(/\$\{supportReviewerCountSql\(reviewerPredicate\)\}/g)).toHaveLength(1);
+    expect(source).not.toContain('incidentEligibilitySelect');
+    expect(source).not.toContain('eligibilitySelect');
+    expect(source).toContain('supportIncidentReadPredicate');
+    expect(source).toContain('nativeSupportReadFirst<Row>(SUPPORT_RD_INCIDENT_BY_ID');
     expect(source).not.toMatch(/EXISTS\(SELECT 1 FROM \(\$\{identity_accessProjectionSources\.assignments\}\) m WHERE/);
     expect(source).not.toMatch(/\(SELECT COUNT\(DISTINCT m\.user_id\) FROM/);
   });
@@ -87,7 +87,7 @@ describe('Support incident read-tail r16 canonical projection', () => {
     expect(shared.match(/\(SELECT COUNT\(DISTINCT m\.user_id\) FROM/g)).toHaveLength(1);
     expect(shared).toContain('supportEligibleFlagSql');
     expect(shared).toContain('supportReviewerCountSql');
-    expect(shared).toContain('export const eligibilitySelect');
+    expect(shared).not.toContain('export const eligibilitySelect');
   });
 
   it('composes the shared eligibility fragments in every remaining TS Support read tail', async () => {
@@ -128,14 +128,14 @@ describe('Support incident read-tail r16 canonical projection', () => {
     const byId = await src('adapters/support-incident-read.ts');
     const work = await src('adapters/support-incidents.ts');
     expect(byId).toContain('nativeSupportReadFirst<Row>(SUPPORT_RD_INCIDENT_BY_ID, [a.userId, id, ...args(a), ...supportIncidentReadPredicate(a).bindings], write)');
-    expect(work).toContain('${incidentEligibilitySelect(eligible, reviewer)}');
+    expect(work).toContain('nativeSupportReadAll<Row>(SUPPORT_RD_INCIDENT_WORK, [a.userId, ...args(a), ...permission.bindings], write)');
     expect(work).not.toContain('owner_eligible');
     expect(work).not.toContain('reviewer_eligible');
   });
 
-  it('re-exports the shared helper from the owner public surface', async () => {
+  it('no longer re-exports the retired helper from the owner public surface', async () => {
     const surface = await src('public/support-incident-read.ts');
-    expect(surface).toContain('incidentEligibilitySelect');
+    expect(surface).not.toContain('incidentEligibilitySelect');
   });
 });
 
@@ -143,25 +143,27 @@ describe('Support ticket read-tail r17 canonical eligibility projection', () => 
   const src = (name: string) =>
     readFile(new URL(`../../../packages/server-support/src/${name}`, import.meta.url), 'utf8');
 
-  it('keeps one canonical ticket eligibility projection owner', async () => {
+  it('retires the ticket eligibility projection wrapper', async () => {
     const source = await src('adapters/support-ticket-read.ts');
-    expect(source).toContain('export const ticketEligibilitySelect');
-    expect(source.match(/eligibilitySelect\(`\$\{extra\}CASE WHEN \$\{ownerEligible\}/g)).toHaveLength(1);
-    expect(source.match(/CASE WHEN \$\{ownerEligible\} THEN 1 ELSE 0 END owner_eligible/g)).toHaveLength(1);
+    expect(source).not.toContain('ticketEligibilitySelect');
+    expect(source).not.toContain('eligibilitySelect');
+    expect(source).toContain('supportTicketReadPredicate');
+    expect(source).not.toMatch(/CASE WHEN \$\{ownerEligible\} THEN 1 ELSE 0 END owner_eligible/g);
   });
 
-  it('composes the projection in both ticket readers with no local copy', async () => {
+  it('keeps the by-id reader native and routes the work list through its native kind', async () => {
     const byId = await src('adapters/support-ticket-read.ts');
     const work = await src('adapters/support.ts');
     expect(byId).toContain('nativeSupportReadFirst<Row>(SUPPORT_RD_TICKET_BY_ID, [id, ...args(a), ...supportTicketReadPredicate(a).bindings], write)');
-    expect(work).toContain('${ticketEligibilitySelect(eligible, reviewers)}');
+    expect(work).toContain('nativeSupportReadAll<Row>(SUPPORT_RD_TICKET_WORK, [...args(a), ...supportTicketReadPredicate(a).bindings], write)');
+    expect(work).not.toContain('${ticketEligibilitySelect(eligible, reviewers)}');
     expect(work).not.toContain('owner_eligible');
     expect(work).not.toContain('reviewer_count');
   });
 
-  it('re-exports the shared helper from the owner public surface', async () => {
+  it('no longer re-exports the retired helper from the owner public surface', async () => {
     const surface = await src('public/support-ticket-read.ts');
-    expect(surface).toContain('ticketEligibilitySelect');
+    expect(surface).not.toContain('ticketEligibilitySelect');
   });
 });
 

@@ -64,7 +64,7 @@ describe('Support read-tail r32 ticket-identity parameterized family', () => {
     });
 
     test('retirement:ts-statements is strictly below the r32 BEFORE=46 baseline', () => {
-        expect(selectCount()).toBe(35);
+        expect(selectCount()).toBe(34);
         expect(selectCount()).toBeLessThan(44);
     });
 });

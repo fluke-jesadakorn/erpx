@@ -10,15 +10,10 @@ import { createGetSupportTicket, createSupportTicketSourceGuards } from "@erpx/s
 
 import{nativeSupportReadRuntime}from '@erpx/server-support/adapters/read-runtime';
 import{nativeSupportReadFirst,SUPPORT_RD_TICKET_BY_ID}from '@erpx/server-support/adapters/native-support-read';
-import { eligibilitySelect, supportAssignmentAccessSql } from './eligibility-projection-sources';
+import { supportAssignmentAccessSql } from './eligibility-projection-sources';
 import { ticketGuardExistsSql } from './ticket-guard-sources';
 import{args}from '@erpx/server-support/adapters/support-ticket-read-sources';
 import type{SourceRecordReadServices}from '@erpx/server-records/public/source-record-contract';
-/** Canonical owner-local eligibility projection for the Support ticket work list.
- * The by-id reader is native; this prefix is shared so the rendered SQL stays
- * byte-identical for the remaining work-list caller. */
-export const ticketEligibilitySelect = (ownerEligible: string, reviewerCount: string, extra = '') =>
-    eligibilitySelect(`${extra}CASE WHEN ${ownerEligible} THEN 1 ELSE 0 END owner_eligible,${reviewerCount} reviewer_count`);
 export function supportTicketReadPredicate(a: WorkContext, alias = 't') {
     return { sql: supportAssignmentAccessSql(alias, '   ', `   AND (g.scope_kind='holding' OR g.scope_kind='branch' AND g.scope_node_id=${alias}.branch_id OR g.scope_kind='department' AND g.scope_node_id=${alias}.department_id)
    AND (iam_role_allows(g.role,g.company_id,'support.read') OR ${alias}.source_kind<>'sales_order' AND ${alias}.created_by=g.user_id AND iam_role_allows(g.role,g.company_id,'records.read'))`), bindings: [a.assignmentId, a.userId, a.role] };

@@ -86,9 +86,9 @@ describe('Support SLA policy workspace/work native read family (r39)', () => {
         expect(sla).toContain('SUPPORT_RD_SLA_WORKSPACE_TICKETS');
     });
 
-    test('locks, advisory, LOCK TABLE and ticket/incident eligibility helpers stay untouched', () => {
+    test('locks, advisory and LOCK TABLE stay untouched; eligibility helpers retired', () => {
         expect(src('adapters/support-ticket-read.ts')).toContain('SELECT id FROM support_tickets WHERE id=? AND company_id=? FOR SHARE');
-        expect(src('adapters/support-ticket-read.ts')).toContain('export const ticketEligibilitySelect =');
+        expect(src('adapters/support-ticket-read.ts')).not.toContain('ticketEligibilitySelect');
         expect(src('adapters/attachment-read.ts')).toContain('LOCK TABLE support_tickets,support_ticket_events IN SHARE ROW EXCLUSIVE MODE');
         expect(src('adapters/ticket-portal-unit.ts')).toContain('SELECT pg_advisory_xact_lock(hashtextextended(?,0))');
         expect(src('adapters/ticket-portal-unit.ts')).toContain('LOCK TABLE command_receipts,command_assertions,audit_events,outbox_events IN SHARE ROW EXCLUSIVE MODE');
@@ -97,9 +97,9 @@ describe('Support SLA policy workspace/work native read family (r39)', () => {
         expect(registry).not.toContain('LOCK TABLE support_sla_policies');
     });
 
-    test('retirement:ts-statements 37->35 and the registry grows 46->48', () => {
-        expect(selectCount()).toBe(35);
+    test('retirement:ts-statements 37->34 and the registry grows 46->50', () => {
+        expect(selectCount()).toBe(34);
         expect(selectCount()).toBeLessThan(38);
-        expect(registry).toContain('assert_eq!(STATEMENTS.len(), 48);');
+        expect(registry).toContain('assert_eq!(STATEMENTS.len(), 50);');
     });
 });
