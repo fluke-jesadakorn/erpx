@@ -4,7 +4,7 @@
 //! is selected here. These re-exports and the registry assertions let the
 //! transport parity oracle assert byte equality with the runtime registry.
 //!
-//! Only the eight lock-free, SELECT-only owner reads in `pos-stripe.ts` are
+//! Only the twelve lock-free, SELECT-only owner reads in `pos-stripe.ts` are
 //! part of this family. Row-lock (`FOR UPDATE`/`FOR SHARE`), advisory/`LOCK
 //! TABLE`, PMS cross-owner reads and the day-report registry stay inline in
 //! their TypeScript callers and dedicated modules.
@@ -17,6 +17,10 @@ pub const PAYMENT_BY_ID: &str = "pos_stripe_payment_by_id";
 pub const PAYMENT_ID: &str = "pos_stripe_payment_id";
 pub const REFUND_BY_ID: &str = "pos_stripe_refund_by_id";
 pub const REFUND_ID_BY_PROVIDER: &str = "pos_stripe_refund_id_by_provider";
+pub const STRIPE_EVENT_BY_ID: &str = "pos_stripe_event_by_id";
+pub const CONNECTIONS_READY: &str = "pos_stripe_connections_ready";
+pub const SALE_NUMBER_BY_ID: &str = "pos_stripe_sale_number_by_id";
+pub const REFUND_PAYMENT_BY_REFUND: &str = "pos_stripe_refund_payment_by_refund";
 
 pub const KINDS: &[&str] = &[
     SETTLEMENT_BY_KEY,
@@ -27,13 +31,17 @@ pub const KINDS: &[&str] = &[
     PAYMENT_ID,
     REFUND_BY_ID,
     REFUND_ID_BY_PROVIDER,
+    STRIPE_EVENT_BY_ID,
+    CONNECTIONS_READY,
+    SALE_NUMBER_BY_ID,
+    REFUND_PAYMENT_BY_REFUND,
 ];
 
 pub fn supported(kind: &str) -> bool {
     KINDS.contains(&kind)
 }
 
-/// Authoritative SQL for the eight Stripe settlement/provider reads,
+/// Authoritative SQL for the twelve Stripe settlement/provider reads,
 /// byte-identical to the retired TypeScript literals. Every statement is a
 /// caller-transaction `SELECT` scoped by caller-supplied company/account/
 /// livemode and id values. None carries a row lock, advisory lock or `LOCK
@@ -48,6 +56,10 @@ pub fn sql(kind: &str) -> Option<&'static str> {
         PAYMENT_ID => "SELECT id FROM pos_payments WHERE id=? AND company_id=? AND stripe_account=? AND livemode=?",
         REFUND_BY_ID => "SELECT rp.* FROM pos_refund_payments rp JOIN pos_payments p ON p.id=rp.payment_id WHERE rp.id=? AND p.company_id=? AND p.stripe_account=? AND p.livemode=?",
         REFUND_ID_BY_PROVIDER => "SELECT rp.id FROM pos_refund_payments rp JOIN pos_payments p ON p.id=rp.payment_id WHERE rp.provider_id=? AND p.company_id=? AND p.stripe_account=? AND p.livemode=?",
+        STRIPE_EVENT_BY_ID => "SELECT * FROM pos_stripe_events WHERE id=?",
+        CONNECTIONS_READY => "SELECT company_id FROM pos_connections WHERE company_id=? AND account_id=? AND livemode=? AND state='ready'",
+        SALE_NUMBER_BY_ID => "SELECT number FROM pos_sales WHERE id=?",
+        REFUND_PAYMENT_BY_REFUND => "SELECT rp.* FROM pos_refund_payments rp JOIN pos_refunds r ON r.id=rp.refund_id WHERE rp.id=? AND r.company_id=?",
         _ => return None,
     })
 }
@@ -69,12 +81,16 @@ mod tests {
         (PAYMENT_ID, "SELECT id FROM pos_payments WHERE id=? AND company_id=? AND stripe_account=? AND livemode=?", 4),
         (REFUND_BY_ID, "SELECT rp.* FROM pos_refund_payments rp JOIN pos_payments p ON p.id=rp.payment_id WHERE rp.id=? AND p.company_id=? AND p.stripe_account=? AND p.livemode=?", 4),
         (REFUND_ID_BY_PROVIDER, "SELECT rp.id FROM pos_refund_payments rp JOIN pos_payments p ON p.id=rp.payment_id WHERE rp.provider_id=? AND p.company_id=? AND p.stripe_account=? AND p.livemode=?", 4),
+        (STRIPE_EVENT_BY_ID, "SELECT * FROM pos_stripe_events WHERE id=?", 1),
+        (CONNECTIONS_READY, "SELECT company_id FROM pos_connections WHERE company_id=? AND account_id=? AND livemode=? AND state='ready'", 3),
+        (SALE_NUMBER_BY_ID, "SELECT number FROM pos_sales WHERE id=?", 1),
+        (REFUND_PAYMENT_BY_REFUND, "SELECT rp.* FROM pos_refund_payments rp JOIN pos_refunds r ON r.id=rp.refund_id WHERE rp.id=? AND r.company_id=?", 2),
     ];
 
     #[test]
     fn stripe_sql_is_byte_identical_with_expected_binds() {
-        assert_eq!(KINDS.len(), 8);
-        assert_eq!(EXPECTED.len(), 8);
+        assert_eq!(KINDS.len(), 12);
+        assert_eq!(EXPECTED.len(), 12);
         for (kind, expected, binds) in EXPECTED {
             assert!(supported(kind), "stripe read kind must be allow listed: {kind}");
             let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));

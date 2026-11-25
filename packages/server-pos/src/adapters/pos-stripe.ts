@@ -1,6 +1,6 @@
 import { nativePosOne, nativePosRun } from './native-owner-write';
 import { nativePosConnectionsStatement, nativePosKeyedSettingsCurrencyAccountsStatement, nativePosPaymentByIdCompanyStatement, nativePosPaymentByIdPlainStatement, nativePosPaymentByIdStatement, nativePosPostingJournalStatement, nativePosSaleByIdStatement, nativePosStripeRoutesStatement } from './native-pos-core-statement';
-import { nativePosSettlementBalanceRowStatement, nativePosSettlementBalanceStateStatement, nativePosSettlementPayoutJournalStatement, nativePosSettlementStateStatement, nativePosStripePaymentIdStatement, nativePosStripePaymentStatement, nativePosStripeRefundIdStatement, nativePosStripeRefundStatement } from './native-pos-stripe-reads';
+import { nativePosSettlementBalanceRowStatement, nativePosSettlementBalanceStateStatement, nativePosSettlementPayoutJournalStatement, nativePosSettlementStateStatement, nativePosStripeConnectionsReadyStatement, nativePosStripeEventStatement, nativePosStripePaymentIdStatement, nativePosStripePaymentStatement, nativePosStripeRefundIdStatement, nativePosStripeRefundPaymentStatement, nativePosStripeRefundStatement, nativePosStripeSaleNumberStatement } from './native-pos-stripe-reads';
 import{secret,stripeRequest}from '@erpx/server-pos/adapters/stripe-provider';
 import {posStripeBindingFacts} from "@erpx/server-runtime/public/pos-stripe-binding-facts";
 import 'server-only';
@@ -116,7 +116,7 @@ function unit(db: SqlDatabase): PosStripeUnit {
         }) => nativePosRun(db, '', 'stripe_writeposrefundpayments1_113', [facts.id]),
         readPosStripeEvents1: (facts: {
             record_id: string | number | boolean | null;
-        }) => one(db, 'SELECT * FROM pos_stripe_events WHERE id=?', facts.record_id),
+        }) => nativePosStripeEventStatement<PosRow>(db, facts),
         readPosConnections1: (facts: {
             company_id: string | number | boolean | null;
         }) => nativePosConnectionsStatement(db, facts.company_id),
@@ -243,7 +243,7 @@ function unit(db: SqlDatabase): PosStripeUnit {
             company_id: string | number | boolean | null;
             accountId: string | undefined;
             fact2: boolean;
-        }) => one(db, "SELECT company_id FROM pos_connections WHERE company_id=? AND account_id=? AND livemode=? AND state='ready'", facts.company_id, facts.accountId, facts.fact2),
+        }) => nativePosStripeConnectionsReadyStatement<PosRow>(db, facts),
         readAssignments2: facts => posStripeIdentityAccessFacts(db).readAssignments2(facts),
         readPosConnections3: (facts: {
             company_id: string | number | boolean | null;
@@ -261,7 +261,7 @@ function unit(db: SqlDatabase): PosStripeUnit {
         }) => nativePosPaymentByIdCompanyStatement(db, facts.company_id, facts.record_id),
         readPosSales1: (facts: {
             sale_id: string | number | boolean | null;
-        }) => one(db, 'SELECT number FROM pos_sales WHERE id=?', facts.sale_id),
+        }) => nativePosStripeSaleNumberStatement<PosRow>(db, facts),
         writePosPayments5: (facts: {
             id: string;
             qr: string;
@@ -292,7 +292,7 @@ function unit(db: SqlDatabase): PosStripeUnit {
         readPosRefundPayments3: (facts: {
             record_id: string | number | boolean | null;
             company_id: string | number | boolean | null;
-        }) => one(db, 'SELECT rp.* FROM pos_refund_payments rp JOIN pos_refunds r ON r.id=rp.refund_id WHERE rp.id=? AND r.company_id=?', facts.record_id, facts.company_id),
+        }) => nativePosStripeRefundPaymentStatement<PosRow>(db, facts),
         readPosPayments11: (facts: {
             payment_id: string | number | boolean | null;
         }) => nativePosPaymentByIdPlainStatement(db, facts.payment_id),

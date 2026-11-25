@@ -34,7 +34,7 @@ describe('POS read-tail r32 hotel property native cutover', () => {
     expect(owner).toContain('crate::adapters::hotel_reads::FULFILLMENT_PROPERTY');
     expect(owner).toContain('crate::adapters::hotel_reads::supported(kind)');
     expect(owner).toContain('crate::adapters::hotel_reads::sql(kind)');
-    expect(owner).toContain('assert_eq!(KINDS.len(), 190)');
+    expect(owner).toContain('assert_eq!(KINDS.len(), 194)');
   });
 
   test('former inline literals are gone and both call sites delegate', () => {
@@ -56,7 +56,7 @@ describe('POS read-tail r32 hotel property native cutover', () => {
     expect(read('list_reads.rs')).toContain('pos_list_sales');
   });
 
-  test('retirement:ts-statements is strictly lower than the r32 BEFORE=191 baseline (expected 189)', () => {
+  test('retirement:ts-statements is strictly lower than the r32 BEFORE=191 baseline (expected 184)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -66,7 +66,7 @@ describe('POS read-tail r32 hotel property native cutover', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(188);
+    expect(total).toBe(184);
     expect(total).toBeLessThan(191);
   });
 });

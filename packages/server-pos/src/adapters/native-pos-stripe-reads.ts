@@ -20,6 +20,10 @@ const PAYMENT_BY_ID = 'pos_stripe_payment_by_id';
 const PAYMENT_ID = 'pos_stripe_payment_id';
 const REFUND_BY_ID = 'pos_stripe_refund_by_id';
 const REFUND_ID_BY_PROVIDER = 'pos_stripe_refund_id_by_provider';
+const STRIPE_EVENT_BY_ID = 'pos_stripe_event_by_id';
+const CONNECTIONS_READY = 'pos_stripe_connections_ready';
+const SALE_NUMBER_BY_ID = 'pos_stripe_sale_number_by_id';
+const REFUND_PAYMENT_BY_REFUND = 'pos_stripe_refund_payment_by_refund';
 
 type Scope = {
   company_id: string | number | boolean | null;
@@ -91,4 +95,35 @@ export async function nativePosStripeRefundIdStatement<T = Record<string, unknow
   source: string;
 }): Promise<T | null> {
   return nativePosOne<T>(db, '', REFUND_ID_BY_PROVIDER, [f.source, f.company_id, f.account_id, f.livemode]);
+}
+
+/** Stripe event row by id. */
+export async function nativePosStripeEventStatement<T = Record<string, unknown>>(db: SqlDatabase, f: {
+  record_id: string | number | boolean | null;
+}): Promise<T | null> {
+  return nativePosOne<T>(db, '', STRIPE_EVENT_BY_ID, [f.record_id]);
+}
+
+/** Ready Stripe connection by company/account/livemode. */
+export async function nativePosStripeConnectionsReadyStatement<T = Record<string, unknown>>(db: SqlDatabase, f: {
+  company_id: string | number | boolean | null;
+  accountId: string | undefined;
+  fact2: boolean;
+}): Promise<T | null> {
+  return nativePosOne<T>(db, '', CONNECTIONS_READY, [f.company_id, f.accountId, f.fact2]);
+}
+
+/** Sale number by id. */
+export async function nativePosStripeSaleNumberStatement<T = Record<string, unknown>>(db: SqlDatabase, f: {
+  sale_id: string | number | boolean | null;
+}): Promise<T | null> {
+  return nativePosOne<T>(db, '', SALE_NUMBER_BY_ID, [f.sale_id]);
+}
+
+/** Stripe refund payment row by id scoped to its refund's Company. */
+export async function nativePosStripeRefundPaymentStatement<T = Record<string, unknown>>(db: SqlDatabase, f: {
+  record_id: string | number | boolean | null;
+  company_id: string | number | boolean | null;
+}): Promise<T | null> {
+  return nativePosOne<T>(db, '', REFUND_PAYMENT_BY_REFUND, [f.record_id, f.company_id]);
 }
