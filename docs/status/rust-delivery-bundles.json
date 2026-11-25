@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12916,
+    "revision": 12917,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -188949,7 +188949,7 @@
         "owner": "marketing",
         "title": "marketing read slice",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -188960,7 +188960,14 @@
         "resources": [
           "owner:marketing"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n218",
+          "claimedAt": "2026-11-25T01:29:10.655Z",
+          "heartbeatAt": "2026-11-25T01:29:10.655Z",
+          "expiresAt": "2026-11-25T01:59:10.655Z",
+          "generation": 174
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -189275,8 +189282,8 @@
       "totalPackets": 1913,
       "migratedPackets": 330,
       "statusCounts": {
-        "pending": 24,
-        "in_progress": 16,
+        "pending": 23,
+        "in_progress": 17,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -189286,7 +189293,7 @@
       }
     },
     "lastCoordinatorGeneration": 174,
-    "updatedAt": "2026-11-25T01:26:17.640Z",
+    "updatedAt": "2026-11-25T01:29:10.659Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
