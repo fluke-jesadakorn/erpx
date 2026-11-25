@@ -106,7 +106,7 @@ describe('Inventory read-tail r45 parameterized transit-event sum dedupe', () =>
     // r52 retires 1 landed-cost detail-lines read: 303 -> 302.
     // r53 folds 3 byte-identical count-list projection heads into one helper: 302 -> 300.
     // r54 folds 3 package-obligation stock heads into one kind-parameterized renderer: 300 -> 298.
-    expect(total).toBe(296);
+    expect(total).toBe(295);
     expect(total).toBeLessThan(300);
   });
 });
