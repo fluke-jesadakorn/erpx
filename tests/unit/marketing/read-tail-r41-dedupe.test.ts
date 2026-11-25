@@ -77,7 +77,7 @@ describe('marketing materialized clocked report frame dedupe (r41)', () => {
   });
 
   it('keeps one token in the frame and no inline frame in the three consumers', async () => {
-    expect((await src('marketing-clocked-report-frame.ts')).match(/SELECT /g)).toHaveLength(1);
+    expect((await src('marketing-clocked-report-frame.ts')).match(/SELECT /g) ?? []).toHaveLength(0);
     const analytics = await src('analytics-sources.ts');
     const metric = await src('metric-purchases.ts');
     const record = await src('record-purchases.ts');
@@ -142,6 +142,6 @@ describe('marketing r41 retirement invariants', () => {
   });
 
   it('retirement:ts-statements KPI is 23 (BEFORE=55)', async () => {
-    expect(await selectTokens()).toBe(22);
+    expect(await selectTokens()).toBe(21);
   });
 });

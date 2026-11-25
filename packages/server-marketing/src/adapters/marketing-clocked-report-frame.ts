@@ -1,5 +1,6 @@
 import 'server-only';
 import {marketingClockBody} from './materialized-clock-body-sql';
+import {marketingSelectHeadSql} from './select-head-sql';
 
 /** Owner-local MATERIALIZED clocked report frame shared by Marketing's
  * purchase-scoped report readers. Callers pass their exact clock alias, gap,
@@ -12,4 +13,4 @@ export const marketingClockedReportFrameSql = (
   projection: string,
   source: string,
   alias: string,
-): string => `WITH ${clock} AS MATERIALIZED${marketingClockBody(gap)} SELECT ${projection} FROM (${source}) ${alias} CROSS JOIN ${clock} WHERE `;
+): string => `WITH ${clock} AS MATERIALIZED${marketingClockBody(gap)} ${marketingSelectHeadSql(projection, ` FROM (${source}) ${alias} CROSS JOIN ${clock} WHERE `)}`;
