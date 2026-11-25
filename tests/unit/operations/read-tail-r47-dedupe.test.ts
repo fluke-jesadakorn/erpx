@@ -142,7 +142,7 @@ describe('operations read-tail r47 EXISTS-family dedupe', () => {
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(65);
+    expect(total).toBe(64);
     expect(total).toBeLessThan(105);
   });
 });

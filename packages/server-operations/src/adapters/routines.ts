@@ -5,23 +5,22 @@ import { ApiError as NativeApiError } from '@erpx/server-runtime/public/http';
 import { type TemplateRow } from '@erpx/server-operations/domain/routines';
 import { createRoutinesApplication, type RoutinesRepository } from '@erpx/server-operations/application/routines';
 import { BusinessRuleError } from '@erpx/server-shared/index';
+import { operationsAliasSelectAll } from './operations-alias-select-all';
 export { templateSchema } from '@erpx/server-operations/domain/routines';
 export type { TemplateRow } from '@erpx/server-operations/domain/routines';
 export type { ScheduleRow } from '@erpx/server-operations/domain/routines';
-/** Canonical owner-local fixed selection for the Operations routine-template
- * reads. Both owner reads build their predicate on this one admitted literal;
- * no duplicate TS literal remains. Caller-supplied scope predicates are appended
- * unchanged, so the executed SQL is byte-identical to the retired literals. */
-const templateSelect = `SELECT t.* FROM routine_templates t WHERE`;
+/** The routine-template reads use the canonical alias-qualified SELECT-all head
+ *  from the read tail. Each caller supplies its own unchanged WHERE/ORDER tail,
+ *  so the rendered SQL and binds stay byte-identical to the retired literals. */
 function application(provided?: SqlDatabase,readScope={where:'TRUE',args:[] as SqlValue[]}) {
     let database = provided!;
     const repository: RoutinesRepository<SqlStatement> = { readListTemplatesEffect(companyId: string, userId: string, value: 0 | 1) {
-            return database.prepare(`${templateSelect} t.company_id=? AND (t.published=1 OR t.creator_user_id=? OR ?=1) AND (${readScope.where}) ORDER BY t.updated_at DESC,t.id`)
+            return database.prepare(operationsAliasSelectAll('t','routine_templates', `t.company_id=? AND (t.published=1 OR t.creator_user_id=? OR ?=1) AND (${readScope.where}) ORDER BY t.updated_at DESC,t.id`))
                 .bind(companyId, userId, value,...readScope.args)
                 .all<TemplateRow>();
         },
         readGetTemplateRow(id: string, companyId: string) {
-            return database.prepare(`${templateSelect} t.id=? AND t.company_id=? AND (${readScope.where})`)
+            return database.prepare(operationsAliasSelectAll('t','routine_templates', `t.id=? AND t.company_id=? AND (${readScope.where})`))
                 .bind(id, companyId,...readScope.args)
                 .first<TemplateRow>();
         } };
