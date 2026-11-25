@@ -235,3 +235,7 @@ export const operationsSourceExists=(rows:string,alias:string,gap:string,tail:st
  * read-facts and Social home feed-id readers. Only the trailing predicate varies;
  * the CTE prefix, bind order, ORDER/LIMIT and locks stay at the call sites. */
 export const socialPostIdHead=(tail:string)=>`SELECT p.id FROM social_posts p WHERE ${tail}`;
+/** Byte-identical count head shared by the notice-delivery reader and the push
+ * subscription session reader. Only the FROM expression varies; the projected
+ * count, bind order and lock semantics stay unchanged at the call sites. */
+export const countIntNFrom=(from:string)=>`SELECT count(*)::int n FROM ${from}`;

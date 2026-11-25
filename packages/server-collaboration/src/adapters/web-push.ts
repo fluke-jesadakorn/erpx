@@ -12,6 +12,7 @@ import { requestPublicOrigin } from '@erpx/server-manage_erpx/public/public-orig
 import { configuredProductOrigin } from "@erpx/feature-runtime/lib/product-hosts";
 import { legacyConsoleRetired } from "@erpx/feature-runtime/lib/console-retirement";
 import { createCurrentPushSessionCleanup, createWebPushApplication, type WebPushRepository } from '@erpx/server-collaboration/application/web-push';
+import { countIntNFrom } from './read-tail-sql';
 import { nativeOwnerWriteSystem, nativeOwnerWriteSystemUnscoped } from '@erpx/server-collaboration/adapters/native-owner-write';
 import { pushOriginAllowed, b64, validatePushSubscription as validateSubscription, type PushConfig, Subscription, Preference, StoredSubscription, DeliveryJob, Send } from '@erpx/server-collaboration/domain/web-push';
 async function exposed<T>(action: () => Promise<T>) {
@@ -91,7 +92,7 @@ function application(db: SqlDatabase, control?: SqlDatabase, contextCompanyId = 
             return db.prepare("SELECT * FROM push_preferences WHERE company_id=? AND user_id=?").bind(companyId, userId).first<Preference>();
         },
         async sessionSubscriptionCount(companyId: string, userId: string, value: unknown) {
-            return db.prepare("SELECT count(*)::int n FROM push_subscriptions WHERE company_id=? AND user_id=? AND session_id=?").bind(companyId, userId, value).first<{ n: number; }>();
+            return db.prepare(countIntNFrom('push_subscriptions WHERE company_id=? AND user_id=? AND session_id=?')).bind(companyId, userId, value).first<{ n: number; }>();
         },
         async endpointOwner(companyId: string, endpointHash: unknown) {
             return db.prepare("SELECT id,user_id,session_id FROM push_subscriptions WHERE company_id=? AND endpoint_hash=?").bind(companyId, endpointHash).first<{ id: string; user_id: string; session_id: string; }>();
