@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12961,
+    "revision": 12963,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -188543,7 +188543,7 @@
         "owner": "support",
         "title": "support read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -188554,22 +188554,22 @@
         "resources": [
           "owner:support"
         ],
-        "claim": {
-          "runId": "run-20261125-d",
-          "agentId": "wH4n210",
-          "claimedAt": "2026-11-25T01:18:40.485Z",
-          "heartbeatAt": "2026-11-25T01:39:43.865Z",
-          "expiresAt": "2026-11-25T02:09:43.865Z",
-          "generation": 174
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Ticket work list native kind (-1): 36->35. BEFORE=36.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Blocked: registry 48->49 done but KPI 35->35 (token lives in shared eligibilitySelect used by incident work); folded into r42",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n210",
+          "at": "2026-11-25T01:44:44.155Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Blocked: registry 48->49 done but KPI 35->35 (token lives in shared eligibilitySelect used by incident work); folded into r42"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -188998,7 +188998,7 @@
         "owner": "support",
         "title": "support read slice",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -189009,7 +189009,14 @@
         "resources": [
           "owner:support"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n233",
+          "claimedAt": "2026-11-25T01:44:44.323Z",
+          "heartbeatAt": "2026-11-25T01:44:44.323Z",
+          "expiresAt": "2026-11-25T02:14:44.323Z",
+          "generation": 174
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -189695,18 +189702,18 @@
       "totalPackets": 1924,
       "migratedPackets": 330,
       "statusCounts": {
-        "pending": 19,
+        "pending": 18,
         "in_progress": 16,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1557,
+        "blocked": 1558,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 174,
-    "updatedAt": "2026-11-25T01:39:43.869Z",
+    "updatedAt": "2026-11-25T01:44:44.327Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
