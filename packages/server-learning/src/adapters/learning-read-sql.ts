@@ -12,8 +12,10 @@ export const jsonbAggImageHead = (alias: string) => `SELECT jsonb_agg(to_jsonb($
 
 /** r16 — scope row. The actor-scope, source-record and settlement-scope rows
  * share the same parenthesized column list; only the columns vary. Binds stay
- * with the callers, so every rendered row keeps its exact pre-dedupe bytes. */
-export const scopeRow = (columns: string) => `(SELECT ${columns})`;
+ * with the callers, so every rendered row keeps its exact pre-dedupe bytes.
+ * r23 — that frame is exactly the r15 imageChildFrame head with empty source
+ * and separator; its one query head now lives in that owner-local renderer. */
+export const scopeRow = (columns: string) => imageChildFrame(columns, '', '');
 
 /** r17 — existence-probe head shared by the row-existence callers. The FROM
  * source and the WHERE body stay in the caller, so each rendered probe keeps
