@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, type Dirent } from 'node:fs';
 import { resolve } from 'node:path';
 import { memberExistsSql, evidenceProjectionHead } from '../../../packages/server-projects/src/adapters/read-tail-r38';
@@ -10,6 +11,7 @@ import { projectMemberExistsSql } from '../../../packages/server-projects/src/ad
 
 const srcRoot = resolve(__dirname, '../../../packages/server-projects/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
+const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 
 // Verbatim pre-r38 fragments captured from HEAD before the edit.
 // Byte-identity oracles only, never live query sources.
@@ -109,20 +111,21 @@ describe('Projects read-tail r38 closed member EXISTS and evidence super-head de
       .toContain('JOIN (${sourceSql}) p ON p.id=m.project_id AND p.company_id=m.company_id');
   });
 
-  test('Rank3 SKIP: dependency witness is unsafe and stays inline (skip evidence)', () => {
-    // Evaluated and intentionally NOT folded. Both dependency witnesses join the
-    // prerequisite milestone with a state<>'completed' predicate; the search copy
-    // additionally carries a third `position(lower(?))` bind. A closed
-    // staff_project_members helper cannot emit either, and a generic EXISTS helper
-    // would need free relation/predicate/bind params, which breaks byte-identity
-    // guarantees. Recorded here so the skip is not re-litigated.
-    const cohortWitness = `AND EXISTS(SELECT 1 FROM staff_project_milestone_dependencies dependency
+  test('Rank3: dependency witness keeps its alias/predicate/bind tail; only the closed head moved (r43)', () => {
+    // r38 skipped folding the WHOLE witness: the two copies differ in alias,
+    // prerequisite join and the search copy's third bind. r43 folds only the
+    // closed, bind-free relation head into read-tail-r43; every alias, predicate
+    // and bind stays inline. The byte oracles below are the verbatim BEFORE
+    // (BEFORE=72) renders, so the narrow fold is provably text-equivalent.
+    const HEAD = `SELECT 1 FROM staff_project_milestone_dependencies `;
+    const PH = '${projectDependencyRowsHead}';
+    const cohortWitness = `AND EXISTS(${PH}dependency
         JOIN staff_project_milestones prerequisite ON prerequisite.id=dependency.predecessor_milestone_id
           AND prerequisite.company_id=dependency.company_id AND prerequisite.project_id=dependency.project_id
         WHERE dependency.company_id=\${project}.company_id AND dependency.project_id=\${project}.id
           AND dependency.successor_milestone_id=\${milestone}.id AND prerequisite.state<>'completed')`;
     const searchWitness = `EXISTS(
-      SELECT 1 FROM staff_project_milestone_dependencies search_dependency
+      ${PH}search_dependency
       JOIN staff_project_milestones prerequisite ON prerequisite.id=search_dependency.predecessor_milestone_id
       WHERE search_dependency.company_id=p.company_id AND search_dependency.project_id=p.id
         AND search_dependency.successor_milestone_id=m.id AND prerequisite.state<>'completed'
@@ -130,10 +133,19 @@ describe('Projects read-tail r38 closed member EXISTS and evidence super-head de
     expect(src('executive-milestone-cohort.ts')).toContain(cohortWitness);
     const ev = src('executive-main-evidence-sources.ts');
     expect(ev).toContain(searchWitness);
+    // Reconstruct the BEFORE render: the sole textual difference is the head token.
+    const render = (s: string) => s.split(PH).join(HEAD);
+    const cohortRendered = render(cohortWitness);
+    const searchRendered = render(searchWitness);
+    expect(sha256(cohortRendered)).toBe('526e0cb8b896231ee08212c58e2ff72897257e8e6236b57a78c0b6bd6a8df577');
+    expect(Buffer.byteLength(cohortRendered)).toBe(487);
+    expect(sha256(searchRendered)).toBe('39a40efa92cbb60857619965427edc49d5180e069c376509441900e450583371');
+    expect(Buffer.byteLength(searchRendered)).toBe(442);
     expect(cohortWitness).toContain("JOIN staff_project_milestones prerequisite");
     expect(searchWitness).toContain("prerequisite.state<>'completed'");
-    expect(searchWitness.match(/\?/g)).toHaveLength(1);
-    // Neither dependency witness was routed through the r38 helper.
+    expect(searchRendered.match(/\?/g)).toHaveLength(1);
+    expect(cohortRendered.match(/\?/g)).toBeNull();
+    // Neither dependency witness was routed through the r38 member helper.
     expect(ev).not.toContain('memberExistsSql');
     expect(src('executive-milestone-cohort.ts')).not.toContain('memberExistsSql');
     // The blocker lateral (a jsonb_agg projection, not an EXISTS) is also left alone.
@@ -180,8 +192,8 @@ describe('Projects read-tail r38 closed member EXISTS and evidence super-head de
     walk(srcRoot);
     // r37 left 88. r38 Rank1 folds five member EXISTS witnesses into one closed
     // helper (-4) and Rank2 folds four evidence heads into one closed super-head
-    // (-3): 88-7 = 81. Rank3 dependency witness is unsafe and remains inline.
-    expect(total).toBe(72);
+    // (-3): 88-7 = 81. Rank3 keeps its tail inline; r43 folds only the closed head.
+    expect(total).toBe(71);
     expect(total).toBeLessThan(88);
   });
 });

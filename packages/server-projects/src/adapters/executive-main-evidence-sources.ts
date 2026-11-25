@@ -6,6 +6,7 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { projectDependencyBlockerCohort, projectMilestoneOverdueCohort } from "@erpx/server-runtime/public/executive/project-milestone-access";
 import { projectOwnerOrMemberSql } from "@erpx/server-projects/adapters/project-read-projections";
 import { evidenceProjectionHead } from './read-tail-r38';
+import { projectDependencyRowsHead } from './read-tail-r43';
 import { ProjectMilestoneEvidenceRow, ProjectDependencyEvidenceRow, ProjectActualEvidenceRow } from '@erpx/server-runtime/public/executive/evidence-contract';
 function projectActualScope() {
     return `p.company_id=? AND (?::text IS NULL OR p.branch_id=?) AND (?::text IS NULL OR p.department_id=?)
@@ -102,7 +103,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
             const values: unknown[] = [...cohort.values];
             if (input.query) {
                 conditions.push(`(position(lower(?) in lower(m.title))>0 OR position(lower(?) in lower(p.title))>0 OR EXISTS(
-      SELECT 1 FROM staff_project_milestone_dependencies search_dependency
+      ${projectDependencyRowsHead}search_dependency
       JOIN staff_project_milestones prerequisite ON prerequisite.id=search_dependency.predecessor_milestone_id
       WHERE search_dependency.company_id=p.company_id AND search_dependency.project_id=p.id
         AND search_dependency.successor_milestone_id=m.id AND prerequisite.state<>'completed'
