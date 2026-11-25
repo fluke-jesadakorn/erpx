@@ -57,7 +57,7 @@ describe('legal read-tail r66 EXISTS point-guard head reuse', () => {
       src('legal-read-tail-r40-sources.ts'), src('legal-read-tail-r36-sources.ts'),
     ]);
     expect(r40).toContain("from './legal-read-tail-r36-sources'");
-    expect(r40).toContain("legalPointByKeySql('1', table, key)");
+    expect(r40).toContain("legalPointByKeySql('1', table, key as Parameters<typeof legalPointByKeySql>[2])");
     const line = r40.split('\n').find(l => l.includes('EXISTS(${legalPointByKeySql'))!;
     expect(line).not.toContain('SELECT ');
     expect((r40.match(/SELECT /g) ?? []).length).toBe(0);
