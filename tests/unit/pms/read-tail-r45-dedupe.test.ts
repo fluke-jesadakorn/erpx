@@ -210,15 +210,15 @@ describe('pms read-tail r45 relation-arm, point-head and join-anchor dedupe', ()
     }
   });
 
-  it('lowers the pms owner SELECT KPI from 283 to 258', async () => {
+  it('lowers the pms owner SELECT KPI from 283 to 255', async () => {
     let spaced = 0, bare = 0;
     for (const file of await tsFiles(dir)) {
       const text = await readFile(file, 'utf8');
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(258);
-    expect(bare).toBe(260);
+    expect(spaced).toBe(255);
+    expect(bare).toBe(257);
     expect(spaced).toBeLessThan(292);
     expect(bare).toBeLessThan(294);
   });

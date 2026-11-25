@@ -162,8 +162,8 @@ describe('pms read-tail r41 guest-join, property-scope and rollout-exists dedupe
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(258);
-    expect(bare).toBe(260);
+    expect(spaced).toBe(255);
+    expect(bare).toBe(257);
     expect(spaced).toBeLessThan(310);
   });
 });

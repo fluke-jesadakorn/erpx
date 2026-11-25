@@ -5,6 +5,7 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { assertPmsPackageObligationSources } from "@erpx/server-pms/adapters/package-obligations";
 import { assertPosAddonPackageObligationSources, posAddonPackageSettlementSources as pos } from "@erpx/server-pos/public/addon-package-obligations";
 import { PMS_CORRECTION_FACT_HEAD_SQL } from "./pms-read-tail-r42-sql";
+import { pmsSettlementSourceKeySql } from "./pms-read-tail-r49-sql";
 
 type Input = { companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number };
 /** PMS owns the source-key/entry relationship and the guest-account settlement
@@ -42,10 +43,10 @@ export function pmsAddonPackageSettlementSources(packageId:string) {
   postings: `${sources} SELECT DISTINCT source.package_id,p.company_id,pp.property_id,pp.source_key,pp.journal_id,p.id expected_source_id,p.config_json::jsonb->>'currency' expected_currency FROM pms_postings pp JOIN pms_properties p ON p.id=pp.property_id JOIN (
     SELECT package_id,company_id,property_id,id FROM financial_entries UNION SELECT package_id,company_id,property_id,id FROM movements WHERE data->>'kind' IN ('minibar.charge','linen.receive')) source
     ON source.company_id=p.company_id AND source.property_id=pp.property_id AND source.id=pp.record_id`,
-  requiredPostings: `${sources} SELECT e.package_id,e.company_id,e.property_id,r.id||':charge' source_key FROM financial_entries e JOIN records r ON r.id=e.id AND r.property_id=e.property_id WHERE r.data->>'kind'='charge' AND r.data->>'method' IS DISTINCT FROM 'opening' AND (r.data->>'total')::bigint>0
-    UNION SELECT e.package_id,e.company_id,e.property_id,r.id||':reverse' FROM entries e JOIN records r ON r.id=e.id AND r.property_id=e.property_id WHERE r.data->>'kind'='adjustment' AND (r.data->>'total')::bigint<0
-    UNION SELECT e.package_id,e.company_id,e.property_id,r.id||CASE WHEN r.data->>'description'='Receive OTA / company remittance' THEN ':settlement' ELSE ':receipt' END FROM financial_entries e JOIN records r ON r.id=e.id AND r.property_id=e.property_id WHERE r.data->>'kind' IN ('payment','deposit') AND r.data->>'method' IN ('cash','transfer','edc','stripe') AND (r.data->>'total')::bigint>0
-    UNION SELECT e.package_id,e.company_id,e.property_id,r.id||':refund' FROM financial_entries e JOIN records r ON r.id=e.id AND r.property_id=e.property_id WHERE r.data->>'kind'='refund' AND r.data->>'method' IN ('cash','transfer','edc','stripe') AND (r.data->>'total')::bigint<0
+  requiredPostings: `${sources} ${pmsSettlementSourceKeySql('charge')} FROM financial_entries e JOIN records r ON r.id=e.id AND r.property_id=e.property_id WHERE r.data->>'kind'='charge' AND r.data->>'method' IS DISTINCT FROM 'opening' AND (r.data->>'total')::bigint>0
+    UNION ${pmsSettlementSourceKeySql('reverse')} FROM entries e JOIN records r ON r.id=e.id AND r.property_id=e.property_id WHERE r.data->>'kind'='adjustment' AND (r.data->>'total')::bigint<0
+    UNION ${pmsSettlementSourceKeySql('settlementReceipt')} FROM financial_entries e JOIN records r ON r.id=e.id AND r.property_id=e.property_id WHERE r.data->>'kind' IN ('payment','deposit') AND r.data->>'method' IN ('cash','transfer','edc','stripe') AND (r.data->>'total')::bigint>0
+    UNION ${pmsSettlementSourceKeySql('refund')} FROM financial_entries e JOIN records r ON r.id=e.id AND r.property_id=e.property_id WHERE r.data->>'kind'='refund' AND r.data->>'method' IN ('cash','transfer','edc','stripe') AND (r.data->>'total')::bigint<0
     UNION SELECT m.package_id,m.company_id,m.property_id,'stock:'||m.id FROM movements m JOIN pms_stock_moves stock ON stock.id=m.id AND stock.property_id=m.property_id WHERE stock.value_minor<>0`,
   // Derive required children from native money entries, not only documents
   // that happen to remain present. Reviewed opening pockets use their distinct
