@@ -141,7 +141,7 @@ describe('native Inventory inventory-transit / commerce-facts fixed reads', () =
     }
   });
 
-  it('retirement:ts-statements KPI is 303 after the r51 transit detail-lot read cutover (strictly below r50 305)', () => {
+  it('retirement:ts-statements KPI is 302 after the r52 landed-cost detail-lines read cutover (strictly below r51 303)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -153,7 +153,8 @@ describe('native Inventory inventory-transit / commerce-facts fixed reads', () =
     walk(srcDir);
     // r49 ended at 307; r50 retired 2 landed-cost detail child reads: 307 -> 305.
     // r51 retires 2 transit detail-lot reads (transitLots join, selectableTransitLots): 305 -> 303.
-    expect(total).toBe(303);
-    expect(total).toBeLessThan(305);
+    // r52 retires 1 landed-cost detail-lines read: 303 -> 302.
+    expect(total).toBe(302);
+    expect(total).toBeLessThan(303);
   });
 });

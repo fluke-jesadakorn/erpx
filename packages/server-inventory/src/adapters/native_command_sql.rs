@@ -425,11 +425,20 @@ const READ_TRANSIT_DISPATCH_LINES: NativeStatement = NativeStatement {
 };
 
 /// Native successors of the TypeScript `inventory-landed-costs` `landedCostDetail`
-/// child-lot and event reads. Each plan is the exact statement the retired
+/// line, child-lot and event reads. Each plan is the exact statement the retired
 /// TypeScript adapter bound on the inventory owner's own tables; the caller
 /// executes it on its already-open unit with the same single landed-cost bind
 /// and the same `.all()` result shape. Authorization stays in the preceding
 /// `requireLandedCostPurchasedRead` gate.
+pub const RD_LANDED_COST_DETAIL_LINES: &str = "inventory_rd_landed_cost_detail_lines";
+const SQL_RD_LANDED_COST_DETAIL_LINES: &str = "SELECT l.*,p.sku,p.name,p.unit,p.tracking_mode FROM inventory_landed_cost_lines l JOIN commerce_products p ON p.id=l.product_id WHERE l.landed_cost_id=? ORDER BY l.ordinal";
+const READ_LANDED_COST_DETAIL_LINES: NativeStatement = NativeStatement {
+    kind: RD_LANDED_COST_DETAIL_LINES,
+    sql: SQL_RD_LANDED_COST_DETAIL_LINES,
+    bind_count: 1,
+    scope: "holding",
+};
+
 pub const RD_LANDED_COST_DETAIL_LOTS: &str = "inventory_rd_landed_cost_detail_lots";
 const SQL_RD_LANDED_COST_DETAIL_LOTS: &str = "SELECT x.*,l.lot_code,l.serial_number FROM inventory_landed_cost_lots x JOIN inventory_lots l ON l.id=x.lot_id JOIN inventory_landed_cost_lines line ON line.id=x.landed_cost_line_id WHERE line.landed_cost_id=? ORDER BY line.ordinal,x.id";
 const READ_LANDED_COST_DETAIL_LOTS: NativeStatement = NativeStatement {
@@ -563,6 +572,7 @@ pub fn is_read(kind: &str) -> bool {
             | RD_POSTED_TRANSIT_TRANSFER
             | RD_TRANSFER_BY_ID
             | RD_TRANSIT_DISPATCH_LINES
+            | RD_LANDED_COST_DETAIL_LINES
             | RD_LANDED_COST_DETAIL_LOTS
             | RD_LANDED_COST_DETAIL_EVENTS
             | RD_TRANSIT_DETAIL_LOTS
@@ -602,6 +612,7 @@ pub fn read_statement(kind: &str) -> Option<&'static NativeStatement> {
         RD_POSTED_TRANSIT_TRANSFER => Some(&READ_POSTED_TRANSIT_TRANSFER),
         RD_TRANSFER_BY_ID => Some(&READ_TRANSFER_BY_ID),
         RD_TRANSIT_DISPATCH_LINES => Some(&READ_TRANSIT_DISPATCH_LINES),
+        RD_LANDED_COST_DETAIL_LINES => Some(&READ_LANDED_COST_DETAIL_LINES),
         RD_LANDED_COST_DETAIL_LOTS => Some(&READ_LANDED_COST_DETAIL_LOTS),
         RD_LANDED_COST_DETAIL_EVENTS => Some(&READ_LANDED_COST_DETAIL_EVENTS),
         RD_TRANSIT_DETAIL_LOTS => Some(&READ_TRANSIT_DETAIL_LOTS),
@@ -677,6 +688,7 @@ mod tests {
             RD_POSTED_TRANSIT_TRANSFER,
             RD_TRANSFER_BY_ID,
             RD_TRANSIT_DISPATCH_LINES,
+            RD_LANDED_COST_DETAIL_LINES,
             RD_LANDED_COST_DETAIL_LOTS,
             RD_LANDED_COST_DETAIL_EVENTS,
             RD_TRANSIT_DETAIL_LOTS,
@@ -1009,6 +1021,10 @@ mod tests {
     #[test]
     fn landed_cost_detail_read_plans_match_retired_owner_statements() {
         let cases = [
+            (
+                RD_LANDED_COST_DETAIL_LINES,
+                "SELECT l.*,p.sku,p.name,p.unit,p.tracking_mode FROM inventory_landed_cost_lines l JOIN commerce_products p ON p.id=l.product_id WHERE l.landed_cost_id=? ORDER BY l.ordinal",
+            ),
             (
                 RD_LANDED_COST_DETAIL_LOTS,
                 "SELECT x.*,l.lot_code,l.serial_number FROM inventory_landed_cost_lots x JOIN inventory_lots l ON l.id=x.lot_id JOIN inventory_landed_cost_lines line ON line.id=x.landed_cost_line_id WHERE line.landed_cost_id=? ORDER BY line.ordinal,x.id",

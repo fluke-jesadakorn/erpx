@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
 import {
   nativeInventoryReadAll,
+  INVENTORY_RD_LANDED_COST_DETAIL_LINES,
   INVENTORY_RD_LANDED_COST_DETAIL_LOTS,
   INVENTORY_RD_LANDED_COST_DETAIL_EVENTS,
 } from '../../../packages/server-inventory/src/adapters/native-inventory-read';
@@ -14,6 +15,7 @@ const selectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;
 
 /** Byte oracles captured verbatim from the HEAD TypeScript literals (r49 base). */
 const RETIRED = {
+  INVENTORY_RD_LANDED_COST_DETAIL_LINES: 'SELECT l.*,p.sku,p.name,p.unit,p.tracking_mode FROM inventory_landed_cost_lines l JOIN commerce_products p ON p.id=l.product_id WHERE l.landed_cost_id=? ORDER BY l.ordinal',
   INVENTORY_RD_LANDED_COST_DETAIL_LOTS: 'SELECT x.*,l.lot_code,l.serial_number FROM inventory_landed_cost_lots x JOIN inventory_lots l ON l.id=x.lot_id JOIN inventory_landed_cost_lines line ON line.id=x.landed_cost_line_id WHERE line.landed_cost_id=? ORDER BY line.ordinal,x.id',
   INVENTORY_RD_LANDED_COST_DETAIL_EVENTS: 'SELECT * FROM inventory_landed_cost_events WHERE landed_cost_id=? ORDER BY created_at,id',
 } as const;
@@ -55,6 +57,7 @@ describe('native Inventory landed-cost detail child reads', () => {
     }));
 
   const cases = [
+    [INVENTORY_RD_LANDED_COST_DETAIL_LINES, ['cost1']],
     [INVENTORY_RD_LANDED_COST_DETAIL_LOTS, ['cost1']],
     [INVENTORY_RD_LANDED_COST_DETAIL_EVENTS, ['cost1']],
   ] as const;
@@ -81,9 +84,10 @@ describe('native Inventory landed-cost detail child reads', () => {
   it('TS landed-cost adapter carries no retired SQL and keeps the Promise.all / .results shape', () => {
     const detail = src('adapters/inventory-landed-costs.ts');
     for (const lit of Object.values(RETIRED)) expect(detail).not.toContain(lit);
+    expect(detail).toContain('INVENTORY_RD_LANDED_COST_DETAIL_LINES');
     expect(detail).toContain('INVENTORY_RD_LANDED_COST_DETAIL_LOTS');
     expect(detail).toContain('INVENTORY_RD_LANDED_COST_DETAIL_EVENTS');
-    expect(detail).toContain('Promise.all([write.prepare(');
+    expect(detail).toContain('Promise.all([nativeInventoryReadAll<LandedCostRow>(INVENTORY_RD_LANDED_COST_DETAIL_LINES');
     expect(detail).toContain('lines:lines.results,lots:lots.results,events:events.results');
     expect(detail).toContain('requireLandedCostPurchasedRead(write,actor,id)');
     // Bridge emits no SQL of its own.
@@ -110,7 +114,7 @@ describe('native Inventory landed-cost detail child reads', () => {
     }
   });
 
-  it('retirement:ts-statements KPI is 303 after the r51 native read cutover (strictly below r50 305)', () => {
+  it('retirement:ts-statements KPI is 302 after the r52 landed-cost detail-lines read cutover (strictly below r51 303)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -123,7 +127,8 @@ describe('native Inventory landed-cost detail child reads', () => {
     // r49 ended at 307 (2 commerce-facts + 5 inventory-transit reads retired).
     // r50 retires 2 landed-cost detail child reads (lot join, events): 307 -> 305.
     // r51 retires 2 transit detail-lot reads (transitLots join, selectableTransitLots): 305 -> 303.
-    expect(total).toBe(303);
-    expect(total).toBeLessThan(305);
+    // r52 retires 1 landed-cost detail-lines read: 303 -> 302.
+    expect(total).toBe(302);
+    expect(total).toBeLessThan(303);
   });
 });
