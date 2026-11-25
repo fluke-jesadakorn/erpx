@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 13399,
+    "revision": 13400,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -195954,7 +195954,7 @@
         "owner": "field_service",
         "title": "field_service read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -195965,22 +195965,22 @@
         "resources": [
           "owner:field_service"
         ],
-        "claim": {
-          "runId": "run-20261125-e",
-          "agentId": "wH4n437",
-          "claimedAt": "2026-11-25T03:43:26.985Z",
-          "heartbeatAt": "2026-11-25T03:43:26.985Z",
-          "expiresAt": "2026-11-25T04:13:26.985Z",
-          "generation": 175
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next field_service head family (-1): 3->2. BEFORE=3.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Verified floor 3; blocked on retire.records.registry-fallback; claim released",
+        "handoff": {
+          "runId": "run-20261125-e",
+          "agentId": "wH4n437",
+          "at": "2026-11-25T03:49:47.216Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Verified floor 3; blocked on retire.records.registry-fallback; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -196050,17 +196050,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 20,
-        "in_progress": 38,
+        "in_progress": 37,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1685,
+        "blocked": 1686,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 175,
-    "updatedAt": "2026-11-25T03:49:13.694Z",
+    "updatedAt": "2026-11-25T03:49:47.226Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
