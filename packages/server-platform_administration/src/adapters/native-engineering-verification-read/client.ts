@@ -176,6 +176,94 @@ export async function nativeEngineeringPriorRead(
   }
 }
 
+const hex = (value: unknown, length: number): value is string =>
+  typeof value === "string" && new RegExp(`^[a-f0-9]{${length}}$`).test(value);
+
+function boundedCompany(companyId: unknown): companyId is string {
+  return typeof companyId === "string" && !!companyId && companyId.length <= 200;
+}
+
+async function read(
+  path: string,
+  body: string,
+  config: NativeEngineeringReadConfig,
+): Promise<unknown> {
+  const url = new URL(
+    `/api/v1/holdings/${encodeURIComponent(config.holdingSlug)}/platform/engineering-verification/read/${path}`,
+    config.privateBaseUrl,
+  );
+  if (new TextEncoder().encode(body).length > 16 * 1024)
+    return unavailable("NATIVE_PLATFORM_ENGINEERING_READ_INPUT_INVALID");
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), config.timeoutMs);
+  try {
+    const response = await post(
+      url,
+      {
+        host: new URL(config.origin).host,
+        origin: config.origin,
+        accept: "application/json",
+        "content-type": "application/json",
+        "cache-control": "no-cache",
+        "x-erpx-context-company": config.holdingId,
+      },
+      body,
+      controller.signal,
+    );
+    if (response.status !== 200 || response.text.length > 64 * 1024)
+      return unavailable("NATIVE_PLATFORM_ENGINEERING_READ_FAILED");
+    const payload: unknown = JSON.parse(response.text);
+    if (!record(payload) || !("data" in payload))
+      return unavailable("NATIVE_PLATFORM_ENGINEERING_READ_RESPONSE_INVALID");
+    return payload.data;
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    return unavailable();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Persisted half of the engineering verification predicate. The separate
+ *  database-identity predicate stays in the caller's own SQL fence. */
+export async function nativeEngineeringActiveRead(
+  companyId: string,
+  run: string,
+  sourceFingerprint: string,
+  softwareVersion: string,
+  fileManifestSha256: string,
+  environment: NodeJS.ProcessEnv = process.env,
+): Promise<boolean> {
+  if (
+    !boundedCompany(companyId) || !hex(run, 12) || !hex(sourceFingerprint, 64) ||
+    !hex(fileManifestSha256, 64) || softwareVersion !== `release-${sourceFingerprint}`
+  )
+    return unavailable("NATIVE_PLATFORM_ENGINEERING_READ_INPUT_INVALID");
+  const config = parseNativeEngineeringReadConfig(environment[ENV]);
+  const data = await read("active", JSON.stringify({
+    companyId, run, sourceFingerprint, softwareVersion, fileManifestSha256,
+  }), config);
+  if (typeof data !== "boolean")
+    return unavailable("NATIVE_PLATFORM_ENGINEERING_READ_RESPONSE_INVALID");
+  return data;
+}
+
+export async function nativeEngineeringReplyGuard(
+  companyId: string,
+  environment: NodeJS.ProcessEnv = process.env,
+): Promise<string[]> {
+  if (!boundedCompany(companyId))
+    return unavailable("NATIVE_PLATFORM_ENGINEERING_READ_INPUT_INVALID");
+  const config = parseNativeEngineeringReadConfig(environment[ENV]);
+  const data = await read("reply-guard", JSON.stringify({ companyId }), config);
+  if (
+    !Array.isArray(data) ||
+    !data.every(value => typeof value === "string" && value.length <= 200)
+  )
+    return unavailable("NATIVE_PLATFORM_ENGINEERING_READ_RESPONSE_INVALID");
+  return data as string[];
+}
+
 export function nativeEngineeringReadAvailable(
   environment: Readonly<Record<string, string | undefined>> = process.env,
 ): boolean {

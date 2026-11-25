@@ -16,6 +16,11 @@ pub struct ReadScope<'a> {
     pub version: Option<i64>,
     /// Public Marketing campaign identifier.
     pub campaign_id: Option<&'a str>,
+    /// Purchase command identity and authority facts on the shared ledger.
+    pub command_id: Option<&'a str>,
+    pub operation: Option<&'a str>,
+    pub record_id: Option<&'a str>,
+    pub actor_id: Option<&'a str>,
 }
 
 /// A plan ready for the caller to run on its existing SQL snapshot.
@@ -32,6 +37,10 @@ fn scope_required(field: BindField) -> BusinessError {
         BindField::CompanyId => "The Marketing read needs the current Company.",
         BindField::Version => "The Marketing read needs the active form version.",
         BindField::CampaignId => "The Marketing read needs the campaign id.",
+        BindField::CommandId => "The Marketing read needs the command id.",
+        BindField::Operation => "The Marketing read needs the command operation.",
+        BindField::RecordId => "The Marketing read needs the command record id.",
+        BindField::ActorId => "The Marketing read needs the command actor id.",
     };
     BusinessError::invalid("MARKETING_READ_SCOPE_REQUIRED", message)
 }
@@ -46,6 +55,10 @@ pub fn bind(kind: &str, scope: &ReadScope<'_>) -> Result<BoundPlan, BusinessErro
             BindField::CompanyId => scope.company_id.map(str::to_owned),
             BindField::Version => scope.version.map(|version| version.to_string()),
             BindField::CampaignId => scope.campaign_id.map(str::to_owned),
+            BindField::CommandId => scope.command_id.map(str::to_owned),
+            BindField::Operation => scope.operation.map(str::to_owned),
+            BindField::RecordId => scope.record_id.map(str::to_owned),
+            BindField::ActorId => scope.actor_id.map(str::to_owned),
         };
         let value = value.ok_or_else(|| scope_required(field))?;
         binds.push(value);
@@ -68,6 +81,10 @@ mod tests {
             company_id: Some("company-1"),
             version: Some(3),
             campaign_id: Some("campaign-1"),
+            command_id: Some("command-1"),
+            operation: Some("marketing.asset.activate"),
+            record_id: Some("record-1"),
+            actor_id: Some("actor-1"),
         }
     }
 
@@ -96,6 +113,22 @@ mod tests {
             campaign.binds,
             vec!["campaign-1".to_owned(), "company-1".to_owned()]
         );
+    }
+
+    #[test]
+    fn receipt_guard_binds_command_operation_record_actor_company_in_order() {
+        let bound = bind(kinds::RD_COMMAND_RECEIPT_PRIOR, &full_scope()).unwrap();
+        assert_eq!(
+            bound.binds,
+            vec![
+                "command-1".to_owned(),
+                "marketing.asset.activate".to_owned(),
+                "record-1".to_owned(),
+                "actor-1".to_owned(),
+                "company-1".to_owned(),
+            ]
+        );
+        assert_eq!(bound.binds.len(), bound.sql.matches('?').count());
     }
 
     #[test]

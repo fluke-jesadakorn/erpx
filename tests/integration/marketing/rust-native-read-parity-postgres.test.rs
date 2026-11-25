@@ -37,6 +37,8 @@ const TS_SUBMISSION: &str =
     include_str!("../../../packages/server-marketing/src/adapters/public-submission.ts");
 const TS_PURCHASE: &str =
     include_str!("../../../packages/server-marketing/src/adapters/marketing-purchase-rows-sql.ts");
+const TS_PURCHASE_COMMAND: &str =
+    include_str!("../../../packages/server-marketing/src/adapters/purchases.ts");
 const TS_PUBLIC_FORM: &str =
     include_str!("../../../packages/server-marketing/src/adapters/public-form.ts");
 const TS_CRM_SOURCES: &str =
@@ -140,6 +142,28 @@ fn live_statements_match_typescript_authority() {
     assert!(TS_PACKAGE.contains("nativeMarketingReadAll<{kind:string;id:string;fact:unknown;pending:boolean}>(MARKETING_RD_PACKAGE_OBLIGATIONS"));
     assert!(TS_PACKAGE.contains("LOCK TABLE marketing_assets,marketing_asset_events,marketing_lead_candidates,marketing_engagement_events,marketing_campaigns,marketing_campaign_costs,marketing_touches,marketing_public_receipts,marketing_public_limits,command_receipts IN SHARE MODE"));
     assert!(!TS_PACKAGE.contains("WITH scope AS(SELECT ?::text company_id)\n SELECT 'asset' kind"));
+}
+/// r57 retired the command-receipt prior guard from TypeScript. Its frozen
+/// statement must equal the registered native plan, and the caller plans it
+/// before executing on its own locked transaction.
+#[test]
+fn retired_command_receipt_guard_is_byte_identical() {
+    const LIVE: &str = "SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?";
+    let plan = plans::plan(plans::RD_COMMAND_RECEIPT_PRIOR).expect("registered plan");
+    assert_eq!(plan.sql, LIVE);
+    assert_eq!(
+        plan.binds,
+        &[
+            BindField::CommandId,
+            BindField::Operation,
+            BindField::RecordId,
+            BindField::ActorId,
+            BindField::CompanyId,
+        ]
+    );
+    assert_eq!(plan.sql.matches('?').count(), 5);
+    assert!(!TS_PURCHASE_COMMAND.contains("SELECT 1 FROM command_receipts WHERE command_id=?"));
+    assert!(TS_PURCHASE_COMMAND.contains("nativeMarketingReadFirst<Record<string,unknown>>(MARKETING_RD_COMMAND_RECEIPT_PRIOR"));
 }
 /// The retired statement has no TypeScript literal left to read; the exact
 /// former live statement is frozen here and must equal the registered plan.

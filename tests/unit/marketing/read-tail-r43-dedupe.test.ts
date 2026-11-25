@@ -193,7 +193,7 @@ describe('marketing read-tail r43 dedupe', () => {
 
   it('leaves FOR SHARE, command_receipts settlement, package settlement and native ports untouched', async () => {
     expect(await src('form-asset-lock-sql.ts')).toContain('FOR SHARE');
-    expect(await src('purchases.ts')).toContain('SELECT 1 FROM command_receipts WHERE command_id=?');
+    expect(await src('purchases.ts')).toContain('nativeMarketingReadFirst<Record<string,unknown>>(MARKETING_RD_COMMAND_RECEIPT_PRIOR');
     const obligations = await src('package-obligations.ts');
     expect(obligations).toContain('candidates:marketingSelectHeadSql(');
     expect(obligations).toContain('marketingPointExistsSql(');
@@ -201,8 +201,8 @@ describe('marketing read-tail r43 dedupe', () => {
     expect(await src('native-marketing-read.ts')).toContain('export');
   });
 
-  it('pins the owner SELECT KPI to 13 (lane 40 retired 3) (BEFORE=36)', async () => {
-    expect(await ownerSelectTokens()).toBe(13);
+  it('pins the owner SELECT KPI to 12 (lane 40 retired 3) (BEFORE=36)', async () => {
+    expect(await ownerSelectTokens()).toBe(12);
     expect(await ownerSelectTokens()).toBeLessThan(32);
   });
 });

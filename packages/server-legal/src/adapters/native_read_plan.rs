@@ -1,22 +1,28 @@
-//! Owner-local caller-unit read plans for the Legal package-obligation family.
+//! Native-owned package-obligation read contract.
 //!
-//! The mounted `legal/command-plan` route resolves one allow-listed kind here
-//! and returns the exact statement for the caller to prepare on its own open
-//! Holding transaction. No SQL is accepted from the wire and no TypeScript
-//! literal remains for this family, so the retention read keeps observing the
-//! caller's uncommitted grants, holds, shares and feature rows under the same
-//! source locks as the retired statement.
+//! The exact statement that retained the company-wide Legal obligations lived
+//! in TypeScript and was built from `featureSpecs` at call time. The SQL now
+//! lives in this owner's JSON contract, bound into Rust with `include_str!` and
+//! rendered by the TypeScript adapter through its native contract port. No
+//! statement token remains in TypeScript. The caller still prepares the
+//! returned statement on its own open Holding transaction, so the read keeps
+//! observing uncommitted grants, holds, shares and feature rows under the same
+//! source locks as the retired literal.
 use erpx_server_shared::public::BusinessError;
 use serde_json::Value;
+use std::sync::OnceLock;
 
 /// Allow-listed package-obligation read kind.
 pub const RD_PACKAGE_OBLIGATIONS: &str = "legal_package_obligations";
+
+/// Native-owned SQL contract for the retained package-obligation read.
+pub const PACKAGE_OBLIGATION_SOURCES_JSON: &str =
+    include_str!("package-obligation-plan-sources.json");
 
 /// Exact opening of the retired statement. The caller binds
 /// `[companyId, now]` and rejects any other plan.
 pub const PACKAGE_OBLIGATION_PREFIX: &str =
     "WITH scope AS(SELECT ?::text company_id,?::bigint now_ms)";
-const PACKAGE_OBLIGATION_SUFFIX: &str = " ORDER BY kind,id,fact";
 
 /// Feature tables in `featureSpecs` declaration order. Compile-owned names; no
 /// request value selects a relation.
@@ -33,6 +39,25 @@ const FEATURE_TABLES: [&str; 10] = [
     "legal_intake_questions",
 ];
 
+#[derive(serde::Deserialize)]
+struct PackageObligationSources {
+    sql: String,
+}
+
+static PACKAGE_OBLIGATIONS: OnceLock<PackageObligationSources> = OnceLock::new();
+
+fn package_obligations() -> &'static PackageObligationSources {
+    PACKAGE_OBLIGATIONS.get_or_init(|| {
+        serde_json::from_str(PACKAGE_OBLIGATION_SOURCES_JSON)
+            .expect("legal package-obligation SQL contract must be valid JSON")
+    })
+}
+
+/// Exact owner statement for the package-obligation read.
+pub fn package_obligation_plan_sql() -> &'static str {
+    &package_obligations().sql
+}
+
 /// One planned owner read. `sql` is the exact statement the retired TypeScript
 /// literal bound and `values` is the positional payload in bind order.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -46,22 +71,6 @@ fn invalid() -> BusinessError {
         "LEGAL_READ_PLAN_INVALID",
         "Use one bounded native Legal read plan.",
     )
-}
-
-fn feature_union() -> String {
-    FEATURE_TABLES
-        .iter()
-        .map(|table| {
-            format!(
-                "SELECT '{table}' kind,f.id,to_jsonb(f)::text fact FROM {table} f \
-                 LEFT JOIN legal_items i ON i.id=f.item_id,scope \
-                 WHERE (i.company_id=scope.company_id OR i.id IS NULL) AND \
-                 (i.id IS NULL OR f.state NOT IN ('completed','closed','cancelled','acknowledged','waived','accepted','billed') \
-                 AND NOT(f.category='custody' AND f.state='received'))"
-            )
-        })
-        .collect::<Vec<_>>()
-        .join(" UNION ALL ")
 }
 
 /// Plan one registered Legal read. Only the allow-listed kind and its exact
@@ -80,26 +89,8 @@ pub fn plan_legal_read(kind: &str, values: &[Value]) -> Result<LegalReadStatemen
                 .as_i64()
                 .filter(|value| *value >= 0)
                 .ok_or_else(invalid)?;
-            let sql = format!(
-                "{PACKAGE_OBLIGATION_PREFIX} \
-                 SELECT 'item' kind,i.id,to_jsonb(i)::text fact FROM legal_items i,scope \
-                 WHERE i.company_id=scope.company_id AND i.state NOT IN ('archived','closed','completed','expired','terminated','cancelled','rejected') \
-                 UNION ALL {features} \
-                 UNION ALL SELECT 'hold',h.id,to_jsonb(h)::text FROM legal_holds h LEFT JOIN legal_items i ON i.id=h.item_id,scope WHERE (i.company_id=scope.company_id OR i.id IS NULL) AND h.state<>'released' \
-                 UNION ALL SELECT 'share',s.id,to_jsonb(s)::text FROM legal_shares s LEFT JOIN legal_items i ON i.id=s.item_id LEFT JOIN legal_documents d ON d.id=s.document_id AND d.item_id=s.item_id,scope WHERE (i.company_id=scope.company_id OR i.id IS NULL) AND (i.id IS NULL OR d.id IS NULL OR s.revoked_at IS NULL AND s.expires_at>scope.now_ms) \
-                 UNION ALL SELECT 'executed-review',e.id,to_jsonb(e)::text FROM legal_executed_copies e LEFT JOIN legal_items i ON i.id=e.item_id LEFT JOIN legal_documents d ON d.id=e.document_id AND d.item_id=e.item_id,scope WHERE (i.company_id=scope.company_id OR i.id IS NULL) AND (i.id IS NULL OR d.id IS NULL OR e.state<>'confirmed') \
-                 UNION ALL SELECT 'approval',r.item_id,to_jsonb(r)::text FROM legal_approval_routes r LEFT JOIN legal_items i ON i.id=r.item_id,scope WHERE (i.company_id=scope.company_id OR i.id IS NULL) AND (i.id IS NULL OR i.state IN ('review','approval','signing')) \
-                 UNION ALL SELECT 'ai-job',j.id,to_jsonb(j)::text FROM legal_ai_proposals j LEFT JOIN legal_items i ON i.id=j.item_id,scope WHERE (i.company_id=scope.company_id OR i.id IS NULL) AND (i.id IS NULL OR j.state IN ('queued','running','proposed')) \
-                 UNION ALL SELECT 'processing-job',j.id,to_jsonb(j)::text FROM legal_processing_jobs j LEFT JOIN legal_items i ON i.id=j.item_id,scope WHERE (j.company_id=scope.company_id OR i.company_id=scope.company_id) AND (i.id IS NULL OR i.company_id<>j.company_id OR j.state IN ('queued','running')) \
-                 UNION ALL SELECT 'invitation-job',j.id,to_jsonb(j)::text FROM legal_invitation_jobs j LEFT JOIN legal_shares s ON s.id=j.share_id LEFT JOIN legal_items i ON i.id=s.item_id,scope WHERE (i.company_id=scope.company_id OR i.id IS NULL) AND (i.id IS NULL OR j.state IN ('queued','running')) \
-                 UNION ALL SELECT 'destruction',d.id,to_jsonb(d)::text FROM legal_destructions d LEFT JOIN legal_items i ON i.id=d.item_id,scope WHERE (i.company_id=scope.company_id OR i.id IS NULL) AND (i.id IS NULL OR d.state NOT IN ('completed','cancelled','rejected')) \
-                 UNION ALL SELECT 'intake-form',f.id,to_jsonb(f)::text FROM legal_intake_forms f,scope WHERE f.company_id=scope.company_id AND f.state='draft' \
-                 UNION ALL SELECT 'retention-policy',p.id,to_jsonb(p)::text FROM legal_retention_policies p,scope WHERE p.company_id=scope.company_id AND p.state='draft'\
-                 {PACKAGE_OBLIGATION_SUFFIX}",
-                features = feature_union(),
-            );
             Ok(LegalReadStatement {
-                sql,
+                sql: package_obligation_plan_sql().to_owned(),
                 values: values.to_vec(),
             })
         }
@@ -111,25 +102,38 @@ pub fn plan_legal_read(kind: &str, values: &[Value]) -> Result<LegalReadStatemen
 mod tests {
     use super::*;
     use serde_json::json;
+    use sha2::{Digest, Sha256};
 
     fn values(value: Value) -> Vec<Value> {
         value.as_array().cloned().unwrap_or_default()
     }
 
+    fn digest(sql: &str) -> String {
+        format!("{:x}", Sha256::digest(sql.as_bytes()))
+    }
+
     #[test]
-    fn package_obligations_plan_is_bounded_read_only_and_complete() {
-        let statement = plan_legal_read(
-            RD_PACKAGE_OBLIGATIONS,
-            &values(json!(["company", 1700000000000])),
-        )
-        .unwrap();
-        assert_eq!(statement.sql.matches('?').count(), 2);
-        assert!(statement
-            .sql
-            .starts_with("WITH scope AS(SELECT ?::text company_id,?::bigint now_ms)"));
-        assert!(statement.sql.ends_with("ORDER BY kind,id,fact"));
+    fn package_obligations_contract_is_bounded_read_only_and_complete() {
+        let sql = package_obligation_plan_sql();
+        assert_eq!(
+            digest(sql),
+            "3fdd9e28883538f8789b109976a8f6075cafc4e63e906cf9eb1e42c2fd787ed7"
+        );
+        assert_eq!(sql.len(), 6505);
+        assert_eq!(sql.matches('?').count(), 2);
+        assert!(sql.starts_with(PACKAGE_OBLIGATION_PREFIX));
+        assert!(sql.ends_with(" ORDER BY kind,id,fact"));
         for table in FEATURE_TABLES {
-            assert_eq!(statement.sql.matches(table).count(), 1, "{table}");
+            assert_eq!(
+                sql.matches(&format!("FROM {table} f")).count(),
+                1,
+                "{table}"
+            );
+            assert_eq!(
+                sql.matches(&format!("'{table}' kind")).count(),
+                1,
+                "{table}"
+            );
         }
         for kind in [
             "'item'",
@@ -144,9 +148,9 @@ mod tests {
             "'intake-form'",
             "'retention-policy'",
         ] {
-            assert!(statement.sql.contains(kind), "{kind}");
+            assert!(sql.contains(kind), "{kind}");
         }
-        assert_eq!(statement.sql.matches(" UNION ALL ").count(), 20);
+        assert_eq!(sql.matches(" UNION ALL ").count(), 20);
         for write in [
             "INSERT INTO",
             "UPDATE ",
@@ -155,11 +159,21 @@ mod tests {
             "FOR UPDATE",
             "FOR SHARE",
         ] {
-            assert!(!statement.sql.contains(write), "{write}");
+            assert!(!sql.contains(write), "{write}");
         }
+    }
+
+    #[test]
+    fn package_obligations_plan_returns_the_contract_and_binds() {
+        let statement = plan_legal_read(
+            RD_PACKAGE_OBLIGATIONS,
+            &values(json!(["company", 1700000000000i64])),
+        )
+        .unwrap();
+        assert_eq!(statement.sql, package_obligation_plan_sql());
         assert_eq!(
             statement.values,
-            vec![json!("company"), json!(1700000000000)]
+            vec![json!("company"), json!(1700000000000i64)]
         );
     }
 

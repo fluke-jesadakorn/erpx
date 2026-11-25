@@ -33,14 +33,11 @@ describe('Planning read-tail r24 scoped single-row head fold', () => {
 
   test('the retired wrapper is gone while the generalized builder stays read-only', () => {
     expect(existsSync(resolve(srcRoot, 'adapters/planning-scoped-row-sql.ts'))).toBe(false);
-    const head = src('planning-select-columns-sql.ts');
-    expect(selectCount(head)).toBe(1);
-    expect(head).toContain('`SELECT ${columns} FROM ${rest}`');
-    expect(head).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
+    expect(existsSync(resolve(srcRoot, 'adapters/planning-select-columns-sql.ts'))).toBe(false);
   });
 
   test('r1-r23 helpers, the single lock statement and native readers stay untouched', () => {
-    expect(src('planning-select-columns-sql.ts')).toContain('export const planningSelectColumnsFrom =');
+    expect(existsSync(resolve(srcRoot, 'adapters/planning-select-columns-sql.ts'))).toBe(false);
     expect(readdirSync(resolve(srcRoot, 'adapters'))).not.toContain('planning-select-from-sql.ts');
     expect(src('planning-package-fact-sql.ts')).toContain('export const planningPackageFactRows =');
     expect(existsSync(resolve(srcRoot, 'adapters/planning-scoped-row-sql.ts'))).toBe(false);
@@ -87,7 +84,7 @@ describe('Planning read-tail r24 scoped single-row head fold', () => {
     };
     walk(srcRoot);
     // r25 folded the scoped branch-list family into the single-line projection/FROM builder (14 -> 13).
-    expect(total).toBe(12);
+    expect(total).toBe(11);
     expect(total).toBeLessThan(14);
   });
 });

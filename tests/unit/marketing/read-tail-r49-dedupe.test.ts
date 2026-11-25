@@ -119,13 +119,13 @@ describe('marketing read-tail r49 dedupe', () => {
     expect((await src('owner-projection-source.ts')).match(/SELECT /g)).toHaveLength(1);
     expect(await src('read-tail-sql.ts')).toContain('`SELECT * FROM ${table}${tail}`');
     expect((await src('read-tail-sql.ts')).match(/SELECT/g)).toHaveLength(1);
-    expect(await src('purchases.ts')).toContain('SELECT 1 FROM command_receipts WHERE command_id=?');
+    expect(await src('purchases.ts')).toContain('nativeMarketingReadFirst<Record<string,unknown>>(MARKETING_RD_COMMAND_RECEIPT_PRIOR');
     expect(await src('form-asset-lock-sql.ts')).toContain('FOR SHARE');
     expect(await src('marketing-local-point-read-sql.ts')).toContain('FOR UPDATE');
     expect(await src('native-marketing-read.ts')).toContain('export');
   });
 
-  it('pins the owner SELECT KPI to 13 (lane 40 retired 3) (BEFORE=27)', async () => {
-    expect(await ownerSelectTokens()).toEqual({ spaced: 13, bare: 13 });
+  it('pins the owner SELECT KPI to 12 (lane 40 retired 3) (BEFORE=27)', async () => {
+    expect(await ownerSelectTokens()).toEqual({ spaced: 12, bare: 12 });
   });
 });

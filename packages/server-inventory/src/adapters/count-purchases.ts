@@ -19,14 +19,14 @@ import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packa
 import {flushFinanceDeferredEffects} from "@erpx/server-finance/public/finance-transactions";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {isTransactionalSqlDatabase,type SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
+import {nativeInventoryReadFirst,INVENTORY_RD_COUNT_SOURCE_ROW} from './native-inventory-read';
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
 import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 
 type Actor=Pick<WorkContext,"userId"|"assignmentId"|"role"|"companyId"|"branchId"|"departmentId"|"authority"|"iam">;
 type Source={id:string;company_id:string;branch_id:string|null;warehouse_id:string};
 async function source(database:SqlDatabase,actor:Actor,id:string){
- const row=await database.prepare("SELECT id,company_id,branch_id,warehouse_id FROM inventory_counts WHERE id=? AND company_id=? AND (?::text IS NULL OR branch_id=?)")
-  .bind(id,actor.companyId,actor.branchId,actor.branchId).first<Source>();
+ const row=await nativeInventoryReadFirst<Source>(INVENTORY_RD_COUNT_SOURCE_ROW,[id,actor.companyId,actor.branchId,actor.branchId],database);
  if(!row)throw new ApiError(404,"COUNT_NOT_FOUND","Stock count not found in this workspace.");
  return row;
 }

@@ -35,6 +35,7 @@ import { pmsPropertyPurchaseAllowed, pmsPropertyPurchaseFlags, requirePmsPropert
 import { pmsPackageEnforcementMode } from "@erpx/server-commercial/public/purchase-command-boundary";
 import { purchasedCapabilityPredicate } from "@erpx/server-commercial/public/purchased-capability-sql";
 import { nativePmsOwnerWrite } from "@erpx/feature-pms/public/native-pms";
+import { nativePmsReadFirst, PMS_RD_BOOKING_RECEIPT_BY_KEY, PMS_RD_BOOKING_RECEIPT_BY_ATTEMPT } from "./native-pms-read";
 export async function bookingEnv(): Promise<BookingEnv> {
     const env = await runtimeEnv();
     return {
@@ -126,11 +127,11 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase, companyId = '')
         }) => write('pms_w027', [facts.mailId, facts.id, facts.reservationId, facts.id2, facts.slug, facts.kind, facts.fact6, facts.now, facts.now2]),
         readPmsBookingReceipts1: (facts: {
             key: string;
-        }) => db.prepare("SELECT * FROM pms_booking_receipts WHERE id=?").bind(facts.key).first<{
+        }) => nativePmsReadFirst<{
             body_hash: string;
             reservation_id: string;
             response_json: string | null;
-        }>(),
+        }>(PMS_RD_BOOKING_RECEIPT_BY_KEY, [facts.key], db),
         readPosConnections1: facts => pmsBookingPosFacts(db).readPosConnections1(facts),
         writePmsBookingReceipts1: (facts: {
             key: string;
@@ -186,9 +187,9 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase, companyId = '')
         readPmsBookingReceipts2: (facts: {
             reservation_id: string;
             id: string;
-        }) => db.prepare("SELECT response_json FROM pms_booking_receipts WHERE reservation_id=? AND response_json::jsonb->>'attemptId'=? LIMIT 1").bind(facts.reservation_id, facts.id).first<{
+        }) => nativePmsReadFirst<{
             response_json: string;
-        }>(),
+        }>(PMS_RD_BOOKING_RECEIPT_BY_ATTEMPT, [facts.reservation_id, facts.id], db),
         readPmsBookingPayments3: (facts: {
             id: string;
         }) => db.prepare(PMS_BOOKING_PAYMENT_BY_ID_SQL).bind(facts.id).first<BookingPaymentRow>(),

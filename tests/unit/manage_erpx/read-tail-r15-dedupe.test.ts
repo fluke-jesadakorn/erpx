@@ -38,7 +38,7 @@ describe('manage_erpx beta point-by-key native cutover (r8)', () => {
     expect(rust).toContain('READ_SLOT_OWNER');
     expect(rust).toContain('READ_INVITATION_BY_TOKEN');
     expect(rust).toContain('READ_INVITATION_ACCEPTED_USER');
-    expect(rust.match(/pub const ME_RD_/g)).toHaveLength(7);
+    expect(rust.match(/pub const ME_RD_/g)).toHaveLength(8);
   });
 
   it('exports closed native kind constants with no statement text in TypeScript', async () => {
@@ -74,10 +74,40 @@ describe('manage_erpx beta point-by-key native cutover (r8)', () => {
     }
   });
 
+/** Byte-identical retired Company provisioning source image, now Rust-owned. */
+const PROVISIONING_IMAGE =
+  "SELECT jsonb_build_object('provisioning',to_jsonb(provisioning),'events',(SELECT jsonb_agg(to_jsonb(event) ORDER BY event.version,event.id) FROM company_provisioning_events event WHERE event.company_id=provisioning.company_id AND event.holding_id=provisioning.holding_id))::text image FROM company_provisioning provisioning WHERE provisioning.company_id=? AND provisioning.company_id=?";
+
+describe('manage_erpx Company provisioning attachment image native cutover', () => {
+  it('owns the byte-identical two-bind statement in the Rust registry only', async () => {
+    const rust = await readFile(adapter('native_owner_read_sql.rs'), 'utf8');
+    expect(rust).toContain(`"${PROVISIONING_IMAGE}"`);
+    expect(rust).toContain('ME_RD_COMPANY_PROVISIONING_ATTACHMENT_IMAGE');
+    expect(rust).toContain('READ_COMPANY_PROVISIONING_ATTACHMENT_IMAGE');
+    expect(rust).toContain('bind_count: 2');
+  });
+
+  it('cuts the image reader to the native client without emitted SQL', async () => {
+    const source = await readFile(adapter('company-provisioning-attachment-read-sources.ts'), 'utf8');
+    expect(source).toContain('nativeCompanyProvisioningAttachmentImage(database,id,actor.companyId)');
+    expect(source).not.toContain('jsonb_build_object');
+    expect(source).not.toContain('company_provisioning_events event');
+    expect(source).toContain('LOCK TABLE company_provisioning,company_provisioning_events IN SHARE ROW EXCLUSIVE MODE');
+    const { ME_RD_COMPANY_PROVISIONING_ATTACHMENT_IMAGE } =
+      await import('../../../packages/server-manage_erpx/src/adapters/native-owner-read');
+    expect(ME_RD_COMPANY_PROVISIONING_ATTACHMENT_IMAGE).toBe(
+      'manage_rd_company_provisioning_attachment_image',
+    );
+    const client = await readFile(adapter('native-owner-read.ts'), 'utf8');
+    expect(client).not.toContain('jsonb_build_object');
+    expect(client).not.toContain('FROM company_provisioning');
+  });
+});
+
   it('leaves locks, authority readers and cross-owner sources byte-identical', async () => {
     const protectedShas: Record<string, string> = {
       'company-provisioning-attachment-read-sources.ts':
-        '4a7abe70881636a9cf40893a677c283970fdb0c0770db4b733a2d25f178801f9',
+        '68683c0454f731623840ab88927b932917c41f5d7a179bcac0ae0cc80f1d7b7e',
       'company-provisioning-attachment-read.ts':
         'af042402890caee72f86973e02f187bc74b8fba85170812ff9b62211ed540b59',
       'native-owner-write.ts':
@@ -91,9 +121,9 @@ describe('manage_erpx beta point-by-key native cutover (r8)', () => {
     }
   });
 
-  it('lowers the owner TS literal SELECT count from BEFORE=16 to 15', async () => {
+  it('lowers the owner TS literal SELECT count from BEFORE=15 to 13', async () => {
     const total = (await tsSources(srcDir)).join('\n').match(/SELECT /g)?.length ?? 0;
-    expect(total).toBe(15);
-    expect(total).toBeLessThan(16);
+    expect(total).toBe(13);
+    expect(total).toBeLessThan(15);
   });
 });

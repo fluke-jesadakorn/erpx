@@ -161,7 +161,7 @@ describe('Learning assignments-image family folded into the native byte oracle',
     expect(decl!).toContain('imageChildFrame(');
     const build = new Function(
       'imageChildFrame',
-      `${decl!.replace('export ', '')}\nreturn assignmentsImage;`,
+      `${decl!.replace('export ', '').replace('(projection: string)', '(projection)')}\nreturn assignmentsImage;`,
     ) as (renderer: (aggregate: string, source: string) => string) => (projection: string) => string;
     expect(build((aggregate, source) => `<${aggregate}|${source}>`)('to_jsonb(a)'))
       .toBe('<jsonb_agg(to_jsonb(a) ORDER BY a.id)|FROM learning_assignments a WHERE a.company_id=?>');

@@ -52,8 +52,8 @@ export type NativeBillingCommandInput = Readonly<{
  * Exact retained-input to native-owner mapping for the Billing actions whose
  * native authority matches the retained contract. `cost`, `delete-cost` and
  * `complete-costs` use the owner `require_cost_command` gate, which requires
- * the same platform `platform_admin` actor. `retry` and `approve-target-rollout`
- * use `require_target_command` (holding_owner): the Holding-host navigation
+ * the same platform `platform_admin` actor. `retry`, `approve-target-rollout`
+ * and `verify-statement` use `require_target_command` (holding_owner): the Holding-host navigation
  * default sends a Platform reviewer to the target Holding host before dispatch,
  * preserving the retained authority.
  * Every remaining action returns `undefined`: those native target commands also
@@ -112,6 +112,21 @@ export function nativeBillingCommandRequest(
           ...common,
           targetMonth: input.targetMonth,
           minimumMarginBps: input.minimumMarginBps,
+        },
+      };
+    // StatementBody is exactly {version, reason, targetMonth, provider,
+    // statementId, originalCurrency, providerTotalMinor, evidenceId}.
+    case "verify-statement":
+      return {
+        action: "verify-statement",
+        body: {
+          ...common,
+          targetMonth: input.targetMonth,
+          provider: input.provider,
+          statementId: input.statementId,
+          originalCurrency: input.originalCurrency,
+          providerTotalMinor: input.providerTotalMinor,
+          evidenceId: input.evidenceId,
         },
       };
     default:

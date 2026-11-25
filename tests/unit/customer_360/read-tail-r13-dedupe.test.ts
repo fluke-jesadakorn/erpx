@@ -86,7 +86,8 @@ describe('Customer 360 read-tail r13 scoped-projection head family', () => {
     expect(obligations).toContain('assertPortalAuthorityPackageObligationSources');
     expect(obligations).toContain('${obligationFactHead('); // r9
     const portal = src('portal.ts');
-    expect(portal).toContain('SELECT id,binding_id,order_id,action,status,created_at,request_hash,user_id FROM customer_portal_actions WHERE');
+    expect(portal).not.toContain('SELECT id,binding_id,order_id,action,status,created_at,request_hash,user_id FROM customer_portal_actions WHERE'); // r15: planned natively
+    expect(portal).toContain('nativeC360ReadStatement(');
     const timeline = src('timeline.ts');
     expect(timeline).toContain('const eventSelect='); // r6
     expect(timeline).toContain('const eventRow='); // r7
@@ -104,7 +105,7 @@ describe('Customer 360 read-tail r13 scoped-projection head family', () => {
     expect(native.some((source) => source.includes('scopedProjection'))).toBe(false);
   });
 
-  it('retirement:ts-statements is strictly lower than BEFORE=12 (expected 11)', () => {
+  it('retirement:ts-statements is strictly lower than BEFORE=11 (expected 10)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -114,7 +115,7 @@ describe('Customer 360 read-tail r13 scoped-projection head family', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(11);
-    expect(total).toBeLessThan(12);
+    expect(total).toBe(10);
+    expect(total).toBeLessThan(11);
   });
 });

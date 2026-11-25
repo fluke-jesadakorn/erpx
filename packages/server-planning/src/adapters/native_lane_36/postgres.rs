@@ -456,16 +456,21 @@ mod tests {
 
     #[test]
     fn executive_statements_are_bytes_exact_and_select_the_closed_branch() {
-        for statement in [&*EXEC_SHORTAGE_SQL, &*EXEC_PROPOSED_SQL, &*EXEC_CAPACITY_SQL] {
+        for (statement, binds, jsonpath) in [
+            (&*EXEC_SHORTAGE_SQL, 7, true),
+            (&*EXEC_PROPOSED_SQL, 6, false),
+            (&*EXEC_CAPACITY_SQL, 6, false),
+        ] {
             assert!(statement.contains("shortage_count FROM jsonb_array_elements("));
             assert!(statement.contains(") shortage ON TRUE WHERE "));
-            assert!(statement.contains("'$[*] ? (@.shortageMilli > 0)'"));
-            // Six positional binds plus the `$` starting the retained jsonpath.
-            assert_eq!(statement.matches('$').count(), 7);
             assert!(statement.contains("$6"));
-            assert!(!statement.contains("$7"));
-            // The lone `?` is inside the retained jsonpath literal, not a bind.
-            assert_eq!(statement.matches('?').count(), 1);
+            assert_eq!(statement.matches('$').count(), binds);
+            assert_eq!(statement.matches('?').count(), usize::from(jsonpath));
+            if jsonpath {
+                assert!(statement.contains("'$[*] ? (@.shortageMilli > 0)'"));
+            } else {
+                assert!(!statement.contains("'$[*]"));
+            }
         }
         let scope = LaneScope::new_executive(
             "executive-recommendation",

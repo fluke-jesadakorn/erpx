@@ -4,6 +4,7 @@ import {
   nativePosShiftsStatement,
   nativePosTablesStatement,
   nativePosCashMovementsStatement,
+  nativePosStartupRegistersStatement,
   nativePosRegisterByNameStatement,
   nativePosOpenShiftByRegisterStatement,
   nativePosTableByNameStatement,
@@ -83,6 +84,7 @@ describe('native POS core workspace read bridge (shifts family)', () => {
     ['pos_core_shifts', nativePosShiftsStatement, 'SELECT s.*,r.name register_name FROM pos_shifts s'],
     ['pos_core_tables', nativePosTablesStatement, 'SELECT t.* FROM pos_tables t'],
     ['pos_core_cash_movements', nativePosCashMovementsStatement, 'SELECT m.*,s.register_id FROM pos_cash_movements m'],
+    ['pos_core_startup_registers', nativePosStartupRegistersStatement, 'SELECT id,branch_id,warehouse_id,name,mode,active,version FROM pos_registers WHERE company_id=?'],
   ] as const)('requests the owner kind %s with Company/branch scope only', async (kind, bridge, sql) => {
     process.env.ERPX_NATIVE_POS_OWNER_CONFIG = config();
     const fetch = stubFetch(sql);
@@ -99,6 +101,13 @@ describe('native POS core workspace read bridge (shifts family)', () => {
     expect(JSON.parse(init.body)).toEqual({ company: 'company', kind, values: ['company', 'branch', 'branch'] });
     expect(seen.sql).toBe(sql);
     expect(seen.values).toEqual(['company', 'branch', 'branch']);
+  });
+
+  it('keeps the retired startup register literal out of the TS adapter', async () => {
+    const { readFileSync } = await import('node:fs');
+    const startup = readFileSync(new URL('../../../packages/server-pos/src/adapters/startup.ts', import.meta.url), 'utf8');
+    expect(startup).not.toContain('SELECT id,branch_id,warehouse_id,name,mode,active,version FROM pos_registers');
+    expect(startup).toContain('nativePosStartupRegistersStatement(database');
   });
 
   it('fails closed when the native owner service is unconfigured', async () => {

@@ -46,10 +46,6 @@ availableProviderEvidence(value0:string | null | undefined,value1:string):Promis
 approvedProviderPeriod(value0:string,value1:string | undefined):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 existingProviderCost(value0:string,value1:string | undefined,value2:string | undefined):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 recordProviderCost(value0:string,value1:string | undefined,value2:string | undefined,value3:string | undefined,value4:string | undefined,value5:string | undefined,value6:number | undefined,value7:number | undefined,value8:number | undefined,value9:number | undefined,value10:string | null | undefined,value11:string,value12:number):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
-availableStatementEvidence(value0:string | null | undefined,value1:string):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
-approvedStatementPeriod(value0:string,value1:string | undefined):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
-providerStatementTotal(value0:string,value1:string | undefined,value2:string | undefined,value3:string | undefined,value4:string | undefined):Promise<{rows:{count:number;total:string}[];rowCount:number|null}>;
-recordProviderStatement(value0:string,value1:string | undefined,value2:string | undefined,value3:string | undefined,value4:string | null | undefined,value5:number | undefined,value6:string | undefined,value7:string,value8:number):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 availableOperatingEvidence(value0:string | null | undefined,value1:string):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 recordOperatingCost(value0:string,value1:string | undefined,value2:string | undefined,value3:number | undefined,value4:string | null | undefined,value5:string,value6:number):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 availableCapacityEvidence(value0:string | null | undefined,value1:string):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
@@ -110,6 +106,7 @@ const nativeActions = new Set<BillingInput["action"]>([
   "void",
   "retry",
   "approve-target-rollout",
+  "verify-statement",
 ]);
 const adminActions = new Set([
   "cost",
@@ -118,7 +115,6 @@ const adminActions = new Set([
   "revise-plan",
   "assign-target",
   "verify-provider-cost",
-  "verify-statement",
   "approve-target",
   "rate-target",
   "record-operating-cost",
@@ -434,21 +430,6 @@ async function billingCommand(
         const existing = (await c.existingProviderCost(holdingId,input.targetMonth,input.sourceKey)).rows[0];
         if (existing) fail("PROVIDER_COST_ALREADY_VERIFIED", "The source already has verified cost; preserve its audit trail.");
         await c.recordProviderCost(holdingId,input.targetMonth,input.sourceKey,input.provider,input.statementId,input.originalCurrency,input.originalMinor,input.fxNumerator,input.fxDenominator,input.providerCostSatang,input.evidenceId,actor.userId,now);
-        break;
-      }
-      case "verify-statement": {
-        if (!input.targetMonth || !input.provider || !input.statementId ||
-            !input.originalCurrency || input.providerTotalMinor === undefined || !input.evidenceId)
-          fail("STATEMENT_REQUIRED", "Month, provider, statement, currency, total and evidence are required.");
-        const evidence = (await c.availableStatementEvidence(input.evidenceId,holdingId)).rowCount;
-        if (!evidence) fail("EVIDENCE_REQUIRED", "Attach an available provider statement.");
-        const prior = (await c.approvedStatementPeriod(holdingId,input.targetMonth)).rowCount;
-        if (prior) fail("TARGET_PERIOD_FROZEN", "Approved target charges cannot be changed.");
-        const count = (await c.providerStatementTotal(holdingId,input.targetMonth,input.provider,input.statementId,input.originalCurrency)).rows[0];
-        if (!count.count || BigInt(count.total) !== BigInt(input.providerTotalMinor))
-          fail("STATEMENT_MISMATCH", "Statement total must equal the matched provider source costs.");
-        const inserted = await c.recordProviderStatement(holdingId,input.targetMonth,input.provider,input.statementId,input.evidenceId,input.providerTotalMinor,input.originalCurrency,actor.userId,now);
-        if (!inserted.rowCount) fail("STATEMENT_ALREADY_VERIFIED", "The provider statement was already verified.");
         break;
       }
       case "record-operating-cost": {

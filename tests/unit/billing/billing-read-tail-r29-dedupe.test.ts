@@ -63,7 +63,7 @@ describe('billing read-tail r29 point-read-by-id dedupe', () => {
       expect(text.split(oracle.full).length - 1).toBe(0);
       expect(text.split(oracle.routed).length - 1).toBe(1);
     }
-    expect(billing.split('billingPointReadSql(').length - 1).toBe(8); // r35 effective-month guard + provider total; native retry removed selectedJob
+    expect(billing.split('billingPointReadSql(').length - 1).toBe(7); // r35 effective-month guard; native retry removed selectedJob and native statement removed the provider total
     expect(target.split('billingPointReadSql(').length - 1).toBe(4);
   });
 

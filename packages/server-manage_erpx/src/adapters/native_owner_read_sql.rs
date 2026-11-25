@@ -7,8 +7,10 @@
 //! The three beta_policy kinds are the closed projection union admitted by
 //! the owner helper: `*`, `member_limit` and `branch_limit`. The four
 //! point-by-key kinds are the byte-identical successors of the retired
-//! `beta_slots` and `beta_team_invitations` single-row reads. No other kind or
-//! SQL text can cross the wire. Reads carry no receipt/audit/outbox ledger.
+//! `beta_slots` and `beta_team_invitations` single-row reads. The Company
+//! provisioning kind is the byte-identical successor of the retired private
+//! attachment-owner source image read. No other kind or SQL text can cross the
+//! wire. Reads carry no receipt/audit/outbox ledger.
 
 /// A planned owner read. `kind` is the allow-listed discriminator, `sql` the
 /// exact statement the retired owner literal bound and `bind_count` the number
@@ -95,6 +97,19 @@ const READ_INVITATION_ACCEPTED_USER: NativeManageReadStatement = NativeManageRea
     bind_count: 1,
 };
 
+/// Native successor of the TypeScript `companyProvisioningAttachmentReadSourceImage`
+/// read. The caller binds `[target_id, company_id]`; the duplicated Company
+/// predicate is retained byte for byte.
+pub const ME_RD_COMPANY_PROVISIONING_ATTACHMENT_IMAGE: &str =
+    "manage_rd_company_provisioning_attachment_image";
+const SQL_COMPANY_PROVISIONING_ATTACHMENT_IMAGE: &str = "SELECT jsonb_build_object('provisioning',to_jsonb(provisioning),'events',(SELECT jsonb_agg(to_jsonb(event) ORDER BY event.version,event.id) FROM company_provisioning_events event WHERE event.company_id=provisioning.company_id AND event.holding_id=provisioning.holding_id))::text image FROM company_provisioning provisioning WHERE provisioning.company_id=? AND provisioning.company_id=?";
+const READ_COMPANY_PROVISIONING_ATTACHMENT_IMAGE: NativeManageReadStatement =
+    NativeManageReadStatement {
+        kind: ME_RD_COMPANY_PROVISIONING_ATTACHMENT_IMAGE,
+        sql: SQL_COMPANY_PROVISIONING_ATTACHMENT_IMAGE,
+        bind_count: 2,
+    };
+
 const STATEMENTS: &[NativeManageReadStatement] = &[
     READ_BETA_POLICY_POINT_ALL,
     READ_BETA_POLICY_POINT_MEMBER,
@@ -103,6 +118,7 @@ const STATEMENTS: &[NativeManageReadStatement] = &[
     READ_SLOT_OWNER,
     READ_INVITATION_BY_TOKEN,
     READ_INVITATION_ACCEPTED_USER,
+    READ_COMPANY_PROVISIONING_ATTACHMENT_IMAGE,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -129,7 +145,7 @@ mod tests {
             assert!(sql.starts_with("SELECT "));
             assert!(sql.ends_with(" FROM beta_policy WHERE company_id=?"));
         }
-        assert_eq!(STATEMENTS.len(), 7);
+        assert_eq!(STATEMENTS.len(), 8);
         assert_eq!(
             SQL_BETA_POLICY_POINT_ALL,
             "SELECT * FROM beta_policy WHERE company_id=?"
@@ -194,6 +210,21 @@ mod tests {
     }
 
     #[test]
+    fn company_provisioning_attachment_image_renders_the_retired_literal_byte_for_byte() {
+        let statement = read_statement(ME_RD_COMPANY_PROVISIONING_ATTACHMENT_IMAGE)
+            .expect("registered Company provisioning attachment image read");
+        assert_eq!(statement.kind, ME_RD_COMPANY_PROVISIONING_ATTACHMENT_IMAGE);
+        assert_eq!(statement.sql, SQL_COMPANY_PROVISIONING_ATTACHMENT_IMAGE);
+        assert_eq!(statement.bind_count, 2);
+        assert_eq!(statement.sql.matches('?').count(), 2);
+        assert_eq!(statement.sql.len(), 385);
+        assert!(statement.sql.starts_with("SELECT jsonb_build_object("));
+        assert!(statement.sql.ends_with(
+            "FROM company_provisioning provisioning WHERE provisioning.company_id=? AND provisioning.company_id=?"
+        ));
+    }
+
+    #[test]
     fn unadmitted_projections_fail_closed() {
         for kind in [
             "manage_rd_beta_policy_point_ai_monthly_limit",
@@ -201,6 +232,8 @@ mod tests {
             "beta_policy_point_select",
             "manage_rd_slot_active_extra",
             "manage_rd_invitation_by_email",
+            "manage_rd_company_provisioning_attachment_image_extra",
+            "manage_rd_company_provisioning_attachment_images",
         ] {
             assert!(read_statement(kind).is_none(), "{kind} must stay unregistered");
         }

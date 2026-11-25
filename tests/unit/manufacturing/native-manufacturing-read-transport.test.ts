@@ -187,7 +187,7 @@ describe('native Manufacturing read-plan transport', () => {
       MANUFACTURING_RD_ORDER_EVENTS,
       MANUFACTURING_RD_PRODUCT_GENEALOGY,
       MANUFACTURING_RD_ACCOUNTING_PROFILES,
-    ]) expect(caller).toContain(`nativeManufacturingReadAll<Row>(${kind.replace(/-/g, '_').toUpperCase()}`);
+    ]) expect(caller).toContain(`nativeManufacturingReadAll<Row>(MANUFACTURING_RD_${kind.replace(/-/g, '_').toUpperCase()}`);
     expect(caller).not.toContain('manufacturingRowsSelect("manufacturing_specification_lines"');
     expect(caller).not.toContain('manufacturingRowsSelect("manufacturing_order_events"');
     expect(caller).not.toContain('manufacturingRowsSelect("manufacturing_genealogy"');

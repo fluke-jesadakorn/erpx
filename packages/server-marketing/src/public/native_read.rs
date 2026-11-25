@@ -30,6 +30,9 @@ pub const RD_CAMPAIGN_COST_WITNESS: &str = "campaign-cost-witness";
 // sales-marketing settlement package-obligations cross-owner read.
 pub const RD_PACKAGE_OBLIGATIONS: &str = "marketing-package-obligations";
 
+// purchase-command prior-receipt point read on the shared command ledger.
+pub const RD_COMMAND_RECEIPT_PRIOR: &str = "command-receipt-prior";
+
 /// A bind position in a planned statement, in wire order.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BindField {
@@ -38,6 +41,10 @@ pub enum BindField {
     /// Active-form / form-content version; bound as a PG integer.
     Version,
     CampaignId,
+    CommandId,
+    Operation,
+    RecordId,
+    ActorId,
 }
 
 /// Scope facts a kind needs from its caller before its plan can be bound.
@@ -47,6 +54,10 @@ pub struct ScopeRequirement {
     pub company: bool,
     pub version: bool,
     pub campaign: bool,
+    pub command: bool,
+    pub operation: bool,
+    pub record: bool,
+    pub actor: bool,
 }
 
 /// One caller-unit read plan: exact SQL, ordered binds and the retained
@@ -78,6 +89,7 @@ const PLAN_FORM_CONTENT_ROW: &str = "SELECT id,version,preview_json FROM marketi
 const PLAN_CAMPAIGN_EXISTS: &str = "SELECT 1 FROM marketing_campaigns WHERE id=? AND company_id=?";
 const PLAN_CAMPAIGN_WITNESS: &str = "SELECT campaign.id,campaign.company_id,NULL::text branch_id,NULL::text department_id,to_jsonb(campaign) witness FROM marketing_campaigns campaign";
 const PLAN_CAMPAIGN_COST_WITNESS: &str = "SELECT cost.id,cost.company_id,NULL::text branch_id,NULL::text department_id,to_jsonb(cost) witness FROM marketing_campaign_costs cost JOIN marketing_campaigns campaign ON campaign.id=cost.campaign_id AND campaign.company_id=cost.company_id";
+const PLAN_COMMAND_RECEIPT_PRIOR: &str = "SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?";
 
 // Verbatim cross-owner fragments from `crm-purchase-sources.ts` and
 // `package-obligations.ts`. Macros (not named consts) let `concat!` compose the
@@ -116,36 +128,70 @@ const NO_SCOPE: ScopeRequirement = ScopeRequirement {
     company: false,
     version: false,
     campaign: false,
+    command: false,
+    operation: false,
+    record: false,
+    actor: false,
 };
 const COMPANY_SCOPE: ScopeRequirement = ScopeRequirement {
     asset: false,
     company: true,
     version: false,
     campaign: false,
+    command: false,
+    operation: false,
+    record: false,
+    actor: false,
 };
 const ASSET_SCOPE: ScopeRequirement = ScopeRequirement {
     asset: true,
     company: true,
     version: false,
     campaign: false,
+    command: false,
+    operation: false,
+    record: false,
+    actor: false,
 };
 const FORM_SCOPE: ScopeRequirement = ScopeRequirement {
     asset: true,
     company: true,
     version: true,
     campaign: false,
+    command: false,
+    operation: false,
+    record: false,
+    actor: false,
 };
 const PUBLIC_FORM_SCOPE: ScopeRequirement = ScopeRequirement {
     asset: true,
     company: false,
     version: false,
     campaign: false,
+    command: false,
+    operation: false,
+    record: false,
+    actor: false,
 };
 const CAMPAIGN_SCOPE: ScopeRequirement = ScopeRequirement {
     asset: false,
     company: true,
     version: false,
     campaign: true,
+    command: false,
+    operation: false,
+    record: false,
+    actor: false,
+};
+const RECEIPT_SCOPE: ScopeRequirement = ScopeRequirement {
+    asset: false,
+    company: true,
+    version: false,
+    campaign: false,
+    command: true,
+    operation: true,
+    record: true,
+    actor: true,
 };
 
 const ASSET_TABLES: &str = "marketing_assets";
@@ -256,6 +302,24 @@ pub const PACKAGE_OBLIGATIONS_READ: ReadPlan = ReadPlan {
     cross_owner: PKG_CROSS,
     authority: PKG_TABLES,
 };
+/// Exact former live read of the purchase-command prior-receipt guard. The TS
+/// inline statement was retired in r57; the owner now returns the byte-identical
+/// statement and the caller executes it on its own locked transaction.
+pub const COMMAND_RECEIPT_READ: ReadPlan = ReadPlan {
+    kind: RD_COMMAND_RECEIPT_PRIOR,
+    caller: "marketing.purchase.prior-receipt",
+    sql: PLAN_COMMAND_RECEIPT_PRIOR,
+    binds: &[
+        BindField::CommandId,
+        BindField::Operation,
+        BindField::RecordId,
+        BindField::ActorId,
+        BindField::CompanyId,
+    ],
+    scope: RECEIPT_SCOPE,
+    cross_owner: &[],
+    authority: "command_receipts",
+};
 
 /// The closed registry, in stable wire order.
 pub const PLANS: &[ReadPlan] = &[
@@ -269,6 +333,7 @@ pub const PLANS: &[ReadPlan] = &[
     CAMPAIGN_WITNESS_READ,
     CAMPAIGN_COST_WITNESS_READ,
     PACKAGE_OBLIGATIONS_READ,
+    COMMAND_RECEIPT_READ,
 ];
 
 pub fn plan(kind: &str) -> Option<&'static ReadPlan> {
@@ -295,12 +360,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn closed_registry_of_ten_caller_unit_reads() {
-        assert_eq!(PLANS.len(), 10);
-        assert_eq!(kinds().count(), 10);
+    fn closed_registry_of_eleven_caller_unit_reads() {
+        assert_eq!(PLANS.len(), 11);
+        assert_eq!(kinds().count(), 11);
         assert_eq!(
             kinds().collect::<std::collections::BTreeSet<_>>().len(),
-            10,
+            11,
             "read kinds must be unique"
         );
         for kind in kinds() {
@@ -337,6 +402,10 @@ mod tests {
             assert_eq!(scope.company, entry.binds.contains(&BindField::CompanyId));
             assert_eq!(scope.version, entry.binds.contains(&BindField::Version));
             assert_eq!(scope.campaign, entry.binds.contains(&BindField::CampaignId));
+            assert_eq!(scope.command, entry.binds.contains(&BindField::CommandId));
+            assert_eq!(scope.operation, entry.binds.contains(&BindField::Operation));
+            assert_eq!(scope.record, entry.binds.contains(&BindField::RecordId));
+            assert_eq!(scope.actor, entry.binds.contains(&BindField::ActorId));
             for fragment in entry.cross_owner {
                 assert!(sql.contains(fragment), "{} missing {fragment}", entry.kind);
             }
@@ -384,5 +453,24 @@ mod tests {
         ));
         assert!(entry.authority.contains("command_receipts"));
         assert_ne!(entry.sql, PLAN_CAMPAIGN_EXISTS);
+    }
+
+    #[test]
+    fn command_receipt_prior_plan_is_byte_identical_to_the_retired_guard() {
+        let entry = plan(RD_COMMAND_RECEIPT_PRIOR).unwrap();
+        assert_eq!(
+            entry.sql,
+            "SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?"
+        );
+        assert_eq!(entry.binds, &[
+            BindField::CommandId,
+            BindField::Operation,
+            BindField::RecordId,
+            BindField::ActorId,
+            BindField::CompanyId,
+        ]);
+        assert_eq!(entry.sql.matches('?').count(), 5);
+        assert_eq!(entry.authority, "command_receipts");
+        assert!(entry.scope.command && entry.scope.operation && entry.scope.record && entry.scope.actor && entry.scope.company);
     }
 }

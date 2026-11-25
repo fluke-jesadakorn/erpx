@@ -511,7 +511,7 @@ const FRAGMENTS: &[ReadFragment] = &[
     ReadFragment {
         name: "projection.principal-events",
         sql: FRAG_PRINCIPAL_EVENTS,
-        source: "projection.ts:principalEvents (variable-arity IN list)",
+        source: "projection.ts:principalEvents (native principal.events base + variable-arity IN tail)",
     },
 ];
 

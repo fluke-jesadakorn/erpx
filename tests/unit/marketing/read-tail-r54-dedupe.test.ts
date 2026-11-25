@@ -137,7 +137,7 @@ describe('marketing read-tail r54 dedupe', () => {
   });
 
   it('leaves settlement, receipts, candidate sources, locks, command_receipts and the purchase union untouched', async () => {
-    expect(await src('purchases.ts')).toContain('SELECT 1 FROM command_receipts WHERE command_id=?');
+    expect(await src('purchases.ts')).toContain('nativeMarketingReadFirst<Record<string,unknown>>(MARKETING_RD_COMMAND_RECEIPT_PRIOR');
     expect(await src('public-submission.ts')).toContain(
       'readMarketingLane40ForCompany(LANE40_PUBLIC_RECEIPT,companyId,',
     );
@@ -152,6 +152,6 @@ describe('marketing read-tail r54 dedupe', () => {
   });
 
   it('pins the owner head KPI to 17 (BEFORE=20; lane 40 retired 2 TS SELECTs)', async () => {
-    expect(await ownerHeadTokens()).toEqual({ spaced: 13, bare: 13 });
+    expect(await ownerHeadTokens()).toEqual({ spaced: 12, bare: 12 });
   });
 });

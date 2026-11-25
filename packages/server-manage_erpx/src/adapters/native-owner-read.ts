@@ -146,11 +146,14 @@ function post(
 
 type Planned = { sql: string; values: readonly unknown[] };
 
-/** Ask the owner to plan one read; only the typed kind and its one positional
- * company value cross the wire. Exactly one owner statement is accepted. */
+/** Ask the owner to plan one read; only a registered kind and its bounded
+ * positional values cross the wire. The local bind-count map and the owner
+ * registry must agree, and exactly one statement is accepted. */
 async function plan(kind: string, values: readonly unknown[]): Promise<Planned> {
   const cfg = configuration();
-  if (!/^[a-z0-9_]{1,120}$/.test(kind) || values.length !== 1) return fail();
+  const bindCount = BIND_COUNTS[kind];
+  if (!/^[a-z0-9_]{1,120}$/.test(kind) || bindCount === undefined || values.length !== bindCount)
+    return fail();
   let response: { status: number; text: string };
   try {
     response = await post(
@@ -184,7 +187,7 @@ async function plan(kind: string, values: readonly unknown[]): Promise<Planned> 
     !record(statement) ||
     typeof statement.sql !== 'string' ||
     !Array.isArray(statement.values) ||
-    statement.values.length !== 1
+    statement.values.length !== bindCount
   )
     return fail();
   return { sql: statement.sql, values: statement.values };
@@ -206,6 +209,20 @@ export const ME_RD_SLOT_ACTIVE = 'manage_rd_slot_active';
 export const ME_RD_SLOT_OWNER = 'manage_rd_slot_owner';
 export const ME_RD_INVITATION_BY_TOKEN = 'manage_rd_invitation_by_token';
 export const ME_RD_INVITATION_ACCEPTED_USER = 'manage_rd_invitation_accepted_user';
+export const ME_RD_COMPANY_PROVISIONING_ATTACHMENT_IMAGE =
+  'manage_rd_company_provisioning_attachment_image';
+
+/** Closed kind-to-bind-count map. No unregistered kind reaches the owner. */
+const BIND_COUNTS: Readonly<Partial<Record<string, number>>> = {
+  [ME_RD_BETA_POLICY_POINT_ALL]: 1,
+  [ME_RD_BETA_POLICY_POINT_MEMBER]: 1,
+  [ME_RD_BETA_POLICY_POINT_BRANCH]: 1,
+  [ME_RD_SLOT_ACTIVE]: 1,
+  [ME_RD_SLOT_OWNER]: 1,
+  [ME_RD_INVITATION_BY_TOKEN]: 1,
+  [ME_RD_INVITATION_ACCEPTED_USER]: 1,
+  [ME_RD_COMPANY_PROVISIONING_ATTACHMENT_IMAGE]: 2,
+};
 
 const identifier = (value: unknown): value is string =>
   typeof value === 'string' &&
@@ -296,4 +313,19 @@ export async function nativeBetaInvitationAcceptedUser(
   if (row === null) return null;
   if (!identifier(row.accepted_user_id)) return fail();
   return row;
+}
+
+/** Native Company provisioning attachment-source image. The owner plans the
+ * byte-identical statement; the caller binds the target id and Company id. */
+export async function nativeCompanyProvisioningAttachmentImage(
+  db: SqlDatabase,
+  id: string,
+  companyId: string,
+): Promise<string | null> {
+  if (!identifier(id) || !identifier(companyId)) return fail();
+  const statement = await plan(ME_RD_COMPANY_PROVISIONING_ATTACHMENT_IMAGE, [id, companyId]);
+  const image = await db.prepare(statement.sql).bind(...statement.values).first<string>('image');
+  if (image === null) return null;
+  if (typeof image !== 'string' || image.length === 0) return fail();
+  return image;
 }

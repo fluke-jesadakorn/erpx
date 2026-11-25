@@ -96,8 +96,8 @@ describe('runtime r18 catalog-presence family cut over to the native port', () =
     ]) expect(shared.split(template)).toHaveLength(2);
   });
 
-  test('retirement:ts-statements records BEFORE=30 strictly lower to 24', () => {
-    expect(kpi()).toBe(24);
+  test('retirement:ts-statements records BEFORE=30 strictly lower to 23', () => {
+    expect(kpi()).toBe(23);
     expect(kpi()).toBeLessThan(30);
   });
 });
@@ -171,3 +171,40 @@ describe('native runtime control-plane read client', () => {
     await expect(planRuntimeControlPlane(RD_MIGRATION_RECEIPTS, [], env())).rejects.toThrow(ApiError);
   });
 });
+
+describe('runtime UTC-date read family cut over to the native port', () => {
+  const utcSql = "SELECT to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') utc_date";
+
+  test('the byte oracle is owned verbatim by the Rust port', () => {
+    const ingress = rust('adapters/control_plane_read_port.rs');
+    expect(ingress).toContain(utcSql);
+    expect(sha(utcSql)).toBe('c1b53ea237f832b5519ec95877078c89286fa698da4e312c06fb59f0522f02de');
+    expect(utcSql.length).toBe(74);
+    expect(utcSql).not.toMatch(/\$\d|\?/);
+    expect(utcSql).toMatch(/^SELECT /);
+  });
+
+  test('crm-evidence.ts plans the read and keeps no literal', () => {
+    const crm = src('executive/crm-evidence.ts');
+    expect(crm).not.toContain(utcSql);
+    expect(crm).toContain('planRuntimeControlPlane(RD_UTC_DATE)');
+    expect(crm).toContain('database.prepare(plan.sql).bind(...plan.values).first<{');
+    expect(crm).toContain('utc_date: string;');
+    const client = src('native-runtime-control-plane.ts');
+    const ingress = rust('adapters/control_plane_read_port.rs');
+    expect(client).toContain('runtime_rd_utc_date');
+    expect(ingress).toContain('runtime_rd_utc_date');
+  });
+
+  test('the planned UTC read executes on the caller unit without binds', async () => {
+    const fetchMock = reply({ data: { sql: utcSql, values: [] } });
+    vi.stubGlobal('fetch', fetchMock);
+    const plan = await planRuntimeControlPlane('runtime_rd_utc_date', [], env());
+    expect(plan).toEqual({ sql: utcSql, values: [] });
+    expect(initBody(fetchMock)).toBe(JSON.stringify({ kind: 'runtime_rd_utc_date', values: [] }));
+  });
+});
+
+function initBody(mock: ReturnType<typeof reply>): unknown {
+  return (mock.mock.calls[0] as unknown as [URL, RequestInit])[1].body;
+}

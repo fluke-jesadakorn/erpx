@@ -84,13 +84,13 @@ describe('manage_erpx beta AI-usage UNION head family (r17)', () => {
   it('leaves locks, native transports and cross-owner readers byte-identical', async () => {
     const protectedShas: Record<string, string> = {
       'company-provisioning-attachment-read-sources.ts':
-        '4a7abe70881636a9cf40893a677c283970fdb0c0770db4b733a2d25f178801f9',
+        '68683c0454f731623840ab88927b932917c41f5d7a179bcac0ae0cc80f1d7b7e',
       'company-provisioning-attachment-read.ts':
         'af042402890caee72f86973e02f187bc74b8fba85170812ff9b62211ed540b59',
       'native-owner-write.ts':
         '10ce274f211859eadf3f380912324925c87b954f119d359e614b07274da52a87',
       'native-owner-read.ts':
-        'de96b588f3cbf881a1820e41ab7ae926c5451dbbdde349a5bdca71dafcab9639',
+        '365f5569777679d4c29f15c149691d0b78ab77d19a471631f097d524b86273d0',
       'beta-policy-point-sql.ts':
         'f843bacaef4fa8b41d7c9a3e43994c54f32117030c4eef2c88aa7b3ea23a8ce4',
       'beta-team.ts':
@@ -103,9 +103,9 @@ describe('manage_erpx beta AI-usage UNION head family (r17)', () => {
     }
   });
 
-  it('lowers the owner TS SELECT count from BEFORE=20 to 19', async () => {
+  it('lowers the owner TS SELECT count from BEFORE=20 to 13', async () => {
     const total = (await tsSources(srcDir)).join('\n').match(/SELECT /g)?.length ?? 0;
-    expect(total).toBe(15);
+    expect(total).toBe(13);
     expect(total).toBeLessThan(20);
   });
 });

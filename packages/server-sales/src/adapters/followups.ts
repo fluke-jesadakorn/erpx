@@ -1,11 +1,10 @@
 import {followupProjectionScope,followupPurchasedAccess,requireFollowupPurchasedRead,filterFollowupPurchasedWork} from '@erpx/server-sales/adapters/followup-purchases';
 import {followupEvidencePrefix,ownerNameProjection} from './followup-source-sql';
 import {pointRead} from './point-read';
+import {nativeSalesReadAll,SALES_RD_FOLLOWUP_RECIPIENTS} from './native-sales-read';
 import {followupCustomerOrderTailRead} from './followup-customer-order-tail-read';
 import { commercialOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/commercial-owner-projection-sources";
 import { commercialOwnerProjectionSources as financeProjectionSources } from "@erpx/server-finance/public/commercial-owner-projection-sources";
-import { commercialOwnerProjectionSources as identity_accessProjectionSources } from "@erpx/server-identity_access/public/commercial-owner-projection-sources";
-import { commercialOwnerProjectionSources as people_payrollProjectionSources } from "@erpx/server-people_payroll/public/commercial-owner-projection-sources";
 import 'server-only';
 import {salesRecipientEligibility} from "@erpx/server-sales/adapters/recipient";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
@@ -31,7 +30,10 @@ const args=(a:WorkContext)=>[a.companyId,a.branchId,a.branchId,a.departmentId,a.
 const ownerEligible=salesRecipientEligibility();
 async function list(db:SqlDatabase,a:WorkContext,id?:string,orderId?:string){const purchase=await followupProjectionScope(db,a,'c');return (await db.prepare(followupCustomerOrderTailRead(commerceProjectionSources.commerce_orders,`c.*,${ownerNameProjection},o.number order_number,o.branch_id,o.department_id,p.name customer_name,CASE WHEN ${ownerEligible} THEN 1 ELSE 0 END owner_eligible`,scope,purchase.where,`(?::text IS NULL OR c.id=?) AND (?::text IS NULL OR c.order_id=?)`,'ORDER BY c.due_date,c.id',` JOIN (${financeProjectionSources.finance_parties}) p ON p.id=o.party_id AND p.company_id=o.company_id`)).bind(...args(a),...purchase.args,id??null,id??null,orderId??null,orderId??null).all<Row>()).results;}
 
-async function recipients(db:SqlDatabase,a:WorkContext,orderId:string){return (await db.prepare(`SELECT DISTINCT c.owner_id id,p.legal_name name FROM (SELECT DISTINCT user_id owner_id FROM (${identity_accessProjectionSources.assignments}) assignments WHERE company_id=?) c JOIN (${people_payrollProjectionSources.hr_people}) p ON p.user_id=c.owner_id AND p.company_id=? JOIN (${commerceProjectionSources.commerce_orders}) o ON o.id=? WHERE ${scope} AND ${ownerEligible} ORDER BY p.legal_name`).bind(a.companyId,a.companyId,orderId,...args(a)).all<{id:string;name:string}>()).results;}
+/** Owner-local recipient read: the axum `command-plan` registry owns the statement;
+ * the caller sends only the bounded Company/order identities and runs the planned
+ * statement on its already-open unit. No TypeScript SQL mirror remains. */
+async function recipients(db:SqlDatabase,a:WorkContext,orderId:string){return (await nativeSalesReadAll<{id:string;name:string}>(SALES_RD_FOLLOWUP_RECIPIENTS,[a.companyId,a.companyId,orderId,...args(a)],db)).results;}
 function application(a:WorkContext,provided?:SqlDatabase){let resource:Promise<SqlDatabase>|null=provided?Promise.resolve(provided):null;const database=()=>resource??=holdingResources(a.holdingId).then(x=>x.write);return createFollowupApplication({actorId:a.userId,canRead:hasPermission(a,'commerce.read'),canSell:hasPermission(a,'commerce.sales'),canManage:hasPermission(a,'commerce.approve'),authorize:permission=>{requirePermission(a,permission);},clock:{now:()=>Date.now()},repository:async()=>repository(await database(),a)});}
 function repository(write:SqlDatabase,a:WorkContext):FollowupRepository{return {
  rows:(id,orderId)=>list(write,a,id,orderId),

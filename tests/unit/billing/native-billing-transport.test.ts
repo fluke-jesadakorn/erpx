@@ -616,7 +616,7 @@ describe('native Billing transport', () => {
     expect(sent.get('origin')).toBe('https://acme.example.test');
     expect(JSON.parse(body!)).toEqual(input.body);
   });
-  it('maps the exact native-authoritative command fields (cost review, retry and rollout) onto the owner request body', () => {
+  it('maps the exact native-authoritative command fields (cost review, retry, rollout and statement) onto the owner request body', () => {
     const base = { version: 4, reason: 'Reviewed native command' };
     const cases = [
       [
@@ -659,15 +659,36 @@ describe('native Billing transport', () => {
         'approve-target-rollout',
         { ...base, targetMonth: '2027-03', minimumMarginBps: 2000 },
       ],
+      [
+        {
+          action: 'verify-statement' as const,
+          ...base,
+          targetMonth: '2026-12',
+          provider: 'openai',
+          statementId: 'stmt-1',
+          originalCurrency: 'USD',
+          providerTotalMinor: 1000,
+          evidenceId: 'evidence-1',
+        },
+        'verify-statement',
+        {
+          ...base,
+          targetMonth: '2026-12',
+          provider: 'openai',
+          statementId: 'stmt-1',
+          originalCurrency: 'USD',
+          providerTotalMinor: 1000,
+          evidenceId: 'evidence-1',
+        },
+      ],
     ] as const;
     for (const [input, action, body] of cases)
       expect(nativeBillingCommandRequest(input)).toEqual({ action, body });
-    // The remaining target-evidence/provider/rate actions keep the retained
-    // TypeScript authority until their Holding-host cutovers land; the native
-    // client must not map them. `approve` is an invoice command.
+    // The remaining target/provider-evidence/evidence/rate actions keep the
+    // retained TypeScript authority until their Holding-host cutovers land;
+    // the native client must not map them. `approve` is an invoice command.
     for (const action of [
       'verify-provider-cost',
-      'verify-statement',
       'record-operating-cost',
       'review-target-capacity',
       'approve-target-extra',

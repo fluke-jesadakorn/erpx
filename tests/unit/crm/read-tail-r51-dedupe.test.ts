@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import { crmCreatorLeadScopeSql } from '../../../packages/server-crm/src/adapters/read-tail-r24-sql';
 import { crmLeadEligibleOwnerSql, crmLeadOwnerGuardSql, crmWorkLeadOwnerProbeSql } from '../../../packages/server-crm/src/adapters/read-tail-r29-sql';
+import { crmSelectOneSql } from '../../../packages/server-crm/src/adapters/read-tail-r42-sql';
 import { crmLeadSelectSql } from '../../../packages/server-crm/src/adapters/read-tail-r51-sql';
 
 const owner = resolve(__dirname, '../../../packages/server-crm/src');
@@ -76,12 +77,23 @@ describe('crm read-tail r51 byte-identical lead-select head', () => {
     expect(rendered).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
   });
 
-  test('the owner renderer owns exactly the one shared read token', () => {
+  test('the lead-select head is folded into the r42 select-one renderer with no SQL token of its own', () => {
     const helper = src('read-tail-r51-sql.ts');
-    expect((helper.match(/SELECT /g) ?? []).length).toBe(1);
+    expect((helper.match(/SELECT /g) ?? []).length).toBe(0);
+    expect(helper).toContain("import { crmSelectOneSql } from './read-tail-r42-sql';");
     expect(helper.match(/crmLeadSelectSql =/g)).toHaveLength(1);
     expect(crmLeadSelectSql('')).toBe('SELECT 1 FROM crm_leads ');
     expect(crmLeadSelectSql('l WHERE l.id=?')).toBe('SELECT 1 FROM crm_leads l WHERE l.id=?');
+  });
+
+  test.each([
+    '',
+    'l WHERE l.id=?',
+    'lead WHERE lead.company_id=? AND (?::text IS NULL OR lead.department_id=?) AND extra',
+    'l WHERE l.contact_id=c.id AND l.branch_id=?',
+  ])('the fold renders byte-identically to the owner select-one plan for tail %#', (tail) => {
+    expect(crmLeadSelectSql(tail)).toBe(crmSelectOneSql(`crm_leads ${tail}`));
+    expect(crmLeadSelectSql(tail)).toBe(`SELECT 1 FROM crm_leads ${tail}`);
   });
 
   test('both retired heads route through the renderer and no inline head remains', () => {
@@ -119,8 +131,8 @@ describe('crm read-tail r51 byte-identical lead-select head', () => {
     expect(src('native-crm-command.ts')).toContain('export async function nativeCrmExecute(');
   });
 
-  test('retirement:ts-statements drops from the r50 AFTER=48 to 47', () => {
-    expect(totalSelects()).toBe(41);
-    expect(totalSelects()).toBeLessThan(48);
+  test('retirement:ts-statements folds the r51 head into r42 (41 -> 40)', () => {
+    expect(totalSelects()).toBe(40);
+    expect(totalSelects()).toBeLessThan(41);
   });
 });

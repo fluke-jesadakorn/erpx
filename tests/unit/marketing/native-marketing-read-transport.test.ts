@@ -7,6 +7,7 @@ import {
   MARKETING_RD_FORM_CONTENT_ROW,
   MARKETING_RD_CAMPAIGN_EXISTS,
   MARKETING_RD_PACKAGE_OBLIGATIONS,
+  MARKETING_RD_COMMAND_RECEIPT_PRIOR,
 } from '../../../packages/server-marketing/src/adapters/native-marketing-read';
 
 const CONFIG_KEY = 'ERPX_NATIVE_MARKETING_READ_CONFIG';
@@ -70,6 +71,25 @@ describe('native Marketing read-plan transport', () => {
       kind: MARKETING_RD_PACKAGE_OBLIGATIONS,
       scope: { companyId: 'company-1' },
     });
+  });
+
+  it('plans the command-receipt prior guard with five ordered scope values', async () => {
+    let body: unknown;
+    const sql = "SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?";
+    vi.stubGlobal('fetch', vi.fn(async (u: URL, i: RequestInit) => {
+      body = JSON.parse(String(i.body));
+      return ok({ data: { kind: MARKETING_RD_COMMAND_RECEIPT_PRIOR, caller: 'marketing.purchase.prior-receipt', statement: { sql, values: ['command-1', 'marketing.asset.activate', 'record-1', 'actor-1', 'company-1'] } } });
+    }));
+    const planned = await nativeMarketingPlan(MARKETING_RD_COMMAND_RECEIPT_PRIOR, {
+      commandId: 'command-1', operation: 'marketing.asset.activate', recordId: 'record-1',
+      actorId: 'actor-1', companyId: 'company-1',
+    });
+    expect(body).toEqual({
+      kind: MARKETING_RD_COMMAND_RECEIPT_PRIOR,
+      scope: { commandId: 'command-1', operation: 'marketing.asset.activate', recordId: 'record-1', actorId: 'actor-1', companyId: 'company-1' },
+    });
+    expect(planned.sql).toBe(sql);
+    expect(planned.values).toEqual(['command-1', 'marketing.asset.activate', 'record-1', 'actor-1', 'company-1']);
   });
 
   it('executes the owner statement on the caller unit, not on the transport', async () => {

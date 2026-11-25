@@ -8,5 +8,6 @@ export {
   RD_MIGRATION_RECEIPTS,
   RD_RECEIPT_TABLE_PRESENT,
   RD_RUNTIME_HEALTH,
+  RD_UTC_DATE,
 } from '../adapters/native-runtime-control-plane';
 export type { ControlPlanePlan } from '../adapters/native-runtime-control-plane';

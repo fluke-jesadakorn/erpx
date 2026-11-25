@@ -105,13 +105,13 @@ describe('marketing read-tail r45 dedupe', () => {
     expect(await src('native-marketing-read.ts')).toContain('export');
     expect(await src('record-purchases.ts')).toContain("marketingPointExistsSql(`(${nativeIds}) actual`,'id=?')");
     expect(await src('record-purchases.ts')).not.toContain('`SELECT 1 FROM (${nativeIds}) actual WHERE id=?`');
-    expect(await src('purchases.ts')).toContain('SELECT 1 FROM command_receipts WHERE command_id=?');
+    expect(await src('purchases.ts')).toContain('nativeMarketingReadFirst<Record<string,unknown>>(MARKETING_RD_COMMAND_RECEIPT_PRIOR');
     expect(await src('form-asset-lock-sql.ts')).toContain('FOR SHARE');
     expect(await src('package-obligations.ts')).toContain('marketingPointExistsSql(');
   });
 
-  it('pins the owner SELECT KPI to 13 (lane 40 retired 3) (BEFORE=36)', async () => {
-    expect(await ownerSelectTokens()).toBe(13);
+  it('pins the owner SELECT KPI to 12 (lane 40 retired 3) (BEFORE=36)', async () => {
+    expect(await ownerSelectTokens()).toBe(12);
     expect(await ownerSelectTokens()).toBeLessThan(32);
   });
 });

@@ -1,8 +1,9 @@
 //! Owner-local axum HTTP ingress for the native engineering verification read
-//! port's `prior` statement. Transport facts only: exact registered Host/Holding
-//! target, exact configured origin, one bounded read request. The SQL and the
-//! transaction stay in the owner port; no TS fallback and no authority decision
-//! live here. The caller has already validated the isolated engineering context.
+//! port: `prior`, context `active` and the reply rollout guard. Transport facts
+//! only: exact registered Host/Holding target, exact configured origin and one
+//! bounded read request. The SQL and the transaction stay in the owner port; no
+//! TS fallback and no authority decision live here. The caller has already
+//! validated the isolated engineering context.
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
     StatusCode, body::to_bytes, header, routing::post, serde_json,
@@ -30,6 +31,34 @@ pub struct EngineeringVerificationReadHttpRequest<'a> {
     pub prior: &'a EngineeringVerificationPriorRequest,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EngineeringVerificationActiveRequest {
+    pub company_id: String,
+    pub run: String,
+    pub source_fingerprint: String,
+    pub software_version: String,
+    pub file_manifest_sha256: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EngineeringVerificationReplyGuardRequest {
+    pub company_id: String,
+}
+
+pub struct EngineeringVerificationActiveHttpRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub origin: &'a str,
+    pub active: &'a EngineeringVerificationActiveRequest,
+}
+
+pub struct EngineeringVerificationReplyGuardHttpRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub origin: &'a str,
+    pub reply_guard: &'a EngineeringVerificationReplyGuardRequest,
+}
+
 #[derive(Clone, Debug)]
 pub struct EngineeringVerificationReadHttpResponse {
     pub data: serde_json::Value,
@@ -46,6 +75,23 @@ pub trait EngineeringVerificationReadHttpBackend: Send + Sync {
         &'a self,
         request: EngineeringVerificationReadHttpRequest<'a>,
     ) -> EngineeringVerificationReadHttpFuture<'a, EngineeringVerificationReadHttpResponse>;
+
+    /// Default fail-closed bindings keep an existing `prior`-only composition
+    /// backend compiling. The lead must override these when it extends the
+    /// mounted router's backend; the routes never fall back to TS SQL.
+    fn active<'a>(
+        &'a self,
+        _request: EngineeringVerificationActiveHttpRequest<'a>,
+    ) -> EngineeringVerificationReadHttpFuture<'a, EngineeringVerificationReadHttpResponse> {
+        Box::pin(async { Err(unavailable()) })
+    }
+
+    fn reply_rollout_guard<'a>(
+        &'a self,
+        _request: EngineeringVerificationReplyGuardHttpRequest<'a>,
+    ) -> EngineeringVerificationReadHttpFuture<'a, EngineeringVerificationReadHttpResponse> {
+        Box::pin(async { Err(unavailable()) })
+    }
 }
 
 #[derive(Clone)]
@@ -62,6 +108,14 @@ struct HttpState {
 
 fn missing() -> BusinessError {
     BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found.")
+}
+
+fn unavailable() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Unavailable,
+        "NATIVE_PLATFORM_ENGINEERING_READ_UNAVAILABLE",
+        "The native engineering verification read is unavailable.",
+    )
 }
 
 fn malformed() -> BusinessError {
@@ -198,6 +252,14 @@ pub fn engineering_verification_read_http_router(
             "/api/v1/holdings/{holding_slug}/platform/engineering-verification/read/prior",
             post(prior),
         )
+        .route(
+            "/api/v1/holdings/{holding_slug}/platform/engineering-verification/read/active",
+            post(active),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/platform/engineering-verification/read/reply-guard",
+            post(reply_guard),
+        )
         .with_state(Arc::new(HttpState {
             targets: configured,
         })))
@@ -261,6 +323,114 @@ async fn prior(
                 holding_slug: &target.holding_slug,
                 origin: &target.origin,
                 prior: &prior,
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(reply) => bounded_response(reply.value()),
+        Err(error) => error_response(error),
+    }
+}
+
+fn hexadecimal(value: &str, length: usize) -> bool {
+    value.len() == length
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+fn parse_active(body: &serde_json::Value) -> Result<EngineeringVerificationActiveRequest, BusinessError> {
+    let field = |name: &str| {
+        body.get(name)
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_owned)
+            .ok_or_else(malformed)
+    };
+    let active = EngineeringVerificationActiveRequest {
+        company_id: field("companyId")?,
+        run: field("run")?,
+        source_fingerprint: field("sourceFingerprint")?,
+        software_version: field("softwareVersion")?,
+        file_manifest_sha256: field("fileManifestSha256")?,
+    };
+    if active.company_id.is_empty()
+        || active.company_id.len() > 200
+        || !hexadecimal(&active.run, 12)
+        || !hexadecimal(&active.source_fingerprint, 64)
+        || !hexadecimal(&active.file_manifest_sha256, 64)
+        || active.software_version != format!("release-{}", active.source_fingerprint)
+    {
+        return Err(malformed());
+    }
+    Ok(active)
+}
+
+fn parse_reply_guard(
+    body: &serde_json::Value,
+) -> Result<EngineeringVerificationReplyGuardRequest, BusinessError> {
+    let company_id = body
+        .get("companyId")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(malformed)?;
+    if company_id.is_empty() || company_id.len() > 200 {
+        return Err(malformed());
+    }
+    Ok(EngineeringVerificationReplyGuardRequest {
+        company_id: company_id.to_owned(),
+    })
+}
+
+async fn active(
+    State(state): State<Arc<HttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let target = target(&state, request.headers(), &slug)?;
+        let origin = unique_header(request.headers(), ORIGIN_HEADER)?.ok_or_else(forbidden)?;
+        if origin != target.origin {
+            return Err(forbidden());
+        }
+        let body = bounded_body(request).await?;
+        let active = parse_active(&body)?;
+        target
+            .backend
+            .active(EngineeringVerificationActiveHttpRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                origin: &target.origin,
+                active: &active,
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(reply) => bounded_response(reply.value()),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn reply_guard(
+    State(state): State<Arc<HttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let target = target(&state, request.headers(), &slug)?;
+        let origin = unique_header(request.headers(), ORIGIN_HEADER)?.ok_or_else(forbidden)?;
+        if origin != target.origin {
+            return Err(forbidden());
+        }
+        let body = bounded_body(request).await?;
+        let reply_guard = parse_reply_guard(&body)?;
+        target
+            .backend
+            .reply_rollout_guard(EngineeringVerificationReplyGuardHttpRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                origin: &target.origin,
+                reply_guard: &reply_guard,
             })
             .await
     }
@@ -421,5 +591,164 @@ mod tests {
         ] {
             assert_ne!(response.status(), StatusCode::OK);
         }
+    }
+
+    #[test]
+    fn parse_active_and_reply_guard_are_bounded() {
+        let source = "a".repeat(64);
+        let manifest = "b".repeat(64);
+        let body = serde_json::json!({
+            "companyId":"company-1",
+            "run":"abcdef123456",
+            "sourceFingerprint":source,
+            "softwareVersion":format!("release-{source}"),
+            "fileManifestSha256":manifest,
+        });
+        assert!(parse_active(&body).is_ok());
+        assert!(parse_active(&serde_json::json!({
+            "companyId":"company-1",
+            "run":"abcdef123456",
+            "sourceFingerprint":"a".repeat(64),
+            "softwareVersion":"other",
+            "fileManifestSha256":"b".repeat(64),
+        }))
+        .is_err());
+        assert!(parse_active(&serde_json::json!({"companyId":"company-1","run":"xyz"})).is_err());
+        assert_eq!(
+            parse_reply_guard(&serde_json::json!({"companyId":"company-1"}))
+                .unwrap()
+                .company_id,
+            "company-1"
+        );
+        assert!(parse_reply_guard(&serde_json::json!({"companyId":""})).is_err());
+        assert!(parse_reply_guard(&serde_json::json!({})).is_err());
+    }
+
+    fn read_request(uri: &'static str, body: serde_json::Value) -> Request {
+        Request::builder()
+            .method("POST")
+            .uri(uri)
+            .header("host", "acme.example.test")
+            .header("origin", "https://acme.example.test")
+            .body(body::Body::from(body.to_string()))
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn active_and_reply_guard_routes_fail_closed_until_backend_overrides_them() {
+        let backend: Arc<dyn EngineeringVerificationReadHttpBackend> = Arc::new(Noop);
+        let state = Arc::new(HttpState {
+            targets: BTreeMap::from([(
+                ("acme.example.test".to_owned(), "acme".to_owned()),
+                target(backend, "acme.example.test"),
+            )]),
+        });
+        let active = active(
+            State(state.clone()),
+            Path("acme".to_owned()),
+            read_request(
+                "/api/v1/holdings/acme/platform/engineering-verification/read/active",
+                serde_json::json!({"companyId":"company-1","run":"abcdef123456"}),
+            ),
+        )
+        .await;
+        let reply = reply_guard(
+            State(state),
+            Path("acme".to_owned()),
+            read_request(
+                "/api/v1/holdings/acme/platform/engineering-verification/read/reply-guard",
+                serde_json::json!({"companyId":"company-1"}),
+            ),
+        )
+        .await;
+        assert_eq!(active.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(reply.status(), StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    struct FullBackend {
+        active_calls: Arc<Mutex<usize>>,
+        reply_calls: Arc<Mutex<usize>>,
+    }
+
+    impl EngineeringVerificationReadHttpBackend for FullBackend {
+        fn prior<'a>(
+            &'a self,
+            _: EngineeringVerificationReadHttpRequest<'a>,
+        ) -> EngineeringVerificationReadHttpFuture<'a, EngineeringVerificationReadHttpResponse> {
+            Box::pin(async { Err(missing()) })
+        }
+
+        fn active<'a>(
+            &'a self,
+            request: EngineeringVerificationActiveHttpRequest<'a>,
+        ) -> EngineeringVerificationReadHttpFuture<'a, EngineeringVerificationReadHttpResponse> {
+            let calls = self.active_calls.clone();
+            assert_eq!(request.active.run, "abcdef123456");
+            Box::pin(async move {
+                *calls.lock().unwrap() += 1;
+                Ok(EngineeringVerificationReadHttpResponse {
+                    data: serde_json::json!({"data":true}),
+                })
+            })
+        }
+
+        fn reply_rollout_guard<'a>(
+            &'a self,
+            request: EngineeringVerificationReplyGuardHttpRequest<'a>,
+        ) -> EngineeringVerificationReadHttpFuture<'a, EngineeringVerificationReadHttpResponse> {
+            let calls = self.reply_calls.clone();
+            assert_eq!(request.reply_guard.company_id, "company-1");
+            Box::pin(async move {
+                *calls.lock().unwrap() += 1;
+                Ok(EngineeringVerificationReadHttpResponse {
+                    data: serde_json::json!({"data":["company-1"]}),
+                })
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn overridden_backend_serves_active_and_reply_guard() {
+        let active_calls = Arc::new(Mutex::new(0));
+        let reply_calls = Arc::new(Mutex::new(0));
+        let backend: Arc<dyn EngineeringVerificationReadHttpBackend> = Arc::new(FullBackend {
+            active_calls: active_calls.clone(),
+            reply_calls: reply_calls.clone(),
+        });
+        let state = Arc::new(HttpState {
+            targets: BTreeMap::from([(
+                ("acme.example.test".to_owned(), "acme".to_owned()),
+                target(backend, "acme.example.test"),
+            )]),
+        });
+        let source = "a".repeat(64);
+        let active = active(
+            State(state.clone()),
+            Path("acme".to_owned()),
+            read_request(
+                "/api/v1/holdings/acme/platform/engineering-verification/read/active",
+                serde_json::json!({
+                    "companyId":"company-1",
+                    "run":"abcdef123456",
+                    "sourceFingerprint":source,
+                    "softwareVersion":format!("release-{source}"),
+                    "fileManifestSha256":"b".repeat(64),
+                }),
+            ),
+        )
+        .await;
+        let reply = reply_guard(
+            State(state),
+            Path("acme".to_owned()),
+            read_request(
+                "/api/v1/holdings/acme/platform/engineering-verification/read/reply-guard",
+                serde_json::json!({"companyId":"company-1"}),
+            ),
+        )
+        .await;
+        assert_eq!(active.status(), StatusCode::OK);
+        assert_eq!(reply.status(), StatusCode::OK);
+        assert_eq!(*active_calls.lock().unwrap(), 1);
+        assert_eq!(*reply_calls.lock().unwrap(), 1);
     }
 }

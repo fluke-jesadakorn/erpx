@@ -107,6 +107,30 @@ pub fn mount(
         .map_err(|_| "PRIVATE_API_IDENTITY_LANE12_INVALID")?,
     );
 
+    // Identity: private-file denial authority witness.
+    router = router.merge(
+        erpx_server_identity_access::public::private_file_denial_http::private_file_denial_http_router(
+            config
+                .holdings
+                .iter()
+                .enumerate()
+                .map(|(i, holding)| {
+                    erpx_server_identity_access::public::private_file_denial_http::PrivateFileDenialHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: std::sync::Arc::new(
+                            crate::private_file_denial::PrivateFileDenialBackend::new(
+                                pools[i + 1].clone(),
+                            ),
+                        ),
+                    }
+                })
+                .collect(),
+        )
+        .map_err(|_| "PRIVATE_API_IDENTITY_PRIVATE_FILE_DENIAL_INVALID")?,
+    );
+
     // Commerce lane 13: entrypoint identity facts.
     router = router.merge(
         erpx_server_commerce::public::native_lane_13::router_for_holdings(

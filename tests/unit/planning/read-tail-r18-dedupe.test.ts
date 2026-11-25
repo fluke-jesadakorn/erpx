@@ -1,9 +1,11 @@
 import { describe, expect, test } from 'vitest';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { planningSelectColumnsFrom } from '../../../packages/server-planning/src/adapters/planning-select-columns-sql';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-planning/src');
+/** Pre-r28 byte oracle for the retired builder; no longer a live query source. */
+const planningSelectColumnsFrom = (columns: string, rest: string) =>
+  `SELECT ${columns} FROM ${rest}`;
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const selectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;
 
@@ -39,12 +41,12 @@ describe('Planning read-tail r18 parameterized single-line projection/FROM head'
     expect(NEW_COMPARISON_DECL).toContain('planningSelectColumnsFrom');
   });
 
-  test('shared module declares the read literal exactly once and stays read-only', () => {
-    const shared = src('planning-select-columns-sql.ts');
-    expect(selectCount(shared)).toBe(1);
-    expect(shared).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
-    for (const sql of [generatedCalendar, generatedComparison])
+  test('the retired single-line head is deleted; its byte oracles stay read-only', () => {
+    expect(existsSync(resolve(srcRoot, 'adapters/planning-select-columns-sql.ts'))).toBe(false);
+    for (const sql of [generatedCalendar, generatedComparison]) {
+      expect(selectCount(sql)).toBe(1);
       expect(sql.toUpperCase()).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|PG_ADVISORY/i);
+    }
   });
 
   test('r1-r17 helpers, native reads and all lock statements stay untouched', () => {
@@ -100,7 +102,7 @@ describe('Planning read-tail r18 parameterized single-line projection/FROM head'
     // r23 folded the resource-calendar point lookup into the single-line projection/FROM builder (16 -> 15).
     // r24 folded the scoped single-row family into that same builder (15 -> 14).
     // r25 folded the scoped branch-list family into the single-line projection/FROM builder (14 -> 13).
-    expect(total).toBe(12);
+    expect(total).toBe(11);
     expect(total).toBeLessThan(21);
   });
 });

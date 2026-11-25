@@ -13,6 +13,7 @@ export const RD_ATTACH_SPEC_CAS = "quality_rd_attach_spec_cas";
 export const RD_ATTACHMENT_DESCRIPTOR = "quality_rd_attachment_descriptor";
 export const RD_LEGACY_ATTACHMENT_SCOPE = "quality_rd_legacy_attachment_scope";
 export const RD_ATTACHMENT_SPEC_SCOPE = "quality_rd_attachment_spec_scope";
+export const RD_RECEIPT_REPLAY = "quality_rd_receipt_replay";
 
 /**
  * Strict owner transport for the native Quality read-plan route. The axum

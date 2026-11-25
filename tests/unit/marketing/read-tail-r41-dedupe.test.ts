@@ -138,11 +138,11 @@ describe('marketing r41 retirement invariants', () => {
     expect(await src('form-asset-lock-sql.ts')).toContain(
       '`SELECT id FROM marketing_assets WHERE id=? AND company_id=?${scope} FOR SHARE`',
     );
-    expect(await src('purchases.ts')).toContain('SELECT 1 FROM command_receipts WHERE command_id=?');
+    expect(await src('purchases.ts')).toContain('nativeMarketingReadFirst<Record<string,unknown>>(MARKETING_RD_COMMAND_RECEIPT_PRIOR');
     expect(await src('native-marketing-read.ts')).toContain('export');
   });
 
-  it('retirement:ts-statements KPI is 13 (BEFORE=55; lane 40 retired 3)', async () => {
-    expect(await selectTokens()).toBe(13);
+  it('retirement:ts-statements KPI is 12 (BEFORE=55; lane 40 retired 3)', async () => {
+    expect(await selectTokens()).toBe(12);
   });
 });

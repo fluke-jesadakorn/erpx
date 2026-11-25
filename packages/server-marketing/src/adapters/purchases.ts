@@ -21,6 +21,7 @@ import {formAssetReadHead} from "./form-asset-read-head";
 import {marketingPurchaseRowsSql} from "./marketing-purchase-rows-sql";
 import {marketingSourceRowGuardSql} from "./attachment-owner-version-guard";
 import {marketingSelectHeadSql} from "./select-head-sql";
+import {MARKETING_RD_COMMAND_RECEIPT_PRIOR,nativeMarketingReadFirst} from "./native-marketing-read";
 export type MarketingPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 export type MarketingPurchaseTarget={kind:"asset"|"candidate"|"campaign"|"campaign-cost";id:string};
 export const marketingPurchaseAssetRows=marketingPurchaseRowsSql('asset');
@@ -54,7 +55,7 @@ export async function withMarketingPurchasedCommand<Result>(actor:WorkContext,co
  const mode=await commercePackageEnforcementMode(),owner=(await holdingResources(actor.holdingId)).write;if(mode==='disabled')return run(owner);if(!isTransactionalSqlDatabase(owner))throw new ApiError(503,'MARKETING_TRANSACTION_REQUIRED','Marketing requires its original owned Holding transaction.');
  try{return await owner.transaction(async database=>{
   const locks=companyPurchaseReadLocks(database,actor.companyId);await database.batch([locks[0],...marketingPurchaseSourceReadLocks(database),...locks.slice(1)]);
-  const key=`marketing-purchase:${randomUUID()}`,prior=await database.prepare("SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?").bind(command.key,command.operation,command.target.id,actor.userId,actor.companyId).first(),purpose=prior?'history' as const:command.purpose;
+  const key=`marketing-purchase:${randomUUID()}`,prior=await nativeMarketingReadFirst<Record<string,unknown>>(MARKETING_RD_COMMAND_RECEIPT_PRIOR,{commandId:command.key,operation:command.operation,recordId:command.target.id,actorId:actor.userId,companyId:actor.companyId},database),purpose=prior?'history' as const:command.purpose;
   await requireMarketingCurrentAuthority(database,actor,['records.read','records.write',...(command.finance?['finance.read']:[])],key);
   const before=command.existing||prior?await source(database,actor,command.target):undefined,sources=await Promise.all((command.sources??[]).map(async target=>({target,source:await source(database,actor,target)}))),scopes=[{companyId:actor.companyId,capability:'sales.marketing',purpose},...(command.finance?[{companyId:actor.companyId,capability:'finance.accounting',purpose:'history' as const}]:[])],boundaries=scopes.map((scope,index)=>({key:`${key}:${index}`,boundary:purchaseCommandBoundary(database,mode,`${key}:${index}`,scope)!}));
   for(const scope of scopes)await checkPurchasedCapability(database,mode,scope);await database.batch(boundaries.flatMap(item=>item.boundary.before));const result=await run(database);await flushFinanceDeferredEffects(database);const after=await source(database,actor,command.target);

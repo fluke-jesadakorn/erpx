@@ -36,7 +36,7 @@ describe('Planning r27 executive projection native cutover', () => {
   test('the shared SELECT head is deleted and capacity keeps its single-line builder', () => {
     expect(existsSync(resolve(srcRoot, 'adapters/planning-select-from-sql.ts'))).toBe(false);
     expect(readdirSync(resolve(srcRoot, 'adapters'))).not.toContain('planning-select-from-sql.ts');
-    expect(src('capacity.ts')).toContain('planningSelectColumnsFrom(');
+    expect(src('capacity.ts')).toContain('planningPackageFactRows(');
     expect(src('capacity.ts')).not.toContain('planningSelectFrom');
   });
 
@@ -60,7 +60,7 @@ describe('Planning r27 executive projection native cutover', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(12);
+    expect(total).toBe(11);
     expect(total).toBeLessThan(13);
   });
 });

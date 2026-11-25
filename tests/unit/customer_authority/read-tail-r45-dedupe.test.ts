@@ -108,6 +108,6 @@ describe('Customer Authority read-tail r45 JSONB aggregate head family', () => {
     walk(srcRoot);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(21);
-    expect(total).toBe(15);
+    expect(total).toBe(14);
   });
 });

@@ -36,6 +36,8 @@ import {
   PMS_RD_NIGHT_COMMAND,
   PMS_RD_GUEST_BOOKING_DOCUMENT,
   PMS_RD_HOTEL_METRICS,
+  PMS_RD_BOOKING_RECEIPT_BY_KEY,
+  PMS_RD_BOOKING_RECEIPT_BY_ATTEMPT,
 } from '../../../packages/server-pms/src/adapters/native-pms-read';
 import { readPmsInventoryCommand } from '../../../packages/server-pms/src/adapters/pms/read-repository';
 import { pmsAttachmentReadSourceImage } from '../../../packages/server-pms/src/adapters/attachment-read-sources';
@@ -922,7 +924,7 @@ describe('native PMS scoped-records read retirement', () => {
     ] as const) {
       expect(rust).toContain('const SQL_' + suffix + '_COMMAND: &str = ' + JSON.stringify(sql) + ';');
     }
-    expect(rust).toContain('READ_STRIPE_PAYMENT_PROPERTY, READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS];');
+    expect(rust).toContain('READ_STRIPE_PAYMENT_PROPERTY, READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT];');
   });
 
   it('plans all four reads in Rust and runs them on the caller unit with the same binds', async () => {
@@ -987,7 +989,7 @@ describe('native PMS guest booking-document read retirement', () => {
     const rust = await readFile(new URL('../../../packages/server-pms/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
     expect(rust).toContain('pub const PMS_RD_GUEST_BOOKING_DOCUMENT: &str = "pms_rd_guest_booking_document";');
     expect(rust).toContain('const SQL_GUEST_BOOKING_DOCUMENT: &str = ' + JSON.stringify(guestDocumentSql) + ';');
-    expect(rust).toContain('READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS];');
+    expect(rust).toContain('READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT];');
     const documentPlan = rust.slice(rust.indexOf('const READ_GUEST_BOOKING_DOCUMENT:'));
     expect(documentPlan.slice(0, 300)).toContain('bind_count: 3,');
     expect(guestDocumentSql.match(/\?/g)).toHaveLength(3);
@@ -1055,7 +1057,7 @@ describe('native PMS hotelMetrics read retirement', () => {
     const rust = await readFile(new URL('../../../packages/server-pms/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
     expect(rust).toContain('pub const PMS_RD_HOTEL_METRICS: &str = "pms_rd_hotel_metrics";');
     expect(rust).toContain(hotelMetricsSql);
-    expect(rust).toContain('READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS];');
+    expect(rust).toContain('READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT];');
     expect(hotelMetricsSql.match(/\?/g)).toHaveLength(5);
     expect(hotelMetricsSql).toMatch(/\n    ORDER BY p\.name,p\.id$/);
     expect(hotelMetricsSql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
@@ -1094,5 +1096,73 @@ describe('native PMS hotelMetrics read retirement', () => {
     const [url, init] = vi.mocked(fetch).mock.calls[0] as unknown as [URL, RequestInit];
     expect(String(url)).toContain('/api/v1/holdings/acme/pms/command-plan');
     expect(JSON.stringify(JSON.parse(init.body as string))).not.toContain('SELECT');
+  });
+});
+
+const receiptByKeySql = 'SELECT * FROM pms_booking_receipts WHERE id=?';
+const receiptByAttemptSql = "SELECT response_json FROM pms_booking_receipts WHERE reservation_id=? AND response_json::jsonb->>'attemptId'=? LIMIT 1";
+
+describe('native PMS booking-receipt point-read retirement', () => {
+  it('exposes two fixed allow-listed kinds with no SQL on the wire', () => {
+    expect(PMS_RD_BOOKING_RECEIPT_BY_KEY).toBe('pms_rd_booking_receipt_by_key');
+    expect(PMS_RD_BOOKING_RECEIPT_BY_ATTEMPT).toBe('pms_rd_booking_receipt_by_attempt');
+    for (const kind of [PMS_RD_BOOKING_RECEIPT_BY_KEY, PMS_RD_BOOKING_RECEIPT_BY_ATTEMPT])
+      expect(kind).not.toMatch(/SELECT|INSERT|UPDATE|DELETE|FOR UPDATE|FOR SHARE/);
+  });
+
+  it('removes both TypeScript SELECT literals but keeps the receipt writes and payment locks', async () => {
+    const adapter = await readFile(new URL('../../../packages/server-pms/src/adapters/pms-booking.ts', import.meta.url), 'utf8');
+    expect(adapter).not.toContain(receiptByKeySql);
+    expect(adapter).not.toContain(receiptByAttemptSql);
+    expect(adapter).toContain('nativePmsReadFirst<');
+    expect(adapter).toContain('PMS_RD_BOOKING_RECEIPT_BY_KEY, [facts.key], db');
+    expect(adapter).toContain('PMS_RD_BOOKING_RECEIPT_BY_ATTEMPT, [facts.reservation_id, facts.id], db');
+    expect(adapter).toContain("write('pms_w028'");
+    expect(adapter).toContain('FOR UPDATE');
+  });
+
+  it('carries the byte-identical retired SQL in the Rust registry with matching binds', async () => {
+    const rust = await readFile(new URL('../../../packages/server-pms/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
+    expect(rust).toContain('pub const PMS_RD_BOOKING_RECEIPT_BY_KEY: &str = "pms_rd_booking_receipt_by_key";');
+    expect(rust).toContain('pub const PMS_RD_BOOKING_RECEIPT_BY_ATTEMPT: &str = "pms_rd_booking_receipt_by_attempt";');
+    expect(rust).toContain('const SQL_BOOKING_RECEIPT_BY_KEY: &str = ' + JSON.stringify(receiptByKeySql) + ';');
+    expect(rust).toContain('const SQL_BOOKING_RECEIPT_BY_ATTEMPT: &str = ' + JSON.stringify(receiptByAttemptSql) + ';');
+    expect(rust).toContain('READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT];');
+    expect(receiptByKeySql.match(/\?/g)).toHaveLength(1);
+    expect(receiptByAttemptSql.match(/\?/g)).toHaveLength(2);
+    for (const sql of [receiptByKeySql, receiptByAttemptSql]) expect(sql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
+    const bridge = await readFile(new URL('../../../packages/server-pms/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
+    expect(bridge).toContain("export const PMS_RD_BOOKING_RECEIPT_BY_KEY = 'pms_rd_booking_receipt_by_key';");
+    expect(bridge).toContain("export const PMS_RD_BOOKING_RECEIPT_BY_ATTEMPT = 'pms_rd_booking_receipt_by_attempt';");
+  });
+
+  it('plans both reads in Rust and runs them on the caller unit with the same binds', async () => {
+    const bodies: { kind: string; values: unknown[] }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      bodies.push(body);
+      const sql = body.kind === PMS_RD_BOOKING_RECEIPT_BY_KEY ? receiptByKeySql : receiptByAttemptSql;
+      return new Response(JSON.stringify({ data: { statements: [{ sql, values: body.values }] } }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      });
+    }));
+    const prepared: string[] = [], bound: unknown[][] = [];
+    const db = {
+      prepare(sql: string) { prepared.push(sql); return { bind(...values: unknown[]) { bound.push(values); return this; } }; },
+      async batch<T>() { return [{ results: [{ body_hash: 'hash', response_json: '{}' }], success: true, meta: { changes: 0, duration: 0 } }] as unknown as { results: T[]; success: boolean; meta: { changes: number; duration: number } }[]; },
+      async exec() { return { count: 0, duration: 0 }; },
+    };
+    const byKey = await nativePmsReadFirst<{ body_hash: string }>(PMS_RD_BOOKING_RECEIPT_BY_KEY, ['receipt-1'], db as never);
+    const byAttempt = await nativePmsReadFirst<{ response_json: string }>(PMS_RD_BOOKING_RECEIPT_BY_ATTEMPT, ['reservation-1', 'attempt-1'], db as never);
+    expect(byKey?.body_hash).toBe('hash');
+    expect(byAttempt?.response_json).toBe('{}');
+    expect(prepared).toEqual([receiptByKeySql, receiptByAttemptSql]);
+    expect(bound).toEqual([['receipt-1'], ['reservation-1', 'attempt-1']]);
+    expect(bodies.map(b => b.kind)).toEqual([PMS_RD_BOOKING_RECEIPT_BY_KEY, PMS_RD_BOOKING_RECEIPT_BY_ATTEMPT]);
+    expect(bodies.map(b => b.values)).toEqual([['receipt-1'], ['reservation-1', 'attempt-1']]);
+    for (const body of bodies) expect(JSON.stringify(body)).not.toContain('SELECT');
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as unknown as [URL, RequestInit];
+    expect(String(url)).toContain('/api/v1/holdings/acme/pms/command-plan');
+    expect(init.headers).toMatchObject({ 'content-type': 'application/json', accept: 'application/json', 'cache-control': 'no-cache' });
   });
 });

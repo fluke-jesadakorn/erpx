@@ -127,4 +127,27 @@ describe('Commerce read-tail r25 settlement line-head retirement', () => {
     expect((read('supply-package-sources.ts').match(/SELECT /g) ?? []).length).toBe(7);
     expect((read('read-tail-r25-dedupe-sql.ts').match(/SELECT /g) ?? []).length).toBe(1);
   });
+
+  test('native source fragments own the byte-exact r25 literals while cross-owner consumers embed the TS text', () => {
+    const plans = read('native_commerce_read_sql.rs');
+    const kinds = [
+      { kind: 'RD_SALES_SETTLEMENT_LINES', wire: 'commerce_rd_sales_settlement_lines' },
+      { kind: 'RD_SUPPLY_SETTLEMENT_LINES', wire: 'commerce_rd_supply_settlement_lines' },
+    ];
+    for (const { kind, wire } of kinds) {
+      expect(plans).toContain(`pub const ${kind}: &str = "${wire}";`);
+      expect(plans).toContain(`kind: ${kind},`);
+      expect(read('native-commerce-read.ts')).toContain(`export const ${kind} = '${wire}';`);
+    }
+    for (const site of FAMILY) expect(plans).toContain(`"${site.before}"`);
+    // Source fragments are composite-query text, not standalone scoped reads:
+    // they stay outside the executable command-plan registry until the
+    // Sales/Procurement/Finance package consumers outside this task cut over.
+    expect(plans).toContain('pub const SOURCE_FRAGMENTS: &[NativeCommerceReadStatement] = &[');
+    expect(plans).toContain('pub fn source_fragment(kind: &str)');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 26);');
+    expect(plans).toContain('fn settlement_line_source_fragments_keep_their_exact_literals()');
+    expect(norm(read('sales-package-sources.ts'))).toContain(norm(`lines:commerceSettlementLineSql("${SALES_TAIL}")`));
+    expect(norm(read('supply-package-sources.ts'))).toContain(norm(`lines:commerceSettlementLineSql("${SUPPLY_TAIL}")`));
+  });
 });

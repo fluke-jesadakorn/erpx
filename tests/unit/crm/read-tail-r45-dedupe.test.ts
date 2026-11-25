@@ -131,7 +131,7 @@ describe('crm read-tail r45 byte-identical SELECT 1 probe reuse', () => {
   });
 
   test('retirement:ts-statements drops from the r44 AFTER=61 to 57', () => {
-    expect(totalSelects()).toBe(41);
+    expect(totalSelects()).toBe(40);
     expect(totalSelects()).toBeLessThan(61);
   });
 });

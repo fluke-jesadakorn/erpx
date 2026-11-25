@@ -130,6 +130,12 @@ pub const PMS_RD_GUEST_BOOKING_DOCUMENT: &str = "pms_rd_guest_booking_document";
 /// five positional binds; no ledger/receipt/outbox and no lock/refund path. The
 /// caller runs it on its already-open unit with the retained Company/branch scope.
 pub const PMS_RD_HOTEL_METRICS: &str = "pms_rd_hotel_metrics";
+/// Native successors of the owner-local `pms-booking.ts` receipt point reads.
+/// Fixed SQL with one/two positional binds, no ledger/receipt/outbox and no
+/// lock/refund path; the caller runs them on its already-open booking unit.
+/// The receipt idempotency writes and conflict locks stay in the caller.
+pub const PMS_RD_BOOKING_RECEIPT_BY_KEY: &str = "pms_rd_booking_receipt_by_key";
+pub const PMS_RD_BOOKING_RECEIPT_BY_ATTEMPT: &str = "pms_rd_booking_receipt_by_attempt";
 const SQL_INVENTORY_COMMAND: &str = "SELECT id,kind,data_json,version,updated_at FROM pms_records \
 WHERE property_id=? AND kind IN ('room_type','room','rate','block','item','credit') \
 UNION ALL SELECT id,kind,data_json,version,updated_at FROM pms_records \
@@ -429,8 +435,21 @@ const READ_HOTEL_METRICS: NativeReadStatement = NativeReadStatement {
     sql: SQL_HOTEL_METRICS,
     bind_count: 5,
 };
+/// Retired TypeScript literals from `pms-booking.ts`, byte-for-byte.
+const SQL_BOOKING_RECEIPT_BY_KEY: &str = "SELECT * FROM pms_booking_receipts WHERE id=?";
+const READ_BOOKING_RECEIPT_BY_KEY: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_BOOKING_RECEIPT_BY_KEY,
+    sql: SQL_BOOKING_RECEIPT_BY_KEY,
+    bind_count: 1,
+};
+const SQL_BOOKING_RECEIPT_BY_ATTEMPT: &str = "SELECT response_json FROM pms_booking_receipts WHERE reservation_id=? AND response_json::jsonb->>'attemptId'=? LIMIT 1";
+const READ_BOOKING_RECEIPT_BY_ATTEMPT: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_BOOKING_RECEIPT_BY_ATTEMPT,
+    sql: SQL_BOOKING_RECEIPT_BY_ATTEMPT,
+    bind_count: 2,
+};
 
-const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG, READ_PENDING_HOTEL_TRANSFERS, READ_UNPOSTED_BOOKING_RECEIPTS, READ_UNPOSTED_COUNTER_RECEIPTS, READ_HOSPITALITY_SETUP_PROPERTIES, READ_ATTACHMENT_PROPERTY_IMAGE, READ_ATTACHMENT_RECORD_IMAGE, READ_DOCUMENT_RELATED_POSTINGS, READ_POS_GUEST_HOTELS, READ_POS_GUEST_CHOICES, READ_POS_STRIPE_PAYMENT, READ_POS_BOOKING_PAYMENT, READ_STRIPE_PAYMENT_BY_ID, READ_STRIPE_PAYMENT_BY_ID_COMPANY, READ_STRIPE_PAYMENT_PROPERTY, READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS];
+const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG, READ_PENDING_HOTEL_TRANSFERS, READ_UNPOSTED_BOOKING_RECEIPTS, READ_UNPOSTED_COUNTER_RECEIPTS, READ_HOSPITALITY_SETUP_PROPERTIES, READ_ATTACHMENT_PROPERTY_IMAGE, READ_ATTACHMENT_RECORD_IMAGE, READ_DOCUMENT_RELATED_POSTINGS, READ_POS_GUEST_HOTELS, READ_POS_GUEST_CHOICES, READ_POS_STRIPE_PAYMENT, READ_POS_BOOKING_PAYMENT, READ_STRIPE_PAYMENT_BY_ID, READ_STRIPE_PAYMENT_BY_ID_COMPANY, READ_STRIPE_PAYMENT_PROPERTY, READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
 pub fn is_read(kind: &str) -> bool {
@@ -858,7 +877,7 @@ ORDER BY id"
         assert!(!upper.contains("PG_ADVISORY"));
         assert!(is_read(read.kind));
         assert!(!is_read("pms_rd_section_related_records_v2"));
-        assert_eq!(READS.len(), 35);
+        assert_eq!(READS.len(), 37);
     }
 
     #[test]
@@ -882,7 +901,7 @@ ORDER BY id"
         assert!(!upper.contains("PG_ADVISORY"));
         assert!(is_read(read.kind));
         assert!(!is_read("pms_rd_guest_booking_document_v2"));
-        assert_eq!(READS.len(), 35);
+        assert_eq!(READS.len(), 37);
     }
 
     #[test]
@@ -905,6 +924,32 @@ ORDER BY id"
         assert!(!upper.contains("PG_ADVISORY"));
         assert!(is_read(read.kind));
         assert!(!is_read("pms_rd_hotel_metrics_v2"));
-        assert_eq!(READS.len(), 35);
+        assert_eq!(READS.len(), 37);
+    }
+
+    #[test]
+    fn booking_receipt_point_reads_match_retired_typescript_literals() {
+        let by_key = read_statement(PMS_RD_BOOKING_RECEIPT_BY_KEY).expect("receipt by key read");
+        let by_attempt = read_statement(PMS_RD_BOOKING_RECEIPT_BY_ATTEMPT).expect("receipt by attempt read");
+        assert_eq!(by_key.kind, "pms_rd_booking_receipt_by_key");
+        assert_eq!(by_key.sql, "SELECT * FROM pms_booking_receipts WHERE id=?");
+        assert_eq!(by_key.bind_count, 1);
+        assert_eq!(by_attempt.kind, "pms_rd_booking_receipt_by_attempt");
+        assert_eq!(by_attempt.sql, "SELECT response_json FROM pms_booking_receipts WHERE reservation_id=? AND response_json::jsonb->>'attemptId'=? LIMIT 1");
+        assert_eq!(by_attempt.bind_count, 2);
+        for read in [by_key, by_attempt] {
+            assert_eq!(read.sql.matches('?').count(), read.bind_count);
+            let upper = read.sql.to_ascii_uppercase();
+            assert!(upper.starts_with("SELECT"));
+            assert!(!upper.contains("INSERT INTO"));
+            assert!(!upper.contains("UPDATE "));
+            assert!(!upper.contains("DELETE FROM"));
+            assert!(!upper.contains("FOR UPDATE"));
+            assert!(!upper.contains("FOR SHARE"));
+            assert!(!upper.contains("LOCK TABLE"));
+            assert!(is_read(read.kind));
+        }
+        assert!(!is_read("pms_rd_booking_receipt_by_key_v2"));
+        assert_eq!(READS.len(), 37);
     }
 }

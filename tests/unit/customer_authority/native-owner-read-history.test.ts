@@ -5,6 +5,7 @@ import {
   CA_RD_ACCESS_EVENTS,
   CA_RD_ACCESS_IDENTITIES,
   CA_RD_ACCESS_READS,
+  CA_RD_ACCESS_SOURCES,
   CA_RD_DUPLICATE_REVIEW_HISTORY,
   CA_RD_DUPLICATE_REVIEWS_PENDING,
   CA_RD_IDENTITY_CHANGE_EVENTS_ACTION,
@@ -373,6 +374,50 @@ describe('customer authority portal native read port cutover', () => {
     expect(access).toContain('CA_RD_PORTAL_BINDING_LOCK');
     expect(access).toContain('nativePortalReadStatement');
     expect(access).toContain('db.prepare(plan.sql).bind(...plan.values)');
+  });
+});
+
+describe('customer authority access-sources native read cutover', () => {
+  const access = () => new URL('../../../packages/server-customer_authority/src/adapters/access.ts', import.meta.url);
+
+  it('carries the exact access-sources discriminator', () => {
+    expect(CA_RD_ACCESS_SOURCES).toBe('customer_authority_rd_access_sources');
+  });
+
+  it('plans the sources read on the caller unit with the five work-scope binds', async () => {
+    process.env[key] = config();
+    const values = ['company', 'branch', 'branch', null, null];
+    const sql = 'SELECT o.id,o.number,o.version,p.name FROM (orders) o JOIN (parties) p ON p.id=o.party_id AND p.company_id=o.company_id WHERE o.company_id=? AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?) AND o.kind IN (\'sales\',\'quote\') AND o.state IN (\'confirmed\',\'converted\',\'partially_fulfilled\',\'fulfilled\') ORDER BY o.updated_at DESC LIMIT 250';
+    const fetchMock = vi.fn(async () => new Response(
+      JSON.stringify({ data: { statements: [{ sql, values }] } }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    ));
+    vi.stubGlobal('fetch', fetchMock);
+    const seen: { sql: string; values: unknown[] }[] = [];
+    const db = {
+      prepare: (statement: string) => ({
+        bind: (...bound: unknown[]) => {
+          seen.push({ sql: statement, values: bound });
+          return { all: async () => ({ results: [{ id: 'order' }] }) };
+        },
+      }),
+    };
+    const result = await nativeOwnerReadAll(CA_RD_ACCESS_SOURCES, values, db as never, 'acme');
+    expect(result.results).toEqual([{ id: 'order' }]);
+    expect(seen).toEqual([{ sql, values }]);
+    const body = JSON.parse(((fetchMock.mock.calls[0] as unknown as [URL, RequestInit])[1] as RequestInit).body as string);
+    expect(body.kind).toBe('customer_authority_rd_access_sources');
+    expect(body.values).toEqual(values);
+    vi.unstubAllGlobals();
+    delete process.env[key];
+  });
+
+  it('keeps no TypeScript SQL mirror for the sources read', async () => {
+    const src = await readFile(access(), 'utf8');
+    expect(src).not.toContain('SELECT o.id,o.number,o.version,p.name');
+    expect(src).not.toContain('financeProjectionSources');
+    expect(src).toContain('CA_RD_ACCESS_SOURCES');
+    expect(src).toContain('nativeOwnerReadAll<Row>(CA_RD_ACCESS_SOURCES,args(a),write,a.holdingSlug)');
   });
 });
 

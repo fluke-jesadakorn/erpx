@@ -23,6 +23,7 @@ export const CA_RD_ACCESS_IDENTITIES = 'customer_authority_rd_access_identities'
 export const CA_RD_DUPLICATE_REVIEWS_PENDING = 'customer_authority_rd_duplicate_reviews_pending';
 export const CA_RD_IDENTITY_CHANGE_EVENTS_MONTH = 'customer_authority_rd_identity_change_events_month';
 export const CA_RD_IDENTITY_CHANGE_EVENTS_ACTION = 'customer_authority_rd_identity_change_events_action';
+export const CA_RD_ACCESS_SOURCES = 'customer_authority_rd_access_sources';
 
 /** Registered portal support/binding read kinds. The owner Rust registry owns
  * their SQL; the `customer-access/command-plan` route plans them for the caller

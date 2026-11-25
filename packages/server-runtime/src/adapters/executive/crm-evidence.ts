@@ -13,6 +13,7 @@ import { createCrmEvidenceApplication, type CrmEvidenceRepository } from '@erpx/
 import { executiveEvidenceSources } from '@erpx/server-crm/public/executive-evidence-sources';
 import {executiveFollowupEvidenceSources} from '@erpx/server-sales/public/executive-followup-evidence-sources';
 import { BusinessRuleError } from '@erpx/server-shared/index';
+import { planRuntimeControlPlane, RD_UTC_DATE } from '../native-runtime-control-plane';
 function application(database: SqlDatabase) {
     const repository: CrmEvidenceRepository = { ...executiveEvidenceSources(database), ...executiveFollowupEvidenceSources(database), async source0(companyId: string, userId: string, assignmentId: string, provider: string, metric: "opportunity-pipeline" | "overdue-followups", action: "search" | "open", value: string, queryHash: string, now: number, value2: string) {
             const rows = JSON.parse(value2) as Array<{ record_id: string; record_version: number | null }>;
@@ -23,9 +24,12 @@ function application(database: SqlDatabase) {
                 records: rows.map((row) => ({ recordId: row.record_id, recordVersion: Number(row.record_version ?? 0) })),
             });
             return { success: true, meta: { changes: rows.length } };
-        }, source1() { return database.prepare("SELECT to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') utc_date").first<{
-            utc_date: string;
-        }>(); } };
+        }, async source1() {
+            const plan = await planRuntimeControlPlane(RD_UTC_DATE);
+            return database.prepare(plan.sql).bind(...plan.values).first<{
+                utc_date: string;
+            }>();
+        } };
     return createCrmEvidenceApplication({ repository, clock: { now: Date.now }, digest: sha256, assertProductionModuleEnabled: (...args) => fromNative(() => assertProductionModuleEnabled(database, ...args)), crmOpportunityEvidenceRow: (...args) => fromNative(() => crmOpportunityEvidenceRow(...args, database)), customerFollowupEvidenceRow: (...args) => fromNative(() => customerFollowupEvidenceRow(...args, database)), currentAuthority: (...args) => fromNative(() => currentAuthority(database, ...args)), metricCatalogFor: (...args) => fromNative(() => metricCatalogFor(database, ...args)) });
 }
 async function fromNative<T>(run: () => Promise<T> | T): Promise<T> { try {

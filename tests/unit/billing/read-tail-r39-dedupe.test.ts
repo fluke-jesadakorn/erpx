@@ -105,8 +105,9 @@ describe('billing read-tail r39 dedupe of the r29 point-read head', () => {
       calls += text.split('billingPointReadSql(').length - 1;
     }
     // Native lane 38 removed the watermark adapter's point-read call site;
-    // native retry retired billing.ts selectedJob.
-    expect(calls).toBe(33);
+    // native retry retired billing.ts selectedJob and native statement retired
+    // the provider-statement-total point read.
+    expect(calls).toBe(32);
     const billing = await src('adapters/billing.ts');
     const target = await src('adapters/billing-target.ts');
     expect(billing).toContain("import {billingPointReadSql} from './billing-read-tail-r29-sql';");

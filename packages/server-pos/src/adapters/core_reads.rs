@@ -17,6 +17,7 @@ pub const TABLE_BY_NAME: &str = "pos_core_table_by_name";
 pub const REGISTERS_BY_KIND: &str = "pos_core_registers_by_kind";
 pub const RESTAURANT_REGISTER_PROPERTY: &str = "pos_core_restaurant_register_property";
 pub const OPEN_SHIFT_BY_ID: &str = "pos_core_open_shift_by_id";
+pub const STARTUP_REGISTERS: &str = "pos_core_startup_registers";
 
 pub const KINDS: &[&str] = &[
     SHIFTS,
@@ -28,6 +29,7 @@ pub const KINDS: &[&str] = &[
     REGISTERS_BY_KIND,
     RESTAURANT_REGISTER_PROPERTY,
     OPEN_SHIFT_BY_ID,
+    STARTUP_REGISTERS,
 ];
 
 pub fn supported(kind: &str) -> bool {
@@ -37,8 +39,9 @@ pub fn supported(kind: &str) -> bool {
 /// Authoritative SQL for the core read kinds, byte-identical to the retired
 /// TypeScript literals and the integration oracle. The first three statements
 /// are caller-transaction workspace lists scoped by Company/branch values; the
-/// remaining six are keyed register/shift/table reads scoped by the caller's
-/// positional values. Every statement is `SELECT`-only and lock-free.
+/// remaining seven are register/shift/table reads scoped by the caller's
+/// positional values, including the bounded startup register list. Every
+/// statement is `SELECT`-only and lock-free.
 pub fn sql(kind: &str) -> Option<&'static str> {
     Some(match kind {
         SHIFTS => r#"SELECT s.*,r.name register_name,
@@ -54,6 +57,7 @@ pub fn sql(kind: &str) -> Option<&'static str> {
         REGISTERS_BY_KIND => "SELECT id FROM pos_registers WHERE company_id=? AND (?::text IS NULL OR branch_id=?) AND (?<>'recipe' OR mode='restaurant')",
         RESTAURANT_REGISTER_PROPERTY => "SELECT id,property_id FROM pos_registers WHERE id=? AND mode='restaurant'",
         OPEN_SHIFT_BY_ID => "SELECT id FROM pos_shifts WHERE id=? AND state='open'",
+        STARTUP_REGISTERS => "SELECT id,branch_id,warehouse_id,name,mode,active,version FROM pos_registers WHERE company_id=? AND (?::text IS NULL OR branch_id=?) ORDER BY id",
         _ => return None,
     })
 }
@@ -79,12 +83,13 @@ mod tests {
         (REGISTERS_BY_KIND, "SELECT id FROM pos_registers WHERE company_id=? AND (?::text IS NULL OR branch_id=?) AND (?<>'recipe' OR mode='restaurant')", 4),
         (RESTAURANT_REGISTER_PROPERTY, "SELECT id,property_id FROM pos_registers WHERE id=? AND mode='restaurant'", 1),
         (OPEN_SHIFT_BY_ID, "SELECT id FROM pos_shifts WHERE id=? AND state='open'", 1),
+        (STARTUP_REGISTERS, "SELECT id,branch_id,warehouse_id,name,mode,active,version FROM pos_registers WHERE company_id=? AND (?::text IS NULL OR branch_id=?) ORDER BY id", 3),
     ];
 
     #[test]
     fn core_sql_is_byte_identical_with_expected_binds() {
-        assert_eq!(KINDS.len(), 9);
-        assert_eq!(EXPECTED.len(), 9);
+        assert_eq!(KINDS.len(), 10);
+        assert_eq!(EXPECTED.len(), 10);
         for (kind, expected, binds) in EXPECTED {
             assert!(supported(kind), "core kind must be allow listed: {kind}");
             let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));

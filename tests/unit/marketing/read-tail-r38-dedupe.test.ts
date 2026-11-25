@@ -84,7 +84,7 @@ describe('marketing form/content asset read-head dedupe (r38)', () => {
     expect(obligations).toContain("command.operation='marketing.asset.activate'");
     expect(obligations).toContain('LOCK TABLE marketing_assets,marketing_asset_events');
     const purchases = await src('purchases.ts');
-    expect(purchases).toContain('SELECT 1 FROM command_receipts WHERE command_id=?');
+    expect(purchases).toContain('nativeMarketingReadFirst<Record<string,unknown>>(MARKETING_RD_COMMAND_RECEIPT_PRIOR');
     expect(purchases).toContain('IN SHARE ROW EXCLUSIVE MODE');
     expect(await src('native-marketing-read.ts')).toContain('export');
     expect(await src('marketing.ts')).toContain('from "./native-marketing-read"');

@@ -26,6 +26,7 @@ export const MARKETING_RD_CAMPAIGN_EXISTS = 'campaign-exists';
 export const MARKETING_RD_CAMPAIGN_WITNESS = 'campaign-witness';
 export const MARKETING_RD_CAMPAIGN_COST_WITNESS = 'campaign-cost-witness';
 export const MARKETING_RD_PACKAGE_OBLIGATIONS = 'marketing-package-obligations';
+export const MARKETING_RD_COMMAND_RECEIPT_PRIOR = 'command-receipt-prior';
 
 /** Wire order mirrors the owner `BindField` registry. */
 export type NativeMarketingReadScope = Readonly<{
@@ -33,6 +34,10 @@ export type NativeMarketingReadScope = Readonly<{
   companyId?: string;
   version?: number;
   campaignId?: string;
+  commandId?: string;
+  operation?: string;
+  recordId?: string;
+  actorId?: string;
 }>;
 
 export type NativeMarketingPlan = Readonly<{
@@ -53,6 +58,7 @@ const KINDS = new Set<string>([
   MARKETING_RD_CAMPAIGN_WITNESS,
   MARKETING_RD_CAMPAIGN_COST_WITNESS,
   MARKETING_RD_PACKAGE_OBLIGATIONS,
+  MARKETING_RD_COMMAND_RECEIPT_PRIOR,
 ]);
 
 const unavailable = (): never => {
@@ -109,7 +115,7 @@ export async function nativeMarketingPlan(
   if (scope.version !== undefined && !Number.isSafeInteger(scope.version)) {
     throw new ApiError(503, 'MARKETING_READ_PLAN_INVALID', 'Review the Marketing owner read plan.');
   }
-  for (const value of [scope.assetId, scope.companyId, scope.campaignId]) {
+  for (const value of [scope.assetId, scope.companyId, scope.campaignId, scope.commandId, scope.operation, scope.recordId, scope.actorId]) {
     if (value !== undefined && (value.length === 0 || value.length > 200)) {
       throw new ApiError(503, 'MARKETING_READ_PLAN_INVALID', 'Review the Marketing owner read plan.');
     }

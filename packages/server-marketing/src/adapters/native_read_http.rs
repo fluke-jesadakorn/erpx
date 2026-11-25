@@ -33,6 +33,10 @@ pub struct NativeReadPlanScope {
     pub company_id: Option<String>,
     pub version: Option<i64>,
     pub campaign_id: Option<String>,
+    pub command_id: Option<String>,
+    pub operation: Option<String>,
+    pub record_id: Option<String>,
+    pub actor_id: Option<String>,
 }
 
 impl NativeReadPlanScope {
@@ -42,6 +46,10 @@ impl NativeReadPlanScope {
             company_id: self.company_id.as_deref(),
             version: self.version,
             campaign_id: self.campaign_id.as_deref(),
+            command_id: self.command_id.as_deref(),
+            operation: self.operation.as_deref(),
+            record_id: self.record_id.as_deref(),
+            actor_id: self.actor_id.as_deref(),
         }
     }
 }
@@ -138,6 +146,10 @@ fn bounded_scope(scope: &NativeReadPlanScope) -> Result<(), BusinessError> {
         scope.asset_id.as_deref(),
         scope.company_id.as_deref(),
         scope.campaign_id.as_deref(),
+        scope.command_id.as_deref(),
+        scope.operation.as_deref(),
+        scope.record_id.as_deref(),
+        scope.actor_id.as_deref(),
     ]
     .into_iter()
     .flatten()
@@ -300,6 +312,10 @@ mod tests {
             company_id: Some("company-1".into()),
             version: Some(3),
             campaign_id: Some("campaign-1".into()),
+            command_id: Some("command-1".into()),
+            operation: Some("marketing.asset.activate".into()),
+            record_id: Some("record-1".into()),
+            actor_id: Some("actor-1".into()),
         }
     }
 
@@ -331,6 +347,25 @@ mod tests {
         assert_eq!(
             campaign["statement"]["values"],
             serde_json::json!(["campaign-1", "company-1"])
+        );
+    }
+
+    #[test]
+    fn receipt_guard_wire_scope_plans_five_ordered_values() {
+        let value = plan(kinds::RD_COMMAND_RECEIPT_PRIOR, &scope()).unwrap();
+        assert_eq!(
+            value["statement"]["sql"],
+            "SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?"
+        );
+        assert_eq!(
+            value["statement"]["values"],
+            serde_json::json!([
+                "command-1",
+                "marketing.asset.activate",
+                "record-1",
+                "actor-1",
+                "company-1"
+            ])
         );
     }
 

@@ -15,7 +15,7 @@ import {qualityHoldPurchaseSource,qualityPurchaseSourceReadLocks,type QualityPur
 import {qualityWorkScopeTuple} from "@erpx/server-quality/adapters/quality-work-scope-sql";
 import {qualitySourceArmHead} from "./quality-source-arm-head";
 import {evidenceHead} from "./inspection-evidence-source-sql";
-import {nativeQualityReadFirst,RD_ALERT_HOLD_ID} from "./native-quality-read";
+import {nativeQualityReadFirst,RD_ALERT_HOLD_ID,RD_RECEIPT_REPLAY} from "./native-quality-read";
 import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 type Actor=Pick<WorkContext,"userId"|"assignmentId"|"role"|"companyId"|"branchId"|"departmentId"|"authority"|"iam">;
 export type QualityPurchaseTarget={kind:"hold"|"spec"|"alert";id:string};
@@ -66,7 +66,7 @@ export async function withQualityPurchasedCommand<Result>(owner:SqlDatabase,acto
  if(!isTransactionalSqlDatabase(owner))throw new ApiError(503,"QUALITY_TRANSACTION_REQUIRED","Quality requires its original owned Holding transaction.");
  try{return await owner.transaction(async database=>{
   const companyLocks=companyPurchaseReadLocks(database,actor.companyId);await database.batch([companyLocks[0],...qualityPurchaseSourceReadLocks(database),...companyLocks.slice(1)]);
-  const replay=await database.prepare(evidenceHead('1'," FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?",'')).bind(command.key,command.operation,command.target.id,actor.userId,actor.companyId).first();
+  const replay=await nativeQualityReadFirst(RD_RECEIPT_REPLAY,[command.key,command.operation,command.target.id,actor.userId,actor.companyId],database);
   const before=command.existing||replay?await targetSource(database,actor,command.target):null,purpose=replay?"history" as const:command.purpose;
   const required=before?.capabilities??["supply.quality"],extra=command.disposition&&before?.owner?.kind!=="customer-return"?["supply.counts"]:[],scopes=[...new Set([...required,...extra])].map(capability=>({companyId:actor.companyId,capability,purpose}));
   const key=`quality-purchase:${randomUUID()}`,boundaries=scopes.map((scope,index)=>({key:`${key}:${index}`,boundary:purchaseCommandBoundary(database,mode,`${key}:${index}`,scope)!}));

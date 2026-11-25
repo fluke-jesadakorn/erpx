@@ -91,7 +91,7 @@ describe('Records read-tail r28 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(9);
+    expect(total).toBe(7);
     expect(total).toBeLessThan(11);
   });
 });

@@ -386,11 +386,12 @@ describe('native Customer 360 timeline transport',()=>{
    expect(facts).toContain("WITH scope AS${companyScopeSource('')}");
    const portal=await read('../../../packages/server-customer_360/src/adapters/portal.ts');
    expect(portal).toContain("companyScopeSource('portal_release')");
-   expect(portal).toContain('SELECT id,binding_id,order_id,action,status,created_at,request_hash,user_id FROM customer_portal_actions WHERE');
+   expect(portal).not.toContain('SELECT id,binding_id,order_id,action,status,created_at,request_hash,user_id FROM customer_portal_actions WHERE'); // r15 native plan
+  expect(portal).toContain('nativeC360ReadStatement(');
    expect(timeline).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|LOCK\s+TABLE/i);
   });
 
-  it('r14 scoped-projection head family: retirement:ts-statements is strictly below BEFORE=12',async()=>{
+  it('r15 native portal-action plan family: retirement:ts-statements is strictly below BEFORE=11',async()=>{
    const fs=await import('node:fs/promises');
    const {fileURLToPath}=await import('node:url');
    const {resolve}=await import('node:path');
@@ -404,7 +405,7 @@ describe('native Customer 360 timeline transport',()=>{
     }
    };
    await walk(root);
-   expect(total).toBe(11);
-   expect(total).toBeLessThan(12);
+   expect(total).toBe(10);
+   expect(total).toBeLessThan(11);
   });
 });

@@ -1,4 +1,4 @@
-import { nativeInboxStatements } from './native-inbox-statements';
+import { nativeInboxStatements, nativeInboxSqlFragment, SYSTEM_COMPANY } from './native-inbox-statements';
 import {nativeFieldInboxCandidates,nativeFieldInboxState} from './native-field-inbox';
 import {workSourceReadScope} from "@erpx/server-operations/public/record-purchases";
 import {benefitSourceReadScope} from "@erpx/server-benefits/public/record-purchases";
@@ -54,9 +54,6 @@ async function exposed<T>(action: () => Promise<T>) {
         throw error;
     }
 }
-const candidateSql = `SELECT d.id,d.event_id,d.company_id,d.user_id,d.delivered_at,d.read_at,d.archived_at,e.source_type,e.source_id,e.source_version,e.category,e.preview,NULL::jsonb AS native_field_item
-  FROM inbox_deliveries d JOIN inbox_events e ON e.id=d.event_id
-  WHERE d.company_id=? AND d.user_id=? AND d.archived_at IS NULL`;
 function application(db: SqlDatabase, failedScope?: InboxFailedScope) {
     const repository: InboxRepository = { async publishEvent(id: string, companyId: string, key: string, sourceType: string, sourceId: string, sourceVersion: number, value: string | null, category: InboxCategory, preview: string, now: number) {
             return await nativeInboxStatements(db, companyId).eventInsert([id, companyId, key, sourceType, sourceId, sourceVersion, value, category, preview, now]);
@@ -69,9 +66,7 @@ function application(db: SqlDatabase, failedScope?: InboxFailedScope) {
         }, async noticeExists(source_id: string, companyId: string) {
             return (await nativeInboxStatements(db, companyId).noticeExists(companyId, source_id)).first();
         }, async candidate(id: string, companyId: string, userId: string) {
-            return db.prepare(`SELECT d.*,e.source_type,e.source_id,e.source_version,e.category,e.preview FROM inbox_deliveries d
-    JOIN inbox_events e ON e.id=d.event_id WHERE d.id=? AND d.company_id=? AND d.user_id=?`)
-                .bind(id, companyId, userId).first<Candidate>();
+            return (await nativeInboxStatements(db, companyId).candidate(companyId, id, userId)).first<Candidate>();
         }, async changeDeliveryState(readAt: number | null, archivedAt: number | null, id: string, companyId: string, userId: string) {
             return await nativeInboxStatements(db, companyId).deliveryState([readAt, archivedAt, id, companyId, userId]);
         }, async changeLegacyState(readAt: number | null, id: string, companyId: string, userId: string) {
@@ -85,8 +80,7 @@ function application(db: SqlDatabase, failedScope?: InboxFailedScope) {
         }, async targetNotice(id: string, companyId: string, userId: string) {
             return await nativeInboxStatements(db, companyId).noticeTargetInsert([id, companyId, userId]);
         }, async pendingTargets() {
-            return db.prepare("SELECT notice_id,company_id,user_id FROM inbox_notice_targets WHERE delivered_at IS NULL ORDER BY notice_id,user_id LIMIT 50")
-                .all<{
+            return (await nativeInboxStatements(db, SYSTEM_COMPANY).pendingTargets()).all<{
                 notice_id: string;
                 company_id: string;
                 user_id: string;
@@ -100,15 +94,12 @@ function application(db: SqlDatabase, failedScope?: InboxFailedScope) {
         }, async completeNoticeTarget(now: number, notice_id: string, user_id: string, companyId: string) {
             return await nativeInboxStatements(db, companyId).noticeTargetComplete([now, notice_id, user_id]);
         }, async pendingMetrics() {
-            return db.prepare(`SELECT count(*)::int count,min(n.created_at) oldest
-    FROM inbox_notice_targets t JOIN inbox_notices n ON n.id=t.notice_id WHERE t.delivered_at IS NULL`)
-                .first<{
+            return (await nativeInboxStatements(db, SYSTEM_COMPANY).pendingMetrics()).first<{
                 count: number;
                 oldest: number | null;
             }>();
         }, async unresolvedMetrics(types: string[]) {
-            return db.prepare(`SELECT count(*)::int count FROM inbox_events WHERE source_type NOT IN (${types.map(() => "?").join(",")})`)
-                .bind(...types).first<{
+            return (await nativeInboxStatements(db, SYSTEM_COMPANY).unresolvedMetrics(types)).first<{
                 count: number;
             }>();
         }, ...owner0(db), ...owner1(db), ...owner2(db), ...owner3(db, failedScope
@@ -120,12 +111,17 @@ function application(db: SqlDatabase, failedScope?: InboxFailedScope) {
             // compatibility contract returns JSON text. PostgreSQL owns ordering only.
             const nativeItems=new Map(native.map(row=>[row.id,row.native_field_item]));
             const query = { view },scope=await financeNotificationReadScope(db,actor,"inbox"),basePeople=await peopleSourceReadScope(db,actor,"inbox"),commerce=await commerceSourceReadScope(db,actor,"inbox"),payroll=await payrollSourceReadScope(db,actor,"inbox"),count=await countSourceReadScope(db,actor,"inbox"),procurement=await procurementSourceReadScope(db,actor,"inbox"),transfer=await transferSourceReadScope(db,actor,"inbox"),projects=await projectSourceReadScope(db,actor,"inbox"),quality=await qualitySourceReadScope(db,actor,"inbox"),learning=await learningSourceReadScope(db,actor,"inbox"),assets=await assetSourceReadScope(db,actor,"inbox"),landedCost=await landedCostSourceReadScope(db,actor,"inbox"),manufacturing=await manufacturingSourceReadScope(db,actor,"inbox"),talent=await talentSourceReadScope(db,actor,"inbox"),legal=await legalSourceReadScope(db,actor,"inbox"),crm=await crmSourceReadScope(db,actor,"inbox"),marketing=await marketingSourceReadScope(db,actor,"inbox"),followups=await followupSourceReadScope(db,actor,"inbox"),workforce=await workforceSourceReadScope(db,actor,"inbox"),benefits=await benefitSourceReadScope(db,actor,"inbox"),work=await workSourceReadScope(db,actor,"inbox");
-            return { results: (await db.prepare(`WITH native_rows AS (SELECT * FROM jsonb_to_recordset(?::jsonb) AS n(id text,event_id text,company_id text,user_id text,delivered_at bigint,read_at bigint,archived_at bigint,source_type text,source_id text,source_version bigint,category text,preview text,native_field_item jsonb)),legacy_rows AS (${scope.clock}${candidateSql} AND NOT (e.source_type IN('field_service_order','operational_exception','collaboration_action','support_ticket','stock_count','invoice','journal') AND erpx_field_push_source(e.source_type,e.source_id,e.company_id))  AND ${scope.where} AND ${commerce.where} AND ${payroll.where} AND ${basePeople.where} AND ${count.where} AND ${procurement.where} AND ${transfer.where} AND ${projects.where} AND ${quality.where} AND ${learning.where} AND ${assets.where} AND ${landedCost.where} AND ${manufacturing.where} AND ${talent.where} AND ${legal.where} AND ${crm.where} AND ${marketing.where} AND ${followups.where} AND ${workforce.where} AND ${benefits.where} AND ${work.where}
+            const [nativeRows,candidateSource,combinedOrder]=await Promise.all([
+                nativeInboxSqlFragment(actor.companyId,'inbox_native_rows_cte',[native]),
+                nativeInboxSqlFragment(actor.companyId,'inbox_candidate_source'),
+                nativeInboxSqlFragment(actor.companyId,'inbox_combined_order'),
+            ]);
+            return { results: (await db.prepare(`${nativeRows}${scope.clock}${candidateSource} AND NOT (e.source_type IN('field_service_order','operational_exception','collaboration_action','support_ticket','stock_count','invoice','journal') AND erpx_field_push_source(e.source_type,e.source_id,e.company_id))  AND ${scope.where} AND ${commerce.where} AND ${payroll.where} AND ${basePeople.where} AND ${count.where} AND ${procurement.where} AND ${transfer.where} AND ${projects.where} AND ${quality.where} AND ${learning.where} AND ${assets.where} AND ${landedCost.where} AND ${manufacturing.where} AND ${talent.where} AND ${legal.where} AND ${crm.where} AND ${marketing.where} AND ${followups.where} AND ${workforce.where} AND ${benefits.where} AND ${work.where}
       ${query.view === "all" ? "" : "AND d.read_at IS NULL"}
       ${category ? "AND e.category=?" : ""}
       ${search ? "AND e.preview ILIKE '%'||?||'%'" : ""}
       ${cursor ? "AND (d.delivered_at,d.id)<(?,?)" : ""}
-      ORDER BY d.delivered_at DESC,d.id DESC LIMIT 100), combined AS ${legacyNativeUnion} SELECT * FROM combined ORDER BY delivered_at DESC,id DESC LIMIT 100`)
+      ORDER BY d.delivered_at DESC,d.id DESC LIMIT 100), combined AS ${legacyNativeUnion} ${combinedOrder}`)
                     .bind(JSON.stringify(native),actor.companyId, actor.userId,...scope.args,...commerce.args,...payroll.args,...basePeople.args,...count.args,...procurement.args,...transfer.args,...projects.args,...quality.args,...learning.args,...assets.args,...landedCost.args,...manufacturing.args,...talent.args,...legal.args,...crm.args,...marketing.args,...followups.args,...workforce.args,...benefits.args,...work.args, ...(category ? [category] : []), ...(search ? [search] : []), ...(cursor ? [cursor.at, cursor.id] : []))
                     .all<Candidate>()).results.map(row=>nativeItems.has(row.id)?{...row,native_field_item:nativeItems.get(row.id)}:row) };
         } });
@@ -148,7 +144,7 @@ export function inboxPage(db: SqlDatabase, actor: WorkContext, query: {
 }) { return exposed(async () => {const page=await application(db).inboxPage(actor,query);return {...page,items:await projectInitialCountInbox(db,actor,page.items)};}); }
 export function inboxSummary(db: SqlDatabase, actor: WorkContext) { return exposed(() => application(db).inboxSummary(actor)); }
 async function nativeInboxDelivery(db:SqlDatabase,actor:WorkContext,id:string){
-    const row=await db.prepare("SELECT e.source_type,CASE WHEN e.source_type IN('field_service_order','operational_exception','collaboration_action','support_ticket','stock_count','invoice','journal') AND erpx_field_push_source(e.source_type,e.source_id,e.company_id) THEN 1 ELSE 0 END native_owned FROM inbox_deliveries d JOIN inbox_events e ON e.id=d.event_id AND e.company_id=d.company_id WHERE d.id=? AND d.company_id=? AND d.user_id=?").bind(id,actor.companyId,actor.userId).first<{source_type:string;native_owned:number}>();
+    const row=await (await nativeInboxStatements(db,actor.companyId).deliveryNativeOwned(actor.companyId,id,actor.userId)).first<{source_type:string;native_owned:number}>();
         return row?.native_owned===1;
 }
 export function changeInboxState(db: SqlDatabase, actor: WorkContext, id: string, state: {read?:boolean;archived?:boolean},key?:string) {

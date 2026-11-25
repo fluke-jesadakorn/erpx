@@ -111,21 +111,20 @@ describe('quality read-tail r26 point-read family (Q)', () => {
   test('evidenceHead reproduces the spec, replay and scope point reads byte-for-byte', () => {
     expect(qualitySourceArmHead('id,company_id,product_id,created_by', 'inventory_quality_specs', ' WHERE id=? AND company_id=?'))
       .toBe('SELECT id,company_id,product_id,created_by FROM inventory_quality_specs WHERE id=? AND company_id=?');
-    expect(evidenceHead('1', ' FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>\'companyId\'=?', ''))
-      .toBe('SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>\'companyId\'=?');
+    expect(read('adapters/native_quality_read_sql.rs')).toContain('"SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>\'companyId\'=?"');
     expect(evidenceHead('1', ' FROM(SELECT ?::text company_id,?::text branch_id,?::text department_id)workforce_actor_scope', ' WHERE ${currentScope.where}'))
       .toBe('SELECT 1 FROM(SELECT ?::text company_id,?::text branch_id,?::text department_id)workforce_actor_scope WHERE ${currentScope.where}');
     // Exact call-text oracles: a duplicated relation or predicate would still
     // typecheck and would only surface as a changed prepared statement.
     expect(read('adapters/attachment-read.ts')).toContain("evidenceHead('1',` FROM${qualityWorkScopeTuple(\"?::text company_id,?::text branch_id,?::text department_id\",\"workforce_actor_scope\",\"\")}`,` WHERE ${currentScope.where}`)");
     expect(read('adapters/purchases.ts')).toContain('qualitySourceArmHead("id,company_id,product_id,created_by","inventory_quality_specs"," WHERE id=? AND company_id=?")');
-    expect(read('adapters/purchases.ts')).toContain("evidenceHead('1',\" FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?\",'')");
+    expect(read('adapters/purchases.ts')).toContain('nativeQualityReadFirst(RD_RECEIPT_REPLAY,[command.key,command.operation,command.target.id,actor.userId,actor.companyId],database)');
     expect(read('adapters/purchases.ts')).toContain('evidenceHead(`${assignmentReadSql("quality_scope",permission)} allowed`,` FROM ${qualityWorkScopeTuple("?::text company_id,?::text branch_id,NULL::text department_id","quality_scope")}`,\'\')');
     expect(read('adapters/attachment-read.ts')).not.toContain('`SELECT 1 FROM${qualityWorkScopeTuple(');
     expect(read('adapters/purchases.ts')).not.toContain('"SELECT id,company_id,product_id,created_by FROM inventory_quality_specs');
     expect(read('adapters/purchases.ts')).not.toContain('"SELECT 1 FROM command_receipts');
     expect(read('adapters/purchases.ts').match(/qualitySourceArmHead\(/g)).toHaveLength(1);
-    expect(read('adapters/purchases.ts').match(/evidenceHead\(/g)).toHaveLength(2);
+    expect(read('adapters/purchases.ts').match(/evidenceHead\(/g)).toHaveLength(1);
     expect(read('adapters/quality-source-rows-sql.ts').match(/SELECT /g) ?? []).toHaveLength(0);
   });
 });

@@ -22,9 +22,10 @@ import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-avail
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import { customerPortalActions } from '@erpx/server-collaboration/adapters/native-customer-portal-actions';
 import { companyScopeSource } from './customer-read-sources';
+import { RD_PORTAL_ACTION_BY_BINDING, RD_PORTAL_ACTION_BY_KEY, nativeC360ReadStatement } from './native-customer-360-read';
 
 function portalRepository(db: SqlDatabase,owned=false,assertRequestAuthority?:()=>Promise<void>): PortalRepository {
-  const action = (predicate: string, values: string[]) => db.prepare(`SELECT id,binding_id,order_id,action,status,created_at,request_hash,user_id FROM customer_portal_actions WHERE ${predicate}`).bind(...values).first<PortalActionRow>();
+  const action = (kind: string, values: string[]) => nativeC360ReadStatement(kind, values).then(statement => db.prepare(statement.sql).bind(...statement.values).first<PortalActionRow>());
   return {
     transaction: async callback => {
       if(owned)return callback(portalRepository(db,true));
@@ -44,8 +45,8 @@ function portalRepository(db: SqlDatabase,owned=false,assertRequestAuthority?:()
       return rows.map(row=>{const {portal_purchase_company_id,...safe}=row,access=purchases.get(String(portal_purchase_company_id));return {...safe,...(mode!=='disabled'&&access?{purchase:{settleExisting:access.settleExisting,history:access.history,revision:access.revision,identityRevision}}: {})};});
     },
     sharedFiles: (actor, ids) => customerPortalSharedFiles(db, actor, ids),
-    replay: key => action("request_key=?", [key]),
-    existing: (id, actionName) => action("binding_id=? AND action=?", [id, actionName]),
+    replay: key => action(RD_PORTAL_ACTION_BY_KEY, [key]),
+    existing: (id, actionName) => action(RD_PORTAL_ACTION_BY_BINDING, [id, actionName]),
     binding: (id, email) => lockCustomerPortalBinding(db, id, email),
     identity: (id, actor) => customerPortalIdentityExists(db, id, actor),
     authorize:async(actor,binding,purpose)=>{

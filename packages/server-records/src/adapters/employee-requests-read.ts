@@ -22,6 +22,7 @@ import { requestActorNameSql } from '@erpx/server-people_payroll/public/records-
 import{createEmployeeRequestRead,type createEmployeeRequestReadPorts}from '@erpx/server-records/application/employee-requests';
 import { selectAllWhereSql } from './read-tail-select-all';
 import { employeeRequestColumnsSql } from './read-tail-employee-request-columns';
+import { projectionColumnHeadSql } from './read-tail-r32-sql';
 
 /** Records-owned canonical native employee-request read. The single-row
  * selection is fixed SQL admitted once and shared by both caller-named ports;
@@ -29,7 +30,7 @@ import { employeeRequestColumnsSql } from './read-tail-employee-request-columns'
 export function nativeEmployeeRequestReadRepository(database:SqlDatabase):createEmployeeRequestReadPorts<SqlStatement>['repository']{
     const readRow = (id: string, companyId: string) => database.prepare(selectAllWhereSql('employee_requests', 'id=? AND company_id=?')).bind(id, companyId).first<EmployeeRequest>();
     return{readReadRequestForOverrideRow: readRow,readReadEmployeeRequestRow: readRow,readRequestAttachmentsEffect(...args) { return EmployeeRequestsFilesOwnedFacts(database).readRequestAttachmentsEffect(...args); },readEmployeeRequestDetailEvents(id: string, companyId: string) {
-            return database.prepare(`SELECT e.id,e.action,e.actor_id,${requestActorNameSql} actor_name,e.note,e.evidence_json,e.request_version,e.created_at FROM employee_request_events e WHERE request_id=? AND company_id=? ORDER BY created_at,id LIMIT 250`)
+            return database.prepare(projectionColumnHeadSql(`e.id,e.action,e.actor_id,${requestActorNameSql} actor_name,e.note,e.evidence_json,e.request_version,e.created_at`,'employee_request_events e',' WHERE request_id=? AND company_id=? ORDER BY created_at,id LIMIT 250'))
                 .bind(id, companyId)
                 .all<{
                 id: string;

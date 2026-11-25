@@ -116,6 +116,30 @@ mod tests {
     }
 
     #[test]
+    fn lead_select_head_is_the_owner_select_one_plan() {
+        // Canonical native form of the r51 lead-select head: it is the r42
+        // select-one plan with the fixed `crm_leads` body. The TS renderer
+        // `crmLeadSelectSql` delegates to `crmSelectOneSql` on this identity.
+        let select_one = |body: &str| format!("SELECT 1 FROM {body}");
+        let lead_select = |tail: &str| select_one(&format!("crm_leads {tail}"));
+        let cases = [
+            ("creator scope", "l WHERE l.contact_id=c.id AND l.branch_id=?", "SELECT 1 FROM crm_leads l WHERE l.contact_id=c.id AND l.branch_id=?"),
+            ("eligible owner", "l WHERE l.id=? AND l.version=? AND l.owner_id=?", "SELECT 1 FROM crm_leads l WHERE l.id=? AND l.version=? AND l.owner_id=?"),
+        ];
+        for (name, tail, expected) in cases {
+            let rendered = lead_select(tail);
+            assert_eq!(rendered, expected, "{name}");
+            assert_eq!(rendered.matches("SELECT ").count(), 1, "{name}");
+            let upper = rendered.to_ascii_uppercase();
+            assert!(!upper.contains("INSERT"), "{name}");
+            assert!(!upper.contains("UPDATE"), "{name}");
+            assert!(!upper.contains("DELETE"), "{name}");
+            assert!(!upper.contains("FOR UPDATE"), "{name}");
+            assert!(!upper.contains("LOCK TABLE"), "{name}");
+        }
+    }
+
+    #[test]
     fn bare_select_head_matches_retired_r40_owner_literals() {
         let cases = [
             (

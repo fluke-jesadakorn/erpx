@@ -9,6 +9,12 @@ import {
   nativeCustomerPortalConfiguration,
   NativeCustomerPortalError,
 } from '../../../packages/server-customer_360/src/adapters/native-customer-portal';
+import {
+  RD_PORTAL_ACTION_BY_BINDING,
+  RD_PORTAL_ACTION_BY_KEY,
+  nativeC360ReadConfiguration,
+  nativeC360ReadStatement,
+} from '../../../packages/server-customer_360/src/adapters/native-customer-360-read';
 
 const config = (overrides: Record<string, unknown> = {}) =>
   JSON.stringify({
@@ -269,7 +275,66 @@ describe('Customer 360 obligation-fact query-head family', () => {
     expect(consumer).not.toContain('customer360ProjectionSources');
   });
 
-  it('retirement r14:ts-statements is strictly lower than BEFORE=12 (expected 11)', () => {
+  it('r15 native read plan: config is strict and unset fails closed', () => {
+    const key = 'ERPX_NATIVE_CUSTOMER_360_READ_CONFIG';
+    const previous = process.env[key];
+    try {
+      delete process.env[key];
+      expect(nativeC360ReadConfiguration(process.env[key])).toBeUndefined();
+      expect(() => nativeC360ReadConfiguration('{')).toThrow();
+      expect(() => nativeC360ReadConfiguration(JSON.stringify({
+        privateBaseUrl: 'http://127.0.0.1:3100', timeoutMs: 1000,
+        holdings: [{ origin: 'https://acme.example.com', holdingSlug: 'acme', holdingId: 'h001', companyId: 'company' }],
+      }))).toThrow(); // reserved port
+      expect(() => nativeC360ReadConfiguration(JSON.stringify({
+        privateBaseUrl: 'http://127.0.0.1:44998', timeoutMs: 1000,
+        holdings: [{ origin: 'https://acme.example.com', holdingSlug: 'acme', holdingId: 'h001', companyId: 'company' }],
+        portalHoldingSlug: 'missing',
+      }))).toThrow();
+      const cfg = nativeC360ReadConfiguration(JSON.stringify({
+        privateBaseUrl: 'http://127.0.0.1:44998', timeoutMs: 1000,
+        holdings: [{ origin: 'https://acme.example.com', holdingSlug: 'acme', holdingId: 'h001', companyId: 'company' }],
+        portalHoldingSlug: 'acme',
+      }));
+      expect(cfg?.portalHoldingSlug).toBe('acme');
+    } finally {
+      if (previous === undefined) delete process.env[key];
+      else process.env[key] = previous;
+    }
+  });
+
+  it('r15 native read plan: byte-pinned statements, strict admission and no TS fallback', async () => {
+    const key = 'ERPX_NATIVE_CUSTOMER_360_READ_CONFIG';
+    const previous = process.env[key];
+    process.env[key] = config({
+      privateBaseUrl: 'http://127.0.0.1:44998',
+      holdings: [{ origin: 'https://acme.example.com', holdingSlug: 'acme', holdingId: 'h001', companyId: 'company' }],
+    });
+    const send = (payload: unknown, status = 200) => async () =>
+      new Response(JSON.stringify(payload), { status, headers: { 'content-type': 'application/json' } });
+    try {
+      const head = 'SELECT id,binding_id,order_id,action,status,created_at,request_hash,user_id FROM customer_portal_actions WHERE ';
+      const byKey = await nativeC360ReadStatement(RD_PORTAL_ACTION_BY_KEY, ['request-key'], send({ data: { statement: { sql: head + 'request_key=?', values: ['request-key'] } } }));
+      expect(byKey.sql).toBe(head + 'request_key=?');
+      expect(byKey.values).toEqual(['request-key']);
+      await expect(nativeC360ReadStatement(RD_PORTAL_ACTION_BY_BINDING, ['binding', 'acknowledge_delivery'],
+        send({ data: { statement: { sql: head + 'binding_id=? AND action=?', values: ['binding', 'acknowledge_delivery'] } } }))).resolves.toMatchObject({
+        sql: head + 'binding_id=? AND action=?',
+      });
+      await expect(nativeC360ReadStatement('c360_rd_unknown', [], send({}))).rejects.toThrow();
+      await expect(nativeC360ReadStatement(RD_PORTAL_ACTION_BY_KEY, ['request-key'],
+        send({ data: { statement: { sql: 'INSERT INTO customer_portal_actions VALUES (?)', values: ['x'] } } }))).rejects.toThrow();
+      await expect(nativeC360ReadStatement(RD_PORTAL_ACTION_BY_KEY, ['request-key'], send({}, 503))).rejects.toThrow();
+      const portal = readFileSync(resolve(c360SrcRoot, 'adapters/portal.ts'), 'utf8');
+      expect(portal).toContain('nativeC360ReadStatement(');
+      expect(portal).not.toContain('WHERE ${predicate}');
+    } finally {
+      if (previous === undefined) delete process.env[key];
+      else process.env[key] = previous;
+    }
+  });
+
+  it('retirement r15:ts-statements is strictly lower than BEFORE=11 (expected 10)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -279,7 +344,7 @@ describe('Customer 360 obligation-fact query-head family', () => {
       }
     };
     walk(c360SrcRoot);
-    expect(total).toBe(11);
-    expect(total).toBeLessThan(12);
+    expect(total).toBe(10);
+    expect(total).toBeLessThan(11);
   });
 });

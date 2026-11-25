@@ -1,12 +1,13 @@
 //! Native Quality read-plan registry for the mounted `/quality/read-plan` route.
 //!
-//! Eight closed read kinds: the alert-to-hold point lookup and the hold/spec
+//! Nine closed read kinds: the alert-to-hold point lookup and the hold/spec
 //! existence probes used by the retained purchase gates (all unscoped, exactly
 //! one caller-supplied bind), the two attachment owner CAS guards (three binds,
 //! returned as an `EXISTS(...)` wrapper for the caller's command assertion),
 //! the Company-scoped Quality attachment descriptor (the exact statement owned
 //! by the fenced `inventory_quality_holds` descriptor port), and the two
-//! retained attachment owner-scope reads (legacy hold and spec). The caller
+//! retained attachment owner-scope reads (legacy hold and spec), and the
+//! command-receipt replay probe used by the purchased command boundary. The caller
 //! executes the returned statement on its own already-open unit, so the
 //! uncommitted state of the caller's transaction stays visible and no
 //! TypeScript SQL mirror remains.
@@ -35,6 +36,9 @@ pub const RD_LEGACY_ATTACHMENT_SCOPE: &str = "quality_rd_legacy_attachment_scope
 /// Allow-listed native Quality read kind: Company-scoped spec owner scope.
 pub const RD_ATTACHMENT_SPEC_SCOPE: &str = "quality_rd_attachment_spec_scope";
 
+/// Allow-listed native Quality read kind: command-receipt replay probe.
+pub const RD_RECEIPT_REPLAY: &str = "quality_rd_receipt_replay";
+
 /// Exact statement retired from `purchases.ts`. Byte parity is pinned by the
 /// owner Rust test and the TypeScript read-tail r28 witness.
 const SQL_ALERT_HOLD_ID: &str = "SELECT hold_id FROM inventory_quality_alerts WHERE id=?";
@@ -61,6 +65,10 @@ const SQL_LEGACY_ATTACHMENT_SCOPE: &str = "SELECT company_id,branch_id branch_id
 
 /// Exact two-bind spec owner scope retired from `attachments-operational-facts`.
 const SQL_ATTACHMENT_SPEC_SCOPE: &str = "SELECT company_id,NULL::text branch_id,NULL::text department_id,version FROM inventory_quality_specs WHERE id=? AND company_id=?";
+
+/// Exact five-bind replay probe retired from `purchases.ts`. The caller keeps
+/// the same command/actor values and executes the statement on its own unit.
+const SQL_RECEIPT_REPLAY: &str = "SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?";
 
 pub struct QualityReadStatement {
     pub kind: &'static str,
@@ -116,6 +124,12 @@ const READ_ATTACHMENT_SPEC_SCOPE: QualityReadStatement = QualityReadStatement {
     bind_count: 2,
 };
 
+const READ_RECEIPT_REPLAY: QualityReadStatement = QualityReadStatement {
+    kind: RD_RECEIPT_REPLAY,
+    sql: SQL_RECEIPT_REPLAY,
+    bind_count: 5,
+};
+
 /// Resolve one allow-listed kind. No SQL is accepted from the wire.
 pub fn read_statement(kind: &str) -> Option<&'static QualityReadStatement> {
     match kind {
@@ -127,6 +141,7 @@ pub fn read_statement(kind: &str) -> Option<&'static QualityReadStatement> {
         RD_ATTACHMENT_DESCRIPTOR => Some(&READ_ATTACHMENT_DESCRIPTOR),
         RD_LEGACY_ATTACHMENT_SCOPE => Some(&READ_LEGACY_ATTACHMENT_SCOPE),
         RD_ATTACHMENT_SPEC_SCOPE => Some(&READ_ATTACHMENT_SPEC_SCOPE),
+        RD_RECEIPT_REPLAY => Some(&READ_RECEIPT_REPLAY),
         _ => None,
     }
 }
@@ -203,6 +218,18 @@ mod tests {
             SQL_ATTACHMENT_SPEC_SCOPE,
             "SELECT company_id,NULL::text branch_id,NULL::text department_id,version FROM inventory_quality_specs WHERE id=? AND company_id=?"
         );
+    }
+
+    #[test]
+    fn receipt_replay_read_plan_is_exact() {
+        planned(RD_RECEIPT_REPLAY, SQL_RECEIPT_REPLAY, 5);
+        assert_eq!(
+            SQL_RECEIPT_REPLAY,
+            "SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?"
+        );
+        assert!(SQL_RECEIPT_REPLAY.contains("authority_json::jsonb->>'companyId'=?"));
+        assert!(!SQL_RECEIPT_REPLAY.contains("UPDATE "));
+        assert!(!SQL_RECEIPT_REPLAY.contains("DELETE "));
     }
 
     #[test]

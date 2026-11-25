@@ -1,5 +1,4 @@
 import { finalRootOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/final-root-owner-projection-sources";
-import { finalRootOwnerProjectionSources as financeProjectionSources } from "@erpx/server-finance/public/final-root-owner-projection-sources";
 import {assignmentEligibilityExists,assignmentSource} from './assignment-eligibility-source';
 import {accessBindingOrderProjection} from './customer-authority-read-tail-r26-sources';
 import "server-only";
@@ -12,7 +11,7 @@ import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {salesRecipientEligibility} from "@erpx/server-sales/public/sales-recipient";
 import {createCustomerAccessApplication,type AccessRepository} from "@erpx/server-customer_authority/application/access";
-import {CA_RD_ACCESS_EVENTS,CA_RD_ACCESS_IDENTITIES,CA_RD_ACCESS_READS,nativeOwnerReadAll} from './native-owner-read';
+import {CA_RD_ACCESS_EVENTS,CA_RD_ACCESS_IDENTITIES,CA_RD_ACCESS_READS,CA_RD_ACCESS_SOURCES,nativeOwnerReadAll} from './native-owner-read';
 import {portalSupportThreadsForStaff} from '@erpx/server-customer_authority/adapters/portal-support';
 import {requireCustomerAccessPurchasedRead,customerAccessPurchaseControls} from '@erpx/server-customer_authority/adapters/portal-purchases';
 /**
@@ -30,7 +29,7 @@ function ports(a:WorkContext) { return {actorId:a.userId,companyScope:!a.branchI
 function repository(a:WorkContext,write:SqlDatabase):AccessRepository { return {
  binding:id=>write.prepare(accessBindingOrderProjection(commerceProjectionSources.commerce_orders,`o.branch_id,o.department_id,${actorEligible}`,`WHERE b.id=? AND ${scope}`)).bind(a.userId,id,...args(a)).first<Row>(),
  rows:async()=> (await write.prepare(accessBindingOrderProjection(commerceProjectionSources.commerce_orders,`${actorEligible},(${assignmentSource('COUNT(DISTINCT m.user_id)')} m WHERE ${reviewers}) reviewers`,`WHERE ${scope} ORDER BY b.updated_at DESC,b.id`)).bind(a.userId,...args(a)).all<Row>()).results,
- sources:async()=> (await write.prepare(`SELECT o.id,o.number,o.version,p.name FROM (${commerceProjectionSources.commerce_orders}) o JOIN (${financeProjectionSources.finance_parties}) p ON p.id=o.party_id AND p.company_id=o.company_id WHERE ${scope} AND o.kind IN ('sales','quote') AND o.state IN ('confirmed','converted','partially_fulfilled','fulfilled') ORDER BY o.updated_at DESC LIMIT 250`).bind(...args(a)).all<Row>()).results,
+ sources:async()=> (await nativeOwnerReadAll<Row>(CA_RD_ACCESS_SOURCES,args(a),write,a.holdingSlug)).results,
  events:async id=>(await nativeOwnerReadAll<Row>(CA_RD_ACCESS_EVENTS,[id],write,a.holdingSlug)).results,
  reads:async id=>(await nativeOwnerReadAll<Row>(CA_RD_ACCESS_READS,[id],write,a.holdingSlug)).results,
  }; }

@@ -165129,6 +165129,151 @@
       },
       "apps": [],
       "packages": []
+    },
+    {
+      "id": "inventory.native-count-source-read.unit",
+      "lane": "unit",
+      "owner": "inventory",
+      "modules": [
+        "inventory",
+        "sales",
+        "finance"
+      ],
+      "files": [
+        "tests/unit/inventory/native-count-source-read.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "marketing.read-tail-r57-dedupe.unit",
+      "lane": "unit",
+      "owner": "marketing",
+      "modules": [
+        "marketing"
+      ],
+      "files": [
+        "tests/unit/marketing/read-tail-r57-dedupe.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "planning.read-tail-r28-calendar-guard-head.unit",
+      "lane": "unit",
+      "owner": "planning",
+      "modules": [
+        "planning",
+        "manufacturing",
+        "inventory",
+        "finance"
+      ],
+      "files": [
+        "tests/unit/planning/read-tail-r28-calendar-guard-head.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "records.employee-events-head-cutover.unit",
+      "lane": "unit",
+      "owner": "records",
+      "modules": [
+        "agent"
+      ],
+      "files": [
+        "tests/unit/records/employee-events-head-cutover.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "records.select-all-head-cutover.unit",
+      "lane": "unit",
+      "owner": "records",
+      "modules": [
+        "agent"
+      ],
+      "files": [
+        "tests/unit/records/select-all-head-cutover.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "sales.native-followup-recipients.unit",
+      "lane": "unit",
+      "owner": "sales",
+      "modules": [
+        "sales",
+        "inventory",
+        "finance"
+      ],
+      "files": [
+        "tests/unit/sales/native-followup-recipients.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
     }
   ]
 }

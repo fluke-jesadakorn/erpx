@@ -6,6 +6,7 @@
 
 pub use crate::adapters::control_plane_read_port::{
     ControlPlanePlan, RD_COVERAGE_PROCEDURE_PRESENT, RD_COVERAGE_REFRESH, RD_MIGRATION_CHECKSUM,
-    RD_MIGRATION_RECEIPTS, RD_RECEIPT_TABLE_PRESENT, RD_RUNTIME_HEALTH, control_plane_read_router,
+    RD_MIGRATION_RECEIPTS, RD_RECEIPT_TABLE_PRESENT, RD_RUNTIME_HEALTH, RD_UTC_DATE,
+    control_plane_read_router,
     plan,
 };

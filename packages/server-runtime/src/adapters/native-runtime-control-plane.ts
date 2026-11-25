@@ -15,6 +15,7 @@ export const RD_RECEIPT_TABLE_PRESENT = "runtime_rd_receipt_table_present";
 export const RD_COVERAGE_PROCEDURE_PRESENT = "runtime_rd_coverage_procedure_present";
 export const RD_COVERAGE_REFRESH = "runtime_rd_coverage_refresh";
 export const RD_RUNTIME_HEALTH = "runtime_rd_runtime_health";
+export const RD_UTC_DATE = "runtime_rd_utc_date";
 
 export type ControlPlanePlan = Readonly<{ sql: string; values: readonly unknown[] }>;
 type Holding = Readonly<{ origin: string; host: string; holdingSlug: string; holdingId: string }>;
@@ -117,6 +118,7 @@ export async function planRuntimeControlPlane(
       RD_COVERAGE_PROCEDURE_PRESENT,
       RD_COVERAGE_REFRESH,
       RD_RUNTIME_HEALTH,
+      RD_UTC_DATE,
     ].includes(kind) ||
     values.length > 8
   )

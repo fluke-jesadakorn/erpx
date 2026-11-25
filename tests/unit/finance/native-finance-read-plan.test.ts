@@ -1084,7 +1084,7 @@ describe('finance read-tail r24 byte-identical SQL families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(2038);
-    expect(total).toBe(1677);
+    expect(total).toBe(1671);
   });
 });
 
@@ -1255,7 +1255,7 @@ describe('finance read-tail r30 byte-identical guard-prefix families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(2027);
-    expect(total).toBe(1677);
+    expect(total).toBe(1671);
   });
 });
 
@@ -1299,7 +1299,7 @@ describe('finance read-tail r31 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1989);
-    expect(total).toBe(1677);
+    expect(total).toBe(1671);
   });
 });
 
@@ -1344,7 +1344,7 @@ describe('finance read-tail r32 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1985);
-    expect(total).toBe(1677);
+    expect(total).toBe(1671);
   });
 });
 
@@ -1389,7 +1389,7 @@ describe('finance read-tail r33 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1983);
-    expect(total).toBe(1677);
+    expect(total).toBe(1671);
   });
 });
 
@@ -1464,7 +1464,7 @@ describe('finance read-tail r34 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1981);
-    expect(total).toBe(1677);
+    expect(total).toBe(1671);
   });
 });
 
@@ -1513,7 +1513,7 @@ describe('finance read-tail r35 parameterized workforce actor scope family', () 
     };
     walk(root);
     expect(total).toBeLessThan(1974);
-    expect(total).toBe(1677);
+    expect(total).toBe(1671);
   });
 });
 
@@ -1590,7 +1590,7 @@ describe('finance read-tail r36 exact duplicate two-site SQL families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1970);
-    expect(total).toBe(1677);
+    expect(total).toBe(1671);
   });
 });
 
@@ -1644,7 +1644,7 @@ describe('finance read-tail r37 exact duplicate period-exists read family', () =
     };
     walk(root);
     expect(total).toBeLessThan(1966);
-    expect(total).toBe(1677);
+    expect(total).toBe(1671);
   });
 });
 
@@ -1757,7 +1757,7 @@ describe('finance read-tail r38 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1965);
-    expect(total).toBe(1677);
+    expect(total).toBe(1671);
   });
 });
 
@@ -1874,7 +1874,7 @@ describe('finance read-tail r39 read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1951);
-    expect(total).toBe(1677);
+    expect(total).toBe(1671);
   });
 });
 
@@ -1998,7 +1998,7 @@ describe('finance read-tail r40 read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1942);
-    expect(total).toBe(1677);
+    expect(total).toBe(1671);
   });
 });
 
@@ -2014,7 +2014,7 @@ describe('finance native bank-automation imported-file read-port cutover', () =>
     expect(rust).toContain('pub const RD_BANK_IMPORTED_FILE: &str = "finance_rd_bank_imported_file"');
     expect(rust).toContain(`const SQL_RD_BANK_IMPORTED_FILE: &str = "${SQL}"`);
     expect(rust).toContain('READ_BANK_IMPORTED_FILE,');
-    expect(rust).toContain('assert_eq!(READS.len(), 31);');
+    expect(rust).toContain('assert_eq!(READS.len(), 37);');
   });
 
   it('delegates the duplicate probe to the native plan with no TypeScript SQL', async () => {
@@ -2027,5 +2027,52 @@ describe('finance native bank-automation imported-file read-port cutover', () =>
     // is dynamic or transaction-bound; this cut is only the imported-file probe.
     expect(adapter).toContain('tableByIdSql(\'finance_bank_match_groups\') + \' FOR UPDATE\'');
     expect(adapter).toContain('bankTxnGuardSql(');
+  });
+});
+
+describe('finance native tax-identity read family cutover', () => {
+  const FAMILY: Array<[string, string]> = [
+    ['FINANCE_RD_TAX_IDENTITY_ACTIVE_PARTY', "SELECT 1 FROM finance_parties WHERE id=? AND company_id=? AND status='active' AND person_id IS NULL"],
+    ['FINANCE_RD_TAX_IDENTITY_PREDECESSOR', "SELECT 1 FROM finance_tax_identities WHERE id=? AND company_id=? AND party_id IS NOT DISTINCT FROM ?::text AND status='approved'"],
+    ['FINANCE_RD_TAX_IDENTITY_ROW', 'SELECT * FROM finance_tax_identities WHERE id=? AND company_id=?'],
+    ['FINANCE_RD_TAX_IDENTITY_REVIEWED', "SELECT * FROM finance_tax_identities WHERE id=? AND company_id=? AND party_id IS NOT DISTINCT FROM ?::text AND status='approved' AND effective_from<=? AND effective_to>=? AND rule_pack_version=?"],
+    ['FINANCE_RD_TAX_IDENTITY_LIST', 'SELECT id,party_id,legal_name,tax_id,address,branch_code,entity_kind,vat_registered,vat_registration_evidence,effective_from,effective_to,previous_identity_id,signer_name,signer_authority,signature_link_id,signature_sha256,rule_pack_version,evidence_ref,status,created_by,reviewed_by,version FROM finance_tax_identities WHERE company_id=? ORDER BY created_at DESC'],
+    ['FINANCE_RD_TAX_IDENTITY_PARTY_LIST', "SELECT id,name,kind FROM finance_parties WHERE company_id=? AND status='active' AND person_id IS NULL ORDER BY name"],
+  ];
+
+  it('registers every kind in the TS bridge and the Rust owner registry', async () => {
+    const bridge = await readFile(new URL('../../../packages/server-finance/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
+    for (const [kind] of FAMILY)
+      expect(bridge).toContain(`export const ${kind} = '${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}'`);
+    expect(bridge).toContain('export async function nativeFinanceReadAll');
+    expect(bridge).toContain('export async function nativeFinanceReadFirst');
+    const rust = await readFile(new URL('../../../packages/server-finance/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
+    for (const [kind, sql] of FAMILY) {
+      const rustConst = 'RD_' + kind.slice('FINANCE_RD_'.length);
+      expect(rust).toContain(`pub const ${rustConst}: &str = '${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}'`.replace(/'/g, '"'));
+      expect(rust).toContain(`const SQL_${rustConst}: &str = "${sql}"`);
+      expect(rust).toContain(`READ_${kind.slice('FINANCE_RD_'.length)},`);
+    }
+    expect(rust).toContain('assert_eq!(READS.len(), 37);');
+  });
+
+  it('removes all six literals from the TS adapter while keeping its command guards', async () => {
+    const adapter = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-tax-identities.ts', import.meta.url), 'utf8');
+    expect(adapter).toContain("from './native-finance-read'");
+    for (const [kind] of FAMILY) expect(adapter).toContain(kind);
+    expect(adapter.match(/nativeFinanceReadFirst[<(]/g)?.length).toBe(4);
+    expect(adapter.match(/nativeFinanceReadAll[<(]/g)?.length).toBe(2);
+    for (const [, sql] of FAMILY) {
+      // One literal is shared by the retained party assertion guard; no point
+      // or list reader prepares SQL in TypeScript any more.
+      expect(adapter.split(sql).length - 1).toBeLessThanOrEqual(1);
+    }
+    expect(adapter).toContain(`assertion(write, commandId, "party", "EXISTS(${FAMILY[0]![1]})", [input.partyId, actor.companyId])`);
+    expect(adapter.match(/\.prepare\(["']SELECT/g)?.length ?? 0).toBe(0);
+    // The six EXISTS/NOT EXISTS assertion guards remain owner-local TS: they
+    // execute inside the caller's command transaction, not as HTTP reads.
+    expect(adapter.match(/assertion\(/g)?.length).toBe(6);
+    expect(adapter).toContain('FINANCE_ADVISORY_XACT_LOCK_SQL');
+    expect(adapter).toContain('thaiFinanceTaxPack.version');
   });
 });

@@ -57,7 +57,9 @@ describe('Records read-tail r20 selectAllWhereSql family', () => {
 
   test('the family is one generator literal with three call sites and no inlined SELECT-* read', () => {
     expect(shared.match(/export const selectAllWhereSql\s*=/g) ?? []).toHaveLength(1);
-    expect((shared.match(/SELECT /g) ?? []).length).toBe(1);
+    expect((shared.match(/SELECT /g) ?? []).length).toBe(0); // head now lives in r32
+    expect(shared).toContain("import { projectionColumnHeadSql } from './read-tail-r32-sql';");
+    expect(shared).toContain("projectionColumnHeadSql('*', table, ` WHERE ${predicate}`)");
     expect(employeeReads.match(/selectAllWhereSql\(/g) ?? []).toHaveLength(1);
     expect(documentSources.match(/selectAllWhereSql\(/g) ?? []).toHaveLength(1);
     expect(employeeReads).not.toContain(pre.requestByRow.sql);

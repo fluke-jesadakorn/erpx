@@ -160,7 +160,7 @@ describe('Collaboration read-tail r49 protected SQL isolation', () => {
     expect(sha(line(shared, 'export const socialPostRevisionsAgg='))).toBe('69bcdd6271524e9466d33d6d2b0dd21a3dfb9caed2ce81658c8bbb2cd457575d');
     expect(sha(line(shared, 'export const socialPostRevisionsFileAgg='))).toBe('d649d3932556829deac57895db6435f4f6a1fcf6ba717d8d4c954b68200b4c8c');
     expect(sha(line(shared, 'export const socialAiDraftById='))).toBe('fad052f2521c61756c64debcc43e7a3c78b34b24a5c9e3be300ac71b2a52e9bf');
-    expect(sha(fixed('adapters/inbox.ts'))).toBe('58814f215ee185b2ec9e1e320be23ddc5d5573a92d718f5888e066c55bf416e9');
+    expect(sha(fixed('adapters/inbox.ts'))).toBe('cde03a2e7d9b86710255c0f4411a299b141c91ce00169f79428cfbf5e110116b');
     expect(sha(fixed('adapters/staff-notifications.ts'))).toBe('3ce65abf55973c3a41228531a9d2778739a6a7f859a37591c016bda9f9a2508a');
     expect(sha(fixed('adapters/messaging-purchases.ts'))).toBe('6921fd7a922dccbab407a37ecf8544b26494388c442871f4b084c45b39133c9b');
     expect(sha(fixed('public/field-outbox-predicate.generated.ts'))).toBe('1c1945bec812a3981738b0d36af5483786ff8e372c669453c0bc8683976a6c84');

@@ -102,7 +102,7 @@ describe('billing r37 native owner-write reads', () => {
     }
     // Same client `c` for every read keeps the FOR UPDATE and advisory lock on
     // the caller's serializable unit; no separate client/transport is opened.
-    expect(billing.match(/nativeBillingOwnerQuery\(c,/g)?.length).toBe(46); // native retry retired retryLegacyEvent/retryJob and native rollout retired recordRolloutApproval
+    expect(billing.match(/nativeBillingOwnerQuery\(c,/g)?.length).toBe(43); // native retry retired retryLegacyEvent/retryJob, native rollout retired recordRolloutApproval, native statement retired three statement members
     expect(jobs.match(/nativeBillingOwnerQuery\(c,/g)?.length).toBe(15);
     expect(billing).not.toContain('nativeCommercialOwnerRead');
     expect(billing).not.toContain('COMMERCIAL_RD_USAGE');

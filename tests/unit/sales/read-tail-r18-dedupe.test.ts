@@ -80,8 +80,8 @@ describe('Sales read-tail r18 duplicate-family ruling', () => {
       groups.set(key, [...(groups.get(key) ?? []), text]);
     }
     // Previous ruling: 49 literals, zero exact duplicate groups. Current source
-    // is unchanged in shape: 46 SQL-bearing literals, 46 distinct groups.
-    expect(literals.length).toBeGreaterThanOrEqual(46);
+    // is unchanged in shape: 45 SQL-bearing literals, 45 distinct groups.
+    expect(literals.length).toBeGreaterThanOrEqual(45);
     expect([...groups.values()].filter((g) => g.length > 1)).toHaveLength(0);
   });
 

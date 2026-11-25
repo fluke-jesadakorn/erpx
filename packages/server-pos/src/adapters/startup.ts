@@ -15,7 +15,7 @@ import {holdingResources} from '../../../../packages/server-runtime/src/public/r
 import {isTransactionalSqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {posStartupSourceReadLocks} from '@erpx/server-pos/adapters/startup-sources';
-import {nativePosKeyedSettingsPreparedStateStatement} from './native-pos-core-statement';
+import {nativePosKeyedSettingsPreparedStateStatement,nativePosStartupRegistersStatement} from './native-pos-core-statement';
 import type {PosStartupWorkspace} from '@erpx/server-pos/domain/startup';
 const capabilities=['pos.sales','inventory.stock-core','finance.pos-posting'] as const;
 const empty=(companyId:string,unavailableReason:PosStartupWorkspace['unavailableReason']):PosStartupWorkspace=>({companyId,available:false,contextKey:null,documentCurrency:null,canCreateWarehouse:false,canCreateProduct:false,canPrepareInitialStock:false,canBootstrap:false,canConfigureCatalogue:false,canApproveAccounting:false,configured:null,settingsVersion:null,accountingPrepared:false,accountingApproved:false,bankAccounts:[],branches:[],warehouses:[],products:[],registers:[],unavailableReason});
@@ -40,7 +40,7 @@ export async function posStartupWorkspace(actor:WorkContext):Promise<PosStartupW
   const [choices,nodes,settings,registers]=await Promise.all([
    posStartupMasterChoices(database,actor),financeStarterOrganizationNodes(database,actor.companyId),
    nativePosKeyedSettingsPreparedStateStatement<{version:number;accounting_prepared_by:string|null;accounting_approved_by:string|null}>(database,actor.companyId),
-   database.prepare('SELECT id,branch_id,warehouse_id,name,mode,active,version FROM pos_registers WHERE company_id=? AND (?::text IS NULL OR branch_id=?) ORDER BY id').bind(actor.companyId,actor.branchId,actor.branchId).all<{id:string;branch_id:string;warehouse_id:string;name:string;mode:string;active:boolean;version:number}>(),
+   nativePosStartupRegistersStatement(database,{company:actor.companyId,branch:actor.branchId,branch2:actor.branchId}),
   ]);
   const finance=choices.mapping?await posStartupMasterFinanceSource(database,actor.companyId,choices.mapping.chartId,choices.mapping.currency):null;
   const bootstrap=choices.mapping?await posStartupBootstrapFinanceReferences(database,actor.companyId,choices.mapping):null;
@@ -50,13 +50,13 @@ export async function posStartupWorkspace(actor:WorkContext):Promise<PosStartupW
   const final=await requireQueuedCommandAuthority(database,actor,needed);if(authorityImage(current)!==authorityImage(final))throw new ApiError(403,'QUEUED_AUTHORITY_CHANGED','The selected POS startup assignment changed.');
   for(const feature of ['pos','inventory','finance'] as const)await assertProductionModuleEnabled(database,actor.companyId,feature);
   for(const capability of capabilities)await checkPurchasedCapability(database,'enforced',{companyId:actor.companyId,capability,purpose:'history'});
-  return {companyId:actor.companyId,available:true,contextKey:createHash('sha256').update(JSON.stringify([authorityImage(current),choices,nodes,settings,registers.results,finance?.image,bootstrap?.image,...capabilities.map(capability=>access[capability].revision)])).digest('hex'),documentCurrency:choices.mapping?.currency??null,
+  return {companyId:actor.companyId,available:true,contextKey:createHash('sha256').update(JSON.stringify([authorityImage(current),choices,nodes,settings,registers,finance?.image,bootstrap?.image,...capabilities.map(capability=>access[capability].revision)])).digest('hex'),documentCurrency:choices.mapping?.currency??null,
    canCreateWarehouse:active&&stock&&masterCompatible,canCreateProduct:active&&stock&&masterCompatible,canPrepareInitialStock:active&&needed==='inventory.prepare',canBootstrap:active&&compatible&&choices.warehouses.some(row=>row.status==='active')&&!settings&&!actor.branchId&&pos&&hasPermission(current,'pos.accounting.prepare')&&hasPermission(current,'finance.write'),canConfigureCatalogue:active&&pos&&!!settings,
    canApproveAccounting:active&&!actor.branchId&&!!settings?.accounting_prepared_by&&!settings.accounting_approved_by&&!samePerson(current,settings.accounting_prepared_by)&&hasPermission(current,'pos.accounting.approve'),configured:!!settings,settingsVersion:settings?Number(settings.version):null,accountingPrepared:!!settings?.accounting_prepared_by,accountingApproved:!!settings?.accounting_approved_by,
    bankAccounts:!actor.branchId&&pos&&hasPermission(current,'pos.accounting.prepare')&&hasPermission(current,'finance.read')&&hasPermission(current,'finance.write')?bootstrap?.bankAccounts??[]:[],
    branches:stock?nodes.filter(row=>row.kind==='branch'&&(!actor.branchId||row.id===actor.branchId)).map(row=>({id:row.id,name:row.display_name})):[],
    warehouses:choices.warehouses.map(row=>({id:row.id,branchId:row.branch_id,code:row.code,name:row.name,status:row.status,version:Number(row.version)})),
    products:choices.products.map(row=>({id:row.id,sku:row.sku,name:row.name,itemType:row.item_type,trackingMode:row.tracking_mode,unit:row.unit,priceMinor:Number(row.price_minor),taxBps:Number(row.tax_bps),status:row.status,version:Number(row.version)})),
-   registers:registers.results.map(row=>({id:row.id,branchId:row.branch_id,warehouseId:row.warehouse_id,name:row.name,mode:row.mode,active:row.active,version:Number(row.version)})),unavailableReason:!choices.mapping?'posting-setup-required':!compatible?'unsupported-existing-mapping':null};
+   registers:(registers as unknown as {id:string;branch_id:string;warehouse_id:string;name:string;mode:string;active:boolean;version:number}[]).map(row=>({id:row.id,branchId:row.branch_id,warehouseId:row.warehouse_id,name:row.name,mode:row.mode,active:row.active,version:Number(row.version)})),unavailableReason:!choices.mapping?'posting-setup-required':!compatible?'unsupported-existing-mapping':null};
  });
 }

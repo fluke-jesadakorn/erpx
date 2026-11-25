@@ -52,6 +52,20 @@ describe('quality read-tail r28 native alert-to-hold point read', () => {
     expect(records).toContain('const holdId=await qualityAlertHoldId(database,id);');
   });
 
+  it('registers the five-bind receipt replay probe byte-identically and cuts the TS literal', () => {
+    const sql = "SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?";
+    expect(plans).toContain(`pub const RD_RECEIPT_REPLAY: &str = "quality_rd_receipt_replay"`);
+    expect(plans).toContain(`"${sql}"`);
+    expect(plans).toContain('RD_RECEIPT_REPLAY => Some(&READ_RECEIPT_REPLAY)');
+    expect(plans).toContain('bind_count: 5,');
+    expect(sql.match(/\?/g)).toHaveLength(5);
+    expect(client).toContain('export const RD_RECEIPT_REPLAY = "quality_rd_receipt_replay"');
+    expect(purchases).toContain('nativeQualityReadFirst(RD_RECEIPT_REPLAY,[command.key,command.operation,command.target.id,actor.userId,actor.companyId],database)');
+    expect(purchases).not.toContain('FROM command_receipts WHERE command_id=?');
+    expect(purchases.match(/evidenceHead\(/g)).toHaveLength(1);
+    expect(sql).not.toMatch(/FOR UPDATE|LOCK |;|INSERT |UPDATE |DELETE /);
+  });
+
   it('pins the owner TypeScript SELECT KPI at 33 (before 34)', () => {
     const src = resolve(root, 'packages/server-quality/src');
     let total = 0;

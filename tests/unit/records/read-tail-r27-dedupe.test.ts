@@ -113,7 +113,7 @@ describe('Records read-tail r27 retirement check', () => {
     // the request-events aggregate into childRowAgg (23 -> 22); r30 folds
     // three shared heads (22 -> 19). No lock, cross-owner port or native seam
     // changed.
-    expect(total).toBe(9);
+    expect(total).toBe(7);
     expect(total).toBeLessThan(25);
   });
 });

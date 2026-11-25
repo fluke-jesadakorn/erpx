@@ -37,7 +37,7 @@ describe('Commercial read-tail r13 parameterized month-scoped read family', () =
     [SNAPSHOT_FULL, SNAPSHOT_SEAT, METER_SQL].forEach(readOnly);
   });
 
-  test('one shared scoped head; r13 and r6 delegate and projection composes it', () => {
+  test('one shared scoped head; r13 and r6 delegate and projection is native', () => {
     const shared = src('commercial-read-tail-r13-sources.ts');
     expect(shared.match(/SELECT /g) ?? []).toHaveLength(0);
     expect(shared).toContain("scopedReadHead(columns, table, 'month', '\\n      ')");

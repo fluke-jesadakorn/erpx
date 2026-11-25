@@ -1,1 +1,6 @@
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';export function socialReplyEngineeringLock(db:SqlDatabase,company:string){return db.prepare('SELECT company_id FROM engineering_verification_contexts WHERE company_id=? FOR SHARE').bind(company);}
+import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
+import {releaseAcceptanceRowSql} from '@erpx/server-platform_administration/adapters/release-predicate';
+/** The owner-native reply-guard read owns this statement. The synchronous guard
+ *  statement is rendered from the shared owner-local row head so the caller's
+ *  batch stays byte-identical and no inline statement remains in this adapter. */
+export function socialReplyEngineeringLock(db:SqlDatabase,company:string){return db.prepare(releaseAcceptanceRowSql('company_id','company_id=?',' FOR SHARE','engineering_verification_contexts')).bind(company);}

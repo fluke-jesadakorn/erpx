@@ -100,7 +100,7 @@ describe('marketing read-tail r51 dedupe', () => {
   });
 
   it('leaves settlement, receipts, locks and native ports untouched', async () => {
-    expect(await src('purchases.ts')).toContain('SELECT 1 FROM command_receipts WHERE command_id=?');
+    expect(await src('purchases.ts')).toContain('nativeMarketingReadFirst<Record<string,unknown>>(MARKETING_RD_COMMAND_RECEIPT_PRIOR');
     expect(await src('package-obligations.ts')).toContain("command.operation='marketing.asset.activate'");
     expect(await src('public-submission.ts')).toContain('readMarketingLane40ForCompany(LANE40_PUBLIC_RECEIPT,companyId,');
     expect(await src('form-asset-lock-sql.ts')).toContain('FOR SHARE');
@@ -108,7 +108,7 @@ describe('marketing read-tail r51 dedupe', () => {
     expect(await src('native-marketing-read.ts')).toContain('export');
   });
 
-  it('pins the owner head KPI to 13 (lane 40 retired 3) (BEFORE=23)', async () => {
-    expect(await ownerHeadTokens()).toEqual({ spaced: 13, bare: 13 });
+  it('pins the owner head KPI to 12 (lane 40 retired 3) (BEFORE=23)', async () => {
+    expect(await ownerHeadTokens()).toEqual({ spaced: 12, bare: 12 });
   });
 });

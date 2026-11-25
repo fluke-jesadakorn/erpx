@@ -59,7 +59,7 @@ describe('Records record_context native read port cutover', () => {
       }
     };
     walk(resolve(root, 'packages/server-records/src'));
-    expect(total).toBe(9);
+    expect(total).toBe(7);
     expect(total).toBeLessThan(13);
   });
 

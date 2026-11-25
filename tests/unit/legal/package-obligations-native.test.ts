@@ -1,43 +1,16 @@
 import { createHash } from 'node:crypto';
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { PostgresDatabase } from '@erpx/server-runtime/public/runtime/postgres';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import contract from '../../../packages/server-legal/src/adapters/package-obligation-plan-sources.json' with {
+  type: 'json',
+};
 
 vi.mock('server-only', () => ({}));
 
-const ENV = 'ERPX_NATIVE_LEGAL_RECORDS_CONFIG';
-const CONFIG = {
-  privateBaseUrl: 'http://127.0.0.1:44999',
-  timeoutMs: 2000,
-  holdings: [{ origin: 'https://acme.example.test', holdingSlug: 'acme', holdingId: 'h001' }],
-};
-const PLAN =
-  "WITH scope AS(SELECT ?::text company_id,?::bigint now_ms) SELECT 'retention-policy' kind,p.id,to_jsonb(p)::text fact FROM legal_retention_policies p,scope WHERE p.company_id=scope.company_id AND p.state='draft' UNION ALL SELECT 'item' kind,i.id,to_jsonb(i)::text fact FROM legal_items i,scope ORDER BY kind,id,fact";
 type Call = { sql: string; binds: unknown[] };
-type FetchCall = { url: string; init?: RequestInit };
-
-let savedConfig: string | undefined;
-let savedFetch: typeof globalThis.fetch;
-beforeEach(() => {
-  savedConfig = process.env[ENV];
-  savedFetch = globalThis.fetch;
-});
-afterEach(() => {
-  globalThis.fetch = savedFetch;
-  if (savedConfig === undefined) delete process.env[ENV];
-  else process.env[ENV] = savedConfig;
-});
-
-function capture(reply: unknown, status = 200): FetchCall[] {
-  const calls: FetchCall[] = [];
-  globalThis.fetch = (async (url: RequestInfo | URL, init?: RequestInit) => {
-    calls.push({ url: String(url), init });
-    return Response.json(reply, { status });
-  }) as typeof fetch;
-  return calls;
-}
 
 function fake(facts: unknown[]) {
   const calls: Call[] = [];
@@ -89,31 +62,21 @@ const input = (now: number) => ({
 });
 
 describe('native Legal package-obligation cutover', () => {
-  it('plans the owner statement and binds only the Company and clock', async () => {
-    process.env[ENV] = JSON.stringify(CONFIG);
-    const calls = capture({ data: { statements: [{ sql: PLAN, values: ['company-a', 123] }] } });
+  it('returns the owner contract and binds only the Company and clock', async () => {
     const { nativeLegalPackageObligationPlan } = await import(
       '../../../packages/server-legal/src/adapters/native-legal-package-obligations'
     );
     const plan = await nativeLegalPackageObligationPlan('company-a', 123);
-    expect(plan).toEqual({ sql: PLAN, values: ['company-a', 123] });
-    expect(calls).toHaveLength(1);
-    expect(new URL(calls[0]!.url).pathname).toBe(
-      '/api/v1/holdings/acme/legal/command-plan',
-    );
-    const headers = new Headers(calls[0]!.init?.headers);
-    expect(headers.get('host')).toBe('acme.example.test');
-    expect(headers.get('origin')).toBe('https://acme.example.test');
-    expect(headers.get('content-type')).toBe('application/json');
-    expect(JSON.parse(String(calls[0]!.init?.body))).toEqual({
-      kind: 'legal_package_obligations',
-      values: ['company-a', 123],
-    });
+    expect(plan).toEqual({ sql: contract.sql, values: ['company-a', 123] });
+    expect(plan.sql.startsWith('WITH scope AS(')).toBe(true);
+    expect(plan.sql.endsWith('ORDER BY kind,id,fact')).toBe(true);
+    expect(plan.sql.match(/\?/g) ?? []).toHaveLength(2);
+    expect(plan.sql).toContain('legal_intake_questions');
+    expect(plan.sql).toContain("'retention-policy'");
+    expect(plan.sql).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE \w+ SET|LOCK TABLE|FOR UPDATE|FOR SHARE/i);
   });
 
-  it('executes the plan on the caller unit and keeps the retained evidence shape', async () => {
-    process.env[ENV] = JSON.stringify(CONFIG);
-    capture({ data: { statements: [{ sql: PLAN, values: ['company-a', 123] }] } });
+  it('executes the owner contract on the caller unit and keeps the retained evidence shape', async () => {
     const facts = [{ kind: 'retention-policy', id: 'policy-one', fact: '{"id":"policy-one"}' }];
     const { database, calls } = fake(facts);
     const db = owner(database);
@@ -145,54 +108,26 @@ describe('native Legal package-obligation cutover', () => {
         )
         .digest('hex'),
     );
-    expect(calls).toContainEqual({ sql: PLAN, binds: ['company-a', 123] });
+    expect(calls).toContainEqual({ sql: contract.sql, binds: ['company-a', 123] });
   });
 
-  it('fails closed on configuration, transport, reply shape and scope', async () => {
-    delete process.env[ENV];
+  it('fails closed on an invalid scope', async () => {
     const { nativeLegalPackageObligationPlan } = await import(
       '../../../packages/server-legal/src/adapters/native-legal-package-obligations'
     );
-    await expect(nativeLegalPackageObligationPlan('company-a', 123)).rejects.toMatchObject({
-      status: 503,
-      code: 'NATIVE_LEGAL_UNAVAILABLE',
-    });
-
-    process.env[ENV] = JSON.stringify(CONFIG);
-    capture({ error: { code: 'NATIVE_DENIED', message: 'Denied' } }, 403);
-    await expect(nativeLegalPackageObligationPlan('company-a', 123)).rejects.toMatchObject({
-      status: 403,
-      code: 'NATIVE_DENIED',
-      message: 'Denied',
-    });
-
-    capture({ data: { statements: [] } });
-    await expect(nativeLegalPackageObligationPlan('company-a', 123)).rejects.toMatchObject({
-      status: 502,
-      code: 'NATIVE_LEGAL_READ_RESPONSE_INVALID',
-    });
-
-    capture({ data: { statements: [{ sql: PLAN, values: ['company-b', 123] }] } });
-    await expect(nativeLegalPackageObligationPlan('company-a', 123)).rejects.toMatchObject({
-      status: 502,
-      code: 'NATIVE_LEGAL_PACKAGE_READ_RESPONSE_INVALID',
-    });
-
-    capture({ data: { statements: [{ sql: 'SELECT 1', values: ['company-a', 123] }] } });
-    await expect(nativeLegalPackageObligationPlan('company-a', 123)).rejects.toMatchObject({
-      status: 502,
-      code: 'NATIVE_LEGAL_PACKAGE_READ_RESPONSE_INVALID',
-    });
-
-    await expect(nativeLegalPackageObligationPlan('', 123)).rejects.toMatchObject({
-      status: 422,
-      code: 'LEGAL_PACKAGE_OBLIGATION_SCOPE_REQUIRED',
-    });
+    for (const [company, now] of [
+      ['', 1],
+      ['x'.repeat(201), 1],
+      ['company-a', -1],
+      ['company-a', Number.MAX_SAFE_INTEGER + 1],
+    ] as const)
+      await expect(nativeLegalPackageObligationPlan(company, now)).rejects.toMatchObject({
+        status: 422,
+        code: 'LEGAL_PACKAGE_OBLIGATION_SCOPE_REQUIRED',
+      });
   });
 
   it('refuses the read without the settlement source lock', async () => {
-    process.env[ENV] = JSON.stringify(CONFIG);
-    capture({ data: { statements: [{ sql: PLAN, values: ['company-a', 123] }] } });
     const { database } = fake([]);
     const db = owner(database);
     const { legalPackageObligations } = await import(
@@ -203,8 +138,8 @@ describe('native Legal package-obligation cutover', () => {
     );
   });
 
-  it('keeps the native owner SQL and the mounted plan route', async () => {
-    const [plan, http] = await Promise.all([
+  it('keeps the statement in the native owner contract and out of TypeScript', async () => {
+    const [plan, sources] = await Promise.all([
       readFile(
         new URL(
           '../../../packages/server-legal/src/adapters/native_read_plan.rs',
@@ -213,12 +148,16 @@ describe('native Legal package-obligation cutover', () => {
         'utf8',
       ),
       readFile(
-        new URL('../../../packages/server-legal/src/adapters/legal_http.rs', import.meta.url),
+        new URL(
+          '../../../packages/server-legal/src/adapters/package-obligation-plan-sources.json',
+          import.meta.url,
+        ),
         'utf8',
       ),
     ]);
     expect(plan).toContain('pub const RD_PACKAGE_OBLIGATIONS');
-    expect(plan).toContain('const FEATURE_TABLES');
+    expect(plan).toContain('include_str!("package-obligation-plan-sources.json")');
+    expect(plan).toContain('package_obligation_plan_sql');
     for (const table of [
       'legal_case_events',
       'legal_compliance_actions',
@@ -231,11 +170,9 @@ describe('native Legal package-obligation cutover', () => {
       'legal_policy_acknowledgements',
       'legal_intake_questions',
     ])
-      expect(plan).toContain(table);
-    expect(plan).toContain("ORDER BY kind,id,fact");
-    expect(plan).toContain("SELECT 'retention-policy'");
-    expect(http).toContain('/legal/command-plan');
-    expect(http).toContain('plan_legal_read');
+      expect(sources).toContain(table);
+    expect(sources).toContain("'retention-policy'");
+    expect(sources).toContain(' ORDER BY kind,id,fact');
   });
 
   it('retirement:ts-statements is BEFORE=125 -> AFTER=112', async () => {

@@ -156,6 +156,38 @@ const READ_IDENTITY_CHANGE_EVENTS_ACTION: NativeReadStatement = NativeReadStatem
     bind_count: 3,
 };
 
+/// Native successor of the TypeScript `access.ts` sources read: confirmed or
+/// converted sales/quote orders joined to their customer party. The caller
+/// binds `[companyId, branchId, branchId, departmentId, departmentId]` on its
+/// own unit. Both closed owner-owned source projections are inlined verbatim.
+pub const RD_ACCESS_SOURCES: &str = "customer_authority_rd_access_sources";
+
+const SQL_RD_ACCESS_SOURCES: &str = concat!(
+    "SELECT o.id,o.number,o.version,p.name FROM (",
+    "SELECT \"id\",\"company_id\",\"branch_id\",\"department_id\",\"kind\",\"number\",\"party_id\",",
+    "\"warehouse_id\",\"currency\",\"order_date\",\"due_date\",\"note\",\"state\",\"subtotal_minor\",",
+    "\"tax_minor\",\"source_id\",\"version\",\"created_by\",\"approved_by\",\"created_at\",",
+    "\"updated_at\",\"price_list_id\",\"price_list_version\",\"discount_reason\",",
+    "\"discount_approval_required\",\"discount_approved_by\",\"discount_approved_at\" FROM commerce_orders",
+    ") o JOIN (",
+    "SELECT \"id\",\"company_id\",\"kind\",\"code\",\"name\",\"currency\",\"tax_registration\",",
+    "\"payment_terms_days\",\"credit_limit_minor\",\"status\",\"version\",\"created_at\",",
+    "\"updated_at\",\"person_id\",\"notification_email\",\"notification_consent\",",
+    "\"merged_into_id\",\"merged_at\",\"merged_by\",\"phone\",\"address_json\" FROM finance_parties",
+    ") p ON p.id=o.party_id AND p.company_id=o.company_id ",
+    "WHERE o.company_id=? AND (?::text IS NULL OR o.branch_id=?) ",
+    "AND (?::text IS NULL OR o.department_id=?) ",
+    "AND o.kind IN ('sales','quote') ",
+    "AND o.state IN ('confirmed','converted','partially_fulfilled','fulfilled') ",
+    "ORDER BY o.updated_at DESC LIMIT 250"
+);
+
+const READ_ACCESS_SOURCES: NativeReadStatement = NativeReadStatement {
+    kind: RD_ACCESS_SOURCES,
+    sql: SQL_RD_ACCESS_SOURCES,
+    bind_count: 5,
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_SALES_REVIEW_COUNTS,
     READ_IDENTITY_CHANGE_HISTORY,
@@ -166,6 +198,7 @@ const READS: &[NativeReadStatement] = &[
     READ_DUPLICATE_REVIEWS_PENDING,
     READ_IDENTITY_CHANGE_EVENTS_MONTH,
     READ_IDENTITY_CHANGE_EVENTS_ACTION,
+    READ_ACCESS_SOURCES,
 ];
 
 /// Resolve an owner read kind. `None` for every unregistered discriminator.
@@ -283,6 +316,23 @@ mod tests {
             assert!(!read.sql.to_uppercase().contains("INSERT INTO"));
             assert!(!read.sql.to_uppercase().contains("DELETE FROM"));
             assert!(!read.sql.to_uppercase().contains("UPDATE "));
+        }
+    }
+
+    #[test]
+    fn access_sources_is_a_fixed_select_with_exact_binds() {
+        let read = read_statement(RD_ACCESS_SOURCES).expect("read kind");
+        assert!(is_read(RD_ACCESS_SOURCES));
+        assert_eq!(read.bind_count, 5);
+        assert_eq!(read.sql.matches('?').count(), 5);
+        assert!(read.sql.starts_with("SELECT o.id,o.number,o.version,p.name FROM ("));
+        assert!(read.sql.contains(" FROM commerce_orders) o JOIN ("));
+        assert!(read.sql.contains(" FROM finance_parties) p ON p.id=o.party_id"));
+        assert!(read.sql.contains("AND o.kind IN ('sales','quote')"));
+        assert!(read.sql.contains("AND o.state IN ('confirmed','converted','partially_fulfilled','fulfilled')"));
+        assert!(read.sql.ends_with("ORDER BY o.updated_at DESC LIMIT 250"));
+        for banned in ["INSERT", "DELETE", "UPDATE ", "LOCK TABLE", "FOR UPDATE", "pg_advisory"] {
+            assert!(!read.sql.contains(banned), "contains {banned}");
         }
     }
 

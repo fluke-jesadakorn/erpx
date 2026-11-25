@@ -452,6 +452,7 @@ pub const KINDS: &[&str] = &[
     crate::adapters::core_reads::REGISTERS_BY_KIND,
     crate::adapters::core_reads::RESTAURANT_REGISTER_PROPERTY,
     crate::adapters::core_reads::OPEN_SHIFT_BY_ID,
+    crate::adapters::core_reads::STARTUP_REGISTERS,
     // POS keyed core settings/receipt/day-close/reversal reads: closed,
     // SELECT-only, lock-free owner statements ported from inline TS literals.
     crate::adapters::core_keyed_reads::SETTINGS,
@@ -692,7 +693,7 @@ mod tests {
     use super::*;
     #[test]
     fn every_kind_is_allow_listed_with_parameterized_owner_sql() {
-        assert_eq!(KINDS.len(), 197);
+        assert_eq!(KINDS.len(), 198);
         for kind in KINDS {
             assert!(supported(kind), "kind must be allow listed: {kind}");
             let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
@@ -1164,7 +1165,7 @@ mod tests {
                 );
             }
         }
-        assert_eq!(crate::adapters::core_reads::KINDS.len(), 9);
+        assert_eq!(crate::adapters::core_reads::KINDS.len(), 10);
     }
 
     /// The keyed core settings/receipt/day-close/reversal reads are SELECT-only,

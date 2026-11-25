@@ -23,6 +23,7 @@ pub const RD_RECEIPT_TABLE_PRESENT: &str = "runtime_rd_receipt_table_present";
 pub const RD_COVERAGE_PROCEDURE_PRESENT: &str = "runtime_rd_coverage_procedure_present";
 pub const RD_COVERAGE_REFRESH: &str = "runtime_rd_coverage_refresh";
 pub const RD_RUNTIME_HEALTH: &str = "runtime_rd_runtime_health";
+pub const RD_UTC_DATE: &str = "runtime_rd_utc_date";
 
 const BODY_LIMIT: usize = 64 * 1024;
 const ORIGIN_HEADER: HeaderName = HeaderName::from_static("origin");
@@ -51,6 +52,10 @@ pub fn plan(kind: &str, values: &[Value]) -> Result<ControlPlanePlan, BusinessEr
         RD_COVERAGE_PROCEDURE_PRESENT => (sql::COVERAGE_PROCEDURE_PRESENT, 0),
         RD_COVERAGE_REFRESH => ("SELECT ensure_work_cache_coverage()", 0),
         RD_RUNTIME_HEALTH => (sql::RUNTIME_HEALTH, 0),
+        RD_UTC_DATE => (
+            "SELECT to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') utc_date",
+            0,
+        ),
         RD_MIGRATION_CHECKSUM => (sql::RECEIPT_CHECKSUM, 1),
         _ => return Err(invalid()),
     };
@@ -198,6 +203,19 @@ mod tests {
         assert_eq!(plan(RD_COVERAGE_PROCEDURE_PRESENT, &[]).unwrap().sql, sql::COVERAGE_PROCEDURE_PRESENT);
         assert_eq!(plan(RD_RUNTIME_HEALTH, &[]).unwrap().sql, sql::RUNTIME_HEALTH);
         assert_eq!(plan(RD_COVERAGE_REFRESH, &[]).unwrap().sql, "SELECT ensure_work_cache_coverage()");
+        assert_eq!(
+            plan(RD_UTC_DATE, &[]).unwrap().sql,
+            "SELECT to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') utc_date"
+        );
+    }
+
+    #[test]
+    fn utc_date_plan_is_bind_free_and_read_only() {
+        let planned = plan(RD_UTC_DATE, &[]).unwrap();
+        assert!(planned.values.is_empty());
+        assert!(planned.sql.starts_with("SELECT "));
+        assert!(!planned.sql.contains('$'));
+        assert!(!planned.sql.to_ascii_uppercase().contains("UPDATE"));
     }
 
     #[test]

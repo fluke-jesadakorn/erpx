@@ -145,7 +145,7 @@ describe('billing read-tail r32 dedupe', () => {
     expect(jobs.split('BILLING_INVOICE_BY_ID_SQL').length - 1).toBe(3);
     expect(jobs.split('billingPointReadSql(').length - 1).toBe(8);
     expect(target.split('billingPointReadSql(').length - 1).toBe(4);
-    expect(billing.split('billingPointReadSql(').length - 1).toBe(8); // r35 effective-month guard + provider total; native retry removed selectedJob
+    expect(billing.split('billingPointReadSql(').length - 1).toBe(7); // r35 effective-month guard; native retry removed selectedJob and native statement removed the provider total
   });
 
   it('leaves FOR UPDATE, advisory and native owner reads untouched', async () => {

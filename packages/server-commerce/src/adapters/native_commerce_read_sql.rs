@@ -306,6 +306,42 @@ const READ_CRM_ORDER_SOURCE_IMAGE: NativeCommerceReadStatement = NativeCommerceR
     bind_count: 2,
 };
 
+/// Native authority for the r25 Sales settlement-line source fragment. This is
+/// the exact text the Sales package witness embeds in its composite statement;
+/// it carries no standalone bind or company scope of its own.
+pub const RD_SALES_SETTLEMENT_LINES: &str = "commerce_rd_sales_settlement_lines";
+const SQL_SALES_SETTLEMENT_LINES: &str =
+    "SELECT line.* FROM commerce_order_lines line JOIN commerce_orders parent ON parent.id=line.order_id WHERE parent.kind IN ('quote','sales')";
+const READ_SALES_SETTLEMENT_LINES: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_SALES_SETTLEMENT_LINES,
+    sql: SQL_SALES_SETTLEMENT_LINES,
+    bind_count: 0,
+};
+
+/// Native authority for the r25 Supply settlement-line source fragment. The
+/// unaliased purchase predicate is kept byte-for-byte; no standalone binds.
+pub const RD_SUPPLY_SETTLEMENT_LINES: &str = "commerce_rd_supply_settlement_lines";
+const SQL_SUPPLY_SETTLEMENT_LINES: &str =
+    "SELECT line.* FROM commerce_order_lines line JOIN commerce_orders parent ON parent.id=line.order_id WHERE parent.kind='purchase'";
+const READ_SUPPLY_SETTLEMENT_LINES: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_SUPPLY_SETTLEMENT_LINES,
+    sql: SQL_SUPPLY_SETTLEMENT_LINES,
+    bind_count: 0,
+};
+
+/// r25 composite-query source fragments are owner-authorised SQL text, not
+/// standalone scoped reads: cross-owner package witnesses embed them in larger
+/// statements. They live outside `STATEMENTS` until those consumers cut over.
+pub const SOURCE_FRAGMENTS: &[NativeCommerceReadStatement] = &[
+    READ_SALES_SETTLEMENT_LINES,
+    READ_SUPPLY_SETTLEMENT_LINES,
+];
+
+/// Resolve an owner source fragment by kind. Unregistered kinds fail closed.
+pub fn source_fragment(kind: &str) -> Option<&'static NativeCommerceReadStatement> {
+    SOURCE_FRAGMENTS.iter().find(|statement| statement.kind == kind)
+}
+
 const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_PMS_WAREHOUSE_ACTIVE,
     READ_PMS_SETTINGS_EXISTS,
@@ -402,6 +438,29 @@ mod tests {
             assert_eq!(sql.matches('?').count(), bind_count);
         }
         assert_eq!(STATEMENTS.len(), 26);
+    }
+
+    /// r25 byte parity: these are composite-query source fragments rather than
+    /// standalone scoped reads, so they carry no binds. Ownership of the exact
+    /// literal lives here; the cross-owner consumers still embed the TS text
+    /// and must migrate before the renderer can be deleted.
+    #[test]
+    fn settlement_line_source_fragments_keep_their_exact_literals() {
+        let head = "SELECT line.* FROM commerce_order_lines line JOIN commerce_orders parent ON parent.id=line.order_id WHERE ";
+        let sales = source_fragment(RD_SALES_SETTLEMENT_LINES).expect("sales fragment");
+        let supply = source_fragment(RD_SUPPLY_SETTLEMENT_LINES).expect("supply fragment");
+        assert_eq!(sales.sql, format!("{head}parent.kind IN ('quote','sales')"));
+        assert_eq!(supply.sql, format!("{head}parent.kind='purchase'"));
+        for statement in [sales, supply] {
+            assert_eq!(statement.bind_count, 0);
+            assert_eq!(statement.sql.matches('?').count(), 0);
+            assert!(statement.sql.starts_with("SELECT "));
+            assert!(!statement.sql.contains(';'));
+            assert!(!statement.sql.contains("FOR UPDATE"));
+            assert!(read_statement(statement.kind).is_none());
+        }
+        assert_eq!(SOURCE_FRAGMENTS.len(), 2);
+        assert!(source_fragment("commerce_rd_unknown").is_none());
     }
 
     /// The two r26 attachment source-image reads share a byte-exact head and

@@ -124,6 +124,6 @@ describe("native lane 33 runtime holding-binding read contract", () => {
     walk(root);
     // Before this slice the owner had 27 `SELECT ` literals; the retired
     // `HOLDING_BINDINGS_SELECT` constant accounted for one of them.
-    expect(total).toBe(24);
+    expect(total).toBe(23);
   });
 });

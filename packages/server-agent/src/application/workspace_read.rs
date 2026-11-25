@@ -230,7 +230,7 @@ mod tests {
     use erpx_server_workflow::public::commands::{
         CommandActor, CommandField, CommandJson, WorkAuthority,
     };
-    use serde_json::{Map, json};
+    use serde_json::json;
 
     struct Fake {
         actor: AgentActor,
@@ -344,12 +344,13 @@ mod tests {
             actor: actor(),
             rows: vec![json!({ "id": "a" })],
         };
-        let value = agent_workspace_read(&ports.actor, true, &mut ports)
+        let actor = ports.actor.clone();
+        let value = agent_workspace_read(&actor, true, &mut ports)
             .await
             .expect("workspace");
         assert_eq!(value["agents"], json!([{ "id": "a" }]));
         assert_eq!(value["sessions"][0]["effective_status"], json!("expired"));
-        assert_eq!(value.as_object().map(Object::len), Some(9));
+        assert_eq!(value.as_object().map(|map| map.len()), Some(9));
     }
 
     #[tokio::test]
@@ -358,8 +359,9 @@ mod tests {
             actor: actor(),
             rows: vec![],
         };
+        let actor = ports.actor.clone();
         let value = agent_evidence_record_read(
-            &ports.actor,
+            &actor,
             AgentRecordReadKind::Session,
             "session",
             &mut ports,
@@ -378,9 +380,10 @@ mod tests {
             actor: actor(),
             rows: vec![],
         };
+        let actor = ports.actor.clone();
         assert!(
             agent_evidence_record_read(
-                &ports.actor,
+                &actor,
                 AgentRecordReadKind::Invocation,
                 "bad\nid",
                 &mut ports,

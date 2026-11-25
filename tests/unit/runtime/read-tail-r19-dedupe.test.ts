@@ -80,8 +80,8 @@ describe('runtime r19 migration control reads cut over to the native port', () =
     expect(src('runtime/jobs.ts')).not.toContain('migrationControlReadSql');
   });
 
-  test('retirement:ts-statements records BEFORE=29 strictly lower to 24', () => {
-    expect(kpi()).toBe(24);
+  test('retirement:ts-statements records BEFORE=29 strictly lower to 23', () => {
+    expect(kpi()).toBe(23);
     expect(kpi()).toBeLessThan(29);
   });
 });

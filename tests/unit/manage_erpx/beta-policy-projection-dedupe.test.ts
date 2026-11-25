@@ -158,7 +158,7 @@ describe('manage_erpx beta_policy point-read parameterized family', () => {
     expect(helper).not.toContain('SELECT ');
     expect(helper).toContain('betaPolicyPointKind');
     const api = await readFile(adapter('beta-api.ts'), 'utf8');
-    expect(api).toContain('nativeManageOwnerReadFirst(betaPolicyPointKind(\'*\')');
+    expect(api).toContain('nativeManageOwnerReadFirst(betaPolicyPointKind[\'*\']');
     expect(api).not.toContain('db\n              .prepare(betaPolicyPointSql(\'*\'))');
     const team = await readFile(adapter('beta-team.ts'), 'utf8');
     expect(team).toContain('${betaPolicyPointSql(\'member_limit\')}');

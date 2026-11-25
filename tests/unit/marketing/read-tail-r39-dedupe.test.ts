@@ -81,13 +81,13 @@ describe('marketing NULL-scope analytics row-frame dedupe (r39)', () => {
     expect(obligations).toContain("command.operation='marketing.asset.activate'");
     expect(obligations).toContain('LOCK TABLE marketing_assets,marketing_asset_events');
     const purchases = await src('purchases.ts');
-    expect(purchases).toContain('SELECT 1 FROM command_receipts WHERE command_id=?');
+    expect(purchases).toContain('nativeMarketingReadFirst<Record<string,unknown>>(MARKETING_RD_COMMAND_RECEIPT_PRIOR');
     expect(purchases).toContain('IN SHARE ROW EXCLUSIVE MODE');
     expect(await src('native-marketing-read.ts')).toContain('export');
     expect(await src('marketing.ts')).toContain('from "./native-marketing-read"');
   });
 
-  it('retirement:ts-statements KPI is 13 (strictly below BEFORE=55; lane 40 retired 3)', async () => {
+  it('retirement:ts-statements KPI is 12 (strictly below BEFORE=55; lane 40 retired 3)', async () => {
     // r42 merged the evidence-row tail (49 -> 48); r43 retires six source-row
     // guards, three actor-scope guards and one union frame (48 -> 38); r44
     // retires the EXISTS and point-existence heads (38 -> 36); r45 folds the
@@ -98,6 +98,6 @@ describe('marketing NULL-scope analytics row-frame dedupe (r39)', () => {
     // actor-scope assignment guard head (24 -> 23); lane 40 retired the
     // candidate-form-rows helper, campaign aggregate head (19 -> 17) and the
     // public-submission receipt literal (17 -> 16).
-    expect(await selectTokens()).toBe(13);
+    expect(await selectTokens()).toBe(12);
   });
 });

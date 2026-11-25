@@ -109,7 +109,7 @@ describe('Records read-tail r29 retirement check', () => {
     // folds the version fence, employee_requests head and request_ai head into
     // shared generators (22 -> 19). No rendered SQL, bind, lock or native seam
     // changes.
-    expect(total).toBe(9);
+    expect(total).toBe(7);
     expect(total).toBeLessThan(23);
   });
 });

@@ -80,6 +80,11 @@ export const PMS_RD_GUEST_BOOKING_DOCUMENT = 'pms_rd_guest_booking_document';
  * caller runs it on its already-open unit with the same Company/branch scope.
  * No TypeScript fallback and no money/KPI claim is made by this kind. */
 export const PMS_RD_HOTEL_METRICS = 'pms_rd_hotel_metrics';
+/** Native successors of the owner-local `pms-booking.ts` receipt point reads.
+ * Fixed SQL with one/two positional binds, no ledger/receipt/outbox and no
+ * lock/refund path; the caller runs them on its already-open booking unit. */
+export const PMS_RD_BOOKING_RECEIPT_BY_KEY = 'pms_rd_booking_receipt_by_key';
+export const PMS_RD_BOOKING_RECEIPT_BY_ATTEMPT = 'pms_rd_booking_receipt_by_attempt';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'PMS_NATIVE_READ_UNAVAILABLE', 'The native PMS read service is unavailable.');

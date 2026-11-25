@@ -26,11 +26,12 @@ const kinds = [
   { kind: 'quality_rd_attachment_descriptor', const: 'RD_ATTACHMENT_DESCRIPTOR', sql: 'SELECT CASE WHEN octet_length(company_id)+coalesce(octet_length(branch_id),0)<=2097152 THEN company_id END company_id,CASE WHEN octet_length(company_id)+coalesce(octet_length(branch_id),0)<=2097152 THEN branch_id END branch_id,NULL::text department_id,version::bigint version FROM inventory_quality_holds WHERE id=? AND company_id=?', binds: 2 },
   { kind: 'quality_rd_legacy_attachment_scope', const: 'RD_LEGACY_ATTACHMENT_SCOPE', sql: 'SELECT company_id,branch_id branch_id,NULL department_id,version FROM inventory_quality_holds WHERE id=?', binds: 1 },
   { kind: 'quality_rd_attachment_spec_scope', const: 'RD_ATTACHMENT_SPEC_SCOPE', sql: 'SELECT company_id,NULL::text branch_id,NULL::text department_id,version FROM inventory_quality_specs WHERE id=? AND company_id=?', binds: 2 },
+  { kind: 'quality_rd_receipt_replay', const: 'RD_RECEIPT_REPLAY', sql: "SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?", binds: 5 },
 ] as const;
 
 describe('quality read-tail r29 native hold/spec probes and CAS guards', () => {
-  it('registers eight closed kinds with exact SQL and bind counts', () => {
-    expect(plans.match(/pub const RD_[A-Z_]+: &str = /g)).toHaveLength(8);
+  it('registers nine closed kinds with exact SQL and bind counts', () => {
+    expect(plans.match(/pub const RD_[A-Z_]+: &str = /g)).toHaveLength(9);
     for (const { kind, const: k, sql, binds } of kinds) {
       expect(plans).toContain(`pub const ${k}: &str = "${kind}";`);
       expect(plans).toContain(`"${sql}"`);

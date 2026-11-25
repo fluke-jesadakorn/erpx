@@ -138,10 +138,11 @@ describe('marketing read-tail r48 dedupe', () => {
     expect(rows).toContain('marketingSelectHeadSql(head, ` FROM ${spec.source}`)');
     expect(selectTokens(rows)).toBe(0);
 
-    // purchases.ts retains exactly one token: the protected command_receipts guard.
+    // r57 retired the last purchases.ts token (the command-receipts guard) to
+    // the native owner read port; the caller owns no SQL literal now.
     const purchases = await src('purchases.ts');
     expect(purchases).toContain("marketingSelectHeadSql('id,company_id,branch_id,department_id,witness::text witness'");
-    expect(selectTokens(purchases)).toBe(1);
+    expect(selectTokens(purchases)).toBe(0);
   });
 
   it('leaves the protected r38/r40/r45/r46/r47 heads and tails untouched', async () => {
@@ -151,7 +152,7 @@ describe('marketing read-tail r48 dedupe', () => {
     expect(await src('read-tail-sql.ts')).toContain('`SELECT * FROM ${table}${tail}`');
     expect((await src('read-tail-sql.ts')).match(/SELECT/g)).toHaveLength(1);
 
-    expect(await src('purchases.ts')).toContain('SELECT 1 FROM command_receipts WHERE command_id=?');
+    expect(await src('purchases.ts')).toContain('nativeMarketingReadFirst<Record<string,unknown>>(MARKETING_RD_COMMAND_RECEIPT_PRIOR');
     expect(await src('record-purchases.ts')).toContain("marketingPointExistsSql(`(${nativeIds}) actual`,'id=?')");
     expect(await src('record-purchases.ts')).not.toContain('`SELECT 1 FROM (${nativeIds}) actual WHERE id=?`');
     expect(await src('package-obligations.ts')).toContain('marketingPointExistsSql(');
@@ -163,8 +164,8 @@ describe('marketing read-tail r48 dedupe', () => {
     expect(await src('marketing-local-point-read-sql.ts')).toContain('FOR UPDATE');
   });
 
-  it('pins the owner SELECT KPI to 13 (lane 40 retired 3) (BEFORE=29)', async () => {
-    expect(await ownerSelectTokens()).toBe(13);
+  it('pins the owner SELECT KPI to 12 (lane 40 retired 3) (BEFORE=29)', async () => {
+    expect(await ownerSelectTokens()).toBe(12);
     expect(await ownerSelectTokens()).toBeLessThan(29);
   });
 });

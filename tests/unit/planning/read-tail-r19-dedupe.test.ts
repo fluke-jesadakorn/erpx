@@ -30,7 +30,7 @@ describe('Planning read-tail r19 capacity projection/FROM head', () => {
 
   test('capacity operations now compose the surviving single-line builder', () => {
     const current = src('capacity.ts');
-    expect(current).toContain('planningSelectColumnsFrom(');
+    expect(current).toContain('planningPackageFactRows(');
     expect(current).not.toContain(NEW_DECL);
     expect(current).not.toContain(ORIG_DECL);
     expect(current).not.toContain('planningSelectFrom(');
@@ -56,14 +56,14 @@ describe('Planning read-tail r19 capacity projection/FROM head', () => {
     expect(src('planning-jsonb-agg-sql.ts')).toContain('planningJsonbAggOrdered');
     expect(src('planning-package-fact-sql.ts')).toContain('planningPackageFactRows');
     expect(src('planning-image-source-sql.ts')).toContain('planningSourceRows');
-    expect(src('planning-select-columns-sql.ts')).toContain('export const planningSelectColumnsFrom =');
+    expect(existsSync(resolve(srcRoot, 'adapters/planning-select-columns-sql.ts'))).toBe(false);
     expect(existsSync(resolve(srcRoot, 'adapters/planning-select-from-sql.ts'))).toBe(false);
     expect(src('executive-metric-projections.ts')).toContain('planningBranchDisplayLabelSql');
     expect(src('executive-metric-projections.ts')).toContain('metricLabelCountProjection');
     expect(src('purchase-sources.ts')).toContain('LOCK TABLE planning_scenarios,planning_recommendations,planning_scenario_events,planning_resource_allocations,production_resources,production_resource_calendar IN ${writer?"SHARE ROW EXCLUSIVE":"SHARE"} MODE');
     expect(src('package-obligations.ts')).toContain('planningPurchaseSourceReadLocks(database)');
     const capacity = src('capacity.ts');
-    expect(capacity).toContain('planningSelectColumnsFrom(');
+    expect(capacity).toContain('planningPackageFactRows(');
     expect(capacity).toContain('resourceCalendarByKey(');
     expect(capacity).toContain('planningResourceAllocationRows(');
     expect(capacity).not.toContain('LOCK TABLE');
@@ -101,7 +101,7 @@ describe('Planning read-tail r19 capacity projection/FROM head', () => {
     // r23 folded the resource-calendar point lookup into the single-line projection/FROM builder (16 -> 15).
     // r24 folded the scoped single-row family into that same builder (15 -> 14).
     // r25 folded the scoped branch-list family into the single-line projection/FROM builder (14 -> 13).
-    expect(total).toBe(12);
+    expect(total).toBe(11);
     expect(total).toBeLessThan(19);
   });
 });

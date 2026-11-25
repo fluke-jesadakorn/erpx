@@ -151,7 +151,7 @@ describe('crm read-tail r21 byte-identical projection/FROM head', () => {
     expect(src('read-tail-r48-sql.ts')).toContain('crmCompanyScopeSql = (tail: string) => `SELECT ?::text company_id${tail}`');
     expect(src('read-tail-r49-sql.ts')).toContain('crmJsonbAggregateSql = (body: string) => `SELECT jsonb_agg(to_jsonb(${body}`');
     expect(src('read-tail-r50-sql.ts')).toContain('export const crmSelectExprSql = (body: string) => `SELECT (${body}`');
-    expect(src('read-tail-r51-sql.ts')).toContain('export const crmLeadSelectSql = (tail: string) => `SELECT 1 FROM crm_leads ${tail}`');
+    expect(src('read-tail-r51-sql.ts')).toContain("export const crmLeadSelectSql = (tail: string) => crmSelectOneSql(`crm_leads ${tail}`)");
     expect(src('attachment-read.ts')).toContain('`SELECT 1 FROM${actorScopeSql}workforce_actor_scope WHERE ${current.where}`');
     expect(src('attachment-read.ts')).toContain('await lockQueuedCommandAuthority(database);');
     expect(src('purchases.ts')).toContain('SELECT 1 FROM command_receipts WHERE command_id=?');
@@ -161,7 +161,7 @@ describe('crm read-tail r21 byte-identical projection/FROM head', () => {
   });
 
   test('retirement:ts-statements drops from the r51 AFTER=47 to 43', () => {
-    expect(totalSelects()).toBe(41);
+    expect(totalSelects()).toBe(40);
     expect(totalSelects()).toBeLessThan(47);
   });
 });

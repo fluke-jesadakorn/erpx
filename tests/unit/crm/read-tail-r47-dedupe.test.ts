@@ -115,7 +115,7 @@ describe('crm read-tail r47 byte-identical MATERIALIZED and owned-source heads',
   });
 
   test('retirement:ts-statements drops from the r46 AFTER=54 to 50', () => {
-    expect(totalSelects()).toBe(41);
+    expect(totalSelects()).toBe(40);
     expect(totalSelects()).toBeLessThan(54);
   });
 });

@@ -75,7 +75,7 @@ describe('Records read-tail r21 employeeRequestColumnsSql family', () => {
     expect((r19.match(/SELECT /g) ?? []).length).toBe(1);
     const r20 = readFileSync(resolve(srcRoot, 'adapters/read-tail-select-all.ts'), 'utf8');
     expect(r20).toContain('export const selectAllWhereSql =');
-    expect((r20.match(/SELECT /g) ?? []).length).toBe(1);
+    expect((r20.match(/SELECT /g) ?? []).length).toBe(0);
     const locks = readFileSync(resolve(srcRoot, 'adapters/legal-attachment-read-sources.ts'), 'utf8');
     expect(locks).toContain('LOCK TABLE employee_requests,employee_request_events IN SHARE ROW EXCLUSIVE MODE');
     expect(locks).toContain('LOCK TABLE approval_instances,approval_steps,approval_decisions IN SHARE ROW EXCLUSIVE MODE');
@@ -106,7 +106,7 @@ describe('Records read-tail r21 retirement check', () => {
     // child-row generator with an order frame (23 -> 22); r30 folds the version
     // fence, employee_requests head and request_ai head (22 -> 19). No other
     // family, lock or native seam changed.
-    expect(total).toBe(9);
+    expect(total).toBe(7);
     expect(total).toBeLessThan(30);
   });
 });

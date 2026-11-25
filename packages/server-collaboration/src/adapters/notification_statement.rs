@@ -157,6 +157,25 @@ pub fn plan_values_statement(
     kind: &str,
     input: &NotificationStatementInput,
 ) -> Option<Result<NotificationStatement, BusinessError>> {
+    // The unresolved-event count keeps the caller's closed type list: the owner
+    // renders exactly one placeholder per ordered bind (no caller SQL accepted).
+    if kind == "inbox_unresolved_metrics" {
+        return match values_from_json(input) {
+            Ok(values) => {
+                let placeholders = std::iter::repeat("?")
+                    .take(values.len())
+                    .collect::<Vec<_>>()
+                    .join(",");
+                Some(Ok(NotificationStatement {
+                    sql: format!(
+                        "SELECT count(*)::int count FROM inbox_events WHERE source_type NOT IN ({placeholders})"
+                    ),
+                    values,
+                }))
+            }
+            Err(_) => Some(Err(invalid())),
+        };
+    }
     let sql = match kind {
         "legal_draft_set" => "INSERT INTO attachment_sets(id,company_id,branch_id,department_id,target_type,target_id,\
  component_kind,component_ref,purpose_key,expected_target_version,policy_version,classification,\
@@ -490,6 +509,16 @@ pub fn plan_values_statement(
         "inbox_event_by_key" => "SELECT id FROM inbox_events WHERE company_id=? AND event_key=?",
         "inbox_notice_exists" => "SELECT id FROM inbox_notices WHERE id=? AND company_id=?",
         "inbox_recent_notice_count" => "SELECT count(*)::int n FROM inbox_notices WHERE company_id=? AND sender_user_id=? AND created_at>?",
+        "inbox_pending_targets" => "SELECT notice_id,company_id,user_id FROM inbox_notice_targets WHERE delivered_at IS NULL ORDER BY notice_id,user_id LIMIT 50",
+        "inbox_pending_metrics" => "SELECT count(*)::int count,min(n.created_at) oldest\n    FROM inbox_notice_targets t JOIN inbox_notices n ON n.id=t.notice_id WHERE t.delivered_at IS NULL",
+        "inbox_candidate" => "SELECT d.*,e.source_type,e.source_id,e.source_version,e.category,e.preview FROM inbox_deliveries d\n    JOIN inbox_events e ON e.id=d.event_id WHERE d.id=? AND d.company_id=? AND d.user_id=?",
+        "inbox_delivery_native_owned" => "SELECT e.source_type,CASE WHEN e.source_type IN('field_service_order','operational_exception','collaboration_action','support_ticket','stock_count','invoice','journal') AND erpx_field_push_source(e.source_type,e.source_id,e.company_id) THEN 1 ELSE 0 END native_owned FROM inbox_deliveries d JOIN inbox_events e ON e.id=d.event_id AND e.company_id=d.company_id WHERE d.id=? AND d.company_id=? AND d.user_id=?",
+        // Fixed page-projection fragments. The owner owns their exact bytes and
+        // placeholder order; the caller only supplies its registered dynamic
+        // owner predicates and binds around them.
+        "inbox_native_rows_cte" => "WITH native_rows AS (SELECT * FROM jsonb_to_recordset(?::jsonb) AS n(id text,event_id text,company_id text,user_id text,delivered_at bigint,read_at bigint,archived_at bigint,source_type text,source_id text,source_version bigint,category text,preview text,native_field_item jsonb)),legacy_rows AS (",
+        "inbox_candidate_source" => "SELECT d.id,d.event_id,d.company_id,d.user_id,d.delivered_at,d.read_at,d.archived_at,e.source_type,e.source_id,e.source_version,e.category,e.preview,NULL::jsonb AS native_field_item\n  FROM inbox_deliveries d JOIN inbox_events e ON e.id=d.event_id\n  WHERE d.company_id=? AND d.user_id=? AND d.archived_at IS NULL",
+        "inbox_combined_order" => "SELECT * FROM combined ORDER BY delivered_at DESC,id DESC LIMIT 100",
         _ => return None,
     };
     Some(
@@ -624,6 +653,84 @@ mod tests {
             }
         }
         assert!(super::plan_values_statement("inbox.unknown", &read_input("inbox.unknown", &[])).is_none());
+    }
+
+    #[test]
+    fn inbox_fanout_and_projection_kinds_render_the_retired_sql_byte_for_byte() {
+        let cases = [
+            (
+                "inbox_pending_targets",
+                "SELECT notice_id,company_id,user_id FROM inbox_notice_targets WHERE delivered_at IS NULL ORDER BY notice_id,user_id LIMIT 50",
+                vec![],
+            ),
+            (
+                "inbox_pending_metrics",
+                "SELECT count(*)::int count,min(n.created_at) oldest\n    FROM inbox_notice_targets t JOIN inbox_notices n ON n.id=t.notice_id WHERE t.delivered_at IS NULL",
+                vec![],
+            ),
+            (
+                "inbox_candidate",
+                "SELECT d.*,e.source_type,e.source_id,e.source_version,e.category,e.preview FROM inbox_deliveries d\n    JOIN inbox_events e ON e.id=d.event_id WHERE d.id=? AND d.company_id=? AND d.user_id=?",
+                vec!["delivery-1", "company-1", "user-1"],
+            ),
+            (
+                "inbox_delivery_native_owned",
+                "SELECT e.source_type,CASE WHEN e.source_type IN('field_service_order','operational_exception','collaboration_action','support_ticket','stock_count','invoice','journal') AND erpx_field_push_source(e.source_type,e.source_id,e.company_id) THEN 1 ELSE 0 END native_owned FROM inbox_deliveries d JOIN inbox_events e ON e.id=d.event_id AND e.company_id=d.company_id WHERE d.id=? AND d.company_id=? AND d.user_id=?",
+                vec!["delivery-1", "company-1", "user-1"],
+            ),
+        ];
+        for (kind, sql, values) in cases {
+            let planned = super::plan_values_statement(kind, &read_input(kind, &values))
+                .expect("registered kind")
+                .expect("planned statement");
+            assert_eq!(planned.sql, sql, "{kind}");
+            assert_eq!(planned.sql.matches('?').count(), values.len(), "{kind}");
+            assert_eq!(planned.values.len(), values.len(), "{kind}");
+        }
+        let types = ["notice", "calendar_appointment", "calendar_removed"];
+        let planned = super::plan_values_statement(
+            "inbox_unresolved_metrics",
+            &read_input("inbox_unresolved_metrics", &types),
+        )
+        .expect("registered kind")
+        .expect("planned statement");
+        assert_eq!(
+            planned.sql,
+            "SELECT count(*)::int count FROM inbox_events WHERE source_type NOT IN (?,?,?)"
+        );
+        assert_eq!(planned.values.len(), types.len());
+        for (actual, expected) in planned.values.iter().zip(types.iter()) {
+            assert_eq!(actual.as_str(), Some(*expected));
+        }
+    }
+
+    #[test]
+    fn inbox_page_projection_fragments_are_owner_owned_bytes() {
+        let native = serde_json::json!([{ "id": "delivery-1" }]).to_string();
+        let cases = [
+            (
+                "inbox_native_rows_cte",
+                "WITH native_rows AS (SELECT * FROM jsonb_to_recordset(?::jsonb) AS n(id text,event_id text,company_id text,user_id text,delivered_at bigint,read_at bigint,archived_at bigint,source_type text,source_id text,source_version bigint,category text,preview text,native_field_item jsonb)),legacy_rows AS (",
+                vec![native.as_str()],
+            ),
+            (
+                "inbox_candidate_source",
+                "SELECT d.id,d.event_id,d.company_id,d.user_id,d.delivered_at,d.read_at,d.archived_at,e.source_type,e.source_id,e.source_version,e.category,e.preview,NULL::jsonb AS native_field_item\n  FROM inbox_deliveries d JOIN inbox_events e ON e.id=d.event_id\n  WHERE d.company_id=? AND d.user_id=? AND d.archived_at IS NULL",
+                vec![],
+            ),
+            (
+                "inbox_combined_order",
+                "SELECT * FROM combined ORDER BY delivered_at DESC,id DESC LIMIT 100",
+                vec![],
+            ),
+        ];
+        for (kind, sql, values) in cases {
+            let planned = super::plan_values_statement(kind, &read_input(kind, &values))
+                .expect("registered kind")
+                .expect("planned statement");
+            assert_eq!(planned.sql, sql, "{kind}");
+            assert_eq!(planned.sql.matches('?').count(), values.len(), "{kind}");
+        }
     }
 }
 

@@ -2,9 +2,11 @@ import { describe, expect, test } from 'vitest';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { resourceCalendarByKey } from '../../../packages/server-planning/src/adapters/planning-calendar-source-sql';
-import { planningSelectColumnsFrom } from '../../../packages/server-planning/src/adapters/planning-select-columns-sql';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-planning/src');
+/** Pre-r28 byte oracle for the retired builder; no longer a live query source. */
+const planningSelectColumnsFrom = (columns: string, rest: string) =>
+  `SELECT ${columns} FROM ${rest}`;
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const selectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;
 
@@ -36,13 +38,10 @@ describe('Planning read-tail r23 resource-calendar point-lookup fold', () => {
   test('wrapper delegates and the generalized builder owns the single read literal', () => {
     const wrapper = src('planning-calendar-source-sql.ts');
     expect(selectCount(wrapper)).toBe(0);
-    expect(wrapper).toContain("planningSelectColumnsFrom(columns, 'production_resource_calendar WHERE resource_id=? AND work_date=?')");
+    expect(wrapper).toContain("planningPackageFactRows(columns, 'production_resource_calendar', 'resource_id=? AND work_date=?')");
     expect(wrapper).not.toContain('SELECT ');
     expect(wrapper.match(/export const resourceCalendarByKey =/g) ?? []).toHaveLength(1);
-    const head = src('planning-select-columns-sql.ts');
-    expect(selectCount(head)).toBe(1);
-    expect(head).toContain('`SELECT ${columns} FROM ${rest}`');
-    expect(head).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
+    expect(existsSync(resolve(srcRoot, 'adapters/planning-select-columns-sql.ts'))).toBe(false);
   });
 
   test('both callers keep composing the wrapper with unchanged binds', () => {
@@ -62,7 +61,7 @@ describe('Planning read-tail r23 resource-calendar point-lookup fold', () => {
   });
 
   test('r1-r22 helpers, the single lock statement and native readers stay untouched', () => {
-    expect(src('planning-select-columns-sql.ts')).toContain('export const planningSelectColumnsFrom =');
+    expect(existsSync(resolve(srcRoot, 'adapters/planning-select-columns-sql.ts'))).toBe(false);
     expect(readdirSync(resolve(srcRoot, 'adapters'))).not.toContain('planning-select-from-sql.ts');
     expect(src('planning-package-fact-sql.ts')).toContain('export const planningPackageFactRows =');
     expect(src('planning-guard-sql.ts')).toContain('export const productionResourcesExists =');
@@ -110,7 +109,7 @@ describe('Planning read-tail r23 resource-calendar point-lookup fold', () => {
     walk(srcRoot);
     // r24 folded the scoped single-row family into the single-line projection/FROM builder (15 -> 14).
     // r25 folded the scoped branch-list family into the single-line projection/FROM builder (14 -> 13).
-    expect(total).toBe(12);
+    expect(total).toBe(11);
     expect(total).toBeLessThan(16);
   });
 });
