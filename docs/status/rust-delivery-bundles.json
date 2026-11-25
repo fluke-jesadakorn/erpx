@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12782,
+    "revision": 12786,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -187058,7 +187058,7 @@
         "owner": "inventory",
         "title": "inventory read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -187069,22 +187069,37 @@
         "resources": [
           "owner:inventory"
         ],
-        "claim": {
-          "runId": "run-20261125-d",
-          "agentId": "wH4n171",
-          "claimedAt": "2026-11-25T00:36:13.142Z",
-          "heartbeatAt": "2026-11-25T00:44:22.729Z",
-          "expiresAt": "2026-11-25T01:14:22.729Z",
-          "generation": 174
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-inventory/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "c8978ea50",
+            "owner": "inventory",
+            "before": 303,
+            "after": 302,
+            "note": "inventory_rd_landed_cost_detail_lines kind; one 1-bind template retired; caller decode/gate unchanged. Cargo lib 53; vitest 15."
+          },
+          {
+            "command": "cargo lib + targeted vitest + scoped tsc",
+            "result": "passed",
+            "sourceSha": "c8978ea50"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Landed-cost detail lines native kind (-1): 303->302. BEFORE=303.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "lead-opencode",
+          "at": "2026-11-25T00:49:08.496Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -187513,17 +187528,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 10,
+        "in_progress": 9,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1513,
+        "blocked": 1514,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 174,
-    "updatedAt": "2026-11-25T00:47:51.842Z",
+    "updatedAt": "2026-11-25T00:49:08.499Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
