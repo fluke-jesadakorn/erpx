@@ -1,3 +1,4 @@
+import { assetAccountJoinByIdSql } from './finance-read-tail-r59-sql';
 import { versionStatusGuardSql } from './finance-read-tail-r52-sql';
 import { financeReferenceListSql } from './finance-read-tail-r42-sql';
 import { tableByIdSql } from './finance-read-tail-r49-sql';
@@ -47,7 +48,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
     const repository: AssetPolicyRepository<SqlStatement> = { async asset(id: string, companyId: string) {
             const db = read();
             return db
-                .prepare("SELECT a.*,c.chart_id FROM finance_assets a JOIN finance_accounts c ON c.id=a.account_id WHERE a.id=? AND a.company_id=?")
+                .prepare(assetAccountJoinByIdSql(" AND a.company_id=?"))
                 .bind(id, companyId)
                 .first<Row>();
         }, async pendingDisposal(id: string) {
@@ -212,7 +213,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async disposalAsset(assetId: string, companyId: string) {
             const db = read();
             return db
-                .prepare("SELECT a.*,c.chart_id FROM finance_assets a JOIN finance_accounts c ON c.id=a.account_id WHERE a.id=? AND a.company_id=? AND a.status='in_service'")
+                .prepare(assetAccountJoinByIdSql(" AND a.company_id=? AND a.status='in_service'"))
                 .bind(assetId, companyId)
                 .first<Row>();
         }, async disposalPendingRun(assetId: string) {
