@@ -120,11 +120,14 @@ export const socialPostDraftFieldGuard=(tail:string)=>`SELECT 1 FROM social_post
  * current-lease readers in social-agent.ts. Only the trailing state predicate
  * varies; the fixed `id=?` prefix, bind order and lock semantics stay unchanged. */
 export const socialAgentReplyStateGuard=(tail:string)=>`EXISTS(SELECT 1 FROM social_agent_replies WHERE id=? AND ${tail})`;
-/** Byte-identical messaging owner/version existence guard shared by the team-owner
- * and owner-version readers in messaging.ts. Only the table and trailing version
- * predicate vary; the fixed `id=? AND company_id=? AND owner_id=?` prefix, bind
+/** Byte-identical owner/version existence guard shared by the team-owner,
+ * owner-version and attachment readers. Only the table, guarded column and
+ * trailing predicate vary; the fixed `id=? AND company_id=?` prefix, bind
  * order and lock semantics stay unchanged. */
-export const messagingOwnerGuard=(table:string,tail:string)=>`EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND owner_id=?${tail})`;
+export const ownerVersionGuard=(table:string,col:string,tail:string)=>`EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND ${col}=?${tail})`;
+/** Retained r26 messaging wrapper: renders the `owner_id` column through
+ * ownerVersionGuard so existing consumers and bind order stay unchanged. */
+export const messagingOwnerGuard=(table:string,tail:string)=>ownerVersionGuard(table,'owner_id',tail);
 /** Byte-identical AI-phase image projection shared by the raw and redacted
  * readers in work-social-purchases.ts. Only the per-field `-ARRAY[...]`
  * redaction suffixes vary; the query heads, bind order and lock semantics
@@ -166,11 +169,9 @@ export const messagingLatestMessage=(projection:string)=>`(SELECT ${projection} 
  * fixed `id=? AND company_id=? AND actor_id=?` prefix, bind order and lock
  * semantics stay unchanged. */
 export const socialAgentReplyById=(cols:string)=>`SELECT ${cols} FROM social_agent_replies WHERE id=? AND company_id=? AND actor_id=?`;
-/** Byte-identical attachment owner-version guard shared by the portal-facts and
- * service-facts readers. Only the target table and trailing version predicate
- * vary; the fixed `id=? AND company_id=? AND version=?` prefix, bind order and
- * lock semantics stay unchanged. */
-export const attachmentVersionGuard=(table:string,tail:string)=>`EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND version=?${tail})`;
+/** Retained r33 attachment wrapper: renders the `version` column through
+ * ownerVersionGuard so existing consumers and bind order stay unchanged. */
+export const attachmentVersionGuard=(table:string,tail:string)=>ownerVersionGuard(table,'version',tail);
 /** Byte-identical command-receipt by command-id read shared across the replay and
  * receipt-image readers in work-social-purchases.ts. Only the projected column
  * list and table alias vary; the fixed `command_id=?` predicate, bind order and
