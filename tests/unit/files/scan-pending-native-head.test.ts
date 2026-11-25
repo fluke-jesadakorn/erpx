@@ -58,7 +58,7 @@ describe('Files scan-pending bind witness is native-owned', () => {
     }
   });
 
-  test('retirement:ts-statements is 207, strictly below the scan-pending BEFORE=210 baseline', () => {
+  test('retirement:ts-statements is 204, strictly below the scan-pending BEFORE=210 baseline', () => {
     let literal = 0, total = 0, broad = 0;
     for (const path of tsFiles(srcRoot)) {
       const text = readFileSync(path, 'utf8');
@@ -66,9 +66,9 @@ describe('Files scan-pending bind witness is native-owned', () => {
       total += (text.match(/SELECT\s/g) ?? []).length;
       broad += (text.match(/\b(SELECT|INSERT|UPDATE|DELETE)\b/g) ?? []).length;
     }
-    expect(literal).toBe(207);
-    expect(total).toBe(208);
-    expect(broad).toBe(226);
+    expect(literal).toBe(204);
+    expect(total).toBe(205);
+    expect(broad).toBe(223);
     expect(literal).toBeLessThan(210);
     expect(total).toBeLessThan(211);
   });

@@ -470,7 +470,7 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
         `export const ${kind} = '${wire}';`,
       );
     }
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 48);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 49);');
     expect(plans).toContain('fn schema_ready_probes_keep_their_exact_literals()');
     expect(readFileSync(adapters('read-tail-r15-dedupe-sql.ts'), 'utf8')).not.toContain('to_regclass');
   });
@@ -507,7 +507,7 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
     expect(plans).toContain(`"${sql}"`);
     expect(plans).toContain('kind: RD_LEGACY_ATTACHMENT_SCOPE,');
     expect(plans).toContain('fn legacy_attachment_scope_keeps_its_exact_literal()');
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 48);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 49);');
     expect(readFileSync(adapters('native-commerce-read.ts'), 'utf8')).toContain(
       "export const RD_LEGACY_ATTACHMENT_SCOPE = 'commerce_rd_legacy_attachment_scope';",
     );
@@ -767,5 +767,21 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
     expect(source).toContain('nativeCommerceReadFirst<{id:string}>(RD_PMS_WAREHOUSE_ID,[facts.warehouseId,facts.companyId,facts.branchId],db)');
     expect(source).toContain("nativeCommerceReadFirst<{ '1': number }>(RD_PMS_PRODUCT_WAREHOUSE_SCOPE,[facts.warehouseId,facts.productId,facts.companyId,facts.branchId],db)");
     expect(source).toContain('FOR UPDATE');
+  });
+
+  it('owns the attachment product source image as a native kind', async () => {
+    const sql = 'SELECT to_jsonb(p)::text image FROM commerce_products p WHERE p.id=? AND p.company_id=?';
+    const plans = readFileSync(adapters('native_commerce_read_sql.rs'), 'utf8');
+    expect(plans).toContain('pub const RD_ATTACHMENT_PRODUCT_IMAGE: &str = "commerce_rd_attachment_product_image";');
+    expect(plans).toContain(`"${sql}"`);
+    expect(plans).toContain('kind: RD_ATTACHMENT_PRODUCT_IMAGE,');
+    expect(plans).toContain('fn attachment_product_image_keeps_its_exact_literal()');
+    expect(readFileSync(adapters('native-commerce-read.ts'), 'utf8')).toContain(
+      "export const RD_ATTACHMENT_PRODUCT_IMAGE = 'commerce_rd_attachment_product_image';",
+    );
+    const source = await readFile(adapters('attachment-read-sources.ts'), 'utf8');
+    expect(source).not.toContain(sql);
+    expect(source).toContain('nativeCommerceReadFirst<string>(RD_ATTACHMENT_PRODUCT_IMAGE,[id,companyId],database)');
+    expect(source).toContain('commerceAttachmentPosSourceImage(database,companyId,id)');
   });
 });

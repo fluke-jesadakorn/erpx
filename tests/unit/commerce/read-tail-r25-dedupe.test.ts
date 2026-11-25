@@ -106,13 +106,13 @@ describe('Commerce read-tail r25 settlement line-head retirement', () => {
     expect(read('commerce.ts')).toContain("'SELECT id FROM commerce_returns WHERE id=? FOR UPDATE'");
     expect(read('commerce-goods-accounting.ts')).toContain('"SELECT id FROM commerce_fulfillments WHERE id=? FOR UPDATE"');
     expect(read('commerce-goods-accounting.ts')).toContain('SELECT * FROM commerce_invoice_goods_carrying WHERE invoice_id=? AND company_id=?');
-    expect(read('native_commerce_read_sql.rs')).toContain('assert_eq!(STATEMENTS.len(), 48);');
+    expect(read('native_commerce_read_sql.rs')).toContain('assert_eq!(STATEMENTS.len(), 49);');
     // The two source witnesses keep their IN SHARE MODE lock statements byte-for-byte.
     expect(read('sales-package-sources.ts')).toContain('LOCK TABLE commerce_orders,commerce_order_lines,commerce_fulfillments,commerce_fulfillment_lines,commerce_fulfillment_evidence,commerce_returns,commerce_return_lines,commerce_return_lot_allocations,commerce_return_stock_moves,commerce_goods_valuations,commerce_invoice_goods_carrying,commerce_stock,commerce_stock_moves,commerce_warehouses,commerce_products,commerce_settings IN SHARE MODE');
     expect(read('supply-package-sources.ts')).toContain('LOCK TABLE commerce_orders,commerce_order_lines,commerce_fulfillments,commerce_fulfillment_lines,commerce_returns,commerce_return_lines,commerce_warehouses,commerce_products,commerce_goods_valuations,commerce_invoice_goods_carrying IN SHARE MODE');
   });
 
-  test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 368 (before 371)', () => {
+  test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 367 (before 368)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -122,7 +122,7 @@ describe('Commerce read-tail r25 settlement line-head retirement', () => {
       }
     };
     walk(src);
-    expect(total).toBe(368);
+    expect(total).toBe(367);
     expect((read('sales-package-sources.ts').match(/SELECT /g) ?? []).length).toBe(11);
     expect((read('supply-package-sources.ts').match(/SELECT /g) ?? []).length).toBe(7);
     expect((read('read-tail-r25-dedupe-sql.ts').match(/SELECT /g) ?? []).length).toBe(1);
@@ -145,7 +145,7 @@ describe('Commerce read-tail r25 settlement line-head retirement', () => {
     // Sales/Procurement/Finance package consumers outside this task cut over.
     expect(plans).toContain('pub const SOURCE_FRAGMENTS: &[NativeCommerceReadStatement] = &[');
     expect(plans).toContain('pub fn source_fragment(kind: &str)');
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 48);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 49);');
     expect(plans).toContain('fn settlement_line_source_fragments_keep_their_exact_literals()');
     expect(norm(read('sales-package-sources.ts'))).toContain(norm(`lines:commerceSettlementLineSql("${SALES_TAIL}")`));
     expect(norm(read('supply-package-sources.ts'))).toContain(norm(`lines:commerceSettlementLineSql("${SUPPLY_TAIL}")`));

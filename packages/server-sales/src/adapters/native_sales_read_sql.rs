@@ -321,6 +321,17 @@ const READ_PACKAGE_SETTLEMENT_ECOMMERCE: NativeSalesReadStatement = NativeSalesR
     scope: "holding",
 };
 
+/// Native successor of the TypeScript owner-name projection fragment.
+/// Fixed HR people source, no binds; byte-identical to the retired literal.
+pub const RD_OWNER_NAME_PROJECTION: &str = "sales_rd_owner_name_projection";
+const SQL_OWNER_NAME_PROJECTION: &str = "(SELECT legal_name FROM (SELECT \"id\",\"user_id\",\"company_id\",\"legal_name\",\"preferred_name\",\"email\",\"phone\",\"country_code\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"merged_into_id\",\"work_email\",\"work_phone\" FROM hr_people) hr_people WHERE company_id=c.company_id AND user_id=c.owner_id AND merged_into_id IS NULL LIMIT 1) owner_name";
+const READ_OWNER_NAME_PROJECTION: NativeSalesReadStatement = NativeSalesReadStatement {
+    kind: RD_OWNER_NAME_PROJECTION,
+    sql: SQL_OWNER_NAME_PROJECTION,
+    bind_count: 0,
+    scope: "holding",
+};
+
 const READS: &[NativeSalesReadStatement] = &[
     READ_PRICE_LIST_ACTIVE,
     READ_PRICE_LIST_ITEMS_ACTIVE,
@@ -355,6 +366,8 @@ const READS: &[NativeSalesReadStatement] = &[
 
     READ_PACKAGE_SETTLEMENT_SALES,
     READ_PACKAGE_SETTLEMENT_ECOMMERCE,
+
+    READ_OWNER_NAME_PROJECTION,
 
 ];
 
@@ -736,8 +749,20 @@ mod tests {
     }
 
     #[test]
+    fn owner_name_projection_is_allow_listed_and_byte_stable() {
+        let read = read_statement(RD_OWNER_NAME_PROJECTION).expect("read kind");
+        assert_eq!(read.kind, "sales_rd_owner_name_projection");
+        assert_eq!(read.bind_count, 0);
+        assert_eq!(read.sql.matches('?').count(), 0);
+        assert_eq!(read.sql.len(), 347);
+        assert!(read.sql.starts_with("(SELECT legal_name FROM ("));
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_OWNER_NAME_PROJECTION));
+    }
+
+    #[test]
     fn only_owner_read_kinds_are_registered() {
-        assert_eq!(READS.len(), 26);
+        assert_eq!(READS.len(), 27);
         assert!(READS.iter().all(|read| is_read(read.kind)));
         assert!(!is_read("sales_price_lists"));
         assert!(!is_read("SELECT 1"));

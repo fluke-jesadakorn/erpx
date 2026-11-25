@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
+import { crmSelectBodySql } from '../../../packages/server-crm/src/adapters/read-tail-r46-sql';
 import { crmScalarSubquerySql } from '../../../packages/server-crm/src/adapters/read-tail-r43-sql';
 
 const owner = resolve(__dirname, '../../../packages/server-crm/src');
@@ -53,10 +54,10 @@ describe('crm read-tail r43 byte-identical scalar-subquery reuse', () => {
     expect(rendered).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
   });
 
-  test('owns exactly one renderer with a single read token', () => {
+  test('owns one renderer with no read token after the select-body fold', () => {
     const helper = src('read-tail-r43-sql.ts');
     expect((helper.match(/crmScalarSubquerySql =/g) ?? []).length).toBe(1);
-    expect((helper.match(/SELECT /g) ?? []).length).toBe(1);
+    expect((helper.match(/SELECT /g) ?? []).length).toBe(0);
   });
 
   test('every retired site uses the renderer and keeps its wrapper', () => {
@@ -140,8 +141,19 @@ describe('crm read-tail r43 byte-identical scalar-subquery reuse', () => {
     ] as const) expect(src(file)).toContain(token);
   });
 
-  test('retirement:ts-statements drops from the r42 AFTER=61 to 57 (r45)', () => {
-    expect(totalSelects()).toBe(33);
-    expect(totalSelects()).toBeLessThan(61);
+  test.each([
+    ['legal_name', '(hr_people) hr_people WHERE company_id=l.company_id AND user_id=l.owner_id LIMIT 1'],
+    ['n.display_name', '(organization_nodes) n WHERE n.id=l.account_id AND n.company_id=l.company_id'],
+    ['journal_id', 'finance_journal_lines WHERE id=cost.journal_line_id'],
+  ])('the scalar subquery folds into the owner select-body plan for %#', (projection, body) => {
+    expect(crmScalarSubquerySql(projection, body)).toBe(
+      `(${crmSelectBodySql(`${projection} FROM ${body}`)})`,
+    );
+    expect(crmScalarSubquerySql(projection, body)).toBe(`(SELECT ${projection} FROM ${body})`);
+  });
+
+  test('retirement:ts-statements folds the scalar-subquery head (33 -> 32)', () => {
+    expect(totalSelects()).toBe(32);
+    expect(totalSelects()).toBeLessThan(33);
   });
 });

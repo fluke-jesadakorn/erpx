@@ -102,11 +102,16 @@ describe('pms read-tail r36 point-read head dedupe', () => {
       // The guest-account evidence call site was cut over to native lane 19;
       // its byte oracle above is retained, but it no longer routes in TS.
       if (oracle.file === 'adapters/guest-account-finance-evidence.ts') continue;
+      // The attachment owner-fact call site moved to the native plan; its
+      // byte oracle is retained but no longer routes in TS.
+      if (oracle.routed.includes('ownerFact')) continue;
       const text = await src(oracle.file);
       expect(text).toContain(oracle.routed);
     }
     const facts = await src('adapters/attachments-finance-facts.ts');
-    expect(facts.split('pmsRecordPropertyPointHeadSql(').length - 1).toBe(2);
+    expect(facts.split('pmsRecordPropertyPointHeadSql(').length - 1).toBe(1);
+    expect(facts).toContain('PMS_RD_ATTACHMENT_OWNER_FACT');
+    expect(facts).toContain('PMS_RD_ATTACHMENT_PROPERTY_OWNER');
     expect(facts).not.toContain(REC.exists);
     expect(facts).not.toContain(REC.ownerFact);
     const guest = await src('adapters/guest-account-finance-evidence.ts');

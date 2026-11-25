@@ -20,7 +20,6 @@ const PRIOR_HELPERS = [
   'read-tail-r28-source-sql.ts', 'read-tail-r29-source-sql.ts', 'read-tail-r30-source-sql.ts',
   'read-tail-r31-source-sql.ts', 'read-tail-r32-source-sql.ts', 'read-tail-r33-source-sql.ts',
   'read-tail-r34-source-sql.ts', 'commerce-delivery-dedupe-sql.ts',
-  'preservation-presence-dedupe-sql.ts',
   'scan-pending-dedupe-sql.ts', 'social-draft-image-guard-sql.ts',
   'social-upload-cleanup-rows-sql.ts',
 ] as const;
@@ -139,8 +138,8 @@ describe('Files read-tail r35 parameterized family', () => {
     // r42 left 248; r43 lowers 248->246 (two SELECT-bearing shared heads folded).
     // r44 lowers 246->242 (three more shared heads folded).
     // r46 folds two closed-union heads (orphan-preservation event, draft/bound count): 239->237.
-    expect(literal).toBe(207);
-    expect(total).toBe(208);
+    expect(literal).toBe(204);
+    expect(total).toBe(205);
     expect(literal).toBeLessThan(260);
     expect(total).toBeLessThan(261);
   });

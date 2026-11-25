@@ -981,7 +981,7 @@ export function createPosStripe(ports: {
                 if (!sale || sale.state === 'completed')
                     return false;
                 const paid = await tx.readPosPayments10({ id: sale.id });
-                if (num(paid!, 'n') !== num(sale, 'total_minor'))
+                if (num(paid!, 'amount') !== num(sale, 'total_minor'))
                     return true;
                 await tx.completeSale(sale, 'system:stripe', payload.accountingDate);
                 return false;

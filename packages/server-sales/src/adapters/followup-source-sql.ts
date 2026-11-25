@@ -7,7 +7,6 @@ import {scopeTuple} from './read-tail-r29-sql';
  * fixed tokens; no caller input enters the rendered statement. */
 export const tableRead=(columns:string,table:string)=>`SELECT ${columns} FROM ${table}`;
 
-export const ownerNameProjection=`(SELECT legal_name FROM (${people_payrollProjectionSources.hr_people}) hr_people WHERE company_id=c.company_id AND user_id=c.owner_id AND merged_into_id IS NULL LIMIT 1) owner_name`;
 export const actorScopeTuple=scopeTuple('actor');
 /** One parameterized assignment-authority scope-read family. The authority
  * predicate, scope tuple, relation and optional extra guard are owner-local

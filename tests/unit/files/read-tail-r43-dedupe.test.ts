@@ -43,7 +43,6 @@ const PRIOR_HELPERS = [
   'read-tail-r37-source-sql.ts', 'read-tail-r38-source-sql.ts', 'read-tail-r40-source-sql.ts',
   'read-tail-r41-source-sql.ts', 'read-tail-r42-source-sql.ts',
   'commerce-delivery-dedupe-sql.ts',
-  'preservation-presence-dedupe-sql.ts',
   'social-draft-image-guard-sql.ts', 'social-upload-cleanup-rows-sql.ts',
 ] as const;
 
@@ -145,7 +144,7 @@ describe('Files read-tail r43 byte-oracle dedupe', () => {
     }
   });
 
-  test('retirement:ts-statements is 207, strictly below the r42 BEFORE=248 (248->246->242)', () => {
+  test('retirement:ts-statements is 204, strictly below the r42 BEFORE=248 (248->246->242)', () => {
     let literal = 0, total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -167,8 +166,8 @@ describe('Files read-tail r43 byte-oracle dedupe', () => {
     // Native lanes 21+22 retire inlined statements from the owner tree; lane 21
     // wave 2 also retires the two finance-tax-signature reads. Pins equal the
     // current worktree count: 221->211 (spaced) and 222->212 (bare).
-    expect(literal).toBe(207);
-    expect(total).toBe(208);
+    expect(literal).toBe(204);
+    expect(total).toBe(205);
     expect(literal).toBeLessThan(248);
     expect(total).toBeLessThan(249);
   });

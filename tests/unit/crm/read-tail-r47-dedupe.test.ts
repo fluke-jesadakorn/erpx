@@ -125,7 +125,7 @@ describe('crm read-tail r47 byte-identical MATERIALIZED and owned-source heads',
   });
 
   test('retirement:ts-statements folds the MATERIALIZED head (37 -> 36)', () => {
-    expect(totalSelects()).toBe(33);
+    expect(totalSelects()).toBe(32);
     expect(totalSelects()).toBeLessThan(37);
   });
 });

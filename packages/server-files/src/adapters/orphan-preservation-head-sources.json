@@ -1,0 +1,4 @@
+{
+  "presence": "SELECT to_regclass('attachment_orphan_preservations') present",
+  "pending": "SELECT 1 FROM attachment_orphan_preservations p WHERE p.object_key=? AND NOT EXISTS(SELECT 1 FROM attachment_orphan_preservation_events e WHERE e.preservation_id=p.id AND e.event_kind='restored')"
+}

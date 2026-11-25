@@ -1,4 +1,5 @@
 import { nativePosOne, nativePosRun } from './native-owner-write';
+import { nativePosSucceededPaymentTotalStatement } from './native-pos-sale-child';
 import { nativePosConnectionsStatement, nativePosKeyedSettingsCurrencyAccountsStatement, nativePosPaymentByIdCompanyStatement, nativePosPaymentByIdPlainStatement, nativePosPaymentByIdStatement, nativePosPostingJournalStatement, nativePosSaleByIdStatement, nativePosStripeRoutesStatement } from './native-pos-core-statement';
 import { nativePosSettlementBalanceRowStatement, nativePosSettlementBalanceStateStatement, nativePosSettlementPayoutJournalStatement, nativePosSettlementStateStatement, nativePosStripeConnectionsReadyStatement, nativePosStripeEventStatement, nativePosStripePaymentIdStatement, nativePosStripePaymentStatement, nativePosStripeRefundIdStatement, nativePosStripeRefundPaymentStatement, nativePosStripeRefundStatement, nativePosStripeSaleNumberStatement } from './native-pos-stripe-reads';
 import{secret,stripeRequest}from '@erpx/server-pos/adapters/stripe-provider';
@@ -288,7 +289,7 @@ function unit(db: SqlDatabase): PosStripeUnit {
         }) => one(db, 'SELECT * FROM pos_sales WHERE id=? AND company_id=? FOR UPDATE', facts.record_id, facts.company_id),
         readPosPayments10: (facts: {
             id: string | number | boolean | null;
-        }) => one(db, "SELECT COALESCE(SUM(amount_minor-refunded_minor),0) n FROM pos_payments WHERE sale_id=? AND state='succeeded'", facts.id),
+        }) => nativePosSucceededPaymentTotalStatement(db, facts.id),
         readPosRefundPayments3: (facts: {
             record_id: string | number | boolean | null;
             company_id: string | number | boolean | null;

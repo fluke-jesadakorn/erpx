@@ -17,6 +17,7 @@ pub mod asset_descriptor_binding;
 pub mod attachment_scan;
 pub mod scan_pending_head;
 pub mod owner_projection_head;
+pub mod orphan_preservation_head;
 pub mod portal_attachment_http;
 pub mod support_attachment_http;
 pub mod support_attachment_intake;

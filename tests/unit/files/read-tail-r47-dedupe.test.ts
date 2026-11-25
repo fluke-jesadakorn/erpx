@@ -116,7 +116,7 @@ describe('Files read-tail r47 byte-oracle dedupe', () => {
       'read-tail-r35-source-sql.ts', 'read-tail-r38-source-sql.ts', 'read-tail-r40-source-sql.ts',
       'read-tail-r42-source-sql.ts', 'read-tail-r43-source-sql.ts', 'read-tail-r44-source-sql.ts',
       'read-tail-r45-source-sql.ts', 'read-tail-r46-source-sql.ts',
-      'social-upload-cleanup-rows-sql.ts', 'preservation-presence-dedupe-sql.ts',
+      'social-upload-cleanup-rows-sql.ts',
     ]) {
       expect(src(`adapters/${prior}`)).not.toContain(A);
       expect(src(`adapters/${prior}`)).not.toContain(B);
@@ -169,7 +169,7 @@ describe('Files read-tail r47 byte-oracle dedupe', () => {
     expect(leave).toContain('${LEAVE_LEGACY_SOURCE_ID_HEAD_SQL}attachments source');
   });
 
-  test('retirement:ts-statements is 207, strictly below the r46 BEFORE=237 (237->233)', () => {
+  test('retirement:ts-statements is 204, strictly below the r46 BEFORE=237 (237->233)', () => {
     let literal = 0, total = 0;
     for (const path of tsFiles(srcRoot)) {
       const text = readFileSync(path, 'utf8');
@@ -179,8 +179,8 @@ describe('Files read-tail r47 byte-oracle dedupe', () => {
     // Four closed-union families fold two sites into one helper each (-4):
     // draft-link EXISTS witness, cleanup direct-link CTE, cleanup bound-command
     // id witness and leave-evidence legacy source-id projection.
-    expect(literal).toBe(207);
-    expect(total).toBe(208);
+    expect(literal).toBe(204);
+    expect(total).toBe(205);
     expect(literal).toBeLessThan(237);
     expect(total).toBeLessThan(238);
   });

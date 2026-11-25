@@ -43,6 +43,7 @@ export const SALES_RD_CRM_ASSIGNMENT_PLAIN = 'sales_rd_crm_assignment_plain';
 export const SALES_RD_CRM_ASSIGNMENT_ALIASED = 'sales_rd_crm_assignment_aliased';
 export const SALES_RD_PACKAGE_SETTLEMENT_SALES = 'sales_rd_package_settlement_sales';
 export const SALES_RD_PACKAGE_SETTLEMENT_ECOMMERCE = 'sales_rd_package_settlement_ecommerce';
+export const SALES_RD_OWNER_NAME_PROJECTION = 'sales_rd_owner_name_projection';
 
 /** Owner-planned statement. The caller may run it on its own open unit or
  * compose it into a larger read; no SQL is accepted from the caller. */

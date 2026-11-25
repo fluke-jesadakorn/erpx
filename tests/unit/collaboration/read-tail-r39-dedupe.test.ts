@@ -81,7 +81,7 @@ describe('Collaboration read-tail r39 call sites and binds', () => {
 
   test('Rank3 both sites pass their original bodies and keep the JSON bind order', () => {
     expect(draftPolicy).toContain('database.prepare(requestedSourcesSelect(`r.kind,r.id,p.project_id,');
-    expect(purchases).toContain('database.prepare(requestedSourcesSelect(`jsonb_build_object(');
+    expect(purchases).toContain('database.prepare(requestedSourcesSelect(`${project}${projectSocialPurchaseSources}${pms}');
     expect(draftPolicy).not.toContain('database.prepare(`WITH requested AS');
     expect(purchases).not.toContain('database.prepare(`WITH requested AS');
     expect(draftPolicy).toContain('.bind(JSON.stringify(sources),actor.companyId,actor.companyId,actor.companyId)');

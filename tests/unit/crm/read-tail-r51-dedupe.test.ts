@@ -132,7 +132,7 @@ describe('crm read-tail r51 byte-identical lead-select head', () => {
   });
 
   test('retirement:ts-statements folds the r51 head into r42 (41 -> 40)', () => {
-    expect(totalSelects()).toBe(33);
+    expect(totalSelects()).toBe(32);
     expect(totalSelects()).toBeLessThan(41);
   });
 });

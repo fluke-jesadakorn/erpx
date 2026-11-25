@@ -837,6 +837,19 @@ const READ_TICKET_PORTAL_VALID_BINDINGS: NativeSupportReadFragment = NativeSuppo
     tail_bind_counts: &[1, 4, 9],
 };
 
+/// Native successor of the TypeScript static purchase half of the portal
+/// customer public scope. The environment-dependent scheduled-feature half
+/// stays in TypeScript so no deployment policy is frozen here. The fragment
+/// owns the materialized clock CTE and the two history capability probes; it
+/// carries no binds and admits tail [0].
+pub const RD_TICKET_PORTAL_CUSTOMER_PURCHASE: &str = "support_rd_ticket_portal_customer_purchase";
+const SQL_TICKET_PORTAL_CUSTOMER_PURCHASE: &str = "EXISTS(WITH support_portal_clock AS MATERIALIZED(SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint now_ms) SELECT 1 FROM support_portal_clock WHERE ((EXISTS(SELECT 1 FROM (SELECT package_id,package_version FROM company_package_grants WHERE company_id=binding.company_id AND starts_at<=support_portal_clock.now_ms AND state<>'inactive'\n      UNION SELECT package_id,package_version FROM company_package_history_rights WHERE company_id=binding.company_id AND retained_at<=support_portal_clock.now_ms\n        AND retained_at>=0 AND retained_at<=9007199254740991 AND source_grant_version>0 AND source_event_id<>'') purchase WHERE purchase.package_id='support' AND purchase.package_version=1))) AND ((EXISTS(SELECT 1 FROM (SELECT package_id,package_version FROM company_package_grants WHERE company_id=binding.company_id AND starts_at<=support_portal_clock.now_ms AND state<>'inactive'\n      UNION SELECT package_id,package_version FROM company_package_history_rights WHERE company_id=binding.company_id AND retained_at<=support_portal_clock.now_ms\n        AND retained_at>=0 AND retained_at<=9007199254740991 AND source_grant_version>0 AND source_event_id<>'') purchase WHERE purchase.package_id='support-portal' AND purchase.package_version=1) AND EXISTS(SELECT 1 FROM (SELECT package_id,package_version FROM company_package_grants WHERE company_id=binding.company_id AND starts_at<=support_portal_clock.now_ms AND state<>'inactive'\n      UNION SELECT package_id,package_version FROM company_package_history_rights WHERE company_id=binding.company_id AND retained_at<=support_portal_clock.now_ms\n        AND retained_at>=0 AND retained_at<=9007199254740991 AND source_grant_version>0 AND source_event_id<>'') parent WHERE parent.package_id='support' AND parent.package_version IN (1)))))";
+const READ_TICKET_PORTAL_CUSTOMER_PURCHASE: NativeSupportReadFragment = NativeSupportReadFragment {
+    kind: RD_TICKET_PORTAL_CUSTOMER_PURCHASE,
+    sql: SQL_TICKET_PORTAL_CUSTOMER_PURCHASE,
+    tail_bind_counts: &[0],
+};
+
 /// Native successor of the TypeScript full ticket-portal image aggregate.
 /// The caller prefixes the selected-bindings CTE (which owns the variable id
 /// binds) and appends this fixed 0-bind aggregate.
@@ -861,6 +874,7 @@ const READ_TICKET_PORTAL_IMAGE_AGGREGATE_CORE: NativeSupportReadFragment = Nativ
 
 const FRAGMENTS: &[NativeSupportReadFragment] = &[
     READ_TICKET_PORTAL_VALID_BINDINGS,
+    READ_TICKET_PORTAL_CUSTOMER_PURCHASE,
     READ_TICKET_PORTAL_IMAGE_AGGREGATE_FULL,
     READ_TICKET_PORTAL_IMAGE_AGGREGATE_CORE,
 ];
@@ -1412,10 +1426,11 @@ mod tests {
 
     #[test]
     fn ticket_portal_fragments_pin_closed_tail_shapes() {
-        assert_eq!(FRAGMENTS.len(), 3);
+        assert_eq!(FRAGMENTS.len(), 4);
         assert!(read_fragment("support_rd_unknown_fragment").is_none());
         for kind in [
             RD_TICKET_PORTAL_VALID_BINDINGS,
+            RD_TICKET_PORTAL_CUSTOMER_PURCHASE,
             RD_TICKET_PORTAL_IMAGE_AGGREGATE_FULL,
             RD_TICKET_PORTAL_IMAGE_AGGREGATE_CORE,
         ] {
@@ -1428,6 +1443,12 @@ mod tests {
         assert!(valid.sql.starts_with("SELECT binding.* FROM support_ticket_portal_bindings"));
         assert!(valid.sql.contains("JOIN command_receipts birth ON birth.command_id=binding.prepare_command_id"));
         assert!(valid.sql.contains("birth.operation='support.ticket-portal.prepare'"));
+
+        let purchase = read_fragment(RD_TICKET_PORTAL_CUSTOMER_PURCHASE).expect("customer purchase scope");
+        assert_eq!(purchase.tail_bind_counts, &[0]);
+        assert!(purchase.sql.starts_with("EXISTS(WITH support_portal_clock"));
+        assert!(purchase.sql.contains("support_portal_clock.now_ms"));
+        assert_eq!(purchase.sql.matches('?').count(), 0);
 
         let full = read_fragment(RD_TICKET_PORTAL_IMAGE_AGGREGATE_FULL).expect("full image aggregate");
         assert_eq!(full.tail_bind_counts, &[0]);

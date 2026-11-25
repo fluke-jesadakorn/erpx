@@ -63,6 +63,7 @@ export const SUPPORT_RD_CUSTOMER_CONTACT_NOTES = 'support_rd_customer_contact_no
 export const SUPPORT_RD_SERVICE_TEAM_MEMBERS_NAMED = 'support_rd_service_team_members_named';
 export const SUPPORT_RD_WORK_TEAM_COVERAGE = 'support_rd_work_team_coverage';
 export const SUPPORT_RD_TICKET_PORTAL_VALID_BINDINGS = 'support_rd_ticket_portal_valid_bindings';
+export const SUPPORT_RD_TICKET_PORTAL_CUSTOMER_PURCHASE = 'support_rd_ticket_portal_customer_purchase';
 export const SUPPORT_RD_TICKET_PORTAL_IMAGE_AGGREGATE_FULL = 'support_rd_ticket_portal_image_aggregate_full';
 export const SUPPORT_RD_TICKET_PORTAL_IMAGE_AGGREGATE_CORE = 'support_rd_ticket_portal_image_aggregate_core';
 

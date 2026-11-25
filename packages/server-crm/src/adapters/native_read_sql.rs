@@ -116,6 +116,34 @@ mod tests {
     }
 
     #[test]
+    fn scalar_subquery_head_is_the_owner_select_body_plan() {
+        // Canonical native form of the r43 scalar subquery: the select-body
+        // plan over `${projection} FROM ${body}`, wrapped in parentheses. The TS
+        // `crmScalarSubquerySql` delegates on this identity; caller projections,
+        // bodies and wrappers stay verbatim.
+        let select_body = |body: &str| format!("SELECT {body}");
+        let scalar = |projection: &str, body: &str| {
+            format!("({})", select_body(&format!("{projection} FROM {body}")))
+        };
+        let cases = [
+            ("owner name", "legal_name", "(hr_people) hr_people WHERE company_id=l.company_id AND user_id=l.owner_id LIMIT 1"),
+            ("organization display name", "n.display_name", "(organization_nodes) n WHERE n.id=l.account_id AND n.company_id=l.company_id"),
+            ("journal line id", "journal_id", "finance_journal_lines WHERE id=cost.journal_line_id"),
+        ];
+        for (name, projection, body) in cases {
+            let rendered = scalar(projection, body);
+            assert_eq!(rendered, format!("(SELECT {projection} FROM {body})"), "{name}");
+            assert_eq!(rendered.matches("SELECT ").count(), 1, "{name}");
+            let upper = rendered.to_ascii_uppercase();
+            assert!(!upper.contains("INSERT"), "{name}");
+            assert!(!upper.contains("UPDATE"), "{name}");
+            assert!(!upper.contains("DELETE"), "{name}");
+            assert!(!upper.contains("FOR UPDATE"), "{name}");
+            assert!(!upper.contains("LOCK TABLE"), "{name}");
+        }
+    }
+
+    #[test]
     fn company_scope_head_is_the_owner_select_body_plan() {
         // Canonical native form of the r48 company-scope head: the select-body
         // plan over `?::text company_id${tail}`. The TS `crmCompanyScopeSql`

@@ -1,6 +1,7 @@
 import {followupProjectionScope,followupPurchasedAccess,requireFollowupPurchasedRead,filterFollowupPurchasedWork} from '@erpx/server-sales/adapters/followup-purchases';
-import {followupEvidencePrefix,ownerNameProjection} from './followup-source-sql';
+import {followupEvidencePrefix} from './followup-source-sql';
 import {pointRead} from './point-read';
+import {nativeSalesPlan,SALES_RD_OWNER_NAME_PROJECTION} from './native-sales-read';
 import {nativeSalesReadAll,SALES_RD_FOLLOWUP_RECIPIENTS} from './native-sales-read';
 import {followupCustomerOrderTailRead} from './followup-customer-order-tail-read';
 import { commercialOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/commercial-owner-projection-sources";
@@ -28,7 +29,7 @@ const scope="o.company_id=? AND (?::text IS NULL OR o.branch_id=?) AND (?::text 
 const args=(a:WorkContext)=>[a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId];
 // Current account authority and effective employment both determine whether the recipient can take work.
 const ownerEligible=salesRecipientEligibility();
-async function list(db:SqlDatabase,a:WorkContext,id?:string,orderId?:string){const purchase=await followupProjectionScope(db,a,'c');return (await db.prepare(followupCustomerOrderTailRead(commerceProjectionSources.commerce_orders,`c.*,${ownerNameProjection},o.number order_number,o.branch_id,o.department_id,p.name customer_name,CASE WHEN ${ownerEligible} THEN 1 ELSE 0 END owner_eligible`,scope,purchase.where,`(?::text IS NULL OR c.id=?) AND (?::text IS NULL OR c.order_id=?)`,'ORDER BY c.due_date,c.id',` JOIN (${financeProjectionSources.finance_parties}) p ON p.id=o.party_id AND p.company_id=o.company_id`)).bind(...args(a),...purchase.args,id??null,id??null,orderId??null,orderId??null).all<Row>()).results;}
+async function list(db:SqlDatabase,a:WorkContext,id?:string,orderId?:string){const purchase=await followupProjectionScope(db,a,'c'),ownerName=(await nativeSalesPlan(SALES_RD_OWNER_NAME_PROJECTION,[])).sql;return (await db.prepare(followupCustomerOrderTailRead(commerceProjectionSources.commerce_orders,`c.*,${ownerName},o.number order_number,o.branch_id,o.department_id,p.name customer_name,CASE WHEN ${ownerEligible} THEN 1 ELSE 0 END owner_eligible`,scope,purchase.where,`(?::text IS NULL OR c.id=?) AND (?::text IS NULL OR c.order_id=?)`,'ORDER BY c.due_date,c.id',` JOIN (${financeProjectionSources.finance_parties}) p ON p.id=o.party_id AND p.company_id=o.company_id`)).bind(...args(a),...purchase.args,id??null,id??null,orderId??null,orderId??null).all<Row>()).results;}
 
 /** Owner-local recipient read: the axum `command-plan` registry owns the statement;
  * the caller sends only the bounded Company/order identities and runs the planned
@@ -37,7 +38,7 @@ async function recipients(db:SqlDatabase,a:WorkContext,orderId:string){return (a
 function application(a:WorkContext,provided?:SqlDatabase){let resource:Promise<SqlDatabase>|null=provided?Promise.resolve(provided):null;const database=()=>resource??=holdingResources(a.holdingId).then(x=>x.write);return createFollowupApplication({actorId:a.userId,canRead:hasPermission(a,'commerce.read'),canSell:hasPermission(a,'commerce.sales'),canManage:hasPermission(a,'commerce.approve'),authorize:permission=>{requirePermission(a,permission);},clock:{now:()=>Date.now()},repository:async()=>repository(await database(),a)});}
 function repository(write:SqlDatabase,a:WorkContext):FollowupRepository{return {
  rows:(id,orderId)=>list(write,a,id,orderId),
- async evidence(id,from,to,beforeDate){const purchase=await followupProjectionScope(write,a,'c');return await write.prepare(`${followupEvidencePrefix}customer_followups c
+ async evidence(id,from,to,beforeDate){const purchase=await followupProjectionScope(write,a,'c'),ownerName=(await nativeSalesPlan(SALES_RD_OWNER_NAME_PROJECTION,[])).sql;return await write.prepare(`${followupEvidencePrefix}customer_followups c
  JOIN (${commerceProjectionSources.commerce_orders}) o ON o.id=c.order_id AND o.company_id=c.company_id JOIN (${financeProjectionSources.finance_parties}) p ON p.id=o.party_id AND p.company_id=o.company_id
  WHERE ${scope} AND ${purchase.where} AND c.id=? AND o.kind IN ('sales','quote') AND c.status='open' AND c.due_date BETWEEN ? AND ? AND c.due_date<? LIMIT 1`)
  .bind(...args(a),...purchase.args,id,from,to,beforeDate).first<Row>();},

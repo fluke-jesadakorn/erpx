@@ -31,6 +31,8 @@ pub mod scan_pending_head;
 
 pub mod owner_projection_head;
 
+pub mod orphan_preservation_head;
+
 pub mod local_sanitization_io;
 
 pub mod local_quarantine_store;

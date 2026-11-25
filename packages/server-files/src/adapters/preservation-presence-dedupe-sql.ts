@@ -1,5 +1,11 @@
-/** Byte-identical orphan-preservation SQL shared by the read-tail call sites.
- * Text only: every call site still prepares and executes its own statement in
- * its supplied database/transaction and no result is cached here. */
-export const ORPHAN_PRESERVATION_PRESENT_SQL = "SELECT to_regclass('attachment_orphan_preservations') present";
-export const ORPHAN_PRESERVATION_PENDING_SQL = "SELECT 1 FROM attachment_orphan_preservations p WHERE p.object_key=? AND NOT EXISTS(SELECT 1 FROM attachment_orphan_preservation_events e WHERE e.preservation_id=p.id AND e.event_kind='restored')";
+/** Native-owned orphan-preservation witnesses shared by the read-tail call
+ * sites. The statement bytes live in the Rust-owned contract
+ * `orphan-preservation-head-sources.json`; every call site still prepares and
+ * executes its own statement in its supplied database/transaction with its own
+ * bind, and no result is cached here. */
+import contract from "./orphan-preservation-head-sources.json" with { type: "json" };
+
+const heads = contract as { readonly presence: string; readonly pending: string };
+
+export const ORPHAN_PRESERVATION_PRESENT_SQL = heads.presence;
+export const ORPHAN_PRESERVATION_PENDING_SQL = heads.pending;

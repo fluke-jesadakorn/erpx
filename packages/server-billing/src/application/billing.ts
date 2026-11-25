@@ -40,10 +40,6 @@ currentTargetPrice(value0:string | undefined):Promise<{rows:BillingPriceRow[];ro
 sandboxHolding(value0:string):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 approvedRollout(value0:string,value1:string | undefined):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 assignTargetPrice(value0:string,value1:string | undefined,value2:string,value3:string | undefined,value4:number,value5:string,value6:unknown,value7:number):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
-extraTargetAssignment(value0:string,value1:string | undefined):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
-approvedExtraPeriod(value0:string,value1:string | undefined):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
-availableExtraEvidence(value0:string | null | undefined,value1:string):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
-recordTargetExtra(value0:string,value1:string,value2:string | undefined,value3:string | undefined,value4:string | undefined,value5:number | undefined,value6:number | undefined,value7:number | undefined,value8:string | null | undefined,value9:string,value10:unknown,value11:number):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 lockTargetSnapshot(value0:string,value1:string | undefined):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 targetRolloutEligible(value0:string,value1:string | undefined):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 approvedTargetPeriod(value0:string,value1:string | undefined):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
@@ -100,6 +96,7 @@ const nativeActions = new Set<BillingInput["action"]>([
   "verify-provider-cost",
   "record-operating-cost",
   "review-target-capacity",
+  "approve-target-extra",
 ]);
 const adminActions = new Set([
   "cost",
@@ -109,7 +106,6 @@ const adminActions = new Set([
   "assign-target",
   "approve-target",
   "rate-target",
-  "approve-target-extra",
 ]);
 async function storeTargetRating(
   c: BillingRepository,
@@ -393,21 +389,6 @@ async function billingCommand(
           ? targetBounds.start : Math.max(now, targetBounds.start);
         const inserted = await c.assignTargetPrice(holdingId,input.targetMonth,price.id,input.targetMode,serviceStartedAt,actor.userId,input.reason,now);
         if (!inserted.rowCount) fail("TARGET_ASSIGNMENT_EXISTS", "This month's assignment is immutable. Choose a later month.");
-        break;
-      }
-      case "approve-target-extra": {
-        if (!input.targetMonth || !input.extraKind || input.amountSatang === undefined ||
-            input.serviceStart === undefined || input.serviceEnd === undefined ||
-            !input.note || !input.evidenceId)
-          fail("EXTRA_APPROVAL_REQUIRED", "Service kind, amount, dates, description and approved quote evidence are required.");
-        const bounds = monthBounds(input.targetMonth);
-        if (input.serviceStart < bounds.start || input.serviceEnd > bounds.end ||
-            input.serviceEnd <= input.serviceStart)
-          fail("EXTRA_SERVICE_DATES", "Extra service dates must fall inside the chosen month.");
-        if (!(await c.extraTargetAssignment(holdingId,input.targetMonth)).rowCount) fail("TARGET_ASSIGNMENT_REQUIRED", "Assign the target offering before approving extra services.");
-        if ((await c.approvedExtraPeriod(holdingId,input.targetMonth)).rowCount) fail("TARGET_PERIOD_FROZEN", "Approved target charges cannot be changed.");
-        if (!(await c.availableExtraEvidence(input.evidenceId,holdingId)).rowCount) fail("EVIDENCE_REQUIRED", "Attach the separately approved quote as available private evidence.");
-        await c.recordTargetExtra(ports.id(),holdingId,input.targetMonth,input.extraKind,input.note,input.amountSatang,input.serviceStart,input.serviceEnd,input.evidenceId,actor.userId,input.reason,now);
         break;
       }
       case "rate-target": {

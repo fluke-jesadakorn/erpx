@@ -98,7 +98,7 @@ describe('crm read-tail r50 byte-identical parenthesized-select head', () => {
   });
 
   test('retirement:ts-statements folds the select-expression head (36 -> 35)', () => {
-    expect(totalSelects()).toBe(33);
+    expect(totalSelects()).toBe(32);
     expect(totalSelects()).toBeLessThan(36);
   });
 });

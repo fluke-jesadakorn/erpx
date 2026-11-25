@@ -156,10 +156,12 @@ describe('POS read-tail r35 native Stripe keyed reads', () => {
     expect(total).toBeLessThan(188);
   });
 
-  it('keeps row locks, the aggregate and the context probe inline', () => {
+  it('keeps row locks and the context probe inline; the succeeded-total delegates', () => {
     const stripe = read('pos-stripe.ts');
     expect(stripe).toContain('SELECT * FROM pos_sales WHERE id=? AND company_id=? FOR UPDATE');
-    expect(stripe).toContain("SELECT COALESCE(SUM(amount_minor-refunded_minor),0) n FROM pos_payments WHERE sale_id=? AND state='succeeded'");
+    expect(stripe).not.toContain("SELECT COALESCE(SUM(amount_minor-refunded_minor),0) n FROM pos_payments WHERE sale_id=? AND state='succeeded'");
+    expect(stripe).toContain('nativePosSucceededPaymentTotalStatement(db, facts.id)');
+    expect(read('application/pos-stripe.ts')).toContain("num(paid!, 'amount')");
     expect(stripe).toContain("SELECT to_regclass('pos_jobs') name");
     expect(stripe).toContain("SELECT * FROM pos_oauth_states WHERE id=? AND company_id=? AND user_id=? AND used_at IS NULL AND expires_at>? FOR UPDATE");
     const owner = read('owner_writes.rs');
