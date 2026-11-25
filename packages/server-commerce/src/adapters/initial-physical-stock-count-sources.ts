@@ -2,6 +2,7 @@ import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import type {CountRow} from '@erpx/server-inventory/public/count-contract';
 import { nativeCommerceReadFirst, RD_WAREHOUSE_ACTIVE } from './native-commerce-read';
+import { commerceProductsSelectSql } from './read-tail-r28-dedupe-sql';
 /** Private current Commerce reference facts for the exact Inventory initial
  * physical count. No catalogue/Finance collection or caller SQL is accepted. */
 export const initialPhysicalStockGoodsReceiptRows=`SELECT s.*,r.command_id goods_setup_command_id,r.request_hash goods_setup_request_hash FROM commerce_settings s JOIN command_receipts r ON r.record_id=s.company_id AND r.operation='commerce.sales-goods-posting-setup.initialize' AND r.authority_json::jsonb->>'companyId'=s.company_id AND r.result_json::jsonb->>'id'=s.company_id AND r.result_json::jsonb->>'status'='configured' AND r.result_json::jsonb->>'version'='1'`;
@@ -17,7 +18,7 @@ export async function initialPhysicalStockCommerceSource(database:SqlDatabase,co
 export async function initialPhysicalStockMasterChoices(database:SqlDatabase,actor:Pick<WorkContext,'companyId'|'branchId'>){
  const [warehouses,products]=await Promise.all([
   database.prepare("SELECT id,name,branch_id FROM commerce_warehouses WHERE company_id=? AND status='active' AND (?::text IS NULL OR branch_id=?) ORDER BY name,id").bind(actor.companyId,actor.branchId,actor.branchId).all<CountRow>(),
-  database.prepare("SELECT id,sku,name,unit,tracking_mode FROM commerce_products WHERE company_id=? AND status='active' AND item_type='stock' ORDER BY sku,id").bind(actor.companyId).all<CountRow>(),
+  database.prepare(commerceProductsSelectSql("company_id=? AND status='active' AND item_type='stock' ORDER BY sku,id")).bind(actor.companyId).all<CountRow>(),
  ]);return {warehouses:warehouses.results,products:products.results};
 }
 export async function initialPhysicalStockMasterSource(database:SqlDatabase,actor:Pick<WorkContext,'companyId'|'branchId'>,warehouseId:string,productId:string){

@@ -189,7 +189,7 @@ describe('commerce read-tail r20 native warehouse kinds', () => {
     expect(plans).not.toContain('commerce_rd_pos_warehouse');
   });
 
-  it('pins the owner TypeScript SELECT KPI at 408 (before 413)', () => {
+  it('pins the owner TypeScript SELECT KPI at 407 (before 413)', () => {
     const src = resolve(root, 'packages/server-commerce/src');
     let total = 0;
     const walk = (dir: string) => {
@@ -200,6 +200,6 @@ describe('commerce read-tail r20 native warehouse kinds', () => {
       }
     };
     walk(src);
-    expect(total).toBe(408);
+    expect(total).toBe(407);
   });
 });
