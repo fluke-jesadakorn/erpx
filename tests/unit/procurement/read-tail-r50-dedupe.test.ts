@@ -47,6 +47,17 @@ const BEFORE: Record<string, string> = {
 };
 const revert = (s: string) => s
   .replace(/^import \{billMatchReceiptHead\} from '\.\/read-tail-r50';\n/m, '')
+  // r52 stacks a later by-id fold on the r25 witness; undo it too so the
+  // pre-r50 bytes (and its recorded SHA) stay the exact floor anchor.
+  .replace(/^import \{byIdExistsHead\} from '\.\/read-tail-r52';\n/m, '')
+  .replace(
+    "/** Visible actual source guarded by the owner's company/scope predicate. The\n * byte-identical SQL head now comes from r52; every tail and bind stays here. */",
+    "/** Visible actual source guarded by the owner's company/scope predicate. */",
+  )
+  .replace(
+    '`${byIdExistsHead(table, alias)}${id} AND ${alias}.company_id=${company} AND ${where})`',
+    '`EXISTS(SELECT 1 FROM ${table} ${alias} WHERE ${alias}.id=${id} AND ${alias}.company_id=${company} AND ${where})`',
+  )
   .replace(/\$\{billMatchReceiptHead\(inner\)\}/g, HEAD + '${inner}')
   .replace(/\$\{billMatchReceiptHead\("br"\)\}/g, HEAD + 'br');
 
@@ -138,6 +149,6 @@ describe('Procurement read-tail r50 bill-receipt head dedupe', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(85);
-    expect(total).toBe(81); // r51: two jsonb_agg heads (-2 +1 helper) 82 -> 81.
+    expect(total).toBe(80); // r51: two jsonb_agg heads (-2 +1 helper) 82 -> 81; r52: two by-id EXISTS heads (-2 +1 helper) 81 -> 80.
   });
 });

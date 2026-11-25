@@ -125,7 +125,7 @@ describe('Procurement read-tail r51 jsonb_agg head dedupe', () => {
     expect(sha(src('read-tail-r50.ts'))).toBe('a22440f40b969c713465c4ad55110805176fb27c70500cc4c7584889110d919e');
     expect(sha(src('package-obligations.ts'))).toBe('2c344b0529a049c1b03ded03a3a5df74ce5bf0d30d76eb7b8769b1210196b102');
     expect(sha(src('read-tail-r23.ts'))).toBe('b1f282c6de197c6681cb53bea93075a89fd9d16684d7d039af4ffe44d0c5548e');
-    expect(sha(src('read-tail-r25.ts'))).toBe('9eeec994b9f25684c26cda260dab2a887f76a1f6cd6fbe5b57b6e495ce23fee1');
+    expect(sha(src('read-tail-r25.ts'))).toBe('61c9ca5ddd4cf429652ba5f4b0f8130bc065150070f5f6bc29c8a723f9c94bb2');
     expect(sha(src('supplier-bills.ts'))).toBe('f1485ee0fc42475f3337626f561f97aa4ab1d1921b6df412bc97c12a7e534fef');
   });
 
@@ -141,7 +141,7 @@ describe('Procurement read-tail r51 jsonb_agg head dedupe', () => {
     };
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
-    expect(total).toBeLessThan(82);
-    expect(total).toBe(81);
+    expect(total).toBeLessThan(81);
+    expect(total).toBe(80); // r52: two by-id EXISTS heads (-2 +1 helper) 81 -> 80.
   });
 });
