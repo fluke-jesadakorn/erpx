@@ -138,7 +138,7 @@ describe('Procurement read-tail r52 by-id EXISTS head dedupe', () => {
     expect(sha(src('supplier-bills.ts'))).toBe('f1485ee0fc42475f3337626f561f97aa4ab1d1921b6df412bc97c12a7e534fef');
   });
 
-  test('worktree SELECT count is 81 - 2 + 1 = 80', () => {
+  test('worktree SELECT count is 81 - 2 + 1 = 80, then r53 80 - 2 + 1 = 79', () => {
     const root = new URL('../../../packages/server-procurement/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
@@ -151,6 +151,6 @@ describe('Procurement read-tail r52 by-id EXISTS head dedupe', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(81);
-    expect(total).toBe(80);
+    expect(total).toBe(79); // r53: two EXISTS/FROM/WHERE heads (-2 +1 helper) 80 -> 79.
   });
 });
