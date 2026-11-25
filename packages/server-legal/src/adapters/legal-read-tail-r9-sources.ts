@@ -4,6 +4,7 @@ import {legalSettingsWhereHead} from './legal-read-tail-r48-sources';
 import {legalPointByIdSql} from './legal-read-tail-r32-sources';
 import {legalDestructionGuardSql} from './legal-read-tail-r52-sources';
 import {legalPointByIdAndKeySql} from './legal-read-tail-r34-sources';
+import {legalJsonbAggByItemSql} from './legal-read-tail-r25-sources';
 /** Closed, byte-identical read/lock SQL fragments shared by legal owner adapters.
  * Every call site prepares and executes its own statement; no result is cached. */
 export const legalSettingsEnabledSql = legalSettingsWhereHead('company_id=? AND enabled');
@@ -11,6 +12,6 @@ export const legalManagerAvailableSql = `SELECT 1 FROM (${identityAccessSources.
 export const legalDestructionActiveSql = legalDestructionGuardSql('active');
 export const legalDocumentsItemPairSql = legalPointByIdAndKeySql('1','legal_documents','item_id');
 export const legalDocumentByIdSql = legalPointByIdSql('*','legal_documents');
-export const legalMembersAggSql = "(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.user_id) FROM legal_members m WHERE m.item_id=i.id)";
+export const legalMembersAggSql = legalJsonbAggByItemSql('m','legal_members','user_id');
 export const legalFilesAdvisoryLockSql = "SELECT pg_advisory_xact_lock(hashtextextended('legal-files',0))";
 export const legalCompanyAdvisoryLockSql = "SELECT pg_advisory_xact_lock(hashtextextended(?,0))";
