@@ -55,9 +55,7 @@ pub fn render_legal_native_source(
 
 /// Render the actual-source EXISTS guard for any Legal record reference.
 pub fn render_legal_actual_source(id: &str) -> String {
-    legal_record_sources()
-        .actual_source
-        .replace("{id}", id)
+    legal_record_sources().actual_source.replace("{id}", id)
 }
 
 /// Render the Legal workspace-record guard.
@@ -134,15 +132,8 @@ mod tests {
 
     #[test]
     fn render_preserves_trusted_fragments_and_leaves_no_placeholders() {
-        let native = render_legal_native_source(
-            "i.$&",
-            "c.$1",
-            "s.$2",
-            "p.$3",
-            "a.$4",
-            "r.$5",
-            "u.$6",
-        );
+        let native =
+            render_legal_native_source("i.$&", "c.$1", "s.$2", "p.$3", "a.$4", "r.$5", "u.$6");
         assert!(native.contains("legal_native.id=i.$&"));
         assert!(native.contains("s.$2"));
         assert!(native.contains("a.$4"));

@@ -802,8 +802,9 @@ describe('Organization attachment node/change source image native cutover', () =
       ['ATTACHMENT_SOURCE_NODE_IMAGE', NODE],
       ['ATTACHMENT_SOURCE_CHANGE_IMAGE', CHANGE],
     ]) {
+      const escaped = sql.replace(/\n/g, '\\n');
       expect(registry).toContain(`${kind}: &str = `);
-      expect(registry).toContain(`        ${kind} => {\n            "${sql}"\n        }`);
+      expect(registry).toContain(`        ${kind} => {\n            "${escaped}"\n        }`);
     }
   });
 });

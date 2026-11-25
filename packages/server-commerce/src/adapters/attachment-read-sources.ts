@@ -21,7 +21,7 @@ type Native={image:string;order_id:string;party_id:string;invoice_ids:string[];j
  * label. Every original kind/Company/record decision remains in the full policy. */
 export async function commerceAttachmentReadSourceImage(database:SqlDatabase,companyId:string,target:CommerceAttachmentReadTarget,id:string):Promise<string|null>{
  if(target==='product'){
-  const product=await database.prepare('SELECT to_jsonb(p)::text image FROM commerce_products p WHERE p.id=? AND p.company_id=?').bind(id,companyId).first<string>('image');
+  const product=await nativeCommerceReadFirst<string>(RD_ATTACHMENT_PRODUCT_IMAGE,[id,companyId],database);
   return product?JSON.stringify([product,await commerceAttachmentPosSourceImage(database,companyId,id)]):null;
  }
  const join=target==='commerce_fulfillment'?'JOIN commerce_fulfillments selected ON selected.order_id=o.id':target==='commerce_return'?'JOIN commerce_returns selected ON selected.order_id=o.id AND selected.company_id=o.company_id':'';
