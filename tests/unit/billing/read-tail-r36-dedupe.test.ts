@@ -160,8 +160,8 @@ describe('billing read-tail r36 dedupe of residual read heads', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(9);
-    expect(bare).toBe(9);
+    expect(spaced).toBe(8);
+    expect(bare).toBe(8);
     expect(spaced).toBeLessThan(24);
     expect(bare).toBeLessThan(24);
   });
