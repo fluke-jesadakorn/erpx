@@ -103,7 +103,7 @@ describe('Talent read-tail r37 universal projection head family', () => {
     walk(resolve(__dirname, '../../../packages/server-talent/src'));
     let count = 0;
     for (const f of files) count += (readFileSync(f, 'utf8').match(/SELECT/g) ?? []).length;
-    expect(count).toBe(12);
+    expect(count).toBe(11);
     expect(count).toBeLessThan(44);
   });
 });

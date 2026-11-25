@@ -59,7 +59,7 @@ describe('talent read-tail r21 jsonb sibling family dedupe', () => {
   it('lowers the talent owner SELECT KPI strictly below the r20 after=69', async () => {
     let count = 0;
     for (const f of await tsFiles(srcDir)) count += (await readFile(f, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(12);
+    expect(count).toBe(11);
     expect(count).toBeLessThan(40);
   });
 });

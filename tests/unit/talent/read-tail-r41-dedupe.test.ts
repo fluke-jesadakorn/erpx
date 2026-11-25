@@ -109,7 +109,7 @@ describe('Talent read-tail r41 subquery-source existence head family', () => {
     for (const re of [/SELECT/g, /\bSELECT\b/g]) {
       let count = 0;
       for (const f of files) count += (readFileSync(f, 'utf8').match(re) ?? []).length;
-      expect(count).toBe(12);
+      expect(count).toBe(11);
       expect(count).toBeLessThan(14);
     }
   });

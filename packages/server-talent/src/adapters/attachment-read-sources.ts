@@ -2,6 +2,7 @@ import 'server-only';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {talentHirePeopleSources,talentHirePeopleSourceReadLocks} from '@erpx/server-people_payroll/public/hire-purchase-sources';
 import {selectProjection} from './talent-read-tail-r37-sources';
+import {existsSourceWitness} from './talent-read-tail-r43-sources';
 
 export function isTalentAttachmentReadTarget(target:string){return target==='talent_candidate'||target==='talent_offer';}
 export function talentAttachmentReadSourceLocks(database:SqlDatabase){return [
@@ -21,7 +22,7 @@ const applicationImages=`${selectProjection(`a.id,a.candidate_id,a.company_id,js
  * privacy and exact accepted-hire delivery remain private server witnesses. */
 export function talentAttachmentReadSourceImage(database:SqlDatabase,companyId:string,target:string,id:string){
  if(!isTalentAttachmentReadTarget(target))throw new Error('TALENT_FILE_SOURCE_TARGET_REQUIRED');
- const candidate=target==='talent_candidate'?'c.id=?':'EXISTS(SELECT 1 FROM talent_offers selected JOIN talent_applications a ON a.id=selected.application_id AND a.company_id=selected.company_id WHERE selected.id=? AND selected.company_id=c.company_id AND a.candidate_id=c.id)';
+ const candidate=target==='talent_candidate'?'c.id=?':existsSourceWitness('talent_offers selected JOIN talent_applications a ON a.id=selected.application_id AND a.company_id=selected.company_id','selected.id=? AND selected.company_id=c.company_id AND a.candidate_id=c.id');
  return database.prepare(`${selectProjection(`jsonb_build_object('candidate',to_jsonb(c),
  'privacy',${jsonbAgg('to_jsonb(event)','event.id','talent_candidate_privacy_events event','event.candidate_id=c.id AND event.company_id=c.company_id')},
  'applications',${jsonbAgg('a.image','a.id',`(${applicationImages}) a`,'a.candidate_id=c.id AND a.company_id=c.company_id')})::text image
