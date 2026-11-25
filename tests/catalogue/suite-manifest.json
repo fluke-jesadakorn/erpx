@@ -3011,6 +3011,33 @@
       },
       "ci": {
         "critical": true,
+        "reason": "Benefits exists head must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-benefits"
+      ],
+      "id": "benefits.read-tail-r29-dedupe.unit",
+      "files": [
+        "tests/unit/benefits/read-tail-r29-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "benefits",
+      "modules": [
+        "benefits"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
         "reason": "Benefits scope CTE prefix must exist once and stay byte-identical."
       },
       "apps": [
@@ -4177,6 +4204,33 @@
       "id": "billing.read-tail-r42-dedupe.unit",
       "files": [
         "tests/unit/billing/read-tail-r42-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "billing",
+      "modules": [
+        "commercial"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Billing next head family must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-billing"
+      ],
+      "id": "billing.read-tail-r43-dedupe.unit",
+      "files": [
+        "tests/unit/billing/read-tail-r43-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
@@ -11927,6 +11981,33 @@
       "id": "commerce.read-tail-r28-dedupe.unit",
       "files": [
         "tests/unit/commerce/read-tail-r28-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "commerce",
+      "modules": [
+        "commercial"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Commerce fulfillment kind head must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-commerce"
+      ],
+      "id": "commerce.read-tail-r29-dedupe.unit",
+      "files": [
+        "tests/unit/commerce/read-tail-r29-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
@@ -26817,6 +26898,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "files",
+      "modules": [
+        "commercial"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Files next head family must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-files"
+      ],
+      "id": "files.read-tail-r54-dedupe.unit",
+      "files": [
+        "tests/unit/files/read-tail-r54-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "files.rust-asset-descriptor-binding.unit",
       "lane": "unit",
       "owner": "files",
@@ -35410,6 +35518,33 @@
       "id": "finance.read-tail-r63-dedupe.unit",
       "files": [
         "tests/unit/finance/read-tail-r63-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "finance",
+      "modules": [
+        "finance"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Finance instrument run head must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-finance"
+      ],
+      "id": "finance.read-tail-r64-dedupe.unit",
+      "files": [
+        "tests/unit/finance/read-tail-r64-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
@@ -52992,6 +53127,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "inventory",
+      "modules": [
+        "inventory"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Inventory transfer detail head must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-inventory"
+      ],
+      "id": "inventory.read-tail-r60-dedupe.unit",
+      "files": [
+        "tests/unit/inventory/read-tail-r60-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "inventory.rust-commerce-order-cancellation-postgres.integration",
       "lane": "integration",
       "owner": "inventory",
@@ -62892,6 +63054,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "manage_erpx",
+      "modules": [
+        "manage_erpx"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Manage next head family must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-manage_erpx"
+      ],
+      "id": "manage_erpx.read-tail-r17-dedupe.unit",
+      "files": [
+        "tests/unit/manage_erpx/read-tail-r17-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "manage_erpx.resource-cleanup.integration",
       "lane": "integration",
       "owner": "manage_erpx",
@@ -63993,6 +64182,33 @@
       "id": "manufacturing.read-tail-r36-dedupe.unit",
       "files": [
         "tests/unit/manufacturing/read-tail-r36-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "manufacturing",
+      "modules": [
+        "manufacturing"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Manufacturing projection head must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-manufacturing"
+      ],
+      "id": "manufacturing.read-tail-r37-dedupe.unit",
+      "files": [
+        "tests/unit/manufacturing/read-tail-r37-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
@@ -66786,6 +67002,33 @@
       "id": "operations.read-tail-r60-dedupe.unit",
       "files": [
         "tests/unit/operations/read-tail-r60-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "operations",
+      "modules": [
+        "operations"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Operations jsonb image head must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-operations"
+      ],
+      "id": "operations.read-tail-r61-dedupe.unit",
+      "files": [
+        "tests/unit/operations/read-tail-r61-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
@@ -70753,6 +70996,33 @@
       "id": "organization.read-tail-r62-dedupe.unit",
       "files": [
         "tests/unit/organization/read-tail-r62-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "organization",
+      "modules": [
+        "organization"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Organization node identity head must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-organization"
+      ],
+      "id": "organization.read-tail-r63-dedupe.unit",
+      "files": [
+        "tests/unit/organization/read-tail-r63-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
@@ -75692,6 +75962,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "people_payroll",
+      "modules": [
+        "people_payroll"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Payroll next head family must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-people_payroll"
+      ],
+      "id": "people_payroll.read-tail-r64-dedupe.unit",
+      "files": [
+        "tests/unit/people_payroll/read-tail-r64-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "people_payroll.retirement.integration",
       "lane": "integration",
       "owner": "people_payroll",
@@ -78613,6 +78910,33 @@
       "id": "planning.read-tail-r24-dedupe.unit",
       "files": [
         "tests/unit/planning/read-tail-r24-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "planning",
+      "modules": [
+        "planning"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Planning scoped list head must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-planning"
+      ],
+      "id": "planning.read-tail-r25-dedupe.unit",
+      "files": [
+        "tests/unit/planning/read-tail-r25-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
@@ -82899,6 +83223,33 @@
       "id": "pms.read-tail-r56-dedupe.unit",
       "files": [
         "tests/unit/pms/read-tail-r56-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "pms",
+      "modules": [
+        "pms"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "PMS reservation arm head must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-pms"
+      ],
+      "id": "pms.read-tail-r57-dedupe.unit",
+      "files": [
+        "tests/unit/pms/read-tail-r57-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
@@ -88224,6 +88575,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "procurement",
+      "modules": [
+        "procurement"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Procurement array select head must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-procurement"
+      ],
+      "id": "procurement.read-tail-r55-dedupe.unit",
+      "files": [
+        "tests/unit/procurement/read-tail-r55-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "procurement.rust-portal-commerce-locks-postgres.integration",
       "lane": "integration",
       "owner": "procurement",
@@ -90939,6 +91317,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "projects",
+      "modules": [
+        "projects"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Projects milestone dependency head must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-projects"
+      ],
+      "id": "projects.read-tail-r43-dedupe.unit",
+      "files": [
+        "tests/unit/projects/read-tail-r43-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "projects.rust-project-actuals.unit",
       "lane": "unit",
       "owner": "projects",
@@ -92750,6 +93155,33 @@
       "id": "quality.read-tail-r40-dedupe.unit",
       "files": [
         "tests/unit/quality/read-tail-r40-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "quality",
+      "modules": [
+        "quality"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Quality id source head must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-quality"
+      ],
+      "id": "quality.read-tail-r41-dedupe.unit",
+      "files": [
+        "tests/unit/quality/read-tail-r41-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
@@ -126260,6 +126692,33 @@
       },
       "ci": {
         "critical": true,
+        "reason": "Work projection version head must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-work_projection"
+      ],
+      "id": "work_projection.read-tail-r32-dedupe.unit",
+      "files": [
+        "tests/unit/work_projection/read-tail-r32-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "work_projection",
+      "modules": [
+        "operations"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
         "reason": "Work projection in-list and appointment source rows must stay byte-identical."
       },
       "apps": [
@@ -126938,6 +127397,33 @@
       "id": "workflow.read-tail-r52-dedupe.unit",
       "files": [
         "tests/unit/workflow/read-tail-r52-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "workflow",
+      "modules": [
+        "operations"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Workflow approver union head must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-workflow"
+      ],
+      "id": "workflow.read-tail-r53-dedupe.unit",
+      "files": [
+        "tests/unit/workflow/read-tail-r53-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
