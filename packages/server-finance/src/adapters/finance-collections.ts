@@ -1,4 +1,5 @@
 import { versionStatusGuardSql } from './finance-read-tail-r52-sql';
+import { primaryChartIdByRuleSql } from './finance-read-tail-r61-sql';
 import { tableByIdSql } from './finance-read-tail-r49-sql';
 import {withFinancePurchasedCommand,withFinancePurchasedRead,requireFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
 import { CHART_BASE_CURRENCY_BY_ID_SQL } from './finance-read-tail-r15-sql';
@@ -244,7 +245,7 @@ chart:async(actor,chartId)=>write
       .first<{ base_currency: string }>(),
 bookSource:async(actor,chartId,asOf)=>write
     .prepare(
-      "SELECT primary_chart_id FROM finance_book_rules WHERE company_id=? AND secondary_chart_id=? AND status='approved' AND effective_date<=? ORDER BY effective_date DESC LIMIT 1",
+      primaryChartIdByRuleSql("company_id=? AND secondary_chart_id=? AND status='approved' AND effective_date<=? ORDER BY effective_date DESC LIMIT 1"),
     )
     .bind(actor.companyId, chartId, asOf)
     .first<{ primary_chart_id: string }>(),

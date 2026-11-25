@@ -1,4 +1,5 @@
 import { activeAccountListSql } from './finance-read-tail-r51-sql';
+import { primaryChartIdByRuleSql } from './finance-read-tail-r61-sql';
 import { finPeriodProbeByCompanySql } from './finance-read-tail-r57-sql';
 import { financeReferenceListSql } from './finance-read-tail-r42-sql';
 import { tableByIdSql } from './finance-read-tail-r49-sql';
@@ -227,7 +228,7 @@ chain:async(actor,primaryChartId,secondaryChartId)=>write
       .first(),
 existingRule:async(secondaryChartId)=>write
     .prepare(
-      "SELECT primary_chart_id FROM finance_book_rules WHERE secondary_chart_id=? AND status='approved' ORDER BY effective_date DESC LIMIT 1",
+      primaryChartIdByRuleSql("secondary_chart_id=? AND status='approved' ORDER BY effective_date DESC LIMIT 1"),
     )
     .bind(secondaryChartId)
     .first<{ primary_chart_id: string }>(),
