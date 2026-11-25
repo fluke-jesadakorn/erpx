@@ -128,9 +128,10 @@ describe('Organization read-tail r56 dedupe', () => {
     // r56 folds the three absent-organization-node guard literals into one
     // renderer (-3 literals, +1 declaration): 216 - 3 + 1 = 214. r57 folds the
     // authority-seat EXISTS head (-4 sites, +1 declaration): 214 - 4 + 1 = 211.
+    // r58 folds the two approvals-facts heads (-2 sites): 211 - 2 = 209.
     expect(CASES).toHaveLength(3);
-    expect(total).toBe(211);
-    expect(total).toBe(216 - 5);
+    expect(total).toBe(209);
+    expect(total).toBe(216 - 7);
     expect(total).toBeLessThan(216);
   });
 });

@@ -99,12 +99,13 @@ describe('Organization read-tail r57 dedupe', () => {
     expect(dept).toContain('[input.expectedVersion,actor.companyId,input.kind,scopeId,actor.companyId,input.kind,scopeId,input.expectedVersion]');
     expect(org).toContain('head?[actor.companyId,change.target_node_id,head.version,head.position_id,head.person_id,head.effective_at]:[actor.companyId,change.target_node_id]');
 
-    // Honest partial: the approvals-facts authority-seat EXISTS heads stay put.
+    // r58 completes the fold: the approvals-facts authority-seat heads now
+    // delegate to the same r57 renderer; the r51/r55 helpers stay at the site.
     const approvals = read('workflow-approvals-facts.ts');
-    expect(count(approvals, 'EXISTS(SELECT 1 FROM authority_seats ')).toBe(2);
+    expect(count(approvals, 'EXISTS(SELECT 1 FROM authority_seats ')).toBe(0);
     expect(approvals).toContain("import {authoritySeatCompanyRead} from './organization-read-tail-sources-r51';");
     expect(approvals).toContain("import {personEngagementJoin} from './organization-read-tail-sources-r55';");
-    expect(approvals).not.toContain('authoritySeatExistsSql');
+    expect(count(approvals, 'authoritySeatExistsSql(')).toBe(2);
   });
 
   test('r48/r51/r50/r55/r56 helpers, locks and spaced joins stay untouched', () => {
@@ -150,10 +151,11 @@ describe('Organization read-tail r57 dedupe', () => {
     };
     walk(srcRoot);
     // r57 folds four authority-seat EXISTS HEAD literals into one renderer
-    // (-4 literals, +1 declaration): 214 - 4 + 1 = 211.
+    // (-4 literals, +1 declaration): 214 - 4 + 1 = 211. r58 folds the two
+    // approvals-facts heads (-2 literals, no new declaration): 211 - 2 = 209.
     expect(CASES).toHaveLength(4);
-    expect(total).toBe(211);
-    expect(total).toBe(214 - 3);
+    expect(total).toBe(209);
+    expect(total).toBe(214 - 5);
     expect(total).toBeLessThan(214);
   });
 });

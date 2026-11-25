@@ -101,7 +101,7 @@ describe('Organization read-tail r48 parameterized head', () => {
     };
     walk(srcRoot);
     // r48 collapses two authority-seat holder guards into one shared source (-1).
-    expect(space).toBe(211);
+    expect(space).toBe(209);
     expect(space).toBeLessThan(238);
   });
 });

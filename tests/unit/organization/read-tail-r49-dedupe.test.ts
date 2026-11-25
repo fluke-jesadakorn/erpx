@@ -131,16 +131,17 @@ describe('Organization read-tail r49 dedupe', () => {
     expect(org.split('nativeOrgStatement(').length - 1).toBe(15);
     expect(read('organization-nodes-spaced-projections.ts')).toContain('"id", "kind", "slug"');
 
-    // The workflow-approvals authority-seat pair is deliberately skipped: its
-    // aliases and predicates drift, so it is not a clean byte fold. r55 changes
-    // only the guard33 person/engagement head, so the pin is refreshed here.
+    // r58 folds the two authority-seat EXISTS heads into the r57 renderer while
+    // keeping their differing aliases and predicates as caller-supplied tails.
+    // r55's guard33 person/engagement head is unchanged.
     const approvals = read('workflow-approvals-facts.ts');
     expect(createHash('sha256').update(approvals).digest('hex')).toBe(
-      '8b58821b5832ea2b01cc996890c8437189e590c83c35abfb18295c7f4e13268d',
+      'c35091e4e00ce0ab13bfa08a5ec9d029f92f688656725b61f5ce8532d6f398f4',
     );
-    expect(approvals.split('EXISTS(SELECT 1 FROM authority_seats').length - 1).toBe(2);
-    expect(approvals).toContain('authority_seats seat JOIN');
-    expect(approvals).toContain('authority_seats s JOIN');
+    expect(approvals.split('EXISTS(SELECT 1 FROM authority_seats').length - 1).toBe(0);
+    expect(approvals.split('authoritySeatExistsSql(').length - 1).toBe(2);
+    expect(approvals).toContain('authoritySeatExistsSql(`seat JOIN');
+    expect(approvals).toContain('authoritySeatExistsSql(`s JOIN');
   });
 
   test('retirement:ts-statements is strictly lower than the r49 BEFORE=237 baseline (expected 234)', () => {
@@ -153,8 +154,9 @@ describe('Organization read-tail r49 dedupe', () => {
       }
     };
     walk(srcRoot);
-    // r49 collapses three pairs of read-tail SELECTs into three shared helpers (-3).
-    expect(space).toBe(211);
+    // r49 collapses three pairs of read-tail SELECTs into three shared helpers (-3);
+    // r58 folds the two approvals-facts authority-seat heads (-2): 211 - 2 = 209.
+    expect(space).toBe(209);
     expect(space).toBeLessThan(237);
   });
 });
