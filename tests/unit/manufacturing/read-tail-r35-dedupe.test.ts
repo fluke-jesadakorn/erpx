@@ -118,12 +118,12 @@ describe('manufacturing read-tail r35 sum-subquery head-family fold', () => {
     expect(helper).not.toMatch(/LOCK\s+TABLE|FOR\s+UPDATE|FOR\s+SHARE|pg_advisory/i);
   });
 
-  it('pins the manufacturing owner SELECT KPI at 49 after the r36 fold (50->49)', async () => {
+  it('pins the manufacturing owner SELECT KPI at 48 after the r37 fold (49->48)', async () => {
     let total = 0;
     for (const file of await tsFiles(new URL('../../../packages/server-manufacturing/src/', import.meta.url))) {
       total += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     }
-    expect(total).toBe(49);
+    expect(total).toBe(48);
     expect(total).toBeLessThan(50);
   });
 });
