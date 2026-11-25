@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12764,
+    "revision": 12766,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -186943,7 +186943,7 @@
         "owner": "crm",
         "title": "crm read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -186954,22 +186954,37 @@
         "resources": [
           "owner:crm"
         ],
-        "claim": {
-          "runId": "run-20261125-d",
-          "agentId": "wH4n169",
-          "claimedAt": "2026-11-25T00:36:12.650Z",
-          "heartbeatAt": "2026-11-25T00:44:22.729Z",
-          "expiresAt": "2026-11-25T01:14:22.729Z",
-          "generation": 174
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-crm/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "a5052a72e",
+            "owner": "crm",
+            "before": 61,
+            "after": 57,
+            "note": "Four probes compose crmSelectOneSql; trailing tails and nested union intact; stale r12/r18 pins refreshed. Vitest 69."
+          },
+          {
+            "command": "targeted vitest + scoped tsc + cargo lib where applicable",
+            "result": "passed",
+            "sourceSha": "a5052a72e"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Owner-local SELECT 1 probes (-4): 61->57. BEFORE=61.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n169",
+          "at": "2026-11-25T00:46:21.336Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -187298,17 +187313,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 11,
+        "in_progress": 10,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1508,
+        "blocked": 1509,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 174,
-    "updatedAt": "2026-11-25T00:44:22.733Z",
+    "updatedAt": "2026-11-25T00:46:21.340Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
