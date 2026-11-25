@@ -12,8 +12,13 @@ const src = (name: string) => readFile(new URL(name, dir), 'utf8');
 const SHARED = 'adapters/pms-read-tail-r38-sql.ts';
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 
-const ACTIVE = "SELECT count(*) FROM pms_records r WHERE r.property_id=p.id AND r.kind='room' AND r.data_json::jsonb->>'active'='true'";
-const STAY = "SELECT count(*) FROM pms_records s WHERE s.property_id=p.id AND s.kind='stay' AND s.data_json::jsonb->>'state'";
+// r56 folds the byte-identical `SELECT count(*) FROM pms_records ` head into
+// the owner-local renderer; ACTIVE/STAY below remain the exact composed bytes.
+const HEAD = 'SELECT count(*) FROM pms_records ';
+const ACTIVE_TAIL = "r WHERE r.property_id=p.id AND r.kind='room' AND r.data_json::jsonb->>'active'='true'";
+const STAY_TAIL = "s WHERE s.property_id=p.id AND s.kind='stay' AND s.data_json::jsonb->>'state'";
+const ACTIVE = HEAD + ACTIVE_TAIL;
+const STAY = HEAD + STAY_TAIL;
 const SRC = "SELECT id,data_json::jsonb data FROM pms_records WHERE property_id=? AND kind='stay'";
 
 // Byte oracles: exact SQL substrings captured at HEAD before this dedupe. The
@@ -83,9 +88,11 @@ async function tsFiles(directory: URL): Promise<string[]> {
 describe('pms read-tail r38 count/projection head dedupe', () => {
   it('declares each byte-identical head exactly once in the shared module', async () => {
     const shared = await src(SHARED);
-    expect(shared.split(ACTIVE).length - 1).toBe(1);
-    expect(shared.split(STAY).length - 1).toBe(1);
+    expect(shared.split(HEAD).length - 1).toBe(0); // inline head retired to r56
+    expect(shared.split(ACTIVE_TAIL).length - 1).toBe(1);
+    expect(shared.split(STAY_TAIL).length - 1).toBe(1);
     expect(shared.split(SRC).length - 1).toBe(1);
+    expect(shared.split('PMS_RECORDS_COUNT_HEAD_SQL').length - 1).toBe(3); // import + 2 uses
     expect(shared.split('PMS_HOME_ACTIVE_ROOM_COUNT_SQL').length - 1).toBe(1);
     expect(shared.split('PMS_HOME_STAY_STATE_COUNT_SQL').length - 1).toBe(1);
     expect(shared.split('PMS_STAY_SOURCE_PROJECTION_SQL').length - 1).toBe(1);
@@ -142,8 +149,8 @@ describe('pms read-tail r38 count/projection head dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(243);
-    expect(bare).toBe(245);
+    expect(spaced).toBe(242);
+    expect(bare).toBe(244);
     expect(spaced).toBeLessThan(323);
   });
 });

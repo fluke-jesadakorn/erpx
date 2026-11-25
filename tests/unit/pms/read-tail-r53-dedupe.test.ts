@@ -126,8 +126,8 @@ describe('pms read-tail r53 owner projection head dedupe', () => {
       spaced += count(text, 'SELECT ');
       bare += count(text, 'SELECT');
     }
-    expect(spaced).toBe(243);
-    expect(bare).toBe(245);
+    expect(spaced).toBe(242);
+    expect(bare).toBe(244);
     expect(spaced).toBeLessThan(246);
     expect(bare).toBeLessThan(248);
   });

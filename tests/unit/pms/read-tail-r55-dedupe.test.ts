@@ -104,8 +104,8 @@ describe('pms read-tail r55 owner-local guest-account head dedupe', () => {
       spaced += count(text, 'SELECT ');
       bare += count(text, 'SELECT');
     }
-    expect(spaced).toBe(243);
-    expect(bare).toBe(245);
+    expect(spaced).toBe(242);
+    expect(bare).toBe(244);
     expect(spaced).toBeLessThan(244);
     expect(bare).toBeLessThan(246);
   });
