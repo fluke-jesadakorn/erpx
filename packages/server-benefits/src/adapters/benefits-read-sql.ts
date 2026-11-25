@@ -42,10 +42,15 @@ export const benefitMetricCountSql = (label: string, table: string, alias: strin
  *  and People package-settlement fact unions; generated SQL is unchanged. */
 export const benefitFactFinalSelect = (pending: string, tail: string) =>
   `) SELECT kind,id,version,state,image,${pending} pending FROM facts${tail}`;
+/** Byte-identical owner-local EXISTS existence head shared by the owner
+ *  existence guard and the Benefits settlement terminal predicate; generated
+ *  SQL, binds and column references are unchanged. */
+export const benefitExistsHead = (table: string, tail: string) =>
+  `EXISTS(SELECT 1 FROM ${table} ${tail})`;
 /** Parameterized owner-local existence guard shared by the sensitive-attachment
  *  version guard and the payroll-source fact guard; generated SQL is unchanged. */
 export const benefitOwnerExistsGuard = (table: string, conditions: string) =>
-  `EXISTS(SELECT 1 FROM ${table} WHERE id=? AND ${conditions})`;
+  benefitExistsHead(table, `WHERE id=? AND ${conditions}`);
 /** Parameterized owner-local attachment source projection shared by the plan
  *  and person-backed attachment source selects; generated SQL is unchanged. */
 export const benefitAttachmentSourceSelect = (branch: string, department: string, person: string, image: string, from: string) =>

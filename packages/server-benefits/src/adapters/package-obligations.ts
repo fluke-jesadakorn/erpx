@@ -4,7 +4,7 @@ import type {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgre
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/server-commercial/public/package-settlement-sources";
 import {benefitEligibilitySettlementLocks,benefitEligibilitySettlementSources as learning} from "@erpx/server-learning/public/benefit-source-facts";
-import {benefitPayrollInputOwnerPredicate,benefitElectionFactPrefix,benefitReleasedElectionHandoffPrefix,benefitScopePrefix,benefitWindowFactPrefix,benefitDependentFactPrefix,benefitPlanFactPrefix,benefitFactFinalSelect,benefitLearningFactArm,benefitSubqueryNotExists} from "@erpx/server-benefits/adapters/benefits-read-sql";
+import {benefitPayrollInputOwnerPredicate,benefitElectionFactPrefix,benefitReleasedElectionHandoffPrefix,benefitScopePrefix,benefitWindowFactPrefix,benefitDependentFactPrefix,benefitPlanFactPrefix,benefitFactFinalSelect,benefitLearningFactArm,benefitSubqueryNotExists,benefitExistsHead} from "@erpx/server-benefits/adapters/benefits-read-sql";
 
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
 const sources=new WeakMap<SqlDatabase,string>();
@@ -15,12 +15,12 @@ export async function lockBenefitPackageObligationSources(owner:PostgresDatabase
 }
 export function assertBenefitPackageObligationSources(owner:PostgresDatabase,database:SqlDatabase,companyId:string){owner.assertActiveTransaction(database);if(sources.get(database)!==companyId)throw Error("BENEFIT_PACKAGE_OBLIGATION_SOURCE_REQUIRED");}
 function terminal(table:string,id:string,kind:string){
- return `EXISTS(SELECT 1 FROM ${table} event JOIN command_receipts command ON command.record_id=${id}.id
+ return benefitExistsHead(table, `event JOIN command_receipts command ON command.record_id=${id}.id
  AND command.operation='benefits.${kind}.'||CASE WHEN event.action IN ('create','elect') THEN 'create' ELSE event.action END
  AND command.actor_id=event.actor_id AND command.authority_json::jsonb->>'companyId'=${id}.company_id
  AND command.result_json::jsonb->>'id'=${id}.id AND command.result_json::jsonb->>'status'=event.status
  AND command.result_json::jsonb->>'version'=event.version::text
- WHERE event.${kind==='window'?'window':kind}_id=${id}.id AND event.status=${id}.status AND event.version<=${id}.version)`;
+ WHERE event.${kind==='window'?'window':kind}_id=${id}.id AND event.status=${id}.status AND event.version<=${id}.version`);
 }
 /** Byte-identical owner-local settlement-source projection shared by the four
  * Benefits actual-source selects; generated SQL is unchanged. */
