@@ -44,6 +44,14 @@ export const RD_EXPENSE_PREREQUISITE_SETTINGS_SOURCE = 'commerce_rd_expense_prer
 /** Allow-listed supplier-bill attachment receipt-id read. */
 export const RD_SUPPLIER_BILL_RECEIPT_IDS = 'commerce_rd_supplier_bill_receipt_ids';
 
+/** Allow-listed POS private-image product reads. */
+export const RD_POS_PRODUCT_VERSION = 'commerce_rd_pos_product_version';
+export const RD_POS_PRODUCT_IMAGE = 'commerce_rd_pos_product_image';
+
+/** Allow-listed owner-local landed-cost reads. */
+export const RD_LANDED_COST_RECEIPT_LINES = 'commerce_rd_landed_cost_receipt_lines';
+export const RD_LANDED_COST_POSTING_CONFIG = 'commerce_rd_landed_cost_posting_config';
+
 /** Allow-listed warehouse-config read kinds resolved by the mounted owner command-plan route. */
 export const RD_WAREHOUSE_PAGE_ROWS = 'commerce_rd_warehouse_page_rows';
 export const RD_WAREHOUSE_MASTER_ROWS = 'commerce_rd_warehouse_master_rows';

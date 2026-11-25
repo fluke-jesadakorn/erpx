@@ -2,7 +2,7 @@ import 'server-only';
 import {holdingRoutingEnabled,holdingHosts} from '@erpx/contracts/holding-hosts';
 import { createCipheriv, createDecipheriv, createECDH, createHash, randomBytes } from 'node:crypto';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import type { SqlDatabase, SqlStatement } from '@erpx/server-runtime/public/runtime/types';
 import { ApiError } from '@erpx/server-runtime/public/http';
 import { BusinessRuleError } from '@erpx/server-shared/index';
 import { currentPushSession } from '@erpx/server-identity_access/public/collaboration-push-session';
@@ -14,6 +14,11 @@ import { legacyConsoleRetired } from "@erpx/feature-runtime/lib/console-retireme
 import { createCurrentPushSessionCleanup, createWebPushApplication, type WebPushRepository } from '@erpx/server-collaboration/application/web-push';
 import { pushEndpointOwner, pushPreferences, pushSessionSubscriptionCount } from './native-lane-16/client';
 import { nativeOwnerWriteSystem, nativeOwnerWriteSystemUnscoped } from '@erpx/server-collaboration/adapters/native-owner-write';
+import { nativeSystemNotificationStatement } from './native-system-notification';
+/** Owner-planned read: no SQL text from the caller, executed on its own unit. */
+const ownerRead = (db: SqlDatabase, company: string, kind: string, values: unknown[]): Promise<SqlStatement> =>
+    nativeSystemNotificationStatement(db, company,
+        { userId: '', recordType: '', recordId: '', recordVersion: 0, message: '', kind, values_json: JSON.stringify(values) }, '', 0);
 import { pushOriginAllowed, b64, validatePushSubscription as validateSubscription, type PushConfig, Subscription, Preference, StoredSubscription, DeliveryJob, Send } from '@erpx/server-collaboration/domain/web-push';
 async function exposed<T>(action: () => Promise<T>) {
     try {
@@ -121,7 +126,7 @@ function application(db: SqlDatabase, control?: SqlDatabase, contextCompanyId = 
             return (await write(companyId, 'push_disable_owner', [now, companyId, userId, companyId2, userId2], `push-disable:${companyId}:${userId}`, now)).run();
         },
         async subscriptionTable() {
-            return db.prepare("SELECT to_regclass('push_subscriptions') AS name").first<{ name: string | null; }>();
+            return (await ownerRead(db, 'system', 'web_push_subscription_table', [])).first<{ name: string | null; }>();
         },
         async revokeSessionDevices(userId: string, sid: string) {
             return (await scoped('push_subscription_revoke', [userId, sid], `push-revoke:${userId}:${sid}`)).all<{ company_id: string; }>();
@@ -130,11 +135,11 @@ function application(db: SqlDatabase, control?: SqlDatabase, contextCompanyId = 
             return (await write(companyId, 'push_disable_owner', [now, companyId, userId, companyId2, userId2], `push-disable:${companyId}:${userId}`, now)).run();
         },
         async fanoutSubscriptions() {
-            return db.prepare(`SELECT s.*,p.* FROM push_subscriptions s JOIN push_preferences p ON p.company_id=s.company_id AND p.user_id=s.user_id WHERE p.enabled=true ORDER BY s.scan_at,s.id LIMIT 25`).all<StoredSubscription & Preference>();
+            return (await ownerRead(db, 'system', 'web_push_fanout_subscriptions', [])).all<StoredSubscription & Preference>();
         },
         async removeInvalidSubscription(id: string) { return (await scoped('push_subscription_remove', [id], `push-sub:${id}`)).run(); },
         async newDeliveries(company_id: string, user_id: string, cursor_at: number, cursor_id: string) {
-            return db.prepare(`SELECT d.id,d.delivered_at,e.category FROM inbox_deliveries d JOIN inbox_events e ON e.id=d.event_id WHERE d.company_id=? AND d.user_id=? AND NOT erpx_field_push_source(e.source_type,e.source_id,e.company_id) AND (d.delivered_at,d.id)>(?,?) ORDER BY d.delivered_at,d.id LIMIT 50`).bind(company_id, user_id, cursor_at, cursor_id).all<{ id: string; delivered_at: number; category: string; }>();
+            return (await ownerRead(db, company_id, 'web_push_new_deliveries', [company_id, user_id, cursor_at, cursor_id])).all<{ id: string; delivered_at: number; category: string; }>();
         },
         async queueDelivery(value: unknown, company_id: string, id: string, id2: string, now: number, now2: number, id3: string, company_id2: string, user_id: string) {
             return (await write(company_id, 'push_delivery_queue', [value, company_id, id, id2, now, now2, id3, company_id2, user_id], `push-queue:${value}`, now)).run();
@@ -146,7 +151,7 @@ function application(db: SqlDatabase, control?: SqlDatabase, contextCompanyId = 
             return (await scoped('push_delivery_lease', [value, value2, now, now2], `push-lease:${value}`)).first<DeliveryJob>();
         },
         async currentDelivery(id: string, lease_token: string) {
-            return db.prepare(`SELECT j.*,s.user_id,s.session_id,s.origin,s.inbox_path,s.sealed_subscription,p.enabled,p.work_enabled,p.mention_enabled,p.system_enabled,p.calendar_enabled,p.notice_enabled,p.quiet_start_minute,p.quiet_end_minute,d.read_at,d.archived_at,e.category FROM push_delivery_jobs j JOIN push_subscriptions s ON s.id=j.subscription_id JOIN push_preferences p ON p.company_id=s.company_id AND p.user_id=s.user_id JOIN inbox_deliveries d ON d.id=j.inbox_delivery_id JOIN inbox_events e ON e.id=d.event_id WHERE j.id=? AND j.lease_token=?`).bind(id, lease_token).first<DeliveryJob & Preference & { category: string; read_at: number | null; archived_at: number | null; }>();
+            return (await ownerRead(db, 'system', 'web_push_current_delivery', [id, lease_token])).first<DeliveryJob & Preference & { category: string; read_at: number | null; archived_at: number | null; }>();
         },
         async deadDelivery(id: string, lease_token: string) {
             return (await scoped('push_delivery_dead', [id, lease_token], `push-dead:${id}`)).run();

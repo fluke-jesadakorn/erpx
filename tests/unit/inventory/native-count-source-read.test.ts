@@ -3,7 +3,7 @@ import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 vi.mock('server-only',()=>({}));
 import {INVENTORY_RD_COUNT_SOURCE_ROW,INVENTORY_RD_SERVICE_INITIAL_COUNT_ROW,nativeInventoryReadFirst} from '../../../packages/server-inventory/src/adapters/native-inventory-read';
-import {serviceInitialCountExists} from '../../../packages/server-inventory/src/adapters/native-service-count-source';
+import {serviceInitialCountExists,nativeServiceCountPersistedMarker} from '../../../packages/server-inventory/src/adapters/native-service-count-source';
 import {countStatus} from '../../../packages/server-inventory/src/adapters/native-count-status';
 
 const RETIRED_SQL='SELECT id,company_id,branch_id,warehouse_id FROM inventory_counts WHERE id=? AND company_id=? AND (?::text IS NULL OR branch_id=?)';
@@ -184,5 +184,59 @@ describe('native Inventory canonical count-status read',()=>{
     const rust=readFileSync(`${root}/packages/server-inventory/src/adapters/native_command_sql.rs`,'utf8');
     expect(rust).toContain(`"${STATUS_SQL}"`);
     expect(rust).toContain('pub const RD_COUNT_STATUS: &str = "inventory_rd_count_status";');
+  });
+});
+
+const MARKER_SQL="SELECT EXISTS(SELECT 1 FROM command_receipts r WHERE r.operation='inventory.count.create' AND r.record_id=? AND (r.result_json IS NULL OR jsonb_typeof(r.result_json::jsonb)<>'object' OR jsonb_exists(r.result_json::jsonb,'_serviceInitialPhysicalStockCount'))) OR EXISTS(SELECT 1 FROM inventory_service_initial_physical_sources WHERE count_id=?) AS marked";
+
+describe('native Inventory service-count persisted marker probe',()=>{
+  const envKey='ERPX_NATIVE_INVENTORY_CONFIG';
+  const original=process.env[envKey];
+  beforeEach(()=>{
+    process.env[envKey]=JSON.stringify({privateBaseUrl:'http://127.0.0.1:44991',timeoutMs:1000,
+      holdings:[{origin:'https://acme.example.com',holdingSlug:'acme',holdingId:'h001',companyId:'company'}]});
+  });
+  afterEach(()=>{
+    if(original===undefined)delete process.env[envKey]; else process.env[envKey]=original;
+    vi.unstubAllGlobals();
+  });
+  const fakeDb=(marked:boolean)=>{
+    const bound:unknown[][]=[];
+    const db={
+      prepare(_sql:string){return {bind(...values:unknown[]){bound.push(values);return this;}};},
+      async batch(){return [{results:[{marked}],success:true,meta:{changes:0,duration:0}}];},
+      async exec(){return {count:0,duration:0};},
+    };
+    return {db,bound};
+  };
+
+  it('plans the marker probe in Rust with the same two binds and no caller SQL',async()=>{
+    const bodies:{kind:string;values:unknown[]}[]=[];
+    vi.stubGlobal('fetch',vi.fn(async (_url:URL,init:RequestInit)=>{
+      const body=JSON.parse(String(init.body)) as {kind:string;values:unknown[]};
+      bodies.push(body);
+      return new Response(JSON.stringify({data:{statements:[{sql:MARKER_SQL,values:body.values}]}}),{status:200,headers:{'content-type':'application/json'}});
+    }));
+    const {db,bound}=fakeDb(true);
+    expect(await nativeServiceCountPersistedMarker(db as never,'count-1')).toBe(true);
+    expect(bodies.map(x=>x.kind)).toEqual(['inventory_rd_service_count_persisted']);
+    expect(bodies.map(x=>x.values)).toEqual([['count-1','count-1']]);
+    expect(bound).toEqual([['count-1','count-1']]);
+    expect(bodies.every(x=>!String(x.kind).includes('SELECT'))).toBe(true);
+  });
+
+  it('fails closed when the native read service is unavailable',async()=>{
+    vi.stubGlobal('fetch',vi.fn(async ()=>new Response('down',{status:503})));
+    const {db}=fakeDb(false);
+    await expect(nativeServiceCountPersistedMarker(db as never,'count-1')).rejects.toMatchObject({status:503});
+  });
+
+  it('deleted the marker SQL literal from the owner adapter and pinned the Rust plan',()=>{
+    const source=readFileSync(`${root}/packages/server-inventory/src/adapters/service-initial-physical-stock-count-source.ts`,'utf8');
+    expect(source).not.toContain(MARKER_SQL);
+    expect(source).toContain('nativeServiceCountPersistedMarker');
+    const rust=readFileSync(`${root}/packages/server-inventory/src/adapters/native_command_sql.rs`,'utf8');
+    expect(rust).toContain(`"${MARKER_SQL}"`);
+    expect(rust).toContain('pub const RD_SERVICE_COUNT_PERSISTED: &str = "inventory_rd_service_count_persisted";');
   });
 });

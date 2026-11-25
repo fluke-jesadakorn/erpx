@@ -470,7 +470,7 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
         `export const ${kind} = '${wire}';`,
       );
     }
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 31);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 35);');
     expect(plans).toContain('fn schema_ready_probes_keep_their_exact_literals()');
     expect(readFileSync(adapters('read-tail-r15-dedupe-sql.ts'), 'utf8')).not.toContain('to_regclass');
   });
@@ -507,7 +507,7 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
     expect(plans).toContain(`"${sql}"`);
     expect(plans).toContain('kind: RD_LEGACY_ATTACHMENT_SCOPE,');
     expect(plans).toContain('fn legacy_attachment_scope_keeps_its_exact_literal()');
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 31);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 35);');
     expect(readFileSync(adapters('native-commerce-read.ts'), 'utf8')).toContain(
       "export const RD_LEGACY_ATTACHMENT_SCOPE = 'commerce_rd_legacy_attachment_scope';",
     );
@@ -559,6 +559,55 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
     );
     expect(source).toContain(
       "commerceAttachmentReadSourceImage(database,companyId,'commerce_fulfillment',receipt.id)",
+    );
+  });
+
+  it('owns both POS private-image product reads as native kinds', async () => {
+    const plans = readFileSync(adapters('native_commerce_read_sql.rs'), 'utf8');
+    for (const [kind, wire, sql] of [
+      ['RD_POS_PRODUCT_VERSION', 'commerce_rd_pos_product_version', 'SELECT version FROM commerce_products WHERE id=? AND company_id=?'],
+      ['RD_POS_PRODUCT_IMAGE', 'commerce_rd_pos_product_image', 'SELECT to_jsonb(product)::text image FROM commerce_products product WHERE product.id=? AND product.company_id=?'],
+    ]) {
+      expect(plans).toContain(`pub const ${kind}: &str = "${wire}";`);
+      expect(plans).toContain(`"${sql}"`);
+      expect(plans).toContain(`kind: ${kind},`);
+      expect(readFileSync(adapters('native-commerce-read.ts'), 'utf8')).toContain(
+        `export const ${kind} = '${wire}';`,
+      );
+    }
+    expect(plans).toContain('fn pos_image_product_reads_keep_their_exact_literals()');
+    const source = await readFile(adapters('pos-images-facts.ts'), 'utf8');
+    expect(source).not.toContain('SELECT ');
+    expect(source).toContain(
+      'nativeCommerceReadFirst<{version:number}>(RD_POS_PRODUCT_VERSION,[facts.productId,facts.companyId],db)',
+    );
+    expect(source).toContain(
+      'nativeCommerceReadFirst<string>(RD_POS_PRODUCT_IMAGE,[productId,companyId],db)',
+    );
+    expect(source).toContain('LOCK TABLE commerce_products IN SHARE ROW EXCLUSIVE MODE');
+  });
+
+  it('owns both landed-cost reads as native kinds with no inline SQL', async () => {
+    const plans = readFileSync(adapters('native_commerce_read_sql.rs'), 'utf8');
+    for (const [kind, wire, sql] of [
+      ['RD_LANDED_COST_RECEIPT_LINES', 'commerce_rd_landed_cost_receipt_lines', 'SELECT fl.*,ol.product_id,p.tracking_mode FROM commerce_fulfillment_lines fl JOIN commerce_order_lines ol ON ol.id=fl.order_line_id JOIN commerce_products p ON p.id=ol.product_id WHERE fl.fulfillment_id=? ORDER BY ol.ordinal'],
+      ['RD_LANDED_COST_POSTING_CONFIG', 'commerce_rd_landed_cost_posting_config', 'SELECT chart_id,inventory_account_id FROM commerce_settings WHERE company_id=?'],
+    ]) {
+      expect(plans).toContain(`pub const ${kind}: &str = "${wire}";`);
+      expect(plans).toContain(`"${sql}"`);
+      expect(plans).toContain(`kind: ${kind},`);
+      expect(readFileSync(adapters('native-commerce-read.ts'), 'utf8')).toContain(
+        `export const ${kind} = '${wire}';`,
+      );
+    }
+    expect(plans).toContain('fn landed_cost_reads_keep_their_exact_literals()');
+    const source = await readFile(adapters('inventory-landed-costs-sources.ts'), 'utf8');
+    expect(source).not.toContain('SELECT ');
+    expect(source).toContain(
+      'nativeCommerceReadAll<LandedCostRow>(RD_LANDED_COST_RECEIPT_LINES,[fulfillmentId],db)',
+    );
+    expect(source).toContain(
+      'nativeCommerceReadFirst<LandedCostRow>(RD_LANDED_COST_POSTING_CONFIG,[companyId],db)',
     );
   });
 });

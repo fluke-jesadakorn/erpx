@@ -48,7 +48,11 @@ describe('Collaboration read-tail r29 parameterized PMS post-source guard family
       .toContain('LOCK TABLE social_posts,social_comments,social_post_sources,social_post_revisions,social_task_origins IN SHARE ROW EXCLUSIVE MODE');
     // notification helpers untouched
     expect(readFileSync(resolve(adapters, 'staff-notifications.ts'), 'utf8')).toContain('legacy_rows AS');
-    expect(readFileSync(resolve(adapters, 'web-push.ts'), 'utf8')).toContain('SELECT');
+    // Web-push reads are now owner-planned: the adapter keeps no SELECT SQL,
+    // the retired literals live byte-identically in the native planner.
+    expect(readFileSync(resolve(adapters, 'web-push.ts'), 'utf8')).not.toContain('SELECT ');
+    expect(readFileSync(resolve(adapters, 'notification_statement.rs'), 'utf8'))
+      .toContain('"web_push_new_deliveries" => "SELECT d.id,d.delivered_at,e.category');
   });
 });
 

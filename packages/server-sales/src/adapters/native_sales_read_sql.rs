@@ -154,6 +154,28 @@ const READ_FOLLOWUP_SOURCE_ORDER: NativeSalesReadStatement = NativeSalesReadStat
     scope: "holding",
 };
 
+/// Native successor of the TypeScript metric non-enforced followup metric projection: no binds.
+/// Fixed owner projections only; byte-identical to the retired literal.
+pub const RD_FOLLOWUP_METRIC_PROJECTION: &str = "sales_rd_followup_metric_projection";
+const SQL_FOLLOWUP_METRIC_SELECT: &str = "SELECT followup.*,actual.branch_id,actual.department_id,actual.kind order_kind FROM customer_followups followup JOIN (SELECT id,company_id,branch_id,department_id,kind,party_id,currency,source_id FROM commerce_orders) actual ON actual.id=followup.order_id AND actual.company_id=followup.company_id";
+const READ_FOLLOWUP_METRIC_SELECT: NativeSalesReadStatement = NativeSalesReadStatement {
+    kind: RD_FOLLOWUP_METRIC_PROJECTION,
+    sql: SQL_FOLLOWUP_METRIC_SELECT,
+    bind_count: 0,
+    scope: "holding",
+};
+
+/// Native successor of the TypeScript metric enforced followup metric source: [assignment, user, role, assignment].
+/// Fixed owner projections only; byte-identical to the retired literal.
+pub const RD_FOLLOWUP_METRIC_SOURCE: &str = "sales_rd_followup_metric_source";
+const SQL_FOLLOWUP_METRIC_SOURCE: &str = "WITH sales_metric_clock AS MATERIALIZED (SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint now_ms) SELECT sales_metric_owned.* FROM (SELECT followup.*,actual.branch_id,actual.department_id,actual.kind order_kind FROM customer_followups followup JOIN (SELECT id,company_id,branch_id,department_id,kind,party_id,currency,source_id FROM commerce_orders) actual ON actual.id=followup.order_id AND actual.company_id=followup.company_id JOIN (SELECT id,company_id,kind,status FROM finance_parties) customer ON customer.id=actual.party_id AND customer.company_id=actual.company_id WHERE actual.kind IN ('sales','quote')) sales_metric_owned CROSS JOIN sales_metric_clock WHERE EXISTS(SELECT 1 FROM assignments g WHERE g.id=? AND g.user_id=? AND g.role=? AND g.company_id=sales_metric_owned.company_id\n    AND iam_assignment_active(g.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)\n    AND iam_principal_active(g.user_id,g.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)\n    AND iam_role_allows(g.role,g.company_id,'commerce.read')\n    AND (g.scope_kind='holding' OR g.scope_kind='branch' AND g.scope_node_id=sales_metric_owned.branch_id OR g.scope_kind='department' AND g.scope_node_id=sales_metric_owned.department_id)) AND ((sales_metric_owned.order_kind='quote' AND ((EXISTS(SELECT 1 FROM (SELECT package_id,package_version FROM company_package_grants WHERE company_id=sales_metric_owned.company_id AND starts_at<=sales_metric_clock.now_ms AND state<>'inactive'\n      UNION SELECT package_id,package_version FROM company_package_history_rights WHERE company_id=sales_metric_owned.company_id AND retained_at<=sales_metric_clock.now_ms\n        AND retained_at>=0 AND retained_at<=9007199254740991 AND source_grant_version>0 AND source_event_id<>'') purchase WHERE purchase.package_id='sales' AND purchase.package_version=1)))) OR (sales_metric_owned.order_kind='sales' AND ((EXISTS(SELECT 1 FROM (SELECT package_id,package_version FROM company_package_grants WHERE company_id=sales_metric_owned.company_id AND starts_at<=sales_metric_clock.now_ms AND state<>'inactive'\n      UNION SELECT package_id,package_version FROM company_package_history_rights WHERE company_id=sales_metric_owned.company_id AND retained_at<=sales_metric_clock.now_ms\n        AND retained_at>=0 AND retained_at<=9007199254740991 AND source_grant_version>0 AND source_event_id<>'') purchase WHERE purchase.package_id='sales' AND purchase.package_version=1))))) AND EXISTS(SELECT 1 FROM assignments selected WHERE selected.id=? AND (jsonb_array_length(selected.modules_json::jsonb)=0 OR selected.modules_json::jsonb @> jsonb_build_array('crm'::text)))";
+const READ_FOLLOWUP_METRIC_SOURCE: NativeSalesReadStatement = NativeSalesReadStatement {
+    kind: RD_FOLLOWUP_METRIC_SOURCE,
+    sql: SQL_FOLLOWUP_METRIC_SOURCE,
+    bind_count: 4,
+    scope: "holding",
+};
+
 const READS: &[NativeSalesReadStatement] = &[
     READ_PRICE_LIST_ACTIVE,
     READ_PRICE_LIST_ITEMS_ACTIVE,
@@ -166,6 +188,9 @@ const READS: &[NativeSalesReadStatement] = &[
     READ_PRICING_ITEMS_BY_LIST,
     READ_FOLLOWUP_SOURCE_FOLLOWUP,
     READ_FOLLOWUP_SOURCE_ORDER,
+
+    READ_FOLLOWUP_METRIC_SELECT,
+    READ_FOLLOWUP_METRIC_SOURCE,
 
 ];
 
@@ -367,8 +392,32 @@ mod tests {
     }
 
     #[test]
+    fn projection_metric_read_is_allow_listed_and_byte_stable() {
+        let read = read_statement(RD_FOLLOWUP_METRIC_PROJECTION).expect("read kind");
+        assert_eq!(read.kind, "sales_rd_followup_metric_projection");
+        assert_eq!(read.bind_count, 0);
+        assert_eq!(read.sql.matches('?').count(), 0);
+        assert_eq!(read.sql.len(), 297);
+        assert!(read.sql.contains("customer_followups followup"));
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_FOLLOWUP_METRIC_PROJECTION));
+    }
+
+    #[test]
+    fn enforced_metric_read_is_allow_listed_and_byte_stable() {
+        let read = read_statement(RD_FOLLOWUP_METRIC_SOURCE).expect("read kind");
+        assert_eq!(read.kind, "sales_rd_followup_metric_source");
+        assert_eq!(read.bind_count, 4);
+        assert_eq!(read.sql.matches('?').count(), 4);
+        assert_eq!(read.sql.len(), 2666);
+        assert!(read.sql.contains("customer_followups followup"));
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_FOLLOWUP_METRIC_SOURCE));
+    }
+
+    #[test]
     fn only_owner_read_kinds_are_registered() {
-        assert_eq!(READS.len(), 11);
+        assert_eq!(READS.len(), 13);
         assert!(READS.iter().all(|read| is_read(read.kind)));
         assert!(!is_read("sales_price_lists"));
         assert!(!is_read("SELECT 1"));

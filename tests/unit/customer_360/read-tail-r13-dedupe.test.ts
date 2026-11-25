@@ -6,7 +6,6 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 
 import {
-  companyScopeSource,
   customerVisiblePredicate,
   scopedProjection,
 } from '../../../packages/server-customer_360/src/adapters/customer-read-sources';
@@ -45,7 +44,7 @@ describe('Customer 360 read-tail r13 scoped-projection head family', () => {
     expect(customerVisiblePredicate(true, true, true)).toBe(
       '(EXISTS(SELECT 1 FROM scoped_orders o WHERE o.party_id=p.id) OR EXISTS(SELECT 1 FROM scoped_leads l WHERE l.customer_id=p.id) OR EXISTS(SELECT 1 FROM scoped_service g WHERE g.customer_id=p.id) OR EXISTS(SELECT 1 FROM scoped_invoices i WHERE i.party_id=p.id) OR EXISTS(SELECT 1 FROM scoped_legal lg WHERE lg.order_id IN (SELECT id FROM scoped_orders so WHERE so.party_id=p.id)))',
     );
-    expect(companyScopeSource('portal_release')).toBe('(SELECT ?::text company_id) portal_release');
+    expect(src('customer-read-sources.ts')).not.toContain('companyScopeSource');
   });
 
   it('r14 composes the legal visibility EXISTS through the same head byte-for-byte', () => {
@@ -79,7 +78,7 @@ describe('Customer 360 read-tail r13 scoped-projection head family', () => {
   it('r3-r12 helpers, locks, native reads and cross-owner pins stay untouched', () => {
     const reads = src('customer-read-sources.ts');
     expect(reads).toContain('export function customerVisiblePredicate('); // r5
-    expect(reads).toContain('export const companyScopeSource ='); // r8
+    expect(reads).not.toContain('export const companyScopeSource ='); // r18: native read plan
     const obligations = src('package-obligations.ts');
     expect(obligations).toContain('const supportConclusionExists='); // r3
     expect(obligations).toContain('LOCK TABLE customer_portal_actions IN SHARE ROW EXCLUSIVE MODE');
@@ -106,7 +105,7 @@ describe('Customer 360 read-tail r13 scoped-projection head family', () => {
     expect(native.some((source) => source.includes('scopedProjection'))).toBe(false);
   });
 
-  it('retirement:ts-statements is strictly lower than BEFORE=9 (expected 8)', () => {
+  it('retirement:ts-statements is strictly lower than BEFORE=8 (expected 7)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -116,7 +115,7 @@ describe('Customer 360 read-tail r13 scoped-projection head family', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(8);
-    expect(total).toBeLessThan(9);
+    expect(total).toBe(7);
+    expect(total).toBeLessThan(8);
   });
 });

@@ -159,6 +159,7 @@ pub(crate) mod position_gpo_postgres;
 pub(crate) mod private_file_denial_http;
 pub(crate) mod private_file_denial_postgres;
 pub(crate) mod native_read_plan;
+pub(crate) mod control_read_plan;
 
 pub(crate) mod people_access_http;
 pub(crate) mod people_access_postgres;

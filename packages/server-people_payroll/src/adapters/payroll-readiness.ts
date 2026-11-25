@@ -1,3 +1,4 @@
+import { ppRdRound4ByProjectionIdCompany } from './pp-read-tail-round4-sources';
 import {ppRd44PurchaseClockProbe} from './pp-read-tail-r44-sources';
 import {ppRd45RunByIdProjection} from './pp-read-tail-r45-sources';
 import {ppRd32TwoColProjection} from './pp-read-tail-r32-sources';
@@ -134,7 +135,7 @@ function context(provided?: SqlDatabase, mode: PackageEnforcementMode = "disable
         guard32(key: string, value: string, id: string, version: number) { return assertion(database, key, value, ppRd27IdVersionStatusInGuard('hr_payroll_advance_repayments', "'open','reserved'"), [id, version]); },
         readPayrollReadinessRun(runId: string, companyId: string) { return database.prepare(ppRd45RunByIdProjection("id,company_id,pay_group_id,country_pack_id,scope_engagement_id,period_start,period_end,pay_date,currency,mode,status,version,revision,input_digest,submitted_by,submitted_digest,adjustment_of_run_id")).bind(runId, companyId).first<Run>(); },
         readPayrollReadinessToday(pay_group_id: string, companyId: string) {
-            return database.prepare("SELECT timezone FROM hr_pay_groups WHERE id=? AND company_id=?").bind(pay_group_id, companyId).first<{
+            return database.prepare(ppRdRound4ByProjectionIdCompany('timezone', 'hr_pay_groups')).bind(pay_group_id, companyId).first<{
                 timezone: string;
             }>();
         },

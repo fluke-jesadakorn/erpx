@@ -64,7 +64,7 @@ describe('Support SLA policy native read port (r28)', () => {
         expect(src('adapters/ticket-guard-sources.ts')).toContain('export const ticketGuardExistsSql = (predicate: string) =>');
         expect(src('adapters/support-ticket-read.ts')).not.toContain('ticketEligibilitySelect');
         expect(src('adapters/support-evidence.ts')).toContain('const evidenceEligibilitySelect = () =>');
-        expect(src('adapters/executive-main-evidence-sources.ts')).toContain('const evidenceSelect = (columns: string) =>');
+        expect(src('adapters/executive-main-evidence-sources.ts')).toContain('const evidenceSelect = (columns: string, body: string) =>');
         expect(src('adapters/actor-scope-read-sql.ts')).toContain('export const actorScopeCteSql = (extraColumns: string) =>');
     });
 
@@ -110,7 +110,7 @@ describe('Support SLA policy native read port (r28)', () => {
             }
         };
         walk(srcRoot);
-        expect(total).toBe(25);
+        expect(total).toBe(24);
         expect(total).toBeLessThan(50);
     });
 });

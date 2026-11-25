@@ -222,6 +222,18 @@ const READ_COUNT_STATUS: NativeStatement = NativeStatement {
     scope: "holding",
 };
 
+/// Native successor of the TypeScript service-count persisted marker probe.
+/// Read-only and byte-identical: the caller runs it on its already-open unit
+/// with the same two binds, so the shared command ledger is observed in-unit.
+pub const RD_SERVICE_COUNT_PERSISTED: &str = "inventory_rd_service_count_persisted";
+const SQL_RD_SERVICE_COUNT_PERSISTED: &str = "SELECT EXISTS(SELECT 1 FROM command_receipts r WHERE r.operation='inventory.count.create' AND r.record_id=? AND (r.result_json IS NULL OR jsonb_typeof(r.result_json::jsonb)<>'object' OR jsonb_exists(r.result_json::jsonb,'_serviceInitialPhysicalStockCount'))) OR EXISTS(SELECT 1 FROM inventory_service_initial_physical_sources WHERE count_id=?) AS marked";
+const READ_SERVICE_COUNT_PERSISTED: NativeStatement = NativeStatement {
+    kind: RD_SERVICE_COUNT_PERSISTED,
+    sql: SQL_RD_SERVICE_COUNT_PERSISTED,
+    bind_count: 2,
+    scope: "holding",
+};
+
 /// Native successor of the TypeScript document-posting preview `stockDeltas`
 /// array read. The owner plans this literal and the caller executes it on its
 /// own already-open unit; this crate carries no TypeScript SQL for it.
@@ -594,6 +606,7 @@ pub fn is_read(kind: &str) -> bool {
             | RD_COUNT_SOURCE_ROW
             | RD_SERVICE_INITIAL_COUNT_ROW
             | RD_COUNT_STATUS
+            | RD_SERVICE_COUNT_PERSISTED
             | RD_STOCK_COUNT_DELTAS
             | RD_ACTIVE_RESERVATIONS_TOTAL
             | RD_LEDGER_MOVEMENT_AFTER
@@ -637,6 +650,7 @@ pub fn read_statement(kind: &str) -> Option<&'static NativeStatement> {
         RD_COUNT_SOURCE_ROW => Some(&READ_COUNT_SOURCE_ROW),
         RD_SERVICE_INITIAL_COUNT_ROW => Some(&READ_SERVICE_INITIAL_COUNT_ROW),
         RD_COUNT_STATUS => Some(&READ_COUNT_STATUS),
+        RD_SERVICE_COUNT_PERSISTED => Some(&READ_SERVICE_COUNT_PERSISTED),
         RD_STOCK_COUNT_DELTAS => Some(&READ_STOCK_COUNT_DELTAS),
         RD_ACTIVE_RESERVATIONS_TOTAL => Some(&READ_ACTIVE_RESERVATIONS_TOTAL),
         RD_LEDGER_MOVEMENT_AFTER => Some(&READ_LEDGER_MOVEMENT_AFTER),
@@ -716,6 +730,7 @@ mod tests {
             RD_COUNT_SOURCE_ROW,
             RD_SERVICE_INITIAL_COUNT_ROW,
             RD_COUNT_STATUS,
+            RD_SERVICE_COUNT_PERSISTED,
             RD_STOCK_COUNT_DELTAS,
             RD_ACTIVE_RESERVATIONS_TOTAL,
             RD_LEDGER_MOVEMENT_AFTER,
@@ -831,6 +846,20 @@ mod tests {
         assert!(is_read(RD_COUNT_STATUS));
         assert_eq!(status.bind_count, 2);
         assert_eq!(status.sql, "SELECT status FROM inventory_counts WHERE id=? AND company_id=?");
+    }
+
+    /// Parity witness for the service-count persisted marker: the native plan
+    /// is the exact read-only statement the TypeScript literal bound, with the
+    /// same two binds executed on the caller's already-open Holding unit.
+    #[test]
+    fn service_count_persisted_marker_read_plan_matches_retired_owner_statement() {
+        let marker = read_statement(RD_SERVICE_COUNT_PERSISTED).expect("read kind");
+        assert!(is_read(RD_SERVICE_COUNT_PERSISTED));
+        assert_eq!(marker.bind_count, 2);
+        assert_eq!(
+            marker.sql,
+            "SELECT EXISTS(SELECT 1 FROM command_receipts r WHERE r.operation='inventory.count.create' AND r.record_id=? AND (r.result_json IS NULL OR jsonb_typeof(r.result_json::jsonb)<>'object' OR jsonb_exists(r.result_json::jsonb,'_serviceInitialPhysicalStockCount'))) OR EXISTS(SELECT 1 FROM inventory_service_initial_physical_sources WHERE count_id=?) AS marked"
+        );
     }
 
     /// Parity witness for the owner-local `pos-core-facts` read family: each

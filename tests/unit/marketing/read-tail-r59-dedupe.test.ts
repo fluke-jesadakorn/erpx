@@ -44,6 +44,6 @@ describe('marketing read-tail r59 owner-projection head cutover', () => {
   });
 
   it('retirement:ts-statements stays strictly below BEFORE=11 at 9 after r60', async () => {
-    expect(await selectTokens()).toBe(9);
+    expect(await selectTokens()).toBe(8);
   });
 });

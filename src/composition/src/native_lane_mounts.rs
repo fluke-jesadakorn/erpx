@@ -131,6 +131,24 @@ pub fn mount(
         .map_err(|_| "PRIVATE_API_IDENTITY_PRIVATE_FILE_DENIAL_INVALID")?,
     );
 
+    // Identity: Control read-plan port (caller executes on its own Control unit).
+    router = router.merge(
+        erpx_server_identity_access::public::control_read_plan::router_for_holdings(
+            config
+                .holdings
+                .iter()
+                .map(|holding| {
+                    erpx_server_identity_access::public::control_read_plan::ControlReadTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                    }
+                })
+                .collect(),
+        )
+        .map_err(|_| "PRIVATE_API_IDENTITY_CONTROL_READ_PLAN_INVALID")?,
+    );
+
     // Commerce lane 13: entrypoint identity facts.
     router = router.merge(
         erpx_server_commerce::public::native_lane_13::router_for_holdings(

@@ -90,8 +90,8 @@ describe('support read-tail r43 byte-identical column-projection head', () => {
     expect(portalValidBindingSelect).toBe(portalRead);
   });
 
-  test('retirement:ts-statements is 25 after the PMS attachment image native cut', () => {
-    expect(totalSelects()).toBe(25);
+  test('retirement:ts-statements is 24 after the evidence renderer consolidation', () => {
+    expect(totalSelects()).toBe(24);
     expect(totalSelects()).toBeLessThan(32);
   });
 });

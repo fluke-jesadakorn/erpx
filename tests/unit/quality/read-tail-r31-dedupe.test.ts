@@ -58,7 +58,7 @@ describe('quality read-tail r31 package-scope head dedupe', () => {
   test('one owner-local head helper replaces the two inline scope heads', () => {
     const head = read('adapters/quality-scope-sql.ts');
     expect(head.match(/SELECT /g)).toHaveLength(1);
-    expect(head).toContain('const scopeSql = (columns:string) => `(SELECT ${columns})`');
+    expect(head).toContain('export const scopeSql = (columns:string) => `(SELECT ${columns})`');
     expect(head).toContain('qualityPackageScopeCte = scopeSql("?::text company_id,?::boolean full")');
     expect(head).toContain('${scopeSql(`${packageClockSql} now_ms`)}');
     expect(head).not.toContain('qualityPackageScopeCte = "(SELECT');
@@ -87,7 +87,10 @@ describe('quality read-tail r31 package-scope head dedupe', () => {
     expect(read('adapters/purchases.ts')).toContain('qualityWorkScopeTuple("?::text company_id,?::text branch_id,NULL::text department_id","quality_scope")');
     expect(read('adapters/attachment-read.ts')).toContain('qualityWorkScopeTuple("?::text company_id,?::text branch_id,?::text department_id","workforce_actor_scope","")');
     expect(read('adapters/calendar-quality-facts.ts')).toContain('qualityWorkScopeTuple("h.company_id,h.branch_id,NULL::text department_id","quality_calendar_scope")');
-    expect(read('adapters/quality-work-scope-sql.ts')).toContain('`(SELECT ${columns})${separator}${alias}`');
+    const tuple = read('adapters/quality-work-scope-sql.ts');
+    expect(tuple).toContain('import {scopeSql} from "./quality-scope-sql";');
+    expect(tuple).toContain('`${scopeSql(columns)}${separator}${alias}`');
+    expect(tuple.match(/SELECT /g) ?? []).toHaveLength(0);
 
     const clockSites = [
       ['adapters/record-purchases.ts', 'quality_source_clock'],
@@ -102,6 +105,6 @@ describe('quality read-tail r31 package-scope head dedupe', () => {
 
   test('retirement:ts-statements is strictly lower than the BEFORE=31 baseline', () => {
     expect(kpi()).toBeLessThan(31);
-    expect(kpi()).toBe(18);
+    expect(kpi()).toBe(17);
   });
 });

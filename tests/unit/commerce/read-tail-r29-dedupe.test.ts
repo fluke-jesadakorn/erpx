@@ -57,8 +57,8 @@ describe('Commerce r29 fulfillment/invoice kind family native cutover', () => {
     expect(client).not.toContain('SELECT ');
   });
 
-  test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 385 (before 386)', () => {
-    expect(count(src, /SELECT /g)).toBe(385);
+  test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 381 (before 383)', () => {
+    expect(count(src, /SELECT /g)).toBe(381);
     expect((read('entrypoint-facts.ts').match(/SELECT /g) ?? []).length).toBe(3);
   });
 });

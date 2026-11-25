@@ -101,6 +101,11 @@ export const PMS_RD_REFUND_REQUEST_ALLOCATIONS = 'pms_rd_refund_request_allocati
  * and no lock/refund path; the caller runs them on its already-open unit. */
 export const PMS_RD_TRANSFER_REQUESTS = 'pms_rd_transfer_requests';
 export const PMS_RD_GUEST_DOCUMENTS = 'pms_rd_guest_documents';
+/** Native successors of the owner-local `pms.ts` fixed allocation-existence
+ * and pending-job list reads. Fixed SQL with two/four positional binds, no
+ * ledger/receipt/outbox and no lock/refund path; caller runs them on its unit. */
+export const PMS_RD_BOOKING_ALLOCATION_EXISTS = 'pms_rd_booking_allocation_exists';
+export const PMS_RD_PENDING_JOBS = 'pms_rd_pending_jobs';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'PMS_NATIVE_READ_UNAVAILABLE', 'The native PMS read service is unavailable.');

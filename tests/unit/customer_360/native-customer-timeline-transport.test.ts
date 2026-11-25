@@ -308,17 +308,17 @@ describe('native Customer 360 timeline transport',()=>{
  });
 
  it('shares one byte-identical company scope source across package-obligation facts and the portal projection',async()=>{
-  const {companyScopeSource}=await import('../../../packages/server-customer_360/src/adapters/customer-read-sources');
-  expect(companyScopeSource('')).toBe('(SELECT ?::text company_id)');
-  expect(companyScopeSource('portal_release')).toBe('(SELECT ?::text company_id) portal_release');
+  const scoped0=await (await import('node:fs/promises')).readFile(new URL('../../../packages/server-customer_360/src/adapters/customer-read-sources.ts',import.meta.url),'utf8');
+  expect(scoped0).not.toContain('companyScopeSource');
+  // r18: the two one-value Company sources are now mounted native plan kinds.
   const read=async(path:string)=> (await import('node:fs/promises')).readFile(new URL(path,import.meta.url),'utf8');
   const scoped=await read('../../../packages/server-customer_360/src/adapters/customer-read-sources.ts');
   const facts=await read('../../../packages/server-customer_360/src/adapters/package-obligations.ts');
   const portal=await read('../../../packages/server-customer_360/src/adapters/portal.ts');
   // One source definition; both call sites render through it.
-  expect(scoped.match(/companyScopeSource = \(/g)).toHaveLength(1);
-  expect(facts).toContain("WITH scope AS${companyScopeSource('')}");
-  expect(portal).toContain("FROM ${companyScopeSource('portal_release')}");
+  expect(scoped).not.toContain('companyScopeSource');
+  expect(facts).toContain('WITH scope AS${scope.sql}');
+  expect(portal).toContain('FROM ${scope.sql}');
   expect(facts).not.toContain('WITH scope AS(SELECT ?::text company_id)');
   expect(portal).not.toContain('FROM (SELECT ?::text company_id) portal_release');
   // Locks and the r5/r6/r7 helpers stay untouched.
@@ -346,14 +346,14 @@ describe('native Customer 360 timeline transport',()=>{
  // r5-r8 helpers, the visibility predicate and the package-obligation lock stay authoritative.
  const scoped=await read('../../../packages/server-customer_360/src/adapters/customer-read-sources.ts');
  expect(scoped.match(/const scopedRow = \(/g)).toHaveLength(1);
- expect(scoped.match(/companyScopeSource = \(/g)).toHaveLength(1);
+ expect(scoped).not.toContain('companyScopeSource');
  expect(timeline.match(/const eventSelect=\(/g)).toHaveLength(1);
  expect(timeline.match(/const eventRow=\(/g)).toHaveLength(1);
  expect(timeline).not.toContain('SELECT p.id,p.name,p.code'); // r10 customer-party projection now composes through scopedProjection
  const facts=await read('../../../packages/server-customer_360/src/adapters/package-obligations.ts');
  expect(facts).toContain('LOCK TABLE customer_portal_actions IN SHARE ROW EXCLUSIVE MODE');
  const portal=await read('../../../packages/server-customer_360/src/adapters/portal.ts');
- expect(portal).toContain("companyScopeSource('portal_release')");
+ expect(portal).toContain('RD_COMPANY_SCOPE_PORTAL_RELEASE');
  });
 
   it('shares one parameterized customer-party projection with the scoped CTE family (r10)',async()=>{
@@ -380,18 +380,18 @@ describe('native Customer 360 timeline transport',()=>{
    expect(timeline.match(/const eventRow=\(/g)).toHaveLength(1);
    const scoped=await read('../../../packages/server-customer_360/src/adapters/customer-read-sources.ts');
    expect(scoped.match(/const scopedRow = \(/g)).toHaveLength(1);
-   expect(scoped.match(/companyScopeSource = \(/g)).toHaveLength(1);
+   expect(scoped).not.toContain('companyScopeSource');
    const facts=await read('../../../packages/server-customer_360/src/adapters/package-obligations.ts');
    expect(facts).toContain('LOCK TABLE customer_portal_actions IN SHARE ROW EXCLUSIVE MODE');
-   expect(facts).toContain("WITH scope AS${companyScopeSource('')}");
+   expect(facts).toContain('WITH scope AS${scope.sql}');
    const portal=await read('../../../packages/server-customer_360/src/adapters/portal.ts');
-   expect(portal).toContain("companyScopeSource('portal_release')");
+   expect(portal).toContain('RD_COMPANY_SCOPE_PORTAL_RELEASE');
    expect(portal).not.toContain('SELECT id,binding_id,order_id,action,status,created_at,request_hash,user_id FROM customer_portal_actions WHERE'); // r15 native plan
   expect(portal).toContain('nativeC360ReadStatement(');
    expect(timeline).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|LOCK\s+TABLE/i);
   });
 
-  it('r17 native obligation-head plan family: retirement:ts-statements is strictly below BEFORE=9',async()=>{
+  it('r18 native company-scope plan family: retirement:ts-statements is strictly below BEFORE=8',async()=>{
    const fs=await import('node:fs/promises');
    const {fileURLToPath}=await import('node:url');
    const {resolve}=await import('node:path');
@@ -405,7 +405,7 @@ describe('native Customer 360 timeline transport',()=>{
     }
    };
    await walk(root);
-   expect(total).toBe(8);
-   expect(total).toBeLessThan(9);
+   expect(total).toBe(7);
+   expect(total).toBeLessThan(8);
   });
 });

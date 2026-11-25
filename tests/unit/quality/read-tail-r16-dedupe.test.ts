@@ -30,7 +30,7 @@ describe('quality work-scope tuple family dedupe (r16)', () => {
     expect(read('adapters/purchases.ts')).not.toContain('(SELECT ?::text company_id,?::text branch_id,NULL::text department_id) quality_scope');
     expect(read('adapters/calendar-quality-facts.ts')).not.toContain('(SELECT h.company_id,h.branch_id,NULL::text department_id)');
     expect(read('adapters/attachment-read.ts')).not.toContain('FROM(SELECT ?::text company_id');
-    expect(read('adapters/quality-work-scope-sql.ts').match(/SELECT /g)).toHaveLength(1);
+    expect(read('adapters/quality-work-scope-sql.ts').match(/SELECT /g) ?? []).toHaveLength(0);
   });
 });
 
@@ -82,7 +82,7 @@ describe('quality read-tail r16 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(75);
-    expect(total).toBe(18);
+    expect(total).toBe(17);
   });
   test('the three helpers are read-only and leave locks and prior families untouched', () => {
     for (const name of ['quality-work-scope-sql', 'native-source-wrapper-sql', 'inspection-evidence-source-sql']) {
@@ -91,7 +91,7 @@ describe('quality read-tail r16 retirement check', () => {
     expect(read('adapters/sales-package-sources.ts')).toContain('LOCK TABLE inventory_quality_holds,inventory_quality_inspections,inventory_quality_disposition_events,inventory_quality_cancellations');
     expect(read('adapters/attachment-read.ts')).toContain('qualityAttachmentReadSourceLocks');
     for (const name of ['quality-child-agg-sql', 'quality-receipt-guard-sql', 'quality-lineage-recursion-sql']) {
-      expect(read(`adapters/${name}.ts`).match(/SELECT /g) ?? []).toHaveLength(name === 'quality-lineage-recursion-sql' ? 0 : 1);
+      expect(read(`adapters/${name}.ts`).match(/SELECT /g) ?? []).toHaveLength(name === 'quality-lineage-recursion-sql' || name === 'quality-child-agg-sql' ? 0 : 1);
     }
     expect(read('adapters/quality-source-rows-sql.ts').match(/SELECT /g) ?? []).toHaveLength(0); // r37 fold
   });

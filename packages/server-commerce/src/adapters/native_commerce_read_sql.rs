@@ -425,6 +425,28 @@ const READ_POS_PRODUCT_IMAGE: NativeCommerceReadStatement = NativeCommerceReadSt
     bind_count: 2,
 };
 
+/// Native successor of the landed-cost receipt-line read. The caller binds
+/// `[fulfillment_id]`; the three-table join and ordinal order stay verbatim.
+pub const RD_LANDED_COST_RECEIPT_LINES: &str = "commerce_rd_landed_cost_receipt_lines";
+const SQL_LANDED_COST_RECEIPT_LINES: &str =
+    "SELECT fl.*,ol.product_id,p.tracking_mode FROM commerce_fulfillment_lines fl JOIN commerce_order_lines ol ON ol.id=fl.order_line_id JOIN commerce_products p ON p.id=ol.product_id WHERE fl.fulfillment_id=? ORDER BY ol.ordinal";
+const READ_LANDED_COST_RECEIPT_LINES: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_LANDED_COST_RECEIPT_LINES,
+    sql: SQL_LANDED_COST_RECEIPT_LINES,
+    bind_count: 1,
+};
+
+/// Native successor of the landed-cost posting-config read. The caller binds
+/// `[company_id]`.
+pub const RD_LANDED_COST_POSTING_CONFIG: &str = "commerce_rd_landed_cost_posting_config";
+const SQL_LANDED_COST_POSTING_CONFIG: &str =
+    "SELECT chart_id,inventory_account_id FROM commerce_settings WHERE company_id=?";
+const READ_LANDED_COST_POSTING_CONFIG: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_LANDED_COST_POSTING_CONFIG,
+    sql: SQL_LANDED_COST_POSTING_CONFIG,
+    bind_count: 1,
+};
+
 const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_PMS_WAREHOUSE_ACTIVE,
     READ_PMS_SETTINGS_EXISTS,
@@ -457,6 +479,10 @@ const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_LEGACY_ATTACHMENT_SCOPE,
     READ_EXPENSE_PREREQUISITE_SETTINGS_SOURCE,
     READ_SUPPLIER_BILL_RECEIPT_IDS,
+    READ_POS_PRODUCT_VERSION,
+    READ_POS_PRODUCT_IMAGE,
+    READ_LANDED_COST_RECEIPT_LINES,
+    READ_LANDED_COST_POSTING_CONFIG,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -534,6 +560,18 @@ mod tests {
                 SQL_SUPPLIER_BILL_RECEIPT_IDS,
                 2usize,
             ),
+            (RD_POS_PRODUCT_VERSION, SQL_POS_PRODUCT_VERSION, 2usize),
+            (RD_POS_PRODUCT_IMAGE, SQL_POS_PRODUCT_IMAGE, 2usize),
+            (
+                RD_LANDED_COST_RECEIPT_LINES,
+                SQL_LANDED_COST_RECEIPT_LINES,
+                1usize,
+            ),
+            (
+                RD_LANDED_COST_POSTING_CONFIG,
+                SQL_LANDED_COST_POSTING_CONFIG,
+                1usize,
+            ),
         ];
         for (kind, sql, bind_count) in expected {
             let statement = read_statement(kind).expect("registered owner read kind");
@@ -554,7 +592,45 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), bind_count);
         }
-        assert_eq!(STATEMENTS.len(), 31);
+        assert_eq!(STATEMENTS.len(), 35);
+    }
+
+    /// Landed-cost reads keep their exact owner-local join, projection and
+    /// single bind positions.
+    #[test]
+    fn landed_cost_reads_keep_their_exact_literals() {
+        let lines = read_statement(RD_LANDED_COST_RECEIPT_LINES).expect("receipt lines");
+        let config = read_statement(RD_LANDED_COST_POSTING_CONFIG).expect("posting config");
+        assert_eq!(
+            lines.sql,
+            "SELECT fl.*,ol.product_id,p.tracking_mode FROM commerce_fulfillment_lines fl JOIN commerce_order_lines ol ON ol.id=fl.order_line_id JOIN commerce_products p ON p.id=ol.product_id WHERE fl.fulfillment_id=? ORDER BY ol.ordinal"
+        );
+        assert_eq!(config.sql, "SELECT chart_id,inventory_account_id FROM commerce_settings WHERE company_id=?");
+        for statement in [lines, config] {
+            assert_eq!(statement.bind_count, 1);
+            assert_eq!(statement.sql.matches('?').count(), 1);
+            assert!(statement.sql.starts_with("SELECT "));
+            assert!(!statement.sql.contains(';'));
+        }
+    }
+
+    /// POS private-image product reads keep their exact alias, projection and
+    /// `[product_id, company_id]` bind order.
+    #[test]
+    fn pos_image_product_reads_keep_their_exact_literals() {
+        let version = read_statement(RD_POS_PRODUCT_VERSION).expect("product version");
+        let image = read_statement(RD_POS_PRODUCT_IMAGE).expect("product image");
+        assert_eq!(version.sql, "SELECT version FROM commerce_products WHERE id=? AND company_id=?");
+        assert_eq!(
+            image.sql,
+            "SELECT to_jsonb(product)::text image FROM commerce_products product WHERE product.id=? AND product.company_id=?"
+        );
+        for statement in [version, image] {
+            assert_eq!(statement.bind_count, 2);
+            assert_eq!(statement.sql.matches('?').count(), 2);
+            assert!(statement.sql.starts_with("SELECT "));
+            assert!(!statement.sql.contains(';'));
+        }
     }
 
     /// Supplier-bill receipt ids keep the exact Purchase join, two bind

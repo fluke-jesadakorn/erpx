@@ -1,5 +1,7 @@
 import 'server-only';
 import { ppRdRound3ExistsByIdTwoPred } from './pp-read-tail-round3-sources';
+import { ppRdRound4ByProjectionIdCompany } from './pp-read-tail-round4-sources';
+import { ppRdRound5ExistsByIdAndStatus } from './pp-read-tail-round5-sources';
 /** Canonical byte-identical SELECT-only owner read fragments shared across People Payroll
  * adapters (G4 read-tail r23). Each constant owns one parameterized literal copied verbatim
  * from its former inline copies; consumers import it and keep no local copy. All are pure
@@ -15,10 +17,10 @@ export const PP_RD23_HR_PAYROLL_COST_ASSIGNMENTS_SQL = "SELECT id,effective_from
 export const PP_RD23_HR_PAY_GROUPS_ACTIVE_CURRENCY_GUARD = "EXISTS(SELECT 1 FROM hr_pay_groups WHERE id=? AND company_id=? AND currency=? AND status='active')";
 export const PP_RD23_HR_ENGAGEMENTS_ACTIVE_FOR_PERSON_NOT_EXISTS = "NOT EXISTS(SELECT 1 FROM hr_engagements WHERE company_id=? AND person_id=? AND status!='ended')";
 export const PP_RD23_EVAL_ASSESSMENT_VERSION_GUARD = ppRdRound3ExistsByIdTwoPred('hr_evaluation_assessments', 'version', 'status');
-export const PP_RD23_LEAVE_TYPES_ID_COMPANY_EXISTS = 'SELECT 1 FROM leave_types WHERE id=? AND company_id=?';
-export const PP_RD23_HR_ENGAGEMENTS_ID_COMPANY_EXISTS = 'SELECT 1 FROM hr_engagements WHERE id=? AND company_id=?';
+export const PP_RD23_LEAVE_TYPES_ID_COMPANY_EXISTS = ppRdRound4ByProjectionIdCompany('1', 'leave_types');
+export const PP_RD23_HR_ENGAGEMENTS_ID_COMPANY_EXISTS = ppRdRound4ByProjectionIdCompany('1', 'hr_engagements');
 export const PP_RD23_HR_PAY_GROUPS_IMAGE_SQL = 'SELECT to_jsonb(g)::text image FROM hr_pay_groups g WHERE g.id=? AND g.company_id=?';
 export const PP_RD23_RECOVERY_FIRST_PERIOD_GUARD = "NOT EXISTS(SELECT 1 FROM hr_payroll_runs WHERE company_id=? AND pay_group_id=? AND adjustment_of_run_id IS NULL AND status='posted' AND period_start<=? AND period_end>=?)";
-export const PP_RD23_POSTED_PAYROLL_RUN_GUARD = "EXISTS(SELECT 1 FROM hr_payroll_runs WHERE id=? AND company_id=? AND status='posted')";
+export const PP_RD23_POSTED_PAYROLL_RUN_GUARD = ppRdRound5ExistsByIdAndStatus('hr_payroll_runs', 'company_id', 'posted');
 export const PP_RD23_IAM_REVIEWS_BY_ID_SQL = 'SELECT id,kind,payload,created_by,created_person FROM iam_reviews WHERE id=$1 AND company_id=$2';
 export const PP_RD23_PROJECT_WORKER_ENGAGEMENT_SQL = 'SELECT * FROM hr_engagements WHERE id=? AND person_id=? AND company_id=?';

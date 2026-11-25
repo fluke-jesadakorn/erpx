@@ -22,7 +22,9 @@ describe('marketing analytics touch projection dedupe', () => {
   it('keeps one query token in the helper and no inline literal in the consumer', async () => {
     const helper = await readFile(adapter('analytics-touch-source-sql.ts'), 'utf8');
     const source = await readFile(adapter('analytics-sources.ts'), 'utf8');
-    expect(helper.match(/SELECT /g)).toHaveLength(1);
+    expect(helper.match(/SELECT /g) ?? []).toHaveLength(0);
+    expect(helper).toContain("import { marketingSelectHeadSql } from './select-head-sql';");
+    expect(helper).toContain("marketingSelectHeadSql(");
     expect(source).not.toContain('lead.department_id FROM (${touchRows})');
     expect(source).not.toContain(legacy);
     expect(source).toContain('touch:marketingAnalyticsTouchSql(true,touchRows)');

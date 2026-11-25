@@ -40,7 +40,7 @@ describe('quality attachment source projection family dedupe (r19)', () => {
     expect(read('adapters/sales-package-sources.ts')).toContain('LOCK TABLE inventory_quality_holds,inventory_quality_inspections,inventory_quality_disposition_events,inventory_quality_cancellations');
     const counts: Record<string, number> = {
       'quality-work-scope-sql': 0, 'native-source-wrapper-sql': 0, 'inspection-evidence-source-sql': 1,
-      'quality-lineage-recursion-sql': 0, 'quality-child-agg-sql': 1,
+      'quality-lineage-recursion-sql': 0, 'quality-child-agg-sql': 0,
       'quality-receipt-guard-sql': 1, 'quality-source-rows-sql': 0, 'quality-scope-sql': 1,
       'quality-alert-recipient-sql': 0, 'quality-id-source-sql': 0,
     };
@@ -62,6 +62,6 @@ describe('quality read-tail r19 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(73);
-    expect(total).toBe(18);
+    expect(total).toBe(17);
   });
 });

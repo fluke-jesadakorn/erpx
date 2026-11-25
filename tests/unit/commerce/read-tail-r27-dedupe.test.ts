@@ -93,7 +93,7 @@ describe('Commerce r27 settings-image family native cutover', () => {
       expect(plans).toContain(`"${site.sql}"`);
       expect(plans).toContain(`kind: ${constant},`);
     }
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 31);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 35);');
     expect(plans).toContain('fn posting_setup_settings_image_reads_keep_their_exact_literals()');
     expect(sha(FAMILY.map((site) => site.sql).join('\n'))).toBe('b41fa29dda25eb56b97ddf900caf59512e1d12211e5bca16954a5f844d2706a8');
   });
@@ -113,8 +113,8 @@ describe('Commerce r27 settings-image family native cutover', () => {
     expect(read('supply-package-sources.ts')).toContain('LOCK TABLE commerce_orders,commerce_order_lines,commerce_fulfillments,commerce_fulfillment_lines,commerce_returns,commerce_return_lines,commerce_warehouses,commerce_products,commerce_goods_valuations,commerce_invoice_goods_carrying IN SHARE MODE');
   });
 
-  test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 385 (before 386)', () => {
-    expect(count(src, /SELECT /g)).toBe(385);
+  test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 381 (before 383)', () => {
+    expect(count(src, /SELECT /g)).toBe(381);
     expect((read('expense-posting-setup.ts').match(/SELECT /g) ?? []).length).toBe(1);
     expect((read('manufacturing-existing-posting-setup.ts').match(/SELECT /g) ?? []).length).toBe(2);
   });

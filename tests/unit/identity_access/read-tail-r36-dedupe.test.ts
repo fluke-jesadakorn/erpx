@@ -1,8 +1,16 @@
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi, afterEach } from 'vitest';
 import { revokedSessionHeadSql } from '../../../packages/server-identity_access/src/adapters/read-tail-family-r36';
+import {
+  identityControlReadConfigured,
+  parseIdentityControlReadConfig,
+  planIdentityControlRead,
+  setIdentityControlReadForTest,
+  PC_CONTEXT_RECEIPT,
+  PC_REVOKED_SESSION,
+} from '../../../packages/server-identity_access/src/adapters/native-control-read-plan';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-identity_access/src');
 const read = (rel: string) => readFileSync(resolve(srcRoot, rel), 'utf8');
@@ -174,6 +182,70 @@ const PROVIDER_CONTEXT_SHAS = [
   'f14064c0ee3a3034aa871d0594e0e63ca6f889601efef5b37b65ac9009ac5469',
   'def58961eb1edadfd240c2b97b615f7421df74e86d1da5bc2bc5f49742298949',
 ] as const;
+
+describe('Identity access native Control read-plan client', () => {
+  const ENV = 'ERPX_NATIVE_IDENTITY_CONTROL_READ_CONFIG';
+  const config = JSON.stringify({
+    privateBaseUrl: 'http://127.0.0.1:44993',
+    timeoutMs: 1000,
+    origin: 'https://acme.example.test',
+    holdings: [{ origin: 'https://acme.example.test', host: 'acme.example.test', holdingSlug: 'acme', holdingId: 'h001' }],
+  });
+
+  afterEach(() => {
+    setIdentityControlReadForTest(undefined);
+    vi.unstubAllEnvs();
+  });
+
+  const codeOf = (run: () => unknown): string | undefined => {
+    try { run(); } catch (error) { return (error as { code?: string }).code; }
+    return undefined;
+  };
+
+  test('configuration is exact and fails closed', async () => {
+    expect(parseIdentityControlReadConfig(config).holding.holdingSlug).toBe('acme');
+    expect(codeOf(() => parseIdentityControlReadConfig(undefined))).toBe('IDENTITY_CONTROL_READ_CONFIG_REQUIRED');
+    expect(codeOf(() => parseIdentityControlReadConfig('nope'))).toBe('IDENTITY_CONTROL_READ_CONFIG_INVALID');
+    expect(codeOf(() => parseIdentityControlReadConfig(JSON.stringify({
+      ...JSON.parse(config), origin: 'http://acme.example.test',
+    })))).toBe('IDENTITY_CONTROL_READ_CONFIG_INVALID');
+    vi.stubEnv(ENV, undefined);
+    expect(identityControlReadConfigured()).toBe(false);
+    await expect(planIdentityControlRead(PC_CONTEXT_RECEIPT, ['key-1'])).rejects.toMatchObject({
+      code: 'IDENTITY_CONTROL_READ_CONFIG_REQUIRED',
+    });
+  });
+
+  test('kinds, arity and values are closed before any transport call', async () => {
+    vi.stubEnv(ENV, config);
+    for (const [kind, values] of [
+      ['arbitrary_sql', ['DROP TABLE x']],
+      [PC_REVOKED_SESSION, ['a', 'b']],
+      [PC_CONTEXT_RECEIPT, ['']],
+      [PC_CONTEXT_RECEIPT, [7]],
+    ] as const)
+      await expect(planIdentityControlRead(kind, values)).rejects.toMatchObject({
+        code: 'IDENTITY_CONTROL_READ_INVALID',
+      });
+  });
+
+  test('a verified plan is byte-identical to the pinned Control statement', async () => {
+    setIdentityControlReadForTest(async (kind, values) => ({
+      sql: PROVIDER_CONTEXT_SELECTS[4],
+      values: [...values],
+    }));
+    const planned = await planIdentityControlRead(PC_CONTEXT_RECEIPT, ['key-1']);
+    expect(planned.sql).toBe(PROVIDER_CONTEXT_SELECTS[4]);
+    expect(planned.values).toEqual(['key-1']);
+  });
+
+  test('an unexpected statement reply fails closed', async () => {
+    setIdentityControlReadForTest(async () => ({ sql: 'SELECT 1', values: ['key-1'] }));
+    await expect(planIdentityControlRead(PC_CONTEXT_RECEIPT, ['key-1'])).rejects.toMatchObject({
+      code: 'IDENTITY_CONTROL_READ_RESPONSE_INVALID',
+    });
+  });
+});
 
 describe('Identity access provider-context native plan candidate', () => {
   test('the five Control reads are byte-pinned and still owner-TS held', () => {

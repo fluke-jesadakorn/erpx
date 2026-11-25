@@ -1,0 +1,4 @@
+{
+  "factData": "SELECT data FROM {table} WHERE item_id={ref}",
+  "metricCountPrefix": "SELECT {label} label,count(DISTINCT {id})::text value"
+}

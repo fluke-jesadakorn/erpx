@@ -136,7 +136,7 @@ describe('support read-tail r46 byte-identical selected-bindings column-projecti
   });
 
   test('retirement:ts-statements is 25 after the PMS attachment image native cut', () => {
-    expect(totalSelects()).toBe(25);
+    expect(totalSelects()).toBe(24);
     expect(totalSelects()).toBeLessThan(26);
   });
 });

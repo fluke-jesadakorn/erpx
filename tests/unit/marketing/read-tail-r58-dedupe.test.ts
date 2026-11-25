@@ -71,6 +71,6 @@ describe('marketing read-tail r58 form lock cutover', () => {
   });
 
   it('retirement:ts-statements stays strictly below BEFORE=12 at 10 after r59', async () => {
-    expect(await ownerTokens()).toEqual({ spaced: 9, bare: 9 });
+    expect(await ownerTokens()).toEqual({ spaced: 8, bare: 8 });
   });
 });

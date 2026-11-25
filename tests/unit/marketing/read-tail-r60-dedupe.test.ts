@@ -41,7 +41,7 @@ describe('marketing read-tail r60 purchase-union head cutover', () => {
     expect(await src('record-purchases.ts')).toContain('const rows=marketingPurchaseUnionSql([');
   });
 
-  it('retirement:ts-statements is BEFORE=10 -> AFTER=9', async () => {
-    expect(await selectTokens()).toBe(9);
+  it('retirement:ts-statements stays strictly below BEFORE=10 at 8 after r61', async () => {
+    expect(await selectTokens()).toBe(8);
   });
 });

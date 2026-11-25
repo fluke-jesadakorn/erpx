@@ -75,7 +75,7 @@ describe('Support read-tail r35 customer-contact-notes native kind', () => {
     });
 
     test('retirement:ts-statements is strictly below the r34 AFTER=44 baseline', () => {
-        expect(selectCount()).toBe(25);
+        expect(selectCount()).toBe(24);
         expect(selectCount()).toBeLessThan(44);
     });
 });

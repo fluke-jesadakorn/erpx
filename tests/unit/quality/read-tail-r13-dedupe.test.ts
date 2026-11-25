@@ -62,7 +62,7 @@ describe('quality record source id-exists family retirement (r30)', () => {
     expect(adapter).toContain('qualityAlertHoldId');
     expect(read('packages/server-quality/src/adapters/purchase-sources.ts')).toContain('qualityPurchaseSourceReadLocks');
     for (const name of ['quality-child-agg-sql', 'quality-receipt-guard-sql']) {
-      expect(read(`packages/server-quality/src/adapters/${name}.ts`).match(/SELECT /g)).toHaveLength(1);
+      expect(read(`packages/server-quality/src/adapters/${name}.ts`).match(/SELECT /g) ?? []).toHaveLength(name === 'quality-child-agg-sql' ? 0 : 1);
       expect(read('packages/server-quality/src/adapters/quality-source-rows-sql.ts').match(/SELECT /g) ?? []).toHaveLength(0); // r37 fold
     }
   });

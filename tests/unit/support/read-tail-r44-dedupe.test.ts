@@ -100,8 +100,8 @@ describe('support read-tail r44 byte-identical bound-row image aggregate head', 
     expect(src('read-tail-r43-sql.ts')).toContain('readTailR43ColumnsFromSql =');
   });
 
-  test('retirement:ts-statements is 25 after the PMS attachment image native cut', () => {
-    expect(totalSelects()).toBe(25);
+  test('retirement:ts-statements is 24 after the evidence renderer consolidation', () => {
+    expect(totalSelects()).toBe(24);
     expect(totalSelects()).toBeLessThan(32);
   });
 });

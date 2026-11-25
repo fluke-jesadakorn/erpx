@@ -95,8 +95,8 @@ describe('support read-tail r45 byte-identical active-assignment EXISTS head', (
     expect(src('read-tail-r44-sql.ts')).toContain('readTailR44ImageAggregateSql =');
   });
 
-  test('retirement:ts-statements is 25 after the PMS attachment image native cut', () => {
-    expect(totalSelects()).toBe(25);
+  test('retirement:ts-statements is 24 after the evidence renderer consolidation', () => {
+    expect(totalSelects()).toBe(24);
     expect(totalSelects()).toBeLessThan(32);
   });
 });

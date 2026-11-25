@@ -8,6 +8,9 @@ import {
   legalFactDataSql,
   legalMetricCountPrefix,
 } from '../../../packages/server-legal/src/adapters/legal-read-tail-r38-sources';
+import contract from '../../../packages/server-legal/src/adapters/legal-read-tail-r38-sources.json' with {
+  type: 'json',
+};
 
 const srcRoot = resolve(__dirname, '../../../packages/server-legal/src');
 const src = (name: string) => readFile(new URL(`../../../packages/server-legal/src/adapters/${name}`, import.meta.url), 'utf8');
@@ -22,6 +25,8 @@ describe('legal read-tail r38 fragment families', () => {
     expect(legalFactDataSql('legal_matters', 'i.id')).toBe('SELECT data FROM legal_matters WHERE item_id=i.id');
     expect(legalMetricCountPrefix('s.state', 's.id')).toBe('SELECT s.state label,count(DISTINCT s.id)::text value');
     expect(legalMetricCountPrefix('h.state', 'h.id')).toBe('SELECT h.state label,count(DISTINCT h.id)::text value');
+    expect(legalFactDataSql('legal_contracts', '$&')).toBe('SELECT data FROM legal_contracts WHERE item_id=$&');
+    expect(legalMetricCountPrefix('$&', '$1')).toBe('SELECT $& label,count(DISTINCT $1)::text value');
   });
 
   it('keeps every fragment read-only (no writes or row locks)', () => {
@@ -46,6 +51,18 @@ describe('legal read-tail r38 fragment families', () => {
     for (const symbol of ['legalReleasedItemGuardSql', 'legalMemberEditPointSql', 'legalFactDataSql', 'legalMetricCountPrefix']) {
       expect(shared.match(new RegExp(`export const ${symbol}`, 'g')) ?? []).toHaveLength(1);
     }
+    expect(shared.match(/SELECT /g) ?? []).toHaveLength(0);
+    expect(shared).toContain('legal-read-tail-r38-sources.json');
+    expect(shared).toContain('LEGAL_READ_TAIL_R38_CONTRACT_INVALID');
+    expect(contract).toEqual({
+      factData: 'SELECT data FROM {table} WHERE item_id={ref}',
+      metricCountPrefix: 'SELECT {label} label,count(DISTINCT {id})::text value',
+    });
+    const rust = await src('legal_read_tail_r38.rs');
+    expect(rust).toContain('include_str!("legal-read-tail-r38-sources.json")');
+    expect(rust).toContain('render_legal_fact_data');
+    expect(rust).toContain('render_legal_metric_count_prefix');
+    expect(rust).toContain('538df0300bdb6b8e92b9db02530fe0effa6a5ce97f1951468862f55489199b1e');
     expect(purchases).toContain("legalReleasedItemGuardSql('company_id')");
     expect(purchases).toContain("legalFactDataSql(table,'i.id')");
     expect(access).toContain("legalReleasedItemGuardSql('version')");
@@ -140,5 +157,19 @@ describe('legal read-tail r38 fragment families', () => {
     await walk(srcRoot);
     expect(total).toBeLessThan(230);
     expect(total).toBeLessThanOrEqual(226);
+  });
+
+  it('retirement:ts-statements is BEFORE=105 -> AFTER=103 for the r38 native contract', async () => {
+    let total = 0;
+    const walk = async (dir: string) => {
+      for (const entry of await readdir(dir, { withFileTypes: true })) {
+        const p = resolve(dir, entry.name);
+        if (entry.isDirectory()) await walk(p);
+        else if (entry.name.endsWith('.ts')) total += ((await readFile(p, 'utf8')).match(/SELECT /g) ?? []).length;
+      }
+    };
+    await walk(srcRoot);
+    expect(total).toBeLessThan(105);
+    expect(total).toBe(103);
   });
 });

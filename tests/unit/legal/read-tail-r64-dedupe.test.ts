@@ -97,6 +97,6 @@ describe('legal read-tail r64 version-exists head reuse', () => {
     await walk(srcRoot);
     expect(total).toBeLessThan(135);
     expect(total).toBeLessThanOrEqual(134);
-    expect(total).toBe(105);
+    expect(total).toBe(103);
   });
 });

@@ -70,6 +70,14 @@ export const FINANCE_RD_REPORT_ACCOUNT_LIST = 'finance_rd_report_account_list';
 export const FINANCE_RD_REPORT_STATEMENT_HISTORY = 'finance_rd_report_statement_history';
 export const FINANCE_RD_REPORT_PREVIOUS_PACKAGE = 'finance_rd_report_previous_package';
 export const FINANCE_RD_REPORT_NEXT_EDITION = 'finance_rd_report_next_edition';
+export const FINANCE_RD_WITHHOLDING_BANK_ACCOUNT = 'finance_rd_withholding_bank_account';
+export const FINANCE_RD_WITHHOLDING_LIABILITY_ACCOUNT = 'finance_rd_withholding_liability_account';
+export const FINANCE_RD_WITHHOLDING_INVOICE = 'finance_rd_withholding_invoice';
+export const FINANCE_RD_WITHHOLDING_CONFIGURED_OWNER = 'finance_rd_withholding_configured_owner';
+export const FINANCE_RD_WITHHOLDING_APPROVED_ASSESSMENT = 'finance_rd_withholding_approved_assessment';
+export const FINANCE_RD_WITHHOLDING_CONSUMED_ASSESSMENT = 'finance_rd_withholding_consumed_assessment';
+export const FINANCE_RD_WITHHOLDING_PAYMENT_DOCUMENTS = 'finance_rd_withholding_payment_documents';
+export const FINANCE_RD_WITHHOLDING_WORKSPACE_IDENTITIES = 'finance_rd_withholding_workspace_identities';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'FINANCE_NATIVE_READ_UNAVAILABLE', 'The native Finance read service is unavailable.');

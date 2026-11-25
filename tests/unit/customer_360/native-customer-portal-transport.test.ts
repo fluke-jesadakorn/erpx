@@ -244,7 +244,7 @@ describe('Customer 360 obligation-fact query-head family', () => {
     const reads = c360Src('customer-read-sources.ts');
     expect(reads).toContain('const scopedRow ='); // r5
     expect(reads).toContain('export function customerVisiblePredicate('); // r5
-    expect(reads).toContain('export const companyScopeSource ='); // r8
+    expect(reads).not.toContain('companyScopeSource'); // r18: native read plan
     const timeline = c360Src('timeline.ts');
     expect(timeline).toContain('const eventSelect='); // r6
     expect(timeline).toContain('const eventRow='); // r7
@@ -373,7 +373,7 @@ describe('Customer 360 obligation-fact query-head family', () => {
     }
   });
 
-  it('retirement r17:ts-statements is strictly lower than BEFORE=9 (expected 8)', () => {
+  it('retirement r18:ts-statements is strictly lower than BEFORE=8 (expected 7)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {

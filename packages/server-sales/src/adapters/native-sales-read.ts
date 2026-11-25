@@ -28,6 +28,12 @@ export const SALES_RD_PRICING_LIST_ACTIVE = 'sales_rd_pricing_list_active';
 export const SALES_RD_PRICING_ITEMS_BY_LIST = 'sales_rd_pricing_items_by_list';
 export const SALES_RD_FOLLOWUP_SOURCE_FOLLOWUP = 'sales_rd_followup_source_followup';
 export const SALES_RD_FOLLOWUP_SOURCE_ORDER = 'sales_rd_followup_source_order';
+export const SALES_RD_FOLLOWUP_METRIC_PROJECTION = 'sales_rd_followup_metric_projection';
+export const SALES_RD_FOLLOWUP_METRIC_SOURCE = 'sales_rd_followup_metric_source';
+
+/** Owner-planned statement. The caller may run it on its own open unit or
+ * compose it into a larger read; no SQL is accepted from the caller. */
+export type NativeSalesPlan = { sql: string; values: unknown[] };
 
 const unavailable = (): never => {
   throw new ApiError(503, 'SALES_NATIVE_READ_UNAVAILABLE', 'The native Sales read service is unavailable.');
@@ -105,13 +111,9 @@ function post(
   });
 }
 
-/** Plan an owner read in Rust and run it on the caller's open unit. Pure read:
- * the kind selects the SQL; only routing-scoped values cross the wire. */
-export async function nativeSalesReadAll<T>(
-  kind: string,
-  values: readonly unknown[],
-  db: SqlDatabase,
-): Promise<SqlResult<T>> {
+/** Ask the mounted axum owner to plan one registered read. The returned
+ * statement is owned by Rust; the caller supplies only the kind and its binds. */
+async function plan(kind: string, values: readonly unknown[]): Promise<NativeSalesPlan> {
   const config = configuration();
   const holding = config.holdings[0]!;
   const key = 'sal-read-' + createHash('sha256').update(kind).update('\u0000').update(JSON.stringify(values)).digest('hex').slice(0, 32);
@@ -141,11 +143,28 @@ export async function nativeSalesReadAll<T>(
   }
   const statements = record(payload) && record(payload.data) ? payload.data.statements : undefined;
   if (!Array.isArray(statements) || statements.length !== 1) return unavailable();
-  const planned = statements.map((statement: unknown) => {
-    if (!record(statement) || typeof statement.sql !== 'string' || !Array.isArray(statement.values)) return unavailable();
-    return db.prepare(statement.sql).bind(...statement.values);
-  });
-  const results = await db.batch<T>(planned);
+  const statement = statements[0];
+  if (!record(statement) || typeof statement.sql !== 'string' || !Array.isArray(statement.values)) return unavailable();
+  return { sql: statement.sql, values: statement.values };
+}
+
+/** Planner for owners that compose a larger read on their own open unit. */
+export async function nativeSalesPlan(
+  kind: string,
+  values: readonly unknown[],
+): Promise<NativeSalesPlan> {
+  return plan(kind, values);
+}
+
+/** Plan an owner read in Rust and run it on the caller's open unit. Pure read:
+ * the kind selects the SQL; only routing-scoped values cross the wire. */
+export async function nativeSalesReadAll<T>(
+  kind: string,
+  values: readonly unknown[],
+  db: SqlDatabase,
+): Promise<SqlResult<T>> {
+  const planned = await plan(kind, values);
+  const results = await db.batch<T>([db.prepare(planned.sql).bind(...planned.values)]);
   return results[0] ?? { results: [], success: true, meta: { changes: 0, duration: 0 } };
 }
 

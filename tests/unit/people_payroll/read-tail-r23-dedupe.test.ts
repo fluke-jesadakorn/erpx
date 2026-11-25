@@ -97,14 +97,22 @@ describe('People Payroll read-tail r23 byte-identical / parameterized family ded
     }
   });
 
-  test('the shared module declares each fragment once, or delegates to round-3', () => {
+  test('the shared module declares each fragment once, or delegates to round-3/4/5', () => {
     const s = src('pp-read-tail-r23-sources.ts');
     for (const literal of literals) {
-      if (literal === PP_RD23_EVAL_ASSESSMENT_VERSION_GUARD) continue;
+      if (literal === PP_RD23_EVAL_ASSESSMENT_VERSION_GUARD
+        || literal === PP_RD23_LEAVE_TYPES_ID_COMPANY_EXISTS
+        || literal === PP_RD23_HR_ENGAGEMENTS_ID_COMPANY_EXISTS
+        || literal === PP_RD23_POSTED_PAYROLL_RUN_GUARD) continue;
       expect(s.split(literal)).toHaveLength(2);
     }
     expect(s).toContain("from './pp-read-tail-round3-sources'");
     expect(s).toContain("ppRdRound3ExistsByIdTwoPred('hr_evaluation_assessments', 'version', 'status')");
+    expect(s).toContain("from './pp-read-tail-round4-sources'");
+    expect(s).toContain("ppRdRound4ByProjectionIdCompany('1', 'leave_types')");
+    expect(s).toContain("ppRdRound4ByProjectionIdCompany('1', 'hr_engagements')");
+    expect(s).toContain("from './pp-read-tail-round5-sources'");
+    expect(s).toContain("ppRdRound5ExistsByIdAndStatus('hr_payroll_runs', 'company_id', 'posted')");
   });
 
   test('worktree read-only SELECT count is strictly lower than the recorded 1485 r22 baseline', () => {
@@ -120,6 +128,6 @@ describe('People Payroll read-tail r23 byte-identical / parameterized family ded
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(1485);
-    expect(total).toBeLessThanOrEqual(1144);
+    expect(total).toBeLessThanOrEqual(1141);
   });
 });

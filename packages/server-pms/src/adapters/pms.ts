@@ -56,7 +56,7 @@ import { pmsPosFacts } from "@erpx/server-pos/public/pms-command-facts";
 import { pmsWorkflowFacts } from "@erpx/server-workflow/public/pms-command-facts";
 import { pmsFilesFacts } from "@erpx/server-files/public/pms-command-facts";
 import { nativePmsOwnerWrite } from "@erpx/feature-pms/public/native-pms";
-import { nativePmsReadAll, nativePmsReadFirst, PMS_RD_POSTING_CHARGE, PMS_RD_POSTING_BY_RECORD, PMS_RD_CHARGE_CORRECTION_PENDING, PMS_RD_GUEST_COMMAND_RECORD, PMS_RD_STAY_COMMAND, PMS_RD_CASHIER_COMMAND, PMS_RD_POS_COMMAND, PMS_RD_NIGHT_COMMAND, PMS_RD_HOUSEKEEPING_COMMAND, PMS_RD_TRANSFER_REQUESTS, PMS_RD_GUEST_DOCUMENTS } from "./native-pms-read";
+import { nativePmsReadAll, nativePmsReadFirst, PMS_RD_POSTING_CHARGE, PMS_RD_POSTING_BY_RECORD, PMS_RD_CHARGE_CORRECTION_PENDING, PMS_RD_GUEST_COMMAND_RECORD, PMS_RD_STAY_COMMAND, PMS_RD_CASHIER_COMMAND, PMS_RD_POS_COMMAND, PMS_RD_NIGHT_COMMAND, PMS_RD_HOUSEKEEPING_COMMAND, PMS_RD_TRANSFER_REQUESTS, PMS_RD_GUEST_DOCUMENTS, PMS_RD_BOOKING_ALLOCATION_EXISTS, PMS_RD_PENDING_JOBS } from "./native-pms-read";
 function unit(db: SqlDatabase, companyId = '', actor: LaneActor = {}): PmsUnit<SqlStatement> {
         const write = (kind: string, values: unknown[]): any => nativePmsOwnerWrite(companyId, kind, values);
     const identity_access = pmsIdentityAccessFacts(db);
@@ -394,7 +394,7 @@ function unit(db: SqlDatabase, companyId = '', actor: LaneActor = {}): PmsUnit<S
         readPmsBookingAllocations: (facts: {
             id: string;
             toGuestAccountId: string;
-        }) => db.prepare('SELECT id FROM pms_booking_allocations WHERE guest_account_id IN (?,?) LIMIT 1').bind(facts.id, facts.toGuestAccountId).first(),
+        }) => nativePmsReadFirst<{ id: string }>(PMS_RD_BOOKING_ALLOCATION_EXISTS, [facts.id, facts.toGuestAccountId], db),
         readPmsBookingPayments2: (facts: {
             reservationId: string;
         }) => db.prepare(pmsBookingPaymentIdProbeSql('reservation_id', 'payment_pending')).bind(facts.reservationId).first(),
@@ -448,11 +448,11 @@ function unit(db: SqlDatabase, companyId = '', actor: LaneActor = {}): PmsUnit<S
             fact1: string | null;
             fact2: string | null;
             fact3: string | null;
-        }) => query<{
+        }) => nativePmsReadAll<{
             id: string;
             property_id: string;
             actor_json: string;
-        }>(db, "SELECT id,property_id,actor_json FROM pms_jobs WHERE state IN ('pending','running') AND (?::text IS NULL OR property_id=?) AND (?::text IS NULL OR id=?) ORDER BY updated_at LIMIT 4", facts.fact0, facts.fact1, facts.fact2, facts.fact3),
+        }>(PMS_RD_PENDING_JOBS, [facts.fact0, facts.fact1, facts.fact2, facts.fact3], db).then(result=>result.results),
         readPmsProperties3: (facts: {
             property_id: string;
         }) => db.prepare("SELECT id FROM pms_properties WHERE id=? FOR UPDATE").bind(facts.property_id).first(),

@@ -142,6 +142,17 @@ pub mod native_read_plan {
     pub use crate::adapters::native_read_plan::{plan_sha256, FINANCE_REFUND_NOTICE_ASSIGNMENT_SQL};
 }
 
+/// Native Control read-plan port: a closed kind resolves to a byte-pinned
+/// statement the caller executes on its own Control unit.
+pub mod control_read_plan {
+    pub use crate::adapters::control_read_plan::{
+        ControlReadPlan, ControlReadTarget, PC_CONTEXT_RECEIPT, PC_PLATFORM_ASSIGNMENTS,
+        PC_PROVIDER_CONTEXT, PC_REVOKED_SESSION, PC_WORKSPACE_PREFERENCE, plan,
+        router_for_holdings, SQL_CONTEXT_RECEIPT, SQL_PLATFORM_ASSIGNMENTS, SQL_PROVIDER_CONTEXT,
+        SQL_REVOKED_SESSION, SQL_WORKSPACE_PREFERENCE,
+    };
+}
+
 pub mod people_access;
 
 /// Native Identity port for People account linking (Control DB `user` plus

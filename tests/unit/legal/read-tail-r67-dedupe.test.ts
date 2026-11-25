@@ -56,9 +56,10 @@ describe('legal read-tail r67 released-item point-guard head reuse', () => {
     expect(r38).toContain("from './legal-read-tail-r36-sources'");
     expect(r38).toContain("legalPointByKeySql('1', 'legal_items i', 'i.id'");
     expect(r38).not.toContain('SELECT 1 FROM legal_items i');
+    expect(r38).toContain('legal-read-tail-r38-sources.json');
     const line = r38.split('\n').find(l => l.includes('legalPointByKeySql('))!;
     expect(line).not.toContain('SELECT ');
-    expect((r38.match(/SELECT /g) ?? []).length).toBe(2);
+    expect((r38.match(/SELECT /g) ?? []).length).toBe(0);
     expect((r36.match(/export const legalPointByKeySql/g) ?? []).length).toBe(1);
   });
 
@@ -91,6 +92,6 @@ describe('legal read-tail r67 released-item point-guard head reuse', () => {
     await walk(srcRoot);
     expect(total).toBeLessThan(132);
     expect(total).toBeLessThanOrEqual(131);
-    expect(total).toBe(105);
+    expect(total).toBe(103);
   });
 });

@@ -3309,7 +3309,6 @@
 @source "../../../../packages/server-customer_360/src/adapters/executive-main-evidence-sources.ts";
 @source "../../../../packages/server-customer_360/src/adapters/native-executive-customer-activity.ts";
 @source "../../../../packages/server-customer_360/src/adapters/native-notes.ts";
-@source "../../../../packages/server-customer_360/src/adapters/obligation-fact-head.ts";
 @source "../../../../packages/server-customer_360/src/adapters/package-obligations.ts";
 @source "../../../../packages/server-customer_360/src/adapters/portal-attachments.ts";
 @source "../../../../packages/server-customer_360/src/adapters/portal-command-request.ts";

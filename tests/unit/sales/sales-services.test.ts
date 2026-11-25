@@ -433,13 +433,15 @@ test('actual Sales service owner reader retains Department history while origina
  const html=renderToStaticMarkup(createElement(SalesServiceProducts,{base:'/holdings/acme/branches/branch/departments/department',initial:view}));expect(html).toContain('Company service');expect(html).not.toContain('Add service item');expect(html).toContain('authorized product preparer');
 });
 
-test('keeps one fixed Sales follow-up source projection for the enforced and non-enforced metric readers',async()=>{
+test('keeps one native Sales follow-up source plan for the enforced and non-enforced metric readers',async()=>{
  const {readFile}=await import('node:fs/promises'),source=await readFile(new URL("../../../packages/server-sales/src/adapters/metric-purchases.ts",import.meta.url),'utf8');
- expect(source).toContain('const followupSourceSelect=');
- expect(source.match(/\$\{followupMetricPrefix\} FROM customer_followups followup JOIN /g)).toHaveLength(1);
- expect(source.match(/followupSourceSelect/g)).toHaveLength(3);
- expect(source).toContain('return {sql:followupSourceSelect,args:[] as unknown[]}');
- expect(source).toContain('`${followupSourceSelect} JOIN (${crmFinanceCustomerSources}) customer');
+ expect(source).toContain('SALES_RD_FOLLOWUP_METRIC_PROJECTION');
+ expect(source).toContain('SALES_RD_FOLLOWUP_METRIC_SOURCE');
+ expect(source).toContain('const kind=enforced?SALES_RD_FOLLOWUP_METRIC_SOURCE:SALES_RD_FOLLOWUP_METRIC_PROJECTION;');
+ expect(source.match(/nativeSalesPlan\(/g)).toHaveLength(1);
+ expect(source).toContain('return {sql:planned.sql,args:planned.values};');
+ expect(source).not.toContain('followupSourceSelect=');
+ expect(source).not.toContain('${followupMetricPrefix} FROM customer_followups followup JOIN ');
 });
 
 test('Sales read-tail cross-file prefixes share one byte-identical SQL constant per projection',async()=>{
@@ -454,9 +456,10 @@ test('Sales read-tail cross-file prefixes share one byte-identical SQL constant 
  }
  for(const file of ['metric-purchases.ts','followup-purchases.ts']){
   const source=await readFile(new URL(file,base),'utf8');
-  expect(source.match(/followupMetricPrefix/g)).toHaveLength(2);
   expect(source).not.toContain('SELECT followup.*,actual.branch_id,actual.department_id,actual.kind order_kind');
  }
+ expect(await readFile(new URL('metric-purchases.ts',base),'utf8')).not.toContain('followupMetricPrefix');
+ expect((await readFile(new URL('followup-purchases.ts',base),'utf8')).match(/followupMetricPrefix/g)).toHaveLength(2);
 });
 
 test('Sales metric CRM membership EXISTS reuses one alias-parameterized SQL generator with byte-identical output',async()=>{
@@ -467,7 +470,7 @@ test('Sales metric CRM membership EXISTS reuses one alias-parameterized SQL gene
  const gen=new Function(`${code}\nreturn crmAssignmentExists;`)() as (alias?:string)=>string;
  expect(gen()).toBe(`EXISTS(SELECT 1 FROM assignments WHERE id=? AND (jsonb_array_length(modules_json::jsonb)=0 OR modules_json::jsonb @> jsonb_build_array('crm'::text)))`);
  expect(gen('selected')).toBe(`EXISTS(SELECT 1 FROM assignments selected WHERE selected.id=? AND (jsonb_array_length(selected.modules_json::jsonb)=0 OR selected.modules_json::jsonb @> jsonb_build_array('crm'::text)))`);
- expect(source.match(/crmAssignmentExists/g)).toHaveLength(3);
+ expect(source.match(/crmAssignmentExists/g)).toHaveLength(2);
 });
 
 test('Sales contact-note projection prefix is one byte-identical SQL constant across order and customer reads',async()=>{

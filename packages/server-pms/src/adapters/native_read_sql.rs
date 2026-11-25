@@ -155,6 +155,12 @@ pub const PMS_RD_REFUND_REQUEST_ALLOCATIONS: &str = "pms_rd_refund_request_alloc
 /// and no lock/refund path; the caller runs them on its already-open unit.
 pub const PMS_RD_TRANSFER_REQUESTS: &str = "pms_rd_transfer_requests";
 pub const PMS_RD_GUEST_DOCUMENTS: &str = "pms_rd_guest_documents";
+/// Native successors of the owner-local `pms.ts` fixed allocation-existence
+/// and pending-job list reads. Fixed SQL with two/four positional binds, no
+/// ledger/receipt/outbox and no lock/refund path; the caller runs them on its
+/// already-open unit. The property FOR UPDATE lock stays in the caller.
+pub const PMS_RD_BOOKING_ALLOCATION_EXISTS: &str = "pms_rd_booking_allocation_exists";
+pub const PMS_RD_PENDING_JOBS: &str = "pms_rd_pending_jobs";
 const SQL_INVENTORY_COMMAND: &str = "SELECT id,kind,data_json,version,updated_at FROM pms_records \
 WHERE property_id=? AND kind IN ('room_type','room','rate','block','item','credit') \
 UNION ALL SELECT id,kind,data_json,version,updated_at FROM pms_records \
@@ -507,8 +513,21 @@ const READ_GUEST_DOCUMENTS: NativeReadStatement = NativeReadStatement {
     sql: SQL_GUEST_DOCUMENTS,
     bind_count: 2,
 };
+/// Retired TypeScript literals from `pms.ts`, byte-for-byte.
+const SQL_BOOKING_ALLOCATION_EXISTS: &str = "SELECT id FROM pms_booking_allocations WHERE guest_account_id IN (?,?) LIMIT 1";
+const READ_BOOKING_ALLOCATION_EXISTS: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_BOOKING_ALLOCATION_EXISTS,
+    sql: SQL_BOOKING_ALLOCATION_EXISTS,
+    bind_count: 2,
+};
+const SQL_PENDING_JOBS: &str = "SELECT id,property_id,actor_json FROM pms_jobs WHERE state IN ('pending','running') AND (?::text IS NULL OR property_id=?) AND (?::text IS NULL OR id=?) ORDER BY updated_at LIMIT 4";
+const READ_PENDING_JOBS: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_PENDING_JOBS,
+    sql: SQL_PENDING_JOBS,
+    bind_count: 4,
+};
 
-const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG, READ_PENDING_HOTEL_TRANSFERS, READ_UNPOSTED_BOOKING_RECEIPTS, READ_UNPOSTED_COUNTER_RECEIPTS, READ_HOSPITALITY_SETUP_PROPERTIES, READ_ATTACHMENT_PROPERTY_IMAGE, READ_ATTACHMENT_RECORD_IMAGE, READ_DOCUMENT_RELATED_POSTINGS, READ_POS_GUEST_HOTELS, READ_POS_GUEST_CHOICES, READ_POS_STRIPE_PAYMENT, READ_POS_BOOKING_PAYMENT, READ_STRIPE_PAYMENT_BY_ID, READ_STRIPE_PAYMENT_BY_ID_COMPANY, READ_STRIPE_PAYMENT_PROPERTY, READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS, READ_TRANSFER_REQUESTS, READ_GUEST_DOCUMENTS];
+const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG, READ_PENDING_HOTEL_TRANSFERS, READ_UNPOSTED_BOOKING_RECEIPTS, READ_UNPOSTED_COUNTER_RECEIPTS, READ_HOSPITALITY_SETUP_PROPERTIES, READ_ATTACHMENT_PROPERTY_IMAGE, READ_ATTACHMENT_RECORD_IMAGE, READ_DOCUMENT_RELATED_POSTINGS, READ_POS_GUEST_HOTELS, READ_POS_GUEST_CHOICES, READ_POS_STRIPE_PAYMENT, READ_POS_BOOKING_PAYMENT, READ_STRIPE_PAYMENT_BY_ID, READ_STRIPE_PAYMENT_BY_ID_COMPANY, READ_STRIPE_PAYMENT_PROPERTY, READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS, READ_TRANSFER_REQUESTS, READ_GUEST_DOCUMENTS, READ_BOOKING_ALLOCATION_EXISTS, READ_PENDING_JOBS];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
 pub fn is_read(kind: &str) -> bool {
@@ -936,7 +955,7 @@ ORDER BY id"
         assert!(!upper.contains("PG_ADVISORY"));
         assert!(is_read(read.kind));
         assert!(!is_read("pms_rd_section_related_records_v2"));
-        assert_eq!(READS.len(), 43);
+        assert_eq!(READS.len(), 45);
     }
 
     #[test]
@@ -960,7 +979,7 @@ ORDER BY id"
         assert!(!upper.contains("PG_ADVISORY"));
         assert!(is_read(read.kind));
         assert!(!is_read("pms_rd_guest_booking_document_v2"));
-        assert_eq!(READS.len(), 43);
+        assert_eq!(READS.len(), 45);
     }
 
     #[test]
@@ -983,7 +1002,7 @@ ORDER BY id"
         assert!(!upper.contains("PG_ADVISORY"));
         assert!(is_read(read.kind));
         assert!(!is_read("pms_rd_hotel_metrics_v2"));
-        assert_eq!(READS.len(), 43);
+        assert_eq!(READS.len(), 45);
     }
 
     #[test]
@@ -1009,7 +1028,7 @@ ORDER BY id"
             assert!(is_read(read.kind));
         }
         assert!(!is_read("pms_rd_booking_receipt_by_key_v2"));
-        assert_eq!(READS.len(), 43);
+        assert_eq!(READS.len(), 45);
     }
 
     #[test]
@@ -1036,7 +1055,7 @@ ORDER BY id"
         }
         assert!(!is_read("pms_rd_booking_documents_v2"));
         assert!(!is_read("pms_rd_change_payment_pending_v2"));
-        assert_eq!(READS.len(), 43);
+        assert_eq!(READS.len(), 45);
     }
 
     #[test]
@@ -1063,7 +1082,7 @@ ORDER BY id"
         }
         assert!(!is_read("pms_rd_booking_allocations_v2"));
         assert!(!is_read("pms_rd_refund_request_allocations_v2"));
-        assert_eq!(READS.len(), 43);
+        assert_eq!(READS.len(), 45);
     }
 
     #[test]
@@ -1090,6 +1109,33 @@ ORDER BY id"
         }
         assert!(!is_read("pms_rd_transfer_requests_v2"));
         assert!(!is_read("pms_rd_guest_documents_v2"));
-        assert_eq!(READS.len(), 43);
+        assert_eq!(READS.len(), 45);
+    }
+
+    #[test]
+    fn allocation_and_pending_job_reads_match_retired_typescript_literals() {
+        let allocation = read_statement(PMS_RD_BOOKING_ALLOCATION_EXISTS).expect("allocation existence read");
+        let jobs = read_statement(PMS_RD_PENDING_JOBS).expect("pending jobs read");
+        assert_eq!(allocation.kind, "pms_rd_booking_allocation_exists");
+        assert_eq!(allocation.sql, "SELECT id FROM pms_booking_allocations WHERE guest_account_id IN (?,?) LIMIT 1");
+        assert_eq!(allocation.bind_count, 2);
+        assert_eq!(jobs.kind, "pms_rd_pending_jobs");
+        assert_eq!(jobs.sql, "SELECT id,property_id,actor_json FROM pms_jobs WHERE state IN ('pending','running') AND (?::text IS NULL OR property_id=?) AND (?::text IS NULL OR id=?) ORDER BY updated_at LIMIT 4");
+        assert_eq!(jobs.bind_count, 4);
+        for read in [allocation, jobs] {
+            assert_eq!(read.sql.matches('?').count(), read.bind_count);
+            let upper = read.sql.to_ascii_uppercase();
+            assert!(upper.starts_with("SELECT"));
+            assert!(!upper.contains("INSERT INTO"));
+            assert!(!upper.contains("UPDATE "));
+            assert!(!upper.contains("DELETE FROM"));
+            assert!(!upper.contains("FOR UPDATE"));
+            assert!(!upper.contains("FOR SHARE"));
+            assert!(!upper.contains("LOCK TABLE"));
+            assert!(is_read(read.kind));
+        }
+        assert!(!is_read("pms_rd_booking_allocation_exists_v2"));
+        assert!(!is_read("pms_rd_pending_jobs_v2"));
+        assert_eq!(READS.len(), 45);
     }
 }

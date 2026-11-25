@@ -63,7 +63,9 @@ const input = (metric: 'active-support-incidents' | 'open-support-tickets' | 'ov
 describe('Support read-tail r24 evidence projection family', () => {
     test('authors one parameterized evidence projection helper', () => {
         expect(evidence.match(/const evidenceSelect\s*=/g) ?? []).toHaveLength(1);
-        expect(evidence).toContain('const evidenceSelect = (columns: string) => `SELECT ${columns}`;');
+        expect(evidence).toContain('const evidenceSelect = (columns: string, body: string) =>');
+        expect(evidence).toContain("readTailR43ColumnsFromSql(`${columns}\\n   `, body)");
+        expect(evidence).not.toContain('=`SELECT ');
         expect(evidence).not.toContain('const ticketEvidenceSelect =');
         expect(evidence).not.toContain('`SELECT t.id,t.title,t.severity');
         expect(evidence.match(/evidenceSelect\(/g) ?? []).toHaveLength(3);
@@ -125,7 +127,7 @@ describe('Support read-tail r24 evidence projection family', () => {
             }
         };
         walk(srcRoot);
-        expect(total).toBe(25);
+        expect(total).toBe(24);
         expect(total).toBeLessThan(50);
     });
 });

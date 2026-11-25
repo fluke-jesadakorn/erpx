@@ -93,7 +93,7 @@ describe('Support read-tail r25 actor-scope CTE family', () => {
         expect(src('adapters/ticket-guard-sources.ts')).toContain('export const ticketGuardExistsSql = (predicate: string) =>');
         expect(src('adapters/support-ticket-read.ts')).not.toContain('ticketEligibilitySelect');
         expect(src('adapters/support-evidence.ts')).toContain('const evidenceEligibilitySelect = () =>');
-        expect(src('adapters/executive-main-evidence-sources.ts')).toContain('const evidenceSelect = (columns: string) =>');
+        expect(src('adapters/executive-main-evidence-sources.ts')).toContain('const evidenceSelect = (columns: string, body: string) =>');
     });
 
     test('retirement:ts-statements stays strictly below the r25 BEFORE=54 baseline', () => {
@@ -106,7 +106,7 @@ describe('Support read-tail r25 actor-scope CTE family', () => {
             }
         };
         walk(srcRoot);
-        expect(total).toBe(25);
+        expect(total).toBe(24);
         expect(total).toBeLessThan(50);
     });
 });

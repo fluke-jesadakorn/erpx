@@ -1,6 +1,6 @@
 import 'server-only';
 import {countMarkedExistsSql,countSourceProofSql} from './read-tail-sql';
-import {serviceInitialCountExists} from './native-service-count-source';
+import {serviceInitialCountExists,nativeServiceCountPersistedMarker} from './native-service-count-source';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {requireQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
 import {requirePermission} from '@erpx/server-identity_access/public/iam-permissions';
@@ -28,8 +28,7 @@ export async function serviceCountWriterOwnerInDatabase(database:SqlDatabase,act
 /** Marker detection deliberately ignores Company so corrupt and foreign markers
  * cannot be mistaken for ordinary legacy-owned counts. */
 export async function serviceCountPersistedMarker(database:SqlDatabase,id:string):Promise<boolean>{
- const found=await database.prepare(`SELECT EXISTS(SELECT 1 FROM command_receipts r WHERE r.operation='inventory.count.create' AND r.record_id=? AND (r.result_json IS NULL OR jsonb_typeof(r.result_json::jsonb)<>'object' OR jsonb_exists(r.result_json::jsonb,'_serviceInitialPhysicalStockCount'))) OR EXISTS(SELECT 1 FROM inventory_service_initial_physical_sources WHERE count_id=?) AS marked`).bind(id,id).first<{marked:boolean}>();
- return found?.marked===true;
+ return nativeServiceCountPersistedMarker(database,id);
 }
 export async function serviceInitialPhysicalStockCountMarked(database:SqlDatabase,id:string){return !!await database.prepare(countMarkedExistsSql(serviceInitialPhysicalStockMarkedRows)).bind(id).first();}
 export async function serviceInitialPhysicalStockCountSource(database:SqlDatabase,scope:{companyId:string;branchId:string|null},id:string){return database.prepare(countSourceProofSql(serviceInitialPhysicalStockCountSourceRows)).bind(id,scope.companyId,scope.branchId,scope.branchId).first<string>('proof');}

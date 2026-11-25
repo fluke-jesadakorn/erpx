@@ -119,8 +119,8 @@ describe('Support SLA policy workspace/work native read family (r39)', () => {
         expect(registry).toContain('reviewer_count FROM support_incidents t');
     });
 
-    test('retirement:ts-statements is 25 after the PMS attachment image cut; the registry grows 55', () => {
-        expect(selectCount()).toBe(25);
+    test('retirement:ts-statements is 24 after the evidence renderer consolidation; the registry stays 55', () => {
+        expect(selectCount()).toBe(24);
         expect(selectCount()).toBeLessThan(38);
         expect(registry).toContain('assert_eq!(STATEMENTS.len(), 55);');
     });

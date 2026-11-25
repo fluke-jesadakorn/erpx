@@ -71,10 +71,15 @@ describe('People Payroll read-tail r19 byte-identical dedupe', () => {
     expect(src('calendar-access-facts.ts')).toContain('const idList = (ids: string[]) => JSON.stringify(ids);');
   });
 
-  test('the shared module declares each literal exactly once', () => {
+  test('the shared module declares each literal once, or delegates to round-5', () => {
     const s = src('pp-read-tail-r19-sources.ts');
-    for (const literal of literals) expect(s.split(quoted(literal))).toHaveLength(2);
+    for (const literal of literals) {
+      if (literal === PP_RD19_ACTIVE_ENGAGEMENT_EXISTS_SQL) continue;
+      expect(s.split(quoted(literal))).toHaveLength(2);
+    }
     expect(s.split('IN (SELECT jsonb_array_elements_text(?::jsonb))')).toHaveLength(2);
+    expect(s).toContain("from './pp-read-tail-round5-sources'");
+    expect(s).toContain("ppRdRound5ExistsByIdAndStatus('hr_engagements', 'version', 'active')");
   });
 
   test('worktree read-only SELECT count stays strictly lower than the recorded 1552 r19 baseline', () => {

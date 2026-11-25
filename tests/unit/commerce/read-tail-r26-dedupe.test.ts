@@ -94,7 +94,7 @@ describe('Commerce r26 order-source image family native cutover', () => {
       expect(plans).toContain(`kind: ${constant},`);
     }
     expect(sha(FAMILY.map((site) => site.sql).join('\n'))).toBe('5649861c056454b2df0d2d659ce6588aff74ff279566966d4db525ae194981c7');
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 31);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 35);');
     expect(plans).toContain('fn attachment_order_source_images_keep_their_exact_literals()');
     // Near-miss image heads are not this family and stay untouched.
     expect(read('expense-posting-setup.ts')).not.toContain('SELECT to_jsonb(s)::text image FROM commerce_settings s WHERE s.company_id=?');
@@ -114,8 +114,8 @@ describe('Commerce r26 order-source image family native cutover', () => {
     expect(read('supply-package-sources.ts')).toContain('LOCK TABLE commerce_orders,commerce_order_lines,commerce_fulfillments,commerce_fulfillment_lines,commerce_returns,commerce_return_lines,commerce_warehouses,commerce_products,commerce_goods_valuations,commerce_invoice_goods_carrying IN SHARE MODE');
   });
 
-  test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 385 (before 386)', () => {
-    expect(count(src, /SELECT /g)).toBe(385);
+  test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 381 (before 383)', () => {
+    expect(count(src, /SELECT /g)).toBe(381);
     expect((read('crm-attachment-sources.ts').match(/SELECT /g) ?? []).length).toBe(0);
     expect((read('support-attachment-sources.ts').match(/SELECT /g) ?? []).length).toBe(0);
     expect((read('sales-package-sources.ts').match(/SELECT /g) ?? []).length).toBe(11);

@@ -6,6 +6,7 @@ import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { SupportTicketMetricId, SupportIncidentEvidenceRow, SupportTicketEvidenceRow } from '@erpx/server-runtime/public/executive/evidence-contract';
+import { readTailR43ColumnsFromSql } from './read-tail-r43-sql';
 function supportTicketStatePredicate(metric: SupportTicketMetricId, alias = "t") {
     const base = `${alias}.status NOT IN ('closed','cancelled')`;
     if (metric === "open-support-tickets")
@@ -17,10 +18,13 @@ function supportTicketStatePredicate(metric: SupportTicketMetricId, alias = "t")
 }
 /** One parameterized owner-local evidence projection family. The incident
  * search and the ticket search/by-id sources share this exact projection
- * prefix; only the projected column list varies. Each call site keeps its own
+ * prefix; only the projected column list varies. The shared r43 renderer owns
+ * the statement head; the trailing three spaces preserve the retired
+ * `columns\n    FROM` head byte-for-byte. Each call site keeps its own
  * FROM/WHERE/ORDER text and its own binds; the native evidence reader remains
  * the authority. */
-const evidenceSelect = (columns: string) => `SELECT ${columns}`;
+const evidenceSelect = (columns: string, body: string) =>
+    readTailR43ColumnsFromSql(`${columns}\n   `, body);
 const ticketEvidenceColumns = (overdue: boolean) =>
     `t.id,t.title,t.status,t.due_date,t.updated_at,t.version${overdue ? ",t.sla_clock_json->>'state' sla_state,t.sla_clock_json->>'dueAt' sla_due_at" : ""}`;
 export function executiveMainEvidenceSources(db: SqlDatabase) {
@@ -55,8 +59,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
                 conditions.push("(t.updated_at<? OR (t.updated_at=? AND t.id>?))");
                 values.push(cursor.updatedAt, cursor.updatedAt, cursor.id);
             }
-            const rows = (await db.prepare(`${evidenceSelect('t.id,t.title,t.severity,t.status,t.due_date,t.created_at,t.updated_at,t.version')}
-    FROM support_incidents t WHERE ${conditions.join(" AND ")} ORDER BY t.updated_at DESC,t.id ASC LIMIT ?`)
+            const rows = (await db.prepare(evidenceSelect('t.id,t.title,t.severity,t.status,t.due_date,t.created_at,t.updated_at,t.version', `support_incidents t WHERE ${conditions.join(" AND ")} ORDER BY t.updated_at DESC,t.id ASC LIMIT ?`))
                 .bind(...values, input.limit + 1).all<SupportIncidentEvidenceRow>()).results;
             return { rows };
         }, async factsSearchSupportTicketEvidence(input: {
@@ -93,8 +96,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
                 conditions.push("(t.updated_at<? OR (t.updated_at=? AND t.id>?))");
                 values.push(cursor.updatedAt, cursor.updatedAt, cursor.id);
             }
-            const rows = (await db.prepare(`${evidenceSelect(ticketEvidenceColumns(overdue))}
-    FROM support_tickets t WHERE ${conditions.join(" AND ")} ORDER BY t.updated_at DESC,t.id ASC LIMIT ?`)
+            const rows = (await db.prepare(evidenceSelect(ticketEvidenceColumns(overdue), `support_tickets t WHERE ${conditions.join(" AND ")} ORDER BY t.updated_at DESC,t.id ASC LIMIT ?`))
                 .bind(...values, input.limit + 1).all<SupportTicketEvidenceRow>()).results;
             return { rows };
         }, async factsReadSupportTicketEvidence(overdue: boolean, metric: "open-support-tickets" | "overdue-support-sla", id: string, actor: WorkContext): Promise<{
@@ -102,8 +104,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
         }> {
             if (!(await nativeSupportRuntime(actor, db).purchase(overdue ? "support.sla" : "support.tickets")).history) return { row: null };
             const policy = supportTicketReadPredicate(actor), source = await supportTicketSourceReadPredicate(actor);
-            const row = await db.prepare(`${evidenceSelect(ticketEvidenceColumns(overdue))}
-    FROM support_tickets t WHERE t.id=? AND t.company_id=? AND (?::text IS NULL OR t.branch_id=?) AND (?::text IS NULL OR t.department_id=?) AND ${policy.sql} AND ${source.sql} AND ${supportTicketStatePredicate(metric)} LIMIT 1`)
+            const row = await db.prepare(evidenceSelect(ticketEvidenceColumns(overdue), `support_tickets t WHERE t.id=? AND t.company_id=? AND (?::text IS NULL OR t.branch_id=?) AND (?::text IS NULL OR t.department_id=?) AND ${policy.sql} AND ${source.sql} AND ${supportTicketStatePredicate(metric)} LIMIT 1`))
                 .bind(id, actor.companyId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId, ...policy.bindings, ...source.bindings).first<SupportTicketEvidenceRow>();
             return { row };
         } };

@@ -26,6 +26,7 @@ export const INVENTORY_RD_STOCK_COUNT_ROW = 'inventory_rd_stock_count_row';
 export const INVENTORY_RD_COUNT_SOURCE_ROW = 'inventory_rd_count_source_row';
 export const INVENTORY_RD_SERVICE_INITIAL_COUNT_ROW = 'inventory_rd_service_initial_count_row';
 export const INVENTORY_RD_COUNT_STATUS = 'inventory_rd_count_status';
+export const INVENTORY_RD_SERVICE_COUNT_PERSISTED = 'inventory_rd_service_count_persisted';
 export const INVENTORY_RD_STOCK_COUNT_DELTAS = 'inventory_rd_stock_count_deltas';
 export const INVENTORY_RD_ACTIVE_RESERVATIONS_TOTAL = 'inventory_rd_active_reservations_total';
 export const INVENTORY_RD_LEDGER_MOVEMENT_AFTER = 'inventory_rd_ledger_movement_after';

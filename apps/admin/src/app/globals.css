@@ -1396,7 +1396,6 @@
 @source "../../../../packages/server-crm/src/public/record-purchases.ts";
 @source "../../../../packages/server-crm/src/public/sales-package-obligations.ts";
 @source "../../../../packages/server-customer_360/src/adapters/customer-read-sources.ts";
-@source "../../../../packages/server-customer_360/src/adapters/obligation-fact-head.ts";
 @source "../../../../packages/server-customer_360/src/adapters/package-obligations.ts";
 @source "../../../../packages/server-customer_360/src/adapters/portal-source-locks.ts";
 @source "../../../../packages/server-customer_360/src/adapters/timeline.ts";

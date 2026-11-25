@@ -18,6 +18,15 @@ pub const RD_OBLIGATION_AUDIT_EXISTS: &str = "c360_rd_obligation_audit_exists";
 pub const RD_OBLIGATION_ACTION_HEAD: &str = "c360_rd_obligation_action_head";
 /// Allow-listed native Customer 360 read kind: acknowledgement UNION branch head of the obligation facts.
 pub const RD_OBLIGATION_ACK_HEAD: &str = "c360_rd_obligation_ack_head";
+/// Allow-listed native Customer 360 read kind: one-value Company scope CTE source.
+pub const RD_COMPANY_SCOPE: &str = "c360_rd_company_scope";
+/// Allow-listed native Customer 360 read kind: one-value Company scope source aliased for the portal release probe.
+pub const RD_COMPANY_SCOPE_PORTAL_RELEASE: &str = "c360_rd_company_scope_portal_release";
+
+/// Exact zero-bind Company scope source retired from `customer-read-sources.ts`.
+const SQL_COMPANY_SCOPE: &str = "(SELECT ?::text company_id)";
+/// Exact zero-bind aliased Company scope source retired from `customer-read-sources.ts`.
+const SQL_COMPANY_SCOPE_PORTAL_RELEASE: &str = "(SELECT ?::text company_id) portal_release";
 
 /// Exact zero-bind action branch head retired from `obligation-fact-head.ts`.
 const SQL_OBLIGATION_ACTION_HEAD: &str = "SELECT 'action' kind,request.id,to_jsonb(request) fact,NOT ";
@@ -73,6 +82,16 @@ pub fn plan_for(kind: &str, binds: usize) -> Result<NativeReadStatement, Busines
         RD_OBLIGATION_ACK_HEAD => NativeReadStatement {
             kind: RD_OBLIGATION_ACK_HEAD,
             sql: SQL_OBLIGATION_ACK_HEAD,
+            bind_count: 0,
+        },
+        RD_COMPANY_SCOPE => NativeReadStatement {
+            kind: RD_COMPANY_SCOPE,
+            sql: SQL_COMPANY_SCOPE,
+            bind_count: 0,
+        },
+        RD_COMPANY_SCOPE_PORTAL_RELEASE => NativeReadStatement {
+            kind: RD_COMPANY_SCOPE_PORTAL_RELEASE,
+            sql: SQL_COMPANY_SCOPE_PORTAL_RELEASE,
             bind_count: 0,
         },
         _ => return Err(invalid()),
@@ -132,6 +151,19 @@ mod tests {
     }
 
     #[test]
+    fn company_scope_sources_are_byte_identical_to_the_deleted_helper() {
+        // Verbatim pre-cut renderings from customer-read-sources.ts.
+        const TS_SCOPE: &str = "(SELECT ?::text company_id)";
+        const TS_RELEASE: &str = "(SELECT ?::text company_id) portal_release";
+        let scope = plan_for(RD_COMPANY_SCOPE, 0).expect("registered kind");
+        let release = plan_for(RD_COMPANY_SCOPE_PORTAL_RELEASE, 0).expect("registered kind");
+        assert_eq!(scope.sql, TS_SCOPE);
+        assert_eq!(release.sql, TS_RELEASE);
+        assert_eq!(scope.bind_count, 0);
+        assert_eq!(release.bind_count, 0);
+    }
+
+    #[test]
     fn unknown_kind_or_wrong_bind_count_fails_closed() {
         assert!(plan_for("c360_rd_unknown", 1).is_err());
         assert!(plan_for(RD_PORTAL_ACTION_BY_KEY, 0).is_err());
@@ -140,6 +172,8 @@ mod tests {
         assert!(plan_for(RD_OBLIGATION_AUDIT_EXISTS, 1).is_err());
         assert!(plan_for(RD_OBLIGATION_ACTION_HEAD, 1).is_err());
         assert!(plan_for(RD_OBLIGATION_ACK_HEAD, 1).is_err());
+        assert!(plan_for(RD_COMPANY_SCOPE, 1).is_err());
+        assert!(plan_for(RD_COMPANY_SCOPE_PORTAL_RELEASE, 1).is_err());
         assert!(!SQL_PORTAL_ACTION_BY_KEY.contains(";"));
         assert!(!SQL_PORTAL_ACTION_BY_BINDING.contains(";"));
     }

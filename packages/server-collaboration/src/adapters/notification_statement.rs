@@ -523,6 +523,12 @@ pub fn plan_values_statement(
         // the caller runs them on its own unit with the same ordered binds.
         "social_agent_recent_comments" => "SELECT id FROM social_comments WHERE post_id=? AND state='published' AND created_at<=? ORDER BY created_at DESC,id DESC LIMIT 10",
         "social_agent_post_content" => "SELECT content_json FROM social_posts WHERE id=? AND company_id=? AND state='published'",
+        // Web-push fanout/delivery reads retained on the caller's unit. Their
+        // SQL and bind order are byte-identical to the retired TS literals.
+        "web_push_subscription_table" => "SELECT to_regclass('push_subscriptions') AS name",
+        "web_push_fanout_subscriptions" => "SELECT s.*,p.* FROM push_subscriptions s JOIN push_preferences p ON p.company_id=s.company_id AND p.user_id=s.user_id WHERE p.enabled=true ORDER BY s.scan_at,s.id LIMIT 25",
+        "web_push_new_deliveries" => "SELECT d.id,d.delivered_at,e.category FROM inbox_deliveries d JOIN inbox_events e ON e.id=d.event_id WHERE d.company_id=? AND d.user_id=? AND NOT erpx_field_push_source(e.source_type,e.source_id,e.company_id) AND (d.delivered_at,d.id)>(?,?) ORDER BY d.delivered_at,d.id LIMIT 50",
+        "web_push_current_delivery" => "SELECT j.*,s.user_id,s.session_id,s.origin,s.inbox_path,s.sealed_subscription,p.enabled,p.work_enabled,p.mention_enabled,p.system_enabled,p.calendar_enabled,p.notice_enabled,p.quiet_start_minute,p.quiet_end_minute,d.read_at,d.archived_at,e.category FROM push_delivery_jobs j JOIN push_subscriptions s ON s.id=j.subscription_id JOIN push_preferences p ON p.company_id=s.company_id AND p.user_id=s.user_id JOIN inbox_deliveries d ON d.id=j.inbox_delivery_id JOIN inbox_events e ON e.id=d.event_id WHERE j.id=? AND j.lease_token=?",
         _ => return None,
     };
     Some(
@@ -769,6 +775,40 @@ mod tests {
             "SELECT id FROM social_comments WHERE post_id=? AND state='published' AND created_at<=? ORDER BY created_at DESC,id DESC LIMIT 10"
         );
         assert_eq!(planned.values.len(), 2);
+    }
+
+    #[test]
+    fn web_push_read_kinds_render_the_retired_sql_byte_for_byte() {
+        let cases = [
+            (
+                "web_push_subscription_table",
+                "SELECT to_regclass('push_subscriptions') AS name",
+                vec![],
+            ),
+            (
+                "web_push_fanout_subscriptions",
+                "SELECT s.*,p.* FROM push_subscriptions s JOIN push_preferences p ON p.company_id=s.company_id AND p.user_id=s.user_id WHERE p.enabled=true ORDER BY s.scan_at,s.id LIMIT 25",
+                vec![],
+            ),
+            (
+                "web_push_new_deliveries",
+                "SELECT d.id,d.delivered_at,e.category FROM inbox_deliveries d JOIN inbox_events e ON e.id=d.event_id WHERE d.company_id=? AND d.user_id=? AND NOT erpx_field_push_source(e.source_type,e.source_id,e.company_id) AND (d.delivered_at,d.id)>(?,?) ORDER BY d.delivered_at,d.id LIMIT 50",
+                vec!["company-1", "user-1", "1", "delivery-1"],
+            ),
+            (
+                "web_push_current_delivery",
+                "SELECT j.*,s.user_id,s.session_id,s.origin,s.inbox_path,s.sealed_subscription,p.enabled,p.work_enabled,p.mention_enabled,p.system_enabled,p.calendar_enabled,p.notice_enabled,p.quiet_start_minute,p.quiet_end_minute,d.read_at,d.archived_at,e.category FROM push_delivery_jobs j JOIN push_subscriptions s ON s.id=j.subscription_id JOIN push_preferences p ON p.company_id=s.company_id AND p.user_id=s.user_id JOIN inbox_deliveries d ON d.id=j.inbox_delivery_id JOIN inbox_events e ON e.id=d.event_id WHERE j.id=? AND j.lease_token=?",
+                vec!["job-1", "lease-1"],
+            ),
+        ];
+        for (kind, sql, values) in cases {
+            let planned = super::plan_values_statement(kind, &read_input(kind, &values))
+                .expect("registered kind")
+                .expect("planned statement");
+            assert_eq!(planned.sql, sql, "{kind}");
+            assert_eq!(planned.sql.matches('?').count(), values.len(), "{kind}");
+            assert_eq!(planned.values.len(), values.len(), "{kind}");
+        }
     }
 }
 

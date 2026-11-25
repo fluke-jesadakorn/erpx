@@ -592,6 +592,81 @@ const READ_REPORT_NEXT_EDITION: NativeReadStatement = NativeReadStatement {
     scope: "holding",
 };
 
+/// Native successors of the static `finance-withholding` point/list reads.
+/// Assertion guards and lock-bearing owner statements stay in the caller's
+/// transaction; only these byte-identical read plans cross the boundary.
+pub const RD_WITHHOLDING_BANK_ACCOUNT: &str = "finance_rd_withholding_bank_account";
+const SQL_RD_WITHHOLDING_BANK_ACCOUNT: &str = "SELECT a.id,a.version,a.chart_id,c.base_currency FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id AND c.company_id=a.company_id WHERE a.id=? AND a.company_id=? AND a.status='active' AND a.control_kind='bank' AND a.currency='THB'";
+const READ_WITHHOLDING_BANK_ACCOUNT: NativeReadStatement = NativeReadStatement {
+    kind: RD_WITHHOLDING_BANK_ACCOUNT,
+    sql: SQL_RD_WITHHOLDING_BANK_ACCOUNT,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_WITHHOLDING_LIABILITY_ACCOUNT: &str = "finance_rd_withholding_liability_account";
+const SQL_RD_WITHHOLDING_LIABILITY_ACCOUNT: &str = "SELECT id,version,chart_id FROM finance_accounts WHERE id=? AND company_id=? AND category='liability' AND control_kind='none' AND status='active' AND currency='THB'";
+const READ_WITHHOLDING_LIABILITY_ACCOUNT: NativeReadStatement = NativeReadStatement {
+    kind: RD_WITHHOLDING_LIABILITY_ACCOUNT,
+    sql: SQL_RD_WITHHOLDING_LIABILITY_ACCOUNT,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_WITHHOLDING_INVOICE: &str = "finance_rd_withholding_invoice";
+const SQL_RD_WITHHOLDING_INVOICE: &str = "SELECT i.*,j.chart_id,j.status journal_status,j.version journal_version FROM finance_invoices i JOIN finance_journals j ON j.id=i.journal_id WHERE i.id=? AND i.company_id=?";
+const READ_WITHHOLDING_INVOICE: NativeReadStatement = NativeReadStatement {
+    kind: RD_WITHHOLDING_INVOICE,
+    sql: SQL_RD_WITHHOLDING_INVOICE,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_WITHHOLDING_CONFIGURED_OWNER: &str = "finance_rd_withholding_configured_owner";
+const SQL_RD_WITHHOLDING_CONFIGURED_OWNER: &str = "SELECT 1 FROM finance_tax_identities WHERE company_id=? AND party_id IS NULL AND status='approved' AND effective_from<=? AND effective_to>=?";
+const READ_WITHHOLDING_CONFIGURED_OWNER: NativeReadStatement = NativeReadStatement {
+    kind: RD_WITHHOLDING_CONFIGURED_OWNER,
+    sql: SQL_RD_WITHHOLDING_CONFIGURED_OWNER,
+    bind_count: 3,
+    scope: "holding",
+};
+
+pub const RD_WITHHOLDING_APPROVED_ASSESSMENT: &str = "finance_rd_withholding_approved_assessment";
+const SQL_RD_WITHHOLDING_APPROVED_ASSESSMENT: &str = "SELECT * FROM finance_withholding_assessments WHERE id=? AND company_id=? AND payment_id=? AND status='approved'";
+const READ_WITHHOLDING_APPROVED_ASSESSMENT: NativeReadStatement = NativeReadStatement {
+    kind: RD_WITHHOLDING_APPROVED_ASSESSMENT,
+    sql: SQL_RD_WITHHOLDING_APPROVED_ASSESSMENT,
+    bind_count: 3,
+    scope: "holding",
+};
+
+pub const RD_WITHHOLDING_CONSUMED_ASSESSMENT: &str = "finance_rd_withholding_consumed_assessment";
+const SQL_RD_WITHHOLDING_CONSUMED_ASSESSMENT: &str = "SELECT id,version,form_kind FROM finance_withholding_assessments WHERE id=? AND company_id=? AND status='consumed'";
+const READ_WITHHOLDING_CONSUMED_ASSESSMENT: NativeReadStatement = NativeReadStatement {
+    kind: RD_WITHHOLDING_CONSUMED_ASSESSMENT,
+    sql: SQL_RD_WITHHOLDING_CONSUMED_ASSESSMENT,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_WITHHOLDING_PAYMENT_DOCUMENTS: &str = "finance_rd_withholding_payment_documents";
+const SQL_RD_WITHHOLDING_PAYMENT_DOCUMENTS: &str = "SELECT id FROM finance_issued_thai_documents WHERE payment_id=? AND company_id=? AND document_kind='withholding_certificate'";
+const READ_WITHHOLDING_PAYMENT_DOCUMENTS: NativeReadStatement = NativeReadStatement {
+    kind: RD_WITHHOLDING_PAYMENT_DOCUMENTS,
+    sql: SQL_RD_WITHHOLDING_PAYMENT_DOCUMENTS,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_WITHHOLDING_WORKSPACE_IDENTITIES: &str = "finance_rd_withholding_workspace_identities";
+const SQL_RD_WITHHOLDING_WORKSPACE_IDENTITIES: &str = "SELECT id,party_id,legal_name,tax_id,status,version FROM finance_tax_identities WHERE company_id=? AND status='approved' ORDER BY legal_name";
+const READ_WITHHOLDING_WORKSPACE_IDENTITIES: NativeReadStatement = NativeReadStatement {
+    kind: RD_WITHHOLDING_WORKSPACE_IDENTITIES,
+    sql: SQL_RD_WITHHOLDING_WORKSPACE_IDENTITIES,
+    bind_count: 1,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_ASSET_POLICY_ROW,
     READ_ASSET_POLICY_RUNS,
@@ -646,6 +721,14 @@ const READS: &[NativeReadStatement] = &[
     READ_REPORT_STATEMENT_HISTORY,
     READ_REPORT_PREVIOUS_PACKAGE,
     READ_REPORT_NEXT_EDITION,
+    READ_WITHHOLDING_BANK_ACCOUNT,
+    READ_WITHHOLDING_LIABILITY_ACCOUNT,
+    READ_WITHHOLDING_INVOICE,
+    READ_WITHHOLDING_CONFIGURED_OWNER,
+    READ_WITHHOLDING_APPROVED_ASSESSMENT,
+    READ_WITHHOLDING_CONSUMED_ASSESSMENT,
+    READ_WITHHOLDING_PAYMENT_DOCUMENTS,
+    READ_WITHHOLDING_WORKSPACE_IDENTITIES,
 ];
 
 /// Whether a discriminator is an owner read kind (never a write kind).
@@ -718,6 +801,14 @@ mod tests {
             RD_REPORT_STATEMENT_HISTORY,
             RD_REPORT_PREVIOUS_PACKAGE,
             RD_REPORT_NEXT_EDITION,
+            RD_WITHHOLDING_BANK_ACCOUNT,
+            RD_WITHHOLDING_LIABILITY_ACCOUNT,
+            RD_WITHHOLDING_INVOICE,
+            RD_WITHHOLDING_CONFIGURED_OWNER,
+            RD_WITHHOLDING_APPROVED_ASSESSMENT,
+            RD_WITHHOLDING_CONSUMED_ASSESSMENT,
+            RD_WITHHOLDING_PAYMENT_DOCUMENTS,
+            RD_WITHHOLDING_WORKSPACE_IDENTITIES,
         ] {
             assert!(is_read(kind), "{kind}");
             let read = read_statement(kind).expect("read kind");
@@ -732,7 +823,7 @@ mod tests {
             assert_eq!(read.sql.matches('?').count(), read.bind_count, "{kind}");
             assert_eq!(read.scope, "holding", "{kind}");
         }
-        assert_eq!(READS.len(), 53);
+        assert_eq!(READS.len(), 61);
         assert!(!is_read("finance_stmt_1"));
         assert!(read_statement("finance_stmt_1").is_none());
     }
@@ -1112,6 +1203,62 @@ mod tests {
             assert!(!read.sql.contains("FOR UPDATE"), "{kind}");
             assert!(!read.sql.contains("INSERT"), "{kind}");
             assert!(!read.sql.contains("UPDATE"), "{kind}");
+        }
+    }
+
+    /// The finance-withholding point/list family plans the exact retired
+    /// literals; assertion guards stay in the caller's command transaction.
+    #[test]
+    fn withholding_reads_match_retired_owner_statements() {
+        let expected: &[(&str, &str, usize)] = &[
+            (
+                RD_WITHHOLDING_BANK_ACCOUNT,
+                SQL_RD_WITHHOLDING_BANK_ACCOUNT,
+                2,
+            ),
+            (
+                RD_WITHHOLDING_LIABILITY_ACCOUNT,
+                SQL_RD_WITHHOLDING_LIABILITY_ACCOUNT,
+                2,
+            ),
+            (RD_WITHHOLDING_INVOICE, SQL_RD_WITHHOLDING_INVOICE, 2),
+            (
+                RD_WITHHOLDING_CONFIGURED_OWNER,
+                SQL_RD_WITHHOLDING_CONFIGURED_OWNER,
+                3,
+            ),
+            (
+                RD_WITHHOLDING_APPROVED_ASSESSMENT,
+                SQL_RD_WITHHOLDING_APPROVED_ASSESSMENT,
+                3,
+            ),
+            (
+                RD_WITHHOLDING_CONSUMED_ASSESSMENT,
+                SQL_RD_WITHHOLDING_CONSUMED_ASSESSMENT,
+                2,
+            ),
+            (
+                RD_WITHHOLDING_PAYMENT_DOCUMENTS,
+                SQL_RD_WITHHOLDING_PAYMENT_DOCUMENTS,
+                2,
+            ),
+            (
+                RD_WITHHOLDING_WORKSPACE_IDENTITIES,
+                SQL_RD_WITHHOLDING_WORKSPACE_IDENTITIES,
+                1,
+            ),
+        ];
+        assert_eq!(expected.len(), 8);
+        for (kind, sql, binds) in expected {
+            let read = read_statement(kind).unwrap_or_else(|| panic!("{kind}: unregistered"));
+            assert_eq!(read.kind, *kind, "{kind}: discriminator");
+            assert_eq!(read.sql, *sql, "{kind}: byte-identical SQL");
+            assert_eq!(read.bind_count, *binds, "{kind}: bind count");
+            assert_eq!(read.sql.matches('?').count(), *binds, "{kind}: binds");
+            assert_eq!(read.scope, "holding", "{kind}: scope");
+            assert!(is_read(kind), "{kind}");
+            assert!(!read.sql.contains("FOR UPDATE"), "{kind}");
+            assert!(!read.sql.contains("INSERT"), "{kind}");
         }
     }
 }

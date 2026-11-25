@@ -68,6 +68,6 @@ describe('marketing read-tail r57 command-receipt guard cutover', () => {
   });
 
   it('retirement:ts-statements is BEFORE=13 -> AFTER=12', async () => {
-    expect(await ownerTokens()).toEqual({ spaced: 9, bare: 9 });
+    expect(await ownerTokens()).toEqual({ spaced: 8, bare: 8 });
   });
 });

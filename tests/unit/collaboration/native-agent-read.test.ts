@@ -35,7 +35,7 @@ describe('Social agent read oracles on the native planner', () => {
 });
 
 describe('retirement:ts-statements', () => {
-  it('drops 308 -> 306 with the agent reads retired', () => {
+  it('drops 308 -> 302 with the agent and web-push reads retired', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const e of readdirSync(dir, { withFileTypes: true })) {
@@ -45,7 +45,7 @@ describe('retirement:ts-statements', () => {
       }
     };
     walk(root);
-    expect(total).toBe(306);
+    expect(total).toBe(302);
     expect(total).toBeLessThan(308);
   });
 });

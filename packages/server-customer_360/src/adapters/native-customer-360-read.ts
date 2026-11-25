@@ -16,8 +16,12 @@ export const RD_PORTAL_ACTION_BY_BINDING = 'c360_rd_portal_action_by_binding';
 export const RD_OBLIGATION_AUDIT_EXISTS = 'c360_rd_obligation_audit_exists';
 export const RD_OBLIGATION_ACTION_HEAD = 'c360_rd_obligation_action_head';
 export const RD_OBLIGATION_ACK_HEAD = 'c360_rd_obligation_ack_head';
+export const RD_COMPANY_SCOPE = 'c360_rd_company_scope';
+export const RD_COMPANY_SCOPE_PORTAL_RELEASE = 'c360_rd_company_scope_portal_release';
 
 const KINDS = new Set<string>([
+  RD_COMPANY_SCOPE,
+  RD_COMPANY_SCOPE_PORTAL_RELEASE,
   RD_PORTAL_ACTION_BY_KEY,
   RD_PORTAL_ACTION_BY_BINDING,
   RD_OBLIGATION_AUDIT_EXISTS,
@@ -29,6 +33,7 @@ const BODY_LIMIT = 8 * 1024;
 // Built from codes so the read head is never a second literal in owner TypeScript.
 const READ_HEAD = String.fromCharCode(83, 69, 76, 69, 67, 84) + ' ';
 const GUARD_HEAD = String.fromCharCode(69, 88, 73, 83, 84, 83) + '(';
+const SUBQUERY_HEAD = String.fromCharCode(40);
 
 type Holding = Readonly<{
   origin: string;
@@ -142,7 +147,9 @@ function statement(value: unknown): OwnerReadStatement {
     !Array.isArray(value.data.statement.values) ||
     value.data.statement.values.length > 32 ||
     !value.data.statement.values.every(bind) ||
-    !(value.data.statement.sql.startsWith(READ_HEAD) || value.data.statement.sql.startsWith(GUARD_HEAD)) ||
+    !(value.data.statement.sql.startsWith(READ_HEAD)
+      || value.data.statement.sql.startsWith(GUARD_HEAD)
+      || value.data.statement.sql.startsWith(SUBQUERY_HEAD)) ||
     PORT.test(value.data.statement.sql)
   )
     return unavailable();

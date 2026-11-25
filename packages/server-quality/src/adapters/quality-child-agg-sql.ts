@@ -1,4 +1,5 @@
 import "server-only";
+import {scopeSql} from "./quality-scope-sql";
 /** Owner-local child-row JSON aggregate shared by Quality attachment and
  * package-obligation reads. Args: table, row alias, foreign-key column, parent
  * expression, optional ordering expression. The generated SQL is byte-identical
@@ -9,7 +10,7 @@ export const qualityChildAggSql = (
   key: string,
   parent: string,
   order = `${alias}.id`,
-) => `(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${order}) FROM ${table} ${alias} WHERE ${alias}.${key}=${parent})`;
+) => scopeSql(`jsonb_agg(to_jsonb(${alias}) ORDER BY ${order}) FROM ${table} ${alias} WHERE ${alias}.${key}=${parent}`);
 /** Owner-local child-row JSON aggregate that reaches its parent through a
  * JOIN on inventory_quality_inspections. Derived from qualityChildAggSql so the
  * canonical aggregate shape stays single-sourced; only the predicate changes.

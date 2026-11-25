@@ -21,8 +21,7 @@ import {commercePackageEnforcementMode,checkPurchasedCapability,readPurchasedAcc
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import { customerPortalActions } from '@erpx/server-collaboration/adapters/native-customer-portal-actions';
-import { companyScopeSource } from './customer-read-sources';
-import { RD_PORTAL_ACTION_BY_BINDING, RD_PORTAL_ACTION_BY_KEY, nativeC360ReadStatement } from './native-customer-360-read';
+import { RD_COMPANY_SCOPE_PORTAL_RELEASE, RD_PORTAL_ACTION_BY_BINDING, RD_PORTAL_ACTION_BY_KEY, nativeC360ReadStatement } from './native-customer-360-read';
 
 function portalRepository(db: SqlDatabase,owned=false,assertRequestAuthority?:()=>Promise<void>): PortalRepository {
   const action = (kind: string, values: string[]) => nativeC360ReadStatement(kind, values).then(statement => db.prepare(statement.sql).bind(...statement.values).first<PortalActionRow>());
@@ -52,7 +51,7 @@ function portalRepository(db: SqlDatabase,owned=false,assertRequestAuthority?:()
     authorize:async(actor,binding,purpose)=>{
       const mode=await commercePackageEnforcementMode();if(mode==='disabled')return async()=>{};
       const scope={companyId:binding.company_id,capability:'sales.portal',purpose},key=`customer-portal-purchase:${crypto.randomUUID()}`,boundary=purchaseCommandBoundary(db,mode,key,scope)!;
-      const release=async()=>{if(!await db.prepare(`SELECT ${scheduledFeaturePredicate('portal_release.company_id','customer_authority')} allowed FROM ${companyScopeSource('portal_release')}`).bind(binding.company_id).first<boolean>('allowed'))throw new ApiError(403,'FEATURE_COMING_SOON','Customer access is not released for this Company.');};
+      const release=async()=>{const scope=await nativeC360ReadStatement(RD_COMPANY_SCOPE_PORTAL_RELEASE,[]);if(!await db.prepare(`SELECT ${scheduledFeaturePredicate('portal_release.company_id','customer_authority')} allowed FROM ${scope.sql}`).bind(binding.company_id).first<boolean>('allowed'))throw new ApiError(403,'FEATURE_COMING_SOON','Customer access is not released for this Company.');};
       await release();
       await checkPurchasedCapability(db,mode,scope);await db.batch(boundary.before);
       return async()=>{

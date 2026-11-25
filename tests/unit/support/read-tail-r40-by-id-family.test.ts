@@ -106,7 +106,7 @@ describe('Support read-tail r40 by-id native family', () => {
     });
 
     test('retirement:ts-statements drops 37->31 and the registry grows 46->50', () => {
-        expect(selectCount()).toBe(25);
+        expect(selectCount()).toBe(24);
         expect(selectCount()).toBeLessThan(37);
         expect(registry).toContain('assert_eq!(STATEMENTS.len(), 55);');
     });
