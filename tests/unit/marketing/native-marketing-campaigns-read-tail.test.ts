@@ -289,11 +289,12 @@ describe('Marketing owner-local campaign read tail', () => {
 
     // r43 routes the reviewer guard through the shared actor-scope head; the
     // canonical scope helper and the new head each own exactly one read token.
+    // r49 routes the canonical scope head through the shared renderer (1 -> 0).
     expect(helper.match(/SELECT/g) ?? []).toHaveLength(0);
     expect(helper).toContain('export const attachmentReviewerGuardSql');
     expect(helper).toContain("actorScopeAssignmentSql(`(${assignmentReadSql('marketing_file_review','records.review')} OR ${assignmentReadSql('marketing_file_review','commerce.approve')})`,'marketing_file_review',alias ? ` ${alias}` : '')");
     const scopeHelper = await readFile(new URL('marketing-actor-scope-sql.ts', base), 'utf8');
-    expect(scopeHelper.match(/SELECT/g)).toHaveLength(1);
+    expect(scopeHelper.match(/SELECT/g) ?? []).toHaveLength(0);
     const headHelper = await readFile(new URL('marketing-actor-scope-guard.ts', base), 'utf8');
     expect(headHelper.match(/SELECT/g)).toHaveLength(1);
     expect(headHelper).toContain("from './marketing-actor-scope-sql'");
@@ -314,11 +315,11 @@ describe('Marketing owner-local campaign read tail', () => {
     const analytics = await readFile(new URL('analytics-sources.ts', base), 'utf8');
 
     const predicate = "EXISTS(SELECT 1 FROM (SELECT ${source}.company_id,COALESCE(${source}.branch_id,?::text) branch_id,COALESCE(${source}.department_id,?::text) department_id) ${authority} WHERE ${assignmentReadSql(authority,'records.read')})";
-    // The canonical helper owns both read tokens; its comment must not smuggle
+    // The canonical helper owned both read tokens; its comment must not smuggle
     // another token into the retirement KPI.
     // r44: the outer EXISTS head renders from the shared source-row guard;
-    // only the owner-owned scope tuple keeps a statement token here.
-    expect(helper.match(/SELECT/g)).toHaveLength(1);
+    // r49 routes the remaining scope tuple through the shared head renderer.
+    expect(helper.match(/SELECT/g) ?? []).toHaveLength(0);
     expect(helper).toContain('export const marketingRecordScopeAuthoritySql');
     expect(helper).not.toContain(predicate);
     expect(helper).toContain('marketingSourceRowGuardSql(');

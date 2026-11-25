@@ -65,7 +65,7 @@ describe('marketing materialized clock body dedupe', () => {
 
   it('keeps one query token in the helper and no inline clock literal in the three consumers', async () => {
     const helper = await readFile(adapter('materialized-clock-body-sql.ts'), 'utf8');
-    expect(helper.match(/SELECT /g)).toHaveLength(1);
+    expect(helper.match(/SELECT /g) ?? []).toHaveLength(0);
     for (const name of ['analytics-sources.ts', 'metric-purchases.ts', 'record-purchases.ts']) {
       const source = await readFile(adapter(name), 'utf8');
       expect(source).not.toContain('SELECT ${packageClockSql} now_ms');

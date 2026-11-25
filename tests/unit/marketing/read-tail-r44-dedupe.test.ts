@@ -62,7 +62,7 @@ describe('marketing read-tail r44 dedupe', () => {
     const helper = await src('record-scope-authority.ts');
     expect(helper).toContain('export const marketingRecordScopeAuthoritySql');
     expect(helper).toContain('marketingSourceRowGuardSql(');
-    expect(helper.match(/SELECT/g)).toHaveLength(1);
+    expect(helper.match(/SELECT/g) ?? []).toHaveLength(0);
 
     for (const [source, authority] of [
       ['marketing_source', 'marketing_authority'],
@@ -93,7 +93,7 @@ describe('marketing read-tail r44 dedupe', () => {
   it('keeps one point-existence head token and one source-row guard head token', async () => {
     expect(selectTokens(await src('marketing-point-exists-sql.ts'))).toBe(1);
     expect(selectTokens(await src('attachment-owner-version-guard.ts'))).toBe(0);
-    expect(selectTokens(await src('record-scope-authority.ts'))).toBe(1);
+    expect(selectTokens(await src('record-scope-authority.ts'))).toBe(0);
   });
 
   it('leaves the cross-owner-pinned guard, FOR SHARE, command_receipts settlement and native ports untouched', async () => {
@@ -104,8 +104,8 @@ describe('marketing read-tail r44 dedupe', () => {
     expect(await src('native-marketing-read.ts')).toContain('export');
   });
 
-  it('pins the owner SELECT KPI to 27 (BEFORE=36)', async () => {
-    expect(await ownerSelectTokens()).toBe(27);
+  it('pins the owner SELECT KPI to 24 (BEFORE=36)', async () => {
+    expect(await ownerSelectTokens()).toBe(24);
     expect(await ownerSelectTokens()).toBeLessThan(32);
   });
 });

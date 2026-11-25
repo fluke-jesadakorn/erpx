@@ -177,9 +177,9 @@ describe('marketing read-tail r43 dedupe', () => {
     );
   });
 
-  it('keeps one actor-scope head token and the canonical scope token', async () => {
+  it('keeps one actor-scope head token and no inline canonical scope token', async () => {
     expect(selectTokens(await src('marketing-actor-scope-guard.ts'))).toBe(1);
-    expect(selectTokens(await src('marketing-actor-scope-sql.ts'))).toBe(1);
+    expect(selectTokens(await src('marketing-actor-scope-sql.ts'))).toBe(0);
   });
 
   it('merges the source-id frame into the union builder without changing output', async () => {
@@ -199,8 +199,8 @@ describe('marketing read-tail r43 dedupe', () => {
     expect(await src('native-marketing-read.ts')).toContain('export');
   });
 
-  it('pins the owner SELECT KPI to 27 (BEFORE=36)', async () => {
-    expect(await ownerSelectTokens()).toBe(27);
+  it('pins the owner SELECT KPI to 24 (BEFORE=36)', async () => {
+    expect(await ownerSelectTokens()).toBe(24);
     expect(await ownerSelectTokens()).toBeLessThan(32);
   });
 });
