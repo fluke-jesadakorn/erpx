@@ -79,9 +79,10 @@ describe('Files read-tail r43 byte-oracle dedupe', () => {
       expect(count(helper, `export const ${name} =`)).toBe(1);
       expect(count(helper, '${' + name + '}')).toBe(0);
     }
+    expect(helper).toContain('field-owner-head-sources.json');
   });
 
-  test('no residual literal: H1 and H2 live only in the helper; H3 keeps its two different-tail sites', () => {
+  test('no statement token in TS: H1/H2 live in the native contract; H3 keeps its two sites', () => {
     const residual: Record<string, number> = { H1: 0, H2: 0, H3: 0 };
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -96,7 +97,10 @@ describe('Files read-tail r43 byte-oracle dedupe', () => {
       }
     };
     walk(srcRoot);
-    expect(residual).toEqual({ H1: 1, H2: 1, H3: 2 });
+    expect(residual).toEqual({ H1: 0, H2: 0, H3: 1 });
+    const contract = src('adapters/field-owner-head-sources.json');
+    expect(contract).toContain(H1);
+    expect(contract).toContain(H2);
     for (const rel of UNFOLDED_H3) expect(src(rel)).toContain(H3);
     expect(count(src('adapters/field-file-writer-owner.ts'), H1)).toBe(0);
     expect(count(src('adapters/field-file-writer-owner.ts'), H2)).toBe(0);
@@ -144,7 +148,7 @@ describe('Files read-tail r43 byte-oracle dedupe', () => {
     }
   });
 
-  test('retirement:ts-statements is 195, strictly below the r42 BEFORE=248 (248->246->242)', () => {
+  test('retirement:ts-statements is 190, strictly below the r42 BEFORE=248 (248->246->242)', () => {
     let literal = 0, total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -166,8 +170,8 @@ describe('Files read-tail r43 byte-oracle dedupe', () => {
     // Native lanes 21+22 retire inlined statements from the owner tree; lane 21
     // wave 2 also retires the two finance-tax-signature reads. Pins equal the
     // current worktree count: 221->211 (spaced) and 222->212 (bare).
-    expect(literal).toBe(195);
-    expect(total).toBe(196);
+    expect(literal).toBe(190);
+    expect(total).toBe(191);
     expect(literal).toBeLessThan(248);
     expect(total).toBeLessThan(249);
   });

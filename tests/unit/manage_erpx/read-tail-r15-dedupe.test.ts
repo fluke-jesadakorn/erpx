@@ -121,9 +121,9 @@ describe('manage_erpx Company provisioning attachment image native cutover', () 
     }
   });
 
-  it('lowers the owner TS literal SELECT count from BEFORE=15 to 13', async () => {
+  it('lowers the owner TS literal SELECT count from BEFORE=15 to 11', async () => {
     const total = (await tsSources(srcDir)).join('\n').match(/SELECT /g)?.length ?? 0;
-    expect(total).toBe(13);
+    expect(total).toBe(11);
     expect(total).toBeLessThan(15);
   });
 });

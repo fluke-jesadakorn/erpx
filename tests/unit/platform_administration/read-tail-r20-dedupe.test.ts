@@ -76,7 +76,8 @@ describe('Platform Administration r20 derived-source EXISTS head fold', () => {
     const predicate = source('adapters/release-predicate.ts');
     const acceptance = source('adapters/release-acceptance.ts');
     expect(predicate.match(/export function derivedSourceExistsSql/g)).toHaveLength(1);
-    expect(predicate.split('`SELECT 1 FROM ${from}${gap}WHERE ${where}`').length - 1).toBe(1);
+    expect(predicate).toContain('platformReadHeads.selectOneFromWhere');
+    expect(predicate.split('`SELECT 1 FROM ${from}${gap}WHERE ${where}`').length - 1).toBe(0);
     expect(predicate).toContain('return selectOneFromWhereSql(`(${source}) ${alias}`, predicate);');
     expect(predicate).toContain('derivedSourceExistsSql(`VALUES ${criteria}`,\'AS required(id,permission)\',`NOT EXISTS(');
     expect(acceptance).toContain("derivedSourceExistsSql(identity_accessPlatformSources.assignments,'a',`a.id=g.assignment_id");
@@ -113,7 +114,7 @@ describe('Platform Administration r20 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(18);
+    expect(total).toBe(10);
     expect(total).toBeLessThan(26);
   });
 });

@@ -90,7 +90,7 @@ describe('Projects read-tail r42 closed row-source head family', () => {
     // projects source and the settlement table prefix) now share one closed head:
     // 73-2+1 = 72. Locks, native SQL and cross-owner projections keep their own
     // literals and are not folded.
-    expect(total).toBe(62); // r45 bare-projection head family folded into read-tail-r45 (65->62)
+    expect(total).toBe(57); // r46 evaluation reads moved to the native contract (62->57)
     expect(total).toBeLessThan(73);
   });
 });

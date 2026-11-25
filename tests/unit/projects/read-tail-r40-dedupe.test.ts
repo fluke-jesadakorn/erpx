@@ -161,7 +161,7 @@ describe('Projects read-tail r40 universal projection head family', () => {
     // r39 left 76. Three named heads (one inline SELECT each) delegate to one
     // closed universal head: 76-3+1 = 74. r44 folds the last cross-owner
     // final-root projection head into that same universal head (66->65).
-    expect(total).toBe(62); // r45 bare-projection head family folded into read-tail-r45 (65->62)
+    expect(total).toBe(57); // r46 evaluation reads moved to the native contract (62->57)
     expect(total).toBeLessThan(76);
   });
 });
@@ -210,7 +210,7 @@ describe('Projects read-tail r44 final-root projection family', () => {
     expect(src('../public/native_read_sql.rs')).toContain('pub use crate::adapters::native_read_sql::*;');
   });
 
-  test('retirement:ts-statements drops to 65 from the r43 BEFORE=66 baseline', () => {
+  test('retirement:ts-statements drops with the r46 native evaluation contract', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {
@@ -220,8 +220,8 @@ describe('Projects read-tail r44 final-root projection family', () => {
       }
     };
     walk(srcRoot);
-    // One duplicated projection/from head removed: 66 -> 65.
-    expect(total).toBe(62); // r45 bare-projection head family folded into read-tail-r45 (65->62)
+    // Five evaluation read SELECT tokens moved into the native contract.
+    expect(total).toBe(57); // r46 evaluation reads moved to the native contract (62->57)
     expect(total).toBeLessThan(65);
   });
 });
@@ -248,13 +248,19 @@ describe('Projects read-tail r45 bare-projection head family', () => {
     }
   });
 
-  test('all four former heads delegate and own no inline projection literal', () => {
-    for (const name of ['read-tail-r28.ts', 'read-tail-r29.ts', 'read-tail-r41.ts', 'evaluation-source-policy.ts']) {
+  test('the three remaining heads delegate and own no inline projection literal', () => {
+    for (const name of ['read-tail-r28.ts', 'read-tail-r29.ts', 'read-tail-r41.ts']) {
       const text = src(name);
-      expect(text.match(/SELECT /g) ?? [], name).toHaveLength(name === 'evaluation-source-policy.ts' ? 3 : 0);
+      expect(text.match(/SELECT /g) ?? [], name).toHaveLength(0);
       expect(text, name).toContain("from './read-tail-r45'");
       expect(text, name).toContain('selectBodySql(');
     }
+    const policy = src('evaluation-source-policy.ts');
+    expect(policy.match(/SELECT /g) ?? []).toHaveLength(2);
+    expect(policy).not.toContain('selectBodySql(');
+    expect(policy).not.toContain('nativeSourceColumns');
+    expect(policy).toContain("from './evaluation-read-sources.json'");
+    expect(policy).toContain('export const nativeSources=contract.nativeSources;');
     const head = src('read-tail-r45.ts');
     expect(head.match(/SELECT /g)).toHaveLength(1);
     expect(head).toContain('export const selectBodySql = (body: string) => `SELECT ${body}`;');
@@ -270,7 +276,7 @@ describe('Projects read-tail r45 bare-projection head family', () => {
     expect(rs).toContain('id,project_id,company_id,');
   });
 
-  test('retirement:ts-statements drops to 62 from the r44 BEFORE=65 baseline', () => {
+  test('retirement:ts-statements drops to 57 from the r45 BEFORE=62 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {
@@ -280,8 +286,67 @@ describe('Projects read-tail r45 bare-projection head family', () => {
       }
     };
     walk(srcRoot);
-    // Four bare heads fold into one owner renderer: 65 - 4 + 1 = 62.
-    expect(total).toBe(62);
-    expect(total).toBeLessThan(65);
+    // Five evaluation read SELECT tokens move into the native contract: 62 - 5 = 57.
+    expect(total).toBe(57);
+    expect(total).toBeLessThan(62);
+  });
+});
+
+describe('Projects r46 native evaluation read family', () => {
+  const contract = JSON.parse(
+    readFileSync(resolve(srcRoot, 'adapters', 'evaluation-read-sources.json'), 'utf8'),
+  ) as { readonly nativeSources: string; readonly peopleSourceImage: string; readonly peopleSourceRows: string };
+
+  test('the contract owns the exact retired source-identity UNION bytes', () => {
+    const expected = [
+      "SELECT id,id project_id,company_id,'project' kind,'projects.wbs' capability,NULL::text source_user_id FROM staff_projects",
+      " UNION ALL SELECT id,project_id,company_id,'milestone','projects.wbs',NULL::text FROM staff_project_milestones",
+      " UNION ALL SELECT id,project_id,company_id,'work_log','projects.time',user_id FROM staff_project_work_logs",
+      " UNION ALL SELECT id,project_id,company_id,'allocation','projects.costs',NULL::text FROM staff_project_cost_allocations",
+      " UNION ALL SELECT id,project_id,company_id,'handoff','projects.handover',NULL::text FROM staff_project_handoffs",
+      " UNION ALL SELECT id,project_id,company_id,'task','projects.tasks',NULL::text FROM staff_tasks WHERE project_id IS NOT NULL",
+    ].join('\n');
+    expect(contract.nativeSources).toBe(expected);
+    expect(contract.nativeSources).toBe(nativeSources);
+    expect(contract.nativeSources).toHaveLength(695);
+    expect(contract.nativeSources.match(/SELECT /g)).toHaveLength(6);
+    expect(contract.nativeSources).not.toContain('?');
+  });
+
+  test('both People evaluation templates keep one scope slot and read-only bytes', () => {
+    expect(Object.keys(contract)).toEqual(['nativeSources', 'peopleSourceImage', 'peopleSourceRows']);
+    expect(contract.peopleSourceImage).toHaveLength(412);
+    expect(contract.peopleSourceImage.match(/SELECT /g)).toHaveLength(3);
+    expect(contract.peopleSourceImage.match(/\{scope\}/g)).toHaveLength(1);
+    expect(contract.peopleSourceRows).toHaveLength(501);
+    expect(contract.peopleSourceRows.match(/SELECT /g)).toHaveLength(1);
+    expect(contract.peopleSourceRows.match(/\{scope\}/g)).toHaveLength(1);
+    for (const sql of [contract.nativeSources, contract.peopleSourceImage, contract.peopleSourceRows]) {
+      expect(sql).toMatch(/^SELECT /);
+      expect(sql.toUpperCase()).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
+    }
+  });
+
+  test('the retired adapters carry no statement token and import the native contract', () => {
+    const facts = src('people-evaluation-facts.ts');
+    expect(facts.match(/SELECT /g) ?? []).toHaveLength(0);
+    expect(facts).toContain("from './evaluation-read-sources.json'");
+    expect(facts).toContain('fill(contract.peopleSourceImage,{scope:scope.where})');
+    expect(facts).toContain('fill(contract.peopleSourceRows,{scope:scope.where})');
+    const policy = src('evaluation-source-policy.ts');
+    expect(policy).not.toContain('nativeSourceColumns');
+    expect(policy).not.toContain("capability,NULL::text source_user_id FROM staff_projects");
+    expect(policy).toContain('nativeSources');
+  });
+
+  test('the Rust owner binds the contract and exposes the public port', () => {
+    const rs = readFileSync(resolve(srcRoot, 'adapters', 'evaluation_read_sources.rs'), 'utf8');
+    expect(rs).toContain('include_str!("evaluation-read-sources.json")');
+    expect(rs).toContain('contract_is_byte_exact_to_the_retired_typescript_literals');
+    expect(rs).toContain('source_image');
+    expect(rs).toContain('source_rows');
+    expect(src('mod.rs')).toContain('pub mod evaluation_read_sources;');
+    expect(readFileSync(resolve(srcRoot, 'public', 'mod.rs'), 'utf8')).toContain('pub mod evaluation_read_sources;');
+    expect(readFileSync(resolve(srcRoot, 'public', 'evaluation_read_sources.rs'), 'utf8')).toContain('EVALUATION_READ_SOURCES_JSON');
   });
 });

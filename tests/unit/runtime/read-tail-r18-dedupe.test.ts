@@ -10,11 +10,21 @@ import {
   RD_MIGRATION_RECEIPTS,
   RD_MIGRATION_CHECKSUM,
 } from '../../../packages/server-runtime/src/adapters/native-runtime-control-plane';
+import {
+  executiveReportRevisionsSql,
+  executiveReportSharesSql,
+  executiveReportsSql,
+  holdingBindingsSql,
+  reportLockSql,
+  reportVersionGuardSql,
+} from '../../../packages/server-runtime/src/adapters/read-tail-sql';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-runtime/src');
 const adapterDir = resolve(srcRoot, 'adapters');
 const src = (name: string) => readFileSync(resolve(adapterDir, name), 'utf8');
 const rust = (name: string) => readFileSync(resolve(srcRoot, name), 'utf8');
+const tails = () =>
+  JSON.parse(readFileSync(resolve(adapterDir, 'read-tail-sources.json'), 'utf8')) as Record<string, string>;
 const sha = (sql: string) => createHash('sha256').update(sql).digest('hex');
 const selectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;
 const readOnly = (sql: string) => {
@@ -84,20 +94,24 @@ describe('runtime r18 catalog-presence family cut over to the native port', () =
     expect(migrations).toContain("planRuntimeControlPlane(RD_MIGRATION_UNLOCK)");
     const postgres = src('runtime/postgres.ts');
     expect(postgres).toContain("planRuntimeControlPlane(RD_OBJECT_LOCK,[lock])");
-    const shared = src('read-tail-sql.ts');
-    for (const template of [
-      '`SELECT ${columns} FROM holding_bindings${suffix}`',
-      '`SELECT ${columns} FROM executive_generation_jobs${suffix}`',
-      '`SELECT ${columns} FROM runtime_health${suffix}`',
-      '`SELECT ${columns} FROM executive_external_tokens${suffix}`',
-      '`SELECT ${columns} FROM executive_report_shares${suffix}`',
-      '`SELECT ${columns} FROM executive_report_revisions WHERE report_id=?${suffix}`',
-      '`SELECT ${columns} FROM executive_reports${suffix}`',
-    ]) expect(shared.split(template)).toHaveLength(2);
+    const contract = tails();
+    for (const [key, table] of [
+      ['holdingBindings', 'holding_bindings'],
+      ['executiveGenerationJobs', 'executive_generation_jobs'],
+      ['runtimeHealth', 'runtime_health'],
+      ['executiveExternalTokens', 'executive_external_tokens'],
+      ['executiveReportShares', 'executive_report_shares'],
+      ['executiveReportRevisions', 'executive_report_revisions'],
+      ['executiveReports', 'executive_reports'],
+    ] as const) {
+      expect(contract[key]).toContain('SELECT {columns} FROM ');
+      expect(contract[key]).toContain(table);
+    }
+    expect(src('read-tail-sql.ts')).not.toMatch(/SELECT |INSERT |DELETE |UPDATE /);
   });
 
-  test('retirement:ts-statements records BEFORE=30 strictly lower to 13', () => {
-    expect(kpi()).toBe(13);
+  test('retirement:ts-statements records BEFORE=30 strictly lower to 4', () => {
+    expect(kpi()).toBe(4);
     expect(kpi()).toBeLessThan(30);
   });
 });
@@ -415,5 +429,104 @@ describe('runtime lock-timeout session family cut over to the native planner', (
       JSON.stringify({ kind: 'runtime_rd_lock_timeout_restore', values: ['5s'] }),
     );
     expect(src('runtime/postgres.ts')).toContain('planRuntimeControlPlane(RD_RUNTIME_HEALTH)');
+  });
+});
+
+describe('runtime read-tail builders and report guards own a native include_str! contract', () => {
+  const shapes = [
+    ['holdingBindings', 'SELECT {columns} FROM holding_bindings{suffix}', 46,
+      'd4da402d52732e8f9cd8e3543f184d434af504e4d6c77f701d80f6426a2212f6'],
+    ['executiveGenerationJobs', 'SELECT {columns} FROM executive_generation_jobs{suffix}', 55,
+      'e020849b356c816f1a8d7491299686617ac3ec1fa8d9174ef9ac4ac421d079f2'],
+    ['runtimeHealth', 'SELECT {columns} FROM runtime_health{suffix}', 44,
+      'eb435fb5a73703cdb575e7fe29099ce6c481b9911e5e1b3cac9531d798599dcd'],
+    ['executiveExternalTokens', 'SELECT {columns} FROM executive_external_tokens{suffix}', 55,
+      'c727e6dbf89015e7e1620c10a2995804757c7d0f4eb0e4049390810fb0369d4c'],
+    ['executiveReportShares', 'SELECT {columns} FROM executive_report_shares{suffix}', 53,
+      '9f35b62c461ad16a8d831e8206fa10bb13c45904c8af698794810f9044ace1be'],
+    ['executiveReportRevisions', 'SELECT {columns} FROM executive_report_revisions WHERE report_id=?{suffix}', 74,
+      '63498e31e451b1227efcba1aeb279b75b5cde85d2412c999fb0bdfccf23bc0db'],
+    ['executiveReports', 'SELECT {columns} FROM executive_reports{suffix}', 47,
+      'bb2c4aaff57372836aba4c59297562bdec016709447ba16349b0f1df7b95ab45'],
+  ] as const;
+
+  test.each(shapes)('%s template is byte-identical in the native contract', (key, template, size, digest) => {
+    const contract = tails();
+    expect(contract[key]).toBe(template);
+    expect(sha(contract[key]!)).toBe(digest);
+    expect(contract[key]!.length).toBe(size);
+    expect(contract[key]!.match(/\{columns\}/g)).toHaveLength(1);
+    expect(contract[key]!.match(/\{suffix\}/g)).toHaveLength(1);
+    expect(rust('adapters/read_tail.rs')).toContain('include_str!("read-tail-sources.json")');
+    expect(rust('adapters/read_tail.rs')).toContain(`[serde(rename = "${key}")]`);
+  });
+
+  test('both report guards stay byte-exact with one and three binds', () => {
+    const contract = tails();
+    expect(contract.reportLock).toBe('SELECT id FROM executive_reports WHERE id=? FOR UPDATE');
+    expect(sha(contract.reportLock!)).toBe('6bc60d98469950d7d7c62501f49dd1636875a600dbfd77e56d229ede29e35df7');
+    expect(contract.reportLock!.length).toBe(54);
+    expect(contract.reportLock!.match(/\?/g)).toHaveLength(1);
+    expect(contract.reportLock!).toMatch(/FOR UPDATE$/);
+    expect(contract.reportVersionGuard).toBe('EXISTS(SELECT 1 FROM executive_reports WHERE id=? AND owner_id=? AND version=?)');
+    expect(sha(contract.reportVersionGuard!)).toBe('4c7f66216d0c97be6848e31c1b5a4cfd921e6886f00557346c346e076257a6d3');
+    expect(contract.reportVersionGuard!.length).toBe(79);
+    expect(contract.reportVersionGuard!.match(/\?/g)).toHaveLength(3);
+    expect(contract.reportVersionGuard!).toMatch(/^EXISTS\(/);
+  });
+
+  test('the helper renders every closed family byte-identically and keeps $ binds', () => {
+    expect(holdingBindingsSql('1', ' WHERE holding_id=$1')).toBe('SELECT 1 FROM holding_bindings WHERE holding_id=$1');
+    expect(executiveReportsSql('*', ' WHERE id=?')).toBe('SELECT * FROM executive_reports WHERE id=?');
+    expect(executiveReportSharesSql('id,version', ' WHERE report_id=?')).toBe(
+      'SELECT id,version FROM executive_report_shares WHERE report_id=?',
+    );
+    expect(executiveReportRevisionsSql('version', ' ORDER BY version')).toBe(
+      'SELECT version FROM executive_report_revisions WHERE report_id=? ORDER BY version',
+    );
+    expect(reportLockSql).toBe('SELECT id FROM executive_reports WHERE id=? FOR UPDATE');
+    expect(reportVersionGuardSql).toBe('EXISTS(SELECT 1 FROM executive_reports WHERE id=? AND owner_id=? AND version=?)');
+  });
+
+  test('the TypeScript helper imports the contract and authors no statement text', () => {
+    const helper = src('read-tail-sql.ts');
+    for (const token of ['SELECT', 'INSERT', 'DELETE', 'UPDATE']) expect(helper).not.toContain(token);
+    expect(helper).toContain('read-tail-sources.json');
+    expect(helper).toContain('{columns}');
+    expect(helper).toContain('{suffix}');
+    const reports = src('executive/reports.ts');
+    expect(reports).toContain('reportLockSql');
+    expect(reports).toContain('reportVersionGuardSql');
+    expect(reports).not.toContain('SELECT id FROM executive_reports WHERE id=? FOR UPDATE');
+    expect(reports).not.toContain('EXISTS(SELECT 1 FROM executive_reports WHERE id=? AND owner_id=? AND version=?)');
+  });
+
+  test('the native module and public facade expose all nine frozen shapes', () => {
+    const native = rust('adapters/read_tail.rs');
+    for (const field of shapes.map(([key]) => `[serde(rename = "${key}")]`)) expect(native).toContain(field);
+    const port = rust('public/read_tail.rs');
+    for (const symbol of [
+      'holding_bindings',
+      'executive_generation_jobs',
+      'runtime_health',
+      'executive_external_tokens',
+      'executive_report_shares',
+      'executive_report_revisions',
+      'executive_reports',
+      'report_lock',
+      'report_version_guard',
+    ]) expect(port).toContain(symbol);
+  });
+
+  test('the cross-owner dynamic metric-source builder is recorded as excluded', () => {
+    const metric = src('executive/metric-sources.ts');
+    expect(selectCount(metric)).toBe(4);
+    expect(metric).toContain('export function metricSourceQuery');
+    expect(metric).toContain('export async function readMetricSources');
+  });
+
+  test('retirement:ts-statements records BEFORE=13 strictly lower to 4', () => {
+    expect(kpi()).toBe(4);
+    expect(kpi()).toBeLessThan(13);
   });
 });

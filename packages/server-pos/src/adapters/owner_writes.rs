@@ -370,6 +370,7 @@ pub const KINDS: &[&str] = &[
     crate::adapters::day_report_reads::FULFILLMENTS,
     crate::adapters::day_report_reads::CASH_MOVEMENTS,
     crate::adapters::day_report_reads::SETTLEMENTS,
+    crate::adapters::day_report_reads::PAYMENT_MIX,
     // POS sale-child detail read kinds: closed, SELECT-only owner statements
     // keyed by sale id. Lock-bearing, PMS-fragment and refund-child reads stay
     // inline in the TypeScript callers.
@@ -401,6 +402,7 @@ pub const KINDS: &[&str] = &[
     crate::adapters::list_reads::CONNECTIONS,
     crate::adapters::list_reads::SETTLEMENTS,
     crate::adapters::list_reads::EXCEPTION_JOBS,
+    crate::adapters::list_reads::RECORD_SUPPLEMENT_SALES,
     // POS hotel day-assertion property kinds (round 32): closed, SELECT-only,
     // Company-scoped, lock-free owner statements ported from the inline
     // pos-core.ts literals. Row locks, PMS fragments and the day-report/Stripe
@@ -465,6 +467,7 @@ pub const KINDS: &[&str] = &[
     crate::adapters::core_keyed_reads::PREPARED_DAY_CLOSE,
     crate::adapters::core_keyed_reads::PENDING_REVERSAL_REQUEST,
     crate::adapters::core_keyed_reads::REVERSAL_BY_SALE,
+    crate::adapters::core_keyed_reads::COMMERCE_ATTACHMENT_IMAGE,
     // POS addon/package obligation read kinds: closed, SELECT-only owner
     // statements that the TypeScript obligation bridge requests on the
     // caller's unit.
@@ -695,7 +698,7 @@ mod tests {
     use super::*;
     #[test]
     fn every_kind_is_allow_listed_with_parameterized_owner_sql() {
-        assert_eq!(KINDS.len(), 200);
+        assert_eq!(KINDS.len(), 203);
         for kind in KINDS {
             assert!(supported(kind), "kind must be allow listed: {kind}");
             let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
@@ -1189,7 +1192,7 @@ mod tests {
                 );
             }
         }
-        assert_eq!(crate::adapters::core_keyed_reads::KINDS.len(), 8);
+        assert_eq!(crate::adapters::core_keyed_reads::KINDS.len(), 9);
     }
 
     /// The retired day-report list reads are SELECT-only, lock-free owner
@@ -1207,7 +1210,7 @@ mod tests {
                 );
             }
         }
-        assert_eq!(crate::adapters::day_report_reads::KINDS.len(), 10);
+        assert_eq!(crate::adapters::day_report_reads::KINDS.len(), 11);
     }
 
     /// The retired sale-child detail reads are SELECT-only, lock-free owner
@@ -1276,7 +1279,7 @@ mod tests {
                 );
             }
         }
-        assert_eq!(crate::adapters::list_reads::KINDS.len(), 5);
+        assert_eq!(crate::adapters::list_reads::KINDS.len(), 6);
     }
 
     /// The retired hotel day-assertion property reads are SELECT-only,

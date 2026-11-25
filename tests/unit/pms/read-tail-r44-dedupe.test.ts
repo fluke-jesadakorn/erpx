@@ -105,7 +105,7 @@ describe('pms read-tail r44 chosen-kind, payment-union and lineage-anchor dedupe
     expect(rr).not.toContain("guestAccounts AS (${pmsChosenKindUnionSql('guest_account')})");
     expect(rr).not.toContain("room_ids AS (${pmsChosenKindUnionSql('room')})");
     // Binds and CTE aliases stay at the site.
-    expect(rr).toContain('.bind(facts.propertyId, facts.seedsJson, facts.propertyId2, facts.propertyId3');
+    expect(rr).toContain('PMS_RD_OPERATION_RELATED_RECORDS, [facts.propertyId, facts.seedsJson, facts.propertyId2, facts.propertyId3, facts.propertyId3], db');
 
     const fin = await src('adapters/finance-record-sources.ts');
     expect(fin.split("pmsPaymentUnionSql('sourceImage')").length - 1).toBe(1);
@@ -152,8 +152,8 @@ describe('pms read-tail r44 chosen-kind, payment-union and lineage-anchor dedupe
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(202);
-    expect(bare).toBe(203);
+    expect(spaced).toBe(194);
+    expect(bare).toBe(195);
     expect(spaced).toBeLessThan(299);
     expect(bare).toBeLessThan(301);
   });

@@ -9,6 +9,7 @@ pub(crate) mod native_command_sql;
 #[cfg(feature = "owned-process")]
 pub(crate) mod owned_process;
 pub(crate) mod postgres;
+pub(crate) mod read_tail;
 
 pub(crate) mod executive_access;
 pub(crate) mod executive_connection_secret;

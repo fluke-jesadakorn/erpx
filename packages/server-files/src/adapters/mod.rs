@@ -39,6 +39,10 @@ pub mod witness_head;
 
 pub mod settlement_head;
 
+pub mod field_owner_head;
+
+pub mod events_sets_head;
+
 pub mod local_sanitization_io;
 
 pub mod local_quarantine_store;

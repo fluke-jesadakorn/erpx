@@ -198,7 +198,7 @@ describe("native manage_erpx lane 34 beta feedback read", () => {
     expect(client).not.toContain("SELECT ");
   });
 
-  it("pins the owner TypeScript SELECT KPI at 13", () => {
+  it("pins the owner TypeScript SELECT KPI at 11", () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -208,7 +208,7 @@ describe("native manage_erpx lane 34 beta feedback read", () => {
       }
     };
     walk(resolve(root, "packages/server-manage_erpx/src"));
-    expect(total).toBe(13);
+    expect(total).toBe(11);
   });
 });
 

@@ -6,6 +6,8 @@ import { createHash } from 'node:crypto';
 const srcRoot = resolve(__dirname, '../../../packages/server-runtime/src');
 const adapterDir = resolve(srcRoot, 'adapters');
 const src = (name: string) => readFileSync(resolve(adapterDir, name), 'utf8');
+const tails = () =>
+  JSON.parse(readFileSync(resolve(adapterDir, 'read-tail-sources.json'), 'utf8')) as Record<string, string>;
 const rust = (name: string) => readFileSync(resolve(srcRoot, name), 'utf8');
 const sha = (sql: string) => createHash('sha256').update(sql).digest('hex');
 const binds = (sql: string) => (sql.match(/\$\d|\?/g) ?? []).length;
@@ -59,15 +61,16 @@ describe('runtime r20 bare-head family retired into the native port', () => {
   test('the bare head and both folded builders are deleted', () => {
     const shared = src('read-tail-sql.ts');
     expect(shared).not.toMatch(/selectHeadSql|catalogObjectExistsSql|migrationControlReadSql/);
-    for (const template of [
-      '`SELECT ${columns} FROM holding_bindings${suffix}`',
-      '`SELECT ${columns} FROM executive_generation_jobs${suffix}`',
-      '`SELECT ${columns} FROM runtime_health${suffix}`',
-      '`SELECT ${columns} FROM executive_external_tokens${suffix}`',
-      '`SELECT ${columns} FROM executive_report_shares${suffix}`',
-      '`SELECT ${columns} FROM executive_report_revisions WHERE report_id=?${suffix}`',
-      '`SELECT ${columns} FROM executive_reports${suffix}`',
-    ]) expect(shared.split(template)).toHaveLength(2);
+    expect(shared).not.toMatch(/SELECT |INSERT |DELETE |UPDATE /);
+    for (const [key, template] of Object.entries({
+      holdingBindings: 'SELECT {columns} FROM holding_bindings{suffix}',
+      executiveGenerationJobs: 'SELECT {columns} FROM executive_generation_jobs{suffix}',
+      runtimeHealth: 'SELECT {columns} FROM runtime_health{suffix}',
+      executiveExternalTokens: 'SELECT {columns} FROM executive_external_tokens{suffix}',
+      executiveReportShares: 'SELECT {columns} FROM executive_report_shares{suffix}',
+      executiveReportRevisions: 'SELECT {columns} FROM executive_report_revisions WHERE report_id=?{suffix}',
+      executiveReports: 'SELECT {columns} FROM executive_reports{suffix}',
+    })) expect(tails()[key]).toBe(template);
   });
 
   test('migrations.ts plans every retired statement and inlines none', () => {
@@ -107,15 +110,16 @@ describe('runtime r20 bare-head family retired into the native port', () => {
     expect(postgres).toContain("planRuntimeControlPlane(RD_OBJECT_LOCK,[lock])");
     expect(postgres).not.toMatch(/selectHeadSql|catalogObjectExistsSql|migrationControlReadSql/);
     const reports = src('executive/reports.ts');
-    expect(reports).toContain('const REPORT_LOCK_SQL = "SELECT id FROM executive_reports WHERE id=? FOR UPDATE"');
+    expect(reports).toContain('reportLockSql');
+    expect(reports).not.toContain('SELECT id FROM executive_reports WHERE id=? FOR UPDATE');
     expect(reports).not.toMatch(/selectHeadSql|catalogObjectExistsSql|migrationControlReadSql/);
     for (const sql of Object.values(folded).map(oracle => oracle[0])) {
       expect(sql).not.toMatch(/FOR\s+UPDATE|FOR\s+SHARE|pg_advisory|@erpx\/server-|FROM\s+executive_reports/);
     }
   });
 
-  test('retirement:ts-statements records BEFORE=28 strictly lower to 13', () => {
-    expect(kpi()).toBe(13);
+  test('retirement:ts-statements records BEFORE=28 strictly lower to 4', () => {
+    expect(kpi()).toBe(4);
     expect(kpi()).toBeLessThan(28);
   });
 });

@@ -1,5 +1,5 @@
-import {benefitDependentParticipants,benefitElectionParticipants} from "@erpx/server-people_payroll/public/benefits-owner-facts";
 import {benefitOwnerExistsGuard} from "@erpx/server-benefits/adapters/benefits-read-sql";
+import {nativeBenefitReadFirst,RD_ATTACHMENT_BENEFIT_DEPENDENTS,RD_ATTACHMENT_BENEFIT_ELECTIONS} from "@erpx/server-benefits/adapters/native-benefit-read";
 import "server-only";
 import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
@@ -18,6 +18,8 @@ const sensitiveRecordTables = new Set([
   "benefit_dependent",
   "benefit_election",
 ]);
+
+type SensitiveFact={company_id:string;version:number;status:string;branch_id:string|null;department_id:string|null;is_owner:number};
 
 function sensitiveAttachmentTargetVersionGuard(
   db: SqlDatabase,
@@ -52,28 +54,9 @@ function sensitiveAttachmentRecordVersionStep(
     .prepare(`UPDATE ${table} SET version=version+1,updated_at=? WHERE id=? AND version=?`)
     .bind(now, targetId, expectedVersion);
 }
-/** Byte-identical owner-local sensitive-fact read projection shared by the
- * dependent/election pair; generated SQL is unchanged. */
-export const sensitiveFactSelect=(alias:string,table:string,participants:()=>string)=>`SELECT ${alias}.company_id,${alias}.version,${alias}.status,e.branch_id,e.department_id,
-        CASE WHEN iam_same_person(p.user_id,?,${alias}.company_id) THEN 1 ELSE 0 END is_owner
-      FROM ${table} ${alias}
-      ${participants()}
-      WHERE ${alias}.id=? AND ${alias}.company_id=?`;
+/** The dependent/election point reads are owned by the native Benefits read
+ * plan registry; no TypeScript SQL remains for the pair. */
 export function SensitiveAttachmentBenefitsFacts(db:SqlDatabase){return {
-readBenefitDependents1:(facts:{userId:string;targetId:string;companyId:string;})=>db.prepare(sensitiveFactSelect('d','benefit_dependents',benefitDependentParticipants)).bind(facts.userId,facts.targetId,facts.companyId).first<{
-      company_id: string;
-      version: number;
-      status: string;
-      branch_id: string | null;
-      department_id: string | null;
-      is_owner: number;
-    }>(),
-readBenefitElections1:(facts:{userId:string;targetId:string;companyId:string;})=>db.prepare(sensitiveFactSelect('x','benefit_elections',benefitElectionParticipants)).bind(facts.userId,facts.targetId,facts.companyId).first<{
-      company_id: string;
-      version: number;
-      status: string;
-      branch_id: string | null;
-      department_id: string | null;
-      is_owner: number;
-    }>(),versionGuard:(commandId:string,targetType:string,targetId:string,companyId:string,version:number,index:number)=>sensitiveAttachmentTargetVersionGuard(db,commandId,targetType,targetId,companyId,version,index),versionStep:(targetType:string,targetId:string,expectedVersion:number,now:number)=>sensitiveAttachmentRecordVersionStep(db,targetType,targetId,expectedVersion,now)
+readBenefitDependents1:(facts:{userId:string;targetId:string;companyId:string;})=>nativeBenefitReadFirst<SensitiveFact>(RD_ATTACHMENT_BENEFIT_DEPENDENTS,[facts.userId,facts.targetId,facts.companyId],db),
+readBenefitElections1:(facts:{userId:string;targetId:string;companyId:string;})=>nativeBenefitReadFirst<SensitiveFact>(RD_ATTACHMENT_BENEFIT_ELECTIONS,[facts.userId,facts.targetId,facts.companyId],db),versionGuard:(commandId:string,targetType:string,targetId:string,companyId:string,version:number,index:number)=>sensitiveAttachmentTargetVersionGuard(db,commandId,targetType,targetId,companyId,version,index),versionStep:(targetType:string,targetId:string,expectedVersion:number,now:number)=>sensitiveAttachmentRecordVersionStep(db,targetType,targetId,expectedVersion,now)
 };}

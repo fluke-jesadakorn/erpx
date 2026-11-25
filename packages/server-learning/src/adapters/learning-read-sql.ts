@@ -3,6 +3,19 @@
  * from drifting apart. */
 import {packageClockSql} from "@erpx/server-commercial/public/purchased-capability-sql";
 import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
+import contract from './learning-native-sources.json' with {type:'json'};
+
+/** Substitute only the closed owner-controlled tokens in a native contract
+ * template; a template that lost one of its tokens fails closed. */
+const fill = (template: string, values: Record<string, string>) => {
+  let rendered = template;
+  for (const [name, value] of Object.entries(values)) {
+    const token = `{${name}}`;
+    if (!rendered.includes(token)) throw new Error('LEARNING_NATIVE_SOURCES_CONTRACT_INVALID');
+    rendered = rendered.split(token).join(value);
+  }
+  return rendered;
+};
 
 /** r16 — JSONB image aggregate head. The course, revocation and learner-assignment
  * images share the same to_jsonb(alias) ORDER BY alias.id head; only the alias
@@ -34,18 +47,14 @@ export const clockProbe = `MATERIALIZED (SELECT ${packageClockSql} now_ms)`;
 export const coursesImage = `(${jsonbAggImageHead('c')} FROM learning_courses c WHERE c.company_id=?)`;
 
 /** The Learning source-union rows are emitted byte-identically by every ownership
- * probe; one text source keeps the native source and all callers equal. */
-export const learningNativeSources=`SELECT id,company_id,NULL::text branch_id,NULL::text department_id,'learn.courses' capability FROM learning_courses
- UNION ALL SELECT e.id,c.company_id,NULL::text,NULL::text,'learn.courses' FROM learning_course_events e JOIN learning_courses c ON c.id=e.course_id
- UNION ALL SELECT id,company_id,branch_id,department_id,'learn.assignments' FROM learning_assignments
- UNION ALL SELECT e.id,a.company_id,a.branch_id,a.department_id,CASE WHEN e.action IN ('complete','waive') THEN 'learn.results' ELSE 'learn.assignments' END FROM learning_assignment_events e JOIN learning_assignments a ON a.id=e.assignment_id
- UNION ALL SELECT c.id,a.company_id,a.branch_id,a.department_id,'learn.certificates' FROM learning_certificates c JOIN learning_assignments a ON a.id=c.assignment_id AND a.company_id=c.company_id
- UNION ALL SELECT r.id,a.company_id,a.branch_id,a.department_id,'learn.certificates' FROM learning_certificate_revocations r JOIN learning_certificates c ON c.id=r.certificate_id AND c.company_id=r.company_id JOIN learning_assignments a ON a.id=c.assignment_id AND a.company_id=c.company_id
- UNION ALL SELECT h.id,a.company_id,a.branch_id,a.department_id,'learn.certificates' FROM learning_eligibility_handoffs h JOIN learning_assignments a ON a.id=h.assignment_id AND a.company_id=h.company_id`;
+ * probe; the exact union and its probe head now live in the native owner
+ * contract, so no statement byte remains in TypeScript. */
+export const learningNativeSources=contract.nativeSources;
 
 /** Native-source existence probe, parameterized only by the source alias; every
  * caller renders the same SQL bytes with its own alias. */
-export const nativeSourceProbe = (alias: string) => `SELECT 1 FROM (${learningNativeSources}) ${alias}`;
+export const nativeSourceProbe = (alias: string) =>
+  fill(contract.nativeSourceProbe, {nativeSources: learningNativeSources, alias});
 
 /** r22 — module-grant membership probe. Its existence-probe head is
  * byte-identical to the r17 existsRowProbe head with the erpx_json_each source;

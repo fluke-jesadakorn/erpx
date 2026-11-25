@@ -1,0 +1,4 @@
+{
+  "attachmentEventsWhere": "SELECT 1 FROM attachment_events WHERE ",
+  "attachmentSetsStarWhere": "SELECT * FROM attachment_sets WHERE "
+}

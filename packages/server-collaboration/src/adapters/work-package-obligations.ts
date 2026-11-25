@@ -7,6 +7,7 @@ import {workOperationsSettlementSources as operations,lockWorkOperationsSettleme
 import {workCalendarSettlementSources as calendar,lockWorkCalendarSettlementSources} from '@erpx/server-work_projection/public/work-calendar-package-obligation-sources';
 import {workSocialNativePostPredicate,workSocialUnresolvedPostPredicate,operationalHandoverReceiptPredicate} from '@erpx/server-collaboration/adapters/work-social-source';
 import {socialPostPublishReceipt,socialPostRecipientExists,absentSocialPostGuard,operationsSourceExists,workScopeSourceCte} from './read-tail-sql';
+import {nativeInboxSqlFragment} from './native-inbox-statements';
 import {projectSocialSourceReadLocks} from '@erpx/server-projects/public/social-purchase-sources';
 import {socialPmsSourceReadLocks} from '@erpx/server-pms/public/social-source-facts';
 import {messagingFileWithdrawalSources,messagingFileIntakeSources,messagingFileSettlementSourceLocks} from '@erpx/server-files/public/messaging-file-settlements';
@@ -22,6 +23,16 @@ export async function lockWorkCollaborationPackageObligationSources(owner:Postgr
 export async function workCollaborationPackageObligations(owner:PostgresDatabase,database:SqlDatabase,input:Input){
  owner.assertActiveTransaction(database);if(sources.get(database)!==input.companyId)throw Error('WORK_COLLABORATION_OBLIGATION_SOURCE_REQUIRED');
  if(input.moduleId!=='collaboration'||!['work','work-social','work-messages','work-routines'].includes(input.packageId)||input.packageVersion!==1||!Number.isSafeInteger(input.now)||input.now<0)throw Error('WORK_COLLABORATION_OBLIGATION_SCOPE_REQUIRED');
+  const [handbookSource,calendarSource,notificationFact,handbookFact,socialDraftFact,socialStoryFact,socialAiDraftFact,finalSelect]=await Promise.all([
+   nativeInboxSqlFragment(input.companyId,'work_obligation_handbook_source'),
+   nativeInboxSqlFragment(input.companyId,'work_obligation_calendar_source'),
+   nativeInboxSqlFragment(input.companyId,'work_obligation_notification_fact'),
+   nativeInboxSqlFragment(input.companyId,'work_obligation_handbook_fact'),
+   nativeInboxSqlFragment(input.companyId,'work_obligation_social_draft_fact'),
+   nativeInboxSqlFragment(input.companyId,'work_obligation_social_story_fact'),
+   nativeInboxSqlFragment(input.companyId,'work_obligation_social_ai_draft_fact'),
+   nativeInboxSqlFragment(input.companyId,'work_obligation_final'),
+  ]);
  const facts=(await database.prepare(`WITH scope AS(SELECT ?::text company_id,?::text package_id,?::bigint now_ms,to_char(to_timestamp(?::bigint/1000.0) AT TIME ZONE 'UTC','YYYY-MM-DD') today),
  ${workScopeSourceCte('tasks',operations.tasks)}
  ${workScopeSourceCte('templates',operations.templates)}
@@ -38,27 +49,27 @@ export async function workCollaborationPackageObligations(owner:PostgresDatabase
  OR (n.source_type IN ('post','social_post') AND scope.package_id IN ('work','work-social','work-routines') AND (EXISTS(SELECT 1 FROM posts p WHERE p.id=n.source_id) OR scope.package_id IN ('work','work-social') AND ${absentSocialPostGuard('n.source_id','n.company_id')}))
  OR (n.source_type IN ('message','messaging_message') AND scope.package_id IN ('work','work-messages') AND EXISTS(SELECT 1 FROM messaging_messages msg JOIN messaging_rooms room ON room.id=msg.room_id WHERE msg.id=n.source_id AND room.company_id=n.company_id))
  OR (n.source_type='messaging_room' AND scope.package_id IN ('work','work-messages') AND EXISTS(SELECT 1 FROM messaging_rooms room WHERE room.id=n.source_id AND room.company_id=n.company_id))
- OR (n.source_type IN ('handbook','handbook_article') AND scope.package_id='work' AND EXISTS(SELECT 1 FROM handbook_articles article WHERE article.id=n.source_id AND article.company_id=n.company_id))
- OR (n.source_type IN ('calendar_appointment','appointment') AND scope.package_id='work' AND EXISTS(SELECT 1 FROM appointments a WHERE a.id=n.source_id))),
+ ${handbookSource}
+ ${calendarSource}
  facts AS(
- SELECT 'notification' kind,n.id,n.source_version version,CASE WHEN n.read_at IS NULL AND n.archived_at IS NULL THEN 'waiting' ELSE 'reviewed' END state,n.image,n.read_at IS NULL AND n.archived_at IS NULL pending FROM notice_sources n
+ ${notificationFact}
  UNION ALL SELECT 'action-card',card.id,card.version,card.status,to_jsonb(card),card.status='open' FROM collaboration_action_cards card CROSS JOIN scope LEFT JOIN tasks t ON t.id=card.source_id WHERE scope.package_id='work' AND card.company_id=scope.company_id AND card.source_type='staff_task' AND (t.id IS NOT NULL OR NOT EXISTS(${operationsSourceExists(operations.tasks,'other_task','',' WHERE other_task.id=card.source_id AND other_task.company_id=card.company_id')}))
- UNION ALL SELECT 'handbook',article.id,article.version,CASE WHEN article.archived=1 THEN 'archived' ELSE 'available' END,to_jsonb(article),article.archived<>1 OR NOT EXISTS(SELECT 1 FROM handbook_revisions revision WHERE revision.article_id=article.id AND revision.company_id=article.company_id AND revision.revision=article.draft_revision) FROM handbook_articles article CROSS JOIN scope WHERE scope.package_id='work' AND article.company_id=scope.company_id
+ ${handbookFact}
  UNION ALL SELECT 'calendar-appointment',a.id,a.version,a.status,to_jsonb(a),a.status='scheduled' AND (a.ends_at>=scope.now_ms OR EXISTS(SELECT 1 FROM (${calendar.series})series WHERE series.appointment_id=a.id AND series.company_id=a.company_id AND (series.end_kind<>'until' OR series.until_date>=scope.today))) FROM appointments a CROSS JOIN scope WHERE scope.package_id='work'
  UNION ALL SELECT 'calendar-series',series.appointment_id,series.version,series.end_kind,to_jsonb(series),a.id IS NULL FROM (${calendar.series})series CROSS JOIN scope LEFT JOIN appointments a ON a.id=series.appointment_id WHERE scope.package_id='work' AND series.company_id=scope.company_id
  UNION ALL SELECT 'calendar-reminder',r.appointment_id||':'||r.occurrence_key||':'||r.user_id,COALESCE(a.version,0),CASE WHEN r.delivered_at IS NULL THEN 'waiting' ELSE 'delivered' END,to_jsonb(r),r.delivered_at IS NULL OR a.id IS NULL FROM (${calendar.reminders})r CROSS JOIN scope LEFT JOIN appointments a ON a.id=r.appointment_id WHERE scope.package_id='work' AND r.company_id=scope.company_id
  UNION ALL SELECT 'calendar-announcement',a.id,a.version,a.status,to_jsonb(a),a.status<>'withdrawn' AND a.end_date>=scope.today FROM (${calendar.announcements})a CROSS JOIN scope WHERE scope.package_id='work' AND a.company_id=scope.company_id
- UNION ALL SELECT 'social-draft',draft.id,draft.version,CASE WHEN draft.published_post_id IS NULL THEN 'draft' ELSE 'published' END,to_jsonb(draft),draft.published_post_id IS NULL AND length(trim(draft.body))>0 FROM social_post_drafts draft CROSS JOIN scope WHERE scope.package_id IN ('work','work-social') AND draft.company_id=scope.company_id AND draft.purpose<>'handover'
+ ${socialDraftFact}
  UNION ALL SELECT 'social-post',p.id,p.version,p.state,to_jsonb(p),${workSocialUnresolvedPostPredicate()} OR NOT EXISTS(${socialPostPublishReceipt('p.id','p.author_id')}) FROM posts p CROSS JOIN scope WHERE scope.package_id IN ('work','work-social','work-routines')
  UNION ALL SELECT 'handover',p.id,p.version,p.state,to_jsonb(p),p.state='published' AND ${socialPostRecipientExists('NOT EXISTS(SELECT 1 FROM social_handover_acknowledgements acknowledgement WHERE acknowledgement.post_id=p.id AND acknowledgement.user_id=recipient.user_id AND acknowledgement.post_version=p.version)')} FROM posts p CROSS JOIN scope WHERE scope.package_id IN ('work','work-social','work-routines') AND p.purpose='handover'
- UNION ALL SELECT 'social-story',story.id,story.version,story.state,to_jsonb(story),story.state='published' FROM social_stories story CROSS JOIN scope WHERE scope.package_id IN ('work','work-social') AND story.company_id=scope.company_id
+ ${socialStoryFact}
  UNION ALL SELECT 'social-ai-usage',usage.id,1,usage.state,to_jsonb(usage),usage.state='reserved' FROM social_ai_usage usage CROSS JOIN scope LEFT JOIN social_ai_drafts draft ON draft.id=usage.id WHERE usage.company_id=scope.company_id AND (EXISTS(SELECT 1 FROM posts p WHERE p.id=draft.post_id) OR scope.package_id IN ('work','work-social') AND draft.id IS NULL)
- UNION ALL SELECT 'social-ai-draft',draft.id,draft.source_version,draft.state,to_jsonb(draft),(draft.state='pending' OR draft.state='ready' AND draft.expires_at>scope.now_ms) FROM social_ai_drafts draft JOIN posts p ON p.id=draft.post_id CROSS JOIN scope WHERE scope.package_id IN ('work','work-social','work-routines')
+ ${socialAiDraftFact}
  UNION ALL SELECT 'social-agent-reply',reply.id,reply.attempt,reply.state,to_jsonb(reply),reply.state IN ('pending','running') FROM social_agent_replies reply CROSS JOIN scope WHERE reply.company_id=scope.company_id AND (EXISTS(SELECT 1 FROM posts p WHERE p.id=reply.post_id) OR scope.package_id IN ('work','work-social') AND ${absentSocialPostGuard('reply.post_id','reply.company_id')})
  UNION ALL SELECT 'message',msg.id,room.version,'posted',to_jsonb(msg),msg.seq<1 OR msg.seq>room.last_seq OR NOT EXISTS(SELECT 1 FROM command_receipts receipt WHERE receipt.operation='messaging.send' AND receipt.record_id=room.id AND receipt.actor_id=msg.sender_id AND receipt.authority_json::jsonb->>'companyId'=room.company_id AND receipt.result_json::jsonb->>'id'=msg.id) FROM messaging_messages msg JOIN messaging_rooms room ON room.id=msg.room_id CROSS JOIN scope WHERE scope.package_id IN ('work','work-messages') AND room.company_id=scope.company_id
  UNION ALL SELECT 'message-file',file.id,room.version,CASE WHEN file.message_id IS NOT NULL THEN 'bound' WHEN withdrawn.link_id IS NOT NULL THEN 'withdrawn' ELSE 'pending' END,jsonb_build_object('file',to_jsonb(file),'withdrawal',to_jsonb(withdrawn)),CASE WHEN file.message_id IS NULL THEN withdrawn.link_id IS NULL ELSE NOT EXISTS(SELECT 1 FROM messaging_messages msg WHERE msg.id=file.message_id AND msg.room_id=file.room_id) END FROM messaging_files file JOIN messaging_rooms room ON room.id=file.room_id CROSS JOIN scope LEFT JOIN withdrawn_files withdrawn ON withdrawn.file_id=file.id AND withdrawn.company_id=room.company_id AND withdrawn.room_id=room.id AND withdrawn.set_id=file.attachment_set_id AND withdrawn.link_id=file.attachment_link_id AND withdrawn.source_id=file.attachment_source_id AND withdrawn.created_by=file.created_by WHERE scope.package_id IN ('work','work-messages') AND room.company_id=scope.company_id
  UNION ALL SELECT 'message-file-intake',intake.link_id,COALESCE(room.version,0),intake.state,intake.image,intake.pending OR room.id IS NULL FROM (${messagingFileIntakeSources}) intake CROSS JOIN scope LEFT JOIN messaging_rooms room ON room.id=intake.room_id AND room.company_id=intake.company_id WHERE scope.package_id IN ('work','work-messages') AND intake.company_id=scope.company_id AND NOT EXISTS(SELECT 1 FROM messaging_files native_file JOIN messaging_rooms native_room ON native_room.id=native_file.room_id AND native_room.company_id=intake.company_id WHERE native_file.room_id=intake.room_id AND native_file.attachment_link_id=intake.link_id AND native_file.attachment_set_id=intake.set_id AND native_file.attachment_source_id=intake.source_id AND native_file.created_by=intake.created_by)
- ) SELECT kind,id,version,state,image,COALESCE(pending,true) pending FROM facts ORDER BY kind,id`).bind(input.companyId,input.packageId,input.now,input.now).all<{kind:string;id:string;version:number;state:string;image:unknown;pending:boolean}>()).results;
+ ${finalSelect}`).bind(input.companyId,input.packageId,input.now,input.now).all<{kind:string;id:string;version:number;state:string;image:unknown;pending:boolean}>()).results;
  const revision=createHash('sha256').update(JSON.stringify({companyId:input.companyId,packageId:input.packageId,packageVersion:input.packageVersion,facts})).digest('hex');
  return {companyId:input.companyId,packageId:input.packageId,moduleId:'collaboration',observedAt:input.now,revision,outstanding:facts.filter(fact=>fact.pending).length};
 }

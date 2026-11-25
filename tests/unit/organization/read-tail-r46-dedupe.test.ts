@@ -66,7 +66,7 @@ describe('Organization change-event snapshot family retired to native owner', ()
       }
     };
     walk(srcRoot);
-    expect(space).toBe(179);
+    expect(space).toBe(178);
     expect(space).toBeLessThan(240);
   });
 });

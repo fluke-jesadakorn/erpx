@@ -17,6 +17,7 @@ import { holdingResources } from "../../../../packages/server-runtime/src/public
 import { ApiError } from "@erpx/server-runtime/public/http";
 
 import { type Row } from "@erpx/server-commerce/application/commerce";
+import { nativeCommerceReadAll, RD_ORDER_BY_SOURCE_ID } from './native-commerce-read';
 
 import { CommerceInventoryFacts } from "@erpx/server-inventory/public/commerce-facts";
 
@@ -29,7 +30,7 @@ export function nativeCommerceOrderReadRepository(db:SqlDatabase):CommerceOrderR
             id: string;
         }) => db.prepare(`SELECT a.action,a.actor_id,COALESCE((SELECT legal_name FROM (${people_payrollProjectionSources.hr_people}) p WHERE p.user_id=a.actor_id),a.actor_id) actor_name,a.created_at,a.record_version FROM (${workflowProjectionSources.audit_events}) a WHERE a.record_id=? ORDER BY a.created_at DESC LIMIT 50`).bind(facts.id).all<Row>(),readCommerceOrders4: (facts: {
             id: string;
-        }) => db.prepare("SELECT id,number FROM commerce_orders WHERE source_id=?").bind(facts.id).all<Row>(),readInventoryOrderReservations1: facts => CommerceInventoryFacts(db).readInventoryOrderReservations1(facts),readInventoryQualityHolds1: facts => CommerceInventoryFacts(db).readInventoryQualityHolds1(facts),readCommerceReturnLotAllocations1: facts => commerceInventoryJoinedFacts(db).readCommerceReturnLotAllocations1(facts),readCommerceReturnLotAllocations2: facts => commerceInventoryJoinedFacts(db).readCommerceReturnLotAllocations2(facts),readInventoryQualityHolds2: facts => CommerceInventoryFacts(db).readInventoryQualityHolds2(facts),readCommerceFulfillmentEvidence1: (facts: {
+        }) => nativeCommerceReadAll<Row>(RD_ORDER_BY_SOURCE_ID,[facts.id],db).then(results=>({results})),readInventoryOrderReservations1: facts => CommerceInventoryFacts(db).readInventoryOrderReservations1(facts),readInventoryQualityHolds1: facts => CommerceInventoryFacts(db).readInventoryQualityHolds1(facts),readCommerceReturnLotAllocations1: facts => commerceInventoryJoinedFacts(db).readCommerceReturnLotAllocations1(facts),readCommerceReturnLotAllocations2: facts => commerceInventoryJoinedFacts(db).readCommerceReturnLotAllocations2(facts),readInventoryQualityHolds2: facts => CommerceInventoryFacts(db).readInventoryQualityHolds2(facts),readCommerceFulfillmentEvidence1: (facts: {
             id: string;
         }) => db.prepare(`SELECT e.fulfillment_id,a.id attachment_id,a.original_name,a.media_type,a.bytes,a.checksum_sha256 FROM commerce_fulfillment_evidence e JOIN (${filesProjectionSources.attachments}) a ON a.id=e.attachment_id AND a.revoked_at IS NULL JOIN commerce_fulfillments f ON f.id=e.fulfillment_id WHERE f.order_id=? ORDER BY e.linked_at,e.attachment_id`).bind(facts.id).all<Row>(),readAttachments1: facts => CommerceFilesFacts(db).readAttachments1(facts),readCommerceCustomerNotifications1: (facts: {
             id: string;

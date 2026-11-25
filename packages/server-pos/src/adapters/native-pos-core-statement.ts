@@ -623,3 +623,21 @@ export async function nativePosKeyedReversalBySaleStatement<T = SqlValueRow>(
 ): Promise<T | null> {
   return nativePosOne<T>(db, '', 'pos_core_keyed_reversal_by_sale', [saleId]);
 }
+
+/**
+ * Owner-issued catalog/register attachment image witness for the Commerce
+ * product-image fallback. The SQL lives in the native POS owner registry
+ * (`erpx-server-pos::adapters::core_keyed_reads`, kind
+ * `pos_core_keyed_commerce_attachment_image`) and is byte-identical to the
+ * retired literal rendered from the shared catalog aggregate head. Caller-transaction,
+ * lock-free and Company/product scoped; no local SQL, mirror or fallback.
+ */
+export async function nativePosCommerceAttachmentImageStatement<T = SqlValueRow>(
+  db: SqlDatabase,
+  company: string,
+  productId: string,
+): Promise<T | null> {
+  return nativePosOne<T>(db, company, 'pos_core_keyed_commerce_attachment_image', [
+    productId, company, company, productId,
+  ]);
+}

@@ -1,9 +1,20 @@
-import { describe, expect, test, vi } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
+import { createServer, type Server } from 'node:http';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 vi.mock('server-only', () => ({}));
 import { benefitExistsHead, benefitSourceProbe } from '../../../packages/server-benefits/src/adapters/benefits-read-sql';
+import {
+  benefitOwnerReadConfiguration,
+  createBenefitOwnerReadClient,
+  NATIVE_BENEFITS_OWNER_READ_CONFIG,
+  nativeBenefitReadFirst,
+  RD_ATTACHMENT_BENEFIT_DEPENDENTS,
+  RD_ATTACHMENT_BENEFIT_ELECTIONS,
+  readBenefitReadReply,
+} from '../../../packages/server-benefits/src/adapters/native-benefit-read';
+import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-benefits/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
@@ -99,8 +110,8 @@ describe('benefits read-tail r29 exists-head extension dedupe', () => {
     }
   });
 
-  test('retirement:ts-statements is 27, strictly below the r29 BEFORE=31 baseline', () => {
-    expect(kpi()).toBe(27);
+  test('retirement:ts-statements is 26, strictly below the r29 BEFORE=31 baseline', () => {
+    expect(kpi()).toBe(26);
     expect(kpi()).toBeLessThan(31);
   });
 });

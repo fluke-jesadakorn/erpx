@@ -117,7 +117,7 @@ describe('Planning read-tail r25 scoped branch-list head fold', () => {
     walk(srcRoot);
     // r24 folded the scoped single-row family into the single-line builder (15 -> 14).
     // r25 folded the scoped branch-list family into that same builder (14 -> 13).
-    expect(total).toBe(8);
+    expect(total).toBe(5);
     expect(total).toBeLessThan(14);
   });
 });

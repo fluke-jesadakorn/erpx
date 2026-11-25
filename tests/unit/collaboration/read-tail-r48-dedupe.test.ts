@@ -90,10 +90,14 @@ describe('Collaboration read-tail r48 member-aggregate family', () => {
     const msgPurchase = src('messaging-purchases.ts');
     const read = src('messaging-attachment-read.ts');
     expect(purchase).toContain("import {messagingRoomMembersAgg,messagingTeamImage,messagingTeamMembersAgg,workforceActorScopeExists} from './read-tail-sql';");
-    expect(purchase).toContain("'members',${messagingRoomMembersAgg},'team',${messagingTeamImage('r.team_id','r.company_id',true)},'teamMembers',${messagingTeamMembersAgg('r.team_id')}");
+    // The purchase witness head is owner-planned; the three aggregates and
+    // bind order stay at this call site.
+    expect(purchase).toContain("${await nativeInboxSqlFragment(companyId,'messaging_attachment_witness_head')}${messagingRoomMembersAgg},'team',${messagingTeamImage('r.team_id','r.company_id',true)},'teamMembers',${messagingTeamMembersAgg('r.team_id')}${await nativeInboxSqlFragment(companyId,'messaging_attachment_witness_tail')}");
     expect(msgPurchase).toContain("'teamMembers',${messagingTeamMembersAgg(team?'?':messagingRoomTeamId)}");
     expect(msgPurchase).toContain("'members',${messagingRoomMembersAgg}");
-    expect(read).toContain("'members',${messagingRoomMembersAgg},'team',${messagingTeamImage('r.team_id','r.company_id')},'teamMembers',${messagingTeamMembersAgg('r.team_id')}");
+    // The private attachment read composes the owner-planned head (which ends
+    // in 'members',) with the same three aggregates and bind order.
+    expect(read).toContain("${await nativeInboxSqlFragment(actor.companyId,'messaging_attachment_image_head')}${messagingRoomMembersAgg},'team',${messagingTeamImage('r.team_id','r.company_id')},'teamMembers',${messagingTeamMembersAgg('r.team_id')}");
     for (const body of [purchase, msgPurchase, read]) {
       expect(body).not.toContain('jsonb_agg(to_jsonb(m) ORDER BY m.user_id) FROM messaging_room_members');
       expect(body).not.toContain('jsonb_agg(to_jsonb(m) ORDER BY m.user_id) FROM messaging_team_members');
@@ -133,7 +137,7 @@ describe('Collaboration read-tail r48 protected SQL isolation', () => {
 });
 
 describe('Collaboration read-tail r48 KPI pins', () => {
-  test('retirement:ts-statements is pinned at 237, below the r48 BEFORE=335 baseline', () => {
+  test('retirement:ts-statements is pinned at 225, below the r48 BEFORE=335 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -145,7 +149,7 @@ describe('Collaboration read-tail r48 KPI pins', () => {
     walk(srcRoot);
     // Two byte-identical member-aggregate heads -> one member-local renderer
     // with two thin table/scope wrappers. Net: 335 -> 334.
-    expect(total).toBe(237);
+    expect(total).toBe(225);
     expect(total).toBeLessThan(335);
   });
 });

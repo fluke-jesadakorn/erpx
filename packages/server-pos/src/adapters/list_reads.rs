@@ -1,7 +1,8 @@
 //! Native POS list-read kinds (round 31). These closed, `SELECT`-only owner
 //! statements replace the byte-identical inline TypeScript literals for the
-//! sales list, refunds list, PMS booking connection row, settlements list and
-//! exception/refund-connect jobs list in `pos.ts`. The bridge sends a typed kind
+//! sales list, refunds list, PMS booking connection row, settlements list,
+//! exception/refund-connect jobs list and the POS-owned record-supplement sale-id
+//! list. The bridge sends a typed kind
 //! and positional values; this module selects the SQL. There is no TypeScript
 //! SQL, mirror or fallback for this family. Row locks, PMS projection fragments,
 //! the day-report registry and the Stripe registry stay inline in their callers
@@ -12,6 +13,7 @@ pub const REFUNDS: &str = "pos_list_refunds";
 pub const CONNECTIONS: &str = "pos_list_connections";
 pub const SETTLEMENTS: &str = "pos_list_settlements";
 pub const EXCEPTION_JOBS: &str = "pos_list_exception_jobs";
+pub const RECORD_SUPPLEMENT_SALES: &str = "pos_list_record_supplement_sales";
 
 pub const KINDS: &[&str] = &[
     SALES,
@@ -19,13 +21,14 @@ pub const KINDS: &[&str] = &[
     CONNECTIONS,
     SETTLEMENTS,
     EXCEPTION_JOBS,
+    RECORD_SUPPLEMENT_SALES,
 ];
 
 pub fn supported(kind: &str) -> bool {
     KINDS.contains(&kind)
 }
 
-/// Authoritative SQL for the five list-read kinds, byte-identical to the
+/// Authoritative SQL for the six list-read kinds, byte-identical to the
 /// retired TypeScript literals and the transport parity oracle. Every statement
 /// is `SELECT`-only, parameterized and lock-free; no statement interpolates a
 /// cross-owner projection fragment.
@@ -36,6 +39,7 @@ pub fn sql(kind: &str) -> Option<&'static str> {
         CONNECTIONS => "SELECT * FROM pos_connections WHERE company_id=? AND state='ready'",
         SETTLEMENTS => "SELECT * FROM pos_settlements WHERE company_id=? ORDER BY created_at DESC LIMIT 100",
         EXCEPTION_JOBS => "SELECT id,kind,record_id,state,last_error,payload_json,created_at,(SELECT r.version FROM pos_refund_payments rp JOIN pos_refunds r ON r.id=rp.refund_id WHERE rp.id=pos_jobs.record_id AND r.company_id=pos_jobs.company_id AND pos_jobs.kind='refund') refund_version FROM pos_jobs WHERE company_id=? AND (state='exception' OR kind IN ('connect','connect_refresh')) ORDER BY created_at DESC LIMIT 50",
+        RECORD_SUPPLEMENT_SALES => "SELECT DISTINCT s.id FROM pos_sales s WHERE s.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND (s.id=? OR EXISTS(SELECT 1 FROM pos_lines l WHERE l.sale_id=s.id AND l.fulfillment_id=?) OR EXISTS(SELECT 1 FROM pos_refunds r WHERE r.sale_id=s.id AND r.id=?))",
         _ => return None,
     })
 }
@@ -53,12 +57,13 @@ mod tests {
         (CONNECTIONS, "SELECT * FROM pos_connections WHERE company_id=? AND state='ready'", 1),
         (SETTLEMENTS, "SELECT * FROM pos_settlements WHERE company_id=? ORDER BY created_at DESC LIMIT 100", 1),
         (EXCEPTION_JOBS, "SELECT id,kind,record_id,state,last_error,payload_json,created_at,(SELECT r.version FROM pos_refund_payments rp JOIN pos_refunds r ON r.id=rp.refund_id WHERE rp.id=pos_jobs.record_id AND r.company_id=pos_jobs.company_id AND pos_jobs.kind='refund') refund_version FROM pos_jobs WHERE company_id=? AND (state='exception' OR kind IN ('connect','connect_refresh')) ORDER BY created_at DESC LIMIT 50", 1),
+        (RECORD_SUPPLEMENT_SALES, "SELECT DISTINCT s.id FROM pos_sales s WHERE s.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND (s.id=? OR EXISTS(SELECT 1 FROM pos_lines l WHERE l.sale_id=s.id AND l.fulfillment_id=?) OR EXISTS(SELECT 1 FROM pos_refunds r WHERE r.sale_id=s.id AND r.id=?))", 6),
     ];
 
     #[test]
     fn list_sql_is_byte_identical_with_expected_binds() {
-        assert_eq!(KINDS.len(), 5);
-        assert_eq!(EXPECTED.len(), 5);
+        assert_eq!(KINDS.len(), 6);
+        assert_eq!(EXPECTED.len(), 6);
         for (kind, expected, binds) in EXPECTED {
             assert!(supported(kind), "list-read kind must be allow listed: {kind}");
             let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));

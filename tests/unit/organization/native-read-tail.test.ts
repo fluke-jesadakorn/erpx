@@ -488,7 +488,7 @@ describe('Organization read-tail r30 native cutover — finance starter node lis
       }
     };
     walk(srcRoot);
-    expect(total).toBe(179);
+    expect(total).toBe(178);
     expect(total).toBeLessThan(189);
     // The worker-position cut deleted the shared r38 helper literal after both
     // former consumers moved to the native owner, so the KPI falls by one.
@@ -882,6 +882,40 @@ describe('Organization staff policy request route head native cutover', () => {
     expect(registry).toContain(`    STAFF_POLICY_REQUEST_ROUTE_HEAD,\n`);
     expect(registry).toContain(`        STAFF_POLICY_REQUEST_ROUTE_HEAD => {\n            "${SQL}"\n        }`);
     const arm = registry.match(/STAFF_POLICY_REQUEST_ROUTE_HEAD => \{\n            "([^"]+)"\n        \}/)?.[1] ?? '';
+    expect(arm).toBe(SQL);
+    expect(arm.toUpperCase().startsWith('SELECT ')).toBe(true);
+    expect(arm).not.toMatch(/INSERT|UPDATE|DELETE|FOR UPDATE|FOR SHARE|LOCK TABLE/);
+  });
+});
+
+describe('Organization draft request list native cutover', () => {
+  const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+  const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
+  const source = (path: string) => readFileSync(resolve(srcRoot, path), 'utf8');
+  const sha = (value: string) => createHash('sha256').update(value).digest('hex');
+  const KIND = 'draft_read_requests';
+  const SQL = 'SELECT id,item_keys,state,last_error,change_id FROM organization_draft_requests WHERE draft_id=? ORDER BY created_at,id';
+
+  it('deletes the TS literal and threads the Company through the requests port', () => {
+    const drafts = read('organization-drafts.ts');
+    expect(drafts).not.toContain(SQL);
+    expect(drafts).toContain(`requests:async(companyId,id)=>nativeOrgAll<DraftRequest>(db,companyId,'${KIND}',[id]),`);
+    expect(drafts.split(KIND).length - 1).toBe(1);
+    const app = source('application/organization-drafts.ts');
+    expect(app).toContain('requests(companyId:string,id:string):Promise<DraftRequest[]>');
+    expect(app).toContain('ports.requests(actor.companyId,draft.id)');
+    // The FOR UPDATE claim and advisory-lock read stay excluded.
+    expect(drafts).toContain('FOR UPDATE');
+    expect(drafts).toContain('pg_try_advisory_xact_lock');
+  });
+
+  it('pins the byte-identical SQL now owned by the Rust registry', () => {
+    expect(sha(SQL)).toBe('acd62f94cd510e0d5fc8d05fa9bb9b0b1e53e88c28810a9669f85d479fcb7438');
+    const registry = read('organization_owner_write.rs');
+    expect(registry).toContain(`pub const DRAFT_READ_REQUESTS: &str = "${KIND}";`);
+    expect(registry).toContain(`    DRAFT_READ_REQUESTS,\n`);
+    expect(registry).toContain(`        DRAFT_READ_REQUESTS => {\n            "${SQL}"\n        }`);
+    const arm = registry.match(/DRAFT_READ_REQUESTS => \{\n            "([^"]+)"\n        \}/)?.[1] ?? '';
     expect(arm).toBe(SQL);
     expect(arm.toUpperCase().startsWith('SELECT ')).toBe(true);
     expect(arm).not.toMatch(/INSERT|UPDATE|DELETE|FOR UPDATE|FOR SHARE|LOCK TABLE/);

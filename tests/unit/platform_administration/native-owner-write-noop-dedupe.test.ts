@@ -19,7 +19,8 @@ describe('platform administration native owner-write no-op dedupe', () => {
     expect(selectOneSql()).toBe(NATIVE_OWNER_WRITE_NOOP_SQL);
     expect(selectOneSql(' WHERE probe')).toBe('SELECT 1 WHERE probe');
     const base = source('adapters/native-owner-write.ts');
-    expect(base.split('`SELECT 1${suffix}`').length - 1).toBe(1);
+    expect(base).toContain('platformReadHeads.selectOne');
+    expect(base.split('`SELECT 1${suffix}`').length - 1).toBe(0);
     const engineering = source('adapters/engineering-verification.ts');
     expect(engineering).toContain('selectOneSql(` WHERE ${predicate}`)');
     expect(engineering).not.toContain('`SELECT 1 WHERE ${predicate}`');

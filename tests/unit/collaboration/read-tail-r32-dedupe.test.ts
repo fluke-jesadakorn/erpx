@@ -91,7 +91,7 @@ describe('Collaboration read-tail r32 lock/notification isolation', () => {
 });
 
 describe('Collaboration read-tail r32 KPI pins', () => {
-  test('retirement:ts-statements is pinned at 237 after r44, below the r32 BEFORE=389 baseline', () => {
+  test('retirement:ts-statements is pinned at 225 after r44, below the r32 BEFORE=389 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -118,7 +118,7 @@ describe('Collaboration read-tail r32 KPI pins', () => {
     // r43 retired draft-by-id reuse, messaging team image and target image: 350 -> 344.
     // r44 retired the latest-message tail, absent-social-post guard and handover
     // ack join: 344 -> 341. Prior pins were refreshed only where 341 replaced 344.
-    expect(total).toBe(237);
+    expect(total).toBe(225);
     expect(total).toBeLessThan(375);
   });
 });

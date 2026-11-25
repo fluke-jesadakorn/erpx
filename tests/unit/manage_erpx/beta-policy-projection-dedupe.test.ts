@@ -1,23 +1,50 @@
 import { describe, it, expect, vi } from 'vitest';
 import { readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 
 vi.mock('server-only', () => ({}));
 
 const adapter = (name: string) =>
   new URL(`../../../packages/server-manage_erpx/src/adapters/${name}`, import.meta.url);
+const sha256 = (s: string) => createHash('sha256').update(s, 'utf8').digest('hex');
 
 const OLD_IDENTITY_FROM =
   'FROM (SELECT "company_id", "member_limit", "branch_limit", "ai_monthly_limit", "storage_bytes", "created_at" FROM beta_policy) beta_policy';
 const OLD_HOSPITALITY_SELECT =
   'SELECT "company_id","member_limit","branch_limit","ai_monthly_limit","storage_bytes","created_at" FROM beta_policy';
+const OLD_INVITATIONS_FROM =
+  'FROM (SELECT "id", "email", "branch_id", "invited_by", "token_hash", "expires_at", "accepted_user_id", "accepted_at", "revoked_at", "created_at", "role" FROM beta_team_invitations) i';
 
 describe('manage_erpx beta_policy projection read family', () => {
-  it('keeps one fixed-SQL beta_policy projection literal shared by both owner surfaces', async () => {
+  it('owns the exact snapshot fragments in the Rust-bound contract only', async () => {
     const identity = await readFile(adapter('identity-snapshot-sources.ts'), 'utf8');
+    const contractText = await readFile(adapter('identity-snapshot-sources.json'), 'utf8');
+    const rust = await readFile(adapter('identity_snapshot_sources.rs'), 'utf8');
+    expect(identity).not.toContain('SELECT');
+    expect(identity).toContain('identity-snapshot-sources.json');
+    const contract = JSON.parse(contractText) as {
+      readonly betaPolicyProjection: string;
+      readonly iamApiBetaTeamInvitationsFrom: string;
+    };
+    expect(contract.betaPolicyProjection).toBe(
+      'SELECT "company_id", "member_limit", "branch_limit", "ai_monthly_limit", "storage_bytes", "created_at" FROM beta_policy',
+    );
+    expect(contract.betaPolicyProjection).toHaveLength(119);
+    expect(sha256(contract.betaPolicyProjection)).toBe(
+      'de44919b37985915cbf1258229cb913bab6f7a7de5ca0010a28d09f078c5e3e6',
+    );
+    expect(contract.iamApiBetaTeamInvitationsFrom).toBe(OLD_INVITATIONS_FROM);
+    expect(contract.iamApiBetaTeamInvitationsFrom).toHaveLength(182);
+    expect(sha256(contract.iamApiBetaTeamInvitationsFrom)).toBe(
+      '955aa500771bff8ce13f6582bccd9bf615858d2dc32596f8b52b8d27a7576c35',
+    );
+    expect(rust).toContain('include_str!("identity-snapshot-sources.json")');
+    expect(rust).toContain('pub fn beta_policy_projection');
+    expect(rust).toContain('pub fn beta_team_invitations_from');
+  });
+
+  it('keeps the hospitality surface reusing the one canonical declaration', async () => {
     const hospitality = await readFile(adapter('hospitality-owner-projection-sources.ts'), 'utf8');
-    // One canonical declaration; the other surface reuses it by reference so
-    // the IAM snapshot and hospitality/Files/Runtime callers cannot drift.
-    expect(identity.match(/SELECT "company_id"/g)).toHaveLength(1);
     expect(hospitality).not.toMatch(/SELECT "company_id"/);
     expect(hospitality).toContain('import { betaPolicyProjection } from "./identity-snapshot-sources"');
     expect(hospitality).toContain('betaPolicyProjection.replaceAll(", ", ",")');
@@ -31,6 +58,7 @@ describe('manage_erpx beta_policy projection read family', () => {
       '../../../packages/server-manage_erpx/src/adapters/hospitality-owner-projection-sources'
     );
     expect(identitySnapshotSources().beta_access_beta_policy_from).toBe(OLD_IDENTITY_FROM);
+    expect(identitySnapshotSources().iam_api_beta_team_invitations_i_from).toBe(OLD_INVITATIONS_FROM);
     expect(hospitalityOwnerProjectionSources.beta_policy).toBe(OLD_HOSPITALITY_SELECT);
     // Both surfaces trace back to the one canonical projection declaration.
     expect(identitySnapshotSources().beta_access_beta_policy_from).toContain(betaPolicyProjection);

@@ -71,7 +71,7 @@ describe('Planning r28 calendar/guard SELECT head retirement', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(8);
+    expect(total).toBe(5);
     expect(total).toBeLessThan(12);
   });
 });

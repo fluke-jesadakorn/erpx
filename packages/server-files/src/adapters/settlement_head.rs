@@ -61,7 +61,7 @@ mod tests {
             (
                 attachment_exists(),
                 "08b4c26e14a85262ac9a177a9754f5203011dfaa51aae87e5b9ba59976c53e6c",
-                42,
+                38,
                 "SELECT EXISTS(SELECT 1 FROM attachment",
                 2,
             ),
@@ -75,7 +75,7 @@ mod tests {
             (
                 package_file_link_target(),
                 "2097bd180887f8b55c61c79fcd703dd91e700e61195ae872bbed88d08bb7f01d",
-                39,
+                38,
                 "SELECT 'file-link' kind,l.id,s.target_",
                 1,
             ),

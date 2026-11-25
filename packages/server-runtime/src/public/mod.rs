@@ -13,6 +13,7 @@ pub use crate::domain::migration::MigrationReadiness;
 #[cfg(feature = "owned-process")]
 pub mod owned_process;
 pub mod postgres;
+pub mod read_tail;
 
 pub mod http_support;
 

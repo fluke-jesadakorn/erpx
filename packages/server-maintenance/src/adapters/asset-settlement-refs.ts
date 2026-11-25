@@ -1,6 +1,7 @@
 import "server-only";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {maintenanceSettlementConsumptions} from "@erpx/server-inventory/public/maintenance-settlement-sources";
+import {heads, renderHead} from "./read-head-sources";
 /** Canonical owner-local Asset settlement reference source shared by the
  * preventive-plan and maintenance-parts refs and the Work event-history read.
  * All project a fixed column list from an owner-fixed relation; callers pass
@@ -8,7 +9,7 @@ import {maintenanceSettlementConsumptions} from "@erpx/server-inventory/public/m
  * SQL. Each composed string stays byte-identical to its pre-dedupe literal and
  * no row-locking statement is accepted. */
 export const settlementRefSource = (columns: string, source: string, tail = ""): string =>
-  `SELECT ${columns} FROM ${source}${tail}`;
+  renderHead(heads.settlementRef, {columns, source, tail});
 /** Fixed actual references scope addon withdrawal without selecting Work by
  * the buyer's permissions or by a caller-provided source label. */
 export const maintenanceAssetSettlementRefs={

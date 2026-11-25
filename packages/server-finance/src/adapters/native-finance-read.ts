@@ -142,6 +142,22 @@ export const FINANCE_RD_FIN_JOURNAL_DEBIT = 'finance_rd_fin_journal_debit';
 export const FINANCE_RD_FIN_JOURNAL_ROW = 'finance_rd_fin_journal_row';
 export const FINANCE_RD_FIN_JOURNAL_LINES = 'finance_rd_fin_journal_lines';
 export const FINANCE_RD_FIN_OPEN_PERIOD = 'finance_rd_fin_open_period';
+export const FINANCE_RD_FIN2_ACCOUNT_INVOICE = 'finance_rd_fin2_account_invoice';
+export const FINANCE_RD_FIN2_BUSINESS_BILLED = 'finance_rd_fin2_business_billed';
+export const FINANCE_RD_FIN2_EDITABLE_INVOICE = 'finance_rd_fin2_editable_invoice';
+export const FINANCE_RD_FIN2_POSTABLE_INVOICE = 'finance_rd_fin2_postable_invoice';
+export const FINANCE_RD_FIN2_INVOICE_CHART = 'finance_rd_fin2_invoice_chart';
+export const FINANCE_RD_FIN2_SETTLED_MONEY = 'finance_rd_fin2_settled_money';
+export const FINANCE_RD_FIN2_APPROVED_PAYMENT = 'finance_rd_fin2_approved_payment';
+export const FINANCE_RD_FIN2_FX_RUNS = 'finance_rd_fin2_fx_runs';
+export const FINANCE_RD_FIN3_BANK_ACCOUNT = 'finance_rd_fin3_bank_account';
+export const FINANCE_RD_FIN3_PAID_PAYMENT = 'finance_rd_fin3_paid_payment';
+export const FINANCE_RD_FIN3_PAYMENT_ALLOCATIONS = 'finance_rd_fin3_payment_allocations';
+export const FINANCE_RD_FIN3_CORRECTION_EXISTS = 'finance_rd_fin3_correction_exists';
+export const FINANCE_RD_FIN3_FX_RUN_PERIOD = 'finance_rd_fin3_fx_run_period';
+export const FINANCE_RD_FIN3_PERIOD_BY_ID = 'finance_rd_fin3_period_by_id';
+export const FINANCE_RD_FIN3_BOOK_MAPPING = 'finance_rd_fin3_book_mapping';
+export const FINANCE_RD_FIN3_OTHER_ACCOUNTS = 'finance_rd_fin3_other_accounts';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'FINANCE_NATIVE_READ_UNAVAILABLE', 'The native Finance read service is unavailable.');

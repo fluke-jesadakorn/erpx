@@ -1,8 +1,11 @@
 import "server-only";
-/** Canonical owner-local fixed SQL for the Records employee-request projection.
- * Admitted once and shared by every Records projection consumer; the native
- * owner states the same fixed selection. No duplicate TS literal remains. */
-export const employeeRequestsProjectionSql = "SELECT \"id\",\"company_id\",\"branch_id\",\"department_id\",\"kind\",\"category\",\"title\",\"description\",\"location\",\"impact\",\"needed_date\",\"items_json\",\"currency\",\"requester_user_id\",\"created_by\",\"parent_request_id\",\"state\",\"team_id\",\"assignee_user_id\",\"routing_json\",\"approval_json\",\"blocked_reason\",\"resolution\",\"purchase_order_id\",\"handover_json\",\"version\",\"evidence_version\",\"created_at\",\"updated_at\",\"engagement_id\" FROM employee_requests";
+/** Native-owned fixed SQL for the Records employee-request projection.
+ * Exact bytes live in the Rust-owned contract `owner-projection-head-sources.json`
+ * (`include_str!` in adapters/owner_projection_head.rs); consumers keep their own
+ * predicates, aliases and binds and no statement token remains in TypeScript. */
+import contract from "./owner-projection-head-sources.json" with { type: "json" };
+const heads = contract as { readonly employeeRequests: string };
+export const employeeRequestsProjectionSql = heads.employeeRequests;
 /** Closed owner projections for Platform, Organization and Procurement joins. Original filters, bindings and supplied transactions remain with the caller. */
 export const platformOwnerProjectionSources = Object.freeze({
   employee_requests: employeeRequestsProjectionSql,

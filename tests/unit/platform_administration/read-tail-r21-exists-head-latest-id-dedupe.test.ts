@@ -51,7 +51,8 @@ describe('Platform Administration EXISTS-head and latest-id parameterized fold',
   test('the two former heads each survive once and both callers compose them', () => {
     const predicate = source('adapters/release-predicate.ts');
     expect(predicate.match(/export function selectOneFromWhereSql/g)).toHaveLength(1);
-    expect(predicate.split('`SELECT 1 FROM ${from}${gap}WHERE ${where}`').length - 1).toBe(1);
+    expect(predicate).toContain('platformReadHeads.selectOneFromWhere');
+    expect(predicate.split('`SELECT 1 FROM ${from}${gap}WHERE ${where}`').length - 1).toBe(0);
     expect(predicate).toContain('return `EXISTS(${selectOneFromWhereSql(from, where, gap)})`;');
     expect(predicate).toContain('return selectOneFromWhereSql(`(${source}) ${alias}`, predicate);');
     expect(predicate).not.toContain('SELECT 1 FROM (${source}) ${alias} WHERE ${predicate}');
@@ -81,7 +82,7 @@ describe('Platform Administration EXISTS-head and latest-id parameterized fold',
       }
     };
     walk(srcRoot);
-    expect(total).toBe(18);
+    expect(total).toBe(10);
     expect(total).toBeLessThan(23);
   });
 });

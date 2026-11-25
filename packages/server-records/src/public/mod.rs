@@ -19,6 +19,7 @@ pub mod record_registry_http;
 
 pub mod source_record;
 
+pub mod owner_projection_head;
 pub mod portal_commerce_locks;
 pub mod rfq_request_source;
 pub mod native_lane_35;

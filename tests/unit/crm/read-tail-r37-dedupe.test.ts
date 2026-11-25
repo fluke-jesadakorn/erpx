@@ -124,7 +124,7 @@ describe('crm read-tail r37 byte-identical read heads', () => {
   });
 
   test('retirement:ts-statements folds the option-projection head (31 -> 30)', () => {
-    expect(totalSelects()).toBe(28);
+    expect(totalSelects()).toBe(23);
     expect(totalSelects()).toBeLessThan(31);
   });
 });

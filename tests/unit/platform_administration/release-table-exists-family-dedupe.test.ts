@@ -37,7 +37,8 @@ describe('Platform Administration release-table EXISTS SELECT-head family dedupe
     const pms = source('adapters/pms-rollout-guards.ts');
     const all = `${predicate}\n${acceptance}\n${pms}`;
     expect(predicate.match(/export function releaseTableExistsSql/g)).toHaveLength(1);
-    expect(predicate.split('`SELECT 1 FROM ${from}${gap}WHERE ${where}`').length - 1).toBe(1);
+    expect(predicate).toContain('platformReadHeads.selectOneFromWhere');
+    expect(predicate.split('`SELECT 1 FROM ${from}${gap}WHERE ${where}`').length - 1).toBe(0);
     expect(predicate).toContain('return `EXISTS(${selectOneFromWhereSql(from, where, gap)})`;');
     expect(acceptance).toContain("releaseTableExistsSql(releaseRevisionTable(scope), 'company_id=? AND revision=?')");
     expect(pms).toContain('releaseTableExistsSql(`company_release_acceptances r JOIN ${releaseRevisionTable(scope)} c ON c.company_id=r.company_id`');
@@ -68,6 +69,6 @@ describe('Platform Administration release-table EXISTS SELECT-head family dedupe
       }
     };
     walk(srcRoot);
-    expect(total).toBe(18);
+    expect(total).toBe(10);
   });
 });

@@ -24,7 +24,7 @@ describe('POS read-tail r33 by-id payment native cutover', () => {
     // No new by-id payment kind was added by r33; r35 mounted four Stripe
     // keyed reads and r36 mounted two day-planner sale-child reads, so the
     // registry length now pins the r36 value of 197.
-    expect(read('owner_writes.rs')).toContain('assert_eq!(KINDS.len(), 200)');
+    expect(read('owner_writes.rs')).toContain('assert_eq!(KINDS.len(), 203)');
   });
 
   test('owner registry already holds the retired literal byte-identically with its FOR UPDATE lock', () => {
@@ -69,7 +69,7 @@ describe('POS read-tail r33 by-id payment native cutover', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(154);
+    expect(total).toBe(147);
     expect(total).toBeLessThan(189);
   });
 });

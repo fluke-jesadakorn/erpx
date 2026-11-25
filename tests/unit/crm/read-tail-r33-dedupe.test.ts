@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
+import { crmSelectOneSql } from '../../../packages/server-crm/src/adapters/read-tail-r42-sql';
 import { crmClockedSourceScopeSql } from '../../../packages/server-crm/src/adapters/read-tail-r33-sql';
 
 const owner = resolve(__dirname, '../../../packages/server-crm/src');
@@ -44,7 +45,7 @@ describe('crm read-tail r33 byte-identical clocked-source SELECT-head family', (
   test('owns the head renderer once and composes it at both retired call sites', () => {
     const helper = src('read-tail-r33-sql.ts');
     expect(helper.match(/crmClockedSourceScopeSql =/g)).toHaveLength(1);
-    expect((helper.match(/SELECT /g) ?? []).length).toBe(1);
+    expect((helper.match(/SELECT /g) ?? []).length).toBe(0);
 
     const rp = src('record-purchases.ts');
     expect(rp.match(/crmClockedSourceScopeSql\(/g)).toHaveLength(2);
@@ -76,8 +77,21 @@ describe('crm read-tail r33 byte-identical clocked-source SELECT-head family', (
     ] as const) expect(src(file)).toContain(token);
   });
 
-  test('retirement:ts-statements stays strictly below the recorded BEFORE=120', () => {
-    expect(totalSelects()).toBe(28);
+  test.each([
+    ['crm_clock', CTE, 'RECORD_ROWS', 'crm_source', 'ID', 'COMPANY', 'PERM AND HISTORY)'],
+    ['crm_clock', CTE, 'VALID_LEADS', 'crm_projection', 'l.id', 'l.company_id', 'PERM AND ASSIGN AND HISTORY)'],
+  ])('the clocked witness folds into the owner select-one plan for %#', (clock, cte, source, alias, id, company, tail) => {
+    const body = `(${source}) ${alias} CROSS JOIN ${clock} WHERE ${alias}.id=${id} AND ${alias}.company_id=${company} AND ${tail}`;
+    expect(crmClockedSourceScopeSql(clock, cte, source, alias, id, company, tail)).toBe(
+      `EXISTS(WITH ${clock}${cte} ${crmSelectOneSql(body)}`,
+    );
+    expect(crmClockedSourceScopeSql(clock, cte, source, alias, id, company, tail)).toBe(
+      `EXISTS(WITH ${clock}${cte} SELECT 1 FROM ${body}`,
+    );
+  });
+
+  test('retirement:ts-statements folds the clocked-source EXISTS head (27 -> 26)', () => {
+    expect(totalSelects()).toBe(23);
     expect(totalSelects()).toBeLessThan(120);
   });
 });

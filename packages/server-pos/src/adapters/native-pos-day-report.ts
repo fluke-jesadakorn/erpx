@@ -23,6 +23,7 @@ const STOCK_MOVES = 'pos_day_report_stock_moves';
 const FULFILLMENTS = 'pos_day_report_fulfillments';
 const CASH_MOVEMENTS = 'pos_day_report_cash_movements';
 const SETTLEMENTS = 'pos_day_report_settlements';
+const PAYMENT_MIX = 'pos_day_report_payment_mix';
 
 type DateScope = { company: string; branch: string; date: string };
 
@@ -78,4 +79,14 @@ export async function nativePosDayCashMovementsStatement(db: SqlDatabase, scope:
 /** Owner-issued Company settlement register (payout/balance exceptions). */
 export async function nativePosDaySettlementsStatement(db: SqlDatabase, company: string): Promise<SqlValueRow[]> {
   return nativePosAll(db, company, SETTLEMENTS, [company]);
+}
+
+/** Owner-issued business-date payment-mix aggregate with refunded sums. */
+export async function nativePosPaymentMixStatement(
+  db: SqlDatabase,
+  facts: { company: string; branch: string | null; branch2: string | null },
+): Promise<SqlValueRow[]> {
+  return nativePosAll(db, facts.company, PAYMENT_MIX, [
+    facts.company, facts.branch, facts.branch2,
+  ]);
 }

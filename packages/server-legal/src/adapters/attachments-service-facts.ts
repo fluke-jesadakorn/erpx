@@ -1,9 +1,19 @@
 import { finalRootOwnerProjectionSources as filesProjectionSources } from "@erpx/server-files/public/final-root-owner-projection-sources";
+import contract from './legal-attachment-facts-sources.json' with {type:'json'};
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { ApiError } from "@erpx/server-runtime/public/http";
+const fill = (template: string, values: Record<string, string>) => {
+  let rendered = template;
+  for (const [name, value] of Object.entries(values)) {
+    const token = `{${name}}`;
+    if (!rendered.includes(token)) throw new Error('LEGAL_ATTACHMENT_FACTS_CONTRACT_INVALID');
+    rendered = rendered.split(token).join(value);
+  }
+  return rendered;
+};
 const allowedTargets = new Set<string>(["legal_item"]);
 const recordVersionTables: Record<string, {
     table: string;
@@ -20,7 +30,7 @@ function ownerVersionGuard(db: SqlDatabase, commandId: string, targetType: strin
     const item = aliases[targetType];
     if (!item)
         throw new ApiError(422, "ATTACHMENT_TARGET_UNSUPPORTED", "This file target has no atomic version guard.");
-    return assertion(db, commandId, `attachment-owner-${index}`, `EXISTS(SELECT 1 FROM ${item.table} WHERE id=? AND company_id=? AND version=?${item.extra ? ` AND ${item.extra}` : ""})`, [targetId, companyId, version]);
+    return assertion(db, commandId, `attachment-owner-${index}`, fill(contract.ownerVersionGuard,{table:item.table,extra:item.extra?` AND ${item.extra}`:""}), [targetId, companyId, version]);
 }
 function ownerVersionStep(db: SqlDatabase, targetType: string, targetId: string, expectedVersion: number, now: number) {
     if (!allowedTargets.has(targetType))
@@ -40,17 +50,6 @@ export function attachmentServiceLegalFacts(db: SqlDatabase) {
         readLegalFilePreservations125: (facts: {
             attachmentId: string;
         }) => {
-            return db.prepare(`SELECT 1 FROM (
-    SELECT p.item_id FROM legal_file_preservations p
-    JOIN legal_hold_targets target ON target.item_id=p.item_id
-    JOIN legal_holds hold ON hold.id=target.hold_id
-    WHERE p.source_type='attachment' AND p.source_id=? AND hold.state<>'released'
-    UNION ALL
-    SELECT set_row.target_id FROM (${filesProjectionSources.attachment_links}) link
-    JOIN (${filesProjectionSources.attachment_sets}) set_row ON set_row.id=link.set_id
-    JOIN legal_hold_targets target ON target.item_id=set_row.target_id
-    JOIN legal_holds hold ON hold.id=target.hold_id
-    WHERE link.attachment_id=? AND set_row.target_type='legal_item' AND hold.state<>'released'
-  ) active LIMIT 1`).bind(facts.attachmentId, facts.attachmentId).first();
+            return db.prepare(fill(contract.filePreservations,{attachmentLinks:filesProjectionSources.attachment_links,attachmentSets:filesProjectionSources.attachment_sets})).bind(facts.attachmentId, facts.attachmentId).first();
         } };
 }

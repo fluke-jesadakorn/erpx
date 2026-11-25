@@ -1,9 +1,9 @@
-//! Owner-local Control read-plan router for the five pinned provider-context
-//! reads. A closed discriminator resolves to a byte-pinned statement; the TS
-//! caller executes the reply on its own already-open Control transaction, so
-//! the caller's lease/snapshot semantics are preserved and no SQL literal
-//! remains in the TypeScript owner. No SQL is accepted from the wire and no
-//! business authority is minted here.
+//! Owner-local read-plan registry for identity_access statements retired from
+//! TypeScript. A closed discriminator resolves to a byte-pinned statement; the
+//! TS caller executes the reply on its own already-open Control or Holding
+//! transaction, so the caller's lease/snapshot semantics are preserved and no
+//! SQL literal remains in the TypeScript owner. No SQL is accepted from the
+//! wire and no business authority is minted here.
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, IntoResponse, Json, Path, Request, Response, Router, State, StatusCode,
     body::to_bytes, header, routing::post,
@@ -30,10 +30,13 @@ pub const PC_PREF_BINDING_SHARE: &str = "pc_pref_binding_share";
 pub const PC_PREF_PARENT_BINDING_SHARE: &str = "pc_pref_parent_binding_share";
 pub const PC_WORKFLOW_ACTIVE_CONTEXT: &str = "pc_workflow_active_context";
 pub const PC_QUEUED_ASSIGNMENT_VERSION: &str = "pc_queued_assignment_version";
+pub const PC_DIAGNOSIS_PLATFORM_ASSIGNMENTS: &str = "pc_diagnosis_platform_assignments";
+pub const PC_DIAGNOSIS_MEMBER_PROBE: &str = "pc_diagnosis_member_probe";
+pub const PC_DIAGNOSIS_ASSIGNMENTS: &str = "pc_diagnosis_assignments";
 
-/// Byte-identical successors of the five TypeScript statements pinned in
-/// `tests/unit/identity_access/read-tail-r36-dedupe.test.ts`. `?` markers are
-/// preserved for the caller's `SqlDatabase.prepare`.
+/// Byte-identical successors of the TypeScript statements pinned in the
+/// identity_access read-tail oracles. `?` markers are preserved for the
+/// caller's `SqlDatabase.prepare`.
 pub const SQL_REVOKED_SESSION: &str =
     "SELECT 1 FROM iam_revoked_sessions revocation WHERE revocation.company_id='platform' AND revocation.user_id=? AND revocation.session_id IN(?,(SELECT parent_session_id FROM sso_session_bindings WHERE session_id=?))";
 pub const SQL_PLATFORM_ASSIGNMENTS: &str =
@@ -71,6 +74,14 @@ pub const SQL_WORKFLOW_ACTIVE_CONTEXT: &str =
     "SELECT revision,assignment_id,assignment_version FROM active_work_contexts WHERE session_id=? AND company_id=?";
 pub const SQL_QUEUED_ASSIGNMENT_VERSION: &str =
     "SELECT version FROM assignments WHERE id=? AND company_id=? AND user_id=? AND role=?";
+/// Access-diagnosis reads. The Control or Holding database is chosen by the
+/// caller; the plan owns only the bytes and one bounded user-id bind.
+pub const SQL_DIAGNOSIS_PLATFORM_ASSIGNMENTS: &str =
+    "SELECT role,valid_from,valid_until,revoked_at FROM platform_assignments WHERE user_id=?";
+pub const SQL_DIAGNOSIS_MEMBER_PROBE: &str =
+    "SELECT 1 FROM assignments WHERE user_id=? LIMIT 1";
+pub const SQL_DIAGNOSIS_ASSIGNMENTS: &str =
+    "SELECT role,company_id,branch_id,scope_kind,scope_node_id,valid_from,valid_until,revoked_at FROM assignments WHERE user_id=?";
 
 const BODY_LIMIT: usize = 8 * 1024;
 const ORIGIN_HEADER: HeaderName = HeaderName::from_static("origin");
@@ -115,6 +126,9 @@ pub fn plan(kind: &str, values: &[Value]) -> Result<ControlReadPlan, BusinessErr
         PC_PREF_PARENT_BINDING_SHARE => (SQL_PREF_PARENT_BINDING_SHARE, 1),
         PC_WORKFLOW_ACTIVE_CONTEXT => (SQL_WORKFLOW_ACTIVE_CONTEXT, 2),
         PC_QUEUED_ASSIGNMENT_VERSION => (SQL_QUEUED_ASSIGNMENT_VERSION, 4),
+        PC_DIAGNOSIS_PLATFORM_ASSIGNMENTS => (SQL_DIAGNOSIS_PLATFORM_ASSIGNMENTS, 1),
+        PC_DIAGNOSIS_MEMBER_PROBE => (SQL_DIAGNOSIS_MEMBER_PROBE, 1),
+        PC_DIAGNOSIS_ASSIGNMENTS => (SQL_DIAGNOSIS_ASSIGNMENTS, 1),
         _ => return Err(invalid()),
     };
     if values.len() != expected {
@@ -319,6 +333,9 @@ mod tests {
             (PC_PREF_PARENT_BINDING_SHARE, SQL_PREF_PARENT_BINDING_SHARE, 1),
             (PC_WORKFLOW_ACTIVE_CONTEXT, SQL_WORKFLOW_ACTIVE_CONTEXT, 2),
             (PC_QUEUED_ASSIGNMENT_VERSION, SQL_QUEUED_ASSIGNMENT_VERSION, 4),
+            (PC_DIAGNOSIS_PLATFORM_ASSIGNMENTS, SQL_DIAGNOSIS_PLATFORM_ASSIGNMENTS, 1),
+            (PC_DIAGNOSIS_MEMBER_PROBE, SQL_DIAGNOSIS_MEMBER_PROBE, 1),
+            (PC_DIAGNOSIS_ASSIGNMENTS, SQL_DIAGNOSIS_ASSIGNMENTS, 1),
         ] {
             let values = vec![Value::from("v"); count];
             let planned = plan(kind, &values).unwrap();
@@ -330,6 +347,52 @@ mod tests {
             assert!(!planned.sql.contains("UPDATE "), "{kind}");
         }
         assert_eq!(plan("unknown", &[]).unwrap_err().code, "IDENTITY_CONTROL_READ_PLAN_INVALID");
+    }
+
+    fn sha256(value: &str) -> String {
+        use sha2::{Digest, Sha256};
+        let digest = Sha256::digest(value.as_bytes());
+        let mut out = String::with_capacity(64);
+        for byte in digest {
+            use std::fmt::Write;
+            let _ = write!(out, "{byte:02x}");
+        }
+        out
+    }
+
+    #[test]
+    fn diagnosis_plans_pin_three_static_single_bind_reads() {
+        for (kind, sql, sha, bytes) in [
+            (
+                PC_DIAGNOSIS_PLATFORM_ASSIGNMENTS,
+                SQL_DIAGNOSIS_PLATFORM_ASSIGNMENTS,
+                "b7c983288f3c6cf06570336190a5b8a2d51623bcbfcaa1889eabae82aa124306",
+                87,
+            ),
+            (
+                PC_DIAGNOSIS_MEMBER_PROBE,
+                SQL_DIAGNOSIS_MEMBER_PROBE,
+                "de943279962f366dbf7a96ff64802a8adfcf31237d3e629acbb0daca3b22b813",
+                49,
+            ),
+            (
+                PC_DIAGNOSIS_ASSIGNMENTS,
+                SQL_DIAGNOSIS_ASSIGNMENTS,
+                "9725070043e9c2c53adf3b00a903855ecb8ae3285087503d28b3fd9ff5e647b0",
+                124,
+            ),
+        ] {
+            let planned = plan(kind, &[Value::from("user-1")]).unwrap();
+            assert_eq!(planned.sql, sql, "{kind}");
+            assert_eq!(planned.sql.matches('?').count(), 1, "{kind}");
+            assert_eq!(planned.sql.len(), bytes, "{kind}");
+            assert_eq!(sha256(planned.sql), sha, "{kind}");
+            assert!(planned.sql.starts_with("SELECT "), "{kind}");
+            assert!(!planned.sql.contains("FOR "), "{kind}");
+        }
+        assert!(plan(PC_DIAGNOSIS_MEMBER_PROBE, &[]).is_err());
+        assert!(plan(PC_DIAGNOSIS_MEMBER_PROBE, &[Value::from("a"), Value::from("b")]).is_err());
+        assert!(plan(PC_DIAGNOSIS_MEMBER_PROBE, &[Value::from(7)]).is_err());
     }
 
     #[test]

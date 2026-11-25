@@ -1,0 +1,5 @@
+{
+  "sourceRows": "SELECT {columns}{lead}{fragment} {alias}{tail}{from}",
+  "jsonbAggOrdered": "(SELECT jsonb_agg({projection} ORDER BY {order}){from} WHERE {predicate})",
+  "jsonbRowByKey": "(SELECT to_jsonb({alias}) FROM {table} {alias} WHERE {predicate})"
+}

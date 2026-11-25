@@ -21,6 +21,8 @@ pub mod orphan_preservation_head;
 pub mod projection_head;
 pub mod witness_head;
 pub mod settlement_head;
+pub mod field_owner_head;
+pub mod events_sets_head;
 pub mod portal_attachment_http;
 pub mod support_attachment_http;
 pub mod support_attachment_intake;

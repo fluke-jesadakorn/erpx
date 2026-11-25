@@ -8,6 +8,7 @@ import { platformOwnerProjectionSources as organizationPlatformSources } from "@
 import "server-only";
 import artifact from "@erpx/catalogue/release-artifact.json";
 import {productionScope,legalProductionScope,criteriaForScope,type ReleaseScopeVersion} from "@erpx/catalogue/production-scope";
+import {fillReadHead,platformReadHeads} from "./platform-read-heads";
 
 export function releaseRevisionTable(scope: ReleaseScopeVersion) {
   return scope === legalProductionScope.version ? 'company_legal_release_revisions' : 'company_release_revisions';
@@ -27,7 +28,7 @@ export function releaseAcceptanceExistsSql(where: string) {
  * FROM, WHERE and their separator vary. Fixed-table wrappers, projection reads,
  * row heads, locks and native reads are unchanged. */
 export function selectOneFromWhereSql(from: string, where: string, gap = ' ') {
-  return `SELECT 1 FROM ${from}${gap}WHERE ${where}`;
+  return fillReadHead(platformReadHeads.selectOneFromWhere, { from, gap, where });
 }
 
 /** The parameterized EXISTS SELECT-head shared by the release-configuration
@@ -64,7 +65,7 @@ export function releaseRevisionShareLockSql(scope: ReleaseScopeVersion) {
  * emit byte-identical SQL from one owner-local definition; only columns,
  * projection, alias and predicate vary per caller. */
 export function projectionSourceHeadSql(columns: string, projection: string, alias: string, predicate: string) {
-  return `SELECT ${columns} FROM (${projection}) ${alias} WHERE ${predicate}`;
+  return fillReadHead(platformReadHeads.selectProjectionFrom, { columns, projection, alias, predicate });
 }
 
 /** The single active-branch count subquery shared by release acceptance guards,
@@ -98,7 +99,7 @@ export function latestReleaseIdSql(companyExpression: string, scopeExpression: s
  * is now a parameter with the acceptance table as its default: every existing
  * caller renders exactly the same SQL, and no duplicate row-head is retained. */
 export function releaseAcceptanceRowSql(columns: string, predicate: string, suffix = '', table = 'company_release_acceptances') {
-  return `SELECT ${columns} FROM ${table} WHERE ${predicate}${suffix}`;
+  return fillReadHead(platformReadHeads.selectRowByPredicate, { columns, predicate, suffix, table });
 }
 
 /** The latest-acceptance row lookup composes the same byte-identical head with

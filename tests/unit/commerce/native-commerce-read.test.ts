@@ -470,7 +470,7 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
         `export const ${kind} = '${wire}';`,
       );
     }
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 56);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 63);');
     expect(plans).toContain('fn schema_ready_probes_keep_their_exact_literals()');
     expect(readFileSync(adapters('read-tail-r15-dedupe-sql.ts'), 'utf8')).not.toContain('to_regclass');
   });
@@ -507,7 +507,7 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
     expect(plans).toContain(`"${sql}"`);
     expect(plans).toContain('kind: RD_LEGACY_ATTACHMENT_SCOPE,');
     expect(plans).toContain('fn legacy_attachment_scope_keeps_its_exact_literal()');
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 56);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 63);');
     expect(readFileSync(adapters('native-commerce-read.ts'), 'utf8')).toContain(
       "export const RD_LEGACY_ATTACHMENT_SCOPE = 'commerce_rd_legacy_attachment_scope';",
     );
@@ -861,5 +861,78 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
     expect(source).toContain('(RD_POLICY_FULFILLMENT,[facts.targetId,facts.companyId],db)');
     expect(source).toContain('(RD_POLICY_PRODUCT,[facts.targetId,facts.companyId],db)');
     expect(source).toContain('commerceOrdersReadSql');
+  });
+
+  it('owns the Commerce posting-prerequisite state witness as a native kind', async () => {
+    const plans = readFileSync(adapters('native_commerce_read_sql.rs'), 'utf8');
+    expect(plans).toContain('pub const RD_POSTING_PREREQUISITE_STATE: &str = "commerce_rd_posting_prerequisite_state";');
+    expect(plans).toContain('kind: RD_POSTING_PREREQUISITE_STATE,');
+    expect(plans).toContain('5usize');
+    expect(plans).toContain('fn posting_prerequisite_state_keeps_its_exact_literal()');
+    expect(readFileSync(adapters('native-commerce-read.ts'), 'utf8')).toContain(
+      "export const RD_POSTING_PREREQUISITE_STATE = 'commerce_rd_posting_prerequisite_state';",
+    );
+    const source = await readFile(adapters('posting-prerequisite-sources.ts'), 'utf8');
+    expect(source).not.toContain('SELECT ');
+    expect(source).toContain('nativeCommerceReadFirst<{configured:boolean;history:boolean}>(RD_POSTING_PREREQUISITE_STATE,[companyId,companyId,companyId,companyId,companyId],database)');
+    expect(source).toContain('Commerce initial posting state is unavailable.');
+  });
+
+  it('owns all inventory attachment image reads as native kinds', async () => {
+    const plans = readFileSync(adapters('native_commerce_read_sql.rs'), 'utf8');
+    for (const [kind, wire, marker, binds] of [
+      ['RD_INVENTORY_ATTACHMENT_WAREHOUSES', 'commerce_rd_inventory_attachment_warehouses', 'jsonb_agg(to_jsonb(w) ORDER BY w.id)::text image', 2],
+      ['RD_INVENTORY_ATTACHMENT_PRODUCTS', 'commerce_rd_inventory_attachment_products', 'jsonb_agg(to_jsonb(p) ORDER BY p.id)::text image', 2],
+      ['RD_INVENTORY_ATTACHMENT_STOCK', 'commerce_rd_inventory_attachment_stock', 'jsonb_agg(to_jsonb(s) ORDER BY s.warehouse_id,s.product_id)::text image', 3],
+      ['RD_INVENTORY_ATTACHMENT_RECEIPT', 'commerce_rd_inventory_attachment_receipt', "jsonb_build_object('receipt',to_jsonb(f)", 2],
+    ] as const) {
+      expect(plans).toContain(`pub const ${kind}: &str = "${wire}";`);
+      expect(plans).toContain(marker);
+      expect(plans).toContain(`kind: ${kind},`);
+      expect(plans).toContain(`${binds}usize`);
+      expect(readFileSync(adapters('native-commerce-read.ts'), 'utf8')).toContain(
+        `export const ${kind} = '${wire}';`,
+      );
+    }
+    expect(plans).toContain('fn inventory_attachment_images_keep_their_exact_literals()');
+    const source = await readFile(adapters('inventory-attachment-sources.ts'), 'utf8');
+    expect(source).not.toContain('SELECT ');
+    expect(source).toContain('(RD_INVENTORY_ATTACHMENT_WAREHOUSES,[input.companyId,JSON.stringify(input.warehouseIds)],database)');
+    expect(source).toContain('(RD_INVENTORY_ATTACHMENT_PRODUCTS,[input.companyId,JSON.stringify(input.productIds)],database)');
+    expect(source).toContain('(RD_INVENTORY_ATTACHMENT_STOCK,[input.companyId,JSON.stringify(input.warehouseIds),JSON.stringify(input.productIds)],database)');
+    expect(source).toContain('(RD_INVENTORY_ATTACHMENT_RECEIPT,[input.companyId,input.receiptId],database)');
+    expect(source).toContain('LOCK TABLE commerce_warehouses,commerce_products,commerce_stock');
+  });
+
+  it('owns the workspace order-existence probe as a native kind', async () => {
+    const plans = readFileSync(adapters('native_commerce_read_sql.rs'), 'utf8');
+    expect(plans).toContain('pub const RD_WORKSPACE_ORDER_EXISTS: &str = "commerce_rd_workspace_order_exists";');
+    expect(plans).toContain('"SELECT 1 FROM commerce_orders WHERE id=?"');
+    expect(plans).toContain('kind: RD_WORKSPACE_ORDER_EXISTS,');
+    expect(plans).toContain('fn workspace_order_exists_keeps_its_exact_literal()');
+    expect(readFileSync(adapters('native-commerce-read.ts'), 'utf8')).toContain(
+      "export const RD_WORKSPACE_ORDER_EXISTS = 'commerce_rd_workspace_order_exists';",
+    );
+    const source = await readFile(adapters('record-purchases.ts'), 'utf8');
+    expect(source).not.toContain('SELECT 1 FROM commerce_orders WHERE id=?');
+    expect(source).toContain('nativeCommerceReadFirst<{ \'1\': number }>(RD_WORKSPACE_ORDER_EXISTS,[id],database)');
+    // Cross-owner predicate builders stay; they are not executable reads here.
+    expect(source).toContain('assignmentReadSql');
+    expect(source).toContain('purchasedCapabilityPredicate');
+  });
+
+  it('owns the order source-id lookup as a native kind', async () => {
+    const plans = readFileSync(adapters('native_commerce_read_sql.rs'), 'utf8');
+    expect(plans).toContain('pub const RD_ORDER_BY_SOURCE_ID: &str = "commerce_rd_order_by_source_id";');
+    expect(plans).toContain('"SELECT id,number FROM commerce_orders WHERE source_id=?"');
+    expect(plans).toContain('kind: RD_ORDER_BY_SOURCE_ID,');
+    expect(plans).toContain('fn order_by_source_id_keeps_its_exact_literal()');
+    expect(readFileSync(adapters('native-commerce-read.ts'), 'utf8')).toContain(
+      "export const RD_ORDER_BY_SOURCE_ID = 'commerce_rd_order_by_source_id';",
+    );
+    const source = await readFile(adapters('commerce-order-read.ts'), 'utf8');
+    expect(source).not.toContain('SELECT id,number FROM commerce_orders WHERE source_id=?');
+    expect(source).toContain('nativeCommerceReadAll<Row>(RD_ORDER_BY_SOURCE_ID,[facts.id],db)');
+    expect(source).toContain('people_payrollProjectionSources');
   });
 });

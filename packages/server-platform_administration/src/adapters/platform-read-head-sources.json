@@ -1,0 +1,9 @@
+{
+  "selectOne": "SELECT 1",
+  "selectOneFromWhere": "SELECT 1 FROM {from}{gap}WHERE {where}",
+  "selectProjectionFrom": "SELECT {columns} FROM ({projection}) {alias} WHERE {predicate}",
+  "selectRowByPredicate": "SELECT {columns} FROM {table} WHERE {predicate}{suffix}",
+  "recordsUsageProjection": "SELECT company_id,to_char(to_timestamp(created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM') AS month FROM (",
+  "workforceScopeProbe": "SELECT 1 FROM(SELECT ?::text company_id,?::text branch_id,?::text department_id)workforce_actor_scope WHERE ",
+  "databaseIdentityRead": "SELECT current_database() name,current_user owner,"
+}

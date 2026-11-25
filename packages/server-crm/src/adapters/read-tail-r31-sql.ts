@@ -1,16 +1,17 @@
-/** G4 / retire.crm.read-tail-r31 byte-identical SELECT-head family.
+/** G4 / retire.crm.read-tail-r31 byte-identical revenue-journal head.
  *
- * The sales-posting and hotel-posting revenue-journal rows share one read head:
- * both project l.id / journal.primary_journal_id / journal.revenue_minor over
- * the same crm_leads -> crm_opportunities join and the posting-source subquery.
- * The renderer below reproduces the pre-dedupe inline SQL byte-for-byte;
- * callers pass only the id alias, their posting source and their ON tail.
- * Locks, command-receipt reads, native command kinds and the r8-r30 families
- * are untouched.
+ * Both posting rows project l.id / primary_journal_id / revenue_minor over the
+ * same lead -> opportunity join, so the head is the owner select-body plan over
+ * that projection and join; this module carries no read token of its own.
+ * Callers pass only the id alias, their posting source and their ON tail.
+ * Locks, command-receipt reads, native command kinds and the r8-r30 families are
+ * untouched.
  */
+import { crmSelectBodySql } from './read-tail-r46-sql';
 
 /** One parameterized revenue-journal read head. Only the id alias, posting
- * source and trailing ON text vary; the one read token here renders
- * byte-identically as both retired inline literals. */
+ * source and trailing ON text vary; the rendered text is unchanged. */
 export const crmRevenueJournalHeadSql = (idAlias: string, source: string) =>
-  `SELECT l.id${idAlias},journal.primary_journal_id,journal.revenue_minor FROM crm_leads l JOIN crm_opportunities opportunity ON opportunity.lead_id=l.id JOIN (${source}) source ON `;
+  crmSelectBodySql(
+    `l.id${idAlias},journal.primary_journal_id,journal.revenue_minor FROM crm_leads l JOIN crm_opportunities opportunity ON opportunity.lead_id=l.id JOIN (${source}) source ON `,
+  );

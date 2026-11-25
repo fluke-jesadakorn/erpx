@@ -1269,6 +1269,156 @@ const READ_FIN_OPEN_PERIOD: NativeReadStatement = NativeReadStatement {
     scope: "holding",
 };
 
+
+/// A second static `finance` point/list family. Owner writes, locks and
+/// assertion guards stay in caller transactions.
+pub const RD_FIN2_ACCOUNT_INVOICE: &str = "finance_rd_fin2_account_invoice";
+const SQL_RD_FIN2_ACCOUNT_INVOICE: &str = "SELECT 1 FROM finance_invoices WHERE company_id=? AND outstanding_minor>0 AND status IN ('draft','posted','partially_paid') AND (debit_account_id=? OR credit_account_id=?) LIMIT 1";
+const READ_FIN2_ACCOUNT_INVOICE: NativeReadStatement = NativeReadStatement {
+    kind: RD_FIN2_ACCOUNT_INVOICE,
+    sql: SQL_RD_FIN2_ACCOUNT_INVOICE,
+    bind_count: 3,
+    scope: "holding",
+};
+
+pub const RD_FIN2_BUSINESS_BILLED: &str = "finance_rd_fin2_business_billed";
+const SQL_RD_FIN2_BUSINESS_BILLED: &str = "SELECT 1 FROM finance_business_billing_runs WHERE invoice_id=? AND company_id=?";
+const READ_FIN2_BUSINESS_BILLED: NativeReadStatement = NativeReadStatement {
+    kind: RD_FIN2_BUSINESS_BILLED,
+    sql: SQL_RD_FIN2_BUSINESS_BILLED,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_FIN2_EDITABLE_INVOICE: &str = "finance_rd_fin2_editable_invoice";
+const SQL_RD_FIN2_EDITABLE_INVOICE: &str = "SELECT line_mode FROM finance_invoices WHERE id=? AND company_id=? AND status='draft' AND version=? AND source_type='standalone'";
+const READ_FIN2_EDITABLE_INVOICE: NativeReadStatement = NativeReadStatement {
+    kind: RD_FIN2_EDITABLE_INVOICE,
+    sql: SQL_RD_FIN2_EDITABLE_INVOICE,
+    bind_count: 3,
+    scope: "holding",
+};
+
+pub const RD_FIN2_POSTABLE_INVOICE: &str = "finance_rd_fin2_postable_invoice";
+const SQL_RD_FIN2_POSTABLE_INVOICE: &str = "SELECT * FROM finance_invoices WHERE id=? AND company_id=? AND status='draft' AND source_type NOT IN ('opening_import','field_service')";
+const READ_FIN2_POSTABLE_INVOICE: NativeReadStatement = NativeReadStatement {
+    kind: RD_FIN2_POSTABLE_INVOICE,
+    sql: SQL_RD_FIN2_POSTABLE_INVOICE,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_FIN2_INVOICE_CHART: &str = "finance_rd_fin2_invoice_chart";
+const SQL_RD_FIN2_INVOICE_CHART: &str = "SELECT a.chart_id,c.base_currency FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id WHERE a.id=? AND a.company_id=?";
+const READ_FIN2_INVOICE_CHART: NativeReadStatement = NativeReadStatement {
+    kind: RD_FIN2_INVOICE_CHART,
+    sql: SQL_RD_FIN2_INVOICE_CHART,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_FIN2_SETTLED_MONEY: &str = "finance_rd_fin2_settled_money";
+const SQL_RD_FIN2_SETTLED_MONEY: &str = "SELECT 1 AS present FROM money_transaction_snapshots WHERE company_id=? AND source_type='finance_payment' AND source_id=? AND amount_kind='settled'";
+const READ_FIN2_SETTLED_MONEY: NativeReadStatement = NativeReadStatement {
+    kind: RD_FIN2_SETTLED_MONEY,
+    sql: SQL_RD_FIN2_SETTLED_MONEY,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_FIN2_APPROVED_PAYMENT: &str = "finance_rd_fin2_approved_payment";
+const SQL_RD_FIN2_APPROVED_PAYMENT: &str = "SELECT * FROM finance_payments WHERE id=? AND company_id=? AND status='approved'";
+const READ_FIN2_APPROVED_PAYMENT: NativeReadStatement = NativeReadStatement {
+    kind: RD_FIN2_APPROVED_PAYMENT,
+    sql: SQL_RD_FIN2_APPROVED_PAYMENT,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_FIN2_FX_RUNS: &str = "finance_rd_fin2_fx_runs";
+const SQL_RD_FIN2_FX_RUNS: &str = "SELECT r.*,c.name chart_name FROM finance_fx_revaluation_runs r JOIN finance_charts c ON c.id=r.chart_id WHERE r.company_id=? AND r.period_id=? ORDER BY r.created_at DESC";
+const READ_FIN2_FX_RUNS: NativeReadStatement = NativeReadStatement {
+    kind: RD_FIN2_FX_RUNS,
+    sql: SQL_RD_FIN2_FX_RUNS,
+    bind_count: 2,
+    scope: "holding",
+};
+
+
+/// A third static `finance` point/list family. Owner writes, locks and
+/// assertion guards stay in caller transactions.
+pub const RD_FIN3_BANK_ACCOUNT: &str = "finance_rd_fin3_bank_account";
+const SQL_RD_FIN3_BANK_ACCOUNT: &str = "SELECT a.id,a.chart_id,a.currency,c.base_currency FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id WHERE a.id=? AND a.company_id=? AND a.category='asset' AND a.control_kind='bank' AND a.status='active'";
+const READ_FIN3_BANK_ACCOUNT: NativeReadStatement = NativeReadStatement {
+    kind: RD_FIN3_BANK_ACCOUNT,
+    sql: SQL_RD_FIN3_BANK_ACCOUNT,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_FIN3_PAID_PAYMENT: &str = "finance_rd_fin3_paid_payment";
+const SQL_RD_FIN3_PAID_PAYMENT: &str = "SELECT p.*,j.chart_id,j.status journal_status,j.journal_number,j.entry_date journal_entry_date FROM finance_payments p JOIN finance_journals j ON j.id=p.journal_id WHERE p.id=? AND p.company_id=?";
+const READ_FIN3_PAID_PAYMENT: NativeReadStatement = NativeReadStatement {
+    kind: RD_FIN3_PAID_PAYMENT,
+    sql: SQL_RD_FIN3_PAID_PAYMENT,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_FIN3_PAYMENT_ALLOCATIONS: &str = "finance_rd_fin3_payment_allocations";
+const SQL_RD_FIN3_PAYMENT_ALLOCATIONS: &str = "SELECT a.*,i.total_minor,i.outstanding_minor,i.source_type FROM finance_allocations a JOIN finance_invoices i ON i.id=a.invoice_id WHERE a.payment_id=? AND a.company_id=? ORDER BY a.id";
+const READ_FIN3_PAYMENT_ALLOCATIONS: NativeReadStatement = NativeReadStatement {
+    kind: RD_FIN3_PAYMENT_ALLOCATIONS,
+    sql: SQL_RD_FIN3_PAYMENT_ALLOCATIONS,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_FIN3_CORRECTION_EXISTS: &str = "finance_rd_fin3_correction_exists";
+const SQL_RD_FIN3_CORRECTION_EXISTS: &str = "SELECT 1 FROM finance_billing_corrections c JOIN finance_allocations a ON a.invoice_id=c.invoice_id WHERE a.payment_id=? AND c.company_id=? AND c.status='posted'";
+const READ_FIN3_CORRECTION_EXISTS: NativeReadStatement = NativeReadStatement {
+    kind: RD_FIN3_CORRECTION_EXISTS,
+    sql: SQL_RD_FIN3_CORRECTION_EXISTS,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_FIN3_FX_RUN_PERIOD: &str = "finance_rd_fin3_fx_run_period";
+const SQL_RD_FIN3_FX_RUN_PERIOD: &str = "SELECT r.*,p.state period_state,p.end_date FROM finance_fx_revaluation_runs r JOIN finance_periods p ON p.id=r.period_id WHERE r.id=? AND r.company_id=?";
+const READ_FIN3_FX_RUN_PERIOD: NativeReadStatement = NativeReadStatement {
+    kind: RD_FIN3_FX_RUN_PERIOD,
+    sql: SQL_RD_FIN3_FX_RUN_PERIOD,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_FIN3_PERIOD_BY_ID: &str = "finance_rd_fin3_period_by_id";
+const SQL_RD_FIN3_PERIOD_BY_ID: &str = "SELECT * FROM finance_periods WHERE id=?";
+const READ_FIN3_PERIOD_BY_ID: NativeReadStatement = NativeReadStatement {
+    kind: RD_FIN3_PERIOD_BY_ID,
+    sql: SQL_RD_FIN3_PERIOD_BY_ID,
+    bind_count: 1,
+    scope: "holding",
+};
+
+pub const RD_FIN3_BOOK_MAPPING: &str = "finance_rd_fin3_book_mapping";
+const SQL_RD_FIN3_BOOK_MAPPING: &str = "SELECT m.primary_account_id FROM finance_book_account_mappings m JOIN finance_book_rules r ON r.id=m.rule_id\n      WHERE r.company_id=? AND r.status='approved' AND m.secondary_account_id=? AND r.effective_date<=? ORDER BY r.effective_date DESC LIMIT 1";
+const READ_FIN3_BOOK_MAPPING: NativeReadStatement = NativeReadStatement {
+    kind: RD_FIN3_BOOK_MAPPING,
+    sql: SQL_RD_FIN3_BOOK_MAPPING,
+    bind_count: 3,
+    scope: "holding",
+};
+
+pub const RD_FIN3_OTHER_ACCOUNTS: &str = "finance_rd_fin3_other_accounts";
+const SQL_RD_FIN3_OTHER_ACCOUNTS: &str = "SELECT a.id,a.chart_id,a.code,a.name,a.category,a.currency FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id WHERE a.company_id=? AND a.status='active' AND a.currency=c.base_currency AND a.category IN ('other_income','other_expense') ORDER BY a.code";
+const READ_FIN3_OTHER_ACCOUNTS: NativeReadStatement = NativeReadStatement {
+    kind: RD_FIN3_OTHER_ACCOUNTS,
+    sql: SQL_RD_FIN3_OTHER_ACCOUNTS,
+    bind_count: 1,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_ASSET_POLICY_ROW,
     READ_ASSET_POLICY_RUNS,
@@ -1395,6 +1545,22 @@ const READS: &[NativeReadStatement] = &[
     READ_FIN_JOURNAL_ROW,
     READ_FIN_JOURNAL_LINES,
     READ_FIN_OPEN_PERIOD,
+    READ_FIN2_ACCOUNT_INVOICE,
+    READ_FIN2_BUSINESS_BILLED,
+    READ_FIN2_EDITABLE_INVOICE,
+    READ_FIN2_POSTABLE_INVOICE,
+    READ_FIN2_INVOICE_CHART,
+    READ_FIN2_SETTLED_MONEY,
+    READ_FIN2_APPROVED_PAYMENT,
+    READ_FIN2_FX_RUNS,
+    READ_FIN3_BANK_ACCOUNT,
+    READ_FIN3_PAID_PAYMENT,
+    READ_FIN3_PAYMENT_ALLOCATIONS,
+    READ_FIN3_CORRECTION_EXISTS,
+    READ_FIN3_FX_RUN_PERIOD,
+    READ_FIN3_PERIOD_BY_ID,
+    READ_FIN3_BOOK_MAPPING,
+    READ_FIN3_OTHER_ACCOUNTS,
 ];
 
 /// Whether a discriminator is an owner read kind (never a write kind).
@@ -1539,6 +1705,22 @@ mod tests {
             RD_FIN_JOURNAL_ROW,
             RD_FIN_JOURNAL_LINES,
             RD_FIN_OPEN_PERIOD,
+            RD_FIN2_ACCOUNT_INVOICE,
+            RD_FIN2_BUSINESS_BILLED,
+            RD_FIN2_EDITABLE_INVOICE,
+            RD_FIN2_POSTABLE_INVOICE,
+            RD_FIN2_INVOICE_CHART,
+            RD_FIN2_SETTLED_MONEY,
+            RD_FIN2_APPROVED_PAYMENT,
+            RD_FIN2_FX_RUNS,
+            RD_FIN3_BANK_ACCOUNT,
+            RD_FIN3_PAID_PAYMENT,
+            RD_FIN3_PAYMENT_ALLOCATIONS,
+            RD_FIN3_CORRECTION_EXISTS,
+            RD_FIN3_FX_RUN_PERIOD,
+            RD_FIN3_PERIOD_BY_ID,
+            RD_FIN3_BOOK_MAPPING,
+            RD_FIN3_OTHER_ACCOUNTS,
         ] {
             assert!(is_read(kind), "{kind}");
             let read = read_statement(kind).expect("read kind");
@@ -1553,7 +1735,7 @@ mod tests {
             assert_eq!(read.sql.matches('?').count(), read.bind_count, "{kind}");
             assert_eq!(read.scope, "holding", "{kind}");
         }
-        assert_eq!(READS.len(), 125);
+        assert_eq!(READS.len(), 141);
         assert!(!is_read("finance_stmt_1"));
         assert!(read_statement("finance_stmt_1").is_none());
     }
@@ -2305,6 +2487,86 @@ mod tests {
             (RD_FIN_JOURNAL_ROW, SQL_RD_FIN_JOURNAL_ROW, 2),
             (RD_FIN_JOURNAL_LINES, SQL_RD_FIN_JOURNAL_LINES, 1),
             (RD_FIN_OPEN_PERIOD, SQL_RD_FIN_OPEN_PERIOD, 2),
+        ];
+        assert_eq!(expected.len(), 8);
+        for (kind, sql, binds) in expected {
+            let read = read_statement(kind).unwrap_or_else(|| panic!("{kind}: unregistered"));
+            assert_eq!(read.kind, *kind, "{kind}: discriminator");
+            assert_eq!(read.sql, *sql, "{kind}: byte-identical SQL");
+            assert_eq!(read.bind_count, *binds, "{kind}: bind count");
+            assert_eq!(read.sql.matches('?').count(), *binds, "{kind}: binds");
+            assert_eq!(read.scope, "holding", "{kind}: scope");
+            assert!(is_read(kind), "{kind}");
+            assert!(!read.sql.contains("FOR UPDATE"), "{kind}");
+            assert!(!read.sql.contains("INSERT"), "{kind}");
+        }
+    }
+
+    /// The second `finance` point/list family plans the exact retired
+    /// literals; owner writes and locks stay in caller transactions.
+    #[test]
+    fn finance_reads_second_family_match_retired_owner_statements() {
+        let expected: &[(&str, &str, usize)] = &[
+            (
+                RD_FIN2_ACCOUNT_INVOICE,
+                SQL_RD_FIN2_ACCOUNT_INVOICE,
+                3,
+            ),
+            (RD_FIN2_BUSINESS_BILLED, SQL_RD_FIN2_BUSINESS_BILLED, 2),
+            (
+                RD_FIN2_EDITABLE_INVOICE,
+                SQL_RD_FIN2_EDITABLE_INVOICE,
+                3,
+            ),
+            (
+                RD_FIN2_POSTABLE_INVOICE,
+                SQL_RD_FIN2_POSTABLE_INVOICE,
+                2,
+            ),
+            (RD_FIN2_INVOICE_CHART, SQL_RD_FIN2_INVOICE_CHART, 2),
+            (RD_FIN2_SETTLED_MONEY, SQL_RD_FIN2_SETTLED_MONEY, 2),
+            (
+                RD_FIN2_APPROVED_PAYMENT,
+                SQL_RD_FIN2_APPROVED_PAYMENT,
+                2,
+            ),
+            (RD_FIN2_FX_RUNS, SQL_RD_FIN2_FX_RUNS, 2),
+        ];
+        assert_eq!(expected.len(), 8);
+        for (kind, sql, binds) in expected {
+            let read = read_statement(kind).unwrap_or_else(|| panic!("{kind}: unregistered"));
+            assert_eq!(read.kind, *kind, "{kind}: discriminator");
+            assert_eq!(read.sql, *sql, "{kind}: byte-identical SQL");
+            assert_eq!(read.bind_count, *binds, "{kind}: bind count");
+            assert_eq!(read.sql.matches('?').count(), *binds, "{kind}: binds");
+            assert_eq!(read.scope, "holding", "{kind}: scope");
+            assert!(is_read(kind), "{kind}");
+            assert!(!read.sql.contains("FOR UPDATE"), "{kind}");
+            assert!(!read.sql.contains("INSERT"), "{kind}");
+        }
+    }
+
+    /// The third `finance` point/list family plans the exact retired
+    /// literals; owner writes and locks stay in caller transactions.
+    #[test]
+    fn finance_reads_third_family_match_retired_owner_statements() {
+        let expected: &[(&str, &str, usize)] = &[
+            (RD_FIN3_BANK_ACCOUNT, SQL_RD_FIN3_BANK_ACCOUNT, 2),
+            (RD_FIN3_PAID_PAYMENT, SQL_RD_FIN3_PAID_PAYMENT, 2),
+            (
+                RD_FIN3_PAYMENT_ALLOCATIONS,
+                SQL_RD_FIN3_PAYMENT_ALLOCATIONS,
+                2,
+            ),
+            (
+                RD_FIN3_CORRECTION_EXISTS,
+                SQL_RD_FIN3_CORRECTION_EXISTS,
+                2,
+            ),
+            (RD_FIN3_FX_RUN_PERIOD, SQL_RD_FIN3_FX_RUN_PERIOD, 2),
+            (RD_FIN3_PERIOD_BY_ID, SQL_RD_FIN3_PERIOD_BY_ID, 1),
+            (RD_FIN3_BOOK_MAPPING, SQL_RD_FIN3_BOOK_MAPPING, 3),
+            (RD_FIN3_OTHER_ACCOUNTS, SQL_RD_FIN3_OTHER_ACCOUNTS, 1),
         ];
         assert_eq!(expected.len(), 8);
         for (kind, sql, binds) in expected {

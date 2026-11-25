@@ -1,4 +1,5 @@
 import "server-only";
+import {heads, renderHead} from "./read-head-sources";
 /** Canonical owner-local record-image projection shared by the Maintenance
  * attachment target read and the Work/Plan purchase-source read. Both callers
  * pass only owner-fixed jsonb field fragments and a closed FROM/WHERE source;
@@ -6,4 +7,4 @@ import "server-only";
  * stays byte-identical to its pre-dedupe literal, with the sole projection
  * keyword kept in this one definition. */
 export const recordImageSql = (fields: string, source: string): string =>
-  `SELECT jsonb_build_object(${fields})::text image${source}`;
+  renderHead(heads.recordImage, {fields, source});

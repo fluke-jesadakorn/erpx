@@ -102,6 +102,12 @@ describe('Files read-tail r41 byte-oracle dedupe', () => {
       expect(git('rev-parse', `HEAD:${p}`).trim()).toBe(git('hash-object', p).trim());
     }
     expect(changed.every(p => [
+      'packages/server-files/src/adapters/read-tail-r45-source-sql.ts',
+      'packages/server-files/src/adapters/read-tail-r43-source-sql.ts',
+      'packages/server-files/src/adapters/field_owner_head.rs',
+      'packages/server-files/src/public/field_owner_head.rs',
+      'packages/server-files/src/adapters/settlement_head.rs',
+      'packages/server-files/src/public/settlement_head.rs',
       'packages/server-files/src/adapters/mod.rs',
       'packages/server-files/src/public/mod.rs',
       'packages/server-files/src/adapters/commerce-facts.ts',
@@ -170,8 +176,8 @@ describe('Files read-tail r41 byte-oracle dedupe', () => {
     // r42 left 248; r43 lowers 248->246 (two SELECT-bearing shared heads folded).
     // r44 lowers 246->242 (three more shared heads folded).
     // r46 folds two closed-union heads (orphan-preservation event, draft/bound count): 239->237.
-    expect(literal).toBe(195);
-    expect(total).toBe(196);
+    expect(literal).toBe(190);
+    expect(total).toBe(191);
     expect(literal).toBeLessThan(254);
     expect(total).toBeLessThan(255);
   });

@@ -1,0 +1,8 @@
+{
+  "projectionHead": "SELECT {fields} FROM ({source}) {alias} {tail}",
+  "existsGuard": "EXISTS(SELECT 1 FROM {source} WHERE ",
+  "subqueryHead": "(SELECT {body})",
+  "aliasRows": "SELECT {alias}.*{tail}",
+  "settlementRef": "SELECT {columns} FROM {source}{tail}",
+  "recordImage": "SELECT jsonb_build_object({fields})::text image{source}"
+}

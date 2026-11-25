@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
@@ -85,7 +86,7 @@ describe('Learning overdue-evidence oracle migrated to the native owner', () => 
   test('the TypeScript constant is deleted and the Rust owner pins its bytes', () => {
     const shared = src('learning-read-sql.ts');
     expect(shared).not.toContain('overdueEvidenceColumns');
-    expect((shared.match(/SELECT /g) ?? []).length).toBe(28);
+    expect((shared.match(/SELECT /g) ?? []).length).toBe(20);
     const rust = src('native_lane_31/postgres.rs');
     expect(rust).toContain('pub const OVERDUE_SQL: &str = concat!(');
     expect(rust).toContain(preOverdueColumns);
@@ -101,6 +102,60 @@ describe('Learning overdue-evidence oracle migrated to the native owner', () => 
       }
     };
     walk(srcRoot);
+  });
+});
+
+describe('Learning native source family moved into the native owner contract', () => {
+  const nativeText = src('learning-native-sources.json');
+  const nativeContract = JSON.parse(nativeText) as {nativeSources: string; nativeSourceProbe: string};
+
+  test('the contract carries the retired union bytes and no caller value', () => {
+    expect(nativeContract.nativeSources).toBe(preNativeSources);
+    expect(Buffer.byteLength(nativeText)).toBe(1397);
+    expect(createHash('sha256').update(nativeText).digest('hex')).toBe('cdf39beb66d1b850542ae2d07a0987542a8346a97bf94a2669da5d2d1e21105b');
+    expect((nativeContract.nativeSources.match(/SELECT /g) ?? []).length).toBe(7);
+    expect((nativeContract.nativeSources.match(/UNION ALL SELECT /g) ?? []).length).toBe(6);
+    expect(nativeContract.nativeSources).not.toContain('?');
+    expect(nativeContract.nativeSourceProbe).toBe('SELECT 1 FROM ({nativeSources}) {alias}');
+    readOnly(nativeContract.nativeSources);
+  });
+
+  test('the TypeScript adapter owns no statement byte and renders the contract', () => {
+    const shared = src('learning-read-sql.ts');
+    expect(shared).not.toContain('SELECT id,company_id,NULL::text branch_id');
+    expect(shared).not.toContain('SELECT 1 FROM (${learningNativeSources})');
+    expect(shared.match(/export const learningNativeSources=contract\.nativeSources;/g) ?? []).toHaveLength(1);
+    expect(shared.match(/fill\(contract\.nativeSourceProbe, \{nativeSources: learningNativeSources, alias\}\)/g) ?? []).toHaveLength(1);
+    for (const alias of ['learning_source', 'actual_learning', 'native']) {
+      expect(nativeSourceProbe(alias)).toBe(`SELECT 1 FROM (${nativeContract.nativeSources}) ${alias}`);
+      readOnly(nativeSourceProbe(alias));
+    }
+  });
+
+  test('the native Rust owner binds and pins the migrated bytes', () => {
+    const rust = src('learning_native_sources.rs');
+    expect(rust).toContain('include_str!("learning-native-sources.json")');
+    expect(rust).toContain('LEARNING_NATIVE_SOURCES_JSON');
+    expect(rust).toContain('learning_native_source_union_sql');
+    expect(rust).toContain('render_learning_native_source_probe');
+    expect(rust).toContain('native_source_union_oracle_migrated_from_typescript');
+    expect(rust).toContain('cdf39beb66d1b850542ae2d07a0987542a8346a97bf94a2669da5d2d1e21105b');
+    expect(readFileSync(resolve(srcRoot, 'public', 'learning_native_sources.rs'), 'utf8')).toContain('learning_native_source_union_sql');
+  });
+
+  test('retirement:ts-statements KPI is 21 (native source family cut 29 -> 21)', () => {
+    let total = 0;
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith('.ts')) total += selectCount(readFileSync(path, 'utf8'));
+      }
+    };
+    walk(srcRoot);
+    expect(total).toBe(21);
+    expect(selectCount(src('learning-read-sql.ts'))).toBe(20);
+    expect(selectCount(src('executive-metric-projections.ts'))).toBe(1);
   });
 });
 

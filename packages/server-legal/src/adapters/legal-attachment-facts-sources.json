@@ -1,0 +1,4 @@
+{
+  "ownerVersionGuard": "EXISTS(SELECT 1 FROM {table} WHERE id=? AND company_id=? AND version=?{extra})",
+  "filePreservations": "SELECT 1 FROM (\n    SELECT p.item_id FROM legal_file_preservations p\n    JOIN legal_hold_targets target ON target.item_id=p.item_id\n    JOIN legal_holds hold ON hold.id=target.hold_id\n    WHERE p.source_type='attachment' AND p.source_id=? AND hold.state<>'released'\n    UNION ALL\n    SELECT set_row.target_id FROM ({attachmentLinks}) link\n    JOIN ({attachmentSets}) set_row ON set_row.id=link.set_id\n    JOIN legal_hold_targets target ON target.item_id=set_row.target_id\n    JOIN legal_holds hold ON hold.id=target.hold_id\n    WHERE link.attachment_id=? AND set_row.target_type='legal_item' AND hold.state<>'released'\n  ) active LIMIT 1"
+}

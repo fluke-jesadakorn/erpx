@@ -62,7 +62,7 @@ describe('Planning r26 scenarios-list native cutover', () => {
     walk(srcRoot);
     // r27 retired the shared planning-select-from-sql.ts head; the remaining
     // single-line builder still serves the transaction-bound calendar tail.
-    expect(total).toBe(8);
+    expect(total).toBe(5);
     expect(total).toBeLessThan(13);
   });
 });

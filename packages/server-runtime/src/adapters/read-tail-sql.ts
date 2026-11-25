@@ -1,75 +1,65 @@
 /**
- * Runtime-owned canonical SQL for the closed `holding_bindings` read family.
- * Every caller composes the same statement from its column list and optional
- * suffix, so the query text is defined once and cannot drift between owners.
- * No relation name or predicate is accepted from an untrusted caller.
+ * Runtime-owned canonical SQL contract for the closed read-tail families and
+ * the report guards.
+ *
+ * The seven projection shapes and the two guards live in
+ * `read-tail-sources.json`, the same asset the owner crate binds with
+ * `include_str!`. This module only substitutes a caller's closed column list
+ * and verbatim suffix; it authors no statement text. No relation name or
+ * predicate is accepted from an untrusted caller. Control-plane lock and
+ * migration statements are owned by the native control-plane planner.
  */
-export const holdingBindingsSql = (columns: string, suffix = '') =>
-  `SELECT ${columns} FROM holding_bindings${suffix}`;
+import contract from "./read-tail-sources.json" with { type: "json" };
 
-/**
- * Runtime-owned canonical SQL for the closed `executive_generation_jobs`
- * projection family. Owner and hospitality surfaces project different column
- * subsets of the same fixed read; one builder keeps the query text identical
- * across every caller. No relation name or predicate comes from an untrusted
- * caller. Control-plane lock and migration statements are not part of this family.
- */
-export const executiveGenerationJobsSql = (columns: string, suffix = '') =>
-  `SELECT ${columns} FROM executive_generation_jobs${suffix}`;
+type Sources = Readonly<{
+  holdingBindings: string;
+  executiveGenerationJobs: string;
+  runtimeHealth: string;
+  executiveExternalTokens: string;
+  executiveReportShares: string;
+  executiveReportRevisions: string;
+  executiveReports: string;
+  reportLock: string;
+  reportVersionGuard: string;
+}>;
 
-/**
- * Runtime-owned canonical SQL for the closed `runtime_health` heartbeat read
- * family. App and Platform surfaces project different column subsets of the
- * same fixed read; one builder keeps the query text identical across callers.
- * No relation name or predicate is accepted from an untrusted caller.
- * Control-plane lock and migration statements are not part of this family.
- */
-export const runtimeHealthSql = (columns: string, suffix = '') =>
-  `SELECT ${columns} FROM runtime_health${suffix}`;
+const sources = contract as Sources;
 
-/**
- * Runtime-owned canonical SQL for the closed `executive_external_tokens` read
- * family. Token resolution projects different column subsets and secret/id
- * predicates of the same fixed read; one builder keeps the query text identical
- * across every caller. No relation name or predicate comes from an untrusted
- * caller. Control-plane lock and migration statements are not part of this family.
- */
-export const executiveExternalTokensSql = (columns: string, suffix = '') =>
-  `SELECT ${columns} FROM executive_external_tokens${suffix}`;
+/** Substitute the closed projection and verbatim tail without regex replacer
+ *  expansion, so `$1` binds survive byte-for-byte. */
+const render = (shape: string, columns: string, suffix: string) =>
+  shape.replace("{columns}", () => columns).replace("{suffix}", () => suffix);
 
-/**
- * Runtime-owned canonical SQL for the closed `executive_report_shares` read
- * family. Report access, view, ownership-candidate and authority surfaces
- * project different column subsets and predicates of the same fixed read; one
- * builder keeps the query text identical across every caller. No relation name
- * or predicate comes from an untrusted caller. Control-plane lock, guard and
- * migration statements are not part of this family.
- */
-export const executiveReportSharesSql = (columns: string, suffix = '') =>
-  `SELECT ${columns} FROM executive_report_shares${suffix}`;
+/** Canonical `holding_bindings` projection. */
+export const holdingBindingsSql = (columns: string, suffix = "") =>
+  render(sources.holdingBindings, columns, suffix);
 
-/**
- * Runtime-owned canonical SQL for the closed `executive_report_revisions`
- * projection family. Report-view and restore surfaces project different
- * column subsets and predicates of the same fixed read; one builder keeps the
- * query text identical across every caller. No relation name or predicate
- * comes from an untrusted caller. Control-plane lock, guard and migration
- * statements are not part of this family.
- */
-export const executiveReportRevisionsSql = (columns: string, suffix = '') =>
-  `SELECT ${columns} FROM executive_report_revisions WHERE report_id=?${suffix}`;
+/** Canonical `executive_generation_jobs` projection. */
+export const executiveGenerationJobsSql = (columns: string, suffix = "") =>
+  render(sources.executiveGenerationJobs, columns, suffix);
 
-/**
- * Runtime-owned canonical SQL for the closed `executive_reports` read family.
- * Report access and library surfaces project different column subsets and a
- * shared-definition join of the same fixed read; one builder keeps the query
- * text identical across every caller. No relation name or predicate comes from
- * an untrusted caller. Control-plane lock, guard and migration statements are
- * not part of this family.
- */
-export const executiveReportsSql = (columns: string, suffix = '') =>
-  `SELECT ${columns} FROM executive_reports${suffix}`;
+/** Canonical `runtime_health` projection. */
+export const runtimeHealthSql = (columns: string, suffix = "") =>
+  render(sources.runtimeHealth, columns, suffix);
 
-// The catalog-presence and migration-control read families are now owned by
-// the native control-plane read port; no TypeScript builder renders them.
+/** Canonical `executive_external_tokens` projection. */
+export const executiveExternalTokensSql = (columns: string, suffix = "") =>
+  render(sources.executiveExternalTokens, columns, suffix);
 
+/** Canonical `executive_report_shares` projection. */
+export const executiveReportSharesSql = (columns: string, suffix = "") =>
+  render(sources.executiveReportShares, columns, suffix);
+
+/** Canonical `executive_report_revisions` projection. */
+export const executiveReportRevisionsSql = (columns: string, suffix = "") =>
+  render(sources.executiveReportRevisions, columns, suffix);
+
+/** Canonical `executive_reports` projection. */
+export const executiveReportsSql = (columns: string, suffix = "") =>
+  render(sources.executiveReports, columns, suffix);
+
+/** Single-row report lock guard executed by the caller unit. */
+export const reportLockSql = sources.reportLock;
+
+/** Report ownership/version guard executed by the workflow assertion. */
+export const reportVersionGuardSql = sources.reportVersionGuard;

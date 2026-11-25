@@ -197,6 +197,6 @@ describe('legal read-tail r46 destruction-guard and executive-spine head family'
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(95);
-    expect(total).toBe(52);
+    expect(total).toBe(38);
   });
 });

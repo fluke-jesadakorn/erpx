@@ -13,10 +13,10 @@ const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 
 // Verbatim pre-r44 oracles recorded from HEAD a348ca7b1 (BEFORE=172). Byte-identity
 // oracles only, never live query sources. The folded head is a 79-byte catalog
-// JSONB aggregate prefix shared by the commerce attachment image read and the
-// POS startup source read. Both sites keep their own WHERE tail (product scope
-// vs company scope), so the zero-arg owner-local renderer preserves the exact
-// rendered byte sequence, bind order/count and locks. No r35-r43 native/lock/
+// JSONB aggregate prefix originally shared by the commerce attachment image
+// read and the POS startup source read. The startup site still renders from the
+// helper; the Commerce image SQL moved byte-identically into the native
+// core_keyed_reads registry. No r35-r43 native/lock/
 // renderer head, sale-child/owner_writes registry, advisory lock, PMS fragment,
 // settlement mirror or cross-owner projection is touched.
 const HEAD = 'SELECT jsonb_agg(to_jsonb(c) ORDER BY c.product_id) FROM pos_catalog c WHERE c.';
@@ -64,16 +64,18 @@ describe('POS read-tail r44 catalog aggregate head dedupe', () => {
     expect(HEAD.endsWith('\n')).toBe(false);
   });
 
-  test('both sites delegate; rendered SQL stays byte-identical with 3/4 and 13/13 SELECT/binds', () => {
+  test('startup delegates via the shared head; the Commerce image SQL moved byte-identically into the native registry', () => {
     const commerce = read('commerce-attachment-sources.ts');
     const startup = read('startup-sources.ts');
-    expect(occurrences(commerce, CALL)).toBe(1);
+    expect(occurrences(commerce, CALL)).toBe(0);
     expect(occurrences(startup, CALL)).toBe(1);
     expect(occurrences(commerce, HEAD)).toBe(0);
     expect(occurrences(startup, HEAD)).toBe(0);
-    expect(commerce).toContain('(' + CALL + TAIL_COMMERCE);
     expect(startup).toContain('(' + CALL + TAIL_STARTUP);
-    const renderedCommerce = renderedFrom(commerce, "`SELECT jsonb_build_object('catalog'");
+    expect(commerce).toContain('nativePosCommerceAttachmentImageStatement<{image:string}>');
+    const renderedCommerce = `SELECT jsonb_build_object('catalog',(${HEAD}${TAIL_COMMERCE},'registers',(SELECT jsonb_agg(jsonb_build_object('selection',to_jsonb(s),'register',to_jsonb(r)) ORDER BY s.register_id) FROM pos_register_catalog s JOIN pos_registers r ON r.id=s.register_id AND r.company_id=? WHERE s.product_id=?))::text image`;
+    const registry = read('core_keyed_reads.rs');
+    expect(registry).toContain(`"${renderedCommerce}"`);
     expect(renderedCommerce.length).toBe(ORACLE_COMMERCE.len);
     expect(sha(renderedCommerce)).toBe(ORACLE_COMMERCE.sha);
     expect(selects(renderedCommerce)).toBe(ORACLE_COMMERCE.selects);
@@ -85,7 +87,7 @@ describe('POS read-tail r44 catalog aggregate head dedupe', () => {
     expect(binds(renderedStartup)).toBe(ORACLE_STARTUP.binds);
     expect(commerce).toContain("prepare('LOCK TABLE pos_catalog,pos_register_catalog,pos_registers IN SHARE ROW EXCLUSIVE MODE')");
     expect(startup).toContain('LOCK TABLE pos_settings,pos_registers,pos_catalog,pos_register_catalog,pos_sales,pos_shifts,pos_payments,pos_refunds,pos_postings IN SHARE MODE');
-    expect(commerce).toContain('.bind(productId,companyId,companyId,productId)');
+    expect(read('native-pos-core-statement.ts')).toContain('productId, company, company, productId');
     expect(startup).toContain('.bind(...Array.from({length:13},()=>companyId))');
   });
 
@@ -110,7 +112,7 @@ describe('POS read-tail r44 catalog aggregate head dedupe', () => {
     expect(read('native-pos-day-report.ts')).toContain("'pos_day_report_");
     expect(read('native-pos-stripe-reads.ts')).toContain("'pos_stripe_");
     expect(read('pos-stripe.ts')).toContain('SELECT * FROM pos_sales WHERE id=? AND company_id=? FOR UPDATE');
-    expect(read('owner_writes.rs')).toContain('assert_eq!(KINDS.len(), 200)');
+    expect(read('owner_writes.rs')).toContain('assert_eq!(KINDS.len(), 203)');
     expect(read('owner_writes.rs')).toContain('assert_eq!(crate::adapters::sale_child_reads::KINDS.len(), 13)');
     expect(read('addon-package-obligations.ts')).toContain('UNION SELECT s.package_id,s.company_id,');
   });
@@ -125,7 +127,7 @@ describe('POS read-tail r44 catalog aggregate head dedupe', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(154);
+    expect(total).toBe(147);
     expect(total).toBeLessThan(172);
   });
 });

@@ -185,7 +185,7 @@ describe('crm read-tail r40 byte-identical tail composition', () => {
   });
 
   test('retirement:ts-statements drops from the r39 AFTER=99 to 91 after r41 reuse', () => {
-    expect(totalSelects()).toBe(28);
+    expect(totalSelects()).toBe(23);
     expect(totalSelects()).toBeLessThan(95);
   });
 });

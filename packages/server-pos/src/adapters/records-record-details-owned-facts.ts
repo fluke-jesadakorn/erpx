@@ -1,4 +1,5 @@
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import "server-only";
-import {type Row} from '@erpx/server-commerce/public/commerce';
-export function RecordDetailsPosOwnedFacts(database: SqlDatabase) { return { readRecordSupplementDataSales(companyId: string, branchId: string | null, branchId2: string | null, source_id: string | number | null, source_id2: string | number | null, source_id3: string | number | null) { return database.prepare(`SELECT DISTINCT s.id FROM pos_sales s WHERE s.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND (s.id=? OR EXISTS(SELECT 1 FROM pos_lines l WHERE l.sale_id=s.id AND l.fulfillment_id=?) OR EXISTS(SELECT 1 FROM pos_refunds r WHERE r.sale_id=s.id AND r.id=?))`).bind(companyId, branchId, branchId2, source_id, source_id2, source_id3).all<Row>(); } }; }
+import { type Row } from '@erpx/server-commerce/public/commerce';
+import { nativePosRecordSupplementSalesStatement } from './native-pos-list-reads';
+export function RecordDetailsPosOwnedFacts(database: SqlDatabase) { return { readRecordSupplementDataSales(companyId: string, branchId: string | null, branchId2: string | null, source_id: string | number | null, source_id2: string | number | null, source_id3: string | number | null) { return nativePosRecordSupplementSalesStatement<Row>(database, { companyId, branchId, branchId2, sourceId: source_id, sourceId2: source_id2, sourceId3: source_id3 }); } }; }

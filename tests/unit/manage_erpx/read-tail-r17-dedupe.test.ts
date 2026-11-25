@@ -103,9 +103,9 @@ describe('manage_erpx beta AI-usage UNION head family (r17)', () => {
     }
   });
 
-  it('lowers the owner TS SELECT count from BEFORE=20 to 13', async () => {
+  it('lowers the owner TS SELECT count from BEFORE=20 to 11', async () => {
     const total = (await tsSources(srcDir)).join('\n').match(/SELECT /g)?.length ?? 0;
-    expect(total).toBe(13);
+    expect(total).toBe(11);
     expect(total).toBeLessThan(20);
   });
 });

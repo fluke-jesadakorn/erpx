@@ -2,6 +2,7 @@ pub mod evidence;
 pub mod planning;
 pub mod planning_command_http;
 pub mod planning_http;
+pub mod planning_read_tail_sources;
 pub mod read_source;
 pub mod resources;
 

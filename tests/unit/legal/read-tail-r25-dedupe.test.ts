@@ -130,6 +130,6 @@ describe('legal read-tail r25 parameterized family dedupe', () => {
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(103);
-    expect(total).toBe(52);
+    expect(total).toBe(38);
   });
 });

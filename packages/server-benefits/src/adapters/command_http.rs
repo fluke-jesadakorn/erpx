@@ -9,6 +9,7 @@ use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
     StatusCode, body::to_bytes, header, routing::post, serde_json,
 };
+use crate::adapters::native_owner_read_sql::read_statement;
 use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind};
 use std::collections::BTreeMap;
 use std::{future::Future, pin::Pin, sync::Arc};
@@ -185,9 +186,60 @@ pub fn benefits_command_http_router(
             "/api/v1/holdings/{holding_slug}/benefits",
             post(run_command),
         )
+        .route(
+            "/api/v1/holdings/{holding_slug}/benefits/command-plan",
+            post(plan_read),
+        )
         .with_state(Arc::new(BenefitsCommandHttpState {
             targets: configured,
         })))
+}
+
+/// Resolve one allow-listed read kind. Only the typed kind and its positional
+/// values cross the wire; the caller executes the planned statement on its own
+/// open unit.
+fn plan_read_body(body: &[u8]) -> Result<serde_json::Value, BusinessError> {
+    let value: serde_json::Value = serde_json::from_slice(body).map_err(|_| malformed())?;
+    let kind = value
+        .get("kind")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(malformed)?;
+    let values = value
+        .get("values")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(malformed)?;
+    if values.len() > 64 {
+        return Err(malformed());
+    }
+    let statement = read_statement(kind).ok_or_else(malformed)?;
+    if values.len() != statement.bind_count {
+        return Err(malformed());
+    }
+    Ok(serde_json::json!({
+        "statements": [{ "sql": statement.sql, "values": values }]
+    }))
+}
+
+async fn plan_read(
+    State(state): State<Arc<BenefitsCommandHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        if request.uri().query().is_some() {
+            return Err(malformed());
+        }
+        target(&state, request.headers(), &slug)?;
+        let body = to_bytes(request.into_body(), BODY_LIMIT)
+            .await
+            .map_err(|_| malformed())?;
+        plan_read_body(&body)
+    }
+    .await;
+    match result {
+        Ok(data) => bounded(serde_json::json!({ "data": data })),
+        Err(error) => error_response(error),
+    }
 }
 
 async fn run_command(
@@ -237,5 +289,46 @@ async fn run_command(
     match result {
         Ok(reply) => bounded(reply.value()),
         Err(error) => error_response(error),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::adapters::native_owner_read_sql::{
+        RD_ATTACHMENT_BENEFIT_DEPENDENTS, RD_ATTACHMENT_BENEFIT_ELECTIONS,
+    };
+
+    fn body(kind: &str, values: &[serde_json::Value]) -> Vec<u8> {
+        serde_json::to_vec(&serde_json::json!({ "kind": kind, "values": values })).unwrap()
+    }
+
+    #[test]
+    fn plans_the_registered_sensitive_fact_reads() {
+        for kind in [RD_ATTACHMENT_BENEFIT_DEPENDENTS, RD_ATTACHMENT_BENEFIT_ELECTIONS] {
+            let values = [
+                serde_json::json!("user-1"),
+                serde_json::json!("target-1"),
+                serde_json::json!("company-1"),
+            ];
+            let reply = plan_read_body(&body(kind, &values)).expect("allowed read plan");
+            let statements = reply["statements"].as_array().expect("one statement");
+            assert_eq!(statements.len(), 1);
+            let statement = &statements[0];
+            let registered = read_statement(kind).expect("registered kind");
+            assert_eq!(statement["sql"], registered.sql);
+            assert_eq!(statement["values"], serde_json::json!(values));
+        }
+    }
+
+    #[test]
+    fn rejects_unknown_kinds_and_wrong_bind_counts() {
+        assert!(plan_read_body(&body("benefits_rd_attachment_benefit_plans", &[])).is_err());
+        assert!(plan_read_body(&body(
+            RD_ATTACHMENT_BENEFIT_DEPENDENTS,
+            &[serde_json::json!("user-1")],
+        ))
+        .is_err());
+        assert!(plan_read_body(b"{not-json").is_err());
     }
 }

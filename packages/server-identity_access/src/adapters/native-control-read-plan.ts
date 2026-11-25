@@ -5,7 +5,7 @@ import { ApiError } from '@erpx/server-runtime/public/http';
 /**
  * Strict private transport for the identity_access Control read-plan port.
  *
- * The axum owner plans one of five provider-context statements; this bridge
+ * The axum owner plans one registered statement; this bridge
  * never emits SQL, accepts no SQL from a caller and has no fallback. The
  * caller executes the returned statement on its own already-open Control unit,
  * so its lease and snapshot semantics are preserved. Missing configuration,
@@ -28,6 +28,9 @@ export const PC_PREF_BINDING_SHARE = 'pc_pref_binding_share';
 export const PC_PREF_PARENT_BINDING_SHARE = 'pc_pref_parent_binding_share';
 export const PC_WORKFLOW_ACTIVE_CONTEXT = 'pc_workflow_active_context';
 export const PC_QUEUED_ASSIGNMENT_VERSION = 'pc_queued_assignment_version';
+export const PC_DIAGNOSIS_PLATFORM_ASSIGNMENTS = 'pc_diagnosis_platform_assignments';
+export const PC_DIAGNOSIS_MEMBER_PROBE = 'pc_diagnosis_member_probe';
+export const PC_DIAGNOSIS_ASSIGNMENTS = 'pc_diagnosis_assignments';
 
 export type ControlReadPlan = Readonly<{ sql: string; values: readonly (string | number)[] }>;
 type PlanReader = (kind: string, values: readonly (string | number)[]) => Promise<ControlReadPlan>;
@@ -54,6 +57,9 @@ const ARITY: Readonly<Record<string, number>> = {
   [PC_PREF_PARENT_BINDING_SHARE]: 1,
   [PC_WORKFLOW_ACTIVE_CONTEXT]: 2,
   [PC_QUEUED_ASSIGNMENT_VERSION]: 4,
+  [PC_DIAGNOSIS_PLATFORM_ASSIGNMENTS]: 1,
+  [PC_DIAGNOSIS_MEMBER_PROBE]: 1,
+  [PC_DIAGNOSIS_ASSIGNMENTS]: 1,
 };
 /** Byte-oracle SHA-256 of each owner statement: a plan with unexpected bytes is rejected. */
 const PLAN_SHAS: Readonly<Record<string, string>> = {
@@ -74,6 +80,9 @@ const PLAN_SHAS: Readonly<Record<string, string>> = {
   [PC_PREF_PARENT_BINDING_SHARE]: '242a5de65756ffa03457eca0a59a03466d074e34c95877f57022dce9b717cce9',
   [PC_WORKFLOW_ACTIVE_CONTEXT]: '98fb96e432fdd1d620164254660524abf2a902e5327498963620cea9d88b94b7',
   [PC_QUEUED_ASSIGNMENT_VERSION]: '3a336e6778cfae07ea33cc8d5d45430ab26fceb78271cd87a68e5fb885f78fc9',
+  [PC_DIAGNOSIS_PLATFORM_ASSIGNMENTS]: 'b7c983288f3c6cf06570336190a5b8a2d51623bcbfcaa1889eabae82aa124306',
+  [PC_DIAGNOSIS_MEMBER_PROBE]: 'de943279962f366dbf7a96ff64802a8adfcf31237d3e629acbb0daca3b22b813',
+  [PC_DIAGNOSIS_ASSIGNMENTS]: '9725070043e9c2c53adf3b00a903855ecb8ae3285087503d28b3fd9ff5e647b0',
 };
 
 const unavailable = (code = 'IDENTITY_CONTROL_READ_UNAVAILABLE', status = 503): never => {

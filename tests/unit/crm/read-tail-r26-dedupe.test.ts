@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
+import { crmSelectBodySql } from '../../../packages/server-crm/src/adapters/read-tail-r46-sql';
 import { crmCaseEventLeadReadSql, crmGuestLinkReservationSourceSql } from '../../../packages/server-crm/src/adapters/read-tail-r26-sql';
 
 const owner = resolve(__dirname, '../../../packages/server-crm/src');
@@ -79,7 +80,16 @@ describe('crm read-tail r26 byte-identical read families', () => {
     }
   });
 
-  test('retirement:ts-statements stays strictly below the r25 BEFORE=136 baseline', () => {
+  test('both source heads fold into the owner select-body plan', () => {
+    for (const [name, , expected] of [...guestLinkRetired, ...caseEventRetired]) {
+      expect(expected.startsWith('SELECT ')).toBe(true);
+      expect(expected).toBe(crmSelectBodySql(expected.slice('SELECT '.length)));
+      void name;
+    }
+  });
+
+  test('retirement:ts-statements folds both r26 heads (25 -> 23)', () => {
+    expect(totalSelects()).toBe(23);
     expect(totalSelects()).toBeLessThanOrEqual(132);
     expect(totalSelects()).toBeLessThan(136);
   });

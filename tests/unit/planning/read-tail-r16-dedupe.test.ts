@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { planningSourceRows, planningImageSourceRows } from '../../../packages/server-planning/src/adapters/planning-image-source-sql';
@@ -8,6 +9,8 @@ import { planningAttachmentScenarioSourceRows, planningAttachmentRecommendationS
 const srcRoot = resolve(__dirname, '../../../packages/server-planning/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const selectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;
+const contract = JSON.parse(src('planning-read-tail-sources.json')) as Record<string, string>;
+const sha = (text: string) => createHash('sha256').update(text).digest('hex');
 
 // Verbatim pre-dedupe SQL from the r15 BEFORE=25 source (byte-identity
 // oracles only, never live query sources). All three purchase witness rows and
@@ -81,9 +84,22 @@ describe('Planning read-tail r16 generalized source-row head', () => {
     expect(planningPurchaseSourceReadLocks({ prepare: (sql: string) => sql } as never)).toEqual(['LOCK TABLE planning_scenarios,planning_recommendations,planning_scenario_events,planning_resource_allocations,production_resources,production_resource_calendar IN SHARE MODE']);
   });
 
-  test('shared module declares the read literal exactly once and stays read-only', () => {
+  test('five retired sources keep their exact byte digests', () => {
+    expect([ORIG_SCENARIO, ORIG_RECOMMENDATION, ORIG_RESOURCE, ORIG_ATTACHMENT_SCENARIO, ORIG_ATTACHMENT_RECOMMENDATION].map(sha)).toEqual([
+      'b0700b7df65b8e7742a6a5be3530b6d32f78c6b2cb973fc8d33e5b983ffdecf4',
+      '9281d9b1670d870f003663f9c3cae380525bfde6da1cd23f3ec2dd99ceda1fc2',
+      'b5750ec8c4c8bc02f89ff95bda36b8e38fc63d378bbe80c0293cb4fc1d4005ca',
+      '58159a7f67f7f371eba17074cc4ba91b2d8a705c785043c0e4f45b105cd58a18',
+      '49a44654532553bc80b4a9e4a357072979687b38458fea81d9e5cddbad0481ea',
+    ]);
+  });
+
+  test('native read-tail contract owns the retired literal and stays read-only', () => {
     const shared = src('planning-image-source-sql.ts');
-    expect(selectCount(shared)).toBe(1);
+    expect(selectCount(shared)).toBe(0);
+    expect(shared).toContain("planning-read-tail-sources.json");
+    expect(shared).toContain('planningReadTailSources.sourceRows');
+    expect(contract.sourceRows).toBe('SELECT {columns}{lead}{fragment} {alias}{tail}{from}');
     expect(shared).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
     for (const sql of [generatedScenario, generatedRecommendation, generatedResource, generatedAttachmentScenario]) {
       expect(sql.toUpperCase()).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|PG_ADVISORY/i);
@@ -138,7 +154,7 @@ describe('Planning read-tail r16 generalized source-row head', () => {
     // r23 folded the resource-calendar point lookup into the single-line projection/FROM builder (16 -> 15).
     // r24 folded the scoped single-row family into that same builder (15 -> 14).
     // r25 folded the scoped branch-list family into the single-line projection/FROM builder (14 -> 13).
-    expect(total).toBe(8);
+    expect(total).toBe(5);
     expect(total).toBeLessThan(25);
   });
 });

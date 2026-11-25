@@ -54,14 +54,18 @@ describe('pms read-tail r38 projection-head dedupe', () => {
 
   it('routes the remaining call site through the shared head and retires the home count fragments', async () => {
     for (const oracle of ORIGINALS) {
+      // The operation-related call site moved to the native plan.
+      if (oracle.routed.includes('PMS_STAY_SOURCE_PROJECTION_SQL')) continue;
       expect(await src(oracle.file), oracle.routed).toContain(oracle.routed);
     }
+    expect(await src('adapters/pms/read-repository.ts')).toContain('PMS_RD_OPERATION_RELATED_RECORDS');
     const shared = await src(SHARED);
     expect(shared).not.toContain('PMS_HOME_ACTIVE_ROOM_COUNT_SQL');
     expect(shared).not.toContain('PMS_HOME_STAY_STATE_COUNT_SQL');
     expect(shared).not.toContain('pms-read-tail-r56-sql');
     const rr = await src('adapters/pms/read-repository.ts');
-    expect(rr.split('${PMS_STAY_SOURCE_PROJECTION_SQL}').length - 1).toBe(1); // one remaining related-record CTE after r48
+    expect(rr.split('${PMS_STAY_SOURCE_PROJECTION_SQL}').length - 1).toBe(0);
+    expect(rr).toContain('PMS_RD_OPERATION_RELATED_RECORDS'); // the related-record CTE moved to the native plan
     expect(rr).toContain('PMS_RD_SECTION_RELATED_RECORDS, [facts.propertyId, facts.seedsJson');
     expect(rr.split(SRC).length - 1).toBe(0);
     const rust = await src('adapters/native_read_sql.rs');
@@ -87,8 +91,8 @@ describe('pms read-tail r38 projection-head dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(202);
-    expect(bare).toBe(203);
+    expect(spaced).toBe(194);
+    expect(bare).toBe(195);
     expect(spaced).toBeLessThan(323);
   });
 });

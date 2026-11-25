@@ -26,9 +26,9 @@ const before = {
   renderedSqlSha: 'dda924bb91379e2136d1068f19d519c6cb532274c4f3e616470142badec53f36',
   templateSha: '45bf1315f7d847b5cf7d628ce3911e3e264f617e65e6e79d5007cfdbf5c97466',
   resultSha: 'e0f16b4e271e398789aa652bc1640442f4e466cf980830e0be4d3c95a4a17cd3',
-  // Current pins: records 11 (context read + row-projection head retired), customer_authority 14, combined 21.
-  combinedSelect: 21,
-  recordsSelect: 7,
+  // Current pins: records 6 (static projection head retired), customer_authority 14, combined 20.
+  combinedSelect: 20,
+  recordsSelect: 6,
   customerAuthoritySelect: 14,
 };
 
@@ -97,11 +97,11 @@ describe('wave 2 oracles and KPI pins', () => {
       return total;
     };
     expect(ownerCount('customer_authority')).toBe(14);
-    expect(ownerCount('records')).toBe(7);
-    expect(ownerCount('records') + ownerCount('customer_authority')).toBe(21);
+    expect(ownerCount('records')).toBe(6);
+    expect(ownerCount('records') + ownerCount('customer_authority')).toBe(20);
     expect(before.customerAuthoritySelect).toBe(14);
-    expect(before.recordsSelect).toBe(7);
-    expect(before.combinedSelect).toBe(21);
+    expect(before.recordsSelect).toBe(6);
+    expect(before.combinedSelect).toBe(20);
   });
 
   test('replaced adapter has no SQL and delegates to the native client', () => {

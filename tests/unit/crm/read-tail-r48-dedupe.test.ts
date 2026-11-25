@@ -90,7 +90,7 @@ describe('crm read-tail r48 byte-identical company-scope read head', () => {
   });
 
   test('retirement:ts-statements folds the company-scope head (34 -> 33)', () => {
-    expect(totalSelects()).toBe(28);
+    expect(totalSelects()).toBe(23);
     expect(totalSelects()).toBeLessThan(34);
   });
 });

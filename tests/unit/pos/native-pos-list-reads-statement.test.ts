@@ -7,6 +7,7 @@ import {
   nativePosConnectionsRowStatement,
   nativePosSettlementsListStatement,
   nativePosExceptionJobsListStatement,
+  nativePosRecordSupplementSalesStatement,
 } from '../../../packages/server-pos/src/adapters/native-pos-list-reads';
 
 const config = () => JSON.stringify({ privateBaseUrl: 'http://127.0.0.1:44997', timeoutMs: 1000 });
@@ -120,10 +121,39 @@ describe('native POS list-read bridge (round 31)', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  it('requests the POS-owned record-supplement sale ids from the owner registry', async () => {
+    process.env.ERPX_NATIVE_POS_OWNER_CONFIG = config();
+    const sql = 'SELECT DISTINCT s.id FROM pos_sales s WHERE s.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND (s.id=? OR EXISTS(SELECT 1 FROM pos_lines l WHERE l.sale_id=s.id AND l.fulfillment_id=?) OR EXISTS(SELECT 1 FROM pos_refunds r WHERE r.sale_id=s.id AND r.id=?))';
+    const values = ['co', 'br', 'br', 'sale', 'line', 'refund'];
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: { sql, values } }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      }),
+    );
+    vi.stubGlobal('fetch', fetch);
+    const seen: { sql?: string; values?: unknown[] } = {};
+    const result = await nativePosRecordSupplementSalesStatement(mockDb(seen) as never, {
+      companyId: 'co', branchId: 'br', branchId2: 'br',
+      sourceId: 'sale', sourceId2: 'line', sourceId3: 'refund',
+    });
+    expect(result.results).toEqual(rows);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const [url, init] = fetch.mock.calls[0] as [string, RequestInit & { body: string }];
+    expect(url).toBe('http://127.0.0.1:44997/api/v1/companies/co/pos/owner-write');
+    expect(JSON.parse(init.body)).toEqual({ company: 'co', kind: 'pos_list_record_supplement_sales', values });
+    expect(seen.sql).toBe(sql);
+    expect(seen.values).toEqual(values);
+    expect(seen.sql!.match(/\?/g)).toHaveLength(values.length);
+    expect(seen.sql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|pg_advisory|pms_sources|commerce_/);
+  });
+
   it('keeps no retired list-read SQL literal in the TS adapters', () => {
     const pos = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos.ts', import.meta.url), 'utf8');
     for (const item of cases) expect(pos).not.toContain(item.sql);
     expect(pos.match(/nativePos(SalesList|RefundsList|ConnectionsRow|SettlementsList|ExceptionJobsList)Statement\(db/g)).toHaveLength(5);
+    const records = readFileSync(new URL('../../../packages/server-pos/src/adapters/records-record-details-owned-facts.ts', import.meta.url), 'utf8');
+    expect(records).not.toContain('SELECT DISTINCT s.id FROM pos_sales');
+    expect(records).toContain('nativePosRecordSupplementSalesStatement<Row>(database');
   });
 
   it('keeps row locks, PMS fragments and day-report/Stripe registries inline', () => {

@@ -102,7 +102,7 @@ describe('Finance read-tail r44 retirement check', () => {
     // r44 collapsed 21 inline into five helpers (1884 -> 1868); r45 removes eight more (-> 1860); r46 removes nine more (-> 1851); r48 removes seven more (-> 1844); r49 removes 32 more (-> 1812); r50 removes seven more (-> 1805); r51 removes 22 (-> 1783); r52 removes 19 (-> 1764); r53 removes 10 (-> 1754); r54 routes 14 point reads into two helpers (-> 1742).
     // r55 folds 18 company count literals into two helpers (-18 literals, +2 declarations: 1742 -> 1726).
     // r56 folds 11 head literals into three helpers (-11 literals, +3 declarations: 1726 -> 1718).
-    expect(total).toBe(1578);
+    expect(total).toBe(1562);
     expect(total).toBeLessThanOrEqual(1718);
     expect(total).toBeLessThan(1884);
   });

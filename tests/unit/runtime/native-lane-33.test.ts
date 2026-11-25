@@ -122,8 +122,9 @@ describe("native lane 33 runtime holding-binding read contract", () => {
       }
     };
     walk(root);
-    // Before this slice the owner had 27 `SELECT ` literals; the retired
-    // `HOLDING_BINDINGS_SELECT` constant accounted for one of them.
-    expect(total).toBe(13);
+    // The seven read-tail builders and both report guards now render from the
+    // native `read-tail-sources.json` contract; only the cross-owner dynamic
+    // metric-source builder retains statement text.
+    expect(total).toBe(4);
   });
 });

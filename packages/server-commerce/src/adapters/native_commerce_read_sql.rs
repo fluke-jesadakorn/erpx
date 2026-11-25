@@ -729,6 +729,82 @@ const READ_POLICY_PRODUCT: NativeCommerceReadStatement = NativeCommerceReadState
     bind_count: 2,
 };
 
+/// Native successor of the Commerce posting-prerequisite state witness. The
+/// caller binds `[company_id]` five times, once per owner-local predicate.
+pub const RD_POSTING_PREREQUISITE_STATE: &str = "commerce_rd_posting_prerequisite_state";
+const SQL_POSTING_PREREQUISITE_STATE: &str =
+    "SELECT EXISTS(SELECT 1 FROM commerce_settings WHERE company_id=?) configured, EXISTS(SELECT 1 FROM commerce_orders WHERE company_id=?) OR EXISTS(SELECT 1 FROM commerce_stock_moves m JOIN commerce_warehouses w ON w.id=m.warehouse_id WHERE w.company_id=?) OR EXISTS(SELECT 1 FROM commerce_stock s JOIN commerce_warehouses w ON w.id=s.warehouse_id WHERE w.company_id=? AND (s.quantity_milli<>0 OR s.value_minor<>0)) OR EXISTS(SELECT 1 FROM commerce_goods_valuations WHERE company_id=?) history";
+const READ_POSTING_PREREQUISITE_STATE: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_POSTING_PREREQUISITE_STATE,
+    sql: SQL_POSTING_PREREQUISITE_STATE,
+    bind_count: 5,
+};
+
+/// Native successor of the inventory-attachment warehouse image read. The
+/// caller binds `[company_id, warehouse_ids_json]`.
+pub const RD_INVENTORY_ATTACHMENT_WAREHOUSES: &str = "commerce_rd_inventory_attachment_warehouses";
+const SQL_INVENTORY_ATTACHMENT_WAREHOUSES: &str =
+    "SELECT jsonb_agg(to_jsonb(w) ORDER BY w.id)::text image FROM commerce_warehouses w WHERE w.company_id=? AND w.id IN(SELECT jsonb_array_elements_text(?::jsonb))";
+const READ_INVENTORY_ATTACHMENT_WAREHOUSES: NativeCommerceReadStatement =
+    NativeCommerceReadStatement {
+        kind: RD_INVENTORY_ATTACHMENT_WAREHOUSES,
+        sql: SQL_INVENTORY_ATTACHMENT_WAREHOUSES,
+        bind_count: 2,
+    };
+
+/// Native successor of the inventory-attachment product image read.
+pub const RD_INVENTORY_ATTACHMENT_PRODUCTS: &str = "commerce_rd_inventory_attachment_products";
+const SQL_INVENTORY_ATTACHMENT_PRODUCTS: &str =
+    "SELECT jsonb_agg(to_jsonb(p) ORDER BY p.id)::text image FROM commerce_products p WHERE p.company_id=? AND p.id IN(SELECT jsonb_array_elements_text(?::jsonb))";
+const READ_INVENTORY_ATTACHMENT_PRODUCTS: NativeCommerceReadStatement =
+    NativeCommerceReadStatement {
+        kind: RD_INVENTORY_ATTACHMENT_PRODUCTS,
+        sql: SQL_INVENTORY_ATTACHMENT_PRODUCTS,
+        bind_count: 2,
+    };
+
+/// Native successor of the inventory-attachment stock image read.
+pub const RD_INVENTORY_ATTACHMENT_STOCK: &str = "commerce_rd_inventory_attachment_stock";
+const SQL_INVENTORY_ATTACHMENT_STOCK: &str =
+    "SELECT jsonb_agg(to_jsonb(s) ORDER BY s.warehouse_id,s.product_id)::text image FROM commerce_stock s JOIN commerce_warehouses w ON w.id=s.warehouse_id AND w.company_id=? JOIN commerce_products p ON p.id=s.product_id AND p.company_id=w.company_id WHERE w.id IN(SELECT jsonb_array_elements_text(?::jsonb)) AND p.id IN(SELECT jsonb_array_elements_text(?::jsonb))";
+const READ_INVENTORY_ATTACHMENT_STOCK: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_INVENTORY_ATTACHMENT_STOCK,
+    sql: SQL_INVENTORY_ATTACHMENT_STOCK,
+    bind_count: 3,
+};
+
+/// Native successor of the inventory-attachment purchase receipt image read.
+pub const RD_INVENTORY_ATTACHMENT_RECEIPT: &str = "commerce_rd_inventory_attachment_receipt";
+const SQL_INVENTORY_ATTACHMENT_RECEIPT: &str =
+    "SELECT jsonb_build_object('receipt',to_jsonb(f),'order',to_jsonb(o),'warehouse',to_jsonb(w),'lines',(SELECT jsonb_agg(jsonb_build_object('line',to_jsonb(fl),'orderLine',to_jsonb(ol),'product',to_jsonb(product)) ORDER BY fl.id) FROM commerce_fulfillment_lines fl LEFT JOIN commerce_order_lines ol ON ol.id=fl.order_line_id AND ol.order_id=o.id LEFT JOIN commerce_products product ON product.id=ol.product_id AND product.company_id=o.company_id WHERE fl.fulfillment_id=f.id))::text image,f.journal_id FROM commerce_fulfillments f JOIN commerce_orders o ON o.id=f.order_id AND o.company_id=? AND o.kind='purchase' LEFT JOIN commerce_warehouses w ON w.id=o.warehouse_id AND w.company_id=o.company_id WHERE f.id=?";
+const READ_INVENTORY_ATTACHMENT_RECEIPT: NativeCommerceReadStatement =
+    NativeCommerceReadStatement {
+        kind: RD_INVENTORY_ATTACHMENT_RECEIPT,
+        sql: SQL_INVENTORY_ATTACHMENT_RECEIPT,
+        bind_count: 2,
+    };
+
+/// Native successor of the workspace-record Commerce order existence probe.
+/// The caller binds `[order_id]`; the workspace/module authority is resolved
+/// by the caller before this owner read runs.
+pub const RD_WORKSPACE_ORDER_EXISTS: &str = "commerce_rd_workspace_order_exists";
+const SQL_WORKSPACE_ORDER_EXISTS: &str = "SELECT 1 FROM commerce_orders WHERE id=?";
+const READ_WORKSPACE_ORDER_EXISTS: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_WORKSPACE_ORDER_EXISTS,
+    sql: SQL_WORKSPACE_ORDER_EXISTS,
+    bind_count: 1,
+};
+
+/// Native successor of the order-read source-id lookup. The caller binds
+/// `[source_id]`.
+pub const RD_ORDER_BY_SOURCE_ID: &str = "commerce_rd_order_by_source_id";
+const SQL_ORDER_BY_SOURCE_ID: &str = "SELECT id,number FROM commerce_orders WHERE source_id=?";
+const READ_ORDER_BY_SOURCE_ID: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_ORDER_BY_SOURCE_ID,
+    sql: SQL_ORDER_BY_SOURCE_ID,
+    bind_count: 1,
+};
+
 const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_PMS_WAREHOUSE_ACTIVE,
     READ_PMS_SETTINGS_EXISTS,
@@ -786,6 +862,13 @@ const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_POLICY_PURCHASE_RECEIPT,
     READ_POLICY_FULFILLMENT,
     READ_POLICY_PRODUCT,
+    READ_POSTING_PREREQUISITE_STATE,
+    READ_INVENTORY_ATTACHMENT_WAREHOUSES,
+    READ_INVENTORY_ATTACHMENT_PRODUCTS,
+    READ_INVENTORY_ATTACHMENT_STOCK,
+    READ_INVENTORY_ATTACHMENT_RECEIPT,
+    READ_WORKSPACE_ORDER_EXISTS,
+    READ_ORDER_BY_SOURCE_ID,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -940,6 +1023,33 @@ mod tests {
             (RD_POLICY_PURCHASE_RECEIPT, SQL_POLICY_PURCHASE_RECEIPT, 2usize),
             (RD_POLICY_FULFILLMENT, SQL_POLICY_FULFILLMENT, 2usize),
             (RD_POLICY_PRODUCT, SQL_POLICY_PRODUCT, 2usize),
+            (
+                RD_POSTING_PREREQUISITE_STATE,
+                SQL_POSTING_PREREQUISITE_STATE,
+                5usize,
+            ),
+            (
+                RD_INVENTORY_ATTACHMENT_WAREHOUSES,
+                SQL_INVENTORY_ATTACHMENT_WAREHOUSES,
+                2usize,
+            ),
+            (
+                RD_INVENTORY_ATTACHMENT_PRODUCTS,
+                SQL_INVENTORY_ATTACHMENT_PRODUCTS,
+                2usize,
+            ),
+            (
+                RD_INVENTORY_ATTACHMENT_STOCK,
+                SQL_INVENTORY_ATTACHMENT_STOCK,
+                3usize,
+            ),
+            (
+                RD_INVENTORY_ATTACHMENT_RECEIPT,
+                SQL_INVENTORY_ATTACHMENT_RECEIPT,
+                2usize,
+            ),
+            (RD_WORKSPACE_ORDER_EXISTS, SQL_WORKSPACE_ORDER_EXISTS, 1usize),
+            (RD_ORDER_BY_SOURCE_ID, SQL_ORDER_BY_SOURCE_ID, 1usize),
         ];
         for (kind, sql, bind_count) in expected {
             let statement = read_statement(kind).expect("registered owner read kind");
@@ -964,7 +1074,68 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), bind_count);
         }
-        assert_eq!(STATEMENTS.len(), 56);
+        assert_eq!(STATEMENTS.len(), 63);
+    }
+
+    /// The order source-id lookup keeps its exact projection and single bind.
+    #[test]
+    fn order_by_source_id_keeps_its_exact_literal() {
+        let plan = read_statement(RD_ORDER_BY_SOURCE_ID).expect("source-id lookup");
+        assert_eq!(plan.sql, "SELECT id,number FROM commerce_orders WHERE source_id=?");
+        assert_eq!(plan.bind_count, 1);
+        assert_eq!(plan.sql.matches('?').count(), 1);
+        assert!(!plan.sql.contains(';'));
+    }
+
+    /// The workspace order-existence probe keeps its exact single-bind text.
+    #[test]
+    fn workspace_order_exists_keeps_its_exact_literal() {
+        let plan = read_statement(RD_WORKSPACE_ORDER_EXISTS).expect("workspace order probe");
+        assert_eq!(plan.sql, "SELECT 1 FROM commerce_orders WHERE id=?");
+        assert_eq!(plan.bind_count, 1);
+        assert_eq!(plan.sql.matches('?').count(), 1);
+        assert!(!plan.sql.contains(';'));
+    }
+
+    /// Inventory attachment images keep their exact JSON projections and
+    /// ordered company/id-list bind positions.
+    #[test]
+    fn inventory_attachment_images_keep_their_exact_literals() {
+        for (kind, sql, binds) in [
+            (RD_INVENTORY_ATTACHMENT_WAREHOUSES, SQL_INVENTORY_ATTACHMENT_WAREHOUSES, 2),
+            (RD_INVENTORY_ATTACHMENT_PRODUCTS, SQL_INVENTORY_ATTACHMENT_PRODUCTS, 2),
+            (RD_INVENTORY_ATTACHMENT_STOCK, SQL_INVENTORY_ATTACHMENT_STOCK, 3),
+            (RD_INVENTORY_ATTACHMENT_RECEIPT, SQL_INVENTORY_ATTACHMENT_RECEIPT, 2),
+        ] {
+            let plan = read_statement(kind).expect("inventory attachment image");
+            assert_eq!(plan.sql, sql, "{kind}");
+            assert_eq!(plan.bind_count, binds, "{kind}");
+            assert_eq!(sql.matches('?').count(), binds, "{kind}");
+            assert!(sql.starts_with("SELECT jsonb_"), "{kind}");
+            assert!(!sql.contains(';'), "{kind}");
+        }
+    }
+
+    /// Posting-prerequisite state keeps all five owner-local predicates and
+    /// their repeated company bind positions byte-for-byte.
+    #[test]
+    fn posting_prerequisite_state_keeps_its_exact_literal() {
+        let plan = read_statement(RD_POSTING_PREREQUISITE_STATE).expect("posting state");
+        assert_eq!(plan.sql, SQL_POSTING_PREREQUISITE_STATE);
+        assert_eq!(plan.bind_count, 5);
+        assert_eq!(plan.sql.matches('?').count(), 5);
+        for table in [
+            "commerce_settings",
+            "commerce_orders",
+            "commerce_stock_moves",
+            "commerce_stock s",
+            "commerce_goods_valuations",
+        ] {
+            assert!(plan.sql.contains(table), "{table}");
+        }
+        assert!(plan.sql.contains(" configured,"));
+        assert!(plan.sql.ends_with(" history"));
+        assert!(!plan.sql.contains(';'));
     }
 
     /// Attachment policy descriptors keep exact aliases, NULL projections

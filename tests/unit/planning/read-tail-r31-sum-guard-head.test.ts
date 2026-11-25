@@ -48,7 +48,7 @@ describe('Planning r31 allocated-minutes sum head retirement', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(8);
+    expect(total).toBe(5);
     expect(total).toBeLessThan(9);
   });
 });

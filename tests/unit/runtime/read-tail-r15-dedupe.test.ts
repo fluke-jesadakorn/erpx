@@ -6,6 +6,8 @@ import { executiveReportSharesSql, executiveReportsSql, holdingBindingsSql } fro
 const srcRoot = resolve(__dirname, '../../../packages/server-runtime/src');
 const adapterDir = resolve(srcRoot, 'adapters');
 const src = (name: string) => readFileSync(resolve(adapterDir, name), 'utf8');
+const tails = () =>
+  JSON.parse(readFileSync(resolve(adapterDir, 'read-tail-sources.json'), 'utf8')) as Record<string, string>;
 const selectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;
 const readOnly = (sql: string) => {
   expect(sql).toContain('SELECT ');
@@ -73,8 +75,12 @@ describe('Runtime read-tail r15 report guards/share jsonb and holding bindings r
 
   test('control-plane lock / guard and migration SQL is untouched', () => {
     const reports = src('executive/reports.ts');
-    expect(reports).toContain('const REPORT_LOCK_SQL = "SELECT id FROM executive_reports WHERE id=? FOR UPDATE"');
-    expect(reports).toContain('const REPORT_VERSION_GUARD_SQL = "EXISTS(SELECT 1 FROM executive_reports WHERE id=? AND owner_id=? AND version=?)"');
+    expect(reports).not.toContain('SELECT id FROM executive_reports WHERE id=? FOR UPDATE');
+    expect(reports).not.toContain('EXISTS(SELECT 1 FROM executive_reports WHERE id=? AND owner_id=? AND version=?)');
+    expect(reports).toContain('reportLockSql');
+    expect(reports).toContain('reportVersionGuardSql');
+    expect(tails().reportLock).toBe('SELECT id FROM executive_reports WHERE id=? FOR UPDATE');
+    expect(tails().reportVersionGuard).toBe('EXISTS(SELECT 1 FROM executive_reports WHERE id=? AND owner_id=? AND version=?)');
     const migrations = src('runtime/migrations.ts');
     const postgres = src('runtime/postgres.ts');
     expect(migrations).toContain('planRuntimeControlPlane(RD_MIGRATION_LOCK)');
@@ -86,17 +92,20 @@ describe('Runtime read-tail r15 report guards/share jsonb and holding bindings r
   });
 
   test('r1-r14 helpers are not re-deduped', () => {
-    const shared = src('read-tail-sql.ts');
-    expect(shared.split('`SELECT ${columns} FROM holding_bindings${suffix}`')).toHaveLength(2);
-    expect(shared.split('`SELECT ${columns} FROM executive_generation_jobs${suffix}`')).toHaveLength(2);
-    expect(shared.split('`SELECT ${columns} FROM runtime_health${suffix}`')).toHaveLength(2);
-    expect(shared.split('`SELECT ${columns} FROM executive_external_tokens${suffix}`')).toHaveLength(2);
-    expect(shared.split('`SELECT ${columns} FROM executive_report_shares${suffix}`')).toHaveLength(2);
-    expect(shared.split('`SELECT ${columns} FROM executive_report_revisions WHERE report_id=?${suffix}`')).toHaveLength(2);
-    expect(shared.split('`SELECT ${columns} FROM executive_reports${suffix}`')).toHaveLength(2);
+    expect(Object.keys(tails()).sort()).toEqual([
+      'executiveExternalTokens',
+      'executiveGenerationJobs',
+      'executiveReportRevisions',
+      'executiveReportShares',
+      'executiveReports',
+      'holdingBindings',
+      'reportLock',
+      'reportVersionGuard',
+      'runtimeHealth',
+    ]);
   });
 
-  test('retirement:ts-statements records BEFORE=36 strictly lower to 27', () => {
+  test('retirement:ts-statements records BEFORE=36 strictly lower to 4', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -106,7 +115,7 @@ describe('Runtime read-tail r15 report guards/share jsonb and holding bindings r
       }
     };
     walk(srcRoot);
-    expect(total).toBe(13);
+    expect(total).toBe(4);
     expect(total).toBeLessThan(36);
   });
 });

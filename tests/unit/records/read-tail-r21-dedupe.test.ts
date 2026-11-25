@@ -106,7 +106,7 @@ describe('Records read-tail r21 retirement check', () => {
     // child-row generator with an order frame (23 -> 22); r30 folds the version
     // fence, employee_requests head and request_ai head (22 -> 19). No other
     // family, lock or native seam changed.
-    expect(total).toBe(7);
+    expect(total).toBe(6);
     expect(total).toBeLessThan(30);
   });
 });

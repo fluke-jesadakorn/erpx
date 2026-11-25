@@ -74,7 +74,7 @@ describe('Learning read-tail r14 invariants', () => {
     ]) {
       expect(shared.match(new RegExp(`export const ${name} ?=`, 'g')) ?? []).toHaveLength(1);
     }
-    const native = shared.match(/export const learningNativeSources=`([\s\S]*?)`;/)?.[1];
+    const native = (JSON.parse(src('learning-native-sources.json')) as {nativeSources: string}).nativeSources;
     expect(native).toBeDefined();
     expect((native!.match(/SELECT /g) ?? []).length).toBe(7);
     expect((native!.match(/UNION ALL SELECT /g) ?? []).length).toBe(6);

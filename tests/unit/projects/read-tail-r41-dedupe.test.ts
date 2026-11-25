@@ -96,7 +96,7 @@ describe('Projects read-tail r41 closed clock head family', () => {
     // helper, one inline in the collaboration audience CTE) delegate to one
     // closed universal head: 74-2+1 = 73. Cross-owner final-root projections,
     // locks and native SQL keep their own literals and are not folded.
-    expect(total).toBe(62); // r45 bare-projection head family folded into read-tail-r45 (65->62)
+    expect(total).toBe(57); // r46 evaluation reads moved to the native contract (62->57)
     expect(total).toBeLessThan(74);
   });
 });

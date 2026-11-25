@@ -70,7 +70,7 @@ const SCOPED_HELPER_SHA256 = 'adff1bbe57ae0038ac67e0fef8cd0bfcf3d43fd00f256828c0
 const NATIVE_COMMAND_SHA256 = '51cda9ad07a4ecbdd6c098f1b2e859a947b8309cea74dfec26fe975b842b25a7';
 const FINANCE_RECORD_SHA256 = '1940f9f739ebdd8d82cd3b1d9c7efff88a227a5aeef132d79680ffaa1f1d331b';
 const COMMAND_CALLER_SHA256 = '3bbca63d700786746c0fa5c038c5e09d84c4e96b0416d8c86a17e039724024cf';
-const OBLIGATIONS_CALLER_SHA256 = '6c9c061a3925be32af4efe6bd1dd8b63806eadbfee171cb10278f4050943f173';
+const OBLIGATIONS_CALLER_SHA256 = '4dfaa4aace1489173320dbb81787971bc780c7dcaad99cb7a730993599b79163';
 
 async function tsFiles(directory: URL): Promise<URL[]> {
   const found: URL[] = [];
@@ -154,7 +154,7 @@ describe('manufacturing read-tail r37 projection-from-source head-family fold', 
     for (const file of await tsFiles(new URL('../../../packages/server-manufacturing/src/', import.meta.url))) {
       total += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     }
-    expect(total).toBe(45);
+    expect(total).toBe(42); // package-obligation owner-table heads 45->42.
     expect(total).toBeLessThan(49);
   });
 });

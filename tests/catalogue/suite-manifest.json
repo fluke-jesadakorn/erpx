@@ -169964,6 +169964,296 @@
       },
       "apps": [],
       "packages": []
+    },
+    {
+      "id": "collaboration.native-messaging-attachment-projection.unit",
+      "lane": "unit",
+      "owner": "collaboration",
+      "modules": [
+        "collaboration",
+        "support",
+        "identity_access",
+        "operations"
+      ],
+      "files": [
+        "tests/unit/collaboration/native-messaging-attachment-projection.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "files.settlement-native-head.unit",
+      "lane": "unit",
+      "owner": "files",
+      "modules": [
+        "learning"
+      ],
+      "files": [
+        "tests/unit/files/settlement-native-head.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "files.witness-native-head.unit",
+      "lane": "unit",
+      "owner": "files",
+      "modules": [
+        "learning"
+      ],
+      "files": [
+        "tests/unit/files/witness-native-head.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "sales.native-sql-fragments.unit",
+      "lane": "unit",
+      "owner": "sales",
+      "modules": [
+        "sales",
+        "inventory",
+        "finance"
+      ],
+      "files": [
+        "tests/unit/sales/native-sql-fragments.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "collaboration.native-messaging-attachment-purchase.unit",
+      "lane": "unit",
+      "owner": "collaboration",
+      "modules": [
+        "collaboration",
+        "support",
+        "identity_access",
+        "operations"
+      ],
+      "files": [
+        "tests/unit/collaboration/native-messaging-attachment-purchase.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "collaboration.native-work-obligation-facts.unit",
+      "lane": "unit",
+      "owner": "collaboration",
+      "modules": [
+        "collaboration",
+        "support",
+        "identity_access",
+        "operations"
+      ],
+      "files": [
+        "tests/unit/collaboration/native-work-obligation-facts.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "files.events-sets-native-head.unit",
+      "lane": "unit",
+      "owner": "files",
+      "modules": [
+        "learning"
+      ],
+      "files": [
+        "tests/unit/files/events-sets-native-head.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "files.field-owner-native-head.unit",
+      "lane": "unit",
+      "owner": "files",
+      "modules": [
+        "learning"
+      ],
+      "files": [
+        "tests/unit/files/field-owner-native-head.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "identity_access.read-tail-r43-dedupe.unit",
+      "lane": "unit",
+      "owner": "identity_access",
+      "modules": [
+        "identity_access"
+      ],
+      "files": [
+        "tests/unit/identity_access/read-tail-r43-dedupe.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "platform_administration.read-tail-r22-source-family.unit",
+      "lane": "unit",
+      "owner": "platform_administration",
+      "modules": [
+        "platform_administration",
+        "identity_access",
+        "organization",
+        "operations"
+      ],
+      "files": [
+        "tests/unit/platform_administration/read-tail-r22-source-family.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "records.static-projection-head-cutover.unit",
+      "lane": "unit",
+      "owner": "records",
+      "modules": [
+        "agent"
+      ],
+      "files": [
+        "tests/unit/records/static-projection-head-cutover.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "talent.read-tail-r44-dedupe.unit",
+      "lane": "unit",
+      "owner": "talent",
+      "modules": [
+        "talent"
+      ],
+      "files": [
+        "tests/unit/talent/read-tail-r44-dedupe.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
     }
   ]
 }

@@ -87,7 +87,7 @@ describe('Platform Administration r19 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(18);
+    expect(total).toBe(10);
     expect(total).toBeLessThan(26);
   });
 });

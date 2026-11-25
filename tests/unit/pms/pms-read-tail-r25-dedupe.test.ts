@@ -39,7 +39,8 @@ describe('pms read-tail r25 byte-identical scoped member predicate dedupe', () =
     expect(pms.split('PMS_GUEST_ACCOUNT_ID_MEMBER_SQL').length - 1).toBe(0); // r28 native port removed all uses and the import
     expect(pms.split('PMS_GUEST_ACCOUNT_CASHIER_MEMBER_SQL').length - 1).toBe(0); // r28 native port removed all uses and the import
     expect(pms.split('PMS_RESERVATION_ID_MEMBER_SQL').length - 1).toBe(0); // r28 native port removed all uses and the import
-    expect(repo.split('PMS_GUEST_STAYS_CHOSEN_MEMBER_SQL').length - 1).toBe(2); // import + 1 use after r48
+    expect(repo.split('PMS_GUEST_STAYS_CHOSEN_MEMBER_SQL').length - 1).toBe(0)
+    expect(repo).toContain('PMS_RD_OPERATION_RELATED_RECORDS'); // import + 1 use after r48
     for (const { sql } of FRAGMENTS) {
       expect(pms).not.toContain(sql);
       expect(repo).not.toContain(sql);
@@ -70,7 +71,7 @@ describe('pms read-tail r25 byte-identical scoped member predicate dedupe', () =
   it('lowers the pms owner SELECT KPI strictly below the r24 after=420 baseline', async () => {
     let count = 0;
     for (const file of await tsFiles(dir)) count += (await readFile(file, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(202);
+    expect(count).toBe(194);
     expect(count).toBeLessThan(420);
   });
 });

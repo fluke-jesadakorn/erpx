@@ -3,6 +3,7 @@ import { nativePosCashMovementsStatement, nativePosConnectionsStatement, nativeP
 import { nativePosSaleLinesStatement, nativePosSalePaymentsStatement } from './native-pos-sale-child';
 import { nativePosRegistersStatement, nativePosRegistersFrontStatement, nativePosSaleStatement, nativePosSettingsStatement } from './native-pos-registers-statement';
 import { nativePosConnectionsRowStatement, nativePosExceptionJobsListStatement, nativePosRefundsListStatement, nativePosSalesListStatement, nativePosSettlementsListStatement } from './native-pos-list-reads';
+import { nativePosPaymentMixStatement } from './native-pos-day-report';
 import { nativePosEvidenceDetail } from './native-lane-25/detail-client';
 import { nativePosDayCloses } from './native-lane-25/day-closes-client';
 import { roomChargeReversalWork } from "@erpx/server-pos/adapters/room-charge-reversal-queue";
@@ -142,10 +143,7 @@ function unit(db: SqlDatabase, actor: WorkContext): PosReadUnit<SqlStatement> {
             company: string;
             branch: string | null;
             branch2: string | null;
-        }) => all(db, `SELECT s.business_date,s.register_id,s.shift_id,s.currency,p.method,SUM(p.amount_minor) received_minor,
- SUM(COALESCE((SELECT SUM(rp.amount_minor) FROM pos_refund_payments rp WHERE rp.payment_id=p.id AND rp.state='succeeded'),0)) refunded_minor
- FROM pos_payments p JOIN pos_sales s ON s.id=p.sale_id WHERE p.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND p.state='succeeded'
- GROUP BY s.business_date,s.register_id,s.shift_id,s.currency,p.method ORDER BY s.business_date DESC LIMIT 300`, facts.company, facts.branch, facts.branch2),
+        }) => nativePosPaymentMixStatement(db, facts),
         readPosSaleDocuments1: (facts: {
             id: string | number | boolean | null;
             company: string;

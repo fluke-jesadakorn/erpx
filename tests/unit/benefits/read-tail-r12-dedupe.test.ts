@@ -1,16 +1,12 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import {
-  benefitDependentParticipants,
-  benefitElectionParticipants,
-} from '@erpx/server-people_payroll/public/benefits-owner-facts';
 import { benefitPackageSettlementSources, materializedScopeCte } from '../../../packages/server-benefits/src/adapters/package-obligations';
-import { sensitiveFactSelect } from '../../../packages/server-benefits/src/adapters/attachments-sensitive-facts';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-benefits/src');
 const adapterDir = resolve(srcRoot, 'adapters');
 const src = (name: string) => readFileSync(resolve(adapterDir, name), 'utf8');
+const registry = () => readFileSync(resolve(adapterDir, 'native_owner_read_sql.rs'), 'utf8');
 
 // Pre-dedupe literal, copied from HEAD, used only as the byte-identity oracle.
 function terminal(table: string, id: string, kind: string) {
@@ -55,26 +51,33 @@ describe('Benefits read-tail r12 sensitive-fact pair', () => {
     const dependents = `SELECT d.company_id,d.version,d.status,e.branch_id,e.department_id,
         CASE WHEN iam_same_person(p.user_id,?,d.company_id) THEN 1 ELSE 0 END is_owner
       FROM benefit_dependents d
-      ${benefitDependentParticipants()}
+      JOIN hr_people p ON p.id=d.person_id AND p.company_id=d.company_id LEFT JOIN LATERAL (SELECT x.branch_id,x.department_id FROM hr_engagements x WHERE x.person_id=p.id AND x.company_id=p.company_id ORDER BY CASE WHEN x.status='active' THEN 0 ELSE 1 END,x.start_date DESC,x.id LIMIT 1) e ON true
       WHERE d.id=? AND d.company_id=?`;
     const elections = `SELECT x.company_id,x.version,x.status,e.branch_id,e.department_id,
         CASE WHEN iam_same_person(p.user_id,?,x.company_id) THEN 1 ELSE 0 END is_owner
       FROM benefit_elections x
-      ${benefitElectionParticipants()}
+      JOIN hr_people p ON p.id=x.person_id AND p.company_id=x.company_id JOIN hr_engagements e ON e.id=x.engagement_id AND e.company_id=x.company_id
       WHERE x.id=? AND x.company_id=?`;
-    expect(sensitiveFactSelect('d', 'benefit_dependents', benefitDependentParticipants)).toBe(dependents);
-    expect(sensitiveFactSelect('x', 'benefit_elections', benefitElectionParticipants)).toBe(elections);
+    const plans = registry();
+    expect(plans).toContain(dependents);
+    expect(plans).toContain(elections);
+    expect(plans).toContain('benefits_rd_attachment_benefit_dependents');
+    expect(plans).toContain('benefits_rd_attachment_benefit_elections');
     readOnly(dependents);
     readOnly(elections);
   });
 
-  test('the sensitive-fact generator is one owner literal with two callers and no inlining', () => {
+  test('the adapter delegates both reads to the native registry with no inline SQL', () => {
     const text = src('attachments-sensitive-facts.ts');
-    expect(text.match(/export const sensitiveFactSelect=/g) ?? []).toHaveLength(1);
-    expect(text.match(/sensitiveFactSelect\('/g) ?? []).toHaveLength(2);
+    expect(text).not.toContain('sensitiveFactSelect');
     expect(text).not.toMatch(/SELECT (d|x)\.company_id,(d|x)\.version/);
-    const family = text.slice(text.indexOf('export const sensitiveFactSelect='));
-    expect(family).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
+    expect(text).not.toContain('benefitDependentParticipants');
+    expect(text).not.toContain('benefitElectionParticipants');
+    expect(text.match(/nativeBenefitReadFirst<SensitiveFact>/g) ?? []).toHaveLength(2);
+    expect(text.match(/\[facts\.userId,facts\.targetId,facts\.companyId\]/g) ?? []).toHaveLength(2);
+    expect(text).toContain('RD_ATTACHMENT_BENEFIT_DEPENDENTS');
+    expect(text).toContain('RD_ATTACHMENT_BENEFIT_ELECTIONS');
+    expect(text).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
   });
 });
 

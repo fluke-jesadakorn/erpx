@@ -6,16 +6,22 @@ vi.mock('server-only', () => ({}));
 import { manufacturingAccountingProfileSelect } from '../../../packages/server-manufacturing/src/adapters/manufacturing-read-tail-r19-sql';
 import { manufacturingStockFootprintSelect } from '../../../packages/server-manufacturing/src/adapters/manufacturing-read-tail-r23-sql';
 import { manufacturingOwnerTableSelect } from '../../../packages/server-manufacturing/src/adapters/manufacturing-read-tail-r36-sql';
+import {
+  manufacturingCostAllocationProbe,
+  manufacturingPackageSettlementSources,
+} from '../../../packages/server-manufacturing/src/adapters/package-obligations';
+import { manufacturingPurchaseOrderRows } from '../../../packages/server-manufacturing/src/adapters/purchases';
 
 const adapter = (name: string) => new URL(`../../../packages/server-manufacturing/src/adapters/${name}`, import.meta.url);
 const publicSrc = (name: string) => new URL(`../../../packages/server-manufacturing/src/public/${name}`, import.meta.url);
 const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
 
 /** Byte oracles captured from the pre-fold HEAD renderings of the accounting-
- * profile and stock-footprint helper families. Both opened the same byte-
- * identical projection head up to `FROM manufacturing_`, differing only in the
- * trailing owner-table/alias/join/predicate text; the r36 emitter renders each
- * one verbatim on the caller's own prepared statement. The SHA-256 values are
+ * profile, stock-footprint and package-settlement source-head families. All of
+ * them opened the same byte-identical projection head up to
+ * `FROM manufacturing_`, differing only in the trailing
+ * owner-table/alias/join/predicate text; the r36 emitter renders each one
+ * verbatim on the caller's own prepared statement. The SHA-256 values are
  * byte-identity oracles only, never live query sources. */
 const FAMILY: readonly {
   name: string;
@@ -61,6 +67,37 @@ const FAMILY: readonly {
   },
 ];
 
+/** Byte oracles for the package-settlement source heads that joined the same
+ * owner-table head family in the next read round. They render on the callers'
+ * own statements exactly as the former inline `SELECT ... FROM manufacturing_`
+ * strings did. */
+const SETTLEMENT: readonly {
+  name: string;
+  render: () => string;
+  oracle: string;
+}[] = [
+  {
+    name: 'settlement/orders',
+    render: () => manufacturingPackageSettlementSources.orders,
+    oracle: `SELECT o.*,COALESCE(valid.advanced,false) advanced,valid.id IS NOT NULL source_valid FROM manufacturing_orders o LEFT JOIN (${manufacturingPurchaseOrderRows}) valid ON valid.id=o.id AND valid.company_id=o.company_id`,
+  },
+  {
+    name: 'settlement/postings',
+    render: () => manufacturingPackageSettlementSources.postings,
+    oracle: 'SELECT p.*,profile.chart_id,profile.currency profile_currency,profile.wip_account_id FROM manufacturing_order_postings p LEFT JOIN manufacturing_accounting_profiles profile ON profile.id=p.profile_id AND profile.company_id=p.company_id',
+  },
+  {
+    name: 'probe/joined',
+    render: () => manufacturingCostAllocationProbe(true),
+    oracle: 'SELECT 1 FROM manufacturing_cost_allocations allocation JOIN orders o ON o.id=allocation.order_id WHERE allocation.pool_id=pool.id',
+  },
+  {
+    name: 'probe/plain',
+    render: () => manufacturingCostAllocationProbe(false),
+    oracle: 'SELECT 1 FROM manufacturing_cost_allocations allocation WHERE allocation.pool_id=pool.id',
+  },
+];
+
 /** Post-fold whole-file pins proving each helper delegates only its head and
  * keeps its own arguments, tail and callers byte-unchanged. */
 const PROFILE_HELPER_SHA256 = '2510a8a0c83112502c07211a7069b7451095438fa3e4de26d333997a968836e7';
@@ -86,14 +123,22 @@ describe('manufacturing read-tail r36 owner-table head-family fold', () => {
     }
   });
 
-  it('keeps one byte-identical projection head across both helper families', () => {
-    for (const { name, oracle } of FAMILY) {
+  it('renders all four package-settlement source heads byte-identically', () => {
+    for (const { name, render, oracle } of SETTLEMENT) {
+      expect(render(), name).toBe(oracle);
+      expect(oracle, name).toMatch(/^SELECT .+ FROM manufacturing_/);
+      expect(oracle, name).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
+    }
+  });
+
+  it('keeps one byte-identical projection head across every caller family', () => {
+    for (const { name, oracle } of [...FAMILY, ...SETTLEMENT]) {
       const split = oracle.indexOf(' FROM manufacturing_');
       expect(split, name).toBeGreaterThan(0);
       const columns = oracle.slice('SELECT '.length, split);
       const tail = oracle.slice('SELECT '.length + columns.length + ' FROM manufacturing_'.length);
       expect(columns, name).not.toContain('SELECT');
-      expect(tail, name).not.toContain('SELECT');
+      if (name.startsWith('profiles/') || name.startsWith('footprint/')) expect(tail, name).not.toContain('SELECT');
       expect(manufacturingOwnerTableSelect(columns, tail), name).toBe(oracle);
       expect(oracle, name).toMatch(/^SELECT .+ FROM manufacturing_/);
     }
@@ -118,6 +163,19 @@ describe('manufacturing read-tail r36 owner-table head-family fold', () => {
     expect(footprint.split('manufacturingOwnerTableSelect(').length - 1).toBe(1);
     expect(footprint).toContain('manufacturingOwnerTableSelect(columns, `orders o JOIN ${table} ${alias} ON ${on}`)');
     expect(footprint).not.toContain('`SELECT ${columns} FROM manufacturing_orders');
+
+    const settlement = await readFile(adapter('package-obligations.ts'), 'utf8');
+    expect(settlement).toContain('from "./manufacturing-read-tail-r36-sql"');
+    expect(settlement.split('manufacturingOwnerTableSelect(').length - 1).toBe(3);
+    for (const inline of [
+      '`SELECT o.*,COALESCE(valid.advanced,false)',
+      '"SELECT p.*,profile.chart_id',
+      '`SELECT 1 FROM manufacturing_cost_allocations allocation',
+    ]) expect(settlement).not.toContain(inline);
+    // The plain row sources and stock-footprint union keep their own heads.
+    expect(settlement.split('manufacturingRowsSelect(').length - 1).toBe(4);
+    expect(settlement.split('manufacturingStockFootprintSelect(').length - 1).toBe(2);
+    expect(settlement).toContain('LOCK TABLE manufacturing_material_reservations,manufacturing_genealogy');
   });
 
   it('leaves both delegating helpers byte-stable beyond the delegated head', async () => {
@@ -138,12 +196,12 @@ describe('manufacturing read-tail r36 owner-table head-family fold', () => {
     expect(command).toContain('${manufacturingIdSelect("manufacturing_orders")} WHERE id=? FOR UPDATE');
   });
 
-  it('pins the manufacturing owner SELECT KPI at 45 after the r22 native detail-read cut (46->45)', async () => {
+  it('pins the manufacturing owner SELECT KPI at 42 after the package-settlement head fold (45->42)', async () => {
     let total = 0;
     for (const file of await tsFiles(new URL('../../../packages/server-manufacturing/src/', import.meta.url))) {
       total += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     }
-    expect(total).toBe(45);
+    expect(total).toBe(42); // package-obligation owner-table heads 45->42.
     expect(total).toBeLessThan(50);
   });
 });

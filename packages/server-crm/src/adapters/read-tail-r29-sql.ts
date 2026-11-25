@@ -6,13 +6,15 @@
  * verbatim. Locks, command-receipt reads, native command kinds and the r8-r28
  * families are untouched.
  */
+import {crmSelectBodySql} from './read-tail-r46-sql';
 import {crmLeadSelectSql} from './read-tail-r51-sql';
 
-/** Shared crm_accounts anchor. The one read token renders byte-identically as
+/** Shared crm_accounts anchor. The read is the owner select-body plan over the
+ * caller's projection and tail, so this module keeps no extra read token for
  * the source witness, policy read, version guard, image read and contact probe.
  * Callers pass their own tail and the optional EXISTS wrapper. */
 const crmAccountReadAnchor = (projection: string, tail: string, exists = false) => {
-  const read = `SELECT ${projection}${tail}`;
+  const read = crmSelectBodySql(`${projection}${tail}`);
   return exists ? `EXISTS(${read})` : read;
 };
 

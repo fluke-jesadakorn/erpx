@@ -141,7 +141,7 @@ describe('manufacturing read-tail r22 native detail-read cutover', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(45); // r21 left 77; the r22-r37 folds reach 46; this cut retires the last r22 SELECT 46->45.
+    expect(total).toBe(42); // r21 left 77; the r22-r37 folds reach 46; this cut retires the last r22 SELECT 46->45; package-obligation owner-table heads 45->42.
     expect(total).toBeLessThan(46);
     expect(total).toBeLessThan(77);
   });

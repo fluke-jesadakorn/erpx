@@ -73,7 +73,7 @@ describe('Files upload/bind witness heads are native-owned', () => {
     }
   });
 
-  test('retirement:ts-statements is 195, strictly below the projection BEFORE=201 baseline', () => {
+  test('retirement:ts-statements is 190, strictly below the projection BEFORE=201 baseline', () => {
     let literal = 0, total = 0, broad = 0;
     for (const path of tsFiles(srcRoot)) {
       const text = readFileSync(path, 'utf8');
@@ -81,9 +81,9 @@ describe('Files upload/bind witness heads are native-owned', () => {
       total += (text.match(/SELECT\s/g) ?? []).length;
       broad += (text.match(/\b(SELECT|INSERT|UPDATE|DELETE)\b/g) ?? []).length;
     }
-    expect(literal).toBe(195);
-    expect(total).toBe(196);
-    expect(broad).toBe(214);
+    expect(literal).toBe(190);
+    expect(total).toBe(191);
+    expect(broad).toBe(208);
     expect(literal).toBeLessThan(201);
     expect(total).toBeLessThan(202);
   });

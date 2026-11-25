@@ -7,6 +7,7 @@ pub use crate::domain::work::{
 pub mod http;
 pub mod preventive_plan;
 pub mod read;
+pub mod read_head;
 pub mod record_source;
 
 pub mod work_source;

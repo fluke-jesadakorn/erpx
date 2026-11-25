@@ -126,6 +126,6 @@ describe('Projects read-tail r34 staff_tasks point / staff_projects by-ref dedup
     };
     walk(srcRoot);
     // r33 left 105. Family A 4->1 removes 3; Family B 7->1 removes 6: 105-9 = 96.
-    expect(total).toBe(62); // r45 bare-projection head family folded into read-tail-r45 (65->62)
+    expect(total).toBe(57); // r46 evaluation reads moved to the native contract (62->57)
   });
 });

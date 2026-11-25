@@ -110,12 +110,16 @@ describe('legal read-tail r56 law point-guard and counsel-entry dedupe', () => {
     expect(features).toContain('legalCounselApprovedFeesSql()');
   });
 
-  it('keeps the portal billing subquery inline (no clean closed head without a new SELECT)', async () => {
-    const portal = await src('portal-purchases.ts');
+  it('keeps the portal billing subquery inline in the native image fields', async () => {
+    const [portal, contract] = await Promise.all([
+      src('portal-purchases.ts'),
+      src('legal-portal-purchases-sources.json'),
+    ]);
     // Left intact on purpose: the r25 jsonb-agg head renders a closed subquery
     // and cannot carry this site's extra `AND entry.created_by=?` without
-    // rewriting a shared head, so folding it would add a SELECT token (net 0).
-    expect(portal).toContain("'billing',(SELECT jsonb_agg(to_jsonb(entry) ORDER BY entry.id) FROM legal_counsel_entries entry WHERE entry.item_id=i.id AND entry.created_by=?)");
+    // rewriting a shared head, so it stays inside the native image contract.
+    expect(portal).toContain('contract.portalImageFields');
+    expect(contract).toContain("'billing',(SELECT jsonb_agg(to_jsonb(entry) ORDER BY entry.id) FROM legal_counsel_entries entry WHERE entry.item_id=i.id AND entry.created_by=?)");
   });
 
   it('leaves advisory, FOR UPDATE OF, LOCK TABLE, command_receipts and quoted projections intact', async () => {

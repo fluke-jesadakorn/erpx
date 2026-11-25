@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
+import { crmSelectBodySql } from '../../../packages/server-crm/src/adapters/read-tail-r46-sql';
 import {
   crmAccountAttachmentSourceSql,
   crmAccountPolicyReadSql,
@@ -72,7 +73,7 @@ describe('crm read-tail r29 byte-identical read families', () => {
     ]) {
       expect(helper.match(new RegExp(`${name} =`, 'g'))).toHaveLength(1);
     }
-    expect((helper.match(/SELECT /g) ?? []).length).toBe(1);
+    expect((helper.match(/SELECT /g) ?? []).length).toBe(0);
 
     expect(src('attachment-purchases.ts')).toContain('crmAccountAttachmentSourceSql(crmPurchaseAccountRows,`${crmAccountCreatedByScopeSql}`)');
     expect(src('attachments-policy-facts.ts')).toContain('crmAccountPolicyReadSql(`${crmAccountCreatedByScopeSql}`)');
@@ -128,8 +129,21 @@ describe('crm read-tail r29 byte-identical read families', () => {
     expect(src('read-tail-r28-sql.ts')).toContain('export const crmCaseEventReadSql');
   });
 
-  test('retirement:ts-statements stays strictly below the r28 BEFORE=130 baseline', () => {
-    expect(totalSelects()).toBe(28);
+  test('the account anchor folds into the owner select-body plan (bare and EXISTS forms)', () => {
+    const projection = 'account.company_id,account.version';
+    const tail = `\n    FROM crm_accounts account\n    WHERE account.id=? AND account.company_id=?\n      AND ${SCOPE}`;
+    expect(crmAccountPolicyReadSql(SCOPE)).toBe(crmSelectBodySql(`${projection}${tail}`));
+    expect(crmAccountPolicyReadSql(SCOPE)).toBe(`SELECT ${projection}${tail}`);
+
+    const guard = `EXISTS(${crmSelectBodySql(`1 FROM crm_accounts account\n    WHERE account.id=? AND account.company_id=? AND account.version=? AND ${SCOPE}`)})`;
+    expect(crmAccountVersionGuardSql(SCOPE)).toBe(guard);
+    expect(crmAccountVersionGuardSql(SCOPE)).toBe(
+      `EXISTS(SELECT 1 FROM crm_accounts account\n    WHERE account.id=? AND account.company_id=? AND account.version=? AND ${SCOPE})`,
+    );
+  });
+
+  test('retirement:ts-statements folds the account-read anchor (26 -> 25)', () => {
+    expect(totalSelects()).toBe(23);
     expect(totalSelects()).toBeLessThan(130);
   });
 });

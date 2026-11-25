@@ -12,6 +12,7 @@ import {
   nativePosDayFulfillmentsStatement,
   nativePosDayCashMovementsStatement,
   nativePosDaySettlementsStatement,
+  nativePosPaymentMixStatement,
 } from '../../../packages/server-pos/src/adapters/native-pos-day-report';
 
 const config = () => JSON.stringify({ privateBaseUrl: 'http://127.0.0.1:44994', timeoutMs: 1000 });
@@ -125,6 +126,17 @@ const cases = [
     bridge: nativePosDaySettlementsStatement,
     args: ['company'] as const,
   },
+  {
+    name: 'business-date payment mix with refunded sums',
+    kind: 'pos_day_report_payment_mix',
+    sql: `SELECT s.business_date,s.register_id,s.shift_id,s.currency,p.method,SUM(p.amount_minor) received_minor,
+ SUM(COALESCE((SELECT SUM(rp.amount_minor) FROM pos_refund_payments rp WHERE rp.payment_id=p.id AND rp.state='succeeded'),0)) refunded_minor
+ FROM pos_payments p JOIN pos_sales s ON s.id=p.sale_id WHERE p.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND p.state='succeeded'
+ GROUP BY s.business_date,s.register_id,s.shift_id,s.currency,p.method ORDER BY s.business_date DESC LIMIT 300`,
+    values: ['company', 'branch', 'branch'],
+    bridge: nativePosPaymentMixStatement,
+    args: [{ company: 'company', branch: 'branch', branch2: 'branch' }] as const,
+  },
 ] as const;
 
 describe('native POS day-report business-date list read bridge', () => {
@@ -180,6 +192,12 @@ describe('native POS day-report business-date list read bridge', () => {
     expect(source).not.toContain('SELECT id,state FROM pos_fulfillments WHERE company_id=?');
     expect(source.match(/nativePosDay(?!Planner)[A-Za-z]+Statement\(db/g)).toHaveLength(10);
     expect(source.match(/nativePosDayPlanner(Lines|Payments)Statement\(db/g)).toHaveLength(2);
+    const pos = readFileSync(
+      new URL('../../../packages/server-pos/src/adapters/pos.ts', import.meta.url),
+      'utf8',
+    );
+    expect(pos).not.toContain('SUM(p.amount_minor) received_minor');
+    expect(pos).toContain('nativePosPaymentMixStatement(db, facts)');
   });
 
   it('keeps lock-bearing and PMS point-lookup reads inline in pos-daily.ts', () => {

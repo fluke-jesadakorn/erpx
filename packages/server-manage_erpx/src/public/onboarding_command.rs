@@ -8,8 +8,8 @@ pub use crate::adapters::onboarding_command::{
     PgOnboardingBootstrap, PgOnboardingCommand, PgOnboardingControl,
 };
 pub use crate::application::onboarding_command::{
-    OnboardingBootstrapPort, OnboardingControlPort, OnboardingReservation, activate_onboarding,
-    onboard_company, provision_onboarding, reserve_onboarding,
+    activate_onboarding, onboard_company, provision_onboarding, reserve_onboarding,
+    OnboardingBootstrapPort, OnboardingControlPort, OnboardingReservation,
 };
 pub use crate::domain::onboarding_command::{
     OnboardingActivationPlan, OnboardingBootstrapOutcome, OnboardingBootstrapPlan,

@@ -81,7 +81,7 @@ describe('crm read-tail r30 byte-identical read family', () => {
   });
 
   test('retirement:ts-statements folds the current-scope head (30 -> 29)', () => {
-    expect(totalSelects()).toBe(28);
+    expect(totalSelects()).toBe(23);
     expect(totalSelects()).toBeLessThan(30);
   });
 });

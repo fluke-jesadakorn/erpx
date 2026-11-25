@@ -4,15 +4,8 @@ import type { PmsReadSelection } from "@erpx/feature-pms/lib/pms-read-selection"
 import type { PmsSetupFacts } from "@erpx/feature-pms/lib/pms-read";
 import { decodePmsRecord, type PmsStoredRecord } from "@erpx/server-pms/domain/stored-record";
 import { PMS_RECORDS_PROJECTION_PREFIX_SQL } from "../pms-read-tail-r24-sql";
-import { PMS_GUEST_STAYS_CHOSEN_MEMBER_SQL } from "../pms-read-tail-r25-sql";
-import { PMS_CHOSEN_RECORDS_SQL } from "../pms-read-tail-r26-sql";
-import { PMS_RECORD_ID_PROPERTY_HEAD_SQL } from "../pms-read-tail-r35-sql";
-import { PMS_STAY_SOURCE_PROJECTION_SQL } from "../pms-read-tail-r38-sql";
-import { pmsGuestIdJoinSql } from "../pms-read-tail-r41-sql";
-import { pmsStayExistsHeadSql } from "../pms-read-tail-r42-sql";
 import { pmsBookingEmailPendingSql } from "../pms-read-tail-r43-sql";
-import { pmsChosenKindPointSql, pmsReservationRelationArmSql } from "../pms-read-tail-r45-sql";
-import { nativePmsReadAll, PMS_RD_INVENTORY_COMMAND, PMS_RD_SECTION_RELATED_RECORDS, PMS_RD_DASHBOARD_RECORDS, PMS_RD_RECORD_DETAIL, PMS_RD_PMS_CHOICES, PMS_RD_PMS_CHOICES_BLOCK } from "../native-pms-read";
+import { nativePmsReadAll, PMS_RD_INVENTORY_COMMAND, PMS_RD_SECTION_RELATED_RECORDS, PMS_RD_DASHBOARD_RECORDS, PMS_RD_RECORD_DETAIL, PMS_RD_PMS_CHOICES, PMS_RD_PMS_CHOICES_BLOCK, PMS_RD_OPERATION_RELATED_RECORDS, PMS_RD_OPERATIONS_PAGE, PMS_RD_SECTION_PAGE } from "../native-pms-read";
 import { propertyReadinessFacts, type LaneActor } from "../native-lane-20/client";
 import { roomSummaryFacts } from "../native-lane-20/room-summary-client";
 import * as application from "@erpx/server-pms/application/read-repository";
@@ -53,16 +46,7 @@ function repository(db: SqlDatabase, actor: LaneActor = {}): application.PmsRead
             q: string;
             q2: string;
             offset: number;
-        }) => db.prepare(`${pmsGuestIdJoinSql('operations')}
-   WHERE r.property_id=? AND r.kind=?
-   AND (r.data_json::jsonb->>'state'=? OR ?='' OR (?='arrivals' AND r.data_json::jsonb->>'state'='reserved' AND r.data_json::jsonb->>'arrival'=?) OR (?='departures' AND r.data_json::jsonb->>'state'='in_house' AND r.data_json::jsonb->>'departure'<=?))
-   AND (?<>'' OR r.kind='reservation' OR r.data_json::jsonb->>'state' IN ('reserved','in_house'))
-   AND (CASE WHEN r.kind='stay' THEN (r.data_json::jsonb->>'arrival'<=? AND r.data_json::jsonb->>'departure'>=?) OR r.data_json::jsonb->>'state'='in_house'
-     ELSE ${pmsStayExistsHeadSql('reservationId')} AND ((st.data_json::jsonb->>'arrival'<=? AND st.data_json::jsonb->>'departure'>=?) OR st.data_json::jsonb->>'state'='in_house')) END)
-   AND (?='' OR position(lower(?) in lower(concat_ws(' ',g.data_json::jsonb->>'name',r.id,r.data_json::jsonb->>'number',(SELECT data_json::jsonb->>'number' FROM pms_records parent WHERE parent.property_id=r.property_id AND parent.id=r.data_json::jsonb->>'reservationId'))))>0)
-   ORDER BY COALESCE(r.data_json::jsonb->>'arrival',r.updated_at::text),r.id LIMIT 51 OFFSET ?`).bind(facts.propertyId, facts.kind, facts.status, facts.status2, facts.status3, facts.businessDate, facts.status4, facts.businessDate2, facts.status5, facts.to, facts.from, facts.to2, facts.from2, facts.q, facts.q2, facts.offset).all<{
-            id: string;
-        }>(),
+        }) => nativePmsReadAll<{ id: string }>(PMS_RD_OPERATIONS_PAGE, [facts.propertyId, facts.kind, facts.status, facts.status2, facts.status3, facts.businessDate, facts.status4, facts.businessDate2, facts.status5, facts.to, facts.from, facts.to2, facts.from2, facts.q, facts.q2, facts.offset], db),
         sectionPage: (facts: {
             propertyId: string;
             kind: "shift" | "room" | "guest" | "guest_account" | "item" | "night";
@@ -76,14 +60,7 @@ function repository(db: SqlDatabase, actor: LaneActor = {}): application.PmsRead
             from: string;
             to: string;
             offset: number;
-        }) => db.prepare(`${PMS_RECORD_ID_PROPERTY_HEAD_SQL} AND kind=?
-   AND (?='' OR COALESCE(data_json::jsonb->>'cleanliness',data_json::jsonb->>'state')=?)
-   AND (?='' OR position(lower(?) in lower(concat_ws(' ',id,data_json::jsonb->>'name',data_json::jsonb->>'number',data_json::jsonb->>'phone',data_json::jsonb->>'email',data_json::jsonb->>'building',data_json::jsonb->>'floor')))>0)
-   AND (kind<>'room' OR ((?='' OR data_json::jsonb->>'building'=?) AND (?='' OR data_json::jsonb->>'floor'=?) AND (?='' OR data_json::jsonb->>'typeId'=?)))
-   AND (kind NOT IN ('shift','night') OR data_json::jsonb->>'date' BETWEEN ? AND ? OR data_json::jsonb->>'state' IN ('open','running','blocked'))
-   ORDER BY CASE WHEN kind='room' THEN data_json::jsonb->>'number' WHEN kind='guest' THEN data_json::jsonb->>'name' ELSE '' END,updated_at DESC,id LIMIT 51 OFFSET ?`).bind(facts.propertyId, facts.kind, facts.status, facts.status2, facts.q, facts.q2, facts.building, facts.building, facts.floor, facts.floor, facts.typeId, facts.typeId, facts.from, facts.to, facts.offset).all<{
-            id: string;
-        }>(),
+        }) => nativePmsReadAll<{ id: string }>(PMS_RD_SECTION_PAGE, [facts.propertyId, facts.kind, facts.status, facts.status2, facts.q, facts.q2, facts.building, facts.building, facts.floor, facts.floor, facts.typeId, facts.typeId, facts.from, facts.to, facts.offset], db),
         // Setup/stay readiness is owned by the native axum reader. No SQL is
         // issued here; the owner scopes by Company and projects the booleans.
         setupFacts: async (facts: {
@@ -120,15 +97,7 @@ function repository(db: SqlDatabase, actor: LaneActor = {}): application.PmsRead
             seedsJson: string;
             propertyId2: string;
             propertyId3: string;
-        }) => db.prepare(`WITH chosen AS (${PMS_CHOSEN_RECORDS_SQL}),
-   reservations AS (${pmsReservationRelationArmSql('chosenReservationId')} UNION ${pmsReservationRelationArmSql('reservationIdChosen')}),
-   stays AS (${PMS_STAY_SOURCE_PROJECTION_SQL} AND (id IN (${pmsReservationRelationArmSql('chosenId')}) OR data_json::jsonb->>'reservationId' IN (SELECT id FROM reservations))),
-   guestAccounts AS (${pmsChosenKindPointSql('guestAccountStayAliased')}),
-   groups AS (${PMS_RECORD_ID_PROPERTY_HEAD_SQL} AND kind='block' AND data_json::jsonb->>'kind'='group' AND data_json::jsonb->>'state'='active' AND COALESCE(data_json::jsonb->>'bookingChangeId','')='' ORDER BY updated_at DESC,id LIMIT 50)
-   ${PMS_RECORDS_PROJECTION_PREFIX_SQL} WHERE property_id=? AND (
-    kind IN ('room_type','room','rate') OR id IN (SELECT id FROM groups) OR id IN (SELECT id FROM chosen) OR id IN (SELECT id FROM reservations) OR id IN (SELECT id FROM stays) OR id IN (SELECT id FROM guestAccounts)
-    ${PMS_GUEST_STAYS_CHOSEN_MEMBER_SQL}
-    OR (kind='entry' AND data_json::jsonb->>'guestAccountId' IN (SELECT id FROM guestAccounts))) ORDER BY updated_at,id`).bind(facts.propertyId, facts.seedsJson, facts.propertyId2, facts.propertyId3, facts.propertyId3).all<PmsStoredRecord>().then(rows => rows.results.map(decodePmsRecord)),
+        }) => nativePmsReadAll<PmsStoredRecord>(PMS_RD_OPERATION_RELATED_RECORDS, [facts.propertyId, facts.seedsJson, facts.propertyId2, facts.propertyId3, facts.propertyId3], db).then(rows => rows.results.map(decodePmsRecord)),
         sectionRelatedRecords: (facts: {
             propertyId: string;
             seedsJson: string;

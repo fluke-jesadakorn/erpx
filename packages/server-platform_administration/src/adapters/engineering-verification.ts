@@ -12,6 +12,7 @@ import {NativeEngineeringEnrollmentError,nativeEnrollEngineeringVerification} fr
 import {nativeEngineeringPriorRead} from "./native-engineering-verification-read/client";
 import { selectOneSql } from "./native-owner-write";
 import { releaseTableExistsSql } from "@erpx/server-platform_administration/adapters/release-predicate";
+import {platformReadHeads} from "./platform-read-heads";
 import { isEngineeringVerificationOrigin as acceptsOrigin, type EngineeringAttestation, type EngineeringAttestationFacts } from "@erpx/server-platform_administration/domain/engineering-verification";
 
 const manifestDigestKey=Symbol.for("erpx.engineering.manifestDigest");
@@ -74,7 +75,7 @@ function readAttestation(input: string, run: string, child?:Record<string,string
   } catch { return null; }
 }
 function application(db?: SqlDatabase): ReturnType<typeof createEngineeringVerificationApplication> { return createEngineeringVerificationApplication({ artifactVersion: artifact.softwareVersion, clock: { now: () => Date.now() }, readAttestation, nativeEnrollmentContext:()=>application().engineeringVerificationContext(process.env), repository: db ? {
-  identity: roster => db.prepare(`SELECT current_database() name,current_user owner,${roster?nativeEngineeringIdentityPredicate(roster):"false"} native_match`).first<{ name: string; owner: string; native_match:boolean }>(),
+  identity: roster => db.prepare(`${platformReadHeads.databaseIdentityRead}${roster?nativeEngineeringIdentityPredicate(roster):"false"} native_match`).first<{ name: string; owner: string; native_match:boolean }>(),
   companyExists: id => engineeringCompanySource(db, id),
   // Owner-local native axum read; no TypeScript SQL remains for this family.
   prior: (companyId, run) => nativeEngineeringPriorRead(companyId, run),

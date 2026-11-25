@@ -49,7 +49,7 @@ describe('Records employee_request_events detail head cutover', () => {
       }
     };
     walk(resolve(root, 'packages/server-records/src'));
-    expect(total).toBe(7);
+    expect(total).toBe(6);
     expect(total).toBeLessThan(8);
   });
 });

@@ -11,6 +11,9 @@ import recordContract from "../../../packages/server-legal/src/adapters/legal-re
 import integrationsContract from "../../../packages/server-legal/src/adapters/legal-integrations-sources.json" with {type:"json"};
 import serviceContract from "../../../packages/server-legal/src/adapters/legal-service-sources.json" with {type:"json"};
 import purchasesContract from "../../../packages/server-legal/src/adapters/legal-purchases-sources.json" with {type:"json"};
+import portalContract from "../../../packages/server-legal/src/adapters/legal-portal-purchases-sources.json" with {type:"json"};
+import attachmentContract from "../../../packages/server-legal/src/adapters/legal-attachment-facts-sources.json" with {type:"json"};
+import canonicalContract from "../../../packages/server-legal/src/adapters/legal-canonical-attachment-sources.json" with {type:"json"};
 type LegalReferenceRepository=Parameters<typeof import("@erpx/server-legal/application/references").createLegalReferencesApplication>[0]["repository"];
 import { expect, it } from "vitest";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
@@ -601,8 +604,8 @@ it("keeps the approval reviewer-membership and current-route guards in the nativ
     }
   };
   await walk(resolve(__dirname, "../../../packages/server-legal/src"));
-  expect(total).toBeLessThan(60);
-  expect(total).toBe(52);
+  expect(total).toBeLessThan(41);
+  expect(total).toBe(38);
 });
 
 
@@ -802,4 +805,75 @@ it("keeps the purchase authority, configuration, witness and replay reads in the
   expect(rust).toContain('render_legal_feature_image');
   expect(rust).toContain('legal_replay_receipt_sql');
   expect(rust).toContain('9f68725068bab609237f673d18b0f7cd585493ba35799ba2e228dc8ae94f0fef');
+});
+
+
+it("keeps the portal image fields and release guard in the native contract", async () => {
+  const [shared, rust] = await Promise.all([
+    readFile(new URL("../../../packages/server-legal/src/adapters/portal-purchases.ts", import.meta.url), "utf8"),
+    readFile(new URL("../../../packages/server-legal/src/adapters/legal_portal_purchases_sources.rs", import.meta.url), "utf8"),
+  ]);
+  expect(shared.match(/SELECT /g) ?? []).toHaveLength(0);
+  expect(shared).toContain("legal-portal-purchases-sources.json");
+  expect(shared).toContain("contract.portalImageFields");
+  expect(shared).toContain("fill(contract.releaseProbe");
+  expect(portalContract.portalImageFields).toContain("'settings',(SELECT to_jsonb(settings) FROM legal_settings settings");
+  expect(portalContract.portalImageFields).toContain("'billing',(SELECT jsonb_agg(to_jsonb(entry) ORDER BY entry.id)");
+  expect((portalContract.portalImageFields.match(/SELECT /g) ?? [])).toHaveLength(5);
+  expect(portalContract.releaseProbe).toBe(
+    "SELECT 1 FROM (SELECT ?::text company_id) legal_portal_release WHERE {scheduledFeaturePredicate}",
+  );
+  expect(rust).toContain('include_str!("legal-portal-purchases-sources.json")');
+  expect(rust).toContain('legal_portal_image_fields_sql');
+  expect(rust).toContain('render_legal_portal_release_probe');
+  expect(rust).toContain('054dba4eb26908ac6ec28cd79413f57a1490f2b6faf394ef207047c9b9b8c889');
+});
+
+
+it("keeps the owner version guard and active preservation read in the native attachment contract", async () => {
+  const [shared, rust] = await Promise.all([
+    readFile(new URL("../../../packages/server-legal/src/adapters/attachments-service-facts.ts", import.meta.url), "utf8"),
+    readFile(new URL("../../../packages/server-legal/src/adapters/legal_attachment_facts_sources.rs", import.meta.url), "utf8"),
+  ]);
+  expect(shared.match(/SELECT /g) ?? []).toHaveLength(0);
+  expect(shared).toContain("legal-attachment-facts-sources.json");
+  expect(shared).toContain("fill(contract.ownerVersionGuard");
+  expect(shared).toContain("fill(contract.filePreservations");
+  expect(attachmentContract.ownerVersionGuard).toBe(
+    "EXISTS(SELECT 1 FROM {table} WHERE id=? AND company_id=? AND version=?{extra})",
+  );
+  expect(attachmentContract.filePreservations).toContain("SELECT p.item_id FROM legal_file_preservations p");
+  expect(attachmentContract.filePreservations).toContain("FROM ({attachmentLinks}) link");
+  expect(attachmentContract.filePreservations).toContain("JOIN ({attachmentSets}) set_row");
+  expect(attachmentContract.filePreservations).toContain(") active LIMIT 1");
+  expect((attachmentContract.filePreservations.match(/SELECT /g) ?? [])).toHaveLength(3);
+  expect(rust).toContain('include_str!("legal-attachment-facts-sources.json")');
+  expect(rust).toContain('render_legal_owner_version_guard');
+  expect(rust).toContain('render_legal_file_preservations');
+  expect(rust).toContain('0461327e3e3335332147a3d01a1e40597ec3a841ce0f7d970afebbf5afb21bca');
+});
+
+
+it("keeps the canonical attachment image and current-assignment probe in the native contract", async () => {
+  const [shared, rust] = await Promise.all([
+    readFile(new URL("../../../packages/server-legal/src/adapters/canonical-attachment-read.ts", import.meta.url), "utf8"),
+    readFile(new URL("../../../packages/server-legal/src/adapters/legal_canonical_attachment_sources.rs", import.meta.url), "utf8"),
+  ]);
+  expect(shared.match(/SELECT /g) ?? []).toHaveLength(0);
+  expect(shared).toContain("legal-canonical-attachment-sources.json");
+  expect(shared).toContain("fill(contract.image");
+  expect(shared).toContain("fill(contract.currentScope");
+  expect(canonicalContract.image).toContain("jsonb_build_object('owner',?::jsonb,'settings',(SELECT to_jsonb(s) FROM legal_settings s");
+  expect(canonicalContract.image).toContain("'disposals',(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.document_id)");
+  expect(canonicalContract.image).toContain("'holds',{holds}");
+  expect(canonicalContract.image).toContain("'destructions',{destructions}");
+  expect(canonicalContract.image).toContain("'uploads',({uploads}WHERE share.item_id=i.id)");
+  expect((canonicalContract.image.match(/SELECT /g) ?? [])).toHaveLength(2);
+  expect(canonicalContract.currentScope).toBe(
+    "SELECT 1 FROM({actorScope})workforce_actor_scope WHERE {where}",
+  );
+  expect(rust).toContain('include_str!("legal-canonical-attachment-sources.json")');
+  expect(rust).toContain('render_legal_canonical_image');
+  expect(rust).toContain('render_legal_canonical_current_scope');
+  expect(rust).toContain('0663245d9f91c41f44fb8d68a9c13480a3e8ad535713785428ee848ebf467e3c');
 });

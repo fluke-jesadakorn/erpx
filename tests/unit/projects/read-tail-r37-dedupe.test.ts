@@ -112,7 +112,7 @@ describe('Projects read-tail r37 fact union and NOT EXISTS proof dedupe', () => 
     walk(srcRoot);
     // r36 left 93. r37 Rank1 folds the four fact UNION arms into one closed
     // helper (-3) and Rank2 folds three NOT EXISTS proofs into notExistsRow (-2).
-    expect(total).toBe(62); // r45 bare-projection head family folded into read-tail-r45 (65->62)
+    expect(total).toBe(57); // r46 evaluation reads moved to the native contract (62->57)
     expect(total).toBeLessThan(88);
   });
 });

@@ -8,17 +8,12 @@ import {purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purch
 import {projectTaskRecordPolicy} from "@erpx/server-operations/public/project-task-record-policy";
 import {projectOwnerOrMemberColumnSql} from "@erpx/server-projects/adapters/project-read-projections";
 import {scopeBindProjection} from './read-tail-r39';
-import {selectBodySql} from './read-tail-r45';
+import contract from './evaluation-read-sources.json' with {type:'json'};
 
-/** Byte-identical source identity projection shared by the native source arms;
- * one definition keeps every UNION column list identical. */
-const nativeSourceColumns=selectBodySql('id,project_id,company_id,');
-export const nativeSources=`SELECT id,id project_id,company_id,'project' kind,'projects.wbs' capability,NULL::text source_user_id FROM staff_projects
- UNION ALL ${nativeSourceColumns}'milestone','projects.wbs',NULL::text FROM staff_project_milestones
- UNION ALL ${nativeSourceColumns}'work_log','projects.time',user_id FROM staff_project_work_logs
- UNION ALL ${nativeSourceColumns}'allocation','projects.costs',NULL::text FROM staff_project_cost_allocations
- UNION ALL ${nativeSourceColumns}'handoff','projects.handover',NULL::text FROM staff_project_handoffs
- UNION ALL ${nativeSourceColumns}'task','projects.tasks',NULL::text FROM staff_tasks WHERE project_id IS NOT NULL`;
+/** Native-owned source identity UNION. The exact bytes live in the Rust-owned
+ * `evaluation-read-sources.json` contract; callers still use the rendered text
+ * as a read-only source projection with no binds. */
+export const nativeSources=contract.nativeSources;
 export function visibleSource(actor:WorkContext,id:string,company:string,kind?:'project'|'task'){
  const viewer='project_source_viewer',taskPolicy=projectTaskRecordPolicy('native.id','native.company_id',viewer);
  const current=`EXISTS(SELECT 1 FROM assignments g WHERE g.id=${viewer}.assignment_id AND g.user_id=${viewer}.user_id AND g.role=${viewer}.role AND g.company_id=native.company_id

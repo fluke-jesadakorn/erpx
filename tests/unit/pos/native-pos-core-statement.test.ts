@@ -5,6 +5,7 @@ import {
   nativePosTablesStatement,
   nativePosCashMovementsStatement,
   nativePosStartupRegistersStatement,
+  nativePosCommerceAttachmentImageStatement,
   nativePosRegisterByNameStatement,
   nativePosOpenShiftByRegisterStatement,
   nativePosTableByNameStatement,
@@ -108,6 +109,45 @@ describe('native POS core workspace read bridge (shifts family)', () => {
     const startup = readFileSync(new URL('../../../packages/server-pos/src/adapters/startup.ts', import.meta.url), 'utf8');
     expect(startup).not.toContain('SELECT id,branch_id,warehouse_id,name,mode,active,version FROM pos_registers');
     expect(startup).toContain('nativePosStartupRegistersStatement(database');
+  });
+
+  it('requests the Commerce attachment image witness from the owner registry', async () => {
+    process.env.ERPX_NATIVE_POS_OWNER_CONFIG = config();
+    const sql = "SELECT jsonb_build_object('catalog',(SELECT jsonb_agg(to_jsonb(c) ORDER BY c.product_id) FROM pos_catalog c WHERE c.product_id=? AND c.company_id=?),'registers',(SELECT jsonb_agg(jsonb_build_object('selection',to_jsonb(s),'register',to_jsonb(r)) ORDER BY s.register_id) FROM pos_register_catalog s JOIN pos_registers r ON r.id=s.register_id AND r.company_id=? WHERE s.product_id=?))::text image";
+    const values = ['product', 'company', 'company', 'product'];
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: { sql, values } }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      }),
+    );
+    vi.stubGlobal('fetch', fetch);
+    const seen: { sql?: string; values?: unknown[] } = {};
+    const expectedRows = [{ id: 'row' }];
+    const db = {
+      prepare: (s: string) => ({
+        bind: (...v: unknown[]) => {
+          seen.sql = s; seen.values = v;
+          return { first: async () => expectedRows[0], all: async () => ({ results: expectedRows }) };
+        },
+      }),
+    };
+    const result = await nativePosCommerceAttachmentImageStatement(db as never, 'company', 'product');
+    expect(result).toEqual(expectedRows[0]);
+    const [url, init] = fetch.mock.calls[0] as [string, RequestInit & { body: string }];
+    expect(url).toBe('http://127.0.0.1:44994/api/v1/companies/company/pos/owner-write');
+    expect(JSON.parse(init.body)).toEqual({ company: 'company', kind: 'pos_core_keyed_commerce_attachment_image', values });
+    expect(seen.sql).toBe(sql);
+    expect(seen.values).toEqual(values);
+    expect(seen.sql!.match(/\?/g)).toHaveLength(4);
+    expect(seen.sql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|pg_advisory|pms_sources|commerce_/);
+  });
+
+  it('keeps the retired Commerce attachment image literal out of the TS adapter', async () => {
+    const { readFileSync } = await import('node:fs');
+    const source = readFileSync(new URL('../../../packages/server-pos/src/adapters/commerce-attachment-sources.ts', import.meta.url), 'utf8');
+    expect(source).not.toContain("jsonb_build_object('catalog'");
+    expect(source).toContain('nativePosCommerceAttachmentImageStatement<{image:string}>');
+    expect(source).toContain('LOCK TABLE pos_catalog,pos_register_catalog,pos_registers IN SHARE ROW EXCLUSIVE MODE');
   });
 
   it('fails closed when the native owner service is unconfigured', async () => {

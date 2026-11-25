@@ -127,7 +127,7 @@ describe('Learning read-tail r23 scope-row frame fold', () => {
     expect(obligations).not.toContain('(SELECT ?::text company_id)');
     expect(obligations).toContain('.bind(input.companyId)');
 
-    const native = shared.match(/export const learningNativeSources=`([\s\S]*?)`;/)?.[1];
+    const native = (JSON.parse(src('learning-native-sources.json')) as {nativeSources: string}).nativeSources;
     expect(native).toBeDefined();
     expect((native!.match(/SELECT /g) ?? []).length).toBe(7);
     expect((native!.match(/UNION ALL SELECT /g) ?? []).length).toBe(6);
@@ -167,7 +167,7 @@ describe('Learning read-tail r23 invariants', () => {
     expect(src('executive-metric-projections.ts').match(/const orgNodeLabel =/g) ?? []).toHaveLength(1);
   });
 
-  test('retirement:ts-statements KPI is 29 (strictly below the r24 BEFORE=33 baseline)', () => {
+  test('retirement:ts-statements KPI is 21 (strictly below the r24 BEFORE=33 baseline)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -178,8 +178,8 @@ describe('Learning read-tail r23 invariants', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(33);
-    expect(total).toBe(29);
-    expect(selectCount(src('learning-read-sql.ts'))).toBe(28);
+    expect(total).toBe(21);
+    expect(selectCount(src('learning-read-sql.ts'))).toBe(20);
     expect(selectCount(src('executive-metric-projections.ts'))).toBe(1);
     expect(src('native_lane_31/postgres.rs')).toContain('SELECT e.id,e.assignment_id,e.version event_version,e.status,e.created_at,c.title course_title');
     expect(selectCount(src('learning.ts'))).toBe(0);

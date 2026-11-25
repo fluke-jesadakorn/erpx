@@ -354,6 +354,19 @@ const READ_WORKSPACE_RECORD_SOURCE: NativeTalentReadStatement = NativeTalentRead
     bind_count: 1,
 };
 
+/// Native successor of the TypeScript `candidatePrivacyWorkspace` candidate
+/// privacy workspace row read. The caller binds the Company scope, the four
+/// fixed privacy-permission assignment triplets and the candidate id on its
+/// open unit: `[company_id, (assignment_id,user_id,role) x4, candidate_id]`.
+pub const RD_CANDIDATE_PRIVACY_WORKSPACE: &str = "talent_rd_candidate_privacy_workspace";
+const SQL_RD_CANDIDATE_PRIVACY_WORKSPACE: &str =
+    "WITH privacy_viewer AS (SELECT ?::text company_id,NULL::text branch_id,NULL::text department_id)\n SELECT c.id,c.status,c.version,c.retention_until,c.privacy_hold,c.privacy_requested_by,EXISTS(SELECT 1 FROM assignments g WHERE g.id=? AND g.user_id=? AND g.role=? AND g.company_id=privacy_viewer.company_id\n    AND iam_assignment_active(g.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)\n    AND iam_principal_active(g.user_id,g.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)\n    AND iam_role_allows(g.role,g.company_id,'legal.hold')\n    AND (g.scope_kind='holding' OR g.scope_kind='branch' AND g.scope_node_id=privacy_viewer.branch_id OR g.scope_kind='department' AND g.scope_node_id=privacy_viewer.department_id)) can_hold,EXISTS(SELECT 1 FROM assignments g WHERE g.id=? AND g.user_id=? AND g.role=? AND g.company_id=privacy_viewer.company_id\n    AND iam_assignment_active(g.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)\n    AND iam_principal_active(g.user_id,g.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)\n    AND iam_role_allows(g.role,g.company_id,'legal.hold.release')\n    AND (g.scope_kind='holding' OR g.scope_kind='branch' AND g.scope_node_id=privacy_viewer.branch_id OR g.scope_kind='department' AND g.scope_node_id=privacy_viewer.department_id)) can_release,EXISTS(SELECT 1 FROM assignments g WHERE g.id=? AND g.user_id=? AND g.role=? AND g.company_id=privacy_viewer.company_id\n    AND iam_assignment_active(g.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)\n    AND iam_principal_active(g.user_id,g.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)\n    AND iam_role_allows(g.role,g.company_id,'legal.destroy')\n    AND (g.scope_kind='holding' OR g.scope_kind='branch' AND g.scope_node_id=privacy_viewer.branch_id OR g.scope_kind='department' AND g.scope_node_id=privacy_viewer.department_id)) can_erase,EXISTS(SELECT 1 FROM assignments g WHERE g.id=? AND g.user_id=? AND g.role=? AND g.company_id=privacy_viewer.company_id\n    AND iam_assignment_active(g.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)\n    AND iam_principal_active(g.user_id,g.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)\n    AND iam_role_allows(g.role,g.company_id,'people.manage')\n    AND (g.scope_kind='holding' OR g.scope_kind='branch' AND g.scope_node_id=privacy_viewer.branch_id OR g.scope_kind='department' AND g.scope_node_id=privacy_viewer.department_id)) can_withdraw\n FROM talent_candidates c CROSS JOIN privacy_viewer WHERE c.id=? AND c.company_id=privacy_viewer.company_id";
+const READ_CANDIDATE_PRIVACY_WORKSPACE: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_CANDIDATE_PRIVACY_WORKSPACE,
+    sql: SQL_RD_CANDIDATE_PRIVACY_WORKSPACE,
+    bind_count: 14,
+};
+
 const STATEMENTS: &[NativeTalentReadStatement] = &[
     READ_APPLICATION_EVENTS,
     READ_PROPOSALS,
@@ -385,6 +398,7 @@ const STATEMENTS: &[NativeTalentReadStatement] = &[
     READ_CANDIDATE_EVENTS,
     READ_OFFER_EVENTS,
     READ_WORKSPACE_RECORD_SOURCE,
+    READ_CANDIDATE_PRIVACY_WORKSPACE,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -419,7 +433,7 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), 1);
         }
-        assert_eq!(STATEMENTS.len(), 30);
+        assert_eq!(STATEMENTS.len(), 31);
     }
 
     #[test]
@@ -820,7 +834,7 @@ mod tests {
                 "cutover kind must resolve to exactly one statement: {kind}"
             );
         }
-        assert_eq!(STATEMENTS.len(), 30);
+        assert_eq!(STATEMENTS.len(), 31);
         // A SQL literal, a case variant and a truncated kind never resolve.
         for forged in [
             "SELECT * FROM talent_offers",
@@ -830,6 +844,54 @@ mod tests {
         ] {
             assert!(read_statement(forged).is_none(), "forged kind must fail closed: {forged}");
         }
+    }
+
+    #[test]
+    fn candidate_privacy_workspace_read_is_owner_authored_select_only() {
+        let statement = read_statement(RD_CANDIDATE_PRIVACY_WORKSPACE)
+            .expect("registered candidate privacy workspace read kind");
+        assert_eq!(statement.kind, RD_CANDIDATE_PRIVACY_WORKSPACE);
+        assert_eq!(statement.sql, SQL_RD_CANDIDATE_PRIVACY_WORKSPACE);
+        assert_eq!(statement.bind_count, 14);
+        assert!(
+            statement.sql.starts_with("WITH privacy_viewer AS (SELECT "),
+            "privacy read must be SELECT-only: {sql}",
+            sql = statement.sql
+        );
+        for forbidden in [
+            "INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE", "FOR SHARE", "LOCK TABLE",
+        ] {
+            assert!(
+                !statement.sql.contains(forbidden),
+                "privacy read must not mutate or lock: {forbidden}"
+            );
+        }
+        for fragment in [
+            "talent_candidates c CROSS JOIN privacy_viewer",
+            "c.id=? AND c.company_id=privacy_viewer.company_id",
+            "iam_role_allows(g.role,g.company_id,'legal.hold')",
+            "iam_role_allows(g.role,g.company_id,'legal.hold.release')",
+            "iam_role_allows(g.role,g.company_id,'legal.destroy')",
+            "iam_role_allows(g.role,g.company_id,'people.manage')",
+            "iam_assignment_active",
+            "iam_principal_active",
+        ] {
+            assert!(
+                statement.sql.contains(fragment),
+                "privacy read must keep its authority fragment: {fragment}"
+            );
+        }
+        assert_eq!(statement.sql.matches('?').count(), 14);
+        assert_eq!(statement.sql.len(), 2610);
+        assert_eq!(
+            STATEMENTS
+                .iter()
+                .filter(|entry| entry.kind == RD_CANDIDATE_PRIVACY_WORKSPACE)
+                .count(),
+            1,
+            "privacy workspace kind must resolve once"
+        );
+        assert!(read_statement("talent_rd_candidate_privacy_workspace_missing").is_none());
     }
 
     #[test]

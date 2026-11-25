@@ -7,6 +7,7 @@ import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import {commercePackageEnforcementMode,readPurchasedAccesses} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
 import {commerceKindCapability,requireCommerceOrderRead,type CommercePurchaseActor} from "@erpx/server-commerce/adapters/purchase-boundary";
+import {nativeCommerceReadFirst,RD_WORKSPACE_ORDER_EXISTS} from './native-commerce-read';
 
 type Order={id:string;kind:"quote"|"sales"|"purchase";state:string};
 /** Work's flow enrichment must not restore actions removed by a purchase or
@@ -46,5 +47,5 @@ export async function commerceSourceReadScope(database:SqlDatabase,actor:WorkCon
 }
 export async function requireCommerceWorkspaceRecordRead(database:SqlDatabase,actor:WorkContext,moduleId:string,id:string){
  if(!["sales","procurement"].includes(moduleId)||await commercePackageEnforcementMode()==="disabled")return;
- if(await database.prepare("SELECT 1 FROM commerce_orders WHERE id=?").bind(id).first())await requireCommerceOrderRead(database,actor,id);
+ if(await nativeCommerceReadFirst<{ '1': number }>(RD_WORKSPACE_ORDER_EXISTS,[id],database))await requireCommerceOrderRead(database,actor,id);
 }

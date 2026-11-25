@@ -99,6 +99,21 @@ export const RD_POLICY_PURCHASE_RECEIPT = 'commerce_rd_policy_purchase_receipt';
 export const RD_POLICY_FULFILLMENT = 'commerce_rd_policy_fulfillment';
 export const RD_POLICY_PRODUCT = 'commerce_rd_policy_product';
 
+/** Allow-listed Commerce posting-prerequisite state witness. */
+export const RD_POSTING_PREREQUISITE_STATE = 'commerce_rd_posting_prerequisite_state';
+
+/** Allow-listed inventory attachment image reads. */
+export const RD_INVENTORY_ATTACHMENT_WAREHOUSES = 'commerce_rd_inventory_attachment_warehouses';
+export const RD_INVENTORY_ATTACHMENT_PRODUCTS = 'commerce_rd_inventory_attachment_products';
+export const RD_INVENTORY_ATTACHMENT_STOCK = 'commerce_rd_inventory_attachment_stock';
+export const RD_INVENTORY_ATTACHMENT_RECEIPT = 'commerce_rd_inventory_attachment_receipt';
+
+/** Allow-listed workspace-record Commerce order existence probe. */
+export const RD_WORKSPACE_ORDER_EXISTS = 'commerce_rd_workspace_order_exists';
+
+/** Allow-listed order source-id lookup. */
+export const RD_ORDER_BY_SOURCE_ID = 'commerce_rd_order_by_source_id';
+
 /** Allow-listed warehouse-config read kinds resolved by the mounted owner command-plan route. */
 export const RD_WAREHOUSE_PAGE_ROWS = 'commerce_rd_warehouse_page_rows';
 export const RD_WAREHOUSE_MASTER_ROWS = 'commerce_rd_warehouse_master_rows';

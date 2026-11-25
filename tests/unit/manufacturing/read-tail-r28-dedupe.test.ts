@@ -28,14 +28,15 @@ describe('manufacturing read-tail r28 cost-allocation probe family', () => {
     }
   });
 
-  it('defines one text-only emitter and routes both probes through it', () => {
+  it('defines one text-only probe and routes both probes through the shared owner-table emitter', () => {
     const source = src('package-obligations.ts');
     expect(source.match(/export const manufacturingCostAllocationProbe =/g) ?? []).toHaveLength(1);
     expect(source.split('manufacturingCostAllocationProbe(').length - 1).toBe(2); // the true/false probes
     expect(source).not.toContain('EXISTS(SELECT 1 FROM manufacturing_cost_allocations allocation JOIN orders o ON o.id=allocation.order_id WHERE allocation.pool_id=pool.id)');
     expect(source).not.toContain('NOT EXISTS(SELECT 1 FROM manufacturing_cost_allocations allocation WHERE allocation.pool_id=pool.id)');
     const emitter = source.slice(source.indexOf('export const manufacturingCostAllocationProbe'), source.indexOf('export async function manufacturingPackageObligations'));
-    expect(emitter.match(/SELECT/g) ?? []).toHaveLength(1);
+    expect(emitter.match(/SELECT/g) ?? []).toHaveLength(0);
+    expect(emitter).toContain('manufacturingOwnerTableSelect("1", `cost_allocations allocation');
     expect(emitter).not.toMatch(/prepare\(|\.run\(|\.all\(|\.first\(/);
   });
 
@@ -59,7 +60,7 @@ describe('manufacturing read-tail r28 cost-allocation probe family', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(45); // r27 left 58; r28 parameterizes the cost-allocation probe family 58->57; r29 scoped EXISTS probe 57->56; r30 scope CTE family 56->55; r31 allowed-select head family 55->53; r32 metric breakdown head 53->52; r34 r15/r23 head fold 52->51; r35 scope-row head fold 51->50; r36 owner-table head fold 50->49; r37 projection-from-source head fold 49->48; r22 native detail-read cut 46->45.
+    expect(total).toBe(42); // r27 left 58; r28 parameterizes the cost-allocation probe family 58->57; r29 scoped EXISTS probe 57->56; r30 scope CTE family 56->55; r31 allowed-select head family 55->53; r32 metric breakdown head 53->52; r34 r15/r23 head fold 52->51; r35 scope-row head fold 51->50; r36 owner-table head fold 50->49; r37 projection-from-source head fold 49->48; r22 native detail-read cut 46->45; package-obligation owner-table heads 45->42.
     expect(total).toBeLessThan(58);
   });
 });

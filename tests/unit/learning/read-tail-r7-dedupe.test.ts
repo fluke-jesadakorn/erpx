@@ -173,7 +173,7 @@ describe('Learning assignments-image family folded into the native byte oracle',
     for (const p of imagePre) expect(rust).toContain(p.sql);
   });
 
-  test('retirement:ts-statements KPI is 29 (strictly below the BEFORE=30 baseline)', () => {
+  test('retirement:ts-statements KPI is 21 (strictly below the BEFORE=29 baseline)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -184,8 +184,8 @@ describe('Learning assignments-image family folded into the native byte oracle',
     };
     walk(srcRoot);
     expect(total).toBeLessThan(30);
-    expect(total).toBe(29);
-    expect(selectCount(src('learning-read-sql.ts'))).toBe(28);
+    expect(total).toBe(21);
+    expect(selectCount(src('learning-read-sql.ts'))).toBe(20);
     expect(selectCount(src('executive-metric-projections.ts'))).toBe(1);
   });
 });

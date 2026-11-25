@@ -127,6 +127,9 @@ pub const DRAFT_REQUEST_NEEDS_REVIEW: &str = "draft_request_needs_review";
 /// and the transport never substitutes for that check.
 pub const DRAFT_READ_ACTIVE: &str = "draft_read_active";
 pub const DRAFT_READ_BY_ID: &str = "draft_read_by_id";
+/// Native-owned draft request list. SELECT-only, draft-id keyed; the caller
+/// passes its Company for transport and keeps its draft authority.
+pub const DRAFT_READ_REQUESTS: &str = "draft_read_requests";
 pub const DRAFT_READ_RECENT: &str = "draft_read_recent";
 pub const DRAFT_READ_PENDING_POSITIONS: &str = "draft_read_pending_positions";
 pub const DRAFT_READ_RESERVATIONS: &str = "draft_read_reservations";
@@ -337,6 +340,7 @@ pub const KINDS: &[&str] = &[
     DRAFT_REQUEST_NEEDS_REVIEW,
     DRAFT_READ_ACTIVE,
     DRAFT_READ_BY_ID,
+    DRAFT_READ_REQUESTS,
     DRAFT_READ_RECENT,
     DRAFT_READ_PENDING_POSITIONS,
     DRAFT_READ_RESERVATIONS,
@@ -579,6 +583,9 @@ fn sql(kind: &str) -> Option<&'static str> {
         }
         DRAFT_READ_BY_ID => {
             "SELECT * FROM organization_drafts WHERE company_id=? AND owner_id=? AND id=?"
+        }
+        DRAFT_READ_REQUESTS => {
+            "SELECT id,item_keys,state,last_error,change_id FROM organization_draft_requests WHERE draft_id=? ORDER BY created_at,id"
         }
         DRAFT_READ_RECENT => {
             "SELECT id,updated_at,jsonb_array_length(definition->'items') count FROM organization_drafts WHERE company_id=? AND owner_id=? AND state='submitted' ORDER BY updated_at DESC LIMIT 20"
@@ -2064,6 +2071,35 @@ mod tests {
             &[Value::from("company"), Value::from("department"), Value::from("extra")],
         )
         .is_err());
+        let upper = statement.to_ascii_uppercase();
+        assert!(upper.starts_with("SELECT "));
+        assert!(!upper.contains(" INSERT ") && !upper.contains(" UPDATE ") && !upper.contains(" DELETE "));
+        assert!(!upper.contains(" FOR UPDATE ") && !upper.contains(" FOR SHARE ") && !upper.contains(" LOCK TABLE "));
+    }
+
+    #[test]
+    fn draft_read_requests_is_byte_identical_and_read_only() {
+        assert!(supported(DRAFT_READ_REQUESTS));
+        const RETIRED: &str = "SELECT id,item_keys,state,last_error,change_id FROM organization_draft_requests WHERE draft_id=? ORDER BY created_at,id";
+        assert_eq!(sql(DRAFT_READ_REQUESTS).unwrap(), RETIRED);
+        let digest = {
+            use sha2::Digest;
+            let mut hasher = sha2::Sha256::new();
+            hasher.update(RETIRED.as_bytes());
+            format!("{:x}", hasher.finalize())
+        };
+        assert_eq!(
+            digest,
+            "acd62f94cd510e0d5fc8d05fa9bb9b0b1e53e88c28810a9669f85d479fcb7438"
+        );
+        let (statement, values) =
+            owner_statement(DRAFT_READ_REQUESTS, &[Value::from("draft")])
+                .expect("draft read requests statement");
+        assert_eq!(statement, RETIRED);
+        assert_eq!(values, vec![Value::from("draft")]);
+        // Missing or extra positional values fail closed.
+        assert!(owner_statement(DRAFT_READ_REQUESTS, &[]).is_err());
+        assert!(owner_statement(DRAFT_READ_REQUESTS, &[Value::from("draft"), Value::from("extra")]).is_err());
         let upper = statement.to_ascii_uppercase();
         assert!(upper.starts_with("SELECT "));
         assert!(!upper.contains(" INSERT ") && !upper.contains(" UPDATE ") && !upper.contains(" DELETE "));

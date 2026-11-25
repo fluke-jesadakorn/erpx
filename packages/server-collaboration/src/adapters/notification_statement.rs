@@ -615,6 +615,24 @@ pub fn plan_values_statement(
         // binds the link, room and Company ids in the original order.
         "messaging_attachment_image_head" => "SELECT jsonb_build_object('room',to_jsonb(r),'members',",
         "messaging_attachment_files" => ",'file',(SELECT jsonb_agg(jsonb_build_object('file',to_jsonb(f),'message',(SELECT to_jsonb(msg) FROM messaging_messages msg WHERE msg.id=f.message_id AND msg.room_id=r.id)) ORDER BY f.id) FROM messaging_files f WHERE f.room_id=r.id AND f.attachment_link_id=?))::text image FROM messaging_rooms r WHERE r.id=? AND r.company_id=?",
+        // Messaging attachment purchase witness and guard. Owner bytes only;
+        // the caller inserts its registered aggregates and scope predicates.
+        "messaging_attachment_witness_head" => "SELECT r.id,r.company_id,jsonb_build_object('room',to_jsonb(r)-ARRAY['version','last_seq'],'members',",
+        "messaging_attachment_witness_tail" => "))::text witness FROM messaging_rooms r WHERE r.id=? AND r.company_id=?",
+        "messaging_attachment_guard_head" => "EXISTS(SELECT 1 FROM (",
+        "messaging_attachment_guard_room" => ") message_file_source WHERE witness=? AND EXISTS(SELECT 1 FROM messaging_rooms r WHERE r.id=message_file_source.id AND r.company_id=message_file_source.company_id AND ",
+        // Work package-obligation fact arms. Each static span is owner-owned
+        // byte-for-byte; the caller inserts only its registered owner rowsets
+        // and predicates and binds in the original order. Advisory/FOR UPDATE
+        // locks stay in the caller.
+        "work_obligation_handbook_source" => "OR (n.source_type IN ('handbook','handbook_article') AND scope.package_id='work' AND EXISTS(SELECT 1 FROM handbook_articles article WHERE article.id=n.source_id AND article.company_id=n.company_id))",
+        "work_obligation_calendar_source" => "OR (n.source_type IN ('calendar_appointment','appointment') AND scope.package_id='work' AND EXISTS(SELECT 1 FROM appointments a WHERE a.id=n.source_id))),",
+        "work_obligation_notification_fact" => "SELECT 'notification' kind,n.id,n.source_version version,CASE WHEN n.read_at IS NULL AND n.archived_at IS NULL THEN 'waiting' ELSE 'reviewed' END state,n.image,n.read_at IS NULL AND n.archived_at IS NULL pending FROM notice_sources n",
+        "work_obligation_handbook_fact" => "UNION ALL SELECT 'handbook',article.id,article.version,CASE WHEN article.archived=1 THEN 'archived' ELSE 'available' END,to_jsonb(article),article.archived<>1 OR NOT EXISTS(SELECT 1 FROM handbook_revisions revision WHERE revision.article_id=article.id AND revision.company_id=article.company_id AND revision.revision=article.draft_revision) FROM handbook_articles article CROSS JOIN scope WHERE scope.package_id='work' AND article.company_id=scope.company_id",
+        "work_obligation_social_draft_fact" => "UNION ALL SELECT 'social-draft',draft.id,draft.version,CASE WHEN draft.published_post_id IS NULL THEN 'draft' ELSE 'published' END,to_jsonb(draft),draft.published_post_id IS NULL AND length(trim(draft.body))>0 FROM social_post_drafts draft CROSS JOIN scope WHERE scope.package_id IN ('work','work-social') AND draft.company_id=scope.company_id AND draft.purpose<>'handover'",
+        "work_obligation_social_story_fact" => "UNION ALL SELECT 'social-story',story.id,story.version,story.state,to_jsonb(story),story.state='published' FROM social_stories story CROSS JOIN scope WHERE scope.package_id IN ('work','work-social') AND story.company_id=scope.company_id",
+        "work_obligation_social_ai_draft_fact" => "UNION ALL SELECT 'social-ai-draft',draft.id,draft.source_version,draft.state,to_jsonb(draft),(draft.state='pending' OR draft.state='ready' AND draft.expires_at>scope.now_ms) FROM social_ai_drafts draft JOIN posts p ON p.id=draft.post_id CROSS JOIN scope WHERE scope.package_id IN ('work','work-social','work-routines')",
+        "work_obligation_final" => ") SELECT kind,id,version,state,image,COALESCE(pending,true) pending FROM facts ORDER BY kind,id",
         _ => return None,
     };
     Some(
@@ -1259,6 +1277,89 @@ mod tests {
         );
         assert_eq!(planned.sql.matches('?').count(), 3);
         assert_eq!(planned.values.len(), 3);
+    }
+
+    #[test]
+    fn messaging_attachment_purchase_kinds_render_the_retired_sql_byte_for_byte() {
+        let cases = [
+            (
+                "messaging_attachment_witness_head",
+                "SELECT r.id,r.company_id,jsonb_build_object('room',to_jsonb(r)-ARRAY['version','last_seq'],'members',",
+                0,
+            ),
+            (
+                "messaging_attachment_witness_tail",
+                "))::text witness FROM messaging_rooms r WHERE r.id=? AND r.company_id=?",
+                2,
+            ),
+            ("messaging_attachment_guard_head", "EXISTS(SELECT 1 FROM (", 0),
+            (
+                "messaging_attachment_guard_room",
+                ") message_file_source WHERE witness=? AND EXISTS(SELECT 1 FROM messaging_rooms r WHERE r.id=message_file_source.id AND r.company_id=message_file_source.company_id AND ",
+                1,
+            ),
+        ];
+        for (kind, sql, binds) in cases {
+            let values = vec!["bind"; binds];
+            let planned = super::plan_values_statement(kind, &read_input(kind, &values))
+                .expect("registered kind")
+                .expect("planned statement");
+            assert_eq!(planned.sql, sql, "{kind}");
+            assert_eq!(planned.sql.matches('?').count(), binds, "{kind}");
+        }
+    }
+
+    #[test]
+    fn work_obligation_fact_fragments_are_owner_owned_bytes() {
+        let cases = [
+            (
+                "work_obligation_handbook_source",
+                "OR (n.source_type IN ('handbook','handbook_article') AND scope.package_id='work' AND EXISTS(SELECT 1 FROM handbook_articles article WHERE article.id=n.source_id AND article.company_id=n.company_id))",
+                1,
+            ),
+            (
+                "work_obligation_calendar_source",
+                "OR (n.source_type IN ('calendar_appointment','appointment') AND scope.package_id='work' AND EXISTS(SELECT 1 FROM appointments a WHERE a.id=n.source_id))),",
+                1,
+            ),
+            (
+                "work_obligation_notification_fact",
+                "SELECT 'notification' kind,n.id,n.source_version version,CASE WHEN n.read_at IS NULL AND n.archived_at IS NULL THEN 'waiting' ELSE 'reviewed' END state,n.image,n.read_at IS NULL AND n.archived_at IS NULL pending FROM notice_sources n",
+                1,
+            ),
+            (
+                "work_obligation_handbook_fact",
+                "UNION ALL SELECT 'handbook',article.id,article.version,CASE WHEN article.archived=1 THEN 'archived' ELSE 'available' END,to_jsonb(article),article.archived<>1 OR NOT EXISTS(SELECT 1 FROM handbook_revisions revision WHERE revision.article_id=article.id AND revision.company_id=article.company_id AND revision.revision=article.draft_revision) FROM handbook_articles article CROSS JOIN scope WHERE scope.package_id='work' AND article.company_id=scope.company_id",
+                2,
+            ),
+            (
+                "work_obligation_social_draft_fact",
+                "UNION ALL SELECT 'social-draft',draft.id,draft.version,CASE WHEN draft.published_post_id IS NULL THEN 'draft' ELSE 'published' END,to_jsonb(draft),draft.published_post_id IS NULL AND length(trim(draft.body))>0 FROM social_post_drafts draft CROSS JOIN scope WHERE scope.package_id IN ('work','work-social') AND draft.company_id=scope.company_id AND draft.purpose<>'handover'",
+                1,
+            ),
+            (
+                "work_obligation_social_story_fact",
+                "UNION ALL SELECT 'social-story',story.id,story.version,story.state,to_jsonb(story),story.state='published' FROM social_stories story CROSS JOIN scope WHERE scope.package_id IN ('work','work-social') AND story.company_id=scope.company_id",
+                1,
+            ),
+            (
+                "work_obligation_social_ai_draft_fact",
+                "UNION ALL SELECT 'social-ai-draft',draft.id,draft.source_version,draft.state,to_jsonb(draft),(draft.state='pending' OR draft.state='ready' AND draft.expires_at>scope.now_ms) FROM social_ai_drafts draft JOIN posts p ON p.id=draft.post_id CROSS JOIN scope WHERE scope.package_id IN ('work','work-social','work-routines')",
+                1,
+            ),
+            (
+                "work_obligation_final",
+                ") SELECT kind,id,version,state,image,COALESCE(pending,true) pending FROM facts ORDER BY kind,id",
+                1,
+            ),
+        ];
+        for (kind, sql, selects) in cases {
+            let planned = super::plan_values_statement(kind, &read_input(kind, &[]))
+                .expect("registered kind")
+                .expect("planned statement");
+            assert_eq!(planned.sql, sql, "{kind}");
+            assert_eq!(planned.sql.matches("SELECT ").count(), selects, "{kind}");
+        }
     }
 }
 

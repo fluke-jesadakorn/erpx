@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
+import { crmSelectBodySql } from '../../../packages/server-crm/src/adapters/read-tail-r46-sql';
 import { crmRevenueJournalHeadSql } from '../../../packages/server-crm/src/adapters/read-tail-r31-sql';
 
 const owner = resolve(__dirname, '../../../packages/server-crm/src');
@@ -38,7 +39,7 @@ describe('crm read-tail r31 byte-identical SELECT-head family', () => {
   test('owns the head renderer once and composes it at both retired call sites', () => {
     const helper = src('read-tail-r31-sql.ts');
     expect(helper.match(/crmRevenueJournalHeadSql =/g)).toHaveLength(1);
-    expect((helper.match(/SELECT /g) ?? []).length).toBe(1);
+    expect((helper.match(/SELECT /g) ?? []).length).toBe(0);
 
     const analytics = src('analytics.ts');
     expect(analytics).toContain("crmRevenueJournalHeadSql(' lead_id',crmAnalyticsSalesPostingSources)");
@@ -68,8 +69,17 @@ describe('crm read-tail r31 byte-identical SELECT-head family', () => {
     ] as const) expect(src(file)).toContain(token);
   });
 
-  test('retirement:ts-statements stays strictly below the r30 BEFORE=123 baseline', () => {
-    expect(totalSelects()).toBe(28);
+  test.each([
+    [' lead_id', SALES],
+    ['', HOTEL],
+  ])('the revenue-journal head folds into the owner select-body plan for %#', (idAlias, source) => {
+    const body = `l.id${idAlias},journal.primary_journal_id,journal.revenue_minor FROM crm_leads l JOIN crm_opportunities opportunity ON opportunity.lead_id=l.id JOIN (${source}) source ON `;
+    expect(crmRevenueJournalHeadSql(idAlias, source)).toBe(crmSelectBodySql(body));
+    expect(crmRevenueJournalHeadSql(idAlias, source)).toBe(`SELECT ${body}`);
+  });
+
+  test('retirement:ts-statements folds the revenue-journal head (28 -> 27)', () => {
+    expect(totalSelects()).toBe(23);
     expect(totalSelects()).toBeLessThan(123);
   });
 });

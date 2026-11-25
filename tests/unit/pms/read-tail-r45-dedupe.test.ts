@@ -139,8 +139,8 @@ describe('pms read-tail r45 relation-arm, point-head and join-anchor dedupe', ()
 
   it('routes every call site through the helpers and removes the inline heads', async () => {
     const rr = await src('adapters/pms/read-repository.ts');
-    expect(calls(rr, 'pmsReservationRelationArmSql')).toBe(3); // r48 native port
-    expect(calls(rr, 'pmsChosenKindPointSql')).toBe(1); // r48 native port
+    expect(calls(rr, 'pmsReservationRelationArmSql')).toBe(0); // r48 native port
+    expect(calls(rr, 'pmsChosenKindPointSql')).toBe(0); // r48 native port
     for (const k of [
       'armChosenReservation', 'armReservationIdChosen', 'armSelectedGuestAccount',
       'armReservationIdStays', 'armGuestIdStays', 'armGuestIdChosen',
@@ -148,7 +148,7 @@ describe('pms read-tail r45 relation-arm, point-head and join-anchor dedupe', ()
     ] as const) expect(rr.split(HEAD[k]).length - 1, k).toBe(0);
     // Remaining arm order is preserved at the operation-related call site; the
     // section linked_ids union is now planned in Rust as one native kind.
-    expect(rr).toContain("reservations AS (${pmsReservationRelationArmSql('chosenReservationId')} UNION ${pmsReservationRelationArmSql('reservationIdChosen')})");
+    expect(rr).toContain('PMS_RD_OPERATION_RELATED_RECORDS');
     expect(rr).toContain('PMS_RD_SECTION_RELATED_RECORDS, [facts.propertyId, facts.seedsJson');
     // Binds and CTE/scoped tails stay at the call site.
     expect(rr).toContain('[facts.propertyId, facts.seedsJson, facts.propertyId2, facts.propertyId3, facts.propertyId3, facts.roomView');
@@ -194,7 +194,7 @@ describe('pms read-tail r45 relation-arm, point-head and join-anchor dedupe', ()
       p += calls(text, 'pmsChosenKindPointSql');
       j += calls(text, 'pmsRecordPropertyJoinSql');
     }
-    expect([a, p, j]).toEqual([3, 1, 6]);
+    expect([a, p, j]).toEqual([0, 0, 6]);
   });
 
   it('leaves locks, feature availability, native reads and r17-r44 helpers untouched', async () => {
@@ -217,8 +217,8 @@ describe('pms read-tail r45 relation-arm, point-head and join-anchor dedupe', ()
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(202);
-    expect(bare).toBe(203);
+    expect(spaced).toBe(194);
+    expect(bare).toBe(195);
     expect(spaced).toBeLessThan(292);
     expect(bare).toBeLessThan(294);
   });

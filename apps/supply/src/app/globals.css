@@ -644,6 +644,7 @@
 @source "../../../../packages/server-benefits/src/adapters/benefits-native-read.ts";
 @source "../../../../packages/server-benefits/src/adapters/benefits-read-sql.ts";
 @source "../../../../packages/server-benefits/src/adapters/executive-metric-projections.ts";
+@source "../../../../packages/server-benefits/src/adapters/native-benefit-read.ts";
 @source "../../../../packages/server-benefits/src/adapters/native-lane-32/client.ts";
 @source "../../../../packages/server-benefits/src/adapters/payroll-owner-facts.ts";
 @source "../../../../packages/server-benefits/src/adapters/payroll-source-facts.ts";
@@ -679,6 +680,7 @@
 @source "../../../../packages/server-billing/src/public/executive-metric-watermarks.ts";
 @source "../../../../packages/server-brand/src/adapters/attachment-read-sources.ts";
 @source "../../../../packages/server-brand/src/adapters/attachment-read.ts";
+@source "../../../../packages/server-brand/src/adapters/attachment-scope-head.ts";
 @source "../../../../packages/server-brand/src/adapters/branding.ts";
 @source "../../../../packages/server-brand/src/adapters/business-document.ts";
 @source "../../../../packages/server-brand/src/adapters/executive-metric-projections.ts";
@@ -2451,6 +2453,7 @@
 @source "../../../../packages/server-maintenance/src/adapters/native-preventive-read.ts";
 @source "../../../../packages/server-maintenance/src/adapters/projection-lookup.ts";
 @source "../../../../packages/server-maintenance/src/adapters/purchase-sources.ts";
+@source "../../../../packages/server-maintenance/src/adapters/read-head-sources.ts";
 @source "../../../../packages/server-maintenance/src/adapters/read-tail-r30-alias-rows.ts";
 @source "../../../../packages/server-maintenance/src/adapters/record-image-sources.ts";
 @source "../../../../packages/server-maintenance/src/adapters/work.ts";
@@ -3349,6 +3352,7 @@
 @source "../../../../packages/server-planning/src/adapters/planning-jsonb-agg-sql.ts";
 @source "../../../../packages/server-planning/src/adapters/planning-jsonb-row-sql.ts";
 @source "../../../../packages/server-planning/src/adapters/planning-package-fact-sql.ts";
+@source "../../../../packages/server-planning/src/adapters/planning-read-tail-contract.ts";
 @source "../../../../packages/server-planning/src/adapters/planning-resource-allocation-sql.ts";
 @source "../../../../packages/server-planning/src/adapters/production-command-sources-read.ts";
 @source "../../../../packages/server-planning/src/adapters/purchase-sources.ts";
@@ -3376,6 +3380,7 @@
 @source "../../../../packages/server-platform_administration/src/adapters/native-engineering-verification-read/client.ts";
 @source "../../../../packages/server-platform_administration/src/adapters/native-lane-33/client.ts";
 @source "../../../../packages/server-platform_administration/src/adapters/native-owner-write.ts";
+@source "../../../../packages/server-platform_administration/src/adapters/platform-read-heads.ts";
 @source "../../../../packages/server-platform_administration/src/adapters/pms-rollout-guards.ts";
 @source "../../../../packages/server-platform_administration/src/adapters/records-ai-usage-projection.ts";
 @source "../../../../packages/server-platform_administration/src/adapters/release-acceptance.ts";
@@ -3420,7 +3425,6 @@
 @source "../../../../packages/server-pms/src/adapters/pms-read-tail-r21-sql.ts";
 @source "../../../../packages/server-pms/src/adapters/pms-read-tail-r22-sql.ts";
 @source "../../../../packages/server-pms/src/adapters/pms-read-tail-r24-sql.ts";
-@source "../../../../packages/server-pms/src/adapters/pms-read-tail-r25-sql.ts";
 @source "../../../../packages/server-pms/src/adapters/pms-read-tail-r26-sql.ts";
 @source "../../../../packages/server-pms/src/adapters/pms-read-tail-r27-sql.ts";
 @source "../../../../packages/server-pms/src/adapters/pms-read-tail-r29-sql.ts";
@@ -3429,11 +3433,9 @@
 @source "../../../../packages/server-pms/src/adapters/pms-read-tail-r35-sql.ts";
 @source "../../../../packages/server-pms/src/adapters/pms-read-tail-r36-sql.ts";
 @source "../../../../packages/server-pms/src/adapters/pms-read-tail-r37-sql.ts";
-@source "../../../../packages/server-pms/src/adapters/pms-read-tail-r38-sql.ts";
 @source "../../../../packages/server-pms/src/adapters/pms-read-tail-r39-sql.ts";
 @source "../../../../packages/server-pms/src/adapters/pms-read-tail-r40-sql.ts";
 @source "../../../../packages/server-pms/src/adapters/pms-read-tail-r41-sql.ts";
-@source "../../../../packages/server-pms/src/adapters/pms-read-tail-r42-sql.ts";
 @source "../../../../packages/server-pms/src/adapters/pms-read-tail-r43-sql.ts";
 @source "../../../../packages/server-pms/src/adapters/pms-read-tail-r44-sql.ts";
 @source "../../../../packages/server-pms/src/adapters/pms-read-tail-r45-sql.ts";
@@ -4296,6 +4298,7 @@
 @source "../../../../packages/server-workflow/src/adapters/people-payroll-final-owner-projections.ts";
 @source "../../../../packages/server-workflow/src/adapters/pms-command-facts.ts";
 @source "../../../../packages/server-workflow/src/adapters/project-worker-startup-evidence.ts";
+@source "../../../../packages/server-workflow/src/adapters/read-fragments.ts";
 @source "../../../../packages/server-workflow/src/adapters/receipt-sql.ts";
 @source "../../../../packages/server-workflow/src/adapters/records-record-details-owned-facts.ts";
 @source "../../../../packages/server-workflow/src/adapters/records-request-ai-facts.ts";

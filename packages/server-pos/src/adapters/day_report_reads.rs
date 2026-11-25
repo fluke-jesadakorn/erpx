@@ -1,5 +1,5 @@
 //! Native POS day-report business-date list reads. These closed, `SELECT`-only
-//! owner statements are the runtime authority for the ten lock-free list reads
+//! owner statements are the runtime authority for the eleven lock-free list reads
 //! in `pos-daily.ts` (`readPosDayCloses1`, `readPosSales2`, `readPosShifts1`,
 //! `readPosPayments2`, `readPosRefunds1`, `readPosRefundPayments1`,
 //! `readPosStockMoves1`, `readPosFulfillments1`, `readPosCashMovements1`,
@@ -21,6 +21,7 @@ pub const STOCK_MOVES: &str = "pos_day_report_stock_moves";
 pub const FULFILLMENTS: &str = "pos_day_report_fulfillments";
 pub const CASH_MOVEMENTS: &str = "pos_day_report_cash_movements";
 pub const SETTLEMENTS: &str = "pos_day_report_settlements";
+pub const PAYMENT_MIX: &str = "pos_day_report_payment_mix";
 
 pub const KINDS: &[&str] = &[
     DAY_CLOSES,
@@ -33,13 +34,14 @@ pub const KINDS: &[&str] = &[
     FULFILLMENTS,
     CASH_MOVEMENTS,
     SETTLEMENTS,
+    PAYMENT_MIX,
 ];
 
 pub fn supported(kind: &str) -> bool {
     KINDS.contains(&kind)
 }
 
-/// Authoritative SQL for the ten day-report list kinds, byte-identical to the
+/// Authoritative SQL for the eleven day-report list kinds, byte-identical to the
 /// retired TypeScript literals and the integration parity oracle. Every
 /// statement is a caller-transaction `SELECT` scoped by the caller-supplied
 /// Company/branch/business-date values. No statement carries a row lock, an
@@ -67,6 +69,10 @@ pub fn sql(kind: &str) -> Option<&'static str> {
         FULFILLMENTS => "SELECT id,state FROM pos_fulfillments WHERE company_id=? AND branch_id=? AND business_date=? AND state IN ('queued','preparing','ready') ORDER BY id",
         CASH_MOVEMENTS => "SELECT m.id FROM pos_cash_movements m JOIN pos_shifts s ON s.id=m.shift_id WHERE s.company_id=? AND s.branch_id=? AND s.business_date=? AND m.approved_by IS NULL ORDER BY m.id",
         SETTLEMENTS => "SELECT id,kind,state,amount_minor,fee_minor,amount_minor-fee_minor net_minor FROM pos_settlements WHERE company_id=? AND ((kind='payout' AND state<>'matched') OR (kind='balance' AND state='unmapped')) ORDER BY id",
+        PAYMENT_MIX => r#"SELECT s.business_date,s.register_id,s.shift_id,s.currency,p.method,SUM(p.amount_minor) received_minor,
+ SUM(COALESCE((SELECT SUM(rp.amount_minor) FROM pos_refund_payments rp WHERE rp.payment_id=p.id AND rp.state='succeeded'),0)) refunded_minor
+ FROM pos_payments p JOIN pos_sales s ON s.id=p.sale_id WHERE p.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND p.state='succeeded'
+ GROUP BY s.business_date,s.register_id,s.shift_id,s.currency,p.method ORDER BY s.business_date DESC LIMIT 300"#,
         _ => return None,
     })
 }
@@ -109,12 +115,16 @@ mod tests {
         (FULFILLMENTS, "SELECT id,state FROM pos_fulfillments WHERE company_id=? AND branch_id=? AND business_date=? AND state IN ('queued','preparing','ready') ORDER BY id", 3),
         (CASH_MOVEMENTS, "SELECT m.id FROM pos_cash_movements m JOIN pos_shifts s ON s.id=m.shift_id WHERE s.company_id=? AND s.branch_id=? AND s.business_date=? AND m.approved_by IS NULL ORDER BY m.id", 3),
         (SETTLEMENTS, "SELECT id,kind,state,amount_minor,fee_minor,amount_minor-fee_minor net_minor FROM pos_settlements WHERE company_id=? AND ((kind='payout' AND state<>'matched') OR (kind='balance' AND state='unmapped')) ORDER BY id", 1),
+        (PAYMENT_MIX, r#"SELECT s.business_date,s.register_id,s.shift_id,s.currency,p.method,SUM(p.amount_minor) received_minor,
+ SUM(COALESCE((SELECT SUM(rp.amount_minor) FROM pos_refund_payments rp WHERE rp.payment_id=p.id AND rp.state='succeeded'),0)) refunded_minor
+ FROM pos_payments p JOIN pos_sales s ON s.id=p.sale_id WHERE p.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND p.state='succeeded'
+ GROUP BY s.business_date,s.register_id,s.shift_id,s.currency,p.method ORDER BY s.business_date DESC LIMIT 300"#, 3),
     ];
 
     #[test]
     fn day_report_sql_is_byte_identical_with_expected_binds() {
-        assert_eq!(KINDS.len(), 10);
-        assert_eq!(EXPECTED.len(), 10);
+        assert_eq!(KINDS.len(), 11);
+        assert_eq!(EXPECTED.len(), 11);
         for (kind, expected, binds) in EXPECTED {
             assert!(supported(kind), "day-report kind must be allow listed: {kind}");
             let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));

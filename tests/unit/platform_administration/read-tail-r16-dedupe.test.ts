@@ -70,7 +70,8 @@ describe('Platform Administration read-tail r16 parameterized-family dedupe', ()
 
     const predicate = source('adapters/release-predicate.ts');
     expect(predicate.match(/export function projectionSourceHeadSql/g)).toHaveLength(1);
-    expect(predicate.split('`SELECT ${columns} FROM (${projection}) ${alias} WHERE ${predicate}`').length - 1).toBe(1);
+    expect(predicate).toContain('platformReadHeads.selectProjectionFrom');
+    expect(predicate.split('`SELECT ${columns} FROM (${projection}) ${alias} WHERE ${predicate}`').length - 1).toBe(0);
     expect(predicate).toContain('projectionSourceHeadSql(count, organizationPlatformSources.organization_nodes,');
     expect(predicate).toContain("projectionSourceHeadSql(columns, organizationPlatformSources.company_business_acceptance, 'company_business_acceptance'");
     expect(predicate).toContain("projectionSourceHeadSql('1', source, 'c', `c.company_id=scope_company.id AND ${condition}`)");
@@ -114,7 +115,7 @@ describe('Platform Administration r16 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(18);
+    expect(total).toBe(10);
     expect(total).toBeLessThan(31);
   });
 });

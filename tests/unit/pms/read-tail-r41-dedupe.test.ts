@@ -100,7 +100,8 @@ describe('pms read-tail r41 guest-join, property-scope and rollout-exists dedupe
     expect(bk).toContain('facts.number, facts.email)');
 
     const rr = await src('adapters/pms/read-repository.ts');
-    expect(rr.split("pmsGuestIdJoinSql('operations')").length - 1).toBe(1);
+    expect(rr.split("pmsGuestIdJoinSql('operations')").length - 1).toBe(0)
+    expect(rr).toContain("PMS_RD_OPERATIONS_PAGE");
     expect(rr.split(HEAD.guestOperations).length - 1).toBe(0);
 
     const hm = await src('adapters/pms/home.ts');
@@ -144,8 +145,8 @@ describe('pms read-tail r41 guest-join, property-scope and rollout-exists dedupe
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(202);
-    expect(bare).toBe(203);
+    expect(spaced).toBe(194);
+    expect(bare).toBe(195);
     expect(spaced).toBeLessThan(302);
   });
 });

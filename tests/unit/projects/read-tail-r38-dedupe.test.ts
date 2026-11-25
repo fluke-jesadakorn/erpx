@@ -192,7 +192,7 @@ describe('Projects read-tail r38 closed member EXISTS and evidence super-head de
     // r37 left 88. r38 Rank1 folds five member EXISTS witnesses into one closed
     // helper (-4) and Rank2 folds four evidence heads into one closed super-head
     // (-3): 88-7 = 81. Rank3 keeps its tail inline; r43 folds only the closed head.
-    expect(total).toBe(62); // r45 bare-projection head family folded into read-tail-r45 (65->62)
+    expect(total).toBe(57); // r46 evaluation reads moved to the native contract (62->57)
     expect(total).toBeLessThan(88);
   });
 });

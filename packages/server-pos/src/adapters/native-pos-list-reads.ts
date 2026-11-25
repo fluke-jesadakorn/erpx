@@ -1,7 +1,7 @@
 import 'server-only';
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import type { SqlDatabase, SqlResult } from '@erpx/server-runtime/public/runtime/types';
 import type { SqlValueRow } from '@erpx/server-runtime/public/runtime/sql';
-import { nativePosAll, nativePosOne } from './native-owner-write';
+import { nativePosAll, nativePosOne, nativePosStatement } from './native-owner-write';
 
 /**
  * Owner-issued POS list reads (round 31) on caller-owned transactions.
@@ -18,6 +18,7 @@ const REFUNDS = 'pos_list_refunds';
 const CONNECTIONS = 'pos_list_connections';
 const SETTLEMENTS = 'pos_list_settlements';
 const EXCEPTION_JOBS = 'pos_list_exception_jobs';
+const RECORD_SUPPLEMENT_SALES = 'pos_list_record_supplement_sales';
 
 /** Workspace sales list, bounded by Company, Branch, number and state. */
 export async function nativePosSalesListStatement(
@@ -74,4 +75,28 @@ export async function nativePosExceptionJobsListStatement(
   company: string,
 ): Promise<SqlValueRow[]> {
   return nativePosAll(db, company, EXCEPTION_JOBS, [company]);
+}
+
+/**
+ * POS-owned sale-id list for the Records owner's record-supplement read. The
+ * SQL lives in the native POS owner registry (`erpx-server-pos::adapters::
+ * list_reads`, kind `pos_list_record_supplement_sales`) and is byte-identical to
+ * the retired literal. The caller executes it on its own unit and retains the
+ * original `.results` contract; no local SQL, mirror or fallback remains.
+ */
+export async function nativePosRecordSupplementSalesStatement<T = SqlValueRow>(
+  db: SqlDatabase,
+  facts: {
+    companyId: string;
+    branchId: string | null;
+    branchId2: string | null;
+    sourceId: string | number | boolean | null;
+    sourceId2: string | number | boolean | null;
+    sourceId3: string | number | boolean | null;
+  },
+): Promise<SqlResult<T>> {
+  return (await nativePosStatement(db, facts.companyId, RECORD_SUPPLEMENT_SALES, [
+    facts.companyId, facts.branchId, facts.branchId2,
+    facts.sourceId, facts.sourceId2, facts.sourceId3,
+  ])).all<T>();
 }

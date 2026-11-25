@@ -123,7 +123,7 @@ describe('manufacturing read-tail r35 sum-subquery head-family fold', () => {
     for (const file of await tsFiles(new URL('../../../packages/server-manufacturing/src/', import.meta.url))) {
       total += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     }
-    expect(total).toBe(45);
+    expect(total).toBe(42); // package-obligation owner-table heads 45->42.
     expect(total).toBeLessThan(50);
   });
 });

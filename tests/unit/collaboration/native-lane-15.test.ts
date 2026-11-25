@@ -264,7 +264,7 @@ describe('native Collaboration lane 15 beta-facts reads', () => {
     expect(source).toContain("from './native-lane-15/client'");
   });
 
-  it('lowers the lane SELECT-space KPI from 52 to 37 across both families', () => {
+  it('lowers the lane SELECT-space KPI from 52 to 31 across both families', () => {
     const brief = fs.readFileSync(
       path.join(root, '.scratch/wave0/briefs/lane_15.md'), 'utf8',
     );
@@ -276,7 +276,7 @@ describe('native Collaboration lane 15 beta-facts reads', () => {
       if (!fs.existsSync(absolute)) continue;
       count += fs.readFileSync(absolute, 'utf8').split('SELECT ').length - 1;
     }
-    expect(count).toBe(37);
+    expect(count).toBe(31);
   });
 });
 

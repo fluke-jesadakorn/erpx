@@ -107,7 +107,7 @@ describe('crm read-tail r51 byte-identical lead-select head', () => {
     expect(r29).toContain("import {crmLeadSelectSql} from './read-tail-r51-sql';");
     expect(r29).toContain('crmLeadSelectSql(`l${join} WHERE ${predicates} AND ${eligible}`)');
     expect(r29).not.toContain('`SELECT 1 FROM crm_leads l${join} WHERE');
-    expect((r29.match(/SELECT /g) ?? [])).toHaveLength(1);
+    expect((r29.match(/SELECT /g) ?? [])).toHaveLength(0);
   });
 
   test('leaves r42-r50 renderers, locks, no-space probe, receipt reads, native kinds and cross-owner exports untouched', () => {
@@ -132,7 +132,7 @@ describe('crm read-tail r51 byte-identical lead-select head', () => {
   });
 
   test('retirement:ts-statements folds the r51 head into r42 (41 -> 40)', () => {
-    expect(totalSelects()).toBe(28);
+    expect(totalSelects()).toBe(23);
     expect(totalSelects()).toBeLessThan(41);
   });
 });

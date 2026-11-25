@@ -23,3 +23,4 @@ pub mod task_revise;
 pub(crate) mod source_ordered_json;
 pub(crate) mod workflow_wave3;
 pub mod flow_advance;
+pub(crate) mod read_fragments;

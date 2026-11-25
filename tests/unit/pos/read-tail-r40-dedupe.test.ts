@@ -86,7 +86,7 @@ describe('POS read-tail r40 refund-payment subquery dedupe', () => {
     expect(read('native-pos-day-report.ts')).toContain("'pos_day_report_");
     expect(read('native-pos-stripe-reads.ts')).toContain("'pos_stripe_");
     expect(read('pos-stripe.ts')).toContain('SELECT * FROM pos_sales WHERE id=? AND company_id=? FOR UPDATE');
-    expect(read('owner_writes.rs')).toContain('assert_eq!(KINDS.len(), 200)');
+    expect(read('owner_writes.rs')).toContain('assert_eq!(KINDS.len(), 203)');
     expect(read('owner_writes.rs')).toContain('assert_eq!(crate::adapters::sale_child_reads::KINDS.len(), 13)');
     expect(read('addon-package-obligations.ts')).toContain('UNION SELECT s.package_id,s.company_id,');
   });
@@ -101,7 +101,7 @@ describe('POS read-tail r40 refund-payment subquery dedupe', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(154);
+    expect(total).toBe(147);
     expect(total).toBeLessThan(176);
   });
 });

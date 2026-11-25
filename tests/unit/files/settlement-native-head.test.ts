@@ -20,9 +20,9 @@ const tsFiles = (dir: string): string[] => readdirSync(dir, { withFileTypes: tru
 
 /** Byte-exact oracles captured from the three retired TypeScript heads. */
 const HEADS = [
-  [ATTACHMENT_EXISTS_HEAD_SQL, '08b4c26e14a85262ac9a177a9754f5203011dfaa51aae87e5b9ba59976c53e6c', 42, 'SELECT EXISTS(SELECT 1 FROM attachment', 2],
+  [ATTACHMENT_EXISTS_HEAD_SQL, '08b4c26e14a85262ac9a177a9754f5203011dfaa51aae87e5b9ba59976c53e6c', 38, 'SELECT EXISTS(SELECT 1 FROM attachment', 2],
   [MESSAGING_SETTLEMENT_HEAD_SQL, '063e76012a14e6e8e4e5cd5f17144368ba286029f267fe5b4e6298f69d5c2ad5', 32, 'SELECT l.id link_id,s.id set_id,', 1],
-  [PACKAGE_FILE_LINK_TARGET_HEAD_SQL, '2097bd180887f8b55c61c79fcd703dd91e700e61195ae872bbed88d08bb7f01d', 39, "SELECT 'file-link' kind,l.id,s.target_", 1],
+  [PACKAGE_FILE_LINK_TARGET_HEAD_SQL, '2097bd180887f8b55c61c79fcd703dd91e700e61195ae872bbed88d08bb7f01d', 38, "SELECT 'file-link' kind,l.id,s.target_", 1],
 ] as const;
 
 describe('Files settlement heads are native-owned', () => {
@@ -70,7 +70,7 @@ describe('Files settlement heads are native-owned', () => {
     }
   });
 
-  test('retirement:ts-statements is 195, strictly below the witness BEFORE=198 baseline', () => {
+  test('retirement:ts-statements is 190, strictly below the witness BEFORE=198 baseline', () => {
     let literal = 0, total = 0, broad = 0;
     for (const path of tsFiles(srcRoot)) {
       const text = readFileSync(path, 'utf8');
@@ -78,9 +78,9 @@ describe('Files settlement heads are native-owned', () => {
       total += (text.match(/SELECT\s/g) ?? []).length;
       broad += (text.match(/\b(SELECT|INSERT|UPDATE|DELETE)\b/g) ?? []).length;
     }
-    expect(literal).toBe(195);
-    expect(total).toBe(196);
-    expect(broad).toBe(214);
+    expect(literal).toBe(190);
+    expect(total).toBe(191);
+    expect(broad).toBe(208);
     expect(literal).toBeLessThan(198);
     expect(total).toBeLessThan(199);
   });

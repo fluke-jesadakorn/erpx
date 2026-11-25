@@ -93,7 +93,7 @@ describe('Identity access read-tail r40 wiring', () => {
       ['adapters/payroll-cancellation-grant.ts', 'eae4d8d3f2eacc4839676d3fcf7cd2da7edc3bb5a6a875e71b2787cf9e26e5ee'],
       ['adapters/native-session.ts', '1c390e8f6c47b25da718120ef5f6546103b1f8bbbfa837406ff7be462d1a51c1'],
       ['adapters/product-sso-store.ts', '967b754535bb65e0196bf47fa0c0292c65b30276291e137c926d22579a3f3441'],
-      ['adapters/workflow-command-authority.ts', 'dd8fe21329a9d90c5b89ccfd1efb523a38590b72043d30aad266b0e38b9cff62'],
+      ['adapters/workflow-command-authority.ts', 'd0939ee195594843eb159709f7214996667b7174d418235750e4ca09c93268ca'],
       ['adapters/executive-metric-projections.ts', 'b93aa61f9ea991ca199fe69131e013fbc272f90aaddc6ec8f37eb3566c3644de'],
     ];
     for (const [rel, sha] of pins) expect(hash(rel), rel).toBe(sha);
@@ -105,7 +105,7 @@ describe('Identity access read-tail r40 wiring', () => {
 });
 
 describe('Identity access read-tail r40 retirement check', () => {
-  test('retirement:ts-statements is 371 after workflow/queued authorization cut', () => {
+  test('retirement:ts-statements is 368 after access-diagnosis plan cut', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -116,6 +116,6 @@ describe('Identity access read-tail r40 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(440);
-    expect(total).toBe(371);
+    expect(total).toBe(368);
   });
 });

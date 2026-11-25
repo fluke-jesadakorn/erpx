@@ -75,7 +75,7 @@ describe('crm read-tail r25 purchase row projection family', () => {
   });
 
   test('retirement:ts-statements folds the purchase-row prefix (29 -> 28)', () => {
-    expect(totalSelects()).toBe(28);
+    expect(totalSelects()).toBe(23);
     expect(totalSelects()).toBeLessThanOrEqual(99);
     expect(totalSelects()).toBeLessThan(141);
   });

@@ -55,7 +55,7 @@ describe('Platform Administration release child-image native cutover', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(18);
+    expect(total).toBe(10);
     expect(total).toBeLessThan(25);
   });
 });

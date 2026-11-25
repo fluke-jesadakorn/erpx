@@ -153,7 +153,7 @@ describe('Identity access read-tail r36 wiring', () => {
       ['adapters/executive-authority-source.ts', 'd6526a6b37bdcaa1b17eb55e319bf936b5431d46e8ebaa8b142adcc57baa6170'],
       ['adapters/iam-directory-refresh.ts', '9c73eb793a2bc879a6638ade55b8bd844b7f96f498545e096a8b3a693cb2f7d9'],
       ['adapters/project-worker-startup-subject.ts', 'c83fd8ea6b1a360d859695448d95bba90ffefcecc6f221615d9b45361c559c75'],
-      ['adapters/queued-command-authority.ts', 'fbc8a038d9ece1b6f83897a9d77611a8ffc6272eaebf74125c84c33da284f2c6'],
+      ['adapters/queued-command-authority.ts', 'ce6d759e80eaaf885f61204031868d722ce35b815a0b6c30e09240666c2a9def'],
       ['adapters/queued-social-source-authority.ts', 'a5379950fb6735056405839f43758dd14235fc8da7402097cb120e780a77663e'],
       ['adapters/collaboration-push-session.ts', '49b8d99615997a27bc8999eecd699c7666d99b01fc35b922ce464f4e21e1ace8'],
     ];
@@ -436,7 +436,7 @@ describe('Identity access workflow and queued authorization plan cut', () => {
 });
 
 describe('Identity access read-tail r36 retirement check', () => {
-  test('retirement:ts-statements is 371 after workflow/queued authorization cut', () => {
+  test('retirement:ts-statements is 368 after access-diagnosis plan cut', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -447,6 +447,6 @@ describe('Identity access read-tail r36 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(454);
-    expect(total).toBe(371);
+    expect(total).toBe(368);
   });
 });

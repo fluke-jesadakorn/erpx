@@ -6,6 +6,9 @@ import { executiveGenerationJobsSql } from '../../../packages/server-runtime/src
 const srcRoot = resolve(__dirname, '../../../packages/server-runtime/src');
 const adapterDir = resolve(srcRoot, 'adapters');
 const src = (name: string) => readFileSync(resolve(adapterDir, name), 'utf8');
+const tails = () =>
+  JSON.parse(readFileSync(resolve(adapterDir, 'read-tail-sources.json'), 'utf8')) as Record<string, string>;
+
 const selectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;
 const readOnly = (sql: string) => {
   expect(sql).toContain('SELECT ');
@@ -50,9 +53,11 @@ describe('Runtime read-tail r14 executive_generation_jobs generation.ts five rea
 
   test('the family is composed by the named adapter, never inlined', () => {
     const shared = src('read-tail-sql.ts');
-    expect(shared.split('`SELECT ${columns} FROM executive_generation_jobs${suffix}`')).toHaveLength(2);
+    expect(tails().executiveGenerationJobs).toBe('SELECT {columns} FROM executive_generation_jobs{suffix}');
+    expect(shared).not.toMatch(/SELECT |INSERT |DELETE |UPDATE /);
     const family = shared.slice(shared.indexOf('export const executiveGenerationJobsSql'));
     expect(family).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
+
     let uses = 0;
     for (const [name, count] of callers) {
       const text = src(name);
@@ -73,14 +78,17 @@ describe('Runtime read-tail r14 executive_generation_jobs generation.ts five rea
   });
 
   test('r1-r13 helpers are not re-deduped', () => {
-    const shared = src('read-tail-sql.ts');
-    expect(shared.split('`SELECT ${columns} FROM holding_bindings${suffix}`')).toHaveLength(2);
-    expect(shared.split('`SELECT ${columns} FROM executive_generation_jobs${suffix}`')).toHaveLength(2);
-    expect(shared.split('`SELECT ${columns} FROM runtime_health${suffix}`')).toHaveLength(2);
-    expect(shared.split('`SELECT ${columns} FROM executive_external_tokens${suffix}`')).toHaveLength(2);
-    expect(shared.split('`SELECT ${columns} FROM executive_report_shares${suffix}`')).toHaveLength(2);
-    expect(shared.split('`SELECT ${columns} FROM executive_report_revisions WHERE report_id=?${suffix}`')).toHaveLength(2);
-    expect(shared.split('`SELECT ${columns} FROM executive_reports${suffix}`')).toHaveLength(2);
+    expect(Object.keys(tails()).sort()).toEqual([
+      'executiveExternalTokens',
+      'executiveGenerationJobs',
+      'executiveReportRevisions',
+      'executiveReportShares',
+      'executiveReports',
+      'holdingBindings',
+      'reportLock',
+      'reportVersionGuard',
+      'runtimeHealth',
+    ]);
   });
 
   test('retirement:ts-statements stays strictly below the r14 AFTER=36 pin', () => {
@@ -93,7 +101,7 @@ describe('Runtime read-tail r14 executive_generation_jobs generation.ts five rea
       }
     };
     walk(srcRoot);
-    expect(total).toBe(13);
+    expect(total).toBe(4);
     expect(total).toBeLessThan(36);
   });
 });

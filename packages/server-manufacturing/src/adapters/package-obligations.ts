@@ -8,6 +8,7 @@ import {manufacturingRowsSelect} from "./manufacturing-read-sql-fragments";
 import {manufacturingSettlementFactSelect} from "./manufacturing-read-tail-r17-sql";
 import {manufacturingScopeCte} from "./manufacturing-read-tail-r30-sql";
 import {manufacturingStockFootprintSelect} from "./manufacturing-read-tail-r23-sql";
+import {manufacturingOwnerTableSelect} from "./manufacturing-read-tail-r36-sql";
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
 const sources=new WeakMap<SqlDatabase,string>();
 export async function lockManufacturingPackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){const {database,companyId}=packageSettlementSource(owner,lock);await database.batch(manufacturingPurchaseSourceReadLocks(database));await database.prepare("LOCK TABLE manufacturing_material_reservations,manufacturing_genealogy,manufacturing_cost_snapshots,manufacturing_operation_events,manufacturing_material_lot_issues,manufacturing_output_lots,manufacturing_lot_genealogy,manufacturing_inventory_moves,manufacturing_cost_pools,manufacturing_cost_allocations IN SHARE MODE").run();sources.set(database,companyId);}
@@ -15,8 +16,8 @@ export function assertManufacturingPackageObligationSources(owner:PostgresDataba
 /** Raw native rows include broken lineage as an obligation; a filtered purchase
  * or valid-only Work/Finance projection can never manufacture a zero. */
 export const manufacturingPackageSettlementSources={
- orders:`SELECT o.*,COALESCE(valid.advanced,false) advanced,valid.id IS NOT NULL source_valid FROM manufacturing_orders o LEFT JOIN (${manufacturingPurchaseOrderRows}) valid ON valid.id=o.id AND valid.company_id=o.company_id`,
- postings:"SELECT p.*,profile.chart_id,profile.currency profile_currency,profile.wip_account_id FROM manufacturing_order_postings p LEFT JOIN manufacturing_accounting_profiles profile ON profile.id=p.profile_id AND profile.company_id=p.company_id",
+ orders:manufacturingOwnerTableSelect("o.*,COALESCE(valid.advanced,false) advanced,valid.id IS NOT NULL source_valid",`orders o LEFT JOIN (${manufacturingPurchaseOrderRows}) valid ON valid.id=o.id AND valid.company_id=o.company_id`),
+ postings:manufacturingOwnerTableSelect("p.*,profile.chart_id,profile.currency profile_currency,profile.wip_account_id","order_postings p LEFT JOIN manufacturing_accounting_profiles profile ON profile.id=p.profile_id AND profile.company_id=p.company_id"),
  costMovements:manufacturingRowsSelect("manufacturing_cost_movements"),
  costPools:manufacturingRowsSelect("manufacturing_cost_pools"),
  costAllocations:manufacturingRowsSelect("manufacturing_cost_allocations"),
@@ -24,11 +25,12 @@ export const manufacturingPackageSettlementSources={
  stockFootprint:`${manufacturingStockFootprintSelect("o.id order_id,o.company_id,o.warehouse_id,s.output_product_id product_id","manufacturing_specifications","s","s.id=o.specification_id AND s.company_id=o.company_id")} UNION ${manufacturingStockFootprintSelect("o.id,o.company_id,o.warehouse_id,line.product_id","manufacturing_specification_lines","line","line.specification_id=o.specification_id")}`,
 } as const;
 /** Text-only cost-allocation probe shared by the cost-pool settlement fact. The
- * two probes were byte-identical apart from the optional orders join; one
- * parameterized emitter renders each one verbatim on the caller's statement.
- * It never prepares or executes and stays outside the RD_* read registry. */
+ * two probes were byte-identical apart from the optional orders join; the
+ * shared r36 owner-table emitter renders each one verbatim on the caller's
+ * statement. It never prepares or executes and stays outside the RD_* read
+ * registry. */
 export const manufacturingCostAllocationProbe = (joined: boolean) =>
-  `SELECT 1 FROM manufacturing_cost_allocations allocation${joined ? " JOIN orders o ON o.id=allocation.order_id" : ""} WHERE allocation.pool_id=pool.id`;
+  manufacturingOwnerTableSelect("1", `cost_allocations allocation${joined ? " JOIN orders o ON o.id=allocation.order_id" : ""} WHERE allocation.pool_id=pool.id`);
 export async function manufacturingPackageObligations(owner:PostgresDatabase,database:SqlDatabase,input:Input){
  assertManufacturingPackageObligationSources(owner,database,input.companyId);if(input.moduleId!=="manufacturing"||!["manufacturing","manufacturing-mrp"].includes(input.packageId)||input.packageVersion!==1||!Number.isSafeInteger(input.now)||input.now<0)throw Error("MANUFACTURING_PACKAGE_OBLIGATION_SCOPE_REQUIRED");
  const facts=(await database.prepare(`${manufacturingScopeCte(true)},orders AS MATERIALIZED(SELECT o.* FROM (${manufacturingPackageSettlementSources.orders}) o,scope WHERE o.company_id=scope.company_id AND (scope.full OR o.advanced OR NOT o.source_valid))

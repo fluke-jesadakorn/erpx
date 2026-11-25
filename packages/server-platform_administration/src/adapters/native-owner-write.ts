@@ -2,11 +2,12 @@ import 'server-only';
 import { Agent, request as httpRequest } from 'node:http';
 import { Readable } from 'node:stream';
 import type { SqlStatement } from '@erpx/server-runtime/public/runtime/types';
+import {platformReadHeads} from './platform-read-heads';
 
 /** The single one-row probe base shared by inert owner-write placeholders and
  * owner-local verification probes. Kept here once so owner code never repeats
  * the same fixed statement; each caller supplies its own suffix. */
-export function selectOneSql(suffix = '') { return `SELECT 1${suffix}`; }
+export function selectOneSql(suffix = '') { return `${platformReadHeads.selectOne}${suffix}`; }
 
 /** The single inert placeholder statement SQL returned to existing caller
  * batches after a native write. Kept here once so owner writers never repeat

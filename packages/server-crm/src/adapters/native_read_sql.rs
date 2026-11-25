@@ -116,6 +116,133 @@ mod tests {
     }
 
     #[test]
+    fn r26_source_reads_are_the_owner_select_body_plan() {
+        // Canonical native form of both r26 source reads: the select-body plan
+        // over the caller's column list and join/where tail. The TS renderers
+        // `crmGuestLinkReservationSourceSql` and `crmCaseEventLeadReadSql`
+        // delegate on this identity; columns, joins, binds and order tails stay verbatim.
+        let select_body = |body: &str| format!("SELECT {body}");
+        let guest = |columns: &str, properties: &str, records: &str, stay: &str, tail: &str, nl: &str| {
+            select_body(&format!(
+                "{columns}{nl}FROM crm_guest_links g JOIN ({properties}) p ON p.id=g.property_id AND p.company_id=g.company_id{nl}JOIN ({records}) r ON r.property_id=p.id AND r.kind='reservation' AND r.data_json::jsonb->>'guestId'=g.guest_id{stay}{nl}WHERE g.sharing_state='granted' AND g.contact_id=? AND g.company_id=? AND (?::text IS NULL OR p.branch_id=?){tail}"
+            ))
+        };
+        let events = |columns: &str, predicates: &str, crm_where: &str, tail: &str| {
+            select_body(&format!(
+                "{columns} FROM crm_case_events event JOIN crm_leads l ON l.id=event.lead_id WHERE l.company_id=? AND {predicates} AND {crm_where}{tail}"
+            ))
+        };
+        let cases = [
+            ("guest reservation source", guest("r.id,r.state", "PROPERTIES", "RECORDS", "", " ORDER BY r.updated_at DESC", " ")),
+            ("guest stay source", guest("g.guest_id,r.id", "PROPERTIES", "RECORDS", " JOIN STAYS s ON s.id=r.id", " ORDER BY r.updated_at", "\n  ")),
+            ("case event read", events("event.lead_id,event.action", "event.created_at<=?", "SCOPE", " ORDER BY event.created_at,event.id")),
+            ("qualification events", events("DISTINCT event.lead_id", "event.action='qualify'", "SCOPE", "")),
+        ];
+        for (name, rendered) in cases {
+            assert_eq!(rendered.matches("SELECT ").count(), 1, "{name}");
+            let upper = rendered.to_ascii_uppercase();
+            assert!(!upper.contains("INSERT"), "{name}");
+            assert!(!upper.contains("UPDATE"), "{name}");
+            assert!(!upper.contains("DELETE"), "{name}");
+            assert!(!upper.contains("FOR UPDATE"), "{name}");
+            assert!(!upper.contains("LOCK TABLE"), "{name}");
+        }
+    }
+
+    #[test]
+    fn account_read_anchor_is_the_owner_select_body_plan() {
+        // Canonical native form of the r29 account anchor: the select-body plan
+        // over `${projection}${tail}`, with an optional caller-owned EXISTS
+        // wrapper. The TS `crmAccountReadAnchor` delegates on this identity.
+        let select_body = |body: &str| format!("SELECT {body}");
+        let bare = |projection: &str, tail: &str| select_body(&format!("{projection}{tail}"));
+        let cases = [
+            ("policy read", "account.company_id,account.version", "\n    FROM crm_accounts account\n    WHERE account.id=? AND account.company_id=?"),
+            ("image read", "account.finance_party_id customer_id", " FROM crm_accounts account WHERE account.id=? AND account.company_id=?"),
+        ];
+        for (name, projection, tail) in cases {
+            let rendered = bare(projection, tail);
+            assert_eq!(rendered, format!("SELECT {projection}{tail}"), "{name}");
+            assert_eq!(rendered.matches("SELECT ").count(), 1, "{name}");
+            assert_eq!(format!("EXISTS({rendered})"), format!("EXISTS(SELECT {projection}{tail})"), "{name} exists wrapper");
+            let upper = rendered.to_ascii_uppercase();
+            assert!(!upper.contains("INSERT"), "{name}");
+            assert!(!upper.contains("UPDATE"), "{name}");
+            assert!(!upper.contains("DELETE"), "{name}");
+            assert!(!upper.contains("FOR UPDATE"), "{name}");
+            assert!(!upper.contains("LOCK TABLE"), "{name}");
+        }
+    }
+
+    #[test]
+    fn clocked_source_exists_head_is_the_owner_select_one_plan() {
+        // Canonical native form of the r33 clocked-source scope: the inner
+        // witness is the r42 select-one plan over the sourced join. The TS
+        // `crmClockedSourceScopeSql` delegates on this identity; the clock CTE,
+        // id/company expressions and caller tail stay verbatim.
+        let select_one = |body: &str| format!("SELECT 1 FROM {body}");
+        let clocked = |clock: &str, cte: &str, source: &str, alias: &str, id: &str, company: &str, tail: &str| {
+            format!(
+                "EXISTS(WITH {clock}{cte} {}",
+                select_one(&format!("({source}) {alias} CROSS JOIN {clock} WHERE {alias}.id={id} AND {alias}.company_id={company} AND {tail}"))
+            )
+        };
+        let rendered = clocked(
+            "report_clock",
+            " AS MATERIALIZED(... now_ms)",
+            "CRMW_R_ROWS",
+            "actual",
+            "l.id",
+            "l.company_id",
+            "allowed AND scope_ok)",
+        );
+        assert_eq!(
+            rendered,
+            "EXISTS(WITH report_clock AS MATERIALIZED(... now_ms) SELECT 1 FROM (CRMW_R_ROWS) actual CROSS JOIN report_clock WHERE actual.id=l.id AND actual.company_id=l.company_id AND allowed AND scope_ok)",
+        );
+        assert_eq!(rendered.matches("SELECT ").count(), 1);
+        let upper = rendered.to_ascii_uppercase();
+        assert!(!upper.contains("INSERT"), "ledger free");
+        assert!(!upper.contains("UPDATE"), "ledger free");
+        assert!(!upper.contains("DELETE"), "ledger free");
+        assert!(!upper.contains("FOR UPDATE"), "no row lock");
+        assert!(!upper.contains("LOCK TABLE"), "no table lock");
+    }
+
+    #[test]
+    fn revenue_journal_head_is_the_owner_select_body_plan() {
+        // Canonical native form of the r31 revenue-journal head: the select-body
+        // plan over the l.id / journal projection and lead -> opportunity join.
+        // The TS `crmRevenueJournalHeadSql` delegates on this identity; the id
+        // alias, posting source and caller ON tail stay verbatim.
+        let select_body = |body: &str| format!("SELECT {body}");
+        let journal = |id_alias: &str, source: &str| {
+            select_body(&format!(
+                "l.id{id_alias},journal.primary_journal_id,journal.revenue_minor FROM crm_leads l JOIN crm_opportunities opportunity ON opportunity.lead_id=l.id JOIN ({source}) source ON "
+            ))
+        };
+        let cases = [
+            ("sales posting", " lead_id", "SALES_POSTING"),
+            ("hotel posting", "", "HOTEL_POSTING"),
+        ];
+        for (name, id_alias, source) in cases {
+            let rendered = journal(id_alias, source);
+            assert_eq!(
+                rendered,
+                format!("SELECT l.id{id_alias},journal.primary_journal_id,journal.revenue_minor FROM crm_leads l JOIN crm_opportunities opportunity ON opportunity.lead_id=l.id JOIN ({source}) source ON "),
+                "{name}"
+            );
+            assert_eq!(rendered.matches("SELECT ").count(), 1, "{name}");
+            let upper = rendered.to_ascii_uppercase();
+            assert!(!upper.contains("INSERT"), "{name}");
+            assert!(!upper.contains("UPDATE"), "{name}");
+            assert!(!upper.contains("DELETE"), "{name}");
+            assert!(!upper.contains("FOR UPDATE"), "{name}");
+            assert!(!upper.contains("LOCK TABLE"), "{name}");
+        }
+    }
+
+    #[test]
     fn purchase_row_projection_head_is_the_owner_select_body_plan() {
         // Canonical native form of the r25 purchase-row prefix: the select-body
         // plan over the fixed id/company/branch/department projection. The TS

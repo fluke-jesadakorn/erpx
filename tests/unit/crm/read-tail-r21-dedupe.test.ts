@@ -162,7 +162,7 @@ describe('crm read-tail r21 byte-identical projection/FROM head', () => {
   });
 
   test('retirement:ts-statements drops from the r51 AFTER=47 to 43', () => {
-    expect(totalSelects()).toBe(28);
+    expect(totalSelects()).toBe(23);
     expect(totalSelects()).toBeLessThan(47);
   });
 });

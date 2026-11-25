@@ -91,10 +91,11 @@ describe('Files read-tail r45 byte-oracle dedupe', () => {
       expect(count(helper, `export const ${name} =`)).toBe(1);
       expect(count(helper, '${' + name + '}')).toBe(0);
     }
+    expect(helper).toContain('events-sets-head-sources.json');
     expect(helper).not.toMatch(/prepare\(|\.bind\(|nativeWrite\(/);
   });
 
-  test('no residual inline literal: each head lives only in its helper', () => {
+  test('no statement token in the helper: heads live in the native contract', () => {
     const residual: Record<string, number> = { H1: 0, H2: 0, H3: 0 };
     for (const path of tsFiles(srcRoot)) {
       const text = readFileSync(path, 'utf8');
@@ -102,10 +103,11 @@ describe('Files read-tail r45 byte-oracle dedupe', () => {
       residual.H2 += count(text, H2);
       residual.H3 += count(text, H3);
     }
-    // H2 also occurs once in the out-of-scope social-upload-cleanup.ts statement.
-    expect(residual).toEqual({ H1: 1, H2: 2, H3: 1 });
-    expect(src('adapters/read-tail-r45-source-sql.ts')).toContain(H1);
-    expect(src('adapters/read-tail-r45-source-sql.ts')).toContain(H2);
+    // H2 also occurs once in social-upload-cleanup.ts; H3 in the social-draft guard.
+    expect(residual).toEqual({ H1: 0, H2: 1, H3: 1 });
+    const contract = src('adapters/events-sets-head-sources.json');
+    expect(contract).toContain(H1);
+    expect(contract).toContain(H2);
     expect(src('adapters/social-upload-cleanup.ts')).toContain(H2);
     expect(src('adapters/social-draft-image-guard-sql.ts')).toContain(H3);
     for (const prior of [
@@ -148,7 +150,7 @@ describe('Files read-tail r45 byte-oracle dedupe', () => {
     expect(home).toContain("import { socialDraftImageExistsSql } from './social-draft-image-guard-sql';");
   });
 
-  test('retirement:ts-statements is 195, strictly below the r44 BEFORE=242 (242->239)', () => {
+  test('retirement:ts-statements is 190, strictly below the r44 BEFORE=242 (242->239)', () => {
     let literal = 0, total = 0;
     for (const path of tsFiles(srcRoot)) {
       const text = readFileSync(path, 'utf8');
@@ -158,8 +160,8 @@ describe('Files read-tail r45 byte-oracle dedupe', () => {
     // Three heads fold two sites into one each (-3): unaliased attachment_events,
     // attachment_sets star and the guardPublishImage EXISTS prefix.
     // r46 folds two closed-union heads (orphan-preservation event, draft/bound count): 239->237.
-    expect(literal).toBe(195);
-    expect(total).toBe(196);
+    expect(literal).toBe(190);
+    expect(total).toBe(191);
     expect(literal).toBeLessThan(242);
     expect(total).toBeLessThan(243);
   });

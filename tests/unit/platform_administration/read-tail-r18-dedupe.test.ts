@@ -78,14 +78,15 @@ describe('Platform Administration read-tail r18 row-head fold', () => {
     const predicate = source('adapters/release-predicate.ts');
     expect(predicate.match(/export function releaseAcceptanceRowSql/g)).toHaveLength(1);
     expect(predicate.match(/export function releaseRevisionReadSql/g)).toHaveLength(1);
-    expect(predicate.split('`SELECT ${columns} FROM ${table} WHERE ${predicate}${suffix}`').length - 1).toBe(1);
+    expect(predicate).toContain('platformReadHeads.selectRowByPredicate');
+    expect(predicate.split('`SELECT ${columns} FROM ${table} WHERE ${predicate}${suffix}`').length - 1).toBe(0);
     expect(predicate.split('`SELECT ${columns} FROM company_release_acceptances WHERE ${predicate}${suffix}`').length - 1).toBe(0);
     expect(predicate.split('`SELECT revision FROM ${releaseRevisionTable(scope)} WHERE company_id=?${suffix}`').length - 1).toBe(0);
     expect(predicate).toContain("return releaseAcceptanceRowSql('revision', 'company_id=?', suffix, releaseRevisionTable(scope));");
     expect(predicate).toContain("export function releaseAcceptanceRowSql(columns: string, predicate: string, suffix = '', table = 'company_release_acceptances')");
     expect(predicate).toContain("releaseRevisionReadSql(scope, ' FOR SHARE')");
     expect(predicate).not.toMatch(/SELECT revision FROM \$\{releaseRevisionTable\(scope\)\}/);
-    expect(predicate.split('SELECT ').length - 1).toBe(7);
+    expect(predicate.split('SELECT ').length - 1).toBe(4);
   });
 
   test('callers and their bind arrays are unchanged', () => {
@@ -125,7 +126,7 @@ describe('Platform Administration r18 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(18);
+    expect(total).toBe(10);
     expect(total).toBeLessThan(28);
   });
 });

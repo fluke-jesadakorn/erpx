@@ -95,7 +95,7 @@ describe('Platform Administration native engineering read binding', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(18);
+    expect(total).toBe(10);
     expect(total).toBeLessThan(21);
   });
 

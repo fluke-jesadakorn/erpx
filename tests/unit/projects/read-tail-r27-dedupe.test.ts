@@ -75,7 +75,7 @@ describe('Projects read-tail r27 member EXISTS family dedupe', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(88);
-    expect(total).toBe(62); // r45 bare-projection head family folded into read-tail-r45 (65->62)
+    expect(total).toBe(57); // r46 evaluation reads moved to the native contract (62->57)
   });
 });
 

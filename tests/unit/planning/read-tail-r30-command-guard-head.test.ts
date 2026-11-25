@@ -56,7 +56,7 @@ describe('Planning r30 command-guard EXISTS head retirement', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(8);
+    expect(total).toBe(5);
     expect(total).toBeLessThan(10);
   });
 });

@@ -7,15 +7,16 @@ import { redirect } from 'next/navigation';
 import { currentSession, requireWorkContext, requirePlatformContext, resolveWorkspaceScope } from '@erpx/server-identity_access/public/authorization';
 import { holdingResources, runtimeEnv, type HoldingId } from '../../../../packages/server-runtime/src/public/runtime';
 import { createAccessDiagnosis } from '@erpx/server-identity_access/application/access-diagnosis';
+import { planIdentityControlRead, PC_DIAGNOSIS_ASSIGNMENTS, PC_DIAGNOSIS_MEMBER_PROBE, PC_DIAGNOSIS_PLATFORM_ASSIGNMENTS } from './native-control-read-plan';
 export const accessDiagnosis = createAccessDiagnosis({ session: currentSession, platform: requirePlatformContext, work: requireWorkContext, scope: resolveWorkspaceScope, now: Date.now, apiError: (error): error is ApiError => error instanceof ApiError, redirect,
-    platformAssignments: async (userId) => { const env = await runtimeEnv(); return (await env.CONTROL_DB.prepare("SELECT role,valid_from,valid_until,revoked_at FROM platform_assignments WHERE user_id=?").bind(userId).all<{
+    platformAssignments: async (userId) => { const env = await runtimeEnv(); const plan = await planIdentityControlRead(PC_DIAGNOSIS_PLATFORM_ASSIGNMENTS, [userId]); return (await env.CONTROL_DB.prepare(plan.sql).bind(...plan.values).all<{
         role: string;
         valid_from: number;
         valid_until: number;
         revoked_at: number | null;
     }>()).results; },
     binding: async (slug) => { const env = await runtimeEnv(); return diagnosedHoldingBinding(env.CONTROL_DB, slug); },
-    member: async (holdingId, userId) => { const { write } = await holdingResources(holdingId as HoldingId); return !!await write.prepare("SELECT 1 FROM assignments WHERE user_id=? LIMIT 1").bind(userId).first(); },
+    member: async (holdingId, userId) => { const { write } = await holdingResources(holdingId as HoldingId); const plan = await planIdentityControlRead(PC_DIAGNOSIS_MEMBER_PROBE, [userId]); return !!await write.prepare(plan.sql).bind(...plan.values).first(); },
     scopedNode: async (holdingId, kind, slug, branchSlug, userId) => {
         const { write } = await holdingResources(holdingId as HoldingId);
         type Node = {
@@ -44,5 +45,5 @@ export const accessDiagnosis = createAccessDiagnosis({ session: currentSession, 
         valid_from: number;
         valid_until: number;
         revoked_at: number | null;
-    }; return (await write.prepare("SELECT role,company_id,branch_id,scope_kind,scope_node_id,valid_from,valid_until,revoked_at FROM assignments WHERE user_id=?").bind(userId).all<AssignmentRow>()).results; }
+    }; const plan = await planIdentityControlRead(PC_DIAGNOSIS_ASSIGNMENTS, [userId]); return (await write.prepare(plan.sql).bind(...plan.values).all<AssignmentRow>()).results; }
 });

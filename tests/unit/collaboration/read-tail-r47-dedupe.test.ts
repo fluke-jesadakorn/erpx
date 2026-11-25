@@ -152,7 +152,7 @@ describe('Collaboration read-tail r47 protected SQL isolation', () => {
 });
 
 describe('Collaboration read-tail r47 KPI pins', () => {
-  test('retirement:ts-statements is pinned at 237, below the r47 BEFORE=336 baseline', () => {
+  test('retirement:ts-statements is pinned at 225, below the r47 BEFORE=336 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -164,7 +164,7 @@ describe('Collaboration read-tail r47 KPI pins', () => {
     walk(srcRoot);
     // Two byte-identical owner/version guards -> one owner-local renderer with
     // two thin column wrappers. Net: 336 -> 335.
-    expect(total).toBe(237);
+    expect(total).toBe(225);
     expect(total).toBeLessThan(336);
   });
 });

@@ -6,4 +6,5 @@ pub mod payroll_source;
 pub mod workspace;
 pub mod workspace_http;
 pub mod native_lane_32;
+pub mod native_owner_read_sql;
 pub mod native_settlement_events;

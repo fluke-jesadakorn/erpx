@@ -7,6 +7,7 @@ import { planningAttachmentScenarioSourceRows, planningAttachmentRecommendationS
 const srcRoot = resolve(__dirname, '../../../packages/server-planning/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const selectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;
+const contract = JSON.parse(src('planning-read-tail-sources.json')) as Record<string, string>;
 
 // Verbatim pre-dedupe subqueries from HEAD for the two attachment-lineage
 // single-JSON-row lookups. Byte-identity oracles only, never live query sources.
@@ -50,9 +51,12 @@ describe('Planning read-tail r12 parameterized attachment-lineage JSON-row famil
     expect(attachment).toContain('export const planningAttachmentRecommendationSourceRows=');
   });
 
-  test('shared module declares the read literal exactly once and stays read-only', () => {
+  test('native read-tail contract owns the retired literal and stays read-only', () => {
     const shared = src('planning-jsonb-row-sql.ts');
-    expect(selectCount(shared)).toBe(1);
+    expect(selectCount(shared)).toBe(0);
+    expect(shared).toContain("planning-read-tail-sources.json");
+    expect(shared).toContain('planningReadTailSources.jsonbRowByKey');
+    expect(contract.jsonbRowByKey).toBe('(SELECT to_jsonb({alias}) FROM {table} {alias} WHERE {predicate})');
     expect(shared).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
     for (const sql of generated) {
       expect(sql.toUpperCase()).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);

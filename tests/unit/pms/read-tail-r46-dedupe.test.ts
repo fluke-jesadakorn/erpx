@@ -71,7 +71,7 @@ describe('pms read-tail r46 retirement after the native point-read cut', () => {
     expect(await src('adapters/property-purchase-boundary.ts')).toContain('"SELECT company_id,branch_id FROM pms_properties WHERE id=? FOR KEY SHARE"');
     expect(await src('adapters/feature-availability.ts')).toContain('FOR SHARE');
     const rust = await src('adapters/native_read_sql.rs');
-    expect((rust.match(/^pub const PMS_RD_/gm) ?? []).length).toBe(64);
+    expect((rust.match(/^pub const PMS_RD_/gm) ?? []).length).toBe(67);
     for (const n of [17, 18, 19, 20, 21, 22, 24, 25, 26, 27, 29, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45]) {
       expect((await src(`adapters/pms-read-tail-r${n}-sql.ts`)).length, `r${n}`).toBeGreaterThan(0);
     }
@@ -84,8 +84,8 @@ describe('pms read-tail r46 retirement after the native point-read cut', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(202);
-    expect(bare).toBe(203);
+    expect(spaced).toBe(194);
+    expect(bare).toBe(195);
     expect(spaced).toBeLessThan(220);
   });
 });

@@ -89,8 +89,11 @@ describe('Collaboration read-tail r43 messaging team image family', () => {
     expect(attachPurchases.match(/messagingTeamImage\(/g) ?? []).toHaveLength(1);
     expect(attachRead.match(/messagingTeamImage\(/g) ?? []).toHaveLength(1);
     expect(messaging.match(/messagingTeamImage\(/g) ?? []).toHaveLength(1);
-    expect(sha(line(attachPurchases, 'const source='))).toBe('04c305a0264c0843d5f15bb2688aca6889b7123fc3d4325149791039ea59c64b');
-    expect(sha(line(attachRead, 'async function image('))).toBe('f386557a513be7c9d7fb7373afbea47de998a067267d6e3f5c45f13c3240ee84');
+    // The witness head/tail are owner-planned; the three aggregates remain.
+    expect(sha(line(attachPurchases, 'const source='))).toBe('20b7c7a0f8a437613acc9e132c77fe3544dd37753e16f9cfc8a55c972c53b6c5');
+    // The image head is now an owner-planned fragment ending in 'members',
+    // so the team aggregates and binds remain at this call site unchanged.
+    expect(sha(line(attachRead, 'async function image('))).toBe('ea8a5f346cea3aa6eddd892cb8791dd4341f0e7491e20ec7ff87df99bbb63a1b');
     expect(sha(line(messaging, 'async function image('))).toBe('8108ac3f43724d472ad398fa8e0e2db5795b252b065a0a0ff4633e1c672d1916');
     expect(sha(fixed('adapters/messaging-purchases.ts'))).toBe('6921fd7a922dccbab407a37ecf8544b26494388c442871f4b084c45b39133c9b');
     expect(attachPurchases).not.toContain("(SELECT to_jsonb(t)-'version' FROM messaging_teams t");
@@ -151,7 +154,7 @@ describe('Collaboration read-tail r43 protected SQL isolation', () => {
 });
 
 describe('Collaboration read-tail r43 KPI pins', () => {
-  test('retirement:ts-statements is pinned at 237, below the r44 BEFORE=344 baseline', () => {
+  test('retirement:ts-statements is pinned at 225, below the r44 BEFORE=344 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -166,7 +169,7 @@ describe('Collaboration read-tail r43 KPI pins', () => {
     // 344 replaced 350; locks and notification targets were not touched.
     // r44 retired the latest-message tail, absent-social-post guard and handover
     // ack join: 344 -> 341. Prior pins were refreshed only where 341 replaced 344.
-    expect(total).toBe(237);
+    expect(total).toBe(225);
     expect(total).toBeLessThan(344);
   });
 });

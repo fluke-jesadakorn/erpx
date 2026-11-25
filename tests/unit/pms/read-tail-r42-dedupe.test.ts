@@ -72,7 +72,8 @@ describe('pms read-tail r42 stay-witness, correction-fact and order-tail dedupe'
     // The roomId stay witness moved to native lane 20 with the room summary.
     expect(rr.split("pmsStayExistsHeadSql('roomId')").length - 1).toBe(0);
     expect(rr).toContain('roomSummaryFacts(db, actor, {');
-    expect(rr.split("pmsStayExistsHeadSql('reservationId')").length - 1).toBe(1);
+    expect(rr.split("pmsStayExistsHeadSql('reservationId')").length - 1).toBe(0)
+    expect(rr).toContain("PMS_RD_OPERATIONS_PAGE");
     expect(rr.split('${PMS_ORDERED_RECORDS_TAIL_SQL}').length - 1).toBe(0); // dashboard tail moved to the native plan
     expect(rr).toContain('PMS_RD_DASHBOARD_RECORDS');
     expect(rr.split(HEAD.stayRoom).length - 1).toBe(0);
@@ -80,9 +81,9 @@ describe('pms read-tail r42 stay-witness, correction-fact and order-tail dedupe'
     expect(rr.split(HEAD.orderedRecords).length - 1).toBe(0);
     // Tails and binds stay at the sites.
     expect(rr).not.toContain("AND st.data_json::jsonb->>'state'='in_house'))::integer occupied");
-    expect(rr).toContain("AND ((st.data_json::jsonb->>'arrival'<=? AND st.data_json::jsonb->>'departure'>=?) OR st.data_json::jsonb->>'state'='in_house')) END)");
+    expect(rr).not.toContain("AND ((st.data_json::jsonb->>'arrival'<=? AND st.data_json::jsonb->>'departure'>=?) OR st.data_json::jsonb->>'state'='in_house')) END)");
     expect(rr).not.toContain('.bind(facts.propertyId,facts.status,facts.status');
-    expect(rr).toContain('.bind(facts.propertyId, facts.kind, facts.status, facts.status2');
+    expect(rr).toContain('PMS_RD_OPERATIONS_PAGE, [facts.propertyId, facts.kind, facts.status, facts.status2');
     expect(rr).toContain('facts.fact24, facts.nightView3, facts.nightView4, facts.propertyId6], db');
 
     const addon = await src('adapters/addon-package-obligations.ts');
@@ -130,8 +131,8 @@ describe('pms read-tail r42 stay-witness, correction-fact and order-tail dedupe'
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(202);
-    expect(bare).toBe(203);
+    expect(spaced).toBe(194);
+    expect(bare).toBe(195);
     expect(spaced).toBeLessThan(302);
   });
 });

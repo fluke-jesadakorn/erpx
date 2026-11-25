@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { planningImageSourceRows } from '../../../packages/server-planning/src/adapters/planning-image-source-sql';
@@ -9,6 +10,7 @@ import { planningAttachmentScenarioSourceRows, planningAttachmentRecommendationS
 const srcRoot = resolve(__dirname, '../../../packages/server-planning/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const selectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;
+const sha = (text: string) => createHash('sha256').update(text).digest('hex');
 
 // Verbatim pre-dedupe image-source literals from HEAD (byte-identity oracles
 // only, never live query sources). Both sources have the same head --
@@ -63,9 +65,34 @@ describe('Planning read-tail r15 parameterized image-source row family', () => {
     expect(attachment).toContain('planning-image-source-sql');
   });
 
-  test('shared module declares the read literal exactly once and stays read-only', () => {
+  test('native include_str! contract owns all three attachment-lineage heads', () => {
+    const contract = JSON.parse(src('planning-read-tail-sources.json')) as Record<string, string>;
+    expect(contract).toEqual({
+      sourceRows: 'SELECT {columns}{lead}{fragment} {alias}{tail}{from}',
+      jsonbAggOrdered: '(SELECT jsonb_agg({projection} ORDER BY {order}){from} WHERE {predicate})',
+      jsonbRowByKey: '(SELECT to_jsonb({alias}) FROM {table} {alias} WHERE {predicate})',
+    });
+    expect(Object.values(contract).map(sha)).toEqual([
+      '477bb78fb7cce2562ef5eff1aa9bb123a87d87ba674df34e72701b83c4a978a4',
+      'ac950a6afed9a2c87e7f1a6b94a832ef49e6f3236517a8846e8548b3547a6b4b',
+      '5931da2fdf4ed68e3528618423fd40497f1feb480a4891a80486ba105c73a49f',
+    ]);
+    expect(src('planning_read_tail_sources.rs')).toContain('include_str!("planning-read-tail-sources.json")');
+    expect(src('planning_read_tail_sources.rs')).toContain('pub const PLANNING_READ_TAIL_SOURCES_JSON');
+    expect(src('mod.rs')).toContain('planning_read_tail_sources');
+    expect(readFileSync(resolve(srcRoot, 'public/planning_read_tail_sources.rs'), 'utf8')).toContain('render_source_rows');
+    expect(readFileSync(resolve(srcRoot, 'public/mod.rs'), 'utf8')).toContain('planning_read_tail_sources');
+    expect([ORIG_SCENARIO, ORIG_RECOMMENDATION].map(sha)).toEqual([
+      '58159a7f67f7f371eba17074cc4ba91b2d8a705c785043c0e4f45b105cd58a18',
+      '49a44654532553bc80b4a9e4a357072979687b38458fea81d9e5cddbad0481ea',
+    ]);
+  });
+
+  test('shared module delegates the read head and stays read-only', () => {
     const shared = src('planning-image-source-sql.ts');
-    expect(selectCount(shared)).toBe(1);
+    expect(selectCount(shared)).toBe(0);
+    expect(shared).toContain("planning-read-tail-sources.json");
+    expect(shared).toContain('planningReadTailSources.sourceRows');
     expect(shared).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
     for (const sql of [ORIG_SCENARIO, ORIG_RECOMMENDATION]) {
       expect(sql.toUpperCase()).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
@@ -118,7 +145,7 @@ describe('Planning read-tail r15 parameterized image-source row family', () => {
     // r23 folded the resource-calendar point lookup into the single-line projection/FROM builder (16 -> 15).
     // r24 folded the scoped single-row family into that same builder (15 -> 14).
     // r25 folded the scoped branch-list family into the single-line projection/FROM builder (14 -> 13).
-    expect(total).toBe(8);
+    expect(total).toBe(5);
     expect(total).toBeLessThan(26);
   });
 });

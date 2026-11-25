@@ -8,6 +8,7 @@ import { planningAttachmentScenarioSourceRows } from '../../../packages/server-p
 const srcRoot = resolve(__dirname, '../../../packages/server-planning/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const selectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;
+const contract = JSON.parse(src('planning-read-tail-sources.json')) as Record<string, string>;
 
 // Verbatim pre-dedupe ordered jsonb_agg subqueries from HEAD (byte-identity
 // oracles only, never live query sources). The inner calendar aggregate and the
@@ -59,9 +60,12 @@ describe('Planning read-tail r14 parameterized ordered jsonb_agg family', () => 
     expect(src('attachment-read-sources.ts')).not.toContain(ORIG_FULL);
   });
 
-  test('shared module declares the read literal exactly once and stays read-only', () => {
+  test('native read-tail contract owns the retired literal and stays read-only', () => {
     const shared = src('planning-jsonb-agg-sql.ts');
-    expect(selectCount(shared)).toBe(1);
+    expect(selectCount(shared)).toBe(0);
+    expect(shared).toContain("planning-read-tail-sources.json");
+    expect(shared).toContain('planningReadTailSources.jsonbAggOrdered');
+    expect(contract.jsonbAggOrdered).toBe('(SELECT jsonb_agg({projection} ORDER BY {order}){from} WHERE {predicate})');
     expect(shared).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
     for (const sql of [generatedCalendar, generatedResources]) {
       expect(sql.toUpperCase()).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
@@ -113,7 +117,7 @@ describe('Planning read-tail r14 parameterized ordered jsonb_agg family', () => 
     // r23 folded the resource-calendar point lookup into the single-line projection/FROM builder (16 -> 15).
     // r24 folded the scoped single-row family into that same builder (15 -> 14).
     // r25 folded the scoped branch-list family into the single-line projection/FROM builder (14 -> 13).
-    expect(total).toBe(8);
+    expect(total).toBe(5);
     expect(total).toBeLessThan(27);
   });
 });

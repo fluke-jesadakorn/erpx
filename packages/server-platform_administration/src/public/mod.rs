@@ -15,6 +15,7 @@ pub mod scheduled_release_sources;
 pub mod native_roster_snapshot;
 
 pub mod native_engineering_database_identity;
+pub mod platform_read_head;
 pub mod native_engineering_verification_read;
 pub mod native_engineering_verification_read_http;
 pub mod native_lane_33;

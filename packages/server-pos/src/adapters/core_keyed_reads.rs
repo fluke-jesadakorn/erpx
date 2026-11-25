@@ -14,6 +14,7 @@ pub const SALE_DOCUMENT: &str = "pos_core_keyed_sale_document";
 pub const PREPARED_DAY_CLOSE: &str = "pos_core_keyed_prepared_day_close";
 pub const PENDING_REVERSAL_REQUEST: &str = "pos_core_keyed_pending_reversal_request";
 pub const REVERSAL_BY_SALE: &str = "pos_core_keyed_reversal_by_sale";
+pub const COMMERCE_ATTACHMENT_IMAGE: &str = "pos_core_keyed_commerce_attachment_image";
 
 pub const KINDS: &[&str] = &[
     SETTINGS,
@@ -24,6 +25,7 @@ pub const KINDS: &[&str] = &[
     PREPARED_DAY_CLOSE,
     PENDING_REVERSAL_REQUEST,
     REVERSAL_BY_SALE,
+    COMMERCE_ATTACHMENT_IMAGE,
 ];
 
 pub fn supported(kind: &str) -> bool {
@@ -43,6 +45,7 @@ pub fn sql(kind: &str) -> Option<&'static str> {
         PREPARED_DAY_CLOSE => "SELECT id FROM pos_day_closes WHERE company_id=? AND branch_id=? AND business_date=? AND state='prepared'",
         PENDING_REVERSAL_REQUEST => "SELECT id FROM pos_room_charge_reversal_requests WHERE sale_id=? AND state IN ('requested','pos_approved')",
         REVERSAL_BY_SALE => "SELECT sale_id FROM pos_room_charge_reversals WHERE sale_id=?",
+        COMMERCE_ATTACHMENT_IMAGE => "SELECT jsonb_build_object('catalog',(SELECT jsonb_agg(to_jsonb(c) ORDER BY c.product_id) FROM pos_catalog c WHERE c.product_id=? AND c.company_id=?),'registers',(SELECT jsonb_agg(jsonb_build_object('selection',to_jsonb(s),'register',to_jsonb(r)) ORDER BY s.register_id) FROM pos_register_catalog s JOIN pos_registers r ON r.id=s.register_id AND r.company_id=? WHERE s.product_id=?))::text image",
         _ => return None,
     })
 }
@@ -63,12 +66,13 @@ mod tests {
         (PREPARED_DAY_CLOSE, "SELECT id FROM pos_day_closes WHERE company_id=? AND branch_id=? AND business_date=? AND state='prepared'", 3),
         (PENDING_REVERSAL_REQUEST, "SELECT id FROM pos_room_charge_reversal_requests WHERE sale_id=? AND state IN ('requested','pos_approved')", 1),
         (REVERSAL_BY_SALE, "SELECT sale_id FROM pos_room_charge_reversals WHERE sale_id=?", 1),
+        (COMMERCE_ATTACHMENT_IMAGE, "SELECT jsonb_build_object('catalog',(SELECT jsonb_agg(to_jsonb(c) ORDER BY c.product_id) FROM pos_catalog c WHERE c.product_id=? AND c.company_id=?),'registers',(SELECT jsonb_agg(jsonb_build_object('selection',to_jsonb(s),'register',to_jsonb(r)) ORDER BY s.register_id) FROM pos_register_catalog s JOIN pos_registers r ON r.id=s.register_id AND r.company_id=? WHERE s.product_id=?))::text image", 4),
     ];
 
     #[test]
     fn keyed_core_sql_is_byte_identical_with_expected_binds() {
-        assert_eq!(KINDS.len(), 8);
-        assert_eq!(EXPECTED.len(), 8);
+        assert_eq!(KINDS.len(), 9);
+        assert_eq!(EXPECTED.len(), 9);
         for (kind, expected, binds) in EXPECTED {
             assert!(supported(kind), "keyed core kind must be allow listed: {kind}");
             let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
