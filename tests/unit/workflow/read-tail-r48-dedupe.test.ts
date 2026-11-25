@@ -107,12 +107,13 @@ describe('task settlement source dedupe (r48)', () => {
 
 describe('r48 source retirement pins', () => {
   it('keeps one template literal per deduped family and no writes or locks', async () => {
-    const [union, planning, participant, routing, settlement] = await Promise.all([
+    const [union, planning, participant, routing, settlement, shared] = await Promise.all([
       readFile(new URL('../../../packages/server-workflow/src/adapters/json-each-sources.ts', import.meta.url), 'utf8'),
       readFile(new URL('../../../packages/server-workflow/src/adapters/approval-planning.ts', import.meta.url), 'utf8'),
       readFile(new URL('../../../packages/server-workflow/src/adapters/approval-participant-projection.ts', import.meta.url), 'utf8'),
       readFile(new URL('../../../packages/server-workflow/src/adapters/flow-planning-ports.ts', import.meta.url), 'utf8'),
       readFile(new URL('../../../packages/server-workflow/src/adapters/work-package-obligation-sources.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../packages/server-workflow/src/adapters/closed-projection-sources.ts', import.meta.url), 'utf8'),
     ]);
     expect(union.match(/export const jsonEachApproverPoolSql/g) ?? []).toHaveLength(1);
     expect(union.match(/export const approverUnionProjectionSql/g) ?? []).toHaveLength(1);
@@ -122,7 +123,8 @@ describe('r48 source retirement pins', () => {
     expect(planning).toContain("approverUnionProjectionSql('plain')");
     expect(participant).not.toContain('SELECT ast.approver_user_id user_id UNION');
     expect(participant).toContain("approverUnionProjectionSql('step')");
-    expect(routing.match(/EXISTS\(SELECT 1 FROM \$\{table\}/g) ?? []).toHaveLength(1);
+    expect(routing.match(/EXISTS\(SELECT 1 FROM \$\{table\}/g) ?? []).toHaveLength(0);
+    expect(shared.match(/EXISTS\(SELECT 1 FROM \$\{table\}/g) ?? []).toHaveLength(1);
     expect(routing).toContain("(target: 'route' | FlowKind): string");
     expect(routing).not.toContain('EXISTS(SELECT 1 FROM flow_routes WHERE');
     expect(routing).toContain("flowVersionGuardSql('route')");
@@ -145,6 +147,6 @@ describe('r48 source retirement pins', () => {
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(32);
+    expect(total).toBe(31);
   });
 });

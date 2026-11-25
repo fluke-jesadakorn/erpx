@@ -44,7 +44,7 @@ describe('workflow closed projection generator families (r45)', () => {
     ]);
     expect(shared.match(/export const flowRoutesClosedProjectionSql =/g)).toHaveLength(1);
     expect(shared.match(/export const commandReceiptsProjectionSql =/g)).toHaveLength(1);
-    expect(shared.match(/SELECT /g)).toHaveLength(2);
+    expect(shared.match(/SELECT /g)).toHaveLength(3);
     expect(collab).not.toContain('SELECT "company_id"');
     expect(collab).toContain("flowRoutesClosedProjectionSql(', ')");
     expect(payroll).not.toContain('SELECT "company_id"');
@@ -68,6 +68,6 @@ describe('workflow closed projection generator families (r45)', () => {
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(46);
-    expect(total).toBe(32);
+    expect(total).toBe(31);
   });
 });

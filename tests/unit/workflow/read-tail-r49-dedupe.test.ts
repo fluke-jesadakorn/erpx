@@ -61,13 +61,13 @@ describe('command-receipt read-tail dedupe (r49)', () => {
   it('pins the exact per-file SELECT-head distribution after the r49 cut', async () => {
     const expected: Record<string, number> = {
       'adapters/approval-participant-projection.ts': 3,
-      'adapters/approval-planning.ts': 4,
+      'adapters/approval-planning.ts': 3,
       'adapters/approval-projection-sources.ts': 6,
-      'adapters/closed-projection-sources.ts': 2,
+      'adapters/closed-projection-sources.ts': 3,
       'adapters/collaboration-inbox-sources.ts': 1,
       'adapters/finance-ai-request-sources.ts': 1,
       'adapters/finance-ai-revision-sources.ts': 1,
-      'adapters/flow-planning-ports.ts': 7,
+      'adapters/flow-planning-ports.ts': 6,
       'adapters/hospitality-owner-projection-sources.ts': 1,
       'adapters/inventory-audit-history-source.ts': 1,
       'adapters/json-each-sources.ts': 2,
@@ -101,7 +101,7 @@ describe('command-receipt read-tail dedupe (r49)', () => {
       }
     };
     await walk(srcRoot);
-    expect(total).toBeLessThan(33);
-    expect(total).toBe(32);
+    expect(total).toBeLessThan(32);
+    expect(total).toBe(31);
   });
 });

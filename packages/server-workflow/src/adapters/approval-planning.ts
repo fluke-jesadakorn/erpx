@@ -26,6 +26,7 @@ import {workflowWave3Statement} from './native-workflow-wave3';
 import {nativeWorkflowReadAll,nativeWorkflowReadFirst} from './native-workflow-read';
 import {approvalInstancesStarWhereSql} from './approval-projection-sources';
 import {approverUnionProjectionSql} from './json-each-sources';
+import {tableExistsGuardSql} from './closed-projection-sources';
 /** Byte-identical prefix shared by the pending/blocked instance-state guards; callers keep their own literal state and bind order, emitted SQL is unchanged. */
 const approvalInstanceStateExistsPrefix = "EXISTS(SELECT 1 FROM approval_instances WHERE id=? AND version=? AND state='";
 const pendingInstanceExistsSql = `${approvalInstanceStateExistsPrefix}pending' AND current_step=?)`;
@@ -36,7 +37,7 @@ const noApprovalStepExistsPrefix = "NOT EXISTS(SELECT 1 FROM approval_steps";
 /** Byte-identical record/version EXISTS prefix shared by the legacy-record (guard17)
  * and route-version (guard49) guards; emitted SQL and bind order stay unchanged. */
 const approvalRecordVersionExists = (table: string, column: string, versionFirst = false) =>
-    `EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND ${versionFirst ? `version=? AND ${column}=?` : `${column}=? AND version=?`})`;
+    tableExistsGuardSql(table, `id=? AND company_id=? AND ${versionFirst ? `version=? AND ${column}=?` : `${column}=? AND version=?`})`);
 export { participantSql } from '@erpx/server-workflow/adapters/approval-participant-projection';
 export type { ApprovalKind } from '@erpx/server-workflow/domain/approvals';
 export type { ApprovalPhase } from '@erpx/server-workflow/domain/approvals';

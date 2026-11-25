@@ -54,9 +54,14 @@ describe('approval record/version guard dedupe (r28)', () => {
     expect(stmt.kind).toBe('wf_native_command_assertions_3');
     expect(stmt.values).toEqual(['key', 'route-version', 'inst', 5, 2, 'rec', 'co', 9, 'pending', pending + ' AND ' + recordExists(true)]);
   });
-  it('shares one byte-identical EXISTS prefix literal (not re-deduped)', async () => {
+  it('shares one byte-identical EXISTS head literal (r50 folds it into closed-projection-sources)', async () => {
     const { readFile } = await import('node:fs/promises');
-    const src = await readFile(new URL('../../../packages/server-workflow/src/adapters/approval-planning.ts', import.meta.url), 'utf8');
-    expect(src.match(/EXISTS\(SELECT 1 FROM \$\{table\} WHERE id=\? AND company_id=\? AND /g)).toHaveLength(1);
+    const [src, shared] = await Promise.all([
+      readFile(new URL('../../../packages/server-workflow/src/adapters/approval-planning.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../packages/server-workflow/src/adapters/closed-projection-sources.ts', import.meta.url), 'utf8'),
+    ]);
+    expect(src.match(/EXISTS\(SELECT 1 FROM \$\{table\} WHERE /g) ?? []).toHaveLength(0);
+    expect(shared.match(/EXISTS\(SELECT 1 FROM \$\{table\} WHERE /g) ?? []).toHaveLength(1);
+    expect(src).toContain('tableExistsGuardSql(table, `id=? AND company_id=? AND ');
   });
 });

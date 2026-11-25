@@ -4,3 +4,5 @@ const flowRoutesColumns = ['"company_id"', '"kind"', '"record_id"', '"version"',
 export const flowRoutesClosedProjectionSql = (separator: string): string => `SELECT ${flowRoutesColumns.join(separator)} FROM flow_routes`;
 /** Byte-identical command-receipts projections; callers choose columns, exact separator and trailing filter. */
 export const commandReceiptsProjectionSql = (columns: readonly string[], separator = ',', tail = ''): string => `SELECT ${columns.join(separator)} FROM command_receipts${tail}`;
+/** Byte-identical table-scoped EXISTS head shared by the approval and flow version guards; callers keep their exact WHERE tail and bind order. */
+export const tableExistsGuardSql = (table: string, tail: string): string => `EXISTS(SELECT 1 FROM ${table} WHERE ${tail}`;

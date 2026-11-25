@@ -2,6 +2,7 @@ import { workflowFinalOwnerProjections as commerceFinalOwnerProjections } from '
 import {workflowWave3Statement} from './native-workflow-wave3';
 import {nativeWorkflowReadAll,nativeWorkflowReadFirst} from './native-workflow-read';
 import {approvalStepsByInstanceSql} from './approval-projection-sources';
+import {tableExistsGuardSql} from './closed-projection-sources';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -72,7 +73,7 @@ const tables: Record<FlowKind, string> = { expense: "finance_expenses", leave: "
 const flowVersionGuardSql = (target: 'route' | FlowKind): string => {
     const table = target === 'route' ? 'flow_routes' : tables[target];
     const key = target === 'route' ? 'kind=? AND record_id=?' : 'id=?';
-    return `EXISTS(SELECT 1 FROM ${table} WHERE company_id=? AND ${key} AND version=?)`;
+    return tableExistsGuardSql(table, `company_id=? AND ${key} AND version=?)`);
 };
 export function nativeFlowPlanningPorts(database: SqlDatabase): FlowPlanningPorts<SqlStatement> {
     const repository: FlowRoutingRepository<SqlStatement> = { async readFlowRecordRow(companyId: string, id: string, kind: FlowKind) { const row = await workflowRecord(database, kind, companyId, id); if (row && kind === "order") return { ...row, has_service_lines: await commerce_flow_routing(database).readServiceOrder(companyId,id) ? 1 : 0 }; return row; },
