@@ -26,6 +26,13 @@ import { PosReadCommerceFacts } from "@erpx/server-commerce/public/pos-facts";
 import { PosReadInventoryFacts } from "@erpx/server-inventory/public/pos-facts";
 import { PosReadFinanceFacts } from "@erpx/server-finance/public/pos-facts";
 import { PosReadOrganizationFacts } from "@erpx/server-organization/public/pos-facts";
+const allocatedTotalsHeadSql = (): string => `WITH allocated AS (
+ SELECT l.*,f.state fulfillment_state,
+ ROUND(f.cost_minor::numeric*SUM(l.quantity_milli) OVER(PARTITION BY f.id ORDER BY l.id)/f.quantity_milli)
+ -ROUND(f.cost_minor::numeric*(SUM(l.quantity_milli) OVER(PARTITION BY f.id ORDER BY l.id)-l.quantity_milli)/f.quantity_milli) cost_share
+ FROM pos_lines l JOIN pos_fulfillments f ON f.id=l.fulfillment_id WHERE f.company_id=?
+ ), totals AS (SELECT sale_id,SUM(refunded_minor) refunds_minor,SUM(refunded_tax_minor) refunded_tax_minor,
+ SUM(CASE WHEN fulfillment_state='delivered' THEN cost_share ELSE 0 END-returned_cost_minor) cost_minor FROM allocated GROUP BY sale_id)`;
 function unit(db: SqlDatabase, actor: WorkContext): PosReadUnit<SqlStatement> {
     return {
         hotelLinks: (company,branch) => posGuestAccountInterface(db).hotels(company,branch),
@@ -122,13 +129,7 @@ function unit(db: SqlDatabase, actor: WorkContext): PosReadUnit<SqlStatement> {
             company2: string;
             branch: string | null;
             branch2: string | null;
-        }) => all(db, `WITH allocated AS (
- SELECT l.*,f.state fulfillment_state,
- ROUND(f.cost_minor::numeric*SUM(l.quantity_milli) OVER(PARTITION BY f.id ORDER BY l.id)/f.quantity_milli)
- -ROUND(f.cost_minor::numeric*(SUM(l.quantity_milli) OVER(PARTITION BY f.id ORDER BY l.id)-l.quantity_milli)/f.quantity_milli) cost_share
- FROM pos_lines l JOIN pos_fulfillments f ON f.id=l.fulfillment_id WHERE f.company_id=?
- ), totals AS (SELECT sale_id,SUM(refunded_minor) refunds_minor,SUM(refunded_tax_minor) refunded_tax_minor,
- SUM(CASE WHEN fulfillment_state='delivered' THEN cost_share ELSE 0 END-returned_cost_minor) cost_minor FROM allocated GROUP BY sale_id)
+        }) => all(db, `${allocatedTotalsHeadSql()}
  SELECT s.business_date,s.branch_id,s.register_id,s.shift_id,s.currency,COUNT(*) bills,SUM(s.subtotal_minor) subtotal_minor,SUM(s.tax_minor) tax_minor,
  SUM(s.discount_minor) discount_minor,SUM(s.total_minor) total_minor,SUM(t.refunds_minor) refunds_minor,
  SUM(t.cost_minor) cost_minor,SUM(s.subtotal_minor-t.refunds_minor+t.refunded_tax_minor-t.cost_minor) gross_profit_minor
@@ -237,13 +238,7 @@ function unit(db: SqlDatabase, actor: WorkContext): PosReadUnit<SqlStatement> {
             shiftId: string;
             currency: string;
             fact8: number;
-        }) => all(db, `WITH allocated AS (
- SELECT l.*,f.state fulfillment_state,
- ROUND(f.cost_minor::numeric*SUM(l.quantity_milli) OVER(PARTITION BY f.id ORDER BY l.id)/f.quantity_milli)
- -ROUND(f.cost_minor::numeric*(SUM(l.quantity_milli) OVER(PARTITION BY f.id ORDER BY l.id)-l.quantity_milli)/f.quantity_milli) cost_share
- FROM pos_lines l JOIN pos_fulfillments f ON f.id=l.fulfillment_id WHERE f.company_id=?
- ), totals AS (SELECT sale_id,SUM(refunded_minor) refunds_minor,SUM(refunded_tax_minor) refunded_tax_minor,
- SUM(CASE WHEN fulfillment_state='delivered' THEN cost_share ELSE 0 END-returned_cost_minor) cost_minor FROM allocated GROUP BY sale_id), sources AS (
+        }) => all(db, `${allocatedTotalsHeadSql()}, sources AS (
  SELECT s.*,t.refunds_minor,t.cost_minor,s.subtotal_minor-t.refunds_minor+t.refunded_tax_minor-t.cost_minor gross_profit_minor
  FROM pos_sales s JOIN totals t ON t.sale_id=s.id WHERE s.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND s.state='completed'
  AND NOT EXISTS(SELECT 1 FROM (${pmsProjectionSources.pms_sources}) ps WHERE ps.source_key='pos:'||s.id||':'||s.id)

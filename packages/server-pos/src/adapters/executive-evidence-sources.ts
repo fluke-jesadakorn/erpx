@@ -5,23 +5,18 @@ import { type Filters } from "@erpx/feature-shared/lib/executive/canvas";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { type PosEvidenceMetric, inputSchema, type EvidenceRow, parseCursor } from '@erpx/server-runtime/public/executive/pos-evidence-contract';
-function sourceQuery(metric: PosEvidenceMetric) {
-    if (metric === "pos-sales")
-        return `SELECT 'sale:'||s.id id,s.id source_id,'sale' source_type,s.id sale_id,s.business_date event_date,
+const posSalesLegSql = (): string => `SELECT 'sale:'||s.id id,s.id source_id,'sale' source_type,s.id sale_id,s.business_date event_date,
       s.number receipt_number,s.state status,s.state sale_status,s.currency,NULL::text method,
       s.total_minor::numeric amount_minor,s.total_minor::numeric contribution_minor,0::numeric refunded_minor,
       s.version revision,s.version sale_version
     FROM pos_sales s WHERE s.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND s.currency=?
       AND s.business_date BETWEEN ? AND ? AND s.state='completed'
       AND (?='' OR position(lower(?) in lower(s.number))>0)`;
+function sourceQuery(metric: PosEvidenceMetric) {
+    if (metric === "pos-sales")
+        return posSalesLegSql();
     if (metric === "net-pos-sales")
-        return `SELECT 'sale:'||s.id id,s.id source_id,'sale' source_type,s.id sale_id,s.business_date event_date,
-      s.number receipt_number,s.state status,s.state sale_status,s.currency,NULL::text method,
-      s.total_minor::numeric amount_minor,s.total_minor::numeric contribution_minor,0::numeric refunded_minor,
-      s.version revision,s.version sale_version
-    FROM pos_sales s WHERE s.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND s.currency=?
-      AND s.business_date BETWEEN ? AND ? AND s.state='completed'
-      AND (?='' OR position(lower(?) in lower(s.number))>0)
+        return `${posSalesLegSql()}
     UNION ALL
     SELECT 'refund:'||r.id id,r.id source_id,'refund' source_type,s.id sale_id,r.accounting_date event_date,
       s.number receipt_number,r.state status,s.state sale_status,s.currency,NULL::text method,
