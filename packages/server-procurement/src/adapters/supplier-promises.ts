@@ -23,6 +23,7 @@ import {procurementPurchaseAccess,requireProcurementPurchasedRead,withProcuremen
 import {branchDepartmentScope} from './read-tail-sql';
 import {eligiblePurchaseCount} from './read-tail-r24';
 import {openPromiseByOrder} from './read-tail-r41';
+import {supplierDetailSelect} from './read-tail-r48';
 export {supplierPromiseSchema} from "@erpx/server-procurement/domain/supplier-promises";
 type Evidence=Awaited<ReturnType<typeof prepareAttachmentBinding>>;
 const scope=branchDepartmentScope("o");
@@ -33,7 +34,7 @@ function application(a:WorkContext,provided?:SqlDatabase){
  async authorizeRead(){requirePermission(a,"commerce.read");},async authorizePurchase(){requirePermission(a,"commerce.purchase");},
  order:async(id)=>{return (await database()).prepare(`SELECT o.*,p.name supplier_name FROM (${commercePlatformSources.commerce_orders}) o JOIN (${financePlatformSources.finance_parties}) p ON p.id=o.party_id WHERE o.id=? AND o.kind='purchase' AND ${scope}`).bind(id,...scopeArgs(a)).first<Row>();},sourceLines:async(id)=>(await getOrder(a,id,provided)).lines,
  detail:async(id)=>{const write=await database();const [lines,history,schedule]=await Promise.all([
- write.prepare(`SELECT l.*,p.sku FROM (${commercePlatformSources.commerce_order_lines}) l JOIN (${commercePlatformSources.commerce_products}) p ON p.id=l.product_id WHERE l.order_id=? ORDER BY l.ordinal`).bind(id).all<Row>(),
+ write.prepare(supplierDetailSelect("l.*,p.sku", `(${commercePlatformSources.commerce_order_lines}) l JOIN (${commercePlatformSources.commerce_products}) p ON p.id=l.product_id WHERE l.order_id=? ORDER BY l.ordinal`)).bind(id).all<Row>(),
  nativeProcurementReadAll<Row>(PROCUREMENT_RD_PROMISE_HISTORY_BY_ORDER,[id],write),
  nativeProcurementReadAll<Row>(PROCUREMENT_RD_PROMISE_SCHEDULE_BY_ORDER,[id],write)]);
  const open=(await nativeProcurementReadAll<Row>(PROCUREMENT_RD_OPEN_PROMISE_LINES_BY_ORDER,[id],write)).results;

@@ -37,6 +37,7 @@ import {settingsRead} from './read-tail-r27';
 import {versionStatusScopeGuard} from './read-tail-r30';
 import {supplierBillPointGuard} from './read-tail-r34';
 import {billMatchProjection} from './read-tail-r40';
+import {supplierDetailSelect} from './read-tail-r48';
 export {supplierBillSchema,supplierBillDecisionSchema,supplierInvoicePolicySchema,matchedBillLines} from "@erpx/server-procurement/domain/supplier-bills";
 const scope=branchDepartmentScope("m");
 const args=(actor:WorkContext)=>[actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId];
@@ -96,20 +97,26 @@ ${billMatchProjection(`
 },detail:async(bill)=>{const write=await database(),id=String(bill.id);
   const [lines, receipts, events, accounts] = await Promise.all([
     write.prepare(`
-      SELECT l.*,ol.description,fl.fulfillment_id,f.number receipt_number,f.fulfillment_date,o.number order_number
-      FROM procurement_bill_match_lines l
+      ${supplierDetailSelect(
+        "l.*,ol.description,fl.fulfillment_id,f.number receipt_number,f.fulfillment_date,o.number order_number",
+        `procurement_bill_match_lines l
       JOIN (${commercePlatformSources.commerce_fulfillment_lines}) fl ON fl.id=l.fulfillment_line_id
       JOIN (${commercePlatformSources.commerce_fulfillments}) f ON f.id=fl.fulfillment_id
       JOIN (${commercePlatformSources.commerce_orders}) o ON o.id=f.order_id
       JOIN (${commercePlatformSources.commerce_order_lines}) ol ON ol.id=fl.order_line_id
       WHERE l.match_id=? ORDER BY f.fulfillment_date,f.id,ol.ordinal
-    `).bind(id).all<Row>(),
+    `,
+        "\n      ",
+      )}`).bind(id).all<Row>(),
     write.prepare(`
-      SELECT br.*,f.number receipt_number,f.fulfillment_date,f.version current_version,f.invoice_id,o.id order_id,o.number order_number
-      FROM procurement_bill_match_receipts br JOIN (${commercePlatformSources.commerce_fulfillments}) f ON f.id=br.fulfillment_id
+      ${supplierDetailSelect(
+        "br.*,f.number receipt_number,f.fulfillment_date,f.version current_version,f.invoice_id,o.id order_id,o.number order_number",
+        `procurement_bill_match_receipts br JOIN (${commercePlatformSources.commerce_fulfillments}) f ON f.id=br.fulfillment_id
       JOIN (${commercePlatformSources.commerce_orders}) o ON o.id=f.order_id
       WHERE br.match_id=? ORDER BY f.fulfillment_date,f.id
-    `).bind(id).all<Row>(),
+    `,
+        "\n      ",
+      )}`).bind(id).all<Row>(),
     nativeProcurementReadAll<Row>(PROCUREMENT_RD_BILL_MATCH_EVENTS,[id],write),
     write.prepare(expenseAccountBy(financePlatformSources.finance_accounts,financePlatformSources.finance_charts,"a.id,a.code,a.name",{idGuard:"",order:" ORDER BY a.code"}))
       .bind(actor.companyId, bill.chart_id).all<Row>(),
