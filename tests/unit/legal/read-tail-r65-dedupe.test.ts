@@ -83,6 +83,6 @@ describe('legal read-tail r65 members jsonb-agg head reuse', () => {
     await walk(srcRoot);
     expect(total).toBeLessThan(134);
     expect(total).toBeLessThanOrEqual(133);
-    expect(total).toBe(132);
+    expect(total).toBe(131);
   });
 });
