@@ -121,7 +121,7 @@ describe('POS read-tail r42 org-node label head dedupe', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(171);
+    expect(total).toBe(170);
     expect(total).toBeLessThan(174);
   });
 });

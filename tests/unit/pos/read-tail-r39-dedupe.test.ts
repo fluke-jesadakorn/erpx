@@ -96,7 +96,7 @@ describe('POS read-tail r39 allocated-totals head and evidence sale-leg dedupe',
       }
     };
     walk(srcRoot);
-    expect(total).toBe(171);
+    expect(total).toBe(170);
     expect(total).toBeLessThan(179);
   });
 });

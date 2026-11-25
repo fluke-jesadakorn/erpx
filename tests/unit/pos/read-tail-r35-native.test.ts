@@ -152,7 +152,7 @@ describe('POS read-tail r35 native Stripe keyed reads', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(171);
+    expect(total).toBe(170);
     expect(total).toBeLessThan(188);
   });
 
