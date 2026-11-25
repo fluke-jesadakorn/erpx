@@ -129,16 +129,16 @@ describe('Records read-tail r30 shared-head folds', () => {
     expect((sql.match(/SELECT /g) ?? []).length).toBe(0);
     expect((exists.match(/SELECT /g) ?? []).length).toBe(1);
 
-    expect(emp.split('`SELECT ${columns} FROM employee_requests`')).toHaveLength(2);
-    expect((emp.match(/SELECT /g) ?? []).length).toBe(1);
+    expect(emp.split('`SELECT ${columns} FROM employee_requests`')).toHaveLength(1); // r32 delegates to the shared head
+    expect((emp.match(/SELECT /g) ?? []).length).toBe(0);
     expect(flow.match(/employeeRequestSelectHead\(/g) ?? []).toHaveLength(1);
     expect(flow.match(/flowRoutingRead\(/g) ?? []).toHaveLength(2);
     expect((flow.match(/SELECT /g) ?? []).length).toBe(0);
     expect(flow).not.toContain(pre.flowWorkflow);
     expect(flow).not.toContain('`SELECT ${columns} FROM employee_requests r JOIN');
 
-    expect(ai.split('`SELECT ${columns} FROM ${table}${tail}`')).toHaveLength(2);
-    expect((ai.match(/SELECT /g) ?? []).length).toBe(2); // shared head + monthly count
+    expect(ai.split('`SELECT ${columns} FROM ${table}${tail}`')).toHaveLength(1); // r32 delegates to the shared head
+    expect((ai.match(/SELECT /g) ?? []).length).toBe(1); // monthly count only
     expect(ai).toContain("requestAiProjectionHead('request_ai_usage', columns)");
     expect(ai).toContain("requestAiProjectionHead('request_ai_proposals', columns, tail)");
     expect(read('adapters/request-ai.ts')).not.toContain('SELECT id FROM request_ai_proposals WHERE');
@@ -172,7 +172,7 @@ describe('Records read-tail r30 retirement check', () => {
     // delegating to existsGuardSql, one from workflow-flow-routing-facts.ts by
     // sharing the employee_requests head, and one from ai-usage-projection.ts
     // by sharing the request_ai table head. No bind, lock or native seam changed.
-    expect(total).toBe(19);
+    expect(total).toBe(18);
     expect(total).toBeLessThan(22);
   });
 });

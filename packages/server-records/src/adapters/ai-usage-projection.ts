@@ -1,9 +1,10 @@
+import { projectionColumnHeadSql } from './read-tail-r32-sql';
 /** Canonical owner-local generator for the Records request-AI table column
- * projections. r30 admits the table-and-tail column head once; each member passes
- * its table and optional tail and renders byte-identical prior SQL, and the
- * native owner states the same fixed selection. */
+ * projections. r30 admitted the table-and-tail column head once; r32 folds that
+ * byte-identical head into the shared r32 renderer with the employee_requests
+ * column family. Each member still renders byte-identical prior SQL. */
 export const requestAiProjectionHead = (table: string, columns: string, tail = '') =>
-  `SELECT ${columns} FROM ${table}${tail}`;
+  projectionColumnHeadSql(columns, table, tail);
 export const requestAiUsageProjection = (columns: string) => requestAiProjectionHead('request_ai_usage', columns);
 export const requestAiUsageProjectionSql = requestAiUsageProjection('"id","company_id","actor_id","month","state","lease_until","input_tokens","output_tokens","created_at"');
 export const recordsRequestUsageSql = requestAiUsageProjection('company_id,month');

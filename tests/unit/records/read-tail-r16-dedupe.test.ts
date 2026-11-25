@@ -51,7 +51,7 @@ describe('Records read-tail r16 request_ai_usage projection family', () => {
   });
 
   test('the request-AI families are single generator literals with no inlined projection', () => {
-    expect(shared.split('`SELECT ${columns} FROM ${table}${tail}`')).toHaveLength(2);
+    expect(shared.split('`SELECT ${columns} FROM ${table}${tail}`')).toHaveLength(1); // r32 delegates to the shared head
     expect(shared.match(/requestAiUsageProjection\(/g) ?? []).toHaveLength(2);
     expect(beta.match(/requestAiUsageProjection\(/g) ?? []).toHaveLength(1);
     expect(shared).toContain("requestAiProjectionHead('request_ai_usage', columns)");
@@ -59,7 +59,8 @@ describe('Records read-tail r16 request_ai_usage projection family', () => {
     expect(shared.match(/requestAiProposalProjection\(/g) ?? []).toHaveLength(1);
     expect(requestAi.match(/requestAiProposalProjection\(/g) ?? []).toHaveLength(1);
     expect(requestAi).not.toContain('SELECT id FROM request_ai_proposals WHERE');
-    expect(selectCount(shared)).toBe(2); // shared head + monthly count
+    expect(selectCount(shared)).toBe(1); // monthly count only; r32 head moved to read-tail-r32-sql.ts
+    expect(selectCount(readFileSync(resolve(srcRoot, 'adapters/read-tail-r32-sql.ts'), 'utf8'))).toBe(1);
     expect(selectCount(requestAi)).toBe(0);
     expect(selectCount(beta)).toBe(0);
   });

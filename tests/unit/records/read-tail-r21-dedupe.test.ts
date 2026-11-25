@@ -48,7 +48,7 @@ describe('Records read-tail r21 employeeRequestColumnsSql family', () => {
 
   test('the family is one generator literal with two call sites and no inlined projection read', () => {
     expect(shared.match(/export const employeeRequestColumnsSql\s*=/g) ?? []).toHaveLength(1);
-    expect((shared.match(/SELECT /g) ?? []).length).toBe(1);
+    expect((shared.match(/SELECT /g) ?? []).length).toBe(0); // r32 delegates to the shared column head
     expect(commerce.match(/employeeRequestColumnsSql\(/g) ?? []).toHaveLength(1);
     expect(employeeReads.match(/employeeRequestColumnsSql\(/g) ?? []).toHaveLength(1);
     expect(commerce).not.toContain(pre.linkedRequest.sql);
@@ -106,7 +106,7 @@ describe('Records read-tail r21 retirement check', () => {
     // child-row generator with an order frame (23 -> 22); r30 folds the version
     // fence, employee_requests head and request_ai head (22 -> 19). No other
     // family, lock or native seam changed.
-    expect(total).toBe(19);
+    expect(total).toBe(18);
     expect(total).toBeLessThan(30);
   });
 });
