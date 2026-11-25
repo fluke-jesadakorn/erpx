@@ -3,6 +3,7 @@ import {assetSourcePredicate} from "@erpx/server-assets/public/record-purchases"
 import { finalRootOwnerProjectionSources as people_payrollProjectionSources } from "@erpx/server-people_payroll/public/final-root-owner-projection-sources";
 import {maintenanceOwnerName} from "./maintenance-owner-name";
 import {projectionLookup} from "./projection-lookup";
+import {aliasRowsSql} from "./read-tail-r30-alias-rows";
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 const inList = (expression: string) => `${expression} IN (SELECT jsonb_array_elements_text(?::jsonb))`;
@@ -39,7 +40,7 @@ export function calendarMaintenanceMaintenanceFacts(db: SqlDatabase,actor?:WorkC
             return db.prepare(`WITH scheduled AS (
   ${scheduledSourceSql("p","maintenance_plan","p.next_due_at due_at","maintenance_preventive_plans","p.status='active'")}
   UNION ALL ${scheduledSourceSql("w","maintenance_work","w.scheduled_at","maintenance_work_orders","w.status NOT IN ('completed','cancelled') AND w.scheduled_at IS NOT NULL")})
-  SELECT s.*,${maintenanceOwnerName('s')} owner_name
+  ${aliasRowsSql("s", `,${maintenanceOwnerName('s')} owner_name`)}
   FROM scheduled s WHERE s.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND (?::text IS NULL OR s.department_id=?) AND ${inList('coalesce(s.department_id,s.branch_id)')}
   AND s.due_at>=? AND s.due_at<? AND (?='team' OR s.owner_id=? OR s.created_by=?)
   AND (?::text IS NULL OR s.owner_id IN ${projectionLookup("user_id",people_payrollProjectionSources.hr_people,"hr_people","id=? AND company_id=s.company_id")})

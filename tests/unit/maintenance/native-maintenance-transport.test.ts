@@ -721,7 +721,7 @@ describe('Maintenance record-image fixed SQL',()=>{
   }
  });
 
- it('retirement:ts-statements stays strictly below the r30 BEFORE=19 baseline',async()=>{
+ it('retirement:ts-statements stays strictly below the r31 BEFORE=18 baseline',async()=>{
   const {readdirSync,readFileSync}=await import('node:fs');
   const {resolve}=await import('node:path');
   let total=0;
@@ -734,8 +734,8 @@ describe('Maintenance record-image fixed SQL',()=>{
    }
   };
   walk(srcRoot);
-  expect(total).toBe(18);
-  expect(total).toBeLessThan(19);
+  expect(total).toBe(17);
+  expect(total).toBeLessThan(18);
  });
 });
 
@@ -790,8 +790,9 @@ describe('Maintenance scheduled-source fixed SQL',()=>{
   it('single-sources the scheduled projection and keeps both composed branches byte-identical',async()=>{
    const {readFileSync}=await import('node:fs');
    const helper=readFileSync(new URL(`${dir}calendar-maintenance-facts.ts`,import.meta.url),'utf8');
-   expect(helper.match(/SELECT/g)).toHaveLength(3);
-   // r14 removed the two inline scheduled-branch literals; the inList read remains.
+   expect(helper.match(/SELECT/g)).toHaveLength(2);
+   // r14 removed the two inline scheduled-branch literals; r31 routed the outer
+   // alias-qualified row head through aliasRowsSql (3 -> 2); the inList read remains.
    expect(helper).not.toContain("SELECT p.id,'maintenance_plan' source_kind");
    expect(helper).not.toContain("UNION ALL SELECT w.id,'maintenance_work'");
    expect(helper.match(/scheduledSourceSql\(/g)).toHaveLength(2);
@@ -1038,7 +1039,8 @@ describe('Maintenance facts UNION fact-row fixed SQL',()=>{
   // owner total 23 -> 22, strictly below BEFORE=23); r28 delegated factRow to
   // settlementRefSource (this file 4 -> 3, owner total 21 -> 20, below BEFORE=21);
   // r30 folds the Work/Plan alias-qualified row head into aliasRowsSql (this file
-  // 3 -> 1, owner total 19 -> 18, below BEFORE=19).
+  // 3 -> 1, owner total 19 -> 18, below BEFORE=19); r31 routes the Calendar head
+  // through that same renderer (owner total 18 -> 17, below BEFORE=18).
   expect(source.match(/SELECT/g)).toHaveLength(1);
   // The owner lock and the scope CTE stay untouched; no write/row-lock introduced.
   expect(source).toContain('LOCK TABLE maintenance_work_orders,maintenance_work_events,maintenance_preventive_plans,maintenance_preventive_events,maintenance_preventive_occurrences IN SHARE MODE');

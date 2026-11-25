@@ -77,7 +77,7 @@ describe('maintenance read-tail r28 fact-row delegation', () => {
     }
   });
 
-  it('retirement:ts-statements stays strictly below the r30 BEFORE=19 baseline', async () => {
+  it('retirement:ts-statements stays strictly below the r31 BEFORE=18 baseline', async () => {
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -87,7 +87,7 @@ describe('maintenance read-tail r28 fact-row delegation', () => {
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(18);
-    expect(total).toBeLessThan(19);
+    expect(total).toBe(17);
+    expect(total).toBeLessThan(18);
   });
 });
