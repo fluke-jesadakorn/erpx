@@ -48,11 +48,13 @@ describe('Management owner-local monthly AI allowance projection',()=>{
  test('keeps one fixed projection for Records and Finance quota sources',async()=>{
   const {readFile}=await import('node:fs/promises');
   const base=new URL('../../../packages/server-manage_erpx/src/adapters/',import.meta.url);
+  const helper=await readFile(new URL('beta-policy-limit-sql.ts',base),'utf8');
   const records=await readFile(new URL('records-ai-limit-projection.ts',base),'utf8');
   const finance=await readFile(new URL('finance-ai-quota-sources.ts',base),'utf8');
   const projection='COALESCE((SELECT ai_monthly_limit FROM beta_policy WHERE company_id=?),100)';
-  expect(records.match(/SELECT /g)).toHaveLength(1);
-  expect(records).toContain(projection);
+  expect(helper.match(/SELECT \$\{projection\} FROM beta_policy WHERE company_id=\?/g)).toHaveLength(1);
+  expect(records.match(/SELECT /g) ?? []).toHaveLength(0);
+  expect(records).toContain("betaPolicyLimitSql('ai_monthly_limit')");
   expect(finance).not.toContain(projection);
   expect(finance).not.toContain('SELECT ');
   expect(finance).toContain("export {recordsAiMonthlyLimitSql as financeAiCompanyAllowanceSql} from './records-ai-limit-projection'");

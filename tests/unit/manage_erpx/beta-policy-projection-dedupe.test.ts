@@ -80,12 +80,15 @@ describe('manage_erpx ai-gateway beta_bootstrap scope read family', () => {
 const OLD_STORAGE_BYTES_SQL = 'SELECT storage_bytes FROM beta_policy WHERE company_id=?';
 
 describe('manage_erpx beta_policy storage-bytes read pair', () => {
-  it('keeps one fixed-SQL storage-bytes literal shared by both callers', async () => {
+  it('keeps one fixed-SQL storage-bytes head shared by both callers', async () => {
+    const helper = await readFile(adapter('beta-policy-limit-sql.ts'), 'utf8');
     const attachments = await readFile(adapter('attachments-service-facts.ts'), 'utf8');
     const allowance = await readFile(adapter('legal-portal-storage-allowance.ts'), 'utf8');
-    // One canonical declaration; the legal-portal surface reuses it by
-    // reference so the attachment quota and portal allowance cannot drift.
-    expect(attachments.match(/SELECT storage_bytes FROM beta_policy WHERE company_id=\?/g)).toHaveLength(1);
+    // One canonical head; the quota, doc-page and portal readers reuse it by
+    // reference so their prepared SQL cannot drift.
+    expect(helper.match(/SELECT \$\{projection\} FROM beta_policy WHERE company_id=\?/g)).toHaveLength(1);
+    expect(attachments).not.toMatch(/SELECT storage_bytes FROM beta_policy WHERE company_id=\?/);
+    expect(attachments).toContain("betaPolicyLimitSql('storage_bytes')");
     expect(allowance).not.toMatch(/SELECT storage_bytes FROM beta_policy WHERE company_id=\?/);
     expect(allowance).toContain('import {betaPolicyStorageBytesSql} from "./attachments-service-facts"');
   });
