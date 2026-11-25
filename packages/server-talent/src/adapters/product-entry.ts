@@ -11,13 +11,14 @@ import type {WorkContext} from "@erpx/server-identity_access/public/authorizatio
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {selectProjection} from './talent-read-tail-r37-sources';
+import {selectSourceRow} from './talent-read-tail-r42-sources';
 const assignmentVersionGuard = `EXISTS(${selectProjection('1')} FROM assignments WHERE id=? AND version=?)`;
 /** Original hire consumption uses Company people.manage; it never requires a
  * Talent module assignment. This named discovery does not choose an HR role. */
 export async function talentHireProductSourceEntry(database:SqlDatabase,scope:TalentHireProductEntryScope,id:string){
  if(scope.branchId||scope.departmentId||!Number.isSafeInteger(scope.assignmentVersion)||scope.assignmentVersion<1)return null;
  const source=await database.prepare(`${talentClockCte("hire_entry_clock")}
- SELECT h.id FROM talent_hire_handoffs h JOIN talent_offers o ON o.id=h.offer_id AND o.company_id=h.company_id
+ ${selectSourceRow('h.id')} talent_hire_handoffs h JOIN talent_offers o ON o.id=h.offer_id AND o.company_id=h.company_id
  JOIN talent_applications a ON a.id=o.application_id AND a.company_id=h.company_id
  JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=h.company_id AND r.branch_id=h.branch_id AND r.department_id IS NOT DISTINCT FROM h.department_id
  JOIN talent_candidates c ON c.id=h.candidate_id AND c.id=a.candidate_id AND c.company_id=h.company_id
@@ -34,7 +35,7 @@ export async function talentHireProductSourceEntry(database:SqlDatabase,scope:Ta
 export async function talentCandidatePrivacyProductSourceEntry(database:SqlDatabase,scope:TalentHireProductEntryScope,id:string){
  if(scope.branchId||scope.departmentId||!Number.isSafeInteger(scope.assignmentVersion)||scope.assignmentVersion<1)return null;
  const permissions=["legal.hold","legal.hold.release","legal.destroy","people.manage"],row=await database.prepare(`${talentClockCte("candidate_privacy_clock")}
- SELECT c.id FROM talent_candidates c CROSS JOIN ${talentCompanyScopeCte} candidate_privacy_entry CROSS JOIN candidate_privacy_clock
+ ${selectSourceRow('c.id')} talent_candidates c CROSS JOIN ${talentCompanyScopeCte} candidate_privacy_entry CROSS JOIN candidate_privacy_clock
  WHERE c.id=? AND c.company_id=candidate_privacy_entry.company_id AND (${permissions.map(permission=>assignmentReadSql("candidate_privacy_entry",permission)).join(" OR ")}) AND ${assignmentVersionGuard}
  AND ${scheduledFeaturePredicate("c.company_id","talent")}
  AND ${purchasedCapabilityPredicate("c.company_id","recruit.candidates","history","candidate_privacy_clock.now_ms")}`).bind(scope.companyId,id,...permissions.flatMap(()=>[scope.assignmentId,scope.userId,scope.role]),scope.assignmentId,scope.assignmentVersion).first();

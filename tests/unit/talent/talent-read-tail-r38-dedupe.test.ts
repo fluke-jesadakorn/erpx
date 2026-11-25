@@ -116,7 +116,7 @@ describe('Talent read-tail r38 package-obligations projection-universal family',
     walk(resolve(__dirname, '../../../packages/server-talent/src'));
     let count = 0;
     for (const f of files) count += (readFileSync(f, 'utf8').match(/SELECT/g) ?? []).length;
-    expect(count).toBe(13);
+    expect(count).toBe(12);
     expect(count).toBeLessThan(39);
   });
 });

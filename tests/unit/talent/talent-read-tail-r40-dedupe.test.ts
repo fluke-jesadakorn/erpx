@@ -60,7 +60,7 @@ describe('Talent read-tail r40 straggler projection-head family', () => {
   test('all five named stragglers delegate to the r37 head', () => {
     const targets: Array<[string, number, number]> = [
       ['attachments-sensitive-facts.ts', 1, 0],
-      ['product-entry.ts', 1, 3],
+      ['product-entry.ts', 1, 1],
       ['executive-metric-projections.ts', 2, 0],
       ['talent-scope-sql.ts', 3, 0],
     ];
@@ -97,7 +97,7 @@ describe('Talent read-tail r40 straggler projection-head family', () => {
     walk(resolve(__dirname, '../../../packages/server-talent/src'));
     let count = 0;
     for (const f of files) count += (readFileSync(f, 'utf8').match(/\bSELECT\b/g) ?? []).length;
-    expect(count).toBe(13);
+    expect(count).toBe(12);
     expect(count).toBeLessThan(19);
   });
 });

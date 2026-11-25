@@ -61,7 +61,7 @@ describe('talent read-tail r27 version-guard family dedupe', () => {
   it('lowers the talent owner SELECT KPI strictly below BEFORE=47', async () => {
     let count = 0;
     for (const f of await tsFiles(srcDir)) count += (await readFile(f, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(13);
+    expect(count).toBe(12);
     expect(count).toBeLessThan(40);
   });
 });
