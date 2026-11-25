@@ -33,6 +33,7 @@ import {crmSalesOpportunitySql,crmSingleKeySourceSql} from "./read-tail-r37-sql"
 import {crmSelectOneSql} from "./read-tail-r42-sql";
 import {crmScalarSubquerySql} from "./read-tail-r43-sql";
 import {crmMaterializedScopeSql} from "./read-tail-r47-sql";
+import {crmCompanyScopeSql} from "./read-tail-r48-sql";
 
 export type CRMPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 export type CRMPurchaseTarget={kind:"lead"|"activity"|"account"|"contact"|"guest-link";id:string};
@@ -43,7 +44,7 @@ type Composition={companyId:string;checks:Check[];handoff?:Handoff};
 const compositions=new WeakMap<SqlDatabase,Composition>();
 
 const accountIdentity="jsonb_build_array(account.id,account.company_id,account.kind,account.created_by)",contactIdentity="jsonb_build_array(contact.id,contact.company_id,contact.account_id,contact.created_by)";
-export const actorScopeSql=`(SELECT ?::text company_id,?::text branch_id,?::text department_id)`;
+export const actorScopeSql=`(${crmCompanyScopeSql(',?::text branch_id,?::text department_id')})`;
 /** r16: one parameterized read for the assignment-authorization guard shared by
  * the CRM command-authority check and the cross-owner reference check. Callers
  * pass only their scope alias and permission; rendered text stays byte-identical. */
@@ -62,7 +63,7 @@ export const crmMarketingCandidateRows=crmOwnedSourceRowSql('*',crmMarketingCand
 export const crmLeadActivityExists=crmSalesOpportunitySql('1','crm_lead_activities c JOIN crm_leads l ON l.id=c.lead_id AND l.company_id=c.company_id','c.id=');
 export const crmAssignmentModuleExists=crmAssignmentModuleExistsSql('selected','');
 export const crmLeadVersionProjection=`SELECT v.id,v.lead_id,l.title,l.status lead_status,l.version lead_version,`;
-export const crmObligationScopeSql=`WITH scope AS(SELECT ?::text company_id),`;
+export const crmObligationScopeSql=`WITH scope AS(${crmCompanyScopeSql('')}),`;
 export const crmClockCteSql=` ${crmMaterializedScopeSql(`${packageClockSql} now_ms`)}`;
 /** r21: one renderer for the branch/headquarters option reads shared by the
  * analytics options and the CRM workspace. Callers pass only the display-name

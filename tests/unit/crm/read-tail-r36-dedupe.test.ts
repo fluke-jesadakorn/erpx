@@ -81,7 +81,7 @@ describe('crm read-tail r36 byte-identical opportunity source anchor', () => {
   });
 
   test('retirement:ts-statements stays strictly below the r35 BEFORE=114 baseline', () => {
-    expect(totalSelects()).toBe(51);
+    expect(totalSelects()).toBe(50);
     expect(totalSelects()).toBeLessThan(114);
   });
 });

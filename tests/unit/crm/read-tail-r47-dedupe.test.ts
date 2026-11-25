@@ -114,8 +114,8 @@ describe('crm read-tail r47 byte-identical MATERIALIZED and owned-source heads',
     expect(src('marketing-package-obligations.ts')).toContain('@erpx/server-marketing/public/package-obligations');
   });
 
-  test('retirement:ts-statements drops from the r46 AFTER=54 to 51', () => {
-    expect(totalSelects()).toBe(51);
+  test('retirement:ts-statements drops from the r46 AFTER=54 to 50', () => {
+    expect(totalSelects()).toBe(50);
     expect(totalSelects()).toBeLessThan(54);
   });
 });
