@@ -65,7 +65,7 @@ describe('manufacturing read-tail r29 scoped EXISTS probe family', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(50); // r28 left 57; r29 parameterizes the scoped EXISTS probe family 57->56; r30 scope CTE family 56->55; r31 allowed-select head family 55->53; r32 metric breakdown head 53->52; r34 r15/r23 head fold 52->51; r35 scope-row head fold 51->50.
+    expect(total).toBe(49); // r28 left 57; r29 parameterizes the scoped EXISTS probe family 57->56; r30 scope CTE family 56->55; r31 allowed-select head family 55->53; r32 metric breakdown head 53->52; r34 r15/r23 head fold 52->51; r35 scope-row head fold 51->50; r36 owner-table head fold 50->49.
     expect(total).toBeLessThan(57);
   });
 });

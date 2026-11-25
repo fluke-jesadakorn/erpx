@@ -87,8 +87,11 @@ describe('manufacturing read-tail r34 r15/r23 head-fold dedupe', () => {
     expect(r15).toContain("manufacturingStockFootprintSelect(columns, 'manufacturing_specifications', 's', 's.id=o.specification_id')");
     expect(r15).not.toContain('FROM manufacturing_orders o JOIN manufacturing_specifications s ON s.id=o.specification_id');
 
-    // r23 still owns the single footprint head template literal.
-    expect(r23).toContain('`SELECT ${columns} FROM manufacturing_orders o JOIN ${table} ${alias} ON ${on}`');
+    // r23 now delegates the shared owner-table head to the r36 emitter while
+    // owning the single footprint join tail.
+    expect(r23).toContain("from './manufacturing-read-tail-r36-sql'");
+    expect(r23).toContain('manufacturingOwnerTableSelect(columns, `orders o JOIN ${table} ${alias} ON ${on}`)');
+    expect(r23).not.toContain('`SELECT ${columns} FROM manufacturing_orders');
     expect(manufacturingStockFootprintSelect('x', 'manufacturing_specifications', 's', 's.id=o.specification_id'))
       .toBe('SELECT x FROM manufacturing_orders o JOIN manufacturing_specifications s ON s.id=o.specification_id');
   });
@@ -110,12 +113,12 @@ describe('manufacturing read-tail r34 r15/r23 head-fold dedupe', () => {
     }
   });
 
-  it('pins the manufacturing owner SELECT KPI at 50 after the r35 fold (51->50)', async () => {
+  it('pins the manufacturing owner SELECT KPI at 49 after the r36 fold (50->49)', async () => {
     let total = 0;
     for (const file of await tsFiles(new URL('../../../packages/server-manufacturing/src/', import.meta.url))) {
       total += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     }
-    expect(total).toBe(50);
-    expect(total).toBeLessThan(51);
+    expect(total).toBe(49);
+    expect(total).toBeLessThan(50);
   });
 });
