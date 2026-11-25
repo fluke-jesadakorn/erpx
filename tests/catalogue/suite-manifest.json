@@ -2849,6 +2849,33 @@
       },
       "ci": {
         "critical": true,
+        "reason": "Benefits people probe head must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-benefits"
+      ],
+      "id": "benefits.read-tail-r26-dedupe.unit",
+      "files": [
+        "tests/unit/benefits/read-tail-r26-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "benefits",
+      "modules": [
+        "benefits"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
         "reason": "Benefits scope CTE prefix must exist once and stay byte-identical."
       },
       "apps": [
@@ -17005,6 +17032,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "crm",
+      "modules": [
+        "crm"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "CRM jsonb aggregate head must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-crm"
+      ],
+      "id": "crm.read-tail-r49-dedupe.unit",
+      "files": [
+        "tests/unit/crm/read-tail-r49-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "crm.rust-crm-account-http.integration",
       "lane": "integration",
       "owner": "crm",
@@ -26246,6 +26300,33 @@
       "id": "files.read-tail-r50-dedupe.unit",
       "files": [
         "tests/unit/files/read-tail-r50-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "files",
+      "modules": [
+        "files"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Files link state exists head must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-files"
+      ],
+      "id": "files.read-tail-r51-dedupe.unit",
+      "files": [
+        "tests/unit/files/read-tail-r51-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
@@ -65710,6 +65791,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "operations",
+      "modules": [
+        "operations"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Operations projection-from-source head must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-operations"
+      ],
+      "id": "operations.read-tail-r58-dedupe.unit",
+      "files": [
+        "tests/unit/operations/read-tail-r58-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "operations.rust-field-exceptions.unit",
       "lane": "unit",
       "owner": "operations",
@@ -81499,6 +81607,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "pms",
+      "modules": [
+        "pms"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "PMS booking payment probe head must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-pms"
+      ],
+      "id": "pms.read-tail-r54-dedupe.unit",
+      "files": [
+        "tests/unit/pms/read-tail-r54-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "pms.reports.integration",
       "lane": "integration",
       "owner": "pms",
@@ -89315,6 +89450,33 @@
       "id": "projects.read-tail-r39-dedupe.unit",
       "files": [
         "tests/unit/projects/read-tail-r39-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "projects",
+      "modules": [
+        "projects"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Projects universal projection head must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-projects"
+      ],
+      "id": "projects.read-tail-r40-dedupe.unit",
+      "files": [
+        "tests/unit/projects/read-tail-r40-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
@@ -121438,6 +121600,33 @@
       "id": "support.read-tail-r42-incident-work-native.unit",
       "files": [
         "tests/unit/support/read-tail-r42-incident-work-native.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "support",
+      "modules": [
+        "support"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Support columns-from head must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-support"
+      ],
+      "id": "support.read-tail-r43-dedupe.unit",
+      "files": [
+        "tests/unit/support/read-tail-r43-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
