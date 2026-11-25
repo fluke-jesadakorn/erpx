@@ -194,7 +194,7 @@ describe('Projects read-tail r39 closed scope-bind and point-read dedupe', () =>
     // r38 left 81. r39 folds four scope bind heads into one closed helper (-3)
     // and three aliased point-read tails into one closed helper (-2): 81-5 = 76.
     // The assignment-viewer authority tail (S3) is not a byte-identical family.
-    expect(total).toBe(73);
+    expect(total).toBe(72);
     expect(total).toBeLessThan(81);
   });
 });

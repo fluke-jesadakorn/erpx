@@ -19,10 +19,14 @@ export async function lockProjectPackageObligationSources(owner:PostgresDatabase
 export function assertProjectPackageObligationSources(owner:PostgresDatabase,database:SqlDatabase,companyId:string){
  owner.assertActiveTransaction(database);if(sources.get(database)!==companyId)throw Error("PROJECT_PACKAGE_OBLIGATION_SOURCE_REQUIRED");
 }
-export const projectRowsSql="SELECT * FROM staff_projects";
 /** Byte-identical fixed row-source prefix shared by the settlement table reads;
  * one definition keeps every source relation identical. */
 const tableRowsSql=`SELECT * FROM `;
+/** G4 / retire.projects.read-tail-r42: the Projects row source is the same closed
+ * head with the Projects relation appended. Delegating keeps one byte literal for
+ * the shared prefix; the rendered source stays byte-identical. No locks, native
+ * statements or cross-owner text are emitted here. */
+export const projectRowsSql=`${tableRowsSql}staff_projects`;
 /** Byte-identical assignment-scope subquery delegate; the closed bind projection
  * lives in read-tail-r39 so the purchase and metric authority reads keep the
  * exact same emitted SQL and only the scope alias varies per caller. */
