@@ -203,7 +203,7 @@ describe('Commerce read-tail r23 head-dedupe retirement', () => {
     expect(read('commerce.ts').split('db.prepare(COMMERCE_OWNER_WRITE_NOOP_SQL)').length - 1).toBe(17);
   });
 
-  test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 411 (before 413)', () => {
+  test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 410 (before 413)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -213,6 +213,6 @@ describe('Commerce read-tail r23 head-dedupe retirement', () => {
       }
     };
     walk(src);
-    expect(total).toBe(411);
+    expect(total).toBe(410);
   });
 });

@@ -2,11 +2,12 @@ import 'server-only';
 import { commerceOrdersReadSql } from './read-tail-r21-dedupe-sql';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import { COMMERCE_WAREHOUSE_IDENTITY_SQL } from './guarded-source-dedupe-sql';
+import { commerceSettlementLineSql } from './read-tail-r25-dedupe-sql';
 /** Raw native identities for Sales withdrawal. Invalid same-Company lineage is
  * retained for the owner to count, rather than disappearing in valid-only joins. */
 export const salesCommerceSettlementSources={
  orders:commerceOrdersReadSql('*', "kind IN ('quote','sales')"),
- lines:"SELECT line.* FROM commerce_order_lines line JOIN commerce_orders parent ON parent.id=line.order_id WHERE parent.kind IN ('quote','sales')",
+ lines:commerceSettlementLineSql("parent.kind IN ('quote','sales')"),
  deliveries:"SELECT delivery.*,parent.company_id,parent.branch_id,parent.department_id,parent.party_id,parent.kind order_kind,parent.currency order_currency,parent.warehouse_id FROM commerce_fulfillments delivery JOIN commerce_orders parent ON parent.id=delivery.order_id WHERE parent.kind='sales'",
  deliveryLines:"SELECT line.*,delivery.order_id,original.product_id FROM commerce_fulfillment_lines line JOIN commerce_fulfillments delivery ON delivery.id=line.fulfillment_id JOIN commerce_orders parent ON parent.id=delivery.order_id LEFT JOIN commerce_order_lines original ON original.id=line.order_line_id WHERE parent.kind='sales'",
  returns:"SELECT returned.*,parent.company_id source_company,parent.branch_id source_branch,parent.department_id source_department,parent.kind order_kind,parent.party_id,parent.warehouse_id,parent.currency order_currency FROM commerce_returns returned LEFT JOIN commerce_orders parent ON parent.id=returned.order_id WHERE returned.kind='customer_return' OR parent.kind='sales'",
