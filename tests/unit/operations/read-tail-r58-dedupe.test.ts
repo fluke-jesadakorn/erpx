@@ -119,7 +119,7 @@ describe('operations read-tail r58 projection-source head consolidation', () => 
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(64);
+    expect(total).toBe(63);
     expect(total).toBeLessThan(66);
   });
 });
