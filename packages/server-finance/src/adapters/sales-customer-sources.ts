@@ -1,18 +1,69 @@
-import { finCustomerPartyIdSql } from './finance-read-tail-r58-sql';
-import { CUSTOMER_PARTY_PROFILE_SQL } from './finance-read-tail-r38-sql';
 import 'server-only';
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
-import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
-import type {Row} from '@erpx/server-commerce/public/commerce';
-import {readListPage} from '@erpx/server-work_projection/public/list-page';
-export function salesPricingCustomers(write:SqlDatabase,actor:WorkContext){return write.prepare("SELECT id,code,name,currency FROM finance_parties WHERE company_id=? AND kind='customer' AND status='active' AND person_id IS NULL ORDER BY name").bind(actor.companyId).all<Row>();}
-export async function salesPricingCustomerValid(write:SqlDatabase,actor:WorkContext,id:string,currency:string){return Boolean(await write.prepare(finCustomerPartyIdSql(" AND company_id=? AND kind='customer' AND status='active' AND currency=? AND person_id IS NULL")).bind(id,actor.companyId,currency).first());}
-export async function salesCustomerProfile(write:SqlDatabase,actor:WorkContext,id:string){return await write.prepare(CUSTOMER_PARTY_PROFILE_SQL).bind(id, actor.companyId).first<Row>();}
-export async function salesCustomerDirectory(write:SqlDatabase,actor:WorkContext,search:string,status:string,cursor?:string){return await readListPage<Row & { id: string; page_key: string }>(write, {
-    sql: "SELECT p.*,p.name page_key FROM finance_parties p WHERE p.company_id=? AND p.kind='customer' AND p.person_id IS NULL AND (?='' OR strpos(lower(p.code||' '||p.name),lower(?))>0) AND (?='' OR p.status=?)",
-    args: [actor.companyId, search, search, status, status], cursor: cursor,
-    // Retain compatibility with old customer-master pagination when no status is selected.
-    scope: [actor.companyId, actor.branchId, "parties", "parties", "customer", search, ...(status ? [status] : [])],
-  });}
-export function salesNoteCustomer(write:SqlDatabase,a:WorkContext,id:string,version?:number){return write.prepare("SELECT p.id,p.name,p.code,p.version FROM finance_parties p WHERE p.id=? AND p.company_id=? AND p.kind='customer' AND (?::int IS NULL OR p.version=?)").bind(id,a.companyId,version??null,version??null).first<{id:string;name:string;code:string;version:number}>();}
+import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import type { SqlResult } from '@erpx/server-runtime/public/runtime/types';
+import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
+import type { Row } from '@erpx/server-commerce/public/commerce';
+import {
+  nativeCustomerRead,
+  FINANCE_LANE5_RD_PRICING_CUSTOMERS,
+  FINANCE_LANE5_RD_PRICING_CUSTOMER_VALID,
+  FINANCE_LANE5_RD_CUSTOMER_PROFILE,
+  FINANCE_LANE5_RD_CUSTOMER_DIRECTORY,
+  FINANCE_LANE5_RD_NOTE_CUSTOMER,
+} from './native-lane-5/client';
 
+/**
+ * Finance-owned customer master reads. Every statement, projection and page
+ * cursor now lives in the native `native_lane_5` axum/sqlx owner; these
+ * functions only transport bounded identities and validate the native result.
+ * There is no TypeScript SQL fallback.
+ */
+
+export function salesPricingCustomers(write: SqlDatabase, actor: WorkContext): Promise<SqlResult<Row>> {
+  void write;
+  return nativeCustomerRead<Row[]>(FINANCE_LANE5_RD_PRICING_CUSTOMERS, actor).then((results) => ({
+    results,
+    success: true,
+    meta: { changes: 0, duration: 0 },
+  }));
+}
+
+export async function salesPricingCustomerValid(write: SqlDatabase, actor: WorkContext, id: string, currency: string): Promise<boolean> {
+  void write;
+  return nativeCustomerRead<boolean>(FINANCE_LANE5_RD_PRICING_CUSTOMER_VALID, actor, { id, currency });
+}
+
+export async function salesCustomerProfile(write: SqlDatabase, actor: WorkContext, id: string): Promise<Row | null> {
+  void write;
+  return nativeCustomerRead<Row | null>(FINANCE_LANE5_RD_CUSTOMER_PROFILE, actor, { id });
+}
+
+export async function salesCustomerDirectory(
+  write: SqlDatabase,
+  actor: WorkContext,
+  search: string,
+  status: string,
+  cursor?: string,
+): Promise<{ items: Row[]; nextCursor: string | null; previousCursor: string | null; hasMore: boolean }> {
+  void write;
+  return nativeCustomerRead<{
+    items: Row[];
+    nextCursor: string | null;
+    previousCursor: string | null;
+    hasMore: boolean;
+  }>(FINANCE_LANE5_RD_CUSTOMER_DIRECTORY, actor, { search, status, cursor });
+}
+
+export function salesNoteCustomer(
+  write: SqlDatabase,
+  actor: WorkContext,
+  id: string,
+  version?: number,
+): Promise<{ id: string; name: string; code: string; version: number } | null> {
+  void write;
+  return nativeCustomerRead<{ id: string; name: string; code: string; version: number } | null>(
+    FINANCE_LANE5_RD_NOTE_CUSTOMER,
+    actor,
+    { id, version: version ?? null },
+  );
+}

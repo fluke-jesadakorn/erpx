@@ -30,9 +30,6 @@ const CASES: Case[] = [
   { file: "ecommerce-customers.ts", helper: 'finPartyIdNameByCompanySql', tail: " AND kind='customer' AND status='active' ORDER BY name",
     call: "finPartyIdNameByCompanySql(\" AND kind='customer' AND status='active' ORDER BY name\")", expected: "SELECT id,name FROM finance_parties WHERE company_id=? AND kind='customer' AND status='active' ORDER BY name",
     sha: 'eb267ffba1002d02dcd8b42c4c998b05d1605eff5f0eeb2645919af40dd37791', label: "ecommerce customer candidates" },
-  { file: "pms-command-facts.ts", helper: 'finPartyIdNameByCompanySql', tail: " AND kind='customer' AND status='active' AND currency='THB' AND person_id IS NULL",
-    call: "finPartyIdNameByCompanySql(\" AND kind='customer' AND status='active' AND currency='THB' AND person_id IS NULL\")", expected: "SELECT id,name FROM finance_parties WHERE company_id=? AND kind='customer' AND status='active' AND currency='THB' AND person_id IS NULL",
-    sha: '532180fd2b13a268349acafc704a456d9fbaf178bc36cfcc19fbc0e81f6d5e78', label: "pms THB customer rows" },
   { file: "pos-daily-facts.ts", helper: 'finPartyIdNameByCompanySql', tail: " AND kind='customer' AND status='active'\n  AND (lower(trim(name))=lower(?) OR (?<>'' AND regexp_replace(COALESCE(phone,''),'[^0-9]','','g')=?)\n   OR (?<>'' AND lower(notification_email)=lower(?))) LIMIT 1",
     call: "finPartyIdNameByCompanySql(` AND kind='customer' AND status='active'\n  AND (lower(trim(name))=lower(?) OR (?<>'' AND regexp_replace(COALESCE(phone,''),'[^0-9]','','g')=?)\n   OR (?<>'' AND lower(notification_email)=lower(?))) LIMIT 1`)", expected: "SELECT id,name FROM finance_parties WHERE company_id=? AND kind='customer' AND status='active'\n  AND (lower(trim(name))=lower(?) OR (?<>'' AND regexp_replace(COALESCE(phone,''),'[^0-9]','','g')=?)\n   OR (?<>'' AND lower(notification_email)=lower(?))) LIMIT 1",
     sha: 'aeb49101b785ecf0c0c4130a3577e7e4c6c851e00e81948597316f779caaa24f', label: "pos daily fuzzy customer" },
@@ -76,8 +73,8 @@ const render = (cs: Case) => ({
 const oracle = (cs: Case) => HEADS[cs.helper] + cs.tail;
 
 describe('Finance read-tail r57 closed read-tail renderers', () => {
-  test('all 12 sites render byte-identically to the retired literals', () => {
-    expect(CASES).toHaveLength(12);
+  test('all 11 retained TS sites render byte-identically to the retired literals', () => {
+    expect(CASES).toHaveLength(11);
     for (const cs of CASES) {
       const got = render(cs);
       expect(got).toBe(cs.expected);
@@ -86,13 +83,13 @@ describe('Finance read-tail r57 closed read-tail renderers', () => {
       expect(got.startsWith(HEADS[cs.helper])).toBe(true);
       expect(got.slice(HEADS[cs.helper].length)).toBe(cs.tail);
     }
-    // The 12 sites span four byte-identical head families (three sites each).
-    expect(CASES.filter(c => c.helper === 'finPartyIdNameByCompanySql')).toHaveLength(3);
+    // The 11 retained sites span four byte-identical head families.
+    expect(CASES.filter(c => c.helper === 'finPartyIdNameByCompanySql')).toHaveLength(2);
     expect(CASES.filter(c => c.helper === 'finPeriodIdByCompanySql')).toHaveLength(3);
     expect(CASES.filter(c => c.helper === 'finPartiesAllByCompanySql')).toHaveLength(3);
     expect(CASES.filter(c => c.helper === 'finPeriodProbeByCompanySql')).toHaveLength(3);
     expect(new Set(CASES.map(c => c.expected.split('?')[0])).size).toBe(4);
-    expect(new Set(CASES.map(c => c.sha)).size).toBe(12);
+    expect(new Set(CASES.map(c => c.sha)).size).toBe(11);
     expect(finPartyIdNameByCompanySql('')).toBe(HEADS.finPartyIdNameByCompanySql);
     expect(finPeriodIdByCompanySql('')).toBe(HEADS.finPeriodIdByCompanySql);
     expect(finPartiesAllByCompanySql('')).toBe(HEADS.finPartiesAllByCompanySql);
@@ -120,10 +117,11 @@ describe('Finance read-tail r57 closed read-tail renderers', () => {
     expect(read('pos-daily-facts.ts')).toContain("regexp_replace(COALESCE(phone,''),'[^0-9]','','g')");
   });
 
-  test('delegation counts match the 3+3+3+3 anchors', () => {
+  test('delegation counts match the 2+3+3+3 retained anchors', () => {
     const calls = (file: string, helper: Helper) => count(read(file), helper + '(');
     expect(calls('ecommerce-customers.ts', 'finPartyIdNameByCompanySql')).toBe(1);
-    expect(calls('pms-command-facts.ts', 'finPartyIdNameByCompanySql')).toBe(1);
+    // pms-command-facts.ts cut over natively; its TS helper call site is gone.
+    expect(calls('pms-command-facts.ts', 'finPartyIdNameByCompanySql')).toBe(0);
     expect(calls('pos-daily-facts.ts', 'finPartyIdNameByCompanySql')).toBe(1);
     expect(calls('commerce-facts.ts', 'finPeriodIdByCompanySql')).toBe(1);
     expect(calls('finance-ai.ts', 'finPeriodIdByCompanySql')).toBe(1);
@@ -155,7 +153,7 @@ describe('Finance read-tail r57 protected families and retirement', () => {
     expect(imported).toEqual([
       'commerce-facts.ts', 'ecommerce-customers.ts', 'finance-ai.ts', 'finance-books.ts',
       'finance-invoice-read.ts', 'finance-starter.ts', 'journal-planning.ts',
-      'manufacturing-accounting-sources.ts', 'pms-command-facts.ts',
+      'manufacturing-accounting-sources.ts',
       'pos-daily-facts.ts', 'record-presentation.ts',
     ]);
     for (const file of imported) expect(file.startsWith('native-')).toBe(false);
@@ -170,7 +168,7 @@ describe('Finance read-tail r57 protected families and retirement', () => {
     expect(count(helper, 'SELECT ')).toBe(4);
   });
 
-  test('retirement:ts-statements pins the r64 target of 1701', () => {
+  test('retirement:ts-statements pins the current owner target of 1693', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -181,9 +179,9 @@ describe('Finance read-tail r57 protected families and retirement', () => {
     };
     walk(srcRoot);
     // 12 head literals collapse into four helpers (-12 literals, +4 declarations: 1718 -> 1710); r58 then 1710 -> 1708; r59 then 1708 -> 1707; r60 then 1707 -> 1705; r61 then 1705 -> 1704; r62 then 1704 -> 1703.
-    expect(CASES).toHaveLength(12);
-    expect(total).toBe(1701);
-    expect(total).toBe(1718 - 17);
+    expect(CASES).toHaveLength(11);
+    expect(total).toBe(1693);
+    expect(total).toBe(1718 - 25);
     expect(total).toBeLessThan(1718);
   });
 });

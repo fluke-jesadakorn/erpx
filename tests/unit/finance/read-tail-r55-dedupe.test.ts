@@ -43,12 +43,6 @@ const CASES: Case[] = [
   p('b', 'finance_bank_transactions', " AND b.transaction_date BETWEEN p.start_date AND p.end_date AND b.match_status<>'matched'", 'period unmatched_bank'),
   p('i', 'finance_invoices', " AND i.status IN ('draft','in_review') AND i.invoice_date BETWEEN p.start_date AND p.end_date", 'period draft_invoices'),
   p('r', 'finance_calculation_runs', " AND r.period_id=p.id AND r.status IN ('prepared','reviewed','stale')", 'period pending_calculations'),
-  c(ir, 'finance_journals', ' ', 'AS journals'),
-  c(ir, 'finance_journals', " AND status='draft'", 'AS posting'),
-  c(ir, 'finance_invoices', '', 'AS invoices'),
-  c(ir, 'finance_payments', '', 'AS payments'),
-  c(ir, 'finance_invoices', " AND kind='receivable' AND status IN ('posted','partially_paid') AND outstanding_minor>0", 'AS receivable'),
-  c(ir, 'finance_invoices', " AND kind='payable' AND status IN ('posted','partially_paid') AND outstanding_minor>0", 'AS payable'),
 ];
 
 const render = (cs: Case) => cs.helper === 'companyCountSql'
@@ -61,16 +55,18 @@ const oracle = (cs: Case) => cs.helper === 'companyCountSql'
   : `SELECT count(*) FROM ${cs.args[1]} ${cs.args[0]} WHERE ${cs.args[0]}.company_id=p.company_id${cs.args[2]}`;
 
 describe('Finance read-tail r55 closed company count helpers', () => {
-  test('all 18 sites render byte-identically to the retired literals', () => {
-    expect(CASES).toHaveLength(18);
+  test('all 12 retained TS sites render byte-identically to the retired literals', () => {
+    expect(CASES).toHaveLength(12);
     for (const cs of CASES) {
       expect(render(cs)).toBe(cs.expected);
       expect(render(cs)).toBe(oracle(cs));
       expect(count(render(cs), 'SELECT ')).toBe(1);
       expect(render(cs).startsWith('SELECT count(*) FROM ')).toBe(true);
     }
-    // The trailing-space tail for the `journals` head is deliberate.
-    expect(CASES[12].args[1]).toBe(' ');
+    // The trailing-space tail used by the retired `journals` head is deliberate.
+    expect(companyCountSql('finance_journals', ' ')).toBe(
+      'SELECT count(*) FROM finance_journals WHERE company_id=? ',
+    );
     expect(companyCountSql('finance_journals', '')).not.toBe(correlatedCountSql('j', 'finance_journals', ''));
     expect(companyCountSql('finance_invoices', ' ')).not.toBe(companyCountSql('finance_journals', ' '));
   });
@@ -85,7 +81,10 @@ describe('Finance read-tail r55 closed company count helpers', () => {
     const workspace = read(ws);
     const invoice = read(ir);
     expect(norm(workspace)).toContain(norm("import { companyCountSql, correlatedCountSql } from './finance-read-tail-r55-sql';"));
-    expect(norm(invoice)).toContain(norm("import { companyCountSql } from './finance-read-tail-r55-sql';"));
+    // Native lane 2 owns the overview-count statement; the TS adapter only
+    // transports the result and carries no companyCountSql call site.
+    expect(invoice).not.toContain('companyCountSql(');
+    expect(invoice).toContain('financeOverviewCountsNative(actor)');
     // workbenchCounters retains the interleaved company/today bind order.
     expect(norm(workspace)).toContain(norm(`.bind(
       actor.companyId,
@@ -101,17 +100,14 @@ describe('Finance read-tail r55 closed company count helpers', () => {
     expect(norm(workspace)).toContain('due_date<?');
     expect(norm(workspace)).toContain('due_date<=?');
     expect(norm(workspace)).toContain('.bind(actor.companyId)');
-    // invoice overview keeps its seven company binds and output aliases.
-    expect(norm(invoice)).toContain('.bind(...Array(7).fill(actor.companyId))');
-    for (const label of ['journals', 'posting', 'invoices', 'payments', 'receivable', 'payable', 'reconcile']) {
-      expect(invoice).toContain(` AS ${label}`);
-    }
+    // The seven output aliases now live in the Rust owner projection oracle.
+    expect(invoice).not.toContain('.bind(...Array(7).fill(actor.companyId))');
   });
 
-  test('delegation counts match the 8 company + 4 correlated + 6 invoice anchors', () => {
+  test('delegation counts match the 8 company + 4 correlated + 0 native-lane anchors', () => {
     expect(count(read(ws), 'companyCountSql(')).toBe(8);
     expect(count(read(ws), 'correlatedCountSql(')).toBe(4);
-    expect(count(read(ir), 'companyCountSql(')).toBe(6);
+    expect(count(read(ir), 'companyCountSql(')).toBe(0);
   });
 });
 
@@ -132,7 +128,7 @@ describe('Finance read-tail r55 protected families and retirement', () => {
     expect(workspace).toContain('"SELECT count(DISTINCT bank_account) count FROM finance_bank_statements WHERE company_id=?"');
     expect(workspace).toContain('"SELECT count(*) count FROM finance_accounting_profiles p JOIN finance_charts c');
     expect(workspace).toContain('"SELECT count(*) count FROM (SELECT a.chart_id FROM finance_accounts a');
-    expect(read(ir)).toContain('${UNMATCHED_BANK_TXN_COUNT_SQL}');
+    expect(read(ir)).not.toContain('${UNMATCHED_BANK_TXN_COUNT_SQL}');
   });
 
   test('prior helpers stay imported and each r55 helper is defined exactly once', () => {
@@ -142,10 +138,10 @@ describe('Finance read-tail r55 protected families and retirement', () => {
     expect(count(helper, 'SELECT ')).toBe(2);
     expect(read(ws)).toContain("import { financeReferenceListSql } from './finance-read-tail-r42-sql';");
     expect(read(ws)).toContain("import { UNMATCHED_BANK_TXN_COUNT_SQL } from './finance-read-tail-r44-sql';");
-    expect(read(ir)).toContain("import { UNMATCHED_BANK_TXN_COUNT_SQL } from './finance-read-tail-r44-sql';");
+    expect(read(ir)).not.toContain("import { UNMATCHED_BANK_TXN_COUNT_SQL } from './finance-read-tail-r44-sql';");
   });
 
-  test('retirement:ts-statements pins the r64 target of 1701', () => {
+  test('retirement:ts-statements pins the current owner target of 1693', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -155,9 +151,10 @@ describe('Finance read-tail r55 protected families and retirement', () => {
       }
     };
     walk(srcRoot);
-    // 18 count literals collapse into two helpers (-18 literals, +2 declarations: 1742 -> 1726).
-    expect(CASES).toHaveLength(18);
-    expect(total).toBe(1701);
+    // 18 count literals collapsed into two helpers (-18 literals, +2 declarations: 1742 -> 1726);
+    // native lane 2 then retired the six invoice-read TS sites (12 retained).
+    expect(CASES).toHaveLength(12);
+    expect(total).toBe(1693);
     expect(total).toBeLessThan(1742);
   });
 });

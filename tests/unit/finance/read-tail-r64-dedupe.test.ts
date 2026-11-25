@@ -131,7 +131,7 @@ describe('Finance read-tail r64 protected families and retirement', () => {
     expect(helper).not.toMatch(/pg_advisory/i);
   });
 
-  test('retirement:ts-statements pins the r64 target of 1701', () => {
+  test('retirement:ts-statements pins the current owner target of 1693', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -141,11 +141,11 @@ describe('Finance read-tail r64 protected families and retirement', () => {
       }
     };
     walk(srcRoot);
-    // 2 head literals collapse into one renderer (-2 literals, +1 declaration: 1702 -> 1701).
+    // 2 head literals collapse into one renderer (-2 literals, +1 declaration: 1702 -> 1701; native cutovers then 1701 -> 1693).
     expect(CASES).toHaveLength(2);
-    expect(total).toBe(1701);
-    expect(total).toBe(1705 - 4);
-    expect(total).toBe(1707 - 6);
+    expect(total).toBe(1693);
+    expect(total).toBe(1705 - 12);
+    expect(total).toBe(1707 - 14);
     expect(total).toBeLessThan(1704);
   });
 });

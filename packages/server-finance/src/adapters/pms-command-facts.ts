@@ -1,6 +1,6 @@
 import {financeOwnedSnapshotSources as pmsSnapshotSources} from "@erpx/server-pms/public/finance-owned-snapshot-sources";
 import { ACCOUNT_SELECT_PREFIX } from './finance-read-tail-r30-sql';
-import { finPartyIdNameByCompanySql } from './finance-read-tail-r57-sql';
+import { financeReferenceOptions, type Lane4Actor } from './native-lane-4/client';
 import { nativePmsFinanceFacts } from '@erpx/server-collaboration/adapters/native-pms-finance-facts';
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
@@ -12,29 +12,17 @@ const run = async (db: SqlDatabase, sql: string, ...values: unknown[]) => db
     .prepare(sql)
     .bind(...values)
     .run();
-export function pmsFinanceFacts(db: SqlDatabase) {
+export function pmsFinanceFacts(db: SqlDatabase, actor: Lane4Actor = {}) {
     return {
         readFinanceAccounts: (facts: {
             companyId: string;
-        }) => query<{
-            id: string;
-            name: string;
-            code: string;
-            chart_id: string;
-            category: string;
-        }>(db, "SELECT id,name,code,chart_id,category FROM finance_accounts WHERE company_id=? AND status='active' AND currency='THB' ORDER BY code", facts.companyId),
+        }) => financeReferenceOptions('accounts', facts.companyId, actor),
         readFinanceCharts: (facts: {
             companyId: string;
-        }) => query<{
-            id: string;
-            name: string;
-        }>(db, "SELECT id,name FROM finance_charts WHERE company_id=? AND base_currency='THB' AND status='active'", facts.companyId),
+        }) => financeReferenceOptions('charts', facts.companyId, actor),
         readFinanceParties: (facts: {
             companyId: string;
-        }) => query<{
-            id: string;
-            name: string;
-        }>(db, finPartyIdNameByCompanySql(" AND kind='customer' AND status='active' AND currency='THB' AND person_id IS NULL"), facts.companyId),
+        }) => financeReferenceOptions('parties', facts.companyId, actor),
         readReceiptAllocationCredits: (facts: {
             companyId: string; propertyId: string; branchId: string;
             chartId: string; currency: string; receivableAccountId: string;

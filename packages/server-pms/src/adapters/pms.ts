@@ -61,7 +61,7 @@ function unit(db: SqlDatabase, companyId = '', actor: LaneActor = {}): PmsUnit<S
         const write = (kind: string, values: unknown[]): any => nativePmsOwnerWrite(companyId, kind, values);
     const identity_access = pmsIdentityAccessFacts(db);
     const organization = pmsOrganizationFacts(db);
-    const finance = pmsFinanceFacts(db);
+    const finance = pmsFinanceFacts(db, actor);
     const commerce = pmsCommerceFacts(db);
     const pos = pmsPosFacts(db);
     const workflow = pmsWorkflowFacts(db);

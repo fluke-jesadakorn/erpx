@@ -59,12 +59,15 @@ describe('Finance read-tail r44 byte-identical NEW families', () => {
     }
   });
 
-  test('unmatched bank-transaction count renders byte-identically at both sites', () => {
+  test('unmatched bank-transaction count renders byte-identically at its retained TS site', () => {
     expect(UNMATCHED_BANK_TXN_COUNT_SQL).toBe(BANK_UNMATCHED);
-    for (const name of ['finance-workspace.ts', 'finance-invoice-read.ts']) {
+    // finance-invoice-read.ts no longer renders this helper: native lane 2 owns
+    // the statement and the TS adapter is a fail-closed client.
+    for (const name of ['finance-workspace.ts']) {
       expect(count(read(name), '${UNMATCHED_BANK_TXN_COUNT_SQL}')).toBe(1);
       expect(read(name)).not.toContain(BANK_UNMATCHED);
     }
+    expect(read('finance-invoice-read.ts')).not.toContain('${UNMATCHED_BANK_TXN_COUNT_SQL}');
   });
 
   test('AI usage month projection renders byte-identically at all three non-assertion sites', () => {
@@ -99,7 +102,7 @@ describe('Finance read-tail r44 retirement check', () => {
     // r44 collapsed 21 inline into five helpers (1884 -> 1868); r45 removes eight more (-> 1860); r46 removes nine more (-> 1851); r48 removes seven more (-> 1844); r49 removes 32 more (-> 1812); r50 removes seven more (-> 1805); r51 removes 22 (-> 1783); r52 removes 19 (-> 1764); r53 removes 10 (-> 1754); r54 routes 14 point reads into two helpers (-> 1742).
     // r55 folds 18 company count literals into two helpers (-18 literals, +2 declarations: 1742 -> 1726).
     // r56 folds 11 head literals into three helpers (-11 literals, +3 declarations: 1726 -> 1718).
-    expect(total).toBe(1701);
+    expect(total).toBe(1693);
     expect(total).toBeLessThanOrEqual(1718);
     expect(total).toBeLessThan(1884);
   });

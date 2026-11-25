@@ -1,8 +1,7 @@
 import { activeAccountListSql } from './finance-read-tail-r51-sql';
 import { financeReferenceListSql } from './finance-read-tail-r42-sql';
-import { UNMATCHED_BANK_TXN_COUNT_SQL } from './finance-read-tail-r44-sql';
-import { companyCountSql } from './finance-read-tail-r55-sql';
 import { finPartiesAllByCompanySql } from './finance-read-tail-r57-sql';
+import { financeOverviewCountsNative } from './native-lane-2/client';
 
 
 import { requireFinanceDocumentHistory } from "@erpx/server-finance/adapters/document-purchases";
@@ -36,8 +35,9 @@ export async function resources(actor:WorkContext,readOnly=false){createFinanceR
 export async function getInvoice(actor: WorkContext, invoiceId: string, provided?:SqlDatabase) { const db=provided??(await holdingResources(actor.holdingId)).write;await requireFinanceDocumentHistory(db,actor,"invoice",invoiceId);return financeReadService(db).getInvoice(actor,invoiceId); }
 export function financeReadService(provided?:SqlDatabase,historyOnly=false) {
     let pending: Promise<SqlDatabase> | undefined;
+    let currentActor: WorkContext | undefined;
     const db = (actor: WorkContext) => pending ??= provided ? (createFinanceResourcePolicy({error:(...args)=>new ApiError(...args),hasPermission})(actor,true),Promise.resolve(provided)) : resources(actor, true).then(r => r.write);
-    return createFinanceReads({ error: (...args) => new ApiError(...args), authorize: requirePermission, ready: async (actor) => { await db(actor); }, currentLines: async (companyId, id, revision) => salesInvoiceLines(await pending!, companyId, id, revision), reportCharts: async (actor) => (await (await db(actor)).prepare('SELECT id FROM finance_charts WHERE company_id=?').bind(actor.companyId).all<{
+    return createFinanceReads({ error: (...args) => new ApiError(...args), authorize: requirePermission, ready: async (actor) => { currentActor = actor; await db(actor); }, currentLines: async (companyId, id, revision) => salesInvoiceLines(await pending!, currentActor!, companyId, id, revision), reportCharts: async (actor) => (await (await db(actor)).prepare('SELECT id FROM finance_charts WHERE company_id=?').bind(actor.companyId).all<{
             id: string;
         }>()).results, reportChart: async (actor, id) => !!await (await db(actor)).prepare(CHART_EXISTS_BY_COMPANY_SQL).bind(id, actor.companyId).first(), reportPeriod: async (actor, id) => !!await (await db(actor)).prepare(PERIOD_EXISTS_BY_ID_SQL).bind(id, actor.companyId).first(), reportPeriodDates: async (actor, id) => (await db(actor)).prepare(PERIOD_DATES_SQL).bind(id, actor.companyId).first<{
             start_date: string;
@@ -156,26 +156,7 @@ export function financeReadService(provided?:SqlDatabase,historyOnly=false) {
     WHERE i.kind=? AND i.historical_outstanding_minor>0 AND (?::text IS NULL OR i.chart_id=?) ORDER BY i.due_date,i.id`)
                 .bind(actor.companyId, asOf, kind, chartId ?? null, chartId ?? null).all<HistoricalAgingRow>()).results;
         },
-        financeOverviewCounts: async (actor) => {
-            const write = await db(actor);
-            return (await write.prepare(`SELECT
-    (${companyCountSql('finance_journals', ' ')}) AS journals,
-    (${companyCountSql('finance_journals', " AND status='draft'")}) AS posting,
-    (${companyCountSql('finance_invoices', '')}) AS invoices,
-    (${companyCountSql('finance_payments', '')}) AS payments,
-    (${companyCountSql('finance_invoices', " AND kind='receivable' AND status IN ('posted','partially_paid') AND outstanding_minor>0")}) AS receivable,
-    (${companyCountSql('finance_invoices', " AND kind='payable' AND status IN ('posted','partially_paid') AND outstanding_minor>0")}) AS payable,
-    (${UNMATCHED_BANK_TXN_COUNT_SQL}) AS reconcile`)
-                .bind(...Array(7).fill(actor.companyId)).first<{
-                journals: number;
-                posting: number;
-                invoices: number;
-                payments: number;
-                receivable: number;
-                payable: number;
-                reconcile: number;
-            }>())!;
-        },
+        financeOverviewCounts: async (actor) => financeOverviewCountsNative(actor),
         invoicesPage: async (actor, query) => {
             const write = await db(actor);
             return readListPage<FinanceRow & {

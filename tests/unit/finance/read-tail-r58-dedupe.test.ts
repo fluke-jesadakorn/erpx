@@ -27,10 +27,6 @@ const CASES: Case[] = [
     call: 'write.prepare(finCustomerPartyIdSql(" AND company_id=? AND kind=\'customer\'")).bind(input.customerId, actor.companyId)',
     expected: "SELECT id FROM finance_parties WHERE id=? AND company_id=? AND kind='customer'",
     sha: '4db719a88f93d1ff6569f44eed5b2bce8cb97b721ad72e3c10de338884d4c7d7', label: 'finance revenue-customer point read' },
-  { file: 'sales-customer-sources.ts', helper: 'finCustomerPartyIdSql', tail: " AND company_id=? AND kind='customer' AND status='active' AND currency=? AND person_id IS NULL",
-    call: 'write.prepare(finCustomerPartyIdSql(" AND company_id=? AND kind=\'customer\' AND status=\'active\' AND currency=? AND person_id IS NULL")).bind(id,actor.companyId,currency)',
-    expected: "SELECT id FROM finance_parties WHERE id=? AND company_id=? AND kind='customer' AND status='active' AND currency=? AND person_id IS NULL",
-    sha: '04bbf6a2022aaf69a2d88424e831430d6308263d9b56890fda9942a0f206d391', label: 'sales pricing customer validity point read' },
   { file: 'field-service-references.ts', helper: 'finCustomerPartyListSql', tail: " AND kind='customer' AND status='active' ORDER BY name,id",
     call: 'database.prepare(finCustomerPartyListSql(" AND kind=\'customer\' AND status=\'active\' ORDER BY name,id")) .bind(companyId).all<ServiceCustomerReference>()',
     expected: "SELECT id,name,currency FROM finance_parties WHERE company_id=? AND kind='customer' AND status='active' ORDER BY name,id",
@@ -50,8 +46,8 @@ const render = (cs: Case) => ({
 const oracle = (cs: Case) => HEADS[cs.helper] + cs.tail;
 
 describe('Finance read-tail r58 customer read renderers', () => {
-  test('all 4 sites render byte-identically to the retired literals', () => {
-    expect(CASES).toHaveLength(4);
+  test('all 3 remaining sites render byte-identically to the retired literals', () => {
+    expect(CASES).toHaveLength(3);
     for (const cs of CASES) {
       const got = render(cs);
       expect(got).toBe(cs.expected);
@@ -60,11 +56,11 @@ describe('Finance read-tail r58 customer read renderers', () => {
       expect(got.startsWith(HEADS[cs.helper])).toBe(true);
       expect(got.slice(HEADS[cs.helper].length)).toBe(cs.tail);
     }
-    // The four sites span two byte-identical head families (two sites each).
-    expect(CASES.filter(c => c.helper === 'finCustomerPartyIdSql')).toHaveLength(2);
+    // The three remaining sites span two byte-identical head families.
+    expect(CASES.filter(c => c.helper === 'finCustomerPartyIdSql')).toHaveLength(1);
     expect(CASES.filter(c => c.helper === 'finCustomerPartyListSql')).toHaveLength(2);
     expect(new Set(CASES.map(c => c.expected.split('?')[0])).size).toBe(2);
-    expect(new Set(CASES.map(c => c.sha)).size).toBe(4);
+    expect(new Set(CASES.map(c => c.sha)).size).toBe(3);
     expect(finCustomerPartyIdSql('')).toBe(HEADS.finCustomerPartyIdSql);
     expect(finCustomerPartyListSql('')).toBe(HEADS.finCustomerPartyListSql);
   });
@@ -78,15 +74,18 @@ describe('Finance read-tail r58 customer read renderers', () => {
     }
     // Binds are unchanged: point reads keep id/company/currency order; lists keep company only.
     expect(norm(read('finance.ts'))).toContain('.bind(input.customerId, actor.companyId)');
-    expect(norm(read('sales-customer-sources.ts'))).toContain('.bind(id,actor.companyId,currency)');
+    // sales-customer-sources delegated to the native lane 5 reader: no SQL, no bind.
+    const customers = read('sales-customer-sources.ts');
+    expect(customers).toContain("from './native-lane-5/client'");
+    expect(customers).not.toMatch(/\bSELECT\b|\.prepare\(|\.bind\(/);
     expect(norm(read('field-service-references.ts'))).toContain('.bind(companyId).all<ServiceCustomerReference>()');
     expect(norm(read('finance-business-contracts.ts'))).toContain('.bind(companyId) .all<Row>()');
   });
 
-  test('delegation counts match the 2+2 anchors', () => {
+  test('delegation counts match the 1+2 anchors', () => {
     const calls = (file: string, helper: Helper) => count(read(file), helper + '(');
     expect(calls('finance.ts', 'finCustomerPartyIdSql')).toBe(1);
-    expect(calls('sales-customer-sources.ts', 'finCustomerPartyIdSql')).toBe(1);
+    expect(calls('sales-customer-sources.ts', 'finCustomerPartyIdSql')).toBe(0);
     expect(calls('field-service-references.ts', 'finCustomerPartyListSql')).toBe(1);
     expect(calls('finance-business-contracts.ts', 'finCustomerPartyListSql')).toBe(1);
   });
@@ -113,7 +112,7 @@ describe('Finance read-tail r58 protected families and retirement', () => {
       "CALCULATION_RUN_POINT_SQL = 'SELECT * FROM finance_calculation_runs WHERE id=? AND company_id=?'");
     const imported = [...new Set(CASES.map(c => c.file))].sort();
     expect(imported).toEqual(['field-service-references.ts', 'finance-business-contracts.ts',
-      'finance.ts', 'sales-customer-sources.ts']);
+      'finance.ts']);
     for (const file of imported) {
       expect(file.startsWith('native-')).toBe(false);
       expect(file.includes('tax')).toBe(false);
@@ -131,7 +130,7 @@ describe('Finance read-tail r58 protected families and retirement', () => {
     expect(helper).toContain('`SELECT id,name,currency FROM finance_parties WHERE company_id=?${tail}`');
   });
 
-  test('retirement:ts-statements pins the r64 target of 1701', () => {
+  test('retirement:ts-statements pins the current owner target of 1693', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -141,10 +140,10 @@ describe('Finance read-tail r58 protected families and retirement', () => {
       }
     };
     walk(srcRoot);
-    // 4 head literals collapse into two renderers (-4 literals, +2 declarations: 1710 -> 1708); r59 then 1708 -> 1707; r60 then 1707 -> 1705; r61 then 1705 -> 1704; r62 then 1704 -> 1703; r63 then 1703 -> 1702; r64 then 1702 -> 1701).
-    expect(CASES).toHaveLength(4);
-    expect(total).toBe(1701);
-    expect(total).toBe(1710 - 9);
+    // 4 head literals collapse into two renderers (-4 literals, +2 declarations: 1710 -> 1708); r59 then 1708 -> 1707; r60 then 1707 -> 1705; r61 then 1705 -> 1704; r62 then 1704 -> 1703; r63 then 1703 -> 1702; r64 then 1702 -> 1701; native cutovers then 1701 -> 1693).
+    expect(CASES).toHaveLength(3);
+    expect(total).toBe(1693);
+    expect(total).toBe(1710 - 17);
     expect(total).toBeLessThan(1710);
   });
 });

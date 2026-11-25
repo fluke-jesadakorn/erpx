@@ -23,7 +23,7 @@ export async function expensePostingPreview(actor: WorkContext, expense: Expense
   const {write}=await holdingResources(actor.holdingId);
   return withExpensePurchasedRead(write,actor,async database=>{
     const current=await peoplePackageEnforcementMode()==='disabled'?expense:await expenseFromDatabase(database,actor,String(expense.id));
-    return createExpensePostingPreview({repository:async()=>({posted:journalId=>expenseJournalProjection(database,actor.companyId,journalId),configuration:()=>expensePostingConfiguration(database,actor.companyId),accounts:()=>expensePostingAccounts(database,actor.companyId)})})(current);
+    return createExpensePostingPreview({repository:async()=>({posted:journalId=>expenseJournalProjection(database,actor,journalId),configuration:()=>expensePostingConfiguration(database,actor.companyId),accounts:()=>expensePostingAccounts(database,actor)})})(current);
   });
 }
 

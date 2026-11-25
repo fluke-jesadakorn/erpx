@@ -1080,7 +1080,7 @@ describe('finance read-tail r24 byte-identical SQL families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(2038);
-    expect(total).toBe(1701);
+    expect(total).toBe(1693);
   });
 });
 
@@ -1251,7 +1251,7 @@ describe('finance read-tail r30 byte-identical guard-prefix families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(2027);
-    expect(total).toBe(1701);
+    expect(total).toBe(1693);
   });
 });
 
@@ -1295,7 +1295,7 @@ describe('finance read-tail r31 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1989);
-    expect(total).toBe(1701);
+    expect(total).toBe(1693);
   });
 });
 
@@ -1340,7 +1340,7 @@ describe('finance read-tail r32 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1985);
-    expect(total).toBe(1701);
+    expect(total).toBe(1693);
   });
 });
 
@@ -1385,7 +1385,7 @@ describe('finance read-tail r33 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1983);
-    expect(total).toBe(1701);
+    expect(total).toBe(1693);
   });
 });
 
@@ -1460,7 +1460,7 @@ describe('finance read-tail r34 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1981);
-    expect(total).toBe(1701);
+    expect(total).toBe(1693);
   });
 });
 
@@ -1509,7 +1509,7 @@ describe('finance read-tail r35 parameterized workforce actor scope family', () 
     };
     walk(root);
     expect(total).toBeLessThan(1974);
-    expect(total).toBe(1701);
+    expect(total).toBe(1693);
   });
 });
 
@@ -1586,7 +1586,7 @@ describe('finance read-tail r36 exact duplicate two-site SQL families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1970);
-    expect(total).toBe(1701);
+    expect(total).toBe(1693);
   });
 });
 
@@ -1640,7 +1640,7 @@ describe('finance read-tail r37 exact duplicate period-exists read family', () =
     };
     walk(root);
     expect(total).toBeLessThan(1966);
-    expect(total).toBe(1701);
+    expect(total).toBe(1693);
   });
 });
 
@@ -1685,7 +1685,6 @@ describe('finance read-tail r38 byte-identical read families', () => {
       '"SELECT * FROM finance_business_contracts WHERE id=? AND company_id=?"',
       '"SELECT 1 FROM finance_business_billing_runs WHERE root_id=? AND service_to>=?"',
     ],
-    'sales-customer-sources.ts': ["\"SELECT * FROM finance_parties WHERE id=? AND company_id=? AND kind='customer' AND person_id IS NULL\""],
     'document-posting-preview.ts': ["\"SELECT * FROM finance_parties WHERE id=? AND company_id=? AND kind='customer' AND person_id IS NULL\""],
     'record-presentation.ts': ["\"SELECT id,dimension_id,code,name FROM finance_dimension_values WHERE company_id=? AND status='active' ORDER BY code\""],
     'ledger.ts': ["\"SELECT id,dimension_id,code,name FROM finance_dimension_values WHERE company_id=? AND status='active' ORDER BY code\""],
@@ -1707,7 +1706,6 @@ describe('finance read-tail r38 byte-identical read families', () => {
   const SITE_OCCURRENCES: Record<string, number> = {
     'finance-billing-corrections.ts': 3,
     'finance-business-contracts.ts': 6,
-    'sales-customer-sources.ts': 1,
     'document-posting-preview.ts': 1,
     'record-presentation.ts': 1,
     'ledger.ts': 1,
@@ -1720,8 +1718,8 @@ describe('finance read-tail r38 byte-identical read families', () => {
     'supplier-payment-money.ts': 2,
   };
 
-  it('removes all 27 inline literals from their 13 sites', async () => {
-    expect(Object.values(SITE_OCCURRENCES).reduce((sum, n) => sum + n, 0)).toBe(27);
+  it('removes all 26 inline literals from their 12 sites', async () => {
+    expect(Object.values(SITE_OCCURRENCES).reduce((sum, n) => sum + n, 0)).toBe(26);
     for (const [file, lits] of Object.entries(SITE_LITERALS)) {
       const text = await readFile(new URL('../../../packages/server-finance/src/adapters/' + file, import.meta.url), 'utf8');
       expect(text).toContain('finance-read-tail-r38-sql');
@@ -1755,7 +1753,7 @@ describe('finance read-tail r38 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1965);
-    expect(total).toBe(1701);
+    expect(total).toBe(1693);
   });
 });
 
@@ -1872,7 +1870,7 @@ describe('finance read-tail r39 read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1951);
-    expect(total).toBe(1701);
+    expect(total).toBe(1693);
   });
 });
 
@@ -1996,6 +1994,6 @@ describe('finance read-tail r40 read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1942);
-    expect(total).toBe(1701);
+    expect(total).toBe(1693);
   });
 });
