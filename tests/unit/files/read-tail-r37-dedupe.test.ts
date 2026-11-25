@@ -104,6 +104,10 @@ describe('Files read-tail r37 parameterized family', () => {
       'packages/server-files/src/adapters/read-tail-r50-source-sql.ts',
       // r51 read-tail call sites and helper (assigned owner paths).
       'packages/server-files/src/adapters/read-tail-r51-source-sql.ts',
+      // r52 read-tail call sites and helper (assigned owner paths).
+      'packages/server-files/src/adapters/read-tail-r52-source-sql.ts',
+      'packages/server-files/src/adapters/attachment-denied-read-audits.ts',
+      'packages/server-files/src/adapters/customer-portal-files.ts',
     ].includes(p))).toBe(true);
   });
 
@@ -125,8 +129,8 @@ describe('Files read-tail r37 parameterized family', () => {
     // r42 left 248; r43 lowers 248->246 (two SELECT-bearing shared heads folded).
     // r44 lowers 246->242 (three more shared heads folded).
     // r46 folds two closed-union heads (orphan-preservation event, draft/bound count): 239->237.
-    expect(literal).toBe(224);
-    expect(total).toBe(225);
+    expect(literal).toBe(223);
+    expect(total).toBe(224);
     expect(literal).toBeLessThan(255);
     expect(total).toBeLessThan(256);
   });

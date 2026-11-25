@@ -8,6 +8,7 @@ import type {CustomerPortalSessionActor} from "@erpx/server-customer_360/public/
 import {customerPortalPurchaseScope} from '@erpx/server-customer_authority/public/portal-read-purchases';
 import { recordCustomerPortalFileAccess as nativeRecordCustomerPortalFileAccess } from '@erpx/server-collaboration/adapters/native-attachment-access-event';
 import {scansAggSql} from './read-tail-dedupe-sql';
+import {EVENT_ID_PROJECTION_HEAD_SQL} from './read-tail-r52-source-sql';
 /** Preview reads never upgrade these source leases to attachment writes. The
  * verified binding owner takes them before its first document/file snapshot. */
 export function customerPortalFileSourceReadLocks(db:SqlDatabase){return [db.prepare('LOCK TABLE attachment_sets,attachment_links,attachments IN SHARE MODE')];}
@@ -75,5 +76,5 @@ export async function customerPortalSharedPreviewSource(db:SqlDatabase,actor:Pic
 /** Only an actual event inserted by the original public preview may be
  * committed. Never synthesize/copy an allowed audit after a failed read. */
 export async function customerPortalPreviewReadAudits(db:SqlDatabase,actor:Pick<CustomerPortalSessionActor,'userId'>,linkId:string){
- const rows=await db.prepare("SELECT event.id,to_jsonb(event)::text image FROM attachment_access_events event WHERE event.link_id=? AND event.actor_id=? AND event.variant='preview' AND event.outcome='allowed' ORDER BY event.id").bind(linkId,actor.userId).all<{id:string;image:string}>();return rows.results.map(row=>({id:row.id,witness:createHash('sha256').update(row.image).digest('hex')}));
+ const rows=await db.prepare(EVENT_ID_PROJECTION_HEAD_SQL + "to_jsonb(event)::text image FROM attachment_access_events event WHERE event.link_id=? AND event.actor_id=? AND event.variant='preview' AND event.outcome='allowed' ORDER BY event.id").bind(linkId,actor.userId).all<{id:string;image:string}>();return rows.results.map(row=>({id:row.id,witness:createHash('sha256').update(row.image).digest('hex')}));
 }

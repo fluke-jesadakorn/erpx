@@ -169,8 +169,8 @@ describe('Files read-tail r44 byte-oracle dedupe', () => {
     // (-2), while the attachment star-id and scan OR-EXISTS heads each fold
     // two sites into one (-1 each). Three heads live in the r44 helper.
     // r46 folds two closed-union heads (orphan-preservation event, draft/bound count): 239->237.
-    expect(literal).toBe(224);
-    expect(total).toBe(225);
+    expect(literal).toBe(223);
+    expect(total).toBe(224);
     expect(literal).toBeLessThan(246);
     expect(total).toBeLessThan(247);
   });

@@ -105,8 +105,8 @@ describe('Files read-tail r50 byte-oracle dedupe', () => {
       total += (text.match(/SELECT\s/g) ?? []).length;
     }
     // The two inline DISTINCT set-row sites fold into one helper (-1 total).
-    expect(literal).toBe(224);
-    expect(total).toBe(225);
+    expect(literal).toBe(223);
+    expect(total).toBe(224);
     expect(literal).toBeLessThan(226);
     expect(total).toBeLessThan(227);
   });

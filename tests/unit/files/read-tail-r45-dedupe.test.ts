@@ -157,8 +157,8 @@ describe('Files read-tail r45 byte-oracle dedupe', () => {
     // Three heads fold two sites into one each (-3): unaliased attachment_events,
     // attachment_sets star and the guardPublishImage EXISTS prefix.
     // r46 folds two closed-union heads (orphan-preservation event, draft/bound count): 239->237.
-    expect(literal).toBe(224);
-    expect(total).toBe(225);
+    expect(literal).toBe(223);
+    expect(total).toBe(224);
     expect(literal).toBeLessThan(242);
     expect(total).toBeLessThan(243);
   });

@@ -165,8 +165,8 @@ describe('Files read-tail r49 byte-oracle dedupe', () => {
       total += (text.match(/SELECT\s/g) ?? []).length;
     }
     // B, D and A each fold two inline sites into one helper (-3 total).
-    expect(literal).toBe(224);
-    expect(total).toBe(225);
+    expect(literal).toBe(223);
+    expect(total).toBe(224);
     expect(literal).toBeLessThan(229);
     expect(total).toBeLessThan(230);
   });
