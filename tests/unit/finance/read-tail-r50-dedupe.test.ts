@@ -115,7 +115,8 @@ describe('Finance read-tail r50 helper definitions and retirement', () => {
     // r51 reuses r42 for 17 company lists and adds one active-account helper (-22: 1805 -> 1783).
     // r52 delegates 20 version/status guards to one helper (-19: 1783 -> 1764).
     // r53 delegates 11 column-by-id reads to one helper (-11 literals, +1: 1764 -> 1754).
-    expect(total).toBe(1754);
+    // r54 routes 14 point reads into two helpers (-14 literals, +2 declarations: 1754 -> 1742).
+    expect(total).toBe(1742);
     expect(total).toBeLessThan(1812);
   });
 });

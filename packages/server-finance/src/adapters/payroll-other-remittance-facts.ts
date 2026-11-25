@@ -4,6 +4,7 @@ import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {payrollOtherRemittanceTables,type PayrollOtherSource} from '@erpx/server-people_payroll/public/payroll-other-remittance-read-sources';
 import {PAYROLL_LINE_IMAGE_SQL} from './finance-read-tail-r36-sql';
+import {imageByTailSql} from './finance-read-tail-r54-sql';
 export const payrollOtherBankMarker='__payrollOtherLiabilityBankEvidence';
 export type NativeRow=Record<string,unknown>;
 export function payrollOtherFinanceLeases(database:SqlDatabase,write:boolean){return [database.prepare('LOCK TABLE finance_charts IN SHARE MODE'),database.prepare(`LOCK TABLE finance_accounts,finance_bank_statements,finance_bank_transactions,finance_journals,finance_journal_lines,finance_financial_events,finance_book_postings,money_transaction_snapshots IN ${write?'SHARE ROW EXCLUSIVE':'SHARE'} MODE`),database.prepare('LOCK TABLE finance_periods,finance_book_rules,finance_book_account_mappings,company_money_settings,company_currency_scales,company_fx_rates IN SHARE MODE')];}
@@ -13,13 +14,13 @@ export async function payrollOtherFinanceState(database:SqlDatabase,companyId:st
  if(!journal)throw new ApiError(409,'PAYROLL_POSTING_MISSING','Use the original posted Payroll accrual journal.');const header=JSON.parse(journal) as NativeRow;
  const [lines,charts,accounts,periods,money,scales,rates,rules,mappings,remittances,evidence]=await Promise.all([
   rows(database,PAYROLL_LINE_IMAGE_SQL,[source.journalId]),
-  rows(database,'SELECT to_jsonb(c)::text image FROM finance_charts c WHERE c.id=? AND c.company_id=?',[String(header.chart_id),companyId]),
-  rows(database,'SELECT to_jsonb(a)::text image FROM finance_accounts a WHERE a.chart_id=? AND a.company_id=? ORDER BY a.id',[String(header.chart_id),companyId]),
-  rows(database,'SELECT to_jsonb(p)::text image FROM finance_periods p WHERE p.company_id=? ORDER BY p.id',[companyId]),
-  rows(database,'SELECT to_jsonb(m)::text image FROM company_money_settings m WHERE m.company_id=?',[companyId]),
-  rows(database,'SELECT to_jsonb(m)::text image FROM company_currency_scales m WHERE m.company_id=? ORDER BY m.currency',[companyId]),
-  rows(database,'SELECT to_jsonb(r)::text image FROM company_fx_rates r WHERE r.company_id=? ORDER BY r.id',[companyId]),
-  rows(database,'SELECT to_jsonb(r)::text image FROM finance_book_rules r WHERE r.company_id=? ORDER BY r.id',[companyId]),
+  rows(database,imageByTailSql('c','finance_charts','c.id=? AND c.company_id=?'),[String(header.chart_id),companyId]),
+  rows(database,imageByTailSql('a','finance_accounts','a.chart_id=? AND a.company_id=? ORDER BY a.id'),[String(header.chart_id),companyId]),
+  rows(database,imageByTailSql('p','finance_periods','p.company_id=? ORDER BY p.id'),[companyId]),
+  rows(database,imageByTailSql('m','company_money_settings','m.company_id=?'),[companyId]),
+  rows(database,imageByTailSql('m','company_currency_scales','m.company_id=? ORDER BY m.currency'),[companyId]),
+  rows(database,imageByTailSql('r','company_fx_rates','r.company_id=? ORDER BY r.id'),[companyId]),
+  rows(database,imageByTailSql('r','finance_book_rules','r.company_id=? ORDER BY r.id'),[companyId]),
   rows(database,bookAccountMappingImageSql('image'),[companyId]),
   rows(database,`SELECT to_jsonb(r)::text image FROM (${payrollOtherRemittanceTables.remittances}) r WHERE r.company_id=? AND r.run_id=? ORDER BY r.id`,[companyId,source.run.id]),
   database.prepare(`SELECT c.command_id,c.actor_id,c.request_hash,c.result_json,c.authority_json,to_jsonb(s)::text statement,to_jsonb(t)::text movement,(SELECT jsonb_agg(to_jsonb(ignored) ORDER BY ignored.command_id)::text FROM command_receipts ignored WHERE ignored.operation='payroll.liability.bank-evidence.ignore' AND ignored.record_id=t.id AND ignored.authority_json::jsonb->>'companyId'=s.company_id) ignored_receipts FROM command_receipts c JOIN finance_bank_statements s ON s.id=c.record_id AND s.company_id=? JOIN finance_bank_transactions t ON t.statement_id=s.id AND t.company_id=s.company_id WHERE c.operation='finance.bank.import' AND c.authority_json::jsonb->>'companyId'=s.company_id AND c.result_json::jsonb->'${payrollOtherBankMarker}'->>'runId'=? ORDER BY c.command_id,t.id`).bind(companyId,source.run.id).all<{command_id:string;actor_id:string;request_hash:string;result_json:string;authority_json:string;statement:string;movement:string;ignored_receipts:string|null}>(),
@@ -31,4 +32,4 @@ export type PayrollOtherFinanceState=Awaited<ReturnType<typeof payrollOtherFinan
 export function payrollOtherReferencesUnchanged(before:PayrollOtherFinanceState,after:PayrollOtherFinanceState,bankPromotion?:string){
  const original=structuredClone(before.references),current=structuredClone(after.references);if(bankPromotion){const left=original.accounts.find(row=>row.id===bankPromotion),right=current.accounts.find(row=>row.id===bankPromotion);if(left&&right&&left.control_kind==='none'&&right.control_kind==='bank'&&Number(right.version)===Number(left.version)+1&&Number(right.is_control)===1){for(const field of ['control_kind','is_control','version','updated_at']){delete left[field];delete right[field];}}}return JSON.stringify(original)===JSON.stringify(current);
 }
-export async function payrollOtherJournalImage(database:SqlDatabase,companyId:string,id:string){return {journal:await database.prepare('SELECT to_jsonb(j)::text image FROM finance_journals j WHERE j.id=? AND j.company_id=?').bind(id,companyId).first<string>('image'),lines:(await database.prepare(PAYROLL_LINE_IMAGE_SQL).bind(id).all<{image:string}>()).results};}
+export async function payrollOtherJournalImage(database:SqlDatabase,companyId:string,id:string){return {journal:await database.prepare(imageByTailSql('j','finance_journals','j.id=? AND j.company_id=?')).bind(id,companyId).first<string>('image'),lines:(await database.prepare(PAYROLL_LINE_IMAGE_SQL).bind(id).all<{image:string}>()).results};}

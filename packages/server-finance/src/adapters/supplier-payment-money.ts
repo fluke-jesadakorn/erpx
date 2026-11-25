@@ -1,5 +1,6 @@
 import { bookAccountMappingImageSql } from './finance-read-tail-r40-sql';
 import { SUPPLIER_RECEIPT_SOURCE_SQL } from './finance-read-tail-r38-sql';
+import { sourceByTailSql } from './finance-read-tail-r54-sql';
 import 'server-only';
 import {isDeepStrictEqual} from 'node:util';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
@@ -56,16 +57,16 @@ async function image(database:SqlDatabase,actor:WorkContext,command:Command):Pro
  const instruction=await one(database,`SELECT to_jsonb(i)::text source FROM finance_supplier_instructions i JOIN finance_supplier_batches b ON b.id=i.batch_id WHERE ${command.kind==='confirm'?'i.id=?':'i.payment_id=?'} AND b.company_id=?`,[command.kind==='confirm'?command.instructionId:command.paymentId,actor.companyId]);
  const batchId=typeof instruction?.batch_id==='string'?instruction.batch_id:'',invoiceId=typeof instruction?.invoice_id==='string'?instruction.invoice_id:'',paymentId=command.kind==='reverse'?command.paymentId:typeof instruction?.payment_id==='string'?instruction.payment_id:`supplier-payment-${command.key}`,bankId=command.kind==='confirm'?command.input.bankTransactionId:typeof instruction?.bank_transaction_id==='string'?instruction.bank_transaction_id:'';
  const [batch,instructions,invoice,payment,bank]=await Promise.all([
-  one(database,'SELECT to_jsonb(b)::text source FROM finance_supplier_batches b WHERE b.id=? AND b.company_id=?',[batchId,actor.companyId]),
+  one(database,sourceByTailSql('b','finance_supplier_batches','b.id=? AND b.company_id=?'),[batchId,actor.companyId]),
   rows(database,'SELECT to_jsonb(i)::text source FROM finance_supplier_instructions i WHERE i.batch_id=? ORDER BY i.id',[batchId]),
-  one(database,'SELECT to_jsonb(i)::text source FROM finance_invoices i WHERE i.id=? AND i.company_id=?',[invoiceId,actor.companyId]),
-  one(database,'SELECT to_jsonb(p)::text source FROM finance_payments p WHERE p.id=? AND p.company_id=?',[paymentId,actor.companyId]),
-  one(database,'SELECT to_jsonb(b)::text source FROM finance_bank_transactions b WHERE b.id=? AND b.company_id=?',[bankId,actor.companyId]),
+  one(database,sourceByTailSql('i','finance_invoices','i.id=? AND i.company_id=?'),[invoiceId,actor.companyId]),
+  one(database,sourceByTailSql('p','finance_payments','p.id=? AND p.company_id=?'),[paymentId,actor.companyId]),
+  one(database,sourceByTailSql('b','finance_bank_transactions','b.id=? AND b.company_id=?'),[bankId,actor.companyId]),
  ]);
  const journalIds=[...new Set([invoice?.journal_id,payment?.journal_id,command.kind==='confirm'?`journal-${command.key}`:`payment-reversal-${command.key}`].filter((id):id is string=>typeof id==='string'))],slots=journalIds.map(()=>'?').join(','),recordIds=[...new Set([batchId,invoiceId,paymentId,...instructions.map(row=>String(row.id))])],recordSlots=recordIds.map(()=>'?').join(',');
  const selectedJournals=`SELECT j.id FROM finance_journals j WHERE j.company_id=? AND (j.id IN (${slots}) OR EXISTS(SELECT 1 FROM finance_book_postings b WHERE b.secondary_journal_id=j.id AND b.primary_journal_id IN (${slots})))`,journalArgs=[actor.companyId,...journalIds,...journalIds];
  const [statement,journals,lines,events,books,allocations,reversals,money,sourceReceipts,receipt,purchaseOwned,native]=await Promise.all([
-  one(database,'SELECT to_jsonb(s)::text source FROM finance_bank_statements s WHERE s.id=? AND s.company_id=?',[typeof bank?.statement_id==='string'?bank.statement_id:'',actor.companyId]),
+  one(database,sourceByTailSql('s','finance_bank_statements','s.id=? AND s.company_id=?'),[typeof bank?.statement_id==='string'?bank.statement_id:'',actor.companyId]),
   rows(database,`SELECT to_jsonb(j)::text source FROM finance_journals j WHERE j.id IN (${selectedJournals}) ORDER BY j.id`,journalArgs),
   rows(database,`SELECT to_jsonb(l)::text source FROM finance_journal_lines l WHERE l.journal_id IN (${selectedJournals}) ORDER BY l.journal_id,l.ordinal,l.id`,journalArgs),
   rows(database,`SELECT to_jsonb(e)::text source FROM finance_financial_events e WHERE e.journal_id IN (${selectedJournals}) ORDER BY e.journal_id`,journalArgs),
