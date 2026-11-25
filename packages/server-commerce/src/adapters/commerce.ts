@@ -1,5 +1,5 @@
 import{commercePages,commerceSalesDocuments}from '@erpx/server-commerce/adapters/commerce-pages';
-import {COMMERCE_RETURN_REQUESTED_VERSION_GUARD_SQL} from "./guarded-source-dedupe-sql";
+import {COMMERCE_RETURN_REQUESTED_VERSION_GUARD_SQL, commerceFulfillmentGuardSql} from "./guarded-source-dedupe-sql";
 import {COMMERCE_FULFILLMENT_ORDER_ID_SQL} from "./projection-source-dedupe-sql";
 
 import { COMMERCE_OWNER_WRITE_NOOP_SQL, nativeCommerceOwnerWrite, NativeCommerceOwnerWriteError } from "@erpx/server-commerce/adapters/native-owner-write";
@@ -557,7 +557,7 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             key: string;
             guardId: string;
             values: (string | number)[];
-        }) => assertion(db, facts.key, facts.guardId, "EXISTS(SELECT 1 FROM commerce_fulfillments WHERE id=? AND version=? AND invoice_id IS NULL)", facts.values),
+        }) => assertion(db, facts.key, facts.guardId, `EXISTS(${commerceFulfillmentGuardSql('id=? AND version=? AND invoice_id IS NULL')})`, facts.values),
         guardRule31: facts => CommerceFinanceFacts(db).guardRule31(facts),
         guardRule32: facts => CommerceFilesFacts(db).guardRule32(facts),
         guardRule33: facts => CommerceFinanceFacts(db).guardRule33(facts),

@@ -12,11 +12,18 @@
  * active list and branch-active) likewise delegate to the mounted native
  * Commerce command-plan port. Their values stay as normalized authority text;
  * `COMMERCE_WAREHOUSE_IDENTITY_SQL` remains excluded and executable. */
+/** r23: byte-identical read-tail head renderers. Text only: every call site
+ * still prepares/asserts its own statement with its own binds in its own
+ * transaction and no result is cached here. */
+export const commandReceiptsGuardSql = (tail: string) => `SELECT 1 FROM command_receipts WHERE ${tail}`;
+export const commerceFulfillmentGuardSql = (tail: string) => `SELECT 1 FROM commerce_fulfillments WHERE ${tail}`;
+export const commerceReturnsPointSql = (columns: string, tail: string) => `SELECT ${columns} FROM commerce_returns WHERE ${tail}`;
+
 export const COMMERCE_POSTING_ABSENT_SQL = 'NOT EXISTS(SELECT 1 FROM commerce_settings WHERE company_id=?)';
-export const COMMERCE_RECEIPT_GUARD_SQL = "SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?";
+export const COMMERCE_RECEIPT_GUARD_SQL = commandReceiptsGuardSql("command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?");
 export const COMMERCE_EXPENSE_RECEIPT_IMAGE_SQL = 'SELECT to_jsonb(r)::text image FROM command_receipts r WHERE r.command_id=?';
-export const COMMERCE_MFG_INITIALIZED_GUARD_SQL = "SELECT 1 FROM command_receipts WHERE operation='commerce.manufacturing-posting-setup.initialize' AND record_id=? AND authority_json::jsonb->>'companyId'=?";
-export const COMMERCE_POSTING_RECEIPT_RECORD_GUARD_SQL = "SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?";
+export const COMMERCE_MFG_INITIALIZED_GUARD_SQL = commandReceiptsGuardSql("operation='commerce.manufacturing-posting-setup.initialize' AND record_id=? AND authority_json::jsonb->>'companyId'=?");
+export const COMMERCE_POSTING_RECEIPT_RECORD_GUARD_SQL = commandReceiptsGuardSql("command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?");
 export const COMMERCE_PRODUCT_ACTIVE_VERSION_GUARD_SQL = "EXISTS(SELECT 1 FROM commerce_products WHERE id=? AND version=? AND status='active')";
 export const COMMERCE_WAREHOUSE_ACTIVE_SQL = "SELECT	* FROM commerce_warehouses WHERE id=? AND company_id=? AND status='active' AND (?::text IS NULL OR branch_id=?)";
 export const COMMERCE_ACTIVE_WAREHOUSES_SQL = "SELECT	id,name,branch_id FROM commerce_warehouses WHERE company_id=? AND status='active' AND (?::text IS NULL OR branch_id=?) ORDER BY name";

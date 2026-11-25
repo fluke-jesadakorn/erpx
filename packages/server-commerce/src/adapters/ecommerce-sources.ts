@@ -2,6 +2,7 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type {Row} from '@erpx/server-commerce/public/commerce';
 import { nativeCommerceReadAll, nativeCommerceReadFirst, RD_PRODUCT_ACTIVE_OPTIONS, RD_WAREHOUSE_ACTIVE, RD_WAREHOUSES_ACTIVE } from './native-commerce-read';
+import { commerceFulfillmentGuardSql } from './guarded-source-dedupe-sql';
 /** Owner reads use the caller's connection, including checkout transactions.
  * The functional-currency configuration read is owned by the native Commerce
  * currency port (`native-ecommerce-sources.ts`); no TS SQL mirror is retained.
@@ -20,5 +21,5 @@ export function ecommerceWarehouse(db: SqlDatabase, actor: WorkContext, id: stri
     return nativeCommerceReadFirst<Row>(RD_WAREHOUSE_ACTIVE, [id, actor.companyId, actor.branchId, actor.branchId], db);
 }
 export async function ecommerceFulfillmentCurrent(db: SqlDatabase, id: string, orderId: unknown, version: number) {
-    return !!await db.prepare('SELECT 1 FROM commerce_fulfillments WHERE id=? AND order_id=? AND version=?').bind(id, orderId, version).first();
+    return !!await db.prepare(commerceFulfillmentGuardSql('id=? AND order_id=? AND version=?')).bind(id, orderId, version).first();
 }

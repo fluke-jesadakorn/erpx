@@ -104,7 +104,7 @@ describe('commerce read-tail r18 native settings kinds', () => {
     expect(authority).toContain('LOCK TABLE commerce_settings IN SHARE MODE');
   });
 
-  it('pins the owner TypeScript SELECT KPI at 422 (before 438)', () => {
+  it('pins the owner TypeScript SELECT KPI at 413 (before 422)', () => {
     const src = resolve(root, 'packages/server-commerce/src');
     let total = 0;
     const walk = (dir: string) => {
@@ -115,7 +115,7 @@ describe('commerce read-tail r18 native settings kinds', () => {
       }
     };
     walk(src);
-    expect(total).toBe(422);
+    expect(total).toBe(413);
     expect(authority.match(/SELECT /g) ?? []).toHaveLength(0);
   });
 });

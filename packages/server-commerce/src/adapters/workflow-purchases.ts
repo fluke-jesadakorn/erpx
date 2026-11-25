@@ -10,6 +10,7 @@ import {financialConstraintError} from '@erpx/server-workflow/public/command-gua
 import {commerceKindCapability,commercePurchaseSource,requireCommerceCurrentAuthority,type CommercePurchaseActor} from "@erpx/server-commerce/adapters/purchase-boundary";
 import {commerceWorkAccess} from "@erpx/server-commerce/adapters/record-purchases";
 import {commerceCompleteOwnerSourceReadLocks} from "@erpx/server-commerce/adapters/owner-source-locks";
+import {commandReceiptsGuardSql} from "./guarded-source-dedupe-sql";
 import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 
 /** The generic Flow API supplies its original minimal actor and trusted Holding
@@ -41,7 +42,7 @@ export async function withCommerceFlowAssignment<Result>(owner:SqlDatabase,actor
   const before=await commercePurchaseSource(database,actor,{type:"order",id});
   if(!before)throw new ApiError(404,"FLOW_NOT_FOUND","Workflow document not found in this workspace.");
   if(!hasPermission(actor,"commerce.read"))throw new ApiError(403,"COMMERCE_ACCESS_CHANGED","Choose a current authorized Commerce work role.");
-  const replay=await database.prepare("SELECT 1 FROM command_receipts WHERE command_id=? AND operation='flow.assign' AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?")
+  const replay=await database.prepare(commandReceiptsGuardSql("command_id=? AND operation='flow.assign' AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?"))
    .bind(command.key,id,actor.userId,actor.companyId).first();
   const newWork=command.saveDefault||["draft","submitted"].includes(order?.state??"")||before.kind==="quote"&&order?.state==="confirmed"
    ||["draft","submitted"].includes(command.stepKey)||before.kind==="quote"&&command.stepKey==="confirmed";

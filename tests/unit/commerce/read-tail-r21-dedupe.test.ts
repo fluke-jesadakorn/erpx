@@ -95,7 +95,7 @@ describe('Commerce read-tail r21 protected families and retirement', () => {
     expect(plans).toContain('assert_eq!(STATEMENTS.len(), 20);');
   });
 
-  test('pins the owner TypeScript SELECT KPI at 422 (before 438)', () => {
+  test('pins the owner TypeScript SELECT KPI at 413 (before 422)', () => {
     const src = resolve(root, 'packages/server-commerce/src');
     let total = 0;
     const walk = (dir: string) => {
@@ -106,6 +106,6 @@ describe('Commerce read-tail r21 protected families and retirement', () => {
       }
     };
     walk(src);
-    expect(total).toBe(422);
+    expect(total).toBe(413);
   });
 });

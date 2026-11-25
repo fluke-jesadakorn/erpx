@@ -69,13 +69,13 @@ describe('Commerce read-tail r22 noop-delegation retirement', () => {
       COMMERCE_FULFILLMENT_ORDER_ID_SQL: 2,
       COMMERCE_PRODUCT_MASTER_ROWS_SQL: 1,
       COMMERCE_WAREHOUSE_MASTER_ROWS_SQL: 1,
-      'EXISTS(SELECT 1': 8,
+      'EXISTS(SELECT 1': 7,
       nativeOrder: 18,
     };
     for (const [token, n] of Object.entries(counts)) expect(s.split(token).length - 1, token).toBe(n);
   });
 
-  test('pins the owner TypeScript SELECT KPI at 422 (before 438)', () => {
+  test('pins the owner TypeScript SELECT KPI at 413 (before 422)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -85,6 +85,6 @@ describe('Commerce read-tail r22 noop-delegation retirement', () => {
       }
     };
     walk(src);
-    expect(total).toBe(422);
+    expect(total).toBe(413);
   });
 });
