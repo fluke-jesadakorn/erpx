@@ -87,7 +87,7 @@ describe('operations read-tail r50 closed-head retirement', () => {
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(66);
+    expect(total).toBe(65);
     expect(total).toBeLessThan(84);
   });
 });

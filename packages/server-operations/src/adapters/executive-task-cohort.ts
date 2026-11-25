@@ -9,6 +9,7 @@ import {operationsActiveDelegationSql} from './task-delegation-source';
 import {operationsSocialTaskOriginExists} from './social-task-origin-exists';
 import {operationsProjectSourceExists} from './project-source-exists';
 import {operationsJoinSourceExists} from './join-source-exists';
+import {OPERATIONS_PROJECTION_FROM_SOURCE} from './read-tail-r58-sources';
 
 /** Canonical overdue-alert notification probe shared by the cohort visibility
  * and executive evidence readers. Projection/alias/separator text is
@@ -19,7 +20,7 @@ export const operationsOverdueAlertSql = (
   whereSep = ' ',
   andSep = ' ',
 ) =>
-  `SELECT ${projection} FROM (${collaborationProjectionSources.staff_notifications}) n${whereSep}WHERE n.company_id=${alias}.company_id AND n.user_id=? AND n.record_type='staff_task_alert'${andSep}AND n.record_id=${alias}.id AND n.record_version=${alias}.version${andSep}AND n.id LIKE 'staff-task-alert-overdue-%'`;
+  `${OPERATIONS_PROJECTION_FROM_SOURCE(projection, collaborationProjectionSources.staff_notifications)} n${whereSep}WHERE n.company_id=${alias}.company_id AND n.user_id=? AND n.record_type='staff_task_alert'${andSep}AND n.record_id=${alias}.id AND n.record_version=${alias}.version${andSep}AND n.id LIKE 'staff-task-alert-overdue-%'`;
 
 export const operationsMetrics = [
   "open-operations-exceptions",
