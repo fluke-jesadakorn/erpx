@@ -5,3 +5,4 @@ pub mod executive_evidence;
 pub mod payroll_source;
 pub mod workspace;
 pub mod workspace_http;
+pub mod native_lane_32;

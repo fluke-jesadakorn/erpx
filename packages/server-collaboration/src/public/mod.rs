@@ -289,3 +289,5 @@ pub mod wf1a7_http {
 pub mod wf1a7 {
     pub use crate::adapters::wf1a7::wf1a7_statement;
 }
+pub mod native_lane_15;
+pub mod native_lane_16;

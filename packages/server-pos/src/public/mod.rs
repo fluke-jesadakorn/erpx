@@ -24,3 +24,4 @@ pub mod obligation_reads;
 pub mod day_receipt;
 pub mod day_report;
 pub mod owner_writes_http;
+pub mod native_lane_25;

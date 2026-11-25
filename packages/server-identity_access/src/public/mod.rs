@@ -156,3 +156,6 @@ pub mod messaging_people;
 pub mod portal_private_session_lease;
 pub mod rfq_request_membership;
 pub mod rfq_target_authority;
+pub mod native_lane_10;
+pub mod native_lane_11;
+pub mod native_lane_12;

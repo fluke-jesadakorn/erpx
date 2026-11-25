@@ -8,3 +8,4 @@ pub mod resources;
 pub use crate::adapters::read_source::{BoundPlan, ReadScope, bind};
 pub use crate::public::read_source::BindField;
 pub mod scenario;
+pub mod native_lane_36;

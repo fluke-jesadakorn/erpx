@@ -45,3 +45,7 @@ pub mod workforce_http {
         WorkforceHttpResponse, WorkforceHttpTarget, workforce_router,
     };
 }
+pub mod native_lane_6;
+pub mod native_lane_7;
+pub mod native_lane_8;
+pub mod native_lane_9;

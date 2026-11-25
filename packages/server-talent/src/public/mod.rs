@@ -5,3 +5,4 @@ pub mod requisition;
 pub mod requisition_http;
 pub mod talent_application;
 pub mod talent_http;
+pub mod native_lane_38;

@@ -26,3 +26,4 @@ pub mod wave2_http;
 
 pub mod native_read;
 pub use crate::adapters::native_read::{bind, BoundPlan, ReadScope};
+pub mod native_lane_37;

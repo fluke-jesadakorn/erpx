@@ -34,3 +34,4 @@ pub use crate::adapters::native_owner_read_sql::{
     ME_RD_BETA_POLICY_POINT_MEMBER,
 };
 pub mod onboarding_command_http;
+pub mod native_lane_34;

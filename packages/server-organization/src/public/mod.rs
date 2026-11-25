@@ -49,3 +49,5 @@ pub mod people_staff_placement {
         StaffPlacementRequest, apply_staff_placement, into_business,
     };
 }
+pub mod native_lane_23;
+pub mod native_lane_24;

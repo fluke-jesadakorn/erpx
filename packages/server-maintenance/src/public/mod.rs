@@ -19,3 +19,4 @@ pub mod work_commands;
 pub mod asset_purchase_locks;
 
 pub mod asset_purchase_record;
+pub mod native_lane_36;

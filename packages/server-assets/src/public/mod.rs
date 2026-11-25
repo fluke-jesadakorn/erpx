@@ -14,3 +14,4 @@ pub use crate::adapters::native_read::{bind, BoundPlan, ReadScope};
 pub mod record_source;
 
 pub mod retirement_work;
+pub mod native_lane_39;

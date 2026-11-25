@@ -66,3 +66,5 @@ pub mod sales_reservation;
 pub mod portal_commerce_locks;
 
 pub mod supply_package_obligations;
+pub mod native_lane_17;
+pub mod native_lane_18;

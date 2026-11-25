@@ -18,3 +18,5 @@ pub mod reservation;
 pub mod room_board;
 pub mod room_command;
 pub mod stay_room;
+pub mod native_lane_19;
+pub mod native_lane_20;

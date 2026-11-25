@@ -165,3 +165,8 @@ pub mod finance_owner_write_application;
 pub mod finance_owner_write_http;
 pub mod finance_owner_write_postgres;
 pub mod native_finance_read;
+pub mod native_lane_1;
+pub mod native_lane_2;
+pub mod native_lane_3;
+pub mod native_lane_4;
+pub mod native_lane_5;

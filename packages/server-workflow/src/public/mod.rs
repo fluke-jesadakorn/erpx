@@ -44,3 +44,4 @@ pub mod task_revise;
 
 pub mod rfq_command_receipt;
 pub mod source_ordered_json;
+pub mod native_lane_32;

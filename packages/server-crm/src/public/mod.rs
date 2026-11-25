@@ -13,3 +13,4 @@ pub mod native_command;
 pub mod native_command_http;
 pub mod pipeline;
 pub mod pipeline_http;
+pub mod native_lane_29;
