@@ -70,7 +70,7 @@ describe('pms read-tail r22 byte-identical fragment dedupe', () => {
   it('lowers the pms owner SELECT KPI strictly below the r21 after=474 baseline', async () => {
     let count = 0;
     for (const file of await tsFiles(dir)) count += (await readFile(file, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(246);
+    expect(count).toBe(245);
     expect(count).toBeLessThan(474);
   });
 });

@@ -1,5 +1,6 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
+import { PMS_POSTINGS_FROM_SQL } from '../../../packages/server-pms/src/adapters/pms-read-tail-r19-sql';
 
 const dir = new URL('../../../packages/server-pms/src/', import.meta.url);
 const src = (name: string) => readFile(new URL(name, dir), 'utf8');
@@ -8,6 +9,7 @@ const CALL_SITE = 'adapters/finance-owned-snapshot-sources.ts';
 // File-text forms: inner column quotes are backslash-escaped in the TS source.
 const IMPORT_BATCHES = String.raw`FROM (SELECT \"id\",\"company_id\",\"property_id\",\"cutover_date\",\"property_version\",\"definition_json\",\"report_json\",\"state\",\"created_by\",\"approved_by\",\"opening_journal_id\",\"version\",\"created_at\",\"updated_at\" FROM pms_import_batches) pms_import_batches`;
 const POSTINGS = String.raw`FROM (SELECT \"id\",\"property_id\",\"source_key\",\"record_id\",\"journal_id\",\"business_date\" FROM pms_postings) pms_postings`;
+const POSTINGS_RUNTIME = POSTINGS.replaceAll('\\"', '"');
 
 async function tsFiles(directory: URL): Promise<string[]> {
   const found: string[] = [];
@@ -22,7 +24,10 @@ describe('pms read-tail r19 byte-identical projection-fragment dedupe', () => {
   it('declares each shared SQL text exactly once', async () => {
     const shared = await src(SHARED);
     expect(shared.split(IMPORT_BATCHES).length - 1).toBe(1);
-    expect(shared.split(POSTINGS).length - 1).toBe(1);
+    // r53 folds the byte-identical postings head into the owner-local renderer;
+    // the exported fragment keeps its exact HEAD value.
+    expect(shared.split("pmsOwnerProjectionHeadSql('postings')").length - 1).toBe(1);
+    expect(PMS_POSTINGS_FROM_SQL).toBe(POSTINGS_RUNTIME);
   });
 
   it('routes every projection source through the shared fragments with no inline literal', async () => {
@@ -51,7 +56,7 @@ describe('pms read-tail r19 byte-identical projection-fragment dedupe', () => {
     // r20 deduped the 3x pms_properties and 3x pms_records projections below r19 after=481.
     // r21 deduped the 4x parameterized recipient cross-join fragment below r20 after=477.
     // r30 deduped the 3-SELECT parameterized payment-identity union below r29 after=361.
-    expect(count).toBe(246);
+    expect(count).toBe(245);
     expect(count).toBeLessThan(487);
   });
 });
