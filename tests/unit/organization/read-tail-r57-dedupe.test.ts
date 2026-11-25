@@ -153,9 +153,10 @@ describe('Organization read-tail r57 dedupe', () => {
     // r57 folds four authority-seat EXISTS HEAD literals into one renderer
     // (-4 literals, +1 declaration): 214 - 4 + 1 = 211. r58 folds the two
     // approvals-facts heads (-2 literals, no new declaration): 211 - 2 = 209.
+    // r59 folds two executive-metric count heads (-2 literals, +1 renderer): 209 - 1 = 208.
     expect(CASES).toHaveLength(4);
-    expect(total).toBe(209);
-    expect(total).toBe(214 - 5);
+    expect(total).toBe(208);
+    expect(total).toBe(214 - 6);
     expect(total).toBeLessThan(214);
   });
 });

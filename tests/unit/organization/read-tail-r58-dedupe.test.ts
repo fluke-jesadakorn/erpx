@@ -137,7 +137,7 @@ describe('Organization read-tail r58 dedupe', () => {
     expect(read('organization-nodes-spaced-projections.ts')).toContain('"id", "kind", "slug"');
   });
 
-  test('retirement:ts-statements pins 211 -> 209', () => {
+  test('retirement:ts-statements pins 211 -> 208', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -149,10 +149,11 @@ describe('Organization read-tail r58 dedupe', () => {
     walk(srcRoot);
     // r57 folds four authority-seat EXISTS heads into one renderer: 214 - 3 = 211.
     // r58 folds the two approvals-facts heads (-2 literals, no new declaration).
+    // r59 folds two executive-metric count heads (-2 literals, +1 renderer): 209 - 1 = 208.
     expect(CASES).toHaveLength(2);
-    expect(total).toBe(209);
-    expect(total).toBe(211 - 2);
-    expect(total).toBe(214 - 5);
+    expect(total).toBe(208);
+    expect(total).toBe(209 - 1);
+    expect(total).toBe(214 - 6);
     expect(total).toBeLessThan(211);
   });
 });

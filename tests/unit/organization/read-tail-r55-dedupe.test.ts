@@ -163,8 +163,9 @@ describe('Organization read-tail r55 dedupe', () => {
     // (-3 sites into one renderer with +1 head): 216 - 3 + 1 = 214. r57 folds
     // the authority-seat EXISTS head (-4 sites, +1 head): 214 - 4 + 1 = 211.
     // r58 folds the two approvals-facts heads (-2 sites): 211 - 2 = 209.
+    // r59 folds two executive-metric count heads (-2 literals, +1 renderer): 209 - 1 = 208.
     // No other owner path is touched.
-    expect(space).toBe(209);
+    expect(space).toBe(208);
     expect(space).toBeLessThan(218);
   });
 });

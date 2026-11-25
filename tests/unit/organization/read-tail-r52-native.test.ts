@@ -72,7 +72,7 @@ describe('Organization read-tail r52 native cutover', () => {
     walk(srcRoot);
     // Reusing org_access_read_levels (-1) and adding org_access_read_templates
     // (-1) removes both inline list SELECTs from organization.ts.
-    expect(space).toBe(209);
+    expect(space).toBe(208);
     expect(space).toBeLessThan(226);
   });
 });

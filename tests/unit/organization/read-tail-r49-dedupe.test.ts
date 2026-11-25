@@ -156,7 +156,8 @@ describe('Organization read-tail r49 dedupe', () => {
     walk(srcRoot);
     // r49 collapses three pairs of read-tail SELECTs into three shared helpers (-3);
     // r58 folds the two approvals-facts authority-seat heads (-2): 211 - 2 = 209.
-    expect(space).toBe(209);
+    // r59 folds two executive-metric count heads (-2 literals, +1 renderer): 209 - 1 = 208.
+    expect(space).toBe(208);
     expect(space).toBeLessThan(237);
   });
 });
