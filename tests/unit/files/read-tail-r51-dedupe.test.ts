@@ -57,8 +57,9 @@ const render = (text: string) => text
   .replaceAll("${LINK_STATE_EXISTS_HEAD_SQL('closed')}", HEAD_CLOSED)
   .replaceAll("${LINK_STATE_EXISTS_HEAD_SQL('l')}", HEAD_L)
   .split('\n')
-  .filter(line => !line.includes('read-tail-r51-source-sql'))
-  .join('\n');
+  .filter(line => !line.includes('read-tail-r51-source-sql') && !line.includes('read-tail-r53-source-sql'))
+  .join('\n')
+  .replaceAll('SOURCE_STATE_HEAD_SQL + "', '"SELECT source_state');
 
 describe('Files read-tail r51 per-site byte oracles', () => {
   for (const site of SITES) {
@@ -158,8 +159,8 @@ describe('Files read-tail r51 KPI pins', () => {
       total += (text.match(/SELECT\s/g) ?? []).length;
     }
     // Two inline state-witness heads -> one alias-parameterized renderer (-1).
-    expect(literal).toBe(223);
-    expect(total).toBe(224);
+    expect(literal).toBe(222);
+    expect(total).toBe(223);
     expect(literal).toBeLessThan(225);
     expect(total).toBeLessThan(226);
   });

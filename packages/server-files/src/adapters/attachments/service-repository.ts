@@ -22,6 +22,7 @@ import {SET_ROW_DRAFT_LINK_EXISTS_HEAD_SQL} from "../read-tail-r47-source-sql";
 import {UPLOAD_INTENT_STAR_WHERE_HEAD_SQL} from "../read-tail-r49-source-sql";
 import {DISTINCT_SET_ROW_HEAD_SQL} from "../read-tail-r50-source-sql";
 import {LINK_STATE_EXISTS_HEAD_SQL} from "../read-tail-r51-source-sql";
+import {SOURCE_STATE_HEAD_SQL} from "../read-tail-r53-source-sql";
 const setByIdSql = ATTACHMENT_SETS_STAR_WHERE_HEAD_SQL + "id=? AND company_id=?";
 export const usedStorageSql = "SELECT COALESCE(sum(bytes),0) FROM attachment_storage_ledger WHERE company_id=? AND state IN ('reserved','stored')";
 export const pendingStorageSql = "SELECT COALESCE(sum(declared_bytes),0) FROM upload_intents WHERE company_id=? AND status='pending' AND expires_at>?";
@@ -887,12 +888,12 @@ export function repository(db: SqlDatabase) {
         }) => { return nativeWrite('SR_046', [facts.arg1, facts.id, facts.arg3, facts.arg4]); },
         readAttachments122: (facts: {
             attachmentId: string;
-        }) => { return db.prepare("SELECT source_state FROM attachments WHERE id=?").bind(facts.attachmentId).first<{
+        }) => { return db.prepare(SOURCE_STATE_HEAD_SQL + " FROM attachments WHERE id=?").bind(facts.attachmentId).first<{
             source_state: AttachmentSourceState;
         }>(); },
         readAttachments123: (facts: {
             attachmentId: string;
-        }) => { return db.prepare("SELECT source_state,legal_hold FROM attachments WHERE id=?").bind(facts.attachmentId).first<{
+        }) => { return db.prepare(SOURCE_STATE_HEAD_SQL + ",legal_hold FROM attachments WHERE id=?").bind(facts.attachmentId).first<{
             source_state: string;
             legal_hold: number;
         }>(); },

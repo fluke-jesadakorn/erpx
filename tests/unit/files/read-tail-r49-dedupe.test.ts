@@ -33,8 +33,9 @@ const INDENT_2 = '                  '; // 18 spaces, legacy count
 
 const stripImport = (text: string) => text
   .split('\n')
-  .filter(line => !line.includes('read-tail-r49-source-sql') && !line.includes('read-tail-r50-source-sql') && !line.includes('read-tail-r51-source-sql'))
-  .join('\n');
+  .filter(line => !line.includes('read-tail-r49-source-sql') && !line.includes('read-tail-r50-source-sql') && !line.includes('read-tail-r51-source-sql') && !line.includes('read-tail-r53-source-sql'))
+  .join('\n')
+  .replaceAll('SOURCE_STATE_HEAD_SQL + "', '"SELECT source_state');
 /** Render each of the five sites back to its exact pre-r49 inline literal. */
 const render = (text: string) => stripImport(text)
   .replaceAll('${SUM_BYTES_ATTACHMENT_HEAD_SQL}', B)
@@ -165,8 +166,8 @@ describe('Files read-tail r49 byte-oracle dedupe', () => {
       total += (text.match(/SELECT\s/g) ?? []).length;
     }
     // B, D and A each fold two inline sites into one helper (-3 total).
-    expect(literal).toBe(223);
-    expect(total).toBe(224);
+    expect(literal).toBe(222);
+    expect(total).toBe(223);
     expect(literal).toBeLessThan(229);
     expect(total).toBeLessThan(230);
   });

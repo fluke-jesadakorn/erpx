@@ -39,8 +39,9 @@ const R49_A = 'SELECT * FROM upload_intents WHERE ';
 
 const stripImport = (text: string) => text
   .split('\n')
-  .filter(line => !line.includes('read-tail-r46-source-sql') && !line.includes('read-tail-r47-source-sql') && !line.includes('read-tail-r49-source-sql') && !line.includes('read-tail-r50-source-sql') && !line.includes('read-tail-r51-source-sql'))
-  .join('\n');
+  .filter(line => !line.includes('read-tail-r46-source-sql') && !line.includes('read-tail-r47-source-sql') && !line.includes('read-tail-r49-source-sql') && !line.includes('read-tail-r50-source-sql') && !line.includes('read-tail-r51-source-sql') && !line.includes('read-tail-r53-source-sql'))
+  .join('\n')
+  .replaceAll('SOURCE_STATE_HEAD_SQL + "', '"SELECT source_state');
 /** Render the two closed-union helpers back to their original inline literals. */
 const renderMigration = (text: string) => stripImport(text)
   .replaceAll("${ORPHAN_PRESERVATION_EVENT_HEAD_SQL('preserved')}", P1)
@@ -150,8 +151,8 @@ describe('Files read-tail r46 byte-oracle dedupe', () => {
     }
     // Two closed-union families fold two sites into one helper each (-2):
     // the orphan-preservation event head and the draft/bound link count head.
-    expect(literal).toBe(223);
-    expect(total).toBe(224);
+    expect(literal).toBe(222);
+    expect(total).toBe(223);
     expect(literal).toBeLessThan(239);
     expect(total).toBeLessThan(240);
   });

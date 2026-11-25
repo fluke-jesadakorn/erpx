@@ -44,8 +44,9 @@ const R49_D = 'SELECT count(*)\n';
 
 const stripImport = (text: string) => text
   .split('\n')
-  .filter(line => !line.includes('read-tail-r47-source-sql') && !line.includes('read-tail-r49-source-sql') && !line.includes('read-tail-r50-source-sql') && !line.includes('read-tail-r51-source-sql'))
-  .join('\n');
+  .filter(line => !line.includes('read-tail-r47-source-sql') && !line.includes('read-tail-r49-source-sql') && !line.includes('read-tail-r50-source-sql') && !line.includes('read-tail-r51-source-sql') && !line.includes('read-tail-r53-source-sql'))
+  .join('\n')
+  .replaceAll('SOURCE_STATE_HEAD_SQL + "', '"SELECT source_state');
 /** Render each site back to its exact pre-r47 inline literals. */
 const renderSR = (text: string) => stripImport(text)
   .replaceAll('${SET_ROW_DRAFT_LINK_EXISTS_HEAD_SQL}', A)
@@ -178,8 +179,8 @@ describe('Files read-tail r47 byte-oracle dedupe', () => {
     // Four closed-union families fold two sites into one helper each (-4):
     // draft-link EXISTS witness, cleanup direct-link CTE, cleanup bound-command
     // id witness and leave-evidence legacy source-id projection.
-    expect(literal).toBe(223);
-    expect(total).toBe(224);
+    expect(literal).toBe(222);
+    expect(total).toBe(223);
     expect(literal).toBeLessThan(237);
     expect(total).toBeLessThan(238);
   });

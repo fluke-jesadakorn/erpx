@@ -156,8 +156,8 @@ describe('Files read-tail r52 KPI pins', () => {
       total += (text.match(/SELECT\s/g) ?? []).length;
     }
     // Two inline heads -> one alias-free owner-local renderer (-1).
-    expect(literal).toBe(223);
-    expect(total).toBe(224);
+    expect(literal).toBe(222);
+    expect(total).toBe(223);
     expect(literal).toBeLessThan(224);
     expect(total).toBeLessThan(225);
   });

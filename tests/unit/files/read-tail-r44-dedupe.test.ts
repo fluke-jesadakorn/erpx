@@ -57,7 +57,7 @@ const TARGETS = [
 
 const stripR44Import = (text: string) => text
   .split('\n')
-  .filter(line => !line.includes('read-tail-r44-source-sql') && !line.includes('read-tail-r45-source-sql') && !line.includes('read-tail-r46-source-sql') && !line.includes('read-tail-r47-source-sql') && !line.includes('read-tail-r48-source-sql') && !line.includes('read-tail-r49-source-sql') && !line.includes('read-tail-r50-source-sql') && !line.includes('read-tail-r51-source-sql'))
+  .filter(line => !line.includes('read-tail-r44-source-sql') && !line.includes('read-tail-r45-source-sql') && !line.includes('read-tail-r46-source-sql') && !line.includes('read-tail-r47-source-sql') && !line.includes('read-tail-r48-source-sql') && !line.includes('read-tail-r49-source-sql') && !line.includes('read-tail-r50-source-sql') && !line.includes('read-tail-r51-source-sql') && !line.includes('read-tail-r53-source-sql'))
   .join('\n');
 /** Reconstruct the pre-r44 bytes: quoted splices and template/bare references
  * are rendered back to their original literals without touching tails. */
@@ -81,7 +81,8 @@ const render = (text: string) => text
   .replaceAll('UPLOAD_INTENT_STAR_WHERE_HEAD_SQL + "', '"' + R49_A)
   .replaceAll('${DISTINCT_SET_ROW_HEAD_SQL}', 'SELECT DISTINCT set_row.')
   .replaceAll("${LINK_STATE_EXISTS_HEAD_SQL('closed')}", "SELECT 1 FROM attachment_links closed WHERE closed.attachment_id=a.id AND closed.state IN (")
-  .replaceAll("${LINK_STATE_EXISTS_HEAD_SQL('l')}", "SELECT 1 FROM attachment_links l WHERE l.attachment_id=a.id AND l.state IN (");
+  .replaceAll("${LINK_STATE_EXISTS_HEAD_SQL('l')}", "SELECT 1 FROM attachment_links l WHERE l.attachment_id=a.id AND l.state IN (")
+  .replaceAll('SOURCE_STATE_HEAD_SQL + "', '"SELECT source_state');
 
 const tsFiles = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
   const path = resolve(dir, entry.name);
@@ -169,8 +170,8 @@ describe('Files read-tail r44 byte-oracle dedupe', () => {
     // (-2), while the attachment star-id and scan OR-EXISTS heads each fold
     // two sites into one (-1 each). Three heads live in the r44 helper.
     // r46 folds two closed-union heads (orphan-preservation event, draft/bound count): 239->237.
-    expect(literal).toBe(223);
-    expect(total).toBe(224);
+    expect(literal).toBe(222);
+    expect(total).toBe(223);
     expect(literal).toBeLessThan(246);
     expect(total).toBeLessThan(247);
   });

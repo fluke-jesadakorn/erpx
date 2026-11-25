@@ -45,8 +45,9 @@ const F2_SITE = '${socialDraftImageExistsSql}upload_intents u ON u.id=a.upload_i
 
 const stripImport = (text: string) => text
   .split('\n')
-  .filter(line => !line.includes('read-tail-r45-source-sql') && !line.includes('read-tail-r46-source-sql') && !line.includes('read-tail-r47-source-sql') && !line.includes('read-tail-r49-source-sql') && !line.includes('read-tail-r50-source-sql') && !line.includes('read-tail-r51-source-sql'))
-  .join('\n');
+  .filter(line => !line.includes('read-tail-r45-source-sql') && !line.includes('read-tail-r46-source-sql') && !line.includes('read-tail-r47-source-sql') && !line.includes('read-tail-r49-source-sql') && !line.includes('read-tail-r50-source-sql') && !line.includes('read-tail-r51-source-sql') && !line.includes('read-tail-r53-source-sql'))
+  .join('\n')
+  .replaceAll('SOURCE_STATE_HEAD_SQL + "', '"SELECT source_state');
 /** Render the r45 heads (and the later r46 substitutions) back to literals. */
 const render = (text: string) => stripImport(text)
   .replaceAll('ATTACHMENT_EVENTS_WHERE_HEAD_SQL + "', '"' + H1)
@@ -157,8 +158,8 @@ describe('Files read-tail r45 byte-oracle dedupe', () => {
     // Three heads fold two sites into one each (-3): unaliased attachment_events,
     // attachment_sets star and the guardPublishImage EXISTS prefix.
     // r46 folds two closed-union heads (orphan-preservation event, draft/bound count): 239->237.
-    expect(literal).toBe(223);
-    expect(total).toBe(224);
+    expect(literal).toBe(222);
+    expect(total).toBe(223);
     expect(literal).toBeLessThan(242);
     expect(total).toBeLessThan(243);
   });
