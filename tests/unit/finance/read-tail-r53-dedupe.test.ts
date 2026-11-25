@@ -86,7 +86,7 @@ describe('Finance read-tail r53 protected families and retirement', () => {
     expect(count(helper, 'SELECT ')).toBe(1);
   });
 
-  test('retirement:ts-statements reaches the r54 target of 1742', () => {
+  test('retirement:ts-statements reaches the r55 target of 1726', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -98,8 +98,9 @@ describe('Finance read-tail r53 protected families and retirement', () => {
     walk(srcRoot);
     // 11 column-by-id literals collapse into one helper (-11 literals, +1 declaration: 1764 -> 1754);
     // r54 routes 14 point reads into two helpers (-14 literals, +2 declarations: 1754 -> 1742).
+    // r55 folds 18 company count literals into two helpers (-18 literals, +2 declarations: 1742 -> 1726).
     expect(CASES).toHaveLength(11);
-    expect(total).toBe(1742);
+    expect(total).toBe(1726);
     expect(total).toBeLessThan(1764);
   });
 });

@@ -1,5 +1,6 @@
 import { financeReferenceListSql } from './finance-read-tail-r42-sql';
 import { UNMATCHED_BANK_TXN_COUNT_SQL } from './finance-read-tail-r44-sql';
+import { companyCountSql, correlatedCountSql } from './finance-read-tail-r55-sql';
 import "server-only";
 import { requireFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
 
@@ -54,20 +55,20 @@ function nativeFinanceWorkspace(provided?:SqlDatabase){let write:SqlDatabase;ret
   });
 },peoplePayments:actor=>financeWorkspacePeoplePayments(write,actor.companyId),workbenchCounters:async(actor,today)=>write
     .prepare(`SELECT
-      (SELECT count(*) FROM finance_invoices WHERE company_id=? AND status='draft') draft_invoices,
-      (SELECT count(*) FROM finance_invoices WHERE company_id=? AND kind='receivable' AND status IN ('posted','partially_paid') AND outstanding_minor>0 AND due_date<?) overdue_receivables,
+      (${companyCountSql('finance_invoices', " AND status='draft'")}) draft_invoices,
+      (${companyCountSql('finance_invoices', " AND kind='receivable' AND status IN ('posted','partially_paid') AND outstanding_minor>0 AND due_date<?")}) overdue_receivables,
       (SELECT COALESCE(sum(outstanding_minor),0) FROM finance_invoices WHERE company_id=? AND kind='receivable' AND status IN ('posted','partially_paid') AND outstanding_minor>0 AND due_date<?) overdue_receivable_minor,
-      (SELECT count(*) FROM finance_invoices WHERE company_id=? AND kind='payable' AND status IN ('posted','partially_paid') AND outstanding_minor>0 AND due_date<=?) due_payables,
+      (${companyCountSql('finance_invoices', " AND kind='payable' AND status IN ('posted','partially_paid') AND outstanding_minor>0 AND due_date<=?")}) due_payables,
       (SELECT COALESCE(sum(outstanding_minor),0) FROM finance_invoices WHERE company_id=? AND kind='payable' AND status IN ('posted','partially_paid') AND outstanding_minor>0 AND due_date<=?) due_payable_minor,
-      (SELECT count(*) FROM finance_journals WHERE company_id=? AND status IN ('draft','in_review')) draft_journals,
-      ((SELECT count(*) FROM finance_payments WHERE company_id=? AND status NOT IN ('settled','voided') AND outstanding_minor>0)
+      (${companyCountSql('finance_journals', " AND status IN ('draft','in_review')")}) draft_journals,
+      ((${companyCountSql('finance_payments', " AND status NOT IN ('settled','voided') AND outstanding_minor>0")})
         + (SELECT count(*) FROM finance_supplier_batches b WHERE b.company_id=? AND b.status IN ('draft','approved','exported') AND (b.status IN ('draft','approved') OR EXISTS (SELECT 1 FROM finance_supplier_instructions i WHERE i.batch_id=b.id AND i.status IN ('exported','unknown','failed'))))
-        + (SELECT count(*) FROM finance_refund_obligations WHERE company_id=? AND status IN ('pending','approved') AND outstanding_minor>0)
+        + (${companyCountSql('finance_refund_obligations', " AND status IN ('pending','approved') AND outstanding_minor>0")})
         + ${financeWorkspacePendingPeopleSql}) pending_payments,
       (${UNMATCHED_BANK_TXN_COUNT_SQL}) unmatched_bank,
       ${financeWorkspaceReadyExpenseAiSql} ready_ai_proposals,
-      (SELECT count(*) FROM finance_periods WHERE company_id=? AND state='closing') closing_periods,
-      (SELECT count(*) FROM finance_periods WHERE company_id=? AND state='open' AND end_date<?) expired_open_periods`)
+      (${companyCountSql('finance_periods', " AND state='closing'")}) closing_periods,
+      (${companyCountSql('finance_periods', " AND state='open' AND end_date<?")}) expired_open_periods`)
     .bind(
       actor.companyId,
       actor.companyId,
@@ -111,10 +112,10 @@ refunds:async(actor)=>(await write.prepare(`SELECT o.id,o.return_id,o.direction,
       WHERE o.company_id=? AND o.status IN ('pending','approved') AND o.outstanding_minor>0 ORDER BY COALESCE(r.return_date,c.entry_date),o.id`).bind(actor.companyId).all<Record<string,string|number|null>>()).results,
 periods:async(actor)=>(await write
     .prepare(`SELECT p.*,
-      (SELECT count(*) FROM finance_journals j WHERE j.company_id=p.company_id AND j.period_id=p.id AND j.status IN ('draft','in_review')) draft_journals,
-      (SELECT count(*) FROM finance_bank_transactions b WHERE b.company_id=p.company_id AND b.transaction_date BETWEEN p.start_date AND p.end_date AND b.match_status<>'matched') unmatched_bank,
-      (SELECT count(*) FROM finance_invoices i WHERE i.company_id=p.company_id AND i.status IN ('draft','in_review') AND i.invoice_date BETWEEN p.start_date AND p.end_date) draft_invoices,
-      (SELECT count(*) FROM finance_calculation_runs r WHERE r.company_id=p.company_id AND r.period_id=p.id AND r.status IN ('prepared','reviewed','stale')) pending_calculations
+      (${correlatedCountSql('j', 'finance_journals', " AND j.period_id=p.id AND j.status IN ('draft','in_review')")}) draft_journals,
+      (${correlatedCountSql('b', 'finance_bank_transactions', " AND b.transaction_date BETWEEN p.start_date AND p.end_date AND b.match_status<>'matched'")}) unmatched_bank,
+      (${correlatedCountSql('i', 'finance_invoices', " AND i.status IN ('draft','in_review') AND i.invoice_date BETWEEN p.start_date AND p.end_date")}) draft_invoices,
+      (${correlatedCountSql('r', 'finance_calculation_runs', " AND r.period_id=p.id AND r.status IN ('prepared','reviewed','stale')")}) pending_calculations
       FROM finance_periods p WHERE p.company_id=? ORDER BY p.start_date DESC`)
     .bind(actor.companyId)
     .all<ClosePeriodSource>()).results,

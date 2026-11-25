@@ -1079,7 +1079,7 @@ describe('finance read-tail r24 byte-identical SQL families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(2038);
-    expect(total).toBe(1742);
+    expect(total).toBe(1726);
   });
 });
 
@@ -1250,7 +1250,7 @@ describe('finance read-tail r30 byte-identical guard-prefix families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(2027);
-    expect(total).toBe(1742);
+    expect(total).toBe(1726);
   });
 });
 
@@ -1294,7 +1294,7 @@ describe('finance read-tail r31 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1989);
-    expect(total).toBe(1742);
+    expect(total).toBe(1726);
   });
 });
 
@@ -1339,7 +1339,7 @@ describe('finance read-tail r32 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1985);
-    expect(total).toBe(1742);
+    expect(total).toBe(1726);
   });
 });
 
@@ -1384,7 +1384,7 @@ describe('finance read-tail r33 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1983);
-    expect(total).toBe(1742);
+    expect(total).toBe(1726);
   });
 });
 
@@ -1459,7 +1459,7 @@ describe('finance read-tail r34 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1981);
-    expect(total).toBe(1742);
+    expect(total).toBe(1726);
   });
 });
 
@@ -1508,7 +1508,7 @@ describe('finance read-tail r35 parameterized workforce actor scope family', () 
     };
     walk(root);
     expect(total).toBeLessThan(1974);
-    expect(total).toBe(1742);
+    expect(total).toBe(1726);
   });
 });
 
@@ -1585,7 +1585,7 @@ describe('finance read-tail r36 exact duplicate two-site SQL families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1970);
-    expect(total).toBe(1742);
+    expect(total).toBe(1726);
   });
 });
 
@@ -1639,7 +1639,7 @@ describe('finance read-tail r37 exact duplicate period-exists read family', () =
     };
     walk(root);
     expect(total).toBeLessThan(1966);
-    expect(total).toBe(1742);
+    expect(total).toBe(1726);
   });
 });
 
@@ -1754,7 +1754,7 @@ describe('finance read-tail r38 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1965);
-    expect(total).toBe(1742);
+    expect(total).toBe(1726);
   });
 });
 
@@ -1871,7 +1871,7 @@ describe('finance read-tail r39 read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1951);
-    expect(total).toBe(1742);
+    expect(total).toBe(1726);
   });
 });
 
@@ -1995,6 +1995,6 @@ describe('finance read-tail r40 read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1942);
-    expect(total).toBe(1742);
+    expect(total).toBe(1726);
   });
 });

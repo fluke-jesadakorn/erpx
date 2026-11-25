@@ -1,6 +1,7 @@
 import { activeAccountListSql } from './finance-read-tail-r51-sql';
 import { financeReferenceListSql } from './finance-read-tail-r42-sql';
 import { UNMATCHED_BANK_TXN_COUNT_SQL } from './finance-read-tail-r44-sql';
+import { companyCountSql } from './finance-read-tail-r55-sql';
 
 
 import { requireFinanceDocumentHistory } from "@erpx/server-finance/adapters/document-purchases";
@@ -157,12 +158,12 @@ export function financeReadService(provided?:SqlDatabase,historyOnly=false) {
         financeOverviewCounts: async (actor) => {
             const write = await db(actor);
             return (await write.prepare(`SELECT
-    (SELECT count(*) FROM finance_journals WHERE company_id=? ) AS journals,
-    (SELECT count(*) FROM finance_journals WHERE company_id=? AND status='draft') AS posting,
-    (SELECT count(*) FROM finance_invoices WHERE company_id=?) AS invoices,
-    (SELECT count(*) FROM finance_payments WHERE company_id=?) AS payments,
-    (SELECT count(*) FROM finance_invoices WHERE company_id=? AND kind='receivable' AND status IN ('posted','partially_paid') AND outstanding_minor>0) AS receivable,
-    (SELECT count(*) FROM finance_invoices WHERE company_id=? AND kind='payable' AND status IN ('posted','partially_paid') AND outstanding_minor>0) AS payable,
+    (${companyCountSql('finance_journals', ' ')}) AS journals,
+    (${companyCountSql('finance_journals', " AND status='draft'")}) AS posting,
+    (${companyCountSql('finance_invoices', '')}) AS invoices,
+    (${companyCountSql('finance_payments', '')}) AS payments,
+    (${companyCountSql('finance_invoices', " AND kind='receivable' AND status IN ('posted','partially_paid') AND outstanding_minor>0")}) AS receivable,
+    (${companyCountSql('finance_invoices', " AND kind='payable' AND status IN ('posted','partially_paid') AND outstanding_minor>0")}) AS payable,
     (${UNMATCHED_BANK_TXN_COUNT_SQL}) AS reconcile`)
                 .bind(...Array(7).fill(actor.companyId)).first<{
                 journals: number;

@@ -134,7 +134,7 @@ describe('Finance read-tail r49 protected families and retirement', () => {
     walk(srcRoot);
     // 25 table-by-id + 7 journal guards + 4 consolidation SELECTs collapse into
     // four r49 helpers (-32: 1844 -> 1812); r50 removes seven more (-> 1805).
-    expect(total).toBe(1742);
+    expect(total).toBe(1726);
     expect(total).toBeLessThan(1812);
   });
 });

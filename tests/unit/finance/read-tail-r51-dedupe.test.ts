@@ -114,7 +114,7 @@ describe('Finance read-tail r51 helper definitions and retained guards', () => {
     expect(readRepo('packages/server-collaboration/src/adapters/native-finance-billing-corrections.ts')).toContain('Native-owned finance billing correction statements.');
   });
 
-  test('retirement:ts-statements reaches the r54 target of 1742', () => {
+  test('retirement:ts-statements reaches the r55 target of 1726', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -130,7 +130,8 @@ describe('Finance read-tail r51 helper definitions and retained guards', () => {
     // version/status guards to one helper (-20 literals, +1: 1783 -> 1764);
     // r53 delegates 11 column-by-id reads to one helper (-11 literals, +1: 1764 -> 1754);
     // r54 routes 14 point reads into two helpers (-14 literals, +2 declarations: 1754 -> 1742).
-    expect(total).toBe(1742);
+    // r55 folds 18 company count literals into two helpers (-18 literals, +2 declarations: 1742 -> 1726).
+    expect(total).toBe(1726);
     expect(total).toBeLessThan(1805);
   });
 });
