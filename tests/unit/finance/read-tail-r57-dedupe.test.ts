@@ -170,7 +170,7 @@ describe('Finance read-tail r57 protected families and retirement', () => {
     expect(count(helper, 'SELECT ')).toBe(4);
   });
 
-  test('retirement:ts-statements pins the r61 target of 1704', () => {
+  test('retirement:ts-statements pins the r62 target of 1703', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -180,10 +180,10 @@ describe('Finance read-tail r57 protected families and retirement', () => {
       }
     };
     walk(srcRoot);
-    // 12 head literals collapse into four helpers (-12 literals, +4 declarations: 1718 -> 1710); r58 then 1710 -> 1708; r59 then 1708 -> 1707; r60 then 1707 -> 1705; r61 then 1705 -> 1704.
+    // 12 head literals collapse into four helpers (-12 literals, +4 declarations: 1718 -> 1710); r58 then 1710 -> 1708; r59 then 1708 -> 1707; r60 then 1707 -> 1705; r61 then 1705 -> 1704; r62 then 1704 -> 1703.
     expect(CASES).toHaveLength(12);
-    expect(total).toBe(1704);
-    expect(total).toBe(1718 - 14);
+    expect(total).toBe(1703);
+    expect(total).toBe(1718 - 15);
     expect(total).toBeLessThan(1718);
   });
 });

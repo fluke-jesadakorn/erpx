@@ -1,5 +1,6 @@
 import { intercompanyPairPointSql } from './finance-read-tail-r42-sql';
 import { acquisitionReadSql } from './finance-read-tail-r48-sql';
+import { groupReportEditionSql } from './finance-read-tail-r62-sql';
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
 import { financeGroupEditions } from '@erpx/server-collaboration/adapters/native-finance-group-editions';
 import { groupCompanyPurchases, groupEditionPurchases, requireGroupCompanyHistory, groupHistoryPredicate, groupSourceSql, groupEditionHistorySql, groupRecordHistorySql } from "@erpx/server-finance/adapters/group-purchase-sources";
@@ -88,7 +89,7 @@ function nativePorts(provided?: SqlDatabase, owned = false, inheritedHistory?: (
                 .first<Row>();
         },
         readGetR(id: string, holdingId: string, companyId: string) {
-            return database.prepare(groupSourceSql("SELECT * FROM finance_group_report_editions r WHERE id=? AND holding_id=? AND company_id=?", [groupEditionHistorySql("r",historySql)]))
+            return database.prepare(groupSourceSql(groupReportEditionSql("id=? AND holding_id=? AND company_id=?"), [groupEditionHistorySql("r",historySql)]))
                 .bind(id, holdingId, companyId)
                 .first<Row>();
         },
@@ -105,7 +106,7 @@ function nativePorts(provided?: SqlDatabase, owned = false, inheritedHistory?: (
             return financeGroupEditions(database, holdingId).decide([value, userId, now, id]);
         },
         readGroupReportEditionWorkspaceEffect(holdingId: string, companyId: string) {
-            return database.prepare(groupSourceSql("SELECT * FROM finance_group_report_editions r WHERE holding_id=? AND company_id=? ORDER BY created_at DESC,id LIMIT 100", [groupEditionHistorySql("r",historySql)]))
+            return database.prepare(groupSourceSql(groupReportEditionSql("holding_id=? AND company_id=? ORDER BY created_at DESC,id LIMIT 100"), [groupEditionHistorySql("r",historySql)]))
                 .bind(holdingId, companyId)
                 .all<Row>();
         },
