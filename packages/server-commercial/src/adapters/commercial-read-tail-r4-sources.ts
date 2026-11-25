@@ -1,5 +1,6 @@
 import "server-only";
 import { scopedReadHead } from "./commercial-read-tail-r14-sources";
+import { singletonProbe } from "./commercial-read-tail-r26-sources";
 /** Commercial read-tail r4 shared read-only SQL fragments. Each builder renders
  * the exact original literal so binds, ordering and lock/write behavior stay
  * unchanged; every consumer still prepares and binds its own independent
@@ -12,6 +13,8 @@ import { scopedReadHead } from "./commercial-read-tail-r14-sources";
 export const purchaseFactAgg = (source: string, alias: string, order: string) =>
   scopedReadHead(`jsonb_agg(to_jsonb(${alias}) ORDER BY ${order})`, `${source} ${alias}`, 'company');
 
-/** Coverage singleton probe used by the usage/seat repositories. */
+/** Coverage singleton probe used by the usage/seat repositories. Its closed
+ * `singleton=<literal>` head is owned by the r26 singleton renderer, so this
+ * builder only delegates; the rendered SQL stays byte-identical. */
 export const coverageProbe = (column: string, source: string, singleton: string) =>
-  `SELECT ${column} FROM ${source} WHERE singleton=${singleton}`;
+  singletonProbe(column, source, singleton);

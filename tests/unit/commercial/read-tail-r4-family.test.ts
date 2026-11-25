@@ -53,9 +53,9 @@ describe('Commercial read-tail r4 byte-identical / parameterized family', () => 
     expect(adapters('purchase-command-boundary.ts')).toContain('SELECT pg_advisory_xact_lock(hashtextextended(?,0))');
   });
 
-  test('shared module declares each read literal exactly once', () => {
+  test('shared module keeps no local read literal', () => {
     const shared = adapters('commercial-read-tail-r4-sources.ts');
-    expect(shared.match(/SELECT /g)).toHaveLength(1); // only coverageProbe remains local
+    expect(shared.match(/SELECT /g) ?? []).toHaveLength(0); // both heads delegate to owner-local renderers
   });
 
   test('retirement:ts-statements stays strictly below the r4 BEFORE=38 baseline', () => {
@@ -68,7 +68,7 @@ describe('Commercial read-tail r4 byte-identical / parameterized family', () => 
       }
     };
     walk(srcRoot);
-    expect(total).toBe(15);
+    expect(total).toBe(14);
     expect(total).toBeLessThan(38);
   });
 });

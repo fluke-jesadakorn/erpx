@@ -65,7 +65,7 @@ describe('Commercial read-tail r5 byte-identical / parameterized family', () => 
       }
     };
     walk(srcRoot);
-    expect(total).toBe(15);
+    expect(total).toBe(14);
     expect(total).toBeLessThan(36);
   });
 });

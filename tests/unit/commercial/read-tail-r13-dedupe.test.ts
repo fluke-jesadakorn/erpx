@@ -93,6 +93,6 @@ describe('Commercial read-tail r13 parameterized month-scoped read family', () =
     };
     walk(srcRoot);
     expect(total).toBeLessThan(23);
-    expect(total).toBe(15);
+    expect(total).toBe(14);
   });
 });

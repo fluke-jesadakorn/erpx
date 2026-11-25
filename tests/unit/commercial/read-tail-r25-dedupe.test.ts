@@ -64,7 +64,7 @@ describe('Commercial read-tail r25 purchase-fact head delegation', () => {
     const r4 = src('commercial-read-tail-r4-sources.ts');
     expect(r4).toContain('import { scopedReadHead } from "./commercial-read-tail-r14-sources"');
     expect(r4).toContain("scopedReadHead(`jsonb_agg(to_jsonb(${alias}) ORDER BY ${order})`, `${source} ${alias}`, 'company')");
-    expect(r4.match(/SELECT /g) ?? []).toHaveLength(1); // only coverageProbe remains local
+    expect(r4.match(/SELECT /g) ?? []).toHaveLength(0); // both heads now delegate to owner-local renderers
     const r4Code = codeOnly(r4);
     expect(r4Code).not.toMatch(/FOR\s+UPDATE|FOR\s+SHARE/i);
     const head = src('commercial-read-tail-r14-sources.ts');
@@ -95,7 +95,7 @@ describe('Commercial read-tail r25 purchase-fact head delegation', () => {
     expect(pg).not.toContain(HISTORY);
   });
 
-  test('retirement:ts-statements pins 16 -> 15', () => {
+  test('retirement:ts-statements pins 15 -> 14', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -105,7 +105,7 @@ describe('Commercial read-tail r25 purchase-fact head delegation', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(15);
+    expect(total).toBe(14);
     expect(total).toBeLessThan(16);
   });
 });
