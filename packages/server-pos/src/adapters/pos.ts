@@ -33,6 +33,9 @@ const allocatedTotalsHeadSql = (): string => `WITH allocated AS (
  FROM pos_lines l JOIN pos_fulfillments f ON f.id=l.fulfillment_id WHERE f.company_id=?
  ), totals AS (SELECT sale_id,SUM(refunded_minor) refunds_minor,SUM(refunded_tax_minor) refunded_tax_minor,
  SUM(CASE WHEN fulfillment_state='delivered' THEN cost_share ELSE 0 END-returned_cost_minor) cost_minor FROM allocated GROUP BY sale_id)`;
+const refundPaymentSumTextSql = (): string => `SELECT sum(rp.amount_minor)::numeric FROM pos_refund_payments rp JOIN pos_refunds r ON r.id=rp.refund_id AND r.company_id=p.company_id
+       WHERE rp.payment_id=p.id AND rp.state='succeeded' AND r.kind='sale'),0)`;
+
 function unit(db: SqlDatabase, actor: WorkContext): PosReadUnit<SqlStatement> {
     return {
         hotelLinks: (company,branch) => posGuestAccountInterface(db).hotels(company,branch),
@@ -196,10 +199,8 @@ function unit(db: SqlDatabase, actor: WorkContext): PosReadUnit<SqlStatement> {
             to: string;
         }) => db.prepare(`SELECT p.id source_id,'payment' source_type,s.id sale_id,s.number receipt_number,
      s.business_date,NULL::text accounting_date,s.currency,s.state sale_state,p.state,p.method,p.amount_minor::text amount_minor,
-     COALESCE((SELECT sum(rp.amount_minor)::numeric FROM pos_refund_payments rp JOIN pos_refunds r ON r.id=rp.refund_id AND r.company_id=p.company_id
-       WHERE rp.payment_id=p.id AND rp.state='succeeded' AND r.kind='sale'),0)::text refunded_minor,
-     (p.amount_minor::numeric-COALESCE((SELECT sum(rp.amount_minor)::numeric FROM pos_refund_payments rp JOIN pos_refunds r ON r.id=rp.refund_id AND r.company_id=p.company_id
-       WHERE rp.payment_id=p.id AND rp.state='succeeded' AND r.kind='sale'),0))::text contribution_minor,
+     COALESCE((${refundPaymentSumTextSql()}::text refunded_minor,
+     (p.amount_minor::numeric-COALESCE((${refundPaymentSumTextSql()})::text contribution_minor,
      p.version revision,s.version sale_version,s.branch_id,p.created_at
    FROM pos_payments p JOIN pos_sales s ON s.id=p.sale_id AND s.company_id=p.company_id
    WHERE p.id=? AND p.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND s.currency=?

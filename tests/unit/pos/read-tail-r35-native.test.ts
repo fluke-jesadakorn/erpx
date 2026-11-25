@@ -132,7 +132,7 @@ describe('POS read-tail r35 native Stripe keyed reads', () => {
     ]) expect(stripe).toMatch(new RegExp(`${fn}<PosRow>\\(db`));
   });
 
-  it('pins the r36/r40 KPIs: stripe kinds 12, sale-child kinds 13, owner kinds 196, TS SELECT tokens 175', () => {
+  it('pins the r36/r40 KPIs: stripe kinds 12, sale-child kinds 13, owner kinds 196, TS SELECT tokens 174', () => {
     const registry = read('stripe_reads.rs');
     const owner = read('owner_writes.rs');
     expect(registry).toContain('assert_eq!(KINDS.len(), 12)');
@@ -152,7 +152,7 @@ describe('POS read-tail r35 native Stripe keyed reads', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(175);
+    expect(total).toBe(174);
     expect(total).toBeLessThan(188);
   });
 

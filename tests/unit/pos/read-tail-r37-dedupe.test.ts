@@ -74,7 +74,7 @@ describe('POS read-tail r37 owner-local lock-head dedupe', () => {
     expect(read('owner_writes.rs')).toContain('assert_eq!(KINDS.len(), 196)');
   });
 
-  test('retirement:ts-statements decreased 182 -> 175 (r40 continues below the r37 BEFORE=182 baseline)', () => {
+  test('retirement:ts-statements decreased 182 -> 174 (r41 continues below the r37 BEFORE=182 baseline)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -84,7 +84,7 @@ describe('POS read-tail r37 owner-local lock-head dedupe', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(175);
+    expect(total).toBe(174);
     expect(total).toBeLessThan(182);
   });
 });
