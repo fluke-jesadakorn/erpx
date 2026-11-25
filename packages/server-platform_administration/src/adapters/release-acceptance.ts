@@ -1,4 +1,4 @@
-import {releaseRevisionTable,releaseCurrencyPredicate,releaseRevisionShareLockSql,releaseRevisionReadSql,latestReleaseIdSql,latestReleaseRowSql,releaseAcceptanceRowSql,activeBranchCountSql,businessAcceptanceSetupSql,releaseAcceptanceExistsSql,releaseTableExistsSql} from "@erpx/server-platform_administration/adapters/release-predicate";
+import {releaseRevisionTable,releaseCurrencyPredicate,releaseRevisionShareLockSql,releaseRevisionReadSql,latestReleaseIdSql,latestReleaseRowSql,releaseAcceptanceRowSql,activeBranchCountSql,businessAcceptanceSetupSql,releaseAcceptanceExistsSql,releaseTableExistsSql,derivedSourceExistsSql} from "@erpx/server-platform_administration/adapters/release-predicate";
 import { platformOwnerProjectionSources as identity_accessPlatformSources } from "@erpx/server-identity_access/public/platform-owner-projection-sources";
 import { platformOwnerProjectionSources as organizationPlatformSources } from "@erpx/server-organization/public/platform-owner-projection-sources";
 import "server-only";
@@ -48,12 +48,12 @@ function repository(db:SqlDatabase,companyId:string,work?:WorkContext):ReleaseRe
  db.prepare(`SELECT ${releaseCurrencyPredicate('?')} AS compatible`).bind(companyId).first<{compatible:boolean}>()]);return {revision,setup,branches,currency};},
  row:(releaseId,scope)=>db.prepare(latestReleaseRowSql('*', releaseId?'AND id=?':'AND scope_version=?')).bind(companyId,releaseId??scope).first<ReleaseRow>(),
  latest:scope=>db.prepare(latestReleaseRowSql('id','AND scope_version=?')).bind(companyId,scope).first<{id:string}>(),
- reviews:async row=>(await db.prepare(`SELECT g.*,EXISTS(SELECT 1 FROM (${identity_accessPlatformSources.assignments}) a WHERE a.id=g.assignment_id
+ reviews:async row=>(await db.prepare(`SELECT g.*,EXISTS(${derivedSourceExistsSql(identity_accessPlatformSources.assignments,'a',`a.id=g.assignment_id
     AND a.company_id=g.company_id AND a.user_id=g.reviewer_id AND a.scope_kind='holding'
     AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
     AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
     AND iam_role_allows(a.role,a.company_id,g.permission)
-    AND NOT iam_same_person(g.reviewer_id,?,g.company_id)) authority_current
+    AND NOT iam_same_person(g.reviewer_id,?,g.company_id)`)}) authority_current
     FROM company_release_gate_reviews g WHERE g.company_id=? AND g.release_id=?`).bind(row.requested_by, companyId, row.id).all<ReviewRow>()).results,
  replay:command=>replayCommand(db,workActor(),command.key,command.operation,command.id,command.input),
  submit:async(command,facts)=>{const {key,operation,input}=command,{id,now,current,evidence,digest}=facts,a=workActor(),actor=a,result={id,version:1,state:'pending' as const};return executeCommand(db, actor, key, operation, input, actor.companyId, 1, result, [

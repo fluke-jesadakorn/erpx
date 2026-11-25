@@ -95,7 +95,7 @@ describe('Platform Administration r19 revision-scalar fold', () => {
 });
 
 describe('Platform Administration r19 retirement check', () => {
-  test('retirement:ts-statements is pinned at 26 (BEFORE=27)', () => {
+  test('retirement:ts-statements is pinned at 25 (BEFORE=27)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -105,7 +105,7 @@ describe('Platform Administration r19 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(26);
-    expect(total).toBeLessThan(27);
+    expect(total).toBe(25);
+    expect(total).toBeLessThan(26);
   });
 });

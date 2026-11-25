@@ -104,7 +104,7 @@ describe('Platform Administration read-tail r16 parameterized-family dedupe', ()
 });
 
 describe('Platform Administration r16 retirement check', () => {
-  test('retirement:ts-statements is pinned at the post-r19 26 baseline (BEFORE=28)', () => {
+  test('retirement:ts-statements is pinned at the post-r20 25 baseline (BEFORE=28)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -114,7 +114,7 @@ describe('Platform Administration r16 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(26);
+    expect(total).toBe(25);
     expect(total).toBeLessThan(31);
   });
 });

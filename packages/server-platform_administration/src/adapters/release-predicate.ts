@@ -31,6 +31,15 @@ export function releaseTableExistsSql(from: string, where: string, gap = ' ') {
   return `EXISTS(SELECT 1 FROM ${from}${gap}WHERE ${where})`;
 }
 
+/** The single derived-source EXISTS row head shared by the reviews authority
+ * guard and the required-permission gate. Both callers previously inlined the
+ * same derived-source head with a different source and predicate; this one
+ * owner-local definition renders byte-identical SQL for each. Fixed-table
+ * EXISTS, projection reads, row heads, locks and native reads are unchanged. */
+export function derivedSourceExistsSql(source: string, alias: string, predicate: string) {
+  return `SELECT 1 FROM (${source}) ${alias} WHERE ${predicate}`;
+}
+
 /** The revision read is the same parameterized row-head as the acceptance read;
  * the scope table is the only difference. It now composes the shared renderer,
  * so callers still supply just a suffix (e.g. ' FOR SHARE') and every rendering
@@ -124,7 +133,7 @@ export function acceptedReleasePredicate(companyExpression: string, scope: Relea
     AND release.configuration_revision=revision.revision AND setup.status='accepted' AND setup.version=release.setup_version
     AND release.id=${latestReleaseIdSql('release.company_id', 'release.scope_version')}
     ${scope === productionScope.version ? `AND (${activeBranchCountSql('release.company_id', { qualifier: 'branch' })})=1 AND ${releaseCurrencyPredicate('release.company_id')}` : ''}
-    AND NOT EXISTS(SELECT 1 FROM (VALUES ${criteria}) AS required(id,permission) WHERE NOT EXISTS(
+    AND NOT EXISTS(${derivedSourceExistsSql(`VALUES ${criteria}`,'AS required(id,permission)',`NOT EXISTS(
       SELECT 1 FROM company_release_gate_reviews gate JOIN (${identity_accessPlatformSources.assignments}) reviewer ON reviewer.id=gate.assignment_id
       WHERE gate.company_id=release.company_id AND gate.release_id=release.id AND gate.criterion_id=required.id
       AND gate.state='passed' AND gate.permission=required.permission AND reviewer.user_id=gate.reviewer_id
@@ -132,5 +141,5 @@ export function acceptedReleasePredicate(companyExpression: string, scope: Relea
       AND iam_assignment_active(reviewer.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
       AND iam_principal_active(reviewer.user_id,reviewer.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
       AND iam_role_allows(reviewer.role,reviewer.company_id,required.permission)
-      AND NOT iam_same_person(gate.reviewer_id,release.requested_by,release.company_id))))`;
+      AND NOT iam_same_person(gate.reviewer_id,release.requested_by,release.company_id))`)}))`;
 }
