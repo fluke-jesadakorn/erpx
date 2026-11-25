@@ -167,7 +167,7 @@ describe('Collaboration read-tail r50 excluded SQL stays untouched', () => {
 });
 
 describe('Collaboration read-tail r50 KPI pins', () => {
-  test('retirement:ts-statements is pinned at 272, below the r50 BEFORE=333 baseline', () => {
+  test('retirement:ts-statements is pinned at 257, below the r50 BEFORE=333 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -180,7 +180,7 @@ describe('Collaboration read-tail r50 KPI pins', () => {
     // Two byte-identical revision aggregate heads -> one alias-parameterized
     // renderer with two thin wrappers. Net: 333 -> 332.
     // r51 folded the shared count head: 332 -> 331.
-    expect(total).toBe(272);
+    expect(total).toBe(257);
     expect(total).toBeLessThan(333);
   });
 });

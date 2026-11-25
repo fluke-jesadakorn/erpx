@@ -57,7 +57,7 @@ describe('Sales read-tail r22 parameterized delivery-fulfillment existence famil
     expect(helper).toContain('deliveryPresence(');
     expect(obligations).not.toContain("deliveryFactExists('r',' AND f.invoice_id=r.invoice_id')");
     expect(obligations).toContain('SALES_RD_PACKAGE_SETTLEMENT_SALES');
-    expect(obligations).toContain("deliveryFactExists('notice',' AND f.company_id=notice.company_id AND f.party_id=notice.party_id')");
+    expect(obligations).not.toContain("deliveryFactExists('notice',' AND f.company_id=notice.company_id AND f.party_id=notice.party_id')");
     expect(obligations).not.toContain(pre.return);
     expect(obligations).not.toContain(pre.customerNotice);
     expect(helper).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);

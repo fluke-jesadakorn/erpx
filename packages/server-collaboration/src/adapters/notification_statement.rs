@@ -596,6 +596,7 @@ pub fn plan_values_statement(
         "work_social_image_head" => "SELECT jsonb_build_object('target',?::text,'post',(SELECT to_jsonb(p) FROM social_posts p WHERE p.id=? AND p.company_id=?),'comments',",
         "work_social_image_sources" => ",'sources',(SELECT jsonb_agg(to_jsonb(s) ORDER BY s.ordinal) FROM social_post_sources s WHERE s.post_id=?),'participants',(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.user_id) FROM social_post_participants p WHERE p.post_id=?),'revisions',",
         "work_social_image_tail" => ",'reactions',(SELECT jsonb_agg(to_jsonb(r) ORDER BY r.principal_id) FROM social_reactions r WHERE r.post_id=?),'follows',(SELECT jsonb_agg(to_jsonb(f) ORDER BY f.principal_id) FROM social_follows f WHERE f.target_type='post' AND f.target_id=?),'drafts',(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM social_post_drafts d WHERE d.company_id=? AND (d.published_post_id=? OR d.comment_parent_post_id=? OR d.edit_post_id=?)),'acknowledgements',(SELECT jsonb_agg(to_jsonb(a) ORDER BY a.user_id) FROM social_handover_acknowledgements a WHERE a.post_id=?),'ai_drafts',(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM social_ai_drafts d WHERE d.post_id=?),'ai_usage',(SELECT jsonb_agg(to_jsonb(u) ORDER BY u.id) FROM social_ai_usage u JOIN social_ai_drafts d ON d.id=u.id WHERE d.post_id=?),'agent_replies',(SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM social_agent_replies r WHERE r.post_id=?))::text image",
+        "work_social_ai_phase_image" => "SELECT jsonb_build_object('draft',(SELECT to_jsonb(d) FROM social_ai_drafts d WHERE d.id=?),'usage',(SELECT to_jsonb(u) FROM social_ai_usage u WHERE u.id=?),'reply',(SELECT to_jsonb(r) FROM social_agent_replies r WHERE r.id=?))::text image",
         _ => return None,
     };
     Some(
@@ -1121,6 +1122,20 @@ mod tests {
             assert_eq!(planned.sql, sql, "{kind}");
             assert_eq!(planned.sql.matches("SELECT ").count(), selects, "{kind}");
         }
+
+        let ai = ["reservation-1", "reservation-1", "reply-1"];
+        let planned = super::plan_values_statement(
+            "work_social_ai_phase_image",
+            &read_input("work_social_ai_phase_image", &ai),
+        )
+        .expect("registered kind")
+        .expect("planned statement");
+        assert_eq!(
+            planned.sql,
+            "SELECT jsonb_build_object('draft',(SELECT to_jsonb(d) FROM social_ai_drafts d WHERE d.id=?),'usage',(SELECT to_jsonb(u) FROM social_ai_usage u WHERE u.id=?),'reply',(SELECT to_jsonb(r) FROM social_agent_replies r WHERE r.id=?))::text image"
+        );
+        assert_eq!(planned.sql.matches("SELECT ").count(), 4);
+        assert_eq!(planned.values.len(), 3);
     }
 }
 

@@ -197,6 +197,11 @@ pub const PMS_RD_FAILED_COUNTER_REFUNDS: &str = "pms_rd_failed_counter_refunds";
 /// witnesses byte-for-byte.
 pub const PMS_RD_RESERVATION_PROPERTY: &str = "pms_rd_reservation_property";
 pub const PMS_RD_ROLLOUT_SETUP_READY: &str = "pms_rd_rollout_setup_ready";
+/// Native successors of the paired attachment owner-fact reads used by the
+/// Finance attachment boundary. Fixed SQL with two positional binds each, no
+/// ledger/receipt/outbox and no lock path; the caller runs them on its unit.
+pub const PMS_RD_ATTACHMENT_OWNER_FACT: &str = "pms_rd_attachment_owner_fact";
+pub const PMS_RD_ATTACHMENT_PROPERTY_OWNER: &str = "pms_rd_attachment_property_owner";
 const SQL_INVENTORY_COMMAND: &str = "SELECT id,kind,data_json,version,updated_at FROM pms_records \
 WHERE property_id=? AND kind IN ('room_type','room','rate','block','item','credit') \
 UNION ALL SELECT id,kind,data_json,version,updated_at FROM pms_records \
@@ -663,8 +668,24 @@ const READ_ROLLOUT_SETUP_READY: NativeReadStatement = NativeReadStatement {
     sql: SQL_ROLLOUT_SETUP_READY,
     bind_count: 1,
 };
+/// Retired TypeScript literals, byte-for-byte (the first inlines the closed
+/// r36 ownerFact head).
+const SQL_ATTACHMENT_OWNER_FACT: &str = r#"SELECT p.company_id,p.branch_id,NULL::text department_id,r.version,r.kind
+       FROM pms_records r JOIN pms_properties p ON p.id=r.property_id
+       WHERE r.id=? AND p.company_id=?"#;
+const READ_ATTACHMENT_OWNER_FACT: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_ATTACHMENT_OWNER_FACT,
+    sql: SQL_ATTACHMENT_OWNER_FACT,
+    bind_count: 2,
+};
+const SQL_ATTACHMENT_PROPERTY_OWNER: &str = "SELECT company_id,branch_id,NULL::text department_id,version FROM pms_properties WHERE id=? AND company_id=?";
+const READ_ATTACHMENT_PROPERTY_OWNER: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_ATTACHMENT_PROPERTY_OWNER,
+    sql: SQL_ATTACHMENT_PROPERTY_OWNER,
+    bind_count: 2,
+};
 
-const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG, READ_PENDING_HOTEL_TRANSFERS, READ_UNPOSTED_BOOKING_RECEIPTS, READ_UNPOSTED_COUNTER_RECEIPTS, READ_HOSPITALITY_SETUP_PROPERTIES, READ_ATTACHMENT_PROPERTY_IMAGE, READ_ATTACHMENT_RECORD_IMAGE, READ_DOCUMENT_RELATED_POSTINGS, READ_POS_GUEST_HOTELS, READ_POS_GUEST_CHOICES, READ_POS_STRIPE_PAYMENT, READ_POS_BOOKING_PAYMENT, READ_STRIPE_PAYMENT_BY_ID, READ_STRIPE_PAYMENT_BY_ID_COMPANY, READ_STRIPE_PAYMENT_PROPERTY, READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS, READ_TRANSFER_REQUESTS, READ_GUEST_DOCUMENTS, READ_BOOKING_ALLOCATION_EXISTS, READ_PENDING_JOBS, READ_BOOKING_PROPERTY_SCOPE, READ_BOOKING_PROPERTY_SCOPE_BRANCH, READ_BOOKING_RECORDS, READ_BOOKING_RECORDS_SEARCH, READ_GUEST_ACCOUNT_SUMS, READ_CHARGE_CORRECTIONS, READ_CHARGE_CORRECTIONS_FRONT, READ_BOOKING_TOKEN, READ_STRIPE_PAYMENT_KEY, READ_PROPERTY_SCOPE, READ_FAILED_COUNTER_REFUNDS, READ_RESERVATION_PROPERTY, READ_ROLLOUT_SETUP_READY];
+const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG, READ_PENDING_HOTEL_TRANSFERS, READ_UNPOSTED_BOOKING_RECEIPTS, READ_UNPOSTED_COUNTER_RECEIPTS, READ_HOSPITALITY_SETUP_PROPERTIES, READ_ATTACHMENT_PROPERTY_IMAGE, READ_ATTACHMENT_RECORD_IMAGE, READ_DOCUMENT_RELATED_POSTINGS, READ_POS_GUEST_HOTELS, READ_POS_GUEST_CHOICES, READ_POS_STRIPE_PAYMENT, READ_POS_BOOKING_PAYMENT, READ_STRIPE_PAYMENT_BY_ID, READ_STRIPE_PAYMENT_BY_ID_COMPANY, READ_STRIPE_PAYMENT_PROPERTY, READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS, READ_TRANSFER_REQUESTS, READ_GUEST_DOCUMENTS, READ_BOOKING_ALLOCATION_EXISTS, READ_PENDING_JOBS, READ_BOOKING_PROPERTY_SCOPE, READ_BOOKING_PROPERTY_SCOPE_BRANCH, READ_BOOKING_RECORDS, READ_BOOKING_RECORDS_SEARCH, READ_GUEST_ACCOUNT_SUMS, READ_CHARGE_CORRECTIONS, READ_CHARGE_CORRECTIONS_FRONT, READ_BOOKING_TOKEN, READ_STRIPE_PAYMENT_KEY, READ_PROPERTY_SCOPE, READ_FAILED_COUNTER_REFUNDS, READ_RESERVATION_PROPERTY, READ_ROLLOUT_SETUP_READY, READ_ATTACHMENT_OWNER_FACT, READ_ATTACHMENT_PROPERTY_OWNER];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
 pub fn is_read(kind: &str) -> bool {
@@ -1092,7 +1113,7 @@ ORDER BY id"
         assert!(!upper.contains("PG_ADVISORY"));
         assert!(is_read(read.kind));
         assert!(!is_read("pms_rd_section_related_records_v2"));
-        assert_eq!(READS.len(), 58);
+        assert_eq!(READS.len(), 60);
     }
 
     #[test]
@@ -1116,7 +1137,7 @@ ORDER BY id"
         assert!(!upper.contains("PG_ADVISORY"));
         assert!(is_read(read.kind));
         assert!(!is_read("pms_rd_guest_booking_document_v2"));
-        assert_eq!(READS.len(), 58);
+        assert_eq!(READS.len(), 60);
     }
 
     #[test]
@@ -1139,7 +1160,7 @@ ORDER BY id"
         assert!(!upper.contains("PG_ADVISORY"));
         assert!(is_read(read.kind));
         assert!(!is_read("pms_rd_hotel_metrics_v2"));
-        assert_eq!(READS.len(), 58);
+        assert_eq!(READS.len(), 60);
     }
 
     #[test]
@@ -1165,7 +1186,7 @@ ORDER BY id"
             assert!(is_read(read.kind));
         }
         assert!(!is_read("pms_rd_booking_receipt_by_key_v2"));
-        assert_eq!(READS.len(), 58);
+        assert_eq!(READS.len(), 60);
     }
 
     #[test]
@@ -1192,7 +1213,7 @@ ORDER BY id"
         }
         assert!(!is_read("pms_rd_booking_documents_v2"));
         assert!(!is_read("pms_rd_change_payment_pending_v2"));
-        assert_eq!(READS.len(), 58);
+        assert_eq!(READS.len(), 60);
     }
 
     #[test]
@@ -1219,7 +1240,7 @@ ORDER BY id"
         }
         assert!(!is_read("pms_rd_booking_allocations_v2"));
         assert!(!is_read("pms_rd_refund_request_allocations_v2"));
-        assert_eq!(READS.len(), 58);
+        assert_eq!(READS.len(), 60);
     }
 
     #[test]
@@ -1246,7 +1267,7 @@ ORDER BY id"
         }
         assert!(!is_read("pms_rd_transfer_requests_v2"));
         assert!(!is_read("pms_rd_guest_documents_v2"));
-        assert_eq!(READS.len(), 58);
+        assert_eq!(READS.len(), 60);
     }
 
     #[test]
@@ -1273,7 +1294,7 @@ ORDER BY id"
         }
         assert!(!is_read("pms_rd_booking_allocation_exists_v2"));
         assert!(!is_read("pms_rd_pending_jobs_v2"));
-        assert_eq!(READS.len(), 58);
+        assert_eq!(READS.len(), 60);
     }
 
     #[test]
@@ -1303,7 +1324,7 @@ ORDER BY id"
             assert!(is_read(read.kind));
         }
         assert!(!is_read("pms_rd_booking_records_search_v2"));
-        assert_eq!(READS.len(), 58);
+        assert_eq!(READS.len(), 60);
     }
 
     #[test]
@@ -1333,7 +1354,7 @@ ORDER BY id"
             assert!(is_read(read.kind));
         }
         assert!(!is_read("pms_rd_charge_corrections_front_v2"));
-        assert_eq!(READS.len(), 58);
+        assert_eq!(READS.len(), 60);
     }
 
     #[test]
@@ -1363,7 +1384,7 @@ ORDER BY id"
             assert!(is_read(read.kind));
         }
         assert!(!is_read("pms_rd_booking_token_v2"));
-        assert_eq!(READS.len(), 58);
+        assert_eq!(READS.len(), 60);
     }
 
     #[test]
@@ -1383,7 +1404,7 @@ ORDER BY id"
         assert!(!upper.contains("LOCK TABLE"));
         assert!(is_read(read.kind));
         assert!(!is_read("pms_rd_failed_counter_refunds_v2"));
-        assert_eq!(READS.len(), 58);
+        assert_eq!(READS.len(), 60);
     }
 
     #[test]
@@ -1409,6 +1430,32 @@ ORDER BY id"
             assert!(is_read(read.kind));
         }
         assert!(!is_read("pms_rd_rollout_setup_ready_v2"));
-        assert_eq!(READS.len(), 58);
+        assert_eq!(READS.len(), 60);
+    }
+
+    #[test]
+    fn attachment_owner_reads_match_retired_typescript_literals() {
+        let fact = read_statement(PMS_RD_ATTACHMENT_OWNER_FACT).expect("attachment owner fact read");
+        let property = read_statement(PMS_RD_ATTACHMENT_PROPERTY_OWNER).expect("attachment property owner read");
+        assert_eq!(fact.kind, "pms_rd_attachment_owner_fact");
+        assert_eq!(fact.sql, "SELECT p.company_id,p.branch_id,NULL::text department_id,r.version,r.kind\n       FROM pms_records r JOIN pms_properties p ON p.id=r.property_id\n       WHERE r.id=? AND p.company_id=?");
+        assert_eq!(fact.bind_count, 2);
+        assert_eq!(property.kind, "pms_rd_attachment_property_owner");
+        assert_eq!(property.sql, "SELECT company_id,branch_id,NULL::text department_id,version FROM pms_properties WHERE id=? AND company_id=?");
+        assert_eq!(property.bind_count, 2);
+        for read in [fact, property] {
+            assert_eq!(read.sql.matches('?').count(), read.bind_count);
+            let upper = read.sql.to_ascii_uppercase();
+            assert!(upper.starts_with("SELECT"));
+            assert!(!upper.contains("INSERT INTO"));
+            assert!(!upper.contains("UPDATE "));
+            assert!(!upper.contains("DELETE FROM"));
+            assert!(!upper.contains("FOR UPDATE"));
+            assert!(!upper.contains("FOR SHARE"));
+            assert!(!upper.contains("LOCK TABLE"));
+            assert!(is_read(read.kind));
+        }
+        assert!(!is_read("pms_rd_attachment_owner_fact_v2"));
+        assert_eq!(READS.len(), 60);
     }
 }

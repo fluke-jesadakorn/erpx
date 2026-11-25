@@ -89,7 +89,7 @@ describe('Sales read-tail r35 shared delivery-presence head', () => {
     expect(obligations).not.toContain('NOT EXISTS(${orderDeliveryExistsSql})');
     expect(obligations).not.toContain('EXISTS(${orderDeliveryExistsSql})');
     expect(obligations).not.toContain("deliveryFactExists('r',' AND f.invoice_id=r.invoice_id')");
-    expect(obligations).toContain("deliveryFactExists('notice',' AND f.company_id=notice.company_id AND f.party_id=notice.party_id')");
+    expect(obligations).not.toContain("deliveryFactExists('notice',' AND f.company_id=notice.company_id AND f.party_id=notice.party_id')");
   });
 });
 

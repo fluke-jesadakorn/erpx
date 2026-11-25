@@ -73,8 +73,8 @@ describe('Sales read-tail r26 parameterized presence-guard families', () => {
     expect((family.match(/SELECT/g) ?? []).length).toBe(2); // one per generator
     expect(obligations).not.toContain("commandReceiptGuard('commerce.order.fulfill'");
     expect(obligations).toContain('SALES_RD_PACKAGE_SETTLEMENT_ECOMMERCE');
-    expect(obligations).toContain("commandReceiptGuard('commerce.customer-notification.queue'");
-    expect((obligations.match(/\$\{attemptGuard\(/g) ?? []).length).toBe(2);
+    expect(obligations).not.toContain("commandReceiptGuard('commerce.customer-notification.queue'");
+    expect((obligations.match(/\$\{attemptGuard\(/g) ?? []).length).toBe(0);
     expect(obligations).not.toContain(pre.orderFulfillReceipt);
     expect(obligations).not.toContain(pre.customerNoticeReceipt);
     expect(obligations).not.toContain("SELECT 1 FROM command_receipts receipt WHERE receipt.operation='commerce.order.fulfill'");

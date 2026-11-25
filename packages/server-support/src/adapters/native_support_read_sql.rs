@@ -1426,7 +1426,8 @@ mod tests {
         assert_eq!(valid.tail_bind_counts, &[1, 4, 9]);
         assert_eq!(valid.sql.matches('?').count(), 0);
         assert!(valid.sql.starts_with("SELECT binding.* FROM support_ticket_portal_bindings"));
-        assert!(valid.sql.contains("JOIN command_receipts birth ON birth.operation='support.ticket-portal.prepare'"));
+        assert!(valid.sql.contains("JOIN command_receipts birth ON birth.command_id=binding.prepare_command_id"));
+        assert!(valid.sql.contains("birth.operation='support.ticket-portal.prepare'"));
 
         let full = read_fragment(RD_TICKET_PORTAL_IMAGE_AGGREGATE_FULL).expect("full image aggregate");
         assert_eq!(full.tail_bind_counts, &[0]);

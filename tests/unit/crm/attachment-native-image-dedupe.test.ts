@@ -33,7 +33,8 @@ describe('crm attachment native-image read family (r13)', () => {
     expect(src.match(/nativeImageSql\(/g)).toHaveLength(2);
     // Only the helper definition routes through the shared head; no call site does.
     expect(src.match(/'native',\(\$\{crmJsonbAggregateSql\(/g)).toHaveLength(1);
-    expect(r49().match(/SELECT jsonb_agg\(to_jsonb\(/g)).toHaveLength(1);
+    expect(r49().match(/SELECT jsonb_agg\(to_jsonb\(/g)).toBeNull();
+    expect(r49()).toContain("crmSelectBodySql(`jsonb_agg(to_jsonb(${body}`)");
     expect(src).toContain("nativeImageSql(crmPurchaseAccountRows,'native.id=account.id AND native.company_id=account.company_id')");
     expect(src).toContain("${nativeImageSql(crmPurchaseOpportunityRows,'native.id=lead.id AND native.company_id=lead.company_id')})");
   });
@@ -82,7 +83,7 @@ describe('crm attachment related-image aggregate family (r17)', () => {
     expect(text.match(/SELECT jsonb_agg\(to_jsonb\((contact|lead|link)\) ORDER BY/g)).toBeNull();
     expect(text.match(/SELECT jsonb_agg\(to_jsonb\(native\)\)/g)).toBeNull();
     expect(text.match(/\$\{crmJsonbAggregateSql\(/g)).toHaveLength(2);
-    expect(r49().match(/SELECT jsonb_agg\(to_jsonb\(/g)).toHaveLength(1);
+    expect(r49().match(/SELECT jsonb_agg\(to_jsonb\(/g)).toBeNull();
   });
 
   it('keeps the owner SELECT KPI strictly below the r17 BEFORE=165 baseline', () => {

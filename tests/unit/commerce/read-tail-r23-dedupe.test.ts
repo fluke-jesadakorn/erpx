@@ -196,14 +196,14 @@ describe('Commerce read-tail r23 head-dedupe retirement', () => {
     expect(read('commerce.ts')).toContain("'SELECT id FROM commerce_returns WHERE id=? FOR UPDATE'");
     expect(read('commerce-goods-accounting.ts')).toContain('"SELECT id FROM commerce_fulfillments WHERE id=? FOR UPDATE"');
     // r18-r22 native kinds, order renderer and noop constant are unchanged.
-    expect(read('native_commerce_read_sql.rs')).toContain('assert_eq!(STATEMENTS.len(), 45);');
+    expect(read('native_commerce_read_sql.rs')).toContain('assert_eq!(STATEMENTS.len(), 48);');
     expect(read('read-tail-r21-dedupe-sql.ts')).toContain('`SELECT ${columns} FROM commerce_orders WHERE ${tail}`');
     expect(COMMERCE_OWNER_WRITE_NOOP_SQL).toBe('SELECT 1');
     expect(sha(COMMERCE_OWNER_WRITE_NOOP_SQL)).toBe('e004ebd5b5532a4b85984a62f8ad48a81aa3460c1ca07701f386135d72cdecf5');
     expect(read('commerce.ts').split('db.prepare(COMMERCE_OWNER_WRITE_NOOP_SQL)').length - 1).toBe(17);
   });
 
-  test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 371 (before 373)', () => {
+  test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 368 (before 371)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -213,6 +213,6 @@ describe('Commerce read-tail r23 head-dedupe retirement', () => {
       }
     };
     walk(src);
-    expect(total).toBe(371);
+    expect(total).toBe(368);
   });
 });

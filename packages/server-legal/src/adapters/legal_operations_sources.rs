@@ -71,11 +71,7 @@ mod tests {
             digest(LEGAL_OPERATIONS_SOURCES_JSON),
             "2a16d72e65440ae74d59b813a5561e93663b5f43f4833f60819f4066335264cf"
         );
-        let register = render_legal_register_rows(
-            "legal_rules",
-            "i.company_id=?",
-            "(TRUE)",
-        );
+        let register = render_legal_register_rows("legal_rules", "i.company_id=?", "(TRUE)");
         assert_eq!(
             register,
             "SELECT i.*,t.data FROM legal_items i JOIN legal_rules t ON t.item_id=i.id WHERE i.company_id=? AND (TRUE) AND i.kind=? ORDER BY i.id LIMIT 10001"
@@ -90,9 +86,9 @@ mod tests {
             impact,
             "SELECT i.id,i.kind,i.title,i.state,i.due_date,i.version FROM legal_items i JOIN legal_links l ON (l.source_id=? AND l.target_id=i.id) OR (l.target_id=? AND l.source_id=i.id) WHERE i.company_id=? AND (TRUE) ORDER BY i.id LIMIT 500"
         );
-        assert_eq!(register.matches('?').count(), 3);
-        assert_eq!(hold.matches('?').count(), 3);
-        assert_eq!(impact.matches('?').count(), 4);
+        assert_eq!(register.matches('?').count(), 2);
+        assert_eq!(hold.matches('?').count(), 2);
+        assert_eq!(impact.matches('?').count(), 3);
         for sql in [register.as_str(), hold.as_str(), impact.as_str()] {
             for write in [
                 "INSERT INTO",

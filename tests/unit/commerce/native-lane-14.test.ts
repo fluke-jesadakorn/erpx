@@ -206,7 +206,7 @@ describe('native Commerce lane 14 workflow order reads', () => {
     expect(source).toContain("from './native-lane-14/client'");
   });
 
-  it('keeps the brief-listed owner SELECT-space count at 156 after the purchase-control read deletion', () => {
+  it('keeps the brief-listed owner SELECT-space count at 153 after the PMS owner-local read deletion', () => {
     const brief = fs.readFileSync(
       path.join(root, '.scratch/wave0/briefs/lane_14.md'), 'utf8',
     );
@@ -218,7 +218,7 @@ describe('native Commerce lane 14 workflow order reads', () => {
       if (!fs.existsSync(absolute)) continue;
       count += fs.readFileSync(absolute, 'utf8').split('SELECT ').length - 1;
     }
-    expect(count).toBe(156);
+    expect(count).toBe(153);
   });
 });
 

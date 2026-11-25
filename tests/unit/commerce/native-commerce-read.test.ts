@@ -470,7 +470,7 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
         `export const ${kind} = '${wire}';`,
       );
     }
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 45);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 48);');
     expect(plans).toContain('fn schema_ready_probes_keep_their_exact_literals()');
     expect(readFileSync(adapters('read-tail-r15-dedupe-sql.ts'), 'utf8')).not.toContain('to_regclass');
   });
@@ -507,7 +507,7 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
     expect(plans).toContain(`"${sql}"`);
     expect(plans).toContain('kind: RD_LEGACY_ATTACHMENT_SCOPE,');
     expect(plans).toContain('fn legacy_attachment_scope_keeps_its_exact_literal()');
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 45);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 48);');
     expect(readFileSync(adapters('native-commerce-read.ts'), 'utf8')).toContain(
       "export const RD_LEGACY_ATTACHMENT_SCOPE = 'commerce_rd_legacy_attachment_scope';",
     );
@@ -740,5 +740,32 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
     expect(source).toContain('nativeCommerceReadFirst<CountRow>(RD_INITIAL_COUNT_STOCK_PRODUCT,[productId,actor.companyId],database)');
     expect(source).toContain('return {warehouses,products};');
     expect(source).toContain('command_receipts');
+  });
+
+  it('owns the three PMS owner-local reads while the FOR UPDATE stock read stays inline', async () => {
+    const plans = readFileSync(adapters('native_commerce_read_sql.rs'), 'utf8');
+    for (const [kind, wire, sql] of [
+      ['RD_PMS_PRODUCT_OPTIONS', 'commerce_rd_pms_product_options', "SELECT id,name FROM commerce_products WHERE company_id=? AND status='active'"],
+      ['RD_PMS_WAREHOUSE_ID', 'commerce_rd_pms_warehouse_id', "SELECT id FROM commerce_warehouses WHERE id=? AND company_id=? AND branch_id=? AND status='active'"],
+      ['RD_PMS_PRODUCT_WAREHOUSE_SCOPE', 'commerce_rd_pms_product_warehouse_scope', "SELECT 1 FROM commerce_products p JOIN commerce_warehouses w ON w.id=? WHERE p.id=? AND p.company_id=? AND w.company_id=p.company_id AND w.branch_id=? AND p.status='active' AND w.status='active'"],
+    ] as const) {
+      expect(plans).toContain(`pub const ${kind}: &str = "${wire}";`);
+      expect(plans).toContain(`"${sql}"`);
+      expect(plans).toContain(`kind: ${kind},`);
+      expect(readFileSync(adapters('native-commerce-read.ts'), 'utf8')).toContain(
+        `export const ${kind} = '${wire}';`,
+      );
+    }
+    expect(plans).toContain('fn pms_owner_local_reads_keep_their_exact_literals()');
+    const source = await readFile(adapters('pms-command-facts.ts'), 'utf8');
+    for (const sql of [
+      "SELECT id,name FROM commerce_products WHERE company_id=? AND status='active'",
+      "SELECT id FROM commerce_warehouses WHERE id=? AND company_id=? AND branch_id=? AND status='active'",
+      "SELECT 1 FROM commerce_products p JOIN commerce_warehouses w ON w.id=? WHERE p.id=? AND p.company_id=? AND w.company_id=p.company_id AND w.branch_id=? AND p.status='active' AND w.status='active'",
+    ]) expect(source).not.toContain(sql);
+    expect(source).toContain('nativeCommerceReadAll<{\n            id: string;\n            name: string;\n        }>(RD_PMS_PRODUCT_OPTIONS,[facts.companyId],db)');
+    expect(source).toContain('nativeCommerceReadFirst<{id:string}>(RD_PMS_WAREHOUSE_ID,[facts.warehouseId,facts.companyId,facts.branchId],db)');
+    expect(source).toContain("nativeCommerceReadFirst<{ '1': number }>(RD_PMS_PRODUCT_WAREHOUSE_SCOPE,[facts.warehouseId,facts.productId,facts.companyId,facts.branchId],db)");
+    expect(source).toContain('FOR UPDATE');
   });
 });

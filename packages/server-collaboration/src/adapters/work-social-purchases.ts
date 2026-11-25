@@ -136,7 +136,7 @@ export function withOperationsHandoverAcknowledgement<Result>(owner:SqlDatabase,
 export async function withWorkSocialAiPhase<Result>(owner:SqlDatabase,actor:StaffActor,phase:import("@erpx/server-collaboration/domain/social-ai-phase").SocialAiPhase,run:(database:SqlDatabase)=>Promise<Result>):Promise<Result>{
  const {disabled}=await socialOwnerModes();if(disabled)return run(owner);
  const key=`social-ai:${phase.reservationId}:${phase.phase}`;
- const aiRows=(database:SqlDatabase)=>database.prepare(socialAiPhaseImageSql('', '', '')).bind(phase.reservationId,phase.reservationId,phase.reply?.id??null).first<string>('image');
+ const aiRows=async(database:SqlDatabase)=>(await ownerRead(database,actor.companyId,'work_social_ai_phase_image',[phase.reservationId,phase.reservationId,phase.reply?.id??null])).first<string>('image');
  const identity=(database:SqlDatabase)=>database.prepare(socialAiPhaseImageSql("-ARRAY['state','result_json']", "-ARRAY['state','input_tokens','output_tokens','lease_until']", "-ARRAY['state','error','error_code','lease_until','updated_at']")).bind(phase.reservationId,phase.reservationId,phase.reply?.id??null).first<string>('image');
  const pending=async(database:SqlDatabase)=>{
   const row=await (await ownerRead(database,actor.companyId,'work_social_ai_phase_row',[phase.reservationId])).first<{actor_id:string;post_id:string;source_hash:string;actor_json:string|null;draft_state:string;company_id:string;usage_actor:string;usage_state:string}>();

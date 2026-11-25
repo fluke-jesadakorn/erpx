@@ -136,6 +136,11 @@ export const PMS_RD_FAILED_COUNTER_REFUNDS = 'pms_rd_failed_counter_refunds';
  * ledger/receipt/outbox and no lock path; the caller runs them on its unit. */
 export const PMS_RD_RESERVATION_PROPERTY = 'pms_rd_reservation_property';
 export const PMS_RD_ROLLOUT_SETUP_READY = 'pms_rd_rollout_setup_ready';
+/** Native successors of the paired attachment owner-fact reads used by the
+ * Finance attachment boundary. Fixed SQL with two positional binds each, no
+ * ledger/receipt/outbox and no lock path; caller runs them on its unit. */
+export const PMS_RD_ATTACHMENT_OWNER_FACT = 'pms_rd_attachment_owner_fact';
+export const PMS_RD_ATTACHMENT_PROPERTY_OWNER = 'pms_rd_attachment_property_owner';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'PMS_NATIVE_READ_UNAVAILABLE', 'The native PMS read service is unavailable.');
