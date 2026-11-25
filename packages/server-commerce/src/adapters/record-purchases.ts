@@ -1,4 +1,5 @@
 import "server-only";
+import { commerceOrdersReadSql } from "./read-tail-r21-dedupe-sql";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
@@ -21,7 +22,7 @@ export async function commerceWorkAccess(database:SqlDatabase,actor:CommercePurc
 }
 /** Reference mode uses the same pre-enrichment owner gates as normal Work. */
 export async function commerceWorkReferenceRows(database:SqlDatabase,actor:WorkContext){
- const rows=(await database.prepare("SELECT * FROM commerce_orders WHERE company_id=? ORDER BY updated_at DESC").bind(actor.companyId).all<Record<string,string|number|null>>()).results;
+ const rows=(await database.prepare(commerceOrdersReadSql('*', 'company_id=? ORDER BY updated_at DESC')).bind(actor.companyId).all<Record<string,string|number|null>>()).results;
  const access=await commerceWorkAccess(database,actor,rows.map(row=>String(row.id)));
  return access===null?rows:rows.filter(row=>access.get(String(row.id))?.history);
 }

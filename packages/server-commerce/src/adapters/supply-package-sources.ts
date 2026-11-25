@@ -1,10 +1,11 @@
 import "server-only";
+import { commerceOrdersReadSql } from "./read-tail-r21-dedupe-sql";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import { COMMERCE_WAREHOUSE_IDENTITY_SQL } from "./guarded-source-dedupe-sql";
 /** Raw native purchasing lineage for Supply withdrawal and its own source
  * witnesses. A source label does not grant access to a foreign Sales order. */
 export const supplyCommerceSettlementSources={
- orders:"SELECT * FROM commerce_orders WHERE kind='purchase'",
+ orders:commerceOrdersReadSql('*', "kind='purchase'"),
  goodsValuations:"SELECT * FROM commerce_goods_valuations",
  invoiceCarrying:"SELECT * FROM commerce_invoice_goods_carrying",
  lines:"SELECT line.* FROM commerce_order_lines line JOIN commerce_orders parent ON parent.id=line.order_id WHERE parent.kind='purchase'",
