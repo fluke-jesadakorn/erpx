@@ -55,7 +55,7 @@ describe('manufacturing read-tail r27 journal projection family', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(53); // r26 left 60; r27 parameterizes the journal projection family 60->58; r28 cost-allocation probe 58->57; r29 scoped EXISTS probe 57->56; r30 scope CTE family 56->55; r31 allowed-select head family 55->53.
+    expect(total).toBe(52); // r26 left 60; r27 parameterizes the journal projection family 60->58; r28 cost-allocation probe 58->57; r29 scoped EXISTS probe 57->56; r30 scope CTE family 56->55; r31 allowed-select head family 55->53.
     expect(total).toBeLessThan(60);
   });
 });

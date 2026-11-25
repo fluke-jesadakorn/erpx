@@ -66,7 +66,7 @@ describe('manufacturing read-tail r31 allowed-select head family', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(53); // r30 left 55; r31 parameterizes the allowed-select head family 55->53.
+    expect(total).toBe(52); // r30 left 55; r31 parameterizes the allowed-select head family 55->53.
     expect(total).toBeLessThan(55);
   });
 });
