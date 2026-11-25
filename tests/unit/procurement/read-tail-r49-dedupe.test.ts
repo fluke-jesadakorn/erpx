@@ -102,6 +102,6 @@ describe('Procurement read-tail r49 supplier read-head dedupe', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(88);
-    expect(total).toBe(85);
+    expect(total).toBe(82); // r50: four bill-receipt heads (-4 +1 helper) 85 -> 82.
   });
 });

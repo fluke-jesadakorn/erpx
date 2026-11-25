@@ -120,6 +120,6 @@ describe('Procurement read-tail r45 byte-exact delegation', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(95);
-    expect(total).toBe(85); // r47: 95 -> 90; r48: three detail heads (-3 +1 helper) 90 -> 88; r49: three read heads (-3) 88 -> 85.
+    expect(total).toBe(82); // r47: 95 -> 90; r48: three detail heads (-3 +1 helper) 90 -> 88; r49: three read heads (-3) 88 -> 85; r50: four bill-receipt heads (-4 +1 helper) 85 -> 82.
   });
 });
