@@ -406,3 +406,10 @@ export const countLineProductGuardSql = (tail: string) =>
  *  projection tail, table/join scope, bind and independent statement. Locks,
  *  native transport, count sources/adapters and r11-r57 helpers stay untouched. */
 export const countLineStockHeadSql = 'SELECT l.*,p.sku,p.tracking_mode,';
+
+/** r59: the manufacturing and PMS package-obligation stock rows share one
+ *  byte-identical, bind-free projection head; only the projection tail, source
+ *  scope and statement vary. Every caller keeps its own tail and independent
+ *  statement. Locks, native transport, count sources/adapters and r11-r58
+ *  helpers stay untouched. */
+export const stockObligationHeadSql = "SELECT 'stock',concat(s.warehouse_id,':',s.product_id),";
