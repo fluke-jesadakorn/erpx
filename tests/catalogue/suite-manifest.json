@@ -18816,6 +18816,33 @@
       ]
     },
     {
+      "lane": "unit",
+      "owner": "customer_360",
+      "modules": [
+        "customer_360"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Customer 360 scoped projection head must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-customer_360"
+      ],
+      "id": "customer_360.read-tail-r13-dedupe.unit",
+      "files": [
+        "tests/unit/customer_360/read-tail-r13-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "customer_360.rust-customer-activity-http.integration",
       "lane": "integration",
       "owner": "customer_360",
