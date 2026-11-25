@@ -391,14 +391,6 @@ async function billingCommand(
         if (!inserted.rowCount) fail("TARGET_ASSIGNMENT_EXISTS", "This month's assignment is immutable. Choose a later month.");
         break;
       }
-      case "rate-target": {
-        if (!input.targetMonth) fail("TARGET_MONTH_REQUIRED", "Choose a target billing month.");
-        const target = await c.calculateTarget( holdingId, input.targetMonth, now);
-        if (target.state === "approved")
-          fail("TARGET_PERIOD_FROZEN", "Approved target charges cannot be recalculated.");
-        await storeTargetRating(c, target, actor, input.reason, now);
-        break;
-      }
       case "approve-target": {
         if (!input.targetMonth) fail("TARGET_MONTH_REQUIRED", "Choose a target billing month.");
         // Projection refresh locks this snapshot row before replacing source

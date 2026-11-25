@@ -162,6 +162,9 @@ describe('native POS Stripe settlement/provider read bridge', () => {
       'nativePosStripePaymentStatement', 'nativePosStripePaymentIdStatement',
       'nativePosStripeRefundStatement', 'nativePosStripeRefundIdStatement',
     ]) expect(stripe).toMatch(new RegExp(`${fn}(?:<PosRow>)?\\(db`));
+    const core = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos-core.ts', import.meta.url), 'utf8');
+    expect(core).not.toContain('SELECT id FROM pos_settlements WHERE journal_id=?');
+    expect(core).toContain('nativePosSettlementByJournalStatement(db, facts.journalId)');
   });
 
   it('keeps row locks and the day-report registry inline', () => {
