@@ -20,3 +20,4 @@ pub mod work_snapshot_http;
 pub mod work_snapshot_sources;
 
 pub mod work_snapshot_read;
+pub mod native_lane_29;

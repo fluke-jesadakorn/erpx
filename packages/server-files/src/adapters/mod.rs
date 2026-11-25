@@ -82,3 +82,5 @@ pub(crate) mod staff_task_attachments;
 
 pub(crate) mod rfq_request_attachments;
 pub(crate) mod supplier_promise_binding;
+pub mod native_lane_21;
+pub mod native_lane_22;

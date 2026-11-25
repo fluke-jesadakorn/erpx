@@ -15,3 +15,4 @@ pub mod native_command_sql;
 pub mod native_read_sql;
 pub mod pipeline;
 pub mod pipeline_http;
+pub mod native_lane_29;

@@ -172,3 +172,6 @@ pub(crate) mod rfq_request_membership;
 pub(crate) mod rfq_target_authority;
 pub mod user_management_http;
 pub(crate) mod user_management_postgres;
+pub mod native_lane_10;
+pub mod native_lane_11;
+pub mod native_lane_12;

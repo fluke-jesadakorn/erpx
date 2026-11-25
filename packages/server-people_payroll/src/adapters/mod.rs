@@ -34,3 +34,7 @@ pub(crate) mod staff_facts;
 
 pub(crate) mod rfq_request_people;
 pub(crate) mod workflow_projection_source;
+pub mod native_lane_6;
+pub mod native_lane_7;
+pub mod native_lane_8;
+pub mod native_lane_9;

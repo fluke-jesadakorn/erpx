@@ -30,3 +30,5 @@ pub(crate) mod postgres_position;
 pub(crate) mod postgres_position_moves;
 pub(crate) mod postgres_roster;
 pub(crate) mod rfq_request_scope;
+pub mod native_lane_23;
+pub mod native_lane_24;

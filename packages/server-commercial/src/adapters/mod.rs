@@ -27,3 +27,4 @@ pub(crate) mod wave2_http;
 pub(crate) mod wave2_postgres;
 
 pub mod native_read;
+pub mod native_lane_37;

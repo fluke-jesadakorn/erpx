@@ -25,3 +25,4 @@ pub(crate) mod routine_commands_http;
 pub(crate) mod routine_sources;
 
 pub(crate) mod native_operations_read_sql;
+pub mod native_lane_28;

@@ -11,3 +11,4 @@ pub mod onboarding_http;
 pub mod onboarding_command;
 pub mod onboarding_command_http;
 pub mod storage_quota;
+pub mod native_lane_34;

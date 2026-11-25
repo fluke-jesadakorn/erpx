@@ -23,3 +23,4 @@ pub(crate) mod owner_writes_http;
 pub(crate) mod read;
 pub(crate) mod read_http;
 pub(crate) mod record_source;
+pub mod native_lane_25;

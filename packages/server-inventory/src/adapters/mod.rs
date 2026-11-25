@@ -57,3 +57,5 @@ pub(crate) mod sales_reservation;
 pub(crate) mod portal_commerce_locks;
 
 pub(crate) mod supply_package_obligations;
+pub mod native_lane_17;
+pub mod native_lane_18;

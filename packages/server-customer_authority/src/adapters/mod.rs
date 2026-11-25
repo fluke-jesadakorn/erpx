@@ -20,3 +20,4 @@ pub(crate) mod portal_support_commands_http;
 pub(crate) mod customer_authority_wave3_http;
 pub(crate) mod customer_authority_wave3_postgres;
 pub(crate) mod portal_commerce_locks;
+pub mod native_lane_35;

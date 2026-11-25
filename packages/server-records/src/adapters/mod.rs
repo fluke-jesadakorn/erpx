@@ -15,3 +15,4 @@ pub(crate) mod record_registry;
 pub(crate) mod record_registry_http;
 
 pub(crate) mod portal_commerce_locks;
+pub mod native_lane_35;

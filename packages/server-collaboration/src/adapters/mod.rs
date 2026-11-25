@@ -118,3 +118,5 @@ pub(crate) mod roster_position_notifications;
 pub(crate) mod customer_portal_notification;
 pub mod pms_social_event;
 pub(crate) mod rfq_notifications;
+pub mod native_lane_15;
+pub mod native_lane_16;

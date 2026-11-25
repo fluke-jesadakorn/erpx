@@ -26,3 +26,4 @@ pub(crate) mod attachment_descriptor_read;
 pub(crate) mod count_disposition;
 
 pub(crate) mod portal_commerce_locks;
+pub mod native_lane_34;

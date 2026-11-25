@@ -10,3 +10,4 @@ pub mod native_command_sql;
 pub mod planning_http;
 pub(crate) mod planning_read;
 pub mod specification;
+pub mod native_lane_28;

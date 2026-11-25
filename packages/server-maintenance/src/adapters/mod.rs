@@ -12,3 +12,4 @@ pub(crate) mod work_wire;
 pub mod asset_purchase_locks;
 
 pub mod asset_purchase_record;
+pub mod native_lane_36;

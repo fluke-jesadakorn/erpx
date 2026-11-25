@@ -8,3 +8,4 @@ pub mod quota_http;
 pub mod owner_write_postgres;
 pub mod owner_write_http;
 pub mod quota_postgres;
+pub mod native_lane_30;

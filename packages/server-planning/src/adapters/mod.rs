@@ -8,3 +8,4 @@ pub(crate) mod planning_read;
 pub mod read_source;
 pub mod resources;
 pub mod scenario;
+pub mod native_lane_36;

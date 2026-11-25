@@ -19,3 +19,4 @@ pub(crate) mod notification_commands_http;
 pub(crate) mod sales_notification_execution;
 
 pub(crate) mod portal_commerce_locks;
+pub mod native_lane_30;

@@ -126,3 +126,8 @@ pub(crate) mod finance_owner_write;
 pub(crate) mod finance_owner_write_http;
 pub(crate) mod finance_owner_write_postgres;
 pub(crate) mod native_finance_read_sql;
+pub mod native_lane_1;
+pub mod native_lane_2;
+pub mod native_lane_3;
+pub mod native_lane_4;
+pub mod native_lane_5;
