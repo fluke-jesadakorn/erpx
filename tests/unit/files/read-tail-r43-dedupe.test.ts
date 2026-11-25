@@ -43,7 +43,7 @@ const PRIOR_HELPERS = [
   'read-tail-r37-source-sql.ts', 'read-tail-r38-source-sql.ts', 'read-tail-r40-source-sql.ts',
   'read-tail-r41-source-sql.ts', 'read-tail-r42-source-sql.ts',
   'commerce-delivery-dedupe-sql.ts', 'owner-projection-dedupe-sql.ts',
-  'preservation-presence-dedupe-sql.ts', 'scan-pending-dedupe-sql.ts',
+  'preservation-presence-dedupe-sql.ts',
   'social-draft-image-guard-sql.ts', 'social-upload-cleanup-rows-sql.ts',
 ] as const;
 
@@ -135,6 +135,9 @@ describe('Files read-tail r43 byte-oracle dedupe', () => {
     };
     walk(srcRoot);
     expect(totalAfter).toBe(5);
+    // scan-pending-dedupe-sql.ts is excluded: its statement token moved to the
+    // native-owned scan-pending-head-sources.json contract (see the dedicated
+    // scan-pending-native-head suite), so its byte hash legitimately changed.
     for (const h of PRIOR_HELPERS) {
       const p = `packages/server-files/src/adapters/${h}`;
       expect(git('rev-parse', `${BASE}:${p}`).trim()).toBe(git('hash-object', p).trim());

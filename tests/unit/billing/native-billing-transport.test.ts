@@ -616,7 +616,7 @@ describe('native Billing transport', () => {
     expect(sent.get('origin')).toBe('https://acme.example.test');
     expect(JSON.parse(body!)).toEqual(input.body);
   });
-  it('maps the exact cost-review command fields onto the owner request body', () => {
+  it('maps the exact native-authoritative command fields (cost review and retry) onto the owner request body', () => {
     const base = { version: 4, reason: 'Reviewed native command' };
     const cases = [
       [
@@ -644,11 +644,17 @@ describe('native Billing transport', () => {
         'complete-costs',
         { ...base, periodId: 'period-1', complete: false },
       ],
+      [
+        { action: 'retry' as const, ...base, jobId: 'job-1' },
+        'retry',
+        { jobId: 'job-1', reason: base.reason },
+      ],
     ] as const;
     for (const [input, action, body] of cases)
       expect(nativeBillingCommandRequest(input)).toEqual({ action, body });
-    // Target-evidence/provider/rollout/rate actions and retry keep the retained
-    // platform-only TypeScript authority; the native client must not map them.
+    // The remaining target-evidence/provider/rollout/rate actions keep the
+    // retained TypeScript authority until their Holding-host cutovers land;
+    // the native client must not map them. `approve` is an invoice command.
     for (const action of [
       'verify-provider-cost',
       'verify-statement',
@@ -657,7 +663,6 @@ describe('native Billing transport', () => {
       'approve-target-extra',
       'approve-target-rollout',
       'rate-target',
-      'retry',
       'approve',
     ] as const)
       expect(

@@ -428,21 +428,18 @@ it("holds a Sandbox credential failure for explicit repair and resumes the origi
   const held = (await db.pool.query("SELECT * FROM billing_jobs WHERE id=$1", [failed.id])).rows[0];
   expect(held.attempts).toBe(1);
   expect(held.progress_json).toBe(failed.progress_json);
-  unavailable = false;
+  // `retry` is native-authoritative on the target Holding host: the retained
+  // command refuses it before opening a session. The native retry journey
+  // (owned job / legacy inbox requeue, ambiguous-operation guard, receipt
+  // replay and Holding-owner authority) is covered by
+  // rust-billing-postgres::retry_requeues_exactly_one_owned_job_or_legacy_event_and_replays_receipt.
   const retryKey = crypto.randomUUID(), retryVersion = (await f.get()).account!.version;
   const input: BillingInput = { action: "retry", reason: "Sandbox configuration repaired", version: retryVersion, jobId: failed.id };
-  const retry = () => billingCommand(db, f.admin, f.id, input, retryKey, stripe, "https://example.test", period.end_at + 60004);
-  expect(await retry()).toEqual(await retry());
-  await drainBilling({ ...env }, period.end_at + 60005, stripe);
-  const done = (await db.pool.query("SELECT * FROM billing_jobs WHERE id=$1", [failed.id])).rows[0];
-  expect(done).toMatchObject({ state: "done", attempts: 1, last_error: null });
-  expect(JSON.parse(done.progress_json).operationAt).toBe(period.end_at + 3);
-  const final = await f.get();
-  expect(final.invoices).toHaveLength(1);
-  expect(final.invoices[0]).toMatchObject({ id: failed.invoice_id, status: "open", total_satang: 50000 });
-  expect(f.stripe.calls.filter(call => call.path === "invoices")).toHaveLength(1);
-  expect(f.stripe.calls.find(call => call.path === "invoices")?.key).toBe(`erpx-invoice-${failed.invoice_id}`);
-  expect(final.audit.filter(event => event.action === "retry")).toHaveLength(1);
+  await expect(
+    billingCommand(db, f.admin, f.id, input, retryKey, stripe, "https://example.test", period.end_at + 60004),
+  ).rejects.toMatchObject({ code: "NATIVE_BILLING_REQUIRED" });
+  const stillHeld = (await db.pool.query("SELECT * FROM billing_jobs WHERE id=$1", [failed.id])).rows[0];
+  expect(stillHeld).toMatchObject({ state: "attention", attempts: 1, last_error: "STRIPE_AUTHENTICATION_REQUIRED" });
 });
 it("requires explicit consent and a card, handles withdrawal before issue, rejects cross-holding and legacy active enrollment", async () => {
   const f = await fixture();

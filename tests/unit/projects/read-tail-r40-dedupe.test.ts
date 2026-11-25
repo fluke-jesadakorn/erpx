@@ -200,7 +200,9 @@ describe('Projects read-tail r44 final-root projection family', () => {
     expect(rs).toContain('projects_rd_final_root_projects');
     expect(rs).toContain('SELECT \\"project_id\\",\\"user_id\\",\\"added_by\\",\\"created_at\\" FROM staff_project_members');
     expect(rs).toContain('SELECT \\"id\\",\\"company_id\\",\\"branch_id\\",\\"department_id\\",\\"title\\",\\"description\\",\\"owner_user_id\\",\\"version\\",\\"created_at\\",\\"updated_at\\",\\"lifecycle_status\\" FROM staff_projects');
-    expect(src('mod.rs')).toContain('pub(crate) mod native_read_sql;');
+    expect(src('mod.rs')).toContain('pub mod native_read_sql;');
+    expect(src('../public/mod.rs')).toContain('pub mod native_read_sql;');
+    expect(src('../public/native_read_sql.rs')).toContain('pub use crate::adapters::native_read_sql::*;');
   });
 
   test('retirement:ts-statements drops to 65 from the r43 BEFORE=66 baseline', () => {

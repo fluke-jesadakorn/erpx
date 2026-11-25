@@ -130,7 +130,7 @@ describe('operations read-tail r59 alias-qualified select-all head retirement', 
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(60);
+    expect(total).toBe(59);
     expect(total).toBeLessThan(65);
   });
 });

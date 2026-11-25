@@ -412,6 +412,29 @@ describe('native preventive-plan read transport',()=>{
   spy.mockResolvedValue(new Response(JSON.stringify({data:detailPayload,context:{...context,revision:8}}),{status:200,headers:{'content-type':'application/json'}}));
   await expect(preventivePlanDetail(actor,'plan')).rejects.toMatchObject({status:409,code:'WORK_CONTEXT_CHANGED'});
  });
+
+ it('keeps every preventive read module SQL-free and both consumers on the native surface',async()=>{
+  const {readFileSync}=await import('node:fs');
+  const root='../../../';
+  const native=[
+   'packages/server-maintenance/src/adapters/native-preventive-read.ts',
+   'packages/server-maintenance/src/public/native-preventive-read.ts',
+   'packages/server-maintenance/src/public/maintenance-preventive.ts',
+   'packages/server-maintenance/src/application/preventive-plan.ts',
+   'packages/server-maintenance/src/domain/preventive-plan.ts',
+   'packages/server-maintenance/src/domain/recurrence.ts',
+  ];
+  for(const path of native){
+   expect(readFileSync(new URL(`${root}${path}`,import.meta.url),'utf8')).not.toMatch(/\b(?:SELECT|INSERT|UPDATE|DELETE)\b/i);
+  }
+  expect(()=>readFileSync(new URL(`${root}packages/server-maintenance/src/adapters/preventive-plan.ts`,import.meta.url))).toThrow();
+  const workItems=readFileSync(new URL(`${root}packages/server-work_projection/src/adapters/work-items.ts`,import.meta.url),'utf8');
+  expect(workItems).toContain('public/native-preventive-read');
+  expect(workItems).toContain('preventivePlanWork(actor)');
+  const staff=readFileSync(new URL(`${root}packages/server-collaboration/src/adapters/staff-notifications.ts`,import.meta.url),'utf8');
+  expect(staff).toContain('preventivePlanDetail:');
+  expect(staff).toContain('public/native-preventive-read');
+ });
 });
 
 /** The downtime-evidence transport is a strict projection of the native GET:

@@ -52,9 +52,11 @@ export type NativeBillingCommandInput = Readonly<{
  * Exact retained-input to native-owner mapping for the Billing actions whose
  * native authority matches the retained contract. `cost`, `delete-cost` and
  * `complete-costs` use the owner `require_cost_command` gate, which requires
- * the same platform `platform_admin` actor. Every other action returns
- * `undefined`: their native target commands authorize the holding owner
- * instead, so they stay on the TypeScript command until that policy is decided.
+ * the same platform `platform_admin` actor. `retry` uses `require_target_command`
+ * (holding_owner): the Holding-host navigation default sends a Platform reviewer
+ * to the target Holding host before dispatch, preserving the retained authority.
+ * Every remaining action returns `undefined`: those native target commands also
+ * authorize the holding owner but their Holding-host cutovers have not landed.
  *
  * The owner request structs deny unknown fields, so this carries each accepted
  * field exactly once and never projects a subset.
@@ -97,6 +99,10 @@ export function nativeBillingCommandRequest(
           complete: input.complete ?? false,
         },
       };
+    // The native retry body is exactly {jobId, reason} (deny_unknown_fields);
+    // no optimistic version is carried into the owner command.
+    case "retry":
+      return { action: "retry", body: { jobId: input.jobId, reason: input.reason } };
     default:
       return undefined;
   }

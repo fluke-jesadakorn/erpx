@@ -163,9 +163,14 @@ export function BillingConsole({
   function holdingWorkspaceUrl(action: string) {
     if (!platform || !holding) return null;
     if (
-      !["cost", "delete-cost", "complete-costs", "approve", "void"].includes(
-        action,
-      )
+      ![
+        "cost",
+        "delete-cost",
+        "complete-costs",
+        "approve",
+        "void",
+        "retry",
+      ].includes(action)
     )
       return null;
     const here = holdingHostForHost(window.location.host);
@@ -182,8 +187,8 @@ export function BillingConsole({
   }
   async function command(action: string, fields: Record<string, unknown> = {}) {
     if (!data || !writable) return false;
-    // Cost review, approval and void are native-authoritative on the Holding's
-    // own host (the owner binds the session audience to that Host). A platform
+    // Cost review, approval, void and retry are native-authoritative on the
+    // Holding's own host (the owner binds the session audience to that Host). A platform
     // reviewer acting on another Holding is sent to that Holding's workspace
     // instead of opening a cross-Holding native call.
     const holdingWorkspace = holdingWorkspaceUrl(action);

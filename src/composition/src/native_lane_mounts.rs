@@ -532,6 +532,21 @@ pub fn mount(
         ).map_err(|_| "PRIVATE_API_FINANCE_LANE5_INVALID")?,
     );
 
+    // Finance lane 5B: record-details owned facts read.
+    router = router.merge(
+        erpx_server_finance::public::native_lane_5::record_facts_router_for_holdings(
+            config.holdings.iter().enumerate().map(|(i, holding)| {
+                (
+                    erpx_server_finance::public::native_lane_5::LaneTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                    },
+                    pools[i + 1].clone(),
+                )
+            }).collect(),
+        ).map_err(|_| "PRIVATE_API_FINANCE_LANE5_RECORD_FACTS_INVALID")?,
+    );
+
     // Finance lane 1: posting document preview reads. Requires the exact
     // registered Company per Holding; skip Holdings without a configured Company.
     let lane1_targets: Vec<_> = config

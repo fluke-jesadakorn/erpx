@@ -6,7 +6,7 @@ import type {PostgresDatabase} from '@erpx/server-runtime/public/runtime/postgre
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {billingHoldingFacts} from '@erpx/server-runtime/public/billing-holding-facts';
 import {createBillingService,type BillingRepository} from '@erpx/server-billing/application/billing';
-import type {BillingActor,BillingInput,BillingReceipt,BillingAccount,BillingEnrollment,BillingPeriod,BillingPlan,BillingInvoiceRow,BillingJobRow} from '@erpx/server-billing/domain/billing';
+import type {BillingActor,BillingInput,BillingReceipt,BillingAccount,BillingEnrollment,BillingPeriod,BillingPlan,BillingInvoiceRow} from '@erpx/server-billing/domain/billing';
 import type {BillingStripe} from '@erpx/server-billing/domain/stripe';
 import {calculateTargetBillingPeriod} from '@erpx/server-billing/adapters/billing-target';
 import {calculateTargetRolloutReadiness} from '@erpx/server-billing/adapters/billing-target-rollout';
@@ -92,9 +92,6 @@ targetPeriod:(value0,value1)=>c.query<BillingPeriod>(billingPeriodByEnrollmentSq
 insertTargetInvoice:(value0,value1,value2,value3,value4,value5,value6,value7)=>nativeBillingOwnerQuery(c, 'insert_target_invoice', [value0,value1,value2,value3,value4,value5,value6,value7]),
 approveTargetRating:(value0,value1,value2,value3,value4,value5)=>nativeBillingOwnerQuery(c, 'approve_target_rating', [value0,value1,value2,value3,value4,value5]),
 queueTargetIssue:(value0,value1,value2,value3)=>nativeBillingOwnerQuery(c, 'queue_target_issue', [value0,value1,value2,value3]),
-selectedJob:(value0,value1)=>c.query<BillingJobRow>(billingPointReadSql('*','billing_jobs','id=$1 AND holding_id=$2'),[value0,value1]),
-retryLegacyEvent:(value0,value1,value2)=>nativeBillingOwnerQuery(c, 'retry_legacy_event', [value0,value1,value2]),
-retryJob:(value0,value1)=>nativeBillingOwnerQuery(c, 'retry_job', [value0,value1]),
 incrementAccountVersion:(value0)=>nativeBillingOwnerQuery(c, 'increment_account_version', [value0]),
 recordCommandAudit:(value0,value1,value2,value3,value4,value5,value6)=>nativeBillingOwnerQuery(c, 'record_command_audit', [value0,value1,value2,value3,value4,value5,value6]),
 recordCommandReceipt:(value0,value1,value2,value3)=>nativeBillingOwnerQuery(c, 'record_command_receipt', [value0,value1,value2,value3]),

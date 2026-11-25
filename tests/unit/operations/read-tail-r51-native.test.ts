@@ -80,9 +80,9 @@ describe('operations read-tail r51 native read plans', () => {
     }
   });
 
-  it('grows the native allow-list from 17 to 22 kinds with no duplicate entry', async () => {
+  it('grows the native allow-list from 17 to 23 kinds with no duplicate entry', async () => {
     const native = await registry();
-    expect((native.match(/const READ_[A-Z_]+: NativeReadStatement/g) ?? [])).toHaveLength(22);
+    expect((native.match(/const READ_[A-Z_]+: NativeReadStatement/g) ?? [])).toHaveLength(23);
     for (const plan of plans) {
       expect(native.match(new RegExp(plan.rust, 'g'))).not.toBeNull();
     }
@@ -171,7 +171,7 @@ describe('operations read-tail r51 native read plans', () => {
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(60);
+    expect(total).toBe(59);
     expect(total).toBeLessThan(82);
   });
 });

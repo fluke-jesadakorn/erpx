@@ -52,16 +52,16 @@ pub fn read_statement(kind: &str) -> Option<&'static NativeReadStatement> {
     READS.iter().find(|statement| statement.kind == kind)
 }
 
-/// Canonical owner form of the universal projection head retired from the
-/// TypeScript read tail. The TS renderer `selectProjectionFrom` must reproduce
-/// this exact prefix; this crate records the native literal.
-fn projection_from_sql(columns: &str, relation: &str) -> String {
-    format!("SELECT {columns} FROM {relation}")
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Canonical owner form of the universal projection head retired from the
+    /// TypeScript read tail. The TS renderer `selectProjectionFrom` must
+    /// reproduce this exact prefix; this crate records the native literal.
+    fn projection_from_sql(columns: &str, relation: &str) -> String {
+        format!("SELECT {columns} FROM {relation}")
+    }
 
     #[test]
     fn read_plans_are_read_only_and_bounded() {

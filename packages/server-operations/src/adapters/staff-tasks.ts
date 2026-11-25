@@ -2,7 +2,7 @@ import{taskWorkState,canAttachTask}from '@erpx/server-operations/public/staff-ta
 export{taskWorkState,canAttachTask};
 import{nativeTaskReadRepository,taskSelect,taskAccess}from '@erpx/server-operations/adapters/staff-task-read';
 
-import { finalRootOwnerProjectionSources as filesProjectionSources } from "@erpx/server-files/public/final-root-owner-projection-sources";
+import { nativeOperationsReadAll, OPERATIONS_RD_TASK_DETAIL_ATTACHMENTS } from './native-operations-read';
 
 import { getProject } from "@erpx/server-projects/public/staff-projects";
 import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
@@ -54,9 +54,11 @@ function application(provided?: SqlDatabase, projectReadWhere='TRUE',workReadArg
         stageSaveTaskEffect() { throw new Error("NATIVE_STAFF_WORK_REQUIRED"); },
         stageSaveTaskEffect2() { throw new Error("NATIVE_STAFF_WORK_REQUIRED"); },
         readTaskDetailAttachments(id: string) {
-            return database.prepare(`SELECT id,original_name,bytes,media_type FROM (${filesProjectionSources.attachments}) attachments WHERE owner_type='staff_task' AND owner_id=? AND revoked_at IS NULL ORDER BY created_at`)
-                .bind(id)
-                .all<TaskDetail["attachments"][number]>();
+            return nativeOperationsReadAll<TaskDetail["attachments"][number]>(
+                OPERATIONS_RD_TASK_DETAIL_ATTACHMENTS,
+                [id],
+                database,
+            );
         },
         readTaskDetailDelegationHistory(...args) { return StaffTasksPeoplePayrollFacts(database).readTaskDetailDelegationHistory(...args); },
         };

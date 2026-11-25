@@ -169,7 +169,7 @@ describe('operations read-tail r55 EXISTS-head consolidation', () => {
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(60);
+    expect(total).toBe(59);
     expect(total).toBeLessThan(71);
   });
 });

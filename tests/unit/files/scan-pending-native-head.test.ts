@@ -40,7 +40,7 @@ describe('Files scan-pending bind witness is native-owned', () => {
     const rust = src('adapters/scan_pending_head.rs');
     expect(rust).toContain('include_str!("scan-pending-head-sources.json")');
     expect(rust).toContain('pub fn scan_pending_head()');
-    expect(rust).toContain('pub fn render_scan_pending()');
+    expect(rust).toContain('pub fn render_scan_pending(attachment_ref: &str)');
     expect(src('public/scan_pending_head.rs')).toContain('pub use crate::adapters::scan_pending_head::');
     expect(src('adapters/mod.rs')).toContain('pub mod scan_pending_head;');
     expect(src('public/mod.rs')).toContain('pub mod scan_pending_head;');

@@ -314,6 +314,20 @@ const READ_ATTACHMENT_OWNER_SCOPE: NativeReadStatement = NativeReadStatement {
     scope: "holding",
 };
 
+/// Native successor of the TypeScript task-detail attachment list read. The
+/// owner plans the exact composed literal (including the Files owner's closed
+/// attachments projection); the caller executes it on its open unit with the
+/// unchanged `[owner_id]` bind and consumes the same `.results` shape.
+pub const RD_TASK_DETAIL_ATTACHMENTS: &str = "operations_rd_task_detail_attachments";
+const SQL_TASK_DETAIL_ATTACHMENTS: &str =
+    "SELECT id,original_name,bytes,media_type FROM (SELECT \"id\",\"upload_id\",\"owner_type\",\"owner_id\",\"purpose\",\"object_key\",\"revision\",\"original_name\",\"media_type\",\"bytes\",\"checksum_sha256\",\"created_by\",\"legal_hold\",\"created_at\",\"revoked_at\",\"company_id\",\"detected_media_type\",\"source_state\",\"scanned_at\",\"scanner_definition_at\",\"preview_object_key\",\"preview_media_type\",\"preview_checksum_sha256\",\"preview_bytes\",\"destroyed_at\",\"legacy_sanitized_only\" FROM attachments) attachments WHERE owner_type='staff_task' AND owner_id=? AND revoked_at IS NULL ORDER BY created_at";
+const READ_TASK_DETAIL_ATTACHMENTS: NativeReadStatement = NativeReadStatement {
+    kind: RD_TASK_DETAIL_ATTACHMENTS,
+    sql: SQL_TASK_DETAIL_ATTACHMENTS,
+    bind_count: 1,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_TASK_PROJECTION_SOURCE,
     READ_APP_UPLOAD_TASK_STATE,
@@ -337,6 +351,7 @@ const READS: &[NativeReadStatement] = &[
     READ_WORKFLOW_DOCUMENT_PAGE,
     READ_WORK_TASK_REPLAY_RECEIPT,
     READ_ATTACHMENT_OWNER_SCOPE,
+    READ_TASK_DETAIL_ATTACHMENTS,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -722,7 +737,7 @@ mod tests {
 
     #[test]
     fn r51_registry_grows_by_four_read_kinds() {
-        assert_eq!(READS.len(), 22);
+        assert_eq!(READS.len(), 23);
         for kind in [
             RD_HANDOVER_RECOVERY_RECEIPT,
             RD_WORKFLOW_DOCUMENT_DETAIL,
@@ -746,5 +761,20 @@ mod tests {
         assert_eq!(read.scope, "holding");
         assert_eq!(READS.iter().filter(|r| r.kind == RD_ATTACHMENT_OWNER_SCOPE).count(), 1);
         assert!(is_read(RD_ATTACHMENT_OWNER_SCOPE));
+    }
+
+    #[test]
+    fn r11_task_detail_attachments_sql_matches_retired_typescript_literal() {
+        let read = read_statement(RD_TASK_DETAIL_ATTACHMENTS).expect("read kind");
+        assert_eq!(
+            read.sql,
+            "SELECT id,original_name,bytes,media_type FROM (SELECT \"id\",\"upload_id\",\"owner_type\",\"owner_id\",\"purpose\",\"object_key\",\"revision\",\"original_name\",\"media_type\",\"bytes\",\"checksum_sha256\",\"created_by\",\"legal_hold\",\"created_at\",\"revoked_at\",\"company_id\",\"detected_media_type\",\"source_state\",\"scanned_at\",\"scanner_definition_at\",\"preview_object_key\",\"preview_media_type\",\"preview_checksum_sha256\",\"preview_bytes\",\"destroyed_at\",\"legacy_sanitized_only\" FROM attachments) attachments WHERE owner_type='staff_task' AND owner_id=? AND revoked_at IS NULL ORDER BY created_at"
+        );
+        assert_eq!(read.sql.matches("SELECT ").count(), 2);
+        assert_eq!(read.bind_count, 1);
+        assert_eq!(read.sql.matches('?').count(), 1);
+        assert_eq!(read.scope, "holding");
+        assert_eq!(READS.iter().filter(|r| r.kind == RD_TASK_DETAIL_ATTACHMENTS).count(), 1);
+        assert!(is_read(RD_TASK_DETAIL_ATTACHMENTS));
     }
 }

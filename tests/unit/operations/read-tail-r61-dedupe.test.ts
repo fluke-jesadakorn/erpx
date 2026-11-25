@@ -94,7 +94,7 @@ describe('operations read-tail r61 jsonb image head retirement', () => {
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(60);
+    expect(total).toBe(59);
     expect(total).toBeLessThan(63);
   });
 });

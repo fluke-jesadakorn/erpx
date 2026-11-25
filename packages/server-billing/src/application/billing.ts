@@ -4,7 +4,7 @@ import {roundSatang} from "@erpx/feature-billing/lib/billing-target-pricing";
 import {monthBounds as targetMonthBounds} from "@erpx/feature-billing/lib/billing";
 import {stripeList,stripeUrl,testObject,type BillingStripe} from '@erpx/server-billing/domain/stripe';
 import {billingInput,type BillingActor,type BillingInput} from '@erpx/server-billing/domain/billing';
-import type {BillingReceipt,BillingAccount,BillingEnrollment,BillingPeriod,BillingPlan,BillingInvoiceRow,BillingJobRow,BillingPriceRow,BillingMeterRow,BillingViewFacts} from '@erpx/server-billing/domain/billing';
+import type {BillingReceipt,BillingAccount,BillingEnrollment,BillingPeriod,BillingPlan,BillingInvoiceRow,BillingPriceRow,BillingMeterRow,BillingViewFacts} from '@erpx/server-billing/domain/billing';
 import type {TargetBillingPeriodView} from '@erpx/server-billing/domain/target';
 import type {TargetRolloutReadiness} from '@erpx/server-billing/domain/target-rollout';
 export interface BillingRepository {recordRatingRun(value0:string,value1:string,value2:string,value3:string,value4:string,value5:string,value6:string,value7:string,value8:number|null,value9:string,value10:string,value11:number):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
@@ -72,9 +72,6 @@ targetPeriod(value0:string,value1:string | undefined):Promise<{rows:BillingPerio
 insertTargetInvoice(value0:string,value1:string,value2:string,value3:number|null,value4:string,value5:"manual"|"auto",value6:number,value7:string):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 approveTargetRating(value0:string,value1:string | undefined,value2:string,value3:number,value4:unknown,value5:string):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 queueTargetIssue(value0:string,value1:string,value2:string,value3:number):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
-selectedJob(value0:string | undefined,value1:string):Promise<{rows:BillingJobRow[];rowCount:number|null}>;
-retryLegacyEvent(value0:string | undefined,value1:number,value2:string):Promise<{rows:BillingAccount[];rowCount:number|null}>;
-retryJob(value0:string,value1:number):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 incrementAccountVersion(value0:string):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 recordCommandAudit(value0:string,value1:string,value2:string,value3:unknown,value4:unknown,value5:string,value6:number):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 recordCommandReceipt(value0:string,value1:string,value2:string,value3:number):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
@@ -99,11 +96,13 @@ export function createBillingService(ports:BillingPorts){function fail(code:stri
  * same closed/complete-period, CAS, receipt and issue/void outbox contract the
  * deleted TypeScript approval wrote.
  *
- * The target-evidence/provider/rollout/rate actions and `retry` are
- * deliberately absent: their native commands use `require_target_command`,
- * which authorizes the selected `holding_owner` and rejects platform
- * administrators — the inverse of the retained contract. They stay on the
- * TypeScript command until the owner decides that policy.
+ * `retry` also uses the native `require_target_command` gate. The retained
+ * platform-only contract is preserved by the Holding-host navigation safe
+ * default: a Platform reviewer is first navigated to the target Holding host,
+ * where the action is authorized as that Holding's `holding_owner`.
+ *
+ * The remaining target-evidence/provider/rollout/rate actions stay on the
+ * TypeScript command until their own Holding-host cutovers land.
  */
 const nativeActions = new Set<BillingInput["action"]>([
   "cost",
@@ -111,13 +110,13 @@ const nativeActions = new Set<BillingInput["action"]>([
   "complete-costs",
   "approve",
   "void",
+  "retry",
 ]);
 const adminActions = new Set([
   "cost",
   "delete-cost",
   "complete-costs",
   "revise-plan",
-  "retry",
   "assign-target",
   "verify-provider-cost",
   "verify-statement",
@@ -573,23 +572,6 @@ async function billingCommand(
         await c.insertTargetInvoice(invoiceId,holdingId,p.id,target.totalSatang,JSON.stringify(invoiceLines),a.payment_mode,now,actor.userId);
         await c.approveTargetRating(holdingId,input.targetMonth,actor.userId,now,input.reason,invoiceId);
         await c.queueTargetIssue(`issue-${invoiceId}`,holdingId,invoiceId,now);
-        break;
-      }
-      case "retry": {
-        const job = (
-          await c.selectedJob(input.jobId,holdingId)
-        ).rows[0];
-        if (!job) {
-          const event = await c.retryLegacyEvent(input.jobId,now,holdingId);
-          if (!event.rowCount) fail("JOB_MISSING", "Job not found.");
-          break;
-        }
-        if (job.last_error === "IDEMPOTENCY_WINDOW_EXPIRED")
-          fail(
-            "MANUAL_RECONCILIATION_REQUIRED",
-            "Reconcile the ambiguous Stripe operation before retrying. Do not create another invoice.",
-          );
-        await c.retryJob(job.id,now);
         break;
       }
     }
