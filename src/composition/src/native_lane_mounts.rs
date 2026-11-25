@@ -487,5 +487,125 @@ pub fn mount(
         .map_err(|_| "PRIVATE_API_COMMERCIAL_LANE37_INVALID")?,
     );
 
+    // Finance lane 3: invoice-line reads.
+    router = router.merge(
+        erpx_server_finance::public::native_lane_3::router_for_holdings(
+            config.holdings.iter().enumerate().map(|(i, holding)| {
+                (
+                    erpx_server_finance::public::native_lane_3::LaneTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                    },
+                    pools[i + 1].clone(),
+                )
+            }).collect(),
+        ).map_err(|_| "PRIVATE_API_FINANCE_LANE3_INVALID")?,
+    );
+
+    // Finance lane 4: reference-option reads.
+    router = router.merge(
+        erpx_server_finance::public::native_lane_4::router_for_holdings(
+            config.holdings.iter().enumerate().map(|(i, holding)| {
+                (
+                    erpx_server_finance::public::native_lane_4::LaneTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                    },
+                    pools[i + 1].clone(),
+                )
+            }).collect(),
+        ).map_err(|_| "PRIVATE_API_FINANCE_LANE4_INVALID")?,
+    );
+
+    // Finance lane 5: customer master reads.
+    router = router.merge(
+        erpx_server_finance::public::native_lane_5::router_for_holdings(
+            config.holdings.iter().enumerate().map(|(i, holding)| {
+                (
+                    erpx_server_finance::public::native_lane_5::LaneTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                    },
+                    pools[i + 1].clone(),
+                )
+            }).collect(),
+        ).map_err(|_| "PRIVATE_API_FINANCE_LANE5_INVALID")?,
+    );
+
+    // People & Payroll lane 8: app-entrypoint reads.
+    router = router.merge(
+        erpx_server_people_payroll::public::native_lane_8::router_for_holdings(
+            config.holdings.iter().enumerate().map(|(i, holding)| {
+                (
+                    erpx_server_people_payroll::public::native_lane_8::LaneTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                    },
+                    pools[i + 1].clone(),
+                )
+            }).collect(),
+        ).map_err(|_| "PRIVATE_API_PEOPLE_PAYROLL_LANE8_INVALID")?,
+    );
+
+    // Finance lane 2: overview company counts.
+    router = router.merge(
+        erpx_server_finance::public::native_lane_2::router_for_holdings(
+            config.holdings.iter().enumerate().map(|(i, holding)| {
+                (
+                    erpx_server_finance::public::native_lane_2::LaneTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                    },
+                    pools[i + 1].clone(),
+                )
+            }).collect(),
+        ).map_err(|_| "PRIVATE_API_FINANCE_LANE2_INVALID")?,
+    );
+
+    // People & Payroll lane 7: legacy people-access clock.
+    router = router.merge(
+        erpx_server_people_payroll::public::native_lane_7::router_for_holdings(
+            config.holdings.iter().enumerate().map(|(i, holding)| {
+                (
+                    erpx_server_people_payroll::public::native_lane_7::LaneTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                    },
+                    pools[i + 1].clone(),
+                )
+            }).collect(),
+        ).map_err(|_| "PRIVATE_API_PEOPLE_PAYROLL_LANE7_INVALID")?,
+    );
+
+    // Identity & Access lane 10: account invitation reads (Control database).
+    router = router.merge(
+        erpx_server_identity_access::public::native_lane_10::router_for_holdings(
+            config.holdings.iter().map(|holding| {
+                (
+                    erpx_server_identity_access::public::native_lane_10::LaneTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                    },
+                    pools[0].clone(),
+                )
+            }).collect(),
+        ).map_err(|_| "PRIVATE_API_IDENTITY_LANE10_INVALID")?,
+    );
+
+    // Collaboration lane 15: beta management facts.
+    router = router.merge(
+        erpx_server_collaboration::public::native_lane_15::router_for_holdings(
+            config.holdings.iter().enumerate().map(|(i, holding)| {
+                (
+                    erpx_server_collaboration::public::native_lane_15::LaneTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                    },
+                    pools[i + 1].clone(),
+                )
+            }).collect(),
+        ).map_err(|_| "PRIVATE_API_COLLABORATION_LANE15_INVALID")?,
+    );
+
     Ok(router)
 }

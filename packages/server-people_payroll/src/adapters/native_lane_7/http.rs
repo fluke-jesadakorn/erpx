@@ -94,20 +94,23 @@ fn bounded(body: serde_json::Value) -> Response {
     response
 }
 
-fn build(
-    reader: Arc<dyn LegacyPeopleClock>,
-    targets: Vec<LaneTarget>,
-) -> Result<Router, BusinessError> {
+/// Build the target map from a source per registered Holding. Every source gets
+/// its own reader, so a Holding never observes another Holding's pool.
+fn build_state<P>(
+    targets: Vec<(LaneTarget, P)>,
+    factory: impl Fn(P) -> Arc<dyn LegacyPeopleClock>,
+) -> Result<Arc<Lane7State>, BusinessError> {
     let mut configured = BTreeMap::new();
-    for target in targets {
-        if target.host.is_empty()
-            || !valid_slug(&target.holding_slug)
-            || configured
-                .insert(
-                    (target.host.clone(), target.holding_slug.clone()),
-                    reader.clone(),
-                )
-                .is_some()
+    for (target, source) in targets {
+        if target.host.is_empty() || !valid_slug(&target.holding_slug) {
+            return Err(domain::configuration_invalid());
+        }
+        if configured
+            .insert(
+                (target.host.clone(), target.holding_slug.clone()),
+                factory(source),
+            )
+            .is_some()
         {
             return Err(domain::configuration_invalid());
         }
@@ -115,17 +118,58 @@ fn build(
     if configured.is_empty() {
         return Err(domain::configuration_invalid());
     }
-    Ok(Router::new()
-        .route(ROUTE, get(next_transition))
-        .with_state(Arc::new(Lane7State {
-            targets: configured,
-        })))
+    Ok(Arc::new(Lane7State {
+        targets: configured,
+    }))
 }
 
-/// Build the native router over the owner pool. The lead mounts it; this lane
-/// never edits composition or another owner's router.
+fn router_from_state(state: Arc<Lane7State>) -> Router {
+    Router::new()
+        .route(ROUTE, get(next_transition))
+        .with_state(state)
+}
+
+fn reader_for(
+    state: &Lane7State,
+    host: &str,
+    slug: &str,
+) -> Result<Arc<dyn LegacyPeopleClock>, BusinessError> {
+    state
+        .targets
+        .get(&(host.to_owned(), slug.to_owned()))
+        .cloned()
+        .ok_or_else(missing)
+}
+
+fn build(
+    reader: Arc<dyn LegacyPeopleClock>,
+    targets: Vec<LaneTarget>,
+) -> Result<Router, BusinessError> {
+    let state = build_state(
+        targets
+            .into_iter()
+            .map(|target| (target, reader.clone()))
+            .collect(),
+        |reader| reader,
+    )?;
+    Ok(router_from_state(state))
+}
+
+/// Build the native router over one shared owner pool. The lead mounts it; this
+/// lane never edits composition or another owner's router.
 pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
     build(Arc::new(PgLegacyPeopleClock::new(pool)), targets)
+}
+
+/// Build the native router with one owner reader per registered Holding pool.
+/// Each `(host, holding_slug)` key resolves to that Holding's own reader, so a
+/// request can never cross a Holding boundary. Composition keeps `targets[i]`
+/// aligned with `pools[i + 1]`.
+pub fn router_for_holdings(
+    targets: Vec<(LaneTarget, DatabasePool)>,
+) -> Result<Router, BusinessError> {
+    let state = build_state(targets, |pool| Arc::new(PgLegacyPeopleClock::new(pool)))?;
+    Ok(router_from_state(state))
 }
 
 /// Injectable constructor used by owner-local tests and by alternative hosts.
@@ -145,10 +189,7 @@ async fn next_transition(
         let host = unique_header(request.headers(), header::HOST)?
             .filter(|host| !host.is_empty())
             .ok_or_else(missing)?;
-        let clock = state
-            .targets
-            .get(&(host.to_owned(), slug.clone()))
-            .ok_or_else(missing)?;
+        let clock = reader_for(&state, host, &slug)?;
         let company = unique_header(request.headers(), CONTEXT_COMPANY)?
             .filter(|value| domain::valid_id(value))
             .ok_or_else(domain::invalid_company)?;
@@ -235,6 +276,62 @@ mod tests {
                 ]
             )
             .is_ok()
+        );
+    }
+
+    struct TaggedClock(&'static str);
+    impl LegacyPeopleClock for TaggedClock {
+        fn next_transition<'a>(
+            &'a self,
+            _query: super::super::application::TransitionQuery,
+        ) -> super::super::application::TransitionFuture<
+            'a,
+            super::super::domain::LegacyPeopleTransition,
+        > {
+            let tag = self.0;
+            Box::pin(async move {
+                Ok(super::super::domain::LegacyPeopleTransition {
+                    deadline: if tag == "acme" { Some(11) } else { Some(22) },
+                })
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn two_holdings_route_to_distinct_readers() {
+        let first = LaneTarget {
+            host: "acme.jesadakorn.com".to_owned(),
+            holding_slug: "acme".to_owned(),
+        };
+        let second = LaneTarget {
+            host: "northstar.jesadakorn.com".to_owned(),
+            holding_slug: "northstar".to_owned(),
+        };
+        let state = build_state(vec![(first, "acme"), (second, "northstar")], |tag| {
+            Arc::new(TaggedClock(tag)) as Arc<dyn LegacyPeopleClock>
+        })
+        .expect("state");
+        let a = reader_for(&state, "acme.jesadakorn.com", "acme").expect("acme reader");
+        let b =
+            reader_for(&state, "northstar.jesadakorn.com", "northstar").expect("northstar reader");
+        assert!(!Arc::ptr_eq(&a, &b));
+        assert!(
+            reader_for(&state, "unknown.jesadakorn.com", "acme").is_err(),
+            "an unregistered host must fail closed"
+        );
+        assert_eq!(
+            application::read_next_transition(a.as_ref(), "acme", 1)
+                .await
+                .expect("acme read")
+                .deadline,
+            Some(11)
+        );
+        assert_eq!(
+            application::read_next_transition(b.as_ref(), "northstar", 1)
+                .await
+                .expect("northstar read")
+                .deadline,
+            Some(22)
         );
     }
 

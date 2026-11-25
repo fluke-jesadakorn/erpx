@@ -16,7 +16,7 @@ pub use domain::{
     LegacyPeopleTransition, READ_KIND, ROUTE, invalid_company, invalid_observed_at, unavailable,
     validate_company,
 };
-pub use http::{LaneTarget, router, router_with_reader};
+pub use http::{LaneTarget, router, router_for_holdings, router_with_reader};
 pub use postgres::{PgLegacyPeopleClock, SQL_LEGACY_PEOPLE_TRANSITION};
 
 #[cfg(test)]

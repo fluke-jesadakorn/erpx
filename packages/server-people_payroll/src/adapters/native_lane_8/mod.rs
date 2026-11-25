@@ -11,5 +11,5 @@ pub mod postgres;
 
 pub use application::{AppEntrypointRead, LaneReadFuture};
 pub use domain::{ApproverName, PayGroup, PersonOption, ReadKind, RosterShift};
-pub use http::{LaneTarget, router, router_with_reader};
+pub use http::{LaneTarget, router, router_for_holdings, router_with_reader};
 pub use postgres::{PgAppEntrypointRead, oracle, rendered_sql};
