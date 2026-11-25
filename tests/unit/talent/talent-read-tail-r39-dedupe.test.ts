@@ -84,7 +84,7 @@ describe('Talent read-tail r39 straggler projection-head family', () => {
 
   test('all eight named stragglers delegate to the r37 head', () => {
     const targets: Array<[string, number, number, string]> = [
-      ['attachment-read-sources.ts', 3, 1, "'./talent-read-tail-r37-sources'"],
+      ['attachment-read-sources.ts', 3, 0, "'./talent-read-tail-r37-sources'"],
       ['attachment-read.ts', 1, 0, "'./talent-read-tail-r37-sources'"],
       ['talent.ts', 3, 0, '"./talent-read-tail-r37-sources"'],
       ['metric-purchases.ts', 1, 0, "'./talent-read-tail-r37-sources'"],
@@ -95,7 +95,8 @@ describe('Talent read-tail r39 straggler projection-head family', () => {
       expect(text.match(/\bSELECT\b/g) ?? [], name).toHaveLength(literals);
       expect(text, name).toContain(`from ${specifier}`);
     }
-    expect(src('attachment-read-sources.ts')).toContain('EXISTS(SELECT 1 FROM talent_offers selected');
+    expect(src('attachment-read-sources.ts')).toContain('existsSourceWitness(');
+    expect(src('attachment-read-sources.ts')).not.toContain('EXISTS(SELECT 1 FROM talent_offers selected');
   });
 
   test('one universal head, locks, owner boundary and native reads stay untouched', () => {
