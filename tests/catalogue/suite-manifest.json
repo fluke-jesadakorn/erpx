@@ -3968,7 +3968,7 @@
       "lane": "unit",
       "owner": "billing",
       "modules": [
-        "billing"
+        "commercial"
       ],
       "fixture": "none",
       "requires": {
@@ -11583,7 +11583,7 @@
       "lane": "unit",
       "owner": "commerce",
       "modules": [
-        "commerce"
+        "commercial"
       ],
       "fixture": "none",
       "requires": {
@@ -11610,7 +11610,7 @@
       "lane": "unit",
       "owner": "commerce",
       "modules": [
-        "commerce"
+        "commercial"
       ],
       "fixture": "none",
       "requires": {
@@ -26280,7 +26280,7 @@
       "lane": "unit",
       "owner": "files",
       "modules": [
-        "files"
+        "commercial"
       ],
       "fixture": "none",
       "requires": {
@@ -26307,7 +26307,7 @@
       "lane": "unit",
       "owner": "files",
       "modules": [
-        "files"
+        "commercial"
       ],
       "fixture": "none",
       "requires": {
@@ -69704,6 +69704,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "organization",
+      "modules": [
+        "organization"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Organization member level history head must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-organization"
+      ],
+      "id": "organization.read-tail-r60-dedupe.unit",
+      "files": [
+        "tests/unit/organization/read-tail-r60-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "lane": "integration",
       "owner": "organization",
       "modules": [
@@ -86816,6 +86843,33 @@
       "id": "procurement.read-tail-r51-dedupe.unit",
       "files": [
         "tests/unit/procurement/read-tail-r51-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "procurement",
+      "modules": [
+        "procurement"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Procurement exists head must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-procurement"
+      ],
+      "id": "procurement.read-tail-r52-dedupe.unit",
+      "files": [
+        "tests/unit/procurement/read-tail-r52-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
@@ -125190,7 +125244,7 @@
       "lane": "unit",
       "owner": "workflow",
       "modules": [
-        "workflow"
+        "operations"
       ],
       "fixture": "none",
       "requires": {
