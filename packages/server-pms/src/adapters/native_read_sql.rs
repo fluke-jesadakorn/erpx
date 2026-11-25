@@ -114,6 +114,11 @@ pub const PMS_RD_NIGHT_COMMAND: &str = "pms_rd_night_command";
 /// caller's TypeScript unit.
 pub const PMS_RD_HOTEL_SOURCES: &str = "pms_rd_hotel_sources";
 pub const PMS_RD_HOUSEKEEPING_COMMAND: &str = "pms_rd_housekeeping_command";
+/// Native successor of the owner-local `sectionRelatedRecords` section-list read.
+/// The 4281-byte retired TypeScript template is expanded byte-identically here with
+/// 29 positional binds in the scout order. No lock, refund or ledger path; the caller
+/// runs it on its already-open unit and decodes rows with `decodePmsRecord`.
+pub const PMS_RD_SECTION_RELATED_RECORDS: &str = "pms_rd_section_related_records";
 const SQL_INVENTORY_COMMAND: &str = "SELECT id,kind,data_json,version,updated_at FROM pms_records \
 WHERE property_id=? AND kind IN ('room_type','room','rate','block','item','credit') \
 UNION ALL SELECT id,kind,data_json,version,updated_at FROM pms_records \
@@ -376,8 +381,16 @@ const READ_HOUSEKEEPING_COMMAND: NativeReadStatement = NativeReadStatement {
     sql: SQL_HOUSEKEEPING_COMMAND,
     bind_count: 4,
 };
+/// Retired TypeScript literal (`sectionRelatedRecords`) expanded byte-for-byte from
+/// fragments r24/r25/r26/r31/r35/r38/r42/r44/r45; 29 positional binds. No lock clause.
+const SQL_SECTION_RELATED_RECORDS: &str = "WITH chosen AS (\n   SELECT id,kind,data_json::jsonb data FROM pms_records WHERE property_id=? AND id IN (SELECT jsonb_array_elements_text(?::jsonb))\n ), guest_history AS (\n   SELECT id,data_json::jsonb data,row_number() OVER(PARTITION BY data_json::jsonb->>'guestId' ORDER BY data_json::jsonb->>'arrival' DESC,id) position\n   FROM pms_records WHERE property_id=? AND kind='stay' AND data_json::jsonb->>'guestId' IN (SELECT id FROM chosen WHERE kind='guest')\n ), stays AS (\n   SELECT id,data FROM chosen WHERE kind='stay'\n   UNION SELECT st.id,st.data FROM chosen account JOIN LATERAL (\n     SELECT id,data_json::jsonb data FROM pms_records WHERE property_id=? AND kind='stay'\n       AND data_json::jsonb->>'guestAccountId'=account.id OFFSET 0\n   ) st ON true WHERE account.kind='guest_account'\n   UNION SELECT id,data_json::jsonb data FROM pms_records WHERE property_id=? AND kind='stay' AND (\n     (data_json::jsonb->>'state'='in_house' AND ((? AND data_json::jsonb->>'roomId' IN (SELECT id FROM chosen WHERE kind='room')) OR ?))\n     OR (? AND ((data_json::jsonb->>'state'='reserved' AND data_json::jsonb->>'arrival'<=?) OR (data_json::jsonb->>'state'='in_house')))\n   ) UNION SELECT id,data FROM guest_history WHERE position<=20\n ), guestAccounts AS (SELECT id FROM chosen WHERE kind='guest_account' UNION SELECT data->>'guestAccountId' FROM stays UNION SELECT data->>'guestAccountId' FROM chosen),\n room_ids AS (SELECT id FROM chosen WHERE kind='room' UNION SELECT data->>'roomId' FROM stays UNION SELECT data->>'roomId' FROM chosen),\n recent_tasks AS (\n   SELECT id FROM pms_records WHERE property_id=? AND ? AND kind='task'\n     AND data_json::jsonb->>'roomId' IN (SELECT id FROM room_ids) AND data_json::jsonb->>'state' IN ('done','superseded')\n     ORDER BY updated_at DESC,id LIMIT 50\n ),\n inventory_recent AS (\n   SELECT id,kind,data_json::jsonb data FROM pms_records WHERE property_id=? AND ? AND (\n     (kind='lost' AND (data_json::jsonb->>'state'='stored' OR data_json::jsonb->>'foundDate' BETWEEN ? AND ?))\n     OR (kind='movement' AND data_json::jsonb->>'date' BETWEEN ? AND ?)\n   ) ORDER BY updated_at DESC,id LIMIT 50\n ), linked_ids AS (\n   SELECT id FROM chosen UNION SELECT id FROM stays UNION SELECT id FROM guestAccounts\n   UNION SELECT data->>'reservationId' FROM stays\n   UNION SELECT data->>'guestId' FROM stays UNION SELECT data->>'guestId' FROM chosen\n ), selected_records AS (\n SELECT id,kind,data_json,version,updated_at FROM pms_records WHERE property_id=?\n AND kind IN ('room','guest','room_type','rate','entry','refund','correction','task','block','shift','item','lost','movement') AND (\n   id IN (SELECT id FROM chosen) OR id IN (SELECT id FROM stays)\n   OR (kind='reservation' AND id IN (SELECT data->>'reservationId' FROM stays))\n   OR (kind='guest' AND id IN (SELECT data->>'guestId' FROM stays UNION SELECT data->>'guestId' FROM chosen))\n   OR (kind='room' AND (? OR id IN (SELECT id FROM room_ids)))\n   OR (kind='guest' AND ? AND id IN (SELECT id FROM pms_records WHERE property_id=? AND kind='guest' ORDER BY updated_at DESC,id LIMIT 50))\n   OR (kind IN ('room_type','rate') AND (? OR ? OR id IN (SELECT data->>'typeId' FROM stays UNION SELECT data->>'rateId' FROM stays)))\n   OR (kind='guest_account' AND id IN (SELECT id FROM guestAccounts))\n   OR (kind IN ('entry','refund','correction') AND data_json::jsonb->>'guestAccountId' IN (SELECT id FROM guestAccounts))\n   OR (kind='task' AND ? AND data_json::jsonb->>'roomId' IN (SELECT id FROM room_ids) AND (data_json::jsonb->>'state' NOT IN ('done','superseded') OR id IN (SELECT id FROM recent_tasks)))\n   OR (kind='block' AND ? AND data_json::jsonb->>'roomId' IN (SELECT id FROM room_ids) AND data_json::jsonb->>'state'='active')\n   OR (kind='shift' AND (? OR ?) AND (data_json::jsonb->>'state'='open' OR (? AND data_json::jsonb->>'state'='closed' AND (data_json::jsonb->>'variance')::bigint<>0)))\n   OR (kind='item' AND id IN (SELECT data->>'itemId' FROM inventory_recent WHERE kind='movement'))\n   OR id IN (SELECT id FROM inventory_recent)\n ) UNION SELECT related.* FROM linked_ids linked JOIN LATERAL (\n SELECT id,kind,data_json,version,updated_at FROM pms_records\n WHERE property_id=? AND id=linked.id OFFSET 0\n ) related ON true\n ) SELECT * FROM selected_records ORDER BY updated_at,id";
+const READ_SECTION_RELATED_RECORDS: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_SECTION_RELATED_RECORDS,
+    sql: SQL_SECTION_RELATED_RECORDS,
+    bind_count: 29,
+};
 
-const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG, READ_PENDING_HOTEL_TRANSFERS, READ_UNPOSTED_BOOKING_RECEIPTS, READ_UNPOSTED_COUNTER_RECEIPTS, READ_HOSPITALITY_SETUP_PROPERTIES, READ_ATTACHMENT_PROPERTY_IMAGE, READ_ATTACHMENT_RECORD_IMAGE, READ_DOCUMENT_RELATED_POSTINGS, READ_POS_GUEST_HOTELS, READ_POS_GUEST_CHOICES, READ_POS_STRIPE_PAYMENT, READ_POS_BOOKING_PAYMENT, READ_STRIPE_PAYMENT_BY_ID, READ_STRIPE_PAYMENT_BY_ID_COMPANY, READ_STRIPE_PAYMENT_PROPERTY, READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND];
+const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG, READ_PENDING_HOTEL_TRANSFERS, READ_UNPOSTED_BOOKING_RECEIPTS, READ_UNPOSTED_COUNTER_RECEIPTS, READ_HOSPITALITY_SETUP_PROPERTIES, READ_ATTACHMENT_PROPERTY_IMAGE, READ_ATTACHMENT_RECORD_IMAGE, READ_DOCUMENT_RELATED_POSTINGS, READ_POS_GUEST_HOTELS, READ_POS_GUEST_CHOICES, READ_POS_STRIPE_PAYMENT, READ_POS_BOOKING_PAYMENT, READ_STRIPE_PAYMENT_BY_ID, READ_STRIPE_PAYMENT_BY_ID_COMPANY, READ_STRIPE_PAYMENT_PROPERTY, READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
 pub fn is_read(kind: &str) -> bool {
@@ -783,5 +796,28 @@ ORDER BY id"
         }
         assert!(!is_read("pms_rd_hotel_sources_v2"));
         assert!(!is_read("pms_rd_housekeeping_command_v2"));
+    }
+
+    #[test]
+    fn section_related_records_read_matches_retired_typescript_literal() {
+        let read = read_statement(PMS_RD_SECTION_RELATED_RECORDS).expect("section related records read");
+        assert_eq!(read.kind, "pms_rd_section_related_records");
+        assert_eq!(read.sql.len(), 4281);
+        assert_eq!(read.sql.matches('?').count(), 29);
+        assert_eq!(read.bind_count, 29);
+        assert_eq!(read.sql.split("SELECT ").count() - 1, 45);
+        assert!(read.sql.starts_with("WITH chosen AS (\n   SELECT id,kind,data_json::jsonb data FROM pms_records WHERE property_id=? AND id IN (SELECT jsonb_array_elements_text(?::jsonb))"));
+        assert!(read.sql.ends_with(") SELECT * FROM selected_records ORDER BY updated_at,id"));
+        assert!(read.sql.contains("JOIN LATERAL"));
+        let upper = read.sql.to_ascii_uppercase();
+        assert!(!upper.contains("INSERT INTO"));
+        assert!(!upper.contains("DELETE FROM"));
+        assert!(!upper.contains("FOR UPDATE"));
+        assert!(!upper.contains("FOR SHARE"));
+        assert!(!upper.contains("LOCK TABLE"));
+        assert!(!upper.contains("PG_ADVISORY"));
+        assert!(is_read(read.kind));
+        assert!(!is_read("pms_rd_section_related_records_v2"));
+        assert_eq!(READS.len(), 33);
     }
 }

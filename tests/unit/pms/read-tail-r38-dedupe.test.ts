@@ -69,20 +69,6 @@ const ORIGINALS = [
     recomposed: PMS_STAY_SOURCE_PROJECTION_SQL + " AND (id IN (SELECT id FROM chosen) OR data_json::jsonb->>'reservationId' IN (SELECT id FROM reservations))),",
     routed: '${PMS_STAY_SOURCE_PROJECTION_SQL} AND (id IN (${pmsReservationRelationArmSql(\'chosenId\')})',
   },
-  {
-    file: 'adapters/pms/read-repository.ts',
-    full: SRC + "\n       AND data_json::jsonb->>'guestAccountId'=account.id OFFSET 0",
-    sha256: 'a89bc33ffa97c11781d6fc0955ae82c878eba33b79fa2c7c30c187352f66eaeb',
-    recomposed: PMS_STAY_SOURCE_PROJECTION_SQL + "\n       AND data_json::jsonb->>'guestAccountId'=account.id OFFSET 0",
-    routed: '${PMS_STAY_SOURCE_PROJECTION_SQL}\n       AND data_json::jsonb->>',
-  },
-  {
-    file: 'adapters/pms/read-repository.ts',
-    full: SRC + " AND (\n     (data_json::jsonb->>'state'='in_house' AND ((? AND data_json::jsonb->>'roomId' IN (SELECT id FROM chosen WHERE kind='room')) OR ?))",
-    sha256: '9e611e7412043b0595cf52f973044d6c14f8b02ca690c13fa76d2730eb26c3f6',
-    recomposed: PMS_STAY_SOURCE_PROJECTION_SQL + " AND (\n     (data_json::jsonb->>'state'='in_house' AND ((? AND data_json::jsonb->>'roomId' IN (SELECT id FROM chosen WHERE kind='room')) OR ?))",
-    routed: '${PMS_STAY_SOURCE_PROJECTION_SQL} AND (\n     (data_json::jsonb->>',
-  },
 ] as const;
 
 async function tsFiles(directory: URL): Promise<string[]> {
@@ -111,7 +97,7 @@ describe('pms read-tail r38 count/projection head dedupe', () => {
     expect(PMS_STAY_SOURCE_PROJECTION_SQL).toBe(SRC);
   });
 
-  it('recomposes all nine original SQL substrings byte-for-byte with unchanged binds', () => {
+  it('recomposes all retained original SQL substrings byte-for-byte with unchanged binds', () => {
     for (const oracle of ORIGINALS) {
       expect(sha256(oracle.full)).toBe(oracle.sha256);
       expect(oracle.recomposed).toBe(oracle.full);
@@ -119,7 +105,7 @@ describe('pms read-tail r38 count/projection head dedupe', () => {
     }
   });
 
-  it('routes all nine call sites through the shared heads and removes inline heads', async () => {
+  it('routes all remaining call sites through the shared heads and removes inline heads', async () => {
     for (const oracle of ORIGINALS) {
       // r41 folds the six home metric interpolations into its property-scope union.
       const file = oracle.file === 'adapters/pms/home.ts' ? 'adapters/pms-read-tail-r41-sql.ts' : oracle.file;
@@ -132,7 +118,8 @@ describe('pms read-tail r38 count/projection head dedupe', () => {
     expect(home.split(ACTIVE).length - 1).toBe(0);
     expect(home.split(STAY).length - 1).toBe(0);
     const rr = await src('adapters/pms/read-repository.ts');
-    expect(rr.split('${PMS_STAY_SOURCE_PROJECTION_SQL}').length - 1).toBe(3); // three related-record CTEs
+    expect(rr.split('${PMS_STAY_SOURCE_PROJECTION_SQL}').length - 1).toBe(1); // one remaining related-record CTE after r48
+    expect(rr).toContain('PMS_RD_SECTION_RELATED_RECORDS, [facts.propertyId, facts.seedsJson');
     expect(rr.split(SRC).length - 1).toBe(0);
   });
 
@@ -155,8 +142,8 @@ describe('pms read-tail r38 count/projection head dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(275);
-    expect(bare).toBe(277);
+    expect(spaced).toBe(258);
+    expect(bare).toBe(260);
     expect(spaced).toBeLessThan(323);
   });
 });

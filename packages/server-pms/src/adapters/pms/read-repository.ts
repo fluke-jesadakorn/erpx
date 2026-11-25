@@ -12,9 +12,8 @@ import { PMS_STAY_SOURCE_PROJECTION_SQL } from "../pms-read-tail-r38-sql";
 import { pmsGuestIdJoinSql } from "../pms-read-tail-r41-sql";
 import { PMS_ORDERED_RECORDS_TAIL_SQL, pmsStayExistsHeadSql } from "../pms-read-tail-r42-sql";
 import { pmsBookingEmailPendingSql } from "../pms-read-tail-r43-sql";
-import { pmsChosenKindUnionSql } from "../pms-read-tail-r44-sql";
 import { pmsChosenKindPointSql, pmsReservationRelationArmSql } from "../pms-read-tail-r45-sql";
-import { nativePmsReadAll, PMS_RD_INVENTORY_COMMAND } from "../native-pms-read";
+import { nativePmsReadAll, PMS_RD_INVENTORY_COMMAND, PMS_RD_SECTION_RELATED_RECORDS } from "../native-pms-read";
 import * as application from "@erpx/server-pms/application/read-repository";
 const stayPredicate = `(data_json::jsonb->>'state' IN ('reserved','in_house') OR
     data_json::jsonb->>'arrival'=? OR data_json::jsonb->>'departure'=?)`;
@@ -158,58 +157,8 @@ function repository(db: SqlDatabase): application.PmsReadRepository {
             fact24: boolean;
             nightView3: boolean;
             nightView4: boolean;
-        }) => db.prepare(`WITH chosen AS (
-   ${PMS_CHOSEN_RECORDS_SQL}
- ), guest_history AS (
-   SELECT id,data_json::jsonb data,row_number() OVER(PARTITION BY data_json::jsonb->>'guestId' ORDER BY data_json::jsonb->>'arrival' DESC,id) position
-   FROM pms_records WHERE property_id=? AND kind='stay' AND data_json::jsonb->>'guestId' IN (SELECT id FROM chosen WHERE kind='guest')
- ), stays AS (
-   SELECT id,data FROM chosen WHERE kind='stay'
-   UNION SELECT st.id,st.data FROM chosen account JOIN LATERAL (
-     ${PMS_STAY_SOURCE_PROJECTION_SQL}
-       AND data_json::jsonb->>'guestAccountId'=account.id OFFSET 0
-   ) st ON true WHERE account.kind='guest_account'
-   UNION ${PMS_STAY_SOURCE_PROJECTION_SQL} AND (
-     (data_json::jsonb->>'state'='in_house' AND ((? AND data_json::jsonb->>'roomId' IN (SELECT id FROM chosen WHERE kind='room')) OR ?))
-     OR (? AND ((data_json::jsonb->>'state'='reserved' AND data_json::jsonb->>'arrival'<=?) OR (data_json::jsonb->>'state'='in_house')))
-   ) UNION SELECT id,data FROM guest_history WHERE position<=20
- ), guestAccounts AS (${pmsChosenKindUnionSql('guest_account')}),
- room_ids AS (${pmsChosenKindUnionSql('room')}),
- recent_tasks AS (
-   ${PMS_RECORD_ID_PROPERTY_HEAD_SQL} AND ? AND kind='task'
-     AND data_json::jsonb->>'roomId' IN (SELECT id FROM room_ids) AND data_json::jsonb->>'state' IN ('done','superseded')
-     ORDER BY updated_at DESC,id LIMIT 50
- ),
- inventory_recent AS (
-   ${PMS_RECORD_POINT_PREFIX_SQL}? AND (
-     (kind='lost' AND (data_json::jsonb->>'state'='stored' OR data_json::jsonb->>'foundDate' BETWEEN ? AND ?))
-     OR (kind='movement' AND data_json::jsonb->>'date' BETWEEN ? AND ?)
-   ) ORDER BY updated_at DESC,id LIMIT 50
- ), linked_ids AS (
-   ${pmsReservationRelationArmSql('chosenId')} UNION ${pmsReservationRelationArmSql('staysId')} UNION ${pmsReservationRelationArmSql('guestAccountsId')}
-   UNION ${pmsReservationRelationArmSql('reservationIdStays')}
-   UNION ${pmsReservationRelationArmSql('guestIdStays')} UNION ${pmsReservationRelationArmSql('guestIdChosen')}
- ), selected_records AS (
- ${PMS_RECORDS_PROJECTION_PREFIX_SQL} WHERE property_id=?
- AND kind IN ('room','guest','room_type','rate','entry','refund','correction','task','block','shift','item','lost','movement') AND (
-   id IN (${pmsReservationRelationArmSql('chosenId')}) OR id IN (SELECT id FROM stays)
-   OR (kind='reservation' AND id IN (${pmsReservationRelationArmSql('reservationIdStays')}))
-   ${PMS_GUEST_STAYS_CHOSEN_MEMBER_SQL}
-   OR (kind='room' AND (? OR id IN (SELECT id FROM room_ids)))
-   OR (kind='guest' AND ? AND id IN (${PMS_RECORD_ID_PROPERTY_HEAD_SQL} AND kind='guest' ORDER BY updated_at DESC,id LIMIT 50))
-   OR (kind IN ('room_type','rate') AND (? OR ? OR id IN (${pmsChosenKindPointSql('typeIdStay')} UNION ${pmsChosenKindPointSql('rateIdStay')})))
-   OR (kind='guest_account' AND id IN (SELECT id FROM guestAccounts))
-   OR (kind IN ('entry','refund','correction') AND data_json::jsonb->>'guestAccountId' IN (SELECT id FROM guestAccounts))
-   OR (kind='task' AND ? AND data_json::jsonb->>'roomId' IN (SELECT id FROM room_ids) AND (data_json::jsonb->>'state' NOT IN ('done','superseded') OR id IN (SELECT id FROM recent_tasks)))
-   OR (kind='block' AND ? AND data_json::jsonb->>'roomId' IN (SELECT id FROM room_ids) AND data_json::jsonb->>'state'='active')
-   OR (kind='shift' AND (? OR ?) AND (data_json::jsonb->>'state'='open' OR (? AND data_json::jsonb->>'state'='closed' AND (data_json::jsonb->>'variance')::bigint<>0)))
-   OR (kind='item' AND id IN (SELECT data->>'itemId' FROM inventory_recent WHERE kind='movement'))
-   OR id IN (SELECT id FROM inventory_recent)
- ) UNION SELECT related.* FROM linked_ids linked JOIN LATERAL (
- ${PMS_RECORDS_PROJECTION_PREFIX_SQL}
- WHERE property_id=? AND id=linked.id OFFSET 0
- ) related ON true
- ) ${PMS_ORDERED_RECORDS_TAIL_SQL}`).bind(facts.propertyId, facts.seedsJson, facts.propertyId2, facts.propertyId3,facts.propertyId3, facts.roomView, facts.inventoryView, facts.nightView, facts.businessDate, facts.propertyId4, facts.roomView2, facts.propertyId5, facts.inventoryView2, facts.from, facts.to, facts.from2, facts.to2, facts.propertyId6, facts.inventoryView3, facts.inventoryView4, facts.propertyId7, facts.roomView3, facts.nightView2, facts.roomView4, facts.roomView5, facts.fact24, facts.nightView3, facts.nightView4,facts.propertyId6).all<PmsStoredRecord>().then(rows => rows.results.map(decodePmsRecord)),
+        }) => nativePmsReadAll<PmsStoredRecord>(PMS_RD_SECTION_RELATED_RECORDS, [facts.propertyId, facts.seedsJson, facts.propertyId2, facts.propertyId3, facts.propertyId3, facts.roomView, facts.inventoryView, facts.nightView, facts.businessDate, facts.propertyId4, facts.roomView2, facts.propertyId5, facts.inventoryView2, facts.from, facts.to, facts.from2, facts.to2, facts.propertyId6, facts.inventoryView3, facts.inventoryView4, facts.propertyId7, facts.roomView3, facts.nightView2, facts.roomView4, facts.roomView5, facts.fact24, facts.nightView3, facts.nightView4, facts.propertyId6], db)
+            .then(rows => rows.results.map(decodePmsRecord)),
         dashboard: (facts: {
             propertyId: string;
             date: string;

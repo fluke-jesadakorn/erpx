@@ -85,7 +85,7 @@ describe('pms read-tail r47 native read retirement', () => {
     expect(rust).toContain('const SQL_HOUSEKEEPING_COMMAND: &str = ' + JSON.stringify(HEAD.housekeeping) + ';');
     expect(rust).toContain('bind_count: 11,');
     expect(rust).toContain('bind_count: 4,');
-    expect(rust).toContain('READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND];');
+    expect(rust).toContain('READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS];');
   });
 
   it('routes both call sites through the native transport and removes the inline SQL', async () => {
@@ -161,15 +161,15 @@ describe('pms read-tail r47 native read retirement', () => {
     for (const body of bodies) expect(JSON.stringify(body)).not.toContain('SELECT');
   });
 
-  it('lowers the pms owner SELECT KPI from 283 to 275', async () => {
+  it('lowers the pms owner SELECT KPI from 283 to 258', async () => {
     let spaced = 0, bare = 0;
     for (const file of await tsFiles(dir)) {
       const text = await readFile(file, 'utf8');
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(275);
-    expect(bare).toBe(277);
+    expect(spaced).toBe(258);
+    expect(bare).toBe(260);
     expect(spaced).toBeLessThan(283);
     expect(bare).toBeLessThan(285);
   });

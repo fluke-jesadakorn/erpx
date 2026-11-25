@@ -99,15 +99,15 @@ describe('pms read-tail r46 two-column point read dedupe', () => {
     }
   });
 
-  it('lowers the pms owner SELECT KPI from 283 to 275', async () => {
+  it('lowers the pms owner SELECT KPI from 283 to 258', async () => {
     let spaced = 0, bare = 0;
     for (const file of await tsFiles(dir)) {
       const text = await readFile(file, 'utf8');
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(275);
-    expect(bare).toBe(277);
+    expect(spaced).toBe(258);
+    expect(bare).toBe(260);
     expect(spaced).toBeLessThan(286);
     expect(bare).toBeLessThan(288);
   });

@@ -139,18 +139,19 @@ describe('pms read-tail r45 relation-arm, point-head and join-anchor dedupe', ()
 
   it('routes every call site through the helpers and removes the inline heads', async () => {
     const rr = await src('adapters/pms/read-repository.ts');
-    expect(calls(rr, 'pmsReservationRelationArmSql')).toBe(12);
-    expect(calls(rr, 'pmsChosenKindPointSql')).toBe(4);
+    expect(calls(rr, 'pmsReservationRelationArmSql')).toBe(4); // r48 native port
+    expect(calls(rr, 'pmsChosenKindPointSql')).toBe(2); // r48 native port
     for (const k of [
       'armChosenReservation', 'armReservationIdChosen', 'armSelectedGuestAccount',
       'armReservationIdStays', 'armGuestIdStays', 'armGuestIdChosen',
       'pointGuestAccountStayAliased', 'pointTypeIdStay', 'pointRateIdStay', 'pointGuestAccountSelected',
     ] as const) expect(rr.split(HEAD[k]).length - 1, k).toBe(0);
-    // Arm order is preserved in the linked_ids union at the call site.
-    expect(rr).toContain("${pmsReservationRelationArmSql('chosenId')} UNION ${pmsReservationRelationArmSql('staysId')} UNION ${pmsReservationRelationArmSql('guestAccountsId')}");
-    expect(rr).toContain("UNION ${pmsReservationRelationArmSql('reservationIdStays')}\n   UNION ${pmsReservationRelationArmSql('guestIdStays')} UNION ${pmsReservationRelationArmSql('guestIdChosen')}");
+    // Remaining arm order is preserved at the operation-related call site; the
+    // section linked_ids union is now planned in Rust as one native kind.
+    expect(rr).toContain("reservations AS (${pmsReservationRelationArmSql('chosenReservationId')} UNION ${pmsReservationRelationArmSql('reservationIdChosen')})");
+    expect(rr).toContain('PMS_RD_SECTION_RELATED_RECORDS, [facts.propertyId, facts.seedsJson');
     // Binds and CTE/scoped tails stay at the call site.
-    expect(rr).toContain('.bind(facts.propertyId, facts.seedsJson, facts.propertyId2, facts.propertyId3,facts.propertyId3, facts.roomView');
+    expect(rr).toContain('[facts.propertyId, facts.seedsJson, facts.propertyId2, facts.propertyId3, facts.propertyId3, facts.roomView');
     expect(rr).toContain('.bind(facts.propertyId, facts.id, facts.propertyId2)');
 
     const mev = await src('adapters/executive-main-evidence-sources.ts');
@@ -177,7 +178,7 @@ describe('pms read-tail r45 relation-arm, point-head and join-anchor dedupe', ()
     }
   });
 
-  it('pins the per-family KPI deltas -3 / -2 / -1', async () => {
+  it('pins the per-family call-site totals after r48', async () => {
     const shared = await src(SHARED);
     const r1 = shared.slice(shared.indexOf('/** Rank 1'), shared.indexOf('/** Rank 2'));
     const r2 = shared.slice(shared.indexOf('/** Rank 2'), shared.indexOf('/** Rank 3'));
@@ -193,7 +194,7 @@ describe('pms read-tail r45 relation-arm, point-head and join-anchor dedupe', ()
       p += calls(text, 'pmsChosenKindPointSql');
       j += calls(text, 'pmsRecordPropertyJoinSql');
     }
-    expect([a - 9, p - 2, j - 5]).toEqual([3, 2, 1]);
+    expect([a, p, j]).toEqual([4, 2, 6]);
   });
 
   it('leaves locks, feature availability, native reads and r17-r44 helpers untouched', async () => {
@@ -209,15 +210,15 @@ describe('pms read-tail r45 relation-arm, point-head and join-anchor dedupe', ()
     }
   });
 
-  it('lowers the pms owner SELECT KPI from 283 to 275', async () => {
+  it('lowers the pms owner SELECT KPI from 283 to 258', async () => {
     let spaced = 0, bare = 0;
     for (const file of await tsFiles(dir)) {
       const text = await readFile(file, 'utf8');
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(275);
-    expect(bare).toBe(277);
+    expect(spaced).toBe(258);
+    expect(bare).toBe(260);
     expect(spaced).toBeLessThan(292);
     expect(bare).toBeLessThan(294);
   });

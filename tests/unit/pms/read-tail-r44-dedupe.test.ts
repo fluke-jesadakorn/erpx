@@ -99,11 +99,11 @@ describe('pms read-tail r44 chosen-kind, payment-union and lineage-anchor dedupe
 
   it('routes all call sites through the helpers and removes the inline heads', async () => {
     const rr = await src('adapters/pms/read-repository.ts');
-    expect(rr.split("pmsChosenKindUnionSql('guest_account')").length - 1).toBe(1);
-    expect(rr.split("pmsChosenKindUnionSql('room')").length - 1).toBe(1);
+    expect(rr.split("pmsChosenKindUnionSql('guest_account')").length - 1).toBe(0); // r48 native port
+    expect(rr.split("pmsChosenKindUnionSql('room')").length - 1).toBe(0); // r48 native port
     for (const k of ['chosenGuest', 'chosenRoom'] as const) expect(rr.split(HEAD[k]).length - 1).toBe(0);
-    expect(rr).toContain("guestAccounts AS (${pmsChosenKindUnionSql('guest_account')})");
-    expect(rr).toContain("room_ids AS (${pmsChosenKindUnionSql('room')})");
+    expect(rr).not.toContain("guestAccounts AS (${pmsChosenKindUnionSql('guest_account')})");
+    expect(rr).not.toContain("room_ids AS (${pmsChosenKindUnionSql('room')})");
     // Binds and CTE aliases stay at the site.
     expect(rr).toContain('.bind(facts.propertyId, facts.seedsJson, facts.propertyId2, facts.propertyId3');
 
@@ -145,15 +145,15 @@ describe('pms read-tail r44 chosen-kind, payment-union and lineage-anchor dedupe
     }
   });
 
-  it('lowers the pms owner SELECT KPI from 283 to 275', async () => {
+  it('lowers the pms owner SELECT KPI from 283 to 258', async () => {
     let spaced = 0, bare = 0;
     for (const file of await tsFiles(dir)) {
       const text = await readFile(file, 'utf8');
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(275);
-    expect(bare).toBe(277);
+    expect(spaced).toBe(258);
+    expect(bare).toBe(260);
     expect(spaced).toBeLessThan(299);
     expect(bare).toBeLessThan(301);
   });

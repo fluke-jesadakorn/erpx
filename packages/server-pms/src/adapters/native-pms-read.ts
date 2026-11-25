@@ -66,6 +66,11 @@ export const PMS_RD_NIGHT_COMMAND = 'pms_rd_night_command';
  * its own uncommitted state. The property lock read itself stays in the caller. */
 export const PMS_RD_HOTEL_SOURCES = 'pms_rd_hotel_sources';
 export const PMS_RD_HOUSEKEEPING_COMMAND = 'pms_rd_housekeeping_command';
+/** Native successor of the owner-local `sectionRelatedRecords` section-list read. The
+ * retired 17-token TypeScript template is expanded byte-identically in the Rust
+ * registry with 29 positional binds; no ledger/receipt/outbox and no lock or refund
+ * path. The caller runs it on its already-open unit. */
+export const PMS_RD_SECTION_RELATED_RECORDS = 'pms_rd_section_related_records';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'PMS_NATIVE_READ_UNAVAILABLE', 'The native PMS read service is unavailable.');

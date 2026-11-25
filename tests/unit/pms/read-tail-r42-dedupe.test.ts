@@ -71,7 +71,7 @@ describe('pms read-tail r42 stay-witness, correction-fact and order-tail dedupe'
     const rr = await src('adapters/pms/read-repository.ts');
     expect(rr.split("pmsStayExistsHeadSql('roomId')").length - 1).toBe(1);
     expect(rr.split("pmsStayExistsHeadSql('reservationId')").length - 1).toBe(1);
-    expect(rr.split('${PMS_ORDERED_RECORDS_TAIL_SQL}').length - 1).toBe(2);
+    expect(rr.split('${PMS_ORDERED_RECORDS_TAIL_SQL}').length - 1).toBe(1); // one after r48
     expect(rr.split(HEAD.stayRoom).length - 1).toBe(0);
     expect(rr.split(HEAD.stayReservation).length - 1).toBe(0);
     expect(rr.split(HEAD.orderedRecords).length - 1).toBe(0);
@@ -80,7 +80,7 @@ describe('pms read-tail r42 stay-witness, correction-fact and order-tail dedupe'
     expect(rr).toContain("AND ((st.data_json::jsonb->>'arrival'<=? AND st.data_json::jsonb->>'departure'>=?) OR st.data_json::jsonb->>'state'='in_house')) END)");
     expect(rr).toContain('.bind(facts.propertyId,facts.status,facts.status');
     expect(rr).toContain('.bind(facts.propertyId, facts.kind, facts.status, facts.status2');
-    expect(rr).toContain('facts.nightView4,facts.propertyId6).all<PmsStoredRecord>()');
+    expect(rr).toContain('facts.fact24, facts.nightView3, facts.nightView4, facts.propertyId6], db');
 
     const addon = await src('adapters/addon-package-obligations.ts');
     expect(addon.split('${PMS_CORRECTION_FACT_HEAD_SQL}').length - 1).toBe(1);
@@ -127,8 +127,8 @@ describe('pms read-tail r42 stay-witness, correction-fact and order-tail dedupe'
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(275);
-    expect(bare).toBe(277);
+    expect(spaced).toBe(258);
+    expect(bare).toBe(260);
     expect(spaced).toBeLessThan(302);
   });
 });

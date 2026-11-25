@@ -25,7 +25,6 @@ const ORIGINAL_HEADS = [
 const TAILS = [
   ' AND kind=?',
   " AND kind='block'",
-  " AND ? AND kind='task'",
   " AND kind='guest' ORDER BY updated_at DESC,id LIMIT 50",
   ' AND kind=? ${eligible}',
 ];
@@ -61,10 +60,10 @@ describe('pms read-tail r35 point-read head dedupe', () => {
     }
   });
 
-  it('routes all five read-repository heads through the constant', async () => {
+  it('routes the remaining read-repository heads through the constant', async () => {
     const text = await src('adapters/pms/read-repository.ts');
     expect(text.split(HEAD).length - 1).toBe(0);
-    expect(text.split('PMS_RECORD_ID_PROPERTY_HEAD_SQL').length - 1).toBe(6); // import + 5 uses
+    expect(text.split('PMS_RECORD_ID_PROPERTY_HEAD_SQL').length - 1).toBe(4); // import + 3 uses after r48
     for (const tail of TAILS) expect(text).toContain('${PMS_RECORD_ID_PROPERTY_HEAD_SQL}' + tail);
   });
 
@@ -94,8 +93,8 @@ describe('pms read-tail r35 point-read head dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(275);
-    expect(bare).toBe(277);
+    expect(spaced).toBe(258);
+    expect(bare).toBe(260);
     expect(spaced).toBeLessThan(337);
   });
 });

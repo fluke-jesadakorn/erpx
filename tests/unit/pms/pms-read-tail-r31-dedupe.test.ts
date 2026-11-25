@@ -73,7 +73,7 @@ describe('pms read-tail r31 closed-family dedupe', () => {
   it('routes setup/eligibility probes and point projections through shared SQL', async () => {
     const text = await src(REPO);
     expect(text.split('pmsSetupExistsSql').length - 1).toBe(5); // import + 4 uses
-    expect(text.split('PMS_RECORD_POINT_PREFIX_SQL').length - 1).toBe(3); // import + 2 uses
+    expect(text.split('PMS_RECORD_POINT_PREFIX_SQL').length - 1).toBe(2); // import + 1 use after r48
     expect(text).not.toContain("EXISTS(SELECT 1 FROM pms_records WHERE property_id=? AND kind='room_type')");
     expect(text).not.toContain("EXISTS(SELECT 1 FROM pms_records WHERE property_id=? AND kind='stay')");
     expect(text).not.toContain('SELECT id,kind,data_json::jsonb data FROM pms_records WHERE property_id=? AND');
@@ -118,8 +118,8 @@ describe('pms read-tail r31 closed-family dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(275);
-    expect(bare).toBe(277);
+    expect(spaced).toBe(258);
+    expect(bare).toBe(260);
     expect(spaced).toBeLessThan(358);
     expect(bare).toBeLessThan(360);
   });
