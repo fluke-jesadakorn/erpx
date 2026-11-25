@@ -78,7 +78,7 @@ describe('maintenance read-tail r29 descriptor-head delegation', () => {
     }
   });
 
-  it('retirement:ts-statements stays strictly below the r29 BEFORE=20 baseline', async () => {
+  it('retirement:ts-statements stays strictly below the r30 BEFORE=19 baseline', async () => {
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -88,7 +88,7 @@ describe('maintenance read-tail r29 descriptor-head delegation', () => {
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(19);
-    expect(total).toBeLessThan(20);
+    expect(total).toBe(18);
+    expect(total).toBeLessThan(19);
   });
 });

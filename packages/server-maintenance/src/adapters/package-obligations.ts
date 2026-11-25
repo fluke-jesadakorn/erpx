@@ -7,13 +7,14 @@ import {assertAssetPackageObligationSources,assetPackageSettlementSources as ass
 import {maintenanceSettlementConsumptions,maintenanceSettlementInventoryReadLocks} from "@erpx/server-inventory/public/maintenance-settlement-sources";
 import {existsGuardPrefix,projectionLookup} from "./projection-lookup";
 import {settlementRefSource} from "./asset-settlement-refs";
+import {aliasRowsSql} from "./read-tail-r30-alias-rows";
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};const sources=new WeakMap<SqlDatabase,string>();
 /** Canonical owner-local Work/Plan source image for Maintenance package settlement.
  * Both callers share this one fixed statement so the TS read tail carries no
  * duplicate literal. Callers pass only owner-owned relation and alias fragments;
  * no request SQL or relation name is accepted. */
 const ownerSourceSql = (table:string,alias:string) =>
-  `SELECT ${alias}.*,COALESCE(asset.source_valid AND asset.branch_id=${alias}.branch_id AND asset.department_id IS NOT DISTINCT FROM ${alias}.department_id,false) source_valid FROM ${table} ${alias} LEFT JOIN (${assets.assets}) asset ON asset.id=${alias}.asset_id AND asset.company_id=${alias}.company_id`;
+  aliasRowsSql(alias,`,COALESCE(asset.source_valid AND asset.branch_id=${alias}.branch_id AND asset.department_id IS NOT DISTINCT FROM ${alias}.department_id,false) source_valid FROM ${table} ${alias} LEFT JOIN (${assets.assets}) asset ON asset.id=${alias}.asset_id AND asset.company_id=${alias}.company_id`);
 const work=ownerSourceSql("maintenance_work_orders","work"),plans=ownerSourceSql("maintenance_preventive_plans","plan");
 /** Canonical owner-local full-row read shared by the occurrence and work-event
  * settlement sources. Callers pass only an owner-fixed table from the closed
@@ -30,7 +31,7 @@ const workSourceExists=(source:string,alias:string,column:string)=>`${existsGuar
  * of the package-obligations facts read. Callers pass only an owner-fixed alias,
  * a closed source relation and a fixed scope predicate, never request-authored
  * SQL; each composed CTE stays byte-identical to its pre-dedupe literal. */
-export const scopedSourceCte=(alias:"work"|"plan",source:string,extra:string)=>`SELECT ${alias}.* FROM (${source}) ${alias},scope WHERE ${alias}.company_id=scope.company_id AND ${extra}`;
+export const scopedSourceCte=(alias:"work"|"plan",source:string,extra:string)=>aliasRowsSql(alias,` FROM (${source}) ${alias},scope WHERE ${alias}.company_id=scope.company_id AND ${extra}`);
 /** Canonical owner-local fact-row projection shared by the Work, Plan and
  * occurrence branches of the package-obligations facts UNION. Every row selects
  * a fixed kind discriminator, an owner-fixed fact projection and a closed scope

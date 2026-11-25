@@ -48,8 +48,9 @@ describe('maintenance read-tail r28 fact-row delegation', () => {
     expect(source).toContain('import {settlementRefSource} from "./asset-settlement-refs"');
     expect(source.split('factRow(').length - 1).toBe(3);
     expect(source).not.toContain('`SELECT ${kind},${columns} FROM ${from}`');
-    // ownerSourceSql, scopedSourceCte and the WITH scope point read remain.
-    expect(source.match(/SELECT/g)).toHaveLength(3);
+    // ownerSourceSql, scopedSourceCte and the WITH scope point read remain;
+    // r30 routes the first two through the shared alias-row head (3 -> 1).
+    expect(source.match(/SELECT/g)).toHaveLength(1);
     expect(source).toContain('${factRow("\'work\' kind"');
     expect(source).toContain('${factRow("\'preventive-plan\'"');
     expect(source).toContain('${factRow("\'occurrence\'"');
@@ -76,7 +77,7 @@ describe('maintenance read-tail r28 fact-row delegation', () => {
     }
   });
 
-  it('retirement:ts-statements stays strictly below the r28 BEFORE=21 baseline', async () => {
+  it('retirement:ts-statements stays strictly below the r30 BEFORE=19 baseline', async () => {
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -86,7 +87,7 @@ describe('maintenance read-tail r28 fact-row delegation', () => {
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(19);
-    expect(total).toBeLessThan(20);
+    expect(total).toBe(18);
+    expect(total).toBeLessThan(19);
   });
 });

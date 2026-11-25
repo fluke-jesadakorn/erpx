@@ -526,7 +526,7 @@ describe('Maintenance package settlement source fixed SQL',()=>{
   // head into existsGuardPrefix (6 -> 5); r26 delegated settlementEventRows to
   // settlementRefSource (5 -> 4); r28 delegated factRow to settlementRefSource
   // (4 -> 3).
-  expect(source.match(/SELECT/g)).toHaveLength(3);
+  expect(source.match(/SELECT/g)).toHaveLength(1);
   expect(count(source,'SELECT work.*,COALESCE')).toBe(0);
   expect(count(source,'SELECT plan.*,COALESCE')).toBe(0);
   expect(source).toContain('ownerSourceSql("maintenance_work_orders","work")');
@@ -579,7 +579,7 @@ describe('Maintenance settlement event row fixed SQL',()=>{
   expect(source.match(/SELECT \* FROM/g)??[]).toHaveLength(0);
   // r10 shared the two upstream-source EXISTS witnesses (11 -> 10); r15 shared
   // the two MATERIALIZED scoped CTEs through scopedSourceCte (10 -> 9).; r16 moved the asset-version lookup into projectionLookup (9 -> 8); r20 shared the three facts UNION rows through factRow (8 -> 6); r22 folded the EXISTS head into existsGuardPrefix (6 -> 5); r26 delegated settlementEventRows to settlementRefSource (5 -> 4); r28 delegated factRow to settlementRefSource (4 -> 3).
-  expect(source.match(/SELECT/g)).toHaveLength(3);
+  expect(source.match(/SELECT/g)).toHaveLength(1);
   expect(source).not.toContain('occurrences:"SELECT * FROM maintenance_preventive_occurrences"');
   expect(source).not.toContain('workEvents:"SELECT * FROM maintenance_work_events"');
   expect(source).toContain('settlementEventRows("maintenance_preventive_occurrences")');
@@ -608,7 +608,7 @@ describe('Maintenance upstream source witness fixed SQL',()=>{
    expect(source.match(/EXISTS\(SELECT 1 FROM/g)??[]).toHaveLength(0);
    // r16 moved the asset-version lookup into projectionLookup (9 -> 8); r20 shared the three facts UNION rows through factRow (8 -> 6);
    // r22 folded this EXISTS head into the shared existsGuardPrefix (6 -> 5); r26 delegated settlementEventRows to settlementRefSource (5 -> 4); r28 delegated factRow to settlementRefSource (4 -> 3).
-   expect(source.match(/SELECT/g)).toHaveLength(3);
+   expect(source.match(/SELECT/g)).toHaveLength(1);
    expect(source).toContain('`${existsGuardPrefix(`${source} ${alias}`)}${alias}.${column}=work.id)`');
    expect(source).not.toContain('EXISTS(SELECT 1 FROM maintenance_preventive_occurrences occurrence');
    expect(source).not.toContain('EXISTS(SELECT 1 FROM (${maintenanceSettlementConsumptions}) part');
@@ -631,7 +631,8 @@ describe('Maintenance scoped source CTE fixed SQL',()=>{
    const {readFile}=await import('node:fs/promises');
    const source=await readFile(new URL(file,import.meta.url),'utf8');
    expect(source.match(/export const scopedSourceCte=/g)).toHaveLength(1);
-   expect(source).toContain('export const scopedSourceCte=(alias:"work"|"plan",source:string,extra:string)=>`SELECT ${alias}.* FROM (${source}) ${alias},scope WHERE ${alias}.company_id=scope.company_id AND ${extra}`;');
+   // r30 folds the alias-qualified row head into the shared aliasRowsSql renderer.
+   expect(source).toContain('export const scopedSourceCte=(alias:"work"|"plan",source:string,extra:string)=>aliasRowsSql(alias,` FROM (${source}) ${alias},scope WHERE ${alias}.company_id=scope.company_id AND ${extra}`);');
    expect(source.match(/MATERIALIZED\(\$\{scopedSourceCte\(/g)).toHaveLength(2);
    expect(source).not.toContain('MATERIALIZED(SELECT work.* FROM (${work}) work,scope');
    expect(source).not.toContain('MATERIALIZED(SELECT plan.* FROM (${plans}) plan,scope');
@@ -720,7 +721,7 @@ describe('Maintenance record-image fixed SQL',()=>{
   }
  });
 
- it('retirement:ts-statements stays strictly below the r28 BEFORE=21 baseline',async()=>{
+ it('retirement:ts-statements stays strictly below the r30 BEFORE=19 baseline',async()=>{
   const {readdirSync,readFileSync}=await import('node:fs');
   const {resolve}=await import('node:path');
   let total=0;
@@ -733,8 +734,8 @@ describe('Maintenance record-image fixed SQL',()=>{
    }
   };
   walk(srcRoot);
-  expect(total).toBe(19);
-  expect(total).toBeLessThan(20);
+  expect(total).toBe(18);
+  expect(total).toBeLessThan(19);
  });
 });
 
@@ -1035,8 +1036,10 @@ describe('Maintenance facts UNION fact-row fixed SQL',()=>{
   // the owner read-tail total is 32 -> 30 (strictly below BEFORE=32); r26
   // delegated settlementEventRows to settlementRefSource (this file 5 -> 4,
   // owner total 23 -> 22, strictly below BEFORE=23); r28 delegated factRow to
-  // settlementRefSource (this file 4 -> 3, owner total 21 -> 20, below BEFORE=21).
-  expect(source.match(/SELECT/g)).toHaveLength(3);
+  // settlementRefSource (this file 4 -> 3, owner total 21 -> 20, below BEFORE=21);
+  // r30 folds the Work/Plan alias-qualified row head into aliasRowsSql (this file
+  // 3 -> 1, owner total 19 -> 18, below BEFORE=19).
+  expect(source.match(/SELECT/g)).toHaveLength(1);
   // The owner lock and the scope CTE stay untouched; no write/row-lock introduced.
   expect(source).toContain('LOCK TABLE maintenance_work_orders,maintenance_work_events,maintenance_preventive_plans,maintenance_preventive_events,maintenance_preventive_occurrences IN SHARE MODE');
   expect(source).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|pg_advisory/i);
