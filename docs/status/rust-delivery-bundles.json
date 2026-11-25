@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12819,
+    "revision": 12821,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -187243,7 +187243,7 @@
         "owner": "collaboration",
         "title": "collaboration read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -187254,22 +187254,37 @@
         "resources": [
           "owner:collaboration"
         ],
-        "claim": {
-          "runId": "run-20261125-d",
-          "agentId": "wH4n175",
-          "claimedAt": "2026-11-25T00:43:40.130Z",
-          "heartbeatAt": "2026-11-25T01:02:20.441Z",
-          "expiresAt": "2026-11-25T01:32:20.441Z",
-          "generation": 174
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-collaboration/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "adbb6cf54",
+            "owner": "collaboration",
+            "before": 344,
+            "after": 338,
+            "note": "Completed missing r44 helpers plus operationsSourceExists; renders byte-identical, agent-reply locks/inbox untouched. Vitest 176."
+          },
+          {
+            "command": "targeted vitest + scoped tsc",
+            "result": "passed",
+            "sourceSha": "adbb6cf54"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Notification/outbox repeated heads (-3): 341->338. BEFORE=341.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n175",
+          "at": "2026-11-25T01:05:39.410Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -187908,17 +187923,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 7,
+        "in_progress": 6,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1523,
+        "blocked": 1524,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 174,
-    "updatedAt": "2026-11-25T01:05:01.051Z",
+    "updatedAt": "2026-11-25T01:05:39.414Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
