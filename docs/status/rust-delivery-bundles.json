@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 13788,
+    "revision": 13814,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261125-g",
       "agentId": "lead",
       "startedAt": "2026-11-25T13:28:24.118Z",
-      "heartbeatAt": "2026-11-25T15:21:43.251Z",
-      "expiresAt": "2026-11-25T15:51:43.251Z",
+      "heartbeatAt": "2026-11-25T15:29:43.156Z",
+      "expiresAt": "2026-11-25T15:59:43.156Z",
       "generation": 177,
       "tokenHash": "58dfe8b75da5fd46cf77c2d0cb6291dea94bb80da105d8ed790ca1a07326d35d"
     },
@@ -15935,8 +15935,15 @@
         "resources": [
           "owner:commerce"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-commerce",
+          "claimedAt": "2026-11-25T15:29:57.942Z",
+          "heartbeatAt": "2026-11-25T15:29:57.942Z",
+          "expiresAt": "2026-11-25T15:59:57.942Z",
+          "generation": 177
+        },
         "baseSha": "0807b7d6ff9921cac319f5bc37fb02233edcbb52",
         "implementedCommit": "c72232bb04d975affe8c46c2a2cddc1f8d98b3fc",
         "lastPushedSha": "c72232bb04d975affe8c46c2a2cddc1f8d98b3fc",
@@ -16009,7 +16016,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Read-only worker review at be30e2e27; no runtime test rerun. Verify native receipt route authority at HEAD and rerun scoped receipt HTTP checks before recording cutover.",
         "handoff": {
           "runId": "run-20261123-codex",
@@ -46278,8 +46285,15 @@
         "resources": [
           "owner:inventory"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-inventory",
+          "claimedAt": "2026-11-25T15:29:58.730Z",
+          "heartbeatAt": "2026-11-25T15:29:58.730Z",
+          "expiresAt": "2026-11-25T15:59:58.730Z",
+          "generation": 177
+        },
         "baseSha": null,
         "implementedCommit": "dd21deee7821a157528a8d6186deb0539a90cb30",
         "lastPushedSha": "dd21deee7821a157528a8d6186deb0539a90cb30",
@@ -46307,7 +46321,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "released with work preserved",
+        "blocker": null,
         "nextAction": "Blocker: retirement:ts-statements deferred to next inventory retirement task (retire.inventory). No writer change; test suite 1 passed, 76 skipped. Public fail-closed exports already dropped.",
         "handoff": {
           "runId": "run-20261114-c",
@@ -54877,8 +54891,15 @@
           "owner:files",
           "resource:composition"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-brand",
+          "claimedAt": "2026-11-25T15:29:24.167Z",
+          "heartbeatAt": "2026-11-25T15:29:43.156Z",
+          "expiresAt": "2026-11-25T15:59:43.156Z",
+          "generation": 177
+        },
         "baseSha": "89bc7d952fa849d4a3955cf1c626ea2d640a3e59",
         "implementedCommit": "8d71a830a618fe647e40dffaf92ee55c423b6821",
         "lastPushedSha": "8d71a830a618fe647e40dffaf92ee55c423b6821",
@@ -55025,7 +55046,7 @@
             "removalCondition": "Steps now emit nativeWrite descriptors; retained orchestration stays. Nothing further to remove here."
           }
         ],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Publication switch already landed (8d71a830a). Remaining tail: lane verification with a real session only.",
         "handoff": {
           "runId": "run-20261123-d",
@@ -111515,8 +111536,15 @@
           "packages/server-commercial/src/adapters/package-grants.ts",
           "tests/unit/collaboration/**"
         ],
-        "blocker": "released with work preserved",
-        "claim": null,
+        "blocker": null,
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-collaboration",
+          "claimedAt": "2026-11-25T15:29:57.808Z",
+          "heartbeatAt": "2026-11-25T15:29:57.808Z",
+          "expiresAt": "2026-11-25T15:59:57.808Z",
+          "generation": 177
+        },
         "dependsOn": [
           "ports.common"
         ],
@@ -111542,7 +111570,7 @@
         "resources": [
           "owner:collaboration"
         ],
-        "status": "blocked",
+        "status": "in_progress",
         "title": "Workplace SSR inbox screen on the native inbox read",
         "workstream": "S13",
         "checks": [
@@ -115058,7 +115086,7 @@
         "owner": "pms",
         "title": "Native PMS home hotel-metrics read port (owner-side foundation)",
         "kind": "migration",
-        "status": "blocked",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -115078,7 +115106,14 @@
         "resources": [
           "owner:pms"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-pms",
+          "claimedAt": "2026-11-25T15:29:59.771Z",
+          "heartbeatAt": "2026-11-25T15:29:59.771Z",
+          "expiresAt": "2026-11-25T15:59:59.771Z",
+          "generation": 177
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -115102,7 +115137,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Port done; dispatch cutover after composition queue",
         "handoff": {
           "runId": "run-20261123-f",
@@ -115120,7 +115155,7 @@
         "owner": "identity_access",
         "title": "Extend native GPO overview + not-required command (owner-side)",
         "kind": "migration",
-        "status": "blocked",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -115137,7 +115172,14 @@
         "resources": [
           "owner:identity_access"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-identity-access",
+          "claimedAt": "2026-11-25T15:29:58.591Z",
+          "heartbeatAt": "2026-11-25T15:29:58.591Z",
+          "expiresAt": "2026-11-25T15:59:58.591Z",
+          "generation": 177
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -115159,7 +115201,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Integrated; dispatch GPO consumer cutover next",
         "handoff": {
           "runId": "run-20261123-f",
@@ -115177,7 +115219,7 @@
         "owner": "support",
         "title": "Native support incident detail/read port for TS consumers",
         "kind": "migration",
-        "status": "blocked",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -115193,7 +115235,14 @@
         "resources": [
           "owner:support"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-support",
+          "claimedAt": "2026-11-25T15:30:00.430Z",
+          "heartbeatAt": "2026-11-25T15:30:00.430Z",
+          "expiresAt": "2026-11-25T16:00:00.430Z",
+          "generation": 177
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -115215,7 +115264,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Integrated; next mount route + switch staff-notifications/work-items",
         "handoff": {
           "runId": "run-20261123-f",
@@ -115717,7 +115766,7 @@
         "owner": "maintenance",
         "title": "Native maintenance downtime evidence read + TS transport",
         "kind": "migration",
-        "status": "blocked",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -115733,7 +115782,14 @@
         "resources": [
           "owner:maintenance"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-maintenance",
+          "claimedAt": "2026-11-25T15:29:58.870Z",
+          "heartbeatAt": "2026-11-25T15:29:58.870Z",
+          "expiresAt": "2026-11-25T15:59:58.870Z",
+          "generation": 177
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -115785,7 +115841,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Integrated; switch runtime executive consumer next",
         "handoff": {
           "runId": "run-20261123-f",
@@ -115889,7 +115945,7 @@
         "owner": "benefits",
         "title": "Benefits workspace native read port with compatibility barrel (87->80)",
         "kind": "migration",
-        "status": "blocked",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -115905,7 +115961,14 @@
         "resources": [
           "owner:benefits"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-benefits",
+          "claimedAt": "2026-11-25T15:29:57.636Z",
+          "heartbeatAt": "2026-11-25T15:29:57.636Z",
+          "expiresAt": "2026-11-25T15:59:57.636Z",
+          "generation": 177
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -115936,7 +115999,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Integrated; consumers switch next",
         "handoff": {
           "runId": "run-20261123-f",
@@ -118484,7 +118547,7 @@
         "owner": "field_service",
         "title": "field_service TS read tail native cutover (round 3)",
         "kind": "migration",
-        "status": "blocked",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -118496,13 +118559,20 @@
         "resources": [
           "owner:field_service"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-field-service",
+          "claimedAt": "2026-11-25T15:29:58.428Z",
+          "heartbeatAt": "2026-11-25T15:29:58.428Z",
+          "expiresAt": "2026-11-25T15:59:58.428Z",
+          "generation": 177
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Blocked on scope: 10 finance-lineage SELECT consumers + 4 registry-fallback + 2 final-root pins; needs cross-owner finance cutover task",
         "handoff": {
           "runId": "run-20261123-g",
@@ -136891,7 +136961,7 @@
         "owner": "records",
         "title": "records record_context native read port",
         "kind": "migration",
-        "status": "blocked",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -136903,7 +136973,14 @@
         "resources": [
           "owner:records"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-records",
+          "claimedAt": "2026-11-25T15:30:00.140Z",
+          "heartbeatAt": "2026-11-25T15:30:00.140Z",
+          "expiresAt": "2026-11-25T16:00:00.140Z",
+          "generation": 177
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -136925,7 +137002,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Port complete; cutover queued.",
         "handoff": {
           "runId": "run-20261123-j",
@@ -137011,8 +137088,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-ecom",
           "claimedAt": "2026-11-25T15:20:02.304Z",
-          "heartbeatAt": "2026-11-25T15:21:43.251Z",
-          "expiresAt": "2026-11-25T15:51:43.251Z",
+          "heartbeatAt": "2026-11-25T15:29:43.156Z",
+          "expiresAt": "2026-11-25T15:59:43.156Z",
           "generation": 177
         },
         "baseSha": null,
@@ -140816,7 +140893,7 @@
         "owner": "quality",
         "title": "quality attachment descriptor native port",
         "kind": "migration",
-        "status": "blocked",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -140828,7 +140905,14 @@
         "resources": [
           "owner:quality"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-quality",
+          "claimedAt": "2026-11-25T15:29:59.996Z",
+          "heartbeatAt": "2026-11-25T15:29:59.996Z",
+          "expiresAt": "2026-11-25T15:59:59.996Z",
+          "generation": 177
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -140850,7 +140934,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Port integrated; cutover queued.",
         "handoff": {
           "runId": "run-20261123-j",
@@ -140868,7 +140952,7 @@
         "owner": "runtime",
         "title": "runtime control plane native read port",
         "kind": "migration",
-        "status": "blocked",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -140880,7 +140964,14 @@
         "resources": [
           "owner:runtime"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-runtime",
+          "claimedAt": "2026-11-25T15:30:00.284Z",
+          "heartbeatAt": "2026-11-25T15:30:00.284Z",
+          "expiresAt": "2026-11-25T16:00:00.284Z",
+          "generation": 177
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -140898,7 +140989,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Port integrated; mount/cutover queued.",
         "handoff": {
           "runId": "run-20261123-j",
@@ -140916,7 +141007,7 @@
         "owner": "talent",
         "title": "talent offer native read port",
         "kind": "migration",
-        "status": "blocked",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -140928,7 +141019,14 @@
         "resources": [
           "owner:talent"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-talent",
+          "claimedAt": "2026-11-25T15:30:00.573Z",
+          "heartbeatAt": "2026-11-25T15:30:00.573Z",
+          "expiresAt": "2026-11-25T16:00:00.573Z",
+          "generation": 177
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -140950,7 +141048,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Port integrated; cutover queued.",
         "handoff": {
           "runId": "run-20261123-j",
@@ -140968,7 +141066,7 @@
         "owner": "assets",
         "title": "assets native read ports",
         "kind": "migration",
-        "status": "blocked",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -140980,7 +141078,14 @@
         "resources": [
           "owner:assets"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-assets",
+          "claimedAt": "2026-11-25T15:29:57.502Z",
+          "heartbeatAt": "2026-11-25T15:29:57.502Z",
+          "expiresAt": "2026-11-25T15:59:57.502Z",
+          "generation": 177
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -141002,7 +141107,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Port integrated; cutover queued.",
         "handoff": {
           "runId": "run-20261123-j",
@@ -142693,7 +142798,7 @@
         "owner": "marketing",
         "title": "marketing native read ports",
         "kind": "migration",
-        "status": "blocked",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -142705,7 +142810,14 @@
         "resources": [
           "owner:marketing"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-marketing",
+          "claimedAt": "2026-11-25T15:29:59.196Z",
+          "heartbeatAt": "2026-11-25T15:29:59.196Z",
+          "expiresAt": "2026-11-25T15:59:59.196Z",
+          "generation": 177
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -142727,7 +142839,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Port integrated; cutover queued.",
         "handoff": {
           "runId": "run-20261123-j",
@@ -143000,7 +143112,7 @@
         "owner": "customer_authority",
         "title": "customer_authority portal native read port",
         "kind": "migration",
-        "status": "blocked",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -143012,7 +143124,14 @@
         "resources": [
           "owner:customer_authority"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-customer-authority",
+          "claimedAt": "2026-11-25T15:29:58.292Z",
+          "heartbeatAt": "2026-11-25T15:29:58.292Z",
+          "expiresAt": "2026-11-25T15:59:58.292Z",
+          "generation": 177
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -143034,7 +143153,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Port integrated; cutover queued.",
         "handoff": {
           "runId": "run-20261123-j",
@@ -144990,7 +145109,7 @@
         "owner": "planning",
         "title": "planning read-source native port",
         "kind": "migration",
-        "status": "blocked",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -145002,7 +145121,14 @@
         "resources": [
           "owner:planning"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-planning",
+          "claimedAt": "2026-11-25T15:29:59.490Z",
+          "heartbeatAt": "2026-11-25T15:29:59.490Z",
+          "expiresAt": "2026-11-25T15:59:59.490Z",
+          "generation": 177
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -145021,7 +145147,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Port integrated; cutover queued.",
         "handoff": {
           "runId": "run-20261123-j",
@@ -154912,7 +155038,7 @@
         "owner": "workflow",
         "title": "workflow TS read tail native cutover (r39)",
         "kind": "migration",
-        "status": "blocked",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -154924,13 +155050,20 @@
         "resources": [
           "owner:workflow"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-workflow",
+          "claimedAt": "2026-11-25T15:30:00.718Z",
+          "heartbeatAt": "2026-11-25T15:30:00.718Z",
+          "expiresAt": "2026-11-25T16:00:00.718Z",
+          "generation": 177
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "released with work preserved",
+        "blocker": null,
         "nextAction": "BLOCKED at 54: 52 distinct literals, 0 exact duplicates; all repeated spans trace to r24-r38 helpers. Candidate MAX(col) family would re-dedupe r32 guard and is rejected. Further reduction needs a native read-port cutover with its own scoped plan.",
         "handoff": {
           "runId": "run-20261123-l",
@@ -155836,7 +155969,7 @@
         "owner": "crm",
         "title": "crm TS read tail native cutover (round 21)",
         "kind": "migration",
-        "status": "blocked",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -155848,13 +155981,20 @@
         "resources": [
           "owner:crm"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-crm",
+          "claimedAt": "2026-11-25T15:29:58.118Z",
+          "heartbeatAt": "2026-11-25T15:29:58.118Z",
+          "expiresAt": "2026-11-25T15:59:58.118Z",
+          "generation": 177
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "Recovery: Lease expired at 05:55Z; WIP reviewed in shared checkout; release claims and continue under new generation.",
+        "blocker": null,
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=151.",
         "handoff": {
           "runId": "run-20261123-k",
@@ -159895,7 +160035,7 @@
         "owner": "organization",
         "title": "organization TS read tail native cutover (r30)",
         "kind": "migration",
-        "status": "blocked",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -159907,13 +160047,20 @@
         "resources": [
           "owner:organization"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-organization",
+          "claimedAt": "2026-11-25T15:29:59.337Z",
+          "heartbeatAt": "2026-11-25T15:29:59.337Z",
+          "expiresAt": "2026-11-25T15:59:59.337Z",
+          "generation": 177
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "released with work preserved",
+        "blocker": null,
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=282.",
         "handoff": {
           "runId": "run-20261123-n",
@@ -160766,7 +160913,7 @@
         "owner": "platform_administration",
         "title": "platform_administration TS read tail native cutover (r13)",
         "kind": "migration",
-        "status": "blocked",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -160778,13 +160925,20 @@
         "resources": [
           "owner:platform_administration"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-platform-administration",
+          "claimedAt": "2026-11-25T15:29:59.630Z",
+          "heartbeatAt": "2026-11-25T15:29:59.630Z",
+          "expiresAt": "2026-11-25T15:59:59.630Z",
+          "generation": 177
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "released with work preserved",
+        "blocker": null,
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=35.",
         "handoff": {
           "runId": "run-20261123-n",
@@ -160802,7 +160956,7 @@
         "owner": "manage_erpx",
         "title": "manage_erpx TS read tail native cutover (r8)",
         "kind": "migration",
-        "status": "blocked",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -160814,13 +160968,20 @@
         "resources": [
           "owner:manage_erpx"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-manage-erpx",
+          "claimedAt": "2026-11-25T15:29:59.013Z",
+          "heartbeatAt": "2026-11-25T15:29:59.013Z",
+          "expiresAt": "2026-11-25T15:59:59.013Z",
+          "generation": 177
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "released with work preserved",
+        "blocker": null,
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=30.",
         "handoff": {
           "runId": "run-20261123-n",
@@ -161334,8 +161495,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-legal",
           "claimedAt": "2026-11-25T15:20:01.088Z",
-          "heartbeatAt": "2026-11-25T15:21:43.251Z",
-          "expiresAt": "2026-11-25T15:51:43.251Z",
+          "heartbeatAt": "2026-11-25T15:29:43.156Z",
+          "expiresAt": "2026-11-25T15:59:43.156Z",
           "generation": 177
         },
         "baseSha": null,
@@ -196312,7 +196473,7 @@
         "owner": "brand",
         "title": "brand read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -196323,22 +196484,22 @@
         "resources": [
           "owner:brand"
         ],
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-brand",
-          "claimedAt": "2026-11-25T15:20:01.877Z",
-          "heartbeatAt": "2026-11-25T15:21:43.251Z",
-          "expiresAt": "2026-11-25T15:51:43.251Z",
-          "generation": 177
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next brand head family (-1): 3->2. BEFORE=3.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Lead commits brand r2; next brand tail task attached",
+        "handoff": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-brand",
+          "at": "2026-11-25T15:29:24.034Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Lead commits brand r2; next brand tail task attached"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -200710,17 +200871,17 @@
       "migratedPackets": 368,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 3,
-        "ready_for_integration": 0,
+        "in_progress": 25,
+        "ready_for_integration": 1,
         "integrating": 0,
         "migrated": 368,
-        "blocked": 1726,
+        "blocked": 1703,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 177,
-    "updatedAt": "2026-11-25T15:22:40.773Z",
+    "updatedAt": "2026-11-25T15:30:00.725Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",

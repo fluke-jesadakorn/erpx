@@ -232,6 +232,32 @@ mod tests {
     }
 
     #[test]
+    fn management_guard_plans_are_byte_identical_to_retired_literals() {
+        let branch = plan_brand_read(RD_MANAGEMENT_BRANCH_EXISTS, &v(json!(["br", "co"])), Default::default()).unwrap();
+        assert_eq!(
+            branch.sql,
+            format!("SELECT id,display_name FROM ({ORG_NODES}) organization_nodes \
+WHERE id=? AND company_id=? AND kind='branch' AND status='active'")
+        );
+        assert_eq!(branch.values, v(json!(["br", "co"])));
+
+        let company = plan_brand_read(RD_MANAGEMENT_COMPANY_EXISTS, &v(json!(["co"])), Default::default()).unwrap();
+        assert_eq!(
+            company.sql,
+            format!("SELECT 1 FROM ({ORG_NODES}) organization_nodes \
+WHERE id=? AND kind='company' AND status='active'")
+        );
+        assert_eq!(company.values, v(json!(["co"])));
+
+        // Wrong arity or non-text binds fail closed; no predicate is inherited
+        // from the caller and no statement is accepted from the wire.
+        assert!(plan_brand_read(RD_MANAGEMENT_BRANCH_EXISTS, &v(json!(["br"])), Default::default()).is_err());
+        assert!(plan_brand_read(RD_MANAGEMENT_BRANCH_EXISTS, &v(json!(["br", 7])), Default::default()).is_err());
+        assert!(plan_brand_read(RD_MANAGEMENT_COMPANY_EXISTS, &v(json!(["co", "co"])), Default::default()).is_err());
+        assert!(plan_brand_read(RD_MANAGEMENT_COMPANY_EXISTS, &v(json!([null])), Default::default()).is_err());
+    }
+
+    #[test]
     fn management_and_workspace_kinds_are_allow_listed() {
         let branch = plan_brand_read(RD_MANAGEMENT_BRANCH_EXISTS, &v(json!(["br", "co"])), Default::default()).unwrap();
         assert!(branch.sql.contains("kind='branch' AND status='active'"));

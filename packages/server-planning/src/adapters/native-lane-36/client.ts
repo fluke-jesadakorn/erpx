@@ -2,6 +2,7 @@ import 'server-only';
 import { headers } from 'next/headers';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 import { ApiError } from '@erpx/server-runtime/public/http';
+import type { Row } from '@erpx/server-commerce/public/commerce';
 
 /**
  * Strict private transport for the owner-local Planning lane-36 scoped reads.
@@ -15,7 +16,6 @@ import { ApiError } from '@erpx/server-runtime/public/http';
  * the exact incoming Host. There is no first-Holding default and an unknown
  * target never reaches the private service.
  */
-type Row = Record<string, unknown>;
 type Holding = Readonly<{
   origin: string;
   host: string;

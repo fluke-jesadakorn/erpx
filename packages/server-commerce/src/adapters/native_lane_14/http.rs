@@ -185,21 +185,6 @@ pub fn router_with_reader(
     )
 }
 
-/// Reader-injected constructor used by the owner Sales unit tests.
-#[cfg(test)]
-pub fn router_with_sales_reader(
-    reader: Arc<dyn CommerceLane14SalesRead>,
-    targets: Vec<LaneTarget>,
-) -> Result<Router, BusinessError> {
-    router_with_readers(
-        Vec::new(),
-        targets
-            .into_iter()
-            .map(|target| (target, reader.clone()))
-            .collect(),
-    )
-}
-
 fn insert_targets<T>(
     entries: Vec<(LaneTarget, T)>,
     map: &mut BTreeMap<(String, String), T>,
@@ -979,6 +964,23 @@ mod sales_http_tests {
         assert_eq!(status, StatusCode::NOT_FOUND);
     }
 
+    fn router_with_sales_reader(
+        reader: Arc<dyn CommerceLane14SalesRead>,
+        targets: Vec<LaneTarget>,
+    ) -> Result<Router, BusinessError> {
+        router_with_readers(
+            targets
+                .iter()
+                .cloned()
+                .map(|target| (target, Arc::new(NoopWorkflow) as Arc<dyn CommerceLane14Read>))
+                .collect(),
+            targets
+                .into_iter()
+                .map(|target| (target, reader.clone()))
+                .collect(),
+        )
+    }
+
     struct NoopWorkflow;
 
     impl CommerceLane14Read for NoopWorkflow {
@@ -1025,6 +1027,7 @@ mod sales_http_tests {
     #[tokio::test]
     async fn assembled_router_serves_sales_routes_and_isolates_holdings() {
         use erpx_server_runtime::public::http_support::serve;
+        use std::future::IntoFuture;
         use tokio::net::TcpListener;
 
         let acme = target("acme.jesadakorn.com", "acme");
@@ -1035,7 +1038,7 @@ mod sales_http_tests {
         let app = router_with_sales_reader(reader, vec![acme]).expect("sales router");
         let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
         let address = listener.local_addr().expect("address");
-        let task = tokio::spawn(serve(listener, app));
+        let task = tokio::spawn(serve(listener, app).into_future());
 
         let response = get(
             address,

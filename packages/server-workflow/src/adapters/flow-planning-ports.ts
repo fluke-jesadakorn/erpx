@@ -98,8 +98,8 @@ export function nativeFlowPlanningPorts(database: SqlDatabase): FlowPlanningPort
         readDefinitionsJournal2(journal_id: string | number, company_id: string) { if (!hasPolicyReadSnapshot()) return finance_flow_routing(database).readDefinitionsJournal2(journal_id, company_id);
             return nativePolicyRead(database, JSON.stringify(["flow-source-journals",company_id]), async () => new Map((await finance_flow_routing(database).readWorkflowJournals(company_id)).results.map(row => [row.id,row]))).then(rows => rows.get(String(journal_id)) ?? null); },
         readDefinitionsDelivery(source_id: string | number | null) { return commerce_flow_routing(database).readDefinitionsDelivery(source_id); },
-        readDefinitionsPaymentBatch(company_id: string, id: string | number | null) { if (!hasPolicyReadSnapshot()) return people_payroll_flow_routing(database).readDefinitionsPaymentBatch(company_id, id);
-            return nativePolicyRead(database, JSON.stringify(["flow-payment-batches",company_id]), async () => new Map((await people_payroll_flow_routing(database).readWorkflowPaymentBatches(company_id)).results.map(row => [row.source_id,row]))).then(rows => rows.get(String(id)) ?? null); },
+        readDefinitionsPaymentBatch(company_id: string, id: string | number | null) { if (!hasPolicyReadSnapshot()) return people_payroll_flow_routing(database).readDefinitionsPaymentBatch(company_id, id).then(batch => batch ?? null);
+            return nativePolicyRead(database, JSON.stringify(["flow-payment-batches",company_id]), async () => new Map((await people_payroll_flow_routing(database).readWorkflowPaymentBatches(company_id)).map(row => [row.source_id,row]))).then(rows => rows.get(String(id)) ?? null); },
         async readSharedFlowReferencesRoutesdefaultsevents(companyId: string) { return {results: await nativeWorkflowReadAll<Route & {
             kind: string;
             record_id: string;

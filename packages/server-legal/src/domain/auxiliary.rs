@@ -81,6 +81,12 @@ pub enum LegalAuxiliaryRead {
     References {
         item_id: String,
     },
+    /// Bounded document-to-item inspection source lookup. The owner owns the
+    /// SQL and binds the document id and selected Company; no SQL crosses the
+    /// native transport.
+    InspectionSource {
+        document_id: String,
+    },
     Trust,
     SavedViews,
     AiHistory {
@@ -126,6 +132,7 @@ impl LegalAuxiliaryRead {
             Self::LawCitation { .. } => "legal.law-citation.read",
             Self::Citation { .. } => "legal.citation.read",
             Self::References { .. } => "legal.references.read",
+            Self::InspectionSource { .. } => "legal.inspection-source.read",
             Self::Trust => "legal.trust.read",
             Self::SavedViews => "legal.views.read",
             Self::AiHistory { .. } => "legal.ai-history.read",

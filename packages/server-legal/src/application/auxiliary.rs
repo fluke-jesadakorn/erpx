@@ -70,6 +70,11 @@ pub trait LegalAuxiliaryReadPorts {
         actor: &'a LegalAuxiliaryActor,
         item_id: &'a str,
     ) -> LegalAuxiliaryFuture<'a, Value>;
+    fn inspection_source<'a>(
+        &'a mut self,
+        actor: &'a LegalAuxiliaryActor,
+        document_id: &'a str,
+    ) -> LegalAuxiliaryFuture<'a, Value>;
     fn trust<'a>(&'a mut self, actor: &'a LegalAuxiliaryActor) -> LegalAuxiliaryFuture<'a, Value>;
     fn saved_views<'a>(
         &'a mut self,
@@ -147,6 +152,10 @@ pub async fn read_auxiliary<P: LegalAuxiliaryReadPorts>(
         LegalAuxiliaryRead::References { item_id } => {
             let item_id = parse_identifier(&item_id)?;
             ports.references(actor, &item_id).await
+        }
+        LegalAuxiliaryRead::InspectionSource { document_id } => {
+            let document_id = parse_identifier(&document_id)?;
+            ports.inspection_source(actor, &document_id).await
         }
         LegalAuxiliaryRead::Trust => ports.trust(actor).await,
         LegalAuxiliaryRead::SavedViews => ports.saved_views(actor).await,
@@ -261,6 +270,9 @@ pub fn parse_auxiliary_path(
         [one, id] if one == "references" => LegalAuxiliaryRead::References {
             item_id: id.clone(),
         },
+        [one, id] if one == "inspection-source" => LegalAuxiliaryRead::InspectionSource {
+            document_id: id.clone(),
+        },
         [one, id] if one == "ai" => LegalAuxiliaryRead::AiHistory {
             item_id: id.clone(),
             // A request path never carries purchase or readiness authority.
@@ -368,6 +380,15 @@ mod tests {
             self.calls.push("references");
             self.seen.push(item_id.to_owned());
             Box::pin(async { Ok(serde_json::json!([])) })
+        }
+        fn inspection_source<'a>(
+            &'a mut self,
+            _: &'a LegalAuxiliaryActor,
+            document_id: &'a str,
+        ) -> LegalAuxiliaryFuture<'a, Value> {
+            self.calls.push("inspection_source");
+            self.seen.push(document_id.to_owned());
+            Box::pin(async { Ok(serde_json::json!({"id": document_id, "version": 1})) })
         }
         fn trust<'a>(&'a mut self, _: &'a LegalAuxiliaryActor) -> LegalAuxiliaryFuture<'a, Value> {
             self.calls.push("trust");

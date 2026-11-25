@@ -123,7 +123,7 @@ describe('native Finance lane 5 customer read transport', () => {
       code: 'C001',
       version: 3,
     });
-    const [, directoryInit] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[2] as [URL, RequestInit];
+    const [, directoryInit] = (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[2] as [URL, RequestInit];
     expect(JSON.parse(String(directoryInit.body))).toMatchObject({
       kind: FINANCE_LANE5_RD_CUSTOMER_DIRECTORY,
       search: 'A',

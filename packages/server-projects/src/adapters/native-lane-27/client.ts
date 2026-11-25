@@ -40,13 +40,17 @@ export type ProjectActualsActor = Pick<
   "companyId" | "userId" | "holdingId" | "holdingSlug"
 >;
 
+/** Validated by `HANDOFF_STATUSES`; the literal union keeps the native rows
+ * assignable to the owner's `HandoffRow` port without a TS-side recast. */
+export type NativeHandoffStatus = "pending" | "accepted" | "rejected" | "cancelled";
+
 export type NativeHandoffRow = {
   id: string;
   company_id: string;
   project_id: string;
   source_project_version: number;
   recipient_id: string;
-  status: string;
+  status: NativeHandoffStatus;
   version: number;
   snapshot_json: string;
   snapshot_sha256: string;
@@ -64,7 +68,7 @@ export type NativeHandoffWorkRow = {
   project_id: string;
   recipient_id: string;
   prepared_by: string;
-  status: string;
+  status: NativeHandoffStatus;
   prepared_at: number;
   decided_at: number | null;
   title: string;

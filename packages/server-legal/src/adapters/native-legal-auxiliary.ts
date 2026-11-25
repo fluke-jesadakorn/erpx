@@ -5,7 +5,15 @@ import type { WorkContext } from '@erpx/server-identity_access/public/authorizat
 type Settings = Readonly<{
   privateBaseUrl: string;
   timeoutMs: number;
-  holdings: ReadonlyArray<Readonly<{ origin: string; holdingSlug: string; holdingId: string }>>;
+  holdings: ReadonlyArray<
+    Readonly<{
+      origin: string;
+      holdingSlug: string;
+      holdingId: string;
+      companyId?: string;
+      assignmentId?: string;
+    }>
+  >;
 }>;
 
 /** Bounded auxiliary read resource names owned by the native Legal port. */
@@ -20,6 +28,7 @@ export type LegalAuxiliaryResource =
   | 'retention'
   | 'governance'
   | 'references'
+  | 'inspection-source'
   | 'ai';
 
 function configuration(): Settings {
@@ -106,4 +115,46 @@ export async function nativeLegalAuxiliaryRead<T>(
     );
   }
   return (await response.json()) as T;
+}
+
+/**
+ * Native inspection-source point read. The caller holds only the selected
+ * Company and an opaque document id, so the exact registered Holding is
+ * selected by its configured Company; there is no first-Holding default and
+ * no TypeScript SQL. The owner binds the document id and Company in one read.
+ */
+export async function nativeInspectionSourceRead<T>(
+  companyId: string,
+  documentId: string,
+): Promise<T> {
+  if (
+    !companyId ||
+    companyId.length > 200 ||
+    !documentId ||
+    documentId.length > 200 ||
+    !/^[A-Za-z0-9._:-]+$/.test(documentId)
+  )
+    throw new ApiError(
+      422,
+      'NATIVE_LEGAL_READ_REQUEST_INVALID',
+      'Use one bounded Legal inspection source.',
+    );
+  const config = configuration();
+  const target = config.holdings.find(holding => holding.companyId === companyId);
+  if (!target)
+    throw new ApiError(
+      503,
+      'NATIVE_LEGAL_AUTHORITY_INVALID',
+      'The native Legal authority is unavailable.',
+    );
+  const actor = {
+    companyId,
+    holdingId: target.holdingId,
+    holdingSlug: target.holdingSlug,
+    assignmentId: target.assignmentId ?? `${companyId}:inspection-source`,
+    branchId: null,
+    departmentId: null,
+    authority: { revision: 0, assignmentVersion: 0 },
+  } as unknown as WorkContext;
+  return nativeLegalAuxiliaryRead<T>(actor, 'inspection-source', documentId);
 }

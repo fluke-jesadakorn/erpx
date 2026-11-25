@@ -20,7 +20,7 @@ export type WorkReviewUnit={
  task(actor:WorkContext,id:string):ReturnType<typeof taskDetail>;
  request(actor:WorkContext,id:string):ReturnType<typeof employeeRequestDetail>;
  flow(actor:WorkContext,kind:Parameters<typeof resolveFlow>[2],id:string):ReturnType<typeof resolveFlow>;
- routePeople(companyId:string,ids:string[]):Promise<{results:{user_id:string;legal_name:string}[]}>;
+ routePeople(companyId:string,ids:string[]):Promise<{results:readonly {user_id:string;legal_name:string}[]}>;
  requester(companyId:string,userId:string):Promise<{legal_name:string}|null>;
 };
 export function createWorkReview(ports:{resource(holdingId:string):Promise<WorkReviewUnit>;publicScope:typeof publicScope;contentUrl:typeof attachmentContentUrl;error(status:number,code:string,message:string):Error;errorStatus(error:unknown):number|undefined}){

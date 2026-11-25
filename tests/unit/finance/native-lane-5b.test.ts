@@ -52,7 +52,7 @@ describe('native Finance lane 5b record facts transport', () => {
       await reads.readRecordSupplementDataRows3('account-1', 'company-1', 7, '1', '2026-01-01', '2026-01-01', '2026-01-31', '2026-01-31', 30),
     ).toEqual({ results: [journalRow] });
 
-    const calls = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls;
+    const calls = (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls;
     expect(calls).toHaveLength(4);
     for (const [url, init] of calls as Array<[URL, RequestInit]>) {
       expect(url.toString()).toBe('http://127.0.0.1:3198/api/v1/holdings/acme/finance/record-facts');

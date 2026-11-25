@@ -1,120 +1,162 @@
-import { createHash } from "node:crypto";
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { describe, expect, test } from "vitest";
-import { brandManagementGuardHead } from "../../../packages/server-brand/src/adapters/read-tail-r1";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+vi.mock("server-only", () => ({}));
 
+/**
+ * G4 / retire.brand.read-tail-r2: the two Brand management authority guards are
+ * now owner-planned native reads. r1 folded their old TypeScript statement head
+ * into `read-tail-r1.ts`; r2 deletes that file and routes both guards through
+ * the owner read port. The exact retired statements are Rust oracles in
+ * `native_read_sql.rs`; this suite pins the switched consumer, binds and KPI.
+ */
 const root = resolve(__dirname, "../../../");
 const srcRoot = resolve(root, "packages/server-brand/src");
 const adapters = resolve(srcRoot, "adapters");
 const read = (name: string) => readFileSync(resolve(adapters, name), "utf8");
-const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 const count = (s: string, needle: string) => s.split(needle).length - 1;
 
-// Closed cross-owner projection constant, captured verbatim from the pre-r1
-// source. It is passed by the callers exactly as before; r1 adds no import.
 const SRC = 'SELECT "id","kind","slug","display_name","parent_id","company_id","branch_id","status","hierarchy_revision" FROM organization_nodes';
-const oracle = (columns: string, tail: string) =>
-  `SELECT ${columns} FROM (${SRC}) organization_nodes WHERE id=? AND ${tail}`;
+const BRANCH_SQL = `SELECT id,display_name FROM (${SRC}) organization_nodes WHERE id=? AND company_id=? AND kind='branch' AND status='active'`;
+const COMPANY_SQL = `SELECT 1 FROM (${SRC}) organization_nodes WHERE id=? AND kind='company' AND status='active'`;
 
-type Case = { label: string; columns: string; tail: string; sql: string; bytes: number; sha: string; binds: number };
-// Byte oracles recorded from the two retired authority-guard literals
-// (BEFORE=3). Only the column list and the predicate tail vary; the head,
-// the projection source and every bind stay byte-identical.
-const CASES: Case[] = [
-  {
-    label: "branch management guard",
-    columns: "id,display_name",
-    tail: "company_id=? AND kind='branch' AND status='active'",
-    sql: oracle("id,display_name", "company_id=? AND kind='branch' AND status='active'"),
-    bytes: 246,
-    sha: "c7bb6a504fd91ecf8a3b555e1d70ccea3a259e9b12cbb0c935e2cc16c9d53b0a",
-    binds: 2,
-  },
-  {
-    label: "company existence guard",
-    columns: "1",
-    tail: "kind='company' AND status='active'",
-    sql: oracle("1", "kind='company' AND status='active'"),
-    bytes: 216,
-    sha: "2ff566d7d22e67c197899ab8c7ebc80a940a2cfdaaadbccae9bb3e50ab4e15c6",
-    binds: 1,
-  },
-];
+const envKey = "ERPX_NATIVE_BRAND_READ_CONFIG";
+const original = process.env[envKey];
+const requests: { url: URL; init: RequestInit; body: { kind: string; values: unknown[] } }[] = [];
 
-describe("Brand read-tail r1 dedupe", () => {
-  test("r1 renderer reproduces both retired authority-guard literals byte-for-byte", () => {
-    expect(CASES).toHaveLength(2);
-    for (const c of CASES) {
-      const got = brandManagementGuardHead(c.columns, SRC, c.tail);
-      expect(got).toBe(c.sql);
-      expect(sha(got)).toBe(c.sha);
-      expect(Buffer.byteLength(got)).toBe(c.bytes);
-      expect((got.match(/\?/g) ?? []).length).toBe(c.binds);
-      expect(got.startsWith(`SELECT ${c.columns} FROM (${SRC}) organization_nodes WHERE id=? AND `)).toBe(true);
-      expect(got).not.toMatch(/FOR (UPDATE|SHARE)|LOCK TABLE/);
-    }
-    // Owner-supplied tails keep their own predicates and bind counts verbatim.
-    expect(CASES[0].tail).toContain("company_id=?");
-    expect(CASES[1].tail).not.toContain("company_id=?");
-    expect(brandManagementGuardHead("id,display_name", SRC, CASES[0].tail))
-      .not.toBe(brandManagementGuardHead("1", SRC, CASES[1].tail));
+const configure = () => {
+  process.env[envKey] = JSON.stringify({
+    privateBaseUrl: "http://127.0.0.1:44997",
+    timeoutMs: 1000,
+    holdings: [{ origin: "https://acme.example.com", holdingSlug: "acme", holdingId: "h001" }],
+  });
+};
+const actor = {
+  holdingId: "h001", holdingSlug: "acme", companyId: "company-1", branchId: "branch-1",
+  assignmentId: "assignment-1", scope: { kind: "branch", branchSlug: "north" },
+} as never;
+const fakeDb = (row: Record<string, unknown> | null) => {
+  const prepared: string[] = [];
+  const bound: unknown[][] = [];
+  const db = {
+    prepare(sql: string) {
+      prepared.push(sql);
+      return {
+        bind(...values: unknown[]) { bound.push(values); return this; },
+        async first<T>() { return row as T | null; },
+      };
+    },
+  };
+  return { db, prepared, bound };
+};
+
+describe("Brand management guard native cutover (r2)", () => {
+  beforeEach(() => {
+    requests.length = 0;
+    configure();
+    vi.stubGlobal("fetch", vi.fn(async (url: URL, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as typeof requests[number]["body"];
+      requests.push({ url, init, body });
+      const backend = process.env["BRAND_TEST_BACKEND"];
+      if (backend === "error")
+        return new Response(JSON.stringify({ error: { code: "BRAND_READ_PLAN_INVALID", message: "rejected" } }), {
+          status: 400, headers: { "content-type": "application/json" },
+        });
+      const sql = body.kind === "brand_rd_management_branch_exists" ? BRANCH_SQL : COMPANY_SQL;
+      return new Response(JSON.stringify({ data: { sql, values: body.values } }), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    }));
+  });
+  afterEach(() => {
+    if (original === undefined) delete process.env[envKey];
+    else process.env[envKey] = original;
+    delete process.env["BRAND_TEST_BACKEND"];
+    vi.unstubAllGlobals();
   });
 
-  test("both management guards delegate with unchanged tails and bind arrays", () => {
-    const src = read("branding.ts");
-    expect(src).toContain('import { brandManagementGuardHead } from "./read-tail-r1";');
-    expect(src).toContain("brandManagementGuardHead(\"id,display_name\",organizationProjectionSources.organization_nodes,\"company_id=? AND kind='branch' AND status='active'\")");
-    expect(src).toContain("brandManagementGuardHead(\"1\",organizationProjectionSources.organization_nodes,\"kind='company' AND status='active'\")");
-    expect(src).not.toContain("`SELECT id,display_name FROM (${organizationProjectionSources.organization_nodes})");
-    expect(src).not.toContain("`SELECT 1 FROM (${organizationProjectionSources.organization_nodes})");
-    expect(count(src, "brandManagementGuardHead(")).toBe(2);
+  test("both guards execute owner-planned statements with unchanged binds and row shapes", async () => {
+    const ports = await import("../../../packages/server-brand/src/adapters/native-brand-management");
+    const branchDb = fakeDb({ id: "br-1", display_name: "North" });
+    expect(await ports.nativeBrandManagementBranch(branchDb.db as never, actor, "br-1"))
+      .toEqual({ id: "br-1", display_name: "North" });
+    expect(branchDb.prepared).toEqual([BRANCH_SQL]);
+    expect(branchDb.bound).toEqual([["br-1", "company-1"]]);
+    expect(requests[0]!.body).toEqual({
+      kind: "brand_rd_management_branch_exists", values: ["br-1", "company-1"],
+      range: false, query: false, cursor: false,
+    });
 
-    // Bind arrays and failure behaviour stay at the original call sites.
-    expect(src).toContain(".bind(id,actor.companyId).first<{id:string;display_name:string}>()");
-    expect(src).toContain(".bind(id).first();}");
-    expect(src).toContain('BRAND_MANAGEMENT_FORBIDDEN');
-
-    const helper = read("read-tail-r1.ts");
-    expect(count(helper, "export const brandManagementGuardHead =")).toBe(1);
-    expect(count(helper, "SELECT ")).toBe(1);
-    expect(helper).not.toContain("FOR UPDATE");
-    expect(helper).not.toContain("FOR SHARE");
-    expect(helper).not.toContain("organizationProjectionSources");
+    const companyDb = fakeDb({ present: 1 });
+    expect(await ports.nativeBrandManagementCompanyExists(companyDb.db as never, actor, "co-1")).toBe(true);
+    expect(companyDb.prepared).toEqual([COMPANY_SQL]);
+    expect(companyDb.bound).toEqual([["co-1"]]);
+    expect(requests[1]!.body).toEqual({
+      kind: "brand_rd_management_company_exists", values: ["co-1"],
+      range: false, query: false, cursor: false,
+    });
+    expect(await ports.nativeBrandManagementCompanyExists(fakeDb(null).db as never, actor, "co-2")).toBe(false);
+    expect(await ports.nativeBrandManagementBranch(fakeDb(null).db as never, actor, "br-2")).toBeNull();
   });
 
-  test("cross-owner probe, locks and native read ports stay untouched", () => {
-    // The only excluded residual SELECT is still the inline cross-owner probe.
+  test("native read failures and malformed rows fail closed without a TS fallback", async () => {
+    const ports = await import("../../../packages/server-brand/src/adapters/native-brand-management");
+    await expect(ports.nativeBrandManagementBranch(fakeDb(null).db as never, actor, "bad/id"))
+      .rejects.toMatchObject({ code: "BRAND_MANAGEMENT_REQUEST_INVALID", status: 422 });
+    expect(requests).toHaveLength(0);
+
+    await expect(ports.nativeBrandManagementBranch(fakeDb({ id: "br-1" }).db as never, actor, "br-1"))
+      .rejects.toMatchObject({ code: "NATIVE_BRAND_MANAGEMENT_RESPONSE_INVALID", status: 502 });
+    await expect(ports.nativeBrandManagementCompanyExists(fakeDb(null).db as never, actor, "co-1"))
+      .resolves.toBe(false);
+
+    delete process.env[envKey];
+    await expect(ports.nativeBrandManagementBranch(fakeDb(null).db as never, actor, "br-1"))
+      .rejects.toMatchObject({ code: "NATIVE_BRAND_READ_CONFIGURATION_REQUIRED" });
+
+    configure();
+    process.env["BRAND_TEST_BACKEND"] = "error";
+    await expect(ports.nativeBrandManagementCompanyExists(fakeDb(null).db as never, actor, "co-1"))
+      .rejects.toMatchObject({ code: "NATIVE_BRAND_READ_FAILED", status: 400 });
+  });
+
+  test("the switched consumer and native transports author no statement text", () => {
+    const branding = read("branding.ts");
+    expect(branding).not.toMatch(/\bSELECT\s/);
+    expect(branding).not.toContain("organizationProjectionSources");
+    expect(branding).not.toContain("read-tail-r1");
+    expect(branding).toContain('from "./native-brand-management"');
+    expect(branding).toContain("nativeBrandManagementBranch(db,actor,id)");
+    expect(branding).toContain("nativeBrandManagementCompanyExists(db,actor,id)");
+    expect(branding).toContain("BRAND_MANAGEMENT_FORBIDDEN");
+    expect(existsSync(resolve(adapters, "read-tail-r1.ts"))).toBe(false);
+    for (const name of ["native-brand-management.ts", "native-brand-read-ports.ts"])
+      expect(read(name)).not.toMatch(/\bSELECT\s/);
+  });
+
+  test("the cross-owner scope probe stays as the single excluded residual", () => {
     const probe = read("attachment-read.ts");
     expect(count(probe, "SELECT ")).toBe(1);
     expect(probe).toContain("`SELECT 1 FROM(VALUES(?::text,?::text,?::text))workforce_actor_scope(company_id,branch_id,department_id) WHERE ${currentScope.where}`");
     expect(probe).toContain(".bind(actor.companyId,actor.branchId,actor.departmentId,...currentScope.args)");
-
-    // Lock lanes remain unchanged; r1 is a pure text head with no native SQL.
     expect(probe).toContain("lockQueuedCommandAuthority(database)");
-    expect(probe).toContain("lockScheduledFeatureSources(database)");
-    expect(probe).toContain("brandAttachmentReadSourceLocks(database)");
-    expect(read("read-tail-r1.ts")).not.toMatch(/\.rs|nativeBrand/i);
   });
 
-  test("retirement:ts-statements pins 3 -> 2", () => {
+  test("retirement:ts-statements drops 2 -> 1 for the owner", () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
         const path = resolve(dir, entry.name);
         if (entry.isDirectory()) walk(path);
-        else if (entry.name.endsWith(".ts")) total += (readFileSync(path, "utf8").match(/SELECT /g) ?? []).length;
+        else if (entry.name.endsWith(".ts")) total += count(readFileSync(path, "utf8"), "SELECT ");
       }
     };
     walk(srcRoot);
-    // r1 folds the two byte-identical management-guard heads into one renderer:
-    // -2 inline literals + 1 declaration, 3 - 2 + 1 = 2. The cross-owner probe
-    // stays as the single excluded residual.
-    expect(total).toBe(2);
-    expect(total).toBe(3 - 2 + 1);
-    expect(total).toBeLessThan(3);
+    // r1: 3 -> 2 (two literals folded into one helper); r2: the helper is
+    // deleted and both guards plan on the owner, leaving the excluded probe.
+    expect(total).toBe(1);
+    expect(total).toBeLessThan(2);
     expect(count(read("branding.ts"), "SELECT ")).toBe(0);
-    expect(count(read("read-tail-r1.ts"), "SELECT ")).toBe(1);
     expect(count(read("attachment-read.ts"), "SELECT ")).toBe(1);
   });
 });

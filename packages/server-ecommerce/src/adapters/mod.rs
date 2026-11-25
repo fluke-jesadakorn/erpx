@@ -6,3 +6,4 @@ pub(crate) mod listing;
 pub(crate) mod wave2_http;
 pub(crate) mod wave2_postgres;
 pub mod native_lane_39;
+pub mod native_exec_metric;

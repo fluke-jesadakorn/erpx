@@ -191,7 +191,7 @@ describe("lane 39 Brand native workspace-choice transport", () => {
     ).toThrow();
   });
 
-  it("pins the brand owner SELECT KPI at the final count of 2", () => {
+  it("pins the brand owner SELECT KPI at the count after the r2 guard cutover (1)", () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -202,7 +202,7 @@ describe("lane 39 Brand native workspace-choice transport", () => {
       }
     };
     walk(resolve(process.cwd(), "packages/server-brand/src"));
-    expect(total).toBe(2);
+    expect(total).toBe(1);
     expect(
       (readFileSync(
         resolve(process.cwd(), "packages/server-brand/src/adapters/workspace-choice-brand.ts"),

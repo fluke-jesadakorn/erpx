@@ -310,7 +310,7 @@ async fn read(
         let (has_notice, has_event, has_task) = kind.shape();
         // Only the notice reads carry a sender. The count and origin reads are
         // Company-keyed and the TS bridge deliberately omits the user header.
-        let sender = if has_notice {
+        let sender = if matches!(kind, ReadKind::Notices | ReadKind::Notice) {
             header_sender.filter(|value| {
                 body.sender_id
                     .as_deref()

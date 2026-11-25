@@ -31,6 +31,13 @@ const FEATURE_TABLES: [(&str, &str); 10] = [
 
 const CLOSED_STATES: &str = "('closed','completed','expired','terminated','archived','cancelled')";
 
+/// Owner SQL for the bounded inspection-source read. This is the byte-identical
+/// native replacement for the TypeScript `findInspectionSource` SELECT; the
+/// document id and selected Company are the only two binds and both stay here.
+const INSPECTION_SOURCE_SQL: &str =
+    "SELECT i.id,i.version::int version FROM legal_items i JOIN legal_documents d \
+     ON d.item_id=i.id WHERE d.id=$1 AND i.company_id=$2";
+
 const CLEAN_DOCUMENT: &str = "(d.object_key IS NULL OR EXISTS(\
  SELECT 1 FROM attachment_links l JOIN attachments f ON f.id=l.attachment_id \
  WHERE l.id=d.attachment_link_id AND l.state='bound' AND f.company_id=i.company_id \
@@ -250,6 +257,28 @@ async fn require_transaction(connection: &mut PgConnection) -> Result<(), LegalA
 }
 
 impl LegalAuxiliaryReadPorts for PgLegalAuxiliaryReads<'_> {
+    fn inspection_source<'a>(
+        &'a mut self,
+        actor: &'a LegalAuxiliaryActor,
+        document_id: &'a str,
+    ) -> LegalAuxiliaryFuture<'a, Value> {
+        Box::pin(async move {
+            self.ready().await?;
+            let row = sqlx::query(INSPECTION_SOURCE_SQL)
+                .bind(document_id)
+                .bind(actor.company_id.as_str())
+                .fetch_optional(&mut *self.connection)
+                .await?;
+            let Some(row) = row else {
+                return Ok(Value::Null);
+            };
+            Ok(json!({
+                "id": row.try_get::<String, _>("id")?,
+                "version": row.try_get::<i32, _>("version")?,
+            }))
+        })
+    }
+
     fn document_citation<'a>(
         &'a mut self,
         actor: &'a LegalAuxiliaryActor,
@@ -1114,4 +1143,26 @@ pub async fn require_auxiliary_transaction(
     connection: &mut PgConnection,
 ) -> Result<(), LegalAuxiliaryError> {
     require_transaction(connection).await
+}
+
+#[cfg(test)]
+mod inspection_source_tests {
+    use super::INSPECTION_SOURCE_SQL;
+
+    /// The native SQL is the exact parameterized replacement of the removed
+    /// TypeScript read: same projection, same join, same two binds (as $1/$2).
+    #[test]
+    fn inspection_source_sql_is_the_native_replacement() {
+        assert_eq!(
+            INSPECTION_SOURCE_SQL,
+            "SELECT i.id,i.version::int version FROM legal_items i JOIN legal_documents d \
+             ON d.item_id=i.id WHERE d.id=$1 AND i.company_id=$2"
+        );
+        assert_eq!(INSPECTION_SOURCE_SQL.matches('$').count(), 2);
+        assert!(INSPECTION_SOURCE_SQL.contains("i.company_id=$2"));
+        assert!(!INSPECTION_SOURCE_SQL.contains('?'));
+        assert!(!INSPECTION_SOURCE_SQL.to_uppercase().contains("UPDATE"));
+        assert!(!INSPECTION_SOURCE_SQL.to_uppercase().contains("DELETE"));
+        assert!(!INSPECTION_SOURCE_SQL.to_uppercase().contains("FOR UPDATE"));
+    }
 }

@@ -9,6 +9,8 @@ import {
   type WorkEvidenceTransport,
 } from './client';
 
+export type { WorkEvidenceActor } from './client';
+
 /**
  * Strict native transport for the Files-owned personnel-evidence family.
  *
