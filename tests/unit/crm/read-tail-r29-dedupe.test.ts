@@ -118,7 +118,7 @@ describe('crm read-tail r29 byte-identical read families', () => {
     }
     expect(purchases).toContain('LOCK TABLE crm_accounts,crm_contacts,crm_guest_links,crm_guest_sharing_events,crm_leads,crm_opportunities,crm_case_events,crm_lead_activities,crm_lead_activity_events IN SHARE ROW EXCLUSIVE MODE');
     expect(purchases).toContain('SELECT 1 FROM command_receipts WHERE command_id=?');
-    expect(purchases).toContain("SELECT (jsonb_array_length(modules_json::jsonb)=0 OR modules_json::jsonb @> jsonb_build_array('marketing'::text)) allowed FROM assignments WHERE id=?");
+    expect(purchases).toContain("crmSelectExprSql(\"jsonb_array_length(modules_json::jsonb)=0 OR modules_json::jsonb @> jsonb_build_array('marketing'::text)) allowed FROM assignments WHERE id=?\")");
     expect(obligations).toContain('LOCK TABLE crm_accounts,crm_contacts,crm_guest_links,crm_guest_sharing_events,crm_leads,crm_opportunities,crm_case_events,crm_lead_activities,crm_lead_activity_events IN SHARE MODE');
     for (const kind of ['crm_stmt_1', 'crm_stmt_4', 'crm_stmt_16', 'crm_stmt_17']) expect(leads).toContain(kind);
     expect(src('read-tail-r24-sql.ts')).toContain('export const crmCreatorLeadScopeSql');
@@ -129,7 +129,7 @@ describe('crm read-tail r29 byte-identical read families', () => {
   });
 
   test('retirement:ts-statements stays strictly below the r28 BEFORE=130 baseline', () => {
-    expect(totalSelects()).toBe(49);
+    expect(totalSelects()).toBe(48);
     expect(totalSelects()).toBeLessThan(130);
   });
 });

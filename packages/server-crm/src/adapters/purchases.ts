@@ -34,6 +34,7 @@ import {crmSelectOneSql} from "./read-tail-r42-sql";
 import {crmScalarSubquerySql} from "./read-tail-r43-sql";
 import {crmMaterializedScopeSql} from "./read-tail-r47-sql";
 import {crmCompanyScopeSql} from "./read-tail-r48-sql";
+import {crmSelectExprSql} from './read-tail-r50-sql';
 
 export type CRMPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 export type CRMPurchaseTarget={kind:"lead"|"activity"|"account"|"contact"|"guest-link";id:string};
@@ -202,7 +203,7 @@ export async function crmMarketingCandidateTransaction<Result>(actor:WorkContext
  if(mode==="disabled")return owned(owner,actor,mode,database=>run(database));
  const input=marketingActionSchema.parse(raw);if(input.action!=="handoff")throw new ApiError(422,"CRM_HANDOFF_SOURCE_REQUIRED","Only the existing candidate handoff uses this composition.");
  return owned(owner,actor,mode,async(database,composition)=>{
-  const current=async(key:string)=>{await requireCRMCurrentAuthority(database,actor,["records.read","records.write","commerce.read","commerce.sales"],key);if(!actor.modules.includes("marketing"))throw new ApiError(403,"MODULE_FORBIDDEN","Your current role cannot access Marketing.");const selected=await database.prepare("SELECT (jsonb_array_length(modules_json::jsonb)=0 OR modules_json::jsonb @> jsonb_build_array('marketing'::text)) allowed FROM assignments WHERE id=?").bind(actor.assignmentId).first<{allowed:boolean}>();if(!selected?.allowed)throw new ApiError(403,"CRM_ACCESS_CHANGED","The original Marketing assignment is no longer selected.");};
+  const current=async(key:string)=>{await requireCRMCurrentAuthority(database,actor,["records.read","records.write","commerce.read","commerce.sales"],key);if(!actor.modules.includes("marketing"))throw new ApiError(403,"MODULE_FORBIDDEN","Your current role cannot access Marketing.");const selected=await database.prepare(crmSelectExprSql("jsonb_array_length(modules_json::jsonb)=0 OR modules_json::jsonb @> jsonb_build_array('marketing'::text)) allowed FROM assignments WHERE id=?")).bind(actor.assignmentId).first<{allowed:boolean}>();if(!selected?.allowed)throw new ApiError(403,"CRM_ACCESS_CHANGED","The original Marketing assignment is no longer selected.");};
   await current(`marketing-handoff:${randomUUID()}`);
   const candidate=await database.prepare(`${crmMarketingCandidateRows} AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?)`).bind(id,actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId).first<Row>();
   if(!candidate)throw new ApiError(404,"MARKETING_CANDIDATE_NOT_FOUND","The captured consented candidate is unavailable.");

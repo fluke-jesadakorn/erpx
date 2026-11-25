@@ -54,7 +54,9 @@ describe('crm read-tail r36 byte-identical opportunity source anchor', () => {
 
   test('keeps bind order unchanged at every retired site', () => {
     const purchase = src('attachment-purchases.ts'), image = src('attachment-read.ts');
-    expect(purchase).toContain('`SELECT (${sourceQuery(target.kind)}) witness`).bind(...sourceArgs(actor,target))');
+    expect(purchase).toContain('database.prepare(crmSelectExprSql(`${sourceQuery(target.kind)}) witness`))');
+    expect(purchase).toContain('.bind(...sourceArgs(actor,target)).first<{witness:string|null}>()');
+    expect(purchase).toContain("import {crmSelectExprSql} from './read-tail-r50-sql';");
     expect(purchase).toContain('`(${sourceQuery(scope.target.kind)})::jsonb=?::jsonb`,[...sourceArgs(actor,scope.target),scope.witness]');
     expect(image).toContain('crmOpportunitySourceAnchorSql(');
     expect(image).toContain(')).bind(id,companyId).first<Source>();');
@@ -81,7 +83,7 @@ describe('crm read-tail r36 byte-identical opportunity source anchor', () => {
   });
 
   test('retirement:ts-statements stays strictly below the r35 BEFORE=114 baseline', () => {
-    expect(totalSelects()).toBe(49);
+    expect(totalSelects()).toBe(48);
     expect(totalSelects()).toBeLessThan(114);
   });
 });

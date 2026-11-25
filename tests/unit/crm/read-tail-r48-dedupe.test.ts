@@ -80,7 +80,7 @@ describe('crm read-tail r48 byte-identical company-scope read head', () => {
   });
 
   test('retirement:ts-statements drops from the r48 AFTER=50 to 49', () => {
-    expect(totalSelects()).toBe(49);
+    expect(totalSelects()).toBe(48);
     expect(totalSelects()).toBeLessThan(51);
   });
 });

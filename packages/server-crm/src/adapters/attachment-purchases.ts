@@ -16,6 +16,7 @@ import {actorScopeSql,crmPurchaseAccountRows,crmPurchaseOpportunityRows,crmAccou
 import {crmAccountAttachmentSourceSql} from "./read-tail-r29-sql";
 import {crmOpportunitySourceAnchorSql} from "./read-tail-r36-sql";
 import {crmScalarSubquerySql} from "./read-tail-r43-sql";
+import {crmSelectExprSql} from './read-tail-r50-sql';
 
 type Target={kind:"account"|"opportunity";id:string};
 export type CRMAttachmentPurchase={companyId:string;capability:"sales.crm";purpose:CapabilityPurpose;actor:WorkContext;target:Target;witness:string};
@@ -28,7 +29,7 @@ function sourceQuery(kind:Target["kind"]){return kind==="account"?crmAccountAtta
 function sourceArgs(actor:WorkContext,target:Target){return target.kind==="account"?[target.id,actor.companyId,actor.branchId,actor.userId,actor.branchId,actor.departmentId,actor.departmentId]:[target.id,actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId];}
 export async function crmAttachmentPurchaseScope(database:SqlDatabase,actor:WorkContext,policy:Pick<AttachmentPolicy,"targetType"|"purposeKey">,id:string,purpose:CapabilityPurpose="settle-existing"):Promise<CRMAttachmentPurchase|null>{
  if(!["crm_account","crm_opportunity"].includes(policy.targetType)||await commercePackageEnforcementMode()==="disabled")return null;
- const target:Target={kind:policy.targetType==="crm_account"?"account":"opportunity",id},row=await database.prepare(`SELECT (${sourceQuery(target.kind)}) witness`).bind(...sourceArgs(actor,target)).first<{witness:string|null}>();
+ const target:Target={kind:policy.targetType==="crm_account"?"account":"opportunity",id},row=await database.prepare(crmSelectExprSql(`${sourceQuery(target.kind)}) witness`)).bind(...sourceArgs(actor,target)).first<{witness:string|null}>();
  if(!row?.witness)throw new ApiError(404,"ATTACHMENT_TARGET_NOT_FOUND","The original CRM file source is unavailable in this Company.");
  return {companyId:actor.companyId,capability:"sales.crm",purpose,actor,target,witness:row.witness};
 }
