@@ -122,7 +122,8 @@ describe('Planning read-tail r17 parameterized projection/FROM head', () => {
     // r19 folds the capacity operations head into this builder (20 -> 19);
     // r20 folds the production-resources guard into this EXISTS builder (19 -> 18).
     // r22 folded the resource-allocation point lookup into this generalized builder (17 -> 16).
-    expect(total).toBe(16);
+    // r23 folded the resource-calendar point lookup into the single-line projection/FROM builder (16 -> 15).
+    expect(total).toBe(15);
     expect(total).toBeLessThan(21);
   });
 });

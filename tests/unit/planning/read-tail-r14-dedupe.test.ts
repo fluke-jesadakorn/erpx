@@ -110,7 +110,8 @@ describe('Planning read-tail r14 parameterized ordered jsonb_agg family', () => 
     // r19 folded the capacity operations head into the r17 builder (20 -> 19);
     // r20 folded the production-resources guard into the r7 EXISTS builder (19 -> 18).
     // r22 folded the resource-allocation point lookup into the package fact builder (17 -> 16).
-    expect(total).toBe(16);
+    // r23 folded the resource-calendar point lookup into the single-line projection/FROM builder (16 -> 15).
+    expect(total).toBe(15);
     expect(total).toBeLessThan(27);
   });
 });
