@@ -194,20 +194,23 @@ describe('Support ticket-portal image read-tail r17 parameterized-family dedupe'
   const src = (name: string) =>
     readFile(new URL(`../../../packages/server-support/src/${name}`, import.meta.url), 'utf8');
 
-  it('renders byte-identical bound-row image SQL from one canonical helper', async () => {
+  it('retires the bound-row image renderer and keeps only the selected-bindings CTE', async () => {
     const shared = await src('adapters/ticket-portal-image-sql.ts');
-    expect(shared.match(/readTailR44ImageAggregateSql\(/g)).toHaveLength(2);
-    expect(shared).toContain('readTailR44ImageAggregateSql(alias, `${alias}.${orderBy}`, `${table} ${alias} WHERE EXISTS(SELECT 1 FROM selected binding WHERE ${predicate})`)');
-    expect(shared).toContain('portalBoundImageSql');
+    expect(shared).not.toContain('readTailR44ImageAggregateSql');
+    expect(shared).not.toContain('portalBoundImageSql');
+    expect(shared).not.toContain('portalBindingImageSql');
     expect(shared).toContain('portalImageSelectedCte');
-    expect(shared).toContain('portalBindingImageSql');
+    const registry = await src('adapters/native_support_read_sql.rs');
+    expect(registry).toContain('support_rd_ticket_portal_image_aggregate_full');
+    expect(registry).toContain('support_rd_ticket_portal_image_aggregate_core');
+    expect(registry).toContain('tail_bind_counts: &[0]');
   });
 
-  it('composes the shared image fragments in both portal image readers with no local copy', async () => {
+  it('composes the native image aggregates in both portal image readers', async () => {
     const source = await src('adapters/ticket-portal-sources.ts');
     expect(source.match(/portalImageSelectedCte\(bindingIds\)/g)).toHaveLength(2);
-    expect(source.match(/portalBindingImageSql\(\)/g)).toHaveLength(2);
-    expect(source.match(/portalBoundImageSql\(/g)).toHaveLength(9);
+    expect(source.match(/nativeSupportReadFragment\(SUPPORT_RD_TICKET_PORTAL_IMAGE_AGGREGATE_FULL,0\)/g)).toHaveLength(1);
+    expect(source.match(/nativeSupportReadFragment\(SUPPORT_RD_TICKET_PORTAL_IMAGE_AGGREGATE_CORE,0\)/g)).toHaveLength(1);
     expect(source).not.toContain('jsonb_agg(to_jsonb(binding) ORDER BY binding.id)');
     expect(source).not.toContain('EXISTS(SELECT 1 FROM selected binding WHERE binding.id=');
   });

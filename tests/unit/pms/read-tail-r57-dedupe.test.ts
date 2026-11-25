@@ -114,8 +114,8 @@ describe('pms read-tail r57 reservation-id arm head dedupe', () => {
       spaced += count(text, 'SELECT ');
       bare += count(text, 'SELECT');
     }
-    expect(spaced).toBe(216);
-    expect(bare).toBe(217);
+    expect(spaced).toBe(215);
+    expect(bare).toBe(216);
     expect(spaced).toBeLessThan(242);
     expect(bare).toBeLessThan(244);
   });

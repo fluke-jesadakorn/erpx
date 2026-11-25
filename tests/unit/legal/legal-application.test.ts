@@ -5,6 +5,8 @@ import {readFile,readdir} from "node:fs/promises";
 import {resolve} from "node:path";
 import approvalContract from "../../../packages/server-legal/src/adapters/legal-approval-sources.json" with {type:"json"};
 import runtimeContract from "../../../packages/server-legal/src/adapters/legal-runtime-gate-sources.json" with {type:"json"};
+import accessContract from "../../../packages/server-legal/src/adapters/legal-access-sources.json" with {type:"json"};
+import operationsContract from "../../../packages/server-legal/src/adapters/legal-operations-sources.json" with {type:"json"};
 type LegalReferenceRepository=Parameters<typeof import("@erpx/server-legal/application/references").createLegalReferencesApplication>[0]["repository"];
 import { expect, it } from "vitest";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
@@ -595,8 +597,8 @@ it("keeps the approval reviewer-membership and current-route guards in the nativ
     }
   };
   await walk(resolve(__dirname, "../../../packages/server-legal/src"));
-  expect(total).toBeLessThan(87);
-  expect(total).toBe(84);
+  expect(total).toBeLessThan(81);
+  expect(total).toBe(76);
 });
 
 
@@ -616,4 +618,47 @@ it("keeps the runtime-gate settings predicate, capability probe and health read 
   expect(rust).toContain('render_legal_runtime_predicate');
   expect(rust).toContain('render_legal_capability_probe');
   expect(rust).toContain('5364f62235b3dd24ee136f4f62c903101acb29845924cf3ac74ad301fcb51c9e');
+});
+
+
+it("keeps the access visibility member guard, eligibility probe and preparation guard in the native contract", async () => {
+  const [shared, rust] = await Promise.all([
+    readFile(new URL("../../../packages/server-legal/src/adapters/legal/access.ts", import.meta.url), "utf8"),
+    readFile(new URL("../../../packages/server-legal/src/adapters/legal_access_sources.rs", import.meta.url), "utf8"),
+  ]);
+  expect(shared.match(/SELECT /g) ?? []).toHaveLength(0);
+  expect(shared).toContain("legal-access-sources.json");
+  expect(accessContract.visibilityMemberGuard).toContain("{alias}");
+  expect(accessContract.eligibleProbe).toBe("SELECT 1 WHERE legal_person_eligible(?,?,?,?,?)");
+  expect(accessContract.preparationGuard).toContain("kind IN ('rule','template')");
+  expect(rust).toContain('include_str!("legal-access-sources.json")');
+  expect(rust).toContain('render_legal_visibility_member_guard');
+  expect(rust).toContain('1451a1bbfcdd12d64532b3761c1e417ab65310487ed930d739587c888ceaed0d');
+});
+
+
+it("keeps the operations register, recursive hold preview and rule-impact reads in the native contract", async () => {
+  const [shared, rust] = await Promise.all([
+    readFile(new URL("../../../packages/server-legal/src/adapters/legal/operations.ts", import.meta.url), "utf8"),
+    readFile(new URL("../../../packages/server-legal/src/adapters/legal_operations_sources.rs", import.meta.url), "utf8"),
+  ]);
+  expect(shared.match(/SELECT /g) ?? []).toHaveLength(0);
+  expect(shared).toContain("legal-operations-sources.json");
+  expect(shared).toContain("fill(contract.registerRows");
+  expect(shared).toContain("fill(contract.holdPreview");
+  expect(shared).toContain("fill(contract.ruleImpact");
+  expect(operationsContract.registerRows).toBe(
+    "SELECT i.*,t.data FROM legal_items i JOIN {table} t ON t.item_id=i.id WHERE {visibility} AND {purchase} AND i.kind=? ORDER BY i.id LIMIT 10001",
+  );
+  expect(operationsContract.holdPreview).toContain(
+    "WITH RECURSIVE linked(id) AS (SELECT ?::text UNION SELECT l.target_id FROM linked t JOIN legal_links l ON l.source_id=t.id WHERE l.relation IN ('evidence','derived','amends','obligation'))",
+  );
+  expect(operationsContract.holdPreview).toContain("{visibility} AND {purchase}");
+  expect(operationsContract.ruleImpact).toContain("LIMIT 500");
+  expect(operationsContract.ruleImpact.match(/\?/g) ?? []).toHaveLength(2);
+  expect(rust).toContain('include_str!("legal-operations-sources.json")');
+  expect(rust).toContain('render_legal_register_rows');
+  expect(rust).toContain('render_legal_hold_preview');
+  expect(rust).toContain('render_legal_rule_impact');
+  expect(rust).toContain('2a16d72e65440ae74d59b813a5561e93663b5f43f4833f60819f4066335264cf');
 });

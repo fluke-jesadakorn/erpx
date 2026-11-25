@@ -6,7 +6,6 @@ import ts from 'typescript';
 
 vi.mock('server-only', () => ({}));
 
-import { readSalesPackageSettlementFacts } from '../../../packages/server-sales/src/adapters/package-obligations';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-sales/src');
 const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
@@ -52,19 +51,16 @@ function loadGenerator(): (mode: 'actor' | 'company' | 'scope') => string {
   return new Function(`${code}\nreturn scopeTuple;`)() as (mode: 'actor' | 'company' | 'scope') => string;
 }
 
-async function rendered(selection: 'sales' | 'ecommerce'): Promise<string> {
-  const captured: string[] = [];
-  const db = {
-    prepare(sql: string) {
-      captured.push(sql);
-      return { bind: () => ({ all: async () => ({ results: [] }) }) };
-    },
-  };
-  await readSalesPackageSettlementFacts(db as never, 'c1', selection);
-  if (captured.length !== 1) throw new Error(`expected one prepared statement, got ${captured.length}`);
-  return captured[0]!;
+function rendered(selection: 'sales' | 'ecommerce'): string {
+  const registry = readFileSync(resolve(srcRoot, 'adapters/native_sales_read_sql.rs'), 'utf8');
+  const constant = selection === 'sales' ? 'SQL_PACKAGE_SETTLEMENT_SALES' : 'SQL_PACKAGE_SETTLEMENT_ECOMMERCE';
+  const marker = `const ${constant}: &str = "`;
+  const at = registry.indexOf(marker);
+  expect(at).toBeGreaterThanOrEqual(0);
+  const end = registry.indexOf('";', at + marker.length);
+  expect(end).toBeGreaterThan(at);
+  return registry.slice(at + marker.length, end).replace(/\\n/g, '\n').replace(/\\"/g, '"');
 }
-
 describe('Sales read-tail r29 scope-tuple family', () => {
   const gen = loadGenerator();
 
@@ -92,7 +88,8 @@ describe('Sales read-tail r29 scope-tuple family', () => {
 
     expect(source).toContain("export const actorScopeTuple=scopeTuple('actor');");
     expect(pricing).toContain("authorityScopeRead(assignmentReadSql('pricing_scope',permission),scopeTuple('company'),'pricing_scope')");
-    expect(obligations).toContain("WITH scope AS${scopeTuple('scope')},orders AS");
+    expect(obligations).toContain('SALES_RD_PACKAGE_SETTLEMENT_SALES');
+    expect(obligations).toContain('SALES_RD_PACKAGE_SETTLEMENT_ECOMMERCE');
     for (const literal of Object.values(literals)) {
       expect(source).not.toContain(literal);
       expect(pricing).not.toContain(literal);
@@ -103,7 +100,7 @@ describe('Sales read-tail r29 scope-tuple family', () => {
 
   test('binds, locks and r1-r28 generators stay untouched', () => {
     expect(pricing).toContain('.bind(actor.assignmentId,actor.userId,actor.role,actor.companyId)');
-    expect(obligations).toContain('.bind(companyId)');
+    expect(obligations).toContain('nativeSalesReadAll<{kind:string;id:string;fact:unknown;pending:boolean}>(kind,[_companyId],database)');
     expect(purchases).toContain('.bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,record?.branch_id??actor.branchId,record?.department_id??actor.departmentId)');
     expect(metric).toContain('.bind(actor.assignmentId,actor.userId,actor.role,actor.assignmentId,actor.companyId,actor.branchId,actor.departmentId)');
 
@@ -154,7 +151,7 @@ describe('Sales read-tail r29 scope-tuple family', () => {
     expect(native).toContain('export const SALES_RD_PRICE_LIST_ITEMS_ACTIVE');
     expect(native).toContain('export const SALES_RD_NOTIFICATION_ATTEMPT');
     expect(native).toContain('export const SALES_RD_NOTIFICATION_RECONCILIATION_INSTALLED');
-    expect((rustRegistry.match(/pub const RD_\w+: &str =/g) ?? []).length).toBe(24);
+    expect((rustRegistry.match(/pub const RD_\w+: &str =/g) ?? []).length).toBe(26);
     expect((commercial.match(/SELECT/g) ?? []).length).toBe(0);
   });
 });
@@ -174,7 +171,7 @@ describe('Sales read-tail r29 retirement check', () => {
     // tableRead (-3) and priceListSelect (-1).
     // r33 folds the tail generator into the primary read generator (-1).
     // r35: delivery-presence head shared by order/return/notice guards (-1).
-    expect(total).toBe(27);
+    expect(total).toBe(20);
     expect(total).toBeLessThan(54);
   });
 });

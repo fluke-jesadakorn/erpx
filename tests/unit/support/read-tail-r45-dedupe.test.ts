@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
@@ -92,11 +92,11 @@ describe('support read-tail r45 byte-identical active-assignment EXISTS head', (
     expect(unit).toContain('SELECT pg_advisory_xact_lock(hashtextextended(?,0))');
     expect(unit).toContain('LOCK TABLE command_receipts,command_assertions,audit_events,outbox_events IN SHARE ROW EXCLUSIVE MODE');
     expect(src('read-tail-r43-sql.ts')).toContain('readTailR43ColumnsFromSql =');
-    expect(src('read-tail-r44-sql.ts')).toContain('readTailR44ImageAggregateSql =');
+    expect(existsSync(resolve(srcRoot, 'adapters', 'read-tail-r44-sql.ts'))).toBe(false);
   });
 
-  test('retirement:ts-statements is 24 after the evidence renderer consolidation', () => {
-    expect(totalSelects()).toBe(24);
+  test('retirement:ts-statements is 20 after the portal bind-shape fragment cut', () => {
+    expect(totalSelects()).toBe(20);
     expect(totalSelects()).toBeLessThan(32);
   });
 });

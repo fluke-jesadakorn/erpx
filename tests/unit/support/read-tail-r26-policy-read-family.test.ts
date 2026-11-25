@@ -58,8 +58,8 @@ describe('Support SLA policy native read port (r28)', () => {
         expect(src('adapters/ticket-portal-unit.ts')).toContain('LOCK TABLE command_receipts,command_assertions,audit_events,outbox_events IN SHARE ROW EXCLUSIVE MODE');
         expect(src('adapters/service-access.ts')).not.toContain('activeAssignmentSql');
         expect(src('adapters/ticket-portal.ts')).toContain('SUPPORT_RD_TICKET_PORTAL_DECISION_REPLAY');
-        expect(src('adapters/ticket-portal-sources.ts')).toContain('export const portalValidBindingSelect=');
-        expect(src('adapters/ticket-portal-image-sql.ts')).toContain('export const portalImageAggregateSql = (images: string[]) =>');
+        expect(src('adapters/ticket-portal-sources.ts')).toContain('SUPPORT_RD_TICKET_PORTAL_VALID_BINDINGS');
+        expect(src('adapters/ticket-portal-image-sql.ts')).not.toContain('portalImageAggregateSql');
         expect(src('adapters/support-incidents.ts')).toContain('const scopedWorkspaceListSql = (columns: string, table: string, extra: string) =>');
         expect(src('adapters/ticket-guard-sources.ts')).toContain('export const ticketGuardExistsSql = (predicate: string) =>');
         expect(src('adapters/support-ticket-read.ts')).not.toContain('ticketEligibilitySelect');
@@ -110,7 +110,7 @@ describe('Support SLA policy native read port (r28)', () => {
             }
         };
         walk(srcRoot);
-        expect(total).toBe(24);
+        expect(total).toBe(20);
         expect(total).toBeLessThan(50);
     });
 });

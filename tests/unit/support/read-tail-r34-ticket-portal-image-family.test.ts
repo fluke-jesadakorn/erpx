@@ -26,7 +26,8 @@ function selectCount() {
 
 describe('Support read-tail r34 ticket-portal ticket-image native kind', () => {
     test('the TS wrapper is a bridge call with one bind and no private SELECT', () => {
-        expect(portalSources).toContain("import {nativeSupportReadAll,SUPPORT_RD_TICKET_PORTAL_INSTALLED,SUPPORT_RD_TICKET_PORTAL_TICKET_IMAGE} from './native-support-read';");
+        expect(portalSources).toContain('SUPPORT_RD_TICKET_PORTAL_TICKET_IMAGE');
+        expect(portalSources).toContain("from '@erpx/server-support/adapters/native-support-read'");
         expect(portalSources).toContain(
             'export async function supportTicketPortalTicketImage(database:SqlDatabase,ticketId:string){return nativeSupportReadAll<{image:string}>(SUPPORT_RD_TICKET_PORTAL_TICKET_IMAGE,[ticketId],database).then(result => result.results[0]?.image ?? null);}'
         );
@@ -69,7 +70,7 @@ describe('Support read-tail r34 ticket-portal ticket-image native kind', () => {
     });
 
     test('retirement:ts-statements is strictly below the r34 BEFORE=45 baseline', () => {
-        expect(selectCount()).toBe(24);
+        expect(selectCount()).toBe(20);
         expect(selectCount()).toBeLessThan(44);
     });
 });

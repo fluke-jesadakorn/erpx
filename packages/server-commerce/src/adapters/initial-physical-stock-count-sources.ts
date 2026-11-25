@@ -1,7 +1,7 @@
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import type {CountRow} from '@erpx/server-inventory/public/count-contract';
-import { nativeCommerceReadAll, nativeCommerceReadFirst, RD_COUNT_ACTIVE_STOCK_PRODUCTS, RD_WAREHOUSE_ACTIVE } from './native-commerce-read';
+import { nativeCommerceReadAll, nativeCommerceReadFirst, RD_COUNT_ACTIVE_STOCK_PRODUCTS, RD_WAREHOUSE_ACTIVE, RD_INITIAL_COUNT_WAREHOUSES, RD_INITIAL_COUNT_STOCK_PRODUCT } from './native-commerce-read';
 /** Private current Commerce reference facts for the exact Inventory initial
  * physical count. No catalogue/Finance collection or caller SQL is accepted. */
 export const initialPhysicalStockGoodsReceiptRows=`SELECT s.*,r.command_id goods_setup_command_id,r.request_hash goods_setup_request_hash FROM commerce_settings s JOIN command_receipts r ON r.record_id=s.company_id AND r.operation='commerce.sales-goods-posting-setup.initialize' AND r.authority_json::jsonb->>'companyId'=s.company_id AND r.result_json::jsonb->>'id'=s.company_id AND r.result_json::jsonb->>'status'='configured' AND r.result_json::jsonb->>'version'='1'`;
@@ -16,14 +16,14 @@ export async function initialPhysicalStockCommerceSource(database:SqlDatabase,co
 }
 export async function initialPhysicalStockMasterChoices(database:SqlDatabase,actor:Pick<WorkContext,'companyId'|'branchId'>){
  const [warehouses,products]=await Promise.all([
-  database.prepare("SELECT id,name,branch_id FROM commerce_warehouses WHERE company_id=? AND status='active' AND (?::text IS NULL OR branch_id=?) ORDER BY name,id").bind(actor.companyId,actor.branchId,actor.branchId).all<CountRow>(),
+  nativeCommerceReadAll<CountRow>(RD_INITIAL_COUNT_WAREHOUSES,[actor.companyId,actor.branchId,actor.branchId],database),
   nativeCommerceReadAll<CountRow>(RD_COUNT_ACTIVE_STOCK_PRODUCTS,[actor.companyId],database),
- ]);return {warehouses:warehouses.results,products};
+ ]);return {warehouses,products};
 }
 export async function initialPhysicalStockMasterSource(database:SqlDatabase,actor:Pick<WorkContext,'companyId'|'branchId'>,warehouseId:string,productId:string){
  const [warehouse,product]=await Promise.all([
   nativeCommerceReadFirst<CountRow>(RD_WAREHOUSE_ACTIVE,[warehouseId,actor.companyId,actor.branchId,actor.branchId],database),
-  database.prepare("SELECT * FROM commerce_products WHERE id=? AND company_id=? AND status='active' AND item_type='stock'").bind(productId,actor.companyId).first<CountRow>(),
+  nativeCommerceReadFirst<CountRow>(RD_INITIAL_COUNT_STOCK_PRODUCT,[productId,actor.companyId],database),
  ]);return warehouse&&product?{warehouse,product}:null;
 }
 export function initialPhysicalStockCommerceSourceLocks(database:SqlDatabase){return [database.prepare('LOCK TABLE commerce_stock IN SHARE ROW EXCLUSIVE MODE'),database.prepare('LOCK TABLE commerce_settings,commerce_warehouses,commerce_products IN SHARE MODE')];}

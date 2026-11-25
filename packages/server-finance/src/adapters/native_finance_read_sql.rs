@@ -967,6 +967,81 @@ const READ_INVOICE_OPEN_INVOICES: NativeReadStatement = NativeReadStatement {
     scope: "holding",
 };
 
+
+/// Native successors of the second static `finance-invoice-read` point/list
+/// family. Field-invoice ownership helpers and transaction guards stay in TS.
+pub const RD_INVOICE2_INVOICES: &str = "finance_rd_invoice2_invoices";
+const SQL_RD_INVOICE2_INVOICES: &str = "SELECT i.id,i.invoice_number,i.kind,i.invoice_date,i.due_date,i.currency,i.total_minor,i.outstanding_minor,i.status,p.name AS party_name\n    FROM finance_invoices i JOIN finance_parties p ON p.id=i.party_id\n    WHERE i.company_id=? ORDER BY i.invoice_date DESC,i.invoice_number DESC LIMIT ?";
+const READ_INVOICE2_INVOICES: NativeReadStatement = NativeReadStatement {
+    kind: RD_INVOICE2_INVOICES,
+    sql: SQL_RD_INVOICE2_INVOICES,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_INVOICE2_INVOICE_SNAPSHOT: &str = "finance_rd_invoice2_invoice_snapshot";
+const SQL_RD_INVOICE2_INVOICE_SNAPSHOT: &str = "SELECT i.*,p.code AS party_code,p.name AS party_name,\n    s.usd_units::text AS snapshot_usd_units,s.amount_units::text AS snapshot_source_units,s.fx_rate_id AS snapshot_rate_id\n    FROM finance_invoices i JOIN finance_parties p ON p.id=i.party_id\n    LEFT JOIN money_transaction_snapshots s ON s.company_id=i.company_id AND s.source_type='finance_invoice' AND s.source_id=i.id AND s.amount_kind='total'\n    WHERE i.id=? AND i.company_id=?";
+const READ_INVOICE2_INVOICE_SNAPSHOT: NativeReadStatement = NativeReadStatement {
+    kind: RD_INVOICE2_INVOICE_SNAPSHOT,
+    sql: SQL_RD_INVOICE2_INVOICE_SNAPSHOT,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_INVOICE2_INVOICE_ALLOCATIONS: &str = "finance_rd_invoice2_invoice_allocations";
+const SQL_RD_INVOICE2_INVOICE_ALLOCATIONS: &str = "SELECT a.id,a.payment_id,a.amount_minor,a.created_at,p.payment_number,p.status,p.payment_slip_id\n    FROM finance_allocations a JOIN finance_payments p ON p.id=a.payment_id\n    WHERE a.invoice_id=? AND a.company_id=? ORDER BY a.created_at";
+const READ_INVOICE2_INVOICE_ALLOCATIONS: NativeReadStatement = NativeReadStatement {
+    kind: RD_INVOICE2_INVOICE_ALLOCATIONS,
+    sql: SQL_RD_INVOICE2_INVOICE_ALLOCATIONS,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_INVOICE2_PAYMENTS: &str = "finance_rd_invoice2_payments";
+const SQL_RD_INVOICE2_PAYMENTS: &str = "SELECT p.id,p.payment_number,p.kind,p.payment_date,p.currency,p.amount_minor,p.outstanding_minor,p.status,f.name AS party_name\n    FROM finance_payments p LEFT JOIN finance_parties f ON f.id=p.party_id\n    WHERE p.company_id=? ORDER BY p.payment_date DESC,p.payment_number DESC LIMIT ?";
+const READ_INVOICE2_PAYMENTS: NativeReadStatement = NativeReadStatement {
+    kind: RD_INVOICE2_PAYMENTS,
+    sql: SQL_RD_INVOICE2_PAYMENTS,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_INVOICE2_PAYMENT_ALLOCATIONS: &str = "finance_rd_invoice2_payment_allocations";
+const SQL_RD_INVOICE2_PAYMENT_ALLOCATIONS: &str = "SELECT a.id,a.invoice_id,a.amount_minor,a.created_at,i.invoice_number,i.status\n    FROM finance_allocations a JOIN finance_invoices i ON i.id=a.invoice_id\n    WHERE a.payment_id=? AND a.company_id=? ORDER BY a.created_at";
+const READ_INVOICE2_PAYMENT_ALLOCATIONS: NativeReadStatement = NativeReadStatement {
+    kind: RD_INVOICE2_PAYMENT_ALLOCATIONS,
+    sql: SQL_RD_INVOICE2_PAYMENT_ALLOCATIONS,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_INVOICE2_BANK_CANDIDATES: &str = "finance_rd_invoice2_bank_candidates";
+const SQL_RD_INVOICE2_BANK_CANDIDATES: &str = "SELECT t.id,t.transaction_date,t.external_id,t.description,t.amount_minor,t.currency,t.match_status,t.version,s.statement_number\n      FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id\n      WHERE t.company_id=? AND s.bank_account=? AND t.currency=? AND t.match_status IN ('unmatched','proposed') AND t.amount_minor=? AND t.transaction_date>=?\n      ORDER BY t.transaction_date DESC,t.external_id";
+const READ_INVOICE2_BANK_CANDIDATES: NativeReadStatement = NativeReadStatement {
+    kind: RD_INVOICE2_BANK_CANDIDATES,
+    sql: SQL_RD_INVOICE2_BANK_CANDIDATES,
+    bind_count: 5,
+    scope: "holding",
+};
+
+pub const RD_INVOICE2_BANK_ACCOUNTS: &str = "finance_rd_invoice2_bank_accounts";
+const SQL_RD_INVOICE2_BANK_ACCOUNTS: &str = "SELECT a.id,a.code,a.name,a.category,a.currency,c.base_currency\n      FROM finance_accounts bank JOIN finance_charts c ON c.id=bank.chart_id JOIN finance_accounts a ON a.chart_id=c.id\n      WHERE bank.id=? AND bank.company_id=? AND a.company_id=bank.company_id AND a.status='active' AND a.currency=c.base_currency AND a.category IN ('other_income','other_expense')\n      ORDER BY a.code";
+const READ_INVOICE2_BANK_ACCOUNTS: NativeReadStatement = NativeReadStatement {
+    kind: RD_INVOICE2_BANK_ACCOUNTS,
+    sql: SQL_RD_INVOICE2_BANK_ACCOUNTS,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_INVOICE2_BANK_STATEMENT: &str = "finance_rd_invoice2_bank_statement";
+const SQL_RD_INVOICE2_BANK_STATEMENT: &str = "SELECT s.*,a.currency,a.code,a.name,c.base_currency FROM finance_bank_statements s JOIN finance_accounts a ON a.id=s.bank_account AND a.company_id=s.company_id JOIN finance_charts c ON c.id=a.chart_id AND c.company_id=s.company_id WHERE s.id=? AND s.company_id=?";
+const READ_INVOICE2_BANK_STATEMENT: NativeReadStatement = NativeReadStatement {
+    kind: RD_INVOICE2_BANK_STATEMENT,
+    sql: SQL_RD_INVOICE2_BANK_STATEMENT,
+    bind_count: 2,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_ASSET_POLICY_ROW,
     READ_ASSET_POLICY_RUNS,
@@ -1061,6 +1136,14 @@ const READS: &[NativeReadStatement] = &[
     READ_INVOICE_OPEN_PERIODS,
     READ_INVOICE_STATEMENT_ROWS,
     READ_INVOICE_OPEN_INVOICES,
+    READ_INVOICE2_INVOICES,
+    READ_INVOICE2_INVOICE_SNAPSHOT,
+    READ_INVOICE2_INVOICE_ALLOCATIONS,
+    READ_INVOICE2_PAYMENTS,
+    READ_INVOICE2_PAYMENT_ALLOCATIONS,
+    READ_INVOICE2_BANK_CANDIDATES,
+    READ_INVOICE2_BANK_ACCOUNTS,
+    READ_INVOICE2_BANK_STATEMENT,
 ];
 
 /// Whether a discriminator is an owner read kind (never a write kind).
@@ -1173,6 +1256,14 @@ mod tests {
             RD_INVOICE_OPEN_PERIODS,
             RD_INVOICE_STATEMENT_ROWS,
             RD_INVOICE_OPEN_INVOICES,
+            RD_INVOICE2_INVOICES,
+            RD_INVOICE2_INVOICE_SNAPSHOT,
+            RD_INVOICE2_INVOICE_ALLOCATIONS,
+            RD_INVOICE2_PAYMENTS,
+            RD_INVOICE2_PAYMENT_ALLOCATIONS,
+            RD_INVOICE2_BANK_CANDIDATES,
+            RD_INVOICE2_BANK_ACCOUNTS,
+            RD_INVOICE2_BANK_STATEMENT,
         ] {
             assert!(is_read(kind), "{kind}");
             let read = read_statement(kind).expect("read kind");
@@ -1187,7 +1278,7 @@ mod tests {
             assert_eq!(read.sql.matches('?').count(), read.bind_count, "{kind}");
             assert_eq!(read.scope, "holding", "{kind}");
         }
-        assert_eq!(READS.len(), 93);
+        assert_eq!(READS.len(), 101);
         assert!(!is_read("finance_stmt_1"));
         assert!(read_statement("finance_stmt_1").is_none());
     }
@@ -1782,6 +1873,58 @@ mod tests {
                 RD_INVOICE_OPEN_INVOICES,
                 SQL_RD_INVOICE_OPEN_INVOICES,
                 6,
+            ),
+        ];
+        assert_eq!(expected.len(), 8);
+        for (kind, sql, binds) in expected {
+            let read = read_statement(kind).unwrap_or_else(|| panic!("{kind}: unregistered"));
+            assert_eq!(read.kind, *kind, "{kind}: discriminator");
+            assert_eq!(read.sql, *sql, "{kind}: byte-identical SQL");
+            assert_eq!(read.bind_count, *binds, "{kind}: bind count");
+            assert_eq!(read.sql.matches('?').count(), *binds, "{kind}: binds");
+            assert_eq!(read.scope, "holding", "{kind}: scope");
+            assert!(is_read(kind), "{kind}");
+            assert!(!read.sql.contains("FOR UPDATE"), "{kind}");
+            assert!(!read.sql.contains("INSERT"), "{kind}");
+        }
+    }
+
+    /// The second finance-invoice-read point/list family plans the exact
+    /// retired literals; ownership helpers and guards stay in caller units.
+    #[test]
+    fn invoice_reads_second_family_match_retired_owner_statements() {
+        let expected: &[(&str, &str, usize)] = &[
+            (RD_INVOICE2_INVOICES, SQL_RD_INVOICE2_INVOICES, 2),
+            (
+                RD_INVOICE2_INVOICE_SNAPSHOT,
+                SQL_RD_INVOICE2_INVOICE_SNAPSHOT,
+                2,
+            ),
+            (
+                RD_INVOICE2_INVOICE_ALLOCATIONS,
+                SQL_RD_INVOICE2_INVOICE_ALLOCATIONS,
+                2,
+            ),
+            (RD_INVOICE2_PAYMENTS, SQL_RD_INVOICE2_PAYMENTS, 2),
+            (
+                RD_INVOICE2_PAYMENT_ALLOCATIONS,
+                SQL_RD_INVOICE2_PAYMENT_ALLOCATIONS,
+                2,
+            ),
+            (
+                RD_INVOICE2_BANK_CANDIDATES,
+                SQL_RD_INVOICE2_BANK_CANDIDATES,
+                5,
+            ),
+            (
+                RD_INVOICE2_BANK_ACCOUNTS,
+                SQL_RD_INVOICE2_BANK_ACCOUNTS,
+                2,
+            ),
+            (
+                RD_INVOICE2_BANK_STATEMENT,
+                SQL_RD_INVOICE2_BANK_STATEMENT,
+                2,
             ),
         ];
         assert_eq!(expected.len(), 8);

@@ -84,8 +84,8 @@ describe('pms read-tail r46 retirement after the native point-read cut', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(216);
-    expect(bare).toBe(217);
+    expect(spaced).toBe(215);
+    expect(bare).toBe(216);
     expect(spaced).toBeLessThan(220);
   });
 });

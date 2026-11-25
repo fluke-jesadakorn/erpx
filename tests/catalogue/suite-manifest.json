@@ -169790,6 +169790,31 @@
       },
       "apps": [],
       "packages": []
+    },
+    {
+      "id": "sales.native-package-settlement.unit",
+      "lane": "unit",
+      "owner": "sales",
+      "modules": [
+        "sales",
+        "inventory",
+        "finance"
+      ],
+      "files": [
+        "tests/unit/sales/native-package-settlement.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
     }
   ]
 }

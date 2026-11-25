@@ -184,14 +184,20 @@ function configuration(): Settings {
 
 type PlannedSupportRead = { sql: string; values: readonly unknown[] };
 
-async function planAndRun<T>(
+async function plan(
   kind: string,
   values: readonly unknown[],
-  db: SqlDatabase,
-): Promise<{ plan: PlannedSupportRead; result: SqlResult<T> }> {
-  const binds = BIND_COUNTS[kind];
-  if (binds === undefined || values.length !== binds) {
-    throw new ApiError(422, 'SUPPORT_NATIVE_READ_BINDS_INVALID', 'The native Support read bind set does not match its registered kind.');
+  fragment: boolean,
+): Promise<{ plan: PlannedSupportRead; tailBindCounts?: readonly number[] }> {
+  if (fragment) {
+    if (!FRAGMENT_KINDS.has(kind) || values.length !== 0) {
+      throw new ApiError(422, 'SUPPORT_NATIVE_READ_BINDS_INVALID', 'The native Support fragment bind set does not match its registered kind.');
+    }
+  } else {
+    const binds = BIND_COUNTS[kind];
+    if (binds === undefined || values.length !== binds) {
+      throw new ApiError(422, 'SUPPORT_NATIVE_READ_BINDS_INVALID', 'The native Support read bind set does not match its registered kind.');
+    }
   }
   const config = configuration();
   const holding = config.holdings[0]!;
@@ -230,12 +236,43 @@ async function planAndRun<T>(
   if (!Array.isArray(statements) || statements.length !== 1) return unavailable();
   const statement = statements[0];
   if (!record(statement) || typeof statement.sql !== 'string' || !Array.isArray(statement.values)) return unavailable();
-  const planned = [db.prepare(statement.sql).bind(...statement.values)];
-  const results = await db.batch<T>(planned);
+  if (fragment) {
+    const tails = statement.tailBindCounts;
+    if (
+      statement.fragment !== true || statement.values.length !== 0 || !Array.isArray(tails) ||
+      tails.length < 1 || tails.length > 3 ||
+      tails.some(value => !Number.isSafeInteger(value) || (value as number) < 0 || (value as number) > 64)
+    ) return unavailable();
+    return { plan: { sql: statement.sql, values: [] }, tailBindCounts: tails as number[] };
+  }
+  return { plan: { sql: statement.sql, values: statement.values } };
+}
+
+async function planAndRun<T>(
+  kind: string,
+  values: readonly unknown[],
+  db: SqlDatabase,
+): Promise<{ plan: PlannedSupportRead; result: SqlResult<T> }> {
+  const { plan: planned } = await plan(kind, values, false);
+  const results = await db.batch<T>([db.prepare(planned.sql).bind(...planned.values)]);
   return {
-    plan: { sql: statement.sql, values: statement.values },
+    plan: planned,
     result: results[0] ?? { results: [], success: true, meta: { changes: 0, duration: 0 } },
   };
+}
+
+/** Plan an owner read fragment without executing it. The caller must append
+ * exactly one of the server-pinned tail shapes and run the composed statement
+ * on its own open unit; no SQL crosses from the caller. */
+export async function nativeSupportReadFragment(kind: string, tailBinds: number): Promise<string> {
+  if (!FRAGMENT_KINDS.has(kind) || !Number.isSafeInteger(tailBinds) || tailBinds < 0 || tailBinds > 64) {
+    throw new ApiError(422, 'SUPPORT_NATIVE_READ_TAIL_INVALID', 'The native Support read tail shape is invalid.');
+  }
+  const { plan: planned, tailBindCounts } = await plan(kind, [], true);
+  if (!tailBindCounts?.includes(tailBinds)) {
+    throw new ApiError(422, 'SUPPORT_NATIVE_READ_TAIL_INVALID', 'The native Support read tail shape is not registered.');
+  }
+  return planned.sql;
 }
 
 /** Plan an owner read in Rust and run it on the caller's open unit. Pure read:

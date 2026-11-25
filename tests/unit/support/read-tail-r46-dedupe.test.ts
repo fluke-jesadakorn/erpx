@@ -1,9 +1,19 @@
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
-import { describe, expect, test, vi } from 'vitest';
+import { beforeAll, describe, expect, test, vi } from 'vitest';
+
+const { fragments } = vi.hoisted(() => ({ fragments: { full: '', core: '' } }));
 
 vi.mock('server-only', () => ({}));
+vi.mock('@erpx/server-support/adapters/native-support-read', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../../packages/server-support/src/adapters/native-support-read')>();
+  return {
+    ...original,
+    nativeSupportReadFragment: async (kind: string) =>
+      kind.endsWith('_full') ? fragments.full : fragments.core,
+  };
+});
 
 import { readTailR43ColumnsFromSql } from '../../../packages/server-support/src/adapters/read-tail-r43-sql';
 import { portalImageSelectedCte } from '../../../packages/server-support/src/adapters/ticket-portal-image-sql';
@@ -43,6 +53,11 @@ const full =
   `WITH selected AS(SELECT * FROM support_ticket_portal_bindings WHERE id IN (?,?)) SELECT jsonb_build_array((SELECT jsonb_agg(to_jsonb(binding) ORDER BY binding.id) FROM selected binding),(SELECT jsonb_agg(to_jsonb(ticket) ORDER BY ticket.id) FROM support_tickets ticket WHERE EXISTS(SELECT 1 FROM selected binding WHERE binding.ticket_id=ticket.id)),(SELECT jsonb_agg(to_jsonb(event) ORDER BY event.id) FROM support_ticket_portal_events event WHERE EXISTS(SELECT 1 FROM selected binding WHERE binding.id=event.binding_id)),(SELECT jsonb_agg(to_jsonb(identity) ORDER BY identity.binding_id) FROM support_ticket_portal_identities identity WHERE EXISTS(SELECT 1 FROM selected binding WHERE binding.id=identity.binding_id)),(SELECT jsonb_agg(to_jsonb(read) ORDER BY read.id) FROM support_ticket_portal_reads read WHERE EXISTS(SELECT 1 FROM selected binding WHERE binding.id=read.binding_id)),(SELECT jsonb_agg(to_jsonb(response) ORDER BY response.id) FROM support_ticket_portal_responses response WHERE EXISTS(SELECT 1 FROM selected binding WHERE binding.id=response.binding_id)),(SELECT jsonb_agg(to_jsonb(ack) ORDER BY ack.id) FROM support_ticket_portal_acknowledgements ack WHERE EXISTS(SELECT 1 FROM selected binding WHERE binding.id=ack.binding_id)))::text image`;
 const core =
   `WITH selected AS(SELECT * FROM support_ticket_portal_bindings WHERE id IN (?,?)) SELECT jsonb_build_array((SELECT jsonb_agg(to_jsonb(binding) ORDER BY binding.id) FROM selected binding),(SELECT jsonb_agg(to_jsonb(ticket) ORDER BY ticket.id) FROM support_tickets ticket WHERE EXISTS(SELECT 1 FROM selected binding WHERE binding.ticket_id=ticket.id)),(SELECT jsonb_agg(to_jsonb(event) ORDER BY event.id) FROM support_ticket_portal_events event WHERE EXISTS(SELECT 1 FROM selected binding WHERE binding.id=event.binding_id)),(SELECT jsonb_agg(to_jsonb(response) ORDER BY response.id) FROM support_ticket_portal_responses response WHERE EXISTS(SELECT 1 FROM selected binding WHERE binding.id=response.binding_id)))::text image`;
+
+beforeAll(() => {
+  fragments.full = full.slice(full.indexOf(') SELECT jsonb_build_array') + 2);
+  fragments.core = core.slice(core.indexOf(') SELECT jsonb_build_array') + 2);
+});
 
 const oracles = [
   { name: 'two-binding selected CTE', rendered: portalImageSelectedCte(['b1', 'b2']), sql: cteTwo, sha: '21fc4de025dc2371cf53d882851e8825b1e0a894c86402c34437455138f946d0', binds: 2 },
@@ -95,8 +110,10 @@ describe('support read-tail r46 byte-identical selected-bindings column-projecti
     expect(images).toContain("readTailR43ColumnsFromSql('*', `support_ticket_portal_bindings WHERE id IN (${ids.map(() => '?').join(',')})`)");
     expect(images).not.toContain('WITH selected AS(SELECT * FROM');
     expect(images).toContain('export const portalImageSelectedCte =');
-    expect(images).toContain('export const portalBoundImageSql =');
-    expect(images).toContain('export const portalImageAggregateSql =');
+    expect(images).not.toContain('portalBoundImageSql');
+    expect(images).not.toContain('portalImageAggregateSql');
+    expect(src('ticket-portal-sources.ts')).toContain('SUPPORT_RD_TICKET_PORTAL_IMAGE_AGGREGATE_FULL');
+    expect(src('ticket-portal-sources.ts')).toContain('SUPPORT_RD_TICKET_PORTAL_IMAGE_AGGREGATE_CORE');
   });
 
   test('native registry kinds, locks, advisory and earlier r18-r45 helpers stay untouched', () => {
@@ -111,7 +128,7 @@ describe('support read-tail r46 byte-identical selected-bindings column-projecti
     const unit = src('ticket-portal-unit.ts');
     expect(unit).toContain('SELECT pg_advisory_xact_lock(hashtextextended(?,0))');
     expect(unit).toContain('LOCK TABLE command_receipts,command_assertions,audit_events,outbox_events IN SHARE ROW EXCLUSIVE MODE');
-    expect(src('read-tail-r44-sql.ts')).toContain('readTailR44ImageAggregateSql =');
+    expect(existsSync(resolve(srcRoot, 'adapters', 'read-tail-r44-sql.ts'))).toBe(false);
     expect(src('read-tail-r45-sql.ts')).toContain('readTailR45AssignmentExistsSql =');
     expect(src('eligibility-projection-sources.ts')).toContain('supportEligibleFlagSql');
   });
@@ -135,8 +152,8 @@ describe('support read-tail r46 byte-identical selected-bindings column-projecti
     expect(expected).not.toMatch(/\bINSERT\b|\bUPDATE\b|\bDELETE\b|FOR UPDATE|FOR SHARE|LOCK TABLE/i);
   });
 
-  test('retirement:ts-statements is 25 after the PMS attachment image native cut', () => {
-    expect(totalSelects()).toBe(24);
-    expect(totalSelects()).toBeLessThan(26);
+  test('retirement:ts-statements is 20 after the portal bind-shape fragment cut', () => {
+    expect(totalSelects()).toBe(20);
+    expect(totalSelects()).toBeLessThan(24);
   });
 });

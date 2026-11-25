@@ -75,7 +75,7 @@ describe('crm read-tail r32 byte-identical commerce-order read-head family', () 
   });
 
   test('retirement:ts-statements stays strictly below the recorded BEFORE=122', () => {
-    expect(totalSelects()).toBe(36);
+    expect(totalSelects()).toBe(34);
     expect(totalSelects()).toBeLessThan(122);
   });
 });

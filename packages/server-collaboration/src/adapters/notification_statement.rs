@@ -584,6 +584,18 @@ pub fn plan_values_statement(
         "work_social_claim_guard" => "SELECT 1 FROM social_agent_replies pending WHERE pending.id=? AND pending.state='running' AND pending.lease_token=? AND ",
         "work_social_question_source_predicate" => "pending.owner_type='post' AND pending.owner_id=p.id AND p.author_id=pending.actor_id OR pending.owner_type='comment' AND EXISTS(SELECT 1 FROM social_comments trigger WHERE trigger.id=pending.owner_id AND trigger.post_id=p.id AND trigger.author_id=pending.actor_id AND trigger.state='published')",
         "work_social_ai_phase_state_guard" => "SELECT 1 WHERE (?='failure' AND NOT EXISTS(SELECT 1 FROM social_ai_drafts WHERE id=?)) OR EXISTS(SELECT 1 FROM social_ai_drafts d JOIN social_ai_usage u ON u.id=d.id WHERE d.id=? AND d.actor_id=? AND d.post_id=? AND u.company_id=? AND u.actor_id=? AND d.state=? AND u.state=? AND (?<>'failure' OR d.result_json IS NULL) AND (?<>'reserve' OR d.source_hash=?))",
+        // Work Social source-fact and projection image fragments. The owner
+        // owns each byte span; callers insert only their registered rowsets and
+        // aggregates and bind in the original order on their own unit.
+        "work_social_facts_project" => "jsonb_build_object('project',(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.source_kind,p.source_id) FROM (",
+        "work_social_facts_pms" => ") p JOIN requested r ON r.kind=p.source_kind AND r.id=p.source_id WHERE p.company_id=?),'pms',(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.id) FROM (",
+        "work_social_facts_tasks_head" => ") p JOIN requested r ON r.kind='pms_record' AND r.id=p.id WHERE p.company_id=?),'tasks',(SELECT jsonb_agg(jsonb_build_object('task',to_jsonb(t),'social',social.image,'delegations',(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM (",
+        "work_social_facts_tasks_from" => ") d WHERE d.task_id=t.id AND d.company_id=t.company_id)) ORDER BY t.id) FROM (",
+        "work_social_facts_tasks_join" => ") t JOIN requested r ON r.kind='staff_task' AND r.id=t.id LEFT JOIN (",
+        "work_social_facts_tail" => ") social ON social.id=t.id AND social.company_id=t.company_id WHERE t.company_id=?))::text image",
+        "work_social_image_head" => "SELECT jsonb_build_object('target',?::text,'post',(SELECT to_jsonb(p) FROM social_posts p WHERE p.id=? AND p.company_id=?),'comments',",
+        "work_social_image_sources" => ",'sources',(SELECT jsonb_agg(to_jsonb(s) ORDER BY s.ordinal) FROM social_post_sources s WHERE s.post_id=?),'participants',(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.user_id) FROM social_post_participants p WHERE p.post_id=?),'revisions',",
+        "work_social_image_tail" => ",'reactions',(SELECT jsonb_agg(to_jsonb(r) ORDER BY r.principal_id) FROM social_reactions r WHERE r.post_id=?),'follows',(SELECT jsonb_agg(to_jsonb(f) ORDER BY f.principal_id) FROM social_follows f WHERE f.target_type='post' AND f.target_id=?),'drafts',(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM social_post_drafts d WHERE d.company_id=? AND (d.published_post_id=? OR d.comment_parent_post_id=? OR d.edit_post_id=?)),'acknowledgements',(SELECT jsonb_agg(to_jsonb(a) ORDER BY a.user_id) FROM social_handover_acknowledgements a WHERE a.post_id=?),'ai_drafts',(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM social_ai_drafts d WHERE d.post_id=?),'ai_usage',(SELECT jsonb_agg(to_jsonb(u) ORDER BY u.id) FROM social_ai_usage u JOIN social_ai_drafts d ON d.id=u.id WHERE d.post_id=?),'agent_replies',(SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM social_agent_replies r WHERE r.post_id=?))::text image",
         _ => return None,
     };
     Some(
@@ -1050,6 +1062,64 @@ mod tests {
                 .expect("planned statement");
             assert_eq!(planned.sql, sql, "{kind}");
             assert_eq!(planned.sql.matches('?').count(), values.len(), "{kind}");
+        }
+    }
+
+    #[test]
+    fn work_social_image_projection_fragments_are_owner_owned_bytes() {
+        let cases = [
+            (
+                "work_social_facts_project",
+                "jsonb_build_object('project',(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.source_kind,p.source_id) FROM (",
+                1,
+            ),
+            (
+                "work_social_facts_pms",
+                ") p JOIN requested r ON r.kind=p.source_kind AND r.id=p.source_id WHERE p.company_id=?),'pms',(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.id) FROM (",
+                1,
+            ),
+            (
+                "work_social_facts_tasks_head",
+                ") p JOIN requested r ON r.kind='pms_record' AND r.id=p.id WHERE p.company_id=?),'tasks',(SELECT jsonb_agg(jsonb_build_object('task',to_jsonb(t),'social',social.image,'delegations',(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM (",
+                2,
+            ),
+            (
+                "work_social_facts_tasks_from",
+                ") d WHERE d.task_id=t.id AND d.company_id=t.company_id)) ORDER BY t.id) FROM (",
+                0,
+            ),
+            (
+                "work_social_facts_tasks_join",
+                ") t JOIN requested r ON r.kind='staff_task' AND r.id=t.id LEFT JOIN (",
+                0,
+            ),
+            (
+                "work_social_facts_tail",
+                ") social ON social.id=t.id AND social.company_id=t.company_id WHERE t.company_id=?))::text image",
+                0,
+            ),
+            (
+                "work_social_image_head",
+                "SELECT jsonb_build_object('target',?::text,'post',(SELECT to_jsonb(p) FROM social_posts p WHERE p.id=? AND p.company_id=?),'comments',",
+                2,
+            ),
+            (
+                "work_social_image_sources",
+                ",'sources',(SELECT jsonb_agg(to_jsonb(s) ORDER BY s.ordinal) FROM social_post_sources s WHERE s.post_id=?),'participants',(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.user_id) FROM social_post_participants p WHERE p.post_id=?),'revisions',",
+                2,
+            ),
+            (
+                "work_social_image_tail",
+                ",'reactions',(SELECT jsonb_agg(to_jsonb(r) ORDER BY r.principal_id) FROM social_reactions r WHERE r.post_id=?),'follows',(SELECT jsonb_agg(to_jsonb(f) ORDER BY f.principal_id) FROM social_follows f WHERE f.target_type='post' AND f.target_id=?),'drafts',(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM social_post_drafts d WHERE d.company_id=? AND (d.published_post_id=? OR d.comment_parent_post_id=? OR d.edit_post_id=?)),'acknowledgements',(SELECT jsonb_agg(to_jsonb(a) ORDER BY a.user_id) FROM social_handover_acknowledgements a WHERE a.post_id=?),'ai_drafts',(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM social_ai_drafts d WHERE d.post_id=?),'ai_usage',(SELECT jsonb_agg(to_jsonb(u) ORDER BY u.id) FROM social_ai_usage u JOIN social_ai_drafts d ON d.id=u.id WHERE d.post_id=?),'agent_replies',(SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM social_agent_replies r WHERE r.post_id=?))::text image",
+                7,
+            ),
+        ];
+        for (kind, sql, selects) in cases {
+            let planned = super::plan_values_statement(kind, &read_input(kind, &[]))
+                .expect("registered kind")
+                .expect("planned statement");
+            assert_eq!(planned.sql, sql, "{kind}");
+            assert_eq!(planned.sql.matches("SELECT ").count(), selects, "{kind}");
         }
     }
 }

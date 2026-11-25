@@ -60,7 +60,3 @@ export const pmsPropertyScopeSql = (kind: PropertyScope): string => {
   return `${cte}SELECT ${projection}${from}${PROPERTY_SCOPE_WHERE}${suffix}`;
 };
 
-type RolloutKind = 'room' | 'rate';
-/** Rank 3: correlated readiness witness; the kind is a closed union, not caller SQL. */
-export const pmsRolloutReadyExistsSql = (kind: RolloutKind): string =>
-  `EXISTS(SELECT 1 FROM pms_records r WHERE r.property_id=p.id AND r.kind='${kind}')`;

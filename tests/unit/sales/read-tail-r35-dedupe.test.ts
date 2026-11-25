@@ -86,9 +86,9 @@ describe('Sales read-tail r35 shared delivery-presence head', () => {
   });
 
   test('all four call sites keep their arguments and bind order', () => {
-    expect(obligations).toContain('NOT EXISTS(${orderDeliveryExistsSql})');
-    expect(obligations).toContain('EXISTS(${orderDeliveryExistsSql})');
-    expect(obligations).toContain("deliveryFactExists('r',' AND f.invoice_id=r.invoice_id')");
+    expect(obligations).not.toContain('NOT EXISTS(${orderDeliveryExistsSql})');
+    expect(obligations).not.toContain('EXISTS(${orderDeliveryExistsSql})');
+    expect(obligations).not.toContain("deliveryFactExists('r',' AND f.invoice_id=r.invoice_id')");
     expect(obligations).toContain("deliveryFactExists('notice',' AND f.company_id=notice.company_id AND f.party_id=notice.party_id')");
   });
 });
@@ -106,7 +106,7 @@ describe('Sales read-tail r35 retirement check', () => {
     expect((commercial.match(/SELECT/g) ?? []).length).toBe(0);
   });
 
-  test('retirement:ts-statements drops from 45 to 27', () => {
+  test('retirement:ts-statements drops from 45 to 20', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -117,7 +117,7 @@ describe('Sales read-tail r35 retirement check', () => {
     };
     walk(srcRoot);
     // r35: deliveryPresence shares one head across order/return/notice guards (-1).
-    expect(total).toBe(27);
+    expect(total).toBe(20);
     expect(total).toBeLessThan(45);
   });
 });

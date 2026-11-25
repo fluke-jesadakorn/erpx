@@ -23,13 +23,23 @@ import {legalEventsByItemSql} from '../legal-read-tail-r18-sources';
 import {legalOrderedHistorySql} from '../legal-read-tail-r30-sources';
 import {legalItemOrderedSql} from '../legal-read-tail-r35-sources';
 import {legalPointByIdAndKeySql} from '../legal-read-tail-r34-sources';
+import contract from '../legal-operations-sources.json' with {type:'json'};
+const fill = (template: string, values: Record<string, string>) => {
+  let rendered = template;
+  for (const [name, value] of Object.entries(values)) {
+    const token = `{${name}}`;
+    if (!rendered.includes(token)) throw new Error('LEGAL_OPERATIONS_CONTRACT_INVALID');
+    rendered = rendered.split(token).join(value);
+  }
+  return rendered;
+};
 /** Exact projection of the native `views` auxiliary read; no view SQL remains in TypeScript. */
 type LegalSavedViewsView={name:string;query:unknown}[];
 function unit(db:SqlDatabase,a:WorkContext,views?:LegalSavedViewsView):LegalOperationUnit{const nativeOps=legalOperations(db,a.companyId,a.userId);let observation:ReturnType<typeof legalReadScope>|undefined;const purchase=()=>observation??=legalReadScope(db,a);const v=visibility(a),writes=new WeakMap<LegalWrite,SqlStatement>();function stage(statement:SqlStatement):LegalWrite{const write:LegalWrite={owner:"legal"};writes.set(write,statement);return write;}function resolve(write:LegalWrite){const statement=writes.get(write);if(!statement)throw new Error("LEGAL_OPERATIONS_REPOSITORY_MISMATCH");return statement;}
 return {
 registerRows:async(kind)=>db
       .prepare(
-        `SELECT i.*,t.data FROM legal_items i JOIN ${tables[kind]} t ON t.item_id=i.id WHERE ${v.sql} AND ${(await purchase()).where} AND i.kind=? ORDER BY i.id LIMIT 10001`,
+        fill(contract.registerRows,{table:tables[kind],visibility:v.sql,purchase:(await purchase()).where}),
       )
       .bind(...v.values, kind)
       .all<LegalItem>(),
@@ -46,7 +56,7 @@ featureHistory:(facts:{id:string;})=>db.prepare(legalOrderedHistorySql("legal_fe
 retention:(facts:{id:string;})=>db.prepare(legalItemOrderedSql("id,state,manifest,requested_by,approved_by,approved_at,completed_at","legal_destructions","created_at")).bind(facts.id).all(),
 holdPreview:async(id)=>db
       .prepare(
-        `WITH RECURSIVE linked(id) AS (SELECT ?::text UNION SELECT l.target_id FROM linked t JOIN legal_links l ON l.source_id=t.id WHERE l.relation IN ('evidence','derived','amends','obligation')) SELECT i.id,i.title FROM linked t JOIN legal_items i ON i.id=t.id WHERE ${v.sql} AND ${(await purchase()).where}`,
+        fill(contract.holdPreview,{visibility:v.sql,purchase:(await purchase()).where}),
       )
       .bind(id, ...v.values)
       .all(),
@@ -57,7 +67,7 @@ async acceptProposal(facts){return stage(await nativeOps.acceptProposal({proposa
 async advanceItem(facts){return stage(await nativeOps.advanceItem({now:facts.now,id:facts.id}));},
 ruleImpact:async(id)=>db
         .prepare(
-          `SELECT i.id,i.kind,i.title,i.state,i.due_date,i.version FROM legal_items i JOIN legal_links l ON (l.source_id=? AND l.target_id=i.id) OR (l.target_id=? AND l.source_id=i.id) WHERE ${v.sql} AND ${(await purchase()).where} ORDER BY i.id LIMIT 500`,
+          fill(contract.ruleImpact,{visibility:v.sql,purchase:(await purchase()).where}),
         )
         .bind(id, id, ...v.values)
         .all(),

@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
+import { crmSelectBodySql } from '../../../packages/server-crm/src/adapters/read-tail-r46-sql';
 import { crmJsonbAggregateSql } from '../../../packages/server-crm/src/adapters/read-tail-r49-sql';
 
 const owner = resolve(__dirname, '../../../packages/server-crm/src');
@@ -38,9 +39,9 @@ describe('crm read-tail r49 byte-identical JSONB-aggregate read head', () => {
     expect(rendered).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
   });
 
-  test('the owner renderer owns exactly the one shared read token', () => {
+  test('the aggregate head folds into the select-body plan with no token of its own', () => {
     const helper = src('read-tail-r49-sql.ts');
-    expect((helper.match(/SELECT /g) ?? []).length).toBe(1);
+    expect((helper.match(/SELECT /g) ?? []).length).toBe(0);
     expect(helper.match(/crmJsonbAggregateSql =/g)).toHaveLength(1);
     expect(crmJsonbAggregateSql('')).toBe('SELECT jsonb_agg(to_jsonb(');
     expect(crmJsonbAggregateSql('native)) FROM (ROWS) native WHERE PRED')).toBe(
@@ -74,8 +75,17 @@ describe('crm read-tail r49 byte-identical JSONB-aggregate read head', () => {
     expect(src('marketing-package-obligations.ts')).toContain('@erpx/server-marketing/public/package-obligations');
   });
 
-  test('retirement:ts-statements drops from the r48 AFTER=50 to 49', () => {
-    expect(totalSelects()).toBe(36);
-    expect(totalSelects()).toBeLessThan(50);
+  test.each([
+    '',
+    'native)) FROM (ROWS) native WHERE PRED',
+    'a) ORDER BY a.id) FROM F',
+  ])('the aggregate head folds into the owner select-body plan for %#', (body) => {
+    expect(crmJsonbAggregateSql(body)).toBe(crmSelectBodySql(`jsonb_agg(to_jsonb(${body}`));
+    expect(crmJsonbAggregateSql(body)).toBe(`SELECT jsonb_agg(to_jsonb(${body}`);
+  });
+
+  test('retirement:ts-statements folds the JSONB-aggregate head (35 -> 34)', () => {
+    expect(totalSelects()).toBe(34);
+    expect(totalSelects()).toBeLessThan(35);
   });
 });

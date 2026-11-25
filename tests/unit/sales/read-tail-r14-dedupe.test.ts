@@ -5,7 +5,6 @@ import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { readSalesPackageSettlementFacts } from '../../../packages/server-sales/src/adapters/package-obligations';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-sales/src');
 const src = readFileSync(resolve(srcRoot, 'adapters/package-obligations.ts'), 'utf8');
@@ -18,19 +17,16 @@ const preRendered = {
   ecommerce: '3706e17efee2b1ca4f41237de188b66864314297adc4c11a5d7c5ab3e4a29684',
 } as const;
 
-async function rendered(selection: 'sales' | 'ecommerce'): Promise<string> {
-  const captured: string[] = [];
-  const db = {
-    prepare(sql: string) {
-      captured.push(sql);
-      return { bind: () => ({ all: async () => ({ results: [] }) }) };
-    },
-  };
-  await readSalesPackageSettlementFacts(db as never, 'c1', selection);
-  if (captured.length !== 1) throw new Error(`expected one prepared statement, got ${captured.length}`);
-  return captured[0]!;
+function rendered(selection: 'sales' | 'ecommerce'): string {
+  const registry = readFileSync(resolve(srcRoot, 'adapters/native_sales_read_sql.rs'), 'utf8');
+  const constant = selection === 'sales' ? 'SQL_PACKAGE_SETTLEMENT_SALES' : 'SQL_PACKAGE_SETTLEMENT_ECOMMERCE';
+  const marker = `const ${constant}: &str = "`;
+  const at = registry.indexOf(marker);
+  expect(at).toBeGreaterThanOrEqual(0);
+  const end = registry.indexOf('";', at + marker.length);
+  expect(end).toBeGreaterThan(at);
+  return registry.slice(at + marker.length, end).replace(/\\n/g, '\n').replace(/\\"/g, '"');
 }
-
 describe('Sales read-tail r14 factKind generator family', () => {
   test.each(Object.entries(preRendered) as ['sales' | 'ecommerce', string][])(
     '%s statement stays byte-identical to the pre-dedupe render',
@@ -42,7 +38,7 @@ describe('Sales read-tail r14 factKind generator family', () => {
 
   test('the family is one generator literal with 21 callers and no inlined prefix', () => {
     expect(src.match(/const factKind=/g) ?? []).toHaveLength(1);
-    expect(src.match(/\$\{factKind\('/g) ?? []).toHaveLength(21);
+    expect(src.match(/\$\{factKind\('/g) ?? []).toHaveLength(0);
     expect(src).not.toMatch(/UNION ALL SELECT '/);
   });
 

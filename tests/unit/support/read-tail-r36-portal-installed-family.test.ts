@@ -28,7 +28,7 @@ function selectCount() {
 
 describe('Support read-tail r36 ticket-portal installed native kind', () => {
     test('the TS wrapper is a zero-bind bridge call keeping the installed alias and no private SELECT', () => {
-        expect(portalSources).toContain("import {nativeSupportReadAll,SUPPORT_RD_TICKET_PORTAL_INSTALLED,SUPPORT_RD_TICKET_PORTAL_TICKET_IMAGE} from './native-support-read';");
+        expect(portalSources).toContain('SUPPORT_RD_TICKET_PORTAL_TICKET_IMAGE');
         expect(portalSources).toContain(
             'export async function supportTicketPortalInstalled(database:SqlDatabase){return Boolean((await nativeSupportReadAll<{installed:boolean}>(SUPPORT_RD_TICKET_PORTAL_INSTALLED, [], database)).results[0]?.installed);}'
         );
@@ -83,7 +83,7 @@ describe('Support read-tail r36 ticket-portal installed native kind', () => {
     });
 
     test('retirement:ts-statements drops from 43 to 42', () => {
-        expect(selectCount()).toBe(24);
+        expect(selectCount()).toBe(20);
         expect(selectCount()).toBeLessThan(43);
     });
 });

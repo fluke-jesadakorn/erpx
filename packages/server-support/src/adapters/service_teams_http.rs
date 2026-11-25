@@ -625,6 +625,17 @@ mod tests {
                 json!(["binding-1", "response-1"]),
                 200,
             ),
+            ("support_rd_ticket_portal_valid_bindings", json!([]), 200),
+            (
+                "support_rd_ticket_portal_image_aggregate_full",
+                json!([]),
+                200,
+            ),
+            (
+                "support_rd_ticket_portal_image_aggregate_core",
+                json!([]),
+                200,
+            ),
             ("support_rd_ticket_portal_installed", json!([]), 200),
             ("support_rd_ticket_event_history", json!(["ticket-1"]), 200),
             ("support_rd_incident_event_history", json!(["incident-1"]), 200),
@@ -758,6 +769,12 @@ mod tests {
             (
                 "support_rd_ticket_portal_acknowledged_at",
                 json!(["binding-1"]),
+                422,
+            ),
+            ("support_rd_ticket_portal_valid_bindings", json!(["x"]), 422),
+            (
+                "support_rd_ticket_portal_image_aggregate_full",
+                json!(["x"]),
                 422,
             ),
             ("support_rd_ticket_portal_installed", json!([1]), 422),

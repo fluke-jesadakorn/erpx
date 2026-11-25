@@ -116,6 +116,56 @@ mod tests {
     }
 
     #[test]
+    fn jsonb_aggregate_head_is_the_owner_select_body_plan() {
+        // Canonical native form of the r49 JSONB-aggregate head: the select-body
+        // plan over `jsonb_agg(to_jsonb(${body}`. The TS `crmJsonbAggregateSql`
+        // delegates on this identity; aggregate body and wrapper stay verbatim.
+        let select_body = |body: &str| format!("SELECT {body}");
+        let aggregate = |body: &str| select_body(&format!("jsonb_agg(to_jsonb({body}"));
+        let cases = [
+            ("empty prefix", "", "SELECT jsonb_agg(to_jsonb("),
+            ("native-image witness", "native)) FROM (ROWS) native WHERE PRED", "SELECT jsonb_agg(to_jsonb(native)) FROM (ROWS) native WHERE PRED"),
+            ("related-image aggregate", "a) ORDER BY a.id) FROM F", "SELECT jsonb_agg(to_jsonb(a) ORDER BY a.id) FROM F"),
+        ];
+        for (name, body, expected) in cases {
+            let rendered = aggregate(body);
+            assert_eq!(rendered, expected, "{name}");
+            assert_eq!(rendered.matches("SELECT ").count(), 1, "{name}");
+            let upper = rendered.to_ascii_uppercase();
+            assert!(!upper.contains("INSERT"), "{name}");
+            assert!(!upper.contains("UPDATE"), "{name}");
+            assert!(!upper.contains("DELETE"), "{name}");
+            assert!(!upper.contains("FOR UPDATE"), "{name}");
+            assert!(!upper.contains("LOCK TABLE"), "{name}");
+        }
+    }
+
+    #[test]
+    fn select_expr_head_is_the_owner_select_body_plan() {
+        // Canonical native form of the r50 parenthesized-select head: the
+        // select-body plan over `(${body}`. The TS `crmSelectExprSql` delegates
+        // on this identity; witness and caller tails stay verbatim.
+        let select_body = |body: &str| format!("SELECT {body}");
+        let select_expr = |body: &str| select_body(&format!("({body}"));
+        let cases = [
+            ("empty witness", "", "SELECT ("),
+            ("attachment target witness", "CRM_SOURCE_QUERY) witness", "SELECT (CRM_SOURCE_QUERY) witness"),
+            ("marketing assignment guard", "jsonb_array_length(modules_json::jsonb)=0 OR modules_json::jsonb @> jsonb_build_array('marketing'::text)) allowed FROM assignments WHERE id=?", "SELECT (jsonb_array_length(modules_json::jsonb)=0 OR modules_json::jsonb @> jsonb_build_array('marketing'::text)) allowed FROM assignments WHERE id=?"),
+        ];
+        for (name, body, expected) in cases {
+            let rendered = select_expr(body);
+            assert_eq!(rendered, expected, "{name}");
+            assert_eq!(rendered.matches("SELECT ").count(), 1, "{name}");
+            let upper = rendered.to_ascii_uppercase();
+            assert!(!upper.contains("INSERT"), "{name}");
+            assert!(!upper.contains("UPDATE"), "{name}");
+            assert!(!upper.contains("DELETE"), "{name}");
+            assert!(!upper.contains("FOR UPDATE"), "{name}");
+            assert!(!upper.contains("LOCK TABLE"), "{name}");
+        }
+    }
+
+    #[test]
     fn materialized_scope_head_is_the_owner_select_body_plan() {
         // Canonical native form of the r47 MATERIALIZED scope CTE: the row body
         // is the bare select-body plan wrapped in the MATERIALIZED parentheses.

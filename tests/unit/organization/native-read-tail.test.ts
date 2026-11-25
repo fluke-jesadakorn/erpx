@@ -488,7 +488,7 @@ describe('Organization read-tail r30 native cutover — finance starter node lis
       }
     };
     walk(srcRoot);
-    expect(total).toBe(186);
+    expect(total).toBe(185);
     expect(total).toBeLessThan(189);
     // The worker-position cut deleted the shared r38 helper literal after both
     // former consumers moved to the native owner, so the KPI falls by one.
@@ -717,5 +717,45 @@ describe('Organization change-event snapshot read native cutover', () => {
       expect(registry).toContain(`${kind}: &str = `);
       expect(registry).toContain(`        ${kind} => {\n            "${sql}"\n        }`);
     }
+  });
+});
+
+describe('Organization attachment source image native cutover', () => {
+  const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+  const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
+  const sha = (value: string) => createHash('sha256').update(value).digest('hex');
+  const KIND = 'attachment_organization_source_image';
+  const SQL = "SELECT to_jsonb(company)::text image FROM organization_nodes company WHERE company.id=? AND company.kind='company'";
+
+  it('deletes the TS literal and maps the typed single-row read to the image value', async () => {
+    const source = read('attachment-read-sources.ts');
+    expect(source).not.toContain(SQL);
+    expect(source).toContain(`nativeOrgOne<{image:string}>(database,companyId,'${KIND}',[companyId]).then(row=>row?.image??null)`);
+    expect(source.split(KIND).length - 1).toBe(1);
+    // The table lock is a separate statement and stays byte-identical.
+    expect(source).toContain('LOCK TABLE organization_nodes IN SHARE ROW EXCLUSIVE MODE');
+    const {foundationAttachmentOrganizationSourceImage} = await import(
+      '../../../packages/server-organization/src/adapters/attachment-read-sources'
+    );
+    one.mockClear();
+    const handle = db();
+    one.mockResolvedValueOnce({image: '{"id":"company"}'});
+    await expect(foundationAttachmentOrganizationSourceImage(handle, 'company-1')).resolves.toBe('{"id":"company"}');
+    expect(one).toHaveBeenCalledWith(handle, 'company-1', KIND, ['company-1']);
+    expect(handle.prepare).not.toHaveBeenCalled();
+    one.mockResolvedValueOnce(null);
+    await expect(foundationAttachmentOrganizationSourceImage(handle, 'company-1')).resolves.toBeNull();
+  });
+
+  it('pins the byte-identical SQL now owned by the Rust registry', () => {
+    expect(sha(SQL)).toBe('17d882597c91fc202c157067d2c6d6ef72fdc077bf010ba1fd4a356aee72aff1');
+    const registry = read('organization_owner_write.rs');
+    expect(registry).toContain(`pub const ATTACHMENT_ORGANIZATION_SOURCE_IMAGE: &str = "${KIND}";`);
+    expect(registry).toContain(`    ATTACHMENT_ORGANIZATION_SOURCE_IMAGE,\n`);
+    expect(registry).toContain(`        ATTACHMENT_ORGANIZATION_SOURCE_IMAGE => {\n            "${SQL}"\n        }`);
+    const arm = registry.match(/ATTACHMENT_ORGANIZATION_SOURCE_IMAGE => \{\n            "([^"]+)"\n        \}/)?.[1] ?? '';
+    expect(arm).toBe(SQL);
+    expect(arm.toUpperCase().startsWith('SELECT ')).toBe(true);
+    expect(arm).not.toMatch(/INSERT|UPDATE|DELETE|FOR UPDATE|FOR SHARE|LOCK TABLE/);
   });
 });

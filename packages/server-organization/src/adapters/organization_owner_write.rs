@@ -18,6 +18,10 @@ type Error = PgTransactionError<BusinessError>;
 
 // -- attachments-finance-facts ------------------------------------------------
 pub const ORG_ATTACHMENT_NODE_VERSION_STEP: &str = "org_attachment_node_version_step";
+/// Native-owned foundation Company node image. SELECT-only and node-id keyed
+/// over the org-owned `organization_nodes` table; no lock and no cross-owner
+/// source. The caller keeps its attachment read authority.
+pub const ATTACHMENT_ORGANIZATION_SOURCE_IMAGE: &str = "attachment_organization_source_image";
 /// Cross-owner attachment version step. Only the allow-listed tables below are
 /// admitted; the table name is never accepted as SQL text from a caller.
 pub const ATTACHMENT_OWNER_VERSION_STEP: &str = "attachment_owner_version_step";
@@ -272,6 +276,7 @@ pub const FINANCE_STARTER_ORGANIZATION_NODES: &str = "finance_starter_organizati
 pub const KINDS: &[&str] = &[
     ORG_ATTACHMENT_NODE_VERSION_STEP,
     ATTACHMENT_OWNER_VERSION_STEP,
+    ATTACHMENT_ORGANIZATION_SOURCE_IMAGE,
     BETA_BRANCH_INSERT,
     BETA_DEPARTMENT_INSERT,
     ACCEPTANCE_SUBMIT,
@@ -414,6 +419,9 @@ fn sql(kind: &str) -> Option<&'static str> {
             "UPDATE organization_nodes SET hierarchy_revision=hierarchy_revision+1 WHERE id=? AND hierarchy_revision=?"
         }
         ATTACHMENT_OWNER_VERSION_STEP => "", // built from an allow-listed table in sql_for
+        ATTACHMENT_ORGANIZATION_SOURCE_IMAGE => {
+            "SELECT to_jsonb(company)::text image FROM organization_nodes company WHERE company.id=? AND company.kind='company'"
+        }
         BETA_BRANCH_INSERT => {
             "INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id) VALUES(?,'branch',?,?,?,?,?) ON CONFLICT DO NOTHING"
         }
@@ -1887,5 +1895,38 @@ mod tests {
             assert!(!upper.contains(" INSERT ") && !upper.contains(" UPDATE ") && !upper.contains(" DELETE "));
             assert!(!upper.contains(" FOR UPDATE ") && !upper.contains(" FOR SHARE ") && !upper.contains(" LOCK TABLE "));
         }
+    }
+
+    #[test]
+    fn attachment_organization_source_image_is_byte_identical_and_read_only() {
+        assert!(supported(ATTACHMENT_ORGANIZATION_SOURCE_IMAGE));
+        const RETIRED: &str = "SELECT to_jsonb(company)::text image FROM organization_nodes company WHERE company.id=? AND company.kind='company'";
+        assert_eq!(sql(ATTACHMENT_ORGANIZATION_SOURCE_IMAGE).unwrap(), RETIRED);
+        let digest = {
+            use sha2::Digest;
+            let mut hasher = sha2::Sha256::new();
+            hasher.update(RETIRED.as_bytes());
+            format!("{:x}", hasher.finalize())
+        };
+        assert_eq!(
+            digest,
+            "17d882597c91fc202c157067d2c6d6ef72fdc077bf010ba1fd4a356aee72aff1"
+        );
+        let (statement, values) =
+            owner_statement(ATTACHMENT_ORGANIZATION_SOURCE_IMAGE, &[Value::from("company")])
+                .expect("attachment organization source image statement");
+        assert_eq!(statement, RETIRED);
+        assert_eq!(values, vec![Value::from("company")]);
+        // Missing or extra positional values fail closed.
+        assert!(owner_statement(ATTACHMENT_ORGANIZATION_SOURCE_IMAGE, &[]).is_err());
+        assert!(owner_statement(
+            ATTACHMENT_ORGANIZATION_SOURCE_IMAGE,
+            &[Value::from("company"), Value::from("extra")],
+        )
+        .is_err());
+        let upper = statement.to_ascii_uppercase();
+        assert!(upper.starts_with("SELECT "));
+        assert!(!upper.contains(" INSERT ") && !upper.contains(" UPDATE ") && !upper.contains(" DELETE "));
+        assert!(!upper.contains(" FOR UPDATE ") && !upper.contains(" FOR SHARE ") && !upper.contains(" LOCK TABLE "));
     }
 }

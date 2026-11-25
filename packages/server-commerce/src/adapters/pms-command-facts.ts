@@ -2,19 +2,15 @@ import {commercePmsCommandFactsStockEffects} from '@erpx/server-inventory/public
 import { commercialOwnerProjectionSources as inventoryProjectionSources } from "@erpx/server-inventory/public/commercial-owner-projection-sources";
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-import { nativeCommerceReadAll, RD_WAREHOUSE_BRANCH_ACTIVE } from './native-commerce-read';
-const query = async <T>(db: SqlDatabase, sql: string, ...values: unknown[]) => (await db
-    .prepare(sql)
-    .bind(...values)
-    .all<T>()).results;
+import { nativeCommerceReadAll, nativeCommerceReadFirst, RD_WAREHOUSE_BRANCH_ACTIVE, RD_PMS_PRODUCT_OPTIONS, RD_PMS_WAREHOUSE_ID, RD_PMS_PRODUCT_WAREHOUSE_SCOPE } from './native-commerce-read';
 export function pmsCommerceFacts(db: SqlDatabase) {
     return {
         readCommerceProducts: (facts: {
             companyId: string;
-        }) => query<{
+        }) => nativeCommerceReadAll<{
             id: string;
             name: string;
-        }>(db, "SELECT id,name FROM commerce_products WHERE company_id=? AND status='active'", facts.companyId),
+        }>(RD_PMS_PRODUCT_OPTIONS,[facts.companyId],db),
         readCommerceWarehouses: (facts: {
             companyId: string;
             fact1: string;
@@ -26,7 +22,7 @@ export function pmsCommerceFacts(db: SqlDatabase) {
             warehouseId: string;
             companyId: string;
             branchId: string;
-        }) => db.prepare("SELECT id FROM commerce_warehouses WHERE id=? AND company_id=? AND branch_id=? AND status='active'").bind(facts.warehouseId, facts.companyId, facts.branchId).first(),
+        }) => nativeCommerceReadFirst<{id:string}>(RD_PMS_WAREHOUSE_ID,[facts.warehouseId,facts.companyId,facts.branchId],db),
         readCommerceStock: (facts: {
             warehouseId: string;
             productId: string;
@@ -45,6 +41,6 @@ export function pmsCommerceFacts(db: SqlDatabase) {
             productId: string;
             companyId: string;
             branchId: string;
-        }) => db.prepare("SELECT 1 FROM commerce_products p JOIN commerce_warehouses w ON w.id=? WHERE p.id=? AND p.company_id=? AND w.company_id=p.company_id AND w.branch_id=? AND p.status='active' AND w.status='active'").bind(facts.warehouseId, facts.productId, facts.companyId, facts.branchId).first()
+        }) => nativeCommerceReadFirst<{ '1': number }>(RD_PMS_PRODUCT_WAREHOUSE_SCOPE,[facts.warehouseId,facts.productId,facts.companyId,facts.branchId],db)
     };
 }

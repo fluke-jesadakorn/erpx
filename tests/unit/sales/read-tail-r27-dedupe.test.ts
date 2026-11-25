@@ -6,7 +6,6 @@ import ts from 'typescript';
 
 vi.mock('server-only', () => ({}));
 
-import { readSalesPackageSettlementFacts } from '../../../packages/server-sales/src/adapters/package-obligations';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-sales/src');
 const obligations = readFileSync(resolve(srcRoot, 'adapters/package-obligations.ts'), 'utf8');
@@ -39,19 +38,16 @@ const preRendered = {
   ecommerce: '3706e17efee2b1ca4f41237de188b66864314297adc4c11a5d7c5ab3e4a29684',
 } as const;
 
-async function rendered(selection: 'sales' | 'ecommerce'): Promise<string> {
-  const captured: string[] = [];
-  const db = {
-    prepare(sql: string) {
-      captured.push(sql);
-      return { bind: () => ({ all: async () => ({ results: [] }) }) };
-    },
-  };
-  await readSalesPackageSettlementFacts(db as never, 'c1', selection);
-  if (captured.length !== 1) throw new Error(`expected one prepared statement, got ${captured.length}`);
-  return captured[0]!;
+function rendered(selection: 'sales' | 'ecommerce'): string {
+  const registry = readFileSync(resolve(srcRoot, 'adapters/native_sales_read_sql.rs'), 'utf8');
+  const constant = selection === 'sales' ? 'SQL_PACKAGE_SETTLEMENT_SALES' : 'SQL_PACKAGE_SETTLEMENT_ECOMMERCE';
+  const marker = `const ${constant}: &str = "`;
+  const at = registry.indexOf(marker);
+  expect(at).toBeGreaterThanOrEqual(0);
+  const end = registry.indexOf('";', at + marker.length);
+  expect(end).toBeGreaterThan(at);
+  return registry.slice(at + marker.length, end).replace(/\\n/g, '\n').replace(/\\"/g, '"');
 }
-
 describe('Sales read-tail r27 parameterized ecommerce order-scope family', () => {
   const gen = loadGenerator();
 
@@ -78,9 +74,9 @@ describe('Sales read-tail r27 parameterized ecommerce order-scope family', () =>
 
   test('one generator literal with eight callers and no inlined old constants', () => {
     expect(obligations.match(/const ecommerceOrderScope\s*=/g) ?? []).toHaveLength(1);
-    expect((obligations.match(/ecommerceOrderScope\('note'\)/g) ?? []).length).toBe(2);
-    expect((obligations.match(/ecommerceOrderScope\('followup'\)/g) ?? []).length).toBe(2);
-    expect((obligations.match(/ecommerceOrderScope\('notice'\)/g) ?? []).length).toBe(4);
+    expect((obligations.match(/ecommerceOrderScope\('note'\)/g) ?? []).length).toBe(0);
+    expect((obligations.match(/ecommerceOrderScope\('followup'\)/g) ?? []).length).toBe(0);
+    expect((obligations.match(/ecommerceOrderScope\('notice'\)/g) ?? []).length).toBe(0);
     expect(obligations.match(/const ecommerce(?:Note|Followup|Notice)OrderScope\s*=/g) ?? []).toHaveLength(0);
     expect(obligations).not.toContain(pre.note);
     expect(obligations).not.toContain(pre.followup);
@@ -133,7 +129,7 @@ describe('Sales read-tail r27 parameterized ecommerce order-scope family', () =>
     expect(native).toContain('export const SALES_RD_PRICE_LIST_ITEMS_ACTIVE');
     expect(native).toContain('export const SALES_RD_NOTIFICATION_ATTEMPT');
     expect(native).toContain('export const SALES_RD_NOTIFICATION_RECONCILIATION_INSTALLED');
-    expect((rustRegistry.match(/pub const RD_\w+: &str =/g) ?? []).length).toBe(24);
+    expect((rustRegistry.match(/pub const RD_\w+: &str =/g) ?? []).length).toBe(26);
     expect((commercial.match(/SELECT/g) ?? []).length).toBe(0);
   });
 });
@@ -157,7 +153,7 @@ describe('Sales read-tail r27 retirement check', () => {
     // r35: delivery-presence head shared by order/return/notice guards (-1).
     // lane 30 retires the two customer-note SELECT literals (-2) to the native
     // Sales axum owner.
-    expect(total).toBe(27);
+    expect(total).toBe(20);
     expect(total).toBeLessThan(60);
   });
 });

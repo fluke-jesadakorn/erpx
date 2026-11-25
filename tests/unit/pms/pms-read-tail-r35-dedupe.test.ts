@@ -90,8 +90,8 @@ describe('pms read-tail r35 point-read head dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(216);
-    expect(bare).toBe(217);
+    expect(spaced).toBe(215);
+    expect(bare).toBe(216);
     expect(spaced).toBeLessThan(337);
   });
 });

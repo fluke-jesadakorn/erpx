@@ -141,7 +141,7 @@ describe('crm read-tail r46 byte-identical projection/FROM head', () => {
   });
 
   test('retirement:ts-statements folds the projection/FROM head (40 -> 39)', () => {
-    expect(totalSelects()).toBe(36);
+    expect(totalSelects()).toBe(34);
     expect(totalSelects()).toBeLessThan(40);
   });
 });

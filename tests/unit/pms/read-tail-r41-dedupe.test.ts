@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 import {
   pmsGuestIdJoinSql,
   pmsPropertyScopeSql,
-  pmsRolloutReadyExistsSql,
 } from '../../../packages/server-pms/src/adapters/pms-read-tail-r41-sql';
 import { pmsHomeGuestAccountSumSql } from '../../../packages/server-pms/src/adapters/pms-read-tail-r39-sql';
 
@@ -23,8 +22,6 @@ const HEAD = {
   guestOperations: "SELECT r.id FROM pms_records r\n   LEFT JOIN pms_records g ON g.id=r.data_json::jsonb->>'guestId' AND g.property_id=r.property_id AND g.kind='guest'",
   hotelMoney: "WITH RECURSIVE entry_roots AS (\n      SELECT r.id,r.property_id,r.id root_id FROM pms_records r JOIN pms_properties p ON p.id=r.property_id\n      WHERE p.company_id=? AND (?::text IS NULL OR p.branch_id=?) AND r.kind='entry' AND r.data_json::jsonb->>'sourceKey' LIKE 'night:%'\n      UNION ALL SELECT r.id,r.property_id,e.root_id FROM pms_records r JOIN entry_roots e ON r.property_id=e.property_id AND r.data_json::jsonb->>'originalId'=e.id\n        WHERE r.kind='entry' AND r.id<>e.id\n    ) SELECT p.id,\n      COALESCE((SELECT sum((r.data_json::jsonb->>'net')::bigint) FROM pms_records r JOIN entry_roots e ON e.id=r.id AND e.property_id=r.property_id\n        WHERE r.property_id=p.id AND r.data_json::jsonb->>'date'=p.business_date AND r.data_json::jsonb->>'kind' IN ('charge','adjustment')),0) room_revenue,\n      COALESCE((${pmsHomeGuestAccountSumSql('receivable')}),0) receivable,\n      COALESCE((${pmsHomeGuestAccountSumSql('advance')}),0) advance,\n      COALESCE((${pmsHomeGuestAccountSumSql('deposit')}),0) deposit\n    FROM pms_properties p WHERE p.company_id=? AND (?::text IS NULL OR p.branch_id=?) AND (?::text IS NULL OR p.id=?)",
   liabilities: "SELECT p.id,\n    COALESCE(sum(CASE WHEN e.data_json::jsonb->>'description'='payment.refund_liability' THEN (e.data_json::jsonb->>'total')::bigint\n      WHEN e.data_json::jsonb->>'description'='payment.refund_settle' AND source.data_json::jsonb->>'description'<>'payment.unallocated' THEN (e.data_json::jsonb->>'total')::bigint ELSE 0 END),0) refund_payable,\n    COALESCE(sum(CASE WHEN e.data_json::jsonb->>'description'='payment.unallocated' THEN (e.data_json::jsonb->>'total')::bigint\n      WHEN e.data_json::jsonb->>'description'='payment.refund_settle' AND source.data_json::jsonb->>'description'='payment.unallocated' THEN (e.data_json::jsonb->>'total')::bigint ELSE 0 END),0) unallocated\n    FROM pms_properties p LEFT JOIN pms_records e ON e.property_id=p.id AND e.kind='entry'\n    LEFT JOIN pms_records source ON source.property_id=p.id AND source.id=e.data_json::jsonb->>'originalId' AND source.kind='entry'\n    WHERE p.company_id=? AND (?::text IS NULL OR p.branch_id=?) AND (?::text IS NULL OR p.id=?) GROUP BY p.id",
-  room: "EXISTS(SELECT 1 FROM pms_records r WHERE r.property_id=p.id AND r.kind='room')",
-  rate: "EXISTS(SELECT 1 FROM pms_records r WHERE r.property_id=p.id AND r.kind='rate')",
 } as const;
 const HEAD_SHA = {
   guestEmail: '910eac52c5187569586657529b84cf6f3968cfa0be9953f0a232da136118c8c3',
@@ -32,8 +29,6 @@ const HEAD_SHA = {
   guestOperations: 'a751da095b6fe4488bc59fbd9ad897bba41b81b67e1bfebd23c7618955f1234b',
   hotelMoney: '6163173cd3c318771a9f43952522036b43869d412fa02c8846c8c896702bda9d',
   liabilities: 'c3de466c8b039db17d68627ce6ae9d98a93008aba53babff5848b05aa55e36c1',
-  room: '5558e380dc86f7d528381d202f858eb992a58ccde185ec3e253143a71a761d61',
-  rate: 'c0d74743a3e9c854abcb8e356d3e32471c82ecfd029ad4e0208efcd69bd1c01f',
 } as const;
 
 // The rendered form resolves the r39 interpolations to the same text HEAD ran.
@@ -47,8 +42,6 @@ const RENDERED = {
   guestOperations: HEAD.guestOperations,
   hotelMoney: resolve(HEAD.hotelMoney),
   liabilities: HEAD.liabilities,
-  room: HEAD.room,
-  rate: HEAD.rate,
 } as const;
 const GENERATED = {
   guestEmail: pmsGuestIdJoinSql('email'),
@@ -56,8 +49,6 @@ const GENERATED = {
   guestOperations: pmsGuestIdJoinSql('operations'),
   hotelMoney: pmsPropertyScopeSql('hotelMoney'),
   liabilities: pmsPropertyScopeSql('liabilities'),
-  room: pmsRolloutReadyExistsSql('room'),
-  rate: pmsRolloutReadyExistsSql('rate'),
 } as const;
 
 async function tsFiles(directory: URL): Promise<string[]> {
@@ -70,7 +61,7 @@ async function tsFiles(directory: URL): Promise<string[]> {
 }
 
 describe('pms read-tail r41 guest-join, property-scope and rollout-exists dedupe', () => {
-  it('pins the exact HEAD bytes of all seven oracles', () => {
+  it('pins the exact HEAD bytes of all five oracles', () => {
     for (const k of Object.keys(HEAD) as (keyof typeof HEAD)[]) {
       expect(sha256(HEAD[k]), k).toBe(HEAD_SHA[k]);
     }
@@ -80,10 +71,8 @@ describe('pms read-tail r41 guest-join, property-scope and rollout-exists dedupe
     const shared = await src(SHARED);
     expect(shared.split('pmsGuestIdJoinSql').length - 1).toBe(1);
     expect(shared.split('pmsPropertyScopeSql').length - 1).toBe(1);
-    expect(shared.split('pmsRolloutReadyExistsSql').length - 1).toBe(1);
     expect(shared).toContain("type GuestIdJoin = 'email' | 'reservationEmail' | 'operations'");
     expect(shared).toContain("type PropertyScope = 'hotelMoney' | 'liabilities'");
-    expect(shared).toContain("type RolloutKind = 'room' | 'rate'");
     expect(shared).toContain('const GUEST_ID_JOIN');
     expect(shared).toContain('const PROPERTY_SCOPE');
     expect(shared).toContain('const PROPERTY_SCOPE_WHERE');
@@ -91,16 +80,17 @@ describe('pms read-tail r41 guest-join, property-scope and rollout-exists dedupe
     // variant is gone.
     expect(shared).not.toMatch(/\(\s*\w+\s*:\s*string\s*\)\s*=>/);
     expect(shared).not.toContain('hotelMetrics');
+    expect(shared).not.toContain('pmsRolloutReadyExistsSql');
   });
 
-  it('generates all seven byte-identical heads with unchanged bind counts', () => {
+  it('generates all five byte-identical heads with unchanged bind counts', () => {
     for (const k of Object.keys(HEAD) as (keyof typeof HEAD)[]) {
       expect(GENERATED[k], k).toBe(RENDERED[k]);
       expect((GENERATED[k].match(/\?/g) ?? []).length).toBe((RENDERED[k].match(/\?/g) ?? []).length);
     }
   });
 
-  it('routes all seven call sites through the helpers and removes inline heads', async () => {
+  it('routes all five call sites through the helpers and removes inline heads', async () => {
     const bk = await src('adapters/pms-booking.ts');
     expect(bk.split("pmsGuestIdJoinSql('email')").length - 1).toBe(1);
     expect(bk.split("pmsGuestIdJoinSql('reservationEmail')").length - 1).toBe(1);
@@ -125,10 +115,8 @@ describe('pms read-tail r41 guest-join, property-scope and rollout-exists dedupe
     expect(fin.split(HEAD.liabilities).length - 1).toBe(0);
 
     const roll = await src('adapters/hospitality-rollout.ts');
-    expect(roll.split("pmsRolloutReadyExistsSql('room')").length - 1).toBe(1);
-    expect(roll.split("pmsRolloutReadyExistsSql('rate')").length - 1).toBe(1);
-    expect(roll.split(HEAD.room).length - 1).toBe(0);
-    expect(roll.split(HEAD.rate).length - 1).toBe(0);
+    expect(roll).not.toContain('pmsRolloutReadyExistsSql');
+    expect(roll).toContain('PMS_RD_ROLLOUT_SETUP_READY, [companyId], db');
   });
 
   it('leaves finance transfer tail, locks, native registry and r17-r40 helpers untouched', async () => {
@@ -149,15 +137,15 @@ describe('pms read-tail r41 guest-join, property-scope and rollout-exists dedupe
     }
   });
 
-  it('lowers the pms owner SELECT KPI from 302 to 235', async () => {
+  it('lowers the pms owner SELECT KPI from 302 to 215', async () => {
     let spaced = 0, bare = 0;
     for (const file of await tsFiles(dir)) {
       const text = await readFile(file, 'utf8');
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(216);
-    expect(bare).toBe(217);
+    expect(spaced).toBe(215);
+    expect(bare).toBe(216);
     expect(spaced).toBeLessThan(302);
   });
 });

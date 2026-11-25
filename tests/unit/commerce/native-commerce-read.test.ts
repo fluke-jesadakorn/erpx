@@ -470,7 +470,7 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
         `export const ${kind} = '${wire}';`,
       );
     }
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 43);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 45);');
     expect(plans).toContain('fn schema_ready_probes_keep_their_exact_literals()');
     expect(readFileSync(adapters('read-tail-r15-dedupe-sql.ts'), 'utf8')).not.toContain('to_regclass');
   });
@@ -507,7 +507,7 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
     expect(plans).toContain(`"${sql}"`);
     expect(plans).toContain('kind: RD_LEGACY_ATTACHMENT_SCOPE,');
     expect(plans).toContain('fn legacy_attachment_scope_keeps_its_exact_literal()');
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 43);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 45);');
     expect(readFileSync(adapters('native-commerce-read.ts'), 'utf8')).toContain(
       "export const RD_LEGACY_ATTACHMENT_SCOPE = 'commerce_rd_legacy_attachment_scope';",
     );
@@ -717,5 +717,28 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
     expect(source).not.toContain('SELECT ');
     expect(source).toContain('target.type === "invoice" ? RD_PURCHASE_CONTROL_INVOICE : RD_PURCHASE_CONTROL_ORDER');
     expect(source).toContain('nativeCommerceReadAll<{id:string;has_stock:boolean|number}>(RD_PURCHASE_CONTROL_RETURN_LINES,[orderId,actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId],database)');
+  });
+
+  it('owns the initial-count warehouse and stock-product master reads', async () => {
+    const plans = readFileSync(adapters('native_commerce_read_sql.rs'), 'utf8');
+    for (const [kind, wire, sql] of [
+      ['RD_INITIAL_COUNT_WAREHOUSES', 'commerce_rd_initial_count_warehouses', "SELECT id,name,branch_id FROM commerce_warehouses WHERE company_id=? AND status='active' AND (?::text IS NULL OR branch_id=?) ORDER BY name,id"],
+      ['RD_INITIAL_COUNT_STOCK_PRODUCT', 'commerce_rd_initial_count_stock_product', "SELECT * FROM commerce_products WHERE id=? AND company_id=? AND status='active' AND item_type='stock'"],
+    ] as const) {
+      expect(plans).toContain(`pub const ${kind}: &str = "${wire}";`);
+      expect(plans).toContain(`"${sql}"`);
+      expect(plans).toContain(`kind: ${kind},`);
+      expect(readFileSync(adapters('native-commerce-read.ts'), 'utf8')).toContain(
+        `export const ${kind} = '${wire}';`,
+      );
+    }
+    expect(plans).toContain('fn initial_count_master_reads_keep_their_exact_literals()');
+    const source = await readFile(adapters('initial-physical-stock-count-sources.ts'), 'utf8');
+    expect(source).not.toContain('SELECT id,name,branch_id FROM commerce_warehouses');
+    expect(source).not.toContain("SELECT * FROM commerce_products WHERE id=? AND company_id=? AND status='active' AND item_type='stock'");
+    expect(source).toContain('nativeCommerceReadAll<CountRow>(RD_INITIAL_COUNT_WAREHOUSES,[actor.companyId,actor.branchId,actor.branchId],database)');
+    expect(source).toContain('nativeCommerceReadFirst<CountRow>(RD_INITIAL_COUNT_STOCK_PRODUCT,[productId,actor.companyId],database)');
+    expect(source).toContain('return {warehouses,products};');
+    expect(source).toContain('command_receipts');
   });
 });

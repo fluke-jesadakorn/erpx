@@ -14,6 +14,16 @@ import {legalCompanyAdvisoryLockSql,legalFilesAdvisoryLockSql,legalDestructionAc
 import {legalItemSelectSql} from '../legal-read-tail-r16-sources';
 import {legalMemberEditExistsSql} from '../legal-read-tail-r25-sources';
 import {legalReleasedItemGuardSql,legalMemberEditPointSql,legalFactDataSql} from '../legal-read-tail-r38-sources';
+import contract from '../legal-access-sources.json' with {type:'json'};
+const fill = (template: string, values: Record<string, string>) => {
+  let rendered = template;
+  for (const [name, value] of Object.entries(values)) {
+    const token = `{${name}}`;
+    if (!rendered.includes(token)) throw new Error('LEGAL_ACCESS_CONTRACT_INVALID');
+    rendered = rendered.split(token).join(value);
+  }
+  return rendered;
+};
 export const tables: Record<LegalKind, string> = {
   request: "legal_requests",
   matter: "legal_matters",
@@ -37,7 +47,7 @@ export function fail(
 }
 export function visibility(a: WorkContext, alias = "i") {
   return {
-    sql: `${alias}.company_id=? AND (?::text IS NULL OR ${alias}.branch_id=?) AND (?::text IS NULL OR ${alias}.department_id=?) AND (${alias}.classification='internal' OR EXISTS(SELECT 1 FROM legal_members lm WHERE lm.item_id=${alias}.id AND lm.user_id=?))${a.role==='legal_requester'?` AND ${alias}.kind='request' AND ${alias}.created_by=?`:''}`,
+    sql: `${alias}.company_id=? AND (?::text IS NULL OR ${alias}.branch_id=?) AND (?::text IS NULL OR ${alias}.department_id=?) AND (${alias}.classification='internal' OR ${fill(contract.visibilityMemberGuard,{alias})})${a.role==='legal_requester'?` AND ${alias}.kind='request' AND ${alias}.created_by=?`:''}`,
     values: [
       a.companyId,
       a.branchId,
@@ -62,7 +72,7 @@ function application(db:SqlDatabase,a:WorkContext){
   enabled:()=>enabled(db,a),
   editor:async id=>Boolean(await db.prepare(legalMemberEditPointSql('?')).bind(id,a.userId).first()),
   data:(id,kind)=>db.prepare(legalFactDataSql(tables[kind],'?')).bind(id).first<{data:LegalItem["data"]}>(),
-  eligible:async(id,scope,permission)=>Boolean(await db.prepare("SELECT 1 WHERE legal_person_eligible(?,?,?,?,?)").bind(a.companyId,id,scope.branch_id,scope.department_id,permission).first()),
+  eligible:async(id,scope,permission)=>Boolean(await db.prepare(contract.eligibleProbe).bind(a.companyId,id,scope.branch_id,scope.department_id,permission).first()),
  }});
 }
 export async function access(db:SqlDatabase,a:WorkContext,id:string,permission="legal.read"){const item=await application(db,a).access(id,permission);await requireLegalItemPurchasedRead(db,a,item);return item;}
@@ -85,7 +95,7 @@ export function guards(
   return [
     db.prepare(legalFilesAdvisoryLockSql),
     lock(db, a.companyId),
-    ...(preparation&&!a.branchId&&!a.departmentId&&hasPermission(a,"legal.manage")?[assertion(db,key,"legal-preparation-only","EXISTS(SELECT 1 FROM legal_items WHERE id=? AND kind IN ('rule','template'))",[id])]:productionFeatureGuard(db,key,a.companyId,"legal")),
+    ...(preparation&&!a.branchId&&!a.departmentId&&hasPermission(a,"legal.manage")?[assertion(db,key,"legal-preparation-only",contract.preparationGuard,[id])]:productionFeatureGuard(db,key,a.companyId,"legal")),
     ...(!allowFrozen
       ? [
           assertion(

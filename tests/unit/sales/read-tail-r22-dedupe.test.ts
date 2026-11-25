@@ -55,7 +55,8 @@ describe('Sales read-tail r22 parameterized delivery-fulfillment existence famil
     const helper = obligations.slice(obligations.indexOf('const deliveryFactExists='), obligations.indexOf('type Input='));
     expect((helper.match(/SELECT/g) ?? []).length).toBe(0);
     expect(helper).toContain('deliveryPresence(');
-    expect(obligations).toContain("deliveryFactExists('r',' AND f.invoice_id=r.invoice_id')");
+    expect(obligations).not.toContain("deliveryFactExists('r',' AND f.invoice_id=r.invoice_id')");
+    expect(obligations).toContain('SALES_RD_PACKAGE_SETTLEMENT_SALES');
     expect(obligations).toContain("deliveryFactExists('notice',' AND f.company_id=notice.company_id AND f.party_id=notice.party_id')");
     expect(obligations).not.toContain(pre.return);
     expect(obligations).not.toContain(pre.customerNotice);
@@ -119,7 +120,7 @@ describe('Sales read-tail r22 retirement check', () => {
     // r30 shared tableRead (-3) and priceListSelect (-1).
     // r33 folds the tail generator into the primary read generator (-1).
     // r35: delivery-presence head shared by order/return/notice guards (-1).
-    expect(total).toBe(27);
+    expect(total).toBe(20);
     expect(total).toBeLessThan(60);
   });
 });

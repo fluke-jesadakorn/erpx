@@ -75,8 +75,8 @@ describe('pms read-tail r56 retirement after the hotelMetrics native cut', () =>
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(216);
-    expect(bare).toBe(217);
+    expect(spaced).toBe(215);
+    expect(bare).toBe(216);
     expect(spaced).toBeLessThan(243);
     expect(bare).toBeLessThan(245);
   });

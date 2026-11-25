@@ -127,7 +127,8 @@ describe('crm read-tail r21 byte-identical projection/FROM head', () => {
   test('all four retired heads route through the renderer and no inline head remains', () => {
     for (const name of ['read-tail-r27-sql.ts', 'read-tail-r32-sql.ts', 'read-tail-r35-sql.ts', 'read-tail-r47-sql.ts']) {
       const text = src(name);
-      expect(text).toContain("import { crmProjectionFromSql } from './read-tail-r46-sql'");
+      expect(text).toContain('crmProjectionFromSql');
+      expect(text).toContain("'./read-tail-r46-sql'");
       expect(text).toContain('crmProjectionFromSql(');
     }
     const r27 = src('read-tail-r27-sql.ts');
@@ -141,7 +142,7 @@ describe('crm read-tail r21 byte-identical projection/FROM head', () => {
     expect((r27.match(/SELECT /g) ?? []).length).toBe(0);
     expect((r32.match(/SELECT /g) ?? []).length).toBe(0);
     expect((r35.match(/SELECT /g) ?? []).length).toBe(0);
-    expect((r47.match(/SELECT /g) ?? []).length).toBe(1);
+    expect((r47.match(/SELECT /g) ?? []).length).toBe(0);
   });
 
   test('leaves r42-r51 renderers, locks, no-space probe, receipt reads, native kinds and cross-owner exports untouched', () => {
@@ -149,8 +150,8 @@ describe('crm read-tail r21 byte-identical projection/FROM head', () => {
     expect(src('read-tail-r43-sql.ts')).toContain('export const crmScalarSubquerySql = (projection: string, body: string)');
     expect(src('read-tail-r44-sql.ts')).toContain('export const crmUnionAllSql = (body: string) => `UNION ALL ${crmSelectBodySql(body)}`');
     expect(src('read-tail-r48-sql.ts')).toContain('crmCompanyScopeSql = (tail: string) => `SELECT ?::text company_id${tail}`');
-    expect(src('read-tail-r49-sql.ts')).toContain('crmJsonbAggregateSql = (body: string) => `SELECT jsonb_agg(to_jsonb(${body}`');
-    expect(src('read-tail-r50-sql.ts')).toContain('export const crmSelectExprSql = (body: string) => `SELECT (${body}`');
+    expect(src('read-tail-r49-sql.ts')).toContain('crmJsonbAggregateSql = (body: string) => crmSelectBodySql(`jsonb_agg(to_jsonb(${body}`)');
+    expect(src('read-tail-r50-sql.ts')).toContain('export const crmSelectExprSql = (body: string) => crmSelectBodySql(`(${body}`)');
     expect(src('read-tail-r51-sql.ts')).toContain("export const crmLeadSelectSql = (tail: string) => crmSelectOneSql(`crm_leads ${tail}`)");
     expect(src('attachment-read.ts')).toContain('`SELECT 1 FROM${actorScopeSql}workforce_actor_scope WHERE ${current.where}`');
     expect(src('attachment-read.ts')).toContain('await lockQueuedCommandAuthority(database);');
@@ -161,7 +162,7 @@ describe('crm read-tail r21 byte-identical projection/FROM head', () => {
   });
 
   test('retirement:ts-statements drops from the r51 AFTER=47 to 43', () => {
-    expect(totalSelects()).toBe(36);
+    expect(totalSelects()).toBe(34);
     expect(totalSelects()).toBeLessThan(47);
   });
 });

@@ -57,6 +57,8 @@ import {
   PMS_RD_STRIPE_PAYMENT_KEY,
   PMS_RD_PROPERTY_SCOPE,
   PMS_RD_FAILED_COUNTER_REFUNDS,
+  PMS_RD_RESERVATION_PROPERTY,
+  PMS_RD_ROLLOUT_SETUP_READY,
 } from '../../../packages/server-pms/src/adapters/native-pms-read';
 import { readPmsInventoryCommand } from '../../../packages/server-pms/src/adapters/pms/read-repository';
 import { pmsAttachmentReadSourceImage } from '../../../packages/server-pms/src/adapters/attachment-read-sources';
@@ -1756,6 +1758,84 @@ describe('native PMS failed-counter-refund read retirement', () => {
     expect(bound).toEqual([['prop-1', 'company-1', 'Asia/Bangkok', '2026-11-24']]);
     expect(bodies.map(b => b.kind)).toEqual([PMS_RD_FAILED_COUNTER_REFUNDS]);
     expect(bodies.map(b => b.values)).toEqual([['prop-1', 'company-1', 'Asia/Bangkok', '2026-11-24']]);
+    for (const body of bodies) expect(JSON.stringify(body)).not.toContain('SELECT');
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as unknown as [URL, RequestInit];
+    expect(String(url)).toContain('/api/v1/holdings/acme/pms/command-plan');
+    expect(init.headers).toMatchObject({ 'content-type': 'application/json', accept: 'application/json', 'cache-control': 'no-cache' });
+  });
+});
+
+const reservationPropertySql = "SELECT property_id FROM pms_records WHERE id=? AND kind='reservation'";
+const rolloutSetupReadySql = `SELECT 1 FROM pms_properties p WHERE p.company_id=? AND p.state='open'
+      AND p.config_json::jsonb->>'currency'='THB'
+      AND COALESCE(p.config_json::jsonb->>'approvedBy','')<>''
+      AND EXISTS(SELECT 1 FROM pms_records r WHERE r.property_id=p.id AND r.kind='room')
+      AND EXISTS(SELECT 1 FROM pms_records r WHERE r.property_id=p.id AND r.kind='rate') LIMIT 1`;
+
+describe('native PMS reservation-property/rollout-probe read retirement', () => {
+  it('exposes two fixed allow-listed kinds with no SQL on the wire', () => {
+    expect(PMS_RD_RESERVATION_PROPERTY).toBe('pms_rd_reservation_property');
+    expect(PMS_RD_ROLLOUT_SETUP_READY).toBe('pms_rd_rollout_setup_ready');
+    for (const kind of [PMS_RD_RESERVATION_PROPERTY, PMS_RD_ROLLOUT_SETUP_READY])
+      expect(kind).not.toMatch(/SELECT|INSERT|UPDATE|DELETE|FOR UPDATE|FOR SHARE/);
+  });
+
+  it('removes both TypeScript SELECT heads but keeps cross-owner rollout evidence', async () => {
+    const changes = await readFile(new URL('../../../packages/server-pms/src/adapters/pms-booking-changes.ts', import.meta.url), 'utf8');
+    expect(changes).not.toContain(reservationPropertySql);
+    expect(changes).toContain('PMS_RD_RESERVATION_PROPERTY, [facts.reservationId], db');
+    const rollout = await readFile(new URL('../../../packages/server-pms/src/adapters/hospitality-rollout.ts', import.meta.url), 'utf8');
+    expect(rollout).not.toContain(rolloutSetupReadySql);
+    expect(rollout).not.toContain('pmsRolloutReadyExistsSql');
+    expect(rollout).toContain('PMS_RD_ROLLOUT_SETUP_READY, [companyId], db');
+    expect(rollout).toContain('productionAccepted');
+    const r41 = await readFile(new URL('../../../packages/server-pms/src/adapters/pms-read-tail-r41-sql.ts', import.meta.url), 'utf8');
+    expect(r41).not.toContain('pmsRolloutReadyExistsSql');
+  });
+
+  it('carries the byte-identical retired SQL in the Rust registry with one bind each', async () => {
+    const rust = await readFile(new URL('../../../packages/server-pms/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
+    expect(rust).toContain('pub const PMS_RD_RESERVATION_PROPERTY: &str = "pms_rd_reservation_property";');
+    expect(rust).toContain('pub const PMS_RD_ROLLOUT_SETUP_READY: &str = "pms_rd_rollout_setup_ready";');
+    expect(rust).toContain('const SQL_RESERVATION_PROPERTY: &str = ' + JSON.stringify(reservationPropertySql) + ';');
+    expect(rust).toContain(rolloutSetupReadySql);
+    expect(rust).toContain('READ_FAILED_COUNTER_REFUNDS, READ_RESERVATION_PROPERTY, READ_ROLLOUT_SETUP_READY];');
+    for (const sql of [reservationPropertySql, rolloutSetupReadySql]) {
+      expect(sql.match(/\?/g)).toHaveLength(1);
+      expect(sql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
+    }
+    const bridge = await readFile(new URL('../../../packages/server-pms/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
+    expect(bridge).toContain("export const PMS_RD_RESERVATION_PROPERTY = 'pms_rd_reservation_property';");
+    expect(bridge).toContain("export const PMS_RD_ROLLOUT_SETUP_READY = 'pms_rd_rollout_setup_ready';");
+  });
+
+  it('plans both reads in Rust and runs them on the caller unit with the same bind', async () => {
+    const sqlByKind: Record<string, string> = {
+      [PMS_RD_RESERVATION_PROPERTY]: reservationPropertySql,
+      [PMS_RD_ROLLOUT_SETUP_READY]: rolloutSetupReadySql,
+    };
+    const bodies: { kind: string; values: unknown[] }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      bodies.push(body);
+      return new Response(JSON.stringify({ data: { statements: [{ sql: sqlByKind[body.kind], values: body.values }] } }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      });
+    }));
+    const prepared: string[] = [], bound: unknown[][] = [];
+    const db = {
+      prepare(sql: string) { prepared.push(sql); return { bind(...values: unknown[]) { bound.push(values); return this; } }; },
+      async batch<T>() { return [{ results: [{ property_id: 'prop-1' }], success: true, meta: { changes: 0, duration: 0 } }] as unknown as { results: T[]; success: boolean; meta: { changes: number; duration: number } }[]; },
+      async exec() { return { count: 0, duration: 0 }; },
+    };
+    const reservation = await nativePmsReadFirst<{ property_id: string }>(PMS_RD_RESERVATION_PROPERTY, ['res-1'], db as never);
+    const rollout = await nativePmsReadFirst<Record<string, unknown>>(PMS_RD_ROLLOUT_SETUP_READY, ['company-1'], db as never);
+    expect(reservation?.property_id).toBe('prop-1');
+    expect(rollout).toBeTruthy();
+    expect(prepared).toEqual([reservationPropertySql, rolloutSetupReadySql]);
+    expect(bound).toEqual([['res-1'], ['company-1']]);
+    expect(bodies.map(b => b.kind)).toEqual([PMS_RD_RESERVATION_PROPERTY, PMS_RD_ROLLOUT_SETUP_READY]);
+    expect(bodies.map(b => b.values)).toEqual([['res-1'], ['company-1']]);
     for (const body of bodies) expect(JSON.stringify(body)).not.toContain('SELECT');
     const [url, init] = vi.mocked(fetch).mock.calls[0] as unknown as [URL, RequestInit];
     expect(String(url)).toContain('/api/v1/holdings/acme/pms/command-plan');

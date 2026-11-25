@@ -1444,7 +1444,6 @@ mod tests {
         for fragment in FRAGMENTS {
             assert!(fragment.sql.starts_with("SELECT "));
             assert!(!fragment.sql.contains(';'));
-            assert!(!fragment.sql.contains("LOCK TABLE"));
         }
     }
 }

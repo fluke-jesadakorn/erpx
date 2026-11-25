@@ -7,6 +7,7 @@ import {
   financeOverviewCountsNative,
 } from './native-lane-2/client';
 import { nativeFinanceReadAll, nativeFinanceReadFirst, FINANCE_RD_INVOICE_REPORT_CHARTS, FINANCE_RD_INVOICE_ACCOUNTS, FINANCE_RD_INVOICE_LINE_HISTORY, FINANCE_RD_INVOICE_THAI_DOCUMENTS, FINANCE_RD_INVOICE_PAYMENT_REVERSAL, FINANCE_RD_INVOICE_OPEN_PERIODS, FINANCE_RD_INVOICE_STATEMENT_ROWS, FINANCE_RD_INVOICE_OPEN_INVOICES } from './native-finance-read';
+import { FINANCE_RD_INVOICE2_INVOICES, FINANCE_RD_INVOICE2_INVOICE_SNAPSHOT, FINANCE_RD_INVOICE2_INVOICE_ALLOCATIONS, FINANCE_RD_INVOICE2_PAYMENTS, FINANCE_RD_INVOICE2_PAYMENT_ALLOCATIONS, FINANCE_RD_INVOICE2_BANK_CANDIDATES, FINANCE_RD_INVOICE2_BANK_ACCOUNTS, FINANCE_RD_INVOICE2_BANK_STATEMENT } from './native-finance-read';
 
 
 import { requireFinanceDocumentHistory } from "@erpx/server-finance/adapters/document-purchases";
@@ -74,35 +75,25 @@ export function financeReadService(provided?:SqlDatabase,historyOnly=false) {
         invoices: async (facts) => {
             const { actor, limit } = facts;
             const write = await db(actor);
-            return (await write.prepare(`SELECT i.id,i.invoice_number,i.kind,i.invoice_date,i.due_date,i.currency,i.total_minor,i.outstanding_minor,i.status,p.name AS party_name
-    FROM finance_invoices i JOIN finance_parties p ON p.id=i.party_id
-    WHERE i.company_id=? ORDER BY i.invoice_date DESC,i.invoice_number DESC LIMIT ?`).bind(actor.companyId, Math.max(1, Math.min(limit, 100))).all<FinanceRow>()).results;
+            return (await nativeFinanceReadAll<FinanceRow>(FINANCE_RD_INVOICE2_INVOICES, [actor.companyId, Math.max(1, Math.min(limit, 100))], await db(actor))).results;
         },
         workInvoices: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare("SELECT i.* FROM finance_invoices i JOIN finance_parties p ON p.id=i.party_id WHERE i.company_id=? AND NOT erpx_finance_field_invoice_owned(i.id,i.company_id) ORDER BY i.updated_at DESC").bind(actor.companyId).all<FinanceRow>()).results; },
         invoice: async (facts) => {
             const { invoiceId, actor } = facts;
             const write = await db(actor);
-            return write.prepare(`SELECT i.*,p.code AS party_code,p.name AS party_name,
-    s.usd_units::text AS snapshot_usd_units,s.amount_units::text AS snapshot_source_units,s.fx_rate_id AS snapshot_rate_id
-    FROM finance_invoices i JOIN finance_parties p ON p.id=i.party_id
-    LEFT JOIN money_transaction_snapshots s ON s.company_id=i.company_id AND s.source_type='finance_invoice' AND s.source_id=i.id AND s.amount_kind='total'
-    WHERE i.id=? AND i.company_id=?`).bind(invoiceId, actor.companyId).first<FinanceRow>();
+            return nativeFinanceReadFirst<FinanceRow>(FINANCE_RD_INVOICE2_INVOICE_SNAPSHOT, [invoiceId, actor.companyId], await db(actor));
         },
         invoiceAllocations: async (facts) => {
             const { invoiceId, actor } = facts;
             const write = await db(actor);
-            return (await write.prepare(`SELECT a.id,a.payment_id,a.amount_minor,a.created_at,p.payment_number,p.status,p.payment_slip_id
-    FROM finance_allocations a JOIN finance_payments p ON p.id=a.payment_id
-    WHERE a.invoice_id=? AND a.company_id=? ORDER BY a.created_at`).bind(invoiceId, actor.companyId).all<FinanceRow>()).results;
+            return (await nativeFinanceReadAll<FinanceRow>(FINANCE_RD_INVOICE2_INVOICE_ALLOCATIONS, [invoiceId, actor.companyId], await db(actor))).results;
         },
         lineHistory: async (facts) => { const { invoiceId, actor } = facts; const write = await db(actor); return (await nativeFinanceReadAll<FinanceRow>(FINANCE_RD_INVOICE_LINE_HISTORY, [invoiceId, actor.companyId], await db(actor))).results; },
         thaiDocuments: async (facts) => { const { invoiceId, actor } = facts; const write = await db(actor); return (await nativeFinanceReadAll<FinanceRow>(FINANCE_RD_INVOICE_THAI_DOCUMENTS, [invoiceId, actor.companyId], await db(actor))).results; },
         payments: async (facts) => {
             const { actor, limit } = facts;
             const write = await db(actor);
-            return (await write.prepare(`SELECT p.id,p.payment_number,p.kind,p.payment_date,p.currency,p.amount_minor,p.outstanding_minor,p.status,f.name AS party_name
-    FROM finance_payments p LEFT JOIN finance_parties f ON f.id=p.party_id
-    WHERE p.company_id=? ORDER BY p.payment_date DESC,p.payment_number DESC LIMIT ?`).bind(actor.companyId, Math.max(1, Math.min(limit, 100))).all<FinanceRow>()).results;
+            return (await nativeFinanceReadAll<FinanceRow>(FINANCE_RD_INVOICE2_PAYMENTS, [actor.companyId, Math.max(1, Math.min(limit, 100))], await db(actor))).results;
         },
         payment: async (facts) => {
             const { paymentId, actor } = facts;
@@ -116,9 +107,7 @@ export function financeReadService(provided?:SqlDatabase,historyOnly=false) {
         paymentAllocations: async (facts) => {
             const { paymentId, actor } = facts;
             const write = await db(actor);
-            return (await write.prepare(`SELECT a.id,a.invoice_id,a.amount_minor,a.created_at,i.invoice_number,i.status
-    FROM finance_allocations a JOIN finance_invoices i ON i.id=a.invoice_id
-    WHERE a.payment_id=? AND a.company_id=? ORDER BY a.created_at`).bind(paymentId, actor.companyId).all<FinanceRow>()).results;
+            return (await nativeFinanceReadAll<FinanceRow>(FINANCE_RD_INVOICE2_PAYMENT_ALLOCATIONS, [paymentId, actor.companyId], await db(actor))).results;
         },
         paymentReversal: async (facts) => { const { paymentId, actor } = facts; const write = await db(actor); return nativeFinanceReadFirst<FinanceRow>(FINANCE_RD_INVOICE_PAYMENT_REVERSAL, [paymentId], await db(actor)); },
         openPeriods: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare(OPEN_PERIOD_LIST_SQL).bind(actor.companyId).all<FinanceRow>()).results; },
@@ -130,23 +119,17 @@ export function financeReadService(provided?:SqlDatabase,historyOnly=false) {
         matchingBankRows: async (facts) => { if(historyOnly)return [];
             const { actor, payment } = facts;
             const write = await db(actor);
-            return (await write.prepare(`SELECT t.id,t.transaction_date,t.external_id,t.description,t.amount_minor,t.currency,t.match_status,t.version,s.statement_number
-      FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id
-      WHERE t.company_id=? AND s.bank_account=? AND t.currency=? AND t.match_status IN ('unmatched','proposed') AND t.amount_minor=? AND t.transaction_date>=?
-      ORDER BY t.transaction_date DESC,t.external_id`).bind(actor.companyId, payment.bank_account, payment.currency, payment.kind === "receipt" ? payment.amount_minor : -(Number(payment.amount_minor) - Number(payment.withheld_minor ?? 0)), payment.payment_date).all<FinanceRow>()).results;
+            return (await nativeFinanceReadAll<FinanceRow>(FINANCE_RD_INVOICE2_BANK_CANDIDATES, [actor.companyId, payment.bank_account, payment.currency, payment.kind === "receipt" ? payment.amount_minor : -(Number(payment.amount_minor) - Number(payment.withheld_minor ?? 0)), payment.payment_date], await db(actor))).results;
         },
         fxAccounts: async (facts) => { if(historyOnly)return [];
             const { payment, actor } = facts;
             const write = await db(actor);
-            return (await write.prepare(`SELECT a.id,a.code,a.name,a.category,a.currency,c.base_currency
-      FROM finance_accounts bank JOIN finance_charts c ON c.id=bank.chart_id JOIN finance_accounts a ON a.chart_id=c.id
-      WHERE bank.id=? AND bank.company_id=? AND a.company_id=bank.company_id AND a.status='active' AND a.currency=c.base_currency AND a.category IN ('other_income','other_expense')
-      ORDER BY a.code`).bind(payment.bank_account, actor.companyId).all<FinanceRow>()).results;
+            return (await nativeFinanceReadAll<FinanceRow>(FINANCE_RD_INVOICE2_BANK_ACCOUNTS, [payment.bank_account, actor.companyId], await db(actor))).results;
         },
         workspaceAccounts: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare(financeReferenceListSql('finance_accounts',"company_id=? AND status='active'",'code')).bind(actor.companyId).all<FinanceRow>()).results; },
         workspaceParties: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare(finPartiesAllByCompanySql(" AND status='active' AND kind IN ('customer','supplier') AND person_id IS NULL ORDER BY name")).bind(actor.companyId).all<FinanceRow>()).results; },
         workspacePeriods: async (facts) => { const { actor } = facts; const write = await db(actor); return (await nativeFinanceReadAll<FinanceRow>(FINANCE_RD_INVOICE_OPEN_PERIODS, [actor.companyId], await db(actor))).results; },
-        statement: async (facts) => { const { id, actor } = facts; const write = await db(actor); return write.prepare("SELECT s.*,a.currency,a.code,a.name,c.base_currency FROM finance_bank_statements s JOIN finance_accounts a ON a.id=s.bank_account AND a.company_id=s.company_id JOIN finance_charts c ON c.id=a.chart_id AND c.company_id=s.company_id WHERE s.id=? AND s.company_id=?").bind(id, actor.companyId).first<FinanceRow>(); },
+        statement: async (facts) => { const { id, actor } = facts; const write = await db(actor); return nativeFinanceReadFirst<FinanceRow>(FINANCE_RD_INVOICE2_BANK_STATEMENT, [id, actor.companyId], await db(actor)); },
         statementRows: async (facts) => { const { id, actor, page } = facts; const write = await db(actor); return (await nativeFinanceReadAll<FinanceRow>(FINANCE_RD_INVOICE_STATEMENT_ROWS, [id, actor.companyId, (page - 1) * 30], write)).results; },
         agingBalances: async (facts) => financeAgingBalancesNative(facts.actor, facts.asOf, facts.kind, facts.chartId),
         financeOverviewCounts: async (actor) => financeOverviewCountsNative(actor),

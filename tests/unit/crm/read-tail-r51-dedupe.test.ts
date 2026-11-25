@@ -117,8 +117,8 @@ describe('crm read-tail r51 byte-identical lead-select head', () => {
     expect(src('read-tail-r46-sql.ts')).toContain('crmProjectionFromSql = (projection: string, from: string)');
     expect(src('read-tail-r47-sql.ts')).toContain('crmOwnedListSql = (');
     expect(src('read-tail-r48-sql.ts')).toContain('crmCompanyScopeSql = (tail: string) => `SELECT ?::text company_id${tail}`');
-    expect(src('read-tail-r49-sql.ts')).toContain('crmJsonbAggregateSql = (body: string) => `SELECT jsonb_agg(to_jsonb(${body}`');
-    expect(src('read-tail-r50-sql.ts')).toContain('export const crmSelectExprSql = (body: string) => `SELECT (${body}`');
+    expect(src('read-tail-r49-sql.ts')).toContain('crmJsonbAggregateSql = (body: string) => crmSelectBodySql(`jsonb_agg(to_jsonb(${body}`)');
+    expect(src('read-tail-r50-sql.ts')).toContain('export const crmSelectExprSql = (body: string) => crmSelectBodySql(`(${body}`)');
     const a = src('attachment-read.ts');
     expect(a).toContain('`SELECT 1 FROM${actorScopeSql}workforce_actor_scope WHERE ${current.where}`');
     expect(a).toContain('await database.batch([crmAttachmentCustomerSourceLocks(database)');
@@ -132,7 +132,7 @@ describe('crm read-tail r51 byte-identical lead-select head', () => {
   });
 
   test('retirement:ts-statements folds the r51 head into r42 (41 -> 40)', () => {
-    expect(totalSelects()).toBe(36);
+    expect(totalSelects()).toBe(34);
     expect(totalSelects()).toBeLessThan(41);
   });
 });

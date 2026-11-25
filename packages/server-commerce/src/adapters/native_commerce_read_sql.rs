@@ -565,6 +565,40 @@ const READ_INITIAL_COUNT_STOCK_PRODUCT: NativeCommerceReadStatement = NativeComm
     bind_count: 2,
 };
 
+/// Native successor of the PMS active-product options read. The caller binds
+/// `[company_id]`.
+pub const RD_PMS_PRODUCT_OPTIONS: &str = "commerce_rd_pms_product_options";
+const SQL_PMS_PRODUCT_OPTIONS: &str =
+    "SELECT id,name FROM commerce_products WHERE company_id=? AND status='active'";
+const READ_PMS_PRODUCT_OPTIONS: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_PMS_PRODUCT_OPTIONS,
+    sql: SQL_PMS_PRODUCT_OPTIONS,
+    bind_count: 1,
+};
+
+/// Native successor of the PMS branch-scoped warehouse id probe. The caller
+/// binds `[warehouse_id, company_id, branch_id]`.
+pub const RD_PMS_WAREHOUSE_ID: &str = "commerce_rd_pms_warehouse_id";
+const SQL_PMS_WAREHOUSE_ID: &str =
+    "SELECT id FROM commerce_warehouses WHERE id=? AND company_id=? AND branch_id=? AND status='active'";
+const READ_PMS_WAREHOUSE_ID: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_PMS_WAREHOUSE_ID,
+    sql: SQL_PMS_WAREHOUSE_ID,
+    bind_count: 3,
+};
+
+/// Native successor of the PMS product/warehouse scope witness. The caller
+/// binds `[warehouse_id, product_id, company_id, branch_id]`.
+pub const RD_PMS_PRODUCT_WAREHOUSE_SCOPE: &str = "commerce_rd_pms_product_warehouse_scope";
+const SQL_PMS_PRODUCT_WAREHOUSE_SCOPE: &str =
+    "SELECT 1 FROM commerce_products p JOIN commerce_warehouses w ON w.id=? WHERE p.id=? AND p.company_id=? AND w.company_id=p.company_id AND w.branch_id=? AND p.status='active' AND w.status='active'";
+const READ_PMS_PRODUCT_WAREHOUSE_SCOPE: NativeCommerceReadStatement =
+    NativeCommerceReadStatement {
+        kind: RD_PMS_PRODUCT_WAREHOUSE_SCOPE,
+        sql: SQL_PMS_PRODUCT_WAREHOUSE_SCOPE,
+        bind_count: 4,
+    };
+
 const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_PMS_WAREHOUSE_ACTIVE,
     READ_PMS_SETTINGS_EXISTS,
@@ -611,6 +645,9 @@ const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_PURCHASE_CONTROL_RETURN_LINES,
     READ_INITIAL_COUNT_WAREHOUSES,
     READ_INITIAL_COUNT_STOCK_PRODUCT,
+    READ_PMS_PRODUCT_OPTIONS,
+    READ_PMS_WAREHOUSE_ID,
+    READ_PMS_PRODUCT_WAREHOUSE_SCOPE,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -720,6 +757,23 @@ mod tests {
                 SQL_PURCHASE_CONTROL_RETURN_LINES,
                 6usize,
             ),
+            (
+                RD_INITIAL_COUNT_WAREHOUSES,
+                SQL_INITIAL_COUNT_WAREHOUSES,
+                3usize,
+            ),
+            (
+                RD_INITIAL_COUNT_STOCK_PRODUCT,
+                SQL_INITIAL_COUNT_STOCK_PRODUCT,
+                2usize,
+            ),
+            (RD_PMS_PRODUCT_OPTIONS, SQL_PMS_PRODUCT_OPTIONS, 1usize),
+            (RD_PMS_WAREHOUSE_ID, SQL_PMS_WAREHOUSE_ID, 3usize),
+            (
+                RD_PMS_PRODUCT_WAREHOUSE_SCOPE,
+                SQL_PMS_PRODUCT_WAREHOUSE_SCOPE,
+                4usize,
+            ),
         ];
         for (kind, sql, bind_count) in expected {
             let statement = read_statement(kind).expect("registered owner read kind");
@@ -744,7 +798,50 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), bind_count);
         }
-        assert_eq!(STATEMENTS.len(), 43);
+        assert_eq!(STATEMENTS.len(), 48);
+    }
+
+    /// PMS owner-local reads keep their exact aliases, predicates and bind
+    /// positions; the FOR UPDATE stock read stays outside this registry.
+    #[test]
+    fn pms_owner_local_reads_keep_their_exact_literals() {
+        let products = read_statement(RD_PMS_PRODUCT_OPTIONS).expect("product options");
+        let warehouse = read_statement(RD_PMS_WAREHOUSE_ID).expect("warehouse id");
+        let scope = read_statement(RD_PMS_PRODUCT_WAREHOUSE_SCOPE).expect("scope witness");
+        assert_eq!(products.sql, "SELECT id,name FROM commerce_products WHERE company_id=? AND status='active'");
+        assert_eq!(warehouse.sql, "SELECT id FROM commerce_warehouses WHERE id=? AND company_id=? AND branch_id=? AND status='active'");
+        assert_eq!(scope.sql, "SELECT 1 FROM commerce_products p JOIN commerce_warehouses w ON w.id=? WHERE p.id=? AND p.company_id=? AND w.company_id=p.company_id AND w.branch_id=? AND p.status='active' AND w.status='active'");
+        for (statement, binds) in [(products, 1), (warehouse, 3), (scope, 4)] {
+            assert_eq!(statement.bind_count, binds);
+            assert_eq!(statement.sql.matches('?').count(), binds);
+            assert!(statement.sql.starts_with("SELECT "));
+            assert!(!statement.sql.contains(';'));
+            assert!(!statement.sql.contains("FOR UPDATE"));
+        }
+    }
+
+    /// Initial-count master reads keep their exact ordering and owner-local
+    /// predicates with the same bind positions.
+    #[test]
+    fn initial_count_master_reads_keep_their_exact_literals() {
+        let warehouses = read_statement(RD_INITIAL_COUNT_WAREHOUSES).expect("warehouse choices");
+        let product = read_statement(RD_INITIAL_COUNT_STOCK_PRODUCT).expect("stock product");
+        assert_eq!(
+            warehouses.sql,
+            "SELECT id,name,branch_id FROM commerce_warehouses WHERE company_id=? AND status='active' AND (?::text IS NULL OR branch_id=?) ORDER BY name,id"
+        );
+        assert_eq!(
+            product.sql,
+            "SELECT * FROM commerce_products WHERE id=? AND company_id=? AND status='active' AND item_type='stock'"
+        );
+        assert_eq!(warehouses.bind_count, 3);
+        assert_eq!(warehouses.sql.matches("?::text IS NULL OR branch_id=?").count(), 1);
+        assert_eq!(product.bind_count, 2);
+        for statement in [warehouses, product] {
+            assert_eq!(statement.sql.matches('?').count(), statement.bind_count);
+            assert!(statement.sql.starts_with("SELECT "));
+            assert!(!statement.sql.contains(';'));
+        }
     }
 
     /// Purchase-control reads keep their exact target predicates and the
