@@ -144,7 +144,8 @@ describe('Organization read-tail r49 dedupe', () => {
     expect(approvals).toContain('authoritySeatExistsSql(`s JOIN');
   });
 
-  test('retirement:ts-statements is strictly lower than the r49 BEFORE=237 baseline (expected 234)', () => {
+  test('retirement:ts-statements is strictly lower than the r49 BEFORE=237 baseline (expected 200)', () => {
+    // Lane 23 moved three directory reads to the native owner; the absolute pin reflects the current owner source.
     let space = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -159,7 +160,7 @@ describe('Organization read-tail r49 dedupe', () => {
     // r59 folds two executive-metric count heads (-2 literals, +1 renderer): 209 - 1 = 208.
     // r60 folds two level-history head literals (-2 literals, +1 renderer): 208 - 1 = 207.
     // r61 folds two position-package projection heads (-2 literals, +1 renderer): 207 - 1 = 206.
-    expect(space).toBe(204);
+    expect(space).toBe(200);
     expect(space).toBeLessThan(237);
   });
 });

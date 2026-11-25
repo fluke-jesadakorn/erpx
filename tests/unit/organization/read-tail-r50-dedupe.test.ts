@@ -38,7 +38,6 @@ const NODE_SITES: [file: string, tail: string, source: string][] = [
 ];
 const POS_SITES: [file: string, projection: string, tail: string, source: string][] = [
   ['staff-defaults.ts', 'id', 'active=1 AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?)', staff],
-  ['people-evaluation-facts.ts', 'id', 'level_id=? AND active=1', evaluation],
   ['gpo-sources.ts', 'id,title', 'active=1', gpo],
 ];
 
@@ -107,13 +106,18 @@ describe('Organization read-tail r50 dedupe', () => {
       expect(source.split('activePositionLookup(').length - 1).toBe(1);
       expect(read(file)).toBe(source);
     }
+    // Lane 24: the evaluation site is now a strict native-client read, with no
+    // helper call and no local statement in the adapter.
+    expect(evaluation).not.toContain('activePositionLookup(');
+    expect(evaluation).not.toContain('.prepare(');
+    expect(evaluation).toContain('nativeLane24PositionByLevel');
 
     // Bind arrays stay byte-identical at every replaced call site.
     expect(org).toContain("[change.target_node_id,actor.companyId,change.expected_node_version!,change.node_kind,change.action==='relocate'?change.source_branch_id:change.branch_id]");
     expect(planning).toContain('[branchId, companyId]');
     expect(placement).toContain('[branch_id, companyId, department_id, department_id2, companyId2, branch_id2]');
     expect(staff).toContain('.bind(id,actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId).first()');
-    expect(evaluation).toContain('.bind(positionId, companyId, levelId).first()');
+    expect(evaluation).toContain('nativeLane24PositionByLevel(target, companyId, positionId, levelId)');
     expect(gpo).toContain('.bind(positionId,companyId).first<{id:string;title:string}>()');
 
     // The r50 intentional remainders are gone; their exact bodies are now
@@ -126,7 +130,8 @@ describe('Organization read-tail r50 dedupe', () => {
     expect(read('organization-nodes-spaced-projections.ts')).toContain('"id", "kind", "slug"');
   });
 
-  test('retirement:ts-statements is strictly lower than the r50 BEFORE=234 baseline (expected 222)', () => {
+  test('retirement:ts-statements is strictly lower than the r50 BEFORE=234 baseline (expected 200)', () => {
+    // Lane 23 moved three directory reads to the native owner; the absolute pin reflects the current owner source.
     let space = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -139,7 +144,7 @@ describe('Organization read-tail r50 dedupe', () => {
     // r50 collapsed three node-existence guards and three active-position
     // lookups into two shared helpers (-2, -2 = -4); r53 routes the two
     // remaining inline node-EXISTS bodies through nodeExistsGuard (-2).
-    expect(space).toBe(204);
+    expect(space).toBe(200);
     expect(space).toBeLessThan(234);
   });
 });

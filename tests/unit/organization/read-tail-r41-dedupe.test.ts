@@ -53,7 +53,8 @@ describe('Organization read-tail r41 byte-identical families', () => {
     expect(read('organization-nodes-spaced-projections.ts')).toContain('"id", "kind", "slug"');
   });
 
-  test('retirement:ts-statements is strictly lower than the r41 BEFORE=251 baseline (expected 249)', () => {
+  test('retirement:ts-statements is strictly lower than the r41 BEFORE=251 baseline (expected 200)', () => {
+    // Lane 23 moved three directory reads to the native owner; the absolute pin reflects the current owner source.
     let space = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -64,7 +65,7 @@ describe('Organization read-tail r41 byte-identical families', () => {
     };
     walk(srcRoot);
     // r41 collapses three relocation-snapshot reads into one shared source (-2).
-    expect(space).toBe(204);
+    expect(space).toBe(200);
     expect(space).toBeLessThan(251);
   });
 });

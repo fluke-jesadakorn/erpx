@@ -1,22 +1,43 @@
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-import {activeIdByCompanySource} from './org-sources';
-import {activeStaffLevelSource} from './organization-read-tail-sources-r39';
-import {activePositionList,activeStaffLevels} from './organization-read-tail-sources-r40';
-import {activePositionLookup} from './organization-read-tail-sources-r50';
-export function peopleEvaluationOrganizationFacts(database: SqlDatabase) {
-    return { readSaveEvaluationDefinitionPosition(positionId: string, companyId: string, levelId: string) { return database.prepare(activePositionLookup('id', 'level_id=? AND active=1')).bind(positionId, companyId, levelId).first(); },
-        readSaveEvaluationDefinitionEffect(levelId: string, companyId: string) { return database.prepare(activeStaffLevelSource).bind(levelId, companyId).first(); },
-        readEvaluationWorkspacePositions(companyId: string) { return database.prepare(activePositionList('id,title,level_id','ORDER BY title')).bind(companyId).all<{
-            id: string;
-            title: string;
-            level_id: string;
-        }>(); },
-        readEvaluationWorkspaceLevels(companyId: string) { return database.prepare(activeStaffLevels('ORDER BY rank')).bind(companyId).all<{
-            id: string;
-            name: string;
-        }>(); },
-        readImportEvaluationMarketLevels(companyId: string) { return database.prepare(activeIdByCompanySource('staff_levels')).bind(companyId).all<{
-            id: string;
-        }>(); } };
+import {
+  nativeLane24LevelActive,
+  nativeLane24MarketLevels,
+  nativeLane24PositionByLevel,
+  nativeLane24WorkspaceLevels,
+  nativeLane24WorkspacePositions,
+  type Lane24Actor,
+} from './native-lane-24/client';
+
+/**
+ * Organization-owned evaluation reference facts. The SQL, Company-scoped bind,
+ * projection and response shape are owned by the native lane-24 axum router.
+ * The caller supplies a WorkContext-derived target (or an explicit registered
+ * host/origin); with none, the client fails closed. This adapter never reads
+ * ambient request state and prepares no SQL.
+ */
+const asResult = <T>(rows: T[]) => ({
+  results: rows,
+  success: true,
+  meta: { changes: 0, duration: 0 },
+});
+
+export function peopleEvaluationOrganizationFacts(_database: SqlDatabase, target?: Lane24Actor) {
+  return {
+    async readSaveEvaluationDefinitionPosition(positionId: string, companyId: string, levelId: string) {
+      return nativeLane24PositionByLevel(target, companyId, positionId, levelId);
+    },
+    async readSaveEvaluationDefinitionEffect(levelId: string, companyId: string) {
+      return nativeLane24LevelActive(target, companyId, levelId);
+    },
+    async readEvaluationWorkspacePositions(companyId: string) {
+      return nativeLane24WorkspacePositions(target, companyId).then(asResult);
+    },
+    async readEvaluationWorkspaceLevels(companyId: string) {
+      return nativeLane24WorkspaceLevels(target, companyId).then(asResult);
+    },
+    async readImportEvaluationMarketLevels(companyId: string) {
+      return nativeLane24MarketLevels(target, companyId).then(asResult);
+    },
+  };
 }

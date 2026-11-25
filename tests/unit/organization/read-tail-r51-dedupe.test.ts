@@ -132,7 +132,8 @@ describe('Organization read-tail r51 dedupe', () => {
     expect(read('organization-nodes-spaced-projections.ts')).toContain('"id", "kind", "slug"');
   });
 
-  test('retirement:ts-statements is strictly lower than the r51 BEFORE=230 baseline (expected 226)', () => {
+  test('retirement:ts-statements is strictly lower than the r51 BEFORE=230 baseline (expected 200)', () => {
+    // Lane 23 moved three directory reads to the native owner; the absolute pin reflects the current owner source.
     let space = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -144,7 +145,7 @@ describe('Organization read-tail r51 dedupe', () => {
     walk(srcRoot);
     // r51 collapses three authority-seat reads, two department-node reads and
     // two member-profile guards into three shared helpers (-2, -1, -1 = -4).
-    expect(space).toBe(204);
+    expect(space).toBe(200);
     expect(space).toBeLessThan(230);
   });
 });

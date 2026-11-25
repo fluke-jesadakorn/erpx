@@ -5,9 +5,13 @@ import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 // transport and assert the exact typed kind and positional values they send.
 const one = vi.hoisted(() => vi.fn(async (_db: unknown, _companyId: string, _kind: string, _values: unknown[]) => null as unknown));
 const all = vi.hoisted(() => vi.fn(async (_db: unknown, _companyId: string, _kind: string, _values: unknown[]) => [] as unknown[]));
+const laneMarketLevels = vi.hoisted(() => vi.fn(async (_target: unknown, _companyId: string) => [] as unknown[]));
 vi.mock('../../../packages/server-organization/src/adapters/native-organization-owner-write', () => ({
   nativeOrgOne: one,
   nativeOrgAll: all,
+}));
+vi.mock('../../../packages/server-organization/src/adapters/native-lane-24/client', () => ({
+  nativeLane24MarketLevels: laneMarketLevels,
 }));
 const {companyAcceptanceResultProjection} = await import('@erpx/server-organization/adapters/company-acceptance-result-projection');
 const {activeDepartmentFact} = await import('@erpx/server-organization/adapters/profile-facts');
@@ -347,20 +351,23 @@ describe('Organization owner-local read tail', () => {
     expect(shared.NODE_BRANCH_ACTIVE).toBe("SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND kind='branch' AND status='active'");
   });
 
-  it('shares one table-parameterized active-id read across the evaluation and placement readers', async () => {
+  it('delegates the evaluation active-id read to the native lane-24 client, placement stays owner-local', async () => {
     const {activeIdByCompanySource} = await import('../../../packages/server-organization/src/adapters/org-sources');
     const {peopleEvaluationOrganizationFacts} = await import('@erpx/server-organization/adapters/people-evaluation-facts');
     const {peoplePlacementBatchFacts} = await import('@erpx/server-organization/adapters/people-placement-batch-facts');
+    const actor = {holdingId: 'h001', holdingSlug: 'acme', companyId: 'company'};
+    laneMarketLevels.mockClear();
     const seen: string[] = [];
     const rowsAll = vi.fn(async () => ({results: [] as unknown[]}));
     const bind = vi.fn(() => ({all: rowsAll}));
     const handle = {prepare: vi.fn((sql: string) => {seen.push(sql); return {bind};})} as unknown as SqlDatabase;
-    await expect(peopleEvaluationOrganizationFacts(handle).readImportEvaluationMarketLevels('company')).resolves.toEqual({results: []});
+    await expect(peopleEvaluationOrganizationFacts(handle, actor).readImportEvaluationMarketLevels('company')).resolves.toEqual({
+      results: [], success: true, meta: {changes: 0, duration: 0},
+    });
+    expect(laneMarketLevels).toHaveBeenCalledWith(actor, 'company');
+    expect(seen).toEqual([]);
     await expect(peoplePlacementBatchFacts(handle).activePositions('company')).resolves.toEqual({results: []});
-    expect(seen).toEqual([
-      activeIdByCompanySource('staff_levels'),
-      activeIdByCompanySource('organization_positions'),
-    ]);
+    expect(seen).toEqual([activeIdByCompanySource('organization_positions')]);
     expect(activeIdByCompanySource('staff_levels')).toBe('SELECT id FROM staff_levels WHERE company_id=? AND active=1');
     expect(activeIdByCompanySource('organization_positions')).toBe('SELECT id FROM organization_positions WHERE company_id=? AND active=1');
   });

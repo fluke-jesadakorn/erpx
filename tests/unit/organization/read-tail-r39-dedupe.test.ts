@@ -95,7 +95,11 @@ describe('Organization read-tail r39 node and scope guard families', () => {
 
     expect(gateway.split('companyNodeScopeSource').length - 1).toBeGreaterThanOrEqual(2);
     expect(opsStaff.split('activeStaffLevelSource').length - 1).toBeGreaterThanOrEqual(1);
-    expect(peopleEval.split('activeStaffLevelSource').length - 1).toBeGreaterThanOrEqual(1);
+    // Lane 24 moved the evaluation level probe to the native client: no helper
+    // call and no local SQL remain in this adapter.
+    expect(peopleEval).not.toContain('activeStaffLevelSource');
+    expect(peopleEval).not.toContain('.prepare(');
+    expect(peopleEval).toContain('nativeLane24LevelActive');
     expect(organization.split('changeVersionGuardSource(').length - 1).toBe(3);
     expect(home.split('scopeNodeBranchExists(').length - 1).toBeGreaterThanOrEqual(1);
     expect(collabRead.split('scopeNodeBranchExists(').length - 1).toBeGreaterThanOrEqual(1);
@@ -113,7 +117,8 @@ describe('Organization read-tail r39 node and scope guard families', () => {
     expect(spaced.ORG_NODES_SPACED_C_JOIN).toBe('JOIN (SELECT "id", "kind", "slug", "display_name", "parent_id", "company_id", "branch_id", "status", "hierarchy_revision" FROM organization_nodes) c');
   });
 
-  test('retirement:ts-statements is strictly lower than the r39 BEFORE=262 baseline (expected 257)', () => {
+  test('retirement:ts-statements is strictly lower than the r39 BEFORE=262 baseline (expected 200)', () => {
+    // Lane 23 moved three directory reads to the native owner; the absolute pin reflects the current owner source.
     let space = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -125,7 +130,7 @@ describe('Organization read-tail r39 node and scope guard families', () => {
     walk(srcRoot);
     // r39 collapses four families (-1, -1, -2, -1 = -5) into shared sources.
     // Pin: BEFORE=262; expected after = 257; no other owner path is touched.
-    expect(space).toBe(204);
+    expect(space).toBe(200);
     expect(space).toBeLessThanOrEqual(257);
     expect(space).toBeLessThan(262);
   });

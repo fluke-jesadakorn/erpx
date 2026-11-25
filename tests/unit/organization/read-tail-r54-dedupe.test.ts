@@ -85,7 +85,8 @@ describe('Organization read-tail r54 dedupe', () => {
     expect(read('organization-nodes-spaced-projections.ts')).toContain('"id", "kind", "slug"');
   });
 
-  test('retirement:ts-statements drops 222 -> 218', () => {
+  test('retirement:ts-statements drops 222 -> 200', () => {
+    // Lane 23 moved three directory reads to the native owner; the absolute pin reflects the current owner source.
     let space = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -95,7 +96,7 @@ describe('Organization read-tail r54 dedupe', () => {
       }
     };
     walk(srcRoot);
-    expect(space).toBe(204);
+    expect(space).toBe(200);
     expect(space).toBeLessThan(222);
   });
 });

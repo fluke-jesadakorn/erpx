@@ -90,7 +90,8 @@ describe('Organization read-tail r48 parameterized head', () => {
     expect(read('organization-nodes-spaced-projections.ts')).toContain('"id", "kind", "slug"');
   });
 
-  test('retirement:ts-statements is strictly lower than the r48 BEFORE=238 baseline (expected 237)', () => {
+  test('retirement:ts-statements is strictly lower than the r48 BEFORE=238 baseline (expected 200)', () => {
+    // Lane 23 moved three directory reads to the native owner; the absolute pin reflects the current owner source.
     let space = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -101,7 +102,7 @@ describe('Organization read-tail r48 parameterized head', () => {
     };
     walk(srcRoot);
     // r48 collapses two authority-seat holder guards into one shared source (-1).
-    expect(space).toBe(204);
+    expect(space).toBe(200);
     expect(space).toBeLessThan(238);
   });
 });

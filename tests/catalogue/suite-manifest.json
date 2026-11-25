@@ -70241,6 +70241,60 @@
       }
     },
     {
+      "lane": "unit",
+      "owner": "organization",
+      "modules": [
+        "organization"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Organization native directory route must stay tenant-isolated."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-organization"
+      ],
+      "id": "organization.native-lane-23.unit",
+      "files": [
+        "tests/unit/organization/native-lane-unit.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "organization",
+      "modules": [
+        "organization"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Organization native evaluation route must stay tenant-isolated."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-organization"
+      ],
+      "id": "organization.native-lane-24.unit",
+      "files": [
+        "tests/unit/organization/native-lane-unit.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "organization.native-organization-setup.unit",
       "lane": "unit",
       "owner": "organization",

@@ -38,7 +38,8 @@ describe('Organization read-tail r53 retirement', () => {
     expect(guard.args).toEqual(['d1', 'd2', 'c', 'b']);
   });
 
-  test('retirement:ts-statements drops 224 -> 222', () => {
+  test('retirement:ts-statements drops 224 -> 200', () => {
+    // Lane 23 moved three directory reads to the native owner; the absolute pin reflects the current owner source.
     const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
     let space = 0;
     const walk = (dir: string) => {
@@ -49,7 +50,7 @@ describe('Organization read-tail r53 retirement', () => {
       }
     };
     walk(srcRoot);
-    expect(space).toBe(204);
+    expect(space).toBe(200);
     expect(space).toBeLessThan(224);
   });
 });

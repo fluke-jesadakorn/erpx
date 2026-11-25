@@ -60,7 +60,8 @@ describe('Organization read-tail r52 native cutover', () => {
     expect(read('organization-nodes-spaced-projections.ts')).toContain('"id", "kind", "slug"');
   });
 
-  test('retirement:ts-statements falls from 226 to 224 after the two read cutovers', () => {
+  test('retirement:ts-statements falls from 226 to 200 after the two read cutovers', () => {
+    // Lane 23 moved three directory reads to the native owner; the absolute pin reflects the current owner source.
     let space = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -72,7 +73,7 @@ describe('Organization read-tail r52 native cutover', () => {
     walk(srcRoot);
     // Reusing org_access_read_levels (-1) and adding org_access_read_templates
     // (-1) removes both inline list SELECTs from organization.ts.
-    expect(space).toBe(204);
+    expect(space).toBe(200);
     expect(space).toBeLessThan(226);
   });
 });
