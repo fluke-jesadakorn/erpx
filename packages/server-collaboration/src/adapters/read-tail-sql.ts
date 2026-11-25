@@ -10,7 +10,14 @@ export const socialTaskOriginBy=(cols:string,keyCol:string)=>`SELECT ${cols} FRO
  * lock semantics stay unchanged. The r14 socialTaskOriginPostExists helper
  * stays retained. */
 export const socialTaskOriginGuard=(quantifier:string,alias:string,tail:string)=>`${quantifier}SELECT 1 FROM social_task_origins ${alias}${tail}`;
-export const messagingRoomMembersAgg=`(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.user_id) FROM messaging_room_members m WHERE m.room_id=r.id)`;
+/** Byte-identical room/team member aggregate head shared by the attachment
+ * purchase witness, the messaging purchase image and the messaging attachment
+ * reader. Only the member table and the WHERE scope vary; the fixed aggregate
+ * head, bind order and lock semantics stay unchanged. */
+export const messagingMembersAgg=(table:string,where:string)=>`(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.user_id) FROM ${table} m WHERE ${where})`;
+/** Retained room wrapper: renders the room-member scope through
+ * messagingMembersAgg so consumers and bind order stay unchanged. */
+export const messagingRoomMembersAgg=messagingMembersAgg('messaging_room_members','m.room_id=r.id');
 export const socialFollowPostExists=(targetType:string,targetId:string)=>`EXISTS(SELECT 1 FROM social_follows f WHERE f.principal_id=? AND f.target_type=${targetType} AND f.target_id=${targetId})`;
 /** Byte-identical team/room member existence guard shared by the team access,
  * room access and Social team readers. Only the closed team/room scope and the
@@ -29,7 +36,9 @@ export const messagingTeamMemberGuard=(alias:string,teamRef:string,userRef:strin
 export const messagingTeamAccessSql=(prefix:string,managedSql:string,suffix:string)=>`SELECT t.* FROM messaging_teams t WHERE ${prefix}t.company_id=? AND ((NOT t.organization_managed AND ${messagingMemberExists('messaging_team_members','team_id','t.id')}) OR (t.organization_managed AND ${managedSql}))${suffix}`;
 export const legacyNativeUnion=`(SELECT * FROM legacy_rows UNION ALL SELECT * FROM native_rows)`;
 export const workforceActorScopeColumns=`(SELECT ?::text company_id,?::text branch_id,?::text department_id)`;
-export const messagingTeamMembersAgg=(teamId:string)=>`(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.user_id) FROM messaging_team_members m WHERE m.team_id=${teamId})`;
+/** Retained team wrapper: renders the team-member scope through
+ * messagingMembersAgg so consumers and bind order stay unchanged. */
+export const messagingTeamMembersAgg=(teamId:string)=>messagingMembersAgg('messaging_team_members',`m.team_id=${teamId}`);
 /** Byte-identical messaging team image subquery shared by the attachment purchase
  * witness, the private attachment reader and the messaging purchase image. Only
  * the team/company references and the `-'version'` redaction vary; the fixed
