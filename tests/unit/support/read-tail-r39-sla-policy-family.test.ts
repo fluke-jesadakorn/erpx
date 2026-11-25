@@ -92,7 +92,8 @@ describe('Support SLA policy workspace/work native read family (r39)', () => {
         expect(src('adapters/attachment-read.ts')).toContain('LOCK TABLE support_tickets,support_ticket_events IN SHARE ROW EXCLUSIVE MODE');
         expect(src('adapters/ticket-portal-unit.ts')).toContain('SELECT pg_advisory_xact_lock(hashtextextended(?,0))');
         expect(src('adapters/ticket-portal-unit.ts')).toContain('LOCK TABLE command_receipts,command_assertions,audit_events,outbox_events IN SHARE ROW EXCLUSIVE MODE');
-        expect(src('adapters/support-incident-read.ts')).toContain('supportEligibleFlagSql(reviewerPredicate');
+        expect(src('adapters/support-incident-read.ts')).not.toContain('supportEligibleFlagSql(reviewerPredicate');
+        expect(src('adapters/support-incident-read.ts')).not.toContain('incidentEligibilitySelect');
         expect(src('adapters/support-ticket-read-sources.ts')).toContain('supportReviewerCountSql(');
         expect(registry).not.toContain('LOCK TABLE support_sla_policies');
     });
