@@ -1,7 +1,10 @@
 //! Owner query port and handler for lane 27 Projects actuals reads. No SQL and
 //! no HTTP live here; the port is implemented by the PostgreSQL adapter.
 
-use super::domain::{ActualsScope, CostAllocationRow, WorkLogRow};
+use super::domain::{
+    ActualsScope, CostAllocationRow, HandoffProject, HandoffRow, HandoffScope, HandoffWorkRow,
+    WorkLogRow,
+};
 use erpx_server_shared::public::BusinessError;
 use std::{future::Future, pin::Pin};
 
@@ -15,6 +18,21 @@ pub trait ProjectActualsRead: Send + Sync {
         &'a self,
         scope: &'a ActualsScope,
     ) -> ActualsFuture<'a, Vec<CostAllocationRow>>;
+
+    /// The three owner-local handoff reads. The same per-Holding reader serves
+    /// both families, so each Holding still uses only its own database pool.
+    fn handoffs<'a>(
+        &'a self,
+        scope: &'a HandoffScope,
+    ) -> ActualsFuture<'a, Vec<HandoffRow>>;
+    fn handoff_project<'a>(
+        &'a self,
+        scope: &'a HandoffScope,
+    ) -> ActualsFuture<'a, Option<HandoffProject>>;
+    fn handoff_work<'a>(
+        &'a self,
+        scope: &'a HandoffScope,
+    ) -> ActualsFuture<'a, Vec<HandoffWorkRow>>;
 }
 
 pub async fn read_work_logs<R: ProjectActualsRead + ?Sized>(
@@ -39,6 +57,47 @@ pub async fn read_cost_allocations<R: ProjectActualsRead + ?Sized>(
     Ok(rows)
 }
 
+pub async fn read_handoffs<R: ProjectActualsRead + ?Sized>(
+    reader: &R,
+    scope: &HandoffScope,
+) -> Result<Vec<HandoffRow>, BusinessError> {
+    if scope.project.is_empty() {
+        return Err(super::domain::invalid());
+    }
+    let rows = reader.handoffs(scope).await?;
+    for row in &rows {
+        super::domain::check_handoff(row)?;
+    }
+    Ok(rows)
+}
+
+pub async fn read_handoff_project<R: ProjectActualsRead + ?Sized>(
+    reader: &R,
+    scope: &HandoffScope,
+) -> Result<Option<HandoffProject>, BusinessError> {
+    if scope.handoff.is_empty() {
+        return Err(super::domain::invalid());
+    }
+    let row = reader.handoff_project(scope).await?;
+    if let Some(project) = &row {
+        if !super::domain::valid_id(&project.project_id) {
+            return Err(super::domain::unavailable());
+        }
+    }
+    Ok(row)
+}
+
+pub async fn read_handoff_work<R: ProjectActualsRead + ?Sized>(
+    reader: &R,
+    scope: &HandoffScope,
+) -> Result<Vec<HandoffWorkRow>, BusinessError> {
+    let rows = reader.handoff_work(scope).await?;
+    for row in &rows {
+        super::domain::check_handoff_work(row)?;
+    }
+    Ok(rows)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -58,6 +117,24 @@ mod tests {
             _: &'a ActualsScope,
         ) -> ActualsFuture<'a, Vec<CostAllocationRow>> {
             Box::pin(async { Ok(self.costs.clone()) })
+        }
+        fn handoffs<'a>(
+            &'a self,
+            _: &'a HandoffScope,
+        ) -> ActualsFuture<'a, Vec<HandoffRow>> {
+            Box::pin(async { Ok(vec![]) })
+        }
+        fn handoff_project<'a>(
+            &'a self,
+            _: &'a HandoffScope,
+        ) -> ActualsFuture<'a, Option<HandoffProject>> {
+            Box::pin(async { Ok(None) })
+        }
+        fn handoff_work<'a>(
+            &'a self,
+            _: &'a HandoffScope,
+        ) -> ActualsFuture<'a, Vec<HandoffWorkRow>> {
+            Box::pin(async { Ok(vec![]) })
         }
     }
 
@@ -107,5 +184,13 @@ mod tests {
         assert_eq!(read_work_logs(&reader, &scope).await.unwrap().len(), 1);
         let costs = read_cost_allocations(&reader, &scope).await.unwrap();
         assert_eq!(costs[0].amount, "12.50");
+
+        let handoff = domain::handoff_scope("company-1", "user-1", "project-1", "").unwrap();
+        assert!(read_handoffs(&reader, &handoff).await.unwrap().is_empty());
+        assert!(read_handoff_work(&reader, &handoff).await.unwrap().is_empty());
+        let pointed = domain::handoff_scope("company-1", "user-1", "", "handoff-1").unwrap();
+        assert!(read_handoff_project(&reader, &pointed).await.unwrap().is_none());
+        assert!(read_handoffs(&reader, &pointed).await.is_err());
+        assert!(read_handoff_project(&reader, &handoff).await.is_err());
     }
 }

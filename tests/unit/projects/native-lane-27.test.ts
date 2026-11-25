@@ -77,6 +77,36 @@ const cost = {
   is_creator: true,
 };
 
+const handoff = {
+  id: "handoff-1",
+  company_id: "company-1",
+  project_id: "project-1",
+  source_project_version: 4,
+  recipient_id: "user-2",
+  status: "pending",
+  version: 1,
+  snapshot_json: '{"packages":[],"tasks":[],"actuals":[],"edges":[],"unassignedTasks":[]}',
+  snapshot_sha256: "a".repeat(64),
+  evidence: "handoff evidence",
+  prepared_by: "user-1",
+  prepared_at: 100,
+  decided_by: null,
+  decided_at: null,
+  decision_reason: null,
+};
+const handoffWork = {
+  id: "handoff-1",
+  version: 1,
+  project_id: "project-1",
+  recipient_id: "user-2",
+  prepared_by: "user-1",
+  status: "pending",
+  prepared_at: 100,
+  decided_at: null,
+  title: "Project 1",
+  lifecycle_status: "handoff_pending",
+};
+
 const reply = (body: unknown, status = 200): ActualsTransport => async () => ({
   status,
   contentType: "application/json",
@@ -112,8 +142,9 @@ describe("native lane 27 projects actuals transport", () => {
       }
     };
     walk(root);
-    // Before lane 27: 71. The two actuals reads are now native (69).
-    expect(total).toBe(69);
+    // Before lane 27: 71. Actuals (2) and handoff list/work (2) are native; the
+    // closed r33 point-read head remains shared by other owners (67).
+    expect(total).toBe(67);
   });
 
   it("pins the native SQL and result oracle", () => {
@@ -124,7 +155,7 @@ describe("native lane 27 projects actuals transport", () => {
       ),
       "utf8",
     );
-    const hashes = ["WORK_LOGS", "COST_ALLOCATIONS"].map((name) => {
+    const hashes = ["WORK_LOGS", "COST_ALLOCATIONS", "HANDOFFS", "HANDOFF_PROJECT", "HANDOFF_WORK"].map((name) => {
       const literal = source.match(new RegExp(`const ${name}: &str = "([\\s\\S]*?)";`));
       expect(literal).not.toBeNull();
       const rendered = literal![1].replace(/\\\n\s*/g, "");
@@ -133,6 +164,9 @@ describe("native lane 27 projects actuals transport", () => {
     expect(hashes).toEqual([
       "ed88d0261c964c7eec0fa2b94776b3ec91c34ef6c1cab5218e0c525e4fc581d3",
       "6240d5a2abc3be737145a146c2879a69091b5a0ba6e50b163ab61d23b65ba021",
+      "2d0e7f0c956f8885ac03cf63817f88ad2d6c5ef065fcbdb5b87e1530f4f292ee",
+      "4c0832698a78ad2a8c2140281e40a14f90fcfebe5ddffe5b0ea60a47f4f14088",
+      "e22d5ff91897cea8271de4816a66db3730b2c840a10322e37f7997a710805280",
     ]);
     expect(
       createHash("sha256")
@@ -271,6 +305,66 @@ describe("native lane 27 projects actuals transport", () => {
       .toMatchObject({ status: 503, code: "PROJECT_ACTUALS_LANE27_CONFIG_REQUIRED" });
     expect(failure(() => reader(reply({ workLogs: [] }), makeEnv({ ...configValue, timeoutMs: 100 }))))
       .toMatchObject({ status: 503, code: "PROJECT_ACTUALS_LANE27_CONFIG_INVALID" });
+  });
+
+  it("routes handoff reads with bounded identity headers", async () => {
+    const seen: Array<{ url: string; headers: Record<string, string> }> = [];
+    const transport: ActualsTransport = async (url, headers) => {
+      seen.push({ url: url.toString(), headers: { ...headers } });
+      const body = url.pathname.endsWith("handoff-project")
+        ? { handoff: { project_id: "project-1" } }
+        : { handoffs: url.pathname.endsWith("handoff-work") ? [handoffWork] : [handoff] };
+      return { status: 200, contentType: "application/json", text: JSON.stringify(body) };
+    };
+    const native = reader(transport);
+    expect(await native.handoffs("project-1")).toEqual([handoff]);
+    expect(seen[0]!.url).toBe("http://127.0.0.1:3198/api/v1/holdings/acme/projects/handoffs");
+    expect(seen[0]!.headers["x-erpx-context-project"]).toBe("project-1");
+
+    expect(await native.handoffWork()).toEqual([handoffWork]);
+    expect(seen[1]!.url).toBe("http://127.0.0.1:3198/api/v1/holdings/acme/projects/handoff-work");
+    expect(seen[1]!.headers["x-erpx-context-project"]).toBeUndefined();
+    expect(seen[1]!.headers["x-erpx-context-user"]).toBe("user-1");
+
+    expect(await native.handoffProject("handoff-1")).toEqual({ project_id: "project-1" });
+    expect(seen[2]!.url).toBe("http://127.0.0.1:3198/api/v1/holdings/acme/projects/handoff-project");
+    expect(seen[2]!.headers["x-erpx-context-handoff"]).toBe("handoff-1");
+  });
+
+  it("selects the caller's Holding for handoff reads too", async () => {
+    const seen: string[] = [];
+    const transport: ActualsTransport = async (url, headers) => {
+      seen.push(url.toString());
+      expect(headers.host).toBe("northstar.jesadakorn.com");
+      return { status: 200, contentType: "application/json", text: JSON.stringify({ handoffs: [] }) };
+    };
+    await reader(
+      transport,
+      env,
+      { ...actor, holdingId: "h002", holdingSlug: "northstar" },
+      incomingFor("northstar.jesadakorn.com"),
+    ).handoffs("project-1");
+    expect(seen).toEqual(["http://127.0.0.1:3198/api/v1/holdings/northstar/projects/handoffs"]);
+  });
+
+  it("fails closed on off-shape handoff replies and missing handoff identities", async () => {
+    await expect(
+      reader(reply({ handoffs: [{ ...handoff, snapshot_sha256: "A".repeat(64) }] })).handoffs("project-1"),
+    ).rejects.toMatchObject({ status: 503, code: "PROJECT_ACTUALS_LANE27_RESPONSE_INVALID" });
+    await expect(
+      reader(reply({ handoffs: [{ ...handoffWork, status: "archived" }] })).handoffWork(),
+    ).rejects.toMatchObject({ status: 503, code: "PROJECT_ACTUALS_LANE27_RESPONSE_INVALID" });
+    await expect(
+      reader(reply({ handoff: { project_id: "bad/id" } })).handoffProject("handoff-1"),
+    ).rejects.toMatchObject({ status: 503, code: "PROJECT_ACTUALS_LANE27_RESPONSE_INVALID" });
+    await expect(reader(reply({ handoff: null })).handoffProject("")).rejects.toMatchObject({
+      status: 503,
+      code: "PROJECT_ACTUALS_LANE27_REQUEST_INVALID",
+    });
+    await expect(reader(reply({ handoffs: [] })).handoffs("")).rejects.toMatchObject({
+      status: 503,
+      code: "PROJECT_ACTUALS_LANE27_REQUEST_INVALID",
+    });
   });
 
   it("preserves native 4xx semantics", async () => {

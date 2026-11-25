@@ -64,6 +64,54 @@ pub struct CostAllocationRow {
     pub is_creator: bool,
 }
 
+/// Handoff identity captured from the request headers. Each handoff read uses a
+/// bounded subset: list by project, work by user, point read by handoff id.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct HandoffScope {
+    pub company: String,
+    pub user: String,
+    pub project: String,
+    pub handoff: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct HandoffRow {
+    pub id: String,
+    pub company_id: String,
+    pub project_id: String,
+    pub source_project_version: i64,
+    pub recipient_id: String,
+    pub status: String,
+    pub version: i64,
+    pub snapshot_json: String,
+    pub snapshot_sha256: String,
+    pub evidence: String,
+    pub prepared_by: String,
+    pub prepared_at: i64,
+    pub decided_by: Option<String>,
+    pub decided_at: Option<i64>,
+    pub decision_reason: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct HandoffProject {
+    pub project_id: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct HandoffWorkRow {
+    pub id: String,
+    pub version: i64,
+    pub project_id: String,
+    pub recipient_id: String,
+    pub prepared_by: String,
+    pub status: String,
+    pub prepared_at: i64,
+    pub decided_at: Option<i64>,
+    pub title: String,
+    pub lifecycle_status: String,
+}
+
 pub fn invalid() -> BusinessError {
     BusinessError::invalid(
         "PROJECT_ACTUALS_LANE27_REQUEST_INVALID",
@@ -107,6 +155,65 @@ pub fn scope(company: &str, user: &str, project: &str) -> Result<ActualsScope, B
         user: user.to_owned(),
         project: project.to_owned(),
     })
+}
+
+pub fn handoff_scope(
+    company: &str,
+    user: &str,
+    project: &str,
+    handoff: &str,
+) -> Result<HandoffScope, BusinessError> {
+    if !valid_id(company) || !valid_id(user) {
+        return Err(invalid());
+    }
+    if !project.is_empty() && !valid_id(project) {
+        return Err(invalid());
+    }
+    if !handoff.is_empty() && !valid_id(handoff) {
+        return Err(invalid());
+    }
+    Ok(HandoffScope {
+        company: company.to_owned(),
+        user: user.to_owned(),
+        project: project.to_owned(),
+        handoff: handoff.to_owned(),
+    })
+}
+
+fn valid_sha256(value: &str) -> bool {
+    value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+}
+
+pub fn check_handoff(row: &HandoffRow) -> Result<(), BusinessError> {
+    if !valid_id(&row.id)
+        || !valid_id(&row.company_id)
+        || !valid_id(&row.project_id)
+        || !valid_id(&row.recipient_id)
+        || !valid_id(&row.prepared_by)
+        || !matches!(row.status.as_str(), "pending" | "accepted" | "rejected" | "cancelled")
+        || row.version < 1
+        || row.source_project_version < 1
+        || !valid_sha256(&row.snapshot_sha256)
+        || row.prepared_at < 0
+    {
+        return Err(unavailable());
+    }
+    Ok(())
+}
+
+pub fn check_handoff_work(row: &HandoffWorkRow) -> Result<(), BusinessError> {
+    if !valid_id(&row.id)
+        || !valid_id(&row.project_id)
+        || !valid_id(&row.recipient_id)
+        || !valid_id(&row.prepared_by)
+        || !matches!(row.status.as_str(), "pending" | "accepted" | "rejected" | "cancelled")
+        || !matches!(row.lifecycle_status.as_str(), "active" | "handoff_pending" | "completed" | "cancelled")
+        || row.version < 1
+        || row.prepared_at < 0
+    {
+        return Err(unavailable());
+    }
+    Ok(())
 }
 
 fn parse_minor(value: &str) -> Option<i64> {
@@ -183,6 +290,18 @@ mod tests {
         assert!(scope("", "user-1", "project-1").is_err());
         assert!(scope("company-1", "user/1", "project-1").is_err());
         assert!(scope("company-1", "user-1", "project'1").is_err());
+    }
+
+    #[test]
+    fn handoff_scope_is_bounded_per_read_kind() {
+        assert!(handoff_scope("company-1", "user-1", "project-1", "").is_ok());
+        assert!(handoff_scope("company-1", "user-1", "", "handoff-1").is_ok());
+        assert!(handoff_scope("company-1", "user-1", "", "").is_ok());
+        assert!(handoff_scope("", "user-1", "project-1", "handoff-1").is_err());
+        assert!(handoff_scope("company-1", "user-1", "project-1", "bad/id").is_err());
+        assert!(valid_sha256(&"a".repeat(64)));
+        assert!(!valid_sha256(&"A".repeat(64)));
+        assert!(!valid_sha256(&"a".repeat(63)));
     }
 
     #[test]

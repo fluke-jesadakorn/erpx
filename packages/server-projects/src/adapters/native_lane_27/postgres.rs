@@ -5,7 +5,8 @@
 
 use super::application::{ActualsFuture, ProjectActualsRead};
 use super::domain::{
-    ActualsScope, CostAllocationRow, WorkLogRow, minor_to_decimal, unavailable,
+    ActualsScope, CostAllocationRow, HandoffProject, HandoffRow, HandoffScope, HandoffWorkRow,
+    WorkLogRow, minor_to_decimal, unavailable,
 };
 use erpx_server_runtime::public::postgres::DatabasePool;
 use sqlx::Row;
@@ -32,6 +33,22 @@ const COST_ALLOCATIONS: &str = "SELECT a.id,a.project_id,a.journal_line_id,a.amo
      JOIN finance_journals j ON j.id=l.journal_id AND j.company_id=$3\
      JOIN finance_accounts ac ON ac.id=l.account_id AND ac.company_id=$3\
      WHERE a.company_id=$3 AND a.project_id=$4 ORDER BY j.entry_date DESC,j.journal_number DESC,a.id";
+
+/// Byte-identical handoff list statement with the `SELECT *` projection made
+/// explicit so `snapshot_json` is transported as text.
+const HANDOFFS: &str = "SELECT id,company_id,project_id,source_project_version,recipient_id,status,version,snapshot_json::text snapshot_json,snapshot_sha256,evidence,prepared_by,prepared_at,decided_by,decided_at,decision_reason\
+     FROM staff_project_handoffs WHERE company_id=$1 AND project_id=$2 ORDER BY prepared_at DESC,id";
+
+/// The closed r33 point-read head with `project_id` as its only projection.
+const HANDOFF_PROJECT: &str = "SELECT project_id FROM staff_project_handoffs WHERE id=$1 AND company_id=$2";
+
+/// Byte-identical handoff work statement; the owner-or-member scope expands the
+/// shared Project fragment with the exact bind order company,user,user,user,user.
+const HANDOFF_WORK: &str = "SELECT h.id,h.version,h.project_id,h.recipient_id,h.prepared_by,h.status,h.prepared_at,h.decided_at,p.title,p.lifecycle_status\
+     FROM staff_project_handoffs h JOIN staff_projects p ON p.id=h.project_id AND p.company_id=h.company_id\
+     WHERE h.company_id=$1 AND (iam_same_person(h.recipient_id,$2,h.company_id) OR iam_same_person(h.prepared_by,$3,h.company_id))\
+       AND (p.owner_user_id=$4 OR EXISTS(SELECT 1 FROM staff_project_members m WHERE m.project_id=p.id AND m.user_id=$5))\
+     ORDER BY COALESCE(h.decided_at,h.prepared_at) DESC,h.id LIMIT 200";
 
 pub struct PgProjectActualsRead {
     pool: DatabasePool,
@@ -143,6 +160,94 @@ impl ProjectActualsRead for PgProjectActualsRead {
                 .map_err(|_| unavailable())
         })
     }
+
+    fn handoffs<'a>(&'a self, scope: &'a HandoffScope) -> ActualsFuture<'a, Vec<HandoffRow>> {
+        Box::pin(async move {
+            let rows = sqlx::query(HANDOFFS)
+                .bind(&scope.company)
+                .bind(&scope.project)
+                .fetch_all(self.pool.raw())
+                .await
+                .map_err(|_| unavailable())?;
+            rows.into_iter()
+                .map(|row| {
+                    Ok(HandoffRow {
+                        id: text(&row, "id")?,
+                        company_id: text(&row, "company_id")?,
+                        project_id: text(&row, "project_id")?,
+                        source_project_version: integer(&row, "source_project_version")?,
+                        recipient_id: text(&row, "recipient_id")?,
+                        status: text(&row, "status")?,
+                        version: integer(&row, "version")?,
+                        snapshot_json: text(&row, "snapshot_json")?,
+                        snapshot_sha256: text(&row, "snapshot_sha256")?,
+                        evidence: text(&row, "evidence")?,
+                        prepared_by: text(&row, "prepared_by")?,
+                        prepared_at: integer(&row, "prepared_at")?,
+                        decided_by: opt_text(&row, "decided_by")?,
+                        decided_at: row.try_get::<Option<i64>, _>("decided_at")?,
+                        decision_reason: opt_text(&row, "decision_reason")?,
+                    })
+                })
+                .collect::<Result<Vec<_>, sqlx::Error>>()
+                .map_err(|_| unavailable())
+        })
+    }
+
+    fn handoff_project<'a>(
+        &'a self,
+        scope: &'a HandoffScope,
+    ) -> ActualsFuture<'a, Option<HandoffProject>> {
+        Box::pin(async move {
+            let row = sqlx::query(HANDOFF_PROJECT)
+                .bind(&scope.handoff)
+                .bind(&scope.company)
+                .fetch_optional(self.pool.raw())
+                .await
+                .map_err(|_| unavailable())?;
+            row.map(|row| -> Result<HandoffProject, sqlx::Error> {
+                Ok(HandoffProject {
+                    project_id: text(&row, "project_id")?,
+                })
+            })
+            .transpose()
+            .map_err(|_| unavailable())
+        })
+    }
+
+    fn handoff_work<'a>(
+        &'a self,
+        scope: &'a HandoffScope,
+    ) -> ActualsFuture<'a, Vec<HandoffWorkRow>> {
+        Box::pin(async move {
+            let rows = sqlx::query(HANDOFF_WORK)
+                .bind(&scope.company)
+                .bind(&scope.user)
+                .bind(&scope.user)
+                .bind(&scope.user)
+                .bind(&scope.user)
+                .fetch_all(self.pool.raw())
+                .await
+                .map_err(|_| unavailable())?;
+            rows.into_iter()
+                .map(|row| {
+                    Ok(HandoffWorkRow {
+                        id: text(&row, "id")?,
+                        version: integer(&row, "version")?,
+                        project_id: text(&row, "project_id")?,
+                        recipient_id: text(&row, "recipient_id")?,
+                        prepared_by: text(&row, "prepared_by")?,
+                        status: text(&row, "status")?,
+                        prepared_at: integer(&row, "prepared_at")?,
+                        decided_at: row.try_get::<Option<i64>, _>("decided_at")?,
+                        title: text(&row, "title")?,
+                        lifecycle_status: text(&row, "lifecycle_status")?,
+                    })
+                })
+                .collect::<Result<Vec<_>, sqlx::Error>>()
+                .map_err(|_| unavailable())
+        })
+    }
 }
 
 #[cfg(test)]
@@ -167,5 +272,17 @@ mod tests {
         assert!(COST_ALLOCATIONS.ends_with("ORDER BY j.entry_date DESC,j.journal_number DESC,a.id"));
         assert!(COST_ALLOCATIONS.contains("$4"));
         assert!(!COST_ALLOCATIONS.contains("$5"));
+    }
+
+    #[test]
+    fn handoff_statements_keep_relations_order_and_bind_arity() {
+        assert!(HANDOFFS.ends_with("ORDER BY prepared_at DESC,id"));
+        assert!(HANDOFFS.contains("snapshot_json::text snapshot_json"));
+        assert!(HANDOFFS.contains("company_id=$1 AND project_id=$2"));
+        assert!(HANDOFF_PROJECT.ends_with("WHERE id=$1 AND company_id=$2"));
+        assert!(HANDOFF_WORK.ends_with("ORDER BY COALESCE(h.decided_at,h.prepared_at) DESC,h.id LIMIT 200"));
+        assert!(HANDOFF_WORK.contains("p.owner_user_id=$4"));
+        assert!(HANDOFF_WORK.contains("m.user_id=$5"));
+        assert!(!HANDOFF_WORK.contains("$6"));
     }
 }

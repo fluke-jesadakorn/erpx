@@ -39,6 +39,57 @@ export type ProjectActualsActor = Pick<
   "companyId" | "userId" | "holdingId" | "holdingSlug"
 >;
 
+export type NativeHandoffRow = {
+  id: string;
+  company_id: string;
+  project_id: string;
+  source_project_version: number;
+  recipient_id: string;
+  status: string;
+  version: number;
+  snapshot_json: string;
+  snapshot_sha256: string;
+  evidence: string;
+  prepared_by: string;
+  prepared_at: number;
+  decided_by: string | null;
+  decided_at: number | null;
+  decision_reason: string | null;
+};
+
+export type NativeHandoffWorkRow = {
+  id: string;
+  version: number;
+  project_id: string;
+  recipient_id: string;
+  prepared_by: string;
+  status: string;
+  prepared_at: number;
+  decided_at: number | null;
+  title: string;
+  lifecycle_status: string;
+};
+
+export type NativeHandoffProject = { project_id: string };
+
+type ReadKind = "work-logs" | "cost-allocations" | "handoffs" | "handoff-work" | "handoff-project";
+const ENVELOPES: Record<ReadKind, string> = {
+  "work-logs": "workLogs",
+  "cost-allocations": "costAllocations",
+  handoffs: "handoffs",
+  "handoff-work": "handoffs",
+  "handoff-project": "handoff",
+};
+const ROUTES: Record<ReadKind, string> = {
+  "work-logs": "projects/actuals/work-logs",
+  "cost-allocations": "projects/actuals/cost-allocations",
+  handoffs: "projects/handoffs",
+  "handoff-work": "projects/handoff-work",
+  "handoff-project": "projects/handoff-project",
+};
+const HANDOFF_STATUSES = ["pending", "accepted", "rejected", "cancelled"];
+const LIFECYCLE_STATUSES = ["active", "handoff_pending", "completed", "cancelled"];
+
 const ENV = "ERPX_NATIVE_PROJECTS_CONFIG";
 const RESERVED_PORTS = new Set([3000, 3001, 3100, 3101, 3103, 5432, 5433, 5435, 8080]);
 const MAX_BODY = 4 * 1024 * 1024;
@@ -272,37 +323,101 @@ function costAllocation(value: unknown): ProjectCostAllocationRow {
   return value as unknown as ProjectCostAllocationRow;
 }
 
+const HANDOFF_KEYS = [
+  "id", "company_id", "project_id", "source_project_version", "recipient_id", "status", "version",
+  "snapshot_json", "snapshot_sha256", "evidence", "prepared_by", "prepared_at", "decided_by",
+  "decided_at", "decision_reason",
+] as const;
+const HANDOFF_WORK_KEYS = [
+  "id", "version", "project_id", "recipient_id", "prepared_by", "status", "prepared_at",
+  "decided_at", "title", "lifecycle_status",
+] as const;
+
+function handoffRow(value: unknown): NativeHandoffRow {
+  if (
+    !exact(value, HANDOFF_KEYS) ||
+    !identifier(value.id) ||
+    !identifier(value.company_id) ||
+    !identifier(value.project_id) ||
+    !identifier(value.recipient_id) ||
+    !identifier(value.prepared_by) ||
+    !integer(value.source_project_version, 1) ||
+    !integer(value.version, 1) ||
+    !integer(value.prepared_at, 0) ||
+    !HANDOFF_STATUSES.includes(String(value.status)) ||
+    !text(value.snapshot_json, 1_048_576) ||
+    !text(value.snapshot_sha256, 64) ||
+    !/^[a-f0-9]{64}$/.test(String(value.snapshot_sha256)) ||
+    !text(value.evidence, 8192) ||
+    !nullableText(value.decided_by, 200) ||
+    (value.decided_at !== null && !integer(value.decided_at, 0)) ||
+    !nullableText(value.decision_reason, 2000)
+  )
+    return invalidResponse();
+  return value as unknown as NativeHandoffRow;
+}
+
+function handoffWorkRow(value: unknown): NativeHandoffWorkRow {
+  if (
+    !exact(value, HANDOFF_WORK_KEYS) ||
+    !identifier(value.id) ||
+    !identifier(value.project_id) ||
+    !identifier(value.recipient_id) ||
+    !identifier(value.prepared_by) ||
+    !integer(value.version, 1) ||
+    !integer(value.prepared_at, 0) ||
+    !HANDOFF_STATUSES.includes(String(value.status)) ||
+    !LIFECYCLE_STATUSES.includes(String(value.lifecycle_status)) ||
+    !text(value.title, 200) ||
+    (value.decided_at !== null && !integer(value.decided_at, 0))
+  )
+    return invalidResponse();
+  return value as unknown as NativeHandoffWorkRow;
+}
+
+function handoffProject(value: unknown): NativeHandoffProject {
+  if (!exact(value, ["project_id"]) || !identifier(value.project_id)) return invalidResponse();
+  return value as unknown as NativeHandoffProject;
+}
+
 async function read(
   config: Config,
   actor: ProjectActualsActor,
   holding: Holding,
-  projectId: string,
-  kind: "work-logs" | "cost-allocations",
+  kind: ReadKind,
+  ids: { projectId?: string; handoffId?: string },
   transport: ActualsTransport,
-): Promise<unknown[]> {
+): Promise<unknown> {
   if (
     !identifier(actor.companyId) ||
     !identifier(actor.userId) ||
     !identifier(actor.holdingId) ||
-    !identifier(actor.holdingSlug) ||
-    !identifier(projectId)
+    !identifier(actor.holdingSlug)
   )
     return unavailable("PROJECT_ACTUALS_LANE27_REQUEST_INVALID");
+  const headers: Record<string, string> = {
+    host: holding.host,
+    origin: holding.origin,
+    accept: "application/json",
+    "cache-control": "no-cache",
+    "x-erpx-context-company": actor.companyId,
+    "x-erpx-context-user": actor.userId,
+  };
+  if (ids.projectId !== undefined) {
+    if (!identifier(ids.projectId)) return unavailable("PROJECT_ACTUALS_LANE27_REQUEST_INVALID");
+    headers["x-erpx-context-project"] = ids.projectId;
+  }
+  if (ids.handoffId !== undefined) {
+    if (!identifier(ids.handoffId)) return unavailable("PROJECT_ACTUALS_LANE27_REQUEST_INVALID");
+    headers["x-erpx-context-handoff"] = ids.handoffId;
+  }
   const url = new URL(
-    `/api/v1/holdings/${encodeURIComponent(holding.holdingSlug)}/projects/actuals/${kind}`,
+    `/api/v1/holdings/${encodeURIComponent(holding.holdingSlug)}/${ROUTES[kind]}`,
     config.base,
   );
   let reply: Reply;
   try {
-    reply = await transport(url, {
-      host: holding.host,
-      origin: holding.origin,
-      accept: "application/json",
-      "cache-control": "no-cache",
-      "x-erpx-context-company": actor.companyId,
-      "x-erpx-context-user": actor.userId,
-      "x-erpx-context-project": projectId,
-    }, config.timeoutMs);
+    reply = await transport(url, headers, config.timeoutMs);
   } catch {
     return unavailable();
   }
@@ -333,17 +448,23 @@ async function read(
   } catch {
     return invalidResponse();
   }
-  const envelope = kind === "work-logs" ? "workLogs" : "costAllocations";
+  const envelope = ENVELOPES[kind];
   if (!exact(value, [envelope])) return invalidResponse();
-  const rows = value[envelope];
-  if (!Array.isArray(rows)) return invalidResponse();
-  return rows;
+  return value[envelope];
 }
 
 export interface ProjectActualsReader {
   workLogs(projectId: string): Promise<ProjectWorkLogRow[]>;
   costAllocations(projectId: string): Promise<ProjectCostAllocationRow[]>;
+  handoffs(projectId: string): Promise<NativeHandoffRow[]>;
+  handoffWork(): Promise<NativeHandoffWorkRow[]>;
+  handoffProject(handoffId: string): Promise<NativeHandoffProject | null>;
 }
+
+const rowsFrom = (value: unknown): unknown[] => {
+  if (!Array.isArray(value)) return invalidResponse();
+  return value;
+};
 
 /**
  * Transport factory. The Holding is selected from the caller's WorkContext and
@@ -360,12 +481,24 @@ export function createProjectActualsReader(
   const holding = selectHolding(config, actor, incoming);
   return {
     async workLogs(projectId) {
-      const rows = await read(config, actor, holding, projectId, "work-logs", transport);
-      return rows.map(workLog);
+      const value = await read(config, actor, holding, "work-logs", { projectId }, transport);
+      return rowsFrom(value).map(workLog);
     },
     async costAllocations(projectId) {
-      const rows = await read(config, actor, holding, projectId, "cost-allocations", transport);
-      return rows.map(costAllocation);
+      const value = await read(config, actor, holding, "cost-allocations", { projectId }, transport);
+      return rowsFrom(value).map(costAllocation);
+    },
+    async handoffs(projectId) {
+      const value = await read(config, actor, holding, "handoffs", { projectId }, transport);
+      return rowsFrom(value).map(handoffRow);
+    },
+    async handoffWork() {
+      const value = await read(config, actor, holding, "handoff-work", {}, transport);
+      return rowsFrom(value).map(handoffWorkRow);
+    },
+    async handoffProject(handoffId) {
+      const value = await read(config, actor, holding, "handoff-project", { handoffId }, transport);
+      return value === null ? null : handoffProject(value);
     },
   };
 }
@@ -389,4 +522,24 @@ export async function nativeProjectCostAllocations(
   projectId: string,
 ): Promise<ProjectCostAllocationRow[]> {
   return (await nativeProjectActualsReader(actor)).costAllocations(projectId);
+}
+
+export async function nativeProjectHandoffs(
+  actor: ProjectActualsActor,
+  projectId: string,
+): Promise<NativeHandoffRow[]> {
+  return (await nativeProjectActualsReader(actor)).handoffs(projectId);
+}
+
+export async function nativeProjectHandoffWork(
+  actor: ProjectActualsActor,
+): Promise<NativeHandoffWorkRow[]> {
+  return (await nativeProjectActualsReader(actor)).handoffWork();
+}
+
+export async function nativeProjectHandoffProject(
+  actor: ProjectActualsActor,
+  handoffId: string,
+): Promise<NativeHandoffProject | null> {
+  return (await nativeProjectActualsReader(actor)).handoffProject(handoffId);
 }

@@ -2,8 +2,11 @@
 //! the Commerce quality-product target/header isolation contract: one exact
 //! registered Holding host + slug, one Company identity, no caller SQL.
 
-use super::application::{ProjectActualsRead, read_cost_allocations, read_work_logs};
-use super::domain::{LaneTarget, invalid, scope, valid_slug};
+use super::application::{
+    ProjectActualsRead, read_cost_allocations, read_handoff_project, read_handoff_work,
+    read_handoffs, read_work_logs,
+};
+use super::domain::{HandoffScope, LaneTarget, handoff_scope, invalid, scope, valid_slug};
 use super::postgres::PgProjectActualsRead;
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
@@ -17,6 +20,7 @@ use std::sync::Arc;
 const CONTEXT_COMPANY: HeaderName = HeaderName::from_static("x-erpx-context-company");
 const CONTEXT_USER: HeaderName = HeaderName::from_static("x-erpx-context-user");
 const CONTEXT_PROJECT: HeaderName = HeaderName::from_static("x-erpx-context-project");
+const CONTEXT_HANDOFF: HeaderName = HeaderName::from_static("x-erpx-context-handoff");
 
 struct LaneState {
     targets: BTreeMap<(String, String), Arc<dyn ProjectActualsRead>>,
@@ -119,6 +123,18 @@ fn router_from_state(state: LaneState) -> Router {
             "/api/v1/holdings/{holding_slug}/projects/actuals/cost-allocations",
             get(cost_allocations),
         )
+        .route(
+            "/api/v1/holdings/{holding_slug}/projects/handoffs",
+            get(handoffs),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/projects/handoff-work",
+            get(handoff_work),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/projects/handoff-project",
+            get(handoff_project),
+        )
         .with_state(Arc::new(state))
 }
 
@@ -165,19 +181,27 @@ pub(crate) fn router_with_readers(
     Ok(router_from_state(state_from_readers(targets)?))
 }
 
+fn target_reader(
+    state: &LaneState,
+    request: &Request,
+    slug: &str,
+) -> Result<Arc<dyn ProjectActualsRead>, BusinessError> {
+    let host = unique_header(request.headers(), header::HOST)?
+        .filter(|host| !host.is_empty())
+        .ok_or_else(missing)?;
+    Ok(state
+        .targets
+        .get(&(host.to_owned(), slug.to_owned()))
+        .ok_or_else(missing)?
+        .clone())
+}
+
 fn request_scope(
     state: &LaneState,
     request: &Request,
     slug: &str,
 ) -> Result<(Arc<dyn ProjectActualsRead>, super::domain::ActualsScope), BusinessError> {
-    let host = unique_header(request.headers(), header::HOST)?
-        .filter(|host| !host.is_empty())
-        .ok_or_else(missing)?;
-    let reader = state
-        .targets
-        .get(&(host.to_owned(), slug.to_owned()))
-        .ok_or_else(missing)?
-        .clone();
+    let reader = target_reader(state, request, slug)?;
     let company = unique_header(request.headers(), CONTEXT_COMPANY)?
         .filter(|value| valid_id(value))
         .ok_or_else(invalid)?;
@@ -189,6 +213,48 @@ fn request_scope(
         .ok_or_else(invalid)?;
     let scope = scope(company, user, project)?;
     Ok((reader, scope))
+}
+
+fn required_context(headers: &HeaderMap, name: HeaderName) -> Result<String, BusinessError> {
+    let value = unique_header(headers, name)?
+        .filter(|value| valid_id(value))
+        .ok_or_else(invalid)?;
+    Ok(value.to_owned())
+}
+
+fn optional_context(headers: &HeaderMap, name: HeaderName) -> Result<Option<String>, BusinessError> {
+    match unique_header(headers, name)? {
+        None => Ok(None),
+        Some(value) => {
+            if !valid_id(value) {
+                return Err(invalid());
+            }
+            Ok(Some(value.to_owned()))
+        }
+    }
+}
+
+fn request_handoff_scope(
+    state: &LaneState,
+    request: &Request,
+    slug: &str,
+    with_project: bool,
+    with_handoff: bool,
+) -> Result<(Arc<dyn ProjectActualsRead>, HandoffScope), BusinessError> {
+    let reader = target_reader(state, request, slug)?;
+    let company = required_context(request.headers(), CONTEXT_COMPANY)?;
+    let user = required_context(request.headers(), CONTEXT_USER)?;
+    let project = if with_project {
+        required_context(request.headers(), CONTEXT_PROJECT)?
+    } else {
+        optional_context(request.headers(), CONTEXT_PROJECT)?.unwrap_or_default()
+    };
+    let handoff = if with_handoff {
+        required_context(request.headers(), CONTEXT_HANDOFF)?
+    } else {
+        optional_context(request.headers(), CONTEXT_HANDOFF)?.unwrap_or_default()
+    };
+    Ok((reader, handoff_scope(&company, &user, &project, &handoff)?))
 }
 
 async fn work_logs(
@@ -225,11 +291,65 @@ async fn cost_allocations(
     }
 }
 
+async fn handoffs(
+    State(state): State<Arc<LaneState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let (reader, scope) = request_handoff_scope(&state, &request, &slug, true, false)?;
+        let rows = read_handoffs(reader.as_ref(), &scope).await?;
+        Ok::<_, BusinessError>(serde_json::json!({"handoffs": rows}))
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn handoff_work(
+    State(state): State<Arc<LaneState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let (reader, scope) = request_handoff_scope(&state, &request, &slug, false, false)?;
+        let rows = read_handoff_work(reader.as_ref(), &scope).await?;
+        Ok::<_, BusinessError>(serde_json::json!({"handoffs": rows}))
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn handoff_project(
+    State(state): State<Arc<LaneState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let (reader, scope) = request_handoff_scope(&state, &request, &slug, false, true)?;
+        let project = read_handoff_project(reader.as_ref(), &scope).await?;
+        Ok::<_, BusinessError>(serde_json::json!({"handoff": project}))
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::adapters::native_lane_27::application::ActualsFuture;
-    use crate::adapters::native_lane_27::domain::{ActualsScope, CostAllocationRow, WorkLogRow};
+    use crate::adapters::native_lane_27::domain::{
+        ActualsScope, CostAllocationRow, HandoffProject, HandoffRow, HandoffScope, HandoffWorkRow,
+        WorkLogRow,
+    };
     use erpx_server_runtime::public::http_support::Body;
 
     struct Empty;
@@ -241,6 +361,24 @@ mod tests {
             &'a self,
             _: &'a ActualsScope,
         ) -> ActualsFuture<'a, Vec<CostAllocationRow>> {
+            Box::pin(async { Ok(vec![]) })
+        }
+        fn handoffs<'a>(
+            &'a self,
+            _: &'a HandoffScope,
+        ) -> ActualsFuture<'a, Vec<HandoffRow>> {
+            Box::pin(async { Ok(vec![]) })
+        }
+        fn handoff_project<'a>(
+            &'a self,
+            _: &'a HandoffScope,
+        ) -> ActualsFuture<'a, Option<HandoffProject>> {
+            Box::pin(async { Ok(None) })
+        }
+        fn handoff_work<'a>(
+            &'a self,
+            _: &'a HandoffScope,
+        ) -> ActualsFuture<'a, Vec<HandoffWorkRow>> {
             Box::pin(async { Ok(vec![]) })
         }
     }
@@ -315,5 +453,31 @@ mod tests {
         assert!(Arc::ptr_eq(&routed_acme, &acme));
         assert!(Arc::ptr_eq(&routed_northstar, &northstar));
         assert!(!Arc::ptr_eq(&routed_acme, &routed_northstar));
+    }
+
+    #[test]
+    fn handoff_routes_require_their_own_bounded_identity() {
+        let reader: Arc<dyn ProjectActualsRead> = Arc::new(Empty);
+        let state = state_from_readers(vec![(
+            LaneTarget { host: "acme.jesadakorn.com".into(), holding_slug: "acme".into() },
+            reader,
+        )])
+        .unwrap();
+        let request = |handoff: bool| {
+            let mut builder = Request::builder()
+                .header(header::HOST, "acme.jesadakorn.com")
+                .header(CONTEXT_COMPANY, "company-1")
+                .header(CONTEXT_USER, "user-1");
+            if handoff {
+                builder = builder.header(CONTEXT_HANDOFF, "handoff-1");
+            }
+            builder.body(Body::empty()).unwrap()
+        };
+        assert!(request_handoff_scope(&state, &request(false), "acme", false, false).is_ok());
+        assert!(request_handoff_scope(&state, &request(false), "acme", true, false).is_err());
+        assert!(request_handoff_scope(&state, &request(false), "acme", false, true).is_err());
+        let scoped = request_handoff_scope(&state, &request(true), "acme", false, true).unwrap();
+        assert_eq!(scoped.1.handoff, "handoff-1");
+        assert_eq!(scoped.1.company, "company-1");
     }
 }

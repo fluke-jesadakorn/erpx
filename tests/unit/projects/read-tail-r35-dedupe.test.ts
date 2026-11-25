@@ -33,8 +33,11 @@ describe('Projects read-tail r35 point-read family merge', () => {
     expect(entry).toContain('.bind(target.id,actor.companyId)');
 
     const structure = src('project-structure-sources.ts');
-    expect(structure).toContain("import { projectIdSql } from './project-id-source';");
-    expect(structure).toContain("projectIdSql('staff_project_handoffs')");
+    expect(structure).not.toContain("projectIdSql('staff_project_handoffs')");
+    // Lane 27 wave 2: the handoff reads are native; the TS adapter only transports.
+    expect(structure).toContain('nativeProjectHandoffProject');
+    expect(structure).toContain('nativeProjectHandoffWork');
+    expect(structure).toContain('nativeProjectHandoffs');
   });
 
   test('locks, spaced JOINs and every r2-r34 helper stay untouched', () => {
@@ -71,7 +74,7 @@ describe('Projects read-tail r35 point-read family merge', () => {
     walk(srcRoot);
     // r34 left 96. r35 removes the standalone projectIdSql literal (1->0) by
     // composing the r33 point-read head; its two call sites emit unchanged SQL.
-    expect(total).toBe(69); // lane 27 moved the two actuals reads to native Rust (-2) // r37 four-arm fact UNION closed helper (-3) + 3-arm NOT EXISTS proof group (-2): 93->88 // r36 package-actual source + event-fact arms: 95->93 // r38 member EXISTS closed helper (-4) + evidence super-head (-3): 88->81
+    expect(total).toBe(67); // lane 27 wave 2 moved the two handoff list/work reads to native (-2) // lane 27 moved the two actuals reads to native Rust (-2) // r37 four-arm fact UNION closed helper (-3) + 3-arm NOT EXISTS proof group (-2): 93->88 // r36 package-actual source + event-fact arms: 95->93 // r38 member EXISTS closed helper (-4) + evidence super-head (-3): 88->81
     expect(total).toBeLessThan(88);
   });
 });
