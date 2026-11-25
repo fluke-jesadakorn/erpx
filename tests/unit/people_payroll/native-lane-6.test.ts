@@ -1,0 +1,218 @@
+import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+
+vi.mock('server-only', () => ({}));
+import { ApiError } from '@erpx/server-runtime/public/http';
+import {
+  LANE6_CONFIG_INVALID,
+  LANE6_RESPONSE_INVALID,
+  LANE6_TARGET_UNAVAILABLE,
+  LANE6_UNAVAILABLE,
+  nativeCalendarAvailabilityLeaveDays,
+  type LaneHoldingScope,
+} from '../../../packages/server-people_payroll/src/adapters/native-lane-6/client';
+import { calendarAvailabilityPeoplePayrollFacts } from '../../../packages/server-people_payroll/src/adapters/calendar-availability-facts';
+
+const src = (name: string) => readFileSync(new URL(`../../../packages/server-people_payroll/src/${name}`, import.meta.url), 'utf8');
+const sha = (value: string) => createHash('sha256').update(value).digest('hex');
+
+/** Verbatim retired `db.prepare` literal from calendar-availability-facts.ts. */
+const RETIRED_SQL = `SELECT DISTINCT p.user_id,d.leave_date::text leave_date
+    FROM leave_requests l JOIN hr_people p ON p.id=l.person_id AND p.company_id=l.company_id
+    CROSS JOIN LATERAL (
+      SELECT s.leave_date::date leave_date FROM leave_day_segments s WHERE s.request_id=l.id AND s.company_id=l.company_id
+      UNION ALL
+      SELECT generate_series(l.start_date::date,coalesce(l.end_date::date,l.start_date::date+l.days::int-1),interval '1 day')::date
+      WHERE NOT EXISTS(SELECT 1 FROM leave_day_segments s WHERE s.request_id=l.id AND s.company_id=l.company_id)
+    ) d
+    WHERE l.company_id=? AND l.state='approved' AND p.user_id IN (\${facts.value2.map(() => "?").join(",")})
+    AND d.leave_date BETWEEN ?::date AND ?::date`;
+
+const ENV = 'ERPX_NATIVE_PEOPLE_PAYROLL_CONFIG';
+const CONFIG = {
+  privateBaseUrl: 'http://127.0.0.1:3198',
+  timeoutMs: 10000,
+  holdings: [
+    { origin: 'https://acme.jesadakorn.com', host: 'acme.jesadakorn.com', holdingId: 'h001', holdingSlug: 'acme', companyId: 'company-1' },
+    { origin: 'https://northstar.jesadakorn.com', host: 'northstar.jesadakorn.com', holdingId: 'h002', holdingSlug: 'northstar', companyId: 'company-2' },
+    { origin: 'https://erpx-internal.jesadakorn.com', host: 'erpx-internal.jesadakorn.com', holdingId: 'h003', holdingSlug: 'erpx', companyId: 'company-3' },
+  ],
+};
+const scopeOf = (index: number): LaneHoldingScope => {
+  const h = CONFIG.holdings[index]!;
+  return { holdingId: h.holdingId, holdingSlug: h.holdingSlug, companyId: h.companyId! };
+};
+const original = process.env[ENV];
+beforeEach(() => {
+  process.env[ENV] = JSON.stringify(CONFIG);
+});
+afterEach(() => {
+  vi.unstubAllGlobals();
+  if (original === undefined) delete process.env[ENV];
+  else process.env[ENV] = original;
+});
+
+const reply = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+
+async function expect503(promise: Promise<unknown>, code = LANE6_UNAVAILABLE) {
+  try {
+    await promise;
+    throw new Error('expected ApiError');
+  } catch (error) {
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(503);
+    expect((error as ApiError).code).toBe(code);
+  }
+}
+
+describe('native lane 6 — People Payroll calendar availability leave reads', () => {
+  test('SQL oracle: retired literal is byte-identical in the Rust owner and gone from TS', () => {
+    expect(sha(RETIRED_SQL)).toBe('7abbf7e047b1e1bc94f62a116ad13b3922208aec4e6bd7324fbb04dbd83797b7');
+    expect(RETIRED_SQL.match(/\bSELECT\b/g)).toHaveLength(4);
+    const rs = src('adapters/native_lane_6/postgres.rs');
+    expect(rs).toContain(RETIRED_SQL);
+    expect(rs).toContain('l.company_id=$1');
+    expect(rs).toContain('p.user_id IN ({users})');
+    const ts = src('adapters/calendar-availability-facts.ts');
+    expect(ts).not.toMatch(/\bSELECT\b/i);
+    expect(ts).not.toMatch(/\bleave_day_segments\b/i);
+    expect(ts).toContain('nativeCalendarAvailabilityLeaveDays');
+    expect(src('adapters/native-lane-6/client.ts')).not.toMatch(/\bSELECT\b/i);
+  });
+
+  test('renders exact wire request and pins result shape + result oracle hash', async () => {
+    const calls: { url: string; headers: Record<string, string>; body: unknown }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL, init: RequestInit) => {
+      const headers: Record<string, string> = {};
+      new Headers(init.headers).forEach((value, key) => { headers[key] = value; });
+      calls.push({ url: String(url), headers, body: JSON.parse(String(init.body)) });
+      return reply({ leaveDays: [
+        { userId: 'u1', leaveDate: '2026-03-02' },
+        { userId: 'u2', leaveDate: '2026-03-03' },
+      ] });
+    }));
+    const result = await calendarAvailabilityPeoplePayrollFacts({} as never, scopeOf(0)).read7({
+      value1: 'company-1',
+      value2: ['u1', 'u2'],
+      value3: '2026-03-01',
+      value4: '2026-03-31',
+    });
+    expect(result).toEqual({
+      results: [
+        { user_id: 'u1', leave_date: '2026-03-02' },
+        { user_id: 'u2', leave_date: '2026-03-03' },
+      ],
+    });
+    expect(sha(JSON.stringify(result))).toBe('468fb4fa8954ededaca3282e8236ac5c0e9c4393087950eb054a704fe902a484');
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.url).toBe('http://127.0.0.1:3198/api/v1/holdings/acme/people-payroll/lane6/calendar-availability-leave');
+    expect(calls[0]?.headers['host']).toBe('acme.jesadakorn.com');
+    expect(calls[0]?.headers['origin']).toBe('https://acme.jesadakorn.com');
+    expect(calls[0]?.headers['x-erpx-context-company']).toBe('company-1');
+    expect(calls[0]?.body).toEqual({ userIds: ['u1', 'u2'], from: '2026-03-01', to: '2026-03-31' });
+  });
+
+  test('scopes every registered Holding by its exact (holdingId, holdingSlug) pair', async () => {
+    const urls: string[] = [];
+    const hosts: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL, init: RequestInit) => {
+      urls.push(String(url));
+      hosts.push(new Headers(init.headers).get('host') ?? '');
+      return reply({ leaveDays: [] });
+    }));
+    for (let i = 0; i < CONFIG.holdings.length; i++) {
+      const h = CONFIG.holdings[i]!;
+      const result = await nativeCalendarAvailabilityLeaveDays(
+        scopeOf(i), h.companyId!, ['u1'], '2026-03-01', '2026-03-02',
+      );
+      expect(result).toEqual({ results: [] });
+    }
+    expect(urls).toEqual(CONFIG.holdings.map(h =>
+      `http://127.0.0.1:3198/api/v1/holdings/${h.holdingSlug}/people-payroll/lane6/calendar-availability-leave`));
+    expect(hosts).toEqual(CONFIG.holdings.map(h => h.host));
+  });
+
+  test('never falls back to the first Holding for an unknown scope', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('must not be called'); }));
+    await expect503(nativeCalendarAvailabilityLeaveDays(
+      { holdingId: 'h999', holdingSlug: 'acme', companyId: 'company-1' },
+      'company-1', ['u1'], '2026-03-01', '2026-03-02',
+    ), LANE6_TARGET_UNAVAILABLE);
+    await expect503(nativeCalendarAvailabilityLeaveDays(
+      { holdingId: 'h001', holdingSlug: 'northstar', companyId: 'company-1' },
+      'company-1', ['u1'], '2026-03-01', '2026-03-02',
+    ), LANE6_TARGET_UNAVAILABLE);
+    await expect503(nativeCalendarAvailabilityLeaveDays(
+      { holdingId: 'h003', holdingSlug: 'erpx', companyId: 'company-3' },
+      'company-1', ['u1'], '2026-03-01', '2026-03-02',
+    ), LANE6_TARGET_UNAVAILABLE);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  test('unscoped legacy caller selects the one Holding registered for its Company', async () => {
+    const urls: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => {
+      urls.push(String(url));
+      return reply({ leaveDays: [] });
+    }));
+    await nativeCalendarAvailabilityLeaveDays(undefined, 'company-3', ['u1'], '2026-03-01', '2026-03-02');
+    expect(urls).toEqual(['http://127.0.0.1:3198/api/v1/holdings/erpx/people-payroll/lane6/calendar-availability-leave']);
+  });
+
+  test('fails closed on duplicate or malformed holding configuration', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('must not be called'); }));
+    const bad = JSON.stringify({ ...CONFIG, holdings: [CONFIG.holdings[0]!, CONFIG.holdings[0]!] });
+    process.env[ENV] = bad;
+    await expect503(nativeCalendarAvailabilityLeaveDays(undefined, 'company-1', ['u1'], '2026-03-01', '2026-03-02'), LANE6_CONFIG_INVALID);
+    process.env[ENV] = JSON.stringify({ ...CONFIG, holdings: [{ ...CONFIG.holdings[0]!, host: 'wrong.example.com' }] });
+    await expect503(nativeCalendarAvailabilityLeaveDays(undefined, 'company-1', ['u1'], '2026-03-01', '2026-03-02'), LANE6_CONFIG_INVALID);
+    process.env[ENV] = JSON.stringify(CONFIG);
+  });
+
+  test('direct client keeps company scope in a header, never in the body', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => reply({ leaveDays: [] })));
+    await expect(nativeCalendarAvailabilityLeaveDays(undefined, 'company-1', ['u1'], '2026-03-01', '2026-03-02')).resolves.toEqual({ results: [] });
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as unknown as [URL, RequestInit];
+    expect(new URL(String(url)).pathname).toContain('/api/v1/holdings/acme/people-payroll/lane6/');
+    expect(new Headers(init.headers).get('x-erpx-context-company')).toBe('company-1');
+    expect(String(init.body)).not.toContain('company-1');
+  });
+
+  test.each([
+    ['non-200', () => reply({ error: { code: 'X', message: 'no' } }, 503), LANE6_UNAVAILABLE],
+    ['bad JSON', () => new Response('{', { status: 200 }), LANE6_RESPONSE_INVALID],
+    ['extra envelope key', () => reply({ leaveDays: [], extra: true }), LANE6_RESPONSE_INVALID],
+    ['missing list', () => reply({ days: [] }), LANE6_RESPONSE_INVALID],
+    ['unknown row keys', () => reply({ leaveDays: [{ userId: 'u1', leaveDate: '2026-03-02', x: 1 }] }), LANE6_RESPONSE_INVALID],
+    ['non-date row', () => reply({ leaveDays: [{ userId: 'u1', leaveDate: '2026/03/02' }] }), LANE6_RESPONSE_INVALID],
+    ['non-string user', () => reply({ leaveDays: [{ userId: 1, leaveDate: '2026-03-02' }] }), LANE6_RESPONSE_INVALID],
+  ])('fails closed on %s', async (_name, build, code) => {
+    vi.stubGlobal('fetch', vi.fn(async () => build()));
+    await expect503(nativeCalendarAvailabilityLeaveDays(undefined, 'company-1', ['u1'], '2026-03-01', '2026-03-02'), code);
+  });
+
+  test('fails closed when the native transport throws', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('ECONNREFUSED'); }));
+    await expect503(nativeCalendarAvailabilityLeaveDays(undefined, 'company-1', ['u1'], '2026-03-01', '2026-03-02'));
+  });
+
+  test('fails closed on missing, malformed or reserved-port configuration', async () => {
+    delete process.env[ENV];
+    await expect503(nativeCalendarAvailabilityLeaveDays(undefined, 'company-1', ['u1'], '2026-03-01', '2026-03-02'), LANE6_CONFIG_INVALID);
+    process.env[ENV] = '{';
+    await expect503(nativeCalendarAvailabilityLeaveDays(undefined, 'company-1', ['u1'], '2026-03-01', '2026-03-02'), LANE6_CONFIG_INVALID);
+    process.env[ENV] = JSON.stringify({ ...CONFIG, privateBaseUrl: 'http://127.0.0.1:3100' });
+    await expect503(nativeCalendarAvailabilityLeaveDays(undefined, 'company-1', ['u1'], '2026-03-01', '2026-03-02'), LANE6_CONFIG_INVALID);
+    process.env[ENV] = JSON.stringify(CONFIG);
+  });
+
+  test('rejects unbounded or malformed caller input before any fetch', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('must not be called'); }));
+    await expect503(nativeCalendarAvailabilityLeaveDays(undefined, '', ['u1'], '2026-03-01', '2026-03-02'), LANE6_RESPONSE_INVALID);
+    await expect503(nativeCalendarAvailabilityLeaveDays(undefined, 'company-1', [], '2026-03-01', '2026-03-02'), LANE6_RESPONSE_INVALID);
+    await expect503(nativeCalendarAvailabilityLeaveDays(undefined, 'company-1', ['u1'], '2026-02-30', '2026-03-02'), LANE6_RESPONSE_INVALID);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+});

@@ -2,6 +2,7 @@ import {ppRd36TwoPredTail} from './pp-read-tail-r36-sources';
 import 'server-only';
 import {createHash} from 'node:crypto';
 import {nativePeoplePayrollReadAll,PEOPLE_PAYROLL_RD_PROJECT_WORKER_PERSON_USER} from './native-people-payroll-read';
+import {personImage,type Lane9Actor} from './native-lane-9/client';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {projectWorkerStartupSubject,projectWorkerStartupRetainedSubject} from '@erpx/server-identity_access/public/project-worker-startup-subject';
@@ -28,17 +29,12 @@ export async function projectWorkerState(database:SqlDatabase,actor:WorkContext,
   person?database.prepare(`SELECT 1 FROM (${projectWorkerMarkedRows}) source WHERE source.person_id=?`).bind(person.id).first():null,
  ]);
  const source=starter.results.length===1?starter.results[0]:null;
- const image=person?await projectWorkerPersonImage(database,actor.companyId,String(person.id)):JSON.stringify(people);
+ const image=person?await projectWorkerPersonImage(database,actor.companyId,String(person.id),actor):JSON.stringify(people);
  return {retainedSelection,account,person,people,engagement,engagements,organization,managers:managers.results,source,starterCount:starter.results.length,placements:placements.results,marked:!!marked,image};
 }
-export async function projectWorkerPersonImage(database:SqlDatabase,companyId:string,personId:string){return database.prepare(`SELECT jsonb_build_object(
- 'person',(SELECT to_jsonb(p) FROM hr_people p WHERE p.id=? AND p.company_id=?),
- 'engagements',(SELECT jsonb_agg(to_jsonb(e) ORDER BY e.id) FROM hr_engagements e WHERE e.person_id=? AND e.company_id=?),
- 'employees',(SELECT jsonb_agg(to_jsonb(e) ORDER BY e.id) FROM employees e WHERE e.person_id=? AND e.company_id=?),
- 'cases',(SELECT jsonb_agg(to_jsonb(c) ORDER BY c.id) FROM people_lifecycle_cases c WHERE c.person_id=? AND c.company_id=?),
- 'tasks',(SELECT jsonb_agg(to_jsonb(t) ORDER BY t.id) FROM people_preparation_tasks t JOIN people_lifecycle_cases c ON c.id=t.case_id AND c.company_id=t.company_id WHERE c.person_id=? AND c.company_id=?),
- 'compensation',(SELECT jsonb_agg(to_jsonb(c) ORDER BY c.id) FROM hr_compensation_revisions c JOIN hr_engagements e ON e.id=c.engagement_id WHERE e.person_id=? AND e.company_id=?),
- 'leave',(SELECT jsonb_agg(to_jsonb(l) ORDER BY l.id) FROM leave_policy_assignments l JOIN hr_engagements e ON e.id=l.engagement_id WHERE e.person_id=? AND e.company_id=?)
- )::text image`).bind(...Array.from({length:7},()=>[personId,companyId]).flat()).first<string>('image');}
+/** Native lane 9: the Company-scoped statement, projection and response shape
+ * are owned by the Rust axum/sqlx service; this adapter only transports the
+ * bounded image and fails closed when the native runtime is unavailable. */
+export async function projectWorkerPersonImage(database:SqlDatabase,companyId:string,personId:string,actor?:Lane9Actor){return personImage(database,companyId,personId,actor);}
 export type ProjectWorkerState=Awaited<ReturnType<typeof projectWorkerState>>;
 export function projectWorkerContext(actor:WorkContext,state:ProjectWorkerState,consumer:WorkerStartupConsumer='projects'){return createHash('sha256').update(JSON.stringify([...(consumer==='learn'?['learn']:[]),actor.holdingId,actor.companyId,actor.userId,actor.assignmentId,actor.role,actor.authority??null,actor.iam,state.account?.image,state.people,state.engagements,state.organization.image,state.managers,state.source,state.placements])).digest('hex');}

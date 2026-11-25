@@ -1,0 +1,221 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createHash } from "node:crypto";
+vi.mock("server-only", () => ({}));
+import {
+  nativeLane7Configured,
+  readLegacyPeopleTransition,
+  RESPONSE_ORACLE_SHA256,
+  SQL_ORACLE_SHA256,
+  type Lane7Actor,
+  type Transport,
+} from "../../../packages/server-people_payroll/src/adapters/native-lane-7/client";
+
+const ENV = "ERPX_NATIVE_PEOPLE_PAYROLL_LANE7_CONFIG";
+const ORIGINAL = process.env[ENV];
+const KIND = "people_payroll_lane_7_legacy_people_transition";
+const config = (port = 3198, holdings?: unknown) =>
+  JSON.stringify({
+    privateBaseUrl: `http://127.0.0.1:${port}`,
+    timeoutMs: 10_000,
+    holdings:
+      holdings ??
+      [
+        { origin: "https://acme.jesadakorn.com", host: "acme.jesadakorn.com", holdingId: "h001", holdingSlug: "acme", companyId: "acme-co" },
+        { origin: "https://northstar.jesadakorn.com", host: "northstar.jesadakorn.com", holdingId: "h002", holdingSlug: "northstar", companyId: "northstar-co" },
+        { origin: "https://erpx-internal.jesadakorn.com", host: "erpx-internal.jesadakorn.com", holdingId: "h003", holdingSlug: "erpx", companyId: "erpx-co" },
+      ],
+  });
+const actor = (holdingId: string, holdingSlug: string, companyId: string): Lane7Actor => ({
+  holdingId,
+  holdingSlug,
+  companyId,
+});
+
+let calls: { url: URL; headers: Headers }[];
+const payload = (deadline: number | null) => ({ kind: KIND, transition: { deadline } });
+const transport = (body: unknown, status = 200): Transport => {
+  return async (url, headers) => {
+    calls.push({ url, headers });
+    return new Response(JSON.stringify(body), {
+      status,
+      headers: { "content-type": "application/json" },
+    });
+  };
+};
+
+beforeEach(() => {
+  process.env[ENV] = config();
+  calls = [];
+});
+afterEach(() => {
+  if (ORIGINAL === undefined) delete process.env[ENV];
+  else process.env[ENV] = ORIGINAL;
+});
+
+describe("native lane-7 multi-holding clock transport", () => {
+  it("selects the exact Holding from the caller's WorkContext", async () => {
+    expect(
+      await readLegacyPeopleTransition(
+        "northstar-co",
+        100,
+        actor("h002", "northstar", "northstar-co"),
+        transport(payload(1_764_010_200_000)),
+      ),
+    ).toBe(1_764_010_200_000);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url.origin).toBe("http://127.0.0.1:3198");
+    expect(calls[0]!.url.pathname).toBe(
+      "/api/v1/holdings/northstar/people-payroll/legacy-people-clock",
+    );
+    expect(calls[0]!.headers.get("host")).toBe("northstar.jesadakorn.com");
+    expect(calls[0]!.headers.get("x-erpx-context-holding")).toBe("h002");
+    expect(calls[0]!.headers.get("x-erpx-context-company")).toBe("northstar-co");
+    expect(calls[0]!.headers.get("x-erpx-observed-at")).toBe("100");
+    expect(calls[0]!.headers.get("content-type")).toBeNull();
+  });
+
+  it("routes the third registered Holding to its own host and pool route", async () => {
+    expect(
+      await readLegacyPeopleTransition(
+        "erpx-co",
+        0,
+        actor("h003", "erpx", "erpx-co"),
+        transport(payload(null)),
+      ),
+    ).toBeNull();
+    expect(calls[0]!.url.pathname).toBe("/api/v1/holdings/erpx/people-payroll/legacy-people-clock");
+    expect(calls[0]!.headers.get("host")).toBe("erpx-internal.jesadakorn.com");
+    expect(calls[0]!.headers.get("x-erpx-context-holding")).toBe("h003");
+  });
+
+  it("resolves callers without a WorkContext only through a configured companyId", async () => {
+    expect(await readLegacyPeopleTransition("acme-co", 0, undefined, transport(payload(null)))).toBeNull();
+    expect(calls[0]!.headers.get("host")).toBe("acme.jesadakorn.com");
+    expect(calls[0]!.url.pathname).toBe("/api/v1/holdings/acme/people-payroll/legacy-people-clock");
+    await expect(
+      readLegacyPeopleTransition("unknown-co", 0, undefined, transport(payload(null))),
+    ).rejects.toMatchObject({
+      status: 503,
+      code: "NATIVE_PEOPLE_PAYROLL_LANE7_TARGET_UNAVAILABLE",
+    });
+    expect(calls).toHaveLength(1);
+  });
+
+  it("fails closed on an unknown WorkContext target or mismatched company", async () => {
+    await expect(
+      readLegacyPeopleTransition("acme-co", 0, actor("h099", "acme", "acme-co"), transport(payload(null))),
+    ).rejects.toMatchObject({
+      status: 503,
+      code: "NATIVE_PEOPLE_PAYROLL_LANE7_TARGET_UNAVAILABLE",
+    });
+    await expect(
+      readLegacyPeopleTransition("acme-co", 0, actor("h001", "northstar", "acme-co"), transport(payload(null))),
+    ).rejects.toMatchObject({
+      status: 503,
+      code: "NATIVE_PEOPLE_PAYROLL_LANE7_TARGET_UNAVAILABLE",
+    });
+    await expect(
+      readLegacyPeopleTransition("acme-co", 0, actor("h001", "acme", "northstar-co"), transport(payload(null))),
+    ).rejects.toMatchObject({ status: 422, code: "NATIVE_PEOPLE_PAYROLL_LANE7_ACTOR_INVALID" });
+    expect(calls).toHaveLength(0);
+  });
+
+  it("pins the SQL and rendered-result oracles without carrying SQL on the wire", async () => {
+    expect(nativeLane7Configured()).toBe(true);
+    expect(SQL_ORACLE_SHA256).toBe(
+      "79ad85c3c72c22e111f812e45e22068608eeb21fb5e000c23beaa6ec162930f2",
+    );
+    expect(RESPONSE_ORACLE_SHA256).toBe(
+      "b9d5a6988cbe97e37f2c13ff946ff430253e78d54d4ded15907db887ac65b98f",
+    );
+    const response = JSON.stringify(payload(1_764_010_200_000));
+    expect(createHash("sha256").update(response).digest("hex")).toBe(RESPONSE_ORACLE_SHA256);
+    await readLegacyPeopleTransition(
+      "acme-co",
+      0,
+      actor("h001", "acme", "acme-co"),
+      transport(payload(1_764_010_200_000)),
+    );
+    const wire = JSON.stringify(calls);
+    expect(wire).not.toMatch(/SELECT|UNION|FROM people_|boundaries/i);
+  });
+
+  it("fails closed when configuration is missing or malformed", async () => {
+    delete process.env[ENV];
+    await expect(
+      readLegacyPeopleTransition("acme-co", 0, undefined, transport(payload(null))),
+    ).rejects.toMatchObject({ status: 503, code: "NATIVE_PEOPLE_PAYROLL_LANE7_CONFIG_REQUIRED" });
+    process.env[ENV] = config(3100);
+    await expect(
+      readLegacyPeopleTransition("acme-co", 0, undefined, transport(payload(null))),
+    ).rejects.toMatchObject({ status: 503, code: "NATIVE_PEOPLE_PAYROLL_LANE7_CONFIG_INVALID" });
+    process.env[ENV] = config(3198, []);
+    await expect(
+      readLegacyPeopleTransition("acme-co", 0, undefined, transport(payload(null))),
+    ).rejects.toMatchObject({ status: 503, code: "NATIVE_PEOPLE_PAYROLL_LANE7_CONFIG_INVALID" });
+    process.env[ENV] = config(
+      3198,
+      Array.from({ length: 65 }, (_, i) => ({
+        origin: `https://h${i}.jesadakorn.com`,
+        host: `h${i}.jesadakorn.com`,
+        holdingId: `h${i}`,
+        holdingSlug: `h${i}`,
+      })),
+    );
+    await expect(
+      readLegacyPeopleTransition("acme-co", 0, undefined, transport(payload(null))),
+    ).rejects.toMatchObject({ status: 503, code: "NATIVE_PEOPLE_PAYROLL_LANE7_CONFIG_INVALID" });
+  });
+
+  it("fails closed when the native service is unreachable or redirected", async () => {
+    await expect(
+      readLegacyPeopleTransition("acme-co", 0, undefined, async () => {
+        throw new Error("offline");
+      }),
+    ).rejects.toMatchObject({ status: 503, code: "NATIVE_PEOPLE_PAYROLL_LANE7_UNAVAILABLE" });
+    const redirected: Transport = async () => ({ redirected: true, status: 200 }) as Response;
+    await expect(
+      readLegacyPeopleTransition("acme-co", 0, undefined, redirected),
+    ).rejects.toMatchObject({ status: 503 });
+  });
+
+  it("fails closed on a malformed or widened response shape", async () => {
+    const a = actor("h001", "acme", "acme-co");
+    await expect(readLegacyPeopleTransition("acme-co", 0, a, transport({ kind: KIND }))).rejects.toMatchObject({
+      status: 502,
+      code: "NATIVE_PEOPLE_PAYROLL_LANE7_RESPONSE_INVALID",
+    });
+    await expect(
+      readLegacyPeopleTransition("acme-co", 0, a, transport({ ...payload(null), extra: 1 })),
+    ).rejects.toMatchObject({ status: 502 });
+    await expect(
+      readLegacyPeopleTransition("acme-co", 0, a, transport({ ...payload(null), transition: { deadline: -1 } })),
+    ).rejects.toMatchObject({ status: 502 });
+    await expect(
+      readLegacyPeopleTransition("acme-co", 0, a, transport({ ...payload(null), transition: { deadline: "1" } })),
+    ).rejects.toMatchObject({ status: 502 });
+  });
+
+  it("maps native 4xx and 5xx without inventing a fallback", async () => {
+    const a = actor("h001", "acme", "acme-co");
+    await expect(readLegacyPeopleTransition("acme-co", 0, a, transport({}, 422))).rejects.toMatchObject({
+      status: 422,
+      code: "NATIVE_PEOPLE_PAYROLL_LANE7_REJECTED",
+    });
+    await expect(readLegacyPeopleTransition("acme-co", 0, a, transport({}, 500))).rejects.toMatchObject({
+      status: 503,
+      code: "NATIVE_PEOPLE_PAYROLL_LANE7_UNAVAILABLE",
+    });
+  });
+
+  it("rejects unbounded Company and clock input before any request", async () => {
+    const a = actor("h001", "acme", "acme-co");
+    await expect(readLegacyPeopleTransition("../other", 0, a, transport(payload(null)))).rejects.toMatchObject({
+      status: 422,
+    });
+    await expect(readLegacyPeopleTransition("acme-co", -1, a, transport(payload(null)))).rejects.toMatchObject({
+      status: 422,
+    });
+    expect(calls).toHaveLength(0);
+  });
+});

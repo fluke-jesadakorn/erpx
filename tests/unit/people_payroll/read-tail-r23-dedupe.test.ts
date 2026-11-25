@@ -70,7 +70,7 @@ describe('People Payroll read-tail r23 byte-identical / parameterized family ded
 
   test('each family has one shared symbol and composed callers keep no local copy', () => {
     const families = [
-      { name: 'PP_RD23_HR_PEOPLE_APPROVER_LEGAL_NAME_SQL', literal: PP_RD23_HR_PEOPLE_APPROVER_LEGAL_NAME_SQL, callers: [['people-app-entrypoint-facts.ts', 1], ['department-override-facts.ts', 1]] as [string, number][] },
+      { name: 'PP_RD23_HR_PEOPLE_APPROVER_LEGAL_NAME_SQL', literal: PP_RD23_HR_PEOPLE_APPROVER_LEGAL_NAME_SQL, callers: [['department-override-facts.ts', 1]] as [string, number][] },
       { name: 'PP_RD23_FINANCE_EXPENSE_DRAFT_REJECTED_GUARD', literal: PP_RD23_FINANCE_EXPENSE_DRAFT_REJECTED_GUARD, callers: [['expense-workflow.ts', 1], ['expense-drafts.ts', 1]] as [string, number][] },
       { name: 'PP_RD23_EXPENSE_AI_USAGE_MONTHS_SQL', literal: PP_RD23_EXPENSE_AI_USAGE_MONTHS_SQL, callers: [['collaboration-ai-usage.ts', 1], ['finance-ai-quota-sources.ts', 1]] as [string, number][] },
       { name: 'PP_RD23_HR_COMP_REVISIONS_SQL', literal: PP_RD23_HR_COMP_REVISIONS_SQL, callers: [['people-payroll.ts', 1], ['payroll-readiness.ts', 1]] as [string, number][] },
@@ -117,6 +117,6 @@ describe('People Payroll read-tail r23 byte-identical / parameterized family ded
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(1485);
-    expect(total).toBe(1195);
+    expect(total).toBe(1175);
   });
 });

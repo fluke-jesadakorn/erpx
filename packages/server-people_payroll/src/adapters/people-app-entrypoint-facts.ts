@@ -1,8 +1,46 @@
-import 'server-only';
-import { PP_RD23_HR_PEOPLE_APPROVER_LEGAL_NAME_SQL } from './pp-read-tail-r23-sources';
-import { ppRd60PayGroupsByCompanySql } from './pp-read-tail-r60-sources';
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
-export function hireHandoffPayGroups(db:SqlDatabase,companyId:string){return db.prepare(ppRd60PayGroupsByCompanySql(" AND status='active' ORDER BY name,id")).bind(companyId).all();}
-export function hireHandoffPeople(db:SqlDatabase,companyId:string){return db.prepare("SELECT id,legal_name,email,version FROM hr_people WHERE company_id=? AND status='active' AND merged_into_id IS NULL ORDER BY legal_name,id").bind(companyId).all();}
-export function requestApproverLegalName(db:SqlDatabase,companyId:string,userId:string){return db.prepare(PP_RD23_HR_PEOPLE_APPROVER_LEGAL_NAME_SQL).bind(companyId,userId).first<{legal_name:string}>();}
-export function overtimeRosterShift(db:SqlDatabase,shiftId:string,companyId:string,engagementId:string){return db.prepare(`SELECT s.id,s.local_date,s.start_time,s.end_time,w.timezone,to_char(to_timestamp(s.ends_at/1000.0) AT TIME ZONE w.timezone,'YYYY-MM-DD"T"HH24:MI') end_local FROM people_roster_shifts s JOIN people_roster_weeks w ON w.id=s.week_id JOIN people_roster_assignments a ON a.shift_id=s.id WHERE s.id=? AND w.company_id=? AND w.state='published' AND s.state='active' AND a.engagement_id=? AND a.state='assigned'`).bind(shiftId,companyId,engagementId).first<{id:string;local_date:string;start_time:string;end_local:string;timezone:string}>();}
+import "server-only";
+import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
+import {
+  readApproverName,
+  readHireHandoffPayGroups,
+  readHireHandoffPeople,
+  readRosterShift,
+  type Lane8Actor,
+} from "./native-lane-8/client";
+
+/**
+ * Owner-native app-entrypoint reads. The four former inline/fragment SQL
+ * statements were removed: the axum owner executes them with sqlx, owns the
+ * Company scope and projects the response. This module only transports bounded
+ * identities and keeps the caller-visible result shapes unchanged.
+ *
+ * Callers that hold a WorkContext can pass it to select the exact registered
+ * Holding. Legacy fact callers keep the existing signature and are resolved by
+ * the exact incoming Host; there is no first-Holding fallback.
+ */
+export function hireHandoffPayGroups(db: SqlDatabase, companyId: string, actor?: Lane8Actor) {
+  return readHireHandoffPayGroups(db, companyId, actor);
+}
+
+export function hireHandoffPeople(db: SqlDatabase, companyId: string, actor?: Lane8Actor) {
+  return readHireHandoffPeople(db, companyId, actor);
+}
+
+export function requestApproverLegalName(
+  db: SqlDatabase,
+  companyId: string,
+  userId: string,
+  actor?: Lane8Actor,
+) {
+  return readApproverName(db, companyId, userId, actor);
+}
+
+export function overtimeRosterShift(
+  db: SqlDatabase,
+  shiftId: string,
+  companyId: string,
+  engagementId: string,
+  actor?: Lane8Actor,
+) {
+  return readRosterShift(db, shiftId, companyId, engagementId, actor);
+}

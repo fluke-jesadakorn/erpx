@@ -97,6 +97,6 @@ describe('People Payroll read-tail r20 byte-identical dedupe', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(1552);
-    expect(total).toBe(1195);
+    expect(total).toBe(1175);
   });
 });
