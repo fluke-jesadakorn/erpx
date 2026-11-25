@@ -8,9 +8,10 @@ import { nativeOrgExecute } from './native-organization-owner-write';
 import { maxVersionSubquery } from './organization-column-alias-families-r29';
 import { activePositionById } from './organization-column-alias-families-r38';
 import { recommendedPayDefault } from './organization-read-tail-sources-r40';
+import { positionPackageProjectionSql } from './organization-read-tail-sources-r61';
 export function peopleLifecycleOrganizationFacts(database: SqlDatabase, client?: PoolClient) {
     return { readPeopleLifecycleDataPositions(companyId: string) {
-            return database.prepare(`SELECT p.id,p.title,p.version,p.requirements,p.branch_id,p.department_id,p.level_id,p.active,b.package_id,b.revision package_revision FROM organization_positions p LEFT JOIN (${people_payrollPlatformSources.people_position_packages}) b ON b.company_id=p.company_id AND b.position_id=p.id WHERE p.company_id=? ORDER BY p.title,p.id`)
+            return database.prepare(positionPackageProjectionSql(`,p.requirements,p.branch_id,p.department_id,p.level_id,p.active,b.package_id,b.revision package_revision FROM organization_positions p LEFT JOIN (${people_payrollPlatformSources.people_position_packages}) b ON b.company_id=p.company_id AND b.position_id=p.id WHERE p.company_id=? ORDER BY p.title,p.id`))
                 .bind(companyId)
                 .all<PeopleLifecycleData["positions"][number]>();
         },
@@ -24,7 +25,7 @@ export function peopleLifecycleOrganizationFacts(database: SqlDatabase, client?:
             }>();
         },
         readPackageImpactPositions(companyId: string, id: string) {
-            return database.prepare(`SELECT p.id,p.title,p.version FROM (${people_payrollPlatformSources.people_position_packages}) b JOIN organization_positions p ON p.id=b.position_id AND p.company_id=b.company_id WHERE b.company_id=? AND b.package_id=? ORDER BY p.id`)
+            return database.prepare(positionPackageProjectionSql(` FROM (${people_payrollPlatformSources.people_position_packages}) b JOIN organization_positions p ON p.id=b.position_id AND p.company_id=b.company_id WHERE b.company_id=? AND b.package_id=? ORDER BY p.id`))
                 .bind(companyId, id)
                 .all<{
                 id: string;

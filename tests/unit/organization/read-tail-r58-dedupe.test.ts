@@ -151,10 +151,11 @@ describe('Organization read-tail r58 dedupe', () => {
     // r58 folds the two approvals-facts heads (-2 literals, no new declaration).
     // r59 folds two executive-metric count heads (-2 literals, +1 renderer): 209 - 1 = 208.
     // r60 folds two level-history head literals (-2 literals, +1 renderer): 208 - 1 = 207.
+    // r61 folds two position-package projection heads (-2 literals, +1 renderer): 207 - 1 = 206.
     expect(CASES).toHaveLength(2);
-    expect(total).toBe(207);
-    expect(total).toBe(208 - 1);
-    expect(total).toBe(214 - 7);
+    expect(total).toBe(206);
+    expect(total).toBe(208 - 2);
+    expect(total).toBe(214 - 8);
     expect(total).toBeLessThan(211);
   });
 });
