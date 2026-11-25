@@ -16,7 +16,8 @@ const original = {
 describe('work_projection read-tail r10 dedupe', () => {
   it('keeps one canonical versionById builder and no inline version points', async () => {
     const shared = await readFile(src('read-tail-sql.ts'), 'utf8');
-    expect(shared.match(/SELECT version FROM \$\{table\} WHERE id=\? AND company_id=\?/g)).toHaveLength(1);
+    expect(shared.match(/SELECT version FROM \$\{table\} WHERE id=\? AND company_id=\?/g)).toBeNull();
+    expect(shared).toContain("appointmentProbe('version', '', table)");
     expect(await readFile(src('calendar/reminder-authority.ts'), 'utf8')).not.toContain(original.versionAppointments);
     expect(await readFile(src('calendar/purchases.ts'), 'utf8')).not.toContain('SELECT version FROM ${kind(input)');
   });
