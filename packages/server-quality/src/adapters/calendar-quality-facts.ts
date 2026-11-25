@@ -1,7 +1,7 @@
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
 import {commercePackageEnforcementMode,readPurchasedAccess} from "@erpx/server-commercial/public/purchase-command-boundary";
-import {qualityClockCte} from "@erpx/server-quality/adapters/quality-scope-sql";
+import {qualityClockCte,scopeSql} from "@erpx/server-quality/adapters/quality-scope-sql";
 import {qualityPurchaseSourceRows} from "@erpx/server-quality/adapters/purchase-sources";
 import {qualitySourcePurchasePredicate} from "@erpx/server-quality/adapters/record-purchases";
 import {qualityWorkScopeTuple} from "@erpx/server-quality/adapters/quality-work-scope-sql";
@@ -10,7 +10,7 @@ import { commercialOwnerProjectionSources as people_payrollProjectionSources } f
 import "server-only";
 import {evidenceHead} from "./inspection-evidence-source-sql";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-const inList = (expression: string) => `${expression} IN (SELECT jsonb_array_elements_text(?::jsonb))`;
+const inList = (expression: string) => `${expression} IN ${scopeSql('jsonb_array_elements_text(?::jsonb)')}`;
 export function calendarQualityQualityFacts(db: SqlDatabase,actor?:WorkContext) { return { read1: async (facts: {
         value1: string;
         value2: string | null;

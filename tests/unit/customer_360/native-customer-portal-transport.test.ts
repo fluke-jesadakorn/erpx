@@ -10,6 +10,8 @@ import {
   NativeCustomerPortalError,
 } from '../../../packages/server-customer_360/src/adapters/native-customer-portal';
 import {
+  RD_COMPANY_SCOPE,
+  RD_COMPANY_SCOPE_PORTAL_RELEASE,
   RD_OBLIGATION_ACTION_HEAD,
   RD_OBLIGATION_ACK_HEAD,
   RD_OBLIGATION_AUDIT_EXISTS,
@@ -237,7 +239,7 @@ describe('Customer 360 obligation-fact query-head family', () => {
     expect(obligations).toContain('${ackHead.sql}');
     expect(obligations).not.toContain(obligationHeads.action.sql);
     expect(obligations).not.toContain(obligationHeads.acknowledgement.sql);
-    expect(obligations.match(/nativeC360ReadStatement\(/g) ?? []).toHaveLength(3);
+    expect(obligations.match(/nativeC360ReadStatement\(/g) ?? []).toHaveLength(4);
   });
 
   it('r3/r5-r9 families, locks, native reads and cross-owner pins stay independent', () => {
@@ -373,6 +375,32 @@ describe('Customer 360 obligation-fact query-head family', () => {
     }
   });
 
+  it('r18 native company-scope plans are admitted and byte-pinned', async () => {
+    const key = 'ERPX_NATIVE_CUSTOMER_360_READ_CONFIG';
+    const previous = process.env[key];
+    process.env[key] = config({
+      privateBaseUrl: 'http://127.0.0.1:44998',
+      holdings: [{ origin: 'https://acme.example.com', holdingSlug: 'acme', holdingId: 'h001', companyId: 'company' }],
+    });
+    try {
+      const send = (sql: string) => async () => new Response(JSON.stringify({
+        data: { statement: { sql, values: [] } },
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+      const scope = await nativeC360ReadStatement(RD_COMPANY_SCOPE, [], send('(SELECT ?::text company_id)'));
+      const release = await nativeC360ReadStatement(RD_COMPANY_SCOPE_PORTAL_RELEASE, [], send('(SELECT ?::text company_id) portal_release'));
+      expect(scope.sql).toBe('(SELECT ?::text company_id)');
+      expect(release.sql).toBe('(SELECT ?::text company_id) portal_release');
+      expect(scope.values).toEqual([]);
+      const reads = c360Src('customer-read-sources.ts');
+      expect(reads).not.toContain('companyScopeSource');
+      expect(c360Src('package-obligations.ts')).toContain('WITH scope AS${scope.sql}');
+      expect(c360Src('portal.ts')).toContain('FROM ${scope.sql}');
+    } finally {
+      if (previous === undefined) delete process.env[key];
+      else process.env[key] = previous;
+    }
+  });
+
   it('retirement r18:ts-statements is strictly lower than BEFORE=8 (expected 7)', () => {
     let total = 0;
     const walk = (dir: string) => {
@@ -383,7 +411,7 @@ describe('Customer 360 obligation-fact query-head family', () => {
       }
     };
     walk(c360SrcRoot);
-    expect(total).toBe(8);
-    expect(total).toBeLessThan(9);
+    expect(total).toBe(7);
+    expect(total).toBeLessThan(8);
   });
 });

@@ -470,7 +470,7 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
         `export const ${kind} = '${wire}';`,
       );
     }
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 35);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 37);');
     expect(plans).toContain('fn schema_ready_probes_keep_their_exact_literals()');
     expect(readFileSync(adapters('read-tail-r15-dedupe-sql.ts'), 'utf8')).not.toContain('to_regclass');
   });
@@ -507,7 +507,7 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
     expect(plans).toContain(`"${sql}"`);
     expect(plans).toContain('kind: RD_LEGACY_ATTACHMENT_SCOPE,');
     expect(plans).toContain('fn legacy_attachment_scope_keeps_its_exact_literal()');
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 35);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 37);');
     expect(readFileSync(adapters('native-commerce-read.ts'), 'utf8')).toContain(
       "export const RD_LEGACY_ATTACHMENT_SCOPE = 'commerce_rd_legacy_attachment_scope';",
     );
@@ -609,5 +609,30 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
     expect(source).toContain(
       'nativeCommerceReadFirst<LandedCostRow>(RD_LANDED_COST_POSTING_CONFIG,[companyId],db)',
     );
+  });
+
+  it('owns the transit EXISTS guards as native command-plan kinds', async () => {
+    const plans = readFileSync(adapters('native_commerce_read_sql.rs'), 'utf8');
+    for (const [kind, wire, sql] of [
+      ['RD_TRANSIT_ACTIVE_LOCATION', 'commerce_rd_transit_active_location', "EXISTS(SELECT 1 FROM commerce_warehouses WHERE id=? AND company_id=? AND branch_id=? AND status='active')"],
+      ['RD_TRANSIT_PRODUCT_VERSION', 'commerce_rd_transit_product_version', "EXISTS(SELECT 1 FROM commerce_products WHERE id=? AND company_id=? AND status='active' AND version=?)"],
+    ]) {
+      expect(plans).toContain(`pub const ${kind}: &str = "${wire}";`);
+      expect(plans).toContain(`"${sql}"`);
+      expect(plans).toContain(`kind: ${kind},`);
+      expect(readFileSync(adapters('native-commerce-read.ts'), 'utf8')).toContain(
+        `export const ${kind} = '${wire}';`,
+      );
+    }
+    expect(plans).toContain('fn transit_guard_predicates_keep_their_exact_literals()');
+    expect(readFileSync(adapters('native-commerce-read.ts'), 'utf8')).toContain(
+      'export async function nativeCommerceReadPlan(',
+    );
+    const source = await readFile(adapters('inventory-transit-sources.ts'), 'utf8');
+    expect(source).not.toContain('EXISTS(SELECT');
+    expect(source).not.toContain('SELECT ');
+    expect(source).toContain('ownerGuard(db,key,value,RD_TRANSIT_ACTIVE_LOCATION,[value2,company_id,value3])');
+    expect(source).toContain('ownerGuard(db,key,value,RD_TRANSIT_PRODUCT_VERSION,[product_id,companyId,product_version])');
+    expect(source).toContain('const planned=await nativeCommerceReadPlan(kind,args);return assertion(db,key,value,planned.sql,args);');
   });
 });

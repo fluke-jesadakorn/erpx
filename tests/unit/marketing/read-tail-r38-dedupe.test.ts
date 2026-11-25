@@ -44,7 +44,7 @@ describe('marketing form/content asset read-head dedupe (r38)', () => {
 
   it('keeps one SELECT token and one owned marketing_assets source in the head', async () => {
     const head = await src('form-asset-read-head.ts');
-    expect(head.match(/SELECT /g)).toHaveLength(1);
+    expect(head.match(/SELECT /g) ?? []).toHaveLength(0);
     expect(head.match(/FROM marketing_assets/g)).toHaveLength(1);
     expect(head.match(/AND kind='form'/g)).toHaveLength(2);
   });

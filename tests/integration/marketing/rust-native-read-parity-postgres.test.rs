@@ -107,7 +107,7 @@ fn live_statements_match_typescript_authority() {
     assert!(TS_LOCAL.contains("id=? AND company_id=?"));
     assert!(TS_ACTIVE.contains("projection: 'source' | 'public'; company?: boolean; version?: boolean"));
     assert!(TS_CONTENT.contains("formAssetReadHead({ kind: 'content', projection })"));
-    assert!(TS_HEAD.contains("return `SELECT ${projection} FROM marketing_assets WHERE ${predicate}`"));
+    assert!(TS_HEAD.contains("marketingSelectHeadSql(projection, ` FROM marketing_assets WHERE ${predicate}`)"));
     assert!(TS_HEAD.contains("`id=?${read.company ? ' AND company_id=?' : ''}${read.version ? ' AND version=?' : ''} AND kind='form' AND status='active'`"));
     assert!(TS_HEAD.contains("id=? AND company_id=? AND kind='content' AND status='active' AND version=?"));
     // r55 cut the workspace asset point/list reads over to the native owner

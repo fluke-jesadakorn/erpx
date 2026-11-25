@@ -47,8 +47,9 @@ describe('Collaboration read-tail r38 byte oracles', () => {
     expect(readablePostHead('*', tailA)).toBe(`SELECT p.* FROM social_posts p WHERE p.id=? AND p.company_id=? AND ${tailA}`);
     const tailB = 'ACCESS AND WHERE';
     expect(readablePostHead('author_id', tailB)).toBe(`SELECT p.author_id FROM social_posts p WHERE p.id=? AND p.company_id=? AND ${tailB}`);
-    expect(shared).toContain('export const readablePostHead=(cols:string,tail:string)=>`SELECT p.${cols} FROM social_posts p WHERE p.id=? AND p.company_id=? AND ${tail}`;');
+    expect(shared).toContain("export const readablePostHead=(cols:string,tail:string)=>socialPostScopedRead(`p.${cols}`,'p',tail);");
     expect(shared.match(/export const readablePostHead=/g) ?? []).toHaveLength(1);
+    expect(shared.match(/export const socialPostScopedRead=/g) ?? []).toHaveLength(1);
   });
 });
 
@@ -97,7 +98,9 @@ describe('Collaboration read-tail r38 isolation of protected SQL', () => {
     ]) {
       const line = shared.split('\n').find(l => l.startsWith(marker))!;
       expect(line).not.toMatch(/FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory|INSERT\s+INTO|UPDATE\s+\w+\s+SET/);
-      expect(line.match(/SELECT /g) ?? []).toHaveLength(1);
+      // readablePostHead is now a wrapper over the single socialPostScopedRead
+      // renderer, which owns the only SELECT for this family.
+      expect(line.match(/SELECT /g) ?? []).toHaveLength(marker === 'export const readablePostHead=' ? 0 : 1);
     }
   });
 });

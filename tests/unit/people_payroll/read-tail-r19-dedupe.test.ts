@@ -49,10 +49,10 @@ describe('People Payroll read-tail r19 byte-identical dedupe', () => {
     expect(src('identity-snapshot-sources.ts')).toContain('"account_access_hr_people_p_from": PP_RD19_HR_PEOPLE_P_FROM_SQL');
   });
 
-  test('the five calendar inList helpers import one shared builder; index read1 is native', () => {
+  test('the four calendar inList helpers import one shared builder; index and access reads are native', () => {
     const builders = [
       'calendar-leave-facts.ts', 'calendar-appointments-facts.ts',
-      'calendar-roster-facts.ts', 'calendar-lifecycle-facts.ts', 'calendar-access-facts.ts',
+      'calendar-roster-facts.ts', 'calendar-lifecycle-facts.ts',
     ];
     for (const name of builders) {
       const s = src(name);
@@ -60,6 +60,12 @@ describe('People Payroll read-tail r19 byte-identical dedupe', () => {
       expect(s, name).not.toContain('const inList = (expression: string) =>');
       expect(s, name).toContain('inList(');
     }
+    // calendar-access-facts.ts now runs its people list in the native lane-6
+    // owner and keeps no inList import or local helper.
+    const access = src('calendar-access-facts.ts');
+    expect(access).toContain('nativeCalendarAccessPeople');
+    expect(access).not.toContain('ppRd19InList');
+    expect(access).not.toContain('const inList = (expression: string) =>');
     // calendar-index-facts.ts read1 now executes in the native lane-6 owner;
     // its retained read3 projection uses the direct builder, not the alias.
     const index = src('calendar-index-facts.ts');

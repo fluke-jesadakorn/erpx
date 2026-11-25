@@ -52,6 +52,10 @@ export const RD_POS_PRODUCT_IMAGE = 'commerce_rd_pos_product_image';
 export const RD_LANDED_COST_RECEIPT_LINES = 'commerce_rd_landed_cost_receipt_lines';
 export const RD_LANDED_COST_POSTING_CONFIG = 'commerce_rd_landed_cost_posting_config';
 
+/** Allow-listed transit guard predicates owned by the native Commerce plan registry. */
+export const RD_TRANSIT_ACTIVE_LOCATION = 'commerce_rd_transit_active_location';
+export const RD_TRANSIT_PRODUCT_VERSION = 'commerce_rd_transit_product_version';
+
 /** Allow-listed warehouse-config read kinds resolved by the mounted owner command-plan route. */
 export const RD_WAREHOUSE_PAGE_ROWS = 'commerce_rd_warehouse_page_rows';
 export const RD_WAREHOUSE_MASTER_ROWS = 'commerce_rd_warehouse_master_rows';
@@ -248,4 +252,14 @@ export async function nativeCommerceReadFirst<T>(
 ): Promise<T | null> {
   const statement = await plan(kind, values);
   return db.prepare(statement.sql).bind(...statement.values).first<T>();
+}
+
+/** Owner-planned statement for a caller that already owns its unit (for
+ * example a workflow assertion). No SQL is accepted from the caller; only the
+ * typed kind and positional values cross the wire. */
+export async function nativeCommerceReadPlan(
+  kind: string,
+  values: readonly unknown[],
+): Promise<{ sql: string; values: unknown[] }> {
+  return plan(kind, values);
 }

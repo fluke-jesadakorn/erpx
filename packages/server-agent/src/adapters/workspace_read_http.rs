@@ -371,10 +371,15 @@ mod tests {
     }
 
     async fn http(addr: std::net::SocketAddr, raw: String) -> (u16, Value) {
-        let mut stream = tokio::net::TcpStream::connect(addr).await.unwrap();
-        stream.write_all(raw.as_bytes()).await.unwrap();
-        let mut bytes = Vec::new();
-        stream.read_to_end(&mut bytes).await.unwrap();
+        let bytes = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            let mut stream = tokio::net::TcpStream::connect(addr).await.unwrap();
+            stream.write_all(raw.as_bytes()).await.unwrap();
+            let mut bytes = Vec::new();
+            stream.read_to_end(&mut bytes).await.unwrap();
+            bytes
+        })
+        .await
+        .expect("bounded HTTP test exchange");
         let text = String::from_utf8_lossy(&bytes);
         let status = text
             .lines()
@@ -443,7 +448,7 @@ mod tests {
 
         let bad_body = http(
             addr,
-            "POST /api/v1/holdings/acme/agent/workspace-read HTTP/1.1\r\nHost: acme.example.test\r\nOrigin: https://acme.example.test\r\nContent-Type: application/json\r\nContent-Length: 22\r\nConnection: close\r\n\r\n{\"kind\":\"workspace\"}".to_owned(),
+            "POST /api/v1/holdings/acme/agent/workspace-read HTTP/1.1\r\nHost: acme.example.test\r\nOrigin: https://acme.example.test\r\nContent-Type: application/json\r\nContent-Length: 20\r\nConnection: close\r\n\r\n{\"kind\":\"workspace\"}".to_owned(),
         )
         .await;
         assert_eq!(bad_body.0, 422);

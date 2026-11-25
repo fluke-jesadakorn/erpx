@@ -40,7 +40,7 @@ describe('marketing read-tail r61 analytics touch head cutover', () => {
     expect(consumer).toContain('touch:marketingAnalyticsTouchSql(false,touchRows)');
   });
 
-  it('retirement:ts-statements is BEFORE=9 -> AFTER=8', async () => {
-    expect(await selectTokens()).toBe(8);
+  it('retirement:ts-statements stays strictly below BEFORE=9 at 7 after r62', async () => {
+    expect(await selectTokens()).toBe(7);
   });
 });

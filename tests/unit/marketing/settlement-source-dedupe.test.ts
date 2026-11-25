@@ -18,7 +18,7 @@ describe('marketing settlement source dedupe', () => {
     const helper = await readFile(adapter('marketing-plain-source-sql.ts'), 'utf8');
     const source = await readFile(adapter('package-obligations.ts'), 'utf8');
     for (const sql of Object.values(original)) expect(source).not.toContain(`'${sql}'`);
-    expect(head.match(/SELECT /g)).toHaveLength(1);
+    expect(head.match(/SELECT /g) ?? []).toHaveLength(1);
     expect(helper.match(/SELECT /g)).toBeNull();
     expect(helper).toContain('marketingReadTailSql(table)');
     expect(source).toContain('settlementSourceRows');

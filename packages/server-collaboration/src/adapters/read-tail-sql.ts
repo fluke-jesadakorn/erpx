@@ -83,7 +83,11 @@ export const socialTargetImage=(table:string,cols:string,alias='',whereAlias='',
 export const socialPostDraftById=(cols:string,gap=' ',tail='')=>socialTargetImage('social_post_drafts',cols,'','',gap,tail);
 export const socialPurchaseActorFeature=(predicate:string)=>`SELECT 1 FROM social_purchase_actor WHERE ${predicate}`;
 export const socialPurchaseActorExists=(predicate:string)=>`EXISTS(${socialPurchaseActorFeature(predicate)})`;
-export const socialPostByIdPredicate=(predicate:string)=>`SELECT 1 FROM social_posts p WHERE p.id=? AND p.company_id=? AND ${predicate}`;
+/** Byte-identical Social post scoped head shared by the by-id predicate, the
+ * by-id guard and the readable projection. Only the projected columns, alias
+ * and trailing predicate vary; bind order and lock semantics stay call-sided. */
+export const socialPostScopedRead=(cols:string,alias:string,tail:string)=>`SELECT ${cols} FROM social_posts${alias?` ${alias}`:''} WHERE ${alias?`${alias}.`:''}id=? AND ${alias?`${alias}.`:''}company_id=? AND ${tail}`;
+export const socialPostByIdPredicate=(predicate:string)=>socialPostScopedRead('1','p',predicate);
 /** Byte-identical recipient/participant existence guard shared by the handover
  * receipts projection and the Work package-obligation handover facts. Only the
  * trailing predicate varies; the fixed `recipient.post_id=p.id AND
@@ -127,7 +131,7 @@ export const socialPostDraftExists=(tail:string)=>`EXISTS(SELECT 1 FROM social_p
 /** Byte-identical owner-scoped post existence guard shared by the retained Social
  * publish and draft-policy readers. Only the trailing predicate varies; the fixed
  * `id=? AND company_id=?` prefix, bind order and lock semantics stay unchanged. */
-export const socialPostByIdGuard=(tail:string)=>`SELECT 1 FROM social_posts WHERE id=? AND company_id=? AND ${tail}`;
+export const socialPostByIdGuard=(tail:string)=>socialPostScopedRead('1','',tail);
 /** Byte-identical absent-social-post guard shared by the notice-source and
  * social-agent-reply arms of work-package-obligations.ts. Only the closed id and
  * company column references vary; the fixed `social_posts p` head, zero binds
@@ -219,7 +223,7 @@ export const socialAiDraftById=(cols:string)=>`SELECT ${cols} FROM social_ai_dra
  * reader and the Social home revision-author reader. Only the projected column
  * list and trailing access predicate vary; the `p.id=? AND p.company_id=?`
  * prefix, bind order and lock semantics stay at the call sites. */
-export const readablePostHead=(cols:string,tail:string)=>`SELECT p.${cols} FROM social_posts p WHERE p.id=? AND p.company_id=? AND ${tail}`;
+export const readablePostHead=(cols:string,tail:string)=>socialPostScopedRead(`p.${cols}`,'p',tail);
 /** Byte-identical queued source-absence guard shared by the two queued Task
  * read-source readers. Only the joined source rows and the trailing readable
  * predicate vary; the fixed `social_post_sources requested` head, `post_id`

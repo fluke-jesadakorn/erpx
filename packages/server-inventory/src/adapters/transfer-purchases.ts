@@ -86,9 +86,9 @@ export async function withTransferPurchasedCommand<Result>(owner:SqlDatabase,act
   if(before&&Object.keys(before).filter(field=>!field.endsWith("_warehouse_version") && !(command.refreshRoute && ["source_branch_id","target_branch_id"].includes(field))).some(field=>before[field as keyof Source]!==after[field as keyof Source]))throw new ApiError(409,"TRANSFER_SOURCE_CHANGED","The original source, target or custody ownership changed.");
   await current(database,actor,key,command.permissions);
   const locations=command.warehousePolicy==="both"?["source","target"] as const:command.warehousePolicy?[command.warehousePolicy]:[];
-  const warehouseGuards=replay?[]:locations.map(side=>command.target.kind==="transfer"
+  const warehouseGuards=replay?[]:await Promise.all(locations.map(side=>command.target.kind==="transfer"
    ?inventoryTransferSources(database).guardWarehouseVersion(key,`final-${side}-warehouse`,after[`${side}_warehouse_id` as keyof Source]??null,actor.companyId,after[`${side}_branch_id` as keyof Source]??null,after[`${side}_warehouse_version` as keyof Source]??null)
-   :inventoryTransitSources(database).guardActiveLocation(key,`final-${side}-warehouse`,after[`${side}_warehouse_id` as keyof Source]??null,actor.companyId,after[`${side}_branch_id` as keyof Source]??null));
+   :inventoryTransitSources(database).guardActiveLocation(key,`final-${side}-warehouse`,after[`${side}_warehouse_id` as keyof Source]??null,actor.companyId,after[`${side}_branch_id` as keyof Source]??null)));
   const observations=await database.batch([...warehouseGuards,...boundaries.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database, item.key)]),clearWorkflowCommandAssertions(database, key)]);
   boundaries[0]?.boundary.observe?.(observations);return result;
  });}catch(error){throw purchaseCommandFailure(error)??financialConstraintError(error)??error;}

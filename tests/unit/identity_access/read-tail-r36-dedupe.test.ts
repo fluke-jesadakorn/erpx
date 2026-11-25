@@ -161,12 +161,12 @@ describe('Identity access read-tail r36 wiring', () => {
 });
 
 /**
- * Next native-plan candidate, pinned but NOT cut in this lane: the Control-side
- * provider-context store holds an EXCLUSIVE session lease and three additional
- * source leases across its reads, so moving any of these statements to a
- * separate native service would break the caller's snapshot semantics. These
- * SHA-256 values are byte oracles for the composition-mounted Control port the
- * lead must approve before deletion; they are never live query sources.
+ * Cutover oracles for the Control-side provider-context reads. The native owner
+ * now plans each statement and the caller binds/executes the reply on its own
+ * Control unit, so the EXCLUSIVE session lease and three source leases still
+ * cover the reads. These SHA-256 values are byte oracles only, never live query
+ * sources: the TypeScript statements are deleted and the owner constants must
+ * remain byte-identical to these pins.
  */
 const PROVIDER_CONTEXT_SELECTS = [
   "SELECT 1 FROM iam_revoked_sessions revocation WHERE revocation.company_id='platform' AND revocation.user_id=? AND revocation.session_id IN(?,(SELECT parent_session_id FROM sso_session_bindings WHERE session_id=?))",
@@ -247,20 +247,41 @@ describe('Identity access native Control read-plan client', () => {
   });
 });
 
-describe('Identity access provider-context native plan candidate', () => {
-  test('the five Control reads are byte-pinned and still owner-TS held', () => {
+describe('Identity access provider-context native plan cutover', () => {
+  test('the five Control statements are deleted from TS and pinned by the native owner', () => {
     const source = read('adapters/provider-context-store.ts');
     PROVIDER_CONTEXT_SELECTS.forEach((sql, index) => {
       expect(sha256(sql), PROVIDER_CONTEXT_SHAS[index]).toBe(PROVIDER_CONTEXT_SHAS[index]);
-      expect(source, sql).toContain(sql);
+      expect(source, sql).not.toContain(sql);
     });
+    expect(source).not.toMatch(/SELECT /);
+    for (const symbol of [
+      'PC_REVOKED_SESSION',
+      'PC_PLATFORM_ASSIGNMENTS',
+      'PC_PROVIDER_CONTEXT',
+      'PC_WORKSPACE_PREFERENCE',
+      'PC_CONTEXT_RECEIPT',
+    ])
+      expect(source, symbol).toContain(symbol);
+    expect(source).toContain('planIdentityControlRead');
+    expect(source).toContain('database.prepare(plan.sql).bind(...plan.values)');
     expect((source.match(/LOCK TABLE /g) ?? []).length).toBe(3);
     expect(source).toContain('LOCK TABLE session IN EXCLUSIVE MODE');
+  });
+
+  test('the owner constants carry the same byte oracles', () => {
+    const port = read('adapters/control_read_plan.rs');
+    PROVIDER_CONTEXT_SELECTS.forEach((sql, index) => {
+      // The Rust literal escapes its double quotes; the rendered bytes are unescaped.
+      expect(port, PROVIDER_CONTEXT_SHAS[index]).toContain(sql.replace(/"/g, '\\"'));
+    });
+    const client = read('adapters/native-control-read-plan.ts');
+    PROVIDER_CONTEXT_SHAS.forEach((sha) => expect(client).toContain(sha));
   });
 });
 
 describe('Identity access read-tail r36 retirement check', () => {
-  test('retirement:ts-statements is 389 after finance-refund-notice plan retirement', () => {
+  test('retirement:ts-statements is 383 after provider-context native plan cut', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -271,6 +292,6 @@ describe('Identity access read-tail r36 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(454);
-    expect(total).toBe(389);
+    expect(total).toBe(383);
   });
 });

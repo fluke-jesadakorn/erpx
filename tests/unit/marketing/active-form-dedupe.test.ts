@@ -10,7 +10,7 @@ describe('marketing active-form point read family (native lane 40)', () => {
     const head = await readFile(adapter('form-asset-read-head.ts'), 'utf8');
     const source = await readFile(adapter('marketing.ts'), 'utf8');
     const form = await readFile(adapter('public-form.ts'), 'utf8');
-    expect(head.match(/SELECT /g)).toHaveLength(1);
+    expect(head.match(/SELECT /g) ?? []).toHaveLength(0);
     expect(source).not.toMatch(/configuration_json FROM marketing_assets WHERE id=\?/);
     expect(form).not.toMatch(/id,company_id,name,version,preview_json,configuration_json FROM marketing_assets/);
     expect(source).toContain('LANE40_ACTIVE_FORM_SOURCE');

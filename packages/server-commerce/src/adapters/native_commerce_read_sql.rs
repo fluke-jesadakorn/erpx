@@ -447,6 +447,29 @@ const READ_LANDED_COST_POSTING_CONFIG: NativeCommerceReadStatement = NativeComme
     bind_count: 1,
 };
 
+/// Native authority for the transit active-location guard predicate. The
+/// caller binds `[warehouse_id, company_id, branch_id]`; the workflow assertion
+/// runs this exact text on its own command unit.
+pub const RD_TRANSIT_ACTIVE_LOCATION: &str = "commerce_rd_transit_active_location";
+const SQL_TRANSIT_ACTIVE_LOCATION: &str =
+    "EXISTS(SELECT 1 FROM commerce_warehouses WHERE id=? AND company_id=? AND branch_id=? AND status='active')";
+const READ_TRANSIT_ACTIVE_LOCATION: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_TRANSIT_ACTIVE_LOCATION,
+    sql: SQL_TRANSIT_ACTIVE_LOCATION,
+    bind_count: 3,
+};
+
+/// Native authority for the transit product-version guard predicate. The
+/// caller binds `[product_id, company_id, version]`.
+pub const RD_TRANSIT_PRODUCT_VERSION: &str = "commerce_rd_transit_product_version";
+const SQL_TRANSIT_PRODUCT_VERSION: &str =
+    "EXISTS(SELECT 1 FROM commerce_products WHERE id=? AND company_id=? AND status='active' AND version=?)";
+const READ_TRANSIT_PRODUCT_VERSION: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_TRANSIT_PRODUCT_VERSION,
+    sql: SQL_TRANSIT_PRODUCT_VERSION,
+    bind_count: 3,
+};
+
 const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_PMS_WAREHOUSE_ACTIVE,
     READ_PMS_SETTINGS_EXISTS,
@@ -483,6 +506,8 @@ const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_POS_PRODUCT_IMAGE,
     READ_LANDED_COST_RECEIPT_LINES,
     READ_LANDED_COST_POSTING_CONFIG,
+    READ_TRANSIT_ACTIVE_LOCATION,
+    READ_TRANSIT_PRODUCT_VERSION,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -572,13 +597,22 @@ mod tests {
                 SQL_LANDED_COST_POSTING_CONFIG,
                 1usize,
             ),
+            (
+                RD_TRANSIT_ACTIVE_LOCATION,
+                SQL_TRANSIT_ACTIVE_LOCATION,
+                3usize,
+            ),
+            (RD_TRANSIT_PRODUCT_VERSION, SQL_TRANSIT_PRODUCT_VERSION, 3usize),
         ];
         for (kind, sql, bind_count) in expected {
             let statement = read_statement(kind).expect("registered owner read kind");
             assert_eq!(statement.kind, kind);
             assert_eq!(statement.sql, sql);
             assert_eq!(statement.bind_count, bind_count);
-            assert!(sql.starts_with("SELECT "), "owner read must be SELECT-only: {sql}");
+            assert!(
+                sql.starts_with("SELECT ") || sql.starts_with("EXISTS("),
+                "owner read must be SELECT-only or a SELECT guard: {sql}"
+            );
             for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
                 assert!(!sql.contains(forbidden), "owner read must not mutate: {forbidden}");
             }
@@ -592,7 +626,30 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), bind_count);
         }
-        assert_eq!(STATEMENTS.len(), 35);
+        assert_eq!(STATEMENTS.len(), 37);
+    }
+
+    /// Transit guard predicates keep their byte-exact EXISTS text and three
+    /// bind positions for the workflow assertion.
+    #[test]
+    fn transit_guard_predicates_keep_their_exact_literals() {
+        let location = read_statement(RD_TRANSIT_ACTIVE_LOCATION).expect("location guard");
+        let version = read_statement(RD_TRANSIT_PRODUCT_VERSION).expect("version guard");
+        assert_eq!(
+            location.sql,
+            "EXISTS(SELECT 1 FROM commerce_warehouses WHERE id=? AND company_id=? AND branch_id=? AND status='active')"
+        );
+        assert_eq!(
+            version.sql,
+            "EXISTS(SELECT 1 FROM commerce_products WHERE id=? AND company_id=? AND status='active' AND version=?)"
+        );
+        for statement in [location, version] {
+            assert_eq!(statement.bind_count, 3);
+            assert_eq!(statement.sql.matches('?').count(), 3);
+            assert!(statement.sql.starts_with("EXISTS(SELECT 1 FROM commerce_"));
+            assert!(!statement.sql.contains(';'));
+            assert!(!statement.sql.contains("FOR UPDATE"));
+        }
     }
 
     /// Landed-cost reads keep their exact owner-local join, projection and

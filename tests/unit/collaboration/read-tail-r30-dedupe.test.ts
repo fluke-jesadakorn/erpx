@@ -74,7 +74,8 @@ describe('Collaboration read-tail r30 lock/notification isolation', () => {
     expect(src('work-task-purchase-source.ts')).toContain('LOCK TABLE social_posts,social_comments,social_post_sources,social_post_revisions,social_task_origins IN SHARE ROW EXCLUSIVE MODE');
     expect(messaging).toContain('LOCK TABLE messaging_teams,messaging_team_members,messaging_rooms,messaging_room_members,messaging_messages,messaging_reads,messaging_files IN SHARE ROW EXCLUSIVE MODE');
     expect(src('staff-notifications.ts')).toContain('legacy_rows AS');
-    expect(src('web-push.ts')).toContain('SELECT');
+    expect(src('web-push.ts')).not.toContain('SELECT ');
+    expect(src('notification_statement.rs')).toContain('"web_push_current_delivery" => "SELECT j.*,s.user_id');
   });
 });
 

@@ -165,7 +165,9 @@ describe('quality read-tail r26 evidence-head family (R)', () => {
     expect(read('adapters/sales-package-sources.ts')).toContain('LOCK TABLE inventory_quality_holds,inventory_quality_inspections,inventory_quality_disposition_events,inventory_quality_cancellations,inventory_quality_specs,inventory_quality_spec_metrics IN SHARE MODE');
     expect(read('adapters/supply-package-obligations.ts')).toContain('LOCK TABLE inventory_quality_holds,inventory_quality_inspections,inventory_quality_cancellations');
     expect(read('adapters/attachments-service-facts.ts')).toContain('UPDATE ${descriptor.table} SET version=version+1');
-    expect(read('adapters/calendar-quality-facts.ts')).toContain('IN (SELECT jsonb_array_elements_text(?::jsonb))');
+    const calendar = read('adapters/calendar-quality-facts.ts');
+    expect(calendar).toContain("import {qualityClockCte,scopeSql} from \"@erpx/server-quality/adapters/quality-scope-sql\";");
+    expect(calendar).toContain("IN ${scopeSql('jsonb_array_elements_text(?::jsonb)')}");
     expect(read('adapters/executive-metric-projections.ts')).toContain('qualityBranchDisplayLabelSql');
     expect(read('adapters/customer_return_hold_statement.rs')).toContain('customer_return_hold_statements');
     const counts: Record<string, number> = {
@@ -197,6 +199,6 @@ describe('quality read-tail r26 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(57);
-    expect(total).toBe(17);
+    expect(total).toBe(16);
   });
 });

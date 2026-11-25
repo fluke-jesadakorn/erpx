@@ -100,7 +100,7 @@ describe('commerce read-tail r20 native warehouse kinds', () => {
     }
     // 9 prior kinds (PMS/sales editor/POS startup/settings) + 6 product kinds
     // from r19 + these 5 warehouse kinds.
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 35);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 37);');
     for (const { constName } of kinds) {
       expect(plans, constName).toContain(`READ_${constName.slice(3)},`);
     }
@@ -189,7 +189,7 @@ describe('commerce read-tail r20 native warehouse kinds', () => {
     expect(plans).not.toContain('commerce_rd_pos_warehouse');
   });
 
-  it('pins the owner TypeScript SELECT KPI at 381 (before 383)', () => {
+  it('pins the owner TypeScript SELECT KPI at 379 (before 381)', () => {
     const src = resolve(root, 'packages/server-commerce/src');
     let total = 0;
     const walk = (dir: string) => {
@@ -200,6 +200,6 @@ describe('commerce read-tail r20 native warehouse kinds', () => {
       }
     };
     walk(src);
-    expect(total).toBe(381);
+    expect(total).toBe(379);
   });
 });

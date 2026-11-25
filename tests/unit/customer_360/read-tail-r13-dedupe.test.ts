@@ -64,7 +64,7 @@ describe('Customer 360 read-tail r13 scoped-projection head family', () => {
   it('one shared head definition; r5 helper composes it and timeline imports it', () => {
     const reads = src('customer-read-sources.ts');
     expect(reads.match(/export const scopedProjection = \(/g)).toHaveLength(1);
-    expect(reads.match(/SELECT /g)).toHaveLength(2); // head + company scope source; legal EXISTS composes the head (r14)
+    expect(reads.match(/SELECT /g)).toHaveLength(1); // shared head only; legal EXISTS composes it (r14), company scope is a native plan (r18)
     const wrapper = reads.match(/const scopedRow = [\s\S]*?;\n/)?.[0] ?? '';
     expect(wrapper).toContain('scopedProjection(column, `${relation} ${alias}`, `${alias}.${key}=p.id`)');
     expect(wrapper).not.toContain('SELECT '); // the duplicate head literal is gone

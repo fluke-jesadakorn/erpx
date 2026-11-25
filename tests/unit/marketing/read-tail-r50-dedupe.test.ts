@@ -103,7 +103,6 @@ describe('marketing read-tail r50 dedupe', () => {
 
   it('leaves the protected r38/r40/r44/r45 heads and the candidate-adjacent union untouched', async () => {
     for (const name of [
-      'form-asset-read-head.ts',
       'owner-point-read-sql.ts',
       'marketing-point-exists-sql.ts',
     ])
@@ -125,7 +124,7 @@ describe('marketing read-tail r50 dedupe', () => {
     expect(await src('native-marketing-read.ts')).toContain('export');
   });
 
-  it('pins the owner head KPI to 8 (lane 40 retired 3) (BEFORE=24)', async () => {
-    expect(await ownerHeadTokens()).toEqual({ spaced: 8, bare: 8 });
+  it('pins the owner head KPI to 7 (lane 40 retired 3) (BEFORE=24)', async () => {
+    expect(await ownerHeadTokens()).toEqual({ spaced: 7, bare: 7 });
   });
 });

@@ -1,4 +1,5 @@
 import 'server-only';
+import { ppRdRound6ProjectionByTwoPred } from './pp-read-tail-round6-sources';
 import { PP_RD23_PROJECT_WORKER_ENGAGEMENT_SQL } from './pp-read-tail-r23-sources';
 import { ppRd33FourColByIdCompany } from './pp-read-tail-r33-sources';
 import {projectWorkerCommandEvidenceImage} from '@erpx/server-workflow/public/project-worker-startup-evidence';
@@ -37,7 +38,7 @@ export async function prepareProjectWorkerJob(database:SqlDatabase,target:{id:st
   await database.batch(boundaries.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database, item.key)]));await flushFinanceDeferredEffects(database);
   const [account,authority,organization,image,retained]=await Promise.all([projectWorkerStartupSubject(database,source.company_id,source.account_id),projectWorkerStartupJobAuthority(database,source.company_id,source.actor_id,saved),projectWorkerOrganizationSource(database,source.company_id),projectWorkerPersonImage(database,source.company_id,source.person_id),database.prepare(`SELECT 1 FROM (${policy.placementRows}) source WHERE source.id=? AND source.company_id=? AND source.command_id=?`).bind(source.id,source.company_id,(parseJson<{commandId:string}>(source.proof)).commandId).first()]);
   const managerAfter=typeof definition.managerPersonId==='string'?await projectWorkerPersonImage(database,source.company_id,definition.managerPersonId):null;
-  const terminal=await database.prepare(`SELECT 1 FROM (${projectWorkerPlacementTerminalRows}) terminal WHERE terminal.id=? AND terminal.company_id=?`).bind(source.id,source.company_id).first();
+  const terminal=await database.prepare(ppRdRound6ProjectionByTwoPred('1', projectWorkerPlacementTerminalRows, 'terminal', 'id', 'company_id')).bind(source.id,source.company_id).first();
   if(!terminal||expectedEvidence!==await projectWorkerCommandEvidenceImage(database,source.company_id,source.id)||expectedApplied!==await projectWorkerAppliedEvidenceImage(database,source.company_id,source.id)||managerImage!==managerAfter||beforeAccount.image!==account?.image||beforeAuthority!==authority||beforeOrg.image!==organization.image||expected!==image||!retained)throw changed();
   for(const feature of policy.releases)await assertProductionModuleEnabled(database,source.company_id,feature);
   for(const capability of projectWorkerCapabilities)await checkPurchasedCapability(database,'enforced',{companyId:source.company_id,capability,purpose:'settle-existing'});

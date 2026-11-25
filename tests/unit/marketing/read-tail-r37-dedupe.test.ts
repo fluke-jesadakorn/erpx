@@ -42,7 +42,7 @@ describe("marketing module-membership probe dedupe (r37)", () => {
     expect(helper.match(/SELECT /g)).toBeNull();
     expect(helper).toContain("marketingSelectHeadSql(head, tail)");
     const head = await readFile(adapter("select-head-sql.ts"), "utf8");
-    expect(head.match(/SELECT /g)).toHaveLength(1);
+    expect(head.match(/SELECT /g) ?? []).toHaveLength(1);
     expect(helper.match(/jsonb_build_array\('marketing'::text\)/g)).toHaveLength(1);
   });
 
