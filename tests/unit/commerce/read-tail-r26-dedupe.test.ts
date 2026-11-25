@@ -94,9 +94,10 @@ describe('Commerce read-tail r26 order-source image-head retirement', () => {
     const renderer = read('read-tail-r26-dedupe-sql.ts');
     expect(renderer.split('export const commerceOrderSourceImageSql =').length - 1).toBe(1);
     expect(renderer.split('`SELECT to_jsonb(source)::text image FROM commerce_orders source WHERE ${tail}`').length - 1).toBe(1);
-    // Aliased image reads over other tables are not byte-identical to this head.
-    expect(read('expense-posting-setup.ts')).toContain('SELECT to_jsonb(s)::text image FROM commerce_settings s WHERE s.company_id=?');
-    expect(read('manufacturing-existing-posting-setup.ts')).toContain('SELECT to_jsonb(s)::text image FROM commerce_settings s WHERE company_id=?');
+    // Aliased image reads over other tables are not byte-identical to this head;
+    // r27 retired the two commerce_settings image heads into their own renderer.
+    expect(read('expense-posting-setup.ts')).not.toContain('SELECT to_jsonb(s)::text image FROM commerce_settings s WHERE s.company_id=?');
+    expect(read('manufacturing-existing-posting-setup.ts')).not.toContain('SELECT to_jsonb(s)::text image FROM commerce_settings s WHERE company_id=?');
     expect(commerceOrderSourceImageSql('x')).not.toBe('SELECT to_jsonb(source)::text image FROM commerce_orders source WHERE x ORDER BY source.id');
   });
 
@@ -114,7 +115,7 @@ describe('Commerce read-tail r26 order-source image-head retirement', () => {
     expect(read('supply-package-sources.ts')).toContain('LOCK TABLE commerce_orders,commerce_order_lines,commerce_fulfillments,commerce_fulfillment_lines,commerce_returns,commerce_return_lines,commerce_warehouses,commerce_products,commerce_goods_valuations,commerce_invoice_goods_carrying IN SHARE MODE');
   });
 
-  test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 409 (before 413)', () => {
+  test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 408 (before 413)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -124,7 +125,7 @@ describe('Commerce read-tail r26 order-source image-head retirement', () => {
       }
     };
     walk(src);
-    expect(total).toBe(409);
+    expect(total).toBe(408);
     expect((read('crm-attachment-sources.ts').match(/SELECT /g) ?? []).length).toBe(0);
     expect((read('support-attachment-sources.ts').match(/SELECT /g) ?? []).length).toBe(0);
     expect((read('read-tail-r26-dedupe-sql.ts').match(/SELECT /g) ?? []).length).toBe(1);

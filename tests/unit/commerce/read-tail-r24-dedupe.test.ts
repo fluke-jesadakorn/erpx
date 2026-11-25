@@ -185,7 +185,7 @@ describe('Commerce read-tail r24 fulfillment guard-head retirement', () => {
     expect(read('commerce.ts').split('db.prepare(COMMERCE_OWNER_WRITE_NOOP_SQL)').length - 1).toBe(17);
   });
 
-  test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 409 (before 413)', () => {
+  test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 408 (before 413)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -195,7 +195,7 @@ describe('Commerce read-tail r24 fulfillment guard-head retirement', () => {
       }
     };
     walk(src);
-    expect(total).toBe(409);
+    expect(total).toBe(408);
     expect((read('commerce.ts').match(/SELECT /g) ?? []).length).toBe(22);
     expect((read('ecommerce-sources.ts').match(/SELECT /g) ?? []).length).toBe(0);
     expect((read('workflow-flow-routing-facts.ts').match(/SELECT /g) ?? []).length).toBe(8);

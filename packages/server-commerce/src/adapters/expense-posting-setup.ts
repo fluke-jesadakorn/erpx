@@ -30,6 +30,7 @@ import {expensePostingSetupSchema,type ExpensePostingSetupInput,type ExpensePost
 import type {CommercePostingSetupConfiguration} from '@erpx/server-commerce/domain/posting-setup';
 import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 import { COMMERCE_EXPENSE_RECEIPT_IMAGE_SQL } from "./guarded-source-dedupe-sql";
+import { commerceSettingsImageSql } from './read-tail-r27-dedupe-sql';
 const operation='commerce.expense-posting-setup.initialize',capabilities=['people.directory','people.expenses'] as const;
 const columns={chartId:'chart_id',currency:'currency',receivableAccountId:'receivable_account_id',payableAccountId:'payable_account_id',revenueAccountId:'revenue_account_id',inventoryAccountId:'inventory_account_id',clearingAccountId:'clearing_account_id',cogsAccountId:'cogs_account_id',inputTaxAccountId:'input_tax_account_id',outputTaxAccountId:'output_tax_account_id',cashAccountId:'cash_account_id'} as const;
 const fields=Object.keys(columns) as (keyof typeof columns)[];
@@ -44,7 +45,7 @@ async function leases(database:SqlDatabase,companyId:string,write=false){
 }
 async function state(database:SqlDatabase,companyId:string){
  const [mapping,documents,stock,production,expense]=await Promise.all([
-  database.prepare('SELECT to_jsonb(s)::text image FROM commerce_settings s WHERE s.company_id=?').bind(companyId).first<string>('image'),
+  database.prepare(commerceSettingsImageSql('s.company_id=?')).bind(companyId).first<string>('image'),
   manufacturingPostingDocumentState(database,companyId),manufacturingPostingInventoryState(database,companyId),manufacturingPostingSourceState(database,companyId),expensePostingSetupSources(database,companyId),
  ]);
  return {mapping:mapping?JSON.parse(mapping) as Record<string,unknown>:null,documents,history:documents.goods||stock.economics||production.economics||expense.economics,image:JSON.stringify([documents.image,stock.image,production.image,expense.image])};
