@@ -13644,6 +13644,33 @@
       ]
     },
     {
+      "lane": "unit",
+      "owner": "commercial",
+      "modules": [
+        "commercial"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Commercial native seat-history route must stay tenant-isolated."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-commercial"
+      ],
+      "id": "commercial.native-lane-37.unit",
+      "files": [
+        "tests/unit/commercial/native-lane-37.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "commercial.native-owner-read.unit",
       "lane": "unit",
       "owner": "commercial",
@@ -81859,60 +81886,6 @@
         "@erpx/ui",
         "@erpx/workplace"
       ]
-    },
-    {
-      "lane": "unit",
-      "owner": "pms",
-      "modules": [
-        "pms"
-      ],
-      "fixture": "none",
-      "requires": {
-        "jobs": false,
-        "scanner": false
-      },
-      "ci": {
-        "critical": true,
-        "reason": "PMS native guest-account route must stay tenant-isolated."
-      },
-      "apps": [
-        "launcher"
-      ],
-      "packages": [
-        "@erpx/server-pms"
-      ],
-      "id": "pms.native-lane-19.unit",
-      "files": [
-        "tests/unit/pms/native-lane-unit.test.ts"
-      ],
-      "framework": "vitest"
-    },
-    {
-      "lane": "unit",
-      "owner": "pms",
-      "modules": [
-        "pms"
-      ],
-      "fixture": "none",
-      "requires": {
-        "jobs": false,
-        "scanner": false
-      },
-      "ci": {
-        "critical": true,
-        "reason": "PMS native property-readiness route must stay tenant-isolated."
-      },
-      "apps": [
-        "launcher"
-      ],
-      "packages": [
-        "@erpx/server-pms"
-      ],
-      "id": "pms.native-lane-20.unit",
-      "files": [
-        "tests/unit/pms/native-lane-unit.test.ts"
-      ],
-      "framework": "vitest"
     },
     {
       "lane": "unit",

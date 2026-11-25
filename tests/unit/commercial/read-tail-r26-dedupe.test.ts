@@ -73,8 +73,9 @@ describe('Commercial read-tail r26 singleton head delegation', () => {
     const st = src('seats.ts');
     expect(pj).toContain('coverageProbe("since_at","billing_principal_status_coverage","TRUE")');
     expect(pj).toContain('.first<{since_at:number}>()');
-    expect(st).toContain('coverageProbe("started_at","billing_seat_history_coverage","1")');
-    expect(st).toContain('.first<{started_at:number}>()');
+    // Lane 37: the seat coverage probe is executed by the native owner.
+    expect(st).not.toContain('coverageProbe("started_at","billing_seat_history_coverage","1")');
+    expect(st).toContain('readNativeSeatHistory');
     expect(pj).not.toContain(PRINCIPAL);
     expect(st).not.toContain(SEAT);
   });

@@ -42,7 +42,9 @@ describe('Commercial read-tail r4 byte-identical / parameterized family', () => 
     expect(pj).toContain('coverageProbe');
     expect(pj).not.toContain(PRINCIPAL);
     const st = adapters('seats.ts');
-    expect(st).toContain('coverageProbe');
+    // Lane 37 moved the seat coverage probe into the native owner.
+    expect(st).not.toContain('coverageProbe');
+    expect(st).toContain('readNativeSeatHistory');
     expect(st).not.toContain(SEAT);
   });
 

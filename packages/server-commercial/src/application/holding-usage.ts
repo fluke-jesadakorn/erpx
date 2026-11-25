@@ -7,8 +7,8 @@ export interface HoldingUsageRepository{
  facts(binding:UsageBinding,start:number,end:number,branchId:string|null):Promise<{nodes:UsageNode[];ai:AiRow[];storage:StorageRow[];unreconciled:{count:number}|null;reconciliation:{ready:boolean}|null}>;
  seats(month:string):Promise<HoldingSeatMeter>;monthlySeats(binding:UsageBinding,month:string):Promise<MonthlySeatSummary>;activeSeats():Promise<ActiveSeatSnapshot>;
 }
-export function createHoldingUsageApplication(ports:{clock:Clock;hash(value:string):string;repository(holdingId:string):Promise<HoldingUsageRepository>}){return async(binding:UsageBinding,month:string,branchId:string|null=null):Promise<{holding:UsageHolding;items:UsageItem[];seats:HoldingSeatMeter}>=>{
- const {start,end}=resolveUsageMonth(month,ports.clock.now()),duration=end-start,r=await ports.repository(binding.id),noSeatSummary={status:'unavailable' as const,distinctUsers:null,activeSeatMilliseconds:null},noActiveSnapshot={status:'unavailable' as const,count:null,asOf:null};
+export function createHoldingUsageApplication(ports:{clock:Clock;hash(value:string):string;repository(holdingId:string,holdingSlug:string):Promise<HoldingUsageRepository>}){return async(binding:UsageBinding,month:string,branchId:string|null=null):Promise<{holding:UsageHolding;items:UsageItem[];seats:HoldingSeatMeter}>=>{
+ const {start,end}=resolveUsageMonth(month,ports.clock.now()),duration=end-start,r=await ports.repository(binding.id,binding.slug),noSeatSummary={status:'unavailable' as const,distinctUsers:null,activeSeatMilliseconds:null},noActiveSnapshot={status:'unavailable' as const,count:null,asOf:null};
  const [facts,seats,monthlySeats,activeNow]=await Promise.all([r.facts(binding,start,end,branchId),branchId===null?r.seats(month):Promise.resolve({coverage:'unavailable' as const,users:[]}),branchId===null?r.monthlySeats(binding,month):Promise.resolve(noSeatSummary),branchId===null?r.activeSeats():Promise.resolve(noActiveSnapshot)]),{nodes,ai,storage,unreconciled,reconciliation}=facts;
  const names = new Map(nodes.map(node => [node.id, node]));
   const companyMap = new Map<string, UsageCompany>();

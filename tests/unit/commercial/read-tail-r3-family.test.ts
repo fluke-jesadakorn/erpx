@@ -25,9 +25,10 @@ describe('Commercial read-tail r3 parameterized family', () => {
 
   test('every consumer keeps its own prepare/bind and no inline literal remains', () => {
     const seats = src('seats.ts');
-    expect(seats).toContain('seatHistorySql');
+    // Lane 37 moved the three event reads into the native axum/sqlx owner.
+    expect(seats).not.toContain('seatHistorySql');
+    expect(seats).toContain('readNativeSeatHistory');
     for (const sql of Object.values(ORIGINALS)) expect(seats, sql).not.toContain(sql);
-    expect(seats.split('seatHistorySql(')).toHaveLength(4); // 1 import + 3 call sites
   });
 
   test('shared module declares the literal exactly once', () => {
