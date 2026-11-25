@@ -1,3 +1,4 @@
+import { companyIdRowsSql } from './finance-read-tail-r56-sql';
 import{companyRates}from '@erpx/server-finance/public/company-money-rates';
 import { withFinanceConfigurationCommand } from "@erpx/server-finance/adapters/purchase-boundary";
 import { nativeFinanceOwnerWriteSystem } from './native-finance-owner-write';
@@ -103,10 +104,10 @@ export function confirmPostingRateInTransaction(database:SqlDatabase,actor:WorkC
 function moneyService(provided?: SqlDatabase,boundRequest?:unknown) {
     let pending: Promise<SqlDatabase> | undefined = provided ? Promise.resolve(provided) : undefined;
     const db = (actor: Pick<WorkContext, 'companyId'> & Partial<Pick<WorkContext, 'holdingId'>>) => pending ??= holdingResources(actor.holdingId!).then(r => r.write);
-    return createCompanyMoney({ error: (...args) => new ApiError(...args), authorize: requirePermission, ready: async (actor) => { await db(actor); }, now: Date.now, id: () => crypto.randomUUID(), rates: async (companyId) => companyRates(await pending!, companyId), scales: async (companyId, currencies) => currencies ? (await (await pending!).prepare(`SELECT currency,scale FROM company_currency_scales WHERE company_id=? AND currency IN (${currencies.map(() => '?').join(',')})`).bind(companyId, ...currencies).all<{
+    return createCompanyMoney({ error: (...args) => new ApiError(...args), authorize: requirePermission, ready: async (actor) => { await db(actor); }, now: Date.now, id: () => crypto.randomUUID(), rates: async (companyId) => companyRates(await pending!, companyId), scales: async (companyId, currencies) => currencies ? (await (await pending!).prepare(companyIdRowsSql('currency,scale','company_currency_scales',` AND currency IN (${currencies.map(() => '?').join(',')})`)).bind(companyId, ...currencies).all<{
             currency: string;
             scale: number;
-        }>()).results : (await (await pending!).prepare('SELECT currency,scale FROM company_currency_scales WHERE company_id=?').bind(companyId).all<{
+        }>()).results : (await (await pending!).prepare(companyIdRowsSql('currency,scale','company_currency_scales','')).bind(companyId).all<{
             currency: string;
             scale: number;
         }>()).results, scale: async (companyId, currency) => (await pending!).prepare('SELECT scale FROM company_currency_scales WHERE company_id=? AND currency=?').bind(companyId, currency).first<{

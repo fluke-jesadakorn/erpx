@@ -1,3 +1,4 @@
+import { bankMatchGuardSql, companyIdRowsSql } from './finance-read-tail-r56-sql';
 import { versionStatusGuardSql } from './finance-read-tail-r52-sql';
 import { columnByIdSql } from './finance-read-tail-r53-sql';
 import { PAYMENT_FULL_ROW_SQL } from './finance-read-tail-r40-sql';
@@ -485,7 +486,7 @@ function paymentService(provided?: SqlDatabase) {
             return executeCommand(write, actor, key, "finance.payment.confirm", input, paymentId, input.expectedVersion + 1, { id: paymentId, status: "settled", version: input.expectedVersion + 1, journalId: journal.result.id, fxJournalId: fxJournal?.result.id ?? null, realizedFx: minorToDecimal(gain - loss), bankTransactionId: bank.id, withheldMinor: Number(payment.withheld_minor ?? 0), netBankMinor, withholdingDocumentId: taxConsumption?.documentId ?? null }, [
                 ...(attachmentBinding?.guards ?? []), ...(withholding?.guards ?? []),
                 assertion(write, key, "payment", versionStatusGuardSql('finance_payments', "'released'", ' AND released_by=? AND created_by!=? AND approved_by!=?'), [paymentId, actor.companyId, input.expectedVersion, actor.userId, actor.userId, actor.userId]),
-                assertion(write, key, "bank", "EXISTS(SELECT 1 FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id WHERE t.id=? AND t.company_id=? AND t.version=? AND t.match_status IN ('unmatched','proposed') AND s.bank_account=? AND t.currency=? AND t.amount_minor=? AND t.transaction_date>=?)", [bank.id, actor.companyId, input.bankVersion, payment.bank_account, payment.currency, signed, payment.payment_date]),
+                assertion(write, key, "bank", bankMatchGuardSql(" AND t.company_id=? AND t.version=? AND t.match_status IN ('unmatched','proposed') AND s.bank_account=? AND t.currency=? AND t.amount_minor=? AND t.transaction_date>=?"), [bank.id, actor.companyId, input.bankVersion, payment.bank_account, payment.currency, signed, payment.payment_date]),
                 ...input.allocations.map((item, index) => assertion(write, key, `invoice-${index}`, INVOICE_EXISTS_PREFIX + " AND version=? AND status IN ('posted','partially_paid') AND outstanding_minor>=?)", [item.invoiceId, actor.companyId, byId.get(item.invoiceId)!.version, amounts[index]])),
                 ...journal.steps,
                 ...(fxJournal?.steps ?? []),
@@ -623,7 +624,7 @@ function fxService(provided?: SqlDatabase) {
         workspaceAccounts: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare("SELECT a.id,a.chart_id,a.code,a.name,a.category,a.currency FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id WHERE a.company_id=? AND a.status='active' AND a.currency=c.base_currency AND a.category IN ('other_income','other_expense') ORDER BY a.code").bind(actor.companyId).all<FinanceRow>()).results; },
         workspaceRuns: async (facts) => { const { actor, periodId } = facts; const write = await db(actor); return (await write.prepare("SELECT r.*,c.name chart_name FROM finance_fx_revaluation_runs r JOIN finance_charts c ON c.id=r.chart_id WHERE r.company_id=? AND r.period_id=? ORDER BY r.created_at DESC").bind(actor.companyId, periodId).all<FinanceRow>()).results; },
         openPeriod: async (facts) => { const { input, actor } = facts; const write = await db(actor); return write.prepare("SELECT * FROM finance_periods WHERE id=? AND company_id=? AND state='open'").bind(input.periodId, actor.companyId).first<FinanceRow>(); },
-        validAdjustmentAccounts: async (facts) => { const { actor, input, calculated } = facts; const write = await db(actor); return (await write.prepare("SELECT id,category FROM finance_accounts WHERE company_id=? AND chart_id=? AND status='active' AND currency=? AND id IN (?,?)").bind(actor.companyId, input.chartId, calculated.chart.base_currency, input.gainAccountId, input.lossAccountId).all<FinanceRow>()).results; },
+        validAdjustmentAccounts: async (facts) => { const { actor, input, calculated } = facts; const write = await db(actor); return (await write.prepare(companyIdRowsSql('id,category','finance_accounts'," AND chart_id=? AND status='active' AND currency=? AND id IN (?,?)")).bind(actor.companyId, input.chartId, calculated.chart.base_currency, input.gainAccountId, input.lossAccountId).all<FinanceRow>()).results; },
         commitPreparation: async (facts) => {
             const { actor, key, input, output, runId, calculated, rates, now } = facts;
             const write = await db(actor);

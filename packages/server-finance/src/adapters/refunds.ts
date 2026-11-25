@@ -1,3 +1,4 @@
+import { bankMatchGuardSql } from './finance-read-tail-r56-sql';
 import { versionStatusGuardSql } from './finance-read-tail-r52-sql';
 import { REFUND_INSTRUCTION_POINT_SQL } from './finance-read-tail-r38-sql';
 import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
@@ -109,7 +110,7 @@ function refundService(provided?:SqlDatabase,presentation?:{historyOnly:boolean;
                 assertion(write, key, 'instruction', "EXISTS(SELECT 1 FROM finance_refund_instructions WHERE id=? AND company_id=? AND version=? AND status IN ('exported','unknown'))", [id, actor.companyId, input.expectedVersion]),
                 assertion(write, key, 'obligation', versionStatusGuardSql('finance_refund_obligations', "'approved'", ' AND outstanding_minor>=?'), [owner.id, actor.companyId, owner.version, amount]),
                 ...(foreignSource ? [refundForeignCreditGuard(write, key, owner.id, sourceBase)] : []),
-                assertion(write, key, 'bank', "EXISTS(SELECT 1 FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id WHERE t.id=? AND t.company_id=? AND t.version=? AND t.match_status IN ('unmatched','proposed') AND t.amount_minor=? AND t.currency=? AND s.bank_account=?)", [input.bankTransactionId, actor.companyId, input.bankVersion, outgoing ? -amount : amount, owner.currency, row.bank_account]),
+                assertion(write, key, 'bank', bankMatchGuardSql(" AND t.company_id=? AND t.version=? AND t.match_status IN ('unmatched','proposed') AND t.amount_minor=? AND t.currency=? AND s.bank_account=?"), [input.bankTransactionId, actor.companyId, input.bankVersion, outgoing ? -amount : amount, owner.currency, row.bank_account]),
                 ...journal.steps,
                 ...(fxJournal?.steps ?? []),
                 await nativeFinanceRefunds(write, actor.companyId).paymentInsert([paymentId, actor.companyId, owner.party_id, outgoing ? 'refund' : 'receipt', `RF-${key}`, bank.transaction_date, owner.currency, amount, row.bank_account, journal.result.id, journal.result.fxRateMicros, cashBase, fxJournal?.result.id ?? null, actor.userId, owner.approved_by, actor.userId, now, now]),

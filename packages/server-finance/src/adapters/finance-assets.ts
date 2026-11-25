@@ -1,3 +1,4 @@
+import { companyIdRowsSql } from './finance-read-tail-r56-sql';
 import { versionStatusGuardSql } from './finance-read-tail-r52-sql';
 import { financeReferenceListSql } from './finance-read-tail-r42-sql';
 import { tableByIdSql } from './finance-read-tail-r49-sql';
@@ -65,7 +66,7 @@ function nativeAssets(provided?:SqlDatabase, providedOwned=false) {
         depreciations: async (actor, id) => (await (await database(actor)).prepare(ASSET_DEPRECIATIONS_SQL).bind(id).all()).results,
         disposals: async (actor, id) => (await (await database(actor)).prepare("SELECT * FROM finance_asset_disposals WHERE asset_id=? ORDER BY created_at,id").bind(id).all()).results,
         page: async (actor) => (await (await database(actor)).prepare(financeReferenceListSql('finance_assets','company_id=?','asset_number,id')).bind(actor.companyId).all()).results,
-        options: async (actor) => { const write = await database(actor), [accounts, periods, dimensions, dimensionValues] = await Promise.all([write.prepare(`SELECT a.id,a.chart_id,a.code,a.name,a.category,a.status,a.currency FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id WHERE a.company_id=? AND c.status='active' AND ${APPROVED_SECONDARY_CHART_CORRELATED_GUARD} ORDER BY a.code,a.id`).bind(actor.companyId).all(), write.prepare("SELECT id,name,start_date,end_date,state FROM finance_periods WHERE company_id=? ORDER BY end_date DESC,id").bind(actor.companyId).all(), write.prepare(DIMENSION_DEFINITIONS_SQL).bind(actor.companyId).all(), write.prepare("SELECT dimension_id,code,name FROM finance_dimension_values WHERE company_id=? AND status='active' ORDER BY code").bind(actor.companyId).all()]); return { accounts: accounts.results, periods: periods.results, dimensions: dimensions.results, dimensionValues: dimensionValues.results }; },
+        options: async (actor) => { const write = await database(actor), [accounts, periods, dimensions, dimensionValues] = await Promise.all([write.prepare(`SELECT a.id,a.chart_id,a.code,a.name,a.category,a.status,a.currency FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id WHERE a.company_id=? AND c.status='active' AND ${APPROVED_SECONDARY_CHART_CORRELATED_GUARD} ORDER BY a.code,a.id`).bind(actor.companyId).all(), write.prepare(companyIdRowsSql('id,name,start_date,end_date,state','finance_periods',' ORDER BY end_date DESC,id')).bind(actor.companyId).all(), write.prepare(DIMENSION_DEFINITIONS_SQL).bind(actor.companyId).all(), write.prepare("SELECT dimension_id,code,name FROM finance_dimension_values WHERE company_id=? AND status='active' ORDER BY code").bind(actor.companyId).all()]); return { accounts: accounts.results, periods: periods.results, dimensions: dimensions.results, dimensionValues: dimensionValues.results }; },
         reviewedPolicy: async (actor, id) => !!await (await database(actor)).prepare("SELECT 1 FROM finance_asset_policy_editions WHERE asset_id=? AND status IN ('active','superseded')").bind(id).first(),
         pendingDisposal: async (actor, id) => !!await (await database(actor)).prepare(ASSET_DRAFT_DISPOSAL_SQL).bind(id).first(),
         depreciationHistory: async (actor, id) => (await (await database(actor)).prepare("SELECT ordinal,amount_minor FROM finance_asset_depreciations WHERE asset_id=? ORDER BY ordinal").bind(id).all<{
@@ -75,7 +76,7 @@ function nativeAssets(provided?:SqlDatabase, providedOwned=false) {
         latestDepreciation: async (actor, id) => (await (await database(actor)).prepare("SELECT MAX(entry_date) date FROM finance_asset_depreciations WHERE asset_id=?").bind(id).first<{
             date: string | null;
         }>())?.date ?? null,
-        disposalAccounts: async (actor, chart, input) => (await (await database(actor)).prepare("SELECT id,category FROM finance_accounts WHERE company_id=? AND chart_id=? AND status='active' AND id IN (?,?,?)").bind(actor.companyId, chart, input.proceedsAccountId ?? null, input.gainAccountId, input.lossAccountId).all<{
+        disposalAccounts: async (actor, chart, input) => (await (await database(actor)).prepare(companyIdRowsSql('id,category','finance_accounts'," AND chart_id=? AND status='active' AND id IN (?,?,?)")).bind(actor.companyId, chart, input.proceedsAccountId ?? null, input.gainAccountId, input.lossAccountId).all<{
             id: string;
             category: string;
         }>()).results,

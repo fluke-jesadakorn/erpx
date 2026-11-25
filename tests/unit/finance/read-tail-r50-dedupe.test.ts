@@ -117,7 +117,8 @@ describe('Finance read-tail r50 helper definitions and retirement', () => {
     // r53 delegates 11 column-by-id reads to one helper (-11 literals, +1: 1764 -> 1754).
     // r54 routes 14 point reads into two helpers (-14 literals, +2 declarations: 1754 -> 1742).
     // r55 folds 18 company count literals into two helpers (-18 literals, +2 declarations: 1742 -> 1726).
-    expect(total).toBe(1726);
+    // r56 folds 11 head literals into three helpers (-11 literals, +3 declarations: 1726 -> 1718).
+    expect(total).toBe(1718);
     expect(total).toBeLessThan(1812);
   });
 });
