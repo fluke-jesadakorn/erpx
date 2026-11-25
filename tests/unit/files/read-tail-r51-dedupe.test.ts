@@ -159,8 +159,8 @@ describe('Files read-tail r51 KPI pins', () => {
       total += (text.match(/SELECT\s/g) ?? []).length;
     }
     // Two inline state-witness heads -> one alias-parameterized renderer (-1).
-    expect(literal).toBe(222);
-    expect(total).toBe(223);
+    expect(literal).toBe(221);
+    expect(total).toBe(222);
     expect(literal).toBeLessThan(225);
     expect(total).toBeLessThan(226);
   });

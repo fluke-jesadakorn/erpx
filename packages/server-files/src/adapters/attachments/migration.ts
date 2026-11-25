@@ -20,6 +20,7 @@ import { STORAGE_LEDGER_PRESENCE_SQL } from '../read-tail-r29-source-sql';
 import { ledgerBytesSumSql } from '../read-tail-r31-source-sql';
 import { LEDGER_OBJECT_KEY_PROJECTION_HEAD_SQL } from '../read-tail-r42-source-sql';
 import { ORPHAN_PRESERVATION_EVENT_HEAD_SQL } from '../read-tail-r46-source-sql';
+import { PUBLICATION_ID_HEAD_SQL } from '../read-tail-r54-source-sql';
 function application(db: SqlDatabase) {
     const database = db, repository: AttachmentMigrationRepository<SqlStatement> = { readBackfillSpecializedAttachmentsMessaging() { return attachmentMigrationcollaboration(database).readBackfillSpecializedAttachmentsMessaging(); },
         readBackfillSpecializedAttachmentsDocuments() { return attachmentMigrationlegal(database).readBackfillSpecializedAttachmentsDocuments(); },
@@ -123,7 +124,7 @@ function application(db: SqlDatabase) {
             }>();
         },
         readReconcileAttachmentStorageEffect5() {
-            return database.prepare(`SELECT publication.id FROM attachment_publications publication
+            return database.prepare(`${PUBLICATION_ID_HEAD_SQL} FROM attachment_publications publication
     LEFT JOIN attachment_links link ON link.id=publication.source_link_id
     LEFT JOIN attachment_sets set_row ON set_row.id=link.set_id
     WHERE set_row.id IS NULL OR publication.company_id IS DISTINCT FROM set_row.company_id ORDER BY publication.id`).all<{
@@ -148,7 +149,7 @@ function application(db: SqlDatabase) {
             }>();
         },
         readReconcileAttachmentStoragePublications() {
-            return database.prepare(`SELECT publication.id,publication.company_id,publication.derivative_object_key,publication.derivative_bytes,publication.derivative_checksum_sha256,link.attachment_id
+            return database.prepare(`${PUBLICATION_ID_HEAD_SQL},publication.company_id,publication.derivative_object_key,publication.derivative_bytes,publication.derivative_checksum_sha256,link.attachment_id
     FROM attachment_publications publication LEFT JOIN attachment_links link ON link.id=publication.source_link_id`).all<{
                 id: string;
                 company_id: string;
