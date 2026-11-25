@@ -1,3 +1,4 @@
+import { recognitionRunExistsSql } from './finance-read-tail-r63-sql';
 import { finCustomerPartyListSql } from './finance-read-tail-r58-sql';
 import { activeAccountListSql } from './finance-read-tail-r51-sql';
 import { columnByIdSql } from './finance-read-tail-r53-sql';
@@ -148,7 +149,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async recognitionExists(id: string | number | null) {
             const db = read();
             return db
-                .prepare("SELECT 1 FROM finance_recognition_runs WHERE billing_run_id=? AND status IN ('draft','posted')")
+                .prepare(recognitionRunExistsSql("billing_run_id=? AND status IN ('draft','posted')"))
                 .bind(id)
                 .first();
         }, async billingExists(root_id: string | number | null, billingKey: string) {
@@ -205,7 +206,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async recognitionExistsItem(billingRunId: unknown, itemKey: unknown) {
             const db = read();
             return db
-                .prepare("SELECT 1 FROM finance_recognition_runs WHERE billing_run_id=? AND item_key=? AND status IN ('draft','posted')")
+                .prepare(recognitionRunExistsSql("billing_run_id=? AND item_key=? AND status IN ('draft','posted')"))
                 .bind(billingRunId, itemKey)
                 .first();
         }, async prepareRecognition(id: string, companyId: string, billingRunId: unknown, itemKey: unknown, date: string, entryDate: unknown, periodId: unknown, value: number, accountId: string, sourceHash: string, userId: string, reason: unknown, now: number, now2: number) {
