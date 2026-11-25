@@ -70,7 +70,7 @@ describe('command-receipt read-tail dedupe (r49)', () => {
       'adapters/flow-planning-ports.ts': 6,
       'adapters/hospitality-owner-projection-sources.ts': 1,
       'adapters/inventory-audit-history-source.ts': 1,
-      'adapters/json-each-sources.ts': 2,
+      'adapters/json-each-sources.ts': 1,
       'adapters/project-worker-startup-evidence.ts': 2,
       'adapters/work-package-obligation-sources.ts': 1,
     };
@@ -91,7 +91,7 @@ describe('command-receipt read-tail dedupe (r49)', () => {
     expect(expected['adapters/receipt-sql.ts'] ?? 0).toBe(0);
   });
 
-  it('retirement:ts-statements is 29 after the r52 head fold (30->29)', async () => {
+  it('retirement:ts-statements is 28 after the r53 head fold (29->28)', async () => {
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -102,6 +102,6 @@ describe('command-receipt read-tail dedupe (r49)', () => {
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(30);
-    expect(total).toBe(29);
+    expect(total).toBe(28);
   });
 });

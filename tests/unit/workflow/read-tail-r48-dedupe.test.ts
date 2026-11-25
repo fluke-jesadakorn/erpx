@@ -117,7 +117,7 @@ describe('r48 source retirement pins', () => {
     ]);
     expect(union.match(/export const jsonEachApproverPoolSql/g) ?? []).toHaveLength(1);
     expect(union.match(/export const approverUnionProjectionSql/g) ?? []).toHaveLength(1);
-    expect(union.match(/SELECT /g) ?? []).toHaveLength(2);
+    expect(union.match(/SELECT /g) ?? []).toHaveLength(1);
     expect(union).toContain("(variant: 'step' | 'plain')");
     expect(planning).not.toContain('SELECT approver_user_id UNION');
     expect(planning).toContain("approverUnionProjectionSql('plain')");
@@ -147,6 +147,6 @@ describe('r48 source retirement pins', () => {
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(29);
+    expect(total).toBe(28);
   });
 });

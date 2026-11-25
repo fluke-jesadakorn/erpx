@@ -98,9 +98,11 @@ describe('read-tail r52 ordinal point-read bare-head fold', () => {
     expect(approval).toContain("import { selectHeadSql } from './closed-projection-sources'");
     expect(approval.match(/`\$\{selectHeadSql\}\$\{columns\}/g) ?? []).toHaveLength(1);
     expect(approval.match(/`SELECT \$\{columns\}/g) ?? []).toHaveLength(0);
-    // The flow-event history and approver-union bare heads remain for later rounds.
+    // The flow-event history bare head remains for a later round; r53 folded the approver union.
     expect(flow.match(/`SELECT \$\{columns\}/g) ?? []).toHaveLength(1);
-    expect(union.match(/`SELECT \$\{variant/g) ?? []).toHaveLength(1);
+    expect(union.match(/`SELECT \$\{variant/g) ?? []).toHaveLength(0);
+    expect(union.match(/`\$\{selectHeadSql\}\$\{variant/g) ?? []).toHaveLength(1);
+    expect(union).toContain("import { selectHeadSql } from './closed-projection-sources'");
   });
 
   it('folds only read-only heads: no writes, locks, native kinds or cross-owner reads', async () => {
@@ -123,7 +125,7 @@ describe('read-tail r52 ordinal point-read bare-head fold', () => {
     }
   });
 
-  it('retirement:ts-statements is 29 after the r52 head fold (30->29)', async () => {
+  it('retirement:ts-statements is 28 after the r53 head fold (29->28)', async () => {
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -134,6 +136,6 @@ describe('read-tail r52 ordinal point-read bare-head fold', () => {
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(30);
-    expect(total).toBe(29);
+    expect(total).toBe(28);
   });
 });
