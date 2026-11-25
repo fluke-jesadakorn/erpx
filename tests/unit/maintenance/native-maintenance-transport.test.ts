@@ -745,7 +745,7 @@ describe('Maintenance record-image fixed SQL',()=>{
    }
   };
   walk(srcRoot);
-  expect(total).toBe(16);
+  expect(total).toBe(15);
   expect(total).toBeLessThan(18);
  });
 });
@@ -926,14 +926,16 @@ describe('Maintenance work/asset source fixed SQL',()=>{
   const source=readFileSync(new URL(`${dir}work.ts`,import.meta.url),'utf8');
   const tokens=(s:string)=>s.replace(/\s+/g,' ').trim();
   expect(source.match(/export const workAssetSource = \(fields: string, assetJoin: string, where: string\) =>/g)).toHaveLength(1);
-  expect(source.match(/`SELECT \$\{fields\} FROM maintenance_work_orders w JOIN \(\$\{assetsProjectionSources\.operational_assets\}\) a ON a\.id=w\.asset_id\$\{assetJoin\} WHERE \$\{where\}`/g)).toHaveLength(1);
+  expect(source).toContain('settlementRefSource(fields,');
+  expect(source).not.toContain('`SELECT ${fields} FROM maintenance_work_orders');
   // r17 left 8 work.ts SELECTs; r18 folds the items/downtime Work/Asset source (8 -> 7);
   // r21 folds the assets/nodes/consumptions projection source scans (7 -> 5);
   // r24 reuses the existsGuardPrefix head for the Work assets absent-source guard (5 -> 4);
   // r25 reuses the shared row-projection head for the row scan (4 -> 3);
   // r27 routes the Work event-history read through the shared settlement
-  // ref-source head (3 -> 2).
-  expect(source.match(/SELECT/g)).toHaveLength(2);
+  // ref-source head (3 -> 2); r-next delegates the Work/Asset head itself to
+  // that same renderer (2 -> 1, owner 16 -> 15).
+  expect(source.match(/SELECT/g)).toHaveLength(1);
   expect(source).not.toContain('SELECT w.*,a.code asset_code,a.name asset_name,CASE WHEN');
   expect(source).not.toContain('`SELECT w.id,w.version::text version');
   expect(source).not.toMatch(/LOCK\s+TABLE/i);
@@ -941,8 +943,8 @@ describe('Maintenance work/asset source fixed SQL',()=>{
   const {finalRootOwnerProjectionSources:assets}=await import('../../../packages/server-assets/src/public/final-root-owner-projection-sources');
   // Pre-r18 literals rebuilt verbatim with closed placeholder fragments.
   const itemFields='w.*,a.code asset_code,a.name asset_name,CASE WHEN <guard> THEN 1 ELSE 0 END owner_eligible,CASE WHEN <review> THEN 1 ELSE 0 END can_review,<ownerName> owner_name';
-  expect(tokens(workAssetSource(itemFields,'','<scope>'))).toBe(
-   tokens(`SELECT ${itemFields} FROM maintenance_work_orders w JOIN (${assets.operational_assets}) a ON a.id=w.asset_id WHERE <scope>`));
+  expect(workAssetSource(itemFields,'','<scope>')).toBe(
+   `SELECT ${itemFields} FROM maintenance_work_orders w JOIN (${assets.operational_assets}) a ON a.id=w.asset_id WHERE <scope>`);
   const downFields='w.id,w.version::text version,w.status,w.title,a.code asset_code,a.name asset_name,w.downtime_started_at::text downtime_started_at,w.downtime_ended_at::text downtime_ended_at';
   expect(tokens(workAssetSource(downFields,' AND a.company_id=w.company_id','<where>'))).toBe(
    tokens(`SELECT ${downFields}
@@ -955,6 +957,19 @@ describe('Maintenance work/asset source fixed SQL',()=>{
   expect(readFileSync(new URL(`${dir}finance-record-sources.ts`,import.meta.url),'utf8')).toContain('LOCK TABLE operational_inventory_consumptions,maintenance_work_orders,operational_assets IN SHARE MODE');
   expect(readFileSync(new URL(`${dir}asset-settlement-refs.ts`,import.meta.url),'utf8')).toContain('LOCK TABLE maintenance_work_orders,maintenance_preventive_plans IN SHARE MODE');
   expect(readFileSync(new URL(`${dir}package-obligations.ts`,import.meta.url),'utf8')).toContain('LOCK TABLE maintenance_work_orders,maintenance_work_events,maintenance_preventive_plans,maintenance_preventive_events,maintenance_preventive_occurrences IN SHARE MODE');
+ });
+ it('renders both Work/Asset reads byte-identically through the shared ref-source head',async()=>{
+  const {createHash}=await import('node:crypto');
+  const sha=(s:string)=>createHash('sha256').update(s).digest('hex');
+  const {workAssetSource}=await import('../../../packages/server-maintenance/src/adapters/work');
+  const {finalRootOwnerProjectionSources:assets}=await import('../../../packages/server-assets/src/public/final-root-owner-projection-sources');
+  const fields='w.id,w.version::text version,w.status';
+  const item=`SELECT ${fields} FROM maintenance_work_orders w JOIN (${assets.operational_assets}) a ON a.id=w.asset_id WHERE <scope>`;
+  const join=`SELECT ${fields} FROM maintenance_work_orders w JOIN (${assets.operational_assets}) a ON a.id=w.asset_id AND a.company_id=w.company_id WHERE <scope>`;
+  expect(workAssetSource(fields,'','<scope>')).toBe(item);
+  expect(workAssetSource(fields,' AND a.company_id=w.company_id','<scope>')).toBe(join);
+  expect(sha(item)).toBe('ad80893905392f52f5f315f38f01c6d503e538f90f5564137e309fd95f61d480');
+  expect(sha(join)).toBe('28a203e9e5f520d6b9cb11886a709ca7e9aba2998b4aceac5bbd68a99a1e7aec');
  });
 });
 
@@ -1053,7 +1068,8 @@ describe('Maintenance facts UNION fact-row fixed SQL',()=>{
   // r30 folds the Work/Plan alias-qualified row head into aliasRowsSql (this file
   // 3 -> 1, owner total 19 -> 18, below BEFORE=19); r31 routes the Calendar head
   // through that same renderer (owner total 18 -> 17, below BEFORE=18); r17
-  // unifies the parenthesized subquery head (owner total 17 -> 16).
+  // unifies the parenthesized subquery head (owner total 17 -> 16); the next
+  // cut routes the Work/Asset head through settlementRefSource (16 -> 15).
   expect(source.match(/SELECT/g)).toHaveLength(1);
   // The owner lock and the scope CTE stay untouched; no write/row-lock introduced.
   expect(source).toContain('LOCK TABLE maintenance_work_orders,maintenance_work_events,maintenance_preventive_plans,maintenance_preventive_events,maintenance_preventive_occurrences IN SHARE MODE');
@@ -1109,8 +1125,9 @@ describe('Maintenance projection row-scan fixed SQL',()=>{
   // r24 reuses the existsGuardPrefix head for the Work assets absent-source guard (5 -> 4);
   // r25 reuses the shared row-projection head for the row scan (4 -> 3);
   // r27 routes the Work event-history read through the shared settlement
-  // ref-source head (3 -> 2).
-  expect(source.match(/SELECT/g)).toHaveLength(2);
+  // ref-source head (3 -> 2); the next cut delegates the Work/Asset head to
+  // that same renderer (2 -> 1).
+  expect(source.match(/SELECT/g)).toHaveLength(1);
   // No write, row-lock or native read is accepted or changed.
   expect(source).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
 

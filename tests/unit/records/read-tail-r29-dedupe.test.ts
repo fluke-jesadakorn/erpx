@@ -79,9 +79,9 @@ describe('Records read-tail r29 request-events aggregate fold', () => {
     const records = readFileSync(resolve(srcRoot, 'adapters/records.ts'), 'utf8');
     expect(records).toContain('const recordVersionExistsSql ='); // r11
     expect(records).toContain('const recordRowSelectSql ='); // r12
-    expect(records).toContain('const referenceEdgesSql ='); // r14
-    expect(records).toContain('const recordContextDetailSql ='); // r15
-    expect(records).toContain('export const recordContextDetailSql ='); // r27/r28
+    expect(records).not.toContain('const referenceEdgesSql ='); // r14 retired
+    expect(records).not.toContain('const recordContextDetailSql ='); // r15 retired
+    expect(records).not.toContain('export const recordContextDetailSql ='); // r27/r28 retired
     const ai = readFileSync(resolve(srcRoot, 'adapters/ai-usage-projection.ts'), 'utf8');
     expect(ai).toContain('export const requestAiUsageProjection ='); // r16
     expect(readFileSync(resolve(srcRoot, 'adapters/read-tail-sql.ts'), 'utf8')).toContain('export const ownerVersionExistsSql ='); // r17
@@ -109,7 +109,7 @@ describe('Records read-tail r29 retirement check', () => {
     // folds the version fence, employee_requests head and request_ai head into
     // shared generators (22 -> 19). No rendered SQL, bind, lock or native seam
     // changes.
-    expect(total).toBe(11);
+    expect(total).toBe(9);
     expect(total).toBeLessThan(23);
   });
 });

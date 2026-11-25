@@ -371,6 +371,77 @@ const READ_TAX_CLOSE_PROFILE: NativeReadStatement = NativeReadStatement {
     scope: "holding",
 };
 
+/// Native successor of the retired `finance-bank-automation` imported-file
+/// duplicate probe. The owner plans the exact joined literal; the caller binds
+/// `[companyId, bankAccountId, fileHash]` on its open unit and takes the first
+/// row. No TypeScript SQL remains for this kind.
+pub const RD_BANK_IMPORTED_FILE: &str = "finance_rd_bank_imported_file";
+const SQL_RD_BANK_IMPORTED_FILE: &str = "SELECT s.statement_number FROM finance_bank_import_files f JOIN finance_bank_statements s ON s.id=f.statement_id AND s.company_id=f.company_id WHERE f.company_id=? AND f.bank_account_id=? AND f.file_hash=?";
+const READ_BANK_IMPORTED_FILE: NativeReadStatement = NativeReadStatement {
+    kind: RD_BANK_IMPORTED_FILE,
+    sql: SQL_RD_BANK_IMPORTED_FILE,
+    bind_count: 3,
+    scope: "holding",
+};
+
+/// Native successors of the six static `finance-tax-identities` point and list
+/// reads. Each plan is byte-identical to the retired TS literal; the caller
+/// binds the same positional payload on its open unit and applies the existing
+/// first-row / all-rows projection.
+pub const RD_TAX_IDENTITY_ACTIVE_PARTY: &str = "finance_rd_tax_identity_active_party";
+const SQL_RD_TAX_IDENTITY_ACTIVE_PARTY: &str = "SELECT 1 FROM finance_parties WHERE id=? AND company_id=? AND status='active' AND person_id IS NULL";
+const READ_TAX_IDENTITY_ACTIVE_PARTY: NativeReadStatement = NativeReadStatement {
+    kind: RD_TAX_IDENTITY_ACTIVE_PARTY,
+    sql: SQL_RD_TAX_IDENTITY_ACTIVE_PARTY,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_TAX_IDENTITY_PREDECESSOR: &str = "finance_rd_tax_identity_predecessor";
+const SQL_RD_TAX_IDENTITY_PREDECESSOR: &str = "SELECT 1 FROM finance_tax_identities WHERE id=? AND company_id=? AND party_id IS NOT DISTINCT FROM ?::text AND status='approved'";
+const READ_TAX_IDENTITY_PREDECESSOR: NativeReadStatement = NativeReadStatement {
+    kind: RD_TAX_IDENTITY_PREDECESSOR,
+    sql: SQL_RD_TAX_IDENTITY_PREDECESSOR,
+    bind_count: 3,
+    scope: "holding",
+};
+
+pub const RD_TAX_IDENTITY_ROW: &str = "finance_rd_tax_identity_row";
+const SQL_RD_TAX_IDENTITY_ROW: &str = "SELECT * FROM finance_tax_identities WHERE id=? AND company_id=?";
+const READ_TAX_IDENTITY_ROW: NativeReadStatement = NativeReadStatement {
+    kind: RD_TAX_IDENTITY_ROW,
+    sql: SQL_RD_TAX_IDENTITY_ROW,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_TAX_IDENTITY_REVIEWED: &str = "finance_rd_tax_identity_reviewed";
+const SQL_RD_TAX_IDENTITY_REVIEWED: &str = "SELECT * FROM finance_tax_identities WHERE id=? AND company_id=? AND party_id IS NOT DISTINCT FROM ?::text AND status='approved' AND effective_from<=? AND effective_to>=? AND rule_pack_version=?";
+const READ_TAX_IDENTITY_REVIEWED: NativeReadStatement = NativeReadStatement {
+    kind: RD_TAX_IDENTITY_REVIEWED,
+    sql: SQL_RD_TAX_IDENTITY_REVIEWED,
+    bind_count: 6,
+    scope: "holding",
+};
+
+pub const RD_TAX_IDENTITY_LIST: &str = "finance_rd_tax_identity_list";
+const SQL_RD_TAX_IDENTITY_LIST: &str = "SELECT id,party_id,legal_name,tax_id,address,branch_code,entity_kind,vat_registered,vat_registration_evidence,effective_from,effective_to,previous_identity_id,signer_name,signer_authority,signature_link_id,signature_sha256,rule_pack_version,evidence_ref,status,created_by,reviewed_by,version FROM finance_tax_identities WHERE company_id=? ORDER BY created_at DESC";
+const READ_TAX_IDENTITY_LIST: NativeReadStatement = NativeReadStatement {
+    kind: RD_TAX_IDENTITY_LIST,
+    sql: SQL_RD_TAX_IDENTITY_LIST,
+    bind_count: 1,
+    scope: "holding",
+};
+
+pub const RD_TAX_IDENTITY_PARTY_LIST: &str = "finance_rd_tax_identity_party_list";
+const SQL_RD_TAX_IDENTITY_PARTY_LIST: &str = "SELECT id,name,kind FROM finance_parties WHERE company_id=? AND status='active' AND person_id IS NULL ORDER BY name";
+const READ_TAX_IDENTITY_PARTY_LIST: NativeReadStatement = NativeReadStatement {
+    kind: RD_TAX_IDENTITY_PARTY_LIST,
+    sql: SQL_RD_TAX_IDENTITY_PARTY_LIST,
+    bind_count: 1,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_ASSET_POLICY_ROW,
     READ_ASSET_POLICY_RUNS,
@@ -402,6 +473,13 @@ const READS: &[NativeReadStatement] = &[
     READ_TAX_CURRENT_ENTRY,
     READ_TAX_PENDING_CORRECTION_COUNT,
     READ_TAX_CLOSE_PROFILE,
+    READ_BANK_IMPORTED_FILE,
+    READ_TAX_IDENTITY_ACTIVE_PARTY,
+    READ_TAX_IDENTITY_PREDECESSOR,
+    READ_TAX_IDENTITY_ROW,
+    READ_TAX_IDENTITY_REVIEWED,
+    READ_TAX_IDENTITY_LIST,
+    READ_TAX_IDENTITY_PARTY_LIST,
 ];
 
 /// Whether a discriminator is an owner read kind (never a write kind).
@@ -451,6 +529,13 @@ mod tests {
             RD_TAX_CURRENT_ENTRY,
             RD_TAX_PENDING_CORRECTION_COUNT,
             RD_TAX_CLOSE_PROFILE,
+            RD_BANK_IMPORTED_FILE,
+            RD_TAX_IDENTITY_ACTIVE_PARTY,
+            RD_TAX_IDENTITY_PREDECESSOR,
+            RD_TAX_IDENTITY_ROW,
+            RD_TAX_IDENTITY_REVIEWED,
+            RD_TAX_IDENTITY_LIST,
+            RD_TAX_IDENTITY_PARTY_LIST,
         ] {
             assert!(is_read(kind), "{kind}");
             let read = read_statement(kind).expect("read kind");
@@ -465,7 +550,7 @@ mod tests {
             assert_eq!(read.sql.matches('?').count(), read.bind_count, "{kind}");
             assert_eq!(read.scope, "holding", "{kind}");
         }
-        assert_eq!(READS.len(), 30);
+        assert_eq!(READS.len(), 37);
         assert!(!is_read("finance_stmt_1"));
         assert!(read_statement("finance_stmt_1").is_none());
     }
@@ -703,5 +788,66 @@ mod tests {
         assert!(read_statement("finance_rd_tax_unknown").is_none());
         assert!(!is_read("SELECT * FROM finance_current_tax_entries"));
         assert!(read_statement("").is_none());
+    }
+
+    /// The bank imported-file probe is byte-identical to the retired TS literal
+    /// and stays a read-only point lookup on the caller's unit.
+    #[test]
+    fn bank_imported_file_read_matches_retired_owner_statement() {
+        let read = read_statement(RD_BANK_IMPORTED_FILE).expect("registered read");
+        assert_eq!(read.kind, "finance_rd_bank_imported_file");
+        assert_eq!(read.bind_count, 3);
+        assert_eq!(read.scope, "holding");
+        assert_eq!(
+            read.sql,
+            "SELECT s.statement_number FROM finance_bank_import_files f JOIN finance_bank_statements s ON s.id=f.statement_id AND s.company_id=f.company_id WHERE f.company_id=? AND f.bank_account_id=? AND f.file_hash=?"
+        );
+        assert!(!read.sql.contains("FOR UPDATE"));
+        assert!(!read.sql.contains("INSERT"));
+        assert!(!read.sql.contains("UPDATE"));
+        assert!(is_read(RD_BANK_IMPORTED_FILE));
+    }
+
+    /// The tax-identity family plans the exact retired literals, with the
+    /// caller's positional binds intact and no write or lock text.
+    #[test]
+    fn tax_identity_reads_match_retired_owner_statements() {
+        let expected = [
+            (
+                RD_TAX_IDENTITY_ACTIVE_PARTY,
+                SQL_RD_TAX_IDENTITY_ACTIVE_PARTY,
+                2usize,
+            ),
+            (
+                RD_TAX_IDENTITY_PREDECESSOR,
+                SQL_RD_TAX_IDENTITY_PREDECESSOR,
+                3,
+            ),
+            (RD_TAX_IDENTITY_ROW, SQL_RD_TAX_IDENTITY_ROW, 2),
+            (
+                RD_TAX_IDENTITY_REVIEWED,
+                SQL_RD_TAX_IDENTITY_REVIEWED,
+                6,
+            ),
+            (RD_TAX_IDENTITY_LIST, SQL_RD_TAX_IDENTITY_LIST, 1),
+            (
+                RD_TAX_IDENTITY_PARTY_LIST,
+                SQL_RD_TAX_IDENTITY_PARTY_LIST,
+                1,
+            ),
+        ];
+        assert_eq!(expected.len(), 6);
+        for (kind, sql, binds) in expected {
+            let read = read_statement(kind).unwrap_or_else(|| panic!("{kind}: unregistered"));
+            assert_eq!(read.kind, *kind, "{kind}: discriminator");
+            assert_eq!(read.sql, *sql, "{kind}: byte-identical SQL");
+            assert_eq!(read.bind_count, *binds, "{kind}: bind count");
+            assert_eq!(read.sql.matches('?').count(), *binds, "{kind}: binds");
+            assert_eq!(read.scope, "holding", "{kind}: scope");
+            assert!(is_read(kind), "{kind}");
+            assert!(!read.sql.contains("FOR UPDATE"), "{kind}");
+            assert!(!read.sql.contains("INSERT"), "{kind}");
+            assert!(!read.sql.contains("UPDATE"), "{kind}");
+        }
     }
 }

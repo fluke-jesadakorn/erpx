@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
 import {
   nativeCommercialOwnerRead,
+  COMMERCIAL_RD_PRINCIPAL_EVENTS,
   COMMERCIAL_RD_USAGE_METER,
   COMMERCIAL_RD_USAGE_SNAPSHOT,
   COMMERCIAL_RD_USAGE_SEAT,
@@ -34,7 +37,7 @@ describe('native Commercial owner-read client', () => {
     vi.unstubAllGlobals();
   });
 
-  it('returns the owner-planned SELECT for each closed usage kind', async () => {
+  it('returns the owner-planned SELECT for each closed usage/projection kind', async () => {
     const kinds: string[] = [];
     const paths: string[] = [];
     vi.stubGlobal('fetch', vi.fn(async (url: URL, init: RequestInit) => {
@@ -45,11 +48,18 @@ describe('native Commercial owner-read client', () => {
         headers: { 'content-type': 'application/json' },
       });
     }));
-    for (const kind of [COMMERCIAL_RD_USAGE_SNAPSHOT, COMMERCIAL_RD_USAGE_METER, COMMERCIAL_RD_USAGE_SEAT]) {
+    for (const kind of [COMMERCIAL_RD_USAGE_SNAPSHOT, COMMERCIAL_RD_USAGE_METER, COMMERCIAL_RD_USAGE_SEAT, COMMERCIAL_RD_PRINCIPAL_EVENTS]) {
       expect(await nativeCommercialOwnerRead(kind)).toBe(snapshotSql);
     }
-    expect(kinds).toEqual(['usage.snapshot', 'usage.meter', 'usage.seat']);
+    expect(kinds).toEqual(['usage.snapshot', 'usage.meter', 'usage.seat', 'principal.events']);
     expect(paths.every((path) => path.includes('/commercial/owner-read'))).toBe(true);
+  });
+
+  it('moves the principal-status event base SELECT out of projection.ts', () => {
+    const projection = readFileSync(resolve(__dirname, '../../../packages/server-commercial/src/adapters/projection.ts'), 'utf8');
+    expect(projection).not.toContain('SELECT id,user_id,status,effective_at');
+    expect(projection).toContain('nativeCommercialOwnerRead(COMMERCIAL_RD_PRINCIPAL_EVENTS)');
+    expect(projection.match(/SELECT\s/g) ?? []).toHaveLength(0);
   });
 
   it('fails closed when configuration is missing', async () => {

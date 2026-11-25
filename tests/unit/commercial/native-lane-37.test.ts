@@ -176,7 +176,7 @@ describe('native lane 37 Commercial seat-history transport', () => {
     expect(projection).not.toContain('billing_usage_meters');
     expect(projection).not.toContain('billing_usage_snapshots');
     expect(projection.match(/readNativeProjectionFacts\(/g) ?? []).toHaveLength(2);
-    expect(projection.match(/SELECT\s/g) ?? []).toHaveLength(1); // principalEvents only
+    expect(projection.match(/SELECT\s/g) ?? []).toHaveLength(0); // principal event base is native now
     // Cutover KPI pins: all 3 registered holdings are selectable; no default.
     expect(client).not.toMatch(/holdings\[0\]/);
     expect(client).toContain('holding.holdingId === actor.holdingId');

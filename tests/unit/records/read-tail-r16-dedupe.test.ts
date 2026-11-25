@@ -59,7 +59,8 @@ describe('Records read-tail r16 request_ai_usage projection family', () => {
     expect(shared.match(/requestAiProposalProjection\(/g) ?? []).toHaveLength(1);
     expect(requestAi.match(/requestAiProposalProjection\(/g) ?? []).toHaveLength(1);
     expect(requestAi).not.toContain('SELECT id FROM request_ai_proposals WHERE');
-    expect(selectCount(shared)).toBe(1); // monthly count only; r32 head moved to read-tail-r32-sql.ts
+    expect(selectCount(shared)).toBe(0); // monthly count now delegates to the shared r32 head
+    expect(shared).toContain("projectionColumnHeadSql(\n  'count(*)::int count',");
     expect(selectCount(readFileSync(resolve(srcRoot, 'adapters/read-tail-r32-sql.ts'), 'utf8'))).toBe(1);
     expect(selectCount(requestAi)).toBe(0);
     expect(selectCount(beta)).toBe(0);
@@ -69,8 +70,8 @@ describe('Records read-tail r16 request_ai_usage projection family', () => {
     const records = readFileSync(resolve(srcRoot, 'adapters/records.ts'), 'utf8');
     expect(records).toContain('const recordVersionExistsSql ='); // r11
     expect(records).toContain('const recordRowSelectSql ='); // r12
-    expect(records).toContain('const referenceEdgesSql ='); // r14
-    expect(records).toContain('const recordContextDetailSql ='); // r15
+    expect(records).not.toContain('const referenceEdgesSql ='); // r14 retired
+    expect(records).not.toContain('const recordContextDetailSql ='); // r15 retired
     const locks = readFileSync(resolve(srcRoot, 'adapters/legal-attachment-read-sources.ts'), 'utf8');
     expect(locks).toContain('LOCK TABLE employee_requests,employee_request_events IN SHARE ROW EXCLUSIVE MODE');
     expect(locks).toContain('LOCK TABLE approval_instances,approval_steps,approval_decisions IN SHARE ROW EXCLUSIVE MODE');

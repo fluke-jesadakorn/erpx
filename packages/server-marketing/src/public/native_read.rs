@@ -213,7 +213,8 @@ pub const FORM_CONTENT_ROW_READ: ReadPlan = ReadPlan {
     cross_owner: &[],
     authority: ASSET_TABLES,
 };
-/// Exact live read of `marketingCampaignExistsSql`.
+/// Exact former live read of `marketingCampaignExistsSql`; the TS wrapper was
+/// retired in r56 and both callers now plan this statement on the owner port.
 pub const CAMPAIGN_EXISTS_READ: ReadPlan = ReadPlan {
     kind: RD_CAMPAIGN_EXISTS,
     caller: "campaigns.assertion,public-submission.campaign",

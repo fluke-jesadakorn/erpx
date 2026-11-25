@@ -403,7 +403,12 @@ mod tests {
         assert!(!is_row_kind(KIND_SCENARIOS));
         assert!(!is_row_kind(KIND_RESOURCES));
         assert!(valid_kind(KIND_SCENARIOS));
-        assert!(!valid_kind("executive-shortage"));
+        assert!(valid_kind(KIND_EXECUTIVE_SHORTAGE));
+        assert!(valid_kind(KIND_EXECUTIVE_RECOMMENDATION));
+        assert!(is_row_kind(KIND_EXECUTIVE_SHORTAGE));
+        assert!(valid_eligibility("proposed"));
+        assert!(valid_eligibility("capacity"));
+        assert!(!valid_eligibility("approved"));
         assert!(!valid_kind(""));
     }
 
@@ -446,6 +451,63 @@ mod tests {
         );
         assert!(LaneScope::new(KIND_COMPARISON, "company-1", None, None, Some("other"), None).is_err());
         assert!(LaneScope::new(KIND_SCOPED_RECOMMENDATION, "company-1", None, Some("x/y"), None, None).is_err());
+    }
+
+    #[test]
+    fn executive_scope_requires_id_window_and_closed_eligibility() {
+        let shortage = LaneScope::new_executive(
+            KIND_EXECUTIVE_SHORTAGE,
+            "company-1",
+            Some("branch-1"),
+            Some("scenario-1"),
+            Some("2026-01-01"),
+            Some("2026-12-31"),
+            None,
+        )
+        .unwrap();
+        assert_eq!(shortage.from.as_deref(), Some("2026-01-01"));
+        assert_eq!(shortage.oracle_key()[6], json!("2026-01-01"));
+        assert!(LaneScope::new_executive(
+            KIND_EXECUTIVE_SHORTAGE,
+            "company-1",
+            None,
+            Some("scenario-1"),
+            None,
+            Some("2026-12-31"),
+            None,
+        )
+        .is_err());
+        let recommended = LaneScope::new_executive(
+            KIND_EXECUTIVE_RECOMMENDATION,
+            "company-1",
+            None,
+            Some("recommendation-1"),
+            Some("2026-01-01"),
+            Some("2026-12-31"),
+            Some("capacity"),
+        )
+        .unwrap();
+        assert_eq!(recommended.eligibility.as_deref(), Some("capacity"));
+        assert!(LaneScope::new_executive(
+            KIND_EXECUTIVE_RECOMMENDATION,
+            "company-1",
+            None,
+            Some("recommendation-1"),
+            Some("2026-01-01"),
+            Some("2026-12-31"),
+            Some("approved"),
+        )
+        .is_err());
+        assert!(LaneScope::new_executive(
+            KIND_SCENARIO,
+            "company-1",
+            None,
+            Some("scenario-1"),
+            Some("2026-01-01"),
+            Some("2026-12-31"),
+            None,
+        )
+        .is_err());
     }
 
     #[test]
@@ -494,6 +556,41 @@ mod tests {
         let scenario_value = serde_json::to_value(&scenario).unwrap();
         assert_eq!(scenario_value.as_object().unwrap().len(), 17);
         assert_eq!(scenario_value["specification_name"], "Assembly");
+
+        let executive = ExecutiveRow {
+            scenario_id: "s1".into(),
+            company_id: "company-1".into(),
+            branch_id: "branch-1".into(),
+            branch_name: Some("North".into()),
+            warehouse_id: "warehouse-1".into(),
+            warehouse_name: None,
+            specification_id: "spec-1".into(),
+            specification_name: Some("Assembly".into()),
+            output_product_id: Some("product-1".into()),
+            output_product_name: None,
+            specification_version: 1,
+            demand_quantity_milli: "2000".into(),
+            due_date: "2026-10-04".into(),
+            capacity_minutes: "120".into(),
+            scenario_status: "calculated".into(),
+            scenario_version: 2,
+            scenario_created_at: 10,
+            scenario_updated_at: 20,
+            recommendation_id: Some("r1".into()),
+            recommendation_status: Some("proposed".into()),
+            recommended_quantity_milli: Some("2000".into()),
+            required_minutes: Some("60".into()),
+            feasible_date: Some("2026-10-04".into()),
+            recommendation_version: Some(1),
+            recommendation_created_at: Some(30),
+            recommendation_updated_at: Some(40),
+            shortage_count: "1".into(),
+            shortage_items_json: "[]".into(),
+        };
+        let executive_value = serde_json::to_value(&executive).unwrap();
+        assert_eq!(executive_value.as_object().unwrap().len(), 28);
+        assert!(executive_value["warehouse_name"].is_null());
+        assert_eq!(executive_value["scenario_version"], 2);
 
         let list = LaneData::List(vec![value]);
         assert_eq!(list.len(), 1);

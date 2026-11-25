@@ -130,7 +130,7 @@ describe('Records read-tail r32 shared column-projection head', () => {
     expect(shared).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
 
     expect(ai).not.toContain('`SELECT ${columns} FROM ${table}${tail}`');
-    expect((ai.match(/SELECT /g) ?? []).length).toBe(1); // monthly count only
+    expect((ai.match(/SELECT /g) ?? []).length).toBe(0); // monthly count folded into r32
     expect(ai).toContain("projectionColumnHeadSql(columns, table, tail)");
     expect(ai).toContain("requestAiProjectionHead('request_ai_usage', columns)");
     expect(ai).toContain("requestAiProjectionHead('request_ai_proposals', columns, tail)");
@@ -142,8 +142,8 @@ describe('Records read-tail r32 shared column-projection head', () => {
     // Prior rounds, registry fallback, locks, native and cross-owner ports stay pinned.
     const records = read('adapters/records.ts');
     const legal = read('adapters/legal-attachment-read-sources.ts');
-    expect(records).toContain('const recordContextDetailSql =');
-    expect(records).toContain('const referenceEdgesSql =');
+    expect(records).not.toContain('const recordContextDetailSql =');
+    expect(records).not.toContain('const referenceEdgesSql =');
     expect(records).toContain('Removal task for the retained Field partition below: retire.records.registry-fallback.');
     expect(legal).toContain('LOCK TABLE employee_requests,employee_request_events IN SHARE ROW EXCLUSIVE MODE');
     expect(legal).toContain('LOCK TABLE approval_instances,approval_steps,approval_decisions IN SHARE ROW EXCLUSIVE MODE');
@@ -168,7 +168,7 @@ describe('Records read-tail r32 retirement check', () => {
     // ai-usage-projection.ts and one from read-tail-employee-request-columns.ts
     // by delegating both byte-identical heads to one renderer (+1). No bind,
     // lock, registry fallback, native seam or cross-owner consumer changed.
-    expect(total).toBe(11);
+    expect(total).toBe(9);
     expect(total).toBeLessThan(19);
   });
 });

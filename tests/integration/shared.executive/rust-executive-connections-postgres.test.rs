@@ -345,6 +345,32 @@ async fn audit_atomicity_and_the_shared_minute_budget_fail_closed() {
     .await;
 }
 
+/// Static cutover guards: the executive canvas suite must keep no TypeScript
+/// reorder read oracle, and this native oracle must stay mounted as a registered
+/// cargo test target. Both are compile-time assertions inside the claimed paths.
+#[test]
+fn executive_canvas_keeps_no_typescript_reorder_read_oracle() {
+    let source = include_str!("./executive-canvas.test.ts");
+    for token in [
+        "listInventoryReorderPolicies",
+        "SELECT version FROM inventory_reorder_policies",
+        "SELECT id FROM inventory_reorder_policy_events",
+    ] {
+        assert!(!source.contains(token), "retired TS reorder read oracle reappeared: {token}");
+    }
+    assert!(
+        source.contains("inventory_reorder_policies"),
+        "the native reorder seed fixture must remain in the executive canvas"
+    );
+}
+
+#[test]
+fn native_reorder_oracle_is_a_registered_test_target() {
+    let manifest = include_str!("../../../packages/server-runtime/Cargo.toml");
+    assert!(manifest.contains("name = \"executive_connections_postgres\""));
+    assert!(manifest.contains("path = \"../../tests/integration/shared.executive/rust-executive-connections-postgres.test.rs\""));
+}
+
 /// Native executive reorder read oracle. The executive canvas suite used to
 /// read the seeded policy rows through the TypeScript owner client; that read
 /// oracle is now verified here against the native owner statement shape on an

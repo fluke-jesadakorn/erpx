@@ -12,6 +12,11 @@ export type PpRd55PresenceShape = 'probe' | 'list' | 'distinct' | 'exists';
 
 const MEDIA_TYPES = "'image/jpeg','image/png','image/webp','application/pdf'";
 
+/** Single owner-owned rendering of the json-each list predicate. Both presence
+ * builders below previously carried a byte-identical copy; they now interpolate
+ * this one fragment so the V1/V2 rendered SQL stays unchanged. */
+const JSON_EACH_IN = ' IN(SELECT value FROM erpx_json_each(?))';
+
 /** V2 join form. `payment` selects the owner kind, `media` the media-type predicate,
  * `jsonBind` the scalar owner-id equality vs the json-each list form, and `shape`
  * the probe / list / exists rendering. Each caller keeps its single bind and its
@@ -26,7 +31,7 @@ export const ppRd55AttachmentPresenceV2 = (
   const a = filesProjectionSources.attachments;
   const l = filesProjectionSources.attachment_links;
   const s = filesProjectionSources.attachment_sets;
-  const id = jsonBind ? ' IN(SELECT value FROM erpx_json_each(?))' : '=?';
+  const id = jsonBind ? JSON_EACH_IN : '=?';
   const body = shape === 'probe'
     ? `FROM (${a}) a JOIN (${l}) l ON l.attachment_id=a.id
              JOIN (${s}) s ON s.id=l.set_id
@@ -56,7 +61,7 @@ export const ppRd55AttachmentPresenceV1 = (
 ) => {
   const owner = payment ? 'expense_payment' : 'expense_claim';
   const a = filesProjectionSources.attachments;
-  const id = jsonBind ? ' IN(SELECT value FROM erpx_json_each(?))' : '=?';
+  const id = jsonBind ? JSON_EACH_IN : '=?';
   const where = `FROM (${a}) attachments WHERE owner_type='${owner}' AND owner_id${id}${media ? ` AND media_type IN (${MEDIA_TYPES})` : ''} AND revoked_at IS NULL`;
   const cols = shape === 'list' || shape === 'distinct' ? 'DISTINCT owner_id id' : '1';
   const open = shape === 'exists' ? 'EXISTS(' : '';

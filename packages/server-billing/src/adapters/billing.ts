@@ -9,7 +9,6 @@ import {createBillingService,type BillingRepository} from '@erpx/server-billing/
 import type {BillingActor,BillingInput,BillingReceipt,BillingAccount,BillingEnrollment,BillingPeriod,BillingPlan,BillingInvoiceRow} from '@erpx/server-billing/domain/billing';
 import type {BillingStripe} from '@erpx/server-billing/domain/stripe';
 import {calculateTargetBillingPeriod} from '@erpx/server-billing/adapters/billing-target';
-import {calculateTargetRolloutReadiness} from '@erpx/server-billing/adapters/billing-target-rollout';
 import {BILLING_ROLLOUT_ELIGIBILITY_SQL,BILLING_LEGACY_ENROLLMENT_OVERLAP_SQL,BILLING_MONTH_INVOICE_SQL} from './billing-read-tail-r16-sql';
 import {billingProviderCostsSql} from './billing-read-tail-r19-sql';
 import {billingPointReadSql} from './billing-read-tail-r29-sql';
@@ -75,7 +74,6 @@ availableOperatingEvidence:(value0,value1)=>nativeBillingOwnerQuery(c, 'availabl
 recordOperatingCost:(value0,value1,value2,value3,value4,value5,value6)=>nativeBillingOwnerQuery(c, 'record_operating_cost', [value0,value1,value2,value3,value4,value5,value6]),
 availableCapacityEvidence:(value0,value1)=>nativeBillingOwnerQuery(c, 'available_evidence', [value0,value1]),
 recordCapacityReview:(value0,value1,value2,value3,value4,value5,value6,value7,value8,value9,value10)=>nativeBillingOwnerQuery(c, 'record_capacity_review', [value0,value1,value2,value3,value4,value5,value6,value7,value8,value9,value10]),
-recordRolloutApproval:(value0,value1,value2,value3,value4,value5,value6,value7)=>nativeBillingOwnerQuery(c, 'record_rollout_approval', [value0,value1,value2,value3,value4,value5,value6,value7]),
 extraTargetAssignment:(value0,value1)=>c.query<Record<string,unknown>>(billingEffectiveMonthGuardSql("billing_target_assignments"),[value0,value1]),
 approvedExtraPeriod:(value0,value1)=>nativeBillingOwnerQuery(c, 'APPROVED_RATED_PERIOD', [value0,value1]),
 availableExtraEvidence:(value0,value1)=>nativeBillingOwnerQuery(c, 'available_evidence', [value0,value1]),
@@ -96,7 +94,7 @@ incrementAccountVersion:(value0)=>nativeBillingOwnerQuery(c, 'increment_account_
 recordCommandAudit:(value0,value1,value2,value3,value4,value5,value6)=>nativeBillingOwnerQuery(c, 'record_command_audit', [value0,value1,value2,value3,value4,value5,value6]),
 recordCommandReceipt:(value0,value1,value2,value3)=>nativeBillingOwnerQuery(c, 'record_command_receipt', [value0,value1,value2,value3]),
 commit:()=>c.query<Record<string,unknown>>("COMMIT",[]),
-rollback:()=>c.query<Record<string,unknown>>("ROLLBACK",[]),release:()=>c.release(),calculateTarget:(...args)=>calculateTargetBillingPeriod(c,...args),calculateRollout:(...args)=>calculateTargetRolloutReadiness(c,...args)}}
+rollback:()=>c.query<Record<string,unknown>>("ROLLBACK",[]),release:()=>c.release(),calculateTarget:(...args)=>calculateTargetBillingPeriod(c,...args)}}
 function nativeBilling(db?:PostgresDatabase){return createBillingService({error:(...args)=>new ApiError(...args),hash:value=>createHash('sha256').update(value).digest('hex'),id:randomUUID,now:Date.now,session:async()=>nativeBillingRepository(await db!.pool.connect()),view:async()=>{throw new ApiError(503,'NATIVE_BILLING_UNAVAILABLE','The native Billing view is authoritative.');}})}
 export const advanceBilling=(c:PoolClient,holdingId:string,now:number)=>nativeBilling().advanceBilling(nativeBillingRepository(c),holdingId,now);
 export const billingCommand=(db:PostgresDatabase,actor:BillingActor,holdingId:string,input:BillingInput,key:string,stripe:BillingStripe,returnUrl:string,now=Date.now())=>nativeBilling(db).billingCommand(actor,holdingId,input,key,stripe,returnUrl,now);

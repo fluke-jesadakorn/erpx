@@ -13,9 +13,6 @@ const commerceFinalSources=commerceFinalOwnerProjections(),financeFinalSources=f
 const orderFulfilledExistsSql = `WHEN d.state='fulfilled' AND EXISTS(SELECT 1 ${commerceFinalSources.flow_routing_commerce_fulfillments_f_from} `;
 /** Byte-identical span shared by the flow-defaults revision read and the route-version guard; emitted SQL is unchanged. */
 const flowDefaultsMaxRevisionSql = "SELECT COALESCE(MAX(revision),0)";
-/** Byte-identical generator family for company-scoped flow-event history reads; callers choose the projection and optional record filter, emitted SQL and bind order are unchanged. */
-const flowEventsHistorySql = (columns: string, extraWhere = ''): string =>
-    `SELECT ${columns} FROM flow_events WHERE company_id=?${extraWhere} ORDER BY created_at,id`;
 const flowAdvanceSql=JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)),'../flow-advance-sql.json'),'utf8')) as Record<string,string>;
 function flowAdvanceStatement(kind:FlowKind):string{const sql=flowAdvanceSql[kind];if(!sql)throw new Error(`FLOW_ADVANCE_SQL_MISSING:${kind}`);return sql;}
 
@@ -109,7 +106,7 @@ export function nativeFlowPlanningPorts(database: SqlDatabase): FlowPlanningPort
             branch_id: string | null;
             department_id: string | null;
         }>('wf_native_flow_defaults_by_company', [companyId], companyId, database)}; },
-        readSharedFlowReferencesRoutesdefaultsevents3(companyId: string) { return database.prepare(flowEventsHistorySql('kind,record_id,action,actor_name,created_at,reason,step_key')).bind(companyId).all<FlowHistoryRow>(); },
+        async readSharedFlowReferencesRoutesdefaultsevents3(companyId: string) { return {results: await nativeWorkflowReadAll<FlowHistoryRow>('wf_native_flow_events_history', [companyId], companyId, database)}; },
         async readReadFlowRoute(companyId: string, kind: "expense" | "leave" | "staff_task" | "request" | "stock_count" | "transfer" | "order" | "invoice" | "journal" | "payroll" | "record", id: string) { const rows = await nativeWorkflowReadAll<Route>('wf_native_flow_routes_by_company_kind_record', [companyId, kind, id], companyId, database); return rows[0] ?? null; },
         async readReadFlowDefaultsRevision(companyId: string) { return nativeWorkflowReadFirst<{
             revision: number;
@@ -117,13 +114,13 @@ export function nativeFlowPlanningPorts(database: SqlDatabase): FlowPlanningPort
         async readReadFlowDefaults(companyId: string, kind: "expense" | "leave" | "staff_task" | "request" | "stock_count" | "transfer" | "order" | "invoice" | "journal" | "payroll" | "record", branch_id: string | null, department_id: string | null, defaultsRevision: number) { return {results: await nativeWorkflowReadAll<DefaultRow>('wf_native_flow_defaults_by_kind_revision', [companyId, kind, branch_id, department_id, defaultsRevision], companyId, database)}; },
         readReadFlowPeople(companyId: string, now: number, now2: number) { return people_payroll_flow_routing(database).readReadFlowPeople(companyId, now, now2); },
         readReadFlowMembers(companyId: string, now: number, now2: number) { return identity_access_flow_routing(database).readReadFlowMembers(companyId, now, now2); },
-        readReadFlowHistoryRows(companyId: string, kind: "expense" | "leave" | "staff_task" | "request" | "stock_count" | "transfer" | "order" | "invoice" | "journal" | "payroll" | "record", id: string) { return database.prepare(flowEventsHistorySql('action,actor_name,created_at,reason,step_key', ' AND kind=? AND record_id=?')).bind(companyId, kind, id).all<{
+        async readReadFlowHistoryRows(companyId: string, kind: "expense" | "leave" | "staff_task" | "request" | "stock_count" | "transfer" | "order" | "invoice" | "journal" | "payroll" | "record", id: string) { return {results: await nativeWorkflowReadAll<{
             action: string;
             actor_name: string;
             created_at: number;
             reason: string;
             step_key: string;
-        }>(); },
+        }>('wf_native_flow_events_record_history', [companyId, kind, id], companyId, database)}; },
         guard24(key: string, value: string, args: string[], version: number) { return assertion(database, key, value, flowVersionGuardSql('route'), [...args, version]); },
         guard25(key: string, value: string, companyId: string, revision: number) { return assertion(database, key, value, `(${flowDefaultsMaxRevisionSql} FROM flow_defaults WHERE company_id=?)=?`, [companyId, revision]); },
         async stageRouteStatementsEffect(args: string[], revision: number, value: string, now: number) {

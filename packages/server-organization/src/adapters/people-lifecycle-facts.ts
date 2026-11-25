@@ -4,7 +4,7 @@ import type { PoolClient } from "pg";
 import { type PeopleLifecycleData } from "@erpx/feature-people_payroll/lib/people-lifecycle";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { type LifecyclePositionFact } from '@erpx/server-people_payroll/public/people-lifecycle-contract';
-import { nativeOrgExecute } from './native-organization-owner-write';
+import { nativeOrgAll, nativeOrgExecute, nativeOrgOne } from './native-organization-owner-write';
 import { maxVersionSubquery } from './organization-column-alias-families-r29';
 import { activePositionById } from './organization-column-alias-families-r38';
 import { recommendedPayDefault } from './organization-read-tail-sources-r40';
@@ -16,13 +16,11 @@ export function peopleLifecycleOrganizationFacts(database: SqlDatabase, client?:
                 .all<PeopleLifecycleData["positions"][number]>();
         },
         readPeopleLifecycleDataNodes(companyId: string) {
-            return database.prepare("SELECT id,display_name name,kind FROM organization_nodes WHERE company_id=? AND status='active' ORDER BY display_name,id")
-                .bind(companyId)
-                .all<{
+            return nativeOrgAll<{
                 id: string;
                 name: string;
                 kind: string;
-            }>();
+            }>(database, companyId, 'people_lifecycle_data_nodes', [companyId]).then(results => ({ results }));
         },
         readPackageImpactPositions(companyId: string, id: string) {
             return database.prepare(positionPackageProjectionSql(` FROM (${people_payrollPlatformSources.people_position_packages}) b JOIN organization_positions p ON p.id=b.position_id AND p.company_id=b.company_id WHERE b.company_id=? AND b.package_id=? ORDER BY p.id`))
@@ -60,13 +58,11 @@ export function peopleLifecycleOrganizationFacts(database: SqlDatabase, client?:
             }>();
         },
         readSaveLifecyclePosition(companyId: string, positionId: string) {
-            return database.prepare("SELECT level_id,branch_id,department_id FROM organization_positions WHERE company_id=? AND id=?")
-                .bind(companyId, positionId)
-                .first<{
+            return nativeOrgOne<{
                 level_id: string;
                 branch_id: string | null;
                 department_id: string | null;
-            }>();
+            }>(database, companyId, 'lifecycle_read_save_position', [companyId, positionId]);
         },
         readCreateRehireEngagementPosition(companyId: string, positionId: string) {
             return database.prepare(activePositionById('?', '?'))

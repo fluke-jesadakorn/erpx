@@ -20,6 +20,7 @@ import {
   CA_RD_PORTAL_THREADS,
   nativeOwnerReadAll,
   nativeOwnerReadStatement,
+  nativePortalReadStatement,
 } from '../../../packages/server-customer_authority/src/adapters/native-owner-read';
 import { readExecutiveMetricProjection } from '../../../packages/server-customer_authority/src/adapters/executive-metric-projections';
 import { portalPurchaseBindingSource } from '../../../packages/server-customer_authority/src/adapters/portal-purchase-binding-source';
@@ -303,6 +304,76 @@ describe('customer authority portal native read port cutover', () => {
     });
     vi.unstubAllGlobals();
   });
+
+  it('resolves the portal holding from a single configured holding', async () => {
+    process.env[key] = config();
+    const sql = 'SELECT to_regclass(\x27customer_portal_support_responses\x27) IS NOT NULL installed';
+    const fetchMock = vi.fn(async () => new Response(
+      JSON.stringify({ data: { statements: [{ sql, values: [] }] } }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    ));
+    vi.stubGlobal('fetch', fetchMock);
+    const statement = await nativePortalReadStatement(CA_RD_PORTAL_INSTALLED, []);
+    expect(statement).toEqual({ sql, values: [] });
+    const url = (fetchMock.mock.calls[0] as unknown as [URL])[0];
+    expect(url.pathname).toBe('/api/v1/holdings/acme/customer-access/command-plan');
+    vi.unstubAllGlobals();
+    delete process.env[key];
+  });
+
+  it('uses the designated portal holding when several holdings are configured', async () => {
+    const raw = JSON.parse(config()) as object;
+    (raw as { holdings: unknown[] }).holdings = [
+      ...(raw as { holdings: unknown[] }).holdings,
+      { origin: 'https://other.example.test', holdingSlug: 'other', companyId: 'other-company' },
+    ];
+    (raw as { portalHoldingSlug: string }).portalHoldingSlug = 'other';
+    process.env[key] = JSON.stringify(raw);
+    const fetchMock = vi.fn(async () => new Response(
+      JSON.stringify({ data: { statements: [{ sql: 'SELECT 1', values: [] }] } }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    ));
+    vi.stubGlobal('fetch', fetchMock);
+    await nativePortalReadStatement(CA_RD_PORTAL_INSTALLED, []);
+    const url = (fetchMock.mock.calls[0] as unknown as [URL])[0];
+    expect(url.pathname).toBe('/api/v1/holdings/other/customer-access/command-plan');
+    expect(((fetchMock.mock.calls[0] as unknown as [URL, RequestInit])[1] as RequestInit).headers)
+      .toMatchObject({ 'x-erpx-context-company': 'other-company' });
+    vi.unstubAllGlobals();
+    delete process.env[key];
+  });
+
+  it('fails closed when the portal holding is ambiguous or misconfigured', async () => {
+    const raw = JSON.parse(config()) as object;
+    (raw as { holdings: unknown[] }).holdings = [
+      ...(raw as { holdings: unknown[] }).holdings,
+      { origin: 'https://other.example.test', holdingSlug: 'other', companyId: 'other-company' },
+    ];
+    process.env[key] = JSON.stringify(raw);
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('must not fetch'); }));
+    await expect(nativePortalReadStatement(CA_RD_PORTAL_INSTALLED, [])).rejects.toMatchObject({
+      code: 'CUSTOMER_AUTHORITY_NATIVE_READ_UNAVAILABLE', status: 503,
+    });
+    (raw as { portalHoldingSlug: string }).portalHoldingSlug = 'missing';
+    process.env[key] = JSON.stringify(raw);
+    await expect(nativePortalReadStatement(CA_RD_PORTAL_INSTALLED, [])).rejects.toMatchObject({
+      code: 'CUSTOMER_AUTHORITY_NATIVE_READ_UNAVAILABLE', status: 503,
+    });
+    vi.unstubAllGlobals();
+    delete process.env[key];
+  });
+
+  it('keeps no TypeScript SQL mirror in the installed-probe and binding-lock consumers', async () => {
+    const sources = await readFile(new URL('../../../packages/server-customer_authority/src/adapters/portal-support-sources.ts', import.meta.url), 'utf8');
+    const access = await readFile(new URL('../../../packages/server-customer_authority/src/adapters/portal-access.ts', import.meta.url), 'utf8');
+    expect(sources).not.toContain('to_regclass(');
+    expect(sources).toContain('CA_RD_PORTAL_INSTALLED');
+    expect(sources).toContain('nativePortalReadStatement');
+    expect(access).not.toContain('FOR UPDATE');
+    expect(access).toContain('CA_RD_PORTAL_BINDING_LOCK');
+    expect(access).toContain('nativePortalReadStatement');
+    expect(access).toContain('db.prepare(plan.sql).bind(...plan.values)');
+  });
 });
 
 describe('customer authority portal attachment binding-current read family', () => {
@@ -395,7 +466,7 @@ describe('customer authority portal support responses source dedupe', () => {
     expect(src).toContain("const supportSource=(table:'responses'|'acknowledgements'|'closures')=>allColumnsProjection(`customer_portal_support_${table}`);");
     expect(src).toContain("export const portalSupportResponsesSource=supportSource('responses');");
     expect(src).toContain("responses:portalSupportResponsesSource,acknowledgements:supportSource('acknowledgements'),closures:supportSource('closures')");
-    expect(src.match(/\bSELECT\b/g)).toHaveLength(1);
+    expect(src.match(/\bSELECT\b/g) ?? []).toHaveLength(0);
     expect(consumer).toContain('portalSupportInstalled,portalSupportResponsesSource,portalSupportSourceReadLocks');
     expect(consumer).toContain('LEFT JOIN LATERAL(${portalSupportResponsesSource} response WHERE');
     expect(consumer).not.toContain('SELECT * FROM customer_portal_support_responses');

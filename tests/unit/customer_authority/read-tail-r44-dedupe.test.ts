@@ -66,7 +66,8 @@ describe('Customer Authority read-tail r44 binding-order core family', () => {
 
   test('pinned callers keep prepared statements, locks, native kinds and eligibility', () => {
     const access = src('portal-access.ts');
-    expect(access).toContain('FOR UPDATE');
+    expect(access).toContain('CA_RD_PORTAL_BINDING_LOCK');
+    expect(access).toContain('nativePortalReadStatement');
     expect(access).toContain("db.prepare(`${portalBindingSource('b.id,')}");
     const facts = src('attachments-portal-facts.ts');
     expect(facts).toContain('db.prepare(`${portalBindingSource()}');

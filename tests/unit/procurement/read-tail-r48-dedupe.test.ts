@@ -51,14 +51,14 @@ describe('Procurement read-tail r48 supplier detail head dedupe', () => {
     expect(sha('read-tail-r28.ts')).toBe('d9a93d385847a379c5e470da3add3fd5e504558ec2a1e9c9fb94043efeab94d0');
     expect(sha('read-tail-r44.ts')).toBe('f5dc17c41403aded63b04458839a97a5db2ad0025139f88390478638f45239be');
     expect(sha('read-tail-r45.ts')).toBe('7e85a1f2555ab7d26ef18662380522a8db6d4f78cac5f5be0a27a9d1f3b120ec');
-    expect(sha('read-tail-r47.ts')).toBe('7973cb62b2004263bc84593b15b1d5e5ce43dff50b7beea695fab3c6af4d2e6d');
+    expect(sha('read-tail-r47.ts')).toBe('d4908a00c22d2da7aebc30a2b14f0f514ae602872b15e464399fc6768b21a67e');
     expect(sha('package-obligations.ts')).toBe('2c344b0529a049c1b03ded03a3a5df74ce5bf0d30d76eb7b8769b1210196b102');
     expect(src('read-tail-r28.ts')).toContain('export const attachmentVersionWitness =');
     expect(src('read-tail-r44.ts')).toContain('export const commandReceiptEventWitness =');
     expect(src('read-tail-r45.ts')).toContain('export const procurementAttachmentReadOuterFrame =');
     expect(src('package-obligations.ts')).toContain('LOCK TABLE procurement_rfqs,');
     expect(src('package-obligations.ts')).toContain('command_receipts IN SHARE MODE');
-    expect(src('read-tail-r47.ts')).toContain('export const procurementSettlementFactSelect =');
+    expect(src('read-tail-r47.ts')).toContain("export { quotedProjection as procurementSettlementFactSelect } from './read-tail-r33';");
   });
 
   test('worktree SELECT count is 90 - 3 + 1 - 3 = 85', () => {
@@ -74,6 +74,6 @@ describe('Procurement read-tail r48 supplier detail head dedupe', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(90);
-    expect(total).toBe(77); // r50: four bill-receipt heads (-4 +1 helper) 85 -> 82; r51: two jsonb_agg heads (-2 +1 helper) 82 -> 81; r52: two by-id EXISTS heads (-2 +1 helper) 81 -> 80; r53: two EXISTS/FROM/WHERE heads (-2 +1 helper) 80 -> 79; r54: two columns/FROM/WHERE heads (-2 +1 helper) 79 -> 78; r55: two ARRAY heads (-2 +1 helper) 78 -> 77.
+    expect(total).toBe(75); // r50: four bill-receipt heads (-4 +1 helper) 85 -> 82; r51: two jsonb_agg heads (-2 +1 helper) 82 -> 81; r52: two by-id EXISTS heads (-2 +1 helper) 81 -> 80; r53: two EXISTS/FROM/WHERE heads (-2 +1 helper) 80 -> 79; r54: two columns/FROM/WHERE heads (-2 +1 helper) 79 -> 78; r55: two ARRAY heads (-2 +1 helper) 78 -> 77.
   });
 });

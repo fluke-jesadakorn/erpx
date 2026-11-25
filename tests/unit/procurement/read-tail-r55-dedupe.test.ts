@@ -106,13 +106,13 @@ describe('Procurement read-tail r55 ARRAY subquery head dedupe', () => {
     expect(sha(src('read-tail-r31.ts'))).toBe('d6d1fa0a6b3499731d60d8cb9aad71f2f9bfde5f19b77ea354d4016aae432ce1');
     expect(sha(src('read-tail-r44.ts'))).toBe('f5dc17c41403aded63b04458839a97a5db2ad0025139f88390478638f45239be');
     expect(sha(src('read-tail-r45.ts'))).toBe('7e85a1f2555ab7d26ef18662380522a8db6d4f78cac5f5be0a27a9d1f3b120ec');
-    expect(sha(src('read-tail-r47.ts'))).toBe('7973cb62b2004263bc84593b15b1d5e5ce43dff50b7beea695fab3c6af4d2e6d');
+    expect(sha(src('read-tail-r47.ts'))).toBe('d4908a00c22d2da7aebc30a2b14f0f514ae602872b15e464399fc6768b21a67e');
     expect(sha(src('read-tail-r48.ts'))).toBe('3c49967c017a03df44136e588df5b9ca71abf04d49465be79c2c572a3cadc816');
     expect(sha(src('read-tail-r50.ts'))).toBe('a22440f40b969c713465c4ad55110805176fb27c70500cc4c7584889110d919e');
     expect(sha(src('read-tail-r51.ts'))).toBe('08bd16f0507ba84fe3f9bf6285faea9c24126a871141c78707dcbdeb3f907958');
     expect(sha(src('read-tail-r52.ts'))).toBe('3b588e2a3ec73e6ac8caf5eee864c1b8e5b95139e9eb40da12e732c31261603d');
     expect(sha(src('read-tail-r53.ts'))).toBe('70fe1a434534f27038ec5225e1f2558fcbf57734335db2cd1aefbdfed9913ce5');
-    expect(sha(src('read-tail-r54.ts'))).toBe('d92ce1e40f1b77a83ca8ecc3ab9c1415aba4ccf7980e88b1abee5a2fe35e0093');
+    expect(sha(src('read-tail-r54.ts'))).toBe('9ecd018a32bf54ad2e917a9a27a31b9da00e3a74fb300fb7d5abef79d2bbbf8e');
     expect(sha(src('package-obligations.ts'))).toBe('2c344b0529a049c1b03ded03a3a5df74ce5bf0d30d76eb7b8769b1210196b102');
     expect(sha(src('supplier-bills.ts'))).toBe('f1485ee0fc42475f3337626f561f97aa4ab1d1921b6df412bc97c12a7e534fef');
   });
@@ -130,6 +130,6 @@ describe('Procurement read-tail r55 ARRAY subquery head dedupe', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(78);
-    expect(total).toBe(77);
+    expect(total).toBe(75);
   });
 });

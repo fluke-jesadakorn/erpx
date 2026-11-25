@@ -2,7 +2,7 @@ import { nativePosAll } from './native-owner-write';
 import { nativePosCashMovementsStatement, nativePosConnectionsStatement, nativePosKeyedSaleDocumentStatement, nativePosRegisterByIdStatement, nativePosSalesEvidenceStatement, nativePosShiftsStatement, nativePosTablesStatement } from './native-pos-core-statement';
 import { nativePosSaleLinesStatement, nativePosSalePaymentsStatement } from './native-pos-sale-child';
 import { nativePosRegistersStatement, nativePosRegistersFrontStatement, nativePosSaleStatement, nativePosSettingsStatement } from './native-pos-registers-statement';
-import { nativePosConnectionsRowStatement, nativePosRefundsListStatement, nativePosSalesListStatement, nativePosSettlementsListStatement } from './native-pos-list-reads';
+import { nativePosConnectionsRowStatement, nativePosExceptionJobsListStatement, nativePosRefundsListStatement, nativePosSalesListStatement, nativePosSettlementsListStatement } from './native-pos-list-reads';
 import { nativePosEvidenceDetail } from './native-lane-25/detail-client';
 import { nativePosDayCloses } from './native-lane-25/day-closes-client';
 import { roomChargeReversalWork } from "@erpx/server-pos/adapters/room-charge-reversal-queue";
@@ -126,7 +126,7 @@ function unit(db: SqlDatabase, actor: WorkContext): PosReadUnit<SqlStatement> {
         readPmsProperties1: facts => posGuestAccountInterface(db).choices(facts.company,facts.branch_id,facts.currency,facts.propertyId),
         readPosRefundPayments1: (facts: {
             company: string;
-        }) => all(db, "SELECT id,kind,record_id,state,last_error,payload_json,created_at,(SELECT r.version FROM pos_refund_payments rp JOIN pos_refunds r ON r.id=rp.refund_id WHERE rp.id=pos_jobs.record_id AND r.company_id=pos_jobs.company_id AND pos_jobs.kind='refund') refund_version FROM pos_jobs WHERE company_id=? AND (state='exception' OR kind IN ('connect','connect_refresh')) ORDER BY created_at DESC LIMIT 50", facts.company),
+        }) => nativePosExceptionJobsListStatement(db, facts.company),
         readPosLines3: (facts: {
             company: string;
             company2: string;

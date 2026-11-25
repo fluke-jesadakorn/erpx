@@ -45,6 +45,7 @@ pub(crate) mod directory_runtime;
 pub(crate) mod iam_roles;
 
 pub(crate) mod position_gpo;
+pub(crate) mod private_file_denial;
 
 pub(crate) mod people_access;
 pub(crate) mod people_grants;

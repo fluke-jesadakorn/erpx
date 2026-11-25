@@ -51,7 +51,7 @@ describe('Ecommerce read-tail r25 three-rank dedupe', () => {
     expect(src).toContain('ecommerceOrderedList("l.*,r.status current_return_status,r.version current_return_version"');
     expect(src).toContain('"l.checkout_id=?")).bind(id).all<Row>()).results');
     expect(src).not.toContain('`SELECT l.*,r.status current_return_status,r.version current_return_version FROM ecommerce_return_links');
-    expect((src.match(/ecommerceOrderedList\(/g) ?? []).length).toBe(8);
+    expect((src.match(/ecommerceOrderedList\(/g) ?? []).length).toBe(5);
   });
 
   test('F2: file authority rebuilds from ecommerceReleaseGate byte-identically (689 chars, six binds)', () => {

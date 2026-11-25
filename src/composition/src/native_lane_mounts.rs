@@ -360,6 +360,28 @@ pub fn mount(
         .map_err(|_| "PRIVATE_API_BENEFITS_LANE32_INVALID")?,
     );
 
+    // Benefits: native settlement event history.
+    router = router.merge(
+        erpx_server_benefits::public::native_settlement_events::router_for_holdings(
+            config
+                .holdings
+                .iter()
+                .enumerate()
+                .map(|(i, holding)| {
+                    (
+                        erpx_server_benefits::public::native_settlement_events::LaneTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                            origin: format!("https://{}", holding.host),
+                        },
+                        pools[i + 1].clone(),
+                    )
+                })
+                .collect(),
+        )
+        .map_err(|_| "PRIVATE_API_BENEFITS_SETTLEMENT_EVENTS_INVALID")?,
+    );
+
     // Runtime lane 33: holding-binding reads.
     router = router.merge(
         erpx_server_runtime::public::native_lane_33::router_for_holdings(

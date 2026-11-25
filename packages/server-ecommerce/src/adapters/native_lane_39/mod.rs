@@ -8,8 +8,13 @@ mod application;
 mod domain;
 mod http;
 mod postgres;
+mod workspace_rows;
 
 pub use application::{WorkspaceListFuture, WorkspaceListRead, read_workspace_lists};
+pub use workspace_rows::{
+    CHECKOUTS_SQL, COMMERCE_ORDERS, COMMERCE_PRODUCTS, LISTINGS_SQL, PgWorkspaceRowRead,
+    WorkspaceRowFuture, WorkspaceRowRead, WorkspaceRows, read_workspace_rows,
+};
 pub use domain::{
     CartRow, ChannelRow, MAX_ROWS, WorkspaceLists, WorkspaceScope, valid_id, validate_scope,
 };

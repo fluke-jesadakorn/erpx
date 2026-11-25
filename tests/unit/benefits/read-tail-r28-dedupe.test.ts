@@ -117,8 +117,8 @@ describe('benefits read-tail r28 exists-head dedupe', () => {
     }
   });
 
-  test('retirement:ts-statements is 28, strictly below the r28 BEFORE=32 baseline', () => {
-    expect(kpi()).toBe(28);
+  test('retirement:ts-statements is 27, strictly below the r28 BEFORE=32 baseline', () => {
+    expect(kpi()).toBe(27);
     expect(kpi()).toBeLessThan(32);
   });
 });

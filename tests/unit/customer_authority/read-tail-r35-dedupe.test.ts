@@ -39,7 +39,8 @@ describe('Customer Authority read-tail r35 scalar projection family', () => {
     expect(attach).toContain("assignmentReadSql('portal_file_staff','commerce.read')");
 
     const access = src('portal-access.ts');
-    expect(access).toContain('FOR UPDATE');
+    expect(access).toContain('CA_RD_PORTAL_BINDING_LOCK');
+    expect(access).toContain('nativePortalReadStatement');
     expect(access).not.toContain('scalarProjection');
     const eligibility = src('assignment-eligibility-source.ts');
     expect(eligibility).toContain('export const');
@@ -89,6 +90,6 @@ describe('Customer Authority read-tail r35 scalar projection family', () => {
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(43);
     // r43 further reduced the tail (26 -> 22); keep the current exact pin.
-    expect(total).toBe(17);
+    expect(total).toBe(15);
   });
 });

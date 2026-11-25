@@ -99,7 +99,7 @@ describe('maintenance read-tail r30 alias-row head delegation', () => {
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(16);
+    expect(total).toBe(15);
     expect(total).toBeLessThan(18);
   });
 });

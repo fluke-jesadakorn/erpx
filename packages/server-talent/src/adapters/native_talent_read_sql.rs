@@ -209,6 +209,28 @@ const READ_CANDIDATE_SOURCE_IMAGE_FILE: NativeTalentReadStatement = NativeTalent
     bind_count: 2,
 };
 
+/// Native successors of the TypeScript `talentOwnerSourceQuery` requisition
+/// image reads in `adapters/purchases.ts`. The caller binds
+/// `[id, company_id, branch_id, branch_id, department_id, department_id]` on
+/// its open unit. The file variant strips version/updated_at byte-for-byte.
+pub const RD_REQUISITION_SOURCE_IMAGE: &str = "talent_rd_requisition_source_image";
+const SQL_RD_REQUISITION_SOURCE_IMAGE: &str =
+    "SELECT to_jsonb(r)::text image FROM talent_requisitions r WHERE r.id=? AND r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?)";
+const READ_REQUISITION_SOURCE_IMAGE: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_REQUISITION_SOURCE_IMAGE,
+    sql: SQL_RD_REQUISITION_SOURCE_IMAGE,
+    bind_count: 6,
+};
+
+pub const RD_REQUISITION_SOURCE_IMAGE_FILE: &str = "talent_rd_requisition_source_image_file";
+const SQL_RD_REQUISITION_SOURCE_IMAGE_FILE: &str =
+    "SELECT (to_jsonb(r)-'version'-'updated_at')::text image FROM talent_requisitions r WHERE r.id=? AND r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?)";
+const READ_REQUISITION_SOURCE_IMAGE_FILE: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_REQUISITION_SOURCE_IMAGE_FILE,
+    sql: SQL_RD_REQUISITION_SOURCE_IMAGE_FILE,
+    bind_count: 6,
+};
+
 /// Owner event-history plans for the candidate and offer read families. They
 /// mirror the existing `talent_rd_application_events` shape; the caller binds
 /// `[candidate_id]` or `[offer_id]` on its open unit. Rows are immutable and
@@ -268,6 +290,8 @@ const STATEMENTS: &[NativeTalentReadStatement] = &[
     READ_HIRE_HANDOFF_QUEUE,
     READ_CANDIDATE_SOURCE_IMAGE,
     READ_CANDIDATE_SOURCE_IMAGE_FILE,
+    READ_REQUISITION_SOURCE_IMAGE,
+    READ_REQUISITION_SOURCE_IMAGE_FILE,
     READ_CANDIDATE_EVENTS,
     READ_OFFER_EVENTS,
     READ_WORKSPACE_RECORD_SOURCE,
@@ -305,7 +329,7 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), 1);
         }
-        assert_eq!(STATEMENTS.len(), 20);
+        assert_eq!(STATEMENTS.len(), 22);
     }
 
     #[test]
@@ -574,6 +598,36 @@ mod tests {
     }
 
     #[test]
+    fn requisition_image_plans_are_owner_authored_select_only() {
+        let expected = [
+            (RD_REQUISITION_SOURCE_IMAGE, SQL_RD_REQUISITION_SOURCE_IMAGE),
+            (RD_REQUISITION_SOURCE_IMAGE_FILE, SQL_RD_REQUISITION_SOURCE_IMAGE_FILE),
+        ];
+        for (kind, sql) in expected {
+            let statement = read_statement(kind).expect("registered requisition image kind");
+            assert_eq!(statement.kind, kind);
+            assert_eq!(statement.sql, sql);
+            assert_eq!(statement.bind_count, 6);
+            assert_eq!(sql.matches('?').count(), 6);
+            assert!(sql.starts_with("SELECT "), "requisition image read must be SELECT-only: {kind}");
+            for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
+                assert!(!sql.contains(forbidden), "requisition image read must not mutate: {forbidden}");
+            }
+            for table in ["talent_requisitions", "r.company_id=?", "r.branch_id=?", "r.department_id=?"] {
+                assert!(sql.contains(table), "requisition image read must stay on its owner scope: {table}");
+            }
+            assert_eq!(
+                STATEMENTS.iter().filter(|entry| entry.kind == kind).count(),
+                1,
+                "requisition image kind must resolve once: {kind}"
+            );
+        }
+        // The file variant strips exactly version and updated_at.
+        assert!(SQL_RD_REQUISITION_SOURCE_IMAGE_FILE.contains("to_jsonb(r)-'version'-'updated_at'"));
+        assert!(read_statement("talent_rd_requisition_source_image_file_missing").is_none());
+    }
+
+    #[test]
     fn offer_candidate_cutover_kinds_are_the_owner_authority() {
         // Exactly the four discriminators the TS command-plan client sends for
         // the offer/candidate cutover. They must stay registered, SELECT-only
@@ -596,7 +650,7 @@ mod tests {
                 "cutover kind must resolve to exactly one statement: {kind}"
             );
         }
-        assert_eq!(STATEMENTS.len(), 20);
+        assert_eq!(STATEMENTS.len(), 22);
         // A SQL literal, a case variant and a truncated kind never resolve.
         for forged in [
             "SELECT * FROM talent_offers",

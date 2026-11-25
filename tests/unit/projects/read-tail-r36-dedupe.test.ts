@@ -130,7 +130,7 @@ describe('Projects read-tail r36 package-actual source and event-fact arm dedupe
     // the two package-actual source NOT EXISTS
     // witnesses into one helper (96-in-file -> 95-in-file, -1) and Rank2 folds
     // the work-log/cost-allocation UNION arms into one closed helper (-1).
-    expect(total).toBe(65); // r44 final-root projection family folded into read-tail-r40 (66->65)
+    expect(total).toBe(62); // r45 bare-projection head family folded into read-tail-r45 (65->62)
     expect(total).toBeLessThan(88);
   });
 });

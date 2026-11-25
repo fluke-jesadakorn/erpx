@@ -60,8 +60,8 @@ describe('Records read-tail r21 employeeRequestColumnsSql family', () => {
     const records = readFileSync(resolve(srcRoot, 'adapters/records.ts'), 'utf8');
     expect(records).toContain('const recordVersionExistsSql ='); // r11
     expect(records).toContain('const recordRowSelectSql ='); // r12
-    expect(records).toContain('const referenceEdgesSql ='); // r14
-    expect(records).toContain('const recordContextDetailSql ='); // r15
+    expect(records).not.toContain('const referenceEdgesSql ='); // r14 retired
+    expect(records).not.toContain('const recordContextDetailSql ='); // r15 retired
     const ai = readFileSync(resolve(srcRoot, 'adapters/ai-usage-projection.ts'), 'utf8');
     expect(ai).toContain('export const requestAiUsageProjection ='); // r16
     const r17 = readFileSync(resolve(srcRoot, 'adapters/read-tail-sql.ts'), 'utf8');
@@ -69,7 +69,7 @@ describe('Records read-tail r21 employeeRequestColumnsSql family', () => {
     expect((r17.match(/SELECT /g) ?? []).length).toBe(0); // r30 delegates to existsGuardSql
     const r18 = readFileSync(resolve(srcRoot, 'adapters/read-tail-count-sql.ts'), 'utf8');
     expect(r18).toContain('export const requestAiUsageCountSql =');
-    expect((r18.match(/SELECT /g) ?? []).length).toBe(1);
+    expect((r18.match(/SELECT /g) ?? []).length).toBe(0);
     const r19 = readFileSync(resolve(srcRoot, 'adapters/read-tail-exists-sql.ts'), 'utf8');
     expect(r19).toContain('export const existsGuardSql =');
     expect((r19.match(/SELECT /g) ?? []).length).toBe(1);
@@ -106,7 +106,7 @@ describe('Records read-tail r21 retirement check', () => {
     // child-row generator with an order frame (23 -> 22); r30 folds the version
     // fence, employee_requests head and request_ai head (22 -> 19). No other
     // family, lock or native seam changed.
-    expect(total).toBe(11);
+    expect(total).toBe(9);
     expect(total).toBeLessThan(30);
   });
 });

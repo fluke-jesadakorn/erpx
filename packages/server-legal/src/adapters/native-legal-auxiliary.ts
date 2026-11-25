@@ -158,3 +158,150 @@ export async function nativeInspectionSourceRead<T>(
   } as unknown as WorkContext;
   return nativeLegalAuxiliaryRead<T>(actor, 'inspection-source', documentId);
 }
+
+export type LegalReadPlan = Readonly<{ sql: string; values: unknown[] }>;
+
+/**
+ * Owner-issued bounded read plan. The native Legal service resolves one
+ * allow-listed kind to the exact statement the retired owner literal bound;
+ * this bridge carries only the kind and positional values and executes the
+ * returned statement on the caller's already-open unit. No SQL is accepted
+ * from the wire and there is no TypeScript fallback.
+ */
+export async function nativeLegalReadPlan(
+  kind: string,
+  values: readonly unknown[],
+): Promise<LegalReadPlan> {
+  if (!kind || kind.length > 120 || values.length > 16)
+    throw new ApiError(
+      422,
+      'NATIVE_LEGAL_READ_REQUEST_INVALID',
+      'Use one bounded Legal read plan.',
+    );
+  const config = configuration();
+  const target = config.holdings[0];
+  if (!target)
+    throw new ApiError(
+      503,
+      'NATIVE_LEGAL_AUTHORITY_INVALID',
+      'The native Legal authority is unavailable.',
+    );
+  if (
+    !Number.isInteger(config.timeoutMs) ||
+    config.timeoutMs < 250 ||
+    config.timeoutMs > 30_000
+  )
+    throw new ApiError(
+      503,
+      'NATIVE_LEGAL_CONFIGURATION_INVALID',
+      'Native Legal transport is misconfigured.',
+    );
+  let base: URL;
+  let origin: URL;
+  try {
+    base = new URL(config.privateBaseUrl);
+    origin = new URL(target.origin);
+  } catch {
+    throw new ApiError(
+      503,
+      'NATIVE_LEGAL_CONFIGURATION_INVALID',
+      'Native Legal transport is misconfigured.',
+    );
+  }
+  if (
+    base.protocol !== 'http:' ||
+    !['127.0.0.1', '[::1]'].includes(base.hostname) ||
+    !base.port ||
+    base.username ||
+    base.password ||
+    origin.protocol !== 'https:' ||
+    origin.origin !== target.origin ||
+    origin.username ||
+    origin.password
+  )
+    throw new ApiError(
+      503,
+      'NATIVE_LEGAL_CONFIGURATION_INVALID',
+      'Native Legal transport is misconfigured.',
+    );
+  const body = JSON.stringify({ kind, values });
+  if (new TextEncoder().encode(body).length > 16 * 1024)
+    throw new ApiError(
+      422,
+      'NATIVE_LEGAL_READ_REQUEST_INVALID',
+      'Use one bounded Legal read plan.',
+    );
+  let response: Response;
+  try {
+    response = await fetch(
+      new URL(
+        `/api/v1/holdings/${encodeURIComponent(target.holdingSlug)}/legal/command-plan`,
+        base,
+      ),
+      {
+        method: 'POST',
+        headers: {
+          host: origin.host,
+          origin: target.origin,
+          accept: 'application/json',
+          'content-type': 'application/json',
+        },
+        body,
+        cache: 'no-store',
+        redirect: 'error',
+        signal: AbortSignal.timeout(config.timeoutMs),
+      },
+    );
+  } catch {
+    throw new ApiError(
+      503,
+      'NATIVE_LEGAL_UNAVAILABLE',
+      'The native Legal service is unavailable.',
+    );
+  }
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as
+      | { error?: { code?: unknown; message?: unknown } }
+      | null;
+    throw new ApiError(
+      response.status,
+      typeof payload?.error?.code === 'string'
+        ? payload.error.code
+        : 'NATIVE_LEGAL_READ_FAILED',
+      typeof payload?.error?.message === 'string'
+        ? payload.error.message
+        : 'The native Legal read failed.',
+    );
+  }
+  const payload = (await response.json().catch(() => null)) as
+    | { data?: { statements?: unknown } }
+    | null;
+  const statements = payload?.data?.statements;
+  if (!Array.isArray(statements) || statements.length !== 1)
+    throw new ApiError(
+      502,
+      'NATIVE_LEGAL_READ_RESPONSE_INVALID',
+      'The native Legal plan reply was invalid.',
+    );
+  const entry = statements[0];
+  if (entry === null || typeof entry !== 'object' || Array.isArray(entry))
+    throw new ApiError(
+      502,
+      'NATIVE_LEGAL_READ_RESPONSE_INVALID',
+      'The native Legal plan reply was invalid.',
+    );
+  const planned = entry as { sql?: unknown; values?: unknown };
+  if (
+    typeof planned.sql !== 'string' ||
+    planned.sql.length === 0 ||
+    planned.sql.length > 200_000 ||
+    !Array.isArray(planned.values) ||
+    planned.values.length > 16
+  )
+    throw new ApiError(
+      502,
+      'NATIVE_LEGAL_READ_RESPONSE_INVALID',
+      'The native Legal plan reply was invalid.',
+    );
+  return { sql: planned.sql, values: planned.values };
+}

@@ -125,4 +125,47 @@ mod tests {
             assert!(!upper.contains("LOCK TABLE"), "{kind}");
         }
     }
+
+    /// Canonical owner form of the bare projection head retired from the r28,
+    /// r29, r41 and evaluation-source TypeScript helpers. The TS renderer
+    /// `selectBodySql` must reproduce each exact prefix; this crate records it.
+    fn select_body_sql(body: &str) -> String {
+        format!("SELECT {body}")
+    }
+
+    #[test]
+    fn bare_select_body_matches_retired_owner_literals() {
+        let cases = [
+            (
+                "assignment viewer head",
+                select_body_sql("g.id assignment_id,g.user_id,g.role,"),
+                "SELECT g.id assignment_id,g.user_id,g.role,",
+            ),
+            (
+                "ordered image aggregate head",
+                select_body_sql("jsonb_agg(to_jsonb(d) ORDER BY d.id)"),
+                "SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id)",
+            ),
+            (
+                "clock projection head",
+                select_body_sql("floor(extract(epoch FROM clock_timestamp())*1000)::bigint now_ms"),
+                "SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint now_ms",
+            ),
+            (
+                "source identity columns",
+                select_body_sql("id,project_id,company_id,"),
+                "SELECT id,project_id,company_id,",
+            ),
+        ];
+        for (name, rendered, expected) in cases {
+            assert_eq!(rendered, expected, "{name}");
+            assert_eq!(rendered.matches("SELECT ").count(), 1, "{name}");
+            let upper = rendered.to_ascii_uppercase();
+            assert!(!upper.contains("INSERT"), "{name}");
+            assert!(!upper.contains("UPDATE "), "{name}");
+            assert!(!upper.contains("DELETE"), "{name}");
+            assert!(!upper.contains("FOR UPDATE"), "{name}");
+            assert!(!upper.contains("LOCK TABLE"), "{name}");
+        }
+    }
 }

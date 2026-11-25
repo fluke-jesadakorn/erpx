@@ -85,7 +85,7 @@ describe('pms read-tail r47 native read retirement', () => {
     expect(rust).toContain('const SQL_HOUSEKEEPING_COMMAND: &str = ' + JSON.stringify(HEAD.housekeeping) + ';');
     expect(rust).toContain('bind_count: 11,');
     expect(rust).toContain('bind_count: 4,');
-    expect(rust).toContain('READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT];');
+    expect(rust).toContain('READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS];');
   });
 
   it('routes both call sites through the native transport and removes the inline SQL', async () => {
@@ -93,12 +93,14 @@ describe('pms read-tail r47 native read retirement', () => {
     expect(home).not.toContain(HEAD.hotelSources);
     expect(home).toContain('nativePmsReadAll');
     expect(home).toContain('PMS_RD_HOTEL_SOURCES');
-    const hotelAt = home.indexOf('PMS_RD_HOTEL_SOURCES,');
+    const hotelAt = home.indexOf('PMS_RD_HOTEL_SOURCES, [facts.id');
     expect(hotelAt).toBeGreaterThanOrEqual(0);
     const hotelChunk = home.slice(Math.max(0, hotelAt - 400), hotelAt + 400);
     expect(hotelChunk).toContain('nativePmsReadAll');
     expect(hotelChunk).toContain('facts.offset], db');
-    expect(home.split('nativePmsReadAll<').length - 1).toBe(1);
+    // hotelSources and the retired hotelMetrics read both run on the caller unit.
+    expect(home.split('nativePmsReadAll<').length - 1).toBe(2);
+    expect(home).toContain('PMS_RD_HOTEL_METRICS, [facts.companyId, facts.branchId, facts.branchId2, facts.propertyId, facts.propertyId2], db');
 
     const pms = await src('adapters/pms.ts');
     expect(pms).not.toContain(HEAD.housekeeping);
@@ -168,8 +170,8 @@ describe('pms read-tail r47 native read retirement', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(236);
-    expect(bare).toBe(237);
+    expect(spaced).toBe(234);
+    expect(bare).toBe(235);
     expect(spaced).toBeLessThan(283);
     expect(bare).toBeLessThan(285);
   });

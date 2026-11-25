@@ -3,12 +3,12 @@ import 'server-only';
 /**
  * Fail-closed transport for the native Commercial owner-read registry.
  *
- * The axum owner plans one of three exact static usage SELECTs for a closed
- * read kind. This bridge emits no SQL and accepts none from a caller: it only
- * returns the registered owner query so the caller can run it as a subquery on its
- * own already-open unit, keeping its own filters and `FOR UPDATE` inside the
- * caller's transaction. Missing configuration or any configured failure fails
- * closed with no TypeScript fallback.
+ * The axum owner plans one of four exact static usage/projection SELECTs for a
+ * closed read kind. This bridge emits no SQL and accepts none from a caller: it
+ * only returns the registered owner query so the caller can run it as a
+ * subquery on its own already-open unit, keeping its own filters and
+ * `FOR UPDATE` inside the caller's transaction. Missing configuration or any
+ * configured failure fails closed with no TypeScript fallback.
  *
  * The transport reuses an existing registered Commercial/Billing owner target
  * on the private listener; `ERPX_NATIVE_COMMERCIAL_OWNER_READ_CONFIG` may supply
@@ -84,16 +84,18 @@ function config(): Config {
   return { base: base.origin, timeoutMs: value.timeoutMs, targets };
 }
 
-export type CommercialOwnerReadKind = 'usage.snapshot' | 'usage.meter' | 'usage.seat';
+export type CommercialOwnerReadKind = 'usage.snapshot' | 'usage.meter' | 'usage.seat' | 'principal.events';
 
 export const COMMERCIAL_RD_USAGE_SNAPSHOT: CommercialOwnerReadKind = 'usage.snapshot';
 export const COMMERCIAL_RD_USAGE_METER: CommercialOwnerReadKind = 'usage.meter';
 export const COMMERCIAL_RD_USAGE_SEAT: CommercialOwnerReadKind = 'usage.seat';
+export const COMMERCIAL_RD_PRINCIPAL_EVENTS: CommercialOwnerReadKind = 'principal.events';
 
 const KINDS = new Set<string>([
   COMMERCIAL_RD_USAGE_SNAPSHOT,
   COMMERCIAL_RD_USAGE_METER,
   COMMERCIAL_RD_USAGE_SEAT,
+  COMMERCIAL_RD_PRINCIPAL_EVENTS,
 ]);
 
 /** Return the exact owner-owned query registered for `kind`. */

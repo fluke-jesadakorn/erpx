@@ -102,7 +102,7 @@ describe('Support read-tail r24 evidence projection family', () => {
     });
 
     test('keeps locks, purchases and prior dedupe families intact', () => {
-        expect(src('adapters/service-access.ts')).toContain('const activeAssignmentSql = (alias: string, col: string, gap: string, tail: string) =>');
+        expect(src('adapters/service-access.ts')).not.toContain('activeAssignmentSql');
         expect(src('adapters/ticket-portal-sources.ts')).toContain('export const portalReplayProofSql=');
         expect(src('adapters/ticket-portal-sources.ts')).toContain('export const portalValidBindingSelect=');
         expect(src('adapters/ticket-portal-image-sql.ts')).toContain('export const portalImageAggregateSql = (images: string[]) =>');
@@ -125,7 +125,7 @@ describe('Support read-tail r24 evidence projection family', () => {
             }
         };
         walk(srcRoot);
-        expect(total).toBe(30);
+        expect(total).toBe(28);
         expect(total).toBeLessThan(50);
     });
 });

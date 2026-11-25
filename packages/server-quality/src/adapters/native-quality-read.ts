@@ -11,6 +11,8 @@ export const RD_SPEC_EXISTS = "quality_rd_spec_exists";
 export const RD_ATTACH_HOLD_CAS = "quality_rd_attach_hold_cas";
 export const RD_ATTACH_SPEC_CAS = "quality_rd_attach_spec_cas";
 export const RD_ATTACHMENT_DESCRIPTOR = "quality_rd_attachment_descriptor";
+export const RD_LEGACY_ATTACHMENT_SCOPE = "quality_rd_legacy_attachment_scope";
+export const RD_ATTACHMENT_SPEC_SCOPE = "quality_rd_attachment_spec_scope";
 
 /**
  * Strict owner transport for the native Quality read-plan route. The axum

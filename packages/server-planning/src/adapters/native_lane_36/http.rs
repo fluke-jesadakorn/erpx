@@ -6,7 +6,9 @@
 //! SQL crosses this port.
 
 use super::application;
-use super::domain::LaneScope;
+use super::domain::{
+    KIND_EXECUTIVE_RECOMMENDATION, KIND_EXECUTIVE_SHORTAGE, LaneScope,
+};
 use super::postgres::PgLaneRead;
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
@@ -159,23 +161,47 @@ impl LaneState {
         let id = query_value(query, "id")?;
         let comparison = query_value(query, "comparisonScenarioId")?;
         let specification = query_value(query, "specificationId")?;
+        let from = query_value(query, "from")?;
+        let to = query_value(query, "to")?;
+        let eligibility = query_value(query, "eligibility")?;
         // Reject unrelated query keys so a caller cannot smuggle a predicate.
         if let Some(query) = query {
             for pair in query.split('&') {
                 let name = pair.split_once('=').map(|(name, _)| name).unwrap_or(pair);
-                if !matches!(name, "branch" | "id" | "comparisonScenarioId" | "specificationId") {
+                if !matches!(
+                    name,
+                    "branch"
+                        | "id"
+                        | "comparisonScenarioId"
+                        | "specificationId"
+                        | "from"
+                        | "to"
+                        | "eligibility"
+                ) {
                     return Err(invalid());
                 }
             }
         }
-        let scope = LaneScope::new(
-            kind,
-            company,
-            branch.as_deref(),
-            id.as_deref(),
-            comparison.as_deref(),
-            specification.as_deref(),
-        )?;
+        let scope = if matches!(kind, KIND_EXECUTIVE_SHORTAGE | KIND_EXECUTIVE_RECOMMENDATION) {
+            LaneScope::new_executive(
+                kind,
+                company,
+                branch.as_deref(),
+                id.as_deref(),
+                from.as_deref(),
+                to.as_deref(),
+                eligibility.as_deref(),
+            )?
+        } else {
+            LaneScope::new(
+                kind,
+                company,
+                branch.as_deref(),
+                id.as_deref(),
+                comparison.as_deref(),
+                specification.as_deref(),
+            )?
+        };
         application::handle(reader.as_ref(), scope).await
     }
 }
@@ -324,10 +350,45 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn executive_reads_require_id_window_and_closed_eligibility() {
+        let state = state();
+        let shortage = state
+            .read(
+                &headers("company-1"),
+                "acme",
+                KIND_EXECUTIVE_SHORTAGE,
+                Some("id=scenario-1&from=2026-01-01&to=2026-12-31"),
+            )
+            .await;
+        assert_eq!(shortage.status(), StatusCode::OK);
+        let proposed = state
+            .read(
+                &headers("company-1"),
+                "acme",
+                KIND_EXECUTIVE_RECOMMENDATION,
+                Some("id=recommendation-1&from=2026-01-01&to=2026-12-31&eligibility=proposed"),
+            )
+            .await;
+        assert_eq!(proposed.status(), StatusCode::OK);
+        for (kind, query) in [
+            (KIND_EXECUTIVE_RECOMMENDATION, "id=recommendation-1&from=2026-01-01&to=2026-12-31"),
+            (KIND_EXECUTIVE_RECOMMENDATION, "id=recommendation-1&from=2026-01-01&to=2026-12-31&eligibility=approved"),
+            (KIND_EXECUTIVE_SHORTAGE, "id=scenario-1&from=2026-01-01&to=2026-12-31&eligibility=capacity"),
+            (KIND_EXECUTIVE_SHORTAGE, "id=scenario-1&from=2026-01-01"),
+            (KIND_EXECUTIVE_SHORTAGE, "id=scenario-1&from=2026-01-01&to=2026/12/31"),
+        ] {
+            let response = state
+                .read(&headers("company-1"), "acme", kind, Some(query))
+                .await;
+            assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY, "{query}");
+        }
+    }
+
+    #[tokio::test]
     async fn rejects_unknown_kind_and_unbounded_branch() {
         let state = state();
         let response = state
-            .read(&headers("company-1"), "acme", "executive-shortage", None)
+            .read(&headers("company-1"), "acme", "executive-bogus", None)
             .await;
         assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
         let response = state

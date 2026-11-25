@@ -614,6 +614,35 @@ const READ_SERVICE_SCOPE_DEPARTMENT: NativeSupportReadStatement = NativeSupportR
     bind_count: 3,
 };
 
+/// Native successor of the TypeScript scoped service-membership probe at
+/// `service-access.ts:serviceMember`. The caller binds
+/// `[company_id, user_id, branch_id, department_id]` and receives one row when
+/// an unrevoked, time-valid assignment covers the requested scope. The closed
+/// Identity assignment projection and the active/scope predicates stay fixed
+/// native SQL; no lock, advisory or assertion is attached.
+pub const RD_SERVICE_MEMBER: &str = "support_rd_service_member";
+const SQL_SERVICE_MEMBER: &str =
+    "SELECT 1 WHERE EXISTS(SELECT 1 FROM (SELECT \"id\",\"user_id\",\"role\",\"modules_json\",\"company_id\",\"branch_id\",\"valid_from\",\"valid_until\",\"revoked_at\",\"version\",\"scope_kind\",\"scope_node_id\",\"parent_id\",\"source\",\"source_id\" FROM assignments) a WHERE a.company_id=? AND a.user_id=?\n AND a.revoked_at IS NULL AND a.valid_from<=(floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND a.valid_until>(floor(extract(epoch FROM clock_timestamp())*1000)::bigint)\n AND (a.scope_kind='holding' OR (a.scope_kind='branch' AND a.scope_node_id=?) OR (a.scope_kind='department' AND a.scope_node_id=?)))";
+const READ_SERVICE_MEMBER: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_SERVICE_MEMBER,
+    sql: SQL_SERVICE_MEMBER,
+    bind_count: 4,
+};
+
+/// Native successor of the TypeScript company-membership probe at
+/// `service-access.ts:companyMember`. The caller binds `[company_id, user_id]`
+/// and receives one row for any unrevoked, time-valid assignment in the
+/// Company. The closed Identity assignment projection stays fixed native SQL;
+/// no lock, advisory or assertion is attached.
+pub const RD_COMPANY_MEMBER: &str = "support_rd_company_member";
+const SQL_COMPANY_MEMBER: &str =
+    "SELECT 1 FROM (SELECT \"id\",\"user_id\",\"role\",\"modules_json\",\"company_id\",\"branch_id\",\"valid_from\",\"valid_until\",\"revoked_at\",\"version\",\"scope_kind\",\"scope_node_id\",\"parent_id\",\"source\",\"source_id\" FROM assignments) assignments WHERE company_id=? AND user_id=? AND revoked_at IS NULL AND valid_from<=(floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_until>(floor(extract(epoch FROM clock_timestamp())*1000)::bigint) LIMIT 1";
+const READ_COMPANY_MEMBER: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_COMPANY_MEMBER,
+    sql: SQL_COMPANY_MEMBER,
+    bind_count: 2,
+};
+
 /// Native successor of the TypeScript service-team option organization-node
 /// list. The caller binds `[company_id, branch_id, branch_id, branch_id,
 /// department_id, department_id]`; the closed Organization node projection,
@@ -732,6 +761,8 @@ const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_SERVICE_SCOPE_COMPANY,
     READ_SERVICE_SCOPE_BRANCH,
     READ_SERVICE_SCOPE_DEPARTMENT,
+    READ_SERVICE_MEMBER,
+    READ_COMPANY_MEMBER,
     READ_SERVICE_TEAM_OPTION_NODES,
     READ_TICKET_WORK,
     READ_TICKET_BY_ID,
@@ -908,6 +939,8 @@ mod tests {
             (RD_SERVICE_SCOPE_COMPANY, SQL_SERVICE_SCOPE_COMPANY, 2usize),
             (RD_SERVICE_SCOPE_BRANCH, SQL_SERVICE_SCOPE_BRANCH, 2usize),
             (RD_SERVICE_SCOPE_DEPARTMENT, SQL_SERVICE_SCOPE_DEPARTMENT, 3usize),
+            (RD_SERVICE_MEMBER, SQL_SERVICE_MEMBER, 4usize),
+            (RD_COMPANY_MEMBER, SQL_COMPANY_MEMBER, 2usize),
             (RD_SERVICE_TEAM_OPTION_NODES, SQL_SERVICE_TEAM_OPTION_NODES, 6usize),
             (RD_TICKET_WORK, SQL_TICKET_WORK, 8usize),
             (RD_TICKET_BY_ID, SQL_TICKET_BY_ID, 9usize),
@@ -929,12 +962,12 @@ mod tests {
                     sql.contains("support_incident_tickets") || sql.contains("support_tickets") ||
                     sql.contains("support_incidents") || sql.contains("support_sla_policies") ||
                     sql.contains("attachment_links") || sql.contains("customer_contact_notes") ||
-                    sql.contains("organization_nodes"),
-                "owner read must stay on owner-local Support tables, closed Files/Organization/Sales projections: {sql}"
+                    sql.contains("organization_nodes") || sql.contains("FROM assignments"),
+                "owner read must stay on owner-local Support tables, closed Files/Organization/Sales/Identity projections: {sql}"
             );
             assert_eq!(sql.matches('?').count(), binds);
         }
-        assert_eq!(STATEMENTS.len(), 50);
+        assert_eq!(STATEMENTS.len(), 52);
     }
 
     #[test]
@@ -1022,6 +1055,10 @@ mod tests {
         assert_eq!(branch_node.bind_count, 2);
         let department_node = read_statement(RD_SERVICE_SCOPE_DEPARTMENT).expect("department scope node read");
         assert_eq!(department_node.bind_count, 3);
+        let service_member = read_statement(RD_SERVICE_MEMBER).expect("service member read");
+        assert_eq!(service_member.bind_count, 4);
+        let company_member = read_statement(RD_COMPANY_MEMBER).expect("company member read");
+        assert_eq!(company_member.bind_count, 2);
         let nodes = read_statement(RD_SERVICE_TEAM_OPTION_NODES).expect("team option node list read");
         assert_eq!(nodes.bind_count, 6);
         let ticket_work = read_statement(RD_TICKET_WORK).expect("ticket work read");

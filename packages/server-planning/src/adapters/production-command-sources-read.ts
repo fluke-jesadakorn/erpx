@@ -1,49 +1,12 @@
-import {productionReadProjection as productionmanufacturingProjection} from '@erpx/server-manufacturing/public/production-read-projections';
-import {productionReadProjection as productioncommerceProjection} from '@erpx/server-commerce/public/production-read-projections';
-import {productionReadProjection as productionorganizationProjection} from '@erpx/server-organization/public/production-read-projections';
-import {planningSelectFrom} from "./planning-select-from-sql";
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {Row} from '@erpx/server-commerce/public/commerce';import {assertion} from "@erpx/server-workflow/public/command-assertions";import {productionResourcesExists,planningAllocatedMinutes} from "./planning-guard-sql";import {planningCommandExistsGuard} from "./planning-command-guard-sql";
-import {nativeRecommendations,nativeScenarios,nativeResources,nativeCalendar,nativeScenario,nativeScopedRecommendation,nativeComparison} from './native-lane-36/client';
+import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import {assertion} from "@erpx/server-workflow/public/command-assertions";import {productionResourcesExists,planningAllocatedMinutes} from "./planning-guard-sql";import {planningCommandExistsGuard} from "./planning-command-guard-sql";
+import {nativeRecommendations,nativeScenarios,nativeResources,nativeCalendar,nativeScenario,nativeScopedRecommendation,nativeComparison,nativeExecutiveShortage,nativeExecutiveRecommendation} from './native-lane-36/client';
 
-const sourceJoins = `
-    ${productionmanufacturingProjection.executiveSpecification}
-    ${productioncommerceProjection.executiveOutput}
-    ${productioncommerceProjection.executiveWarehouse}
-    ${productionorganizationProjection.executiveBranch}
-    LEFT JOIN planning_recommendations r ON r.scenario_id=s.id`;
-const shortageProjection = `
-    LEFT JOIN LATERAL (
-      ${planningSelectFrom(`COALESCE(jsonb_agg(jsonb_build_object(
-        'product_name',COALESCE(p.name,'Unknown product'),
-        'required_milli',(entry.value->>'requiredMilli')::numeric::text,
-        'available_milli',(entry.value->>'availableMilli')::numeric::text,
-        'shortage_milli',(entry.value->>'shortageMilli')::numeric::text
-      ) ORDER BY COALESCE(p.name,entry.value->>'productId')) FILTER (WHERE (entry.value->>'shortageMilli')::numeric>0),'[]'::jsonb)::text shortage_items_json,
-      count(*) FILTER (WHERE (entry.value->>'shortageMilli')::numeric>0)::text shortage_count`, '      ', `jsonb_array_elements(COALESCE(s.shortages_json::jsonb,'[]'::jsonb)) AS entry(value)
-      ${productioncommerceProjection.executiveShortageProduct}`)}
-    ) shortage ON TRUE`;
-const projection = planningSelectFrom(`s.id scenario_id,s.company_id,s.branch_id,branch.display_name branch_name,
-      s.warehouse_id,w.name warehouse_name,s.specification_id,spec.name specification_name,
-      spec.output_product_id,output.name output_product_name,s.specification_version,
-      s.demand_quantity_milli::text demand_quantity_milli,s.due_date,s.capacity_minutes::text capacity_minutes,
-      s.status scenario_status,s.version scenario_version,s.created_at scenario_created_at,s.updated_at scenario_updated_at,
-      r.id recommendation_id,r.status recommendation_status,r.recommended_quantity_milli::text recommended_quantity_milli,
-      r.required_minutes::text required_minutes,r.feasible_date,r.version recommendation_version,
-      r.scenario_version,r.created_at recommendation_created_at,r.updated_at recommendation_updated_at,
-      COALESCE(shortage.shortage_count,'0') shortage_count,COALESCE(shortage.shortage_items_json,'[]') shortage_items_json`, '    ', `planning_scenarios s ${sourceJoins} ${shortageProjection}`);
 export function productionCommandSources(db:SqlDatabase){return {async scenarios(companyId:string,branchId:string | null,branchId2:string | null){return nativeScenarios(companyId,branchId,branchId2);},
 async recommendations(companyId:string,branchId:string | null,branchId2:string | null){return nativeRecommendations(companyId,branchId,branchId2);},
 async resources(companyId:string,branchId:string | null,branchId2:string | null){return nativeResources(companyId,branchId,branchId2);},
 async calendar(companyId:string,branchId:string | null,branchId2:string | null){return nativeCalendar(companyId,branchId,branchId2);},
-async executiveShortage(recordId:string,companyId:string,branchId:string | null,branchId2:string | null,from:string,to:string){const branchScope = "(?::text IS NULL OR s.branch_id=?)";
-return db.prepare(`${projection}
-      WHERE s.id=? AND s.company_id=? AND ${branchScope} AND s.due_date BETWEEN ? AND ?
-        AND jsonb_path_exists(COALESCE(s.shortages_json::jsonb,'[]'::jsonb),'$[*] ? (@.shortageMilli > 0)') LIMIT 1`)
-      .bind(recordId,companyId,branchId,branchId2,from,to).first<Row>();},
-async executiveRecommendation(recordId:string,companyId:string,branchId:string | null,branchId2:string | null,from:string,to:string,eligibilityKind:"proposed"|"capacity"){const branchScope = "(?::text IS NULL OR s.branch_id=?)";
-const eligibility=eligibilityKind==='proposed'?"r.status='proposed'":"r.status IN ('proposed','approved') AND r.required_minutes<=s.capacity_minutes";return db.prepare(`${projection}
-    WHERE r.id=? AND s.company_id=? AND ${branchScope} AND r.feasible_date BETWEEN ? AND ? AND ${eligibility} LIMIT 1`)
-    .bind(recordId,companyId,branchId,branchId2,from,to).first<Row>();},
+async executiveShortage(recordId:string,companyId:string,branchId:string | null,branchId2:string | null,from:string,to:string){return nativeExecutiveShortage(recordId,companyId,branchId,from,to);},
+async executiveRecommendation(recordId:string,companyId:string,branchId:string | null,branchId2:string | null,from:string,to:string,eligibilityKind:"proposed"|"capacity"){return nativeExecutiveRecommendation(recordId,companyId,branchId,from,to,eligibilityKind);},
 guardRoutingResource(key:string,value:string,resourceId:string,companyId:string,branchId:string | null,branchId2:string | null){return assertion(db, key, value, productionResourcesExists("status='active' AND (?::text IS NULL OR branch_id=?)"), [resourceId, companyId, branchId, branchId2]);},
 async comparison(comparisonScenarioId:string,companyId:string,branch_id:string | number | null,specificationId:string){return nativeComparison({comparisonScenarioId,specificationId},companyId,branch_id===null?null:String(branch_id));},
 guardComparison(key:string,value:"comparison",comparisonScenarioId:string,companyId:string,value2:string,specificationId:string,value3:number){return assertion(db, key, value, planningCommandExistsGuard("planning_scenarios", "id=? AND company_id=? AND branch_id=? AND specification_id=? AND version=?"), [comparisonScenarioId, companyId, value2, specificationId, value3]);},

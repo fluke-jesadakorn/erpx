@@ -185,26 +185,25 @@ describe('Marketing owner-local campaign read tail', () => {
     expect(form).not.toContain("SELECT 1 FROM marketing_assets WHERE id=? AND company_id=? AND kind='content'");
   });
 
-  it('keeps one fixed owner predicate for campaign existence reads', async () => {
+  it('routes campaign existence reads through the native owner read port', async () => {
     const { readFile } = await import('node:fs/promises');
     const base = new URL('../../../packages/server-marketing/src/adapters/', import.meta.url);
-    const helper = await readFile(new URL('campaign-existence.ts', base), 'utf8');
+    await expect(readFile(new URL('campaign-existence.ts', base), 'utf8')).rejects.toThrow();
     const submission = await readFile(new URL('public-submission.ts', base), 'utf8');
     const campaigns = await readFile(new URL('campaigns.ts', base), 'utf8');
 
     const predicate = 'SELECT 1 FROM marketing_campaigns WHERE id=? AND company_id=?';
-    // r40 moved the single existence SQL into the shared point-read head; this
-    // wrapper only delegates. The byte oracle is frozen in the r40 test.
-    expect(helper).not.toMatch(/SELECT/);
-    expect(helper).toContain('export const marketingCampaignExistsSql');
-    expect(helper).toContain('marketingOwnerPointReadSql("1", "marketing_campaigns")');
-
+    // r56 deleted the TS wrapper: the owner read port owns the exact statement
+    // and both consumers now run it on their own Holding transaction.
     for (const consumer of [submission, campaigns]) {
-      expect(consumer).toContain("import {marketingCampaignExistsSql} from './campaign-existence'");
+      expect(consumer).toContain('MARKETING_RD_CAMPAIGN_EXISTS');
+      expect(consumer).not.toContain('campaign-existence');
       expect(consumer).not.toContain(predicate);
     }
-    expect(submission).toContain('db.prepare(marketingCampaignExistsSql).bind(id,companyId).first()');
-    expect(campaigns).toContain('`EXISTS(${marketingCampaignExistsSql})`');
+    expect(submission).toContain('nativeMarketingReadFirst<Record<string,unknown>>(MARKETING_RD_CAMPAIGN_EXISTS,{campaignId:id,companyId},db)');
+    expect(campaigns).toContain('nativeMarketingPlan(MARKETING_RD_CAMPAIGN_EXISTS)');
+    expect(campaigns).toContain('`EXISTS(${exists.sql})`');
+    expect(campaigns).toContain('[i.campaignId,a.companyId]');
   });
 
   it('keeps one fixed owner projection for executive evidence row reads', async () => {

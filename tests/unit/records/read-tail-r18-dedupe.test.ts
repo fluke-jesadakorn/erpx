@@ -41,7 +41,9 @@ describe('Records read-tail r18 requestAiUsageCountSql family', () => {
 
   test('the family is one generator literal with two callers and no inlined count', () => {
     expect(shared.match(/export const requestAiUsageCountSql\s*=/g) ?? []).toHaveLength(1);
-    expect((shared.match(/SELECT /g) ?? []).length).toBe(1);
+    expect((shared.match(/SELECT /g) ?? []).length).toBe(0);
+    expect(shared).toContain('import { projectionColumnHeadSql } from \'./read-tail-r32-sql\';');
+    expect(shared).toContain("`(${projectionColumnHeadSql('count(*)', 'request_ai_usage', ` WHERE ${predicate}`)})`");
     expect(requestAi.match(/requestAiUsageCountSql\(/g) ?? []).toHaveLength(2);
     expect(requestAi).not.toContain('SELECT count(*) FROM request_ai_usage WHERE company_id=?');
     expect(requestAi).not.toContain('SELECT count(*) FROM request_ai_usage WHERE actor_id=?');
@@ -51,8 +53,8 @@ describe('Records read-tail r18 requestAiUsageCountSql family', () => {
     const records = readFileSync(resolve(srcRoot, 'adapters/records.ts'), 'utf8');
     expect(records).toContain('const recordVersionExistsSql ='); // r11
     expect(records).toContain('const recordRowSelectSql ='); // r12
-    expect(records).toContain('const referenceEdgesSql ='); // r14
-    expect(records).toContain('const recordContextDetailSql ='); // r15
+    expect(records).not.toContain('const referenceEdgesSql ='); // r14 retired
+    expect(records).not.toContain('const recordContextDetailSql ='); // r15 retired
     const ai = readFileSync(resolve(srcRoot, 'adapters/ai-usage-projection.ts'), 'utf8');
     expect(ai).toContain('export const requestAiUsageProjection ='); // r16
     const r17 = readFileSync(resolve(srcRoot, 'adapters/read-tail-sql.ts'), 'utf8');

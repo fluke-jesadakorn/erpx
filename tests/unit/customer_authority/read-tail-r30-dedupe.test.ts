@@ -58,8 +58,8 @@ describe('Customer Authority read-tail r30 owner existence-probe family', () => 
     expect(read).not.toContain(WORKFORCE_ORIGINAL);
 
     const access = src('portal-access.ts');
-    // The remaining SELECT is the FOR UPDATE binding lock, which is untouched.
-    expect(access.match(/\bSELECT\b/g) ?? []).toHaveLength(1);
+    // The FOR UPDATE binding lock is now planned by the native portal read port.
+    expect(access.match(/\bSELECT\b/g) ?? []).toHaveLength(0);
     expect(access).toContain("existenceProbe('FROM customer_access_identities','binding_id=? AND user_id=? AND email=?')");
     expect(access).not.toContain(IDENTITY_ORIGINAL);
   });

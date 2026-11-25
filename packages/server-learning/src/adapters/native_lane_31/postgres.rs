@@ -291,6 +291,41 @@ mod tests {
         assert_eq!(COMPLETION_SQL, MIGRATED_ORACLE);
     }
 
+    /// Byte oracle migrated from the retired TypeScript constant
+    /// `overdueEvidenceColumns` in `adapters/learning-read-sql.ts`. The native
+    /// owner is now the single source of truth for these bytes.
+    #[test]
+    fn overdue_evidence_oracle_migrated_from_typescript() {
+        const MIGRATED_ORACLE: &str = concat!(
+            "SELECT a.id,a.version,a.status,a.due_date,a.updated_at,c.title course_title,c.required_for",
+            " FROM learning_assignments a JOIN learning_courses c ON c.id=a.course_id",
+            " WHERE a.id=$1 AND a.company_id=$2 AND ($3::text IS NULL OR a.branch_id=$3)",
+            " AND ($4::text IS NULL OR a.department_id=$4) AND c.required_for IS NOT NULL",
+            " AND a.due_date<to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD')",
+            " AND a.status IN ('assigned','in_progress')",
+            " LIMIT 1",
+        );
+        assert_eq!(OVERDUE_SQL, MIGRATED_ORACLE);
+    }
+
+    /// Byte oracles for the assignments-image read family, folded into the
+    /// owner-local `imageChildFrame` renderer in TypeScript. The native owner
+    /// pins the exact rendered bytes of both caller variants so no caller can
+    /// drift them while the single query head stays in the TS owner renderer.
+    #[test]
+    fn assignments_image_family_byte_oracles_are_owner_local() {
+        for expected in [
+            "(SELECT jsonb_agg(to_jsonb(a) ORDER BY a.id) FROM learning_assignments a WHERE a.company_id=?)",
+            "(SELECT jsonb_agg(to_jsonb(a)||jsonb_build_object('visible',TRUE) ORDER BY a.id) FROM learning_assignments a WHERE a.company_id=?)",
+        ] {
+            assert!(expected.starts_with("(SELECT jsonb_agg("));
+            assert!(expected.ends_with(" ORDER BY a.id) FROM learning_assignments a WHERE a.company_id=?)"));
+            assert!(!expected.to_uppercase().contains("INSERT"));
+            assert!(!expected.to_uppercase().contains("DELETE FROM"));
+            assert!(!expected.to_uppercase().contains("FOR UPDATE"));
+        }
+    }
+
     #[test]
     fn search_predicates_are_owner_local_and_company_scoped() {
         // The search family renders every predicate from fixed owner-local

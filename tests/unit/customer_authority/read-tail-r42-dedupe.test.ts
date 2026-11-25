@@ -80,7 +80,8 @@ describe('Customer Authority read-tail r42 support-request family', () => {
       expect(helper, name).not.toContain('supportRequestRead');
     }
 
-    expect(src('portal-access.ts')).toContain('FOR UPDATE');
+    expect(src('portal-access.ts')).toContain('CA_RD_PORTAL_BINDING_LOCK');
+    expect(src('portal-access.ts')).toContain('nativePortalReadStatement');
     expect(src('portal-source-locks.ts')).toContain('LOCK TABLE');
     expect(src('portal-purchase-binding-source.ts')).toContain('o.kind IN (${kinds})');
     expect(src('package-obligations.ts')).toContain("database.prepare('LOCK TABLE command_receipts,audit_events,outbox_events IN SHARE MODE').run()");
@@ -106,6 +107,6 @@ describe('Customer Authority read-tail r42 support-request family', () => {
     walk(srcRoot);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(27);
-    expect(total).toBe(17);
+    expect(total).toBe(15);
   });
 });

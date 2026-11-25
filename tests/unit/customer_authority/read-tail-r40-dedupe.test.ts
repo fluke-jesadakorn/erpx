@@ -83,7 +83,8 @@ describe('Customer Authority read-tail r40 universal projection head family', ()
     expect(purchases).not.toContain('SELECT 1 FROM portal_purchase_clock');
     expect(purchases).toContain('MATERIALIZED(SELECT ${packageClockSql} now_ms)');
 
-    expect(src('portal-access.ts')).toContain('FOR UPDATE');
+    expect(src('portal-access.ts')).toContain('CA_RD_PORTAL_BINDING_LOCK');
+    expect(src('portal-access.ts')).toContain('nativePortalReadStatement');
     expect(src('portal-source-locks.ts')).toContain('LOCK TABLE');
     expect(src('portal-purchase-binding-source.ts')).toContain('o.kind IN (${kinds})');
     expect(src('package-obligations.ts')).toContain("database.prepare('LOCK TABLE command_receipts,audit_events,outbox_events IN SHARE MODE').run()");
@@ -108,6 +109,6 @@ describe('Customer Authority read-tail r40 universal projection head family', ()
     walk(srcRoot);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(34);
-    expect(total).toBe(17);
+    expect(total).toBe(15);
   });
 });

@@ -175,34 +175,33 @@ describe('retired Quality dead read branch',()=>{
   expect(decisions).toContain('QUALITY_HOLD_NOT_FOUND');
  });
 });
-describe('quality attachment target-scope read dedupe',()=>{
+describe('quality attachment owner-scope reads are fully native',()=>{
  const source=(path:string)=>resolve(process.cwd(),path);
- test('one fixed target-scope SELECT backs the two retained variants',async()=>{
-  const {qualityAttachmentScopeReadSql}=await import('../../../packages/server-quality/src/adapters/quality-attachment-scope-read-sql');
-  expect(qualityAttachmentScopeReadSql('legacy_hold'))
-   .toBe('SELECT company_id,branch_id branch_id,NULL department_id,version FROM inventory_quality_holds WHERE id=?');
-  expect(qualityAttachmentScopeReadSql('spec'))
-   .toBe('SELECT company_id,NULL::text branch_id,NULL::text department_id,version FROM inventory_quality_specs WHERE id=? AND company_id=?');
-  for(const variant of ['legacy_hold','spec'] as const)expect(qualityAttachmentScopeReadSql(variant).match(/SELECT /g)).toHaveLength(1);
-  const helper=readFileSync(source('packages/server-quality/src/adapters/quality-attachment-scope-read-sql.ts'),'utf8');
-  expect(helper.match(/SELECT /g) ?? []).toHaveLength(0); // r38 fold
-  expect(helper).not.toContain('"hold"'); // descriptor variant retired to native
+ const text=(path:string)=>readFileSync(source(path),'utf8');
+ test('both retained scope statements are closed native read-plan kinds',()=>{
+  const registry=text('packages/server-quality/src/adapters/native_quality_read_sql.rs');
+  expect(registry).toContain('pub const RD_LEGACY_ATTACHMENT_SCOPE: &str = "quality_rd_legacy_attachment_scope"');
+  expect(registry).toContain('pub const RD_ATTACHMENT_SPEC_SCOPE: &str = "quality_rd_attachment_spec_scope"');
+  expect(registry).toContain('SELECT company_id,branch_id branch_id,NULL department_id,version FROM inventory_quality_holds WHERE id=?');
+  expect(registry).toContain('SELECT company_id,NULL::text branch_id,NULL::text department_id,version FROM inventory_quality_specs WHERE id=? AND company_id=?');
+  expect(()=>text('packages/server-quality/src/adapters/quality-attachment-scope-read-sql.ts')).toThrow();
  });
- test('descriptor facts run on the native plan; retained facts compose the shared SELECT',()=>{
-  const migration='packages/server-quality/src/adapters/attachment-migration-owner.ts';
-  const policy='packages/server-quality/src/adapters/attachments-policy-facts.ts';
-  const operational='packages/server-quality/src/adapters/attachments-operational-facts.ts';
-  for(const path of [migration,operational])expect(readFileSync(source(path),'utf8')).toContain('qualityAttachmentScopeReadSql');
-  expect(readFileSync(source(migration),'utf8')).not.toContain('SELECT ');
-  expect(readFileSync(source(operational),'utf8')).not.toContain('SELECT ');
-  const policyText=readFileSync(source(policy),'utf8');
-  expect(policyText).not.toContain('SELECT ');
-  expect(policyText).not.toContain('qualityAttachmentScopeReadSql');
-  expect(policyText).toContain('readDescriptor');
-  expect(policyText).toContain('readQualityHold');
-  expect(policyText).toContain('nativeQualityReadFirst');
-  expect(policyText).toContain('RD_ATTACHMENT_DESCRIPTOR');
-  expect(readFileSync(source(operational),'utf8')).toContain('nativeQualityGuardAssertion');
+ test('owner adapters emit no SQL and delegate to the native scope transport',()=>{
+  const migration=text('packages/server-quality/src/adapters/attachment-migration-owner.ts');
+  const policy=text('packages/server-quality/src/adapters/attachments-policy-facts.ts');
+  const operational=text('packages/server-quality/src/adapters/attachments-operational-facts.ts');
+  const scope=text('packages/server-quality/src/adapters/native-quality-scope.ts');
+  for(const value of [migration,policy,operational,scope]){
+   expect(value).not.toContain('SELECT ');
+   expect(value).not.toContain('qualityAttachmentScopeReadSql');
+  }
+  expect(migration).toContain('RD_LEGACY_ATTACHMENT_SCOPE');
+  expect(operational).toContain('RD_ATTACHMENT_SPEC_SCOPE');
+  expect(scope).toContain('readNativeQualityScope');
+  expect(policy).toContain('readDescriptor');
+  expect(policy).toContain('readQualityHold');
+  expect(policy).toContain('RD_ATTACHMENT_DESCRIPTOR');
+  expect(operational).toContain('nativeQualityGuardAssertion');
  });
 });
 describe('quality package-obligation scope and clock CTE dedupe',()=>{

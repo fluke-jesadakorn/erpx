@@ -105,7 +105,7 @@ describe('Projects read-tail r43 closed dependency-head family', () => {
     // (one per executive witness) now share one closed, bind-free head:
     // 72-2+1 = 71. The witness tails, locks, native SQL and cross-owner
     // projections keep their own literals and are not folded.
-    expect(total).toBe(65); // r44 final-root projection family folded into read-tail-r40 (66->65)
+    expect(total).toBe(62); // r45 bare-projection head family folded into read-tail-r45 (65->62)
     expect(total).toBeLessThan(72);
   });
 });

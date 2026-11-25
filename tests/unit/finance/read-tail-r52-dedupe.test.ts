@@ -105,7 +105,7 @@ describe('Finance read-tail r52 protected families and retirement', () => {
     // r55 folds 18 company count literals into two helpers (-18 literals, +2 declarations: 1742 -> 1726).
     // r56 folds 11 head literals into three helpers (-11 literals, +3 declarations: 1726 -> 1718).
     expect(CASES).toHaveLength(20);
-    expect(total).toBe(1678);
+    expect(total).toBe(1677);
     expect(total).toBeLessThan(1783);
   });
 });

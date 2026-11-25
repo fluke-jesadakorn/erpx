@@ -47,10 +47,6 @@ export const learningNativeSources=`SELECT id,company_id,NULL::text branch_id,NU
  * caller renders the same SQL bytes with its own alias. */
 export const nativeSourceProbe = (alias: string) => `SELECT 1 FROM (${learningNativeSources}) ${alias}`;
 
-/** The overdue evidence head is byte-identical in the executive evidence search
- * and the native executive projection; one source keeps both rendered queries equal. */
-export const overdueEvidenceColumns = 'SELECT a.id,a.version,a.status,a.due_date,a.updated_at,c.title course_title,c.required_for';
-
 /** r22 — module-grant membership probe. Its existence-probe head is
  * byte-identical to the r17 existsRowProbe head with the erpx_json_each source;
  * that one query head now lives in that owner-local renderer. Only the alias
@@ -68,8 +64,13 @@ export const moduleGrantAssignmentProbe = (alias: string, conditions: string) =>
 export const actorScopeExistsProbe = (columns: string, spacing = '') => `EXISTS(SELECT 1 FROM${spacing}${scopeRow(columns)}${spacing}learning_actor_scope WHERE ${assignmentReadSql('learning_actor_scope','records.read')})`;
 
 /** r7 — assignments image subquery, parameterized only by the projected JSON
- * expression so the guarded and unguarded images keep identical source bytes. */
-export const assignmentsImage = (projection: string) => `(SELECT jsonb_agg(${projection} ORDER BY a.id) FROM learning_assignments a WHERE a.company_id=?)`;
+ * expression so the guarded and unguarded images keep identical source bytes.
+ * This read family is folded into the r15 imageChildFrame head: it is exactly
+ * that frame with a jsonb_agg aggregate and the assignments source, so the one
+ * query head lives in the owner-local renderer and every rendering keeps its
+ * exact pre-fold bytes. */
+export const assignmentsImage = (projection: string) =>
+  imageChildFrame(`jsonb_agg(${projection} ORDER BY a.id)`, 'FROM learning_assignments a WHERE a.company_id=?');
 
 /** r7 — literal SELECT * source text, parameterized only by the owner table. */
 /* r24 — that head is exactly the r17 keyedRowRead head with a '*' projection

@@ -1187,6 +1187,32 @@ async fn quality_attachment_descriptor_read_port_matches_native_plan() {
 }
 
 #[tokio::test]
+async fn quality_attachment_owner_scope_native_plans_match_retired_rows() {
+    const LEGACY_SQL: &str = "SELECT company_id,branch_id branch_id,NULL department_id,version FROM inventory_quality_holds WHERE id=$1";
+    const SPEC_SQL: &str = "SELECT company_id,NULL::text branch_id,NULL::text department_id,version FROM inventory_quality_specs WHERE id=$1 AND company_id=$2";
+    fixture::with_database(2, |pool| async move {
+        facts::setup(&pool).await;
+        facts::hold(&pool, "scope-hold").await;
+        facts::specification(&pool, "spec").await;
+        let mut tx = pool.raw().begin().await.unwrap();
+        let legacy: (String, Option<String>, Option<String>, i64) = sqlx::query_as(sqlx::AssertSqlSafe(LEGACY_SQL))
+            .bind("scope-hold").fetch_one(&mut *tx).await.unwrap();
+        assert_eq!((&legacy.0, &legacy.1, &legacy.2), (&"company".to_owned(), &Some("branch".to_owned()), &None));
+        assert!(legacy.3 >= 0);
+        let spec: (String, Option<String>, Option<String>, i64) = sqlx::query_as(sqlx::AssertSqlSafe(SPEC_SQL))
+            .bind("spec").bind("company").fetch_one(&mut *tx).await.unwrap();
+        assert_eq!((&spec.0, &spec.1, &spec.2, spec.3), (&"company".to_owned(), &None, &None, 2));
+        let missing: Option<(String, Option<String>, Option<String>, i64)> = sqlx::query_as(sqlx::AssertSqlSafe(LEGACY_SQL))
+            .bind("missing").fetch_optional(&mut *tx).await.unwrap();
+        assert!(missing.is_none());
+        let foreign: Option<(String, Option<String>, Option<String>, i64)> = sqlx::query_as(sqlx::AssertSqlSafe(SPEC_SQL))
+            .bind("spec").bind("foreign").fetch_optional(&mut *tx).await.unwrap();
+        assert!(foreign.is_none());
+        tx.rollback().await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
 async fn quality_purchase_raw_sources_match_both_actual_typescript_lineages() {
     use erpx_server_quality::public::purchase_lineage_join::{inspect_quality_purchase_lineage_join,lock_quality_purchase_lineage_join};
     let script=r#"

@@ -134,6 +134,15 @@ pub const CHANGE_CANCEL: &str = "change_cancel";
 
 // -- people-lifecycle-facts ---------------------------------------------------
 pub const LIFECYCLE_POSITION_VERSION_STEP: &str = "lifecycle_position_version_step";
+/// Native-owned people-lifecycle active node list. SELECT-only and Company
+/// keyed over the org-owned `organization_nodes` table; the caller keeps its
+/// own lifecycle data authority and receives the retained `{id,name,kind}[]`
+/// row shape through the typed kind.
+pub const PEOPLE_LIFECYCLE_DATA_NODES: &str = "people_lifecycle_data_nodes";
+/// Native-owned lifecycle save position snapshot. SELECT-only and Company
+/// keyed with the position id; the caller keeps its lifecycle authority and
+/// receives the retained level/branch/department row or null.
+pub const LIFECYCLE_READ_SAVE_POSITION: &str = "lifecycle_read_save_position";
 
 // -- profile-media-command ----------------------------------------------------
 pub const PROFILE_MEDIA_UPLOAD_AVATAR: &str = "profile_media_upload_avatar";
@@ -311,6 +320,8 @@ pub const KINDS: &[&str] = &[
     CHANGE_SAVE,
     CHANGE_CANCEL,
     LIFECYCLE_POSITION_VERSION_STEP,
+    PEOPLE_LIFECYCLE_DATA_NODES,
+    LIFECYCLE_READ_SAVE_POSITION,
     PROFILE_MEDIA_UPLOAD_AVATAR,
     PROFILE_MEDIA_UPLOAD_COVER,
     PROFILE_MEDIA_UPDATE_AVATAR,
@@ -570,6 +581,12 @@ fn sql(kind: &str) -> Option<&'static str> {
         }
         LIFECYCLE_POSITION_VERSION_STEP => {
             "UPDATE organization_positions SET version=version+1 WHERE company_id=? AND id=?"
+        }
+        PEOPLE_LIFECYCLE_DATA_NODES => {
+            "SELECT id,display_name name,kind FROM organization_nodes WHERE company_id=? AND status='active' ORDER BY display_name,id"
+        }
+        LIFECYCLE_READ_SAVE_POSITION => {
+            "SELECT level_id,branch_id,department_id FROM organization_positions WHERE company_id=? AND id=?"
         }
         PROFILE_MEDIA_UPLOAD_AVATAR => {
             "INSERT INTO member_profiles(user_id,avatar_key,avatar_media_type,version,updated_at) VALUES(?,?,?,?,?)"
@@ -1656,6 +1673,74 @@ mod tests {
         assert!(owner_statement(
             FINANCE_STARTER_ORGANIZATION_NODES,
             &[Value::from("company"), Value::from("company")],
+        )
+        .is_err());
+        let upper = statement.to_ascii_uppercase();
+        assert!(upper.starts_with("SELECT "));
+        assert!(!upper.contains(" INSERT ") && !upper.contains(" UPDATE ") && !upper.contains(" DELETE "));
+        assert!(!upper.contains(" FOR UPDATE ") && !upper.contains(" FOR SHARE ") && !upper.contains(" LOCK TABLE "));
+    }
+
+    #[test]
+    fn people_lifecycle_data_nodes_kind_is_byte_identical_and_read_only() {
+        assert!(supported(PEOPLE_LIFECYCLE_DATA_NODES));
+        const RETIRED: &str = "SELECT id,display_name name,kind FROM organization_nodes WHERE company_id=? AND status='active' ORDER BY display_name,id";
+        assert_eq!(sql(PEOPLE_LIFECYCLE_DATA_NODES).unwrap(), RETIRED);
+        let digest = {
+            use sha2::Digest;
+            let mut hasher = sha2::Sha256::new();
+            hasher.update(RETIRED.as_bytes());
+            format!("{:x}", hasher.finalize())
+        };
+        assert_eq!(
+            digest,
+            "540b876572f469cd4d0092a855ae17077479bf52f073e39a0f7fb49ef10ca2b8"
+        );
+        let (statement, values) =
+            owner_statement(PEOPLE_LIFECYCLE_DATA_NODES, &[Value::from("company")])
+                .expect("people lifecycle data nodes statement");
+        assert_eq!(statement, RETIRED);
+        assert_eq!(values, vec![Value::from("company")]);
+        // Wrong arity and a missing Company key fail closed.
+        assert!(owner_statement(PEOPLE_LIFECYCLE_DATA_NODES, &[]).is_err());
+        assert!(owner_statement(
+            PEOPLE_LIFECYCLE_DATA_NODES,
+            &[Value::from("company"), Value::from("company")],
+        )
+        .is_err());
+        let upper = statement.to_ascii_uppercase();
+        assert!(upper.starts_with("SELECT "));
+        assert!(!upper.contains(" INSERT ") && !upper.contains(" UPDATE ") && !upper.contains(" DELETE "));
+        assert!(!upper.contains(" FOR UPDATE ") && !upper.contains(" FOR SHARE ") && !upper.contains(" LOCK TABLE "));
+    }
+
+    #[test]
+    fn lifecycle_read_save_position_kind_is_byte_identical_and_read_only() {
+        assert!(supported(LIFECYCLE_READ_SAVE_POSITION));
+        const RETIRED: &str = "SELECT level_id,branch_id,department_id FROM organization_positions WHERE company_id=? AND id=?";
+        assert_eq!(sql(LIFECYCLE_READ_SAVE_POSITION).unwrap(), RETIRED);
+        let digest = {
+            use sha2::Digest;
+            let mut hasher = sha2::Sha256::new();
+            hasher.update(RETIRED.as_bytes());
+            format!("{:x}", hasher.finalize())
+        };
+        assert_eq!(
+            digest,
+            "3890b4ecb403e95cc95d4e0a80fb9ca8403a313d6b4b487e0a3247d4fa6c4911"
+        );
+        let (statement, values) = owner_statement(
+            LIFECYCLE_READ_SAVE_POSITION,
+            &[Value::from("company"), Value::from("position")],
+        )
+        .expect("lifecycle save position statement");
+        assert_eq!(statement, RETIRED);
+        assert_eq!(values, vec![Value::from("company"), Value::from("position")]);
+        // Missing either positional value fails closed.
+        assert!(owner_statement(LIFECYCLE_READ_SAVE_POSITION, &[Value::from("company")]).is_err());
+        assert!(owner_statement(
+            LIFECYCLE_READ_SAVE_POSITION,
+            &[Value::from("company"), Value::from("position"), Value::from("extra")],
         )
         .is_err());
         let upper = statement.to_ascii_uppercase();

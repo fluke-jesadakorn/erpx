@@ -1084,7 +1084,7 @@ describe('finance read-tail r24 byte-identical SQL families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(2038);
-    expect(total).toBe(1678);
+    expect(total).toBe(1677);
   });
 });
 
@@ -1255,7 +1255,7 @@ describe('finance read-tail r30 byte-identical guard-prefix families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(2027);
-    expect(total).toBe(1678);
+    expect(total).toBe(1677);
   });
 });
 
@@ -1299,7 +1299,7 @@ describe('finance read-tail r31 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1989);
-    expect(total).toBe(1678);
+    expect(total).toBe(1677);
   });
 });
 
@@ -1344,7 +1344,7 @@ describe('finance read-tail r32 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1985);
-    expect(total).toBe(1678);
+    expect(total).toBe(1677);
   });
 });
 
@@ -1389,7 +1389,7 @@ describe('finance read-tail r33 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1983);
-    expect(total).toBe(1678);
+    expect(total).toBe(1677);
   });
 });
 
@@ -1464,7 +1464,7 @@ describe('finance read-tail r34 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1981);
-    expect(total).toBe(1678);
+    expect(total).toBe(1677);
   });
 });
 
@@ -1513,7 +1513,7 @@ describe('finance read-tail r35 parameterized workforce actor scope family', () 
     };
     walk(root);
     expect(total).toBeLessThan(1974);
-    expect(total).toBe(1678);
+    expect(total).toBe(1677);
   });
 });
 
@@ -1590,7 +1590,7 @@ describe('finance read-tail r36 exact duplicate two-site SQL families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1970);
-    expect(total).toBe(1678);
+    expect(total).toBe(1677);
   });
 });
 
@@ -1644,7 +1644,7 @@ describe('finance read-tail r37 exact duplicate period-exists read family', () =
     };
     walk(root);
     expect(total).toBeLessThan(1966);
-    expect(total).toBe(1678);
+    expect(total).toBe(1677);
   });
 });
 
@@ -1757,7 +1757,7 @@ describe('finance read-tail r38 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1965);
-    expect(total).toBe(1678);
+    expect(total).toBe(1677);
   });
 });
 
@@ -1874,7 +1874,7 @@ describe('finance read-tail r39 read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1951);
-    expect(total).toBe(1678);
+    expect(total).toBe(1677);
   });
 });
 
@@ -1998,6 +1998,34 @@ describe('finance read-tail r40 read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1942);
-    expect(total).toBe(1678);
+    expect(total).toBe(1677);
+  });
+});
+
+describe('finance native bank-automation imported-file read-port cutover', () => {
+  const KIND = 'FINANCE_RD_BANK_IMPORTED_FILE';
+  const SQL = 'SELECT s.statement_number FROM finance_bank_import_files f JOIN finance_bank_statements s ON s.id=f.statement_id AND s.company_id=f.company_id WHERE f.company_id=? AND f.bank_account_id=? AND f.file_hash=?';
+
+  it('registers the exact discriminator in the TS bridge and the Rust owner registry', async () => {
+    const bridge = await readFile(new URL('../../../packages/server-finance/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
+    expect(bridge).toContain(`export const ${KIND} = 'finance_rd_bank_imported_file'`);
+    expect(bridge).toContain('export async function nativeFinanceReadFirst');
+    const rust = await readFile(new URL('../../../packages/server-finance/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
+    expect(rust).toContain('pub const RD_BANK_IMPORTED_FILE: &str = "finance_rd_bank_imported_file"');
+    expect(rust).toContain(`const SQL_RD_BANK_IMPORTED_FILE: &str = "${SQL}"`);
+    expect(rust).toContain('READ_BANK_IMPORTED_FILE,');
+    expect(rust).toContain('assert_eq!(READS.len(), 31);');
+  });
+
+  it('delegates the duplicate probe to the native plan with no TypeScript SQL', async () => {
+    const adapter = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-bank-automation.ts', import.meta.url), 'utf8');
+    expect(adapter).toContain("import { FINANCE_RD_BANK_IMPORTED_FILE, nativeFinanceReadFirst } from './native-finance-read'");
+    expect(adapter).toContain(`nativeFinanceReadFirst<{statement_number:string}>(${KIND},[actor.companyId,accountId,fileHash],write)`);
+    expect(adapter.split(SQL).length - 1).toBe(0);
+    expect(adapter.split('finance_bank_import_files').length - 1).toBe(0);
+    // The remaining bank reads and guards stay owner-local TS where their SQL
+    // is dynamic or transaction-bound; this cut is only the imported-file probe.
+    expect(adapter).toContain('tableByIdSql(\'finance_bank_match_groups\') + \' FOR UPDATE\'');
+    expect(adapter).toContain('bankTxnGuardSql(');
   });
 });

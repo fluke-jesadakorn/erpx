@@ -76,10 +76,14 @@ describe('read-tail r51 bare-head fold', () => {
     expect(shared.match(/'SELECT '/g) ?? []).toHaveLength(1);
     expect(shared.match(/\$\{selectHeadSql\}/g) ?? []).toHaveLength(2);
     expect(shared.match(/`SELECT \$\{/g) ?? []).toHaveLength(0);
-    // r52 folded the ordinal head; r53 folded the approver-union head; flow-event history remains.
+    // r52 folded the ordinal head; r53 folded the approver-union head; r40 moved
+    // the flow-event history head onto native read kinds.
     expect(approval.match(/`SELECT \$\{columns\}/g) ?? []).toHaveLength(0);
     expect(approval.match(/`\$\{selectHeadSql\}\$\{columns\}/g) ?? []).toHaveLength(1);
-    expect(flow.match(/`SELECT \$\{columns\}/g) ?? []).toHaveLength(1);
+    expect(flow.match(/`SELECT \$\{columns\}/g) ?? []).toHaveLength(0);
+    expect(flow).not.toContain('flowEventsHistorySql');
+    expect(flow).toContain("'wf_native_flow_events_history'");
+    expect(flow).toContain("'wf_native_flow_events_record_history'");
     expect(union.match(/`SELECT \$\{variant/g) ?? []).toHaveLength(0);
     expect(union.match(/`\$\{selectHeadSql\}\$\{variant/g) ?? []).toHaveLength(1);
     expect(union).toContain("import { selectHeadSql } from './closed-projection-sources'");
@@ -97,7 +101,7 @@ describe('read-tail r51 bare-head fold', () => {
     }
   });
 
-  it('retirement:ts-statements is 26 after the r39 native inventory cut the r53 head fold (29->28)', async () => {
+  it('retirement:ts-statements is 25 after the r40 native flow-event cut (26->25)', async () => {
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -108,6 +112,6 @@ describe('read-tail r51 bare-head fold', () => {
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(30);
-    expect(total).toBe(26);
+    expect(total).toBe(25);
   });
 });

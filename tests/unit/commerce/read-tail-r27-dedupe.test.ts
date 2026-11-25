@@ -78,7 +78,7 @@ describe('Commerce r27 settings-image family native cutover', () => {
     expect(read('expense-posting-setup.ts')).toContain('LOCK TABLE command_receipts,commerce_settings IN SHARE ROW EXCLUSIVE MODE');
     expect(read('manufacturing-existing-posting-setup.ts')).toContain('LOCK TABLE command_receipts IN SHARE ROW EXCLUSIVE MODE');
     expect(read('expense-posting-setup.ts')).toContain('SELECT to_jsonb(r)::text image FROM command_receipts r WHERE r.command_id=?');
-    expect(read('manufacturing-existing-posting-setup.ts')).toContain("database.prepare('SELECT to_jsonb(s)::text image FROM commerce_mfg_existing_posting_confirmations s WHERE company_id=?)");
+    expect(read('manufacturing-existing-posting-setup.ts')).toContain("database.prepare('SELECT to_jsonb(s)::text image FROM commerce_mfg_existing_posting_confirmations s WHERE company_id=?')");
   });
 
   test('exact retired literals are owned by the native read registry', () => {
@@ -93,7 +93,7 @@ describe('Commerce r27 settings-image family native cutover', () => {
       expect(plans).toContain(`"${site.sql}"`);
       expect(plans).toContain(`kind: ${constant},`);
     }
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 24);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 26);');
     expect(plans).toContain('fn posting_setup_settings_image_reads_keep_their_exact_literals()');
     expect(sha(FAMILY.map((site) => site.sql).join('\n'))).toBe('b41fa29dda25eb56b97ddf900caf59512e1d12211e5bca16954a5f844d2706a8');
   });
@@ -101,7 +101,7 @@ describe('Commerce r27 settings-image family native cutover', () => {
   test('protected renderers, row locks, native registries and accounting locks stay untouched', () => {
     expect(read('read-tail-r21-dedupe-sql.ts')).toContain('`SELECT ${columns} FROM commerce_orders WHERE ${tail}`');
     expect(read('read-tail-r25-dedupe-sql.ts')).toContain('`SELECT line.* FROM commerce_order_lines line JOIN commerce_orders parent ON parent.id=line.order_id WHERE ${tail}`');
-    expect(read('read-tail-r26-dedupe-sql.ts')).toContain('`SELECT to_jsonb(source)::text image FROM commerce_orders source WHERE ${tail}`');
+    expect(existsSync(resolve(adapters, 'read-tail-r26-dedupe-sql.ts'))).toBe(false);
     expect(read('settings-dedupe-sql.ts')).toContain('SELECT\t* FROM commerce_settings WHERE company_id=?');
     expect(read('guarded-source-dedupe-sql.ts')).toContain("NOT EXISTS(SELECT 1 FROM commerce_settings WHERE company_id=?)");
     expect(read('guarded-source-dedupe-sql.ts')).toContain('`SELECT 1 FROM command_receipts WHERE ${tail}`');
@@ -113,8 +113,8 @@ describe('Commerce r27 settings-image family native cutover', () => {
     expect(read('supply-package-sources.ts')).toContain('LOCK TABLE commerce_orders,commerce_order_lines,commerce_fulfillments,commerce_fulfillment_lines,commerce_returns,commerce_return_lines,commerce_warehouses,commerce_products,commerce_goods_valuations,commerce_invoice_goods_carrying IN SHARE MODE');
   });
 
-  test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 390 (before 391)', () => {
-    expect(count(src, /SELECT /g)).toBe(390);
+  test('retirement:ts-statements pins the owner TypeScript SELECT KPI at 389 (before 390)', () => {
+    expect(count(src, /SELECT /g)).toBe(389);
     expect((read('expense-posting-setup.ts').match(/SELECT /g) ?? []).length).toBe(1);
     expect((read('manufacturing-existing-posting-setup.ts').match(/SELECT /g) ?? []).length).toBe(2);
   });

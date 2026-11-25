@@ -1,9 +1,16 @@
 import { createHash } from 'node:crypto';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import { workforceActorScopeSql } from '../../../packages/server-identity_access/src/adapters/read-tail-family-r31';
 import { revokedSessionProbeSql } from '../../../packages/server-identity_access/src/adapters/iam-probe-sql';
+import {
+  privateFileDenialAuthoritySourceLocks,
+  privateFileDenialAuthorityWitness,
+  setPrivateFileDenialWitnessForTest,
+} from '../../../packages/server-identity_access/src/adapters/native-private-file-denial-authority';
+import type { WorkContext } from '../../../packages/server-identity_access/src/public/authorization';
+import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-identity_access/src');
 const read = (rel: string) => readFileSync(resolve(srcRoot, rel), 'utf8');
@@ -69,8 +76,84 @@ describe('Identity access read-tail r31 wiring', () => {
   });
 });
 
+describe('Identity access private-file denial native witness', () => {
+  const ENV = 'ERPX_NATIVE_PRIVATE_FILE_DENIAL_CONFIG';
+  const actor = (overrides: Record<string, unknown> = {}) =>
+    ({
+      companyId: 'company-1',
+      userId: 'user-1',
+      assignmentId: 'assignment-1',
+      role: 'it_admin',
+      holdingId: 'holding-1',
+      holdingSlug: 'acme',
+      authority: { sessionId: 'session-1' },
+      ...overrides,
+    }) as unknown as WorkContext;
+  const database = { prepare: (sql: string) => ({ sql }) } as unknown as SqlDatabase;
+  const config = (holdings: unknown[] = [{
+    origin: 'https://acme.example.test', host: 'acme.example.test',
+    holdingId: 'holding-1', holdingSlug: 'acme',
+  }]) => JSON.stringify({ privateBaseUrl: 'http://127.0.0.1:44991', timeoutMs: 1000, holdings });
+
+  afterEach(() => {
+    setPrivateFileDenialWitnessForTest(undefined);
+    vi.unstubAllEnvs();
+  });
+
+  test('the replaced TS image query is gone and the native bridge carries no SQL', () => {
+    expect(existsSync(resolve(srcRoot, 'adapters/private-file-denial-authority.ts'))).toBe(false);
+    const client = read('adapters/native-private-file-denial-authority.ts');
+    expect(client).not.toMatch(/SELECT |WITH RECURSIVE|jsonb_build_object/i);
+    const entry = read('public/private-file-denial-authority.ts');
+    expect(entry).toContain('native-private-file-denial-authority');
+    expect(entry).not.toContain('adapters/private-file-denial-authority');
+  });
+
+  test('fails closed when the native owner is missing or misconfigured', async () => {
+    vi.stubEnv(ENV, undefined);
+    await expect(privateFileDenialAuthorityWitness(database, actor())).rejects.toMatchObject({
+      code: 'PRIVATE_FILE_DENIAL_AUTHORITY_CONFIGURATION_REQUIRED',
+    });
+    vi.stubEnv(ENV, 'not-json');
+    await expect(privateFileDenialAuthorityWitness(database, actor())).rejects.toMatchObject({
+      code: 'PRIVATE_FILE_DENIAL_AUTHORITY_CONFIGURATION_INVALID',
+    });
+    vi.stubEnv(ENV, config([{ origin: 'http://acme.example.test', host: 'acme.example.test', holdingId: 'holding-1', holdingSlug: 'acme' }]));
+    await expect(privateFileDenialAuthorityWitness(database, actor())).rejects.toMatchObject({
+      code: 'PRIVATE_FILE_DENIAL_AUTHORITY_CONFIGURATION_INVALID',
+    });
+  });
+
+  test('routes by exact holding and only accepts a verified 64-hex witness', async () => {
+    vi.stubEnv(ENV, config());
+    const seen: unknown[] = [];
+    setPrivateFileDenialWitnessForTest(async (witnessActor, holding) => {
+      seen.push({ witnessActor, holding });
+      return 'a'.repeat(64);
+    });
+    expect(await privateFileDenialAuthorityWitness(database, actor())).toBe('a'.repeat(64));
+    expect(seen).toEqual([{
+      witnessActor: { companyId: 'company-1', userId: 'user-1', assignmentId: 'assignment-1', role: 'it_admin', sessionId: 'session-1' },
+      holding: { origin: 'https://acme.example.test', host: 'acme.example.test', holdingId: 'holding-1', holdingSlug: 'acme' },
+    }]);
+    await expect(privateFileDenialAuthorityWitness(database, actor({ holdingSlug: 'other' }))).rejects.toMatchObject({
+      code: 'PRIVATE_FILE_DENIAL_AUTHORITY_TARGET_UNAVAILABLE',
+    });
+    setPrivateFileDenialWitnessForTest(async () => 'A'.repeat(64));
+    await expect(privateFileDenialAuthorityWitness(database, actor())).rejects.toMatchObject({
+      code: 'PRIVATE_FILE_DENIAL_RESPONSE_INVALID',
+    });
+  });
+
+  test('preserves the owner source lease without issuing a native read in TypeScript', () => {
+    const locks = privateFileDenialAuthoritySourceLocks(database) as unknown as { sql: string }[];
+    expect(locks).toHaveLength(1);
+    expect(locks[0]!.sql).toBe('LOCK TABLE iam_permissions IN SHARE MODE');
+  });
+});
+
 describe('Identity access read-tail r31 retirement check', () => {
-  test('retirement:ts-statements is 424 after wave-2 lane 10 (r42 was 438)', () => {
+  test('retirement:ts-statements is 390 after private-file denial retirement', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -80,7 +163,7 @@ describe('Identity access read-tail r31 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBeLessThan(472);
-    expect(total).toBe(424);
+    expect(total).toBeLessThan(391);
+    expect(total).toBe(390);
   });
 });

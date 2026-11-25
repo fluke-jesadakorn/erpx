@@ -57,20 +57,17 @@ async function exposed<T>(action: () => Promise<T>) {
 const candidateSql = `SELECT d.id,d.event_id,d.company_id,d.user_id,d.delivered_at,d.read_at,d.archived_at,e.source_type,e.source_id,e.source_version,e.category,e.preview,NULL::jsonb AS native_field_item
   FROM inbox_deliveries d JOIN inbox_events e ON e.id=d.event_id
   WHERE d.company_id=? AND d.user_id=? AND d.archived_at IS NULL`;
-const inboxEventByKeySql = "SELECT id FROM inbox_events WHERE company_id=? AND event_key=?";
 function application(db: SqlDatabase, failedScope?: InboxFailedScope) {
     const repository: InboxRepository = { async publishEvent(id: string, companyId: string, key: string, sourceType: string, sourceId: string, sourceVersion: number, value: string | null, category: InboxCategory, preview: string, now: number) {
             return await nativeInboxStatements(db, companyId).eventInsert([id, companyId, key, sourceType, sourceId, sourceVersion, value, category, preview, now]);
         }, async publishedEvent(companyId: string, key: string) {
-            return db.prepare(inboxEventByKeySql)
-                .bind(companyId, key).first<{
+            return (await nativeInboxStatements(db, companyId).eventByKey(companyId, key)).first<{
                 id: string;
             }>();
         }, async deliverEvent(value: string, id: string, companyId: string, userId: string, now: number) {
             return await nativeInboxStatements(db, companyId).deliveryInsert([value, id, companyId, userId, now]);
         }, async noticeExists(source_id: string, companyId: string) {
-            return db.prepare("SELECT id FROM inbox_notices WHERE id=? AND company_id=?")
-                .bind(source_id, companyId).first();
+            return (await nativeInboxStatements(db, companyId).noticeExists(companyId, source_id)).first();
         }, async candidate(id: string, companyId: string, userId: string) {
             return db.prepare(`SELECT d.*,e.source_type,e.source_id,e.source_version,e.category,e.preview FROM inbox_deliveries d
     JOIN inbox_events e ON e.id=d.event_id WHERE d.id=? AND d.company_id=? AND d.user_id=?`)
@@ -80,8 +77,7 @@ function application(db: SqlDatabase, failedScope?: InboxFailedScope) {
         }, async changeLegacyState(readAt: number | null, id: string, companyId: string, userId: string) {
             return await nativeInboxStatements(db, companyId).staffNotificationRead([readAt, id, companyId, userId]);
         }, async recentNoticeCount(companyId: string, userId: string, value: number) {
-            return db.prepare("SELECT count(*)::int n FROM inbox_notices WHERE company_id=? AND sender_user_id=? AND created_at>?")
-                .bind(companyId, userId, value).first<{
+            return (await nativeInboxStatements(db, companyId).recentNoticeCount(companyId, userId, value)).first<{
                 n: number;
             }>();
         }, async insertNotice(id: string, companyId: string, userId: string, title: string, body: string, value: string, length: number, now: number) {
@@ -96,8 +92,7 @@ function application(db: SqlDatabase, failedScope?: InboxFailedScope) {
                 user_id: string;
             }>();
         }, async noticeEvent(company_id: string, value: string) {
-            return db.prepare(inboxEventByKeySql)
-                .bind(company_id, value).first<{
+            return (await nativeInboxStatements(db, company_id).eventByKey(company_id, value)).first<{
                 id: string;
             }>();
         }, async deliverNotice(value: string, id: string, company_id: string, user_id: string, now: number) {

@@ -184,6 +184,19 @@ const READ_STOCK_COUNT_ROW: NativeStatement = NativeStatement {
     scope: "holding",
 };
 
+/// Native successor of the TypeScript count-purchase source point read. The
+/// owner plans the byte-identical statement and the caller executes it on its
+/// own already-open unit with the same four scoped binds.
+pub const RD_COUNT_SOURCE_ROW: &str = "inventory_rd_count_source_row";
+const SQL_RD_COUNT_SOURCE_ROW: &str =
+    "SELECT id,company_id,branch_id,warehouse_id FROM inventory_counts WHERE id=? AND company_id=? AND (?::text IS NULL OR branch_id=?)";
+const READ_COUNT_SOURCE_ROW: NativeStatement = NativeStatement {
+    kind: RD_COUNT_SOURCE_ROW,
+    sql: SQL_RD_COUNT_SOURCE_ROW,
+    bind_count: 4,
+    scope: "holding",
+};
+
 /// Native successor of the TypeScript document-posting preview `stockDeltas`
 /// array read. The owner plans this literal and the caller executes it on its
 /// own already-open unit; this crate carries no TypeScript SQL for it.
@@ -553,6 +566,7 @@ pub fn is_read(kind: &str) -> bool {
             | RD_LOT_SUPPLEMENT_ROW
             | RD_STOCK_SUPPLEMENT_ROW
             | RD_STOCK_COUNT_ROW
+            | RD_COUNT_SOURCE_ROW
             | RD_STOCK_COUNT_DELTAS
             | RD_ACTIVE_RESERVATIONS_TOTAL
             | RD_LEDGER_MOVEMENT_AFTER
@@ -593,6 +607,7 @@ pub fn read_statement(kind: &str) -> Option<&'static NativeStatement> {
         RD_LOT_SUPPLEMENT_ROW => Some(&READ_LOT_SUPPLEMENT_ROW),
         RD_STOCK_SUPPLEMENT_ROW => Some(&READ_STOCK_SUPPLEMENT_ROW),
         RD_STOCK_COUNT_ROW => Some(&READ_STOCK_COUNT_ROW),
+        RD_COUNT_SOURCE_ROW => Some(&READ_COUNT_SOURCE_ROW),
         RD_STOCK_COUNT_DELTAS => Some(&READ_STOCK_COUNT_DELTAS),
         RD_ACTIVE_RESERVATIONS_TOTAL => Some(&READ_ACTIVE_RESERVATIONS_TOTAL),
         RD_LEDGER_MOVEMENT_AFTER => Some(&READ_LEDGER_MOVEMENT_AFTER),
@@ -669,6 +684,7 @@ mod tests {
             RD_LOT_SUPPLEMENT_ROW,
             RD_STOCK_SUPPLEMENT_ROW,
             RD_STOCK_COUNT_ROW,
+            RD_COUNT_SOURCE_ROW,
             RD_STOCK_COUNT_DELTAS,
             RD_ACTIVE_RESERVATIONS_TOTAL,
             RD_LEDGER_MOVEMENT_AFTER,
@@ -745,6 +761,20 @@ mod tests {
         assert_eq!(
             deltas.sql,
             "SELECT counted_value_minor-snapshot_value_minor delta FROM inventory_count_lines WHERE count_id=?"
+        );
+    }
+
+    /// Parity witness for the `count-purchases` source point read: the native
+    /// plan is the exact statement the retired TypeScript literal bound, with
+    /// four caller-unit scope binds and no cross-owner projection.
+    #[test]
+    fn count_purchase_source_read_plan_matches_retired_owner_statement() {
+        let source = read_statement(RD_COUNT_SOURCE_ROW).expect("read kind");
+        assert!(is_read(RD_COUNT_SOURCE_ROW));
+        assert_eq!(source.bind_count, 4);
+        assert_eq!(
+            source.sql,
+            "SELECT id,company_id,branch_id,warehouse_id FROM inventory_counts WHERE id=? AND company_id=? AND (?::text IS NULL OR branch_id=?)"
         );
     }
 

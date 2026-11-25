@@ -502,14 +502,16 @@ describe('Operations task delegation source dedupe',()=>{
   expect(OPERATIONS_TASK_DELEGATION_SOURCE_SQL).toBe(fragment);
   expect(OPERATIONS_TASK_DELEGATION_SOURCE_SQL.match(/SELECT /g)).toHaveLength(1);
  });
- test('the remaining TypeScript builders compose the canonical interpolation and the native plan freezes it',()=>{
-  for(const name of ['task-attachment-read.ts','task-attachment-purchases.ts']){
-   const source=readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
-   expect(source).toContain('${OPERATIONS_TASK_DELEGATION_SOURCE_SQL}');
-   expect(source).not.toContain(fragment);
-  }
+ test('the remaining TypeScript builder composes the canonical interpolation and the native plan freezes it',()=>{
+  const reader=readFileSync(new URL('../../../packages/server-operations/src/adapters/task-attachment-read.ts',import.meta.url),'utf8');
+  expect(reader).toContain('${OPERATIONS_TASK_DELEGATION_SOURCE_SQL}');
+  expect(reader).not.toContain(fragment);
+  const purchaser=readFileSync(new URL('../../../packages/server-operations/src/adapters/task-attachment-purchases.ts',import.meta.url),'utf8');
+  expect(purchaser).not.toMatch(/SELECT /);
+  expect(purchaser).toContain('OPERATIONS_RD_TASK_ATTACHMENT_PURCHASE_WITNESS');
   const native=readFileSync(new URL('../../../packages/server-operations/src/adapters/native_operations_read_sql.rs',import.meta.url),'utf8');
   expect(native).toContain(fragment);
+  expect(native).toContain('operations_rd_task_attachment_purchase_witness');
  });
 });
 
@@ -522,17 +524,19 @@ describe('Operations task image template/schedule source dedupe',()=>{
   expect(OPERATIONS_TASK_TEMPLATE_SOURCE_SQL.match(/SELECT /g)).toHaveLength(1);
   expect(OPERATIONS_TASK_SCHEDULE_SOURCE_SQL.match(/SELECT /g)).toHaveLength(1);
  });
- test('the remaining TypeScript builders compose the canonical interpolations and the native plan freezes them',()=>{
-  for(const name of ['task-attachment-read.ts','task-attachment-purchases.ts']){
-   const source=readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
-   expect(source).toContain('${OPERATIONS_TASK_TEMPLATE_SOURCE_SQL}');
-   expect(source).toContain('${OPERATIONS_TASK_SCHEDULE_SOURCE_SQL}');
-   expect(source).not.toContain(templateFragment);
-   expect(source).not.toContain(scheduleFragment);
-  }
+ test('the remaining TypeScript builder composes the canonical interpolations and the native plan freezes them',()=>{
+  const reader=readFileSync(new URL('../../../packages/server-operations/src/adapters/task-attachment-read.ts',import.meta.url),'utf8');
+  expect(reader).toContain('${OPERATIONS_TASK_TEMPLATE_SOURCE_SQL}');
+  expect(reader).toContain('${OPERATIONS_TASK_SCHEDULE_SOURCE_SQL}');
+  expect(reader).not.toContain(templateFragment);
+  expect(reader).not.toContain(scheduleFragment);
+  const purchaser=readFileSync(new URL('../../../packages/server-operations/src/adapters/task-attachment-purchases.ts',import.meta.url),'utf8');
+  expect(purchaser).not.toMatch(/SELECT /);
+  expect(purchaser).toContain('OPERATIONS_RD_TASK_ATTACHMENT_PURCHASE_WITNESS_OWNED');
   const native=readFileSync(new URL('../../../packages/server-operations/src/adapters/native_operations_read_sql.rs',import.meta.url),'utf8');
   expect(native).toContain(templateFragment);
   expect(native).toContain(scheduleFragment);
+  expect(native).toContain('operations_rd_task_attachment_purchase_witness_owned');
  });
 });
 
@@ -885,7 +889,7 @@ describe('Operations read-tail r41 retirement',()=>{
     walk(root);
     // r42 deduped the social task-origin EXISTS family and r43 deduped the
     // command-receipt version guard; the r41 BEFORE=110 baseline is unchanged.
-    expect(space).toBe(59);
+    expect(space).toBe(58);
     expect(space).toBeLessThan(110);
   });
 });
@@ -925,7 +929,7 @@ describe('Operations read-tail r42 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(59);
+    expect(space).toBe(58);
     expect(space).toBeLessThan(110);
   });
 });
@@ -970,7 +974,7 @@ describe('Operations read-tail r43 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(59);
+    expect(space).toBe(58);
     expect(space).toBeLessThan(109);
   });
 });
@@ -1015,7 +1019,7 @@ describe('Operations read-tail r44 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(59);
+    expect(space).toBe(58);
     expect(space).toBeLessThan(108);
   });
 });
@@ -1064,7 +1068,7 @@ describe('Operations read-tail r45 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(59);
+    expect(space).toBe(58);
     expect(space).toBeLessThan(107);
   });
 });
@@ -1112,7 +1116,7 @@ describe('Operations read-tail r46 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(59);
+    expect(space).toBe(58);
     expect(space).toBeLessThan(106);
   });
 });

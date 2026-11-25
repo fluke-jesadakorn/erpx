@@ -42,9 +42,17 @@ pub const READ_65: &str = "wp_cal_read_65"; // appointment version
 pub const READ_66: &str = "wp_cal_read_66"; // reminder configuration image
 pub const READ_67: &str = "wp_cal_read_67"; // latest execution authorization
 
+// Work index read tail (calendar-index-facts.ts read2/read5): byte-identical
+// projections retired from TypeScript. The read5 people arm is the same fixed
+// `hr_people` projection the owner already inlines for its native candidate
+// reads; no cross-owner predicate remains.
+pub const READ_68: &str = "wp_cal_read_68"; // interval from_ms/to_ms bounds
+pub const READ_69: &str = "wp_cal_read_69"; // authorized calendar history
+
 const ALL: &[&str] = &[
     READ_01, READ_03, READ_04, READ_12, READ_13, READ_23, READ_26, READ_30, READ_37, READ_38,
     READ_42, READ_53, READ_60, READ_61, READ_62, READ_63, READ_64, READ_65, READ_66, READ_67,
+    READ_68, READ_69,
 ];
 
 const TIME_SQL: &str = "SELECT (extract(epoch FROM ($1::timestamp AT TIME ZONE $2::text))*1000)::bigint starts_at,(extract(epoch FROM ($3::timestamp AT TIME ZONE $4::text))*1000)::bigint ends_at,to_char(($5::timestamp AT TIME ZONE $6::text) AT TIME ZONE $7::text,'YYYY-MM-DD\"T\"HH24:MI') start_local,to_char(($8::timestamp AT TIME ZONE $9::text) AT TIME ZONE $10::text,'YYYY-MM-DD\"T\"HH24:MI') end_local";
@@ -68,6 +76,13 @@ const OCCURRENCE_RESPONSES_SQL: &str = "SELECT appointment_id,occurrence_key,use
 const APPOINTMENT_VERSION_SQL: &str = "SELECT version FROM calendar_appointments WHERE id=$1 AND company_id=$2";
 const REMINDER_CONFIGURATION_SQL: &str = "SELECT jsonb_build_object('record',to_jsonb(a)-ARRAY['version','updated_at'],'attendee',to_jsonb(t)-ARRAY['response','response_at'],'series',(SELECT to_jsonb(s)-'version' FROM calendar_series s WHERE s.appointment_id=a.id AND s.company_id=a.company_id),'exceptions',(SELECT jsonb_agg(to_jsonb(e)-'version' ORDER BY e.occurrence_key) FROM calendar_occurrence_exceptions e WHERE e.appointment_id=a.id AND e.company_id=a.company_id))::text image FROM calendar_appointments a JOIN calendar_attendees t ON t.appointment_id=a.id AND t.company_id=a.company_id WHERE a.id=$1 AND a.company_id=$2 AND t.user_id=$3";
 const REMINDER_AUTHORIZATION_SQL: &str = "SELECT * FROM calendar_reminder_execution_authorizations WHERE appointment_id=$1 AND company_id=$2 AND recipient_id=$3 ORDER BY source_version DESC,created_at DESC,command_id DESC LIMIT 1";
+/// Byte-identical to the retired `calendar-index-facts.ts` read2 literal; `$n`
+/// is the only translation from its `?` placeholders.
+pub const INTERVAL_BOUNDS_SQL: &str = "SELECT (extract(epoch FROM ($1::timestamp AT TIME ZONE $2))*1000)::bigint from_ms,(extract(epoch FROM ($3::timestamp AT TIME ZONE $4))*1000)::bigint to_ms";
+/// Byte-identical to the retired `calendar-index-facts.ts` read5 literal after
+/// inlining its two fixed TS fragments (`inList(record_id)` and the r45 people
+/// projection). `$n` is the only translation from its `?` placeholders.
+pub const CALENDAR_HISTORY_SQL: &str = "SELECT h.record_id,h.action,coalesce(p.legal_name,'Authorized colleague') actor,h.created_at at FROM (SELECT *,row_number() OVER(PARTITION BY record_id ORDER BY created_at DESC,id DESC) ordinal FROM calendar_history WHERE company_id=$1 AND record_id IN (SELECT jsonb_array_elements_text($2::jsonb))) h LEFT JOIN (SELECT id,user_id,company_id,legal_name,merged_into_id FROM hr_people) p ON p.user_id=h.actor_id AND p.company_id=h.company_id AND p.merged_into_id IS NULL WHERE ordinal<=20 ORDER BY h.created_at DESC";
 
 pub fn supported(kind: &str) -> bool {
     ALL.contains(&kind)
@@ -78,7 +93,8 @@ pub fn arity(kind: &str) -> Option<usize> {
     match kind {
         READ_01 => Some(10),
         READ_38 | READ_60 | READ_66 | READ_67 => Some(3),
-        READ_61 => Some(4),
+        READ_61 | READ_68 => Some(4),
+        READ_69 => Some(2),
         READ_03 => Some(1),
         READ_04
         | READ_12
@@ -271,6 +287,22 @@ fn image(row: &PgRow) -> Result<Value, sqlx::Error> {
     Ok(json!({"image": row.try_get::<Option<String>, _>("image")?}))
 }
 
+fn interval_bounds(row: &PgRow) -> Result<Value, sqlx::Error> {
+    Ok(json!({
+        "from_ms": row.try_get::<i64, _>("from_ms")?,
+        "to_ms": row.try_get::<i64, _>("to_ms")?,
+    }))
+}
+
+fn calendar_history(row: &PgRow) -> Result<Value, sqlx::Error> {
+    Ok(json!({
+        "record_id": row.try_get::<String, _>("record_id")?,
+        "action": row.try_get::<String, _>("action")?,
+        "actor": row.try_get::<String, _>("actor")?,
+        "at": row.try_get::<i64, _>("at")?,
+    }))
+}
+
 fn reminder_authorization(row: &PgRow) -> Result<Value, sqlx::Error> {
     Ok(json!({
         "command_id": row.try_get::<String, _>("command_id")?,
@@ -358,6 +390,8 @@ pub async fn execute_calendar_read(
             first(REMINDER_AUTHORIZATION_SQL, command.values, reminder_authorization, connection)
                 .await?
         }
+        READ_68 => first(INTERVAL_BOUNDS_SQL, command.values, interval_bounds, connection).await?,
+        READ_69 => all(CALENDAR_HISTORY_SQL, command.values, calendar_history, connection).await?,
         _ => return Err(BusinessError::invalid(
             "WORK_CALENDAR_READ_INVALID",
             "Unsupported calendar read kind.",
@@ -365,4 +399,50 @@ pub async fn execute_calendar_read(
         .into()),
     };
     Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sha2::{Digest, Sha256};
+
+    fn hash(sql: &str) -> String {
+        let mut bytes = [0u8; 32];
+        bytes.copy_from_slice(&Sha256::digest(sql.as_bytes()));
+        bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+    }
+
+    #[test]
+    fn interval_bounds_sql_is_byte_identical_to_retired_ts_literal() {
+        assert_eq!(
+            hash(INTERVAL_BOUNDS_SQL),
+            "84cb1cbf466f34450b94fa78287bdf16b0463efeb77cc61667e2329207e67cb7"
+        );
+    }
+
+    #[test]
+    fn interval_bounds_kind_is_allow_listed_with_four_binds() {
+        assert!(supported(READ_68));
+        assert_eq!(arity(READ_68), Some(4));
+        assert!(validate(READ_68, 4).is_ok());
+        assert!(validate(READ_68, 3).is_err());
+    }
+
+    #[test]
+    fn calendar_history_sql_is_byte_identical_to_retired_ts_literal() {
+        assert_eq!(
+            hash(CALENDAR_HISTORY_SQL),
+            "541bb31b09d37dd5208fbee258d95432c615d588051cb398505c245f1c17b104"
+        );
+        assert!(CALENDAR_HISTORY_SQL.contains("hr_people"));
+        assert!(CALENDAR_HISTORY_SQL.contains("jsonb_array_elements_text($2::jsonb)"));
+    }
+
+    #[test]
+    fn calendar_history_kind_is_allow_listed_with_two_binds() {
+        assert!(supported(READ_69));
+        assert_eq!(arity(READ_69), Some(2));
+        assert!(validate(READ_69, 2).is_ok());
+        assert!(validate(READ_69, 1).is_err());
+    }
 }

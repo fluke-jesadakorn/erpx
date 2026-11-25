@@ -7,7 +7,8 @@ import "server-only";
 export const scopedProjection = (columns: string, from: string, where: string) =>
   `SELECT ${columns} FROM ${from} WHERE ${where}`;
 /** Scoped EXISTS row template. The visibility branches differ only by projected column,
- * relation and alias; r13 composes them through the single scopedProjection head. */
+ * relation and alias; r13 composes them through the single scopedProjection head, and
+ * r14 composes the legal IN branch through that same head (no second projection literal). */
 const scopedRow = (column: string, relation: string, alias: string, key: string) =>
   scopedProjection(column, `${relation} ${alias}`, `${alias}.${key}=p.id`);
 const existsScoped = (relation: string, alias: string, key: string) =>
@@ -21,7 +22,8 @@ export function customerVisiblePredicate(
   financeVisible: boolean,
   legalVisible: boolean,
 ) {
-  return `(${existsScoped('scoped_orders', 'o', 'party_id')} OR ${existsScoped('scoped_leads', 'l', 'customer_id')} OR ${serviceVisible ? existsScoped('scoped_service', 'g', 'customer_id') : 'FALSE'} OR ${financeVisible ? existsScoped('scoped_invoices', 'i', 'party_id') : 'FALSE'} OR ${legalVisible ? `EXISTS(SELECT 1 FROM scoped_legal lg WHERE lg.order_id IN (${scopedRow('id', 'scoped_orders', 'so', 'party_id')}))` : 'FALSE'})`;
+  const legal = `EXISTS(${scopedProjection('1', 'scoped_legal lg', `lg.order_id IN (${scopedRow('id', 'scoped_orders', 'so', 'party_id')})`)})`;
+  return `(${existsScoped('scoped_orders', 'o', 'party_id')} OR ${existsScoped('scoped_leads', 'l', 'customer_id')} OR ${serviceVisible ? existsScoped('scoped_service', 'g', 'customer_id') : 'FALSE'} OR ${financeVisible ? existsScoped('scoped_invoices', 'i', 'party_id') : 'FALSE'} OR ${legalVisible ? legal : 'FALSE'})`;
 }
 
 /** One byte-identical one-value company scope source shared by the portal release

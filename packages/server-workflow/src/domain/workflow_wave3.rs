@@ -219,6 +219,12 @@ pub const WF_NATIVE_RECORD_DETAILS_HISTORY: &str = "wf_native_record_details_his
 /// transfer owner sources; the planner resolves it to one fixed SELECT executed
 /// on the caller's open company unit and carries no receipt/assertion semantics.
 pub const WF_NATIVE_INVENTORY_AUDIT_HISTORY: &str = "wf_native_inventory_audit_history";
+/// Owner-authored caller-unit reads for the company-scoped flow-event history
+/// family. Each is byte-identical to the retired TypeScript generator output;
+/// the planner resolves it to one fixed SELECT executed on the caller's open
+/// company unit and carries no receipt/assertion semantics.
+pub const WF_NATIVE_FLOW_EVENTS_HISTORY: &str = "wf_native_flow_events_history";
+pub const WF_NATIVE_FLOW_EVENTS_RECORD_HISTORY: &str = "wf_native_flow_events_record_history";
 pub const KINDS: &[&str] = &[
     WF_OPENAPPROVAL,
     WF_OPENAPPROVAL2,
@@ -276,6 +282,8 @@ pub const KINDS: &[&str] = &[
     WF_NATIVE_CALENDAR_INDEX_FACTS,
     WF_NATIVE_RECORD_DETAILS_HISTORY,
     WF_NATIVE_INVENTORY_AUDIT_HISTORY,
+    WF_NATIVE_FLOW_EVENTS_HISTORY,
+    WF_NATIVE_FLOW_EVENTS_RECORD_HISTORY,
 ];
 
 fn statement(kind: &str) -> Option<(&'static str, usize)> {
@@ -602,6 +610,14 @@ fn statement(kind: &str) -> Option<(&'static str, usize)> {
         WF_NATIVE_INVENTORY_AUDIT_HISTORY => (
             "SELECT a.id,a.action,a.created_at,COALESCE(p.legal_name,a.actor_id) actor_name FROM audit_events a LEFT JOIN hr_people p ON p.user_id=a.actor_id AND p.company_id=? AND p.merged_into_id IS NULL WHERE a.record_id=? ORDER BY a.created_at DESC",
             2,
+        ),
+        WF_NATIVE_FLOW_EVENTS_HISTORY => (
+            "SELECT kind,record_id,action,actor_name,created_at,reason,step_key FROM flow_events WHERE company_id=? ORDER BY created_at,id",
+            1,
+        ),
+        WF_NATIVE_FLOW_EVENTS_RECORD_HISTORY => (
+            "SELECT action,actor_name,created_at,reason,step_key FROM flow_events WHERE company_id=? AND kind=? AND record_id=? ORDER BY created_at,id",
+            3,
         ),
 _ => return None,
     })
@@ -1537,6 +1553,72 @@ mod tests {
         )
         .is_err());
         assert!(!supported("wf_native_inventory_audit_history_unknown"));
+    }
+
+    /// The company-scoped flow-event history reads are byte-identical to the
+    /// retired TypeScript generator output. The caller-unit bridge carries no
+    /// receipt/assertion semantics; the planner never accepts caller SQL or
+    /// writes.
+    #[test]
+    fn flow_event_history_read_kinds_are_fixed_company_scoped_selects() {
+        let snapshot = "SELECT kind,record_id,action,actor_name,created_at,reason,step_key FROM flow_events WHERE company_id=? ORDER BY created_at,id";
+        let record = "SELECT action,actor_name,created_at,reason,step_key FROM flow_events WHERE company_id=? AND kind=? AND record_id=? ORDER BY created_at,id";
+        let cases: [(&str, &str, Vec<Value>); 2] = [
+            (
+                WF_NATIVE_FLOW_EVENTS_HISTORY,
+                snapshot,
+                vec![json!("company")],
+            ),
+            (
+                WF_NATIVE_FLOW_EVENTS_RECORD_HISTORY,
+                record,
+                vec![json!("company"), json!("expense"), json!("record-1")],
+            ),
+        ];
+        for (kind, expected, values) in cases {
+            let (sql, expected_binds) = statement(kind).expect("registered owner read kind");
+            assert_eq!(
+                sql, expected,
+                "SQL must stay byte-identical to the retired TS literal"
+            );
+            assert_eq!(expected_binds, values.len());
+            assert_eq!(sql.matches('?').count(), expected_binds);
+            assert!(sql.starts_with("SELECT "), "read must be SELECT-only: {sql}");
+            assert!(
+                sql.contains("FROM flow_events WHERE company_id=?"),
+                "read must stay company-scoped: {sql}"
+            );
+            assert!(
+                sql.contains("ORDER BY created_at,id"),
+                "read must keep the history order: {sql}"
+            );
+            for forbidden in [
+                "INSERT",
+                "UPDATE ",
+                "DELETE",
+                "RETURNING",
+                ";",
+                "FOR UPDATE",
+                "FOR SHARE",
+                "LOCK TABLE",
+            ] {
+                assert!(
+                    !sql.contains(forbidden),
+                    "read must not mutate or lock: {forbidden}"
+                );
+            }
+            assert!(supported(kind));
+            let planned = plan(kind, values.clone()).expect("valid binds must plan");
+            assert_eq!(planned.sql, expected);
+            assert_eq!(planned.values, values);
+            assert!(plan(kind, vec![]).is_err());
+            assert!(plan(
+                kind,
+                vec![json!("company"); expected_binds + 1]
+            )
+            .is_err());
+        }
+        assert!(!supported("wf_native_flow_events_unknown"));
     }
 
     fn sql_mentions_company_scope(kind: &str) -> bool {

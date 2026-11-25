@@ -11,7 +11,11 @@ export const recordsRequestUsageSql = requestAiUsageProjection('company_id,month
 /** Canonical owner-local fixed read for the company+month request-AI usage
  * count, shared by the agent quota guard and the beta-management usage source.
  * Both consumers previously carried their own duplicate literal. */
-export const requestAiUsageMonthlyCountSql = 'SELECT count(*)::int count FROM request_ai_usage WHERE company_id=? AND month=?';
+export const requestAiUsageMonthlyCountSql = projectionColumnHeadSql(
+  'count(*)::int count',
+  'request_ai_usage',
+  ' WHERE company_id=? AND month=?',
+);
 /** Canonical owner-local generator for Records request-AI proposal column
  * projections. The full read and the bounded drain claim render their exact
  * prior SQL byte-for-byte; only the selected columns and optional tail differ. */

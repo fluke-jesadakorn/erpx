@@ -87,6 +87,6 @@ describe('Commercial read-tail r12 parameterized purchase-scope read family', ()
     };
     walk(srcRoot);
     expect(total).toBeLessThan(24);
-    expect(total).toBe(13);
+    expect(total).toBe(12);
   });
 });

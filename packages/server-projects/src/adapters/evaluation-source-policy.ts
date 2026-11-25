@@ -8,10 +8,11 @@ import {purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purch
 import {projectTaskRecordPolicy} from "@erpx/server-operations/public/project-task-record-policy";
 import {projectOwnerOrMemberColumnSql} from "@erpx/server-projects/adapters/project-read-projections";
 import {scopeBindProjection} from './read-tail-r39';
+import {selectBodySql} from './read-tail-r45';
 
 /** Byte-identical source identity projection shared by the native source arms;
  * one definition keeps every UNION column list identical. */
-const nativeSourceColumns=`SELECT id,project_id,company_id,`;
+const nativeSourceColumns=selectBodySql('id,project_id,company_id,');
 export const nativeSources=`SELECT id,id project_id,company_id,'project' kind,'projects.wbs' capability,NULL::text source_user_id FROM staff_projects
  UNION ALL ${nativeSourceColumns}'milestone','projects.wbs',NULL::text FROM staff_project_milestones
  UNION ALL ${nativeSourceColumns}'work_log','projects.time',user_id FROM staff_project_work_logs

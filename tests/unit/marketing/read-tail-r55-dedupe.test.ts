@@ -84,7 +84,7 @@ describe('marketing read-tail r55 native read-port cutover', () => {
     expect(source).not.toContain("marketingLocalPointReadSql('asset')");
   });
 
-  it('retirement:ts-statements is BEFORE=16 -> AFTER=14', async () => {
-    expect(await ownerTokens()).toEqual({ spaced: 14, bare: 14 });
+  it('retirement:ts-statements stays strictly below BEFORE=16 at 13 after r56', async () => {
+    expect(await ownerTokens()).toEqual({ spaced: 13, bare: 13 });
   });
 });

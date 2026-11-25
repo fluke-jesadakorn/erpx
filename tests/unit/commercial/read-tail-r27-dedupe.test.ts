@@ -116,7 +116,7 @@ describe('Commercial read-tail r27 package-source head dedupe', () => {
     expect(pcb).toContain('.bind(input.companyId, input.capability, input.purpose)');
   });
 
-  test('retirement:ts-statements pins 14 -> 13', () => {
+  test('retirement:ts-statements pins 13 -> 12', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -126,7 +126,7 @@ describe('Commercial read-tail r27 package-source head dedupe', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(13);
+    expect(total).toBe(12);
     expect(total).toBeLessThan(14);
   });
 });

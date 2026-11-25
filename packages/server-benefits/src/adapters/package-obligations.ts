@@ -5,6 +5,7 @@ import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/server-commercial/public/package-settlement-sources";
 import {benefitEligibilitySettlementLocks,benefitEligibilitySettlementSources as learning} from "@erpx/server-learning/public/benefit-source-facts";
 import {benefitPayrollInputOwnerPredicate,benefitElectionFactPrefix,benefitReleasedElectionHandoffPrefix,benefitScopePrefix,benefitWindowFactPrefix,benefitDependentFactPrefix,benefitPlanFactPrefix,benefitFactFinalSelect,benefitLearningFactArm,benefitSubqueryNotExists,benefitExistsHead} from "@erpx/server-benefits/adapters/benefits-read-sql";
+import {benefitSettlementEvents} from "./native-lane-settlement/client";
 
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
 const sources=new WeakMap<SqlDatabase,string>();
@@ -37,9 +38,8 @@ export const benefitPackageSettlementSources={
 /** Byte-identical owner-local MATERIALIZED scope CTE projection shared by the
  * plans/windows/elections settlement sources; generated SQL is unchanged. */
 export const materializedScopeCte=(alias:string,source:string)=>`SELECT ${alias}.* FROM (${source}) ${alias},scope WHERE ${alias}.company_id=scope.company_id`;
-/** Byte-identical owner-local event-history UNION projection shared by the four
- * Benefits event tables; generated SQL is unchanged. */
-export const benefitEventHistoryArm=(kind:string,events:string,parent:string,fk:string,first:boolean)=>`${first?'':'UNION ALL '}SELECT '${kind}'${first?' kind':''},to_jsonb(event)::text${first?' image':''} FROM ${events} event JOIN ${parent} r ON r.id=event.${fk} WHERE r.company_id=?`;
+/** The four-arm event history is owned by the native settlement route; no
+ * TypeScript SQL remains for it in this adapter. */
 export async function benefitPackageObligations(owner:PostgresDatabase,database:SqlDatabase,input:Input){
  assertBenefitPackageObligationSources(owner,database,input.companyId);
  if(input.moduleId!=="benefits"||input.packageId!=="people-benefits"||input.packageVersion!==1||!Number.isSafeInteger(input.now)||input.now<0)throw Error("BENEFIT_PACKAGE_OBLIGATION_SCOPE_REQUIRED");
@@ -66,6 +66,7 @@ ${benefitReleasedElectionHandoffPrefix} JOIN benefit_election_events event ON ev
 `)} ${benefitLearningFactArm('missing-learning-consumption','e.id','e.version','e.status','to_jsonb(e)',`true FROM elections e JOIN plans plan ON plan.id=e.plan_id WHERE e.status<>'cancelled' AND plan.required_eligibility_code IS NOT NULL AND ${benefitSubqueryNotExists(learning.consumptions, 'c', 'c.election_id=e.id AND c.company_id=e.company_id AND c.certificate_id=e.learning_certificate_id AND c.person_id=e.person_id AND c.eligibility_code=plan.required_eligibility_code')}`)}
  ${benefitFactFinalSelect('COALESCE(pending,true)',' ORDER BY kind,id')}`).bind(input.companyId,input.now).all<{kind:string;id:string;version:number;state:string;image:unknown;pending:boolean}>()).results;
  // Event history is immutable, but still participates in the reviewed image.
- const events=await database.prepare(`${benefitEventHistoryArm('plan','benefit_plan_events','benefit_plans','plan_id',true)} ${benefitEventHistoryArm('window','benefit_window_events','benefit_enrollment_windows','window_id',false)} ${benefitEventHistoryArm('dependent','benefit_dependent_events','benefit_dependents','dependent_id',false)} ${benefitEventHistoryArm('election','benefit_election_events','benefit_elections','election_id',false)} ORDER BY kind,image`).bind(input.companyId,input.companyId,input.companyId,input.companyId).all();
+  // Event history is immutable and now read solely by the native owner route.
+  const events=await benefitSettlementEvents(input.companyId);
  return {companyId:input.companyId,packageId:input.packageId,moduleId:"benefits",observedAt:input.now,revision:createHash("sha256").update(JSON.stringify({companyId:input.companyId,packageVersion:input.packageVersion,facts,events:events.results})).digest("hex"),outstanding:facts.filter(fact=>fact.pending).length};
 }

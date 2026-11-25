@@ -55,7 +55,7 @@ const FAMILY: readonly {
 const FINANCE_AFTER_SHA256 = '1940f9f739ebdd8d82cd3b1d9c7efff88a227a5aeef132d79680ffaa1f1d331b';
 /** Lock-bearing, native and cross-owner witnesses are untouched by r35. */
 const NATIVE_COMMAND_SHA256 = '51cda9ad07a4ecbdd6c098f1b2e859a947b8309cea74dfec26fe975b842b25a7';
-const COMMAND_CALLER_SHA256 = '9714b3ac0a43d89829d97fdbbf72c24ab13913d739c5ea80a24f2a16d371610a';
+const COMMAND_CALLER_SHA256 = '3bbca63d700786746c0fa5c038c5e09d84c4e96b0416d8c86a17e039724024cf';
 
 async function tsFiles(directory: URL): Promise<URL[]> {
   const found: URL[] = [];

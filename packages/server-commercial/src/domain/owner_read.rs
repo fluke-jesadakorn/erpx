@@ -1,7 +1,8 @@
 //! Pure domain registry for native Commercial owner reads.
 //!
-//! The three owner-owned usage projections (snapshot/meter/seat) that Billing
-//! consumes are planned here as exact static SELECTs. The native route returns
+//! The owner-owned usage projections (snapshot/meter/seat) that Billing
+//! consumes and the principal-status event base read that the usage projection
+//! composes are planned here as exact static SELECTs. The native route returns
 //! the registered SELECT for a closed read kind; the TypeScript caller runs it
 //! as a subquery on its own already-open unit and keeps its own filters and
 //! `FOR UPDATE`. No SQL crosses the wire from a caller and no TS fallback exists.
@@ -12,6 +13,7 @@ pub const OWNER_READ_OPERATION: &str = "commercial.owner-read.v1";
 pub const USAGE_SNAPSHOT: &str = "usage.snapshot";
 pub const USAGE_METER: &str = "usage.meter";
 pub const USAGE_SEAT: &str = "usage.seat";
+pub const PRINCIPAL_EVENTS: &str = "principal.events";
 
 /// Exact retired `billing_usage_snapshots` projection literal.
 pub const SQL_USAGE_SNAPSHOT: &str = r#"SELECT "holding_id","month","snapshot_id","refreshed_at","source_count","ai_coverage","storage_coverage","unreconciled_originals","seat_coverage","seat_source_count","active_seat_count","active_seat_observed_at" FROM billing_usage_snapshots"#;
@@ -23,6 +25,11 @@ pub const SQL_USAGE_METER: &str = r#"SELECT "holding_id","month","source_key","c
 pub const SQL_USAGE_SEAT: &str =
     r#"SELECT "holding_id","month","user_key","intervals_json","snapshot_id" FROM billing_seat_usage"#;
 
+/// Exact retired `billing_principal_status_events` base projection. The caller
+/// appends its own `effective_at` bound, variable-arity user filter and order.
+pub const SQL_PRINCIPAL_EVENTS: &str =
+    "SELECT id,user_id,status,effective_at FROM billing_principal_status_events";
+
 /// Closed owner read kind -> exact static SELECT. No caller binds or locks are
 /// planned here: those stay inside the caller's transaction.
 pub fn statement(kind: &str) -> Option<&'static str> {
@@ -30,6 +37,7 @@ pub fn statement(kind: &str) -> Option<&'static str> {
         USAGE_SNAPSHOT => Some(SQL_USAGE_SNAPSHOT),
         USAGE_METER => Some(SQL_USAGE_METER),
         USAGE_SEAT => Some(SQL_USAGE_SEAT),
+        PRINCIPAL_EVENTS => Some(SQL_PRINCIPAL_EVENTS),
         _ => None,
     }
 }
@@ -58,7 +66,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn closed_registry_of_three_usage_reads() {
+    fn closed_registry_of_owner_reads() {
         assert_eq!(
             statement(USAGE_SNAPSHOT),
             Some(r#"SELECT "holding_id","month","snapshot_id","refreshed_at","source_count","ai_coverage","storage_coverage","unreconciled_originals","seat_coverage","seat_source_count","active_seat_count","active_seat_observed_at" FROM billing_usage_snapshots"#)
@@ -71,14 +79,19 @@ mod tests {
             statement(USAGE_SEAT),
             Some(r#"SELECT "holding_id","month","user_key","intervals_json","snapshot_id" FROM billing_seat_usage"#)
         );
+        assert_eq!(
+            statement(PRINCIPAL_EVENTS),
+            Some("SELECT id,user_id,status,effective_at FROM billing_principal_status_events")
+        );
         assert_eq!(statement("bogus"), None);
         assert!(is_owner_read(USAGE_METER));
+        assert!(is_owner_read(PRINCIPAL_EVENTS));
         assert!(!is_owner_read("usage.meter-prune"));
     }
 
     #[test]
     fn reads_are_select_only_and_call_unit_lock_free() {
-        for kind in [USAGE_SNAPSHOT, USAGE_METER, USAGE_SEAT] {
+        for kind in [USAGE_SNAPSHOT, USAGE_METER, USAGE_SEAT, PRINCIPAL_EVENTS] {
             let sql = statement(kind).expect("owner read kind");
             assert!(sql.trim_start().starts_with("SELECT"), "{kind}");
             assert!(!sql.contains("FOR UPDATE"), "{kind}: caller owns the lock");

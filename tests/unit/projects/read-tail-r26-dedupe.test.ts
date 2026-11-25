@@ -77,7 +77,7 @@ describe('Projects read-tail r26 package-actual proof guard family dedupe', () =
     };
     walk(srcRoot);
     expect(total).toBeLessThan(88);
-    expect(total).toBe(65); // r44 final-root projection family folded into read-tail-r40 (66->65)
+    expect(total).toBe(62); // r45 bare-projection head family folded into read-tail-r45 (65->62)
   });
 });
 

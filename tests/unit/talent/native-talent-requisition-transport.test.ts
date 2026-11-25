@@ -16,7 +16,8 @@ import {
   nativeTalentWorkspace,
 } from '../../../packages/feature-talent/src/public/native-talent-page';
 import {nativeTalentLifecycleCommand} from '../../../packages/server-talent/src/public/native-talent-lifecycle-page';
-import {nativeTalentReadAll,nativeTalentReadFirst} from '../../../packages/server-talent/src/adapters/native-talent-read';
+import {nativeTalentPlan,nativeTalentReadAll,nativeTalentReadFirst} from '../../../packages/server-talent/src/adapters/native-talent-read';
+import {talentOwnerSourceImage,talentOwnerSourceWitnessAssertion} from '../../../packages/server-talent/src/adapters/purchases';
 import {SensitiveAttachmentTalentFacts} from '../../../packages/server-talent/src/adapters/attachments-sensitive-facts';
 import {peopleHireHandoffFacts} from '../../../packages/server-talent/src/adapters/people-hire-handoff-facts';
 import {talentPurchaseControls} from '../../../packages/server-talent/src/public/purchases';
@@ -538,9 +539,9 @@ describe('native Talent detail read tail', () => {
   });
 });
 
-// G4 / migrate.talent.offer-read-port: the four offer/candidate caller-unit
-// read plans registered by the native port and proved byte-identical by the
-// live-PG parity suite. Exact SQL is pinned so no TS literal can creep back.
+// G4 / migrate.talent.offer-read-port: the offer/candidate/requisition
+// caller-unit read plans registered by the native port and proved byte-identical
+// by the live-PG parity suite. Exact SQL is pinned so no TS literal returns.
 const offerFamily = [
   {
     kind: 'talent_rd_candidate_source_image',
@@ -565,6 +566,18 @@ const offerFamily = [
     constant: 'RD_OFFER_EVENTS',
     sql: 'SELECT * FROM talent_offer_events WHERE offer_id=? ORDER BY version',
     binds: 1,
+  },
+  {
+    kind: 'talent_rd_requisition_source_image',
+    constant: 'RD_REQUISITION_SOURCE_IMAGE',
+    sql: 'SELECT to_jsonb(r)::text image FROM talent_requisitions r WHERE r.id=? AND r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?)',
+    binds: 6,
+  },
+  {
+    kind: 'talent_rd_requisition_source_image_file',
+    constant: 'RD_REQUISITION_SOURCE_IMAGE_FILE',
+    sql: "SELECT (to_jsonb(r)-'version'-'updated_at')::text image FROM talent_requisitions r WHERE r.id=? AND r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?)",
+    binds: 6,
   },
 ] as const;
 
@@ -606,7 +619,7 @@ describe('talent offer/candidate native read port cutover', () => {
     expect(bridge).toContain('return unavailable()');
   });
 
-  it('sends only kind and positional values for all four native reads', async () => {
+  it('sends only kind and positional values for all six native reads', async () => {
     const previous = process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
     process.env.ERPX_NATIVE_TALENT_READ_CONFIG = config();
     const calls: { kind: string; values: unknown[] }[] = [];
@@ -656,5 +669,131 @@ describe('talent offer/candidate native read port cutover', () => {
     for (const file of await tsFiles(srcDir)) count += (await readFile(file, 'utf8')).split('SELECT ').length - 1;
     expect(count).toBe(11);
     expect(count).toBeLessThan(12);
+  });
+
+  it('reads candidate source images from the native port with no local SQL', async () => {
+    const previous = process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
+    process.env.ERPX_NATIVE_TALENT_READ_CONFIG = config();
+    const kinds: string[] = [];
+    const fetchMock = vi.fn(async (_url: unknown, init: { body?: string }) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      kinds.push(body.kind);
+      expect(body.values).toEqual(['cand-1', 'h001']);
+      const read = offerFamily.find((item) => item.kind === body.kind)!;
+      return ok({ data: { statements: [{ sql: read.sql, values: body.values }] } });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      for (const file of [false, true]) {
+        const seen: string[] = [];
+        const db = {
+          prepare(sql: string) { seen.push(sql); return { bind() { return { first: async () => ({ image: 'image-json' }) }; } }; },
+        } as never;
+        const actor = { companyId: 'h001' } as never;
+        expect(await talentOwnerSourceImage(db, actor, { kind: 'candidate', id: 'cand-1' }, file)).toBe('image-json');
+        expect(seen).toEqual([file ? offerFamily[1].sql : offerFamily[0].sql]);
+      }
+      expect(kinds).toEqual(['talent_rd_candidate_source_image', 'talent_rd_candidate_source_image_file']);
+    } finally {
+      vi.unstubAllGlobals();
+      if (previous === undefined) delete process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
+      else process.env.ERPX_NATIVE_TALENT_READ_CONFIG = previous;
+    }
+  });
+
+  it('builds the deferred candidate witness from the owner-planned statement', async () => {
+    const previous = process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
+    process.env.ERPX_NATIVE_TALENT_READ_CONFIG = config();
+    const planned = offerFamily[0].sql;
+    const fetchMock = vi.fn(async (_url: unknown, init: { body?: string }) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      expect(body).toEqual({ kind: 'talent_rd_candidate_source_image', values: ['cand-1', 'h001'] });
+      return ok({ data: { statements: [{ sql: planned, values: body.values }] } });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const db = { prepare: () => { throw new Error('witness must not author local SQL'); } } as never;
+    try {
+      const descriptor = await talentOwnerSourceWitnessAssertion(
+        db, 'key-1', 'talent-owner-source', { companyId: 'h001' } as never,
+        { kind: 'candidate', id: 'cand-1' }, 'witness-json',
+      );
+      expect((descriptor as { kind: string }).kind).toBe('wf_native_command_assertions_3');
+      expect((descriptor as unknown as { values: unknown[] }).values).toEqual([
+        'key-1', 'talent-owner-source', 'cand-1', 'h001', 'witness-json', `(${planned})=?`,
+      ]);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      // Plan-only helper exposes the same owner statement with no local SQL.
+      expect(await nativeTalentPlan('talent_rd_candidate_source_image', ['cand-1', 'h001'])).toEqual({
+        sql: planned, values: ['cand-1', 'h001'],
+      });
+    } finally {
+      vi.unstubAllGlobals();
+      if (previous === undefined) delete process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
+      else process.env.ERPX_NATIVE_TALENT_READ_CONFIG = previous;
+    }
+  });
+
+  it('reads requisition source images from the native port with no local SQL', async () => {
+    const previous = process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
+    process.env.ERPX_NATIVE_TALENT_READ_CONFIG = config();
+    const values = ['req-1', 'h001', 'b-1', 'b-1', null, null];
+    const kinds: string[] = [];
+    const fetchMock = vi.fn(async (_url: unknown, init: { body?: string }) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      kinds.push(body.kind);
+      expect(body.values).toEqual(values);
+      const read = offerFamily.find((item) => item.kind === body.kind)!;
+      return ok({ data: { statements: [{ sql: read.sql, values: body.values }] } });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      for (const file of [false, true]) {
+        const seen: string[] = [];
+        const db = {
+          prepare(sql: string) {
+            seen.push(sql);
+            return { bind(...bound: unknown[]) { expect(bound).toEqual(values); return { first: async () => ({ image: 'req-image' }) }; } };
+          },
+        } as never;
+        const actor = { companyId: 'h001', branchId: 'b-1', departmentId: null } as never;
+        expect(await talentOwnerSourceImage(db, actor, { kind: 'requisition', id: 'req-1' }, file)).toBe('req-image');
+        expect(seen).toEqual([file ? offerFamily[5].sql : offerFamily[4].sql]);
+      }
+      expect(kinds).toEqual(['talent_rd_requisition_source_image', 'talent_rd_requisition_source_image_file']);
+    } finally {
+      vi.unstubAllGlobals();
+      if (previous === undefined) delete process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
+      else process.env.ERPX_NATIVE_TALENT_READ_CONFIG = previous;
+    }
+  });
+
+  it('builds the deferred requisition witness from the owner-planned statement', async () => {
+    const previous = process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
+    process.env.ERPX_NATIVE_TALENT_READ_CONFIG = config();
+    const planned = offerFamily[4].sql;
+    const values = ['req-1', 'h001', 'b-1', 'b-1', null, null];
+    const fetchMock = vi.fn(async (_url: unknown, init: { body?: string }) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      expect(body).toEqual({ kind: 'talent_rd_requisition_source_image', values });
+      return ok({ data: { statements: [{ sql: planned, values: body.values }] } });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const db = { prepare: () => { throw new Error('witness must not author local SQL'); } } as never;
+    try {
+      const descriptor = await talentOwnerSourceWitnessAssertion(
+        db, 'key-2', 'talent-owner-source',
+        { companyId: 'h001', branchId: 'b-1', departmentId: null } as never,
+        { kind: 'requisition', id: 'req-1' }, 'req-witness-json',
+      );
+      expect((descriptor as { kind: string }).kind).toBe('wf_native_command_assertions_3');
+      expect((descriptor as unknown as { values: unknown[] }).values).toEqual([
+        'key-2', 'talent-owner-source', ...values, 'req-witness-json', `(${planned})=?`,
+      ]);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+      if (previous === undefined) delete process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
+      else process.env.ERPX_NATIVE_TALENT_READ_CONFIG = previous;
+    }
   });
 });

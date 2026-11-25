@@ -484,6 +484,12 @@ pub fn plan_values_statement(
         "statutory_package_export" => "UPDATE finance_statutory_packages SET status='exported',version=version+1,export_content=?,export_hash=?,updated_at=? WHERE id=?",
         "statutory_package_file" => "UPDATE finance_statutory_packages SET status='filed',version=version+1,filing_reference=?,filed_at=?,evidence_json=(evidence_json::jsonb||?::jsonb)::text,updated_at=? WHERE id=?",
         "statutory_package_supersede" => "UPDATE finance_statutory_packages SET status='superseded',version=version+1,updated_at=? WHERE id=?",
+        // Native-owned Company-scoped inbox reads. Byte-identical to the
+        // retired TypeScript literals; the caller executes them on its own unit
+        // with the same ordered binds, so idempotency stays atomic.
+        "inbox_event_by_key" => "SELECT id FROM inbox_events WHERE company_id=? AND event_key=?",
+        "inbox_notice_exists" => "SELECT id FROM inbox_notices WHERE id=? AND company_id=?",
+        "inbox_recent_notice_count" => "SELECT count(*)::int n FROM inbox_notices WHERE company_id=? AND sender_user_id=? AND created_at>?",
         _ => return None,
     };
     Some(
@@ -546,6 +552,78 @@ mod tests {
         let parsed: serde_json::Value =
             serde_json::from_str(contract).expect("invalid command-assertion SQL contract");
         assert_eq!(parsed["sql"].as_str(), Some(WORKFLOW_ASSERTION_CLEAR_SQL));
+    }
+
+    fn read_input(kind: &str, values: &[&str]) -> NotificationStatementInput {
+        NotificationStatementInput {
+            company_id: "company-1".into(),
+            user_id: String::new(),
+            record_type: String::new(),
+            record_id: String::new(),
+            record_version: 0,
+            message: String::new(),
+            now: 0,
+            idempotency_key: String::new(),
+            kind: Some(kind.into()),
+            lead_id: None,
+            identifier: None,
+            approver_user_id: None,
+            item_id: None,
+            bill_id: None,
+            rfq_id: None,
+            audience: None,
+            event: None,
+            order_id: None,
+            change: None,
+            timestamp: None,
+            post_id: None,
+            source_hash: None,
+            ai_draft_id: None,
+            document_table: None,
+            recipient_sql: None,
+            node_id: None,
+            scope_node_id: None,
+            runtime_predicate: None,
+            table_name: None,
+            cte_prefix: None,
+            source_access_sql: None,
+            target_kind: None,
+            target_id: None,
+            values_json: Some(serde_json::to_string(values).expect("values")),
+        }
+    }
+
+    #[test]
+    fn inbox_read_kinds_render_the_retired_sql_byte_for_byte() {
+        let cases = [
+            (
+                "inbox_event_by_key",
+                "SELECT id FROM inbox_events WHERE company_id=? AND event_key=?",
+                vec!["company-1", "key-1"],
+            ),
+            (
+                "inbox_notice_exists",
+                "SELECT id FROM inbox_notices WHERE id=? AND company_id=?",
+                vec!["notice-1", "company-1"],
+            ),
+            (
+                "inbox_recent_notice_count",
+                "SELECT count(*)::int n FROM inbox_notices WHERE company_id=? AND sender_user_id=? AND created_at>?",
+                vec!["company-1", "user-1", "1"],
+            ),
+        ];
+        for (kind, sql, values) in cases {
+            let planned = super::plan_values_statement(kind, &read_input(kind, &values))
+                .expect("registered kind")
+                .expect("planned statement");
+            assert_eq!(planned.sql, sql, "{kind}");
+            assert_eq!(planned.sql.matches('?').count(), values.len(), "{kind}");
+            assert_eq!(planned.values.len(), values.len(), "{kind}");
+            for (actual, expected) in planned.values.iter().zip(values.iter()) {
+                assert_eq!(actual.as_str(), Some(*expected), "{kind}");
+            }
+        }
+        assert!(super::plan_values_statement("inbox.unknown", &read_input("inbox.unknown", &[])).is_none());
     }
 }
 

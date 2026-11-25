@@ -55,7 +55,7 @@ describe('Commercial read-tail r13 parameterized month-scoped read family', () =
     expect((pj.match(/monthScopedRead\(/g) ?? [])).toHaveLength(0);
     expect(pj).not.toContain('monthScopedRead(`holding_id,month,source_key');
     expect(pj).toContain('readNativeProjectionFacts');
-    expect(pj.match(/SELECT /g)).toHaveLength(1); // only the principal-status events read is local now
+    expect(pj.match(/SELECT /g) ?? []).toHaveLength(0); // principal-status event base is native now
   });
 
   test('r1-r12 helpers, source locks and native statement kinds stay untouched', () => {
@@ -94,6 +94,6 @@ describe('Commercial read-tail r13 parameterized month-scoped read family', () =
     };
     walk(srcRoot);
     expect(total).toBeLessThan(23);
-    expect(total).toBe(13);
+    expect(total).toBe(12);
   });
 });

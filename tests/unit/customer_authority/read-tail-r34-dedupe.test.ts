@@ -52,7 +52,8 @@ describe('Customer Authority read-tail r34 binding source core family', () => {
     expect(unit).not.toContain('WITH bindings AS(SELECT * FROM customer_access_bindings WHERE email=?)');
 
     const access = src('portal-access.ts');
-    expect(access).toContain('FOR UPDATE');
+    expect(access).toContain('CA_RD_PORTAL_BINDING_LOCK');
+    expect(access).toContain('nativePortalReadStatement');
     expect(access).not.toContain('bindingCommerceOrderSource');
     for (const name of ['portal-binding-source.ts', 'portal-purchase-binding-source.ts']) {
       expect(src(name), name).not.toContain('bindingCommerceOrderSource');
@@ -126,6 +127,6 @@ describe('Customer Authority read-tail r34 union fact row scaffold', () => {
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(47);
     // r43 further reduced the tail (26 -> 22); keep the current exact pin.
-    expect(total).toBe(17);
+    expect(total).toBe(15);
   });
 });

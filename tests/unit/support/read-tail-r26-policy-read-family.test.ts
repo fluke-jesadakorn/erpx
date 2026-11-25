@@ -56,7 +56,7 @@ describe('Support SLA policy native read port (r28)', () => {
         expect(src('adapters/attachment-read.ts')).toContain('LOCK TABLE support_tickets,support_ticket_events IN SHARE ROW EXCLUSIVE MODE');
         expect(src('adapters/ticket-portal-unit.ts')).toContain('SELECT pg_advisory_xact_lock(hashtextextended(?,0))');
         expect(src('adapters/ticket-portal-unit.ts')).toContain('LOCK TABLE command_receipts,command_assertions,audit_events,outbox_events IN SHARE ROW EXCLUSIVE MODE');
-        expect(src('adapters/service-access.ts')).toContain('const activeAssignmentSql = (alias: string, col: string, gap: string, tail: string) =>');
+        expect(src('adapters/service-access.ts')).not.toContain('activeAssignmentSql');
         expect(src('adapters/ticket-portal-sources.ts')).toContain('export const portalReplayProofSql=');
         expect(src('adapters/ticket-portal-sources.ts')).toContain('export const portalValidBindingSelect=');
         expect(src('adapters/ticket-portal-image-sql.ts')).toContain('export const portalImageAggregateSql = (images: string[]) =>');
@@ -110,7 +110,7 @@ describe('Support SLA policy native read port (r28)', () => {
             }
         };
         walk(srcRoot);
-        expect(total).toBe(30);
+        expect(total).toBe(28);
         expect(total).toBeLessThan(50);
     });
 });

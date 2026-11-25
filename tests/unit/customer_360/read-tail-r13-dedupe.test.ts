@@ -48,10 +48,24 @@ describe('Customer 360 read-tail r13 scoped-projection head family', () => {
     expect(companyScopeSource('portal_release')).toBe('(SELECT ?::text company_id) portal_release');
   });
 
+  it('r14 composes the legal visibility EXISTS through the same head byte-for-byte', () => {
+    // Pre-cut r13 literal; the source literal is deleted, the emitted SQL is not changed.
+    const legal = 'EXISTS(SELECT 1 FROM scoped_legal lg WHERE lg.order_id IN (SELECT id FROM scoped_orders so WHERE so.party_id=p.id))';
+    expect(sha(legal)).toBe('8b11ff115e8924df8deb6fa609ad836bd73c4b6f1501f0e4ffcff0fc3568b7bd');
+    const inner = scopedProjection('id', 'scoped_orders so', 'so.party_id=p.id');
+    const composed = `EXISTS(${scopedProjection('1', 'scoped_legal lg', `lg.order_id IN (${inner})`)})`;
+    expect(composed).toBe(legal);
+    expect(composed.match(/SELECT /g)).toHaveLength(2);
+    readOnly(composed);
+    const reads = src('customer-read-sources.ts');
+    expect(reads).not.toContain('EXISTS(SELECT 1 FROM scoped_legal');
+    expect(reads).toContain("scopedProjection('1', 'scoped_legal lg'");
+  });
+
   it('one shared head definition; r5 helper composes it and timeline imports it', () => {
     const reads = src('customer-read-sources.ts');
     expect(reads.match(/export const scopedProjection = \(/g)).toHaveLength(1);
-    expect(reads.match(/SELECT /g)).toHaveLength(3); // head + legal EXISTS literal + company scope source
+    expect(reads.match(/SELECT /g)).toHaveLength(2); // head + company scope source; legal EXISTS composes the head (r14)
     const wrapper = reads.match(/const scopedRow = [\s\S]*?;\n/)?.[0] ?? '';
     expect(wrapper).toContain('scopedProjection(column, `${relation} ${alias}`, `${alias}.${key}=p.id`)');
     expect(wrapper).not.toContain('SELECT '); // the duplicate head literal is gone
@@ -90,7 +104,7 @@ describe('Customer 360 read-tail r13 scoped-projection head family', () => {
     expect(native.some((source) => source.includes('scopedProjection'))).toBe(false);
   });
 
-  it('retirement:ts-statements is strictly lower than BEFORE=13 (expected 12)', () => {
+  it('retirement:ts-statements is strictly lower than BEFORE=12 (expected 11)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -100,7 +114,7 @@ describe('Customer 360 read-tail r13 scoped-projection head family', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(12);
-    expect(total).toBeLessThan(13);
+    expect(total).toBe(11);
+    expect(total).toBeLessThan(12);
   });
 });

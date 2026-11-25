@@ -5,7 +5,7 @@ import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { recordContextDetailSql } from '../../../packages/server-records/src/adapters/records';
+import { projectionColumnHeadSql } from '../../../packages/server-records/src/adapters/read-tail-r32-sql';
 
 const root = resolve(__dirname, '../../..');
 const read = (p: string) => readFileSync(resolve(root, p), 'utf8');
@@ -16,18 +16,18 @@ const rustPort = read('packages/server-records/src/adapters/record_context.rs');
 const rustReadPath = rustPort.split('#[cfg(test)]')[0] ?? rustPort;
 
 describe('Records record_context native read port cutover', () => {
-  test('retained generator renders the exact prior SQL after the r32 head delegation', () => {
-    const rendered = recordContextDetailSql(
-      'record_reference_edges',
+  test('the former detail head still renders byte-identically through r32', () => {
+    const rendered = projectionColumnHeadSql(
       'target_module,target_id,kind,ordinal',
-      'host_module=? AND host_id=?',
-      ' ORDER BY ordinal',
+      'record_reference_edges',
+      ' WHERE host_module=? AND host_id=? ORDER BY ordinal',
     );
     expect(rendered).toBe(
       'SELECT target_module,target_id,kind,ordinal FROM record_reference_edges WHERE host_module=? AND host_id=? ORDER BY ordinal',
     );
     expect(sha(rendered)).toBe('06c718e5cfb225e12dd1b41a3bac38884d2af27749b39be73d972ef63a70c7b3');
-    expect(records).toContain('projectionColumnHeadSql(columns, table, ` WHERE ${where}${order}`)');
+    expect(records).not.toContain('recordContextDetailSql');
+    expect(records).not.toContain('referenceEdgesSql');
     expect(records).toContain("import { projectionColumnHeadSql } from './read-tail-r32-sql';");
   });
 
@@ -59,7 +59,7 @@ describe('Records record_context native read port cutover', () => {
       }
     };
     walk(resolve(root, 'packages/server-records/src'));
-    expect(total).toBe(11);
+    expect(total).toBe(9);
     expect(total).toBeLessThan(13);
   });
 

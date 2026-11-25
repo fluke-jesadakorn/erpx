@@ -40,6 +40,8 @@ export const OPERATIONS_RD_WORKFLOW_DOCUMENT_PAGE = 'operations_rd_workflow_docu
 export const OPERATIONS_RD_WORK_TASK_REPLAY_RECEIPT = 'operations_rd_work_task_replay_receipt';
 export const OPERATIONS_RD_ATTACHMENT_OWNER_SCOPE = 'operations_rd_attachment_owner_scope';
 export const OPERATIONS_RD_TASK_DETAIL_ATTACHMENTS = 'operations_rd_task_detail_attachments';
+export const OPERATIONS_RD_TASK_ATTACHMENT_PURCHASE_WITNESS = 'operations_rd_task_attachment_purchase_witness';
+export const OPERATIONS_RD_TASK_ATTACHMENT_PURCHASE_WITNESS_OWNED = 'operations_rd_task_attachment_purchase_witness_owned';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'OPERATIONS_NATIVE_READ_UNAVAILABLE', 'The native Operations read service is unavailable.');

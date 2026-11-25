@@ -17,6 +17,7 @@ use serde_json::Value;
 use std::{collections::BTreeMap, future::Future, pin::Pin, sync::Arc};
 
 const BODY_LIMIT: usize = 512 * 1024;
+const PLAN_BODY_LIMIT: usize = 16 * 1024;
 
 pub type LegalHttpFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, BusinessError>> + Send + 'a>>;
@@ -129,6 +130,13 @@ pub struct LegalRegisterQueryWire {
 #[derive(Debug, Default, Deserialize)]
 pub struct LegalExportQueryWire {
     pub format: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LegalReadPlanInput {
+    kind: String,
+    values: Vec<Value>,
 }
 
 struct LegalHttpState {
@@ -425,6 +433,56 @@ impl LegalHttpService {
         }
     }
 
+    /// Owner-local caller-unit read plan. Transport facts only: one registered
+    /// Holding target, the exact Origin and one bounded JSON body. The owner
+    /// resolves the allow-listed kind to its statement; no SQL is accepted.
+    pub async fn plan(
+        &self,
+        host: &str,
+        holding_slug: &str,
+        headers: &HeaderMap,
+        body: &[u8],
+    ) -> Response {
+        let target = match self.target_for_host(headers, holding_slug, host) {
+            Ok(target) => target,
+            Err(error) => return error_response(error),
+        };
+        let origin = match unique_header(headers, header::ORIGIN) {
+            Ok(origin) => origin,
+            Err(error) => return error_response(error),
+        };
+        if origin != Some(target.origin.as_str()) {
+            return error_response(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            ));
+        }
+        match unique_header(headers, header::CONTENT_TYPE) {
+            Ok(Some(value)) if value.starts_with("application/json") => {}
+            Ok(_) => return error_response(malformed("Use a JSON read-plan request.")),
+            Err(error) => return error_response(error),
+        }
+        if body.len() > PLAN_BODY_LIMIT {
+            return error_response(malformed("Use a smaller Legal read-plan request."));
+        }
+        let input: LegalReadPlanInput = match serde_json::from_slice(body) {
+            Ok(input) => input,
+            Err(_) => return error_response(malformed("Use a JSON read-plan request.")),
+        };
+        match crate::adapters::native_read_plan::plan_legal_read(&input.kind, &input.values) {
+            Ok(planned) => bounded(&serde_json::json!({
+                "data": {
+                    "statements": [{
+                        "sql": planned.sql,
+                        "values": planned.values,
+                    }],
+                },
+            })),
+            Err(error) => error_response(error),
+        }
+    }
+
     fn target_for_host<'a>(
         &'a self,
         headers: &HeaderMap,
@@ -462,6 +520,10 @@ pub fn legal_router(targets: Vec<LegalHttpTarget>) -> Result<Router, BusinessErr
         .route(
             "/api/v1/holdings/{holding_slug}/legal/documents/{id}",
             get(read_export),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/legal/command-plan",
+            post(command_plan),
         )
         .route(
             "/api/v1/holdings/{holding_slug}/legal/commands",
@@ -566,6 +628,29 @@ async fn command(
     state
         .service
         .command(host, &holding_slug, &headers, &body)
+        .await
+}
+
+async fn command_plan(
+    State(state): State<Arc<LegalHttpState>>,
+    Path(holding_slug): Path<String>,
+    headers: HeaderMap,
+    request: Request,
+) -> Response {
+    if request.uri().query().is_some() {
+        return error_response(malformed("Use one bounded Legal read-plan request."));
+    }
+    let body = match to_bytes(request.into_body(), PLAN_BODY_LIMIT + 1).await {
+        Ok(body) => body,
+        Err(_) => return error_response(malformed("Use a smaller Legal read-plan request.")),
+    };
+    let host = unique_header(&headers, header::HOST)
+        .ok()
+        .flatten()
+        .unwrap_or_default();
+    state
+        .service
+        .plan(host, &holding_slug, &headers, &body)
         .await
 }
 
@@ -879,6 +964,45 @@ mod tests {
             response_body(response)["error"]["code"],
             serde_json::json!("LEGAL_VERSION_CONFLICT")
         );
+    }
+
+    #[test]
+    fn command_plan_returns_one_bounded_owner_statement() {
+        let backend = Arc::new(Backend::default());
+        let service = LegalHttpService::new(vec![target(backend)]).unwrap();
+        let mut headers = headers(Some("https://acme.example.test"), None);
+        headers.insert(header::CONTENT_TYPE, "application/json".parse().unwrap());
+        let body = br#"{"kind":"legal_package_obligations","values":["company",1700000000000]}"#;
+        let response = block_on(service.plan("acme.example.test", "acme", &headers, body));
+        assert_eq!(response.status(), StatusCode::OK);
+        let reply = response_body(response);
+        let statements = reply["data"]["statements"].as_array().unwrap();
+        assert_eq!(statements.len(), 1);
+        assert_eq!(
+            statements[0]["values"],
+            serde_json::json!(["company", 1700000000000])
+        );
+        assert!(statements[0]["sql"]
+            .as_str()
+            .unwrap()
+            .starts_with("WITH scope AS("));
+
+        let mut foreign = headers.clone();
+        foreign.insert(
+            header::ORIGIN,
+            "https://other.example.test".parse().unwrap(),
+        );
+        let response = block_on(service.plan("acme.example.test", "acme", &foreign, body));
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+        let unknown = br#"{"kind":"legal_other","values":["company",1]}"#;
+        let response = block_on(service.plan("acme.example.test", "acme", &headers, unknown));
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+        let mut untyped = headers.clone();
+        untyped.remove(header::CONTENT_TYPE);
+        let response = block_on(service.plan("acme.example.test", "acme", &untyped, body));
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
     }
 
     #[test]

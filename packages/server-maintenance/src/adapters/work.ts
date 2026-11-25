@@ -28,11 +28,13 @@ const assetScope="a.company_id=? AND (?::text IS NULL OR a.branch_id=?) AND (?::
  * items and downtime-evidence reads. Both call the same owner-fixed Work join
  * to the operational Asset projection and project the same code/name columns;
  * callers pass only closed field/join/scope/order fragments, never request-
- * authored SQL or relation names. Each composed read keeps its pre-dedupe SQL
- * tokens (whitespace-only reflow for the downtime read) and no LOCK statement
- * is accepted or changed. r3-r17 families stay unchanged. */
+ * authored SQL or relation names. The single row-projection head is now the
+ * shared settlement-ref renderer, so no second head is carried in the TS read
+ * tail. Each composed read keeps its pre-dedupe SQL tokens (whitespace-only
+ * reflow for the downtime read) and no LOCK statement is accepted or changed.
+ * r3-r17 families stay unchanged. */
 export const workAssetSource = (fields: string, assetJoin: string, where: string) =>
-  `SELECT ${fields} FROM maintenance_work_orders w JOIN (${assetsProjectionSources.operational_assets}) a ON a.id=w.asset_id${assetJoin} WHERE ${where}`;
+  settlementRefSource(fields, `maintenance_work_orders w JOIN (${assetsProjectionSources.operational_assets}) a ON a.id=w.asset_id${assetJoin}`, ` WHERE ${where}`);
 /** Owner-local row scan over a closed projection source, shared by the Work
  * assets, org-nodes and consumptions read tails (r21). It reuses the single
  * row-projection head so no second query head is carried in the TS read tail;

@@ -400,6 +400,7 @@ pub const KINDS: &[&str] = &[
     crate::adapters::list_reads::REFUNDS,
     crate::adapters::list_reads::CONNECTIONS,
     crate::adapters::list_reads::SETTLEMENTS,
+    crate::adapters::list_reads::EXCEPTION_JOBS,
     // POS hotel day-assertion property kinds (round 32): closed, SELECT-only,
     // Company-scoped, lock-free owner statements ported from the inline
     // pos-core.ts literals. Row locks, PMS fragments and the day-report/Stripe
@@ -691,7 +692,7 @@ mod tests {
     use super::*;
     #[test]
     fn every_kind_is_allow_listed_with_parameterized_owner_sql() {
-        assert_eq!(KINDS.len(), 196);
+        assert_eq!(KINDS.len(), 197);
         for kind in KINDS {
             assert!(supported(kind), "kind must be allow listed: {kind}");
             let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
@@ -1272,7 +1273,7 @@ mod tests {
                 );
             }
         }
-        assert_eq!(crate::adapters::list_reads::KINDS.len(), 4);
+        assert_eq!(crate::adapters::list_reads::KINDS.len(), 5);
     }
 
     /// The retired hotel day-assertion property reads are SELECT-only,

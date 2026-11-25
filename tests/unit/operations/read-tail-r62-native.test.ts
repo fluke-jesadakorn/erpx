@@ -29,9 +29,9 @@ describe('operations read-tail r62 attachment owner-scope native cutover', () =>
     expect(surface).toContain('RD_ATTACHMENT_OWNER_SCOPE');
   });
 
-  it('grows the native allow-list from 21 to 22 kinds with no duplicate entry', async () => {
+  it('grows the native allow-list from 24 to 25 kinds with no duplicate entry', async () => {
     const native = await registry();
-    expect(native.match(/const READ_[A-Z_]+: NativeReadStatement/g) ?? []).toHaveLength(23);
+    expect(native.match(/const READ_[A-Z_]+: NativeReadStatement/g) ?? []).toHaveLength(25);
     expect(native.match(/RD_ATTACHMENT_OWNER_SCOPE/g) ?? []).toHaveLength(5);
   });
 
@@ -107,7 +107,7 @@ describe('operations read-tail r62 attachment owner-scope native cutover', () =>
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(59);
+    expect(total).toBe(58);
     expect(total).toBeLessThan(61);
   });
 });

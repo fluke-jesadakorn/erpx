@@ -45,6 +45,13 @@ export type NativeWorkspaceLists = Readonly<{
   carts: readonly NativeCartRow[];
 }>;
 
+/** Opaque owner rows projected by the axum reader; no SQL is emitted here. */
+export type NativeRow = Readonly<Record<string, string | number | null>>;
+export type NativeWorkspaceRows = Readonly<{
+  listings: readonly NativeRow[];
+  checkouts: readonly NativeRow[];
+}>;
+
 export type NativeLane39Holding = Readonly<{
   origin: string;
   host: string;
@@ -99,6 +106,9 @@ const invalidInput = (): never => {
 };
 const invalidResponse = (): never => {
   throw new ApiError(503, "ECOMMERCE_WORKSPACE_LIST_RESPONSE_INVALID", "The native Ecommerce workspace reply was invalid.");
+};
+const invalidRows = (): never => {
+  throw new ApiError(503, "ECOMMERCE_WORKSPACE_ROW_RESPONSE_INVALID", "The native Ecommerce workspace rows were invalid.");
 };
 const targetUnavailable = (): never => {
   throw new ApiError(503, "ECOMMERCE_WORKSPACE_LIST_TARGET_UNAVAILABLE", "The current Work Context has no registered Ecommerce workspace target.");
@@ -252,6 +262,21 @@ function toCart(value: unknown): NativeCartRow {
   return value as unknown as NativeCartRow;
 }
 
+function toNativeRow(value: unknown): NativeRow {
+  if (
+    !record(value) ||
+    Object.keys(value).length > 64 ||
+    typeof value.id !== "string" ||
+    !validId(value.id) ||
+    typeof value.company_id !== "string" ||
+    value.company_id.length > MAX_ID_LEN ||
+    Object.values(value).some((item) => !(item === null || typeof item === "string" || (typeof item === "number" && Number.isFinite(item)))) ||
+    JSON.stringify(value).length > 64 * 1024
+  )
+    return invalidRows();
+  return value as NativeRow;
+}
+
 async function boundedJson(reply: Response, signal: AbortSignal): Promise<unknown> {
   if (reply.status !== 200 || !reply.body) return invalidResponse();
   const reader = reply.body.getReader();
@@ -364,6 +389,76 @@ export function createLane39EcomClient(
         clearTimeout(timer);
       }
     },
+
+    async workspaceRows(
+      scope: WorkspaceListScope,
+      actor: Lane39HoldingContext | undefined,
+    ): Promise<NativeWorkspaceRows> {
+      if (
+        !record(scope) ||
+        !validId(scope.companyId) ||
+        !(scope.branchId === undefined || scope.branchId === null || validId(scope.branchId)) ||
+        !(scope.departmentId === undefined || scope.departmentId === null || validId(scope.departmentId))
+      )
+        return invalidInput();
+      const holding = selectHolding(config, actor);
+      const url = new URL(
+        `/api/v1/holdings/${encodeURIComponent(holding.holdingSlug)}/ecommerce/lane39-workspace-rows`,
+        config.base,
+      );
+      const headers = new Headers({
+        host: holding.host,
+        origin: holding.origin,
+        accept: "application/json",
+        "cache-control": "no-cache",
+        "x-erpx-context-company": scope.companyId,
+      });
+      if (scope.branchId) headers.set("x-erpx-workspace-branch", scope.branchId);
+      if (scope.departmentId) headers.set("x-erpx-workspace-department", scope.departmentId);
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), config.timeoutMs);
+      try {
+        let reply: Response;
+        try {
+          reply = await transport(url, {
+            method: "POST",
+            headers,
+            cache: "no-store",
+            redirect: "error",
+            signal: controller.signal,
+          });
+        } catch {
+          return unavailable();
+        }
+        if (reply.status !== 200) {
+          const payload: unknown = await reply.json().catch((): unknown => null);
+          const error = record(payload) && record(payload.error) ? payload.error : undefined;
+          if (reply.status >= 400 && reply.status < 500)
+            throw new ApiError(
+              reply.status,
+              typeof error?.code === "string" ? error.code : "ECOMMERCE_WORKSPACE_ROW_READ_FAILED",
+              typeof error?.message === "string" ? error.message : "The Ecommerce workspace row read was rejected.",
+            );
+          return unavailable();
+        }
+        const body = await boundedJson(reply, controller.signal);
+        if (
+          !record(body) ||
+          Object.keys(body).length !== 2 ||
+          !Array.isArray(body.listings) ||
+          !Array.isArray(body.checkouts) ||
+          body.listings.length > MAX_ROWS ||
+          body.checkouts.length > MAX_ROWS
+        )
+          return invalidRows();
+        return {
+          listings: body.listings.map(toNativeRow),
+          checkouts: body.checkouts.map(toNativeRow),
+        };
+      } finally {
+        clearTimeout(timer);
+      }
+    },
   };
 }
 
@@ -373,4 +468,12 @@ export async function nativeWorkspaceLists(
   actor: Lane39HoldingContext | undefined,
 ): Promise<NativeWorkspaceLists> {
   return createLane39EcomClient(process.env[LANE39_ECOM_CONFIG_ENV]).workspaceLists(scope, actor);
+}
+
+/** Default consumer for the workspace listings/checkouts row family. */
+export async function nativeWorkspaceRows(
+  scope: WorkspaceListScope,
+  actor: Lane39HoldingContext | undefined,
+): Promise<NativeWorkspaceRows> {
+  return createLane39EcomClient(process.env[LANE39_ECOM_CONFIG_ENV]).workspaceRows(scope, actor);
 }

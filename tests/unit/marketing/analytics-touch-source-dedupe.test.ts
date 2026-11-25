@@ -27,6 +27,10 @@ describe('marketing analytics touch projection dedupe', () => {
     expect(source).not.toContain(legacy);
     expect(source).toContain('touch:marketingAnalyticsTouchSql(true,touchRows)');
     expect(source).toContain('touch:marketingAnalyticsTouchSql(false,touchRows)');
+    // r56 routes the touch-row source head through the shared renderer, so the
+    // consumer no longer owns a SELECT token and emits byte-identical SQL.
+    expect(source.match(/SELECT /g)).toBeNull();
+    expect(source).toContain("marketingSelectHeadSql('touch.*',` FROM marketing_touches touch");
   });
 
   it('preserves the outer source selection and binds', async () => {

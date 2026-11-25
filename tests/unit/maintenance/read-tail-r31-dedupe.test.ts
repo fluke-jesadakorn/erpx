@@ -104,7 +104,7 @@ describe('maintenance read-tail r31 alias-row head reuse', () => {
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(16);
+    expect(total).toBe(15);
     expect(total).toBeLessThan(18);
   });
 });

@@ -88,6 +88,13 @@ async function plan(kind: string, values: readonly unknown[]): Promise<Planned> 
   return { sql: entry.sql, values: entry.values };
 }
 
+/** Owner-planned statement for a registered read kind. Exposed only so a
+ * caller's deferred witness guard can reuse the exact owner statement without
+ * authoring any SQL locally; the guard still executes on the caller's unit. */
+export async function nativeTalentPlan(kind: string, values: readonly unknown[]): Promise<Planned> {
+  return plan(kind, values);
+}
+
 /** Planned owner read returning all rows, executed on the caller's unit. */
 export async function nativeTalentReadAll<T>(
   kind: string,

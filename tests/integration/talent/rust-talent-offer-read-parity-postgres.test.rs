@@ -12,7 +12,8 @@ mod fixture;
 
 use erpx_server_talent::public::native_talent_read_sql::{
     read_statement, RD_CANDIDATE_EVENTS, RD_CANDIDATE_SOURCE_IMAGE,
-    RD_CANDIDATE_SOURCE_IMAGE_FILE, RD_OFFER_EVENTS,
+    RD_CANDIDATE_SOURCE_IMAGE_FILE, RD_OFFER_EVENTS, RD_REQUISITION_SOURCE_IMAGE,
+    RD_REQUISITION_SOURCE_IMAGE_FILE,
 };
 use sqlx::{AssertSqlSafe, Connection, PgConnection, Row};
 
@@ -44,6 +45,12 @@ const LIVE_CANDIDATE_EVENTS: &str =
     "SELECT * FROM talent_candidate_events WHERE candidate_id=? ORDER BY version";
 const LIVE_OFFER_EVENTS: &str =
     "SELECT * FROM talent_offer_events WHERE offer_id=? ORDER BY version";
+/// Live `talentOwnerSourceQuery` requisition image literals copied verbatim
+/// from `packages/server-talent/src/adapters/purchases.ts` (file=false / true).
+const LIVE_REQUISITION_IMAGE: &str =
+    "SELECT to_jsonb(r)::text image FROM talent_requisitions r WHERE r.id=? AND r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?)";
+const LIVE_REQUISITION_IMAGE_FILE: &str =
+    "SELECT (to_jsonb(r)-'version'-'updated_at')::text image FROM talent_requisitions r WHERE r.id=? AND r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?)";
 
 /// The runtime binds `?` positionally; convert to Postgres `$n` for direct
 /// execution. No registered statement contains a literal `?` in its SQL text
@@ -152,6 +159,28 @@ async fn offer_and_candidate_reads_match_native_plans_on_one_transaction() {
             RD_OFFER_EVENTS,
         )
         .await;
+        let requisition_values = vec![
+            Some("req-1".into()),
+            Some("company-1".into()),
+            Some("branch-1".into()),
+            Some("branch-1".into()),
+            None,
+            None,
+        ];
+        parity(
+            &mut tx,
+            LIVE_REQUISITION_IMAGE,
+            requisition_values.clone(),
+            RD_REQUISITION_SOURCE_IMAGE,
+        )
+        .await;
+        parity(
+            &mut tx,
+            LIVE_REQUISITION_IMAGE_FILE,
+            requisition_values.clone(),
+            RD_REQUISITION_SOURCE_IMAGE_FILE,
+        )
+        .await;
 
         // The candidate image exposes the full source row; the file variant
         // strips version/updated_at; event history is version-ordered.
@@ -165,6 +194,12 @@ async fn offer_and_candidate_reads_match_native_plans_on_one_transaction() {
         assert_eq!(events.len(), 2);
         assert_eq!(events[0][2].as_deref(), Some("1"));
         assert_eq!(events[1][2].as_deref(), Some("2"));
+        let req_full = rows(&mut tx, LIVE_REQUISITION_IMAGE, &requisition_values).await;
+        let req_file = rows(&mut tx, LIVE_REQUISITION_IMAGE_FILE, &requisition_values).await;
+        assert!(req_full[0][0].as_deref().unwrap().contains("Service specialist"));
+        assert!(req_full[0][0].as_deref().unwrap().contains("\"version\""));
+        assert!(req_file[0][0].as_deref().unwrap().contains("Service specialist"));
+        assert!(!req_file[0][0].as_deref().unwrap().contains("\"version\""));
 
         // A wrong company scope returns no rows on both sides (isolation).
         let miss = rows(&mut tx, LIVE_CANDIDATE_IMAGE, &[Some("cand-1".into()), Some("company-2".into())]).await;
@@ -184,6 +219,8 @@ fn unknown_offer_candidate_read_kinds_fail_closed() {
         RD_CANDIDATE_SOURCE_IMAGE_FILE,
         RD_CANDIDATE_EVENTS,
         RD_OFFER_EVENTS,
+        RD_REQUISITION_SOURCE_IMAGE,
+        RD_REQUISITION_SOURCE_IMAGE_FILE,
     ] {
         assert!(read_statement(kind).is_some());
     }

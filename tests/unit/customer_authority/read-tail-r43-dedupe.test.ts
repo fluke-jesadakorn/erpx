@@ -132,7 +132,8 @@ describe('Customer Authority read-tail r43 universal-head delegation family', ()
     expect(portal).toContain('pointRead(');
     expect(portal).toContain("'quote','sales'");
 
-    expect(src('portal-access.ts')).toContain('FOR UPDATE');
+    expect(src('portal-access.ts')).toContain('CA_RD_PORTAL_BINDING_LOCK');
+    expect(src('portal-access.ts')).toContain('nativePortalReadStatement');
     expect(src('portal-source-locks.ts')).toContain('LOCK TABLE');
     expect(src('portal-purchase-binding-source.ts')).toContain('o.kind IN (${kinds})');
     expect(src('assignment-eligibility-source.ts')).toContain('export const assignmentSource');
@@ -188,6 +189,6 @@ describe('Customer Authority read-tail r43 universal-head delegation family', ()
     walk(srcRoot);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(26);
-    expect(total).toBe(17);
+    expect(total).toBe(15);
   });
 });

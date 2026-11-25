@@ -8,10 +8,12 @@ import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 // transport and assert the exact typed kind and positional values they send.
 const one = vi.hoisted(() => vi.fn(async (_db: unknown, _companyId: string, _kind: string, _values: unknown[]) => null as unknown));
 const all = vi.hoisted(() => vi.fn(async (_db: unknown, _companyId: string, _kind: string, _values: unknown[]) => [] as unknown[]));
+const execute = vi.hoisted(() => vi.fn(async (_companyId: string, _kind: string, _values: unknown[], _key: string) => ({kind: _kind, rows: 0})));
 const laneMarketLevels = vi.hoisted(() => vi.fn(async (_target: unknown, _companyId: string) => [] as unknown[]));
 vi.mock('../../../packages/server-organization/src/adapters/native-organization-owner-write', () => ({
   nativeOrgOne: one,
   nativeOrgAll: all,
+  nativeOrgExecute: execute,
 }));
 vi.mock('../../../packages/server-organization/src/adapters/native-lane-24/client', () => ({
   nativeLane24MarketLevels: laneMarketLevels,
@@ -476,7 +478,7 @@ describe('Organization read-tail r30 native cutover — finance starter node lis
     expect(registry).not.toMatch(/FINANCE_STARTER_ORGANIZATION_NODES => \{[\s\S]{0,200}(INSERT|UPDATE|DELETE|FOR UPDATE|LOCK TABLE)/);
   });
 
-  it('retirement:ts-statements records the 192 -> 191 native cutover', () => {
+  it('retirement:ts-statements records the cumulative native cutover', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, {withFileTypes: true})) {
@@ -486,7 +488,97 @@ describe('Organization read-tail r30 native cutover — finance starter node lis
       }
     };
     walk(srcRoot);
-    expect(total).toBe(191);
-    expect(total).toBeLessThan(192);
+    expect(total).toBe(189);
+    expect(total).toBeLessThan(190);
+  });
+});
+
+describe('Organization people-lifecycle node read native cutover', () => {
+  const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+  const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
+  const sha = (value: string) => createHash('sha256').update(value).digest('hex');
+  const KIND = 'people_lifecycle_data_nodes';
+  const SQL = "SELECT id,display_name name,kind FROM organization_nodes WHERE company_id=? AND status='active' ORDER BY display_name,id";
+  const CALL = `nativeOrgAll<{`;
+
+  it('deletes the TS literal and sends only the typed kind and Company bind', async () => {
+    const source = read('people-lifecycle-facts.ts');
+    expect(source).not.toContain(SQL);
+    expect(source).toContain(CALL);
+    expect(source).toContain(`}>(database, companyId, '${KIND}', [companyId]).then(results => ({ results }));`);
+    expect(source).toContain("import { nativeOrgAll, nativeOrgExecute, nativeOrgOne } from './native-organization-owner-write';");
+    expect(source.split(KIND).length - 1).toBe(1);
+    // The retained Company-owning row lock and package effects stay untouched.
+    expect(source).toContain('FOR UPDATE');
+    const {peopleLifecycleOrganizationFacts} = await import(
+      '../../../packages/server-organization/src/adapters/people-lifecycle-facts'
+    );
+    all.mockClear();
+    const handle = db();
+    const rows = [{id: 'n1', name: 'Finance', kind: 'department'}];
+    all.mockResolvedValueOnce(rows);
+    await expect(peopleLifecycleOrganizationFacts(handle).readPeopleLifecycleDataNodes('company-1')).resolves.toEqual({results: rows});
+    expect(all).toHaveBeenCalledWith(handle, 'company-1', KIND, ['company-1']);
+    expect(handle.prepare).not.toHaveBeenCalled();
+  });
+
+  it('pins the byte-identical SQL now owned by the Rust registry', () => {
+    expect(sha(SQL)).toBe('540b876572f469cd4d0092a855ae17077479bf52f073e39a0f7fb49ef10ca2b8');
+    const registry = read('organization_owner_write.rs');
+    expect(registry).toContain(`pub const PEOPLE_LIFECYCLE_DATA_NODES: &str = "${KIND}";`);
+    expect(registry).toContain(`    PEOPLE_LIFECYCLE_DATA_NODES,\n`);
+    expect(registry).toContain(`        PEOPLE_LIFECYCLE_DATA_NODES => {\n            "${SQL}"\n        }`);
+    const arm = registry.match(/PEOPLE_LIFECYCLE_DATA_NODES => \{\n            "([^"]+)"\n        \}/)?.[1] ?? '';
+    expect(arm).toBe(SQL);
+    expect(arm.toUpperCase().startsWith('SELECT ')).toBe(true);
+    expect(arm).not.toMatch(/INSERT|UPDATE|DELETE|FOR UPDATE|FOR SHARE|LOCK TABLE/);
+  });
+});
+
+describe('Organization lifecycle save position native cutover', () => {
+  const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+  const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
+  const sha = (value: string) => createHash('sha256').update(value).digest('hex');
+  const KIND = 'lifecycle_read_save_position';
+  const SQL = "SELECT level_id,branch_id,department_id FROM organization_positions WHERE company_id=? AND id=?";
+
+  it('deletes the TS literal and sends the typed kind with both positional values', async () => {
+    const source = read('people-lifecycle-facts.ts');
+    expect(source).not.toContain(SQL);
+    expect(source).toContain(`}>(database, companyId, '${KIND}', [companyId, positionId]);`);
+    expect(source.split(KIND).length - 1).toBe(1);
+    // The Company-owning row lock on the lifecycle position stays excluded.
+    expect(source).toContain('FOR UPDATE');
+    const {peopleLifecycleOrganizationFacts} = await import(
+      '../../../packages/server-organization/src/adapters/people-lifecycle-facts'
+    );
+    one.mockClear();
+    const handle = db();
+    const row = {level_id: 'level', branch_id: null, department_id: 'department'};
+    one.mockResolvedValueOnce(row);
+    await expect(peopleLifecycleOrganizationFacts(handle).readSaveLifecyclePosition('company-1', 'position-1')).resolves.toBe(row);
+    expect(one).toHaveBeenCalledWith(handle, 'company-1', KIND, ['company-1', 'position-1']);
+    expect(handle.prepare).not.toHaveBeenCalled();
+  });
+
+  it('keeps the nullable single-row parity for a missing position', async () => {
+    const {peopleLifecycleOrganizationFacts} = await import(
+      '../../../packages/server-organization/src/adapters/people-lifecycle-facts'
+    );
+    one.mockClear();
+    one.mockResolvedValueOnce(null);
+    await expect(peopleLifecycleOrganizationFacts(db()).readSaveLifecyclePosition('company-1', 'position-1')).resolves.toBeNull();
+  });
+
+  it('pins the byte-identical SQL now owned by the Rust registry', () => {
+    expect(sha(SQL)).toBe('3890b4ecb403e95cc95d4e0a80fb9ca8403a313d6b4b487e0a3247d4fa6c4911');
+    const registry = read('organization_owner_write.rs');
+    expect(registry).toContain(`pub const LIFECYCLE_READ_SAVE_POSITION: &str = "${KIND}";`);
+    expect(registry).toContain(`    LIFECYCLE_READ_SAVE_POSITION,\n`);
+    expect(registry).toContain(`        LIFECYCLE_READ_SAVE_POSITION => {\n            "${SQL}"\n        }`);
+    const arm = registry.match(/LIFECYCLE_READ_SAVE_POSITION => \{\n            "([^"]+)"\n        \}/)?.[1] ?? '';
+    expect(arm).toBe(SQL);
+    expect(arm.toUpperCase().startsWith('SELECT ')).toBe(true);
+    expect(arm).not.toMatch(/INSERT|UPDATE|DELETE|FOR UPDATE|FOR SHARE|LOCK TABLE/);
   });
 });

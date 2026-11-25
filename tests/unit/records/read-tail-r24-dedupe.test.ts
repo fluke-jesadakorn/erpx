@@ -81,8 +81,8 @@ describe('Records read-tail r24 childRowAgg family', () => {
     const records = readFileSync(resolve(srcRoot, 'adapters/records.ts'), 'utf8');
     expect(records).toContain('const recordVersionExistsSql ='); // r11
     expect(records).toContain('const recordRowSelectSql ='); // r12
-    expect(records).toContain('const referenceEdgesSql ='); // r14
-    expect(records).toContain('const recordContextDetailSql ='); // r15
+    expect(records).not.toContain('const referenceEdgesSql ='); // r14 retired
+    expect(records).not.toContain('const recordContextDetailSql ='); // r15 retired
     const ai = readFileSync(resolve(srcRoot, 'adapters/ai-usage-projection.ts'), 'utf8');
     expect(ai).toContain('export const requestAiUsageProjection ='); // r16
     expect(readFileSync(resolve(srcRoot, 'adapters/read-tail-sql.ts'), 'utf8')).toContain('export const ownerVersionExistsSql ='); // r17
@@ -112,7 +112,7 @@ describe('Records read-tail r24 retirement check', () => {
     // r28 folds the reference-edge family into that generator (24 -> 23);
     // r29 folds the request-events aggregate into childRowAgg (23 -> 22);
     // r30 folds three shared heads (22 -> 19). No other family changed.
-    expect(total).toBe(11);
+    expect(total).toBe(9);
     expect(total).toBeLessThan(28);
   });
 });

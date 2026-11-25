@@ -96,7 +96,7 @@ describe('Learning read-tail r20 invariants', () => {
     const shared = src('learning-read-sql.ts');
     for (const name of [
       'actorScopeProbe', 'clockProbe', 'coursesImage', 'learningNativeSources', 'nativeSourceProbe',
-      'overdueEvidenceColumns', 'learningModuleGrantProbe', 'moduleGrantAssignmentProbe', 'actorScopeExistsProbe',
+      'learningModuleGrantProbe', 'moduleGrantAssignmentProbe', 'actorScopeExistsProbe',
       'assignmentsImage', 'sourceLiteral', 'metricLabelProjection', 'learningAssignmentsExistsProbe',
       'currentAssignmentScopeHead', 'assignmentCourseJoinHead', 'assignmentCourseReadHead', 'packageScopeCte',
       'benefitConsumptionHead', 'latestEventLateral', 'workspaceImageFrame', 'clockedSourceCte',
@@ -124,7 +124,7 @@ describe('Learning read-tail r20 invariants', () => {
     expect(locks).toBe(7);
   });
 
-  test('retirement:ts-statements KPI is 31 (strictly below the r24 BEFORE=33 baseline)', () => {
+  test('retirement:ts-statements KPI is 29 (strictly below the r24 BEFORE=33 baseline)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -135,9 +135,9 @@ describe('Learning read-tail r20 invariants', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(33);
-    expect(total).toBe(31);
+    expect(total).toBe(29);
     expect(selectCount(src('learning.ts'))).toBe(0);
-    expect(selectCount(src('learning-read-sql.ts'))).toBe(30);
+    expect(selectCount(src('learning-read-sql.ts'))).toBe(28);
     expect(selectCount(src('executive-metric-projections.ts'))).toBe(1);
     expect(src('native_lane_31/postgres.rs')).toContain('SELECT e.id,e.assignment_id,e.version event_version,e.status,e.created_at,c.title course_title');
   });

@@ -1,8 +1,8 @@
 import "server-only";
 import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime/types";
 import type {TargetRow} from "@erpx/server-files/public/contracts/attachments-operational";
-import {nativeQualityGuardAssertion,RD_ATTACH_SPEC_CAS} from "./native-quality-read";
-import {qualityAttachmentScopeReadSql} from "./quality-attachment-scope-read-sql";
+import {nativeQualityGuardAssertion,RD_ATTACH_SPEC_CAS,RD_ATTACHMENT_SPEC_SCOPE} from "./native-quality-read";
+import {readNativeQualityScope} from "./native-quality-scope";
 const versionOwners:Record<string,string>={"inventory_quality_spec": "inventory_quality_specs"};
 const allowedTargets=new Set<string>(["inventory_quality_spec"]);
 function remainingOperationalAttachmentTargetVersionGuard(
@@ -42,5 +42,5 @@ if(!allowedTargets.has(targetType))return null;
     .bind(now, targetId, expectedVersion);
 }
 export function OperationalAttachmentQualityFacts(db:SqlDatabase){return {
-readInventoryQualitySpecs1:(facts:{targetId:string;companyId:string;})=>db.prepare(qualityAttachmentScopeReadSql('spec')).bind(facts.targetId,facts.companyId).first<TargetRow>(),versionGuard:(commandId:string,targetType:string,targetId:string,companyId:string,version:number,index:number)=>remainingOperationalAttachmentTargetVersionGuard(db,commandId,targetType,targetId,companyId,version,index),versionStep:(targetType:string,targetId:string,expectedVersion:number,now:number)=>remainingOperationalAttachmentRecordVersionStep(db,targetType,targetId,expectedVersion,now)
+readInventoryQualitySpecs1:(facts:{targetId:string;companyId:string;}):Promise<TargetRow|null>=>readNativeQualityScope(RD_ATTACHMENT_SPEC_SCOPE,[facts.targetId,facts.companyId],db),versionGuard:(commandId:string,targetType:string,targetId:string,companyId:string,version:number,index:number)=>remainingOperationalAttachmentTargetVersionGuard(db,commandId,targetType,targetId,companyId,version,index),versionStep:(targetType:string,targetId:string,expectedVersion:number,now:number)=>remainingOperationalAttachmentRecordVersionStep(db,targetType,targetId,expectedVersion,now)
 };}

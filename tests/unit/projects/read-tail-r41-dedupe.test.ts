@@ -31,7 +31,10 @@ describe('Projects read-tail r41 closed clock head family', () => {
     // The clock head carries no binds: bind order of every caller is unchanged.
     expect(head.match(/\?/g)).toBeNull();
     const helper = src('read-tail-r41.ts');
-    expect(helper.match(/SELECT /g)).toHaveLength(1);
+    // r45: the bare projection prefix now lives in the single owner body head.
+    expect(helper.match(/SELECT /g)).toBeNull();
+    expect(helper).toContain("import {selectBodySql} from './read-tail-r45';");
+    expect(helper).toContain('selectBodySql(`${packageClockSql} now_ms`)');
     expect(helper.match(/export const clockNowMsHead/g)).toHaveLength(1);
     expect(helper).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
   });
@@ -93,7 +96,7 @@ describe('Projects read-tail r41 closed clock head family', () => {
     // helper, one inline in the collaboration audience CTE) delegate to one
     // closed universal head: 74-2+1 = 73. Cross-owner final-root projections,
     // locks and native SQL keep their own literals and are not folded.
-    expect(total).toBe(65); // r44 final-root projection family folded into read-tail-r40 (66->65)
+    expect(total).toBe(62); // r45 bare-projection head family folded into read-tail-r45 (65->62)
     expect(total).toBeLessThan(74);
   });
 });

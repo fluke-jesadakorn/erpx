@@ -11,10 +11,10 @@ const retained = billingHandler(false);
 /** Native invoice lifecycle (approve/void) dispatches over the committed
  * billing-invoice client. The retained `billingHandler` serves the remaining
  * actions, but its cost-review actions (`cost`, `delete-cost`,
- * `complete-costs`) are native-authoritative: an absent native transport fails
- * closed with a typed 503/409 and never reaches the TypeScript writer. Target,
- * provider, rollout and rating actions stay on the TypeScript command until
- * their own Holding-host cutovers land. */
+ * `complete-costs`, `retry`, `approve-target-rollout`) are native-authoritative:
+ * an absent native transport fails closed with a typed 503/409 and never reaches
+ * the TypeScript writer. Target, provider and rating actions stay on the
+ * TypeScript command until their own Holding-host cutovers land. */
 export async function POST(
   request: Request,
   context: RouteContext<"/api/v1/holdings/[holdingSlug]/billing/[[...path]]">,

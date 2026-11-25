@@ -4,7 +4,6 @@ import { resolve } from 'node:path';
 import {
   learningNativeSources,
   nativeSourceProbe,
-  overdueEvidenceColumns,
   learningModuleGrantProbe,
 } from '../../../packages/server-learning/src/adapters/learning-read-sql';
 
@@ -48,9 +47,9 @@ describe('Learning read-tail r3 byte-identical / parameterized family dedupe', (
     expect(text.match(/SELECT /g) ?? []).toHaveLength(0);
   });
 
-  test('overdue evidence head is byte-identical at its two call sites', () => {
-    expect(overdueEvidenceColumns).toBe(preOverdueColumns);
-    readOnly(overdueEvidenceColumns);
+  test('overdue evidence head is byte-identical to the native Rust owner', () => {
+    expect(src('native_lane_31/postgres.rs')).toContain(preOverdueColumns);
+    readOnly(preOverdueColumns);
     const search = src('executive-evidence-sources.ts');
     expect(search).not.toContain(preOverdueColumns);
     // Wave 2 moved the overdue search read to the native axum port as well.
@@ -77,8 +76,31 @@ describe('Learning read-tail r3 byte-identical / parameterized family dedupe', (
     }
     const shared = src('learning-read-sql.ts');
     expect(shared.match(/export const learningModuleGrantProbe =/g) ?? []).toHaveLength(1);
-    expect(shared.match(/export const overdueEvidenceColumns =/g) ?? []).toHaveLength(1);
+    expect(src('native_lane_31/postgres.rs')).toContain('SELECT a.id,a.version,a.status,a.due_date,a.updated_at,c.title course_title,c.required_for');
     expect(shared.match(/export const nativeSourceProbe =/g) ?? []).toHaveLength(1);
+  });
+});
+
+describe('Learning overdue-evidence oracle migrated to the native owner', () => {
+  test('the TypeScript constant is deleted and the Rust owner pins its bytes', () => {
+    const shared = src('learning-read-sql.ts');
+    expect(shared).not.toContain('overdueEvidenceColumns');
+    expect((shared.match(/SELECT /g) ?? []).length).toBe(28);
+    const rust = src('native_lane_31/postgres.rs');
+    expect(rust).toContain('pub const OVERDUE_SQL: &str = concat!(');
+    expect(rust).toContain(preOverdueColumns);
+    expect(rust).toContain('overdue_evidence_oracle_migrated_from_typescript');
+  });
+
+  test('no runtime TypeScript source imports the retired constant', () => {
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith('.ts')) expect(readFileSync(path, 'utf8')).not.toContain('overdueEvidenceColumns');
+      }
+    };
+    walk(srcRoot);
   });
 });
 

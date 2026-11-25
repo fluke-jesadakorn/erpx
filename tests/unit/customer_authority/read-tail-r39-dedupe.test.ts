@@ -77,7 +77,8 @@ describe('Customer Authority read-tail r39 canonical select-one probe family', (
 
   test('locks, source locks, native kinds and eligibility helpers stay untouched', () => {
     const access = src('portal-access.ts');
-    expect(access).toContain('FOR UPDATE');
+    expect(access).toContain('CA_RD_PORTAL_BINDING_LOCK');
+    expect(access).toContain('nativePortalReadStatement');
     expect(access).not.toContain('selectOneProbe');
 
     const locks = src('portal-source-locks.ts');
@@ -107,6 +108,6 @@ describe('Customer Authority read-tail r39 canonical select-one probe family', (
     walk(srcRoot);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(39);
-    expect(total).toBe(17);
+    expect(total).toBe(15);
   });
 });

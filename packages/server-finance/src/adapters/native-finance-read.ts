@@ -47,6 +47,13 @@ export const FINANCE_RD_TAX_CHART = 'finance_rd_tax_chart';
 export const FINANCE_RD_TAX_CURRENT_ENTRY = 'finance_rd_tax_current_entry';
 export const FINANCE_RD_TAX_PENDING_CORRECTION_COUNT = 'finance_rd_tax_pending_correction_count';
 export const FINANCE_RD_TAX_CLOSE_PROFILE = 'finance_rd_tax_close_profile';
+export const FINANCE_RD_BANK_IMPORTED_FILE = 'finance_rd_bank_imported_file';
+export const FINANCE_RD_TAX_IDENTITY_ACTIVE_PARTY = 'finance_rd_tax_identity_active_party';
+export const FINANCE_RD_TAX_IDENTITY_PREDECESSOR = 'finance_rd_tax_identity_predecessor';
+export const FINANCE_RD_TAX_IDENTITY_ROW = 'finance_rd_tax_identity_row';
+export const FINANCE_RD_TAX_IDENTITY_REVIEWED = 'finance_rd_tax_identity_reviewed';
+export const FINANCE_RD_TAX_IDENTITY_LIST = 'finance_rd_tax_identity_list';
+export const FINANCE_RD_TAX_IDENTITY_PARTY_LIST = 'finance_rd_tax_identity_party_list';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'FINANCE_NATIVE_READ_UNAVAILABLE', 'The native Finance read service is unavailable.');

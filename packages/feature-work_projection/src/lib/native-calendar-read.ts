@@ -286,6 +286,36 @@ export const nativeCalendarRead = {
     rows(await read('wp_cal_read_63', [facts.value1, facts.value2], facts.value1)) as CalendarOccurrenceException[],
   read64: async (facts: { value1: string; value2: string }): Promise<CalendarOccurrenceResponse[]> =>
     rows(await read('wp_cal_read_64', [facts.value1, facts.value2], facts.value1)) as CalendarOccurrenceResponse[],
+  /** Byte-identical owner read for the retired `calendar-index-facts.ts` read5
+   * authorized history. Company id plus one JSON record-id list; no caller text
+   * becomes SQL and the row shape is pinned. */
+  read69: async (facts: { value1: string; value2: string }): Promise<{record_id: string; action: string; actor: string; at: number}[]> => {
+    const result = await rows(await read('wp_cal_read_69', [facts.value1, facts.value2], facts.value1));
+    for (const row of result) {
+      if (
+        typeof row.record_id !== 'string' ||
+        typeof row.action !== 'string' ||
+        typeof row.actor !== 'string' ||
+        !Number.isSafeInteger(row.at) ||
+        Object.keys(row).length !== 4
+      )
+        throw new NativeCalendarReadError('NATIVE_WORK_CALENDAR_READ_RESPONSE_INVALID');
+    }
+    return result as {record_id: string; action: string; actor: string; at: number}[];
+  },
+  /** Byte-identical owner read for the retired `calendar-index-facts.ts` read2
+   * epoch bounds. Four positional values; no caller text becomes SQL. */
+  read68: async (facts: { value1: string; value2: string; value3: string }): Promise<{from_ms: number; to_ms: number} | null> => {
+    const result = row(await read('wp_cal_read_68', [facts.value1, facts.value2, facts.value3, facts.value2], ''));
+    if (!result) return null;
+    if (
+      !Number.isSafeInteger(result.from_ms) ||
+      !Number.isSafeInteger(result.to_ms) ||
+      Object.keys(result).length !== 2
+    )
+      throw new NativeCalendarReadError('NATIVE_WORK_CALENDAR_READ_RESPONSE_INVALID');
+    return result as unknown as {from_ms: number; to_ms: number};
+  },
   read67: async (facts: { value1: string; value2: string; value3: string }): Promise<CalendarReminderAuthorizationRow | null> => {
     const result = row(await read('wp_cal_read_67', [facts.value1, facts.value2, facts.value3], facts.value2));
     if (!result) return null;

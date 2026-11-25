@@ -1,9 +1,8 @@
 import {productionReadProjection as productioncommerceProjection} from '@erpx/server-commerce/public/production-read-projections';
 import type {SqlDatabase,SqlResult} from '@erpx/server-runtime/public/runtime/types';import type {Row} from '@erpx/server-commerce/public/commerce';import {assertion} from "@erpx/server-workflow/public/command-assertions";import {ownerWrite} from '@erpx/server-manufacturing/adapters/native-owner-write';
-import {nativeManufacturingReadAll,MANUFACTURING_RD_ORDER_SPECIFICATION_LINES,MANUFACTURING_RD_MATERIAL_RESERVATIONS,MANUFACTURING_RD_ORDER_POSTINGS,MANUFACTURING_RD_ORDER_OPERATIONS,MANUFACTURING_RD_LOT_GENEALOGY} from './native-manufacturing-read';
+import {nativeManufacturingReadAll,nativeManufacturingReadFirst,MANUFACTURING_RD_SPECIFICATION,MANUFACTURING_RD_SPECIFICATION_VERSION,MANUFACTURING_RD_SPECIFICATION_LINES,MANUFACTURING_RD_ORDER_SPECIFICATION_LINES,MANUFACTURING_RD_ORDER_EVENTS,MANUFACTURING_RD_PRODUCT_GENEALOGY,MANUFACTURING_RD_ACCOUNTING_PROFILES,MANUFACTURING_RD_MATERIAL_RESERVATIONS,MANUFACTURING_RD_ORDER_POSTINGS,MANUFACTURING_RD_ORDER_OPERATIONS,MANUFACTURING_RD_LOT_GENEALOGY} from './native-manufacturing-read';
 import {manufacturingExistsSelect,manufacturingRowsSelect,manufacturingIdSelect} from './manufacturing-read-sql-fragments';
 import {manufacturingOrderJoinSelect} from './manufacturing-read-tail-r15-sql';
-import {manufacturingAccountingProfileSelect} from './manufacturing-read-tail-r19-sql';
 import {manufacturingExistsGuard} from './manufacturing-read-tail-r20-sql';
 
 /** A null specification id binds SQL NULL on the live unit and matches no row;
@@ -57,12 +56,9 @@ const operationEventDoneGuardSql =
  * and stays outside the RD_* read-plan registry. */
 const specificationOperationsGuardSql=(extra=" ")=>`NOT EXISTS(${manufacturingExistsSelect("manufacturing_specification_operations op",`op.specification_id=?${extra}`)}`;
 
-export function productionCommandSources(db:SqlDatabase){return {async specification(value:(string | number)[],v:number|undefined){return db
-    .prepare(
-      manufacturingRowsSelect("manufacturing_specifications", `id=? AND company_id=? ${v ? "AND version=?" : ""}`),
-    )
-    .bind(...value)
-    .first<Row>();},
+export function productionCommandSources(db:SqlDatabase){return {async specification(value:(string | number)[],v:number|undefined){return v!==undefined
+    ? nativeManufacturingReadFirst<Row>(MANUFACTURING_RD_SPECIFICATION_VERSION,{id:String(value[0]),companyId:String(value[1]),version:v},db)
+    : nativeManufacturingReadFirst<Row>(MANUFACTURING_RD_SPECIFICATION,{id:String(value[0]),companyId:String(value[1])},db);},
 async specifications(companyId:string){return db
           .prepare(
             manufacturingRowsSelect("manufacturing_specifications", "company_id=? ORDER BY updated_at DESC"),
@@ -79,10 +75,8 @@ async orders(companyId:string,branchId:string | null,branchId2:string | null){re
           )
           .bind(companyId, branchId, branchId2)
           .all<Row>();},
-async accountingProfiles(companyId:string){return db.prepare(manufacturingAccountingProfileSelect("id,status,version,currency,chart_id,inventory_account_id,wip_account_id,labor_account_id,overhead_account_id","","company_id=? ORDER BY updated_at DESC"))
-          .bind(companyId).all<Row>();},
-async specificationLines(specificationId:string){return db.prepare(manufacturingRowsSelect("manufacturing_specification_lines", "specification_id=? ORDER BY ordinal"))
-      .bind(specificationId).all<Row>();},
+async accountingProfiles(companyId:string){return nativeManufacturingReadAll<Row>(MANUFACTURING_RD_ACCOUNTING_PROFILES,{companyId},db);},
+async specificationLines(specificationId:string){return nativeManufacturingReadAll<Row>(MANUFACTURING_RD_SPECIFICATION_LINES,{specificationId},db);},
 guardScenarioSpecification(key:string,value:"specification-source",specificationId:string,companyId:string,specificationVersion:number){return assertion(db, key, value, approvedSpecGuardSql, [specificationId, companyId, specificationVersion]);},
 guardRecommendationSpecification(key:string,value:"specification-source",value2:string,companyId:string,value3:number){return assertion(db, key, value, approvedSpecGuardSql, [value2, companyId, value3]);},
  prepareManufacturingOrder(orderId:string,companyId:string,branch_id:string | number | null,warehouse_id:string | number | null,id:string,specification_id:string | number | null,specification_version:string | number | null,recommended_quantity_milli:string | number | null,userId:string,now:number,now2:number){return ownerWrite('order.create',[orderId,companyId,branch_id,warehouse_id,id,specification_id,specification_version,recommended_quantity_milli,userId,now,now2],String(orderId));},
@@ -145,20 +139,12 @@ async detailedOrder(id:string,companyId:string,branchId:string | null,branchId2:
       .bind(id, companyId, branchId, branchId2)
       .first<Row>();},
 async orderReservations(id:string){return nativeManufacturingReadAll<Row>(MANUFACTURING_RD_MATERIAL_RESERVATIONS,{orderId:id},db);},
-async orderEvents(id:string){return db
-        .prepare(
-          manufacturingRowsSelect("manufacturing_order_events", "order_id=? ORDER BY version"),
-        )
-        .bind(id)
-        .all<Row>();},
+async orderEvents(id:string){return nativeManufacturingReadAll<Row>(MANUFACTURING_RD_ORDER_EVENTS,{orderId:id},db);},
 async costSnapshot(id:string){return db
       .prepare(manufacturingRowsSelect("manufacturing_cost_snapshots", "order_id=?"))
       .bind(id)
       .first<Row>();},
-async productGenealogy(id:string){return db
-        .prepare(manufacturingRowsSelect("manufacturing_genealogy", "order_id=?"))
-        .bind(id)
-        .all<Row>();},
+async productGenealogy(id:string){return nativeManufacturingReadAll<Row>(MANUFACTURING_RD_PRODUCT_GENEALOGY,{orderId:id},db);},
 async orderPostings(id:string){return nativeManufacturingReadAll<Row>(MANUFACTURING_RD_ORDER_POSTINGS,{orderId:id},db);},
 async orderOperations(id:string,specification_id:string | number | null){return specification_id==null
       ? emptyRows<Row>()

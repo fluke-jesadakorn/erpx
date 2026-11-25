@@ -30,9 +30,9 @@ describe('operations read-tail r11 task-detail attachments native cutover', () =
     expect(surface).toContain('RD_TASK_DETAIL_ATTACHMENTS');
   });
 
-  it('grows the native allow-list from 22 to 23 kinds with no duplicate entry', async () => {
+  it('grows the native allow-list from 24 to 25 kinds with no duplicate entry', async () => {
     const native = await registry();
-    expect(native.match(/const READ_[A-Z_]+: NativeReadStatement/g) ?? []).toHaveLength(23);
+    expect(native.match(/const READ_[A-Z_]+: NativeReadStatement/g) ?? []).toHaveLength(25);
     expect(native.match(/RD_TASK_DETAIL_ATTACHMENTS/g) ?? []).toHaveLength(5);
   });
 
@@ -111,7 +111,7 @@ describe('operations read-tail r11 task-detail attachments native cutover', () =
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(59);
+    expect(total).toBe(58);
     expect(total).toBeLessThan(60);
   });
 });

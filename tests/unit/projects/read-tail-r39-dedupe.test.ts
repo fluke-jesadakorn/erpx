@@ -77,7 +77,7 @@ describe('Projects read-tail r39 closed scope-bind and point-read dedupe', () =>
     expect(evp).toContain('AS MATERIALIZED ${scopeBindProjection(\'viewer-clock\')}');
     expect(evp).not.toContain('AS MATERIALIZED (SELECT ?::text user_id');
     expect(evp).not.toContain('packageClockSql'); // now owned by the closed helper
-    expect((evp.match(/SELECT /g) ?? [])).toHaveLength(4);
+    expect((evp.match(/SELECT /g) ?? [])).toHaveLength(3); // r45 folded the source-identity columns head into read-tail-r45
   });
 
   test('S2 closed point-read tail reproduces all three former statements byte for byte', () => {
@@ -193,7 +193,7 @@ describe('Projects read-tail r39 closed scope-bind and point-read dedupe', () =>
     // r38 left 81. r39 folds four scope bind heads into one closed helper (-3)
     // and three aliased point-read tails into one closed helper (-2): 81-5 = 76.
     // The assignment-viewer authority tail (S3) is not a byte-identical family.
-    expect(total).toBe(65); // r44 final-root projection family folded into read-tail-r40 (66->65)
+    expect(total).toBe(62); // r45 bare-projection head family folded into read-tail-r45 (65->62)
     expect(total).toBeLessThan(81);
   });
 });

@@ -208,7 +208,7 @@ describe('legal read-tail r31 native inspection-source cutover', () => {
     expect(application).toContain('one == "inspection-source"');
   });
 
-  it('KPI: the TypeScript SELECT is deleted and statements are BEFORE=242 -> AFTER=125', async () => {
+  it('KPI: the TypeScript SELECT is deleted and statements are BEFORE=242 -> AFTER=112', async () => {
     const [processing, client] = await Promise.all([
       src('legal/processing.ts'),
       src('native-legal-auxiliary.ts'),
@@ -230,7 +230,7 @@ describe('legal read-tail r31 native inspection-source cutover', () => {
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(242);
-    expect(total).toBeLessThanOrEqual(125);
-    expect(total).toBe(125);
+    expect(total).toBeLessThanOrEqual(112);
+    expect(total).toBe(112);
   });
 });

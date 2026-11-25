@@ -142,6 +142,52 @@ describe("Brand management guard native cutover (r2)", () => {
     expect(probe).toContain("lockQueuedCommandAuthority(database)");
   });
 
+  test("every live presentation consumer delegates to the mounted native owner", () => {
+    const branding = read("branding.ts");
+    expect(branding).not.toMatch(/\bSELECT\s/);
+    expect(branding).not.toContain("db.prepare");
+    expect(branding).toContain("nativeResolveWorkspaceBrand(a)");
+    expect(branding).toContain("nativeResolveDocumentBrand(a,scope)");
+    expect(branding).toContain("nativeBrandProfileEvidence(a,branchId)");
+    expect(read("business-document.ts")).toContain("nativeBrandRecordBranch");
+    expect(read("identity.ts")).toContain("nativeBrandIdentityWorkspace");
+    const router = readFileSync(resolve(srcRoot, "adapters/branding_http.rs"), "utf8");
+    for (const kind of ["workspace", "document", "profiles", "storefront", "evidence", "record-branch"])
+      expect(router).toContain(`"${kind}"`);
+    const composition = readFileSync(
+      resolve(root, "src/composition/src/private_development_api.rs"),
+      "utf8",
+    );
+    expect(composition).toContain("branding_http_router(branding_targets)");
+  });
+
+  test("storefront front-projection is the last Brand SQL fragment and needs an Organization cut", () => {
+    const fragment = read("front-brand-projection.ts");
+    expect(count(fragment, "SELECT ")).toBe(0);
+    expect(fragment).toContain(
+      'storefrontBrandColumns="b.short_name,b.accent_color,b.logo_attachment_id,b.logo_publication_id"',
+    );
+    expect(fragment).toContain('storefrontBrandJoin="LEFT JOIN storefront_app_brands b ON b.company_id=c.id"');
+    const consumer = readFileSync(
+      resolve(root, "packages/server-organization/src/adapters/front-company-facts.ts"),
+      "utf8",
+    );
+    expect(consumer).toContain("@erpx/server-brand/public/front-brand-projection");
+    const publicBranding = readFileSync(resolve(srcRoot, "public/branding.ts"), "utf8");
+    expect(publicBranding).toContain("nativeReadStorefrontAppBrand");
+    // The three native consumer switches stay explicit; an unset switch fails
+    // closed rather than falling back to a TypeScript statement.
+    expect(read("native-brand-presentation.ts")).toContain(
+      'const CONFIG_ENV = "ERPX_NATIVE_BRANDING_CONFIG"',
+    );
+    expect(read("native-brand-read-ports.ts")).toContain(
+      'const ENV = "ERPX_NATIVE_BRAND_READ_CONFIG"',
+    );
+    expect(read("native-lane-39/client.ts")).toContain(
+      'LANE39_CONFIG_ENV = "ERPX_NATIVE_BRAND_LANE39_CONFIG"',
+    );
+  });
+
   test("retirement:ts-statements drops 2 -> 1 for the owner", () => {
     let total = 0;
     const walk = (dir: string) => {

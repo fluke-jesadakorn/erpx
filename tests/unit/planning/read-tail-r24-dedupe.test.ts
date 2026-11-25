@@ -41,7 +41,7 @@ describe('Planning read-tail r24 scoped single-row head fold', () => {
 
   test('r1-r23 helpers, the single lock statement and native readers stay untouched', () => {
     expect(src('planning-select-columns-sql.ts')).toContain('export const planningSelectColumnsFrom =');
-    expect(src('planning-select-from-sql.ts')).toContain('export const planningSelectFrom =');
+    expect(readdirSync(resolve(srcRoot, 'adapters'))).not.toContain('planning-select-from-sql.ts');
     expect(src('planning-package-fact-sql.ts')).toContain('export const planningPackageFactRows =');
     expect(existsSync(resolve(srcRoot, 'adapters/planning-scoped-row-sql.ts'))).toBe(false);
     expect(src('planning-scoped-list-sql.ts')).toContain('export const planningScopedBranchList =');
@@ -87,7 +87,7 @@ describe('Planning read-tail r24 scoped single-row head fold', () => {
     };
     walk(srcRoot);
     // r25 folded the scoped branch-list family into the single-line projection/FROM builder (14 -> 13).
-    expect(total).toBe(13);
+    expect(total).toBe(12);
     expect(total).toBeLessThan(14);
   });
 });

@@ -4,6 +4,11 @@ pub use crate::adapters::governance_http::{
     AgentGovernanceHttpReadRequest, AgentGovernanceHttpTarget, agent_governance_http_router,
 };
 pub use crate::adapters::governance_postgres::{AgentError, PgAgentGovernance};
+pub use crate::adapters::workspace_read_postgres::PgAgentWorkspaceRead;
+pub use crate::application::workspace_read::{
+    AgentRecordReadKind, AgentWorkspaceReadPorts, WorkspaceReadFuture,
+    agent_evidence_record_read, agent_workspace_read,
+};
 pub use crate::application::governance::{
     AgentActor, AgentGovernancePorts, AgentMutation, AgentMutationAction, AgentMutationCommon,
     AssignmentBinding, assistant_policy_for, cancel_agent_assignment, change_agent_pool,

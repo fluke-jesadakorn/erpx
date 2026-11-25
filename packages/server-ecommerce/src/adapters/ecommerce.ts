@@ -24,7 +24,7 @@ import {listingSchema,cartSchema,lineSchema,checkoutSchema,actionSchema} from '@
 import {requireEcommercePurchasedRead,ecommercePurchaseControls,withEcommercePurchasedCommand,type EcommercePurchaseCommand} from '@erpx/server-ecommerce/adapters/purchase-boundary';
 import {nativeEcommerceOwnerWrite,NativeEcommerceWave2Error,type EcommerceOwnerWriteKind} from '@erpx/server-ecommerce/adapters/native-wave2';
 import { ecommerceExistsGuard, ecommerceOrderedList, ecommerceListingChannelRow } from './read-tail-sql';
-import { nativeWorkspaceLists } from './native-lane-39/client';
+import { nativeWorkspaceLists, nativeWorkspaceRows } from './native-lane-39/client';
 /** Single fail-closed bridge to the owner axum command router. No SQL, no fallback. */
 async function nativeWrite(kind:EcommerceOwnerWriteKind,values:readonly unknown[],recordId:string,actorId:string,key:string){
  try{return await nativeEcommerceOwnerWrite(kind,values,recordId,actorId,key);}
@@ -67,34 +67,21 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
   async workspace() {
   // Lane 39: the owner axum service executes both owner-local list reads
   // (channels and carts) and projects the exact rows; no TS SQL and no
-  // fallback. Remaining cross-owner workspace reads stay on the caller.
-  const [lists, listings, checkouts, products, parties, warehouses] =
+  // (listings and checkouts row reads now also come from the owner axum service).
+  const scope = { companyId: a.companyId, branchId: a.branchId, departmentId: a.departmentId };
+  const [lists, rows, products, parties, warehouses] =
       await Promise.all([
-        nativeWorkspaceLists(
-          { companyId: a.companyId, branchId: a.branchId, departmentId: a.departmentId },
-          a,
-        ),
-        write
-          .prepare(
-            ecommerceOrderedList("l.*,p.name product_name,c.name channel_name", `ecommerce_listings l JOIN ecommerce_channels c ON c.id=l.channel_id JOIN (${commerceProjectionSources.commerce_products}) p ON p.id=l.product_id`, "c.company_id=?", "l.updated_at DESC"),
-          )
-          .bind(a.companyId)
-          .all<Row>(),
-        write
-          .prepare(
-            ecommerceOrderedList("x.*,o.number,o.state order_state", `ecommerce_checkouts x JOIN ecommerce_carts c ON c.id=x.cart_id JOIN (${commerceProjectionSources.commerce_orders}) o ON o.id=x.sales_order_id`, cartScope, "x.updated_at DESC"),
-          )
-          .bind(...scopeValues(a))
-          .all<Row>(),
+        nativeWorkspaceLists(scope, a),
+        nativeWorkspaceRows(scope, a),
         ecommerceProductCandidates(write, a.companyId),
         ecommerceCustomerCandidates(write, a.companyId),
         ecommerceWarehouseCandidates(write, a),
       ]);
   return {
-    channels: [...lists.channels],
-    listings: listings.results,
-    carts: [...lists.carts],
-    checkouts: checkouts.results,
+    channels: [...lists.channels] as unknown as Row[],
+    listings: rows.listings as unknown as Row[],
+    carts: [...lists.carts] as unknown as Row[],
+    checkouts: rows.checkouts as unknown as Row[],
     products,
     parties,
     warehouses,

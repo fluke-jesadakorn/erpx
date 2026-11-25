@@ -92,10 +92,11 @@ describe('People Payroll read-tail r55 dedupe', () => {
     expect(payV2).toContain(`AND a.media_type IN (${MEDIA})`);
     expect(batchV2).toContain('IN(SELECT value FROM erpx_json_each(?))');
     expect(reqV1).not.toContain('attachment_links');
-    // Single V2/V1 pair, exactly four SELECT tokens, no lock or native leakage.
+    // Single V2/V1 pair with one shared json-each fragment (three SELECT
+    // tokens instead of four), no lock or native leakage.
     const helper = src('pp-read-tail-r55-sources.ts');
     expect((helper.match(/export const ppRd55/g) ?? []).length).toBe(2);
-    expect((helper.match(/SELECT /g) ?? []).length).toBe(4);
+    expect((helper.match(/SELECT /g) ?? []).length).toBe(3);
     expect(helper).not.toMatch(/FOR\s+UPDATE|FOR\s+SHARE|pg_advisory|nativePpStatement/i);
   });
 
@@ -147,6 +148,6 @@ describe('People Payroll read-tail r55 dedupe', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(1214);
-    expect(total).toBe(1164);
+    expect(total).toBeLessThanOrEqual(1150);
   });
 });

@@ -269,7 +269,7 @@ describe('Customer 360 obligation-fact query-head family', () => {
     expect(consumer).not.toContain('customer360ProjectionSources');
   });
 
-  it('retirement r13:ts-statements is strictly lower than BEFORE=13 (expected 12)', () => {
+  it('retirement r14:ts-statements is strictly lower than BEFORE=12 (expected 11)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -279,7 +279,7 @@ describe('Customer 360 obligation-fact query-head family', () => {
       }
     };
     walk(c360SrcRoot);
-    expect(total).toBe(12);
-    expect(total).toBeLessThan(13);
+    expect(total).toBe(11);
+    expect(total).toBeLessThan(12);
   });
 });

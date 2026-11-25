@@ -32,12 +32,17 @@ export type LaneKind =
   | 'calendar'
   | 'scenario'
   | 'scoped-recommendation'
-  | 'comparison';
+  | 'comparison'
+  | 'executive-shortage'
+  | 'executive-recommendation';
 export type ScopedActor = Pick<WorkContext, 'holdingId' | 'holdingSlug' | 'companyId'>;
 export type LaneIdentity = Readonly<{
   id?: string;
   comparisonScenarioId?: string;
   specificationId?: string;
+  from?: string;
+  to?: string;
+  eligibility?: 'proposed' | 'capacity';
 }>;
 
 const ENV = 'ERPX_NATIVE_PLANNING_LANE36_CONFIG';
@@ -71,10 +76,14 @@ const inSet = (value: unknown, values: readonly string[]): boolean =>
   typeof value === 'string' && values.includes(value);
 
 const KINDS: readonly LaneKind[] = [
-  'recommendations', 'scenarios', 'resources', 'calendar', 'scenario', 'scoped-recommendation', 'comparison',
+  'recommendations', 'scenarios', 'resources', 'calendar', 'scenario', 'scoped-recommendation',
+  'comparison', 'executive-shortage', 'executive-recommendation',
 ];
 const isRowKind = (kind: LaneKind): boolean =>
-  kind === 'scenario' || kind === 'scoped-recommendation' || kind === 'comparison';
+  kind === 'scenario' || kind === 'scoped-recommendation' || kind === 'comparison'
+  || kind === 'executive-shortage' || kind === 'executive-recommendation';
+const isExecutiveKind = (kind: LaneKind): boolean =>
+  kind === 'executive-shortage' || kind === 'executive-recommendation';
 const REVIEW_STATUSES = ['proposed', 'approved', 'rejected'];
 const SCENARIO_STATUSES = ['calculated', 'released', 'cancelled'];
 const RESOURCE_STATUSES = ['active', 'archived'];
@@ -110,6 +119,15 @@ const SCOPED_RECOMMENDATION_KEYS = [
 const COMPARISON_KEYS = [
   'id', 'version', 'shortages_json', 'required_minutes', 'feasible_date',
 ] as const;
+const EXECUTIVE_KEYS = [
+  'scenario_id', 'company_id', 'branch_id', 'branch_name', 'warehouse_id', 'warehouse_name',
+  'specification_id', 'specification_name', 'output_product_id', 'output_product_name',
+  'specification_version', 'demand_quantity_milli', 'due_date', 'capacity_minutes',
+  'scenario_status', 'scenario_version', 'scenario_created_at', 'scenario_updated_at',
+  'recommendation_id', 'recommendation_status', 'recommended_quantity_milli', 'required_minutes',
+  'feasible_date', 'recommendation_version', 'recommendation_created_at',
+  'recommendation_updated_at', 'shortage_count', 'shortage_items_json',
+] as const;
 
 const recommendationFields = (row: Row): boolean =>
   identifier(row.id) && identifier(row.scenario_id) &&
@@ -123,6 +141,26 @@ const recommendationShape = (row: unknown): boolean =>
   exact(row, RECOMMENDATION_KEYS) && recommendationFields(row as Row);
 
 function rowValidator(kind: LaneKind): (row: unknown) => boolean {
+  if (isExecutiveKind(kind))
+    return (row: unknown) =>
+      exact(row, EXECUTIVE_KEYS) &&
+      identifier(row.scenario_id) && identifier(row.company_id) && identifier(row.branch_id) &&
+      nullableText(row.branch_name, 400) && identifier(row.warehouse_id) &&
+      nullableText(row.warehouse_name, 400) && identifier(row.specification_id) &&
+      nullableText(row.specification_name, 400) && nullableText(row.output_product_id, 200) &&
+      nullableText(row.output_product_name, 400) &&
+      integer(row.specification_version, 1) && text(row.demand_quantity_milli, 200) &&
+      text(row.due_date, 40) && text(row.capacity_minutes, 200) &&
+      inSet(row.scenario_status, SCENARIO_STATUSES) && integer(row.scenario_version, 1) &&
+      integer(row.scenario_created_at) && integer(row.scenario_updated_at) &&
+      nullableText(row.recommendation_id, 200) &&
+      (row.recommendation_status === null || inSet(row.recommendation_status, REVIEW_STATUSES)) &&
+      nullableText(row.recommended_quantity_milli, 200) && nullableText(row.required_minutes, 200) &&
+      nullableText(row.feasible_date, 40) &&
+      (row.recommendation_version === null || integer(row.recommendation_version, 1)) &&
+      (row.recommendation_created_at === null || integer(row.recommendation_created_at)) &&
+      (row.recommendation_updated_at === null || integer(row.recommendation_updated_at)) &&
+      text(row.shortage_count, 200) && text(row.shortage_items_json, 1_048_576);
   if (kind === 'recommendations') return recommendationShape;
   if (kind === 'scenarios')
     return (row: unknown) =>
@@ -266,7 +304,12 @@ async function read(
     Object.values(identity).some(value => value !== undefined && !scopeId(value)) ||
     (isRowKind(kind) && kind !== 'comparison' && identity.id === undefined) ||
     (kind === 'comparison' &&
-      (identity.comparisonScenarioId === undefined || identity.specificationId === undefined))
+      (identity.comparisonScenarioId === undefined || identity.specificationId === undefined)) ||
+    (isExecutiveKind(kind) &&
+      (identity.from === undefined || identity.to === undefined ||
+        (kind === 'executive-recommendation' &&
+          !inSet(identity.eligibility, ['proposed', 'capacity'])) ||
+        (kind === 'executive-shortage' && identity.eligibility !== undefined)))
   ) return fail('PLANNING_LANE36_QUERY_INVALID', 422);
   const config = settings(raw);
   const target = await targetFor(config, actor);
@@ -295,6 +338,9 @@ async function read(
     url.searchParams.set('comparisonScenarioId', identity.comparisonScenarioId);
   if (identity.specificationId !== undefined)
     url.searchParams.set('specificationId', identity.specificationId);
+  if (identity.from !== undefined) url.searchParams.set('from', identity.from);
+  if (identity.to !== undefined) url.searchParams.set('to', identity.to);
+  if (identity.eligibility !== undefined) url.searchParams.set('eligibility', identity.eligibility);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), config.timeoutMs);
   let response: Response;
@@ -387,3 +433,29 @@ export const nativeScenario = single('scenario');
 export const nativeScopedRecommendation = single('scoped-recommendation');
 /** Single comparison row; sole read authority is the native owner route. */
 export const nativeComparison = single('comparison');
+/** Executive shortage evidence row; sole read authority is the native owner route. */
+export const nativeExecutiveShortage = async (
+  recordId: string,
+  companyId: string,
+  branchId: string | null,
+  from: string,
+  to: string,
+  actor?: ScopedActor,
+): Promise<Row | null> =>
+  single('executive-shortage')({ id: recordId, from, to }, companyId, branchId, actor);
+/** Executive recommendation evidence row; eligibility is a closed owner fact. */
+export const nativeExecutiveRecommendation = async (
+  recordId: string,
+  companyId: string,
+  branchId: string | null,
+  from: string,
+  to: string,
+  eligibility: 'proposed' | 'capacity',
+  actor?: ScopedActor,
+): Promise<Row | null> =>
+  single('executive-recommendation')(
+    { id: recordId, from, to, eligibility },
+    companyId,
+    branchId,
+    actor,
+  );

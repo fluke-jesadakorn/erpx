@@ -125,7 +125,7 @@ describe('manufacturing read-tail r36 owner-table head-family fold', () => {
     expect(sha256(await readFile(adapter('manufacturing-read-tail-r23-sql.ts'), 'utf8'))).toBe(FOOTPRINT_HELPER_SHA256);
     // Every caller keeps its own prepared statement and binds; r36 never prepares.
     expect((await readFile(adapter('purchases.ts'), 'utf8')).split('manufacturingAccountingProfileSelect(').length - 1).toBe(1);
-    expect((await readFile(adapter('production-command-sources.ts'), 'utf8')).split('manufacturingAccountingProfileSelect(').length - 1).toBe(1);
+    expect((await readFile(adapter('production-command-sources.ts'), 'utf8')).split('manufacturingAccountingProfileSelect(').length - 1).toBe(0); // accountingProfiles cut to native owner
     expect((await readFile(adapter('package-obligations.ts'), 'utf8')).split('manufacturingStockFootprintSelect(').length - 1).toBe(2);
   });
 

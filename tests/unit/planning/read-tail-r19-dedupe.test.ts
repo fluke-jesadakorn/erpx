@@ -1,9 +1,11 @@
 import { describe, expect, test } from 'vitest';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { planningSelectFrom } from '../../../packages/server-planning/src/adapters/planning-select-from-sql';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-planning/src');
+/** Pre-r26 byte oracle for the retired builder; no longer a live query source. */
+const planningSelectFrom = (columns: string, indent: string, from: string) =>
+  `SELECT ${columns}\n${indent}FROM ${from}`;
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const selectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;
 
@@ -26,19 +28,17 @@ describe('Planning read-tail r19 capacity projection/FROM head', () => {
     expect(projectionSrc).toContain('"routingOperations": "FROM manufacturing_specification_operations o"');
   });
 
-  test('restoring the builder call yields the verbatim pre-dedupe declaration', () => {
+  test('capacity operations now compose the surviving single-line builder', () => {
     const current = src('capacity.ts');
-    expect(current).toContain(NEW_DECL);
-    const restored = current.replace(NEW_DECL, ORIG_DECL);
-    expect(restored).toContain(ORIG_DECL);
-    expect(restored).not.toContain(NEW_DECL);
+    expect(current).toContain('planningSelectColumnsFrom(');
+    expect(current).not.toContain(NEW_DECL);
     expect(current).not.toContain(ORIG_DECL);
+    expect(current).not.toContain('planningSelectFrom(');
   });
 
-  test('shared module still declares the read literal exactly once and stays read-only', () => {
-    const shared = src('planning-select-from-sql.ts');
-    expect(selectCount(shared)).toBe(1);
-    expect(shared).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
+  test('the retired shared builder is deleted; its byte oracle stays read-only', () => {
+    expect(existsSync(resolve(srcRoot, 'adapters/planning-select-from-sql.ts'))).toBe(false);
+    expect(selectCount(generated)).toBe(1);
     expect(generated.toUpperCase()).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|PG_ADVISORY/i);
   });
 
@@ -57,18 +57,19 @@ describe('Planning read-tail r19 capacity projection/FROM head', () => {
     expect(src('planning-package-fact-sql.ts')).toContain('planningPackageFactRows');
     expect(src('planning-image-source-sql.ts')).toContain('planningSourceRows');
     expect(src('planning-select-columns-sql.ts')).toContain('export const planningSelectColumnsFrom =');
-    expect(src('planning-select-from-sql.ts')).toContain('export const planningSelectFrom =');
+    expect(existsSync(resolve(srcRoot, 'adapters/planning-select-from-sql.ts'))).toBe(false);
     expect(src('executive-metric-projections.ts')).toContain('planningBranchDisplayLabelSql');
     expect(src('executive-metric-projections.ts')).toContain('metricLabelCountProjection');
     expect(src('purchase-sources.ts')).toContain('LOCK TABLE planning_scenarios,planning_recommendations,planning_scenario_events,planning_resource_allocations,production_resources,production_resource_calendar IN ${writer?"SHARE ROW EXCLUSIVE":"SHARE"} MODE');
     expect(src('package-obligations.ts')).toContain('planningPurchaseSourceReadLocks(database)');
     const capacity = src('capacity.ts');
-    expect(capacity).toContain('planningSelectFrom(');
+    expect(capacity).toContain('planningSelectColumnsFrom(');
     expect(capacity).toContain('resourceCalendarByKey(');
     expect(capacity).toContain('planningResourceAllocationRows(');
     expect(capacity).not.toContain('LOCK TABLE');
     const read = src('production-command-sources-read.ts');
-    expect(read).toContain('planningSelectFrom(');
+    expect(read).toContain('nativeExecutiveShortage(');
+    expect(read).toContain('nativeExecutiveRecommendation(');
     expect(read).toContain('nativeComparison(');
     expect(read).not.toContain('LOCK TABLE');
     const nativeRead = readFileSync(resolve(srcRoot, 'adapters/planning_read.rs'), 'utf8');
@@ -100,7 +101,7 @@ describe('Planning read-tail r19 capacity projection/FROM head', () => {
     // r23 folded the resource-calendar point lookup into the single-line projection/FROM builder (16 -> 15).
     // r24 folded the scoped single-row family into that same builder (15 -> 14).
     // r25 folded the scoped branch-list family into the single-line projection/FROM builder (14 -> 13).
-    expect(total).toBe(13);
+    expect(total).toBe(12);
     expect(total).toBeLessThan(19);
   });
 });

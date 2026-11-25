@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
 import {
   nativeManufacturingPlan,
@@ -6,6 +8,10 @@ import {
   MANUFACTURING_RD_ORDERS,
   MANUFACTURING_RD_SPECIFICATION,
   MANUFACTURING_RD_ORDER_EVENTS,
+  MANUFACTURING_RD_SPECIFICATION_VERSION,
+  MANUFACTURING_RD_SPECIFICATION_LINES,
+  MANUFACTURING_RD_PRODUCT_GENEALOGY,
+  MANUFACTURING_RD_ACCOUNTING_PROFILES,
   MANUFACTURING_RD_ORDER_SPECIFICATION_LINES,
   MANUFACTURING_RD_MATERIAL_RESERVATIONS,
   MANUFACTURING_RD_ORDER_POSTINGS,
@@ -141,6 +147,50 @@ describe('native Manufacturing read-plan transport', () => {
       expect(planned.values, kind).toEqual(values);
       expect(body, kind).toEqual({ kind, scope });
     }
+  });
+
+  it('admits the six byte-identical identity read kinds and forwards exact bounded scope', async () => {
+    const cases = [
+      [MANUFACTURING_RD_SPECIFICATION, { id: 'spec-1', companyId: 'company-1' },
+        'SELECT * FROM manufacturing_specifications WHERE id=? AND company_id=?', ['spec-1', 'company-1']],
+      [MANUFACTURING_RD_SPECIFICATION_VERSION, { id: 'spec-1', companyId: 'company-1', version: 3 },
+        'SELECT * FROM manufacturing_specifications WHERE id=? AND company_id=? AND version=?', ['spec-1', 'company-1', '3']],
+      [MANUFACTURING_RD_SPECIFICATION_LINES, { specificationId: 'spec-1' },
+        'SELECT * FROM manufacturing_specification_lines WHERE specification_id=? ORDER BY ordinal', ['spec-1']],
+      [MANUFACTURING_RD_ORDER_EVENTS, { orderId: 'order-1' },
+        'SELECT * FROM manufacturing_order_events WHERE order_id=? ORDER BY version', ['order-1']],
+      [MANUFACTURING_RD_PRODUCT_GENEALOGY, { orderId: 'order-1' },
+        'SELECT * FROM manufacturing_genealogy WHERE order_id=?', ['order-1']],
+      [MANUFACTURING_RD_ACCOUNTING_PROFILES, { companyId: 'company-1' },
+        'SELECT id,status FROM manufacturing_accounting_profiles WHERE company_id=?', ['company-1']],
+    ] as const;
+    for (const [kind, scope, sql, values] of cases) {
+      let body: unknown;
+      vi.stubGlobal('fetch', vi.fn(async (_u: URL, i: RequestInit) => {
+        body = JSON.parse(String(i.body));
+        return ok({ data: { kind, caller: 'records.detail', statement: { sql, values } } });
+      }));
+      const planned = await nativeManufacturingPlan(kind, scope);
+      expect(planned.sql, kind).toBe(sql);
+      expect(planned.values, kind).toEqual(values);
+      expect(body, kind).toEqual({ kind, scope });
+    }
+  });
+
+  it('routes the identity read callers to native kinds with no replaced TS SQL', () => {
+    const caller = readFileSync(resolve(__dirname, '../../../packages/server-manufacturing/src/adapters/production-command-sources.ts'), 'utf8');
+    expect(caller).not.toContain('manufacturingAccountingProfileSelect');
+    expect(caller).toContain('nativeManufacturingReadFirst<Row>(MANUFACTURING_RD_SPECIFICATION_VERSION');
+    expect(caller).toContain('nativeManufacturingReadFirst<Row>(MANUFACTURING_RD_SPECIFICATION,');
+    for (const kind of [
+      MANUFACTURING_RD_SPECIFICATION_LINES,
+      MANUFACTURING_RD_ORDER_EVENTS,
+      MANUFACTURING_RD_PRODUCT_GENEALOGY,
+      MANUFACTURING_RD_ACCOUNTING_PROFILES,
+    ]) expect(caller).toContain(`nativeManufacturingReadAll<Row>(${kind.replace(/-/g, '_').toUpperCase()}`);
+    expect(caller).not.toContain('manufacturingRowsSelect("manufacturing_specification_lines"');
+    expect(caller).not.toContain('manufacturingRowsSelect("manufacturing_order_events"');
+    expect(caller).not.toContain('manufacturingRowsSelect("manufacturing_genealogy"');
   });
 
   it('rejects malformed configuration before any fetch', async () => {

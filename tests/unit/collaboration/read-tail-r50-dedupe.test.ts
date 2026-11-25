@@ -150,7 +150,7 @@ describe('Collaboration read-tail r50 revisions-aggregate fold', () => {
 
 describe('Collaboration read-tail r50 excluded SQL stays untouched', () => {
   test('inbox whole-file pins, agent-reply locks and notifications are unchanged', () => {
-    expect(sha(fixed('adapters/inbox.ts'))).toBe('8c2fdafbb118a000f35836196bd2917d60afc8ab345171895d573e97678b73b5');
+    expect(sha(fixed('adapters/inbox.ts'))).toBe('58814f215ee185b2ec9e1e320be23ddc5d5573a92d718f5888e066c55bf416e9');
     expect(sha(fixed('adapters/staff-notifications.ts'))).toBe('3ce65abf55973c3a41228531a9d2778739a6a7f859a37591c016bda9f9a2508a');
     expect(sha(fixed('adapters/messaging-purchases.ts'))).toBe('6921fd7a922dccbab407a37ecf8544b26494388c442871f4b084c45b39133c9b');
     expect(sha(fixed('public/field-outbox-predicate.generated.ts'))).toBe('1c1945bec812a3981738b0d36af5483786ff8e372c669453c0bc8683976a6c84');
@@ -162,12 +162,12 @@ describe('Collaboration read-tail r50 excluded SQL stays untouched', () => {
     expect(purchases).toContain('ORDER BY pending.created_at,pending.id FOR UPDATE SKIP LOCKED LIMIT 500');
     expect(purchases).toContain('social_agent_replies IN SHARE ROW EXCLUSIVE MODE');
     expect(src('social-agent.ts')).toContain('SELECT pg_advisory_xact_lock(hashtext(?))');
-    expect(sha(shared)).toBe('a5e39b0b9a9a2496ab6f7e5be8925c08912dbe2b9d26ac3af1aac6971469672d');
+    expect(sha(shared)).toBe('cdf74e2a33105f26bb05fa2ce646aa4d46de6a3484a923db5d40b6240d6323a1');
   });
 });
 
 describe('Collaboration read-tail r50 KPI pins', () => {
-  test('retirement:ts-statements is pinned at 320, below the r50 BEFORE=333 baseline', () => {
+  test('retirement:ts-statements is pinned at 316, below the r50 BEFORE=333 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -180,7 +180,7 @@ describe('Collaboration read-tail r50 KPI pins', () => {
     // Two byte-identical revision aggregate heads -> one alias-parameterized
     // renderer with two thin wrappers. Net: 333 -> 332.
     // r51 folded the shared count head: 332 -> 331.
-    expect(total).toBe(320);
+    expect(total).toBe(316);
     expect(total).toBeLessThan(333);
   });
 });

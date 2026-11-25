@@ -1,72 +1,19 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import {
-  PMS_HOME_ACTIVE_ROOM_COUNT_SQL,
-  PMS_HOME_STAY_STATE_COUNT_SQL,
-  PMS_STAY_SOURCE_PROJECTION_SQL,
-} from '../../../packages/server-pms/src/adapters/pms-read-tail-r38-sql';
+import { PMS_STAY_SOURCE_PROJECTION_SQL } from '../../../packages/server-pms/src/adapters/pms-read-tail-r38-sql';
 
 const dir = new URL('../../../packages/server-pms/src/', import.meta.url);
 const src = (name: string) => readFile(new URL(name, dir), 'utf8');
 const SHARED = 'adapters/pms-read-tail-r38-sql.ts';
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 
-// r56 folds the byte-identical `SELECT count(*) FROM pms_records ` head into
-// the owner-local renderer; ACTIVE/STAY below remain the exact composed bytes.
-const HEAD = 'SELECT count(*) FROM pms_records ';
-const ACTIVE_TAIL = "r WHERE r.property_id=p.id AND r.kind='room' AND r.data_json::jsonb->>'active'='true'";
-const STAY_TAIL = "s WHERE s.property_id=p.id AND s.kind='stay' AND s.data_json::jsonb->>'state'";
-const ACTIVE = HEAD + ACTIVE_TAIL;
-const STAY = HEAD + STAY_TAIL;
+// The two home count projections were retired to the native hotelMetrics read
+// plan; their r56 shared count head and dedupe file were deleted. Only the
+// still-live related-record projection is pinned here.
 const SRC = "SELECT id,data_json::jsonb data FROM pms_records WHERE property_id=? AND kind='stay'";
 
-// Byte oracles: exact SQL substrings captured at HEAD before this dedupe. The
-// SHA-256 values are the pre-change text; every recomposition must match
-// byte-for-byte and keep the same bound parameters in the same order.
 const ORIGINALS = [
-  {
-    file: 'adapters/pms/home.ts',
-    full: ACTIVE + ") room_count,",
-    sha256: 'de275dd8312754ba4ee4f5a116f0469653af26b27466a1a104782a36030c1d94',
-    recomposed: PMS_HOME_ACTIVE_ROOM_COUNT_SQL + ") room_count,",
-    routed: '${PMS_HOME_ACTIVE_ROOM_COUNT_SQL}) room_count,',
-  },
-  {
-    file: 'adapters/pms/home.ts',
-    full: ACTIVE + "\n      AND r.data_json::jsonb->>'cleanliness'='inspected') inspected,",
-    sha256: 'bc76f8e95c1aa3127905dd1dbbbdf3cbffee87410742289e866a1f70a81ebe57',
-    recomposed: PMS_HOME_ACTIVE_ROOM_COUNT_SQL + "\n      AND r.data_json::jsonb->>'cleanliness'='inspected') inspected,",
-    routed: '${PMS_HOME_ACTIVE_ROOM_COUNT_SQL}\n      AND r.data_json::jsonb->>',
-  },
-  {
-    file: 'adapters/pms/home.ts',
-    full: ACTIVE + "\n      AND NOT EXISTS(SELECT 1 FROM pms_records b WHERE b.property_id=p.id AND b.kind='block' AND b.data_json::jsonb->>'state'='active'",
-    sha256: '0e224b165406778bb42358efd230f6f6170ef80fe69d4b0290ec2f5a5b2ebb18',
-    recomposed: PMS_HOME_ACTIVE_ROOM_COUNT_SQL + "\n      AND NOT EXISTS(SELECT 1 FROM pms_records b WHERE b.property_id=p.id AND b.kind='block' AND b.data_json::jsonb->>'state'='active'",
-    routed: '${PMS_HOME_ACTIVE_ROOM_COUNT_SQL}\n      AND NOT EXISTS(',
-  },
-  {
-    file: 'adapters/pms/home.ts',
-    full: STAY + " IN ('in_house','checked_out')",
-    sha256: '6ab25e7f6c6fb1858d3f910d744d3b8d37f0852aaa6a0b880ddc929e553a1303',
-    recomposed: PMS_HOME_STAY_STATE_COUNT_SQL + " IN ('in_house','checked_out')",
-    routed: "${PMS_HOME_STAY_STATE_COUNT_SQL} IN ('in_house','checked_out')",
-  },
-  {
-    file: 'adapters/pms/home.ts',
-    full: STAY + "='reserved' AND s.data_json::jsonb->>'arrival'<=p.business_date) arrivals,",
-    sha256: 'a5d4ca0f38ab171243e744d2c66c2b96404aeb4a6956e2732954191cfaea5e61',
-    recomposed: PMS_HOME_STAY_STATE_COUNT_SQL + "='reserved' AND s.data_json::jsonb->>'arrival'<=p.business_date) arrivals,",
-    routed: "${PMS_HOME_STAY_STATE_COUNT_SQL}='reserved'",
-  },
-  {
-    file: 'adapters/pms/home.ts',
-    full: STAY + "='in_house' AND s.data_json::jsonb->>'departure'<=p.business_date) departures",
-    sha256: 'c7752431890fb1d32e31d5f3fd912fb90f636b843832f928419d95483ae3bb85',
-    recomposed: PMS_HOME_STAY_STATE_COUNT_SQL + "='in_house' AND s.data_json::jsonb->>'departure'<=p.business_date) departures",
-    routed: "${PMS_HOME_STAY_STATE_COUNT_SQL}='in_house'",
-  },
   {
     file: 'adapters/pms/read-repository.ts',
     full: SRC + " AND (id IN (SELECT id FROM chosen) OR data_json::jsonb->>'reservationId' IN (SELECT id FROM reservations))),",
@@ -85,26 +32,19 @@ async function tsFiles(directory: URL): Promise<string[]> {
   return found;
 }
 
-describe('pms read-tail r38 count/projection head dedupe', () => {
-  it('declares each byte-identical head exactly once in the shared module', async () => {
+describe('pms read-tail r38 projection-head dedupe', () => {
+  it('exports the single retained projection head byte-identically', () => {
+    expect(PMS_STAY_SOURCE_PROJECTION_SQL).toBe(SRC);
+    expect(sha256(PMS_STAY_SOURCE_PROJECTION_SQL)).toBe(sha256(SRC));
+  });
+
+  it('declares the retained head exactly once in the shared module', async () => {
     const shared = await src(SHARED);
-    expect(shared.split(HEAD).length - 1).toBe(0); // inline head retired to r56
-    expect(shared.split(ACTIVE_TAIL).length - 1).toBe(1);
-    expect(shared.split(STAY_TAIL).length - 1).toBe(1);
     expect(shared.split(SRC).length - 1).toBe(1);
-    expect(shared.split('PMS_RECORDS_COUNT_HEAD_SQL').length - 1).toBe(3); // import + 2 uses
-    expect(shared.split('PMS_HOME_ACTIVE_ROOM_COUNT_SQL').length - 1).toBe(1);
-    expect(shared.split('PMS_HOME_STAY_STATE_COUNT_SQL').length - 1).toBe(1);
     expect(shared.split('PMS_STAY_SOURCE_PROJECTION_SQL').length - 1).toBe(1);
   });
 
-  it('exports the exact byte-identical heads', () => {
-    expect(PMS_HOME_ACTIVE_ROOM_COUNT_SQL).toBe(ACTIVE);
-    expect(PMS_HOME_STAY_STATE_COUNT_SQL).toBe(STAY);
-    expect(PMS_STAY_SOURCE_PROJECTION_SQL).toBe(SRC);
-  });
-
-  it('recomposes all retained original SQL substrings byte-for-byte with unchanged binds', () => {
+  it('recomposes the retained original SQL substring byte-for-byte with unchanged binds', () => {
     for (const oracle of ORIGINALS) {
       expect(sha256(oracle.full)).toBe(oracle.sha256);
       expect(oracle.recomposed).toBe(oracle.full);
@@ -112,22 +52,20 @@ describe('pms read-tail r38 count/projection head dedupe', () => {
     }
   });
 
-  it('routes all remaining call sites through the shared heads and removes inline heads', async () => {
+  it('routes the remaining call site through the shared head and retires the home count fragments', async () => {
     for (const oracle of ORIGINALS) {
-      // r41 folds the six home metric interpolations into its property-scope union.
-      const file = oracle.file === 'adapters/pms/home.ts' ? 'adapters/pms-read-tail-r41-sql.ts' : oracle.file;
-      expect(await src(file), oracle.routed).toContain(oracle.routed);
+      expect(await src(oracle.file), oracle.routed).toContain(oracle.routed);
     }
-    const r41 = await src('adapters/pms-read-tail-r41-sql.ts');
-    expect(r41.split('${PMS_HOME_ACTIVE_ROOM_COUNT_SQL}').length - 1).toBe(3); // three home metric columns
-    expect(r41.split('${PMS_HOME_STAY_STATE_COUNT_SQL}').length - 1).toBe(3); // three home metric columns
-    const home = await src('adapters/pms/home.ts');
-    expect(home.split(ACTIVE).length - 1).toBe(0);
-    expect(home.split(STAY).length - 1).toBe(0);
+    const shared = await src(SHARED);
+    expect(shared).not.toContain('PMS_HOME_ACTIVE_ROOM_COUNT_SQL');
+    expect(shared).not.toContain('PMS_HOME_STAY_STATE_COUNT_SQL');
+    expect(shared).not.toContain('pms-read-tail-r56-sql');
     const rr = await src('adapters/pms/read-repository.ts');
     expect(rr.split('${PMS_STAY_SOURCE_PROJECTION_SQL}').length - 1).toBe(1); // one remaining related-record CTE after r48
     expect(rr).toContain('PMS_RD_SECTION_RELATED_RECORDS, [facts.propertyId, facts.seedsJson');
     expect(rr.split(SRC).length - 1).toBe(0);
+    const rust = await src('adapters/native_read_sql.rs');
+    expect(rust).toContain('PMS_RD_HOTEL_METRICS');
   });
 
   it('keeps locks, the native read registry and the r17-r37 fragments untouched', async () => {
@@ -142,15 +80,15 @@ describe('pms read-tail r38 count/projection head dedupe', () => {
     }
   });
 
-  it('lowers the pms owner SELECT KPI from 323 to 313', async () => {
+  it('lowers the pms owner SELECT KPI from 323 to 234', async () => {
     let spaced = 0, bare = 0;
     for (const file of await tsFiles(dir)) {
       const text = await readFile(file, 'utf8');
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(236);
-    expect(bare).toBe(237);
+    expect(spaced).toBe(234);
+    expect(bare).toBe(235);
     expect(spaced).toBeLessThan(323);
   });
 });

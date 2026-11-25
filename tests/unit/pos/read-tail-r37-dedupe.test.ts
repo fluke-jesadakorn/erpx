@@ -71,7 +71,7 @@ describe('POS read-tail r37 owner-local lock-head dedupe', () => {
     expect(read('pos.ts')).toContain('${pmsProjectionSources.pms_sources}');
     expect(read('native-pos-day-report.ts')).toContain("'pos_day_report_");
     expect(read('native-pos-stripe-reads.ts')).toContain("'pos_stripe_");
-    expect(read('owner_writes.rs')).toContain('assert_eq!(KINDS.len(), 196)');
+    expect(read('owner_writes.rs')).toContain('assert_eq!(KINDS.len(), 197)');
   });
 
   test('retirement:ts-statements decreased 182 -> 173 (r42 continues below the r37 BEFORE=182 baseline)', () => {
@@ -84,7 +84,7 @@ describe('POS read-tail r37 owner-local lock-head dedupe', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(160);
+    expect(total).toBe(158);
     expect(total).toBeLessThan(182);
   });
 });

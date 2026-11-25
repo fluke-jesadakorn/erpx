@@ -135,9 +135,10 @@ describe('Files read-tail r43 byte-oracle dedupe', () => {
     };
     walk(srcRoot);
     expect(totalAfter).toBe(5);
-    // scan-pending-dedupe-sql.ts is excluded: its statement token moved to the
-    // native-owned scan-pending-head-sources.json contract (see the dedicated
-    // scan-pending-native-head suite), so its byte hash legitimately changed.
+    // scan-pending-dedupe-sql.ts and owner-projection-dedupe-sql.ts are excluded:
+    // their statement tokens moved to native-owned JSON contracts (see the
+    // scan-pending-native-head and owner-projection-native-head suites), so their
+    // byte hashes legitimately changed.
     for (const h of PRIOR_HELPERS) {
       const p = `packages/server-files/src/adapters/${h}`;
       expect(git('rev-parse', `${BASE}:${p}`).trim()).toBe(git('hash-object', p).trim());

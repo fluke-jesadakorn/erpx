@@ -80,7 +80,8 @@ describe('Customer Authority read-tail r38 canonical projection/source head fami
 
   test('locks, source locks, native kinds and eligibility helpers are untouched', () => {
     const access = src('portal-access.ts');
-    expect(access).toContain('FOR UPDATE');
+    expect(access).toContain('CA_RD_PORTAL_BINDING_LOCK');
+    expect(access).toContain('nativePortalReadStatement');
     expect(access).not.toContain('ownerColumnProjection');
     expect(access).not.toContain('unionFactRow');
 
@@ -118,6 +119,6 @@ describe('Customer Authority read-tail r38 canonical projection/source head fami
     walk(srcRoot);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(40);
-    expect(total).toBe(17);
+    expect(total).toBe(15);
   });
 });

@@ -156,6 +156,8 @@ pub mod routine_owner;
 pub(crate) mod position_gpo_directory;
 pub(crate) mod position_gpo_http;
 pub(crate) mod position_gpo_postgres;
+pub(crate) mod private_file_denial_http;
+pub(crate) mod private_file_denial_postgres;
 
 pub(crate) mod people_access_http;
 pub(crate) mod people_access_postgres;

@@ -1,6 +1,6 @@
 import 'server-only';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
-import {commerceOrderSourceImageSql} from './read-tail-r26-dedupe-sql';
+import {nativeCommerceReadFirst,RD_CRM_ORDER_SOURCE_IMAGE} from './native-commerce-read';
 /** Fixed original quote/sale identity, never a caller-supplied source label. */
 export function crmAttachmentOrderSourceLocks(database:SqlDatabase){return database.prepare('LOCK TABLE commerce_orders IN SHARE ROW EXCLUSIVE MODE');}
-export function crmAttachmentOrderSourceImage(database:SqlDatabase,companyId:string,id:string){return database.prepare(commerceOrderSourceImageSql("source.id=? AND source.company_id=? AND source.kind IN ('quote','sales')")).bind(id,companyId).first<string>('image');}
+export function crmAttachmentOrderSourceImage(database:SqlDatabase,companyId:string,id:string){return nativeCommerceReadFirst<string>(RD_CRM_ORDER_SOURCE_IMAGE,[id,companyId],database);}

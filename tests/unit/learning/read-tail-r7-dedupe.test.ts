@@ -1,9 +1,11 @@
 import { describe, expect, test } from 'vitest';
+import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
   actorScopeExistsProbe,
   assignmentsImage,
+  imageChildFrame,
   moduleGrantAssignmentProbe,
   sourceLiteral,
 } from '../../../packages/server-learning/src/adapters/learning-read-sql';
@@ -81,7 +83,7 @@ describe('Learning read-tail r7 byte-identical families', () => {
 
   test('r1-r6 helpers and all 7 owner LOCK TABLE statements stay untouched', () => {
     const shared = src('learning-read-sql.ts');
-    for (const name of ['actorScopeProbe', 'clockProbe', 'coursesImage', 'learningNativeSources', 'nativeSourceProbe', 'overdueEvidenceColumns', 'learningModuleGrantProbe']) {
+    for (const name of ['actorScopeProbe', 'clockProbe', 'coursesImage', 'learningNativeSources', 'nativeSourceProbe', 'learningModuleGrantProbe']) {
       expect(shared.match(new RegExp(`export const ${name} ?=`, 'g')) ?? []).toHaveLength(1);
     }
     let locks = 0;
@@ -110,5 +112,80 @@ describe('Learning read-tail r7 retirement check', () => {
     walk(srcRoot);
     expect(total).toBeLessThan(77);
     expect(total).toBeLessThanOrEqual(72);
+  });
+});
+
+// assignments-image family folded into the r15 imageChildFrame head: the
+// rendered bytes stay identical and their oracle now lives in the native owner.
+const sha = (text: string) => createHash('sha256').update(text).digest('hex');
+const imagePre = [
+  {
+    projection: 'to_jsonb(a)',
+    sql: '(SELECT jsonb_agg(to_jsonb(a) ORDER BY a.id) FROM learning_assignments a WHERE a.company_id=?)',
+    sha: '7450b80b6e587681ee201b3de75ef04825ed1908896a30e2b766119d36008b4a',
+    bytes: 94,
+  },
+  {
+    projection: "to_jsonb(a)||jsonb_build_object('visible',TRUE)",
+    sql: "(SELECT jsonb_agg(to_jsonb(a)||jsonb_build_object('visible',TRUE) ORDER BY a.id) FROM learning_assignments a WHERE a.company_id=?)",
+    sha: '035d7119224125affc60d912e8a398ff0314834abeb29ebab3452a439242f845',
+    bytes: 130,
+  },
+];
+
+describe('Learning assignments-image family folded into the native byte oracle', () => {
+  test('both caller renderings keep their exact pre-fold bytes', () => {
+    for (const p of imagePre) {
+      const rendered = assignmentsImage(p.projection);
+      expect(rendered).toBe(p.sql);
+      expect(Buffer.byteLength(rendered)).toBe(p.bytes);
+      expect(sha(rendered)).toBe(p.sha);
+      expect((rendered.match(/\?/g) ?? []).length).toBe(1);
+      readOnly(rendered);
+    }
+  });
+
+  test('assignmentsImage is byte-identical to the r15 imageChildFrame head', () => {
+    for (const p of imagePre) {
+      expect(assignmentsImage(p.projection)).toBe(
+        imageChildFrame(`jsonb_agg(${p.projection} ORDER BY a.id)`, 'FROM learning_assignments a WHERE a.company_id=?'),
+      );
+    }
+  });
+
+  test('the inline SELECT is gone and the live declaration delegates through imageChildFrame', () => {
+    const shared = src('learning-read-sql.ts');
+    const decl = shared.match(/export const assignmentsImage =[\s\S]*?;\n/)?.[0];
+    expect(decl).toBeDefined();
+    expect(decl!).not.toContain('SELECT');
+    expect(decl!).toContain('imageChildFrame(');
+    const build = new Function(
+      'imageChildFrame',
+      `${decl!.replace('export ', '')}\nreturn assignmentsImage;`,
+    ) as (renderer: (aggregate: string, source: string) => string) => (projection: string) => string;
+    expect(build((aggregate, source) => `<${aggregate}|${source}>`)('to_jsonb(a)'))
+      .toBe('<jsonb_agg(to_jsonb(a) ORDER BY a.id)|FROM learning_assignments a WHERE a.company_id=?>');
+  });
+
+  test('the native Rust owner pins both rendered byte oracles', () => {
+    const rust = src('native_lane_31/postgres.rs');
+    expect(rust).toContain('assignments_image_family_byte_oracles_are_owner_local');
+    for (const p of imagePre) expect(rust).toContain(p.sql);
+  });
+
+  test('retirement:ts-statements KPI is 29 (strictly below the BEFORE=30 baseline)', () => {
+    let total = 0;
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith('.ts')) total += selectCount(readFileSync(path, 'utf8'));
+      }
+    };
+    walk(srcRoot);
+    expect(total).toBeLessThan(30);
+    expect(total).toBe(29);
+    expect(selectCount(src('learning-read-sql.ts'))).toBe(28);
+    expect(selectCount(src('executive-metric-projections.ts'))).toBe(1);
   });
 });

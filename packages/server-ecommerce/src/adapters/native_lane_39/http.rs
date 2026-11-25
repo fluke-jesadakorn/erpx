@@ -7,7 +7,9 @@
 //! to a named error and the TypeScript client fails closed.
 
 use crate::adapters::native_lane_39::application::{WorkspaceListRead, read_workspace_lists};
+use crate::adapters::native_lane_39::domain::WorkspaceScope;
 use crate::adapters::native_lane_39::postgres::PgWorkspaceListRead;
+use crate::adapters::native_lane_39::workspace_rows::{PgWorkspaceRowRead, WorkspaceRowRead, read_workspace_rows};
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
     StatusCode, header, routing::post, serde_json,
@@ -32,6 +34,7 @@ pub type LaneTarget = WorkspaceListTarget;
 
 struct AppState {
     targets: BTreeMap<(String, String), Arc<dyn WorkspaceListRead>>,
+    rows: BTreeMap<(String, String), Arc<dyn WorkspaceRowRead>>,
 }
 
 fn missing() -> BusinessError {
@@ -132,18 +135,25 @@ pub fn router_for_holdings(
     targets: Vec<(LaneTarget, DatabasePool)>,
 ) -> Result<Router, BusinessError> {
     let mut configured = BTreeMap::new();
+    let mut rows = BTreeMap::new();
     for (target, pool) in targets {
-        if target.host.is_empty()
-            || !valid_slug(&target.holding_slug)
-            || configured
-                .insert(
-                    (target.host.clone(), target.holding_slug.clone()),
-                    Arc::new(PgWorkspaceListRead::new(pool)) as Arc<dyn WorkspaceListRead>,
-                )
-                .is_some()
+        if target.host.is_empty() || !valid_slug(&target.holding_slug) {
+            return Err(configuration_invalid());
+        }
+        let key = (target.host.clone(), target.holding_slug.clone());
+        if configured
+            .insert(
+                key.clone(),
+                Arc::new(PgWorkspaceListRead::new(pool.clone())) as Arc<dyn WorkspaceListRead>,
+            )
+            .is_some()
         {
             return Err(configuration_invalid());
         }
+        rows.insert(
+            key,
+            Arc::new(PgWorkspaceRowRead::new(pool)) as Arc<dyn WorkspaceRowRead>,
+        );
     }
     if configured.is_empty() {
         return Err(configuration_invalid());
@@ -153,7 +163,11 @@ pub fn router_for_holdings(
             "/api/v1/holdings/{holding_slug}/ecommerce/lane39-workspace-lists",
             post(read),
         )
-        .with_state(Arc::new(AppState { targets: configured })))
+        .route(
+            "/api/v1/holdings/{holding_slug}/ecommerce/lane39-workspace-rows",
+            post(read_rows),
+        )
+        .with_state(Arc::new(AppState { targets: configured, rows })))
 }
 
 async fn read(State(state): State<Arc<AppState>>, Path(slug): Path<String>, request: Request) -> Response {
@@ -180,6 +194,49 @@ async fn read(State(state): State<Arc<AppState>>, Path(slug): Path<String>, requ
             .map(str::to_owned);
         let value = read_workspace_lists(reader.as_ref(), company, branch, department).await?;
         Ok::<_, BusinessError>(value)
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn read_rows(State(state): State<Arc<AppState>>, request: Request) -> Response {
+    // Own the transport facts before awaiting: a borrow of `Request<Body>`
+    // across an await would make the handler future !Send.
+    let (parts, _) = request.into_parts();
+    let headers = parts.headers.clone();
+    let slug = parts
+        .uri
+        .path()
+        .split('/')
+        .nth(4)
+        .filter(|value| valid_slug(value))
+        .map(str::to_owned)
+        .ok_or_else(invalid);
+    let result = async move {
+        let slug = slug?;
+        let host = unique_header(&headers, header::HOST)?
+            .filter(|host| !host.is_empty())
+            .ok_or_else(missing)?;
+        let reader = state
+            .rows
+            .get(&(host.to_owned(), slug))
+            .ok_or_else(missing)?;
+        let company = unique_header(&headers, CONTEXT_COMPANY)?
+            .filter(|value| valid_id(value))
+            .ok_or_else(invalid)?;
+        let branch = unique_header(&headers, WORKSPACE_BRANCH)?
+            .filter(|value| valid_id(value));
+        let department = unique_header(&headers, WORKSPACE_DEPARTMENT)?
+            .filter(|value| valid_id(value));
+        let scope = WorkspaceScope {
+            company_id: company,
+            branch_id: branch,
+            department_id: department,
+        };
+        Ok::<_, BusinessError>(read_workspace_rows(reader.as_ref(), scope).await?)
     }
     .await;
     match result {

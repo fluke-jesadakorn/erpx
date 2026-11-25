@@ -104,6 +104,7 @@ pub mod processing_status;
 
 pub mod auxiliary;
 pub mod legal_records;
+pub mod package_obligation_read;
 pub mod trust_http;
 
 /// Source validation seam for the retained Legal destruction execution unit.

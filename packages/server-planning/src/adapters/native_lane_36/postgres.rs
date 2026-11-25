@@ -7,15 +7,17 @@
 
 use super::application::{LaneRead, LaneReadFuture};
 use super::domain::{
-    CalendarListItem, ComparisonRow, LaneData, LaneScope, RecommendationListItem, ResourceListItem,
-    ScenarioListItem, ScenarioRow, ScopedRecommendationRow, is_row_kind,
+    CalendarListItem, ComparisonRow, ExecutiveRow, LaneData, LaneScope, RecommendationListItem,
+    ResourceListItem, ScenarioListItem, ScenarioRow, ScopedRecommendationRow, is_row_kind,
 };
+use crate::public::read_source::executive as registered_executive;
 use erpx_server_runtime::public::postgres::{
     DatabasePool, PgTransactionError, PgUnitOfWork, TransactionOptions,
 };
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use serde_json::{Value, to_value};
 use sqlx::Row;
+use std::sync::LazyLock;
 
 /// Scoped recommendations: parent scenario owns the Company/branch identity.
 pub const RECOMMENDATIONS_SQL: &str = "SELECT r.id,r.scenario_id,r.scenario_version,r.recommended_quantity_milli,r.required_minutes,r.feasible_date,r.status,r.created_by,r.reviewed_by,r.version,r.created_at,r.updated_at,s.company_id,s.branch_id FROM planning_recommendations r JOIN planning_scenarios s ON s.id=r.scenario_id WHERE s.company_id=$1 AND ($2::text IS NULL OR s.branch_id=$3) ORDER BY r.updated_at DESC";
@@ -40,6 +42,46 @@ pub const SCOPED_RECOMMENDATION_SQL: &str = "SELECT r.id,r.scenario_id,r.scenari
 
 /// Single comparison row: same output, branch and specification.
 pub const COMPARISON_SQL: &str = "SELECT s.id,s.version,s.shortages_json,r.required_minutes,r.feasible_date FROM planning_scenarios s JOIN planning_recommendations r ON r.scenario_id=s.id WHERE s.id=$1 AND s.company_id=$2 AND s.branch_id=$3 AND s.specification_id=$4 LIMIT 1";
+
+/// Rebind the registry's `?` markers to the native driver's positional form.
+/// The `?` inside the retained jsonpath literal is quoted and must stay intact.
+fn positional(sql: &str) -> String {
+    let mut out = String::with_capacity(sql.len());
+    let mut quoted = false;
+    let mut index = 0usize;
+    let mut chars = sql.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if quoted {
+            out.push(ch);
+            if ch == '\'' {
+                if chars.peek() == Some(&'\'') {
+                    out.push(chars.next().unwrap());
+                } else {
+                    quoted = false;
+                }
+            }
+        } else if ch == '\'' {
+            quoted = true;
+            out.push(ch);
+        } else if ch == '?' {
+            index += 1;
+            out.push('$');
+            out.push_str(&index.to_string());
+        } else {
+            out.push(ch);
+        }
+    }
+    out
+}
+
+/// The three retained executive statements are owned by the read-source
+/// registry; the native statements are their byte-exact positional form.
+static EXEC_SHORTAGE_SQL: LazyLock<String> =
+    LazyLock::new(|| positional(registered_executive::SHORTAGE_EXEC_SQL));
+static EXEC_PROPOSED_SQL: LazyLock<String> =
+    LazyLock::new(|| positional(registered_executive::PROPOSED_EXEC_SQL));
+static EXEC_CAPACITY_SQL: LazyLock<String> =
+    LazyLock::new(|| positional(registered_executive::CAPACITY_EXEC_SQL));
 
 fn unavailable() -> BusinessError {
     BusinessError::new(
@@ -66,8 +108,21 @@ pub fn sql_for(kind: &str) -> Option<&'static str> {
         "scenario" => Some(SCENARIO_SQL),
         "scoped-recommendation" => Some(SCOPED_RECOMMENDATION_SQL),
         "comparison" => Some(COMPARISON_SQL),
+        "executive-shortage" => Some(&EXEC_SHORTAGE_SQL),
+        "executive-recommendation" => Some(&EXEC_PROPOSED_SQL),
         _ => None,
     }
+}
+
+/// The recommendation read has two closed eligibility branches; the capacity
+/// variant is selected by the bounded scope fact, never by caller SQL.
+pub fn sql_for_scope(scope: &LaneScope) -> Option<&'static str> {
+    if scope.kind == "executive-recommendation"
+        && scope.eligibility.as_deref() == Some("capacity")
+    {
+        return Some(&EXEC_CAPACITY_SQL);
+    }
+    sql_for(&scope.kind)
 }
 
 fn map_recommendation(row: &sqlx::postgres::PgRow) -> Result<Value, BusinessError> {
@@ -208,6 +263,48 @@ fn map_comparison(row: &sqlx::postgres::PgRow) -> Result<Value, BusinessError> {
     to_value(item).map_err(|_| invalid())
 }
 
+fn map_executive(row: &sqlx::postgres::PgRow) -> Result<Value, BusinessError> {
+    let item = ExecutiveRow {
+        scenario_id: row.try_get("scenario_id").map_err(|_| invalid())?,
+        company_id: row.try_get("company_id").map_err(|_| invalid())?,
+        branch_id: row.try_get("branch_id").map_err(|_| invalid())?,
+        branch_name: row.try_get("branch_name").map_err(|_| invalid())?,
+        warehouse_id: row.try_get("warehouse_id").map_err(|_| invalid())?,
+        warehouse_name: row.try_get("warehouse_name").map_err(|_| invalid())?,
+        specification_id: row.try_get("specification_id").map_err(|_| invalid())?,
+        specification_name: row.try_get("specification_name").map_err(|_| invalid())?,
+        output_product_id: row.try_get("output_product_id").map_err(|_| invalid())?,
+        output_product_name: row.try_get("output_product_name").map_err(|_| invalid())?,
+        specification_version: row.try_get("specification_version").map_err(|_| invalid())?,
+        demand_quantity_milli: row.try_get("demand_quantity_milli").map_err(|_| invalid())?,
+        due_date: row.try_get("due_date").map_err(|_| invalid())?,
+        capacity_minutes: row.try_get("capacity_minutes").map_err(|_| invalid())?,
+        scenario_status: row.try_get("scenario_status").map_err(|_| invalid())?,
+        scenario_version: row.try_get("scenario_version").map_err(|_| invalid())?,
+        scenario_created_at: row.try_get("scenario_created_at").map_err(|_| invalid())?,
+        scenario_updated_at: row.try_get("scenario_updated_at").map_err(|_| invalid())?,
+        recommendation_id: row.try_get("recommendation_id").map_err(|_| invalid())?,
+        recommendation_status: row.try_get("recommendation_status").map_err(|_| invalid())?,
+        recommended_quantity_milli: row
+            .try_get("recommended_quantity_milli")
+            .map_err(|_| invalid())?,
+        required_minutes: row.try_get("required_minutes").map_err(|_| invalid())?,
+        feasible_date: row.try_get("feasible_date").map_err(|_| invalid())?,
+        recommendation_version: row
+            .try_get("recommendation_version")
+            .map_err(|_| invalid())?,
+        recommendation_created_at: row
+            .try_get("recommendation_created_at")
+            .map_err(|_| invalid())?,
+        recommendation_updated_at: row
+            .try_get("recommendation_updated_at")
+            .map_err(|_| invalid())?,
+        shortage_count: row.try_get("shortage_count").map_err(|_| invalid())?,
+        shortage_items_json: row.try_get("shortage_items_json").map_err(|_| invalid())?,
+    };
+    to_value(item).map_err(|_| invalid())
+}
+
 fn map(kind: &str, row: &sqlx::postgres::PgRow) -> Result<Value, BusinessError> {
     match kind {
         "recommendations" => map_recommendation(row),
@@ -217,6 +314,7 @@ fn map(kind: &str, row: &sqlx::postgres::PgRow) -> Result<Value, BusinessError> 
         "scenario" => map_scenario(row),
         "scoped-recommendation" => map_scoped_recommendation(row),
         "comparison" => map_comparison(row),
+        "executive-shortage" | "executive-recommendation" => map_executive(row),
         _ => Err(unavailable()),
     }
 }
@@ -238,13 +336,15 @@ impl LaneRead for PgLaneRead {
         let unit = PgUnitOfWork::new(self.pool.clone());
         let scope = scope.clone();
         Box::pin(async move {
-            let statement = sql_for(&scope.kind).ok_or_else(unavailable)?;
+            let statement = sql_for_scope(&scope).ok_or_else(unavailable)?;
             let kind = scope.kind.clone();
             let company = Some(scope.company_id.clone());
             let branch = scope.branch.clone();
             let id = scope.id.clone();
             let comparison = scope.comparison_scenario_id.clone();
             let specification = scope.specification_id.clone();
+            let from = scope.from.clone();
+            let to = scope.to.clone();
             unit.run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
                 let kind = kind.clone();
                 let company = company.clone();
@@ -252,6 +352,8 @@ impl LaneRead for PgLaneRead {
                 let id = id.clone();
                 let comparison = comparison.clone();
                 let specification = specification.clone();
+                let from = from.clone();
+                let to = to.clone();
                 Box::pin(async move {
                     let values: Vec<Option<String>> = match kind.as_str() {
                         "recommendations" | "scenarios" | "resources" | "calendar" => {
@@ -262,6 +364,9 @@ impl LaneRead for PgLaneRead {
                         }
                         // Unreachable: `sql_for` already resolved the kind.
                         "comparison" => vec![comparison, company, branch, specification],
+                        "executive-shortage" | "executive-recommendation" => {
+                            vec![id, company, branch.clone(), branch, from, to]
+                        }
                         _ => Vec::new(),
                     };
                     let mut query = sqlx::query(statement);
@@ -316,6 +421,11 @@ mod tests {
             assert_eq!(sql_for(kind), Some(sql));
         }
         assert_eq!(sql_for("scenarios"), Some(SCENARIOS_SQL));
+        assert_eq!(sql_for("executive-shortage"), Some(EXEC_SHORTAGE_SQL.as_str()));
+        assert_eq!(
+            sql_for("executive-recommendation"),
+            Some(EXEC_PROPOSED_SQL.as_str())
+        );
         assert_eq!(sql_for(""), None);
     }
 
@@ -345,6 +455,54 @@ mod tests {
     }
 
     #[test]
+    fn executive_statements_are_bytes_exact_and_select_the_closed_branch() {
+        for statement in [&*EXEC_SHORTAGE_SQL, &*EXEC_PROPOSED_SQL, &*EXEC_CAPACITY_SQL] {
+            assert!(statement.contains("shortage_count FROM jsonb_array_elements("));
+            assert!(statement.contains(") shortage ON TRUE WHERE "));
+            assert!(statement.contains("'$[*] ? (@.shortageMilli > 0)'"));
+            // Six positional binds plus the `$` starting the retained jsonpath.
+            assert_eq!(statement.matches('$').count(), 7);
+            assert!(statement.contains("$6"));
+            assert!(!statement.contains("$7"));
+            // The lone `?` is inside the retained jsonpath literal, not a bind.
+            assert_eq!(statement.matches('?').count(), 1);
+        }
+        let scope = LaneScope::new_executive(
+            "executive-recommendation",
+            "company-1",
+            None,
+            Some("recommendation-1"),
+            Some("2026-01-01"),
+            Some("2026-12-31"),
+            Some("capacity"),
+        )
+        .unwrap();
+        assert_eq!(sql_for_scope(&scope), Some(EXEC_CAPACITY_SQL.as_str()));
+        let scope = LaneScope::new_executive(
+            "executive-recommendation",
+            "company-1",
+            None,
+            Some("recommendation-1"),
+            Some("2026-01-01"),
+            Some("2026-12-31"),
+            Some("proposed"),
+        )
+        .unwrap();
+        assert_eq!(sql_for_scope(&scope), Some(EXEC_PROPOSED_SQL.as_str()));
+        let scope = LaneScope::new_executive(
+            "executive-shortage",
+            "company-1",
+            None,
+            Some("scenario-1"),
+            Some("2026-01-01"),
+            Some("2026-12-31"),
+            None,
+        )
+        .unwrap();
+        assert_eq!(sql_for_scope(&scope), Some(EXEC_SHORTAGE_SQL.as_str()));
+    }
+
+    #[test]
     fn statements_touch_only_planning_owned_relations() {
         let allowed = [
             "planning_recommendations",
@@ -355,7 +513,12 @@ mod tests {
             // scenarios statement until Manufacturing exposes a native subquery.
             "manufacturing_specifications",
         ];
-        for (_, statement) in ALL {
+        for (kind, statement) in ALL {
+            // The executive projection intentionally inlines cross-owner joins
+            // and a jsonb_array_elements FROM until those owners expose a port.
+            if kind.starts_with("executive-") {
+                continue;
+            }
             let mut consumed = statement;
             while let Some(index) = consumed.find(" FROM ") {
                 let tail = &consumed[index + 6..];

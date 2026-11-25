@@ -3,7 +3,6 @@
  * transaction; nothing is cached or executed here. Variants come from closed
  * unions owned by this module, never caller SQL. Locking reads, the r17-r40
  * fragments and the native read registry stay untouched. */
-import { PMS_HOME_ACTIVE_ROOM_COUNT_SQL, PMS_HOME_STAY_STATE_COUNT_SQL } from './pms-read-tail-r38-sql';
 import { pmsHomeGuestAccountSumSql } from './pms-read-tail-r39-sql';
 
 type GuestIdJoin = 'email' | 'reservationEmail' | 'operations';
@@ -19,25 +18,8 @@ export const pmsGuestIdJoinSql = (kind: GuestIdJoin): string => {
   return `SELECT ${projection} FROM pms_records r${join} ON g.id=r.data_json::jsonb->>'guestId'${on}`;
 };
 
-type PropertyScope = 'hotelMetrics' | 'hotelMoney' | 'liabilities';
+type PropertyScope = 'hotelMoney' | 'liabilities';
 const PROPERTY_SCOPE: Record<PropertyScope, { cte: string; projection: string; from: string; suffix: string }> = {
-  hotelMetrics: {
-    cte: '',
-    projection: `p.id,p.name,p.branch_id,p.business_date,p.state,p.config_json::jsonb->>'currency' currency,
-    (${PMS_HOME_ACTIVE_ROOM_COUNT_SQL}) room_count,
-    (${PMS_HOME_ACTIVE_ROOM_COUNT_SQL}
-      AND r.data_json::jsonb->>'cleanliness'='inspected') inspected,
-    (${PMS_HOME_ACTIVE_ROOM_COUNT_SQL}
-      AND NOT EXISTS(SELECT 1 FROM pms_records b WHERE b.property_id=p.id AND b.kind='block' AND b.data_json::jsonb->>'state'='active'
-        AND b.data_json::jsonb->>'kind'='maintenance' AND b.data_json::jsonb->>'from'<=p.business_date AND b.data_json::jsonb->>'roomId'=r.id)) capacity,
-    (${PMS_HOME_STAY_STATE_COUNT_SQL} IN ('in_house','checked_out')
-      AND s.data_json::jsonb->>'arrival'<=p.business_date AND s.data_json::jsonb->>'departure'>p.business_date) sold,
-    (${PMS_HOME_STAY_STATE_COUNT_SQL}='reserved' AND s.data_json::jsonb->>'arrival'<=p.business_date) arrivals,
-    (${PMS_HOME_STAY_STATE_COUNT_SQL}='in_house' AND s.data_json::jsonb->>'departure'<=p.business_date) departures
-    `,
-    from: 'FROM pms_properties p ',
-    suffix: '',
-  },
   hotelMoney: {
     cte: `WITH RECURSIVE entry_roots AS (
       SELECT r.id,r.property_id,r.id root_id FROM pms_records r JOIN pms_properties p ON p.id=r.property_id

@@ -32,7 +32,9 @@ const TS_HEAD: &str =
 const TS_MARKETING: &str =
     include_str!("../../../packages/server-marketing/src/adapters/marketing.ts");
 const TS_CAMPAIGN: &str =
-    include_str!("../../../packages/server-marketing/src/adapters/campaign-existence.ts");
+    include_str!("../../../packages/server-marketing/src/adapters/campaigns.ts");
+const TS_SUBMISSION: &str =
+    include_str!("../../../packages/server-marketing/src/adapters/public-submission.ts");
 const TS_PURCHASE: &str =
     include_str!("../../../packages/server-marketing/src/adapters/marketing-purchase-rows-sql.ts");
 const TS_PUBLIC_FORM: &str =
@@ -111,7 +113,10 @@ fn live_statements_match_typescript_authority() {
     assert!(!TS_MARKETING.contains("nativeMarketingReadConfigured"));
     assert!(!TS_MARKETING.contains("marketingCompanyListSql('marketing_assets','')"));
     assert!(TS_LIST.contains("marketingReadTailSql(table, ` WHERE company_id=?${scope} ORDER BY updated_at DESC`)"));
-    assert!(TS_CAMPAIGN.contains("marketingOwnerPointReadSql(\"1\", \"marketing_campaigns\")"));
+    // r56 deleted the campaign-existence TS wrapper; both consumers plan the
+    // byte-exact statement on the registered native owner read port.
+    assert!(TS_CAMPAIGN.contains("nativeMarketingPlan(MARKETING_RD_CAMPAIGN_EXISTS)"));
+    assert!(TS_SUBMISSION.contains("nativeMarketingReadFirst<Record<string,unknown>>(MARKETING_RD_CAMPAIGN_EXISTS,{campaignId:id,companyId},db)"));
     assert!(TS_OWNER.contains("SELECT ${projection} FROM ${source} WHERE ${q}id=? AND ${q}company_id=?"));
     assert!(TS_PURCHASE.contains("const head = `${id}.id,${id}.company_id,${spec.scope},${spec.witness} witness`"));
     assert!(TS_PURCHASE.contains("marketingSelectHeadSql(head, ` FROM ${spec.source}`)"));

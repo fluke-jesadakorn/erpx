@@ -35,6 +35,7 @@ import {
   PMS_RD_POS_COMMAND,
   PMS_RD_NIGHT_COMMAND,
   PMS_RD_GUEST_BOOKING_DOCUMENT,
+  PMS_RD_HOTEL_METRICS,
 } from '../../../packages/server-pms/src/adapters/native-pms-read';
 import { readPmsInventoryCommand } from '../../../packages/server-pms/src/adapters/pms/read-repository';
 import { pmsAttachmentReadSourceImage } from '../../../packages/server-pms/src/adapters/attachment-read-sources';
@@ -921,7 +922,7 @@ describe('native PMS scoped-records read retirement', () => {
     ] as const) {
       expect(rust).toContain('const SQL_' + suffix + '_COMMAND: &str = ' + JSON.stringify(sql) + ';');
     }
-    expect(rust).toContain('READ_STRIPE_PAYMENT_PROPERTY, READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT];');
+    expect(rust).toContain('READ_STRIPE_PAYMENT_PROPERTY, READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS];');
   });
 
   it('plans all four reads in Rust and runs them on the caller unit with the same binds', async () => {
@@ -986,7 +987,7 @@ describe('native PMS guest booking-document read retirement', () => {
     const rust = await readFile(new URL('../../../packages/server-pms/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
     expect(rust).toContain('pub const PMS_RD_GUEST_BOOKING_DOCUMENT: &str = "pms_rd_guest_booking_document";');
     expect(rust).toContain('const SQL_GUEST_BOOKING_DOCUMENT: &str = ' + JSON.stringify(guestDocumentSql) + ';');
-    expect(rust).toContain('READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT];');
+    expect(rust).toContain('READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS];');
     const documentPlan = rust.slice(rust.indexOf('const READ_GUEST_BOOKING_DOCUMENT:'));
     expect(documentPlan.slice(0, 300)).toContain('bind_count: 3,');
     expect(guestDocumentSql.match(/\?/g)).toHaveLength(3);
@@ -1017,5 +1018,81 @@ describe('native PMS guest booking-document read retirement', () => {
     const body = JSON.parse(init.body as string) as { kind: string; values: unknown[] };
     expect(body.values).toEqual(['doc-1', 'prop-1', 'res-1']);
     expect(JSON.stringify(body)).not.toContain('SELECT');
+  });
+});
+
+const hotelMetricsSql = `SELECT p.id,p.name,p.branch_id,p.business_date,p.state,p.config_json::jsonb->>'currency' currency,
+    (SELECT count(*) FROM pms_records r WHERE r.property_id=p.id AND r.kind='room' AND r.data_json::jsonb->>'active'='true') room_count,
+    (SELECT count(*) FROM pms_records r WHERE r.property_id=p.id AND r.kind='room' AND r.data_json::jsonb->>'active'='true'
+      AND r.data_json::jsonb->>'cleanliness'='inspected') inspected,
+    (SELECT count(*) FROM pms_records r WHERE r.property_id=p.id AND r.kind='room' AND r.data_json::jsonb->>'active'='true'
+      AND NOT EXISTS(SELECT 1 FROM pms_records b WHERE b.property_id=p.id AND b.kind='block' AND b.data_json::jsonb->>'state'='active'
+        AND b.data_json::jsonb->>'kind'='maintenance' AND b.data_json::jsonb->>'from'<=p.business_date AND b.data_json::jsonb->>'roomId'=r.id)) capacity,
+    (SELECT count(*) FROM pms_records s WHERE s.property_id=p.id AND s.kind='stay' AND s.data_json::jsonb->>'state' IN ('in_house','checked_out')
+      AND s.data_json::jsonb->>'arrival'<=p.business_date AND s.data_json::jsonb->>'departure'>p.business_date) sold,
+    (SELECT count(*) FROM pms_records s WHERE s.property_id=p.id AND s.kind='stay' AND s.data_json::jsonb->>'state'='reserved' AND s.data_json::jsonb->>'arrival'<=p.business_date) arrivals,
+    (SELECT count(*) FROM pms_records s WHERE s.property_id=p.id AND s.kind='stay' AND s.data_json::jsonb->>'state'='in_house' AND s.data_json::jsonb->>'departure'<=p.business_date) departures
+    FROM pms_properties p WHERE p.company_id=? AND (?::text IS NULL OR p.branch_id=?) AND (?::text IS NULL OR p.id=?)
+    ORDER BY p.name,p.id`;
+
+describe('native PMS hotelMetrics read retirement', () => {
+  it('exposes a fixed allow-listed kind with no SQL on the wire', () => {
+    expect(PMS_RD_HOTEL_METRICS).toBe('pms_rd_hotel_metrics');
+    expect(PMS_RD_HOTEL_METRICS).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
+  });
+
+  it('removes the TypeScript property-scope fallback and routes home through the native kind', async () => {
+    const home = await readFile(new URL('../../../packages/server-pms/src/adapters/pms/home.ts', import.meta.url), 'utf8');
+    expect(home).not.toContain("pmsPropertyScopeSql('hotelMetrics')");
+    expect(home).toContain('nativePmsReadAll<{');
+    expect(home).toContain('PMS_RD_HOTEL_METRICS, [facts.companyId, facts.branchId, facts.branchId2, facts.propertyId, facts.propertyId2], db');
+    const r41 = await readFile(new URL('../../../packages/server-pms/src/adapters/pms-read-tail-r41-sql.ts', import.meta.url), 'utf8');
+    expect(r41).not.toContain('hotelMetrics');
+    expect(r41).toContain("type PropertyScope = 'hotelMoney' | 'liabilities'");
+  });
+
+  it('carries the retained owner-port bytes in the Rust registry with five binds', async () => {
+    const rust = await readFile(new URL('../../../packages/server-pms/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
+    expect(rust).toContain('pub const PMS_RD_HOTEL_METRICS: &str = "pms_rd_hotel_metrics";');
+    expect(rust).toContain(hotelMetricsSql);
+    expect(rust).toContain('READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS];');
+    expect(hotelMetricsSql.match(/\?/g)).toHaveLength(5);
+    expect(hotelMetricsSql).toMatch(/\n    ORDER BY p\.name,p\.id$/);
+    expect(hotelMetricsSql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
+    // Byte parity with the owner read port: the plan is the same statement with
+    // the numbered placeholders replaced by positional ones.
+    const adapter = await readFile(new URL('../../../packages/server-pms/src/adapters/home_metrics_postgres.rs', import.meta.url), 'utf8');
+    const literal = adapter.match(/const HOTEL_METRICS_SQL: &str = "([\s\S]*?)";/);
+    expect(literal).toBeTruthy();
+    const ported = literal![1]!.replace(/\$1/g, '?').replace(/\$2/g, '?').replace(/\$3/g, '?').replace(/\$4/g, '?').replace(/\$5/g, '?');
+    expect(hotelMetricsSql).toBe(ported);
+    const bridge = await readFile(new URL('../../../packages/server-pms/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
+    expect(bridge).toContain("export const PMS_RD_HOTEL_METRICS = 'pms_rd_hotel_metrics';");
+  });
+
+  it('plans the property-scope read in Rust and runs it on the caller unit with the same five binds', async () => {
+    const bodies: { kind: string; values: unknown[] }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      bodies.push(body);
+      return new Response(JSON.stringify({ data: { statements: [{ sql: hotelMetricsSql, values: body.values }] } }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      });
+    }));
+    const prepared: string[] = [], bound: unknown[][] = [];
+    const db = {
+      prepare(sql: string) { prepared.push(sql); return { bind(...values: unknown[]) { bound.push(values); return this; } }; },
+      async batch<T>() { return [{ results: [{ id: 'p1', name: 'alpha' }], success: true, meta: { changes: 0, duration: 0 } }] as unknown as { results: T[]; success: boolean; meta: { changes: number; duration: number } }[]; },
+      async exec() { return { count: 0, duration: 0 }; },
+    };
+    const rows = await nativePmsReadAll<{ id: string }>(PMS_RD_HOTEL_METRICS, ['company-1', 'north', 'north', null, null], db as never);
+    expect(rows.results[0]?.id).toBe('p1');
+    expect(prepared).toEqual([hotelMetricsSql]);
+    expect(bound).toEqual([['company-1', 'north', 'north', null, null]]);
+    expect(bodies.map(b => b.kind)).toEqual([PMS_RD_HOTEL_METRICS]);
+    expect(bodies.map(b => b.values)).toEqual([['company-1', 'north', 'north', null, null]]);
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as unknown as [URL, RequestInit];
+    expect(String(url)).toContain('/api/v1/holdings/acme/pms/command-plan');
+    expect(JSON.stringify(JSON.parse(init.body as string))).not.toContain('SELECT');
   });
 });

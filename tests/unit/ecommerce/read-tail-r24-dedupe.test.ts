@@ -58,13 +58,13 @@ describe('Ecommerce read-tail r24 three-family dedupe', () => {
     expect(ecommerceOrderedList('x.*,o.number,o.state order_state', `ecommerce_checkouts x JOIN ecommerce_carts c ON c.id=x.cart_id JOIN (${orders}) o ON o.id=x.sales_order_id`, cartScope, 'x.updated_at DESC')).toBe(head.checkoutList);
   });
 
-  test('F2: readSource routes all three sites through the shared ordered-list frame', () => {
+  test('F2: readSource routes the two remaining sites through the shared ordered-list frame', () => {
     expect(src).toContain("const readSource = ecommerceOrderedList.bind(null, '*');");
     expect((src.match(/const readSource = /g) ?? []).length).toBe(1);
-    expect((src.match(/readSource\(/g) ?? []).length).toBe(3);
-    expect((src.match(/ecommerceOrderedList\(/g) ?? []).length).toBe(8);
+    expect((src.match(/readSource\(/g) ?? []).length).toBe(2);
+    expect((src.match(/ecommerceOrderedList\(/g) ?? []).length).toBe(5);
     expect(src).not.toContain('const readSource = (table: string, scope: string');
-    expect(src).toContain('readSource("ecommerce_channels", "company_id=?", "updated_at DESC")');
+    expect(src).not.toContain('readSource("ecommerce_channels", "company_id=?", "updated_at DESC")');
     expect(src).toContain('readSource("ecommerce_cart_lines", "cart_id=?", "ordinal")');
     expect(src).toContain('readSource("ecommerce_fulfillment_links", "checkout_id=?")');
     const readSource = ecommerceOrderedList.bind(null, '*');

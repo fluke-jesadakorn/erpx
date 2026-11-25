@@ -11,7 +11,7 @@ import type {PublicMarketingForm} from '@erpx/server-marketing/application/publi
 import type {PublicMarketingSubmission} from '@erpx/server-marketing/domain/public-submission';
 import {createPublicMarketingSubmissionApplication,type PublicMarketingSubmissionUnit} from '@erpx/server-marketing/application/public-submission';
 import {withMarketingPublicSubmission} from '@erpx/server-marketing/adapters/purchases';
-import {marketingCampaignExistsSql} from './campaign-existence';
+import {MARKETING_RD_CAMPAIGN_EXISTS,nativeMarketingReadFirst} from './native-marketing-read';
 import {formAssetLockSql} from './form-asset-lock-sql';
 import { LANE40_PUBLIC_RECEIPT, readMarketingLane40ForCompany } from './native-lane-40/client';
 function unit(db:SqlDatabase,companyId:string):PublicMarketingSubmissionUnit{return {
@@ -24,7 +24,7 @@ function unit(db:SqlDatabase,companyId:string):PublicMarketingSubmissionUnit{ret
  presentation:(key,row)=>db.batch(marketingPresentationAssertions(db,key,row.company_id,row.configuration_json)),
  limit:(rateKey,bucket)=>nativeMarketingStatement('marketing_stmt_1', { companyId: '', now: Date.now(), actor: undefined }).bind(rateKey,bucket).first<{count:number}>(),
  branch:companyId=>publicMarketingReceivingBranch(db,companyId),
- campaign:(id,companyId)=>db.prepare(marketingCampaignExistsSql).bind(id,companyId).first(),
+ campaign:(id,companyId)=>nativeMarketingReadFirst<Record<string,unknown>>(MARKETING_RD_CAMPAIGN_EXISTS,{campaignId:id,companyId},db),
  candidate:(id,row,body,branchId,attribution,now)=>nativeMarketingStatement('marketing_stmt_2', { companyId: row.company_id, now: now, actor: undefined }).bind(id,row.company_id,branchId,null,row.id,row.version,body.contactName,body.contactDetail,`Explicit form consent at ${new Date(now).toISOString()}`,attribution,body.brief,now,now).run(),
  engagement:(id,row,now)=>nativeMarketingStatement('marketing_stmt_3', { companyId: '', now: now, actor: undefined }).bind(`marketing-engagement-${id}`,id,`Form ${row.id} version ${row.version}; consent accepted`,now).run(),
  retainReceipt:(key,requestHash,id,now)=>nativeMarketingStatement('marketing_stmt_4', { companyId: '', now: now, actor: undefined }).bind(key,requestHash,id,now).run(),

@@ -43,7 +43,8 @@ describe('Customer Authority read-tail r37 full-row projection family', () => {
     expect(support).toContain('export function portalSupportSourceReadLocks');
 
     const access = src('portal-access.ts');
-    expect(access).toContain('FOR UPDATE');
+    expect(access).toContain('CA_RD_PORTAL_BINDING_LOCK');
+    expect(access).toContain('nativePortalReadStatement');
     expect(access).not.toContain('allColumnsProjection');
     const eligibility = src('assignment-eligibility-source.ts');
     expect(eligibility).toContain('export const');
@@ -75,9 +76,9 @@ describe('Customer Authority read-tail r37 full-row projection family', () => {
       ['customer-authority-read-tail-r36-sources.ts', 0, 'export const pointRead'],
       ['portal-binding-source.ts', 0, 'export const portalBindingSource'],
       ['portal-purchase-binding-source.ts', 0, 'export const portalPurchaseBindingSource'],
-      // supportSource's SELECT head now lives in the r37 builder; only the
-      // installed-regclass probe remains as a literal SELECT in this file.
-      ['portal-support-sources.ts', 1, 'const supportSource'],
+      // supportSource's SELECT head now lives in the r37 builder and the installed
+      // probe is planned natively; no SELECT literal remains in this file.
+      ['portal-support-sources.ts', 0, 'const supportSource'],
     ];
     for (const [name, count, symbol] of counts) {
       const helper = src(name);

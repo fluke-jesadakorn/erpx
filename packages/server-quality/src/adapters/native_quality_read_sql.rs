@@ -1,11 +1,12 @@
 //! Native Quality read-plan registry for the mounted `/quality/read-plan` route.
 //!
-//! Six closed read kinds: the alert-to-hold point lookup and the hold/spec
+//! Eight closed read kinds: the alert-to-hold point lookup and the hold/spec
 //! existence probes used by the retained purchase gates (all unscoped, exactly
 //! one caller-supplied bind), the two attachment owner CAS guards (three binds,
 //! returned as an `EXISTS(...)` wrapper for the caller's command assertion),
-//! and the Company-scoped Quality attachment descriptor (the exact statement
-//! owned by the fenced `inventory_quality_holds` descriptor port). The caller
+//! the Company-scoped Quality attachment descriptor (the exact statement owned
+//! by the fenced `inventory_quality_holds` descriptor port), and the two
+//! retained attachment owner-scope reads (legacy hold and spec). The caller
 //! executes the returned statement on its own already-open unit, so the
 //! uncommitted state of the caller's transaction stays visible and no
 //! TypeScript SQL mirror remains.
@@ -28,6 +29,12 @@ pub const RD_ATTACH_SPEC_CAS: &str = "quality_rd_attach_spec_cas";
 /// Allow-listed native Quality read kind: Company-scoped hold descriptor.
 pub const RD_ATTACHMENT_DESCRIPTOR: &str = "quality_rd_attachment_descriptor";
 
+/// Allow-listed native Quality read kind: legacy unscoped hold owner scope.
+pub const RD_LEGACY_ATTACHMENT_SCOPE: &str = "quality_rd_legacy_attachment_scope";
+
+/// Allow-listed native Quality read kind: Company-scoped spec owner scope.
+pub const RD_ATTACHMENT_SPEC_SCOPE: &str = "quality_rd_attachment_spec_scope";
+
 /// Exact statement retired from `purchases.ts`. Byte parity is pinned by the
 /// owner Rust test and the TypeScript read-tail r28 witness.
 const SQL_ALERT_HOLD_ID: &str = "SELECT hold_id FROM inventory_quality_alerts WHERE id=?";
@@ -48,6 +55,12 @@ const SQL_ATTACH_SPEC_CAS: &str = "EXISTS(SELECT 1 FROM inventory_quality_specs 
 /// the fenced owner port's capture statement with `$1/$2` rewritten to `?`;
 /// a Rust test pins that byte identity against `DESCRIPTOR_CAPTURE_SQL`.
 const SQL_ATTACHMENT_DESCRIPTOR: &str = "SELECT CASE WHEN octet_length(company_id)+coalesce(octet_length(branch_id),0)<=2097152 THEN company_id END company_id,CASE WHEN octet_length(company_id)+coalesce(octet_length(branch_id),0)<=2097152 THEN branch_id END branch_id,NULL::text department_id,version::bigint version FROM inventory_quality_holds WHERE id=? AND company_id=?";
+
+/// Exact one-bind legacy owner scope retired from `attachment-migration-owner`.
+const SQL_LEGACY_ATTACHMENT_SCOPE: &str = "SELECT company_id,branch_id branch_id,NULL department_id,version FROM inventory_quality_holds WHERE id=?";
+
+/// Exact two-bind spec owner scope retired from `attachments-operational-facts`.
+const SQL_ATTACHMENT_SPEC_SCOPE: &str = "SELECT company_id,NULL::text branch_id,NULL::text department_id,version FROM inventory_quality_specs WHERE id=? AND company_id=?";
 
 pub struct QualityReadStatement {
     pub kind: &'static str,
@@ -91,6 +104,18 @@ const READ_ATTACHMENT_DESCRIPTOR: QualityReadStatement = QualityReadStatement {
     bind_count: 2,
 };
 
+const READ_LEGACY_ATTACHMENT_SCOPE: QualityReadStatement = QualityReadStatement {
+    kind: RD_LEGACY_ATTACHMENT_SCOPE,
+    sql: SQL_LEGACY_ATTACHMENT_SCOPE,
+    bind_count: 1,
+};
+
+const READ_ATTACHMENT_SPEC_SCOPE: QualityReadStatement = QualityReadStatement {
+    kind: RD_ATTACHMENT_SPEC_SCOPE,
+    sql: SQL_ATTACHMENT_SPEC_SCOPE,
+    bind_count: 2,
+};
+
 /// Resolve one allow-listed kind. No SQL is accepted from the wire.
 pub fn read_statement(kind: &str) -> Option<&'static QualityReadStatement> {
     match kind {
@@ -100,6 +125,8 @@ pub fn read_statement(kind: &str) -> Option<&'static QualityReadStatement> {
         RD_ATTACH_HOLD_CAS => Some(&READ_ATTACH_HOLD_CAS),
         RD_ATTACH_SPEC_CAS => Some(&READ_ATTACH_SPEC_CAS),
         RD_ATTACHMENT_DESCRIPTOR => Some(&READ_ATTACHMENT_DESCRIPTOR),
+        RD_LEGACY_ATTACHMENT_SCOPE => Some(&READ_LEGACY_ATTACHMENT_SCOPE),
+        RD_ATTACHMENT_SPEC_SCOPE => Some(&READ_ATTACHMENT_SPEC_SCOPE),
         _ => None,
     }
 }
@@ -161,6 +188,20 @@ mod tests {
             crate::adapters::attachment_descriptor::DESCRIPTOR_CAPTURE_SQL
                 .replace("$1", "?")
                 .replace("$2", "?")
+        );
+    }
+
+    #[test]
+    fn attachment_owner_scope_read_plans_are_exact() {
+        planned(RD_LEGACY_ATTACHMENT_SCOPE, SQL_LEGACY_ATTACHMENT_SCOPE, 1);
+        planned(RD_ATTACHMENT_SPEC_SCOPE, SQL_ATTACHMENT_SPEC_SCOPE, 2);
+        assert_eq!(
+            SQL_LEGACY_ATTACHMENT_SCOPE,
+            "SELECT company_id,branch_id branch_id,NULL department_id,version FROM inventory_quality_holds WHERE id=?"
+        );
+        assert_eq!(
+            SQL_ATTACHMENT_SPEC_SCOPE,
+            "SELECT company_id,NULL::text branch_id,NULL::text department_id,version FROM inventory_quality_specs WHERE id=? AND company_id=?"
         );
     }
 

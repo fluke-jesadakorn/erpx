@@ -5,7 +5,7 @@ import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { recordContextDetailSql } from '../../../packages/server-records/src/adapters/records';
+import { projectionColumnHeadSql } from '../../../packages/server-records/src/adapters/read-tail-r32-sql';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-records/src');
 const records = readFileSync(resolve(srcRoot, 'adapters/records.ts'), 'utf8');
@@ -57,9 +57,9 @@ const pre = {
   sha: 'a68806b1c47fa790c71c97c4bdef62501967f7476c2ecc3245514b471288bb3a',
 } as const;
 
-describe('Records read-tail r27 recordContextDetailSql family', () => {
-  test('search references renders byte-identically and stays read-only', () => {
-    const actual = `${S.clock}${recordContextDetailSql(table, columns, where, order)}`;
+describe('Records read-tail r27 search references head', () => {
+  test('search references renders byte-identically through the shared r32 head and stays read-only', () => {
+    const actual = `${S.clock}${projectionColumnHeadSql(columns, table, ` WHERE ${where}${order}`)}`;
     expect(actual).toBe(pre.sql);
     expect(sha(actual)).toBe(pre.sha);
     expect(sha(pre.sql)).toBe(pre.sha);
@@ -67,29 +67,25 @@ describe('Records read-tail r27 recordContextDetailSql family', () => {
     readOnly(actual);
   });
 
-  test('the retained generator delegates its read head to r32; context members are native stubs', () => {
-    expect(records.match(/const recordContextDetailSql\s*=/g) ?? []).toHaveLength(1);
-    expect(records.match(/recordContextDetailSql\(/g) ?? []).toHaveLength(2); // search references + reference-edge count; context members retired
-    expect(records).toContain('const recordContextDetailSql = (table: string, columns: string, where: string, order: string) =>');
-    expect(records).toContain('projectionColumnHeadSql(columns, table, ` WHERE ${where}${order}`)');
-    expect(records).not.toContain('`SELECT ${columns} FROM ${table} WHERE ${where}${order}`');
+  test('the retained detail generator is deleted; search uses r32 and the context/count members fail closed', () => {
+    expect(records).not.toContain('recordContextDetailSql');
+    expect(records).not.toContain('referenceEdgesSql');
+    expect(records).not.toMatch(/SELECT /);
     expect(records.match(/readRecordContextEdgesbacklinksmentionssuggestionshistory\d*\(\) \{ throw new NativeApiError\(503/g) ?? []).toHaveLength(5);
-    // Search references now routes through the shared generator: the clock is
-    // prepended outside it, the embedded newline/indent and binds are unchanged.
-    expect(records).toContain("${purchase.clock}${recordContextDetailSql('workspace_records','module_id,id,title,status,version',`archived_at IS NULL AND ${scope.sql}");
-    expect(records).toContain("' ORDER BY updated_at DESC LIMIT 12')");
+    expect(records).toContain('readAddReferenceCount() { throw new NativeApiError(503');
+    expect(records).toContain("${purchase.clock}${projectionColumnHeadSql('module_id,id,title,status,version','workspace_records',` WHERE archived_at IS NULL AND ${scope.sql}");
+    expect(records).toContain("(module_id||'/'||id ILIKE ? OR title ILIKE ?) ORDER BY updated_at DESC LIMIT 12`)}");
     expect(records).toContain("module_id IN (${placeholders}) AND (module_id||'/'||id ILIKE ? OR title ILIKE ?)");
     expect(records).toContain('.bind(...args,...purchase.args,...commerce.args,');
     expect(records).toContain('...work.args, ...modules, term, term2).all();');
-    expect(records).not.toContain('${purchase.clock}SELECT module_id,id,title,status,version FROM workspace_records');
     expect(records).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
   });
 
   test('r11-r25 families, cross-owner ports and all Records source locks stay independent', () => {
     expect(records).toContain('const recordVersionExistsSql ='); // r11
     expect(records).toContain('const recordRowSelectSql ='); // r12
-    expect(records).toContain('const referenceEdgesSql ='); // r14
-    expect(records).toContain('const recordContextDetailSql ='); // r15
+    expect(records).not.toContain('const referenceEdgesSql ='); // r14 retired
+    expect(records).not.toContain('const recordContextDetailSql ='); // r15 retired
     expect(records).toContain("import {withExpenseWorkspaceRecordRead} from '@erpx/server-people_payroll/public/record-purchases';");
     expect(records).toContain('financeWorkspaceSearchScope} from "@erpx/server-finance/public/document-purchases"');
     expect(records).toContain("import { RecordsIdentityAccessOwnedFacts } from '@erpx/server-identity_access/public/records-records-owned-facts';");
@@ -117,7 +113,7 @@ describe('Records read-tail r27 retirement check', () => {
     // the request-events aggregate into childRowAgg (23 -> 22); r30 folds
     // three shared heads (22 -> 19). No lock, cross-owner port or native seam
     // changed.
-    expect(total).toBe(11);
+    expect(total).toBe(9);
     expect(total).toBeLessThan(25);
   });
 });

@@ -16,7 +16,7 @@ import type { TaskRow } from "@erpx/server-pms/domain/home";
 import { createPmsHomeApplication, type PmsHomeRepository, type PmsTaskPageOptions } from "@erpx/server-pms/application/home";
 import { pmsCompanyHistoryAllowed, requirePmsCompanyHistory } from "@erpx/server-pms/adapters/read-purchase-boundary";
 import { requirePmsFinancialRead } from "@erpx/server-pms/adapters/property-purchase-boundary";
-import { nativePmsReadAll, PMS_RD_HOTEL_SOURCES } from "../native-pms-read";
+import { nativePmsReadAll, PMS_RD_HOTEL_SOURCES, PMS_RD_HOTEL_METRICS } from "../native-pms-read";
 export type { PmsHomeView, PmsHomeTask, PmsHotelOverview } from "@erpx/server-pms/domain/home";
 function taskQuery(actor: WorkContext, propertyId?: string, mine = false, selectedLabel?: string) {
     const can = (permission: string) => hasPermission(actor, permission) ? "TRUE" : "FALSE";
@@ -75,8 +75,7 @@ function repository(db: SqlDatabase): PmsHomeRepository {
             branchId2: string | null;
             propertyId: string | null;
             propertyId2: string | null;
-        }) => db.prepare(`${pmsPropertyScopeSql('hotelMetrics')}
-    ORDER BY p.name,p.id`).bind(facts.companyId, facts.branchId, facts.branchId2, facts.propertyId, facts.propertyId2).all<{
+        }) => nativePmsReadAll<{
             id: string;
             name: string;
             branch_id: string;
@@ -89,7 +88,7 @@ function repository(db: SqlDatabase): PmsHomeRepository {
             sold: number;
             arrivals: number;
             departures: number;
-        }>(),
+        }>(PMS_RD_HOTEL_METRICS, [facts.companyId, facts.branchId, facts.branchId2, facts.propertyId, facts.propertyId2], db),
         hotelMoney: (facts: {
             companyId: string;
             branchId: string | null;

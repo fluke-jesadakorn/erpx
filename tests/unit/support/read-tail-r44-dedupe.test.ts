@@ -85,7 +85,7 @@ describe('support read-tail r44 byte-identical bound-row image aggregate head', 
   test('native registry kinds, locks, advisory, eligibility wrappers and r18-r43 helpers stay untouched', () => {
     const registry = src('native_support_read_sql.rs');
     const bridge = src('native-support-read.ts');
-    expect(registry).toContain('assert_eq!(STATEMENTS.len(), 50);');
+    expect(registry).toContain('assert_eq!(STATEMENTS.len(), 52);');
     expect(registry).not.toMatch(/LOCK TABLE|pg_advisory_xact_lock/);
     expect(bridge).toContain('SUPPORT_RD_TICKET_WORK');
     expect(bridge).toContain('SUPPORT_RD_INCIDENT_WORK');
@@ -96,12 +96,12 @@ describe('support read-tail r44 byte-identical bound-row image aggregate head', 
     expect(unit).toContain('LOCK TABLE command_receipts,command_assertions,audit_events,outbox_events IN SHARE ROW EXCLUSIVE MODE');
     expect(src('eligibility-projection-sources.ts')).toContain('supportEligibleFlagSql');
     expect(src('ticket-portal-sources.ts')).toContain('export const portalValidBindingSelect=');
-    expect(src('service-access.ts')).toContain('const activeAssignmentSql =');
+    expect(src('service-access.ts')).toContain('SUPPORT_RD_SERVICE_MEMBER');
     expect(src('read-tail-r43-sql.ts')).toContain('readTailR43ColumnsFromSql =');
   });
 
-  test('retirement:ts-statements drops from the r45 AFTER=31 to 30', () => {
-    expect(totalSelects()).toBe(30);
+  test('retirement:ts-statements is 28 after the r23 follow-up native membership cut', () => {
+    expect(totalSelects()).toBe(28);
     expect(totalSelects()).toBeLessThan(32);
   });
 });

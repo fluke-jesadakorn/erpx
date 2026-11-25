@@ -72,7 +72,8 @@ describe('Customer Authority read-tail r46 projection head family', () => {
     expect(src('assignment-eligibility-source.ts')).toContain('export const assignmentSource');
     expect(src('assignment-eligibility-source.ts')).not.toContain('selectProjection(');
     expect(src('customer-authority-read-tail-r29-sources.ts')).not.toContain('selectProjection(');
-    expect(src('portal-access.ts')).toContain('FOR UPDATE');
+    expect(src('portal-access.ts')).toContain('CA_RD_PORTAL_BINDING_LOCK');
+    expect(src('portal-access.ts')).toContain('nativePortalReadStatement');
     expect(src('portal-source-locks.ts')).toContain('LOCK TABLE');
     expect(publicSrc('portal_commerce_locks.rs')).toBeTruthy();
     expect(src('native-owner-read.ts')).toBeTruthy();
@@ -102,6 +103,6 @@ describe('Customer Authority read-tail r46 projection head family', () => {
     walk(srcRoot);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(20);
-    expect(total).toBe(17);
+    expect(total).toBe(15);
   });
 });

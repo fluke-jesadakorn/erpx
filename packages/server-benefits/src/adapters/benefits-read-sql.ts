@@ -42,7 +42,7 @@ export const benefitMetricCountSql = (label: string, table: string, alias: strin
  *  and People package-settlement fact unions; generated SQL is unchanged. */
 export const benefitFactFinalSelect = (pending: string, tail: string) =>
   `) SELECT kind,id,version,state,image,${pending} pending FROM facts${tail}`;
-/** Byte-identical owner-local SELECT-1 source head shared by the settlement
+/** Byte-identical owner-local select-one source head shared by the settlement
  *  EXISTS guard (package obligations) and the native-source/attachment probes
  *  (record purchases); rendered SQL and bind order are unchanged. */
 export const selectOneFrom = (source: string, tail: string) => `SELECT 1 FROM ${source}${tail}`;

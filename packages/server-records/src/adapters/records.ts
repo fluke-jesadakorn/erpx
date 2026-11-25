@@ -71,20 +71,6 @@ export const recordRowSelectSql = (suffix: string) =>
     projectionColumnHeadSql(`${recordRowColumns}\n   `, 'workspace_records', suffix);
 export const recordRowPageSql = (suffix: string) =>
     projectionColumnHeadSql(`${recordRowColumns},updated_at::text page_key`, 'workspace_records', suffix);
-// One owner-local record read SQL family. Each call renders byte-identical
-// prior SQL; the spaced read head now lives only in the shared r32 renderer.
-export const recordContextDetailSql = (table: string, columns: string, where: string, order: string) =>
-    projectionColumnHeadSql(columns, table, ` WHERE ${where}${order}`);
-// Retained record_context edges/count consumers are a thin family over the
-// detail generator; each shape still emits its byte-identical prior SQL.
-export const referenceEdgesSql = (scope: 'host' | 'target', shape: 'references' | 'backlinks' | 'count') => {
-    const projection = shape === 'references' ? 'target_module,target_id,kind,ordinal'
-        : shape === 'backlinks' ? 'host_module,host_id,kind' : 'COUNT(*) AS count';
-    const where = scope === 'host' ? 'host_module=? AND host_id=?' : 'target_module=? AND target_id=?';
-    const order = shape === 'references' ? ' ORDER BY ordinal'
-        : shape === 'backlinks' ? ' ORDER BY created_at DESC LIMIT 50' : '';
-    return recordContextDetailSql('record_reference_edges', projection, where, order);
-};
 function application(provided?: SqlDatabase,actor?:WorkContext) {
     let database = provided!;
     let control: SqlDatabase;
@@ -125,8 +111,8 @@ function application(provided?: SqlDatabase,actor?:WorkContext) {
         async readSearchReferencesResult(args: string[], modules: string[], term: string, term2: string, selection: RecordScopeSelection, placeholders: string) {
             return withExpenseWorkspaceRecordRead(database,actor,async database=>{
             const scope = scopeSql(selection),basePeople=actor?await peopleSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},purchase=actor?await financeWorkspaceSearchScope(database,actor):{clock:"",where:"TRUE",args:[]},commerce=actor?await commerceSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},payroll=actor?await payrollSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},count=actor?await countSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},procurement=actor?await procurementSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},transfer=actor?await transferSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},projects=actor?await projectSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},quality=actor?await qualitySourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},learning=actor?await learningSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},assets=actor?await assetSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},landedCost=actor?await landedCostSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},manufacturing=actor?await manufacturingSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},talent=actor?await talentSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},legal=actor?await legalSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},crm=actor?await crmSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},marketing=actor?await marketingSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},followups=actor?await followupSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},workforce=actor?await workforceSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},benefits=actor?await benefitSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},service=actor?await serviceSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]},work=actor?await workSourceReadScope(database,actor,"records"):{where:"TRUE",args:[]};
-            return database.prepare(`${purchase.clock}${recordContextDetailSql('workspace_records','module_id,id,title,status,version',`archived_at IS NULL AND ${scope.sql}
-    AND ${purchase.where} AND ${commerce.where} AND ${payroll.where} AND ${basePeople.where} AND ${count.where} AND ${procurement.where} AND ${transfer.where} AND ${projects.where} AND ${quality.where} AND ${learning.where} AND ${assets.where} AND ${landedCost.where} AND ${manufacturing.where} AND ${talent.where} AND ${legal.where} AND ${crm.where} AND ${marketing.where} AND ${followups.where} AND ${workforce.where} AND ${benefits.where} AND ${service.where} AND ${work.where} AND module_id IN (${placeholders}) AND (module_id||'/'||id ILIKE ? OR title ILIKE ?)`,' ORDER BY updated_at DESC LIMIT 12')}`)
+            return database.prepare(`${purchase.clock}${projectionColumnHeadSql('module_id,id,title,status,version','workspace_records',` WHERE archived_at IS NULL AND ${scope.sql}
+    AND ${purchase.where} AND ${commerce.where} AND ${payroll.where} AND ${basePeople.where} AND ${count.where} AND ${procurement.where} AND ${transfer.where} AND ${projects.where} AND ${quality.where} AND ${learning.where} AND ${assets.where} AND ${landedCost.where} AND ${manufacturing.where} AND ${talent.where} AND ${legal.where} AND ${crm.where} AND ${marketing.where} AND ${followups.where} AND ${workforce.where} AND ${benefits.where} AND ${service.where} AND ${work.where} AND module_id IN (${placeholders}) AND (module_id||'/'||id ILIKE ? OR title ILIKE ?) ORDER BY updated_at DESC LIMIT 12`)}`)
                 .bind(...args,...purchase.args,...commerce.args,...payroll.args,...basePeople.args,...count.args,...procurement.args,...transfer.args,...projects.args,...quality.args,...learning.args,...assets.args,...landedCost.args,...manufacturing.args,...talent.args,...legal.args,...crm.args,...marketing.args,...followups.args,...workforce.args,...benefits.args,...service.args,...work.args, ...modules, term, term2).all();
 
             });
@@ -136,11 +122,8 @@ function application(provided?: SqlDatabase,actor?:WorkContext) {
         readAddPrincipalMentionEligible(...args) { return RecordsIdentityAccessFacts(database).readAddPrincipalMentionEligible(...args); },
         readAddPrincipalMentionPrincipal(...args) { return RecordsIdentityAccessOwnedFacts(control).readAddPrincipalMentionPrincipal(...args); },
         stageAddPrincipalMentionEffect(moduleId: string, id: string, targetKind: "person", targetId: string, display_name: string, userId: string, now: number) { return nativeRecordsStatement('records_stmt_18', { companyId: actor?.companyId, actor, now: Date.now() }).bind(moduleId, id, targetKind, targetId, display_name, userId, now); },
-        readAddReferenceCount(moduleId: string, id: string) {
-            return database.prepare(referenceEdgesSql('host','count')).bind(moduleId, id).first<{
-                count: number;
-            }>();
-        },
+        /** Retired: the reference-count guard executes in the native Rust records command route. */
+        readAddReferenceCount() { throw new NativeApiError(503,'NATIVE_RECORDS_UNAVAILABLE','The native Records reference reader is unavailable.'); },
         /** Retired: record references execute in the native Rust records command route. */
         stageAddReferenceEffect() { throw new NativeApiError(503,'NATIVE_RECORDS_UNAVAILABLE','The native Records command is unavailable.'); },
         stageRequestSuggestionEffect(suggestionId: string, moduleId: string, id: string, key: string, value: string, value2: string, value3: string, value4: string, value5: "ready", userId: string, now: number, now2: number) {

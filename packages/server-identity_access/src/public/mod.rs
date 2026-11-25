@@ -134,6 +134,9 @@ pub mod position_gpo_http {
     pub use crate::adapters::position_gpo_http::*;
 }
 
+pub mod private_file_denial;
+pub mod private_file_denial_http;
+
 pub mod people_access;
 
 /// Native Identity port for People account linking (Control DB `user` plus

@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { overdueEvidenceColumns } from '../../../packages/server-learning/src/adapters/learning-read-sql';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-learning/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
@@ -14,6 +13,7 @@ const readOnly = (sql: string) => {
 // Pre-dedupe literal copied verbatim from HEAD (canonical one-line form); used
 // only as a byte-identity oracle, never as a live query source.
 const preCompletionColumns = 'SELECT e.id,e.assignment_id,e.version event_version,e.status,e.created_at,c.title course_title';
+const preOverdueColumns = 'SELECT a.id,a.version,a.status,a.due_date,a.updated_at,c.title course_title,c.required_for';
 
 describe('Learning read-tail r4 byte-identical completion-evidence family dedupe', () => {
   test('completion evidence head is moved verbatim to the native Rust owner', () => {
@@ -22,9 +22,9 @@ describe('Learning read-tail r4 byte-identical completion-evidence family dedupe
   });
 
   test('the head is distinct from the r3 overdue head and r3 helpers stay put', () => {
-    expect(preCompletionColumns).not.toBe(overdueEvidenceColumns);
+    expect(preCompletionColumns).not.toBe(preOverdueColumns);
     const r3 = src('learning-read-sql.ts');
-    expect(r3.match(/export const overdueEvidenceColumns =/g) ?? []).toHaveLength(1);
+    expect(src('native_lane_31/postgres.rs')).toContain('SELECT a.id,a.version,a.status,a.due_date,a.updated_at,c.title course_title,c.required_for');
     expect(r3.match(/export const learningNativeSources=/g) ?? []).toHaveLength(1);
     expect(r3.match(/export const learningModuleGrantProbe =/g) ?? []).toHaveLength(1);
   });
@@ -106,7 +106,7 @@ describe('Learning read-tail r5 parameterized assignment-child family dedupe', (
   test('r3/r4 helper files and every lock statement stay untouched', () => {
     const r3 = src('learning-read-sql.ts');
     expect(r3.match(/export const learningNativeSources=/g) ?? []).toHaveLength(1);
-    expect(r3.match(/export const overdueEvidenceColumns =/g) ?? []).toHaveLength(1);
+    expect(src('native_lane_31/postgres.rs')).toContain('SELECT a.id,a.version,a.status,a.due_date,a.updated_at,c.title course_title,c.required_for');
     expect(r3.match(/export const learningModuleGrantProbe =/g) ?? []).toHaveLength(1);
     expect(src('native_lane_31/postgres.rs')).toContain('SELECT e.id,e.assignment_id,e.version event_version,e.status,e.created_at,c.title course_title');
     expect(src('learning.ts')).not.toMatch(/LOCK TABLE|FOR UPDATE|FOR SHARE|pg_advisory/i);

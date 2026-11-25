@@ -129,7 +129,7 @@ describe('operations read-tail r53 task/routine head consolidation', () => {
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(59);
+    expect(total).toBe(58);
     expect(total).toBeLessThan(75);
   });
 });

@@ -68,6 +68,6 @@ describe('workflow closed projection generator families (r45)', () => {
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(46);
-    expect(total).toBe(26);
+    expect(total).toBe(25);
   });
 });

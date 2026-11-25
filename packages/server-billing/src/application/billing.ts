@@ -6,7 +6,6 @@ import {stripeList,stripeUrl,testObject,type BillingStripe} from '@erpx/server-b
 import {billingInput,type BillingActor,type BillingInput} from '@erpx/server-billing/domain/billing';
 import type {BillingReceipt,BillingAccount,BillingEnrollment,BillingPeriod,BillingPlan,BillingInvoiceRow,BillingPriceRow,BillingMeterRow,BillingViewFacts} from '@erpx/server-billing/domain/billing';
 import type {TargetBillingPeriodView} from '@erpx/server-billing/domain/target';
-import type {TargetRolloutReadiness} from '@erpx/server-billing/domain/target-rollout';
 export interface BillingRepository {recordRatingRun(value0:string,value1:string,value2:string,value3:string,value4:string,value5:string,value6:string,value7:string,value8:number|null,value9:string,value10:string,value11:number):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 retainRatedPeriod(value0:string,value1:string,value2:string,value3:string,value4:string,value5:string,value6:number,value7:number,value8:string,value9:string,value10:string,value11:number|null,value12:number):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 activeEnrollmentForAdvance(value0:string):Promise<{rows:BillingEnrollment[];rowCount:number|null}>;
@@ -55,7 +54,6 @@ availableOperatingEvidence(value0:string | null | undefined,value1:string):Promi
 recordOperatingCost(value0:string,value1:string | undefined,value2:string | undefined,value3:number | undefined,value4:string | null | undefined,value5:string,value6:number):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 availableCapacityEvidence(value0:string | null | undefined,value1:string):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 recordCapacityReview(value0:string,value1:string | undefined,value2:number | undefined,value3:number | undefined,value4:number | undefined,value5:number | undefined,value6:number | undefined,value7:string | null | undefined,value8:string,value9:unknown,value10:number):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
-recordRolloutApproval(value0:string,value1:string | undefined,value2:string,value3:string,value4:number | undefined,value5:string,value6:unknown,value7:number):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 extraTargetAssignment(value0:string,value1:string | undefined):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 approvedExtraPeriod(value0:string,value1:string | undefined):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 availableExtraEvidence(value0:string | null | undefined,value1:string):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
@@ -76,7 +74,7 @@ incrementAccountVersion(value0:string):Promise<{rows:Record<string,unknown>[];ro
 recordCommandAudit(value0:string,value1:string,value2:string,value3:unknown,value4:unknown,value5:string,value6:number):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 recordCommandReceipt(value0:string,value1:string,value2:string,value3:number):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 commit():Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
-rollback():Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;release():void;calculateTarget(holdingId:string,month:string,now:number):Promise<TargetBillingPeriodView>;calculateRollout(holdingId:string,month:string,margin:number,now:number):Promise<TargetRolloutReadiness>;}
+rollback():Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;release():void;calculateTarget(holdingId:string,month:string,now:number):Promise<TargetBillingPeriodView>;}
 export interface BillingPorts {error(status:number,code:string,message:string):Error;hash(value:string):string;id():string;now():number;session():Promise<BillingRepository>;view(holdingId:string):Promise<BillingViewFacts>;}
 export function createBillingService(ports:BillingPorts){function fail(code:string,message:string):never{throw ports.error(409,code,message)}
 /** Actions whose native owner command is the only authority. `cost`,
@@ -111,6 +109,7 @@ const nativeActions = new Set<BillingInput["action"]>([
   "approve",
   "void",
   "retry",
+  "approve-target-rollout",
 ]);
 const adminActions = new Set([
   "cost",
@@ -124,7 +123,6 @@ const adminActions = new Set([
   "rate-target",
   "record-operating-cost",
   "review-target-capacity",
-  "approve-target-rollout",
   "approve-target-extra",
 ]);
 async function storeTargetRating(
@@ -475,19 +473,6 @@ async function billingCommand(
         if (!(await c.availableCapacityEvidence(input.evidenceId,holdingId)).rowCount) fail("EVIDENCE_REQUIRED", "Attach available capacity evidence.");
         const inserted = await c.recordCapacityReview(holdingId,input.targetMonth,input.projectedOriginalBytes,input.primaryAvailableBytes,input.backupAvailableBytes,input.reservedBytes,input.companyLimitBytes,input.evidenceId,actor.userId,input.reason,now);
         if (!inserted.rowCount) fail("CAPACITY_ALREADY_REVIEWED", "Capacity evidence for this effective month is immutable.");
-        break;
-      }
-      case "approve-target-rollout": {
-        if (!input.targetMonth || input.minimumMarginBps === undefined)
-          fail("ROLLOUT_REVIEW_REQUIRED", "Future month and required gross-margin threshold are required.");
-        if (input.targetMonth <= billingMonth(now))
-          fail("FUTURE_MONTH_REQUIRED", "An existing customer may migrate only in a future month.");
-        const review = await c.calculateRollout( holdingId, input.targetMonth, input.minimumMarginBps, now,
-        );
-        if (!review.ready)
-          fail("ROLLOUT_EVIDENCE_INCOMPLETE", `Migration remains held: ${review.blockers.join(", ")}.`);
-        const inserted = await c.recordRolloutApproval(holdingId,input.targetMonth,review.shadowMonths[0],review.shadowMonths[1],input.minimumMarginBps,actor.userId,input.reason,now);
-        if (!inserted.rowCount) fail("ROLLOUT_ALREADY_APPROVED", "This rollout decision is already recorded.");
         break;
       }
       case "approve-target-extra": {

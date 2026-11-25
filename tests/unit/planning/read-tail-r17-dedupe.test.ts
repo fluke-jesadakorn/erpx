@@ -1,9 +1,11 @@
 import { describe, expect, test } from 'vitest';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { planningSelectFrom } from '../../../packages/server-planning/src/adapters/planning-select-from-sql';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-planning/src');
+/** Pre-r26 byte oracle for the retired builder; no longer a live query source. */
+const planningSelectFrom = (columns: string, indent: string, from: string) =>
+  `SELECT ${columns}\n${indent}FROM ${from}`;
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const selectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;
 
@@ -50,26 +52,24 @@ describe('Planning read-tail r17 parameterized projection/FROM head', () => {
     expect(generatedProjection).toBe(ORIG_PROJECTION_SQL);
   });
 
-  test('restoring the builder calls yields the verbatim pre-dedupe declarations', () => {
-    let restored = src('production-command-sources-read.ts');
-    expect(restored).toContain(NEW_SHORTAGE_DECL);
-    expect(restored).toContain(NEW_PROJECTION_DECL);
-    restored = restored.replace(NEW_SHORTAGE_DECL, ORIG_SHORTAGE_DECL).replace(NEW_PROJECTION_DECL, ORIG_PROJECTION_DECL);
-    expect(restored).toContain(ORIG_SHORTAGE_DECL);
-    expect(restored).toContain(ORIG_PROJECTION_DECL);
-    expect(restored).not.toContain(NEW_SHORTAGE_DECL);
-    expect(restored).not.toContain(NEW_PROJECTION_DECL);
+  test('executive projection builders are retired and the call sites are native-owned', () => {
     const current = src('production-command-sources-read.ts');
+    expect(current).toContain('nativeExecutiveShortage(recordId,companyId,branchId,from,to)');
+    expect(current).toContain('nativeExecutiveRecommendation(recordId,companyId,branchId,from,to,eligibilityKind)');
+    expect(current).not.toContain(NEW_SHORTAGE_DECL);
+    expect(current).not.toContain(NEW_PROJECTION_DECL);
     expect(current).not.toContain(ORIG_SHORTAGE_SQL);
     expect(current).not.toContain(ORIG_PROJECTION_SQL);
+    expect(NEW_SHORTAGE_DECL).toContain('planningSelectFrom');
+    expect(NEW_PROJECTION_DECL).toContain('planningSelectFrom');
   });
 
-  test('shared module declares the read literal exactly once and stays read-only', () => {
-    const shared = src('planning-select-from-sql.ts');
-    expect(selectCount(shared)).toBe(1);
-    expect(shared).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
-    for (const sql of [generatedShortage, generatedProjection])
+  test('the retired shared builder is deleted; its byte oracles stay read-only', () => {
+    expect(existsSync(resolve(srcRoot, 'adapters/planning-select-from-sql.ts'))).toBe(false);
+    for (const sql of [generatedShortage, generatedProjection]) {
+      expect(selectCount(sql)).toBe(1);
       expect(sql.toUpperCase()).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|PG_ADVISORY/i);
+    }
   });
 
   test('r1-r16 helpers, native reads and all lock statements stay untouched', () => {
@@ -125,7 +125,7 @@ describe('Planning read-tail r17 parameterized projection/FROM head', () => {
     // r23 folded the resource-calendar point lookup into the single-line projection/FROM builder (16 -> 15).
     // r24 folded the scoped single-row family into that same builder (15 -> 14).
     // r25 folded the scoped branch-list family into the single-line projection/FROM builder (14 -> 13).
-    expect(total).toBe(13);
+    expect(total).toBe(12);
     expect(total).toBeLessThan(21);
   });
 });

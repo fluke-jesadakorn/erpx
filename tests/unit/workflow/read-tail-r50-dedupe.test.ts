@@ -108,7 +108,7 @@ describe('read-tail r50 table-EXISTS head fold', () => {
     }
   });
 
-  it('retirement:ts-statements is 26 after the r39 native inventory cut the r53 head fold (29->28)', async () => {
+  it('retirement:ts-statements is 25 after the r40 native flow-event cut (26->25)', async () => {
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -119,6 +119,6 @@ describe('read-tail r50 table-EXISTS head fold', () => {
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(30);
-    expect(total).toBe(26);
+    expect(total).toBe(25);
   });
 });

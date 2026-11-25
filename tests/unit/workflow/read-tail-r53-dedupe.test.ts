@@ -69,9 +69,13 @@ describe('read-tail r53 approver-union bare-head fold', () => {
     const union = await src('adapters/json-each-sources.ts');
     const forbidden = /INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory|nativeWorkflow|@erpx\/server-/i;
     expect(union).not.toMatch(forbidden);
-    // The flow-event history head stays in the native/cross-owner boundary file, untouched.
+    // The flow-event history head moved to the owner Rust read registry in r40
+    // (native read kinds, no local SQL).
     const flow = await src('adapters/flow-planning-ports.ts');
-    expect(flow.match(/`SELECT \$\{columns\}/g) ?? []).toHaveLength(1);
+    expect(flow.match(/`SELECT \$\{columns\}/g) ?? []).toHaveLength(0);
+    expect(flow).not.toContain('flowEventsHistorySql');
+    expect(flow).toContain("'wf_native_flow_events_history'");
+    expect(flow).toContain("'wf_native_flow_events_record_history'");
     for (const sql of [
       approverUnionProjectionSql('step'),
       approverUnionProjectionSql('plain'),
@@ -82,7 +86,7 @@ describe('read-tail r53 approver-union bare-head fold', () => {
     }
   });
 
-  it('retirement:ts-statements is 26 after the r39 native inventory cut the r53 head fold (29->28)', async () => {
+  it('retirement:ts-statements is 25 after the r40 native flow-event cut (26->25)', async () => {
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -93,6 +97,6 @@ describe('read-tail r53 approver-union bare-head fold', () => {
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(29);
-    expect(total).toBe(26);
+    expect(total).toBe(25);
   });
 });

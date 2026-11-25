@@ -50,7 +50,7 @@ describe('Planning r26 scenarios-list native cutover', () => {
     expect(registry).toContain('native_binds(entry.sql)');
   });
 
-  test('retirement:ts-statements stays at the r25 baseline of 13', () => {
+  test('retirement:ts-statements drops to 12 after r27', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -60,10 +60,9 @@ describe('Planning r26 scenarios-list native cutover', () => {
       }
     };
     walk(srcRoot);
-    // The scenarios call site's SELECT head is deleted. The owner-wide literal
-    // count stays 13 because the surviving helper still serves calendar reads;
-    // the next family must retire that shared head to lower the KPI.
-    expect(total).toBe(13);
-    expect(total).toBeLessThanOrEqual(13);
+    // r27 retired the shared planning-select-from-sql.ts head; the remaining
+    // single-line builder still serves the transaction-bound calendar tail.
+    expect(total).toBe(12);
+    expect(total).toBeLessThan(13);
   });
 });

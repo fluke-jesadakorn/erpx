@@ -3,8 +3,9 @@
 //! `commerce/command-plan` route resolves the allow-listed kind here and returns
 //! the statement for the caller to prepare and execute on its own open unit.
 //!
-//! This family covers small owner-local Commerce master/setup reads on
-//! `commerce_warehouses`, `commerce_products` and `commerce_settings`. Reads carry no receipt/audit/
+//! This family covers small owner-local Commerce master/setup and source-image
+//! reads on `commerce_warehouses`, `commerce_products`, `commerce_settings` and
+//! `commerce_orders`. Reads carry no receipt/audit/
 //! outbox ledger: the caller executes them on the same unit as the surrounding
 //! command. No SQL is ever accepted from the wire and no TypeScript SQL remains
 //! for these kinds.
@@ -283,6 +284,28 @@ const READ_MFG_EXISTING_SETTINGS_IMAGE: NativeCommerceReadStatement = NativeComm
     bind_count: 1,
 };
 
+/// Native successor of the r26 Support attachment source-image read. The
+/// caller binds `[id, company_id]`; the two predicates stay in wire order.
+pub const RD_SUPPORT_ORDER_SOURCE_IMAGE: &str = "commerce_rd_support_order_source_image";
+const SQL_SUPPORT_ORDER_SOURCE_IMAGE: &str =
+    "SELECT to_jsonb(source)::text image FROM commerce_orders source WHERE source.id=? AND source.company_id=?";
+const READ_SUPPORT_ORDER_SOURCE_IMAGE: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_SUPPORT_ORDER_SOURCE_IMAGE,
+    sql: SQL_SUPPORT_ORDER_SOURCE_IMAGE,
+    bind_count: 2,
+};
+
+/// Native successor of the r26 CRM attachment source-image read. The caller
+/// binds `[id, company_id]`; the quote/sale kind predicate stays byte-exact.
+pub const RD_CRM_ORDER_SOURCE_IMAGE: &str = "commerce_rd_crm_order_source_image";
+const SQL_CRM_ORDER_SOURCE_IMAGE: &str =
+    "SELECT to_jsonb(source)::text image FROM commerce_orders source WHERE source.id=? AND source.company_id=? AND source.kind IN ('quote','sales')";
+const READ_CRM_ORDER_SOURCE_IMAGE: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_CRM_ORDER_SOURCE_IMAGE,
+    sql: SQL_CRM_ORDER_SOURCE_IMAGE,
+    bind_count: 2,
+};
+
 const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_PMS_WAREHOUSE_ACTIVE,
     READ_PMS_SETTINGS_EXISTS,
@@ -308,6 +331,8 @@ const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_WAREHOUSE_BRANCH_ACTIVE,
     READ_EXPENSE_SETTINGS_IMAGE,
     READ_MFG_EXISTING_SETTINGS_IMAGE,
+    READ_SUPPORT_ORDER_SOURCE_IMAGE,
+    READ_CRM_ORDER_SOURCE_IMAGE,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -354,6 +379,12 @@ mod tests {
                 SQL_MFG_EXISTING_SETTINGS_IMAGE,
                 1usize,
             ),
+            (
+                RD_SUPPORT_ORDER_SOURCE_IMAGE,
+                SQL_SUPPORT_ORDER_SOURCE_IMAGE,
+                2usize,
+            ),
+            (RD_CRM_ORDER_SOURCE_IMAGE, SQL_CRM_ORDER_SOURCE_IMAGE, 2usize),
         ];
         for (kind, sql, bind_count) in expected {
             let statement = read_statement(kind).expect("registered owner read kind");
@@ -365,12 +396,31 @@ mod tests {
                 assert!(!sql.contains(forbidden), "owner read must not mutate: {forbidden}");
             }
             assert!(
-                sql.contains("commerce_products") || sql.contains("commerce_warehouses") || sql.contains("commerce_settings"),
+                sql.contains("commerce_products") || sql.contains("commerce_warehouses") || sql.contains("commerce_settings") || sql.contains("commerce_orders"),
                 "owner read must stay on owner-local Commerce tables: {sql}"
             );
             assert_eq!(sql.matches('?').count(), bind_count);
         }
-        assert_eq!(STATEMENTS.len(), 24);
+        assert_eq!(STATEMENTS.len(), 26);
+    }
+
+    /// The two r26 attachment source-image reads share a byte-exact head and
+    /// differ only in the trailing quote/sale kind predicate; both carry the
+    /// ID and company binds in their retired wire order.
+    #[test]
+    fn attachment_order_source_images_keep_their_exact_literals() {
+        let head = "SELECT to_jsonb(source)::text image FROM commerce_orders source WHERE source.id=? AND source.company_id=?";
+        let support = read_statement(RD_SUPPORT_ORDER_SOURCE_IMAGE).expect("support image read");
+        let crm = read_statement(RD_CRM_ORDER_SOURCE_IMAGE).expect("crm image read");
+        assert_eq!(support.sql, head);
+        assert_eq!(crm.sql, format!("{head} AND source.kind IN ('quote','sales')"));
+        for statement in [support, crm] {
+            assert_eq!(statement.bind_count, 2);
+            assert_eq!(statement.sql.matches('?').count(), 2);
+            assert!(statement.sql.starts_with("SELECT "));
+            assert!(!statement.sql.contains(';'));
+            assert!(!statement.sql.contains("FOR UPDATE"));
+        }
     }
 
     /// The two r27 settings-image reads differ only in the company predicate

@@ -328,6 +328,29 @@ const READ_TASK_DETAIL_ATTACHMENTS: NativeReadStatement = NativeReadStatement {
     scope: "holding",
 };
 
+
+/// Native successors of the TypeScript task-attachment purchase witness read.
+/// The owner plans the exact composed literal; the caller executes it on its
+/// open unit with the unchanged `[id, company_id]` bind. The two variants differ
+/// only in the owned-action projection reduction.
+pub const RD_TASK_ATTACHMENT_PURCHASE_WITNESS: &str = "operations_rd_task_attachment_purchase_witness";
+const SQL_TASK_ATTACHMENT_PURCHASE_WITNESS: &str = "SELECT t.id,t.company_id,t.branch_id,t.department_id,t.project_id,t.state,t.creator_user_id,t.assignee_user_id,t.template_id,social.work_social,\n jsonb_build_object('task',to_jsonb(t)-'version'-'updated_at',\n 'template',(SELECT to_jsonb(template) FROM routine_templates template WHERE template.id=t.template_id AND template.company_id=t.company_id),\n 'schedule',(SELECT to_jsonb(schedule) FROM routine_schedules schedule WHERE schedule.id=t.schedule_id AND schedule.company_id=t.company_id),\n 'delegations',(SELECT jsonb_agg(to_jsonb(delegation) ORDER BY delegation.id) FROM staff_task_delegations delegation WHERE delegation.task_id=t.id AND delegation.company_id=t.company_id),\n 'social',social.image)::text witness\n FROM staff_tasks t LEFT JOIN (SELECT t.id,t.company_id,EXISTS(SELECT 1 FROM social_task_origins origin JOIN social_posts post ON post.id=origin.post_id AND post.company_id=t.company_id WHERE origin.task_id=t.id AND post.kind<>'system' AND NOT (post.purpose='handover' AND post.audience_kind='participants' AND EXISTS(SELECT 1 FROM command_receipts operational_receipt WHERE operational_receipt.operation='work.handover.publish' AND operational_receipt.record_id=post.id AND operational_receipt.actor_id=post.author_id AND operational_receipt.authority_json::jsonb->>'companyId'=post.company_id AND operational_receipt.result_json::jsonb->>'id'=post.id AND operational_receipt.result_json::jsonb->'sourceBindings'=(SELECT COALESCE(jsonb_agg(jsonb_build_object('kind',source.source_kind,'id',source.source_id) ORDER BY source.ordinal),'[]'::jsonb) FROM social_post_sources source WHERE source.post_id=post.id))) AND (NOT EXISTS(SELECT 1 FROM social_post_sources native_source WHERE native_source.post_id=post.id) OR EXISTS(SELECT 1 FROM social_post_sources native_source WHERE native_source.post_id=post.id AND NOT (EXISTS(SELECT 1 FROM (SELECT 'staff_project'::text source_kind,p.id source_id,p.company_id,p.id project_id,p.owner_user_id,jsonb_build_object('project',to_jsonb(p),'members',(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.user_id) FROM staff_project_members m WHERE m.project_id=p.id))::text source_image\n FROM staff_projects p UNION ALL SELECT 'staff_task',t.id,t.company_id,p.id,p.owner_user_id,jsonb_build_object('task',to_jsonb(t),'project',to_jsonb(p),'members',(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.user_id) FROM staff_project_members m WHERE m.project_id=p.id))::text\n FROM (SELECT * FROM staff_tasks) t JOIN staff_projects p ON p.id=t.project_id AND p.company_id=t.company_id) included_project WHERE included_project.source_kind=native_source.source_kind AND included_project.source_id=native_source.source_id AND included_project.company_id=post.company_id) OR native_source.source_kind='pms_record' AND EXISTS(SELECT 1 FROM (SELECT r.id,r.property_id,r.kind,r.data_json::jsonb data,r.version,r.updated_at,\n    p.company_id,p.branch_id,p.name property_name,p.business_date\n  FROM pms_records r JOIN pms_properties p ON p.id=r.property_id\n  UNION ALL\n  SELECT t.id,t.property_id,'transfer',jsonb_build_object('state',t.state,'recordedBy',t.recorded_by,\n    'guestAccountId',t.guest_account_id),t.version,t.updated_at,p.company_id,p.branch_id,p.name,p.business_date\n  FROM pms_transfer_requests t JOIN pms_properties p ON p.id=t.property_id AND p.company_id=t.company_id\n  UNION ALL\n  SELECT c.id,c.property_id,'correction',jsonb_build_object('state',c.status,'requestedBy',c.requested_by,\n    'guestAccountId',c.guest_account_id),c.version,c.updated_at,p.company_id,p.branch_id,p.name,p.business_date\n  FROM pms_charge_corrections c JOIN pms_properties p ON p.id=c.property_id AND p.company_id=c.company_id) included_pms WHERE included_pms.id=native_source.source_id AND included_pms.company_id=post.company_id))))) work_social,\n jsonb_build_object('origins',(SELECT jsonb_agg(to_jsonb(origin) ORDER BY origin.post_id) FROM social_task_origins origin WHERE origin.task_id=t.id),\n 'posts',(SELECT jsonb_agg(to_jsonb(post) ORDER BY post.id) FROM social_posts post WHERE post.company_id=t.company_id AND EXISTS(SELECT 1 FROM social_task_origins origin WHERE origin.task_id=t.id AND origin.post_id=post.id)),\n 'comments',(SELECT jsonb_agg(to_jsonb(comment) ORDER BY comment.id) FROM social_comments comment JOIN social_posts post ON post.id=comment.post_id WHERE post.company_id=t.company_id AND EXISTS(SELECT 1 FROM social_task_origins origin WHERE origin.task_id=t.id AND origin.post_id=post.id)),\n 'sources',(SELECT jsonb_agg(to_jsonb(source) ORDER BY source.post_id,source.ordinal) FROM social_post_sources source JOIN social_posts post ON post.id=source.post_id WHERE post.company_id=t.company_id AND EXISTS(SELECT 1 FROM social_task_origins origin WHERE origin.task_id=t.id AND origin.post_id=post.id)),\n 'revisions',(SELECT jsonb_agg(to_jsonb(revision) ORDER BY revision.id) FROM social_post_revisions revision JOIN social_posts post ON post.id=revision.post_id WHERE post.company_id=t.company_id AND EXISTS(SELECT 1 FROM social_task_origins origin WHERE origin.task_id=t.id AND origin.post_id=post.id))) image\n FROM (SELECT * FROM staff_tasks) t) social ON social.id=t.id AND social.company_id=t.company_id WHERE t.id=? AND t.company_id=?";
+const READ_TASK_ATTACHMENT_PURCHASE_WITNESS: NativeReadStatement = NativeReadStatement {
+    kind: RD_TASK_ATTACHMENT_PURCHASE_WITNESS,
+    sql: SQL_TASK_ATTACHMENT_PURCHASE_WITNESS,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_TASK_ATTACHMENT_PURCHASE_WITNESS_OWNED: &str = "operations_rd_task_attachment_purchase_witness_owned";
+const SQL_TASK_ATTACHMENT_PURCHASE_WITNESS_OWNED: &str = "SELECT t.id,t.company_id,t.branch_id,t.department_id,t.project_id,t.state,t.creator_user_id,t.assignee_user_id,t.template_id,social.work_social,\n jsonb_build_object('task',to_jsonb(t)-'version'-'updated_at'-'state'-'completion_note'-'blocked_reason',\n 'template',(SELECT to_jsonb(template) FROM routine_templates template WHERE template.id=t.template_id AND template.company_id=t.company_id),\n 'schedule',(SELECT to_jsonb(schedule) FROM routine_schedules schedule WHERE schedule.id=t.schedule_id AND schedule.company_id=t.company_id),\n 'delegations',(SELECT jsonb_agg(to_jsonb(delegation) ORDER BY delegation.id) FROM staff_task_delegations delegation WHERE delegation.task_id=t.id AND delegation.company_id=t.company_id),\n 'social',social.image)::text witness\n FROM staff_tasks t LEFT JOIN (SELECT t.id,t.company_id,EXISTS(SELECT 1 FROM social_task_origins origin JOIN social_posts post ON post.id=origin.post_id AND post.company_id=t.company_id WHERE origin.task_id=t.id AND post.kind<>'system' AND NOT (post.purpose='handover' AND post.audience_kind='participants' AND EXISTS(SELECT 1 FROM command_receipts operational_receipt WHERE operational_receipt.operation='work.handover.publish' AND operational_receipt.record_id=post.id AND operational_receipt.actor_id=post.author_id AND operational_receipt.authority_json::jsonb->>'companyId'=post.company_id AND operational_receipt.result_json::jsonb->>'id'=post.id AND operational_receipt.result_json::jsonb->'sourceBindings'=(SELECT COALESCE(jsonb_agg(jsonb_build_object('kind',source.source_kind,'id',source.source_id) ORDER BY source.ordinal),'[]'::jsonb) FROM social_post_sources source WHERE source.post_id=post.id))) AND (NOT EXISTS(SELECT 1 FROM social_post_sources native_source WHERE native_source.post_id=post.id) OR EXISTS(SELECT 1 FROM social_post_sources native_source WHERE native_source.post_id=post.id AND NOT (EXISTS(SELECT 1 FROM (SELECT 'staff_project'::text source_kind,p.id source_id,p.company_id,p.id project_id,p.owner_user_id,jsonb_build_object('project',to_jsonb(p),'members',(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.user_id) FROM staff_project_members m WHERE m.project_id=p.id))::text source_image\n FROM staff_projects p UNION ALL SELECT 'staff_task',t.id,t.company_id,p.id,p.owner_user_id,jsonb_build_object('task',to_jsonb(t),'project',to_jsonb(p),'members',(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.user_id) FROM staff_project_members m WHERE m.project_id=p.id))::text\n FROM (SELECT * FROM staff_tasks) t JOIN staff_projects p ON p.id=t.project_id AND p.company_id=t.company_id) included_project WHERE included_project.source_kind=native_source.source_kind AND included_project.source_id=native_source.source_id AND included_project.company_id=post.company_id) OR native_source.source_kind='pms_record' AND EXISTS(SELECT 1 FROM (SELECT r.id,r.property_id,r.kind,r.data_json::jsonb data,r.version,r.updated_at,\n    p.company_id,p.branch_id,p.name property_name,p.business_date\n  FROM pms_records r JOIN pms_properties p ON p.id=r.property_id\n  UNION ALL\n  SELECT t.id,t.property_id,'transfer',jsonb_build_object('state',t.state,'recordedBy',t.recorded_by,\n    'guestAccountId',t.guest_account_id),t.version,t.updated_at,p.company_id,p.branch_id,p.name,p.business_date\n  FROM pms_transfer_requests t JOIN pms_properties p ON p.id=t.property_id AND p.company_id=t.company_id\n  UNION ALL\n  SELECT c.id,c.property_id,'correction',jsonb_build_object('state',c.status,'requestedBy',c.requested_by,\n    'guestAccountId',c.guest_account_id),c.version,c.updated_at,p.company_id,p.branch_id,p.name,p.business_date\n  FROM pms_charge_corrections c JOIN pms_properties p ON p.id=c.property_id AND p.company_id=c.company_id) included_pms WHERE included_pms.id=native_source.source_id AND included_pms.company_id=post.company_id))))) work_social,\n jsonb_build_object('origins',(SELECT jsonb_agg(to_jsonb(origin) ORDER BY origin.post_id) FROM social_task_origins origin WHERE origin.task_id=t.id),\n 'posts',(SELECT jsonb_agg(to_jsonb(post) ORDER BY post.id) FROM social_posts post WHERE post.company_id=t.company_id AND EXISTS(SELECT 1 FROM social_task_origins origin WHERE origin.task_id=t.id AND origin.post_id=post.id)),\n 'comments',(SELECT jsonb_agg(to_jsonb(comment) ORDER BY comment.id) FROM social_comments comment JOIN social_posts post ON post.id=comment.post_id WHERE post.company_id=t.company_id AND EXISTS(SELECT 1 FROM social_task_origins origin WHERE origin.task_id=t.id AND origin.post_id=post.id)),\n 'sources',(SELECT jsonb_agg(to_jsonb(source) ORDER BY source.post_id,source.ordinal) FROM social_post_sources source JOIN social_posts post ON post.id=source.post_id WHERE post.company_id=t.company_id AND EXISTS(SELECT 1 FROM social_task_origins origin WHERE origin.task_id=t.id AND origin.post_id=post.id)),\n 'revisions',(SELECT jsonb_agg(to_jsonb(revision) ORDER BY revision.id) FROM social_post_revisions revision JOIN social_posts post ON post.id=revision.post_id WHERE post.company_id=t.company_id AND EXISTS(SELECT 1 FROM social_task_origins origin WHERE origin.task_id=t.id AND origin.post_id=post.id))) image\n FROM (SELECT * FROM staff_tasks) t) social ON social.id=t.id AND social.company_id=t.company_id WHERE t.id=? AND t.company_id=?";
+const READ_TASK_ATTACHMENT_PURCHASE_WITNESS_OWNED: NativeReadStatement = NativeReadStatement {
+    kind: RD_TASK_ATTACHMENT_PURCHASE_WITNESS_OWNED,
+    sql: SQL_TASK_ATTACHMENT_PURCHASE_WITNESS_OWNED,
+    bind_count: 2,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_TASK_PROJECTION_SOURCE,
     READ_APP_UPLOAD_TASK_STATE,
@@ -352,6 +375,8 @@ const READS: &[NativeReadStatement] = &[
     READ_WORK_TASK_REPLAY_RECEIPT,
     READ_ATTACHMENT_OWNER_SCOPE,
     READ_TASK_DETAIL_ATTACHMENTS,
+    READ_TASK_ATTACHMENT_PURCHASE_WITNESS,
+    READ_TASK_ATTACHMENT_PURCHASE_WITNESS_OWNED,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -737,7 +762,7 @@ mod tests {
 
     #[test]
     fn r51_registry_grows_by_four_read_kinds() {
-        assert_eq!(READS.len(), 23);
+        assert_eq!(READS.len(), 25);
         for kind in [
             RD_HANDOVER_RECOVERY_RECEIPT,
             RD_WORKFLOW_DOCUMENT_DETAIL,
@@ -776,5 +801,24 @@ mod tests {
         assert_eq!(read.scope, "holding");
         assert_eq!(READS.iter().filter(|r| r.kind == RD_TASK_DETAIL_ATTACHMENTS).count(), 1);
         assert!(is_read(RD_TASK_DETAIL_ATTACHMENTS));
+    }
+
+    #[test]
+    fn r11b_task_attachment_purchase_witness_variants_are_owner_planned() {
+        let ordinary = read_statement(RD_TASK_ATTACHMENT_PURCHASE_WITNESS).expect("read kind");
+        let owned = read_statement(RD_TASK_ATTACHMENT_PURCHASE_WITNESS_OWNED).expect("read kind");
+        for read in [ordinary, owned] {
+            assert_eq!(read.bind_count, 2);
+            assert_eq!(read.sql.matches('?').count(), 2);
+            assert_eq!(read.sql.matches("SELECT ").count(), 30);
+            assert_eq!(read.scope, "holding");
+            assert!(read.sql.starts_with("SELECT t.id,t.company_id,t.branch_id,t.department_id,t.project_id,t.state,t.creator_user_id,t.assignee_user_id,t.template_id,social.work_social,\n jsonb_build_object('task',to_jsonb(t)-'version'-'updated_at"));
+            assert!(read.sql.ends_with("WHERE t.id=? AND t.company_id=?"));
+            assert!(is_read(read.kind));
+        }
+        assert!(ordinary.sql.contains("to_jsonb(t)-'version'-'updated_at',\n 'template'"));
+        assert!(owned.sql.contains("to_jsonb(t)-'version'-'updated_at'-'state'-'completion_note'-'blocked_reason',\n 'template'"));
+        assert_eq!(READS.iter().filter(|r| r.kind == RD_TASK_ATTACHMENT_PURCHASE_WITNESS).count(), 1);
+        assert_eq!(READS.iter().filter(|r| r.kind == RD_TASK_ATTACHMENT_PURCHASE_WITNESS_OWNED).count(), 1);
     }
 }

@@ -77,7 +77,7 @@ describe('Learning read-tail r17 invariants', () => {
     const shared = src('learning-read-sql.ts');
     for (const name of [
       'actorScopeProbe', 'clockProbe', 'coursesImage', 'learningNativeSources', 'nativeSourceProbe',
-      'overdueEvidenceColumns', 'learningModuleGrantProbe', 'moduleGrantAssignmentProbe', 'actorScopeExistsProbe',
+      'learningModuleGrantProbe', 'moduleGrantAssignmentProbe', 'actorScopeExistsProbe',
       'assignmentsImage', 'sourceLiteral', 'metricLabelProjection', 'learningAssignmentsExistsProbe',
       'currentAssignmentScopeHead', 'learningCourseProjection', 'assignmentCourseJoinHead',
       'assignmentCourseReadHead', 'packageScopeCte', 'benefitConsumptionHead', 'latestEventLateral',

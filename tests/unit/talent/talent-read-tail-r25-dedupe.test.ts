@@ -55,23 +55,25 @@ describe('talent read-tail r25 source-image projection family dedupe', () => {
     expect(talentSourceImageSelect(jsonbImage('a', true))).toBe(image(jsonbImage('a', true)));
   });
 
-  it('emits byte-identical owner-source SQL for all five lineages', async () => {
+  it('emits byte-identical owner-source SQL for the three TS-rendered lineages', async () => {
     const q = evaluateOwnerSources(await src('purchases.ts'), await src('talent-read-tail-r25-sources.ts'));
-    expect(q('candidate')).toBe(EXPECTED.candidate);
-    expect(q('requisition')).toBe(EXPECTED.requisition);
+    // Candidate and requisition images are owned by the native read port;
+    // TS renders no literal for either.
+    expect(q('candidate')).not.toBe(EXPECTED.candidate);
+    expect(q('requisition')).not.toBe(EXPECTED.requisition);
     expect(q('application')).toBe(EXPECTED.application);
     expect(q('offer')).toBe(EXPECTED.offer);
     expect(q('handoff')).toBe(EXPECTED.handoff);
   });
 
-  it('keeps one definition, three call sites and no inline image projection', async () => {
+  it('keeps one definition, one call site and no inline image projection', async () => {
     const [shared, purchases] = await Promise.all([
       src('talent-read-tail-r25-sources.ts'), src('purchases.ts'),
     ]);
     expect(shared.match(/export const talentSourceImageSelect/g) ?? []).toHaveLength(1);
     expect(shared).toContain('selectProjection(');
     expect(shared).toContain("from './talent-read-tail-r37-sources'");
-    expect(purchases.match(/\$\{talentSourceImageSelect\(/g) ?? []).toHaveLength(3);
+    expect(purchases.match(/\$\{talentSourceImageSelect\(/g) ?? []).toHaveLength(1);
     expect(purchases).toContain("import {talentSourceImageSelect} from './talent-read-tail-r25-sources'");
     expect(purchases).not.toMatch(/SELECT \$\{record\("(c|r)"\)\}::text image/);
     expect(purchases).not.toMatch(/SELECT jsonb_build_object\('record'[\s\S]*?::text image/);
@@ -90,6 +92,20 @@ describe('talent read-tail r25 source-image projection family dedupe', () => {
       'export async function requireTalentCurrentAuthority',
       'export async function withTalentPurchasedCommand',
     ]) expect(text, ref).toContain(ref);
+  });
+
+  it('routes candidate and requisition images with their witnesses through the native port', async () => {
+    const [purchases, attachments] = await Promise.all([
+      src('purchases.ts'), src('attachment-purchases.ts'),
+    ]);
+    expect(purchases).not.toContain('if(kind==="candidate")return');
+    expect(purchases).not.toContain('if(kind==="requisition")return');
+    expect(purchases).toContain('const ownerImageKind=(target:TalentTarget,file:boolean)=>');
+    expect(purchases).toContain('nativeTalentReadFirst<{image:string}>(kind,values,database)');
+    expect(purchases).toContain('nativeTalentPlan(kind');
+    expect(purchases).toContain('export async function talentOwnerSourceWitnessAssertion');
+    expect(attachments).toContain('talentOwnerSourceWitnessAssertion');
+    expect(attachments).not.toContain('talentOwnerSourceQuery(scope.target.kind,true)');
   });
 
   it('lowers the talent owner SELECT KPI strictly below the recorded 55 r24 baseline', async () => {

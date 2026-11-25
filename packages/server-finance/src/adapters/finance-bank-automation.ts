@@ -7,6 +7,7 @@ import { bankTxnGuardSql } from './finance-read-tail-r48-sql';
 import {withFinancePurchasedCommand,withFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
 import { BANK_TRANSACTION_BY_ID_SQL } from './finance-read-tail-r17-sql';
 import { nativeFinanceBankAutomation } from '@erpx/server-collaboration/adapters/native-finance-bank-automation';
+import { FINANCE_RD_BANK_IMPORTED_FILE, nativeFinanceReadFirst } from './native-finance-read';
 import {financeCommandReceipts} from "@erpx/server-workflow/public/finance-command-receipts";
 import {financeBankPosCashAvailableSql} from '@erpx/server-pos/public/finance-bank-cash-source';
 import { financeTransaction } from "@erpx/server-finance/public/finance-transactions";
@@ -70,7 +71,7 @@ account:async(actor,accountId)=>write
         )
         .bind(accountId, actor.companyId)
         .first<{ currency: string }>(),
-importedFile:async(actor,accountId,fileHash)=>write.prepare("SELECT s.statement_number FROM finance_bank_import_files f JOIN finance_bank_statements s ON s.id=f.statement_id AND s.company_id=f.company_id WHERE f.company_id=? AND f.bank_account_id=? AND f.file_hash=?").bind(actor.companyId,accountId,fileHash).first<{statement_number:string}>(),
+importedFile:async(actor,accountId,fileHash)=>nativeFinanceReadFirst<{statement_number:string}>(FINANCE_RD_BANK_IMPORTED_FILE,[actor.companyId,accountId,fileHash],write),
 importCommit:async(facts)=>{const {actor,key,op,input,statement,fileHash}=facts;return executeCommand(
       write,
       actor,

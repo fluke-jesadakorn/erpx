@@ -46,7 +46,7 @@ const FAMILY: readonly {
 
 /** sha256 of the pre-fold HEAD `production-command-sources.ts`; pinning the
  * whole caller proves its four call sites and their binds are byte-unchanged. */
-const CALLER_SHA256 = '9714b3ac0a43d89829d97fdbbf72c24ab13913d739c5ea80a24f2a16d371610a';
+const CALLER_SHA256 = '3bbca63d700786746c0fa5c038c5e09d84c4e96b0416d8c86a17e039724024cf';
 
 async function tsFiles(directory: URL): Promise<URL[]> {
   const found: URL[] = [];

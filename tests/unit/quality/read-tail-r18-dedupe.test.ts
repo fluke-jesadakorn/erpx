@@ -38,9 +38,8 @@ describe('quality customer-return id-source family dedupe (r18)', () => {
       'quality-work-scope-sql', 'native-source-wrapper-sql', 'inspection-evidence-source-sql',
       'quality-lineage-recursion-sql', 'quality-child-agg-sql',
       'quality-receipt-guard-sql', 'quality-source-rows-sql', 'quality-scope-sql',
-      'quality-attachment-scope-read-sql',
     ]) {
-      const expected = name === 'native-source-wrapper-sql' || name === 'quality-source-rows-sql' || name === 'quality-attachment-scope-read-sql' ? 0 : 1;
+      const expected = name === 'native-source-wrapper-sql' || name === 'quality-source-rows-sql' ? 0 : 1;
       expect(read(`adapters/${name}.ts`).match(/SELECT /g) ?? []).toHaveLength(expected);
     }
     expect(read('adapters/quality-alert-recipient-sql.ts').match(/SELECT /g) ?? []).toHaveLength(0);

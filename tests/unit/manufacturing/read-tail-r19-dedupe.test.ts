@@ -28,7 +28,7 @@ const FAMILY: readonly { args: readonly [string, string, string]; original: stri
   },
 ];
 
-const CALLERS = ['accounting.ts', 'production-command-sources.ts', 'posting-profiles.ts', 'purchases.ts'] as const;
+const CALLERS = ['accounting.ts', 'posting-profiles.ts', 'purchases.ts'] as const;
 
 describe('manufacturing read-tail r19 accounting-profile select family', () => {
   it('renders the shared accounting-profile select byte-identically to all four originals and stays read-only', () => {
@@ -48,6 +48,10 @@ describe('manufacturing read-tail r19 accounting-profile select family', () => {
       expect(text.split('manufacturingAccountingProfileSelect(').length - 1).toBe(1);
       for (const { original } of FAMILY) expect(text).not.toContain(original);
     }
+    // accountingProfiles was cut to the native RD_ACCOUNTING_PROFILES plan.
+    const caller = src('production-command-sources.ts');
+    expect(caller).not.toContain('manufacturingAccountingProfileSelect');
+    expect(caller).toContain('MANUFACTURING_RD_ACCOUNTING_PROFILES');
   });
 
   it('leaves r11/r4/r15-r18 helpers and all Manufacturing source locks untouched', () => {

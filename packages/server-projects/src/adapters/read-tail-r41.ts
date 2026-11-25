@@ -1,4 +1,5 @@
 import {packageClockSql} from '@erpx/server-commercial/public/purchased-capability-sql';
+import {selectBodySql} from './read-tail-r45';
 
 /** G4 / retire.projects.read-tail-r41 closed clock projection head.
  *
@@ -8,4 +9,4 @@ import {packageClockSql} from '@erpx/server-commercial/public/purchased-capabili
  * `)` frame stays at each caller; the clock expression is the same closed
  * constant at both former sites. No caller SQL enters this helper and no write
  * or lock text is emitted, so each rendered CTE stays byte-identical. */
-export const clockNowMsHead = () => `SELECT ${packageClockSql} now_ms`;
+export const clockNowMsHead = () => selectBodySql(`${packageClockSql} now_ms`);

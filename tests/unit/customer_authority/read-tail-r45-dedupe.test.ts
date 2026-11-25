@@ -83,7 +83,8 @@ describe('Customer Authority read-tail r45 JSONB aggregate head family', () => {
     expect(projection.match(/jsonbAggFact\(/g) ?? []).toHaveLength(7);
     expect(projection).toContain('.bind(actor.email.toLowerCase(),actor.userId)');
 
-    expect(src('portal-access.ts')).toContain('FOR UPDATE');
+    expect(src('portal-access.ts')).toContain('CA_RD_PORTAL_BINDING_LOCK');
+    expect(src('portal-access.ts')).toContain('nativePortalReadStatement');
     expect(src('portal-source-locks.ts')).toContain('LOCK TABLE');
     expect(src('assignment-eligibility-source.ts')).toContain('export const assignmentSource');
     expect(src('manager-eligibility.ts')).toContain('export const');
@@ -107,6 +108,6 @@ describe('Customer Authority read-tail r45 JSONB aggregate head family', () => {
     walk(srcRoot);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(21);
-    expect(total).toBe(17);
+    expect(total).toBe(15);
   });
 });

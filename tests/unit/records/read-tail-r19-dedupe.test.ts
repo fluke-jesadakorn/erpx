@@ -75,8 +75,8 @@ describe('Records read-tail r19 existsGuardSql family', () => {
   test('r11-r18 families and all Records source locks stay independent', () => {
     expect(records).toContain('const recordVersionExistsSql ='); // r11
     expect(records).toContain('const recordRowSelectSql ='); // r12
-    expect(records).toContain('const referenceEdgesSql ='); // r14
-    expect(records).toContain('const recordContextDetailSql ='); // r15
+    expect(records).not.toContain('const referenceEdgesSql ='); // r14 retired
+    expect(records).not.toContain('const recordContextDetailSql ='); // r15 retired
     const ai = readFileSync(resolve(srcRoot, 'adapters/ai-usage-projection.ts'), 'utf8');
     expect(ai).toContain('export const requestAiUsageProjection ='); // r16
     const r17 = readFileSync(resolve(srcRoot, 'adapters/read-tail-sql.ts'), 'utf8');
@@ -84,7 +84,7 @@ describe('Records read-tail r19 existsGuardSql family', () => {
     expect((r17.match(/SELECT /g) ?? []).length).toBe(0); // r30 delegates to existsGuardSql
     const r18 = readFileSync(resolve(srcRoot, 'adapters/read-tail-count-sql.ts'), 'utf8');
     expect(r18).toContain('export const requestAiUsageCountSql =');
-    expect((r18.match(/SELECT /g) ?? []).length).toBe(1);
+    expect((r18.match(/SELECT /g) ?? []).length).toBe(0);
     const locks = readFileSync(resolve(srcRoot, 'adapters/legal-attachment-read-sources.ts'), 'utf8');
     expect(locks).toContain('LOCK TABLE employee_requests,employee_request_events IN SHARE ROW EXCLUSIVE MODE');
     expect(locks).toContain('LOCK TABLE approval_instances,approval_steps,approval_decisions IN SHARE ROW EXCLUSIVE MODE');

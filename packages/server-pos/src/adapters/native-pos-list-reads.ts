@@ -17,6 +17,7 @@ const SALES = 'pos_list_sales';
 const REFUNDS = 'pos_list_refunds';
 const CONNECTIONS = 'pos_list_connections';
 const SETTLEMENTS = 'pos_list_settlements';
+const EXCEPTION_JOBS = 'pos_list_exception_jobs';
 
 /** Workspace sales list, bounded by Company, Branch, number and state. */
 export async function nativePosSalesListStatement(
@@ -65,4 +66,12 @@ export async function nativePosSettlementsListStatement(
   company: string,
 ): Promise<SqlValueRow[]> {
   return nativePosAll(db, company, SETTLEMENTS, [company]);
+}
+
+/** Exception/refund-connect jobs list for a Company, with refund revision. */
+export async function nativePosExceptionJobsListStatement(
+  db: SqlDatabase,
+  company: string,
+): Promise<SqlValueRow[]> {
+  return nativePosAll(db, company, EXCEPTION_JOBS, [company]);
 }

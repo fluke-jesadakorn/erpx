@@ -1,5 +1,4 @@
 import { finalRootOwnerProjectionSources as collaborationProjectionSources } from "@erpx/server-collaboration/public/final-root-owner-projection-sources";
-import { finalRootOwnerProjectionSources as identity_accessProjectionSources } from "@erpx/server-identity_access/public/final-root-owner-projection-sources";
 import { createValidateServiceScope, createRequireServiceOwner } from "@erpx/server-support/application/service-access";
 export { inServiceWorkspace } from "@erpx/server-support/domain/service-access";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
@@ -10,30 +9,18 @@ import { companyAuthority } from "@erpx/server-operations/public/staff-policy";
 import { expenseAuthoritySnapshot } from "@erpx/server-people_payroll/public/expense-routing";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { ApiError } from "@erpx/server-runtime/public/http";
-import { nativeSupportReadAll, SUPPORT_RD_SERVICE_SCOPE_COMPANY, SUPPORT_RD_SERVICE_SCOPE_BRANCH, SUPPORT_RD_SERVICE_SCOPE_DEPARTMENT } from "@erpx/server-support/adapters/native-support-read";
-/** One parameterized active-assignment existence family: the scoped service
- * membership probe and the company membership probe share the same active
- * assignment read; only the alias, column qualifier, line gap and trailing
- * clause vary. Each call site renders byte-identically and the native service
- * scope authority remains. */
-const activeAssignmentSql = (alias: string, col: string, gap: string, tail: string) =>
-    `SELECT 1 FROM (${identity_accessProjectionSources.assignments}) ${alias} WHERE ${col}company_id=? AND ${col}user_id=?${gap} AND ${col}revoked_at IS NULL AND ${col}valid_from<=(floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND ${col}valid_until>(floor(extract(epoch FROM clock_timestamp())*1000)::bigint)${tail}`;
-export const serviceMemberSql = `EXISTS(${activeAssignmentSql('a', 'a.', '\n', '')}
- AND (a.scope_kind='holding' OR (a.scope_kind='branch' AND a.scope_node_id=?) OR (a.scope_kind='department' AND a.scope_node_id=?)))`;
-export function serviceMemberArgs(scope: RecordScope, userId: string) {
-    return [scope.company_id, userId, scope.branch_id, scope.department_id];
-}
+import { nativeSupportReadAll, SUPPORT_RD_SERVICE_SCOPE_COMPANY, SUPPORT_RD_SERVICE_SCOPE_BRANCH, SUPPORT_RD_SERVICE_SCOPE_DEPARTMENT, SUPPORT_RD_SERVICE_MEMBER, SUPPORT_RD_COMPANY_MEMBER } from "@erpx/server-support/adapters/native-support-read";
+/** Scoped service-membership probe. The active-assignment read is planned by
+ * the native owner as `support_rd_service_member`; only the four scope scalars
+ * cross the wire and no TypeScript SQL remains. */
 export async function serviceMember(db: SqlDatabase, scope: RecordScope, userId: string) {
-    return !!(await db
-        .prepare(`SELECT 1 WHERE ${serviceMemberSql}`)
-        .bind(...serviceMemberArgs(scope, userId))
-        .first());
+    return Boolean((await nativeSupportReadAll(SUPPORT_RD_SERVICE_MEMBER, [scope.company_id, userId, scope.branch_id, scope.department_id], db)).results[0]);
 }
+/** Company-membership probe. The active-assignment read is planned by the
+ * native owner as `support_rd_company_member`; only the Company and user ids
+ * cross the wire and no TypeScript SQL remains. */
 export async function companyMember(db: SqlDatabase, companyId: string, userId: string) {
-    return !!(await db
-        .prepare(activeAssignmentSql('assignments', '', '', ' LIMIT 1'))
-        .bind(companyId, userId)
-        .first());
+    return Boolean((await nativeSupportReadAll(SUPPORT_RD_COMPANY_MEMBER, [companyId, userId], db)).results[0]);
 }
 /** Native active-organization-node scope probes. The company and branch kinds
  * carry the closed Organization node projection with the active/kind predicates

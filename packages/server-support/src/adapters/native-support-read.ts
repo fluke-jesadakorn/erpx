@@ -62,6 +62,8 @@ export const SUPPORT_RD_WORK_TEAM_COVERAGE = 'support_rd_work_team_coverage';
 export const SUPPORT_RD_SERVICE_SCOPE_COMPANY = 'support_rd_service_scope_company';
 export const SUPPORT_RD_SERVICE_SCOPE_BRANCH = 'support_rd_service_scope_branch';
 export const SUPPORT_RD_SERVICE_SCOPE_DEPARTMENT = 'support_rd_service_scope_department';
+export const SUPPORT_RD_SERVICE_MEMBER = 'support_rd_service_member';
+export const SUPPORT_RD_COMPANY_MEMBER = 'support_rd_company_member';
 export const SUPPORT_RD_SERVICE_TEAM_OPTION_NODES = 'support_rd_service_team_option_nodes';
 export const SUPPORT_RD_TICKET_BY_ID = 'support_rd_ticket_by_id';
 export const SUPPORT_RD_INCIDENT_BY_ID = 'support_rd_incident_by_id';
@@ -117,6 +119,8 @@ const BIND_COUNTS: Readonly<Record<string, number>> = {
   [SUPPORT_RD_SERVICE_SCOPE_COMPANY]: 2,
   [SUPPORT_RD_SERVICE_SCOPE_BRANCH]: 2,
   [SUPPORT_RD_SERVICE_SCOPE_DEPARTMENT]: 3,
+  [SUPPORT_RD_SERVICE_MEMBER]: 4,
+  [SUPPORT_RD_COMPANY_MEMBER]: 2,
   [SUPPORT_RD_SERVICE_TEAM_OPTION_NODES]: 6,
   [SUPPORT_RD_TICKET_BY_ID]: 9,
   [SUPPORT_RD_INCIDENT_BY_ID]: 10,

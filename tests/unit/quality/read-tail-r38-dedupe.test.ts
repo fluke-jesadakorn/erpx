@@ -6,37 +6,33 @@ vi.mock('server-only', () => ({}));
 const { readFirst } = vi.hoisted(() => ({ readFirst: vi.fn() }));
 vi.mock('../../../packages/server-quality/src/adapters/native-quality-read', () => ({
   RD_ATTACHMENT_DESCRIPTOR: 'quality_rd_attachment_descriptor',
+  RD_LEGACY_ATTACHMENT_SCOPE: 'quality_rd_legacy_attachment_scope',
+  RD_ATTACHMENT_SPEC_SCOPE: 'quality_rd_attachment_spec_scope',
   nativeQualityReadFirst: readFirst,
+  nativeQualityGuardAssertion: vi.fn(),
 }));
-import { evidenceHead } from '../../../packages/server-quality/src/adapters/inspection-evidence-source-sql';
-import { qualityAttachmentScopeReadSql } from '../../../packages/server-quality/src/adapters/quality-attachment-scope-read-sql';
 import { policyQualityFacts } from '../../../packages/server-quality/src/adapters/attachments-policy-facts';
+import { legacyAttachmentScopequality } from '../../../packages/server-quality/src/adapters/attachment-migration-owner';
+import { OperationalAttachmentQualityFacts } from '../../../packages/server-quality/src/adapters/attachments-operational-facts';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-quality/src');
 const read = (path: string) => readFileSync(resolve(srcRoot, path), 'utf8');
 const sha = (sql: string) => createHash('sha256').update(sql).digest('hex');
 
-// Byte oracles captured at HEAD before the r38 fold, rendered by the retired
-// inline `SELECT company_id,${columns} FROM ${table} WHERE ${predicate}` in
-// quality-attachment-scope-read-sql. The helper now passes the same projection,
-// FROM relation and WHERE predicate to evidenceHead; rendered SQL and bind
-// order must not change. The Company-scoped `hold` descriptor rendering was
-// retired to the native descriptor plan and is no longer admitted here.
+// Byte oracles captured before the native cutover. The TypeScript scope builder
+// is deleted; these exact statements now live only in the owner read-plan
+// registry, so the digests pin the native statements to the retired behavior.
 const renderings = [
   {
     variant: 'legacy_hold',
-    projection: 'company_id,branch_id branch_id,NULL department_id,version',
-    table: 'inventory_quality_holds',
-    predicate: 'id=?',
+    kind: 'quality_rd_legacy_attachment_scope',
     before: 'SELECT company_id,branch_id branch_id,NULL department_id,version FROM inventory_quality_holds WHERE id=?',
     digest: 'ee7c2b95215d5edfc4972070826b41aa4504e2c21909aeec7b84d171e15ca3a3',
     binds: 1,
   },
   {
     variant: 'spec',
-    projection: 'company_id,NULL::text branch_id,NULL::text department_id,version',
-    table: 'inventory_quality_specs',
-    predicate: 'id=? AND company_id=?',
+    kind: 'quality_rd_attachment_spec_scope',
     before: 'SELECT company_id,NULL::text branch_id,NULL::text department_id,version FROM inventory_quality_specs WHERE id=? AND company_id=?',
     digest: '5029118db5f6ea2182591d4efe6d842dd0d760953122e294397cd49a531f3b5f',
     binds: 2,
@@ -58,42 +54,31 @@ const kpi = (pattern: RegExp) => {
   return total;
 };
 
-describe('quality read-tail r38 attachment scope-read evidence head dedupe', () => {
-  test.each(renderings)('variant $variant is byte-identical to the pre-dedupe rendering', (r) => {
-    const sql = qualityAttachmentScopeReadSql(r.variant);
-    expect(sql).toBe(r.before);
-    expect(sha(sql)).toBe(r.digest);
-    expect(sql).toBe(evidenceHead(r.projection, ` FROM ${r.table}`, ` WHERE ${r.predicate}`));
-    expect(sql.startsWith(`SELECT company_id,`)).toBe(true);
-    expect(sql).toBe(`SELECT ${r.projection} FROM ${r.table} WHERE ${r.predicate}`);
-    expect(sql.match(/\?/g)).toHaveLength(r.binds);
-    expect(sql.match(/\$[0-9]/g)).toBeNull();
-    expect(sql).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
+describe('quality read-tail r38 attachment scope-read native cutover', () => {
+  test.each(renderings)('variant $variant is byte-identical in the native registry', (r) => {
+    const registry = read('adapters/native_quality_read_sql.rs');
+    expect(registry).toContain(`pub const ${r.variant === 'legacy_hold' ? 'RD_LEGACY_ATTACHMENT_SCOPE' : 'RD_ATTACHMENT_SPEC_SCOPE'}: &str = "${r.kind}"`);
+    expect(registry).toContain(`"${r.before}"`);
+    expect(sha(r.before)).toBe(r.digest);
+    expect(r.before.match(/\?/g)).toHaveLength(r.binds);
+    expect(r.before).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
   });
 
-  test('the helper delegates to evidenceHead and owns no inline SELECT', () => {
-    const helper = read('adapters/quality-attachment-scope-read-sql.ts');
-    expect(helper).toContain('import { evidenceHead } from "./inspection-evidence-source-sql";');
-    expect(helper).toContain('evidenceHead(`company_id,${columns}`, ` FROM ${table}`, ` WHERE ${predicate}`)');
-    expect(helper.match(/SELECT /g) ?? []).toHaveLength(0);
-    expect(helper).not.toContain('"hold"');
-    const head = read('adapters/inspection-evidence-source-sql.ts');
-    expect(head).toContain('export const evidenceHead = (projection: string, from: string, tail: string) => `SELECT ${projection}${from}${tail}`;');
-    expect(head.match(/SELECT /g)).toHaveLength(1);
-    expect(helper).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
-  });
-
-  test('the descriptor cutover emits no TypeScript SQL and keeps the retained callers', () => {
+  test('the TypeScript SQL builder is deleted and its adapters emit no SQL', () => {
+    expect(() => read('adapters/quality-attachment-scope-read-sql.ts')).toThrow();
     const migration = read('adapters/attachment-migration-owner.ts');
     const policy = read('adapters/attachments-policy-facts.ts');
     const operational = read('adapters/attachments-operational-facts.ts');
-    expect(migration.match(/qualityAttachmentScopeReadSql\(/g) ?? []).toHaveLength(1);
-    expect(policy.match(/qualityAttachmentScopeReadSql\(/g) ?? []).toHaveLength(0);
-    expect(operational.match(/qualityAttachmentScopeReadSql\(/g) ?? []).toHaveLength(1);
-    expect(migration).toContain("qualityAttachmentScopeReadSql('legacy_hold')).bind(id).first");
+    const scope = read('adapters/native-quality-scope.ts');
+    for (const text of [migration, policy, operational, scope]) {
+      expect(text).not.toContain('SELECT ');
+      expect(text).not.toContain('qualityAttachmentScopeReadSql');
+    }
+    expect(migration).toContain('RD_LEGACY_ATTACHMENT_SCOPE');
+    expect(operational).toContain('RD_ATTACHMENT_SPEC_SCOPE');
+    expect(scope).toContain('readNativeQualityScope');
     expect(policy).toContain('nativeQualityReadFirst');
     expect(policy).toContain('RD_ATTACHMENT_DESCRIPTOR');
-    expect(operational).toContain("qualityAttachmentScopeReadSql('spec')).bind(facts.targetId,facts.companyId).first");
   });
 
   test('native registry, CAS guards and all protected locks are untouched', () => {
@@ -166,6 +151,42 @@ describe('quality attachment descriptor native cutover', () => {
       readFirst.mockResolvedValue(bad);
       await expect(policyQualityFacts(db).readDescriptor({ targetId: 'hold-1', companyId: 'company', targetType: 'quality_hold' }))
         .rejects.toMatchObject({ code: 'QUALITY_NATIVE_DESCRIPTOR_RESPONSE_INVALID' });
+    }
+  });
+});
+
+describe('quality attachment owner-scope native cutover', () => {
+  beforeEach(() => { readFirst.mockReset(); });
+  const db = {} as never;
+  const row = { company_id: 'company', branch_id: 'branch', department_id: null, version: 3 };
+
+  test('legacy hold scope runs on the native plan with one bind', async () => {
+    readFirst.mockResolvedValue({ ...row });
+    await expect(legacyAttachmentScopequality(db, 'quality_hold', 'hold-1')).resolves.toEqual(row);
+    expect(readFirst).toHaveBeenCalledWith('quality_rd_legacy_attachment_scope', ['hold-1'], db);
+    await expect(legacyAttachmentScopequality(db, 'inventory_quality_spec', 'hold-1')).resolves.toBeNull();
+    expect(readFirst).toHaveBeenCalledTimes(1);
+  });
+
+  test('spec scope runs on the native plan with company bind order intact', async () => {
+    readFirst.mockResolvedValue({ ...row, branch_id: null });
+    await expect(OperationalAttachmentQualityFacts(db).readInventoryQualitySpecs1({ targetId: 'spec-1', companyId: 'company' }))
+      .resolves.toEqual({ ...row, branch_id: null });
+    expect(readFirst).toHaveBeenCalledWith('quality_rd_attachment_spec_scope', ['spec-1', 'company'], db);
+  });
+
+  test('missing and malformed native scope rows stay closed', async () => {
+    readFirst.mockResolvedValue(null);
+    await expect(legacyAttachmentScopequality(db, 'quality_hold', 'missing')).resolves.toBeNull();
+    for (const bad of [
+      { ...row, company_id: 1 },
+      { ...row, branch_id: 7 },
+      { ...row, department_id: 9 },
+      { ...row, version: '3' },
+    ]) {
+      readFirst.mockResolvedValue(bad);
+      await expect(OperationalAttachmentQualityFacts(db).readInventoryQualitySpecs1({ targetId: 'spec-1', companyId: 'company' }))
+        .rejects.toMatchObject({ code: 'QUALITY_NATIVE_SCOPE_RESPONSE_INVALID' });
     }
   });
 });

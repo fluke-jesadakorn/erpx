@@ -1,1 +1,1 @@
-export {privateFileDenialAuthorityWitness,privateFileDenialAuthoritySourceLocks} from '@erpx/server-identity_access/adapters/private-file-denial-authority';
+export {privateFileDenialAuthorityWitness,privateFileDenialAuthoritySourceLocks,setPrivateFileDenialWitnessForTest} from '../adapters/native-private-file-denial-authority';

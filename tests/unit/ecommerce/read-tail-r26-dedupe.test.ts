@@ -65,7 +65,7 @@ describe('Ecommerce read-tail r26 three-rank dedupe', () => {
     expect((preR26.cartLocked.match(/\?/g) ?? []).length).toBe(6);
     expect((preR26.reviewChannel.match(/\?/g) ?? []).length).toBe(2);
     expect((preR26.reviewListing.match(/\?/g) ?? []).length).toBe(2);
-    expect((src.match(/ecommerceOrderedList\(/g) ?? []).length).toBe(8);
+    expect((src.match(/ecommerceOrderedList\(/g) ?? []).length).toBe(5);
   });
 
   test('F2: optional WHERE rebuilds both CTE frames byte-identically with zero binds', () => {

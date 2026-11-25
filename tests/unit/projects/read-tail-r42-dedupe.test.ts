@@ -63,9 +63,14 @@ describe('Projects read-tail r42 closed row-source head family', () => {
     // The folded head region emits no write, lock or native text.
     const head = obl.slice(obl.indexOf('const tableRowsSql'), obl.indexOf('export const projectAssignmentScopeSql'));
     expect(head).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
-    // The r29-r41 head families keep their own definitions; only the row-source
-    // prefix is folded here.
-    for (const helper of ['read-tail-r29.ts', 'read-tail-r37.ts', 'read-tail-r39.ts', 'read-tail-r40.ts', 'read-tail-r41.ts']) {
+    // r29/r41 bare heads now delegate to the r45 owner body head; the other
+    // head families keep their own definitions. Only the row-source prefix is
+    // folded here.
+    for (const helper of ['read-tail-r29.ts', 'read-tail-r41.ts']) {
+      expect(src(helper)).toContain("from './read-tail-r45'");
+      expect(src(helper).match(/SELECT /g)).toBeNull();
+    }
+    for (const helper of ['read-tail-r37.ts', 'read-tail-r39.ts', 'read-tail-r40.ts']) {
       expect(src(helper).match(/SELECT /g)).not.toBeNull();
     }
     expect(obl).not.toContain("from './read-tail-r42'");
@@ -85,7 +90,7 @@ describe('Projects read-tail r42 closed row-source head family', () => {
     // projects source and the settlement table prefix) now share one closed head:
     // 73-2+1 = 72. Locks, native SQL and cross-owner projections keep their own
     // literals and are not folded.
-    expect(total).toBe(65); // r44 final-root projection family folded into read-tail-r40 (66->65)
+    expect(total).toBe(62); // r45 bare-projection head family folded into read-tail-r45 (65->62)
     expect(total).toBeLessThan(73);
   });
 });

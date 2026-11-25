@@ -4,6 +4,11 @@ import { readFileSync, readdirSync, type Dirent } from 'node:fs';
 import { resolve } from 'node:path';
 import { selectProjectionFrom } from '../../../packages/server-projects/src/adapters/read-tail-r40';
 import { finalRootOwnerProjectionSources } from '../../../packages/server-projects/src/adapters/final-root-owner-projection-sources';
+import { assignmentViewerSelect } from '../../../packages/server-projects/src/adapters/read-tail-r28';
+import { orderedImageAggregateHead } from '../../../packages/server-projects/src/adapters/read-tail-r29';
+import { clockNowMsHead } from '../../../packages/server-projects/src/adapters/read-tail-r41';
+import { selectBodySql } from '../../../packages/server-projects/src/adapters/read-tail-r45';
+import { nativeSources } from '../../../packages/server-projects/src/adapters/evaluation-source-policy';
 import { projectPointReadHead } from '../../../packages/server-projects/src/adapters/read-tail-r33';
 import {
   staffTaskPointHead, staffProjectByRefHead,
@@ -156,7 +161,7 @@ describe('Projects read-tail r40 universal projection head family', () => {
     // r39 left 76. Three named heads (one inline SELECT each) delegate to one
     // closed universal head: 76-3+1 = 74. r44 folds the last cross-owner
     // final-root projection head into that same universal head (66->65).
-    expect(total).toBe(65)
+    expect(total).toBe(62); // r45 bare-projection head family folded into read-tail-r45 (65->62)
     expect(total).toBeLessThan(76);
   });
 });
@@ -216,7 +221,67 @@ describe('Projects read-tail r44 final-root projection family', () => {
     };
     walk(srcRoot);
     // One duplicated projection/from head removed: 66 -> 65.
-    expect(total).toBe(65);
-    expect(total).toBeLessThan(66);
+    expect(total).toBe(62); // r45 bare-projection head family folded into read-tail-r45 (65->62)
+    expect(total).toBeLessThan(65);
+  });
+});
+
+describe('Projects read-tail r45 bare-projection head family', () => {
+  const viewer = 'SELECT g.id assignment_id,g.user_id,g.role,';
+  const image = 'SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id)';
+  const clock = 'SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint now_ms';
+  const sourceColumns = "UNION ALL SELECT id,project_id,company_id,'milestone','projects.wbs',NULL::text FROM staff_project_milestones";
+
+  test('one owner body head reproduces every retired bare projection byte for byte', () => {
+    expect(selectBodySql('g.id assignment_id,g.user_id,g.role,')).toBe(viewer);
+    expect(selectBodySql('jsonb_agg(to_jsonb(d) ORDER BY d.id)')).toBe(image);
+    expect(selectBodySql('floor(extract(epoch FROM clock_timestamp())*1000)::bigint now_ms')).toBe(clock);
+    expect(selectBodySql("id,project_id,company_id,'milestone','projects.wbs',NULL::text FROM staff_project_milestones")).toBe(
+      "SELECT id,project_id,company_id,'milestone','projects.wbs',NULL::text FROM staff_project_milestones");
+    expect(assignmentViewerSelect).toBe(viewer);
+    expect(orderedImageAggregateHead('d', 'id')).toBe(image);
+    expect(clockNowMsHead()).toBe(clock);
+    expect(nativeSources).toContain(sourceColumns);
+    for (const sql of [viewer, image, clock]) {
+      expect(sql.match(/SELECT /g)).toHaveLength(1);
+      expect(sql.toUpperCase()).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
+    }
+  });
+
+  test('all four former heads delegate and own no inline projection literal', () => {
+    for (const name of ['read-tail-r28.ts', 'read-tail-r29.ts', 'read-tail-r41.ts', 'evaluation-source-policy.ts']) {
+      const text = src(name);
+      expect(text.match(/SELECT /g) ?? [], name).toHaveLength(name === 'evaluation-source-policy.ts' ? 3 : 0);
+      expect(text, name).toContain("from './read-tail-r45'");
+      expect(text, name).toContain('selectBodySql(');
+    }
+    const head = src('read-tail-r45.ts');
+    expect(head.match(/SELECT /g)).toHaveLength(1);
+    expect(head).toContain('export const selectBodySql = (body: string) => `SELECT ${body}`;');
+    expect(head).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
+  });
+
+  test('the Rust owner records the four retired bare-projection literals', () => {
+    const rs = src('native_read_sql.rs');
+    expect(rs).toContain('bare_select_body_matches_retired_owner_literals');
+    expect(rs).toContain('g.id assignment_id,g.user_id,g.role,');
+    expect(rs).toContain('jsonb_agg(to_jsonb(d) ORDER BY d.id)');
+    expect(rs).toContain('floor(extract(epoch FROM clock_timestamp())*1000)::bigint now_ms');
+    expect(rs).toContain('id,project_id,company_id,');
+  });
+
+  test('retirement:ts-statements drops to 62 from the r44 BEFORE=65 baseline', () => {
+    let total = 0;
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {
+        const path = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith('.ts')) total += (readFileSync(path, 'utf8').match(/SELECT /g) ?? []).length;
+      }
+    };
+    walk(srcRoot);
+    // Four bare heads fold into one owner renderer: 65 - 4 + 1 = 62.
+    expect(total).toBe(62);
+    expect(total).toBeLessThan(65);
   });
 });

@@ -73,7 +73,7 @@ describe('Projects read-tail r35 point-read family merge', () => {
     walk(srcRoot);
     // r34 left 96. r35 removes the standalone projectIdSql literal (1->0) by
     // composing the r33 point-read head; its two call sites emit unchanged SQL.
-    expect(total).toBe(65); // r44 final-root projection family folded into read-tail-r40 (66->65)
+    expect(total).toBe(62); // r45 bare-projection head family folded into read-tail-r45 (65->62)
     expect(total).toBeLessThan(88);
   });
 });

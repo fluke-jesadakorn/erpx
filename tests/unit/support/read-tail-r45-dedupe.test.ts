@@ -82,7 +82,7 @@ describe('support read-tail r45 byte-identical active-assignment EXISTS head', (
   test('native registry kinds, locks, advisory and earlier r18-r44 helpers stay untouched', () => {
     const registry = src('native_support_read_sql.rs');
     const bridge = src('native-support-read.ts');
-    expect(registry).toContain('assert_eq!(STATEMENTS.len(), 50);');
+    expect(registry).toContain('assert_eq!(STATEMENTS.len(), 52);');
     expect(registry).not.toMatch(/LOCK TABLE|pg_advisory_xact_lock/);
     expect(bridge).toContain('SUPPORT_RD_TICKET_WORK');
     expect(bridge).toContain('SUPPORT_RD_INCIDENT_WORK');
@@ -95,8 +95,8 @@ describe('support read-tail r45 byte-identical active-assignment EXISTS head', (
     expect(src('read-tail-r44-sql.ts')).toContain('readTailR44ImageAggregateSql =');
   });
 
-  test('retirement:ts-statements drops from the r45 AFTER=31 to 30', () => {
-    expect(totalSelects()).toBe(30);
+  test('retirement:ts-statements is 28 after the r23 follow-up native membership cut', () => {
+    expect(totalSelects()).toBe(28);
     expect(totalSelects()).toBeLessThan(32);
   });
 });

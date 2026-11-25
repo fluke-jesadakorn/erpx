@@ -6,6 +6,7 @@ import {
   nativePosRefundsListStatement,
   nativePosConnectionsRowStatement,
   nativePosSettlementsListStatement,
+  nativePosExceptionJobsListStatement,
 } from '../../../packages/server-pos/src/adapters/native-pos-list-reads';
 
 const config = () => JSON.stringify({ privateBaseUrl: 'http://127.0.0.1:44997', timeoutMs: 1000 });
@@ -68,6 +69,15 @@ const cases = [
     arg: 'co',
     list: true,
   },
+  {
+    name: 'exception/refund-connect jobs list',
+    kind: 'pos_list_exception_jobs',
+    sql: "SELECT id,kind,record_id,state,last_error,payload_json,created_at,(SELECT r.version FROM pos_refund_payments rp JOIN pos_refunds r ON r.id=rp.refund_id WHERE rp.id=pos_jobs.record_id AND r.company_id=pos_jobs.company_id AND pos_jobs.kind='refund') refund_version FROM pos_jobs WHERE company_id=? AND (state='exception' OR kind IN ('connect','connect_refresh')) ORDER BY created_at DESC LIMIT 50",
+    values: ['co'],
+    bridge: nativePosExceptionJobsListStatement,
+    arg: 'co',
+    list: true,
+  },
 ] as const;
 
 describe('native POS list-read bridge (round 31)', () => {
@@ -113,7 +123,7 @@ describe('native POS list-read bridge (round 31)', () => {
   it('keeps no retired list-read SQL literal in the TS adapters', () => {
     const pos = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos.ts', import.meta.url), 'utf8');
     for (const item of cases) expect(pos).not.toContain(item.sql);
-    expect(pos.match(/nativePos(SalesList|RefundsList|ConnectionsRow|SettlementsList)Statement\(db/g)).toHaveLength(4);
+    expect(pos.match(/nativePos(SalesList|RefundsList|ConnectionsRow|SettlementsList|ExceptionJobsList)Statement\(db/g)).toHaveLength(5);
   });
 
   it('keeps row locks, PMS fragments and day-report/Stripe registries inline', () => {

@@ -410,13 +410,14 @@ it('plans the three active-organization-node scope probes in Rust with kind-scop
       prepare: (sql: string) => ({ bind: (...values: unknown[]) => ({ sql, values, first: async () => true }) }),
       batch,
     } as unknown as import('@erpx/server-runtime/public/runtime/types').SqlDatabase;
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
       new Response(JSON.stringify({ data: { statements: [{ sql: 'SELECT 1', values: [] }] } }), { status: 200, headers: { 'content-type': 'application/json' } }),
     );
     try {
       await validateServiceScope(db, actor, scope);
       const bodies = fetchMock.mock.calls.map(call => JSON.parse(String(call[1]!.body)));
       expect(bodies.map(body => ({ kind: body.kind, values: body.values }))).toEqual([
+        { kind: 'support_rd_service_member', values: ['company', 'owner', 'branch', 'department'] },
         { kind: 'support_rd_service_scope_company', values: ['company', 'company'] },
         { kind: 'support_rd_service_scope_branch', values: ['branch', 'company'] },
         { kind: 'support_rd_service_scope_department', values: ['department', 'company', 'branch'] },
@@ -435,7 +436,8 @@ it('keeps one parameterized assignment-access witness for the Support ticket and
         readFile(new URL('../../../packages/server-support/src/adapters/support-incident-read.ts', import.meta.url), 'utf8'),
     ]);
     expect(helperSource).toContain('export const supportAssignmentAccessSql');
-    expect(helperSource.match(/EXISTS\(SELECT 1 FROM \(\$\{identity_accessProjectionSources\.assignments\}\) g WHERE/g)).toHaveLength(1);
+    expect(helperSource).toContain("readTailR45AssignmentExistsSql('g', `g.id=? AND g.user_id=? AND g.role=? AND g.company_id=${alias}.company_id");
+    expect(helperSource).not.toContain('EXISTS(SELECT 1 FROM (${identity_accessProjectionSources.assignments}) g');
     expect(ticketSource.match(/supportAssignmentAccessSql\(/g)).toHaveLength(1);
     expect(incidentSource.match(/supportAssignmentAccessSql\(/g)).toHaveLength(1);
 

@@ -1,25 +1,17 @@
-import {calendarPeopleProjectionSources} from "@erpx/server-people_payroll/public/calendar-people-projection-sources";
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-import { inList } from './read-tail-sql';
+import { nativeCalendarRead } from '@erpx/feature-work_projection/lib/native-calendar-read';
+/** Both calendar-index reads are owner-native. The mounted axum
+ * `/work/owner-read` route owns the byte-identical SQL, Company scope and
+ * response shape; no TypeScript SQL or fallback remains for them. */
 export function calendarIndexWorkProjectionFacts(db: SqlDatabase) {
     return { read2: (facts: {
             value1: string;
             value2: string;
             value3: string;
-        }) => { return db.prepare("SELECT (extract(epoch FROM (?::timestamp AT TIME ZONE ?))*1000)::bigint from_ms,(extract(epoch FROM (?::timestamp AT TIME ZONE ?))*1000)::bigint to_ms").bind(facts.value1, facts.value2, facts.value3, facts.value2).first<{
-            from_ms: number;
-            to_ms: number;
-        }>(); },
+        }) => nativeCalendarRead.read68(facts),
         read5: (facts: {
             value1: string;
             value2: string;
-        }) => {
-            return db.prepare(`SELECT h.record_id,h.action,coalesce(p.legal_name,'Authorized colleague') actor,h.created_at at FROM (SELECT *,row_number() OVER(PARTITION BY record_id ORDER BY created_at DESC,id DESC) ordinal FROM calendar_history WHERE company_id=? AND ${inList("record_id")}) h LEFT JOIN (${calendarPeopleProjectionSources.people}) p ON p.user_id=h.actor_id AND p.company_id=h.company_id AND p.merged_into_id IS NULL WHERE ordinal<=20 ORDER BY h.created_at DESC`).bind(facts.value1, facts.value2).all<{
-                record_id: string;
-                action: string;
-                actor: string;
-                at: number;
-            }>().then(result => result.results);
-        } };
+        }) => nativeCalendarRead.read69(facts) };
 }

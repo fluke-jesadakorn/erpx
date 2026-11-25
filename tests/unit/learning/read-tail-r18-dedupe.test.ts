@@ -65,7 +65,7 @@ describe('Learning read-tail r18 deferred families and invariants', () => {
     const shared = src('learning-read-sql.ts');
     for (const name of [
       'actorScopeProbe', 'clockProbe', 'coursesImage', 'learningNativeSources', 'nativeSourceProbe',
-      'overdueEvidenceColumns', 'learningModuleGrantProbe', 'moduleGrantAssignmentProbe', 'actorScopeExistsProbe',
+      'learningModuleGrantProbe', 'moduleGrantAssignmentProbe', 'actorScopeExistsProbe',
       'assignmentsImage', 'sourceLiteral', 'metricLabelProjection', 'learningAssignmentsExistsProbe',
       'currentAssignmentScopeHead', 'learningCourseProjection', 'assignmentCourseJoinHead',
       'assignmentCourseReadHead', 'packageScopeCte', 'benefitConsumptionHead', 'latestEventLateral',
@@ -91,7 +91,7 @@ describe('Learning read-tail r18 deferred families and invariants', () => {
     expect(locks).toBe(7);
   });
 
-  test('retirement:ts-statements is strictly lower than the r24 BEFORE=33 baseline (pins 31)', () => {
+  test('retirement:ts-statements is strictly lower than the r24 BEFORE=33 baseline (pins 29)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -102,9 +102,9 @@ describe('Learning read-tail r18 deferred families and invariants', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(33);
-    expect(total).toBe(31);
+    expect(total).toBe(29);
     expect(selectCount(src('learning.ts'))).toBe(0);
-    expect(selectCount(src('learning-read-sql.ts'))).toBe(30);
+    expect(selectCount(src('learning-read-sql.ts'))).toBe(28);
     expect(selectCount(src('executive-metric-projections.ts'))).toBe(1);
     expect(src('native_lane_31/postgres.rs')).toContain('SELECT e.id,e.assignment_id,e.version event_version,e.status,e.created_at,c.title course_title');
   });

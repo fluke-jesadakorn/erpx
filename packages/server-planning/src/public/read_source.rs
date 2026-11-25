@@ -571,23 +571,39 @@ mod tests {
     const TS_COM_PROJECTION: &str = include_str!("../../../server-commerce/src/adapters/production-read-projections.ts");
     const TS_ORG_PROJECTION: &str =
         include_str!("../../../server-organization/src/adapters/production-read-projections.ts");
-    /// The scenarios list is owner-native: its retired TS SQL is gone, so its
+    /// Retired kinds are owner-native: their retired TS SQL is gone, so the
     /// byte oracle is the exact statement in the native Postgres adapter.
     const NATIVE_POSTGRES: &str = include_str!("../adapters/native_lane_36/postgres.rs");
 
     /// Translate the registry's `?` markers to the native driver's positional
-    /// form so the registered statement can be bound to its native execution.
+    /// form, leaving the `?` inside the retained jsonpath literal untouched.
     fn native_binds(sql: &str) -> String {
-        sql.split('?')
-            .enumerate()
-            .map(|(index, part)| {
-                if index == 0 {
-                    part.to_owned()
-                } else {
-                    format!("${index}{part}")
+        let mut out = String::with_capacity(sql.len());
+        let mut quoted = false;
+        let mut index = 0usize;
+        let mut chars = sql.chars().peekable();
+        while let Some(ch) = chars.next() {
+            if quoted {
+                out.push(ch);
+                if ch == '\'' {
+                    if chars.peek() == Some(&'\'') {
+                        out.push(chars.next().unwrap());
+                    } else {
+                        quoted = false;
+                    }
                 }
-            })
-            .collect()
+            } else if ch == '\'' {
+                quoted = true;
+                out.push(ch);
+            } else if ch == '?' {
+                index += 1;
+                out.push('$');
+                out.push_str(&index.to_string());
+            } else {
+                out.push(ch);
+            }
+        }
+        out
     }
 
     #[test]
@@ -739,8 +755,8 @@ mod tests {
                 ts.clone()
             };
             if entry.kind == RD_SCENARIOS {
-                // Cut over: the TS builder is deleted; the native statement is
-                // the sole authority and must carry the registered SQL exactly.
+                // The scenarios statement is written literally in the native
+                // adapter and must carry the registered SQL exactly.
                 let native = norm(&native_binds(entry.sql));
                 assert!(
                     norm(NATIVE_POSTGRES).contains(&native),
@@ -749,21 +765,36 @@ mod tests {
                 );
                 continue;
             }
-            let needles = match entry.kind {
-                RD_EXECUTIVE_SHORTAGE => executive::source_chunks(executive::WHERE_SHORTAGE),
-                RD_EXECUTIVE_RECOMMENDATION_PROPOSED => {
-                    executive::source_chunks(executive::WHERE_PROPOSED)
-                }
-                RD_EXECUTIVE_RECOMMENDATION_CAPACITY => {
-                    executive::source_chunks(executive::WHERE_CAPACITY)
-                }
-                _ => {
-                    let mut value = entry.sql.to_owned();
-                    for fragment in FRAGMENTS {
-                        value = value.replace(fragment.sql, fragment.token);
+            if matches!(
+                entry.kind,
+                RD_EXECUTIVE_SHORTAGE
+                    | RD_EXECUTIVE_RECOMMENDATION_PROPOSED
+                    | RD_EXECUTIVE_RECOMMENDATION_CAPACITY
+            ) {
+                // The executive statements are derived at runtime from the
+                // registry constants; audit the derivation and exact bind
+                // semantics rather than looking for a literal in the adapter.
+                let derived = match entry.kind {
+                    RD_EXECUTIVE_SHORTAGE => "positional(registered_executive::SHORTAGE_EXEC_SQL)",
+                    RD_EXECUTIVE_RECOMMENDATION_PROPOSED => {
+                        "positional(registered_executive::PROPOSED_EXEC_SQL)"
                     }
-                    vec![norm(&value)]
+                    _ => "positional(registered_executive::CAPACITY_EXEC_SQL)",
+                };
+                assert!(
+                    norm(NATIVE_POSTGRES).contains(&norm(derived)),
+                    "{}: native statement is not derived from the registry",
+                    entry.kind
+                );
+                assert_eq!(placeholder_count(entry.sql), 6, "{}", entry.kind);
+                continue;
+            }
+            let needles = {
+                let mut value = entry.sql.to_owned();
+                for fragment in FRAGMENTS {
+                    value = value.replace(fragment.sql, fragment.token);
                 }
+                vec![norm(&value)]
             };
             let needles = match folded_authority(entry.kind) {
                 Some(fragment) => vec![norm(fragment)],
@@ -776,11 +807,8 @@ mod tests {
             }
         }
         assert!(missing.is_empty(), "TS source authority missing: {}", missing.join(" | "));
-        // Both eligibility branches are retained literals in the caller.
-        assert!(ts.contains(&norm("r.status='proposed'")));
-        assert!(ts.contains(&norm(
-            "r.status IN ('proposed','approved') AND r.required_minutes<=s.capacity_minutes"
-        )));
+        // Both eligibility branches are now closed native scope facts, asserted
+        // by the lane-36 domain and Postgres tests rather than TS literals.
         // The assembled statement really is built from the registered pieces.
         assert!(executive::SHORTAGE_EXEC_SQL.contains(executive::SOURCE_JOINS));
         assert!(executive::SHORTAGE_EXEC_SQL.contains(executive::SHORTAGE_SQL));

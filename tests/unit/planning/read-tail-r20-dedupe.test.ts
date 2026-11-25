@@ -49,7 +49,7 @@ describe('Planning read-tail r20 production-resources EXISTS head dedupe', () =>
     expect(src('planning-guard-sql.ts')).toContain('export const productionResourcesExists =');
     expect(src('planning-command-guard-sql.ts')).toContain('planningCommandExistsGuard');
     expect(src('planning-attachment-target-sql.ts')).toContain('planningAttachmentTargetVersionExists');
-    expect(src('planning-select-from-sql.ts')).toContain('export const planningSelectFrom =');
+    expect(readdirSync(resolve(srcRoot, 'adapters'))).not.toContain('planning-select-from-sql.ts');
     expect(src('planning-select-columns-sql.ts')).toContain('export const planningSelectColumnsFrom =');
     expect(src('purchase-sources.ts')).toContain('LOCK TABLE planning_scenarios,planning_recommendations,planning_scenario_events,planning_resource_allocations,production_resources,production_resource_calendar IN ${writer?"SHARE ROW EXCLUSIVE":"SHARE"} MODE');
     for (const name of ['resources-read.ts', 'production-command-sources-read.ts']) {
@@ -79,7 +79,7 @@ describe('Planning read-tail r20 production-resources EXISTS head dedupe', () =>
     // r23 folded the resource-calendar point lookup into the single-line projection/FROM builder (16 -> 15).
     // r24 folded the scoped single-row family into that same builder (15 -> 14).
     // r25 folded the scoped branch-list family into the single-line projection/FROM builder (14 -> 13).
-    expect(total).toBe(13);
+    expect(total).toBe(12);
     expect(total).toBeLessThan(19);
   });
 });

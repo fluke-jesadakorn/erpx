@@ -7,10 +7,11 @@
 //! (whitespace normalised, with the owner-owned source tokens rendered), then
 //! executed with the ordered binds the live call site passes. Both sides run on
 //! ONE freshly opened transaction over the same fixture rows, including an
-//! uncommitted write. Nothing commits and no caller is switched. The
-//! staff-binding reader has been cut over to the native plan (no TypeScript
-//! statement remains); the other retained readers are still source-bound here.
-//! The support source lease stays independent and is never bound/executed.
+//! uncommitted write. Nothing commits and no caller is switched. The installed
+//! probe, binding lock and staff-binding reader are cut over to native plans
+//! (no TypeScript statements remain); the other retained readers are still
+//! source-bound through their owner builders. The support source lease stays
+//! independent and is never bound/executed.
 #![allow(dead_code)]
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
@@ -75,11 +76,22 @@ fn native_plans_match_retained_typescript_statements() {
         assert!(!entry.caller.is_empty(), "{}", entry.kind);
         assert!(!entry.authority.is_empty(), "{}", entry.kind);
     }
-    // Two plans still carry their whole literal in TypeScript source.
-    let installed = plans::plan(plans::RD_SUPPORT_INSTALLED).expect("plan");
-    assert!(norm(TS_SUPPORT_SOURCES).contains(&norm(installed.sql)));
-    let lock = plans::plan(plans::RD_BINDING_LOCK).expect("plan");
-    assert!(rendered_access().contains(&norm(lock.sql)));
+    // Three plans are cut over: the Rust registry is their only SQL authority
+    // and the TypeScript consumers plan them through the mounted command-plan
+    // route with no local statement left.
+    for (kind, source, marker) in [
+        (plans::RD_SUPPORT_INSTALLED, TS_SUPPORT_SOURCES, "CA_RD_PORTAL_INSTALLED"),
+        (plans::RD_BINDING_LOCK, TS_ACCESS, "CA_RD_PORTAL_BINDING_LOCK"),
+        (plans::RD_SUPPORT_STAFF_BINDING, TS_SUPPORT, "CA_RD_PORTAL_STAFF_BINDING"),
+    ] {
+        let sql = plans::plan(kind).expect("registered plan").sql;
+        assert!(!norm(source).contains(&norm(sql)), "{kind}: SQL must be retired from TypeScript");
+        assert!(source.contains(marker), "{kind}: missing native discriminator");
+        assert!(
+            source.contains("nativePortalReadStatement") || source.contains("nativeOwnerReadStatement"),
+            "{kind}: missing native client"
+        );
+    }
     // The rest render from closed builders; assert their exact call arms.
     for call in [
         "pointRead('id,response_version,message,created_at,actor_id','customer_portal_support_responses','request_id=?',' ORDER BY response_version DESC LIMIT 1')",
@@ -90,16 +102,6 @@ fn native_plans_match_retained_typescript_statements() {
         assert!(TS_SUPPORT.contains(call), "{call}");
     }
     assert!(TS_ACCESS.contains("existenceProbe('FROM customer_access_identities','binding_id=? AND user_id=? AND email=?')"));
-    // The staff-binding read is cut over: the Rust registry is its only SQL
-    // authority and the TypeScript consumer plans it through the mounted
-    // customer-access command-plan route with no local statement left.
-    let staff = plans::plan(plans::RD_SUPPORT_STAFF_BINDING).expect("registered plan");
-    assert!(
-        !norm(TS_SUPPORT).contains(&norm(staff.sql)),
-        "staff-binding SQL must be retired from the TypeScript consumer"
-    );
-    assert!(TS_SUPPORT.contains("CA_RD_PORTAL_STAFF_BINDING"));
-    assert!(TS_SUPPORT.contains("nativeOwnerReadStatement"));
 }
 
 /// Dynamic shells and the support source lease are owner-owned text but are

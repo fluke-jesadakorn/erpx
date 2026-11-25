@@ -48,7 +48,7 @@ describe('Learning read-tail r12 package-obligation scope CTE head', () => {
 describe('Learning read-tail r12 invariants', () => {
   test('r1-r11 helpers, completion columns and all 7 owner LOCK TABLE statements stay untouched', () => {
     const shared = src('learning-read-sql.ts');
-    for (const name of ['actorScopeProbe', 'clockProbe', 'coursesImage', 'learningNativeSources', 'nativeSourceProbe', 'overdueEvidenceColumns', 'learningModuleGrantProbe', 'moduleGrantAssignmentProbe', 'actorScopeExistsProbe', 'assignmentsImage', 'sourceLiteral', 'metricLabelProjection', 'learningAssignmentsExistsProbe', 'currentAssignmentScopeHead', 'learningCourseProjection', 'assignmentCourseJoinHead', 'assignmentCourseReadHead']) {
+    for (const name of ['actorScopeProbe', 'clockProbe', 'coursesImage', 'learningNativeSources', 'nativeSourceProbe', 'learningModuleGrantProbe', 'moduleGrantAssignmentProbe', 'actorScopeExistsProbe', 'assignmentsImage', 'sourceLiteral', 'metricLabelProjection', 'learningAssignmentsExistsProbe', 'currentAssignmentScopeHead', 'learningCourseProjection', 'assignmentCourseJoinHead', 'assignmentCourseReadHead']) {
       expect(shared.match(new RegExp(`export const ${name} ?=`, 'g')) ?? []).toHaveLength(1);
     }
     expect(src('native_lane_31/postgres.rs')).toContain('SELECT e.id,e.assignment_id,e.version event_version,e.status,e.created_at,c.title course_title');

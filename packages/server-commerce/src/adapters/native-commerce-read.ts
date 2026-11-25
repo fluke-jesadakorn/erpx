@@ -23,6 +23,10 @@ export const RD_COUNT_ACTIVE_PRODUCTS = 'commerce_rd_count_active_products';
 export const RD_EXPENSE_SETTINGS_IMAGE = 'commerce_rd_expense_settings_image';
 export const RD_MFG_EXISTING_SETTINGS_IMAGE = 'commerce_rd_mfg_existing_settings_image';
 
+/** Allow-listed r26 attachment source-image reads resolved by the mounted owner command-plan route. */
+export const RD_SUPPORT_ORDER_SOURCE_IMAGE = 'commerce_rd_support_order_source_image';
+export const RD_CRM_ORDER_SOURCE_IMAGE = 'commerce_rd_crm_order_source_image';
+
 /** Allow-listed warehouse-config read kinds resolved by the mounted owner command-plan route. */
 export const RD_WAREHOUSE_PAGE_ROWS = 'commerce_rd_warehouse_page_rows';
 export const RD_WAREHOUSE_MASTER_ROWS = 'commerce_rd_warehouse_master_rows';
