@@ -1,8 +1,7 @@
 import "server-only";
 import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime/types";
-import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import type {TargetRow} from "@erpx/server-files/public/contracts/attachments-operational";
-import {qualityAttachmentVersionGuardSql} from "./attachments-service-facts";
+import {nativeQualityGuardAssertion,RD_ATTACH_SPEC_CAS} from "./native-quality-read";
 import {qualityAttachmentScopeReadSql} from "./quality-attachment-scope-read-sql";
 const versionOwners:Record<string,string>={"inventory_quality_spec": "inventory_quality_specs"};
 const allowedTargets=new Set<string>(["inventory_quality_spec"]);
@@ -18,11 +17,11 @@ function remainingOperationalAttachmentTargetVersionGuard(
 if(!allowedTargets.has(targetType))return null;
   const table = versionOwners[targetType];
   if (!table) return null;
-  return assertion(
+  return nativeQualityGuardAssertion(
     db,
     commandId,
     `attachment-owner-${index}`,
-    qualityAttachmentVersionGuardSql(table),
+    RD_ATTACH_SPEC_CAS,
     [targetId, companyId, version],
   );
 }

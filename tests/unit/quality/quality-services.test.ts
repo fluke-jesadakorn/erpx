@@ -118,20 +118,36 @@ describe('quality metric branch-label dedupe',()=>{
 });
 describe('quality attachment owner version-guard dedupe',()=>{
  const source=(path:string)=>resolve(process.cwd(),path);
- test('one fixed CAS SELECT is composed by both attachment owner facts',async()=>{
-  const {qualityAttachmentVersionGuardSql}=await import('@erpx/server-quality/adapters/attachments-service-facts');
-  const sql=qualityAttachmentVersionGuardSql('inventory_quality_holds');
-  expect(sql.match(/SELECT /g)).toHaveLength(1);
-  expect(sql).toBe('EXISTS(SELECT 1 FROM inventory_quality_holds WHERE id=? AND company_id=? AND version=?)');
-  expect(qualityAttachmentVersionGuardSql('inventory_quality_holds','h.status=?'))
-   .toBe('EXISTS(SELECT 1 FROM inventory_quality_holds WHERE id=? AND company_id=? AND version=? AND h.status=?)');
-  const inline=/EXISTS\(SELECT 1 FROM \$\{[^}]+\} WHERE id=\? AND company_id=\? AND version=\?/g;
+ test('both CAS guards are closed native kinds with byte-exact three-bind SQL',async()=>{
+  const plans=readFileSync(source('packages/server-quality/src/adapters/native_quality_read_sql.rs'),'utf8');
+  for(const [kind,sql] of [
+   ['quality_rd_attach_hold_cas','EXISTS(SELECT 1 FROM inventory_quality_holds WHERE id=? AND company_id=? AND version=?)'],
+   ['quality_rd_attach_spec_cas','EXISTS(SELECT 1 FROM inventory_quality_specs WHERE id=? AND company_id=? AND version=?)'],
+  ] as const){
+   expect(plans).toContain(`"${kind}"`);
+   expect(plans).toContain(`"${sql}"`);
+   expect(sql.match(/\?/g)).toHaveLength(3);
+   expect(sql.startsWith('EXISTS(SELECT 1 FROM ')).toBe(true);
+  }
+  expect(plans).toContain('RD_ATTACH_HOLD_CAS => Some(&READ_ATTACH_HOLD_CAS)');
+  expect(plans).toContain('RD_ATTACH_SPEC_CAS => Some(&READ_ATTACH_SPEC_CAS)');
+ });
+ test('both attachment owner facts delegate to the native guard bridge',()=>{
   const service=readFileSync(source('packages/server-quality/src/adapters/attachments-service-facts.ts'),'utf8');
   const operational=readFileSync(source('packages/server-quality/src/adapters/attachments-operational-facts.ts'),'utf8');
-  expect(service.match(inline)??[]).toHaveLength(1);
+  const bridge=readFileSync(source('packages/server-quality/src/adapters/native-quality-read.ts'),'utf8');
+  const inline=/EXISTS\(SELECT 1 FROM \$\{[^}]+\} WHERE id=\? AND company_id=\? AND version=\?/g;
+  expect(service.match(inline)??[]).toHaveLength(0);
   expect(operational.match(inline)??[]).toHaveLength(0);
-  expect(service).toContain('qualityAttachmentVersionGuardSql');
-  expect(operational).toContain('qualityAttachmentVersionGuardSql');
+  expect(service).not.toContain('qualityAttachmentVersionGuardSql');
+  expect(operational).not.toContain('qualityAttachmentVersionGuardSql');
+  expect(service).toContain('nativeQualityGuardAssertion(db, commandId, `attachment-owner-${index}`, RD_ATTACH_HOLD_CAS, [targetId, companyId, version])');
+  expect(operational).toContain('RD_ATTACH_SPEC_CAS');
+  expect(operational).toContain('nativeQualityGuardAssertion(');
+  expect(bridge).toContain('export async function nativeQualityReadSql(');
+  expect(bridge).toContain('export function nativeQualityGuardAssertion(');
+  expect(bridge).toContain('const guard=assertion(db,commandId,step,statement.sql,statement.values as (string|number|null)[]);');
+  expect(bridge).toContain('return (context?guard.withContext(context):guard).run();');
  });
 });
 describe('retired Quality dead read branch',()=>{
@@ -184,7 +200,7 @@ describe('quality attachment target-scope read dedupe',()=>{
   expect(policyText).not.toContain('SELECT ');
   expect(policyText).toContain('readQualityHold');
   expect(policyText.match(/qualityAttachmentScopeReadSql/g)).toHaveLength(3);
-  expect(readFileSync(source(operational),'utf8')).toContain('qualityAttachmentVersionGuardSql');
+  expect(readFileSync(source(operational),'utf8')).toContain('nativeQualityGuardAssertion');
  });
 });
 describe('quality package-obligation scope and clock CTE dedupe',()=>{
@@ -205,7 +221,7 @@ describe('quality package-obligation scope and clock CTE dedupe',()=>{
  test('the owner TS statement KPI stays strictly below the r17 BEFORE=75 baseline',()=>{
   const count=files(source('packages/server-quality/src')).reduce((total,path)=>total+(readFileSync(path,'utf8').match(/INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT /g)?.length??0),0);
   expect(count).toBeLessThan(75);
-  expect(count).toBe(33);
+  expect(count).toBe(31);
  });
 });
 describe('quality command-receipt guard dedupe',()=>{

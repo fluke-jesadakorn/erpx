@@ -36,7 +36,7 @@ describe('quality customer-return id-source family dedupe (r18)', () => {
     expect(read('adapters/sales-package-sources.ts')).toContain('LOCK TABLE inventory_quality_holds,inventory_quality_inspections,inventory_quality_disposition_events,inventory_quality_cancellations');
     for (const name of [
       'quality-work-scope-sql', 'native-source-wrapper-sql', 'inspection-evidence-source-sql',
-      'quality-record-source-sql', 'quality-lineage-recursion-sql', 'quality-child-agg-sql',
+      'quality-lineage-recursion-sql', 'quality-child-agg-sql',
       'quality-receipt-guard-sql', 'quality-source-rows-sql', 'quality-scope-sql',
       'quality-alert-recipient-sql', 'quality-attachment-scope-read-sql',
     ]) {
@@ -58,6 +58,6 @@ describe('quality read-tail r18 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(75);
-    expect(total).toBe(33);
+    expect(total).toBe(31);
   });
 });

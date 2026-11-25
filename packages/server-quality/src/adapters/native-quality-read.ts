@@ -1,10 +1,15 @@
 import "server-only";
 import {Agent, request as httpRequest} from "node:http";
 import {ApiError} from "@erpx/server-runtime/public/http";
-import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
+import type {SqlDatabase,SqlResult,SqlStatement} from "@erpx/server-runtime/public/runtime/types";
+import {assertion} from "@erpx/server-workflow/public/command-assertions";
 
-/** Allow-listed read kind resolved by the mounted `/quality/read-plan` route. */
+/** Allow-listed read kinds resolved by the mounted `/quality/read-plan` route. */
 export const RD_ALERT_HOLD_ID = "quality_rd_alert_hold_id";
+export const RD_HOLD_EXISTS = "quality_rd_hold_exists";
+export const RD_SPEC_EXISTS = "quality_rd_spec_exists";
+export const RD_ATTACH_HOLD_CAS = "quality_rd_attach_hold_cas";
+export const RD_ATTACH_SPEC_CAS = "quality_rd_attach_spec_cas";
 
 /**
  * Strict owner transport for the native Quality read-plan route. The axum
@@ -89,8 +94,50 @@ async function plan(kind:string,values:readonly unknown[]):Promise<Planned>{
  return {sql:entry.sql,values:entry.values as readonly unknown[]};
 }
 
+/** Return the owner-planned SQL text and positional values to a trusted server
+ * caller that composes a correlated fragment on its already-open unit. The
+ * statement is selected by the Rust allow-list; no SQL is accepted from a
+ * caller and no TypeScript mirror is emitted. */
+export async function nativeQualityReadSql(kind:string,values:readonly unknown[]):Promise<Planned>{
+ return plan(kind,values);
+}
+
 /** Planned owner read returning a single row (retired `.first()` parity). */
 export async function nativeQualityReadFirst<T>(kind:string,values:readonly unknown[],db:SqlDatabase):Promise<T|null>{
- const statement=await plan(kind,values);
+ const statement=await nativeQualityReadSql(kind,values);
  return db.prepare(statement.sql).bind(...(statement.values as unknown[])).first<T>();
+}
+
+type GuardContext = Readonly<{companyId?:string;db?:SqlDatabase;now?:number;key?:string}>;
+
+/** One closed attachment CAS guard as a native write descriptor. Planning is
+ * deferred to run() time: the Workflow batch boundary attaches its caller
+ * context first, then this descriptor asks the Quality owner for the exact
+ * guard statement and delegates to the unchanged Workflow assertion on that
+ * same open unit. No guard SQL is ever composed in TypeScript. */
+export function nativeQualityGuardAssertion(
+ db:SqlDatabase,
+ commandId:string,
+ step:string,
+ kind:string,
+ values:readonly unknown[],
+):SqlStatement{
+ let context:GuardContext|undefined;
+ const execute=async():Promise<SqlResult<Record<string,unknown>>>=>{
+  const statement=await nativeQualityReadSql(kind,values);
+  const guard=assertion(db,commandId,step,statement.sql,statement.values as (string|number|null)[]);
+  return (context?guard.withContext(context):guard).run();
+ };
+ const descriptor={
+  __nativeWrite:true,
+  kind,
+  values,
+  withContext(next:GuardContext){context=next;return descriptor;},
+  bind(){return descriptor;},
+  run(){return execute();},
+  async first<T>(){await execute();return null as T|null;},
+  async all<T>(){await execute();return {results:[] as T[],success:true,meta:{changes:0,duration:0}} as SqlResult<T>;},
+  async raw<T>(){return [] as T[];},
+ };
+ return descriptor as unknown as SqlStatement;
 }

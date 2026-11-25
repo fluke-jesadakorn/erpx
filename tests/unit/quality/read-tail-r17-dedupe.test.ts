@@ -39,7 +39,7 @@ describe('quality alert recipient family dedupe (r17)', () => {
     expect(helper).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
     expect(read('adapters/purchase-sources.ts')).toContain('qualityPurchaseSourceReadLocks');
     expect(read('adapters/attachment-read-sources.ts')).toContain('LOCK TABLE inventory_quality_holds,inventory_quality_specs');
-    for (const name of ['quality-work-scope-sql', 'native-source-wrapper-sql', 'inspection-evidence-source-sql', 'quality-record-source-sql', 'quality-lineage-recursion-sql']) {
+    for (const name of ['quality-work-scope-sql', 'native-source-wrapper-sql', 'inspection-evidence-source-sql', 'quality-lineage-recursion-sql']) {
       expect(read(`adapters/${name}.ts`).match(/SELECT /g)).toHaveLength(name === 'quality-lineage-recursion-sql' ? 2 : 1);
     }
   });
@@ -57,6 +57,6 @@ describe('quality read-tail r17 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(75);
-    expect(total).toBe(33);
+    expect(total).toBe(31);
   });
 });

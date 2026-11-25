@@ -45,7 +45,7 @@ describe('quality recursive lineage recursion family dedupe (r14)', () => {
     expect(helper).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
     expect(purchase).toContain('qualityPurchaseSourceReadLocks');
     expect(sales).toContain('LOCK TABLE inventory_quality_holds,inventory_quality_inspections,inventory_quality_disposition_events,inventory_quality_cancellations');
-    for (const name of ['quality-child-agg-sql', 'quality-receipt-guard-sql', 'quality-source-rows-sql', 'quality-record-source-sql']) {
+    for (const name of ['quality-child-agg-sql', 'quality-receipt-guard-sql', 'quality-source-rows-sql']) {
       expect(read(`adapters/${name}.ts`).match(/SELECT /g)).toHaveLength(1);
     }
   });
@@ -63,6 +63,6 @@ describe('quality read-tail r14 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(75);
-    expect(total).toBe(33);
+    expect(total).toBe(31);
   });
 });

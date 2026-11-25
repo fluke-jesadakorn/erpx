@@ -82,7 +82,7 @@ describe('quality read-tail r16 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(75);
-    expect(total).toBe(33);
+    expect(total).toBe(31);
   });
   test('the three helpers are read-only and leave locks and prior families untouched', () => {
     for (const name of ['quality-work-scope-sql', 'native-source-wrapper-sql', 'inspection-evidence-source-sql']) {
@@ -90,7 +90,7 @@ describe('quality read-tail r16 retirement check', () => {
     }
     expect(read('adapters/sales-package-sources.ts')).toContain('LOCK TABLE inventory_quality_holds,inventory_quality_inspections,inventory_quality_disposition_events,inventory_quality_cancellations');
     expect(read('adapters/attachment-read.ts')).toContain('qualityAttachmentReadSourceLocks');
-    for (const name of ['quality-child-agg-sql', 'quality-receipt-guard-sql', 'quality-source-rows-sql', 'quality-record-source-sql', 'quality-lineage-recursion-sql']) {
+    for (const name of ['quality-child-agg-sql', 'quality-receipt-guard-sql', 'quality-source-rows-sql', 'quality-lineage-recursion-sql']) {
       expect(read(`adapters/${name}.ts`).match(/SELECT /g)).toHaveLength(name === 'quality-lineage-recursion-sql' ? 2 : 1);
     }
   });

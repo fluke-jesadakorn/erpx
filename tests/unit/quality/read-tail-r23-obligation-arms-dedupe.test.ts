@@ -89,7 +89,7 @@ describe('quality obligation fact ARM dedupe (r23)', () => {
     expect(read('adapters/customer_return_hold_http.rs')).toContain('customer_return_hold');
     const counts: Record<string, number> = {
       'quality-work-scope-sql': 1, 'native-source-wrapper-sql': 1, 'inspection-evidence-source-sql': 1,
-      'quality-record-source-sql': 1, 'quality-lineage-recursion-sql': 2, 'quality-child-agg-sql': 1,
+      'quality-lineage-recursion-sql': 2, 'quality-child-agg-sql': 1,
       'quality-receipt-guard-sql': 1, 'quality-source-rows-sql': 1, 'quality-scope-sql': 2,
       'quality-alert-recipient-sql': 1, 'quality-attachment-scope-read-sql': 1, 'quality-id-source-sql': 1,
       'quality-attachment-source-select-sql': 1, 'quality-source-union-sql': 1, 'quality-return-anchor-sql': 0,
@@ -113,6 +113,6 @@ describe('quality read-tail r23 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(67);
-    expect(total).toBe(33);
+    expect(total).toBe(31);
   });
 });
