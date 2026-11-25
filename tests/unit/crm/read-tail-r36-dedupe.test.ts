@@ -43,7 +43,7 @@ describe('crm read-tail r36 byte-identical opportunity source anchor', () => {
   test('owns the renderer once and composes it at both retired call sites', () => {
     const helper = src('read-tail-r36-sql.ts');
     expect(helper.match(/crmOpportunitySourceAnchorSql =/g)).toHaveLength(1);
-    expect((helper.match(/SELECT /g) ?? []).length).toBe(1);
+    expect((helper.match(/SELECT /g) ?? []).length).toBe(0);
 
     const purchase = src('attachment-purchases.ts'), image = src('attachment-read.ts');
     expect(purchase.match(/crmOpportunitySourceAnchorSql\(/g)).toHaveLength(1);
@@ -81,7 +81,7 @@ describe('crm read-tail r36 byte-identical opportunity source anchor', () => {
   });
 
   test('retirement:ts-statements stays strictly below the r35 BEFORE=114 baseline', () => {
-    expect(totalSelects()).toBe(57);
+    expect(totalSelects()).toBe(54);
     expect(totalSelects()).toBeLessThan(114);
   });
 });

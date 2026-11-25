@@ -69,7 +69,7 @@ describe('crm read-tail r31 byte-identical SELECT-head family', () => {
   });
 
   test('retirement:ts-statements stays strictly below the r30 BEFORE=123 baseline', () => {
-    expect(totalSelects()).toBe(57);
+    expect(totalSelects()).toBe(54);
     expect(totalSelects()).toBeLessThan(123);
   });
 });

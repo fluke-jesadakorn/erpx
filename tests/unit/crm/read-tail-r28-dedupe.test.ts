@@ -44,7 +44,7 @@ describe('crm read-tail r28 byte-identical read families', () => {
     const helper = src('read-tail-r28-sql.ts');
     expect(helper.match(/crmCaseEventReadSql =/g)).toHaveLength(1);
     expect(helper.match(/crmOpportunityProbeSql =/g)).toHaveLength(1);
-    expect((helper.match(/SELECT /g) ?? []).length).toBe(2);
+    expect((helper.match(/SELECT /g) ?? []).length).toBe(0);
     const leads = src('leads.ts'), purchases = src('purchases.ts');
     expect(leads).toContain("crmCaseEventReadSql('*','lead_id=?',' ORDER BY created_at DESC,id DESC')");
     expect(purchases).toContain("crmCaseEventReadSql('snapshot_json::text snapshot_json',");
@@ -76,7 +76,7 @@ describe('crm read-tail r28 byte-identical read families', () => {
   });
 
   test('retirement:ts-statements stays strictly below the r28 BEFORE=132 baseline', () => {
-    expect(totalSelects()).toBe(57);
+    expect(totalSelects()).toBe(54);
     expect(totalSelects()).toBeLessThan(132);
   });
 });

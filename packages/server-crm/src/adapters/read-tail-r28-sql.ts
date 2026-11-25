@@ -1,3 +1,5 @@
+import { crmProjectionFromSql } from './read-tail-r46-sql';
+
 /** G4 / retire.crm.read-tail-r28 byte-identical read families.
  *
  * The renderers below reproduce the pre-dedupe inline SQL exactly; each call
@@ -12,11 +14,11 @@ export const crmCaseEventReadSql = (
   projection: string,
   predicates: string,
   tail = '',
-) => `SELECT ${projection} FROM crm_case_events WHERE ${predicates}${tail}`;
+) => crmProjectionFromSql(projection, `crm_case_events WHERE ${predicates}${tail}`);
 
 /** Direct opportunity source probe. Callers pass the projection and predicate;
  * rendered text stays byte-identical to the retired inline SELECT. */
 export const crmOpportunityProbeSql = (
   projection: string,
   predicate: string,
-) => `SELECT ${projection} FROM crm_opportunities WHERE ${predicate}`;
+) => crmProjectionFromSql(projection, `crm_opportunities WHERE ${predicate}`);

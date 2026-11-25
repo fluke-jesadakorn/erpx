@@ -58,7 +58,7 @@ describe('crm read-tail r38 byte-identical head composition', () => {
     ] as const) {
       expect(src(file).match(new RegExp(`${name} =`, 'g'))).toHaveLength(count);
     }
-    expect((src('read-tail-r37-sql.ts').match(/SELECT /g) ?? []).length).toBe(3);
+    expect((src('read-tail-r37-sql.ts').match(/SELECT /g) ?? []).length).toBe(2);
     expect((src('read-tail-r34-sql.ts').match(/SELECT /g) ?? []).length).toBe(1);
     expect((src('read-tail-r30-sql.ts').match(/SELECT /g) ?? []).length).toBe(1);
 
@@ -116,7 +116,7 @@ describe('crm read-tail r38 byte-identical head composition', () => {
   });
 
   test('retirement:ts-statements stays strictly below the r37 AFTER=110 baseline', () => {
-    expect(totalSelects()).toBe(57);
+    expect(totalSelects()).toBe(54);
     expect(totalSelects()).toBeLessThan(110);
   });
 });

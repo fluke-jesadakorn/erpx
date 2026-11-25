@@ -57,7 +57,7 @@ describe('crm read-tail r37 byte-identical read heads', () => {
     for (const name of ['crmSingleKeySourceSql', 'crmMetricBreakdownSql', 'crmSalesOpportunitySql']) {
       expect(helper.match(new RegExp(`${name} =`, 'g'))).toHaveLength(1);
     }
-    expect((helper.match(/SELECT /g) ?? []).length).toBe(3);
+    expect((helper.match(/SELECT /g) ?? []).length).toBe(2);
 
     const leads = src('leads.ts');
     expect(leads.match(/crmSingleKeySourceSql\(/g)).toHaveLength(2);
@@ -111,7 +111,7 @@ describe('crm read-tail r37 byte-identical read heads', () => {
   });
 
   test('retirement:ts-statements stays strictly below the r36 BEFORE=113 baseline', () => {
-    expect(totalSelects()).toBe(57);
+    expect(totalSelects()).toBe(54);
     expect(totalSelects()).toBeLessThan(111);
   });
 });

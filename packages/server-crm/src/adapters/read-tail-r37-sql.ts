@@ -1,3 +1,5 @@
+import { crmProjectionFromSql } from './read-tail-r46-sql';
+
 /** G4 / retire.crm.read-tail-r37 byte-identical read heads.
  *
  * Three owner-local read families share one renderer each: the two single
@@ -28,4 +30,4 @@ export const crmMetricBreakdownSql = (label: string, value: string, tail: string
  * lead/opportunity join and the full predicate/tail; rendered SQL and bind order
  * stay byte-identical to the retired inline statements. */
 export const crmSalesOpportunitySql = (projection: string, from: string, tail: string) =>
-  `SELECT ${projection} FROM ${from} WHERE ${tail}`;
+  crmProjectionFromSql(projection, `${from} WHERE ${tail}`);

@@ -1,3 +1,5 @@
+import { crmProjectionFromSql } from './read-tail-r46-sql';
+
 /** G4 / retire.crm.read-tail-r36 byte-identical read heads.
  *
  * The opportunity-with-lead source anchor shared by the CRM attachment source
@@ -11,4 +13,4 @@
  * projection (including its own trailing whitespace) and everything after the
  * fixed opportunity/lead identity join; the one read token lives here. */
 export const crmOpportunitySourceAnchorSql = (projection: string, tail: string) =>
-  `SELECT ${projection} FROM crm_opportunities opportunity JOIN crm_leads lead ON lead.id=opportunity.lead_id${tail}`;
+  crmProjectionFromSql(projection, `crm_opportunities opportunity JOIN crm_leads lead ON lead.id=opportunity.lead_id${tail}`);
