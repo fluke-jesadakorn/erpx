@@ -127,8 +127,8 @@ describe('pms read-tail r42 stay-witness, correction-fact and order-tail dedupe'
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(283);
-    expect(bare).toBe(285);
+    expect(spaced).toBe(275);
+    expect(bare).toBe(277);
     expect(spaced).toBeLessThan(302);
   });
 });

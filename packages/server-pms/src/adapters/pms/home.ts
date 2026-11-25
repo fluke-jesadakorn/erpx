@@ -16,6 +16,7 @@ import type { TaskRow } from "@erpx/server-pms/domain/home";
 import { createPmsHomeApplication, type PmsHomeRepository, type PmsTaskPageOptions } from "@erpx/server-pms/application/home";
 import { pmsCompanyHistoryAllowed, requirePmsCompanyHistory } from "@erpx/server-pms/adapters/read-purchase-boundary";
 import { requirePmsFinancialRead } from "@erpx/server-pms/adapters/property-purchase-boundary";
+import { nativePmsReadAll, PMS_RD_HOTEL_SOURCES } from "../native-pms-read";
 export type { PmsHomeView, PmsHomeTask, PmsHotelOverview } from "@erpx/server-pms/domain/home";
 function taskQuery(actor: WorkContext, propertyId?: string, mine = false, selectedLabel?: string) {
     const can = (permission: string) => hasPermission(actor, permission) ? "TRUE" : "FALSE";
@@ -117,20 +118,12 @@ function repository(db: SqlDatabase): PmsHomeRepository {
             metric3: "occupancy" | "adr" | "revpar" | "room_revenue";
             businessDate4: string;
             offset: number;
-        }) => db.prepare(`WITH RECURSIVE roots AS (
- SELECT r.id FROM pms_records r WHERE r.property_id=? AND r.kind='entry' AND r.data_json::jsonb->>'sourceKey' LIKE 'night:%'
- UNION ALL SELECT r.id FROM pms_records r JOIN roots e ON r.data_json::jsonb->>'originalId'=e.id WHERE r.property_id=? AND r.kind='entry' AND r.id<>e.id
- ), sources AS (
- SELECT r.* FROM pms_records r WHERE r.property_id=? AND (
- (? IN ('occupancy','revpar') AND r.kind='room' AND r.data_json::jsonb->>'active'='true' AND NOT EXISTS(SELECT 1 FROM pms_records b WHERE b.property_id=r.property_id AND b.kind='block' AND b.data_json::jsonb->>'state'='active' AND b.data_json::jsonb->>'kind'='maintenance' AND b.data_json::jsonb->>'from'<=? AND b.data_json::jsonb->>'roomId'=r.id))
- OR (? IN ('occupancy','adr') AND r.kind='stay' AND r.data_json::jsonb->>'state' IN ('in_house','checked_out') AND r.data_json::jsonb->>'arrival'<=? AND r.data_json::jsonb->>'departure'>?)
- OR (?<>'occupancy' AND r.kind='entry' AND r.id IN (SELECT id FROM roots) AND r.data_json::jsonb->>'date'=? AND r.data_json::jsonb->>'kind' IN ('charge','adjustment'))
- )) SELECT id,kind,version,data_json FROM sources ORDER BY kind,id LIMIT 31 OFFSET ?`).bind(facts.id, facts.id2, facts.id3, facts.metric, facts.businessDate, facts.metric2, facts.businessDate2, facts.businessDate3, facts.metric3, facts.businessDate4, facts.offset).all<{
+        }) => nativePmsReadAll<{
             id: string;
             kind: string;
             version: number;
             data_json: string;
-        }>(),
+        }>(PMS_RD_HOTEL_SOURCES, [facts.id, facts.id2, facts.id3, facts.metric, facts.businessDate, facts.metric2, facts.businessDate2, facts.businessDate3, facts.metric3, facts.businessDate4, facts.offset], db),
         taskPage: (actor, options) => { const query = taskQuery(actor, options.propertyId, options.mine, options.label); return readListPage<TaskRow>(db, { ...query, scope: [actor.companyId, actor.branchId, actor.userId, actor.assignmentId, options.propertyId, options.mine, options.label], cursor: options.cursor, limit: options.limit ?? 12 }); }, tasks: async (actor) => { const query = taskQuery(actor); return (await db.prepare(query.sql).bind(...query.args).all<TaskRow>()).results; }, readablePosts: (actor, loadedIds, now) => readablePmsHomePosts(db, actor, loadedIds, now), counts: (actor, propertyId, mine) => {
             const taskSql = taskQuery(actor, propertyId, mine);
             const write = db;

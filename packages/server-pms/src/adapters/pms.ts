@@ -54,7 +54,7 @@ import { pmsPosFacts } from "@erpx/server-pos/public/pms-command-facts";
 import { pmsWorkflowFacts } from "@erpx/server-workflow/public/pms-command-facts";
 import { pmsFilesFacts } from "@erpx/server-files/public/pms-command-facts";
 import { nativePmsOwnerWrite } from "@erpx/feature-pms/public/native-pms";
-import { nativePmsReadAll, nativePmsReadFirst, PMS_RD_POSTING_CHARGE, PMS_RD_POSTING_BY_RECORD, PMS_RD_CHARGE_CORRECTION_PENDING, PMS_RD_GUEST_COMMAND_RECORD, PMS_RD_STAY_COMMAND, PMS_RD_CASHIER_COMMAND, PMS_RD_POS_COMMAND, PMS_RD_NIGHT_COMMAND } from "./native-pms-read";
+import { nativePmsReadAll, nativePmsReadFirst, PMS_RD_POSTING_CHARGE, PMS_RD_POSTING_BY_RECORD, PMS_RD_CHARGE_CORRECTION_PENDING, PMS_RD_GUEST_COMMAND_RECORD, PMS_RD_STAY_COMMAND, PMS_RD_CASHIER_COMMAND, PMS_RD_POS_COMMAND, PMS_RD_NIGHT_COMMAND, PMS_RD_HOUSEKEEPING_COMMAND } from "./native-pms-read";
 function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
         const write = (kind: string, values: unknown[]): any => nativePmsOwnerWrite(companyId, kind, values);
     const identity_access = pmsIdentityAccessFacts(db);
@@ -518,12 +518,8 @@ function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
           UNION ALL ${PMS_RECORDS_PROJECTION_PREFIX_SQL} WHERE property_id=? AND kind='guest' AND id=?
           UNION ALL ${PMS_RECORDS_PROJECTION_PREFIX_SQL} WHERE property_id=? AND kind='reservation' AND ?<>'' AND data_json::jsonb->>'source'=? AND data_json::jsonb->>'externalRef'=?
           ORDER BY id`).bind(propertyId,propertyId,propertyId,guestId,propertyId,externalRef,source,externalRef).all<PmsStoredRecord>().then(rows=>rows.results.map(decodePmsRecord)),
-        readPmsHousekeepingCommand:(propertyId:string,targetId:string,targetKind:'task'|'room')=>db.prepare(`WITH target AS (
-          SELECT CASE WHEN kind='task' THEN data_json::jsonb->>'roomId' ELSE id END room_id FROM pms_records WHERE property_id=? AND kind=? AND id=?
-        ) SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r JOIN target t ON
-          (r.kind='room' AND r.id=t.room_id) OR (r.kind='task' AND r.data_json::jsonb->>'roomId'=t.room_id)
-          OR (r.kind='stay' AND r.data_json::jsonb->>'roomId'=t.room_id AND r.data_json::jsonb->>'state'='in_house')
-          WHERE r.property_id=? ORDER BY r.id`).bind(propertyId,targetKind,targetId,propertyId).all<PmsStoredRecord>().then(rows=>rows.results.map(decodePmsRecord)),
+        readPmsHousekeepingCommand:(propertyId:string,targetId:string,targetKind:'task'|'room')=>nativePmsReadAll<PmsStoredRecord>(PMS_RD_HOUSEKEEPING_COMMAND, [propertyId,targetKind,targetId,propertyId], db)
+            .then(rows=>rows.results.map(decodePmsRecord)),
         readPmsStayCommand: (propertyId, targetId, targetKind, guestId, guestAccountId, roomId) => nativePmsReadAll<PmsStoredRecord>(PMS_RD_STAY_COMMAND, [propertyId, targetId, targetKind, guestId, guestAccountId, roomId], db)
             .then(rows => rows.results.map(decodePmsRecord)),
         readPmsCashierCommand: (propertyId, targetId, targetKind, shiftId, userId) => nativePmsReadAll<PmsStoredRecord>(PMS_RD_CASHIER_COMMAND, [propertyId, targetId, targetKind, shiftId, userId], db)

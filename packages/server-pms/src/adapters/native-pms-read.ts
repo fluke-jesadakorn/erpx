@@ -59,6 +59,13 @@ export const PMS_RD_STAY_COMMAND = 'pms_rd_stay_command';
 export const PMS_RD_CASHIER_COMMAND = 'pms_rd_cashier_command';
 export const PMS_RD_POS_COMMAND = 'pms_rd_pos_command';
 export const PMS_RD_NIGHT_COMMAND = 'pms_rd_night_command';
+/** Native successors of the owner-local `hotelSources` recursive-CTE read (eleven
+ * positional binds) and the housekeeping command snapshot read (four positional
+ * binds). Both are non-lock reads: the caller runs them on its already-open unit
+ * with the same payload, so a caller holding the property `FOR UPDATE` observes
+ * its own uncommitted state. The property lock read itself stays in the caller. */
+export const PMS_RD_HOTEL_SOURCES = 'pms_rd_hotel_sources';
+export const PMS_RD_HOUSEKEEPING_COMMAND = 'pms_rd_housekeeping_command';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'PMS_NATIVE_READ_UNAVAILABLE', 'The native PMS read service is unavailable.');

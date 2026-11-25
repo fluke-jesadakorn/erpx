@@ -106,6 +106,14 @@ pub const PMS_RD_STAY_COMMAND: &str = "pms_rd_stay_command";
 pub const PMS_RD_CASHIER_COMMAND: &str = "pms_rd_cashier_command";
 pub const PMS_RD_POS_COMMAND: &str = "pms_rd_pos_command";
 pub const PMS_RD_NIGHT_COMMAND: &str = "pms_rd_night_command";
+/// Native successors of the owner-local `hotelSources` recursive-CTE read (eleven
+/// positional binds) and the housekeeping command snapshot read (four positional
+/// binds). Both are non-lock reads: the caller runs them on its already-open unit
+/// with the same payload, so a caller holding the property row `FOR UPDATE`
+/// observes its own uncommitted state. The property lock read itself stays in the
+/// caller's TypeScript unit.
+pub const PMS_RD_HOTEL_SOURCES: &str = "pms_rd_hotel_sources";
+pub const PMS_RD_HOUSEKEEPING_COMMAND: &str = "pms_rd_housekeeping_command";
 const SQL_INVENTORY_COMMAND: &str = "SELECT id,kind,data_json,version,updated_at FROM pms_records \
 WHERE property_id=? AND kind IN ('room_type','room','rate','block','item','credit') \
 UNION ALL SELECT id,kind,data_json,version,updated_at FROM pms_records \
@@ -349,7 +357,27 @@ const READ_NIGHT_COMMAND: NativeReadStatement = NativeReadStatement {
     bind_count: 3,
 };
 
-const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG, READ_PENDING_HOTEL_TRANSFERS, READ_UNPOSTED_BOOKING_RECEIPTS, READ_UNPOSTED_COUNTER_RECEIPTS, READ_HOSPITALITY_SETUP_PROPERTIES, READ_ATTACHMENT_PROPERTY_IMAGE, READ_ATTACHMENT_RECORD_IMAGE, READ_DOCUMENT_RELATED_POSTINGS, READ_POS_GUEST_HOTELS, READ_POS_GUEST_CHOICES, READ_POS_STRIPE_PAYMENT, READ_POS_BOOKING_PAYMENT, READ_STRIPE_PAYMENT_BY_ID, READ_STRIPE_PAYMENT_BY_ID_COMPANY, READ_STRIPE_PAYMENT_PROPERTY, READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND];
+/// Retired TypeScript literal (`pmsHotelSources`) with the recursive CTE kept
+/// byte-identically, including its single-space line-leading indentation; eleven
+/// positional binds.
+const SQL_HOTEL_SOURCES: &str = "WITH RECURSIVE roots AS (\n SELECT r.id FROM pms_records r WHERE r.property_id=? AND r.kind='entry' AND r.data_json::jsonb->>'sourceKey' LIKE 'night:%'\n UNION ALL SELECT r.id FROM pms_records r JOIN roots e ON r.data_json::jsonb->>'originalId'=e.id WHERE r.property_id=? AND r.kind='entry' AND r.id<>e.id\n ), sources AS (\n SELECT r.* FROM pms_records r WHERE r.property_id=? AND (\n (? IN ('occupancy','revpar') AND r.kind='room' AND r.data_json::jsonb->>'active'='true' AND NOT EXISTS(SELECT 1 FROM pms_records b WHERE b.property_id=r.property_id AND b.kind='block' AND b.data_json::jsonb->>'state'='active' AND b.data_json::jsonb->>'kind'='maintenance' AND b.data_json::jsonb->>'from'<=? AND b.data_json::jsonb->>'roomId'=r.id))\n OR (? IN ('occupancy','adr') AND r.kind='stay' AND r.data_json::jsonb->>'state' IN ('in_house','checked_out') AND r.data_json::jsonb->>'arrival'<=? AND r.data_json::jsonb->>'departure'>?)\n OR (?<>'occupancy' AND r.kind='entry' AND r.id IN (SELECT id FROM roots) AND r.data_json::jsonb->>'date'=? AND r.data_json::jsonb->>'kind' IN ('charge','adjustment'))\n )) SELECT id,kind,version,data_json FROM sources ORDER BY kind,id LIMIT 31 OFFSET ?";
+const READ_HOTEL_SOURCES: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_HOTEL_SOURCES,
+    sql: SQL_HOTEL_SOURCES,
+    bind_count: 11,
+};
+
+/// Retired TypeScript literal (`readPmsHousekeepingCommand`) with its ten-space
+/// and eight-space indentation preserved byte-identically; four positional
+/// binds. No lock clause: the property `FOR UPDATE` read remains on the caller.
+const SQL_HOUSEKEEPING_COMMAND: &str = "WITH target AS (\n          SELECT CASE WHEN kind='task' THEN data_json::jsonb->>'roomId' ELSE id END room_id FROM pms_records WHERE property_id=? AND kind=? AND id=?\n        ) SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r JOIN target t ON\n          (r.kind='room' AND r.id=t.room_id) OR (r.kind='task' AND r.data_json::jsonb->>'roomId'=t.room_id)\n          OR (r.kind='stay' AND r.data_json::jsonb->>'roomId'=t.room_id AND r.data_json::jsonb->>'state'='in_house')\n          WHERE r.property_id=? ORDER BY r.id";
+const READ_HOUSEKEEPING_COMMAND: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_HOUSEKEEPING_COMMAND,
+    sql: SQL_HOUSEKEEPING_COMMAND,
+    bind_count: 4,
+};
+
+const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG, READ_PENDING_HOTEL_TRANSFERS, READ_UNPOSTED_BOOKING_RECEIPTS, READ_UNPOSTED_COUNTER_RECEIPTS, READ_HOSPITALITY_SETUP_PROPERTIES, READ_ATTACHMENT_PROPERTY_IMAGE, READ_ATTACHMENT_RECORD_IMAGE, READ_DOCUMENT_RELATED_POSTINGS, READ_POS_GUEST_HOTELS, READ_POS_GUEST_CHOICES, READ_POS_STRIPE_PAYMENT, READ_POS_BOOKING_PAYMENT, READ_STRIPE_PAYMENT_BY_ID, READ_STRIPE_PAYMENT_BY_ID_COMPANY, READ_STRIPE_PAYMENT_PROPERTY, READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
 pub fn is_read(kind: &str) -> bool {
@@ -718,5 +746,42 @@ ORDER BY id"
             assert!(is_read(kind));
         }
         assert!(!is_read("pms_rd_stay_command_v2"));
+    }
+
+    #[test]
+    fn hotel_sources_and_housekeeping_reads_are_fixed_ledger_free_selects() {
+        let hotel = read_statement(PMS_RD_HOTEL_SOURCES).expect("hotel sources read");
+        assert_eq!(hotel.bind_count, 11);
+        assert_eq!(hotel.sql.matches('?').count(), 11);
+        assert_eq!(hotel.sql.split("SELECT ").count() - 1, 6);
+        assert!(hotel.sql.starts_with("WITH RECURSIVE roots AS (\n SELECT r.id FROM pms_records r"));
+        assert!(hotel.sql.contains("UNION ALL SELECT r.id FROM pms_records r JOIN roots e"));
+        assert!(hotel.sql.contains("NOT EXISTS(SELECT 1 FROM pms_records b"));
+        assert!(hotel.sql.contains("r.id IN (SELECT id FROM roots)"));
+        assert!(hotel.sql.ends_with("ORDER BY kind,id LIMIT 31 OFFSET ?"));
+
+        let housekeeping = read_statement(PMS_RD_HOUSEKEEPING_COMMAND).expect("housekeeping read");
+        assert_eq!(housekeeping.bind_count, 4);
+        assert_eq!(housekeeping.sql.matches('?').count(), 4);
+        assert_eq!(housekeeping.sql.split("SELECT ").count() - 1, 2);
+        assert!(housekeeping.sql.starts_with("WITH target AS (\n          SELECT CASE WHEN kind='task'"));
+        assert!(housekeeping.sql.contains("JOIN target t ON"));
+        assert!(housekeeping.sql.ends_with("WHERE r.property_id=? ORDER BY r.id"));
+
+        for read in [hotel, housekeeping] {
+            let upper = read.sql.to_ascii_uppercase();
+            assert!(upper.starts_with("WITH "));
+            assert!(!upper.contains("INSERT INTO"));
+            assert!(!upper.contains("UPDATE "));
+            assert!(!upper.contains("DELETE FROM"));
+            assert!(!upper.contains("FOR UPDATE"));
+            assert!(!upper.contains("FOR SHARE"));
+            assert!(!upper.contains("LOCK TABLE"));
+            assert!(!upper.contains("PG_ADVISORY"));
+            assert_eq!(read.sql.matches('?').count(), read.bind_count);
+            assert!(is_read(read.kind));
+        }
+        assert!(!is_read("pms_rd_hotel_sources_v2"));
+        assert!(!is_read("pms_rd_housekeeping_command_v2"));
     }
 }
