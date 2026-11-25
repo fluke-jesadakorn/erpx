@@ -12,6 +12,9 @@ const posSalesLegSql = (): string => `SELECT 'sale:'||s.id id,s.id source_id,'sa
     FROM pos_sales s WHERE s.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND s.currency=?
       AND s.business_date BETWEEN ? AND ? AND s.state='completed'
       AND (?='' OR position(lower(?) in lower(s.number))>0)`;
+const refundPaymentSumSql = (): string => `(SELECT sum(rp.amount_minor)::numeric FROM pos_refund_payments rp
+        JOIN pos_refunds r ON r.id=rp.refund_id AND r.company_id=p.company_id
+        WHERE rp.payment_id=p.id AND rp.state='succeeded' AND r.kind='sale'),0)`;
 function sourceQuery(metric: PosEvidenceMetric) {
     if (metric === "pos-sales")
         return posSalesLegSql();
@@ -29,12 +32,8 @@ function sourceQuery(metric: PosEvidenceMetric) {
     return `SELECT 'payment:'||p.id id,p.id source_id,'payment' source_type,s.id sale_id,s.business_date event_date,
       s.number receipt_number,p.state status,s.state sale_status,s.currency,p.method,
       p.amount_minor::numeric amount_minor,
-      (p.amount_minor::numeric-COALESCE((SELECT sum(rp.amount_minor)::numeric FROM pos_refund_payments rp
-        JOIN pos_refunds r ON r.id=rp.refund_id AND r.company_id=p.company_id
-        WHERE rp.payment_id=p.id AND rp.state='succeeded' AND r.kind='sale'),0)) contribution_minor,
-      COALESCE((SELECT sum(rp.amount_minor)::numeric FROM pos_refund_payments rp
-        JOIN pos_refunds r ON r.id=rp.refund_id AND r.company_id=p.company_id
-        WHERE rp.payment_id=p.id AND rp.state='succeeded' AND r.kind='sale'),0) refunded_minor,
+      (p.amount_minor::numeric-COALESCE(${refundPaymentSumSql()}) contribution_minor,
+      COALESCE(${refundPaymentSumSql()} refunded_minor,
       p.version revision,s.version sale_version
     FROM pos_payments p JOIN pos_sales s ON s.id=p.sale_id AND s.company_id=p.company_id
     WHERE p.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND s.currency=?
