@@ -84,7 +84,7 @@ describe('POS read-tail r37 owner-local lock-head dedupe', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(164);
+    expect(total).toBe(161);
     expect(total).toBeLessThan(182);
   });
 });

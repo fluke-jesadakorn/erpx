@@ -65,7 +65,7 @@ describe('POS read-tail r38 sales by-id lock-head dedupe', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(164);
+    expect(total).toBe(161);
     expect(total).toBeLessThan(180);
   });
 });

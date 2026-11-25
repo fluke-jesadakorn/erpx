@@ -4,8 +4,10 @@
 //! and branch headers, a strict JSON envelope and business-error mapping. The
 //! pool-backed owner reader owns the SQL, the projection and the response row.
 
-use crate::adapters::native_lane_25::application::{PosEvidenceReader, read};
-use crate::adapters::native_lane_25::domain::{EvidenceQuery, invalid, validate};
+use crate::adapters::native_lane_25::application::{PosEvidenceReader, read, read_detail};
+use crate::adapters::native_lane_25::domain::{
+    DETAIL_KINDS, EvidenceDetailQuery, EvidenceQuery, invalid, validate, validate_detail,
+};
 use crate::adapters::native_lane_25::postgres::PgEvidenceReader;
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State, StatusCode,
@@ -43,6 +45,16 @@ struct SearchBody {
     query: String,
     limit: usize,
     cursor: Option<CursorBody>,
+}
+
+#[derive(Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DetailBody {
+    kind: String,
+    id: String,
+    from: String,
+    to: String,
+    currency: String,
 }
 
 struct LaneState {
@@ -232,6 +244,53 @@ impl LaneState {
         let rows = read(reader.as_ref(), &query).await?;
         Ok(rows.into_iter().map(|row| row.value()).collect())
     }
+
+    async fn detail(&self, headers: &HeaderMap, slug: &str, body: &[u8]) -> Response {
+        match self.detail_inner(headers, slug, body).await {
+            Ok(row) => bounded(serde_json::json!({ "row": row })),
+            Err(error) => error_response(error),
+        }
+    }
+
+    async fn detail_inner(
+        &self,
+        headers: &HeaderMap,
+        slug: &str,
+        body: &[u8],
+    ) -> Result<Option<serde_json::Value>, BusinessError> {
+        let host = unique_header(headers, header::HOST.as_str())?
+            .filter(|value| !value.is_empty())
+            .ok_or_else(missing)?;
+        let reader = self
+            .targets
+            .get(&(host.to_owned(), slug.to_owned()))
+            .ok_or_else(missing)?;
+        let company = unique_header(headers, CONTEXT_COMPANY)?
+            .filter(|value| valid_id(value))
+            .ok_or_else(invalid)?;
+        let branch = unique_header(headers, WORKSPACE_BRANCH)?
+            .filter(|value| !value.is_empty() && valid_id(value))
+            .map(str::to_owned);
+        if body.len() > MAX_BODY_BYTES {
+            return Err(invalid());
+        }
+        let parsed: DetailBody = serde_json::from_slice(body).map_err(|_| invalid())?;
+        let query = EvidenceDetailQuery {
+            company: company.to_owned(),
+            branch,
+            kind: parsed.kind,
+            id: parsed.id,
+            from: parsed.from,
+            to: parsed.to,
+            currency: parsed.currency,
+        };
+        validate_detail(&query)?;
+        if !DETAIL_KINDS.contains(&query.kind.as_str()) {
+            return Err(invalid());
+        }
+        let row = read_detail(reader.as_ref(), &query).await?;
+        Ok(row.map(|row| row.value()))
+    }
 }
 
 /// Build the native read router with a single pool shared by every target.
@@ -284,7 +343,24 @@ pub fn router_with_readers(
             "/api/v1/holdings/{holding_slug}/pos/evidence/search",
             post(search),
         )
+        .route(
+            "/api/v1/holdings/{holding_slug}/pos/evidence/detail",
+            post(detail),
+        )
         .with_state(Arc::new(LaneState::with_readers(entries)?)))
+}
+
+async fn detail(
+    State(state): State<Arc<LaneState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let body = match to_bytes(request.into_body(), MAX_BODY_BYTES + 1).await {
+        Ok(body) => body,
+        Err(_) => return error_response(unavailable()),
+    };
+    state.detail(&headers, &slug, &body).await
 }
 
 async fn search(
@@ -527,6 +603,107 @@ mod tests {
         let failing = state(true);
         assert_eq!(
             block_on(failing.search(&headers(), "acme", &body())).status(),
+            StatusCode::SERVICE_UNAVAILABLE
+        );
+    }
+
+    struct DetailFake(bool);
+    impl PosEvidenceReader for DetailFake {
+        fn search<'a>(&'a self, _: &'a EvidenceQuery) -> EvidenceFuture<'a, Vec<EvidenceRow>> {
+            Box::pin(async { Ok(Vec::new()) })
+        }
+        fn detail<'a>(
+            &'a self,
+            query: &'a EvidenceDetailQuery,
+        ) -> EvidenceFuture<'a, Option<crate::adapters::native_lane_25::domain::EvidenceDetailRow>> {
+            if self.0 {
+                return Box::pin(async { Err(unavailable()) });
+            }
+            use crate::adapters::native_lane_25::domain::{
+                PAYMENT_DETAIL_KEYS, REFUND_DETAIL_KEYS,
+            };
+            let keys: &[&str] = if query.kind == "refund" {
+                &REFUND_DETAIL_KEYS
+            } else {
+                &PAYMENT_DETAIL_KEYS
+            };
+            let kind = query.kind.clone();
+            Box::pin(async move {
+                Ok(Some(crate::adapters::native_lane_25::domain::EvidenceDetailRow {
+                    values: keys
+                        .iter()
+                        .map(|key| {
+                            let value = match *key {
+                                "source_type" => kind.clone(),
+                                "currency" => "USD".to_owned(),
+                                "amount_minor" => "100".to_owned(),
+                                _ => "v".to_owned(),
+                            };
+                            ((*key).to_owned(), Some(value))
+                        })
+                        .collect(),
+                }))
+            })
+        }
+    }
+
+    fn detail_state(fails: bool) -> LaneState {
+        LaneState::with_readers(vec![(
+            LaneTarget {
+                host: "acme.example.com".into(),
+                holding_slug: "acme".into(),
+            },
+            Arc::new(DetailFake(fails)) as Arc<dyn PosEvidenceReader>,
+        )])
+        .unwrap()
+    }
+
+    fn detail_body(kind: &str) -> Vec<u8> {
+        serde_json::to_vec(&serde_json::json!({
+            "kind": kind, "id": "r1", "from": "2026-01-01",
+            "to": "2026-01-31", "currency": "USD"
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn detail_route_returns_the_exact_row_shape() {
+        let state = detail_state(false);
+        let response = block_on(state.detail(&headers(), "acme", &detail_body("refund")));
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = block_on(to_bytes(response.into_body(), 1 << 20)).unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        let row = value["row"].as_object().unwrap();
+        assert_eq!(row.len(), crate::adapters::native_lane_25::domain::REFUND_DETAIL_KEYS.len());
+        assert_eq!(row["source_type"], "refund");
+    }
+
+    #[test]
+    fn detail_route_fails_closed_on_bad_scope_kind_and_reader_error() {
+        let state = detail_state(false);
+        let mut no_company = headers();
+        no_company.remove(CONTEXT_COMPANY);
+        assert_eq!(
+            block_on(state.detail(&no_company, "acme", &detail_body("refund"))).status(),
+            StatusCode::UNPROCESSABLE_ENTITY
+        );
+        assert_eq!(
+            block_on(state.detail(&headers(), "other", &detail_body("refund"))).status(),
+            StatusCode::NOT_FOUND
+        );
+        assert_eq!(
+            block_on(state.detail(&headers(), "acme", &detail_body("other"))).status(),
+            StatusCode::UNPROCESSABLE_ENTITY
+        );
+        let mut malformed = detail_body("refund");
+        malformed.push(b'}');
+        assert_eq!(
+            block_on(state.detail(&headers(), "acme", &malformed)).status(),
+            StatusCode::UNPROCESSABLE_ENTITY
+        );
+        let failing = detail_state(true);
+        assert_eq!(
+            block_on(failing.detail(&headers(), "acme", &detail_body("payment"))).status(),
             StatusCode::SERVICE_UNAVAILABLE
         );
     }

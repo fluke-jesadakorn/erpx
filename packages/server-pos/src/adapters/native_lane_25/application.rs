@@ -2,7 +2,8 @@
 //! the owner reader executes the query and the HTTP layer only transports it.
 
 use crate::adapters::native_lane_25::domain::{
-    EvidenceQuery, EvidenceRow, invalid, validate,
+    EvidenceDetailQuery, EvidenceDetailRow, EvidenceQuery, EvidenceRow, invalid, validate,
+    validate_detail,
 };
 use erpx_server_shared::public::BusinessError;
 use std::{future::Future, pin::Pin};
@@ -13,6 +14,21 @@ pub type EvidenceFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, BusinessE
 /// derives a Company scope itself.
 pub trait PosEvidenceReader: Send + Sync {
     fn search<'a>(&'a self, query: &'a EvidenceQuery) -> EvidenceFuture<'a, Vec<EvidenceRow>>;
+
+    /// Wave 2 detail read. The default keeps single-purpose test readers
+    /// compiling; the pool-backed owner reader overrides it.
+    fn detail<'a>(
+        &'a self,
+        _: &'a EvidenceDetailQuery,
+    ) -> EvidenceFuture<'a, Option<EvidenceDetailRow>> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                erpx_server_shared::public::FailureKind::Unavailable,
+                "POS_EVIDENCE_DETAIL_UNAVAILABLE",
+                "The native POS evidence detail reader is unavailable.",
+            ))
+        })
+    }
 }
 
 /// Validate, then delegate to the injected owner reader. Every call passes the
@@ -29,6 +45,15 @@ pub async fn read<R: PosEvidenceReader + ?Sized>(
         return Err(invalid());
     }
     Ok(rows)
+}
+
+/// Validate and delegate the bounded detail read to the owner reader.
+pub async fn read_detail<R: PosEvidenceReader + ?Sized>(
+    reader: &R,
+    query: &EvidenceDetailQuery,
+) -> Result<Option<EvidenceDetailRow>, BusinessError> {
+    validate_detail(query)?;
+    reader.detail(query).await
 }
 
 #[cfg(test)]

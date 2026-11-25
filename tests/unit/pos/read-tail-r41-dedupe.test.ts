@@ -43,10 +43,9 @@ const RENDERER = 'const refundPaymentSumTextSql = (): string => `';
 const CALL = '${refundPaymentSumTextSql()}';
 
 describe('POS read-tail r41 refund-payment text subquery dedupe', () => {
-  test('fold: byte-identical head is authored once in a zero-arg owner-local renderer', () => {
+  test('fold: byte-identical head is authored in the native owner (lane 25 wave 2)', () => {
+    const rust = read('native_lane_25/postgres.rs');
     const pos = read('pos.ts');
-    expect(pos).toContain(RENDERER + HEAD + '`');
-    expect(occurrences(pos, HEAD)).toBe(1);
     expect(sha(HEAD)).toBe(HEAD_SHA);
     expect(HEAD.length).toBe(213);
     expect(selects(HEAD)).toBe(1);
@@ -55,23 +54,20 @@ describe('POS read-tail r41 refund-payment text subquery dedupe', () => {
     expect(HEAD.endsWith("AND r.kind='sale'),0)")).toBe(true);
     expect(HEAD).not.toContain('FOR UPDATE');
     expect(HEAD.endsWith('\n')).toBe(false);
+    expect(occurrences(rust, HEAD)).toBe(2);
+    expect(pos).not.toContain(RENDERER);
+    expect(pos).toContain('nativePosEvidenceDetail');
   });
 
-  test('both sites delegate; rendered payment statement stays byte-identical with 3 SELECTs and 7 binds', () => {
+  test('native owner renders the payment detail byte-identically with 3 SELECTs and 7 binds', () => {
+    const rust = read('native_lane_25/postgres.rs');
     const pos = read('pos.ts');
-    expect(occurrences(pos, CALL)).toBe(2);
-    expect(pos).toContain(`COALESCE((${CALL}::text refunded_minor,`);
-    expect(pos).toContain(`(p.amount_minor::numeric-COALESCE((${CALL})::text contribution_minor,`);
-    const start = pos.indexOf('readPosRefundPayments3:');
-    expect(start).toBeGreaterThanOrEqual(0);
-    const bodyStart = pos.indexOf('`', start) + 1;
-    const bodyEnd = pos.indexOf('`', bodyStart);
-    const rendered = pos.slice(bodyStart, bodyEnd).split(CALL).join(HEAD);
-    expect(rendered).toBe(RENDERED_FULL);
-    expect(sha(rendered)).toBe(RENDERED_FULL_SHA);
-    expect(selects(rendered)).toBe(3);
-    expect(binds(rendered)).toBe(7);
-    expect(pos).toContain('.bind(facts.id, facts.company, facts.branch, facts.branch2, facts.currency, facts.from, facts.to)');
+    expect(rust).toContain(RENDERED_FULL);
+    expect(sha(RENDERED_FULL)).toBe(RENDERED_FULL_SHA);
+    expect(selects(RENDERED_FULL)).toBe(3);
+    expect(binds(RENDERED_FULL)).toBe(7);
+    expect(pos).not.toContain(CALL);
+    expect(pos).toContain('nativePosEvidenceDetail');
   });
 
   test('protected r35-r40 renderers, registries, advisory locks, PMS fragments, settlement mirrors and lock tails stay untouched', () => {
@@ -106,7 +102,7 @@ describe('POS read-tail r41 refund-payment text subquery dedupe', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(164);
+    expect(total).toBe(161);
     expect(total).toBeLessThan(175);
   });
 });

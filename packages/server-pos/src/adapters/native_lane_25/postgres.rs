@@ -10,8 +10,9 @@ use crate::adapters::native_lane_25::application::{
     EvidenceFuture, PosEvidenceReader,
 };
 use crate::adapters::native_lane_25::domain::{
+    DETAIL_KIND_PAYMENT, DETAIL_KIND_REFUND, EvidenceDetailQuery, EvidenceDetailRow,
     METRIC_NET_POS_SALES, METRIC_POS_PAYMENT_MIX, METRIC_POS_SALES, EvidenceQuery, EvidenceRow,
-    valid_row,
+    valid_detail_row, valid_row,
 };
 use erpx_server_runtime::public::postgres::DatabasePool;
 use erpx_server_shared::public::{BusinessError, FailureKind};
@@ -67,6 +68,26 @@ const OUTER_COLUMNS: &str = "SELECT id::text AS id,source_id::text AS source_id,
  currency::text AS currency,method::text AS method,amount_minor::text AS amount_minor,\
  contribution_minor::text AS contribution_minor,refunded_minor::text AS refunded_minor,\
  revision::text AS revision,sale_version::text AS sale_version";
+
+// ---- Wave 2: exact retired TypeScript evidence detail literals ----------
+
+pub const REFUND_DETAIL_SQL: &str = r#"SELECT r.id source_id,s.id sale_id,'refund' source_type,s.number receipt_number,
+     s.business_date,r.accounting_date,s.currency,r.state,r.amount_minor::text amount_minor,
+     (-r.amount_minor::numeric)::text contribution_minor,'0'::text refunded_minor,r.version revision,s.version sale_version,r.branch_id
+   FROM pos_refunds r JOIN pos_sales s ON s.id=r.sale_id AND s.company_id=r.company_id
+   WHERE r.id=? AND r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND s.currency=?
+     AND r.accounting_date BETWEEN ? AND ? AND r.kind='sale' AND r.state='completed' LIMIT 1"#;
+
+pub const PAYMENT_DETAIL_SQL: &str = r#"SELECT p.id source_id,'payment' source_type,s.id sale_id,s.number receipt_number,
+     s.business_date,NULL::text accounting_date,s.currency,s.state sale_state,p.state,p.method,p.amount_minor::text amount_minor,
+     COALESCE((SELECT sum(rp.amount_minor)::numeric FROM pos_refund_payments rp JOIN pos_refunds r ON r.id=rp.refund_id AND r.company_id=p.company_id
+       WHERE rp.payment_id=p.id AND rp.state='succeeded' AND r.kind='sale'),0)::text refunded_minor,
+     (p.amount_minor::numeric-COALESCE((SELECT sum(rp.amount_minor)::numeric FROM pos_refund_payments rp JOIN pos_refunds r ON r.id=rp.refund_id AND r.company_id=p.company_id
+       WHERE rp.payment_id=p.id AND rp.state='succeeded' AND r.kind='sale'),0))::text contribution_minor,
+     p.version revision,s.version sale_version,s.branch_id,p.created_at
+   FROM pos_payments p JOIN pos_sales s ON s.id=p.sale_id AND s.company_id=p.company_id
+   WHERE p.id=? AND p.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND s.currency=?
+     AND s.business_date BETWEEN ? AND ? AND s.state='completed' AND p.state='succeeded' LIMIT 1"#;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Bind {
@@ -186,6 +207,64 @@ pub fn render(query: &EvidenceQuery) -> Result<(String, Vec<Bind>), BusinessErro
     Ok((sql, values))
 }
 
+/// Render one bounded detail read: byte-identical retired SQL with numbered
+/// binds in the exact retired order `(id, company, branch, branch, currency,
+/// from, to)`.
+pub fn render_detail(query: &EvidenceDetailQuery) -> Result<(String, Vec<Bind>), BusinessError> {
+    let sql = match query.kind.as_str() {
+        DETAIL_KIND_REFUND => REFUND_DETAIL_SQL,
+        DETAIL_KIND_PAYMENT => PAYMENT_DETAIL_SQL,
+        _ => return Err(unavailable()),
+    };
+    // The retired SQL returns a mix of text, bigint and timestamp columns.
+    // Cast every projected column to text in the wrapper so sqlx can decode the
+    // exact fixed key set uniformly; the oracle above stays byte-identical.
+    let keys: &[&str] = match query.kind.as_str() {
+        DETAIL_KIND_REFUND => &crate::adapters::native_lane_25::domain::REFUND_DETAIL_KEYS,
+        _ => &crate::adapters::native_lane_25::domain::PAYMENT_DETAIL_KEYS,
+    };
+    let projection = keys
+        .iter()
+        .map(|key| format!("{key}::text AS {key}"))
+        .collect::<Vec<_>>()
+        .join(",");
+    Ok((
+        format!("SELECT {projection} FROM ({}) d", numbered(sql)),
+        vec![
+            Bind::Text(query.id.clone()),
+            Bind::Text(query.company.clone()),
+            Bind::Opt(query.branch.clone()),
+            Bind::Opt(query.branch.clone()),
+            Bind::Text(query.currency.clone()),
+            Bind::Text(query.from.clone()),
+            Bind::Text(query.to.clone()),
+        ],
+    ))
+}
+
+fn detail_projection(
+    kind: &str,
+    row: &sqlx::postgres::PgRow,
+) -> Result<EvidenceDetailRow, BusinessError> {
+    let keys: &[&str] = match kind {
+        DETAIL_KIND_REFUND => &crate::adapters::native_lane_25::domain::REFUND_DETAIL_KEYS,
+        DETAIL_KIND_PAYMENT => &crate::adapters::native_lane_25::domain::PAYMENT_DETAIL_KEYS,
+        _ => return Err(unavailable()),
+    };
+    let mut values = Vec::with_capacity(keys.len());
+    for key in keys {
+        let value = row
+            .try_get::<Option<String>, _>(*key)
+            .map_err(|_| unavailable())?;
+        values.push(((*key).to_owned(), value));
+    }
+    let row = EvidenceDetailRow { values };
+    if !valid_detail_row(kind, &row) {
+        return Err(unavailable());
+    }
+    Ok(row)
+}
+
 fn args(binds: &[Bind]) -> Result<PgArguments, BusinessError> {
     let mut args = PgArguments::default();
     for bind in binds {
@@ -255,6 +334,26 @@ impl PosEvidenceReader for PgEvidenceReader {
                 .await
                 .map_err(|_| unavailable())?;
             rows.iter().map(projection).collect()
+        })
+    }
+
+    fn detail<'a>(
+        &'a self,
+        query: &'a EvidenceDetailQuery,
+    ) -> EvidenceFuture<'a, Option<EvidenceDetailRow>> {
+        Box::pin(async move {
+            let (sql, binds) = render_detail(query)?;
+            let arguments = args(&binds)?;
+            let rows = sqlx::query_with(sqlx::AssertSqlSafe(sql), arguments)
+                .fetch_all(self.pool.raw())
+                .await
+                .map_err(|_| unavailable())?;
+            if rows.len() > 1 {
+                return Err(unavailable());
+            }
+            rows.first()
+                .map(|row| detail_projection(&query.kind, row))
+                .transpose()
         })
     }
 }
@@ -377,5 +476,71 @@ mod tests {
             hash(&serde_json::to_string(&result).unwrap()),
             "d559c7a0ad2adc21773e380d6a812bdf2c749892b0609bd813fc4ebf2307137f"
         );
+    }
+}
+
+#[cfg(test)]
+mod detail_tests {
+    use super::*;
+
+    fn query(kind: &str) -> EvidenceDetailQuery {
+        EvidenceDetailQuery {
+            company: "co".into(),
+            branch: Some("br".into()),
+            kind: kind.into(),
+            id: "r1".into(),
+            from: "2026-01-01".into(),
+            to: "2026-01-31".into(),
+            currency: "USD".into(),
+        }
+    }
+
+    #[test]
+    fn detail_sql_is_owner_local_lock_free_and_byte_stable() {
+        for sql in [REFUND_DETAIL_SQL, PAYMENT_DETAIL_SQL] {
+            assert!(sql.starts_with("SELECT "));
+            assert!(sql.contains(" LIMIT 1"));
+            for forbidden in [
+                "FOR UPDATE", "FOR SHARE", "LOCK TABLE", "pg_advisory", "INSERT ",
+                "UPDATE ", "DELETE ", "pms_sources", "pms_properties", "commerce_",
+                "finance_", "inventory_",
+            ] {
+                assert!(!sql.contains(forbidden), "detail SQL must stay owner-local: {forbidden}");
+            }
+        }
+        assert_eq!(
+            hash(REFUND_DETAIL_SQL),
+            "4ba411c8e3a749cdd0322fa80bfc6d7a9532768356443c2f7dd67201c368d8b1"
+        );
+        assert_eq!(
+            hash(PAYMENT_DETAIL_SQL),
+            "5299bafa4da2d4476f7df990b4214281e0ca2152148c92a11f214b8c506636d5"
+        );
+    }
+
+    #[test]
+    fn detail_render_preserves_bind_order_and_casts_projection() {
+        for (kind, binds) in [(DETAIL_KIND_REFUND, 7), (DETAIL_KIND_PAYMENT, 7)] {
+            let (sql, values) = render_detail(&query(kind)).unwrap();
+            assert!(sql.starts_with("SELECT source_id::text AS source_id,"));
+            assert!(sql.contains(" FROM (SELECT "));
+            assert_eq!(values.len(), binds);
+            assert_eq!(values[0], Bind::Text("r1".into()));
+            assert_eq!(values[1], Bind::Text("co".into()));
+            assert_eq!(values[2], Bind::Opt(Some("br".into())));
+            assert_eq!(values[6], Bind::Text("2026-01-31".into()));
+            let max = sql
+                .split('$')
+                .skip(1)
+                .filter_map(|part| part.chars().take_while(|c| c.is_ascii_digit()).collect::<String>().parse::<usize>().ok())
+                .max()
+                .unwrap_or(0);
+            assert_eq!(max, binds);
+        }
+    }
+
+    #[test]
+    fn detail_unknown_kind_fails_closed() {
+        assert!(render_detail(&query("other")).is_err());
     }
 }

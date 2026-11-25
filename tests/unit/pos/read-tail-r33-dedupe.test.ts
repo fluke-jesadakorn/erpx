@@ -69,7 +69,7 @@ describe('POS read-tail r33 by-id payment native cutover', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(164);
+    expect(total).toBe(161);
     expect(total).toBeLessThan(189);
   });
 });

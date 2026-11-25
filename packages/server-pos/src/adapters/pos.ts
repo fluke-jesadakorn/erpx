@@ -3,6 +3,7 @@ import { nativePosCashMovementsStatement, nativePosConnectionsStatement, nativeP
 import { nativePosSaleLinesStatement, nativePosSalePaymentsStatement } from './native-pos-sale-child';
 import { nativePosRegistersStatement, nativePosRegistersFrontStatement, nativePosSaleStatement, nativePosSettingsStatement } from './native-pos-registers-statement';
 import { nativePosConnectionsRowStatement, nativePosRefundsListStatement, nativePosSalesListStatement, nativePosSettlementsListStatement } from './native-pos-list-reads';
+import { nativePosEvidenceDetail } from './native-lane-25/detail-client';
 import { roomChargeReversalWork } from "@erpx/server-pos/adapters/room-charge-reversal-queue";
 import { posGuestAccountInterface } from "@erpx/server-pms/public/pos-guest-account-interface";
 import { hospitalityOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/hospitality-owner-projection-sources";
@@ -33,8 +34,6 @@ const allocatedTotalsHeadSql = (): string => `WITH allocated AS (
  FROM pos_lines l JOIN pos_fulfillments f ON f.id=l.fulfillment_id WHERE f.company_id=?
  ), totals AS (SELECT sale_id,SUM(refunded_minor) refunds_minor,SUM(refunded_tax_minor) refunded_tax_minor,
  SUM(CASE WHEN fulfillment_state='delivered' THEN cost_share ELSE 0 END-returned_cost_minor) cost_minor FROM allocated GROUP BY sale_id)`;
-const refundPaymentSumTextSql = (): string => `SELECT sum(rp.amount_minor)::numeric FROM pos_refund_payments rp JOIN pos_refunds r ON r.id=rp.refund_id AND r.company_id=p.company_id
-       WHERE rp.payment_id=p.id AND rp.state='succeeded' AND r.kind='sale'),0)`;
 
 function unit(db: SqlDatabase, actor: WorkContext): PosReadUnit<SqlStatement> {
     return {
@@ -152,7 +151,7 @@ function unit(db: SqlDatabase, actor: WorkContext): PosReadUnit<SqlStatement> {
         }) => nativePosKeyedSaleDocumentStatement(db, facts),
         readOrganizationNodes1: facts => PosReadOrganizationFacts(db).readOrganizationNodes1(facts),
         readFinanceBankTransactions2: facts => PosReadFinanceFacts(db).readFinanceBankTransactions2(facts),
-        readOrganizationNodes2: facts => PosReadOrganizationFacts(db).readOrganizationNodes2(facts),
+        readOrganizationNodes2: facts => PosReadOrganizationFacts(db).readOrganizationNodes2(facts, actor),
         readPosDayCloses1: (facts: {
             company: string;
             branch: string | null;
@@ -183,12 +182,10 @@ function unit(db: SqlDatabase, actor: WorkContext): PosReadUnit<SqlStatement> {
             currency: string;
             from: string;
             to: string;
-        }) => db.prepare(`SELECT r.id source_id,s.id sale_id,'refund' source_type,s.number receipt_number,
-     s.business_date,r.accounting_date,s.currency,r.state,r.amount_minor::text amount_minor,
-     (-r.amount_minor::numeric)::text contribution_minor,'0'::text refunded_minor,r.version revision,s.version sale_version,r.branch_id
-   FROM pos_refunds r JOIN pos_sales s ON s.id=r.sale_id AND s.company_id=r.company_id
-   WHERE r.id=? AND r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND s.currency=?
-     AND r.accounting_date BETWEEN ? AND ? AND r.kind='sale' AND r.state='completed' LIMIT 1`).bind(facts.id, facts.company, facts.branch, facts.branch2, facts.currency, facts.from, facts.to).first(),
+        }) => nativePosEvidenceDetail(
+            { holdingId: actor.holdingId, holdingSlug: actor.holdingSlug, companyId: actor.companyId, branchId: facts.branch },
+            { kind: "refund", id: facts.id, from: facts.from, to: facts.to, currency: facts.currency },
+        ),
         readPosRefundPayments3: (facts: {
             id: string;
             company: string;
@@ -197,14 +194,10 @@ function unit(db: SqlDatabase, actor: WorkContext): PosReadUnit<SqlStatement> {
             currency: string;
             from: string;
             to: string;
-        }) => db.prepare(`SELECT p.id source_id,'payment' source_type,s.id sale_id,s.number receipt_number,
-     s.business_date,NULL::text accounting_date,s.currency,s.state sale_state,p.state,p.method,p.amount_minor::text amount_minor,
-     COALESCE((${refundPaymentSumTextSql()}::text refunded_minor,
-     (p.amount_minor::numeric-COALESCE((${refundPaymentSumTextSql()})::text contribution_minor,
-     p.version revision,s.version sale_version,s.branch_id,p.created_at
-   FROM pos_payments p JOIN pos_sales s ON s.id=p.sale_id AND s.company_id=p.company_id
-   WHERE p.id=? AND p.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND s.currency=?
-     AND s.business_date BETWEEN ? AND ? AND s.state='completed' AND p.state='succeeded' LIMIT 1`).bind(facts.id, facts.company, facts.branch, facts.branch2, facts.currency, facts.from, facts.to).first(),
+        }) => nativePosEvidenceDetail(
+            { holdingId: actor.holdingId, holdingSlug: actor.holdingSlug, companyId: actor.companyId, branchId: facts.branch },
+            { kind: "payment", id: facts.id, from: facts.from, to: facts.to, currency: facts.currency },
+        ),
         readPosRefunds3: (facts: {
             company: string;
             branch: string | null;

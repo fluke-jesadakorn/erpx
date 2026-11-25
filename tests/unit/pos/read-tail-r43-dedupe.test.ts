@@ -98,7 +98,8 @@ describe('POS read-tail r43 scope head dedupe', () => {
     expect(read('native_lane_25/postgres.rs')).toContain('LEG_POS_SALES');
     expect(read('executive-metric-projections.ts')).toContain('const orgNodeLabelHeadSql = (): string => `');
     expect(read('pos.ts')).toContain('const allocatedTotalsHeadSql = (): string => `WITH allocated AS (');
-    expect(read('pos.ts')).toContain('const refundPaymentSumTextSql = (): string => `');
+    expect(read('pos.ts')).toContain('nativePosEvidenceDetail');
+    expect(read('native_lane_25/postgres.rs')).toContain('PAYMENT_DETAIL_SQL');
     expect(read('native-pos-day-report.ts')).toContain("'pos_day_report_");
     expect(read('native-pos-stripe-reads.ts')).toContain("'pos_stripe_");
     expect(read('pos-stripe.ts')).toContain('SELECT * FROM pos_sales WHERE id=? AND company_id=? FOR UPDATE');
@@ -117,7 +118,7 @@ describe('POS read-tail r43 scope head dedupe', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(164);
+    expect(total).toBe(161);
     expect(total).toBeLessThan(173);
   });
 });

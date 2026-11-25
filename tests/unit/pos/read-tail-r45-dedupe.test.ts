@@ -110,7 +110,8 @@ describe('POS read-tail r45 finance payment identity head dedupe', () => {
     expect(read('native_lane_25/postgres.rs')).toContain('LEG_POS_SALES');
     expect(read('executive-metric-projections.ts')).toContain('const orgNodeLabelHeadSql = (): string => `');
     expect(read('pos.ts')).toContain('const allocatedTotalsHeadSql = (): string => `WITH allocated AS (');
-    expect(read('pos.ts')).toContain('const refundPaymentSumTextSql = (): string => `');
+    expect(read('pos.ts')).toContain('nativePosEvidenceDetail');
+    expect(read('native_lane_25/postgres.rs')).toContain('PAYMENT_DETAIL_SQL');
     expect(read('read-tail-r43-scope-sql.ts')).toContain("const posScopeHeadSql = (): string => '(SELECT ?::text company_id,?::text branch_id,';");
     expect(read('read-tail-r44-catalog-aggregate-sql.ts')).toContain("export const posCatalogAggregateHeadSql = (): string => 'SELECT jsonb_agg(to_jsonb(c) ORDER BY c.product_id) FROM pos_catalog c WHERE c.';");
     expect(read('native-pos-day-report.ts')).toContain("'pos_day_report_");
@@ -131,7 +132,7 @@ describe('POS read-tail r45 finance payment identity head dedupe', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(164);
+    expect(total).toBe(161);
     expect(total).toBeLessThan(171);
   });
 });

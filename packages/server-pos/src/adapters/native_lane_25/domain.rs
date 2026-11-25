@@ -206,6 +206,94 @@ pub fn valid_row(row: &EvidenceRow) -> bool {
             .all(|value| !value.is_empty() && value.len() <= 40 && value.bytes().all(|b| b.is_ascii_digit()))
 }
 
+// ---- Wave 2: POS executive evidence detail rows -------------------------
+
+pub const DETAIL_KIND_REFUND: &str = "refund";
+pub const DETAIL_KIND_PAYMENT: &str = "payment";
+pub const DETAIL_KINDS: [&str; 2] = [DETAIL_KIND_REFUND, DETAIL_KIND_PAYMENT];
+
+/// Exact column order of the retired `readPosRefunds2` projection.
+pub const REFUND_DETAIL_KEYS: [&str; 14] = [
+    "source_id", "sale_id", "source_type", "receipt_number", "business_date",
+    "accounting_date", "currency", "state", "amount_minor", "contribution_minor",
+    "refunded_minor", "revision", "sale_version", "branch_id",
+];
+/// Exact column order of the retired `readPosRefundPayments3` projection.
+pub const PAYMENT_DETAIL_KEYS: [&str; 17] = [
+    "source_id", "source_type", "sale_id", "receipt_number", "business_date",
+    "accounting_date", "currency", "sale_state", "state", "method", "amount_minor",
+    "refunded_minor", "contribution_minor", "revision", "sale_version", "branch_id",
+    "created_at",
+];
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EvidenceDetailQuery {
+    pub company: String,
+    pub branch: Option<String>,
+    pub kind: String,
+    pub id: String,
+    pub from: String,
+    pub to: String,
+    pub currency: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EvidenceDetailRow {
+    pub values: Vec<(String, Option<String>)>,
+}
+
+impl EvidenceDetailRow {
+    pub fn value(self) -> Value {
+        let mut map = serde_json::Map::new();
+        for (key, value) in self.values {
+            map.insert(key, value.map(Value::String).unwrap_or(Value::Null));
+        }
+        Value::Object(map)
+    }
+}
+
+pub fn validate_detail(query: &EvidenceDetailQuery) -> Result<(), BusinessError> {
+    if !DETAIL_KINDS.contains(&query.kind.as_str())
+        || !safe_id(&query.company)
+        || query.branch.as_deref().is_some_and(|value| !safe_id(value))
+        || !bounded(&query.id, 1, MAX_ID_LEN)
+        || query.id.chars().any(char::is_control)
+        || !currency(&query.currency)
+        || !calendar_date(&query.from)
+        || !calendar_date(&query.to)
+        || query.from > query.to
+    {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
+/// Fail closed on a malformed native detail row: exact key set per kind and a
+/// discriminator matching the registered read kind.
+pub fn valid_detail_row(kind: &str, row: &EvidenceDetailRow) -> bool {
+    let expected: &[&str] = match kind {
+        DETAIL_KIND_REFUND => &REFUND_DETAIL_KEYS,
+        DETAIL_KIND_PAYMENT => &PAYMENT_DETAIL_KEYS,
+        _ => return false,
+    };
+    if row.values.len() != expected.len() {
+        return false;
+    }
+    let get = |key: &str| -> Option<&Option<String>> {
+        row.values.iter().find(|(name, _)| name == key).map(|(_, value)| value)
+    };
+    if !expected.iter().all(|key| get(key).is_some()) {
+        return false;
+    }
+    let type_matches = get("source_type").and_then(|value| value.as_deref()) == Some(kind);
+    let source = get("source_id").and_then(|value| value.as_deref());
+    let sale = get("sale_id").and_then(|value| value.as_deref());
+    type_matches
+        && source.is_some_and(|value| bounded(value, 1, MAX_ID_LEN))
+        && sale.is_some_and(|value| bounded(value, 1, MAX_ID_LEN))
+        && get("amount_minor").and_then(|value| value.as_deref()).is_some_and(|v| !v.is_empty())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -289,5 +377,74 @@ mod tests {
         bad = row();
         bad.id = "refund:s1".into();
         assert!(!valid_row(&bad));
+    }
+}
+
+#[cfg(test)]
+mod detail_tests {
+    use super::*;
+
+    fn query(kind: &str) -> EvidenceDetailQuery {
+        EvidenceDetailQuery {
+            company: "co".into(),
+            branch: None,
+            kind: kind.into(),
+            id: "r1".into(),
+            from: "2026-01-01".into(),
+            to: "2026-01-31".into(),
+            currency: "USD".into(),
+        }
+    }
+
+    fn row(kind: &str) -> EvidenceDetailRow {
+        let keys: &[&str] = if kind == DETAIL_KIND_REFUND {
+            &REFUND_DETAIL_KEYS
+        } else {
+            &PAYMENT_DETAIL_KEYS
+        };
+        EvidenceDetailRow {
+            values: keys
+                .iter()
+                .map(|key| {
+                    let value = match *key {
+                        "source_type" => kind.to_owned(),
+                        "accounting_date" if kind == DETAIL_KIND_PAYMENT => return (key.to_string(), None),
+                        "method" => return (key.to_string(), None),
+                        "currency" => "USD".to_owned(),
+                        "amount_minor" => "100".to_owned(),
+                        _ => "v".to_owned(),
+                    };
+                    (key.to_string(), Some(value))
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn detail_query_validates_kind_scope_and_dates() {
+        assert!(validate_detail(&query(DETAIL_KIND_REFUND)).is_ok());
+        let mut bad = query(DETAIL_KIND_REFUND);
+        bad.kind = "other".into();
+        assert!(validate_detail(&bad).is_err());
+        bad = query(DETAIL_KIND_PAYMENT);
+        bad.company.clear();
+        assert!(validate_detail(&bad).is_err());
+        bad = query(DETAIL_KIND_PAYMENT);
+        bad.to = "2025-12-31".into();
+        assert!(validate_detail(&bad).is_err());
+    }
+
+    #[test]
+    fn detail_row_pins_exact_key_set_per_kind() {
+        assert_eq!(REFUND_DETAIL_KEYS.len(), 14);
+        assert_eq!(PAYMENT_DETAIL_KEYS.len(), 17);
+        assert!(valid_detail_row(DETAIL_KIND_REFUND, &row(DETAIL_KIND_REFUND)));
+        assert!(valid_detail_row(DETAIL_KIND_PAYMENT, &row(DETAIL_KIND_PAYMENT)));
+        assert!(!valid_detail_row(DETAIL_KIND_PAYMENT, &row(DETAIL_KIND_REFUND)));
+        let mut bad = row(DETAIL_KIND_REFUND);
+        bad.values.pop();
+        assert!(!valid_detail_row(DETAIL_KIND_REFUND, &bad));
+        let value = row(DETAIL_KIND_REFUND).value();
+        assert_eq!(value.as_object().unwrap().len(), REFUND_DETAIL_KEYS.len());
     }
 }
