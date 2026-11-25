@@ -169,7 +169,7 @@ describe('quality read-tail r26 evidence-head family (R)', () => {
     expect(read('adapters/executive-metric-projections.ts')).toContain('qualityBranchDisplayLabelSql');
     expect(read('adapters/customer_return_hold_statement.rs')).toContain('customer_return_hold_statements');
     const counts: Record<string, number> = {
-      'quality-work-scope-sql': 1, 'native-source-wrapper-sql': 0, 'inspection-evidence-source-sql': 1,
+      'quality-work-scope-sql': 0, 'native-source-wrapper-sql': 0, 'inspection-evidence-source-sql': 1,
       'quality-lineage-recursion-sql': 0, 'quality-child-agg-sql': 1,
       'quality-receipt-guard-sql': 1, 'quality-source-rows-sql': 0, 'quality-scope-sql': 1,
       'quality-alert-recipient-sql': 0, 'quality-id-source-sql': 0,
@@ -197,6 +197,6 @@ describe('quality read-tail r26 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(57);
-    expect(total).toBe(19);
+    expect(total).toBe(18);
   });
 });

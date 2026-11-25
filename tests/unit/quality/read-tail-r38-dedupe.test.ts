@@ -98,8 +98,8 @@ describe('quality read-tail r38 attachment scope-read native cutover', () => {
 
   test('retirement:ts-statements is strictly lower than the BEFORE=24 baseline', () => {
     expect(kpi(/INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT /g)).toBeLessThan(24);
-    expect(kpi(/INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT /g)).toBe(19);
-    expect(kpi(/SELECT /g)).toBe(19);
+    expect(kpi(/INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT /g)).toBe(18);
+    expect(kpi(/SELECT /g)).toBe(18);
   });
 });
 

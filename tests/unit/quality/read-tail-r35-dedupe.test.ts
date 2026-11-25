@@ -81,7 +81,7 @@ describe('quality read-tail r35 native wrapper evidence head dedupe', () => {
 
   test('retirement:ts-statements is strictly lower than the BEFORE=27 baseline', () => {
     expect(kpi(/INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT /g)).toBeLessThan(27);
-    expect(kpi(/INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT /g)).toBe(19);
-    expect(kpi(/SELECT /g)).toBe(19);
+    expect(kpi(/INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT /g)).toBe(18);
+    expect(kpi(/SELECT /g)).toBe(18);
   });
 });

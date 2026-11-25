@@ -403,6 +403,28 @@ const READ_SUPPLIER_BILL_RECEIPT_IDS: NativeCommerceReadStatement = NativeCommer
     bind_count: 2,
 };
 
+/// Native successor of the POS private-image product version probe. The caller
+/// binds `[product_id, company_id]` in that order.
+pub const RD_POS_PRODUCT_VERSION: &str = "commerce_rd_pos_product_version";
+const SQL_POS_PRODUCT_VERSION: &str =
+    "SELECT version FROM commerce_products WHERE id=? AND company_id=?";
+const READ_POS_PRODUCT_VERSION: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_POS_PRODUCT_VERSION,
+    sql: SQL_POS_PRODUCT_VERSION,
+    bind_count: 2,
+};
+
+/// Native successor of the POS private-image product projection. The caller
+/// binds `[product_id, company_id]`; the `product` alias stays in the literal.
+pub const RD_POS_PRODUCT_IMAGE: &str = "commerce_rd_pos_product_image";
+const SQL_POS_PRODUCT_IMAGE: &str =
+    "SELECT to_jsonb(product)::text image FROM commerce_products product WHERE product.id=? AND product.company_id=?";
+const READ_POS_PRODUCT_IMAGE: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_POS_PRODUCT_IMAGE,
+    sql: SQL_POS_PRODUCT_IMAGE,
+    bind_count: 2,
+};
+
 const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_PMS_WAREHOUSE_ACTIVE,
     READ_PMS_SETTINGS_EXISTS,

@@ -168,7 +168,7 @@ describe('quality read-tail r40 source-arm evidence head dedupe', () => {
 
   test('retirement:ts-statements is strictly lower than the BEFORE=22 baseline', () => {
     expect(kpi(/INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT /g)).toBeLessThan(22);
-    expect(kpi(/INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT /g)).toBe(19);
-    expect(kpi(/SELECT /g)).toBe(19);
+    expect(kpi(/INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT /g)).toBe(18);
+    expect(kpi(/SELECT /g)).toBe(18);
   });
 });
