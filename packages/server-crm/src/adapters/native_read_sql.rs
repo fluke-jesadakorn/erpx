@@ -116,6 +116,37 @@ mod tests {
     }
 
     #[test]
+    fn assignment_module_exists_head_is_the_owner_select_one_plan() {
+        // Canonical native form of the r35 assignment-module EXISTS predicate:
+        // the inner witness is the r42 select-one plan over the assignments
+        // body. The TS `crmAssignmentModuleExistsSql` delegates on this identity.
+        let select_one = |body: &str| format!("SELECT 1 FROM {body}");
+        let assignment_exists = |alias: &str, suffix: &str| {
+            let q = if alias.is_empty() { String::new() } else { format!("{alias}.") };
+            let body = format!(
+                "assignments{} WHERE {q}id=? AND (jsonb_array_length({q}modules_json::jsonb)=0 OR {q}modules_json::jsonb @> jsonb_build_array({suffix}",
+                if alias.is_empty() { String::new() } else { format!(" {alias}") }
+            );
+            format!("EXISTS({}", select_one(&body))
+        };
+        let cases = [
+            ("bare metric guard", "", "'crm'::text)))", "EXISTS(SELECT 1 FROM assignments WHERE id=? AND (jsonb_array_length(modules_json::jsonb)=0 OR modules_json::jsonb @> jsonb_build_array('crm'::text)))"),
+            ("aliased purchase prefix", "selected", "", "EXISTS(SELECT 1 FROM assignments selected WHERE selected.id=? AND (jsonb_array_length(selected.modules_json::jsonb)=0 OR selected.modules_json::jsonb @> jsonb_build_array("),
+        ];
+        for (name, alias, suffix, expected) in cases {
+            let rendered = assignment_exists(alias, suffix);
+            assert_eq!(rendered, expected, "{name}");
+            assert_eq!(rendered.matches("SELECT ").count(), 1, "{name}");
+            let upper = rendered.to_ascii_uppercase();
+            assert!(!upper.contains("INSERT"), "{name}");
+            assert!(!upper.contains("UPDATE"), "{name}");
+            assert!(!upper.contains("DELETE"), "{name}");
+            assert!(!upper.contains("FOR UPDATE"), "{name}");
+            assert!(!upper.contains("LOCK TABLE"), "{name}");
+        }
+    }
+
+    #[test]
     fn projection_from_head_is_the_owner_select_body_plan() {
         // Canonical native form of the r46 projection/FROM head: it is the
         // bare select-body plan over `${projection} FROM ${from}`. The TS

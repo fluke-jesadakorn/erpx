@@ -25,6 +25,16 @@ import {legalByIdAndItemSql} from '../legal-read-tail-r27-sources';
 import {legalPointByIdSql} from '../legal-read-tail-r32-sources';
 import {legalPointByKeySql} from '../legal-read-tail-r36-sources';
 import {legalItemKeyHeadSql,legalOrderedKeyHeadSql} from '../legal-read-tail-r54-sources';
+import contract from '../legal-approval-sources.json' with {type:'json'};
+const fill = (template: string, values: Record<string, string>) => {
+  let rendered = template;
+  for (const [name, value] of Object.entries(values)) {
+    const token = `{${name}}`;
+    if (!rendered.includes(token)) throw new Error('LEGAL_APPROVAL_CONTRACT_INVALID');
+    rendered = rendered.split(token).join(value);
+  }
+  return rendered;
+};
 function application(db:SqlDatabase,a:WorkContext){const workflow=legalApprovalFacts(db),nativeWrites=new WeakMap<LegalWrite,SqlStatement>(),nativeApproval=legalApprovalStatements(db,a.companyId,a.userId);const stage=(statement:SqlStatement):LegalWrite=>{const write:LegalWrite={owner:"legal"};nativeWrites.set(write,statement);return write;};
 return createLegalApprovalApplication({actor:a,access:(id,p)=>access(db,a,id,p),eligible:(id,item,p)=>eligible(db,a,id,item,p),samePerson:id=>samePerson(a,id),hash:value=>createHash("sha256").update(value).digest("hex"),clock:{now:()=>Date.now()},identifiers:{next:()=>crypto.randomUUID()},error:(status,code,message)=>new ApiError(status,code,message),repository:{
 routeSteps:facts=>workflow.routeSteps(facts),
@@ -55,10 +65,10 @@ notifyReviewer:async facts=>stage(await nativeLegalApprovalNotification(db,a,fac
 approveRoute:facts=>stage(workflow.approveRoute(facts)),
 async recordApproval(facts){return stage(await nativeApproval.recordApproval(facts));},
 async advanceContract(facts){return stage(await nativeApproval.advanceContract(facts));},
-reviewerMembership:(facts:{company_id:string;itemId:string;id:string;now:number;now2:number;})=>db.prepare(`SELECT 1 FROM legal_members m JOIN (${identity_accessProjectionSources.assignments}) a ON a.user_id=m.user_id AND a.company_id=? WHERE m.item_id=? AND m.user_id=? AND a.revoked_at IS NULL AND a.valid_from<=? AND a.valid_until>? AND iam_role_allows(a.role,a.company_id,'legal.approve')`).bind(facts.company_id,facts.itemId,facts.id,facts.now,facts.now2).first(),
+reviewerMembership:(facts:{company_id:string;itemId:string;id:string;now:number;now2:number;})=>db.prepare(fill(contract.reviewerMembership,{assignments:identity_accessProjectionSources.assignments})).bind(facts.company_id,facts.itemId,facts.id,facts.now,facts.now2).first(),
 sameAuthor:facts=>legalEvidenceSamePerson(db,facts.company,facts.user,facts.author).then(value=>value?{}:null),
 requireReviewerMembership:(key:string,reviewerId:string,itemId:string)=>stage(assertion(db,key,`legal-reviewer-membership-${reviewerId}`,legalMembershipExistsSql,[itemId,reviewerId])),
-requireCurrentRoute:(key:string,instanceId:string,currentStep:number,version:number)=>stage(assertion(db,key,"legal-approval-current",`EXISTS(SELECT 1 FROM (${workflowProjectionSources.approval_instances}) approval_instances WHERE id=? AND state='pending' AND current_step=? AND version=?)`,[instanceId,currentStep,version])),
+requireCurrentRoute:(key:string,instanceId:string,currentStep:number,version:number)=>stage(assertion(db,key,"legal-approval-current",fill(contract.currentRoute,{approvalInstances:workflowProjectionSources.approval_instances}),[instanceId,currentStep,version])),
 requireReplacementMembership:(key:string,itemId:string,reviewerId:string)=>stage(assertion(db,key,"legal-reroute-membership",legalMembershipExistsSql,[itemId,reviewerId])),
 requireDecisionMembership:(key:string,itemId:string)=>stage(assertion(db,key,"legal-decision-membership",legalMembershipExistsSql,[itemId,a.userId])),
 currentApproval:(id,companyId)=>currentApproval(db,"legal",id,companyId),

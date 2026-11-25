@@ -44,6 +44,6 @@ describe('marketing read-tail r63 can_act selection cutover', () => {
   });
 
   it('retirement:ts-statements stays strictly below BEFORE=7 at 5 after r64', async () => {
-    expect(await selectTokens()).toBe(3);
+    expect(await selectTokens()).toBe(1);
   });
 });

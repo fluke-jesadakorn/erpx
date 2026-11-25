@@ -103,7 +103,7 @@ describe('Identity access read-tail r42 wiring', () => {
       ['adapters/read-tail-family-r38.ts', '911541b2aea24d91a2a145ff04310048ce8bc66300e3814b333ae151f127b8e2'],
       ['adapters/attachment-read-sources.ts', '3cedcaf49a89f99df88a5fbe324b20046c2aeb2cd1a298e9b300039b6b38b3ab'],
       ['adapters/native-session.ts', '1c390e8f6c47b25da718120ef5f6546103b1f8bbbfa837406ff7be462d1a51c1'],
-      ['adapters/workflow-command-authority.ts', '53f6e57083e1e11f61ffc21d55293733894582b081ff17d6bba2661835e662d8'],
+      ['adapters/workflow-command-authority.ts', 'dd8fe21329a9d90c5b89ccfd1efb523a38590b72043d30aad266b0e38b9cff62'],
       ['public/iam-inspector.ts', '0b07fc0a4b209c5a35c2af36555f4a3943a038855c707ff8fbbecbec51c5b0ab'],
       ['public/people-lifecycle-facts.ts', 'faee779bd8df8be4a9081ced03bb3cff8aa8a47312c9e80cee1ffba6adc8d4a8'],
     ];
@@ -115,7 +115,7 @@ describe('Identity access read-tail r42 wiring', () => {
 });
 
 describe('Identity access read-tail r42 retirement check', () => {
-  test('retirement:ts-statements is 373 after lock-aware preference cut', () => {
+  test('retirement:ts-statements is 371 after workflow/queued authorization cut', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -125,7 +125,7 @@ describe('Identity access read-tail r42 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBeLessThan(374);
-    expect(total).toBe(373);
+    expect(total).toBeLessThan(372);
+    expect(total).toBe(371);
   });
 });

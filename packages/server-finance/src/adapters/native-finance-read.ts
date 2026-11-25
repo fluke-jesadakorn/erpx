@@ -94,6 +94,14 @@ export const FINANCE_RD_PLAN_SNAPSHOTS = 'finance_rd_plan_snapshots';
 export const FINANCE_RD_PLAN_CATEGORY = 'finance_rd_plan_category';
 export const FINANCE_RD_PLAN_EXPORT_ROW = 'finance_rd_plan_export_row';
 export const FINANCE_RD_PLAN_SOURCE_SNAPSHOT = 'finance_rd_plan_source_snapshot';
+export const FINANCE_RD_CONTRACT_CUSTOMER = 'finance_rd_contract_customer';
+export const FINANCE_RD_CONTRACT_DIMENSIONS = 'finance_rd_contract_dimensions';
+export const FINANCE_RD_CONTRACT_DIMENSION_VALUE = 'finance_rd_contract_dimension_value';
+export const FINANCE_RD_CONTRACT_TAX_CODE = 'finance_rd_contract_tax_code';
+export const FINANCE_RD_CONTRACT_BILLING_RUN = 'finance_rd_contract_billing_run';
+export const FINANCE_RD_CONTRACT_BILLING_EXISTS = 'finance_rd_contract_billing_exists';
+export const FINANCE_RD_CONTRACT_BILL_SOURCE = 'finance_rd_contract_bill_source';
+export const FINANCE_RD_CONTRACT_POSTED_CORRECTION = 'finance_rd_contract_posted_correction';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'FINANCE_NATIVE_READ_UNAVAILABLE', 'The native Finance read service is unavailable.');

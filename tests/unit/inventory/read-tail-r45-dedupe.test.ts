@@ -71,7 +71,7 @@ describe('Inventory read-tail r45 parameterized transit-event sum dedupe', () =>
       'attachmentSourceProofExistsSql', 'sourceExistsSql', 'journalLineSumSql', 'childLineOwnerExistsSql',
       'nativeRecordExistsSql', 'branchScopeTupleSql', 'scopeExistsSql', 'journalAccountLineExistsSql',
       'sourceScopeRowsSql', 'packageObligationDocumentRowsSql', 'evidencePositionRowsSql',
-      'recordIdExistsSql', 'childLineRowsSql', 'scopeAllowedSql', 'disposalCountsSql', 'scopedFieldSql',
+      'recordIdExistsSql', 'childLineRowsSql', 'scopeAllowedSql', 'disposalCountsSql',
       'clockScopedPurchaseExistsSql', 'lotBalanceGuardSql', 'stockPositionSourcesSql',
       'inventoryMovementEvidenceRowsSql', 'executivePositionPointSql', 'stockSourceColumnsSql',
       'attachmentOwnerVersionGuardSql', 'attachmentLotIdsSql', 'reservedAvailabilitySumSql',
@@ -106,7 +106,7 @@ describe('Inventory read-tail r45 parameterized transit-event sum dedupe', () =>
     // r52 retires 1 landed-cost detail-lines read: 303 -> 302.
     // r53 folds 3 byte-identical count-list projection heads into one helper: 302 -> 300.
     // r54 folds 3 package-obligation stock heads into one kind-parameterized renderer: 300 -> 298.
-    expect(total).toBe(277);
+    expect(total).toBe(276);
     expect(total).toBeLessThan(299);
   });
 });

@@ -180,7 +180,7 @@ describe('Identity access read-tail r34 wiring', () => {
 });
 
 describe('Identity access read-tail r34 retirement check', () => {
-  test('retirement:ts-statements is 373 after lock-aware preference cut', () => {
+  test('retirement:ts-statements is 371 after workflow/queued authorization cut', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -191,6 +191,6 @@ describe('Identity access read-tail r34 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(468);
-    expect(total).toBe(373);
+    expect(total).toBe(371);
   });
 });

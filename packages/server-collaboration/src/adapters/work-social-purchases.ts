@@ -9,7 +9,12 @@ import 'server-only';
 import {lockPackageSettlementSources} from '@erpx/server-commercial/public/package-locks';
 import {socialUploadCleanupFileLocks,beginSocialUploadCleanupFiles,assertSocialUploadCleanupFiles} from '@erpx/server-files/public/social-upload-cleanup';
 import { randomUUID } from 'node:crypto';
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import type { SqlDatabase, SqlStatement } from '@erpx/server-runtime/public/runtime/types';
+import { nativeSystemNotificationStatement } from './native-system-notification';
+/** Owner-planned read: no SQL text from the caller, executed on its own unit. */
+const ownerRead = (db: SqlDatabase, company: string, kind: string, values: unknown[]): Promise<SqlStatement> =>
+    nativeSystemNotificationStatement(db, company,
+        { userId: '', recordType: '', recordId: '', recordVersion: 0, message: '', kind, values_json: JSON.stringify(values) }, '', 0);
 import {isTransactionalSqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import type {StaffActor} from '@erpx/server-operations/public/staff-policy';
@@ -106,7 +111,7 @@ export async function withOperationsHandoverPurchaseUnit<Result extends {id:stri
   // disabled mode. Old entrypoints retain their existing compatibility path.
   const before=recoverable?await sourceFacts(database,actor.companyId,sources):null,checkKey=`handover-recovery:${randomUUID()}`;if(recoverable)await current(database,actor,checkKey);
   return withWorkSocialCommand(database,actor,{key:`${key}-operations`,operation:'work.handover.publish',type:'post',id,sources,purpose:'new-work'},async tx=>{const result=await run(tx);if(result.id!==id)throw new ApiError(409,'WORK_SOCIAL_SOURCE_CHANGED','The original typed handover identity changed.');await executeCommand(tx,actor,`${key}-operations`,'work.handover.publish',input,id,result.version,{...result,sourceBindings:sources},[]);
-   if(recoverable){const read=()=>image(database,actor,{key,operation:'work.handover.publish',type:'post',id,purpose:'history'}),completed={read,completed:null as string|null};unit.images.push(completed);const receipts=()=>database.prepare('SELECT jsonb_agg(to_jsonb(receipt) ORDER BY receipt.command_id)::text image FROM command_receipts receipt WHERE receipt.command_id IN(?,?,?)').bind(key,`${key}-publish`,`${key}-operations`).first<string>('image'),originalReceipts=await receipts();await readablePost(database,actor,id);unit.checks.push(async()=>{if(before!==await sourceFacts(database,actor.companyId,sources)||completed.completed!==await read()||originalReceipts!==await receipts())throw new ApiError(409,'WORK_SOCIAL_SOURCE_CHANGED','The original recovered handover source or immutable receipt changed during deferred effects.');await current(database,actor,checkKey);await readablePost(database,actor,id);});}
+   if(recoverable){const read=()=>image(database,actor,{key,operation:'work.handover.publish',type:'post',id,purpose:'history'}),completed={read,completed:null as string|null};unit.images.push(completed);const receipts=async()=>((await ownerRead(database,actor.companyId,'work_social_receipts_witness',[key,`${key}-publish`,`${key}-operations`]))).first<string>('image'),originalReceipts=await receipts();await readablePost(database,actor,id);unit.checks.push(async()=>{if(before!==await sourceFacts(database,actor.companyId,sources)||completed.completed!==await read()||originalReceipts!==await receipts())throw new ApiError(409,'WORK_SOCIAL_SOURCE_CHANGED','The original recovered handover source or immutable receipt changed during deferred effects.');await current(database,actor,checkKey);await readablePost(database,actor,id);});}
    return result;});
  });
 }
@@ -120,7 +125,7 @@ export async function withWorkSocialAiPhase<Result>(owner:SqlDatabase,actor:Staf
  const aiRows=(database:SqlDatabase)=>database.prepare(socialAiPhaseImageSql('', '', '')).bind(phase.reservationId,phase.reservationId,phase.reply?.id??null).first<string>('image');
  const identity=(database:SqlDatabase)=>database.prepare(socialAiPhaseImageSql("-ARRAY['state','result_json']", "-ARRAY['state','input_tokens','output_tokens','lease_until']", "-ARRAY['state','error','error_code','lease_until','updated_at']")).bind(phase.reservationId,phase.reservationId,phase.reply?.id??null).first<string>('image');
  const pending=async(database:SqlDatabase)=>{
-  const row=await database.prepare(`SELECT d.actor_id,d.post_id,d.source_hash,d.actor_json,d.state draft_state,u.company_id,u.actor_id usage_actor,u.state usage_state FROM social_ai_drafts d JOIN social_ai_usage u ON u.id=d.id WHERE d.id=?`).bind(phase.reservationId).first<{actor_id:string;post_id:string;source_hash:string;actor_json:string|null;draft_state:string;company_id:string;usage_actor:string;usage_state:string}>();
+  const row=await (await ownerRead(database,actor.companyId,'work_social_ai_phase_row',[phase.reservationId])).first<{actor_id:string;post_id:string;source_hash:string;actor_json:string|null;draft_state:string;company_id:string;usage_actor:string;usage_state:string}>();
   if(phase.phase==='reserve'){if(row)throw new ApiError(409,'AI_REQUEST_EXISTS','This original reservation already exists.');}
   else if(row){if(row.actor_id!==actor.userId||row.usage_actor!==actor.userId||row.company_id!==actor.companyId||row.post_id!==phase.postId||(phase.phase==='failure'?!['pending','failed'].includes(row.draft_state)||!['reserved','failed'].includes(row.usage_state):row.draft_state!=='pending'||row.usage_state!=='reserved')||phase.sourceHash&&row.source_hash!==phase.sourceHash||row.actor_json!==JSON.stringify({assignmentId:actor.assignmentId,role:actor.role,authority:actor.authority}))throw new ApiError(409,'AI_RESERVATION_CHANGED','The original AI reservation changed.');}
   else if(phase.phase!=='failure'||!phase.reply)throw new ApiError(409,'AI_RESERVATION_CHANGED','The original pending AI reservation is required.');
@@ -214,7 +219,7 @@ export async function withWorkSocialUploadCleanup<Result extends {id:string}>(ow
  return inSocialUnit(owner,actor,async database=>{
   const operation=input.kind==='comment'?'social.comment.upload.cancel':'social.post.edit-upload.cancel',createOperation=input.kind==='comment'?'social.comment.upload.create':'social.post.edit-upload.create',prefix=input.kind==='comment'?'comment-upload-':'post-edit-upload-',key=`social-upload-cleanup:${randomUUID()}`;
   await current(database,actor,key);
-  const read=()=>database.prepare("SELECT to_jsonb(d)::text draft,(SELECT to_jsonb(c)::text FROM command_receipts c WHERE c.command_id=? AND c.operation=? AND c.record_id=d.id AND c.actor_id=d.author_id AND c.authority_json::jsonb->>'companyId'=d.company_id AND c.result_json::jsonb->>'id'=d.id) creator,EXISTS(SELECT 1 FROM social_comments c WHERE c.comment_upload_draft_id=d.id) consumed FROM social_post_drafts d WHERE d.id=? AND d.company_id=?").bind(input.id.slice(prefix.length),createOperation,input.id,actor.companyId).first<{draft:string;creator:string|null;consumed:boolean}>();
+  const read=async()=>((await ownerRead(database,actor.companyId,'work_social_draft_read',[input.id.slice(prefix.length),createOperation,input.id,actor.companyId]))).first<{draft:string;creator:string|null;consumed:boolean}>();
   const before=await read();if(!input.id.startsWith(prefix)||!before?.creator)throw new ApiError(404,'UPLOAD_DRAFT_UNAVAILABLE','This original upload draft is unavailable.');
   type Draft=Record<string,unknown>;const draft=JSON.parse(before.draft) as Draft;
   if(draft.author_id!==actor.userId)throw new ApiError(403,'DRAFT_LOCKED','Only the original author can clean up this private upload.');

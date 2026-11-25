@@ -115,6 +115,9 @@ pub const DRAFT_READ_RECENT: &str = "draft_read_recent";
 pub const DRAFT_READ_PENDING_POSITIONS: &str = "draft_read_pending_positions";
 pub const DRAFT_READ_RESERVATIONS: &str = "draft_read_reservations";
 pub const DRAFT_READ_LEVEL_LEAVE_DEFAULT: &str = "draft_read_level_leave_default";
+/// Native-owned draft leave-default list. SELECT-only and Company keyed over
+/// the org-owned `level_leave_defaults` table.
+pub const DRAFT_READ_LEAVE_DEFAULTS: &str = "draft_read_leave_defaults";
 pub const DRAFT_READ_NODE_CHANGE_STATE: &str = "draft_read_node_change_state";
 
 // -- organization.ts ----------------------------------------------------------
@@ -310,6 +313,7 @@ pub const KINDS: &[&str] = &[
     DRAFT_READ_PENDING_POSITIONS,
     DRAFT_READ_RESERVATIONS,
     DRAFT_READ_LEVEL_LEAVE_DEFAULT,
+    DRAFT_READ_LEAVE_DEFAULTS,
     DRAFT_READ_NODE_CHANGE_STATE,
     NODE_CREATE,
     NODE_RELOCATE_COPY,
@@ -542,6 +546,9 @@ fn sql(kind: &str) -> Option<&'static str> {
         }
         DRAFT_READ_LEVEL_LEAVE_DEFAULT => {
             "SELECT 1 FROM level_leave_defaults WHERE company_id=? AND level_id=?"
+        }
+        DRAFT_READ_LEAVE_DEFAULTS => {
+            "SELECT level_id,version,policy_version_id FROM level_leave_defaults WHERE company_id=? ORDER BY level_id,version"
         }
         DRAFT_READ_NODE_CHANGE_STATE => {
             "SELECT state FROM organization_node_changes WHERE id=? AND company_id=?"
@@ -1057,6 +1064,7 @@ mod tests {
             (DRAFT_READ_PENDING_POSITIONS, 1),
             (DRAFT_READ_RESERVATIONS, 1),
             (DRAFT_READ_LEVEL_LEAVE_DEFAULT, 2),
+            (DRAFT_READ_LEAVE_DEFAULTS, 1),
             (DRAFT_READ_NODE_CHANGE_STATE, 2),
         ];
         for (kind, expected) in kinds {
@@ -1786,6 +1794,39 @@ mod tests {
         assert!(owner_statement(
             LIFECYCLE_READ_REHIRE_POSITION,
             &[Value::from("company"), Value::from("position"), Value::from("extra")],
+        )
+        .is_err());
+        let upper = statement.to_ascii_uppercase();
+        assert!(upper.starts_with("SELECT "));
+        assert!(!upper.contains(" INSERT ") && !upper.contains(" UPDATE ") && !upper.contains(" DELETE "));
+        assert!(!upper.contains(" FOR UPDATE ") && !upper.contains(" FOR SHARE ") && !upper.contains(" LOCK TABLE "));
+    }
+
+    #[test]
+    fn draft_read_leave_defaults_kind_is_byte_identical_and_read_only() {
+        assert!(supported(DRAFT_READ_LEAVE_DEFAULTS));
+        const RETIRED: &str = "SELECT level_id,version,policy_version_id FROM level_leave_defaults WHERE company_id=? ORDER BY level_id,version";
+        assert_eq!(sql(DRAFT_READ_LEAVE_DEFAULTS).unwrap(), RETIRED);
+        let digest = {
+            use sha2::Digest;
+            let mut hasher = sha2::Sha256::new();
+            hasher.update(RETIRED.as_bytes());
+            format!("{:x}", hasher.finalize())
+        };
+        assert_eq!(
+            digest,
+            "39766df8411791c865f7e18e2345f03211fd68b13bce02adc1d6b5b54409b7f7"
+        );
+        let (statement, values) =
+            owner_statement(DRAFT_READ_LEAVE_DEFAULTS, &[Value::from("company")])
+                .expect("draft leave defaults statement");
+        assert_eq!(statement, RETIRED);
+        assert_eq!(values, vec![Value::from("company")]);
+        // Missing the Company key fails closed.
+        assert!(owner_statement(DRAFT_READ_LEAVE_DEFAULTS, &[]).is_err());
+        assert!(owner_statement(
+            DRAFT_READ_LEAVE_DEFAULTS,
+            &[Value::from("company"), Value::from("company")],
         )
         .is_err());
         let upper = statement.to_ascii_uppercase();

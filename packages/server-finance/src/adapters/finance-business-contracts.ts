@@ -9,6 +9,7 @@ import { BILLING_RUN_CHILD_EXISTS_SQL, BILLING_RUN_POINT_SQL, BUSINESS_CONTRACT_
 import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
 import { INVOICE_EXISTS_PREFIX } from './finance-read-tail-r30-sql';
 import {withFinancePurchasedCommand,withFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
+import { nativeFinanceReadAll, nativeFinanceReadFirst, FINANCE_RD_CONTRACT_CUSTOMER, FINANCE_RD_CONTRACT_DIMENSIONS, FINANCE_RD_CONTRACT_DIMENSION_VALUE, FINANCE_RD_CONTRACT_TAX_CODE, FINANCE_RD_CONTRACT_BILLING_RUN, FINANCE_RD_CONTRACT_BILLING_EXISTS, FINANCE_RD_CONTRACT_BILL_SOURCE, FINANCE_RD_CONTRACT_POSTED_CORRECTION } from './native-finance-read';
 import { OPEN_PERIOD_LIST_SQL, APPROVED_SECONDARY_CHART_RULE_SQL } from './finance-read-tail-r15-sql';
 import { OPEN_PERIOD_COVERED_SQL } from './finance-read-tail-r34-sql';
 import { nativeFinanceOwnerWriteSystem } from './native-finance-owner-write';
@@ -85,28 +86,16 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
                 .all<Row>();
         }, async customer(partyId: string, companyId: string, currency: string) {
             const db = read();
-            return db
-                .prepare("SELECT id,version FROM finance_parties WHERE id=? AND company_id=? AND status='active' AND kind='customer' AND currency=? AND person_id IS NULL")
-                .bind(partyId, companyId, currency)
-                .first<Row>();
+            return nativeFinanceReadFirst<Row>(FINANCE_RD_CONTRACT_CUSTOMER, [partyId, companyId, currency], db);
         }, async dimensions(companyId: string) {
             const db = read();
-            return db
-                .prepare("SELECT id,code,required FROM finance_dimension_definitions WHERE company_id=? AND status='active' ORDER BY code")
-                .bind(companyId)
-                .all<Row>();
+            return nativeFinanceReadAll<Row>(FINANCE_RD_CONTRACT_DIMENSIONS, [companyId], db);
         }, async dimensionValue(companyId: string, id: string | number | null, value: string) {
             const db = read();
-            return db
-                .prepare("SELECT 1 FROM finance_dimension_values WHERE company_id=? AND dimension_id=? AND code=? AND status='active'")
-                .bind(companyId, id, value)
-                .first();
+            return nativeFinanceReadFirst(FINANCE_RD_CONTRACT_DIMENSION_VALUE, [companyId, id, value], db);
         }, async taxCode(companyId: string, taxCode: string | undefined, taxCode2: string | undefined, startDate: string, startDate2: string) {
             const db = read();
-            return db
-                .prepare("SELECT id,code,rate_micros,effective_from,effective_to FROM finance_tax_codes WHERE company_id=? AND status='active' AND (code=? OR id=?) AND rate_micros=70000 AND effective_from<=? AND (effective_to IS NULL OR effective_to>=?) ORDER BY effective_from DESC LIMIT 1")
-                .bind(companyId, taxCode, taxCode2, startDate, startDate2)
-                .first<Row>();
+            return nativeFinanceReadFirst<Row>(FINANCE_RD_CONTRACT_TAX_CODE, [companyId, taxCode, taxCode2, startDate, startDate2], db);
         }, async billedWindow(root_id: string | number | null, startDate: string) {
             const db = read();
             return db
@@ -136,10 +125,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
             return await nativeFinanceOwnerWriteSystem(db, 'system', 'decide_contract', [status, userId, version, now, id]);
         }, async postedOwnerCredit(postedCorrectionId: string, companyId: string, userId: string, id: string) { const db = read(); return db.prepare(billingCorrectionPointSql(" AND status='posted' AND reviewed_by=? AND replacement_bill_id=?")).bind(postedCorrectionId, companyId, userId, id).first<Row>(); }, async parentBill(parentId: unknown, companyId: string, contractId: string) {
             const db = read();
-            return db
-                .prepare("SELECT b.*,i.status original_invoice_status,i.version original_invoice_version,i.journal_id original_journal_id,i.posted_at original_posted_at FROM finance_business_billing_runs b LEFT JOIN finance_invoices i ON i.id=b.invoice_id WHERE b.id=? AND b.company_id=? AND b.contract_id=?")
-                .bind(parentId, companyId, contractId)
-                .first<Row>();
+            return nativeFinanceReadFirst<Row>(FINANCE_RD_CONTRACT_BILLING_RUN, [parentId, companyId, contractId], db);
         }, async childBill(parentId: unknown) {
             const db = read();
             return db
@@ -154,10 +140,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
                 .first();
         }, async billingExists(root_id: string | number | null, billingKey: string) {
             const db = read();
-            return db
-                .prepare("SELECT 1 FROM finance_business_billing_runs WHERE root_id=? AND billing_key=?")
-                .bind(root_id, billingKey)
-                .first();
+            return nativeFinanceReadFirst(FINANCE_RD_CONTRACT_BILLING_EXISTS, [root_id, billingKey], db);
         }, guardBillParent(key: string, value: "billing-parent-version", id: string | number | null, companyId: string, version: string | number | null, id2: string | number | null) {
             const db = read();
             return assertion(db, key, value, "EXISTS(SELECT 1 FROM finance_business_billing_runs WHERE id=? AND company_id=? AND version=?) AND NOT EXISTS(SELECT 1 FROM finance_business_billing_runs WHERE parent_run_id=?)", [id, companyId, version, id2]);
@@ -187,11 +170,8 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
             }>();
         }, async billSource(billingId: string, companyId: string) {
             const db = read();
-            return db
-                .prepare("SELECT b.*,COALESCE(b.contract_content_json,c.content_json) content_json FROM finance_business_billing_runs b JOIN finance_business_contracts c ON c.id=b.contract_id WHERE b.id=? AND b.company_id=?")
-                .bind(billingId, companyId)
-                .first<Row>();
-        }, async postedCorrection(id: string | number | null) { const db = read(); return db.prepare("SELECT 1 FROM finance_billing_corrections WHERE billing_run_id=? AND status='posted'").bind(id).first(); }, async recognitionInvoice(invoice_id: string | number | null, companyId: string) {
+            return nativeFinanceReadFirst<Row>(FINANCE_RD_CONTRACT_BILL_SOURCE, [billingId, companyId], db);
+        }, async postedCorrection(id: string | number | null) { const db = read(); return nativeFinanceReadFirst(FINANCE_RD_CONTRACT_POSTED_CORRECTION, [id], db); }, async recognitionInvoice(invoice_id: string | number | null, companyId: string) {
             const db = read();
             return db
                 .prepare("SELECT i.id,i.status,i.line_revision,i.subtotal_minor,i.tax_minor,i.currency,i.debit_account_id,i.credit_account_id,j.id journal_id,j.version journal_version,j.status journal_status,j.entry_date posted_date FROM finance_invoices i JOIN finance_journals j ON j.id=i.journal_id WHERE i.id=? AND i.company_id=?")

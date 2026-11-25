@@ -7,14 +7,13 @@ import type {FollowupPurchaseControls} from '@erpx/feature-sales/lib/followup-pu
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {assignmentReadSql} from '@erpx/server-identity_access/public/record-source-authority';
 import {iamMutationGuards} from '@erpx/server-identity_access/public/iam-store';
-import {purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
 import {crmFinanceSourceReadLocks} from '@erpx/server-finance/public/crm-purchase-sources';
 import {crmCommerceSourceReadLocks} from '@erpx/server-commerce/public/crm-purchase-sources';
 import type {WorkItem} from '@erpx/feature-work_projection/lib/work-item';
 import {salesRecipientEligibility} from '@erpx/server-sales/adapters/recipient';
-import {actorScopeTuple,authorityScopeRead,clockNowMs,followupMetricPrefix} from './followup-source-sql';
+import {actorScopeTuple,authorityScopeRead,followupMetricPrefix} from './followup-source-sql';
 import {followupCustomerOrderRead} from './followup-customer-order-read';
-import {nativeSalesPlan,nativeSalesReadFirst,SALES_RD_FOLLOWUP_SOURCE_FOLLOWUP,SALES_RD_FOLLOWUP_SOURCE_ORDER,SALES_RD_FOLLOWUP_ORDERS} from './native-sales-read';
+import {nativeSalesPlan,nativeSalesReadFirst,SALES_RD_FOLLOWUP_SOURCE_FOLLOWUP,SALES_RD_FOLLOWUP_SOURCE_ORDER,SALES_RD_FOLLOWUP_ORDERS,SALES_RD_PURCHASE_PROJECTION_C_READ,SALES_RD_PURCHASE_PROJECTION_C_DENY,SALES_RD_PURCHASE_PROJECTION_FP_READ,SALES_RD_PURCHASE_PROJECTION_FP_DENY} from './native-sales-read';
 export type FollowupPurchaseTarget={kind:'followup'|'order';id:string};
 type Source={id:string;company_id:string;branch_id:string;department_id:string|null;order_kind:'quote'|'sales';witness:string;owner_id:string|null;due_date:string|null;status:string|null;version:number|null};
 const followupOrders=async()=>(await nativeSalesPlan(SALES_RD_FOLLOWUP_ORDERS,[])).sql;
@@ -45,8 +44,12 @@ export async function requireFollowupPurchasedRead(database:SqlDatabase,actor:Wo
  * before grouping, pagination or limits. Ordinary CRM module access is not added. */
 export async function followupProjectionScope(database:SqlDatabase,actor:WorkContext,alias:'c'|'followup_projection'){
  const mode=await commercePackageEnforcementMode();if(mode!=='enforced'){if(mode==='shadow')await readPurchasedAccesses(database,mode,actor.companyId,['sales.quotes','sales.orders']);return {where:'TRUE',args:[] as unknown[]};}
- const quotes=purchasedCapabilityPredicate('followup_native.company_id','sales.quotes','history','followup_clock.now_ms'),sales=purchasedCapabilityPredicate('followup_native.company_id','sales.orders','history','followup_clock.now_ms'),rows=await followupPurchaseRows();
- return {where:`EXISTS(WITH followup_clock AS MATERIALIZED(${clockNowMs}) SELECT 1 FROM (${rows}) followup_native CROSS JOIN followup_clock WHERE followup_native.id=${alias}.id AND followup_native.company_id=${alias}.company_id AND ${hasPermission(actor,'commerce.read')?'TRUE':'FALSE'} AND (?::text IS NULL OR followup_native.branch_id=?) AND (?::text IS NULL OR followup_native.department_id=?) AND ${assignmentReadSql('followup_native','commerce.read')} AND CASE WHEN followup_native.order_kind='quote' THEN ${quotes} ELSE ${sales} END)`,args:[actor.branchId,actor.branchId,actor.departmentId,actor.departmentId,actor.assignmentId,actor.userId,actor.role]};
+ const read=hasPermission(actor,'commerce.read');
+ const kind=alias==='c'
+  ? (read?SALES_RD_PURCHASE_PROJECTION_C_READ:SALES_RD_PURCHASE_PROJECTION_C_DENY)
+  : (read?SALES_RD_PURCHASE_PROJECTION_FP_READ:SALES_RD_PURCHASE_PROJECTION_FP_DENY);
+ const where=(await nativeSalesPlan(kind,[])).sql;
+ return {where,args:[actor.branchId,actor.branchId,actor.departmentId,actor.departmentId,actor.assignmentId,actor.userId,actor.role]};
 }
 export async function followupSourceReadScope(database:SqlDatabase,actor:WorkContext,surface:'records'|'staff'|'inbox'){
  const mode=await commercePackageEnforcementMode();if(mode!=='enforced'){if(mode==='shadow')await readPurchasedAccesses(database,mode,actor.companyId,['sales.quotes','sales.orders']);return {where:'TRUE',args:[] as unknown[]};}const id=surface==='records'?'workspace_records.id':surface==='staff'?'staff_notifications.record_id':'e.source_id',company=surface==='records'?'workspace_records.company_id':surface==='staff'?'staff_notifications.company_id':'e.company_id',type=surface==='staff'?'staff_notifications.record_type':'e.source_type',actual=`EXISTS(${followupExists(`native.id=${id}`,'native')})`,relevant=surface==='records'?actual:`(${type}='customer_followup' OR ${actual})`,projection=await followupProjectionScope(database,actor,'followup_projection');

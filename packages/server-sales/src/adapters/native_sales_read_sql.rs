@@ -233,6 +233,50 @@ const READ_FOLLOWUP_ORDERS: NativeSalesReadStatement = NativeSalesReadStatement 
     scope: "holding",
 };
 
+/// Native successor of the TypeScript followup purchase projection c_TRUE.
+/// Seven ? placeholders are bound by the caller; the planner carries no values.
+pub const RD_PURCHASE_PROJECTION_C_READ: &str = "sales_rd_purchase_projection_c_read";
+const SQL_PURCHASE_PROJECTION_C_READ: &str = "EXISTS(WITH followup_clock AS MATERIALIZED(SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint now_ms) SELECT 1 FROM (SELECT followup.*,actual.branch_id,actual.department_id,actual.kind order_kind,jsonb_build_object('followup',jsonb_build_array(followup.id,followup.company_id,followup.order_id,followup.created_by),'order',actual.witness) witness FROM customer_followups followup JOIN (SELECT actual.*,jsonb_build_array(actual.id,actual.company_id,actual.branch_id,actual.department_id,actual.kind,actual.party_id,actual.currency) witness FROM (SELECT id,company_id,branch_id,department_id,kind,party_id,currency,source_id FROM commerce_orders) actual JOIN (SELECT id,company_id,kind,status FROM finance_parties) customer ON customer.id=actual.party_id AND customer.company_id=actual.company_id AND customer.kind='customer' WHERE actual.kind IN ('quote','sales')) actual ON actual.id=followup.order_id AND actual.company_id=followup.company_id) followup_native CROSS JOIN followup_clock WHERE followup_native.id=c.id AND followup_native.company_id=c.company_id AND TRUE AND (?::text IS NULL OR followup_native.branch_id=?) AND (?::text IS NULL OR followup_native.department_id=?) AND EXISTS(SELECT 1 FROM assignments g WHERE g.id=? AND g.user_id=? AND g.role=? AND g.company_id=followup_native.company_id\n    AND iam_assignment_active(g.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)\n    AND iam_principal_active(g.user_id,g.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)\n    AND iam_role_allows(g.role,g.company_id,'commerce.read')\n    AND (g.scope_kind='holding' OR g.scope_kind='branch' AND g.scope_node_id=followup_native.branch_id OR g.scope_kind='department' AND g.scope_node_id=followup_native.department_id)) AND CASE WHEN followup_native.order_kind='quote' THEN ((EXISTS(SELECT 1 FROM (SELECT package_id,package_version FROM company_package_grants WHERE company_id=followup_native.company_id AND starts_at<=followup_clock.now_ms AND state<>'inactive'\n      UNION SELECT package_id,package_version FROM company_package_history_rights WHERE company_id=followup_native.company_id AND retained_at<=followup_clock.now_ms\n        AND retained_at>=0 AND retained_at<=9007199254740991 AND source_grant_version>0 AND source_event_id<>'') purchase WHERE purchase.package_id='sales' AND purchase.package_version=1))) ELSE ((EXISTS(SELECT 1 FROM (SELECT package_id,package_version FROM company_package_grants WHERE company_id=followup_native.company_id AND starts_at<=followup_clock.now_ms AND state<>'inactive'\n      UNION SELECT package_id,package_version FROM company_package_history_rights WHERE company_id=followup_native.company_id AND retained_at<=followup_clock.now_ms\n        AND retained_at>=0 AND retained_at<=9007199254740991 AND source_grant_version>0 AND source_event_id<>'') purchase WHERE purchase.package_id='sales' AND purchase.package_version=1))) END)";
+const READ_PURCHASE_PROJECTION_C_READ: NativeSalesReadStatement = NativeSalesReadStatement {
+    kind: RD_PURCHASE_PROJECTION_C_READ,
+    sql: SQL_PURCHASE_PROJECTION_C_READ,
+    bind_count: 0,
+    scope: "holding",
+};
+
+/// Native successor of the TypeScript followup purchase projection c_FALSE.
+/// Seven ? placeholders are bound by the caller; the planner carries no values.
+pub const RD_PURCHASE_PROJECTION_C_DENY: &str = "sales_rd_purchase_projection_c_deny";
+const SQL_PURCHASE_PROJECTION_C_DENY: &str = "EXISTS(WITH followup_clock AS MATERIALIZED(SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint now_ms) SELECT 1 FROM (SELECT followup.*,actual.branch_id,actual.department_id,actual.kind order_kind,jsonb_build_object('followup',jsonb_build_array(followup.id,followup.company_id,followup.order_id,followup.created_by),'order',actual.witness) witness FROM customer_followups followup JOIN (SELECT actual.*,jsonb_build_array(actual.id,actual.company_id,actual.branch_id,actual.department_id,actual.kind,actual.party_id,actual.currency) witness FROM (SELECT id,company_id,branch_id,department_id,kind,party_id,currency,source_id FROM commerce_orders) actual JOIN (SELECT id,company_id,kind,status FROM finance_parties) customer ON customer.id=actual.party_id AND customer.company_id=actual.company_id AND customer.kind='customer' WHERE actual.kind IN ('quote','sales')) actual ON actual.id=followup.order_id AND actual.company_id=followup.company_id) followup_native CROSS JOIN followup_clock WHERE followup_native.id=c.id AND followup_native.company_id=c.company_id AND FALSE AND (?::text IS NULL OR followup_native.branch_id=?) AND (?::text IS NULL OR followup_native.department_id=?) AND EXISTS(SELECT 1 FROM assignments g WHERE g.id=? AND g.user_id=? AND g.role=? AND g.company_id=followup_native.company_id\n    AND iam_assignment_active(g.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)\n    AND iam_principal_active(g.user_id,g.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)\n    AND iam_role_allows(g.role,g.company_id,'commerce.read')\n    AND (g.scope_kind='holding' OR g.scope_kind='branch' AND g.scope_node_id=followup_native.branch_id OR g.scope_kind='department' AND g.scope_node_id=followup_native.department_id)) AND CASE WHEN followup_native.order_kind='quote' THEN ((EXISTS(SELECT 1 FROM (SELECT package_id,package_version FROM company_package_grants WHERE company_id=followup_native.company_id AND starts_at<=followup_clock.now_ms AND state<>'inactive'\n      UNION SELECT package_id,package_version FROM company_package_history_rights WHERE company_id=followup_native.company_id AND retained_at<=followup_clock.now_ms\n        AND retained_at>=0 AND retained_at<=9007199254740991 AND source_grant_version>0 AND source_event_id<>'') purchase WHERE purchase.package_id='sales' AND purchase.package_version=1))) ELSE ((EXISTS(SELECT 1 FROM (SELECT package_id,package_version FROM company_package_grants WHERE company_id=followup_native.company_id AND starts_at<=followup_clock.now_ms AND state<>'inactive'\n      UNION SELECT package_id,package_version FROM company_package_history_rights WHERE company_id=followup_native.company_id AND retained_at<=followup_clock.now_ms\n        AND retained_at>=0 AND retained_at<=9007199254740991 AND source_grant_version>0 AND source_event_id<>'') purchase WHERE purchase.package_id='sales' AND purchase.package_version=1))) END)";
+const READ_PURCHASE_PROJECTION_C_DENY: NativeSalesReadStatement = NativeSalesReadStatement {
+    kind: RD_PURCHASE_PROJECTION_C_DENY,
+    sql: SQL_PURCHASE_PROJECTION_C_DENY,
+    bind_count: 0,
+    scope: "holding",
+};
+
+/// Native successor of the TypeScript followup purchase projection followup_projection_TRUE.
+/// Seven ? placeholders are bound by the caller; the planner carries no values.
+pub const RD_PURCHASE_PROJECTION_FP_READ: &str = "sales_rd_purchase_projection_fp_read";
+const SQL_PURCHASE_PROJECTION_FP_READ: &str = "EXISTS(WITH followup_clock AS MATERIALIZED(SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint now_ms) SELECT 1 FROM (SELECT followup.*,actual.branch_id,actual.department_id,actual.kind order_kind,jsonb_build_object('followup',jsonb_build_array(followup.id,followup.company_id,followup.order_id,followup.created_by),'order',actual.witness) witness FROM customer_followups followup JOIN (SELECT actual.*,jsonb_build_array(actual.id,actual.company_id,actual.branch_id,actual.department_id,actual.kind,actual.party_id,actual.currency) witness FROM (SELECT id,company_id,branch_id,department_id,kind,party_id,currency,source_id FROM commerce_orders) actual JOIN (SELECT id,company_id,kind,status FROM finance_parties) customer ON customer.id=actual.party_id AND customer.company_id=actual.company_id AND customer.kind='customer' WHERE actual.kind IN ('quote','sales')) actual ON actual.id=followup.order_id AND actual.company_id=followup.company_id) followup_native CROSS JOIN followup_clock WHERE followup_native.id=followup_projection.id AND followup_native.company_id=followup_projection.company_id AND TRUE AND (?::text IS NULL OR followup_native.branch_id=?) AND (?::text IS NULL OR followup_native.department_id=?) AND EXISTS(SELECT 1 FROM assignments g WHERE g.id=? AND g.user_id=? AND g.role=? AND g.company_id=followup_native.company_id\n    AND iam_assignment_active(g.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)\n    AND iam_principal_active(g.user_id,g.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)\n    AND iam_role_allows(g.role,g.company_id,'commerce.read')\n    AND (g.scope_kind='holding' OR g.scope_kind='branch' AND g.scope_node_id=followup_native.branch_id OR g.scope_kind='department' AND g.scope_node_id=followup_native.department_id)) AND CASE WHEN followup_native.order_kind='quote' THEN ((EXISTS(SELECT 1 FROM (SELECT package_id,package_version FROM company_package_grants WHERE company_id=followup_native.company_id AND starts_at<=followup_clock.now_ms AND state<>'inactive'\n      UNION SELECT package_id,package_version FROM company_package_history_rights WHERE company_id=followup_native.company_id AND retained_at<=followup_clock.now_ms\n        AND retained_at>=0 AND retained_at<=9007199254740991 AND source_grant_version>0 AND source_event_id<>'') purchase WHERE purchase.package_id='sales' AND purchase.package_version=1))) ELSE ((EXISTS(SELECT 1 FROM (SELECT package_id,package_version FROM company_package_grants WHERE company_id=followup_native.company_id AND starts_at<=followup_clock.now_ms AND state<>'inactive'\n      UNION SELECT package_id,package_version FROM company_package_history_rights WHERE company_id=followup_native.company_id AND retained_at<=followup_clock.now_ms\n        AND retained_at>=0 AND retained_at<=9007199254740991 AND source_grant_version>0 AND source_event_id<>'') purchase WHERE purchase.package_id='sales' AND purchase.package_version=1))) END)";
+const READ_PURCHASE_PROJECTION_FP_READ: NativeSalesReadStatement = NativeSalesReadStatement {
+    kind: RD_PURCHASE_PROJECTION_FP_READ,
+    sql: SQL_PURCHASE_PROJECTION_FP_READ,
+    bind_count: 0,
+    scope: "holding",
+};
+
+/// Native successor of the TypeScript followup purchase projection followup_projection_FALSE.
+/// Seven ? placeholders are bound by the caller; the planner carries no values.
+pub const RD_PURCHASE_PROJECTION_FP_DENY: &str = "sales_rd_purchase_projection_fp_deny";
+const SQL_PURCHASE_PROJECTION_FP_DENY: &str = "EXISTS(WITH followup_clock AS MATERIALIZED(SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint now_ms) SELECT 1 FROM (SELECT followup.*,actual.branch_id,actual.department_id,actual.kind order_kind,jsonb_build_object('followup',jsonb_build_array(followup.id,followup.company_id,followup.order_id,followup.created_by),'order',actual.witness) witness FROM customer_followups followup JOIN (SELECT actual.*,jsonb_build_array(actual.id,actual.company_id,actual.branch_id,actual.department_id,actual.kind,actual.party_id,actual.currency) witness FROM (SELECT id,company_id,branch_id,department_id,kind,party_id,currency,source_id FROM commerce_orders) actual JOIN (SELECT id,company_id,kind,status FROM finance_parties) customer ON customer.id=actual.party_id AND customer.company_id=actual.company_id AND customer.kind='customer' WHERE actual.kind IN ('quote','sales')) actual ON actual.id=followup.order_id AND actual.company_id=followup.company_id) followup_native CROSS JOIN followup_clock WHERE followup_native.id=followup_projection.id AND followup_native.company_id=followup_projection.company_id AND FALSE AND (?::text IS NULL OR followup_native.branch_id=?) AND (?::text IS NULL OR followup_native.department_id=?) AND EXISTS(SELECT 1 FROM assignments g WHERE g.id=? AND g.user_id=? AND g.role=? AND g.company_id=followup_native.company_id\n    AND iam_assignment_active(g.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)\n    AND iam_principal_active(g.user_id,g.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)\n    AND iam_role_allows(g.role,g.company_id,'commerce.read')\n    AND (g.scope_kind='holding' OR g.scope_kind='branch' AND g.scope_node_id=followup_native.branch_id OR g.scope_kind='department' AND g.scope_node_id=followup_native.department_id)) AND CASE WHEN followup_native.order_kind='quote' THEN ((EXISTS(SELECT 1 FROM (SELECT package_id,package_version FROM company_package_grants WHERE company_id=followup_native.company_id AND starts_at<=followup_clock.now_ms AND state<>'inactive'\n      UNION SELECT package_id,package_version FROM company_package_history_rights WHERE company_id=followup_native.company_id AND retained_at<=followup_clock.now_ms\n        AND retained_at>=0 AND retained_at<=9007199254740991 AND source_grant_version>0 AND source_event_id<>'') purchase WHERE purchase.package_id='sales' AND purchase.package_version=1))) ELSE ((EXISTS(SELECT 1 FROM (SELECT package_id,package_version FROM company_package_grants WHERE company_id=followup_native.company_id AND starts_at<=followup_clock.now_ms AND state<>'inactive'\n      UNION SELECT package_id,package_version FROM company_package_history_rights WHERE company_id=followup_native.company_id AND retained_at<=followup_clock.now_ms\n        AND retained_at>=0 AND retained_at<=9007199254740991 AND source_grant_version>0 AND source_event_id<>'') purchase WHERE purchase.package_id='sales' AND purchase.package_version=1))) END)";
+const READ_PURCHASE_PROJECTION_FP_DENY: NativeSalesReadStatement = NativeSalesReadStatement {
+    kind: RD_PURCHASE_PROJECTION_FP_DENY,
+    sql: SQL_PURCHASE_PROJECTION_FP_DENY,
+    bind_count: 0,
+    scope: "holding",
+};
+
 const READS: &[NativeSalesReadStatement] = &[
     READ_PRICE_LIST_ACTIVE,
     READ_PRICE_LIST_ITEMS_ACTIVE,
@@ -256,6 +300,11 @@ const READS: &[NativeSalesReadStatement] = &[
     READ_CALENDAR_OWNER_MEMBER,
 
     READ_FOLLOWUP_ORDERS,
+
+    READ_PURCHASE_PROJECTION_C_READ,
+    READ_PURCHASE_PROJECTION_C_DENY,
+    READ_PURCHASE_PROJECTION_FP_READ,
+    READ_PURCHASE_PROJECTION_FP_DENY,
 
 ];
 
@@ -541,8 +590,56 @@ mod tests {
     }
 
     #[test]
+    fn purchase_projection_c_true_is_byte_stable() {
+        let read = read_statement(RD_PURCHASE_PROJECTION_C_READ).expect("read kind");
+        assert_eq!(read.kind, "sales_rd_purchase_projection_c_read");
+        assert_eq!(read.bind_count, 0);
+        assert_eq!(read.sql.matches('?').count(), 7);
+        assert_eq!(read.sql.len(), 2920);
+        assert!(read.sql.starts_with("EXISTS(WITH followup_clock AS MATERIALIZED("));
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_PURCHASE_PROJECTION_C_READ));
+    }
+
+    #[test]
+    fn purchase_projection_c_false_is_byte_stable() {
+        let read = read_statement(RD_PURCHASE_PROJECTION_C_DENY).expect("read kind");
+        assert_eq!(read.kind, "sales_rd_purchase_projection_c_deny");
+        assert_eq!(read.bind_count, 0);
+        assert_eq!(read.sql.matches('?').count(), 7);
+        assert_eq!(read.sql.len(), 2921);
+        assert!(read.sql.starts_with("EXISTS(WITH followup_clock AS MATERIALIZED("));
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_PURCHASE_PROJECTION_C_DENY));
+    }
+
+    #[test]
+    fn purchase_projection_followup_projection_true_is_byte_stable() {
+        let read = read_statement(RD_PURCHASE_PROJECTION_FP_READ).expect("read kind");
+        assert_eq!(read.kind, "sales_rd_purchase_projection_fp_read");
+        assert_eq!(read.bind_count, 0);
+        assert_eq!(read.sql.matches('?').count(), 7);
+        assert_eq!(read.sql.len(), 2956);
+        assert!(read.sql.starts_with("EXISTS(WITH followup_clock AS MATERIALIZED("));
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_PURCHASE_PROJECTION_FP_READ));
+    }
+
+    #[test]
+    fn purchase_projection_followup_projection_false_is_byte_stable() {
+        let read = read_statement(RD_PURCHASE_PROJECTION_FP_DENY).expect("read kind");
+        assert_eq!(read.kind, "sales_rd_purchase_projection_fp_deny");
+        assert_eq!(read.bind_count, 0);
+        assert_eq!(read.sql.matches('?').count(), 7);
+        assert_eq!(read.sql.len(), 2957);
+        assert!(read.sql.starts_with("EXISTS(WITH followup_clock AS MATERIALIZED("));
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_PURCHASE_PROJECTION_FP_DENY));
+    }
+
+    #[test]
     fn only_owner_read_kinds_are_registered() {
-        assert_eq!(READS.len(), 18);
+        assert_eq!(READS.len(), 22);
         assert!(READS.iter().all(|read| is_read(read.kind)));
         assert!(!is_read("sales_price_lists"));
         assert!(!is_read("SELECT 1"));

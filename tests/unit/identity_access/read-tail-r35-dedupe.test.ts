@@ -165,7 +165,7 @@ describe('Identity access read-tail r35 wiring', () => {
       ['adapters/account-authority-snapshot.ts', '0285949693da5f29be8c591ab74f32231769fd06b3a774d54eaefe5b5106e72b'],
       ['adapters/executive-authority-source.ts', 'd6526a6b37bdcaa1b17eb55e319bf936b5431d46e8ebaa8b142adcc57baa6170'],
       ['adapters/executive-report-sources.ts', 'b815a8d4913c62d311af1f876f946e322e529070fa579b7a4450725dd9a63bd5'],
-      ['adapters/workflow-command-authority.ts', '53f6e57083e1e11f61ffc21d55293733894582b081ff17d6bba2661835e662d8'],
+      ['adapters/workflow-command-authority.ts', 'dd8fe21329a9d90c5b89ccfd1efb523a38590b72043d30aad266b0e38b9cff62'],
       ['adapters/record-source-authority.ts', 'c49bb0b548f25381a932bd3532dfe19b63724b67b14f33035f597ac11da84251'],
       ['adapters/queued-social-source-authority.ts', 'a5379950fb6735056405839f43758dd14235fc8da7402097cb120e780a77663e'],
       ['adapters/iam-service.ts', '88976c449e7a56c77cfbfcf1775515342dbd341dd18cf9eecfe4c1637920e33c'],
@@ -176,7 +176,7 @@ describe('Identity access read-tail r35 wiring', () => {
 });
 
 describe('Identity access read-tail r35 retirement check', () => {
-  test('retirement:ts-statements is 373 after lock-aware preference cut', () => {
+  test('retirement:ts-statements is 371 after workflow/queued authorization cut', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -187,6 +187,6 @@ describe('Identity access read-tail r35 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(459);
-    expect(total).toBe(373);
+    expect(total).toBe(371);
   });
 });

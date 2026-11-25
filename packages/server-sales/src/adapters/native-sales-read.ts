@@ -35,6 +35,10 @@ export const SALES_RD_NOTIFICATION_SOURCE_PROD = 'sales_rd_notification_source_p
 export const SALES_RD_CALENDAR_JSONB_MEMBER = 'sales_rd_calendar_jsonb_member';
 export const SALES_RD_CALENDAR_OWNER_MEMBER = 'sales_rd_calendar_owner_member';
 export const SALES_RD_FOLLOWUP_ORDERS = 'sales_rd_followup_orders';
+export const SALES_RD_PURCHASE_PROJECTION_C_READ = 'sales_rd_purchase_projection_c_read';
+export const SALES_RD_PURCHASE_PROJECTION_C_DENY = 'sales_rd_purchase_projection_c_deny';
+export const SALES_RD_PURCHASE_PROJECTION_FP_READ = 'sales_rd_purchase_projection_fp_read';
+export const SALES_RD_PURCHASE_PROJECTION_FP_DENY = 'sales_rd_purchase_projection_fp_deny';
 
 /** Owner-planned statement. The caller may run it on its own open unit or
  * compose it into a larger read; no SQL is accepted from the caller. */

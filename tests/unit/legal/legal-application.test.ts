@@ -1,6 +1,9 @@
 import type {ExecutedCopyRepository} from "@erpx/server-legal/application/executed-copies";
 import type {LegalDestructionRepository} from "@erpx/server-legal/application/destruction-sources";
 import type {LegalDocumentRepository,DocumentStorage,DocumentIntake,DocumentProvider} from "@erpx/server-legal/application/documents";
+import {readFile,readdir} from "node:fs/promises";
+import {resolve} from "node:path";
+import approvalContract from "../../../packages/server-legal/src/adapters/legal-approval-sources.json" with {type:"json"};
 type LegalReferenceRepository=Parameters<typeof import("@erpx/server-legal/application/references").createLegalReferencesApplication>[0]["repository"];
 import { expect, it } from "vitest";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
@@ -565,4 +568,32 @@ it("native Legal retention adapter keeps the exact native projection, auth, erro
     if (prior===undefined) delete process.env.ERPX_NATIVE_LEGAL_RECORDS_CONFIG;
     else process.env.ERPX_NATIVE_LEGAL_RECORDS_CONFIG = prior;
   }
+});
+
+it("keeps the approval reviewer-membership and current-route guards in the native contract", async () => {
+  const [shared, rust] = await Promise.all([
+    readFile(new URL("../../../packages/server-legal/src/adapters/legal/approval.ts", import.meta.url), "utf8"),
+    readFile(new URL("../../../packages/server-legal/src/adapters/legal_approval_sources.rs", import.meta.url), "utf8"),
+  ]);
+  expect(shared.match(/SELECT /g) ?? []).toHaveLength(0);
+  expect(shared).toContain("legal-approval-sources.json");
+  expect(approvalContract.reviewerMembership).toContain("{assignments}");
+  expect(approvalContract.currentRoute).toContain("{approvalInstances}");
+  expect(approvalContract.reviewerMembership).toContain("iam_role_allows(a.role,a.company_id,'legal.approve')");
+  expect(approvalContract.currentRoute).toContain("state='pending'");
+  expect(rust).toContain('include_str!("legal-approval-sources.json")');
+  expect(rust).toContain('render_legal_reviewer_membership');
+  expect(rust).toContain('render_legal_approval_current_route');
+  expect(rust).toContain('286fa722cfa7b01624a03669e3ab6442c9784f6d6ad58fcde4f53cf62530afed');
+  let total = 0;
+  const walk = async (dir: string) => {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const path = resolve(dir, entry.name);
+      if (entry.isDirectory()) await walk(path);
+      else if (entry.name.endsWith(".ts")) total += ((await readFile(path, "utf8")).match(/SELECT /g) ?? []).length;
+    }
+  };
+  await walk(resolve(__dirname, "../../../packages/server-legal/src"));
+  expect(total).toBeLessThan(93);
+  expect(total).toBe(91);
 });

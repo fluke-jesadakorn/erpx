@@ -140,7 +140,7 @@ describe('crm read-tail r21 byte-identical projection/FROM head', () => {
     expect(r47).not.toContain('`SELECT ${projection} FROM (${source}) ${alias} WHERE');
     expect((r27.match(/SELECT /g) ?? []).length).toBe(0);
     expect((r32.match(/SELECT /g) ?? []).length).toBe(0);
-    expect((r35.match(/SELECT /g) ?? []).length).toBe(1);
+    expect((r35.match(/SELECT /g) ?? []).length).toBe(0);
     expect((r47.match(/SELECT /g) ?? []).length).toBe(1);
   });
 
@@ -161,7 +161,7 @@ describe('crm read-tail r21 byte-identical projection/FROM head', () => {
   });
 
   test('retirement:ts-statements drops from the r51 AFTER=47 to 43', () => {
-    expect(totalSelects()).toBe(39);
+    expect(totalSelects()).toBe(38);
     expect(totalSelects()).toBeLessThan(47);
   });
 });

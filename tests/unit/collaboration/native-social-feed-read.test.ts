@@ -55,7 +55,7 @@ describe('retirement:ts-statements', () => {
       }
     };
     walk(root);
-    expect(total).toBe(284);
+    expect(total).toBe(279);
     expect(total).toBeLessThan(292);
   });
 });

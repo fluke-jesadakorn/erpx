@@ -157,14 +157,14 @@ describe('Identity access read-tail r33 wiring', () => {
       ['adapters/collaboration-messaging-authorization.ts', 'a424bde90984f30c8d7287b17d05180d0d33b7694d652913b9dd3f72485d2cea'],
       ['adapters/project-worker-startup-subject.ts', 'c83fd8ea6b1a360d859695448d95bba90ffefcecc6f221615d9b45361c559c75'],
       ['adapters/legal-ai-actor-facts.ts', 'fb14fcf39793fe15e7ebda1fa64bc0f51dd8aa416d2987ac461b7ad32e9bfa07'],
-      ['adapters/workflow-command-authority.ts', '53f6e57083e1e11f61ffc21d55293733894582b081ff17d6bba2661835e662d8'],
+      ['adapters/workflow-command-authority.ts', 'dd8fe21329a9d90c5b89ccfd1efb523a38590b72043d30aad266b0e38b9cff62'],
     ];
     for (const [rel, sha] of pins) expect(hash(rel), rel).toBe(sha);
   });
 });
 
 describe('Identity access read-tail r33 retirement check', () => {
-  test('retirement:ts-statements is 373 after lock-aware preference cut', () => {
+  test('retirement:ts-statements is 371 after workflow/queued authorization cut', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -174,7 +174,7 @@ describe('Identity access read-tail r33 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBeLessThan(374);
-    expect(total).toBe(373);
+    expect(total).toBeLessThan(372);
+    expect(total).toBe(371);
   });
 });

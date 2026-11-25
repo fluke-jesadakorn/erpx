@@ -33,6 +33,7 @@ pub(crate) mod trust_workflow_bridge;
 pub(crate) mod attachment_migration_facts;
 pub(crate) mod citation_source;
 pub(crate) mod executive_main_evidence_sources;
+pub(crate) mod legal_approval_sources;
 pub(crate) mod legal_http;
 pub(crate) mod legal_http_auxiliary;
 pub(crate) mod legal_read_tail_r16;

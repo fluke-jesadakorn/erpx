@@ -123,7 +123,7 @@ describe('Inventory read-tail r47 dedupe', () => {
       'childLineOwnerExistsSql', 'nativeRecordExistsSql', 'branchScopeTupleSql', 'scopeExistsSql',
       'journalAccountLineExistsSql', 'sourceScopeRowsSql', 'packageObligationDocumentRowsSql',
       'evidencePositionRowsSql', 'recordIdExistsSql', 'childLineRowsSql', 'scopeAllowedSql', 'disposalCountsSql',
-      'scopedFieldSql', 'clockScopedPurchaseExistsSql', 'lotBalanceGuardSql', 'stockPositionSourcesSql',
+      'clockScopedPurchaseExistsSql', 'lotBalanceGuardSql', 'stockPositionSourcesSql',
       'inventoryMovementEvidenceRowsSql', 'executivePositionPointSql', 'stockSourceColumnsSql',
       'attachmentOwnerVersionGuardSql', 'attachmentLotIdsSql', 'reservedAvailabilitySumSql',
       'decisionActorRowsSql', 'clockCteSql', 'packageObligationCountHeadSql', 'countScopeRowsSql',
@@ -167,7 +167,7 @@ describe('Inventory read-tail r47 dedupe', () => {
     // r54 folds 3 package-obligation stock heads into one kind-parameterized renderer: 300 -> 298.
     // Later owner-native cutovers retire the remaining literal reads; this
     // slice moves the two command-receipt replay probes to the native registry.
-    expect(total).toBe(277);
+    expect(total).toBe(276);
     expect(total).toBeLessThan(299);
   });
 });

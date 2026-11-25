@@ -144,7 +144,12 @@ fn live_statements_match_typescript_authority() {
     assert!(TS_PUBLIC_FORM.contains("LANE40_FORM_CONTENT_ROW"));
     assert!(!TS_PUBLIC_FORM.contains("marketingFormContentSql('id,version,preview_json')"));
     assert!(TS_PUBLIC_FORM.contains("MARKETING_RD_FORM_PUBLIC"));
-    assert!(TS_CRM_SOURCES.contains(crm_candidates!()));
+    // r67 delegates both CRM projection literals to the shared owner head;
+    // only their byte-identical fragments remain in the TS source.
+    assert!(TS_CRM_SOURCES.contains("candidate.* FROM marketing_lead_candidates candidate"));
+    assert!(TS_CRM_SOURCES.contains("marketingSelectHeadSql('id,company_id',' FROM marketing_campaigns')"));
+    assert!(!TS_CRM_SOURCES.contains("SELECT candidate.* FROM marketing_lead_candidates"));
+    assert!(!TS_CRM_SOURCES.contains("SELECT id,company_id FROM marketing_campaigns"));
     // The retired candidate SELECT family is now rendered from the two shared
     // owner heads; their fragments must still compose the frozen byte oracle.
     assert!(TS_PACKAGE.contains("candidates:marketingSelectHeadSql(`c.*,valid.id IS NOT NULL AND EXISTS(${marketingPointExistsSql(`marketing_assets form"));

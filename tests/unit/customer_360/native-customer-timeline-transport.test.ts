@@ -8,6 +8,10 @@ import {
   NATIVE_CUSTOMER_TIMELINE_LIMITATIONS,
   type NativeCustomerTimelinePageContext,
 } from '../../../packages/feature-sales/src/public/native-customer-timeline';
+import {
+  RD_TIMELINE_ORDER_EVENT,
+  nativeC360ReadStatement,
+} from '../../../packages/server-customer_360/src/adapters/native-customer-360-read';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44996',
@@ -391,7 +395,29 @@ describe('native Customer 360 timeline transport',()=>{
    expect(timeline).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|LOCK\s+TABLE/i);
   });
 
-  it('r18 native company-scope plan family: retirement:ts-statements is strictly below BEFORE=8',async()=>{
+  it('r19 native timeline-order plan is admitted and byte-pinned',async()=>{
+    const key='ERPX_NATIVE_CUSTOMER_360_READ_CONFIG';
+    const previous=process.env[key];
+    const sql="SELECT 'order:'||o.id id,o.id source_id,'order' source_type,o.kind||' · '||o.number title,o.state status,o.version,o.updated_at at,'/commerce/orders/'||o.id href,o.party_id customer_id,p.name customer_name FROM scoped_orders o JOIN customers p ON p.id=o.party_id";
+    process.env[key]=config({
+      privateBaseUrl:'http://127.0.0.1:44998',
+      holdings:[{origin:'https://acme.example.com',holdingSlug:'acme',holdingId:'h001',companyId:'company'}],
+    });
+    try{
+      const send=(value:string)=>async()=>new Response(JSON.stringify({data:{statement:{sql:value,values:[]}}}),{status:200,headers:{'content-type':'application/json'}});
+      const planned=await nativeC360ReadStatement(RD_TIMELINE_ORDER_EVENT,[],send(sql));
+      expect(planned.sql).toBe(sql);
+      expect(planned.values).toEqual([]);
+      const source=await (await import('node:fs/promises')).readFile(new URL('../../../packages/server-customer_360/src/adapters/timeline.ts',import.meta.url),'utf8');
+      expect(source).toContain('nativeC360ReadStatement(RD_TIMELINE_ORDER_EVENT,[])');
+      expect(source).not.toContain("SELECT 'order:'||o.id");
+      expect(source).toContain('async function timelineEvents(');
+    }finally{
+      if(previous===undefined)delete process.env[key];else process.env[key]=previous;
+    }
+   });
+
+   it('r19 native timeline-order plan family: retirement:ts-statements is strictly below BEFORE=7',async()=>{
    const fs=await import('node:fs/promises');
    const {fileURLToPath}=await import('node:url');
    const {resolve}=await import('node:path');
@@ -405,7 +431,7 @@ describe('native Customer 360 timeline transport',()=>{
     }
    };
    await walk(root);
-   expect(total).toBe(7);
-   expect(total).toBeLessThan(8);
+   expect(total).toBe(6);
+   expect(total).toBeLessThan(7);
   });
 });

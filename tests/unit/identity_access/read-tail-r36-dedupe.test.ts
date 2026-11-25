@@ -153,7 +153,7 @@ describe('Identity access read-tail r36 wiring', () => {
       ['adapters/executive-authority-source.ts', 'd6526a6b37bdcaa1b17eb55e319bf936b5431d46e8ebaa8b142adcc57baa6170'],
       ['adapters/iam-directory-refresh.ts', '9c73eb793a2bc879a6638ade55b8bd844b7f96f498545e096a8b3a693cb2f7d9'],
       ['adapters/project-worker-startup-subject.ts', 'c83fd8ea6b1a360d859695448d95bba90ffefcecc6f221615d9b45361c559c75'],
-      ['adapters/queued-command-authority.ts', '6a163101d1fa28f0576b598990d8c8172a6aedc94a43f6f5f37aee12aef59d64'],
+      ['adapters/queued-command-authority.ts', 'fbc8a038d9ece1b6f83897a9d77611a8ffc6272eaebf74125c84c33da284f2c6'],
       ['adapters/queued-social-source-authority.ts', 'a5379950fb6735056405839f43758dd14235fc8da7402097cb120e780a77663e'],
       ['adapters/collaboration-push-session.ts', '49b8d99615997a27bc8999eecd699c7666d99b01fc35b922ce464f4e21e1ace8'],
     ];
@@ -403,8 +403,40 @@ describe('Identity access lock-aware preference plan cut', () => {
   });
 });
 
+describe('Identity access workflow and queued authorization plan cut', () => {
+  const SQLS = [
+    'SELECT revision,assignment_id,assignment_version FROM active_work_contexts WHERE session_id=? AND company_id=?',
+    'SELECT version FROM assignments WHERE id=? AND company_id=? AND user_id=? AND role=?',
+  ] as const;
+  const SHAS = [
+    '98fb96e432fdd1d620164254660524abf2a902e5327498963620cea9d88b94b7',
+    '3a336e6778cfae07ea33cc8d5d45430ab26fceb78271cd87a68e5fb885f78fc9',
+  ] as const;
+
+  test('the two cross-owner authorization reads are deleted from TS and pinned by the owner', () => {
+    const sources = [
+      read('adapters/workflow-command-authority.ts'),
+      read('adapters/queued-command-authority.ts'),
+    ];
+    const port = read('adapters/control_read_plan.rs');
+    const client = read('adapters/native-control-read-plan.ts');
+    for (let index = 0; index < SQLS.length; index++) {
+      expect(sha256(SQLS[index]), SHAS[index]).toBe(SHAS[index]);
+      expect(sources[index], SHAS[index]).not.toContain(SQLS[index]);
+      expect(port, SHAS[index]).toContain(SQLS[index].replace(/"/g, '\\"'));
+      expect(client, SHAS[index]).toContain(SHAS[index]);
+    }
+    expect(sources[0]).toContain('PC_WORKFLOW_ACTIVE_CONTEXT');
+    expect(sources[1]).toContain('PC_QUEUED_ASSIGNMENT_VERSION');
+    for (const source of sources) {
+      expect(source).toContain('planIdentityControlRead');
+      expect(source).toMatch(/prepare\((?:versionPlan|plan)\.sql\)\.bind\(\.\.\.(?:versionPlan|plan)\.values\)/);
+    }
+  });
+});
+
 describe('Identity access read-tail r36 retirement check', () => {
-  test('retirement:ts-statements is 373 after lock-aware preference cut', () => {
+  test('retirement:ts-statements is 371 after workflow/queued authorization cut', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -415,6 +447,6 @@ describe('Identity access read-tail r36 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(454);
-    expect(total).toBe(373);
+    expect(total).toBe(371);
   });
 });

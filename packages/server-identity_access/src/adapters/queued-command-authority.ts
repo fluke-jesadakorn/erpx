@@ -9,6 +9,7 @@ import {workflowActiveContext,workflowActiveGrant} from '@erpx/server-identity_a
 import {lockQueuedOrganizationAuthority} from '@erpx/server-organization/public/queued-command-authority';
 import {lockQueuedPeopleAuthority} from '@erpx/server-people_payroll/public/queued-command-authority';
 import {revokedSessionHeadSql} from './read-tail-family-r36';
+import {planIdentityControlRead,PC_QUEUED_ASSIGNMENT_VERSION} from './native-control-read-plan';
 /** Cover inserted and changed authority sources before any owner snapshot. */
 export async function lockQueuedCommandAuthority(database:SqlDatabase){
  await database.prepare('LOCK TABLE assignments,iam_roles,iam_role_revisions,iam_members,iam_identities,iam_connections,iam_revoked_sessions,iam_emergency_sessions,active_work_contexts,iam_access_subjects,um_attributes,um_values,um_groups,um_memberships,um_policies,um_attachments,um_candidates IN SHARE MODE').run();
@@ -24,7 +25,8 @@ async function queuedAuthority(database:SqlDatabase,actor:WorkContext,permission
  const current=await loadIamAuthority(database,actor.companyId,actor.userId,actor.role,actor.authority?.sessionId);
  for(const field of ['identityVersion','roleRevision','hrAppointmentVersion','emergencyUntil'] as const)if(actor.iam?.[field]!==undefined&&actor.iam[field]!==current[field])throw new ApiError(403,'QUEUED_AUTHORITY_CHANGED','The original queued IAM authority changed.');
  if(permission&&!hasPermission({...actor,iam:current},permission))throw new ApiError(403,'QUEUED_AUTHORITY_CHANGED','The original queued permission is unavailable.');
- const version=await database.prepare('SELECT version FROM assignments WHERE id=? AND company_id=? AND user_id=? AND role=?').bind(actor.assignmentId,actor.companyId,actor.userId,actor.role).first<number>('version');
+ const versionPlan=await planIdentityControlRead(PC_QUEUED_ASSIGNMENT_VERSION,[actor.assignmentId,actor.companyId,actor.userId,actor.role]);
+ const version=await database.prepare(versionPlan.sql).bind(...versionPlan.values).first<number>('version');
  if(!version)throw new ApiError(403,'QUEUED_AUTHORITY_CHANGED','The original queued assignment is unavailable.');
  return {...actor,iam:{...current,queuedAssignmentVersion:version}};
 }

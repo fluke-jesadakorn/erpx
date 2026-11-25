@@ -124,3 +124,50 @@ describe('quality read-tail r41 id-source membership evidence head dedupe', () =
     expect(kpi(/SELECT /g)).toBe(1);
   });
 });
+
+describe('quality final canonical head audit', () => {
+  test('the sole SELECT literal is the parameterized owner evidenceHead', () => {
+    const head = read('adapters/inspection-evidence-source-sql.ts');
+    expect(head).toContain('export const evidenceHead = (projection: string, from: string, tail: string) => `SELECT ${projection}${from}${tail}`;');
+    expect((head.match(/SELECT /g) ?? [])).toHaveLength(1);
+    expect(kpi(/SELECT /g)).toBe(1);
+    expect(kpi(/INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT /g)).toBe(1);
+  });
+
+  test('the head is irreducible: many synchronous builders delegate, none owns a SELECT', () => {
+    const consumers = ['adapters/alerts.ts', 'adapters/attachment-read-sources.ts', 'adapters/calendar-quality-facts.ts',
+      'adapters/executive-main-evidence-sources.ts', 'adapters/executive-metric-projections.ts',
+      'adapters/native-source-wrapper-sql.ts', 'adapters/product-entry.ts', 'adapters/purchases.ts',
+      'adapters/purchase-sources.ts', 'adapters/quality-alert-recipient-sql.ts',
+      'adapters/quality-attachment-source-select-sql.ts',
+      'adapters/quality-lineage-recursion-sql.ts', 'adapters/quality-lineage-terminal-sql.ts',
+      'adapters/quality-receipt-guard-sql.ts', 'adapters/quality-scope-sql.ts',
+      'adapters/quality-source-arm-head.ts', 'adapters/quality-source-rows-sql.ts',
+      'adapters/record-purchases.ts', 'adapters/supply-package-obligations.ts',
+      'adapters/quality-id-source-sql.ts', 'adapters/attachment-read.ts'];
+    expect(consumers.length).toBeGreaterThanOrEqual(20);
+    expect(read('adapters/quality-child-agg-sql.ts')).toContain('scopeSql(');
+    expect(read('adapters/quality-scope-sql.ts')).toContain('evidenceHead(columns');
+    for (const path of consumers) {
+      expect(read(path)).toContain('evidenceHead(');
+      expect(read(path).match(/SELECT /g) ?? []).toHaveLength(0);
+    }
+    // Static exported SQL strings depend on synchronous head expansion.
+    expect(read('adapters/purchase-sources.ts')).toContain('export const qualityPurchaseSourceRows=');
+    expect(read('adapters/quality-source-arm-head.ts')).toContain('export const qualitySourceArmHead =');
+  });
+
+  test('the native read-plan registry is an allow-list of fixed statements, not a head template', () => {
+    const registry = read('adapters/native_quality_read_sql.rs');
+    expect(registry).toContain('pub fn read_statement(kind: &str) -> Option<&\'static QualityReadStatement>');
+    expect(registry).not.toContain('RD_EVIDENCE_HEAD');
+    expect(registry).not.toContain('SELECT ${projection}');
+    expect(registry).not.toContain('caller_sql');
+    const http = read('adapters/quality_http.rs');
+    expect(http).toContain('native_quality_read_sql::read_statement(kind)');
+    expect(http).toContain('values.len() != plan.bind_count');
+    // A head taking arbitrary projection/FROM/tail fragments is not an
+    // allow-listed kind, and native transport is async HTTP, so it cannot
+    // replace a synchronous template expanded inside exported SQL strings.
+  });
+});

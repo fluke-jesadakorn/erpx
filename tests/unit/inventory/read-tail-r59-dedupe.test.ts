@@ -134,7 +134,7 @@ describe('Inventory read-tail r59 stock-obligation head dedupe', () => {
     // stock-projection head shared by the manufacturing and PMS package
     // obligation reads into one owner-local renderer: 2 source tokens -> 1,
     // i.e. 294 -> 293.
-    expect(total).toBe(277);
+    expect(total).toBe(276);
     expect(total).toBeLessThan(293);
   });
 });

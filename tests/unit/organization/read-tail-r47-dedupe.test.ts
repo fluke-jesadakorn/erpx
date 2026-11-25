@@ -95,7 +95,7 @@ describe('Organization read-tail r47 parameterized head', () => {
     };
     walk(srcRoot);
     // r47 collapses two worker-company rollout guards into one shared source (-1).
-    expect(space).toBe(188);
+    expect(space).toBe(187);
     expect(space).toBeLessThan(239);
   });
 });

@@ -970,6 +970,14 @@ const READS: &[NativeReadStatement] = &[
     READ_PLAN_CATEGORY,
     READ_PLAN_EXPORT_ROW,
     READ_PLAN_SOURCE_SNAPSHOT,
+    READ_CONTRACT_CUSTOMER,
+    READ_CONTRACT_DIMENSIONS,
+    READ_CONTRACT_DIMENSION_VALUE,
+    READ_CONTRACT_TAX_CODE,
+    READ_CONTRACT_BILLING_RUN,
+    READ_CONTRACT_BILLING_EXISTS,
+    READ_CONTRACT_BILL_SOURCE,
+    READ_CONTRACT_POSTED_CORRECTION,
 ];
 
 /// Whether a discriminator is an owner read kind (never a write kind).
@@ -1066,6 +1074,14 @@ mod tests {
             RD_PLAN_CATEGORY,
             RD_PLAN_EXPORT_ROW,
             RD_PLAN_SOURCE_SNAPSHOT,
+            RD_CONTRACT_CUSTOMER,
+            RD_CONTRACT_DIMENSIONS,
+            RD_CONTRACT_DIMENSION_VALUE,
+            RD_CONTRACT_TAX_CODE,
+            RD_CONTRACT_BILLING_RUN,
+            RD_CONTRACT_BILLING_EXISTS,
+            RD_CONTRACT_BILL_SOURCE,
+            RD_CONTRACT_POSTED_CORRECTION,
         ] {
             assert!(is_read(kind), "{kind}");
             let read = read_statement(kind).expect("read kind");
@@ -1080,7 +1096,7 @@ mod tests {
             assert_eq!(read.sql.matches('?').count(), read.bind_count, "{kind}");
             assert_eq!(read.scope, "holding", "{kind}");
         }
-        assert_eq!(READS.len(), 77);
+        assert_eq!(READS.len(), 85);
         assert!(!is_read("finance_stmt_1"));
         assert!(read_statement("finance_stmt_1").is_none());
     }
@@ -1591,6 +1607,46 @@ mod tests {
                 RD_PLAN_SOURCE_SNAPSHOT,
                 SQL_RD_PLAN_SOURCE_SNAPSHOT,
                 3,
+            ),
+        ];
+        assert_eq!(expected.len(), 8);
+        for (kind, sql, binds) in expected {
+            let read = read_statement(kind).unwrap_or_else(|| panic!("{kind}: unregistered"));
+            assert_eq!(read.kind, *kind, "{kind}: discriminator");
+            assert_eq!(read.sql, *sql, "{kind}: byte-identical SQL");
+            assert_eq!(read.bind_count, *binds, "{kind}: bind count");
+            assert_eq!(read.sql.matches('?').count(), *binds, "{kind}: binds");
+            assert_eq!(read.scope, "holding", "{kind}: scope");
+            assert!(is_read(kind), "{kind}");
+            assert!(!read.sql.contains("FOR UPDATE"), "{kind}");
+            assert!(!read.sql.contains("INSERT"), "{kind}");
+        }
+    }
+
+    /// The finance-business-contracts point/list family plans the exact
+    /// retired literals; command guards stay in caller transactions.
+    #[test]
+    fn contract_reads_match_retired_owner_statements() {
+        let expected: &[(&str, &str, usize)] = &[
+            (RD_CONTRACT_CUSTOMER, SQL_RD_CONTRACT_CUSTOMER, 3),
+            (RD_CONTRACT_DIMENSIONS, SQL_RD_CONTRACT_DIMENSIONS, 1),
+            (
+                RD_CONTRACT_DIMENSION_VALUE,
+                SQL_RD_CONTRACT_DIMENSION_VALUE,
+                3,
+            ),
+            (RD_CONTRACT_TAX_CODE, SQL_RD_CONTRACT_TAX_CODE, 5),
+            (RD_CONTRACT_BILLING_RUN, SQL_RD_CONTRACT_BILLING_RUN, 3),
+            (
+                RD_CONTRACT_BILLING_EXISTS,
+                SQL_RD_CONTRACT_BILLING_EXISTS,
+                2,
+            ),
+            (RD_CONTRACT_BILL_SOURCE, SQL_RD_CONTRACT_BILL_SOURCE, 2),
+            (
+                RD_CONTRACT_POSTED_CORRECTION,
+                SQL_RD_CONTRACT_POSTED_CORRECTION,
+                1,
             ),
         ];
         assert_eq!(expected.len(), 8);

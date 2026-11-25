@@ -116,7 +116,7 @@ describe('Finance read-tail r45 protected families and retirement', () => {
     };
     walk(srcRoot);
     // 13 inline SELECTs collapse into five r45 helpers: -8 (1868 -> 1860); r46 removes nine more (-> 1851); r48 removes seven more (-> 1844); r49 removes 32 more (-> 1812); r50 removes seven more (-> 1805).
-    expect(total).toBe(1631);
+    expect(total).toBe(1623);
     expect(total).toBeLessThanOrEqual(1860);
     expect(total).toBeLessThan(1868);
   });

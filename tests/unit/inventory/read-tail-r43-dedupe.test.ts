@@ -102,7 +102,7 @@ describe('Inventory read-tail r43 dedupe', () => {
       'attachmentSourceProofExistsSql', 'sourceExistsSql', 'journalLineSumSql', 'childLineOwnerExistsSql',
       'nativeRecordExistsSql', 'branchScopeTupleSql', 'scopeExistsSql', 'journalAccountLineExistsSql',
       'sourceScopeRowsSql', 'packageObligationDocumentRowsSql', 'evidencePositionRowsSql',
-      'recordIdExistsSql', 'childLineRowsSql', 'scopeAllowedSql', 'disposalCountsSql', 'scopedFieldSql',
+      'recordIdExistsSql', 'childLineRowsSql', 'scopeAllowedSql', 'disposalCountsSql',
       'clockScopedPurchaseExistsSql', 'stockPositionSourcesSql', 'inventoryMovementEvidenceRowsSql',
       'executivePositionPointSql', 'stockSourceColumnsSql', 'attachmentOwnerVersionGuardSql',
       'attachmentLotIdsSql', 'reservedAvailabilitySumSql', 'decisionActorRowsSql', 'clockCteSql',

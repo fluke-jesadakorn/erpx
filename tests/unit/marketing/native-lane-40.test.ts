@@ -309,7 +309,7 @@ describe('native Marketing lane-40 read client', () => {
     }
   });
 
-  it('retirement:ts-statements KPI is 3 for the owner (BEFORE=17; wave 2 retired 1)', async () => {
+  it('retirement:ts-statements KPI is 1 for the owner (BEFORE=17; wave 2 retired 1)', async () => {
     const root = resolve('packages/server-marketing/src');
     let total = 0;
     const walk = async (dir: string) => {
@@ -320,7 +320,7 @@ describe('native Marketing lane-40 read client', () => {
       }
     };
     await walk(root);
-    expect(total).toBe(3);
+    expect(total).toBe(1);
     const workspace = await readFile(new URL('../../../packages/server-marketing/src/adapters/marketing.ts', import.meta.url), 'utf8');
     expect(workspace).not.toMatch(/SELECT COALESCE\(NULLIF\(BTRIM\(attribution_json/);
     expect(workspace).toContain('readMarketingLane40');

@@ -62,6 +62,9 @@ export const RD_POS_WAREHOUSES_ALL = 'commerce_rd_pos_warehouses_all';
 /** Allow-listed existing Manufacturing posting confirmation-image read. */
 export const RD_MFG_EXISTING_POSTING_CONFIRMATION_IMAGE = 'commerce_rd_mfg_existing_posting_confirmation_image';
 
+/** Allow-listed sales delivery-notification line read. */
+export const RD_SALES_NOTIFICATION_LINES = 'commerce_rd_sales_notification_lines';
+
 /** Allow-listed warehouse-config read kinds resolved by the mounted owner command-plan route. */
 export const RD_WAREHOUSE_PAGE_ROWS = 'commerce_rd_warehouse_page_rows';
 export const RD_WAREHOUSE_MASTER_ROWS = 'commerce_rd_warehouse_master_rows';

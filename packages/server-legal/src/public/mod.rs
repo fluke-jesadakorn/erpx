@@ -105,6 +105,7 @@ pub mod processing_status;
 pub mod auxiliary;
 pub mod attachment_migration_facts;
 pub mod executive_main_evidence_sources;
+pub mod legal_approval_sources;
 pub mod legal_read_tail_r16;
 pub mod legal_read_tail_r25;
 pub mod legal_read_tail_r38;

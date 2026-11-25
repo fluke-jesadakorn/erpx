@@ -488,7 +488,7 @@ describe('Organization read-tail r30 native cutover — finance starter node lis
       }
     };
     walk(srcRoot);
-    expect(total).toBe(188);
+    expect(total).toBe(187);
     expect(total).toBeLessThan(189);
     // The worker-position cut deleted the shared r38 helper literal after both
     // former consumers moved to the native owner, so the KPI falls by one.
@@ -653,5 +653,35 @@ describe('Organization lifecycle worker position native cutover', () => {
     expect(all).toHaveBeenCalledWith(expect.anything(), 'company-1', KIND, ['company-1', 'position-1']);
     all.mockResolvedValueOnce([]);
     await expect(lifecycleOrganizationFacts({} as never).readPosition('company-1', null)).resolves.toEqual({rows: [], rowCount: 0});
+  });
+});
+
+describe('Organization draft leave-defaults read native cutover', () => {
+  const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+  const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
+  const sha = (value: string) => createHash('sha256').update(value).digest('hex');
+  const KIND = 'draft_read_leave_defaults';
+  const SQL = 'SELECT level_id,version,policy_version_id FROM level_leave_defaults WHERE company_id=? ORDER BY level_id,version';
+
+  it('deletes the TS literal and sends only the typed kind and Company value', () => {
+    const source = read('organization-drafts.ts');
+    expect(source).not.toContain(SQL);
+    expect(source).toContain(`leave:await nativeOrgAll<{level_id:string;version:number;policy_version_id:string}>(db,companyId,'${KIND}',[companyId]),`);
+    expect(source.split(KIND).length - 1).toBe(1);
+    // The FOR UPDATE claim and the advisory-lock read stay excluded.
+    expect(source).toContain('FOR UPDATE');
+    expect(source).toContain('pg_try_advisory_xact_lock');
+  });
+
+  it('pins the byte-identical SQL now owned by the Rust registry', () => {
+    expect(sha(SQL)).toBe('39766df8411791c865f7e18e2345f03211fd68b13bce02adc1d6b5b54409b7f7');
+    const registry = read('organization_owner_write.rs');
+    expect(registry).toContain(`pub const DRAFT_READ_LEAVE_DEFAULTS: &str = "${KIND}";`);
+    expect(registry).toContain(`    DRAFT_READ_LEAVE_DEFAULTS,\n`);
+    expect(registry).toContain(`        DRAFT_READ_LEAVE_DEFAULTS => {\n            "${SQL}"\n        }`);
+    const arm = registry.match(/DRAFT_READ_LEAVE_DEFAULTS => \{\n            "([^"]+)"\n        \}/)?.[1] ?? '';
+    expect(arm).toBe(SQL);
+    expect(arm.toUpperCase().startsWith('SELECT ')).toBe(true);
+    expect(arm).not.toMatch(/INSERT|UPDATE|DELETE|FOR UPDATE|FOR SHARE|LOCK TABLE/);
   });
 });

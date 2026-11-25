@@ -570,6 +570,11 @@ pub fn plan_values_statement(
         "social_following_topic_exists" => "OR EXISTS(SELECT 1 FROM social_post_topics pt JOIN social_follows f ON f.target_type='topic' AND f.target_id=pt.tag\n      WHERE pt.post_id=p.id AND f.principal_id=?))",
         "social_feed_comments_by_post" => "SELECT id,post_id,author_id,author_name,body,created_at\n    FROM social_comments WHERE post_id=? AND state='published' ORDER BY created_at LIMIT 50",
         "social_stories_head" => "SELECT id,author_id,author_name,title,body,theme,branch_id,version,created_at\n    FROM social_stories WHERE ",
+        // Work Social guard reads, byte-identical to the retired TS literals
+        // and executed on the caller's own unit with the same ordered binds.
+        "work_social_receipts_witness" => "SELECT jsonb_agg(to_jsonb(receipt) ORDER BY receipt.command_id)::text image FROM command_receipts receipt WHERE receipt.command_id IN(?,?,?)",
+        "work_social_draft_read" => "SELECT to_jsonb(d)::text draft,(SELECT to_jsonb(c)::text FROM command_receipts c WHERE c.command_id=? AND c.operation=? AND c.record_id=d.id AND c.actor_id=d.author_id AND c.authority_json::jsonb->>'companyId'=d.company_id AND c.result_json::jsonb->>'id'=d.id) creator,EXISTS(SELECT 1 FROM social_comments c WHERE c.comment_upload_draft_id=d.id) consumed FROM social_post_drafts d WHERE d.id=? AND d.company_id=?",
+        "work_social_ai_phase_row" => "SELECT d.actor_id,d.post_id,d.source_hash,d.actor_json,d.state draft_state,u.company_id,u.actor_id usage_actor,u.state usage_state FROM social_ai_drafts d JOIN social_ai_usage u ON u.id=d.id WHERE d.id=?",
         _ => return None,
     };
     Some(
@@ -969,6 +974,35 @@ mod tests {
                 .expect("planned statement");
             assert_eq!(planned.sql, sql, "{kind}");
             assert_eq!(planned.sql.matches('?').count(), binds, "{kind}");
+        }
+    }
+
+    #[test]
+    fn work_social_guard_read_kinds_render_the_retired_sql_byte_for_byte() {
+        let cases = [
+            (
+                "work_social_receipts_witness",
+                "SELECT jsonb_agg(to_jsonb(receipt) ORDER BY receipt.command_id)::text image FROM command_receipts receipt WHERE receipt.command_id IN(?,?,?)",
+                vec!["key", "key-publish", "key-operations"],
+            ),
+            (
+                "work_social_draft_read",
+                "SELECT to_jsonb(d)::text draft,(SELECT to_jsonb(c)::text FROM command_receipts c WHERE c.command_id=? AND c.operation=? AND c.record_id=d.id AND c.actor_id=d.author_id AND c.authority_json::jsonb->>'companyId'=d.company_id AND c.result_json::jsonb->>'id'=d.id) creator,EXISTS(SELECT 1 FROM social_comments c WHERE c.comment_upload_draft_id=d.id) consumed FROM social_post_drafts d WHERE d.id=? AND d.company_id=?",
+                vec!["draft-id", "create", "draft-id", "company-1"],
+            ),
+            (
+                "work_social_ai_phase_row",
+                "SELECT d.actor_id,d.post_id,d.source_hash,d.actor_json,d.state draft_state,u.company_id,u.actor_id usage_actor,u.state usage_state FROM social_ai_drafts d JOIN social_ai_usage u ON u.id=d.id WHERE d.id=?",
+                vec!["reservation-1"],
+            ),
+        ];
+        for (kind, sql, values) in cases {
+            let planned = super::plan_values_statement(kind, &read_input(kind, &values))
+                .expect("registered kind")
+                .expect("planned statement");
+            assert_eq!(planned.sql, sql, "{kind}");
+            assert_eq!(planned.sql.matches('?').count(), values.len(), "{kind}");
+            assert_eq!(planned.values.len(), values.len(), "{kind}");
         }
     }
 }

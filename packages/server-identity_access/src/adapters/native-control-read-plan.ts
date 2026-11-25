@@ -26,6 +26,8 @@ export const PC_PREF_SESSION_SHARE = 'pc_pref_session_share';
 export const PC_PREF_SESSION_IMAGE = 'pc_pref_session_image';
 export const PC_PREF_BINDING_SHARE = 'pc_pref_binding_share';
 export const PC_PREF_PARENT_BINDING_SHARE = 'pc_pref_parent_binding_share';
+export const PC_WORKFLOW_ACTIVE_CONTEXT = 'pc_workflow_active_context';
+export const PC_QUEUED_ASSIGNMENT_VERSION = 'pc_queued_assignment_version';
 
 export type ControlReadPlan = Readonly<{ sql: string; values: readonly (string | number)[] }>;
 type PlanReader = (kind: string, values: readonly (string | number)[]) => Promise<ControlReadPlan>;
@@ -50,6 +52,8 @@ const ARITY: Readonly<Record<string, number>> = {
   [PC_PREF_SESSION_IMAGE]: 1,
   [PC_PREF_BINDING_SHARE]: 1,
   [PC_PREF_PARENT_BINDING_SHARE]: 1,
+  [PC_WORKFLOW_ACTIVE_CONTEXT]: 2,
+  [PC_QUEUED_ASSIGNMENT_VERSION]: 4,
 };
 /** Byte-oracle SHA-256 of each owner statement: a plan with unexpected bytes is rejected. */
 const PLAN_SHAS: Readonly<Record<string, string>> = {
@@ -68,6 +72,8 @@ const PLAN_SHAS: Readonly<Record<string, string>> = {
   [PC_PREF_SESSION_IMAGE]: '8ee55872698acd8f8db05e131432e221353aa71e8665b94c8205e012a52bf8af',
   [PC_PREF_BINDING_SHARE]: 'd9ee53a4666438071f1e233fbcb7754912d6f08251b3f69652b2792d9e8a3789',
   [PC_PREF_PARENT_BINDING_SHARE]: '242a5de65756ffa03457eca0a59a03466d074e34c95877f57022dce9b717cce9',
+  [PC_WORKFLOW_ACTIVE_CONTEXT]: '98fb96e432fdd1d620164254660524abf2a902e5327498963620cea9d88b94b7',
+  [PC_QUEUED_ASSIGNMENT_VERSION]: '3a336e6778cfae07ea33cc8d5d45430ab26fceb78271cd87a68e5fb885f78fc9',
 };
 
 const unavailable = (code = 'IDENTITY_CONTROL_READ_UNAVAILABLE', status = 503): never => {

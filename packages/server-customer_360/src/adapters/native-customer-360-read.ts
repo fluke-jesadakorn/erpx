@@ -18,8 +18,10 @@ export const RD_OBLIGATION_ACTION_HEAD = 'c360_rd_obligation_action_head';
 export const RD_OBLIGATION_ACK_HEAD = 'c360_rd_obligation_ack_head';
 export const RD_COMPANY_SCOPE = 'c360_rd_company_scope';
 export const RD_COMPANY_SCOPE_PORTAL_RELEASE = 'c360_rd_company_scope_portal_release';
+export const RD_TIMELINE_ORDER_EVENT = 'c360_rd_timeline_order_event';
 
 const KINDS = new Set<string>([
+  RD_TIMELINE_ORDER_EVENT,
   RD_COMPANY_SCOPE,
   RD_COMPANY_SCOPE_PORTAL_RELEASE,
   RD_PORTAL_ACTION_BY_KEY,

@@ -4,7 +4,7 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { hospitalityDayControls as control, type HospitalityDayControlRepository, type Count } from "@erpx/server-pms/application/hospitality-day-controls";
 import { pmsDayControlPosFacts } from "@erpx/server-pos/public/pms-day-control-facts";
 import { pmsDayControlFinanceFacts } from "@erpx/server-finance/public/pms-day-control-facts";
-import { nativePmsReadFirst, PMS_RD_CHARGE_CORRECTION_PENDING_COUNT, PMS_RD_PROPERTY_CONFIG, PMS_RD_PENDING_HOTEL_TRANSFERS, PMS_RD_UNPOSTED_BOOKING_RECEIPTS, PMS_RD_UNPOSTED_COUNTER_RECEIPTS } from "./native-pms-read";
+import { nativePmsReadFirst, PMS_RD_CHARGE_CORRECTION_PENDING_COUNT, PMS_RD_PROPERTY_CONFIG, PMS_RD_PENDING_HOTEL_TRANSFERS, PMS_RD_UNPOSTED_BOOKING_RECEIPTS, PMS_RD_UNPOSTED_COUNTER_RECEIPTS, PMS_RD_FAILED_COUNTER_REFUNDS } from "./native-pms-read";
 import { pmsRefundPaymentJoinHeadSql } from "./pms-read-tail-r34-sql";
 function repository(db: SqlDatabase): HospitalityDayControlRepository {
     const pos = pmsDayControlPosFacts(db), finance = pmsDayControlFinanceFacts(db);
@@ -51,9 +51,7 @@ function repository(db: SqlDatabase): HospitalityDayControlRepository {
             companyId: string;
             timezone: string;
             businessDate: string;
-        }) => db.prepare(`SELECT count(*) n FROM pms_stripe_payments
-    WHERE property_id=? AND company_id=? AND (refund_state='failed' OR (refund_state IN ('approved','processing','requires_action') AND last_error IS NOT NULL))
-    AND to_char(to_timestamp(COALESCE(received_at,created_at)/1000.0) AT TIME ZONE ?,'YYYY-MM-DD')<=?`).bind(facts.propertyId, facts.companyId, facts.timezone, facts.businessDate).first<Count>().then(row => Number(row?.n ?? 0)),
+        }) => nativePmsReadFirst<Count>(PMS_RD_FAILED_COUNTER_REFUNDS, [facts.propertyId, facts.companyId, facts.timezone, facts.businessDate], db).then(row => Number(row?.n ?? 0)),
         unresolvedRefunds: facts => pos.unresolvedRefunds(facts),
         failedJobs: facts => pos.failedJobs(facts),
         missingRoomCharges: facts => pos.missingRoomCharges(facts),

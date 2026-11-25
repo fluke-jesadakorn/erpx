@@ -39,9 +39,15 @@ describe('People Payroll read-tail r18 byte-identical dedupe', () => {
     }
   });
 
-  test('the shared module declares each literal exactly once', () => {
+  test('the shared module declares its people literals once and delegates the engagement pair', () => {
     const s = src('pp-read-tail-r18-sources.ts');
-    for (const literal of ALL) expect(s.split(quoted(literal))).toHaveLength(2);
+    for (const literal of ALL) {
+      if (literal === PP_RD18_HR_ENGAGEMENTS_E_JOIN_SQL || literal === PP_RD18_HR_ENGAGEMENTS_E_FROM_SQL) continue;
+      expect(s.split(quoted(literal))).toHaveLength(2);
+    }
+    expect(s).toContain("from './pp-read-tail-round9-sources'");
+    expect(s).toContain("ppRdRound9ProjectionFragment('JOIN', HR_ENGAGEMENT_COLUMNS, 'hr_engagements', 'e')");
+    expect(s).toContain("ppRdRound9ProjectionFragment('FROM', HR_ENGAGEMENT_COLUMNS, 'hr_engagements', 'e')");
   });
 
   test('exported snapshot-source keys and aliases are unchanged', () => {

@@ -28,6 +28,8 @@ pub const PC_PREF_SESSION_SHARE: &str = "pc_pref_session_share";
 pub const PC_PREF_SESSION_IMAGE: &str = "pc_pref_session_image";
 pub const PC_PREF_BINDING_SHARE: &str = "pc_pref_binding_share";
 pub const PC_PREF_PARENT_BINDING_SHARE: &str = "pc_pref_parent_binding_share";
+pub const PC_WORKFLOW_ACTIVE_CONTEXT: &str = "pc_workflow_active_context";
+pub const PC_QUEUED_ASSIGNMENT_VERSION: &str = "pc_queued_assignment_version";
 
 /// Byte-identical successors of the five TypeScript statements pinned in
 /// `tests/unit/identity_access/read-tail-r36-dedupe.test.ts`. `?` markers are
@@ -64,6 +66,11 @@ pub const SQL_PREF_BINDING_SHARE: &str =
     "SELECT * FROM sso_session_bindings WHERE session_id=? FOR SHARE";
 pub const SQL_PREF_PARENT_BINDING_SHARE: &str =
     "SELECT b.*,s.\"userId\" user_id,s.\"expiresAt\" expires_at\n    FROM sso_session_bindings b JOIN session s ON s.id=b.session_id WHERE b.session_id=? FOR SHARE OF b";
+/// Cross-owner authorization-image reads used by the queued-command authority.
+pub const SQL_WORKFLOW_ACTIVE_CONTEXT: &str =
+    "SELECT revision,assignment_id,assignment_version FROM active_work_contexts WHERE session_id=? AND company_id=?";
+pub const SQL_QUEUED_ASSIGNMENT_VERSION: &str =
+    "SELECT version FROM assignments WHERE id=? AND company_id=? AND user_id=? AND role=?";
 
 const BODY_LIMIT: usize = 8 * 1024;
 const ORIGIN_HEADER: HeaderName = HeaderName::from_static("origin");
@@ -106,6 +113,8 @@ pub fn plan(kind: &str, values: &[Value]) -> Result<ControlReadPlan, BusinessErr
         PC_PREF_SESSION_IMAGE => (SQL_PREF_SESSION_IMAGE, 1),
         PC_PREF_BINDING_SHARE => (SQL_PREF_BINDING_SHARE, 1),
         PC_PREF_PARENT_BINDING_SHARE => (SQL_PREF_PARENT_BINDING_SHARE, 1),
+        PC_WORKFLOW_ACTIVE_CONTEXT => (SQL_WORKFLOW_ACTIVE_CONTEXT, 2),
+        PC_QUEUED_ASSIGNMENT_VERSION => (SQL_QUEUED_ASSIGNMENT_VERSION, 4),
         _ => return Err(invalid()),
     };
     if values.len() != expected {
@@ -308,6 +317,8 @@ mod tests {
             (PC_PREF_SESSION_IMAGE, SQL_PREF_SESSION_IMAGE, 1),
             (PC_PREF_BINDING_SHARE, SQL_PREF_BINDING_SHARE, 1),
             (PC_PREF_PARENT_BINDING_SHARE, SQL_PREF_PARENT_BINDING_SHARE, 1),
+            (PC_WORKFLOW_ACTIVE_CONTEXT, SQL_WORKFLOW_ACTIVE_CONTEXT, 2),
+            (PC_QUEUED_ASSIGNMENT_VERSION, SQL_QUEUED_ASSIGNMENT_VERSION, 4),
         ] {
             let values = vec![Value::from("v"); count];
             let planned = plan(kind, &values).unwrap();

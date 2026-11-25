@@ -22,6 +22,11 @@ pub const RD_OBLIGATION_ACK_HEAD: &str = "c360_rd_obligation_ack_head";
 pub const RD_COMPANY_SCOPE: &str = "c360_rd_company_scope";
 /// Allow-listed native Customer 360 read kind: one-value Company scope source aliased for the portal release probe.
 pub const RD_COMPANY_SCOPE_PORTAL_RELEASE: &str = "c360_rd_company_scope_portal_release";
+/// Allow-listed native Customer 360 read kind: order branch of the federated timeline events UNION.
+pub const RD_TIMELINE_ORDER_EVENT: &str = "c360_rd_timeline_order_event";
+
+/// Exact zero-bind order event branch retired from `timeline.ts`.
+const SQL_TIMELINE_ORDER_EVENT: &str = "SELECT 'order:'||o.id id,o.id source_id,'order' source_type,o.kind||' · '||o.number title,o.state status,o.version,o.updated_at at,'/commerce/orders/'||o.id href,o.party_id customer_id,p.name customer_name FROM scoped_orders o JOIN customers p ON p.id=o.party_id";
 
 /// Exact zero-bind Company scope source retired from `customer-read-sources.ts`.
 const SQL_COMPANY_SCOPE: &str = "(SELECT ?::text company_id)";
@@ -94,6 +99,11 @@ pub fn plan_for(kind: &str, binds: usize) -> Result<NativeReadStatement, Busines
             sql: SQL_COMPANY_SCOPE_PORTAL_RELEASE,
             bind_count: 0,
         },
+        RD_TIMELINE_ORDER_EVENT => NativeReadStatement {
+            kind: RD_TIMELINE_ORDER_EVENT,
+            sql: SQL_TIMELINE_ORDER_EVENT,
+            bind_count: 0,
+        },
         _ => return Err(invalid()),
     };
     if binds != planned.bind_count {
@@ -164,6 +174,15 @@ mod tests {
     }
 
     #[test]
+    fn timeline_order_event_is_byte_identical_to_the_retired_typescript_branch() {
+        // Verbatim pre-cut branch from timelineEvents().
+        const TS_ORDER: &str = "SELECT 'order:'||o.id id,o.id source_id,'order' source_type,o.kind||' · '||o.number title,o.state status,o.version,o.updated_at at,'/commerce/orders/'||o.id href,o.party_id customer_id,p.name customer_name FROM scoped_orders o JOIN customers p ON p.id=o.party_id";
+        let planned = plan_for(RD_TIMELINE_ORDER_EVENT, 0).expect("registered kind");
+        assert_eq!(planned.sql, TS_ORDER);
+        assert_eq!(planned.bind_count, 0);
+    }
+
+    #[test]
     fn unknown_kind_or_wrong_bind_count_fails_closed() {
         assert!(plan_for("c360_rd_unknown", 1).is_err());
         assert!(plan_for(RD_PORTAL_ACTION_BY_KEY, 0).is_err());
@@ -174,6 +193,7 @@ mod tests {
         assert!(plan_for(RD_OBLIGATION_ACK_HEAD, 1).is_err());
         assert!(plan_for(RD_COMPANY_SCOPE, 1).is_err());
         assert!(plan_for(RD_COMPANY_SCOPE_PORTAL_RELEASE, 1).is_err());
+        assert!(plan_for(RD_TIMELINE_ORDER_EVENT, 1).is_err());
         assert!(!SQL_PORTAL_ACTION_BY_KEY.contains(";"));
         assert!(!SQL_PORTAL_ACTION_BY_BINDING.contains(";"));
     }

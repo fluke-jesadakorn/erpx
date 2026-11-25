@@ -206,7 +206,7 @@ describe('native Commerce lane 14 workflow order reads', () => {
     expect(source).toContain("from './native-lane-14/client'");
   });
 
-  it('keeps the brief-listed owner SELECT-space count at 160 after the POS warehouses-all deletion', () => {
+  it('keeps the brief-listed owner SELECT-space count at 159 after the sales-notification line deletion', () => {
     const brief = fs.readFileSync(
       path.join(root, '.scratch/wave0/briefs/lane_14.md'), 'utf8',
     );
@@ -218,7 +218,7 @@ describe('native Commerce lane 14 workflow order reads', () => {
       if (!fs.existsSync(absolute)) continue;
       count += fs.readFileSync(absolute, 'utf8').split('SELECT ').length - 1;
     }
-    expect(count).toBe(160);
+    expect(count).toBe(159);
   });
 });
 
@@ -412,7 +412,7 @@ describe('native Commerce lane 14 multi-holding Sales reads', () => {
       path.join(root, 'packages/server-commerce/src/adapters/sales-order-sources.ts'),
       'utf8',
     );
-    expect(source.split('SELECT ').length - 1).toBe(3);
+    expect(source.split('SELECT ').length - 1).toBe(2);
     expect(source).not.toMatch(/status='active' ORDER BY sku/);
     expect(source).not.toMatch(/COUNT\(\*\) count/);
     expect(source).not.toMatch(/total_minor,o\.version/);

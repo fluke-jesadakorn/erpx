@@ -88,7 +88,7 @@ describe('crm read-tail r50 byte-identical parenthesized-select head', () => {
   });
 
   test('retirement:ts-statements drops from the r49 AFTER=49 to 47', () => {
-    expect(totalSelects()).toBe(39);
+    expect(totalSelects()).toBe(38);
     expect(totalSelects()).toBeLessThan(49);
   });
 });

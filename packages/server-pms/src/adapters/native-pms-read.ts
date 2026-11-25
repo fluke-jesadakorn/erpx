@@ -127,6 +127,10 @@ export const PMS_RD_CHARGE_CORRECTIONS_FRONT = 'pms_rd_charge_corrections_front'
 export const PMS_RD_BOOKING_TOKEN = 'pms_rd_booking_token';
 export const PMS_RD_STRIPE_PAYMENT_KEY = 'pms_rd_stripe_payment_key';
 export const PMS_RD_PROPERTY_SCOPE = 'pms_rd_property_scope';
+/** Native successor of the owner-local hospitality day-control failed-counter
+ * refund count. Fixed SQL with four positional binds, no ledger/receipt/outbox
+ * and no lock path; caller runs it on its already-open unit. */
+export const PMS_RD_FAILED_COUNTER_REFUNDS = 'pms_rd_failed_counter_refunds';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'PMS_NATIVE_READ_UNAVAILABLE', 'The native PMS read service is unavailable.');

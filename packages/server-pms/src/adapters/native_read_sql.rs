@@ -185,6 +185,11 @@ pub const PMS_RD_CHARGE_CORRECTIONS_FRONT: &str = "pms_rd_charge_corrections_fro
 pub const PMS_RD_BOOKING_TOKEN: &str = "pms_rd_booking_token";
 pub const PMS_RD_STRIPE_PAYMENT_KEY: &str = "pms_rd_stripe_payment_key";
 pub const PMS_RD_PROPERTY_SCOPE: &str = "pms_rd_property_scope";
+/// Native successor of the owner-local hospitality day-control
+/// `failedCounterRefunds` count. Fixed SQL with four positional binds, no
+/// ledger/receipt/outbox and no lock path; the same read-only diagnostic count
+/// the other day-control counter closure kinds already own.
+pub const PMS_RD_FAILED_COUNTER_REFUNDS: &str = "pms_rd_failed_counter_refunds";
 const SQL_INVENTORY_COMMAND: &str = "SELECT id,kind,data_json,version,updated_at FROM pms_records \
 WHERE property_id=? AND kind IN ('room_type','room','rate','block','item','credit') \
 UNION ALL SELECT id,kind,data_json,version,updated_at FROM pms_records \
@@ -625,8 +630,17 @@ const READ_PROPERTY_SCOPE: NativeReadStatement = NativeReadStatement {
     sql: SQL_PROPERTY_SCOPE,
     bind_count: 1,
 };
+/// Retired TypeScript literal from `hospitality-day-controls.ts`, byte-for-byte.
+const SQL_FAILED_COUNTER_REFUNDS: &str = r#"SELECT count(*) n FROM pms_stripe_payments
+    WHERE property_id=? AND company_id=? AND (refund_state='failed' OR (refund_state IN ('approved','processing','requires_action') AND last_error IS NOT NULL))
+    AND to_char(to_timestamp(COALESCE(received_at,created_at)/1000.0) AT TIME ZONE ?,'YYYY-MM-DD')<=?"#;
+const READ_FAILED_COUNTER_REFUNDS: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_FAILED_COUNTER_REFUNDS,
+    sql: SQL_FAILED_COUNTER_REFUNDS,
+    bind_count: 4,
+};
 
-const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG, READ_PENDING_HOTEL_TRANSFERS, READ_UNPOSTED_BOOKING_RECEIPTS, READ_UNPOSTED_COUNTER_RECEIPTS, READ_HOSPITALITY_SETUP_PROPERTIES, READ_ATTACHMENT_PROPERTY_IMAGE, READ_ATTACHMENT_RECORD_IMAGE, READ_DOCUMENT_RELATED_POSTINGS, READ_POS_GUEST_HOTELS, READ_POS_GUEST_CHOICES, READ_POS_STRIPE_PAYMENT, READ_POS_BOOKING_PAYMENT, READ_STRIPE_PAYMENT_BY_ID, READ_STRIPE_PAYMENT_BY_ID_COMPANY, READ_STRIPE_PAYMENT_PROPERTY, READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS, READ_TRANSFER_REQUESTS, READ_GUEST_DOCUMENTS, READ_BOOKING_ALLOCATION_EXISTS, READ_PENDING_JOBS, READ_BOOKING_PROPERTY_SCOPE, READ_BOOKING_PROPERTY_SCOPE_BRANCH, READ_BOOKING_RECORDS, READ_BOOKING_RECORDS_SEARCH, READ_GUEST_ACCOUNT_SUMS, READ_CHARGE_CORRECTIONS, READ_CHARGE_CORRECTIONS_FRONT, READ_BOOKING_TOKEN, READ_STRIPE_PAYMENT_KEY, READ_PROPERTY_SCOPE];
+const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG, READ_PENDING_HOTEL_TRANSFERS, READ_UNPOSTED_BOOKING_RECEIPTS, READ_UNPOSTED_COUNTER_RECEIPTS, READ_HOSPITALITY_SETUP_PROPERTIES, READ_ATTACHMENT_PROPERTY_IMAGE, READ_ATTACHMENT_RECORD_IMAGE, READ_DOCUMENT_RELATED_POSTINGS, READ_POS_GUEST_HOTELS, READ_POS_GUEST_CHOICES, READ_POS_STRIPE_PAYMENT, READ_POS_BOOKING_PAYMENT, READ_STRIPE_PAYMENT_BY_ID, READ_STRIPE_PAYMENT_BY_ID_COMPANY, READ_STRIPE_PAYMENT_PROPERTY, READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS, READ_TRANSFER_REQUESTS, READ_GUEST_DOCUMENTS, READ_BOOKING_ALLOCATION_EXISTS, READ_PENDING_JOBS, READ_BOOKING_PROPERTY_SCOPE, READ_BOOKING_PROPERTY_SCOPE_BRANCH, READ_BOOKING_RECORDS, READ_BOOKING_RECORDS_SEARCH, READ_GUEST_ACCOUNT_SUMS, READ_CHARGE_CORRECTIONS, READ_CHARGE_CORRECTIONS_FRONT, READ_BOOKING_TOKEN, READ_STRIPE_PAYMENT_KEY, READ_PROPERTY_SCOPE, READ_FAILED_COUNTER_REFUNDS];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
 pub fn is_read(kind: &str) -> bool {
@@ -1054,7 +1068,7 @@ ORDER BY id"
         assert!(!upper.contains("PG_ADVISORY"));
         assert!(is_read(read.kind));
         assert!(!is_read("pms_rd_section_related_records_v2"));
-        assert_eq!(READS.len(), 55);
+        assert_eq!(READS.len(), 56);
     }
 
     #[test]
@@ -1078,7 +1092,7 @@ ORDER BY id"
         assert!(!upper.contains("PG_ADVISORY"));
         assert!(is_read(read.kind));
         assert!(!is_read("pms_rd_guest_booking_document_v2"));
-        assert_eq!(READS.len(), 55);
+        assert_eq!(READS.len(), 56);
     }
 
     #[test]
@@ -1101,7 +1115,7 @@ ORDER BY id"
         assert!(!upper.contains("PG_ADVISORY"));
         assert!(is_read(read.kind));
         assert!(!is_read("pms_rd_hotel_metrics_v2"));
-        assert_eq!(READS.len(), 55);
+        assert_eq!(READS.len(), 56);
     }
 
     #[test]
@@ -1127,7 +1141,7 @@ ORDER BY id"
             assert!(is_read(read.kind));
         }
         assert!(!is_read("pms_rd_booking_receipt_by_key_v2"));
-        assert_eq!(READS.len(), 55);
+        assert_eq!(READS.len(), 56);
     }
 
     #[test]
@@ -1154,7 +1168,7 @@ ORDER BY id"
         }
         assert!(!is_read("pms_rd_booking_documents_v2"));
         assert!(!is_read("pms_rd_change_payment_pending_v2"));
-        assert_eq!(READS.len(), 55);
+        assert_eq!(READS.len(), 56);
     }
 
     #[test]
@@ -1181,7 +1195,7 @@ ORDER BY id"
         }
         assert!(!is_read("pms_rd_booking_allocations_v2"));
         assert!(!is_read("pms_rd_refund_request_allocations_v2"));
-        assert_eq!(READS.len(), 55);
+        assert_eq!(READS.len(), 56);
     }
 
     #[test]
@@ -1208,7 +1222,7 @@ ORDER BY id"
         }
         assert!(!is_read("pms_rd_transfer_requests_v2"));
         assert!(!is_read("pms_rd_guest_documents_v2"));
-        assert_eq!(READS.len(), 55);
+        assert_eq!(READS.len(), 56);
     }
 
     #[test]
@@ -1235,7 +1249,7 @@ ORDER BY id"
         }
         assert!(!is_read("pms_rd_booking_allocation_exists_v2"));
         assert!(!is_read("pms_rd_pending_jobs_v2"));
-        assert_eq!(READS.len(), 55);
+        assert_eq!(READS.len(), 56);
     }
 
     #[test]
@@ -1265,7 +1279,7 @@ ORDER BY id"
             assert!(is_read(read.kind));
         }
         assert!(!is_read("pms_rd_booking_records_search_v2"));
-        assert_eq!(READS.len(), 55);
+        assert_eq!(READS.len(), 56);
     }
 
     #[test]
@@ -1295,7 +1309,7 @@ ORDER BY id"
             assert!(is_read(read.kind));
         }
         assert!(!is_read("pms_rd_charge_corrections_front_v2"));
-        assert_eq!(READS.len(), 55);
+        assert_eq!(READS.len(), 56);
     }
 
     #[test]
@@ -1325,6 +1339,26 @@ ORDER BY id"
             assert!(is_read(read.kind));
         }
         assert!(!is_read("pms_rd_booking_token_v2"));
-        assert_eq!(READS.len(), 55);
+        assert_eq!(READS.len(), 56);
+    }
+
+    #[test]
+    fn failed_counter_refunds_read_matches_retired_typescript_literal() {
+        let read = read_statement(PMS_RD_FAILED_COUNTER_REFUNDS).expect("failed counter refunds read");
+        assert_eq!(read.kind, "pms_rd_failed_counter_refunds");
+        assert_eq!(read.sql, "SELECT count(*) n FROM pms_stripe_payments\n    WHERE property_id=? AND company_id=? AND (refund_state='failed' OR (refund_state IN ('approved','processing','requires_action') AND last_error IS NOT NULL))\n    AND to_char(to_timestamp(COALESCE(received_at,created_at)/1000.0) AT TIME ZONE ?,'YYYY-MM-DD')<=?");
+        assert_eq!(read.bind_count, 4);
+        assert_eq!(read.sql.matches('?').count(), 4);
+        let upper = read.sql.to_ascii_uppercase();
+        assert!(upper.starts_with("SELECT"));
+        assert!(!upper.contains("INSERT INTO"));
+        assert!(!upper.contains("UPDATE "));
+        assert!(!upper.contains("DELETE FROM"));
+        assert!(!upper.contains("FOR UPDATE"));
+        assert!(!upper.contains("FOR SHARE"));
+        assert!(!upper.contains("LOCK TABLE"));
+        assert!(is_read(read.kind));
+        assert!(!is_read("pms_rd_failed_counter_refunds_v2"));
+        assert_eq!(READS.len(), 56);
     }
 }

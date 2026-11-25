@@ -401,7 +401,7 @@ describe('Customer 360 obligation-fact query-head family', () => {
     }
   });
 
-  it('retirement r18:ts-statements is strictly lower than BEFORE=8 (expected 7)', () => {
+  it('retirement r19:ts-statements is strictly lower than BEFORE=7 (expected 6)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -411,7 +411,7 @@ describe('Customer 360 obligation-fact query-head family', () => {
       }
     };
     walk(c360SrcRoot);
-    expect(total).toBe(7);
-    expect(total).toBeLessThan(8);
+    expect(total).toBe(6);
+    expect(total).toBeLessThan(7);
   });
 });

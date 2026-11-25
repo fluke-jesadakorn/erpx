@@ -6,6 +6,7 @@ import {INVENTORY_RD_COUNT_SOURCE_ROW,INVENTORY_RD_SERVICE_INITIAL_COUNT_ROW,nat
 import {serviceInitialCountExists,nativeServiceCountPersistedMarker} from '../../../packages/server-inventory/src/adapters/native-service-count-source';
 import {countStatus} from '../../../packages/server-inventory/src/adapters/native-count-status';
 import {purchaseReplayExists,commandReplayExists} from '../../../packages/server-inventory/src/adapters/native-replay-probe';
+import {lotBalanceVersion,transferStatus} from '../../../packages/server-inventory/src/adapters/native-scoped-field';
 
 const RETIRED_SQL='SELECT id,company_id,branch_id,warehouse_id FROM inventory_counts WHERE id=? AND company_id=? AND (?::text IS NULL OR branch_id=?)';
 const root=resolve(new URL('.',import.meta.url).pathname,'../../..');
@@ -309,5 +310,71 @@ describe('native Inventory command-receipt replay probes',()=>{
     const rust=readFileSync(`${root}/packages/server-inventory/src/adapters/native_command_sql.rs`,'utf8');
     expect(rust).toContain(`"${PURCHASE_REPLAY}"`);
     expect(rust).toContain(`"${COMMAND_REPLAY}"`);
+  });
+});
+
+const LOT_VERSION='SELECT version FROM inventory_lot_balances WHERE lot_id=? AND warehouse_id=?';
+const TRANSFER_STATUS='SELECT status FROM inventory_transfers WHERE id=? AND company_id=?';
+
+describe('native Inventory scoped-field point reads',()=>{
+  const envKey='ERPX_NATIVE_INVENTORY_CONFIG';
+  const original=process.env[envKey];
+  beforeEach(()=>{
+    process.env[envKey]=JSON.stringify({privateBaseUrl:'http://127.0.0.1:44991',timeoutMs:1000,
+      holdings:[{origin:'https://acme.example.com',holdingSlug:'acme',holdingId:'h001',companyId:'company'}]});
+  });
+  afterEach(()=>{
+    if(original===undefined)delete process.env[envKey]; else process.env[envKey]=original;
+    vi.unstubAllGlobals();
+  });
+  const fakeDb=(row:unknown)=>{
+    const bound:unknown[][]=[];
+    const db={
+      prepare(_sql:string){return {bind(...values:unknown[]){bound.push(values);return this;}};},
+      async batch(){return [{results:row?[row]:[],success:true,meta:{changes:0,duration:0}}];},
+      async exec(){return {count:0,duration:0};},
+    };
+    return {db,bound};
+  };
+  const stub=(sql:string)=>{
+    const bodies:{kind:string;values:unknown[]}[]=[];
+    vi.stubGlobal('fetch',vi.fn(async (_url:URL,init:RequestInit)=>{
+      const body=JSON.parse(String(init.body)) as {kind:string;values:unknown[]};
+      bodies.push(body);
+      return new Response(JSON.stringify({data:{statements:[{sql,values:body.values}]}}),{status:200,headers:{'content-type':'application/json'}});
+    }));
+    return bodies;
+  };
+
+  it('plans both scoped-field reads in Rust with the original two binds',async()=>{
+    const lot=stub(LOT_VERSION),{db:lotDb,bound:lotBound}=fakeDb({version:3});
+    expect(await lotBalanceVersion(lotDb as never,'lot-1','warehouse-1')).toEqual({version:3});
+    expect(lot.map(x=>x.kind)).toEqual(['inventory_rd_lot_balance_version']);
+    expect(lot.map(x=>x.values)).toEqual([['lot-1','warehouse-1']]);
+    expect(lotBound).toEqual([['lot-1','warehouse-1']]);
+    const transfer=stub(TRANSFER_STATUS),{db:transferDb,bound:transferBound}=fakeDb({status:'posted'});
+    expect(await transferStatus(transferDb as never,'count-1','company')).toEqual({status:'posted'});
+    expect(transfer.map(x=>x.kind)).toEqual(['inventory_rd_transfer_status']);
+    expect(transfer.map(x=>x.values)).toEqual([['count-1','company']]);
+    expect(transferBound).toEqual([['count-1','company']]);
+  });
+
+  it('fails closed when the native read service is unavailable',async()=>{
+    vi.stubGlobal('fetch',vi.fn(async ()=>new Response('down',{status:503})));
+    const {db}=fakeDb(null);
+    await expect(lotBalanceVersion(db as never,'lot-1','warehouse-1')).rejects.toMatchObject({status:503});
+    await expect(transferStatus(db as never,'count-1','company')).rejects.toMatchObject({status:503});
+  });
+
+  it('deleted the r33 helper and both call sites, and pinned the Rust plans',()=>{
+    expect(readFileSync(`${root}/packages/server-inventory/src/adapters/read-tail-sql.ts`,'utf8')).not.toContain('scopedFieldSql');
+    for(const file of ['inventory-transit.ts','transfer-purchases.ts']){
+      const source=readFileSync(`${root}/packages/server-inventory/src/adapters/${file}`,'utf8');
+      expect(source).not.toContain('scopedFieldSql');
+      expect(source).toContain(file==='inventory-transit.ts'?'lotBalanceVersion':'transferStatus');
+    }
+    const rust=readFileSync(`${root}/packages/server-inventory/src/adapters/native_command_sql.rs`,'utf8');
+    expect(rust).toContain(`"${LOT_VERSION}"`);
+    expect(rust).toContain(`"${TRANSFER_STATUS}"`);
   });
 });

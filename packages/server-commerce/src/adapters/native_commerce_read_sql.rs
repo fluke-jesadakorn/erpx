@@ -495,6 +495,18 @@ const READ_MFG_EXISTING_POSTING_CONFIRMATION_IMAGE: NativeCommerceReadStatement 
         bind_count: 1,
     };
 
+/// Native successor of the sales delivery-notification line read. The caller
+/// binds `[fulfillment_id]`; the three-table owner-local join and ordinal order
+/// stay byte-exact.
+pub const RD_SALES_NOTIFICATION_LINES: &str = "commerce_rd_sales_notification_lines";
+const SQL_SALES_NOTIFICATION_LINES: &str =
+    "SELECT p.sku,fl.quantity_milli,p.unit FROM commerce_fulfillment_lines fl JOIN commerce_order_lines ol ON ol.id=fl.order_line_id JOIN commerce_products p ON p.id=ol.product_id WHERE fl.fulfillment_id=? ORDER BY ol.ordinal";
+const READ_SALES_NOTIFICATION_LINES: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_SALES_NOTIFICATION_LINES,
+    sql: SQL_SALES_NOTIFICATION_LINES,
+    bind_count: 1,
+};
+
 const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_PMS_WAREHOUSE_ACTIVE,
     READ_PMS_SETTINGS_EXISTS,
@@ -535,6 +547,7 @@ const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_TRANSIT_PRODUCT_VERSION,
     READ_POS_WAREHOUSES_ALL,
     READ_MFG_EXISTING_POSTING_CONFIRMATION_IMAGE,
+    READ_SALES_NOTIFICATION_LINES,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -636,6 +649,7 @@ mod tests {
                 SQL_MFG_EXISTING_POSTING_CONFIRMATION_IMAGE,
                 1usize,
             ),
+            (RD_SALES_NOTIFICATION_LINES, SQL_SALES_NOTIFICATION_LINES, 1usize),
         ];
         for (kind, sql, bind_count) in expected {
             let statement = read_statement(kind).expect("registered owner read kind");
@@ -660,7 +674,22 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), bind_count);
         }
-        assert_eq!(STATEMENTS.len(), 39);
+        assert_eq!(STATEMENTS.len(), 40);
+    }
+
+    /// Sales notification lines keep the exact owner-local join, projection
+    /// and single fulfillment bind.
+    #[test]
+    fn sales_notification_lines_keep_their_exact_literal() {
+        let plan = read_statement(RD_SALES_NOTIFICATION_LINES).expect("notification lines");
+        assert_eq!(
+            plan.sql,
+            "SELECT p.sku,fl.quantity_milli,p.unit FROM commerce_fulfillment_lines fl JOIN commerce_order_lines ol ON ol.id=fl.order_line_id JOIN commerce_products p ON p.id=ol.product_id WHERE fl.fulfillment_id=? ORDER BY ol.ordinal"
+        );
+        assert_eq!(plan.bind_count, 1);
+        assert_eq!(plan.sql.matches('?').count(), 1);
+        assert!(plan.sql.starts_with("SELECT "));
+        assert!(!plan.sql.contains(';'));
     }
 
     /// The existing-posting confirmation image keeps its byte-exact owner

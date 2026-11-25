@@ -42,7 +42,7 @@ describe('native Sales followup orders source', () => {
     expect(purchases).toContain('const followupOrders=async()=>(await nativeSalesPlan(SALES_RD_FOLLOWUP_ORDERS,[])).sql;');
     expect(purchases).toContain('export const followupPurchaseRows=async()=');
     expect((purchases.match(/await followupOrders\(\)/g) ?? []).length).toBe(2);
-    expect((purchases.match(/await followupPurchaseRows\(\)/g) ?? []).length).toBe(2);
+    expect((purchases.match(/await followupPurchaseRows\(\)/g) ?? []).length).toBe(1);
     expect(purchases).not.toContain('const orders=`SELECT');
     expect(purchases).not.toContain('crmCommerceOrderSources');
     expect(purchases).not.toContain('crmFinanceCustomerSources');

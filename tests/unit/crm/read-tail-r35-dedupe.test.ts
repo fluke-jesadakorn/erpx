@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
+import { crmSelectOneSql } from '../../../packages/server-crm/src/adapters/read-tail-r42-sql';
 import { crmAssignmentModuleExistsSql, crmContactAccountReadSql } from '../../../packages/server-crm/src/adapters/read-tail-r35-sql';
 
 const owner = resolve(__dirname, '../../../packages/server-crm/src');
@@ -43,7 +44,7 @@ describe('crm read-tail r35 byte-identical read heads', () => {
     const helper = src('read-tail-r35-sql.ts');
     expect(helper.match(/crmContactAccountReadSql =/g)).toHaveLength(1);
     expect(helper.match(/crmAssignmentModuleExistsSql =/g)).toHaveLength(1);
-    expect((helper.match(/SELECT /g) ?? []).length).toBe(1);
+    expect((helper.match(/SELECT /g) ?? []).length).toBe(0);
 
     const identities = src('identities.ts');
     expect(identities.match(/crmContactAccountReadSql\(/g)).toHaveLength(2);
@@ -89,8 +90,19 @@ describe('crm read-tail r35 byte-identical read heads', () => {
     ] as const) expect(src(file)).toContain(token);
   });
 
-  test('retirement:ts-statements stays strictly below the r34 BEFORE=116 baseline', () => {
-    expect(totalSelects()).toBe(39);
-    expect(totalSelects()).toBeLessThan(114);
+  test.each([
+    ['', "'crm'::text)))"],
+    ['selected', ''],
+    ['scope', '?::text)))'],
+  ])('the EXISTS head folds into the owner select-one plan for alias %#', (alias, suffix) => {
+    const q = alias ? `${alias}.` : '';
+    const body = `assignments${alias ? ` ${alias}` : ''} WHERE ${q}id=? AND (jsonb_array_length(${q}modules_json::jsonb)=0 OR ${q}modules_json::jsonb @> jsonb_build_array(${suffix}`;
+    expect(crmAssignmentModuleExistsSql(alias, suffix)).toBe(`EXISTS(${crmSelectOneSql(body)}`);
+    expect(crmAssignmentModuleExistsSql(alias, suffix)).toBe(`EXISTS(SELECT 1 FROM ${body}`);
+  });
+
+  test('retirement:ts-statements folds the assignment EXISTS head (39 -> 38)', () => {
+    expect(totalSelects()).toBe(38);
+    expect(totalSelects()).toBeLessThan(39);
   });
 });
