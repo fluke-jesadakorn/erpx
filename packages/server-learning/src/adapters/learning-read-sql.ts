@@ -49,8 +49,12 @@ export const nativeSourceProbe = (alias: string) => `SELECT 1 FROM (${learningNa
  * and the native executive projection; one source keeps both rendered queries equal. */
 export const overdueEvidenceColumns = 'SELECT a.id,a.version,a.status,a.due_date,a.updated_at,c.title course_title,c.required_for';
 
-/** Module-grant membership probe, parameterized only by the assignment alias. */
-export const learningModuleGrantProbe = (alias: string) => `SELECT 1 FROM erpx_json_each(${alias}.modules_json) module WHERE module.value='learning'`;
+/** r22 — module-grant membership probe. Its existence-probe head is
+ * byte-identical to the r17 existsRowProbe head with the erpx_json_each source;
+ * that one query head now lives in that owner-local renderer. Only the alias
+ * varies, so every rendered probe keeps its exact pre-dedupe bytes and binds. */
+export const learningModuleGrantProbe = (alias: string) =>
+  existsRowProbe(`FROM erpx_json_each(${alias}.modules_json) module`, "module.value='learning'");
 
 /** r7 — current-assignment module-grant existence probe. The company binding and
  * aliasing stay in the caller's conditions; only the grant alias varies, so each
