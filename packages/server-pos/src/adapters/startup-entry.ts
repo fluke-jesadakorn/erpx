@@ -8,6 +8,7 @@ import {platformOwnerProjectionSources as identitySources} from '@erpx/server-id
 import {readPurchasedAccesses} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
+import { posScopeHeadSql } from "./read-tail-r43-scope-sql";
 export type PosStartupProductScope={companyId:string;branchId:string|null;departmentId:string|null;userId:string;assignmentId:string;assignmentVersion:number;role:string;sessionId:string;beta?:boolean};
 const capabilities=['pos.sales','inventory.stock-core','finance.pos-posting'] as const;
 /** Exact setup eligibility before any Work role selection. A real current
@@ -21,7 +22,7 @@ export async function posStartupProductEntry(database:SqlDatabase,scope:PosStart
  const permission=(name:string)=>{permissionArgs.push(scope.assignmentId,scope.userId,scope.role);return assignmentReadSql('pos_startup_scope',name);};
  const finance=scope.branchId?'FALSE':`(${permission('finance.read')} AND (${permission('finance.write')} OR ${permission('finance.approve')}))`;
  const stock=`(${permission('inventory.read')} AND ${permission('inventory.prepare')})`;
- const current=await database.prepare(`WITH pos_startup_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms) SELECT a.id FROM (${identitySources.assignments}) a CROSS JOIN (SELECT ?::text company_id,?::text branch_id,NULL::text department_id) pos_startup_scope CROSS JOIN pos_startup_clock
+ const current=await database.prepare(`WITH pos_startup_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms) SELECT a.id FROM (${identitySources.assignments}) a CROSS JOIN ${posScopeHeadSql()}NULL::text department_id) pos_startup_scope CROSS JOIN pos_startup_clock
  WHERE a.id=? AND a.user_id=? AND a.company_id=pos_startup_scope.company_id AND a.role=? AND a.version=? AND a.scope_kind IN ('holding','branch')
  AND (${finance} OR ${stock})
  AND ${['pos','inventory','finance'].map(module=>scheduledFeaturePredicate('pos_startup_scope.company_id',module)).join(' AND ')}
