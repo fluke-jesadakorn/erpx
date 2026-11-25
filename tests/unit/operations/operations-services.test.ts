@@ -697,7 +697,7 @@ describe('Operations bound-parameter child JSON and viewer clock dedupe',()=>{
  });
  test('the attachment file guard composes the canonical viewer clock and keeps no local literal',()=>{
   expect(OPERATIONS_VIEWER_CLOCK_SQL).toBe('(SELECT ?::text user_id,?::text assignment_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint now_ms)');
-  const src=readFileSync(new URL('../../../packages/server-operations/src/adapters/task-attachment-purchases.ts',import.meta.url),'utf8');
+  const src=readFileSync(new URL('../../../packages/server-operations/src/adapters/record-purchases.ts',import.meta.url),'utf8');
   expect(src).toContain('MATERIALIZED${OPERATIONS_VIEWER_CLOCK_SQL}');
   expect(src).not.toContain('MATERIALIZED(SELECT ?::text user_id,?::text assignment_id,floor(');
  });

@@ -17,10 +17,18 @@ use sqlx::{AssertSqlSafe, Connection, PgConnection, Row};
 /// Retained TypeScript authority, read at compile time for source parity.
 const TS_LOCAL: &str =
     include_str!("../../../packages/server-marketing/src/adapters/marketing-local-point-read-sql.ts");
+const TS_TAIL: &str =
+    include_str!("../../../packages/server-marketing/src/adapters/read-tail-sql.ts");
+const TS_LIST: &str =
+    include_str!("../../../packages/server-marketing/src/adapters/marketing-company-list-sql.ts");
+const TS_OWNER: &str =
+    include_str!("../../../packages/server-marketing/src/adapters/owner-point-read-sql.ts");
 const TS_ACTIVE: &str =
     include_str!("../../../packages/server-marketing/src/adapters/active-form-sql.ts");
 const TS_CONTENT: &str =
     include_str!("../../../packages/server-marketing/src/adapters/public-form-content-source.ts");
+const TS_HEAD: &str =
+    include_str!("../../../packages/server-marketing/src/adapters/form-asset-read-head.ts");
 const TS_MARKETING: &str =
     include_str!("../../../packages/server-marketing/src/adapters/marketing.ts");
 const TS_CAMPAIGN: &str =
@@ -86,13 +94,20 @@ INSERT INTO marketing_campaign_costs VALUES ('cost-1','company','campaign-1',100
 /// Live statement literals must stay verbatim against the retained TS source.
 #[test]
 fn live_statements_match_typescript_authority() {
-    assert!(TS_LOCAL.contains("SELECT * FROM ${table} WHERE ${predicate}${order}${forUpdate}"));
+    assert!(TS_TAIL.contains("SELECT * FROM ${table}${tail}"));
+    assert!(!TS_TAIL.contains("WHERE ${predicate}"));
+    assert!(TS_LOCAL.contains("marketingReadTailSql(table, ` WHERE ${predicate}${order}${forUpdate}`)"));
     assert!(TS_LOCAL.contains("marketing_assets"));
     assert!(TS_LOCAL.contains("id=? AND company_id=?"));
-    assert!(TS_ACTIVE.contains("SELECT ${columns} FROM marketing_assets WHERE id=?${company?' AND company_id=?':''}${version?' AND version=?':''} AND kind='form' AND status='active'"));
-    assert!(TS_CONTENT.contains("SELECT ${projection} FROM marketing_assets WHERE id=? AND company_id=? AND kind='content' AND status='active' AND version=?"));
-    assert!(TS_MARKETING.contains(LIVE_ASSET_LIST));
-    assert!(TS_CAMPAIGN.contains(LIVE_CAMPAIGN_EXISTS));
+    assert!(TS_ACTIVE.contains("formAssetReadHead({ kind:'form', projection, company, version })"));
+    assert!(TS_CONTENT.contains("formAssetReadHead({ kind: 'content', projection })"));
+    assert!(TS_HEAD.contains("return `SELECT ${projection} FROM marketing_assets WHERE ${predicate}`"));
+    assert!(TS_HEAD.contains("`id=?${read.company ? ' AND company_id=?' : ''}${read.version ? ' AND version=?' : ''} AND kind='form' AND status='active'`"));
+    assert!(TS_HEAD.contains("id=? AND company_id=? AND kind='content' AND status='active' AND version=?"));
+    assert!(TS_MARKETING.contains("marketingCompanyListSql('marketing_assets','')"));
+    assert!(TS_LIST.contains("marketingReadTailSql(table, ` WHERE company_id=?${scope} ORDER BY updated_at DESC`)"));
+    assert!(TS_CAMPAIGN.contains("marketingOwnerPointReadSql(\"1\", \"marketing_campaigns\")"));
+    assert!(TS_OWNER.contains("SELECT ${projection} FROM ${source} WHERE ${q}id=? AND ${q}company_id=?"));
     assert!(TS_PURCHASE.contains("SELECT ${id}.id,${id}.company_id,${spec.scope},${spec.witness} witness FROM ${spec.source}"));
     assert!(TS_PURCHASE.contains("NULL::text branch_id,NULL::text department_id"));
     assert!(TS_PURCHASE.contains("to_jsonb(campaign)"));
