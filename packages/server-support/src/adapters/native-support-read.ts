@@ -32,6 +32,8 @@ export const SUPPORT_RD_INCIDENT_TICKET_CANDIDATES = 'support_rd_incident_ticket
 export const SUPPORT_RD_SLA_WORKSPACE_TICKETS = 'support_rd_sla_workspace_tickets';
 export const SUPPORT_RD_SLA_POLICY_POINT = 'support_rd_sla_policy_point';
 export const SUPPORT_RD_SLA_POLICY_APPROVED = 'support_rd_sla_policy_approved';
+export const SUPPORT_RD_SLA_POLICY_WORKSPACE = 'support_rd_sla_policy_workspace';
+export const SUPPORT_RD_SLA_POLICY_WORK = 'support_rd_sla_policy_work';
 export const SUPPORT_RD_PORTAL_BINDINGS_INSTALLED = 'support_rd_portal_bindings_installed';
 export const SUPPORT_RD_SUPPORT_PACKAGE_PORTAL_BINDINGS = 'support_rd_support_package_portal_bindings';
 export const SUPPORT_RD_SUPPORT_PACKAGE_OBLIGATION_FACTS = 'support_rd_support_package_obligation_facts';
@@ -81,6 +83,8 @@ const BIND_COUNTS: Readonly<Record<string, number>> = {
   [SUPPORT_RD_SLA_WORKSPACE_TICKETS]: 5,
   [SUPPORT_RD_SLA_POLICY_POINT]: 2,
   [SUPPORT_RD_SLA_POLICY_APPROVED]: 1,
+  [SUPPORT_RD_SLA_POLICY_WORKSPACE]: 2,
+  [SUPPORT_RD_SLA_POLICY_WORK]: 2,
   [SUPPORT_RD_PORTAL_BINDINGS_INSTALLED]: 0,
   [SUPPORT_RD_SUPPORT_PACKAGE_PORTAL_BINDINGS]: 2,
   [SUPPORT_RD_SUPPORT_PACKAGE_OBLIGATION_FACTS]: 6,
