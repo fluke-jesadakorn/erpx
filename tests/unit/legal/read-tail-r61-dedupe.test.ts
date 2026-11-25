@@ -58,7 +58,8 @@ describe('legal read-tail r61 recent-item list ordered-head reuse', () => {
     expect(r31.match(/export const legalRecentItemListSql/g) ?? []).toHaveLength(1);
     expect(r31).toContain("from './legal-read-tail-r35-sources'");
     expect(r31).toContain("legalItemOrderedSql(columns, table, 'created_at DESC', limit)");
-    expect((r35.match(/SELECT /g) ?? []).length).toBe(1);
+    // R68: r35 now delegates its item-key head to r54, so it is zero-token too.
+    expect((r35.match(/SELECT /g) ?? []).length).toBe(0);
     expect(r35.match(/export const legalItemOrderedSql/g) ?? []).toHaveLength(1);
     // The comments/envelopes call sites keep their exact projections, binds and first<T> shapes.
     expect(service).toContain('legalRecentItemListSql("id,body,visibility,created_by,created_at","legal_comments",100)');
