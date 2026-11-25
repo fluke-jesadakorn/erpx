@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12772,
+    "revision": 12774,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -187178,7 +187178,7 @@
         "owner": "procurement",
         "title": "procurement read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -187189,22 +187189,37 @@
         "resources": [
           "owner:procurement"
         ],
-        "claim": {
-          "runId": "run-20261125-d",
-          "agentId": "wH4n174",
-          "claimedAt": "2026-11-25T00:36:13.884Z",
-          "heartbeatAt": "2026-11-25T00:44:22.729Z",
-          "expiresAt": "2026-11-25T01:14:22.729Z",
-          "generation": 174
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-procurement/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "da1f7fa64",
+            "owner": "procurement",
+            "before": 90,
+            "after": 88,
+            "note": "Three supplier bill/promise detail heads through supplierDetailSelect; 1313/871/428-byte renders identical, binds and locks unchanged. Vitest 131."
+          },
+          {
+            "command": "targeted vitest + scoped tsc",
+            "result": "passed",
+            "sourceSha": "da1f7fa64"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Supplier bill/promise detail heads (-1/-2): 90->88/89. BEFORE=90.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n174",
+          "at": "2026-11-25T00:47:39.805Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -187358,17 +187373,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 7,
+        "in_progress": 6,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1512,
+        "blocked": 1513,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 174,
-    "updatedAt": "2026-11-25T00:47:14.111Z",
+    "updatedAt": "2026-11-25T00:47:39.809Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
