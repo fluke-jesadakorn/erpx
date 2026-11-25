@@ -106,7 +106,7 @@ describe('POS read-tail r43 scope head dedupe', () => {
     expect(read('addon-package-obligations.ts')).toContain('UNION SELECT s.package_id,s.company_id,');
   });
 
-  test('retirement:ts-statements decreased 173 -> 172 (strictly lower than the r43 BEFORE=173 baseline)', () => {
+  test('retirement:ts-statements decreased 172 -> 171 (strictly lower than the r44 BEFORE=172 baseline)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -116,7 +116,7 @@ describe('POS read-tail r43 scope head dedupe', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(172);
+    expect(total).toBe(171);
     expect(total).toBeLessThan(173);
   });
 });
