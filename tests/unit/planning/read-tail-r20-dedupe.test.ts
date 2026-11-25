@@ -78,7 +78,8 @@ describe('Planning read-tail r20 production-resources EXISTS head dedupe', () =>
     // r22 folded the resource-allocation point lookup into the package fact builder (17 -> 16).
     // r23 folded the resource-calendar point lookup into the single-line projection/FROM builder (16 -> 15).
     // r24 folded the scoped single-row family into that same builder (15 -> 14).
-    expect(total).toBe(14);
+    // r25 folded the scoped branch-list family into the single-line projection/FROM builder (14 -> 13).
+    expect(total).toBe(13);
     expect(total).toBeLessThan(19);
   });
 });

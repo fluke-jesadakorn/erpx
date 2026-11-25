@@ -105,7 +105,8 @@ describe('Planning read-tail r24 scoped single-row head fold', () => {
     walk(srcRoot);
     // r23 folded the resource-calendar point lookup into the single-line projection/FROM builder (16 -> 15).
     // r24 folded the scoped single-row family into that same builder (15 -> 14).
-    expect(total).toBe(14);
-    expect(total).toBeLessThan(15);
+    // r25 folded the scoped branch-list family into the single-line projection/FROM builder (14 -> 13).
+    expect(total).toBe(13);
+    expect(total).toBeLessThan(14);
   });
 });
