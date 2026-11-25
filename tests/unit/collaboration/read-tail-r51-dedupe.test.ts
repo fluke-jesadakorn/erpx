@@ -88,12 +88,13 @@ describe('Collaboration read-tail r51 renderer fold', () => {
 
     const people = src('people-app-entrypoint-facts.ts');
     const push = src('web-push.ts');
-    expect(people).toContain("import {countIntNFrom,socialTaskOriginBy} from './read-tail-sql';");
+    expect(people).toContain("sentNoticeDeliveryCount as nativeDeliveryCount");
+    expect(people).toContain("taskSocialOrigin as nativeTaskOrigin");
     expect(push).toContain("import { countIntNFrom } from './read-tail-sql';");
-    expect(people).toContain('db.prepare(countIntNFrom(`inbox_deliveries d JOIN inbox_events e ON e.id=d.event_id');
-    expect(people).toContain('.bind(companyId,eventKey).first<{n:number}>()');
+    expect(people).toContain('nativeDeliveryCount(db, companyId, eventKey, actor)');
+    expect(people).not.toContain('.bind(companyId,eventKey).first<{n:number}>()');
     expect(push).toContain("db.prepare(countIntNFrom('push_subscriptions WHERE company_id=? AND user_id=? AND session_id=?')).bind(companyId, userId, value).first<{ n: number; }>()");
-    expect((people.match(/countIntNFrom\(/g) ?? []).length).toBe(1);
+    expect((people.match(/countIntNFrom\(/g) ?? []).length).toBe(0);
     expect((push.match(/countIntNFrom\(/g) ?? []).length).toBe(1);
     expect(people).not.toContain('`SELECT count(*)::int n FROM inbox_deliveries');
     expect(push).not.toContain('"SELECT count(*)::int n FROM push_subscriptions');
@@ -118,7 +119,7 @@ describe('Collaboration read-tail r51 excluded SQL stays untouched', () => {
 });
 
 describe('Collaboration read-tail r51 KPI pins', () => {
-  test('retirement:ts-statements is pinned at 329, below the r51 BEFORE=332 baseline', () => {
+  test('retirement:ts-statements is pinned at 324, below the r51 BEFORE=332 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -129,7 +130,7 @@ describe('Collaboration read-tail r51 KPI pins', () => {
     };
     walk(srcRoot);
     // Two byte-identical count heads -> one renderer: 332 -> 331.
-    expect(total).toBe(329);
+    expect(total).toBe(324);
     expect(total).toBeLessThan(332);
   });
 });

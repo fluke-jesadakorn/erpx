@@ -712,5 +712,33 @@ pub fn mount(
         ).map_err(|_| "PRIVATE_API_ORGANIZATION_LANE24_INVALID")?,
     );
 
+    // Collaboration lane 16: sent-notice reads. The owner requires the exact
+    // registered Company per Holding; skip Holdings without a configured Company.
+    let lane16_targets: Vec<_> = config
+        .holdings
+        .iter()
+        .enumerate()
+        .filter_map(|(i, holding)| {
+            config
+                .holding_company(&holding.registration.holding_id)
+                .map(|company_id| {
+                    (
+                        erpx_server_collaboration::public::native_lane_16::LaneTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                            company_id,
+                        },
+                        pools[i + 1].clone(),
+                    )
+                })
+        })
+        .collect();
+    if !lane16_targets.is_empty() {
+        router = router.merge(
+            erpx_server_collaboration::public::native_lane_16::router_for_holdings(lane16_targets)
+                .map_err(|_| "PRIVATE_API_COLLABORATION_LANE16_INVALID")?,
+        );
+    }
+
     Ok(router)
 }

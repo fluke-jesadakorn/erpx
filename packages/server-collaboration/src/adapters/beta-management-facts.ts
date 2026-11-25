@@ -1,24 +1,31 @@
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
-import {socialTaskOriginBy} from './read-tail-sql';
-export function betaManagementFacts(db:SqlDatabase){return {async postDrafts(userId:string,companyId:string){return (await db
-                .prepare(
-                  "SELECT id,body,branch_id,department_id,audience_kind,audience_id,participants_json,sources_json,purpose,version,mentions_json,content_json,rich_content_json FROM social_post_drafts WHERE author_id=? AND company_id=? AND published_post_id IS NULL AND comment_parent_post_id IS NULL AND edit_post_id IS NULL ORDER BY updated_at DESC LIMIT 20",
-                )
-                .bind(userId, companyId)
-                .all()).results;},
-async reports(companyId:string){return (await db
-                .prepare(
-                  "SELECT r.id,r.reason,r.post_id,p.state FROM social_reports r JOIN social_posts p ON p.id=r.post_id WHERE p.company_id=? ORDER BY r.created_at DESC LIMIT 100",
-                )
-                .bind(companyId)
-                .all()).results;},
-async postTask(id:string | undefined){return db
-            .prepare(socialTaskOriginBy('task_id','post_id'))
-            .bind(id)
-            .first<{ task_id: string }>();},
-async recoverPostTask(id:string | undefined){return db
-                .prepare(
-                  socialTaskOriginBy('task_id','post_id'),
-                )
-                .bind(id)
-                .first<{ task_id: string }>();}};}
+import 'server-only';
+import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import {
+  nativeBetaPostDrafts,
+  nativeBetaReports,
+  nativeBetaPostTask,
+  nativeBetaRecoverPostTask,
+} from './native-lane-15/client';
+
+/**
+ * Collaboration-owned beta-management facts. The four `social_*` reads are
+ * now owned end to end by the native lane 15 axum router; this module is a
+ * thin transport client with no SQL and no TypeScript business fallback.
+ * `db` is retained for the repository call signature only.
+ */
+export function betaManagementFacts(_db: SqlDatabase) {
+  return {
+    async postDrafts(userId: string, companyId: string) {
+      return nativeBetaPostDrafts(userId, companyId);
+    },
+    async reports(companyId: string) {
+      return nativeBetaReports(companyId);
+    },
+    async postTask(id: string | undefined) {
+      return nativeBetaPostTask(id);
+    },
+    async recoverPostTask(id: string | undefined) {
+      return nativeBetaRecoverPostTask(id);
+    },
+  };
+}

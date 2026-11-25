@@ -48,15 +48,16 @@ describe('Collaboration read-tail r41 task-origin by-key family', () => {
     expect(sha(line(shared, 'export const socialTaskOriginBy='))).toBe('3fc84d696b83a92bcb18db27ee2645ac91db2684c2ac91887b99964f59baf701');
   });
 
-  test('all five call sites pass the original column/key pair verbatim', () => {
-    expect(people).toContain(".prepare(socialTaskOriginBy('post_id','task_id'))");
+  test('native cutover retires the people and beta call sites; the other three pass the original column/key pair verbatim', () => {
+    expect(people).toContain('taskSocialOrigin as nativeTaskOrigin');
+    expect(people).toContain('nativeTaskOrigin(db, taskId, actor)');
     expect(betaSources).toContain("db.prepare(socialTaskOriginBy('task_id','post_id')).bind(id)");
-    expect(betaFacts).toContain(".prepare(socialTaskOriginBy('task_id','post_id'))");
-    expect(betaFacts).toContain("socialTaskOriginBy('task_id','post_id'),");
+    expect(betaFacts).toContain('nativeBetaPostTask');
+    expect(betaFacts).toContain('nativeBetaRecoverPostTask');
     expect(taskSource).toContain("db.prepare(socialTaskOriginBy('post_id','task_id')).bind(taskId)");
-    expect(people.match(/socialTaskOriginBy\('/g) ?? []).toHaveLength(1);
+    expect(people.match(/socialTaskOriginBy\('/g) ?? []).toHaveLength(0);
     expect(betaSources.match(/socialTaskOriginBy\('/g) ?? []).toHaveLength(1);
-    expect(betaFacts.match(/socialTaskOriginBy\('/g) ?? []).toHaveLength(2);
+    expect(betaFacts.match(/socialTaskOriginBy\('/g) ?? []).toHaveLength(0);
     expect(taskSource.match(/socialTaskOriginBy\('/g) ?? []).toHaveLength(1);
   });
 });
@@ -148,7 +149,7 @@ describe('Collaboration read-tail r41 protected SQL isolation', () => {
 });
 
 describe('Collaboration read-tail r41 KPI pins', () => {
-  test('retirement:ts-statements is pinned at 338 after r44, below the r41 BEFORE=355 baseline', () => {
+  test('retirement:ts-statements is pinned at 324 after r44, below the r41 BEFORE=355 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -164,7 +165,7 @@ describe('Collaboration read-tail r41 KPI pins', () => {
     // r43 retired draft-by-id reuse, messaging team image and target image: 350 -> 344.
     // r44 retired the latest-message tail, absent-social-post guard and handover
     // ack join: 344 -> 341. Prior pins were refreshed only where 341 replaced 344.
-    expect(total).toBe(329);
+    expect(total).toBe(324);
     expect(total).toBeLessThan(355);
   });
 });

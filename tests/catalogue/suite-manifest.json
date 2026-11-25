@@ -6091,6 +6091,60 @@
       },
       "ci": {
         "critical": true,
+        "reason": "Collaboration native beta facts route must stay tenant-isolated."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-collaboration"
+      ],
+      "id": "collaboration.native-lane-15.unit",
+      "files": [
+        "tests/unit/collaboration/native-lane-unit.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "collaboration",
+      "modules": [
+        "collaboration"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Collaboration native sent-notice route must stay tenant-isolated."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-collaboration"
+      ],
+      "id": "collaboration.native-lane-16.unit",
+      "files": [
+        "tests/unit/collaboration/native-lane-unit.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "collaboration",
+      "modules": [
+        "collaboration"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
         "reason": "Collaboration social purchase actor, post and messaging member reads must stay byte-identical."
       },
       "apps": [
@@ -70239,60 +70293,6 @@
           "H001_DB"
         ]
       }
-    },
-    {
-      "lane": "unit",
-      "owner": "organization",
-      "modules": [
-        "organization"
-      ],
-      "fixture": "none",
-      "requires": {
-        "jobs": false,
-        "scanner": false
-      },
-      "ci": {
-        "critical": true,
-        "reason": "Organization native directory route must stay tenant-isolated."
-      },
-      "apps": [
-        "launcher"
-      ],
-      "packages": [
-        "@erpx/server-organization"
-      ],
-      "id": "organization.native-lane-23.unit",
-      "files": [
-        "tests/unit/organization/native-lane-unit.test.ts"
-      ],
-      "framework": "vitest"
-    },
-    {
-      "lane": "unit",
-      "owner": "organization",
-      "modules": [
-        "organization"
-      ],
-      "fixture": "none",
-      "requires": {
-        "jobs": false,
-        "scanner": false
-      },
-      "ci": {
-        "critical": true,
-        "reason": "Organization native evaluation route must stay tenant-isolated."
-      },
-      "apps": [
-        "launcher"
-      ],
-      "packages": [
-        "@erpx/server-organization"
-      ],
-      "id": "organization.native-lane-24.unit",
-      "files": [
-        "tests/unit/organization/native-lane-unit.test.ts"
-      ],
-      "framework": "vitest"
     },
     {
       "id": "organization.native-organization-setup.unit",

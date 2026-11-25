@@ -473,6 +473,28 @@ pub struct DevelopmentApiConfiguration {
     )]
     directory: Option<DirectoryConfiguration>,
 }
+
+impl DevelopmentApiConfiguration {
+    /// First registered Company for a Holding across the explicit owner scopes.
+    /// Used by lane mounts that need a Company identity for a per-Holding reader.
+    pub(crate) fn holding_company(&self, holding: &HoldingId) -> Option<String> {
+        let maps = [
+            &self.finance_journal_reads,
+            &self.pos_companies,
+            &self.crm_companies,
+            &self.operations_companies,
+            &self.commerce_companies,
+            &self.assets_companies,
+            &self.platform_administration_companies,
+            &self.maintenance_companies,
+        ];
+        maps.iter().find_map(|map| {
+            map.get(holding)
+                .and_then(|companies| companies.iter().next())
+                .map(|company| company.as_str().to_owned())
+        })
+    }
+}
 impl fmt::Debug for DevelopmentApiConfiguration {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("DevelopmentApiConfiguration([REDACTED])")
