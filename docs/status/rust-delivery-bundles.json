@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 13651,
+    "revision": 13679,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -196981,18 +196981,11 @@
           "owner:people_payroll",
           "cargo:lane-06"
         ],
-        "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "lane-06",
-          "claimedAt": "2026-11-25T13:29:04.991Z",
-          "heartbeatAt": "2026-11-25T14:01:43.527Z",
-          "expiresAt": "2026-11-25T14:31:43.527Z",
-          "generation": 177
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+        "lastPushedSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
         "checks": [
           {
             "command": "retirement:ts-statements",
@@ -197001,11 +196994,25 @@
             "before": 1195,
             "after": 1175,
             "note": "Owner-batch native cutover integrated; acceptance deferred."
+          },
+          {
+            "command": "cargo test -p erpx-server-people-payroll --lib native_lane_6",
+            "result": "passed",
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "wave-3 pushed commit"
+          },
+          {
+            "command": "retirement:ts-statements",
+            "result": "passed",
+            "before": 1167,
+            "after": 1165,
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "calendar people read retired"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Lead mounts CALENDAR_PEOPLE_PATH and integrates lane-06 at the next green wave milestone",
+        "nextAction": "Wave-3 native people-payroll slice pushed; continue the next ready slice",
         "handoff": {
           "runId": "run-20261125-f",
           "agentId": "wm505",
@@ -197014,7 +197021,13 @@
           "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
           "nextAction": "Cutover integrated and pushed; continue next owner slice"
         },
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        },
+        "retireTaskId": "retire.people_payroll.payroll-run-ts"
       },
       {
         "id": "migrate_rs.lane_07",
@@ -197127,7 +197140,7 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Lead verifies mount/@source, updates out-of-path pins and records the integrated KPI at the wave milestone",
+        "nextAction": "Lead resolves ledger evidence before migrated",
         "handoff": {
           "runId": "run-20261125-f",
           "agentId": "wm506",
@@ -197344,18 +197357,11 @@
           "lane:09",
           "cargo:lane-09"
         ],
-        "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "lane-09",
-          "claimedAt": "2026-11-25T13:29:05.568Z",
-          "heartbeatAt": "2026-11-25T14:01:43.527Z",
-          "expiresAt": "2026-11-25T14:31:43.527Z",
-          "generation": 177
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+        "lastPushedSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
         "checks": [
           {
             "command": "retirement:ts-statements",
@@ -197364,11 +197370,25 @@
             "before": 1195,
             "after": 1175,
             "note": "Owner-batch native cutover integrated; acceptance deferred."
+          },
+          {
+            "command": "cargo check -p erpx-service --lib",
+            "result": "passed",
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "wave-3 integration check"
+          },
+          {
+            "command": "retirement:ts-statements",
+            "result": "passed",
+            "before": 1029,
+            "after": 1018,
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "wave-3 lane-09 report KPI"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Lead verifies mounts/@source and records the integrated KPI at the wave milestone",
+        "nextAction": "Wave-3 native slice pushed; continue the next ready slice",
         "handoff": {
           "runId": "run-20261125-f",
           "agentId": "wm508",
@@ -197377,7 +197397,13 @@
           "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
           "nextAction": "Cutover integrated and pushed; continue next owner slice"
         },
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        },
+        "retireTaskId": "retire.people_payroll.payroll-run-ts"
       },
       {
         "id": "migrate_rs.lane_10",
@@ -198298,18 +198324,11 @@
           "owner:inventory",
           "cargo:lane-17"
         ],
-        "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "lane-17",
-          "claimedAt": "2026-11-25T13:29:08.864Z",
-          "heartbeatAt": "2026-11-25T14:01:43.527Z",
-          "expiresAt": "2026-11-25T14:31:43.527Z",
-          "generation": 177
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+        "lastPushedSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
         "checks": [
           {
             "command": "retirement:ts-statements",
@@ -198318,11 +198337,25 @@
             "before": 292,
             "after": 287,
             "note": "Native lane cutover integrated; acceptance deferred."
+          },
+          {
+            "command": "cargo check -p erpx-service --lib",
+            "result": "passed",
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "wave-3 integration check"
+          },
+          {
+            "command": "retirement:ts-statements",
+            "result": "passed",
+            "before": 285,
+            "after": 284,
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "wave-3 lane-17 report KPI"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Lead verifies mount/@source and records the integrated KPI at the wave milestone",
+        "nextAction": "Wave-3 native slice pushed; continue the next ready slice",
         "handoff": {
           "runId": "run-20261125-f",
           "agentId": "wm516",
@@ -198331,7 +198364,13 @@
           "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
           "nextAction": "Cutover integrated and pushed; continue next owner slice"
         },
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        },
+        "retireTaskId": "retire.inventory.commerce-stock-owner-effects"
       },
       {
         "id": "migrate_rs.lane_18",
@@ -198917,18 +198956,11 @@
           "owner:organization",
           "cargo:lane-23"
         ],
-        "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "lane-23",
-          "claimedAt": "2026-11-25T13:29:12.030Z",
-          "heartbeatAt": "2026-11-25T14:01:43.527Z",
-          "expiresAt": "2026-11-25T14:31:43.527Z",
-          "generation": 177
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+        "lastPushedSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
         "checks": [
           {
             "command": "retirement:ts-statements",
@@ -198937,11 +198969,25 @@
             "before": 204,
             "after": 200,
             "note": "Native lane cutover integrated; acceptance deferred."
+          },
+          {
+            "command": "cargo check -p erpx-service --lib",
+            "result": "passed",
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "wave-3 integration check"
+          },
+          {
+            "command": "retirement:ts-statements",
+            "result": "passed",
+            "before": 200,
+            "after": 192,
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "wave-3 lane-23 report KPI"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Lead registers test, verifies mount/@source and records the integrated KPI at the wave milestone",
+        "nextAction": "Wave-3 native slice pushed; continue the next ready slice",
         "handoff": {
           "runId": "run-20261125-f",
           "agentId": "wm522",
@@ -198950,7 +198996,13 @@
           "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
           "nextAction": "Cutover integrated and pushed; continue next owner slice"
         },
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        },
+        "retireTaskId": "retire.organization.organization"
       },
       {
         "id": "migrate_rs.lane_24",
@@ -199104,18 +199156,11 @@
           "owner:pos",
           "cargo:lane-25"
         ],
-        "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "lane-25",
-          "claimedAt": "2026-11-25T13:29:14.036Z",
-          "heartbeatAt": "2026-11-25T14:01:43.527Z",
-          "expiresAt": "2026-11-25T14:31:43.527Z",
-          "generation": 177
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+        "lastPushedSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
         "checks": [
           {
             "command": "retirement:ts-statements",
@@ -199124,11 +199169,25 @@
             "before": 169,
             "after": 164,
             "note": "Native lane cutover integrated; acceptance deferred."
+          },
+          {
+            "command": "cargo check -p erpx-service --lib",
+            "result": "passed",
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "wave-3 integration check"
+          },
+          {
+            "command": "retirement:ts-statements",
+            "result": "passed",
+            "before": 161,
+            "after": 160,
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "wave-3 lane-25 report KPI"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Lead registers test, verifies mount/@source and records the integrated KPI at the wave milestone",
+        "nextAction": "Wave-3 native slice pushed; continue the next ready slice",
         "handoff": {
           "runId": "run-20261125-f",
           "agentId": "wm524",
@@ -199137,7 +199196,13 @@
           "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
           "nextAction": "Cutover integrated and pushed; continue next owner slice"
         },
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        },
+        "retireTaskId": "retire.pos.pos-core"
       },
       {
         "id": "migrate_rs.lane_26",
@@ -199248,7 +199313,7 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Lead registers test, verifies mount/@source and records the integrated KPI at the wave milestone",
+        "nextAction": "Lead resolves ledger evidence before migrated",
         "handoff": {
           "runId": "run-20261125-f",
           "agentId": "wm526",
@@ -199311,7 +199376,7 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Lead verifies native_lane_28 mounts and both KPIs at the wave milestone",
+        "nextAction": "Lead resolves ledger evidence before migrated",
         "handoff": {
           "runId": "run-20261125-f",
           "agentId": "wm527",
@@ -199374,7 +199439,7 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Lead verifies work-projection mount and reruns the crate build after cross-owner fixes at the wave milestone",
+        "nextAction": "Lead resolves ledger evidence before migrated",
         "handoff": {
           "runId": "run-20261125-f",
           "agentId": "wm528",
@@ -199554,7 +199619,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Lead verifies mounts/@source and records the integrated KPI at the wave milestone",
+        "nextAction": "Lead resolves ledger evidence before migrated",
         "handoff": {
           "runId": "run-20261125-f",
           "agentId": "wm531",
@@ -199608,7 +199673,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Lead verifies mount/@source, updates out-of-path pins and records the integrated KPI at the wave milestone",
+        "nextAction": "Lead resolves ledger evidence before migrated",
         "handoff": {
           "runId": "run-20261125-f",
           "agentId": "wm532",
@@ -199662,7 +199727,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Lead mounts email receipt route, sets ERPX_NATIVE_MANAGE_ERPX_EMAIL_RECEIPT_CONFIG and records the integrated KPI at the wave milestone",
+        "nextAction": "Lead resolves ledger evidence before migrated",
         "handoff": {
           "runId": "run-20261125-f",
           "agentId": "wm533",
@@ -199881,18 +199946,11 @@
           "owner:billing",
           "cargo:lane-38"
         ],
-        "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "lane-38",
-          "claimedAt": "2026-11-25T13:29:28.438Z",
-          "heartbeatAt": "2026-11-25T14:01:43.527Z",
-          "expiresAt": "2026-11-25T14:31:43.527Z",
-          "generation": 177
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+        "lastPushedSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
         "checks": [
           {
             "command": "native:owner-read",
@@ -199901,11 +199959,25 @@
             "before": 5,
             "after": 5,
             "note": "Native lane cutover integrated; acceptance deferred."
+          },
+          {
+            "command": "cargo check -p erpx-service --lib",
+            "result": "passed",
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "wave-3 integration check"
+          },
+          {
+            "command": "retirement:ts-statements",
+            "result": "passed",
+            "before": 5,
+            "after": 0,
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "wave-3 lane-38 report KPI"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Lead verifies mounts/@source and records the integrated KPI at the wave milestone",
+        "nextAction": "Wave-3 native slice pushed; continue the next ready slice",
         "handoff": {
           "runId": "run-20261125-f",
           "agentId": "wm537",
@@ -199914,7 +199986,12 @@
           "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
           "nextAction": "Cutover integrated and pushed; continue next owner slice"
         },
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "migrate_rs.lane_39",
@@ -199956,18 +200033,11 @@
           "owner:field_service",
           "cargo:lane-39"
         ],
-        "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "lane-39",
-          "claimedAt": "2026-11-25T13:29:29.676Z",
-          "heartbeatAt": "2026-11-25T14:01:43.527Z",
-          "expiresAt": "2026-11-25T14:31:43.527Z",
-          "generation": 177
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+        "lastPushedSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
         "checks": [
           {
             "command": "retirement:ts-statements",
@@ -199976,11 +200046,25 @@
             "before": 3,
             "after": 2,
             "note": "Native lane cutover integrated; acceptance deferred."
+          },
+          {
+            "command": "cargo check -p erpx-service --lib",
+            "result": "passed",
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "wave-3 integration check"
+          },
+          {
+            "command": "retirement:ts-statements",
+            "result": "passed",
+            "before": 2,
+            "after": 0,
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "wave-3 lane-39 report KPI"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Lead added brand evidence and ecommerce mounts in erpx-service plus @source for both new TS clients; wave verification pending",
+        "nextAction": "Wave-3 native slice pushed; continue the next ready slice",
         "handoff": {
           "runId": "run-20261125-f",
           "agentId": "wm538",
@@ -199989,7 +200073,12 @@
           "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
           "nextAction": "Cutover integrated and pushed; continue next owner slice"
         },
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "migrate_rs.lane_40",
@@ -200173,20 +200262,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 2116,
-      "migratedPackets": 330,
+      "migratedPackets": 337,
       "statusCounts": {
         "pending": 20,
         "in_progress": 23,
-        "ready_for_integration": 15,
+        "ready_for_integration": 8,
         "integrating": 0,
-        "migrated": 330,
+        "migrated": 337,
         "blocked": 1726,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 177,
-    "updatedAt": "2026-11-25T14:03:00.545Z",
+    "updatedAt": "2026-11-25T14:06:58.131Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
