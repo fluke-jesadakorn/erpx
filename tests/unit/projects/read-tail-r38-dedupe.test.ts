@@ -193,7 +193,7 @@ describe('Projects read-tail r38 closed member EXISTS and evidence super-head de
     // r37 left 88. r38 Rank1 folds five member EXISTS witnesses into one closed
     // helper (-4) and Rank2 folds four evidence heads into one closed super-head
     // (-3): 88-7 = 81. Rank3 keeps its tail inline; r43 folds only the closed head.
-    expect(total).toBe(71);
+    expect(total).toBe(69); // lane 27 moved the two actuals reads to native Rust (-2)
     expect(total).toBeLessThan(88);
   });
 });

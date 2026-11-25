@@ -85,7 +85,7 @@ describe('Projects read-tail r42 closed row-source head family', () => {
     // projects source and the settlement table prefix) now share one closed head:
     // 73-2+1 = 72. Locks, native SQL and cross-owner projections keep their own
     // literals and are not folded.
-    expect(total).toBe(71);
+    expect(total).toBe(69); // lane 27 moved the two actuals reads to native Rust (-2)
     expect(total).toBeLessThan(73);
   });
 });

@@ -106,7 +106,7 @@ describe('Projects read-tail r43 closed dependency-head family', () => {
     // (one per executive witness) now share one closed, bind-free head:
     // 72-2+1 = 71. The witness tails, locks, native SQL and cross-owner
     // projections keep their own literals and are not folded.
-    expect(total).toBe(71);
+    expect(total).toBe(69); // lane 27 moved the two actuals reads to native Rust (-2)
     expect(total).toBeLessThan(72);
   });
 });

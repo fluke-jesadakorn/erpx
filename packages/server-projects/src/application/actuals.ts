@@ -45,9 +45,9 @@ export function createProjectActualsApplication<Effect>(ports: ProjectActualsPor
     async function listProjectCostAllocations(actor: WorkContext, projectId: string) {
         actor = financeProject(actor, "finance.read");
         const project = await visibleFinanceProject(actor, projectId);
-        return (await r.costAllocations(actor.userId, actor.userId, actor.companyId, project.id)).results.map((row) => ({
-            ...row, amount: minorToDecimal(Number(row.amount_minor)),
-        })) as ProjectCostAllocationRow[];
+        // The native lane 27 owner projects `amount` with exact decimal math;
+        // this adapter no longer recomputes money in TypeScript.
+        return (await r.costAllocations(actor.userId, actor.userId, actor.companyId, project.id)).results as ProjectCostAllocationRow[];
     }
     async function listProjectCostSources(actor: WorkContext, projectId: string) {
         actor = financeProject(actor, "finance.read");

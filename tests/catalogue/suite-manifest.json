@@ -90940,6 +90940,33 @@
       ]
     },
     {
+      "lane": "unit",
+      "owner": "projects",
+      "modules": [
+        "projects"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Projects native actuals route must stay tenant-isolated."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-projects"
+      ],
+      "id": "projects.native-lane-27.unit",
+      "files": [
+        "tests/unit/projects/native-lane-27.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "projects.native-project-wbs-transport.unit",
       "lane": "unit",
       "owner": "projects",
