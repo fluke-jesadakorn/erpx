@@ -165297,6 +165297,55 @@
       },
       "apps": [],
       "packages": []
+    },
+    {
+      "id": "people_payroll.read-tail-round2b-not-exists-builder.unit",
+      "lane": "unit",
+      "owner": "people_payroll",
+      "modules": [
+        "people_payroll"
+      ],
+      "files": [
+        "tests/unit/people_payroll/read-tail-round2b-not-exists-builder.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "planning.read-tail-r29-attachment-target-head.unit",
+      "lane": "unit",
+      "owner": "planning",
+      "modules": [
+        "planning",
+        "manufacturing",
+        "inventory",
+        "finance"
+      ],
+      "files": [
+        "tests/unit/planning/read-tail-r29-attachment-target-head.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
     }
   ]
 }

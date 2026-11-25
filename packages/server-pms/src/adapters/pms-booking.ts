@@ -35,7 +35,7 @@ import { pmsPropertyPurchaseAllowed, pmsPropertyPurchaseFlags, requirePmsPropert
 import { pmsPackageEnforcementMode } from "@erpx/server-commercial/public/purchase-command-boundary";
 import { purchasedCapabilityPredicate } from "@erpx/server-commercial/public/purchased-capability-sql";
 import { nativePmsOwnerWrite } from "@erpx/feature-pms/public/native-pms";
-import { nativePmsReadFirst, PMS_RD_BOOKING_RECEIPT_BY_KEY, PMS_RD_BOOKING_RECEIPT_BY_ATTEMPT } from "./native-pms-read";
+import { nativePmsReadAll, nativePmsReadFirst, PMS_RD_BOOKING_RECEIPT_BY_KEY, PMS_RD_BOOKING_RECEIPT_BY_ATTEMPT, PMS_RD_BOOKING_DOCUMENTS, PMS_RD_CHANGE_PAYMENT_PENDING } from "./native-pms-read";
 export async function bookingEnv(): Promise<BookingEnv> {
     const env = await runtimeEnv();
     return {
@@ -274,17 +274,17 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase, companyId = '')
             id: string;
             id2: string;
             id3: string;
-        }) => db.prepare("SELECT id,kind,created_at FROM pms_documents WHERE property_id=? AND guest_account_id IN (SELECT id FROM pms_records WHERE property_id=? AND kind='guest_account' AND data_json::jsonb->>'reservationId'=?) ORDER BY created_at DESC LIMIT 100").bind(facts.id, facts.id2, facts.id3).all<{
+        }) => nativePmsReadAll<{
             id: string;
             kind: string;
             created_at: number;
-        }>(),
+        }>(PMS_RD_BOOKING_DOCUMENTS, [facts.id, facts.id2, facts.id3], db),
         readPmsBookingPayments5: (facts: {
             id: string;
-        }) => db.prepare("SELECT id,expires_at FROM pms_booking_payments WHERE reservation_id=? AND purpose='change' AND status='payment_pending' ORDER BY created_at DESC LIMIT 1").bind(facts.id).first<{
+        }) => nativePmsReadFirst<{
             id: string;
             expires_at: number;
-        }>(),
+        }>(PMS_RD_CHANGE_PAYMENT_PENDING, [facts.id], db),
         readPmsBookingLimits1: (facts: {
             fact0: string;
             bucket: number;

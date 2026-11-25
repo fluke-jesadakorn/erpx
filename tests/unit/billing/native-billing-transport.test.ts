@@ -686,7 +686,7 @@ describe('native Billing transport', () => {
           action: 'verify-provider-cost' as const,
           ...base,
           targetMonth: '2026-12',
-          sourceKey: 'src-1',
+          sourceKey: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
           provider: 'openai',
           statementId: 'stmt-1',
           originalCurrency: 'USD',
@@ -700,7 +700,7 @@ describe('native Billing transport', () => {
         {
           ...base,
           targetMonth: '2026-12',
-          sourceKey: 'src-1',
+          sourceKey: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
           provider: 'openai',
           statementId: 'stmt-1',
           originalCurrency: 'USD',

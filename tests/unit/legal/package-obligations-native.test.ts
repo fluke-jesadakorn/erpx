@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { PostgresDatabase } from '@erpx/server-runtime/public/runtime/postgres';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import { featureSpecs } from '@erpx/feature-legal/lib/legal/features';
 import contract from '../../../packages/server-legal/src/adapters/package-obligation-plan-sources.json' with {
   type: 'json',
 };
@@ -74,6 +75,31 @@ describe('native Legal package-obligation cutover', () => {
     expect(plan.sql).toContain('legal_intake_questions');
     expect(plan.sql).toContain("'retention-policy'");
     expect(plan.sql).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE \w+ SET|LOCK TABLE|FOR UPDATE|FOR SHARE/i);
+  });
+
+  it('matches the retired TypeScript statement after whitespace normalization', () => {
+    const features = Object.values(featureSpecs)
+      .map(
+        spec =>
+          `SELECT '${spec.table}' kind,f.id,to_jsonb(f)::text fact FROM ${spec.table} f LEFT JOIN legal_items i ON i.id=f.item_id,scope WHERE (i.company_id=scope.company_id OR i.id IS NULL) AND (i.id IS NULL OR f.state NOT IN ('completed','closed','cancelled','acknowledged','waived','accepted','billed') AND NOT(f.category='custody' AND f.state='received'))`,
+      )
+      .join(' UNION ALL ');
+    const retired = `WITH scope AS(SELECT ?::text company_id,?::bigint now_ms)
+ SELECT 'item' kind,i.id,to_jsonb(i)::text fact FROM legal_items i,scope WHERE i.company_id=scope.company_id AND i.state NOT IN ('archived','closed','completed','expired','terminated','cancelled','rejected')
+ UNION ALL ${features}
+ UNION ALL SELECT 'hold',h.id,to_jsonb(h)::text FROM legal_holds h LEFT JOIN legal_items i ON i.id=h.item_id,scope WHERE (i.company_id=scope.company_id OR i.id IS NULL) AND h.state<>'released'
+ UNION ALL SELECT 'share',s.id,to_jsonb(s)::text FROM legal_shares s LEFT JOIN legal_items i ON i.id=s.item_id LEFT JOIN legal_documents d ON d.id=s.document_id AND d.item_id=s.item_id,scope WHERE (i.company_id=scope.company_id OR i.id IS NULL) AND (i.id IS NULL OR d.id IS NULL OR s.revoked_at IS NULL AND s.expires_at>scope.now_ms)
+ UNION ALL SELECT 'executed-review',e.id,to_jsonb(e)::text FROM legal_executed_copies e LEFT JOIN legal_items i ON i.id=e.item_id LEFT JOIN legal_documents d ON d.id=e.document_id AND d.item_id=e.item_id,scope WHERE (i.company_id=scope.company_id OR i.id IS NULL) AND (i.id IS NULL OR d.id IS NULL OR e.state<>'confirmed')
+ UNION ALL SELECT 'approval',r.item_id,to_jsonb(r)::text FROM legal_approval_routes r LEFT JOIN legal_items i ON i.id=r.item_id,scope WHERE (i.company_id=scope.company_id OR i.id IS NULL) AND (i.id IS NULL OR i.state IN ('review','approval','signing'))
+ UNION ALL SELECT 'ai-job',j.id,to_jsonb(j)::text FROM legal_ai_proposals j LEFT JOIN legal_items i ON i.id=j.item_id,scope WHERE (i.company_id=scope.company_id OR i.id IS NULL) AND (i.id IS NULL OR j.state IN ('queued','running','proposed'))
+ UNION ALL SELECT 'processing-job',j.id,to_jsonb(j)::text FROM legal_processing_jobs j LEFT JOIN legal_items i ON i.id=j.item_id,scope WHERE (j.company_id=scope.company_id OR i.company_id=scope.company_id) AND (i.id IS NULL OR i.company_id<>j.company_id OR j.state IN ('queued','running'))
+ UNION ALL SELECT 'invitation-job',j.id,to_jsonb(j)::text FROM legal_invitation_jobs j LEFT JOIN legal_shares s ON s.id=j.share_id LEFT JOIN legal_items i ON i.id=s.item_id,scope WHERE (i.company_id=scope.company_id OR i.id IS NULL) AND (i.id IS NULL OR j.state IN ('queued','running'))
+ UNION ALL SELECT 'destruction',d.id,to_jsonb(d)::text FROM legal_destructions d LEFT JOIN legal_items i ON i.id=d.item_id,scope WHERE (i.company_id=scope.company_id OR i.id IS NULL) AND (i.id IS NULL OR d.state NOT IN ('completed','cancelled','rejected'))
+ UNION ALL SELECT 'intake-form',f.id,to_jsonb(f)::text FROM legal_intake_forms f,scope WHERE f.company_id=scope.company_id AND f.state='draft'
+ UNION ALL SELECT 'retention-policy',p.id,to_jsonb(p)::text FROM legal_retention_policies p,scope WHERE p.company_id=scope.company_id AND p.state='draft'
+ ORDER BY kind,id,fact`;
+    const normalize = (sql: string) => sql.replace(/\s+/g, ' ').trim();
+    expect(normalize(contract.sql)).toBe(normalize(retired));
   });
 
   it('executes the owner contract on the caller unit and keeps the retained evidence shape', async () => {

@@ -14,7 +14,7 @@ import {isTransactionalSqlDatabase,type SqlDatabase} from "@erpx/server-runtime/
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {flushFinanceDeferredEffects} from "@erpx/server-finance/public/finance-transactions";
 import {nativeTalentPlan,nativeTalentReadFirst} from "./native-talent-read";
-import {talentHirePeopleSources,talentHirePeopleSourceReadLocks} from "@erpx/server-people_payroll/public/hire-purchase-sources";
+import {talentHirePeopleSourceReadLocks} from "@erpx/server-people_payroll/public/hire-purchase-sources";
 import {talentPackageEnforcementMode,checkPurchasedCapability,readPurchasedAccesses,companyPurchaseReadLocks,purchaseCommandBoundary,purchaseCommandFailure} from "@erpx/server-commercial/public/purchase-command-boundary";
 import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packages";
 export type TalentCapability="recruit.positions"|"recruit.candidates"|"recruit.applications"|"recruit.offers";
@@ -25,13 +25,18 @@ const scope="r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text 
 export function talentOwnerSourceQuery(kind:TalentTarget["kind"],file=false){
  const record=(alias:string)=>file?`to_jsonb(${alias})-'version'-'updated_at'`:`to_jsonb(${alias})`;
  // Candidate and requisition images are owned by the native read port; no local statement remains here.
- const main=kind==="application"?"talent_applications t":kind==="proposal"?"talent_proposals t JOIN talent_applications a ON a.id=t.application_id":kind==="offer"?"talent_offers t JOIN talent_applications a ON a.id=t.application_id AND a.company_id=t.company_id":"talent_hire_handoffs t JOIN talent_offers o ON o.id=t.offer_id AND o.company_id=t.company_id JOIN talent_applications a ON a.id=o.application_id AND a.company_id=o.company_id",application=kind==="application"?"t":"a";
- return `${talentSourceImageSelect(`jsonb_build_object('record',${record("t")},'application',to_jsonb(${application}),'requisition',to_jsonb(r),'candidate',to_jsonb(c),'ownerEligible',EXISTS(SELECT 1 FROM assignments owner_assignment WHERE owner_assignment.company_id=${application}.company_id AND owner_assignment.user_id=${application}.owner_id AND iam_assignment_active(owner_assignment.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(owner_assignment.user_id,owner_assignment.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (owner_assignment.scope_kind='holding' OR owner_assignment.scope_kind='branch' AND owner_assignment.scope_node_id=r.branch_id OR owner_assignment.scope_kind='department' AND owner_assignment.scope_node_id=r.department_id))${kind==="handoff"?",'offer',to_jsonb(o),'receipt',to_jsonb(receipt),'people',hired.image":""})`)} FROM ${main} JOIN talent_requisitions r ON r.id=${application}.requisition_id AND r.company_id=${application}.company_id JOIN talent_candidates c ON c.id=${application}.candidate_id AND c.company_id=${application}.company_id ${kind==="handoff"?`LEFT JOIN talent_hire_consumption_receipts receipt ON receipt.handoff_id=t.id AND receipt.company_id=t.company_id LEFT JOIN (${talentHirePeopleSources}) hired ON hired.handoff_id=t.id AND hired.company_id=t.company_id`:""} WHERE t.id=? AND ${scope}${kind==="handoff"?" AND t.candidate_id=c.id AND t.branch_id=r.branch_id AND t.department_id IS NOT DISTINCT FROM r.department_id AND t.source_offer_version<=o.version":kind==="application"?" AND t.requisition_version<=r.version":" AND t.application_version<="+application+".version"}`;
+ // Offer and hire-handoff composites are owned by the native read port.
+ const main=kind==="application"?"talent_applications t":"talent_proposals t JOIN talent_applications a ON a.id=t.application_id",application=kind==="application"?"t":"a";
+ return `${talentSourceImageSelect(`jsonb_build_object('record',${record("t")},'application',to_jsonb(${application}),'requisition',to_jsonb(r),'candidate',to_jsonb(c),'ownerEligible',EXISTS(SELECT 1 FROM assignments owner_assignment WHERE owner_assignment.company_id=${application}.company_id AND owner_assignment.user_id=${application}.owner_id AND iam_assignment_active(owner_assignment.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(owner_assignment.user_id,owner_assignment.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (owner_assignment.scope_kind='holding' OR owner_assignment.scope_kind='branch' AND owner_assignment.scope_node_id=r.branch_id OR owner_assignment.scope_kind='department' AND owner_assignment.scope_node_id=r.department_id)))`)} FROM ${main} JOIN talent_requisitions r ON r.id=${application}.requisition_id AND r.company_id=${application}.company_id JOIN talent_candidates c ON c.id=${application}.candidate_id AND c.company_id=${application}.company_id WHERE t.id=? AND ${scope}${kind==="application"?" AND t.requisition_version<=r.version":" AND t.application_version<="+application+".version"}`;
 }
 export function talentOwnerSourceArgs(actor:WorkContext,target:TalentTarget){return [target.id,actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId];}
 const candidateImageKind=(file:boolean)=>file?"talent_rd_candidate_source_image_file":"talent_rd_candidate_source_image";
 const requisitionImageKind=(file:boolean)=>file?"talent_rd_requisition_source_image_file":"talent_rd_requisition_source_image";
-const ownerImageKind=(target:TalentTarget,file:boolean)=>target.kind==="candidate"?candidateImageKind(file):target.kind==="requisition"?requisitionImageKind(file):null;
+const compositeImageKind=(kind:"offer"|"handoff",file:boolean)=>file?`talent_rd_${kind}_source_image_file`:`talent_rd_${kind}_source_image`;
+const ownerImageKind=(target:TalentTarget,file:boolean)=>
+ target.kind==="candidate"?candidateImageKind(file):
+ target.kind==="requisition"?requisitionImageKind(file):
+ target.kind==="offer"||target.kind==="handoff"?compositeImageKind(target.kind,file):null;
 export async function talentOwnerSourceImage(database:SqlDatabase,actor:WorkContext,target:TalentTarget,file=false){
  const kind=ownerImageKind(target,file);
  if(kind){
@@ -41,9 +46,10 @@ export async function talentOwnerSourceImage(database:SqlDatabase,actor:WorkCont
  }
  return database.prepare(talentOwnerSourceQuery(target.kind,file)).bind(...talentOwnerSourceArgs(actor,target)).first<string>("image");
 }
-/** Deferred owner-source witness guard. Candidate and requisition images reuse
- * the exact SQL planned by the native owner port; all other lineages keep their
- * TS renderer. The guard still executes on the caller's unit at commit time. */
+/** Deferred owner-source witness guard. Candidate, requisition, offer and
+ * hire-handoff images reuse the exact statement planned by the native owner
+ * port; application and proposal keep their local renderer. The guard still
+ * executes on the caller's unit at commit time. */
 export async function talentOwnerSourceWitnessAssertion(database:SqlDatabase,key:string,step:string,actor:WorkContext,target:TalentTarget,witness:string,file=false){
  const kind=ownerImageKind(target,file);
  const native=kind?await nativeTalentPlan(kind,target.kind==="candidate"?[target.id,actor.companyId]:talentOwnerSourceArgs(actor,target)):null;

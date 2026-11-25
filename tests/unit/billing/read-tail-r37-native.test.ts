@@ -90,10 +90,12 @@ describe('billing r37 native owner-write reads', () => {
     expect(adapter.match(/BILLING_RD_/g)?.length).toBe(10); // arms + owner tests
   });
 
-  it('routes all four reads through nativeBillingOwnerQuery on the caller PoolClient', async () => {
+  it('routes the three remaining owner reads through nativeBillingOwnerQuery on the caller PoolClient', async () => {
     const billing = await src('adapters/billing.ts');
     const jobs = await src('adapters/billing-jobs.ts');
-    for (const kind of Object.keys(KIND) as (keyof typeof KIND)[]) {
+    // The meter read's TS member was retired with the native verify-provider-cost
+    // cut; its owner SQL byte oracle above is unchanged.
+    for (const kind of (Object.keys(KIND) as (keyof typeof KIND)[]).filter(k => k !== 'meter')) {
       const values = Array.from({ length: BINDS[KIND[kind]] }, (_, i) =>
         kind === 'unlock' ? `v${i}` : `value${i}`,
       ).join(',');

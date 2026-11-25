@@ -2,6 +2,7 @@ import { Pool, types, type PoolClient, type PoolConfig, type QueryResult } from 
 import { errorMonitor, type EventEmitter } from 'node:events';
 import type { SqlDatabase, SqlResult, SqlStatement } from "@erpx/server-runtime/adapters/runtime/types";
 import { currentReadMetrics, recordReadPoolWait, recordReadQuery, recordReadLockQuery, recordReadTransactionRetry, runWithReadMetrics } from "@erpx/server-runtime/adapters/runtime/read-metrics";
+import { planRuntimeControlPlane, RD_RUNTIME_HEALTH } from "../native-runtime-control-plane";
 
 const instrumented = Symbol.for('erpx.postgres.readMetrics');
 const transactionOwnership = Symbol.for('erpx.postgres.transactionOwnership');
@@ -279,7 +280,8 @@ export class PostgresDatabase implements SqlDatabase {
     if(!company || company.length>200 || !ordered.length || ordered.length>100 || ordered.some(key=>!key || key.length>4096)) throw new Error('INVALID_OBJECT_LOCK_SET');
     const client=await this.pool.connect();const held:string[]=[];let discard=false;let inTransaction=false;let priorTimeout:string|undefined;
     try {
-      priorTimeout=(await client.query<{value:string}>("SELECT current_setting('lock_timeout') AS value")).rows[0]?.value;
+      const healthPlan=await planRuntimeControlPlane(RD_RUNTIME_HEALTH);
+      priorTimeout=(await client.query<{value:string}>(healthPlan.sql,[...healthPlan.values])).rows[0]?.value;
       if(!priorTimeout)throw new Error('OBJECT_LOCK_TIMEOUT_UNAVAILABLE');
       await client.query("SELECT set_config('lock_timeout','10s',false)");
       for(const key of ordered) {

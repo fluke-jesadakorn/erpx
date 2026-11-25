@@ -114,8 +114,8 @@ describe('runtime r20 bare-head family retired into the native port', () => {
     }
   });
 
-  test('retirement:ts-statements records BEFORE=28 strictly lower to 23', () => {
-    expect(kpi()).toBe(23);
+  test('retirement:ts-statements records BEFORE=28 strictly lower to 22', () => {
+    expect(kpi()).toBe(22);
     expect(kpi()).toBeLessThan(28);
   });
 });

@@ -85,6 +85,12 @@ export const PMS_RD_HOTEL_METRICS = 'pms_rd_hotel_metrics';
  * lock/refund path; the caller runs them on its already-open booking unit. */
 export const PMS_RD_BOOKING_RECEIPT_BY_KEY = 'pms_rd_booking_receipt_by_key';
 export const PMS_RD_BOOKING_RECEIPT_BY_ATTEMPT = 'pms_rd_booking_receipt_by_attempt';
+/** Native successors of the owner-local booking companion reads used when a
+ * management token opens a reservation: guest-document list and pending
+ * change-payment point read. Fixed SQL with three/one positional binds, no
+ * ledger/receipt/outbox and no lock/refund path; caller runs them on its unit. */
+export const PMS_RD_BOOKING_DOCUMENTS = 'pms_rd_booking_documents';
+export const PMS_RD_CHANGE_PAYMENT_PENDING = 'pms_rd_change_payment_pending';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'PMS_NATIVE_READ_UNAVAILABLE', 'The native PMS read service is unavailable.');

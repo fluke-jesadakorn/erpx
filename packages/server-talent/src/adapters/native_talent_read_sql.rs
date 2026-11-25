@@ -231,6 +231,49 @@ const READ_REQUISITION_SOURCE_IMAGE_FILE: NativeTalentReadStatement = NativeTale
     bind_count: 6,
 };
 
+/// Native successors of the TypeScript `talentOwnerSourceQuery` offer and
+/// hire-handoff composite image reads. The caller binds the same six
+/// positional values as every other owner-source image. The file variants
+/// strip version/updated_at from the record only, byte-for-byte matching the
+/// retired TS literals. The handoff plan retains the read-only People/Payroll
+/// consumption subquery that the retired literal embedded; the owner-unit
+/// source locks for those tables stay with the caller.
+pub const RD_OFFER_SOURCE_IMAGE: &str = "talent_rd_offer_source_image";
+const SQL_RD_OFFER_SOURCE_IMAGE: &str =
+    "SELECT jsonb_build_object('record',to_jsonb(t),'application',to_jsonb(a),'requisition',to_jsonb(r),'candidate',to_jsonb(c),'ownerEligible',EXISTS(SELECT 1 FROM assignments owner_assignment WHERE owner_assignment.company_id=a.company_id AND owner_assignment.user_id=a.owner_id AND iam_assignment_active(owner_assignment.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(owner_assignment.user_id,owner_assignment.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (owner_assignment.scope_kind='holding' OR owner_assignment.scope_kind='branch' AND owner_assignment.scope_node_id=r.branch_id OR owner_assignment.scope_kind='department' AND owner_assignment.scope_node_id=r.department_id)))::text image FROM talent_offers t JOIN talent_applications a ON a.id=t.application_id AND a.company_id=t.company_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id  WHERE t.id=? AND r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?) AND t.application_version<=a.version";
+const READ_OFFER_SOURCE_IMAGE: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_OFFER_SOURCE_IMAGE,
+    sql: SQL_RD_OFFER_SOURCE_IMAGE,
+    bind_count: 6,
+};
+
+pub const RD_OFFER_SOURCE_IMAGE_FILE: &str = "talent_rd_offer_source_image_file";
+const SQL_RD_OFFER_SOURCE_IMAGE_FILE: &str =
+    "SELECT jsonb_build_object('record',to_jsonb(t)-'version'-'updated_at','application',to_jsonb(a),'requisition',to_jsonb(r),'candidate',to_jsonb(c),'ownerEligible',EXISTS(SELECT 1 FROM assignments owner_assignment WHERE owner_assignment.company_id=a.company_id AND owner_assignment.user_id=a.owner_id AND iam_assignment_active(owner_assignment.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(owner_assignment.user_id,owner_assignment.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (owner_assignment.scope_kind='holding' OR owner_assignment.scope_kind='branch' AND owner_assignment.scope_node_id=r.branch_id OR owner_assignment.scope_kind='department' AND owner_assignment.scope_node_id=r.department_id)))::text image FROM talent_offers t JOIN talent_applications a ON a.id=t.application_id AND a.company_id=t.company_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id  WHERE t.id=? AND r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?) AND t.application_version<=a.version";
+const READ_OFFER_SOURCE_IMAGE_FILE: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_OFFER_SOURCE_IMAGE_FILE,
+    sql: SQL_RD_OFFER_SOURCE_IMAGE_FILE,
+    bind_count: 6,
+};
+
+pub const RD_HANDOFF_SOURCE_IMAGE: &str = "talent_rd_handoff_source_image";
+const SQL_RD_HANDOFF_SOURCE_IMAGE: &str =
+    "SELECT jsonb_build_object('record',to_jsonb(t),'application',to_jsonb(a),'requisition',to_jsonb(r),'candidate',to_jsonb(c),'ownerEligible',EXISTS(SELECT 1 FROM assignments owner_assignment WHERE owner_assignment.company_id=a.company_id AND owner_assignment.user_id=a.owner_id AND iam_assignment_active(owner_assignment.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(owner_assignment.user_id,owner_assignment.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (owner_assignment.scope_kind='holding' OR owner_assignment.scope_kind='branch' AND owner_assignment.scope_node_id=r.branch_id OR owner_assignment.scope_kind='department' AND owner_assignment.scope_node_id=r.department_id)),'offer',to_jsonb(o),'receipt',to_jsonb(receipt),'people',hired.image)::text image FROM talent_hire_handoffs t JOIN talent_offers o ON o.id=t.offer_id AND o.company_id=t.company_id JOIN talent_applications a ON a.id=o.application_id AND a.company_id=o.company_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id LEFT JOIN talent_hire_consumption_receipts receipt ON receipt.handoff_id=t.id AND receipt.company_id=t.company_id LEFT JOIN (SELECT receipt.company_id,receipt.handoff_id,jsonb_build_object('person',to_jsonb(person),'engagement',to_jsonb(engagement),'compensation',to_jsonb(compensation),'payGroup',to_jsonb(pay_group)) image FROM talent_hire_consumption_receipts receipt JOIN hr_people person ON person.id=receipt.person_id AND person.company_id=receipt.company_id JOIN hr_engagements engagement ON engagement.id=receipt.engagement_id AND engagement.person_id=person.id AND engagement.company_id=receipt.company_id JOIN hr_compensation_revisions compensation ON compensation.id=receipt.compensation_id AND compensation.engagement_id=engagement.id JOIN hr_pay_groups pay_group ON pay_group.id=engagement.pay_group_id AND pay_group.company_id=receipt.company_id) hired ON hired.handoff_id=t.id AND hired.company_id=t.company_id WHERE t.id=? AND r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?) AND t.candidate_id=c.id AND t.branch_id=r.branch_id AND t.department_id IS NOT DISTINCT FROM r.department_id AND t.source_offer_version<=o.version";
+const READ_HANDOFF_SOURCE_IMAGE: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_HANDOFF_SOURCE_IMAGE,
+    sql: SQL_RD_HANDOFF_SOURCE_IMAGE,
+    bind_count: 6,
+};
+
+pub const RD_HANDOFF_SOURCE_IMAGE_FILE: &str = "talent_rd_handoff_source_image_file";
+const SQL_RD_HANDOFF_SOURCE_IMAGE_FILE: &str =
+    "SELECT jsonb_build_object('record',to_jsonb(t)-'version'-'updated_at','application',to_jsonb(a),'requisition',to_jsonb(r),'candidate',to_jsonb(c),'ownerEligible',EXISTS(SELECT 1 FROM assignments owner_assignment WHERE owner_assignment.company_id=a.company_id AND owner_assignment.user_id=a.owner_id AND iam_assignment_active(owner_assignment.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(owner_assignment.user_id,owner_assignment.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (owner_assignment.scope_kind='holding' OR owner_assignment.scope_kind='branch' AND owner_assignment.scope_node_id=r.branch_id OR owner_assignment.scope_kind='department' AND owner_assignment.scope_node_id=r.department_id)),'offer',to_jsonb(o),'receipt',to_jsonb(receipt),'people',hired.image)::text image FROM talent_hire_handoffs t JOIN talent_offers o ON o.id=t.offer_id AND o.company_id=t.company_id JOIN talent_applications a ON a.id=o.application_id AND a.company_id=o.company_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id LEFT JOIN talent_hire_consumption_receipts receipt ON receipt.handoff_id=t.id AND receipt.company_id=t.company_id LEFT JOIN (SELECT receipt.company_id,receipt.handoff_id,jsonb_build_object('person',to_jsonb(person),'engagement',to_jsonb(engagement),'compensation',to_jsonb(compensation),'payGroup',to_jsonb(pay_group)) image FROM talent_hire_consumption_receipts receipt JOIN hr_people person ON person.id=receipt.person_id AND person.company_id=receipt.company_id JOIN hr_engagements engagement ON engagement.id=receipt.engagement_id AND engagement.person_id=person.id AND engagement.company_id=receipt.company_id JOIN hr_compensation_revisions compensation ON compensation.id=receipt.compensation_id AND compensation.engagement_id=engagement.id JOIN hr_pay_groups pay_group ON pay_group.id=engagement.pay_group_id AND pay_group.company_id=receipt.company_id) hired ON hired.handoff_id=t.id AND hired.company_id=t.company_id WHERE t.id=? AND r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?) AND t.candidate_id=c.id AND t.branch_id=r.branch_id AND t.department_id IS NOT DISTINCT FROM r.department_id AND t.source_offer_version<=o.version";
+const READ_HANDOFF_SOURCE_IMAGE_FILE: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_HANDOFF_SOURCE_IMAGE_FILE,
+    sql: SQL_RD_HANDOFF_SOURCE_IMAGE_FILE,
+    bind_count: 6,
+};
+
 /// Owner event-history plans for the candidate and offer read families. They
 /// mirror the existing `talent_rd_application_events` shape; the caller binds
 /// `[candidate_id]` or `[offer_id]` on its open unit. Rows are immutable and
@@ -292,6 +335,10 @@ const STATEMENTS: &[NativeTalentReadStatement] = &[
     READ_CANDIDATE_SOURCE_IMAGE_FILE,
     READ_REQUISITION_SOURCE_IMAGE,
     READ_REQUISITION_SOURCE_IMAGE_FILE,
+    READ_OFFER_SOURCE_IMAGE,
+    READ_OFFER_SOURCE_IMAGE_FILE,
+    READ_HANDOFF_SOURCE_IMAGE,
+    READ_HANDOFF_SOURCE_IMAGE_FILE,
     READ_CANDIDATE_EVENTS,
     READ_OFFER_EVENTS,
     READ_WORKSPACE_RECORD_SOURCE,
@@ -329,7 +376,7 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), 1);
         }
-        assert_eq!(STATEMENTS.len(), 22);
+        assert_eq!(STATEMENTS.len(), 26);
     }
 
     #[test]
@@ -598,6 +645,46 @@ mod tests {
     }
 
     #[test]
+    fn composite_image_plans_are_owner_authored_select_only() {
+        let expected = [
+            (RD_OFFER_SOURCE_IMAGE, SQL_RD_OFFER_SOURCE_IMAGE),
+            (RD_OFFER_SOURCE_IMAGE_FILE, SQL_RD_OFFER_SOURCE_IMAGE_FILE),
+            (RD_HANDOFF_SOURCE_IMAGE, SQL_RD_HANDOFF_SOURCE_IMAGE),
+            (RD_HANDOFF_SOURCE_IMAGE_FILE, SQL_RD_HANDOFF_SOURCE_IMAGE_FILE),
+        ];
+        for (kind, sql) in expected {
+            let statement = read_statement(kind).expect("registered composite image kind");
+            assert_eq!(statement.kind, kind);
+            assert_eq!(statement.sql, sql);
+            assert_eq!(statement.bind_count, 6);
+            assert_eq!(sql.matches('?').count(), 6);
+            assert!(sql.starts_with("SELECT "), "composite image must be SELECT-only: {kind}");
+            for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
+                assert!(!sql.contains(forbidden), "composite image must not mutate: {forbidden}");
+            }
+            for fragment in [
+                "jsonb_build_object('record'",
+                "'ownerEligible',EXISTS(SELECT 1 FROM assignments owner_assignment",
+                "iam_assignment_active",
+                "iam_principal_active",
+                "owner_assignment.scope_kind='branch'",
+            ] {
+                assert!(sql.contains(fragment), "composite image must keep its projection: {fragment}");
+            }
+            assert_eq!(
+                STATEMENTS.iter().filter(|entry| entry.kind == kind).count(),
+                1,
+                "composite image kind must resolve once: {kind}"
+            );
+        }
+        assert!(SQL_RD_OFFER_SOURCE_IMAGE_FILE.contains("'record',to_jsonb(t)-'version'-'updated_at'"));
+        assert!(SQL_RD_HANDOFF_SOURCE_IMAGE_FILE.contains("'record',to_jsonb(t)-'version'-'updated_at'"));
+        assert!(SQL_RD_HANDOFF_SOURCE_IMAGE.contains("'people',hired.image"));
+        assert!(SQL_RD_HANDOFF_SOURCE_IMAGE.contains("hr_compensation_revisions"));
+        assert!(read_statement("talent_rd_offer_source_image_missing").is_none());
+    }
+
+    #[test]
     fn requisition_image_plans_are_owner_authored_select_only() {
         let expected = [
             (RD_REQUISITION_SOURCE_IMAGE, SQL_RD_REQUISITION_SOURCE_IMAGE),
@@ -650,7 +737,7 @@ mod tests {
                 "cutover kind must resolve to exactly one statement: {kind}"
             );
         }
-        assert_eq!(STATEMENTS.len(), 22);
+        assert_eq!(STATEMENTS.len(), 26);
         // A SQL literal, a case variant and a truncated kind never resolve.
         for forged in [
             "SELECT * FROM talent_offers",

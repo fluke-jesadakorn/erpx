@@ -96,8 +96,8 @@ describe('runtime r18 catalog-presence family cut over to the native port', () =
     ]) expect(shared.split(template)).toHaveLength(2);
   });
 
-  test('retirement:ts-statements records BEFORE=30 strictly lower to 23', () => {
-    expect(kpi()).toBe(23);
+  test('retirement:ts-statements records BEFORE=30 strictly lower to 22', () => {
+    expect(kpi()).toBe(22);
     expect(kpi()).toBeLessThan(30);
   });
 });
@@ -208,3 +208,36 @@ describe('runtime UTC-date read family cut over to the native port', () => {
 function initBody(mock: ReturnType<typeof reply>): unknown {
   return (mock.mock.calls[0] as unknown as [URL, RequestInit])[1].body;
 }
+
+describe('runtime session-health read family cut over to the native port', () => {
+  const healthSql = "SELECT current_setting('lock_timeout') AS value";
+
+  test('the byte oracle is owned verbatim by the Rust control-plane port', () => {
+    const port = rust('adapters/postgres/control_plane.rs');
+    const ingress = rust('adapters/control_plane_read_port.rs');
+    expect(port).toContain(healthSql);
+    expect(ingress).toContain('RD_RUNTIME_HEALTH');
+    expect(sha(healthSql)).toBe('689f028e520f23f09000751de1b0f09a1ff13e458ae129bfc8c6712d76bea3d2');
+    expect(healthSql.length).toBe(47);
+    expect(healthSql).not.toMatch(/\$\d|\?/);
+  });
+
+  test('postgres.ts plans the read on the caller client and keeps no literal', () => {
+    const postgres = src('runtime/postgres.ts');
+    expect(postgres).not.toContain(healthSql);
+    expect(postgres).toContain('planRuntimeControlPlane(RD_RUNTIME_HEALTH)');
+    expect(postgres).toContain('client.query<{value:string}>(healthPlan.sql,[...healthPlan.values])');
+    expect(postgres).toContain("if(!priorTimeout)throw new Error('OBJECT_LOCK_TIMEOUT_UNAVAILABLE')");
+    expect(src('native-runtime-control-plane.ts')).toContain('runtime_rd_runtime_health');
+  });
+
+  test('the planned health read keeps its projection and bind count', async () => {
+    const fetchMock = reply({ data: { sql: healthSql, values: [] } });
+    vi.stubGlobal('fetch', fetchMock);
+    const plan = await planRuntimeControlPlane('runtime_rd_runtime_health', [], env());
+    expect(plan).toEqual({ sql: healthSql, values: [] });
+    expect(initBody(fetchMock)).toBe(
+      JSON.stringify({ kind: 'runtime_rd_runtime_health', values: [] }),
+    );
+  });
+});

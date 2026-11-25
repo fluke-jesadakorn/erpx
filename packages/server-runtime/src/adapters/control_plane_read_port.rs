@@ -210,6 +210,15 @@ mod tests {
     }
 
     #[test]
+    fn runtime_health_plan_is_bind_free_and_read_only() {
+        let planned = plan(RD_RUNTIME_HEALTH, &[]).unwrap();
+        assert_eq!(planned.sql, sql::RUNTIME_HEALTH);
+        assert!(planned.values.is_empty());
+        assert!(planned.sql.starts_with("SELECT current_setting("));
+        assert!(!planned.sql.contains('$'));
+    }
+
+    #[test]
     fn utc_date_plan_is_bind_free_and_read_only() {
         let planned = plan(RD_UTC_DATE, &[]).unwrap();
         assert!(planned.values.is_empty());

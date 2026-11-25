@@ -972,4 +972,31 @@ ORDER BY id"
         assert!(!is_read("pms_rd_booking_receipt_by_key_v2"));
         assert_eq!(READS.len(), 39);
     }
+
+    #[test]
+    fn booking_companion_reads_match_retired_typescript_literals() {
+        let documents = read_statement(PMS_RD_BOOKING_DOCUMENTS).expect("booking documents read");
+        let pending = read_statement(PMS_RD_CHANGE_PAYMENT_PENDING).expect("change payment pending read");
+        assert_eq!(documents.kind, "pms_rd_booking_documents");
+        assert_eq!(documents.sql, "SELECT id,kind,created_at FROM pms_documents WHERE property_id=? AND guest_account_id IN (SELECT id FROM pms_records WHERE property_id=? AND kind='guest_account' AND data_json::jsonb->>'reservationId'=?) ORDER BY created_at DESC LIMIT 100");
+        assert_eq!(documents.bind_count, 3);
+        assert_eq!(pending.kind, "pms_rd_change_payment_pending");
+        assert_eq!(pending.sql, "SELECT id,expires_at FROM pms_booking_payments WHERE reservation_id=? AND purpose='change' AND status='payment_pending' ORDER BY created_at DESC LIMIT 1");
+        assert_eq!(pending.bind_count, 1);
+        for read in [documents, pending] {
+            assert_eq!(read.sql.matches('?').count(), read.bind_count);
+            let upper = read.sql.to_ascii_uppercase();
+            assert!(upper.starts_with("SELECT"));
+            assert!(!upper.contains("INSERT INTO"));
+            assert!(!upper.contains("UPDATE "));
+            assert!(!upper.contains("DELETE FROM"));
+            assert!(!upper.contains("FOR UPDATE"));
+            assert!(!upper.contains("FOR SHARE"));
+            assert!(!upper.contains("LOCK TABLE"));
+            assert!(is_read(read.kind));
+        }
+        assert!(!is_read("pms_rd_booking_documents_v2"));
+        assert!(!is_read("pms_rd_change_payment_pending_v2"));
+        assert_eq!(READS.len(), 39);
+    }
 }
