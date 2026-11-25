@@ -1,6 +1,15 @@
-import {inventoryQualityHoldReadSource} from '@erpx/server-quality/public/inventory-hold-read-source';
-import {activeQualityHoldExistsSql} from './read-tail-sql';
-import {inventoryReadProjection as inventorycommerceProjection} from '@erpx/server-commerce/public/inventory-read-projections';
+/**
+ * Retained read-only spare selector for service parts consumption.
+ *
+ * The parts-consumption command is native. The available-lots read is owned by
+ * the native lane 17 axum route (SQL, projection and Company/branch scope);
+ * this adapter transports bounded identities only and fails closed when the
+ * native owner is unavailable. No SQL remains here.
+ */
+import {
+  readLane17ReplenishmentRows,
+  LANE17_RD_SERVICE_SPARES,
+} from './native-lane-17/client';
 import 'server-only';
 
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
@@ -10,15 +19,14 @@ import {BusinessRuleError} from '@erpx/server-shared/index';
 import {readAvailableServiceSpares,type InventorySparesRepository} from '@erpx/server-inventory/application/consumption';
 import {inventoryConsumptionSources as commerceSources} from '@erpx/server-commerce/public/inventory-consumption-sources';
 
-/** Retained read-only spare selector. The parts-consumption command is native. */
+type SpareLot={lot_id:string;warehouse_id:string;product_id:string;lot_code:string|null;serial_number:string|null;quantity_milli:number;version:number;expiry_date:string|null};
 async function exposed<T>(action:()=>Promise<T>){try{return await action();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
-function repository(db:SqlDatabase):InventorySparesRepository{
+function repository(db:SqlDatabase,actor:WorkContext):InventorySparesRepository{
   const stock=commerceSources(db).availableStock;
-  return {availableStock:stock,async availableLots(companyId:string,branchId:string){return (await db.prepare(`SELECT b.lot_id,b.warehouse_id,l.product_id,l.lot_code,l.serial_number,b.quantity_milli,b.version,l.expiry_date
-  FROM inventory_lot_balances b JOIN inventory_lots l ON l.id=b.lot_id ${inventorycommerceProjection.lotWarehouse}
-  WHERE l.company_id=? AND w.company_id=l.company_id AND w.branch_id=? AND w.status='active' AND l.status='active' AND b.quantity_milli>0
-  AND (l.expiry_date IS NULL OR l.expiry_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD'))
-  AND NOT ${activeQualityHoldExistsSql(inventoryQualityHoldReadSource(), "h.warehouse_id=b.warehouse_id AND h.lot_id=l.id AND h.status NOT IN ('released','cancelled','disposed')")}
-  ORDER BY l.expiry_date NULLS LAST,l.lot_code,l.serial_number LIMIT 500`).bind(companyId,branchId).all<{lot_id:string;warehouse_id:string;product_id:string;lot_code:string|null;serial_number:string|null;quantity_milli:number;version:number;expiry_date:string|null}>()).results;}};
+  return {
+    availableStock:stock,
+    availableLots:(companyId:string,branchId:string)=>
+      readLane17ReplenishmentRows<SpareLot>(LANE17_RD_SERVICE_SPARES,[companyId,branchId],actor),
+  };
 }
-export async function availableServiceSpares(db:SqlDatabase,a:WorkContext,branchId:string){return exposed(()=>readAvailableServiceSpares(repository(db),a,branchId));}
+export async function availableServiceSpares(db:SqlDatabase,a:WorkContext,branchId:string){return exposed(()=>readAvailableServiceSpares(repository(db,a),a,branchId));}

@@ -10,7 +10,10 @@ import {
   LANE17_RD_LANDED_COST_SCOPED,
   LANE17_RD_LANDED_COST_WORK_ROWS,
   LANE17_RD_LANDED_COSTS_FOR_ORDER,
+  LANE17_RD_REORDER_POLICIES,
+  LANE17_RD_SERVICE_SPARES,
   readLane17Rows,
+  readLane17ReplenishmentRows,
   nativeInventoryLane17Configured,
 } from "../../../packages/server-inventory/src/adapters/native-lane-17/client";
 
@@ -176,19 +179,66 @@ describe("native Inventory lane 17 transport", () => {
   });
 });
 
+describe("native Inventory lane 17 replenishment reads", () => {
+  const policies = [LANE17_RD_REORDER_POLICIES, ["company-1", null, null], ACTOR] as const;
+  const spares = [LANE17_RD_SERVICE_SPARES, ["company-1", "branch-1"], ACTOR] as const;
+
+  test("reorder policies and service spares use the WorkContext-selected target", async () => {
+    const fetchMock = vi.fn(async () => ok([{ id: "policy-1" }]));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(readLane17ReplenishmentRows(...policies, env())).resolves.toEqual([{ id: "policy-1" }]);
+    await expect(readLane17ReplenishmentRows(...spares, env())).resolves.toEqual([{ id: "policy-1" }]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    for (const call of fetchMock.mock.calls) {
+      expect((call as unknown as [URL, RequestInit])[0].toString()).toContain("/holdings/acme/");
+      expect((call as unknown as [URL, RequestInit])[1].headers).toMatchObject({ host: "acme.jesadakorn.com" });
+      expect(String((call as unknown as [URL, RequestInit])[1].body)).not.toMatch(/SELECT|FROM |WHERE /i);
+    }
+  });
+
+  test("replenishment reads fail closed for company mismatch, unknown kind and 5xx", async () => {
+    const fetchMock = vi.fn(async () => ok([]));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(readLane17ReplenishmentRows(LANE17_RD_REORDER_POLICIES, ["company-2", null, null], ACTOR, env())).rejects.toMatchObject({ status: 503 });
+    await expect(readLane17Rows("service_spares_write", ["company-1", null], ACTOR, env())).rejects.toMatchObject({ status: 503 });
+    await expect(readLane17ReplenishmentRows(LANE17_RD_SERVICE_SPARES, ["company-1"], ACTOR, env())).rejects.toMatchObject({ status: 503 });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 503 })));
+    await expect(readLane17ReplenishmentRows(...spares, env())).rejects.toMatchObject({ status: 503 });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test("a changed Holding context cannot fall back to the first holding", async () => {
+    const fetchMock = vi.fn(async () => ok([]));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(
+      readLane17ReplenishmentRows(policies[0], policies[1], { ...ACTOR, holdingId: "h999" }, env()),
+    ).rejects.toMatchObject({ status: 409, code: "WORK_CONTEXT_CHANGED" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
 describe("native lane 17 slice evidence", () => {
-  const adapter = readFileSync(`${ROOT}/packages/server-inventory/src/adapters/inventory-landed-costs.ts`, "utf8");
+  const adapters = [
+    "inventory-landed-costs.ts",
+    "inventory-reorder-policies.ts",
+    "inventory-consumption.ts",
+  ].map((name) => ({
+    name,
+    source: readFileSync(`${ROOT}/packages/server-inventory/src/adapters/${name}`, "utf8"),
+  }));
   const rust = readFileSync(`${ROOT}/packages/server-inventory/src/adapters/native_lane_17/postgres.rs`, "utf8");
 
-  test("the replaced TypeScript adapter retains no SQL statement", () => {
-    expect(adapter.match(/SELECT /g) ?? []).toHaveLength(0);
-    expect(adapter.match(/\.prepare\(/g) ?? []).toHaveLength(0);
-    expect(adapter).toContain("native-lane-17/client");
+  test("every replaced TypeScript adapter retains no SQL statement", () => {
+    for (const { name, source } of adapters) {
+      expect(source.match(/SELECT /g) ?? [], name).toHaveLength(0);
+      expect(source.match(/\.prepare\(/g) ?? [], name).toHaveLength(0);
+      expect(source, name).toContain("native-lane-17/client");
+    }
   });
 
   test("Rust owner SQL hashes pin the byte-identical rendered statements", () => {
     const statements = [...rust.matchAll(/const (SQL_\w+): &str = r#"([\s\S]*?)"#;/g)];
-    expect(statements).toHaveLength(4);
+    expect(statements).toHaveLength(6);
     const hashes = Object.fromEntries(
       statements.map(([, name, sql]) => [name, createHash("sha256").update(sql).digest("hex")]),
     );
@@ -197,10 +247,12 @@ describe("native lane 17 slice evidence", () => {
       SQL_FOR_ORDER: "c1ba5b9e9acba1646f1d21f07eef84b67a315f5f5696586e9f22915aaae735f9",
       SQL_MOVED_STOCK: "9abe06c83423ee185c42b6497e78c2fdb86b927bd7e1fc2239a158049dabcea4",
       SQL_WORK_ROWS: "41fb758c4c568aca7436e25c239e2d8c60b7fc999150af07479d5691858c448a",
+      SQL_REORDER_POLICIES: "b0e831a4f9960bd0c7d27fcb121c45373d7714ba54d47ee2fe6394c4a13a0cab",
+      SQL_SERVICE_SPARES: "32d473fafcdd9f247f0f1ae01175fc9dac9b9047e96c69724d7feefb65082e83",
     });
   });
 
-  test("owner TS SELECT token KPI is 287 after lanes 17 and 18", () => {
+  test("owner TS SELECT token KPI is 285 after the lane 17 replenishment slice", () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -210,6 +262,6 @@ describe("native lane 17 slice evidence", () => {
       }
     };
     walk(resolve(ROOT, "packages/server-inventory/src"));
-    expect(total).toBe(287);
+    expect(total).toBe(285);
   });
 });

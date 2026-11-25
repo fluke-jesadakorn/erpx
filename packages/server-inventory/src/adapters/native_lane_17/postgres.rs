@@ -36,6 +36,25 @@ const SQL_WORK_ROWS: &str = r#"SELECT c.*,f.number fulfillment_number,o.number o
  FROM commerce_fulfillments f JOIN commerce_orders o ON o.id=f.order_id AND o.kind='purchase' JOIN commerce_warehouses w ON w.id=o.warehouse_id AND w.company_id=o.company_id AND w.branch_id=o.branch_id
  WHERE EXISTS(SELECT 1 FROM commerce_fulfillment_lines fl JOIN commerce_order_lines ol ON ol.id=fl.order_line_id AND ol.order_id=o.id AND ol.item_type<>'service' WHERE fl.fulfillment_id=f.id)) receipt ON receipt.id=c.fulfillment_id AND receipt.company_id=c.company_id AND receipt.branch_id=c.branch_id) actual_cost WHERE actual_cost.id=c.id AND actual_cost.company_id=c.company_id) ORDER BY c.updated_at DESC"#;
 
+/// `listInventoryReorderPolicies` — the byte-identical owner statement.
+const SQL_REORDER_POLICIES: &str = r#"SELECT r.id,r.company_id,r.warehouse_id,r.product_id,r.current_reorder_point_milli::text current_reorder_point_milli,
+    r.proposed_reorder_point_milli::text proposed_reorder_point_milli,r.requested_by,r.approved_by,r.approved_at,r.retired_at,
+    r.last_decision,r.last_reviewed_by,r.last_review_reason,r.last_reviewed_at,r.version,r.created_at,r.updated_at,
+    w.name warehouse_name,w.branch_id,p.sku,p.name product_name,p.unit
+    FROM inventory_reorder_policies r
+    JOIN commerce_warehouses w ON w.id=r.warehouse_id AND w.company_id=r.company_id
+    JOIN commerce_products p ON p.id=r.product_id AND p.company_id=r.company_id
+    WHERE r.company_id=? AND (?::text IS NULL OR w.branch_id=?)
+    ORDER BY w.name,p.sku,r.id LIMIT 500"#;
+
+/// `availableServiceSpares` — the byte-identical owner statement.
+const SQL_SERVICE_SPARES: &str = r#"SELECT b.lot_id,b.warehouse_id,l.product_id,l.lot_code,l.serial_number,b.quantity_milli,b.version,l.expiry_date
+  FROM inventory_lot_balances b JOIN inventory_lots l ON l.id=b.lot_id JOIN commerce_warehouses w ON w.id=b.warehouse_id
+  WHERE l.company_id=? AND w.company_id=l.company_id AND w.branch_id=? AND w.status='active' AND l.status='active' AND b.quantity_milli>0
+  AND (l.expiry_date IS NULL OR l.expiry_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD'))
+  AND NOT EXISTS(SELECT 1 FROM (SELECT warehouse_id, product_id, lot_id, status FROM inventory_quality_holds) h WHERE h.warehouse_id=b.warehouse_id AND h.lot_id=l.id AND h.status NOT IN ('released','cancelled','disposed'))
+  ORDER BY l.expiry_date NULLS LAST,l.lot_code,l.serial_number LIMIT 500"#;
+
 /// Company witness for the order-scoped moved-stock probe: the caller already
 /// checked the receipt in its Holding unit, and the owner repeats that company
 /// isolation instead of trusting an absent caller company value.
@@ -57,6 +76,8 @@ pub fn owner_sql(kind: LaneReadKind) -> &'static str {
         LaneReadKind::LandedCostsForOrder => SQL_FOR_ORDER,
         LaneReadKind::LandedCostMovedStock => SQL_MOVED_STOCK,
         LaneReadKind::LandedCostWorkRows => SQL_WORK_ROWS,
+        LaneReadKind::ReorderPolicies => SQL_REORDER_POLICIES,
+        LaneReadKind::ServiceSpares => SQL_SERVICE_SPARES,
     }
 }
 
@@ -190,6 +211,14 @@ mod tests {
             hash(owner_sql(LaneReadKind::LandedCostWorkRows)),
             "41fb758c4c568aca7436e25c239e2d8c60b7fc999150af07479d5691858c448a"
         );
+        assert_eq!(
+            hash(owner_sql(LaneReadKind::ReorderPolicies)),
+            "b0e831a4f9960bd0c7d27fcb121c45373d7714ba54d47ee2fe6394c4a13a0cab"
+        );
+        assert_eq!(
+            hash(owner_sql(LaneReadKind::ServiceSpares)),
+            "32d473fafcdd9f247f0f1ae01175fc9dac9b9047e96c69724d7feefb65082e83"
+        );
     }
 
     #[test]
@@ -208,8 +237,11 @@ mod tests {
             LaneReadKind::LandedCostScoped,
             LaneReadKind::LandedCostsForOrder,
             LaneReadKind::LandedCostWorkRows,
+            LaneReadKind::ReorderPolicies,
+            LaneReadKind::ServiceSpares,
         ] {
             assert!(!statement(kind).contains("go.company_id"));
+            assert!(!statement(kind).contains("w2o.company_id"));
         }
     }
 
