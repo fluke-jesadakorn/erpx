@@ -1,5 +1,6 @@
 import { commercialOwnerProjectionSources as organizationProjectionSources } from "@erpx/server-organization/public/commercial-owner-projection-sources";
 import { inspectionMetricSource, evidenceHead } from "./inspection-evidence-source-sql";
+import { scopeSql } from "./quality-scope-sql";
 import { readMetricSources } from '@erpx/server-runtime/public/executive/metric-sources';
 import "server-only";
 import { type Breakdown, type Filters, type MetricId } from "@erpx/feature-shared/lib/executive/canvas";
@@ -10,7 +11,7 @@ import type { MetricSnapshot, RawMetricRow } from '@erpx/server-runtime/public/e
 /** One fixed Organization node label read owned by Quality metric projections.
  * Both the hold/release and inspection breakdowns compose this statement; no
  * branch keeps its own duplicate SELECT. */
-export const qualityBranchDisplayLabelSql = `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=h.branch_id AND n.company_id=h.company_id),'Company-wide')`;
+export const qualityBranchDisplayLabelSql = `COALESCE(${scopeSql(`n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=h.branch_id AND n.company_id=h.company_id`)},'Company-wide')`;
 export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown): Promise<MetricSnapshot> {
     const spec = specs[id];
     let sql = '', values: unknown[] = [];

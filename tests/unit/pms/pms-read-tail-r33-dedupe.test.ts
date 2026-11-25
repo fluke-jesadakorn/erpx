@@ -56,8 +56,8 @@ describe('pms read-tail r33 parameterized POS property-config family dedupe', ()
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(224);
-    expect(bare).toBe(225);
+    expect(spaced).toBe(222);
+    expect(bare).toBe(223);
     expect(spaced).toBeLessThan(345);
   });
 });

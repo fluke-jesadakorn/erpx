@@ -10,6 +10,7 @@ import {ApiError} from '@erpx/server-runtime/public/http';
 import {runtimeEnv} from '@erpx/server-runtime/public/runtime';
 import type {PostgresDatabase} from '@erpx/server-runtime/public/runtime/postgres';
 import {hasPermission} from '@erpx/feature-identity_access/lib/permissions';
+import {planIdentityControlRead,PC_MFA_ENABLED} from './native-control-read-plan';
 import type {RoleRevision} from '@erpx/feature-identity_access/lib/iam';
 import {type IamActor,iamPermission} from '@erpx/server-identity_access/domain/iam-actor';
 import {createAssertCompanyScope} from '@erpx/server-identity_access/application/iam-context';
@@ -72,8 +73,9 @@ function readService(database: PostgresDatabase) {
         },
         mfaStatus: async (actor) => {
             const env = await control();
-            return await env.CONTROL_DB.prepare("SELECT enabled FROM iam_mfa WHERE user_id=?")
-                .bind(actor.userId)
+            const plan = await planIdentityControlRead(PC_MFA_ENABLED,[actor.userId]);
+            return await env.CONTROL_DB.prepare(plan.sql)
+                .bind(...plan.values)
                 .first<{
                 enabled: boolean;
             }>();

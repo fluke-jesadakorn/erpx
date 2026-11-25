@@ -667,6 +667,81 @@ const READ_WITHHOLDING_WORKSPACE_IDENTITIES: NativeReadStatement = NativeReadSta
     scope: "holding",
 };
 
+/// Native successors of the static `finance-withholding-remittance` point and
+/// list reads. Assertions and FOR UPDATE owner statements stay in the caller's
+/// transaction; only these byte-identical read plans cross the boundary.
+pub const RD_WITHHOLDING_REMIT_PACKAGE: &str = "finance_rd_withholding_remit_package";
+const SQL_RD_WITHHOLDING_REMIT_PACKAGE: &str = "SELECT * FROM finance_withholding_packages WHERE id=? AND company_id=?";
+const READ_WITHHOLDING_REMIT_PACKAGE: NativeReadStatement = NativeReadStatement {
+    kind: RD_WITHHOLDING_REMIT_PACKAGE,
+    sql: SQL_RD_WITHHOLDING_REMIT_PACKAGE,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_WITHHOLDING_REMIT_DOCUMENT: &str = "finance_rd_withholding_remit_document";
+const SQL_RD_WITHHOLDING_REMIT_DOCUMENT: &str = "SELECT snapshot_json,document_number,export_sha256 FROM finance_issued_thai_documents WHERE id=? AND company_id=?";
+const READ_WITHHOLDING_REMIT_DOCUMENT: NativeReadStatement = NativeReadStatement {
+    kind: RD_WITHHOLDING_REMIT_DOCUMENT,
+    sql: SQL_RD_WITHHOLDING_REMIT_DOCUMENT,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_WITHHOLDING_REMIT_JOURNAL_VALUE: &str = "finance_rd_withholding_remit_journal_value";
+const SQL_RD_WITHHOLDING_REMIT_JOURNAL_VALUE: &str = "SELECT COALESCE(SUM(credit_minor-debit_minor),0) value FROM finance_journal_lines WHERE journal_id=? AND account_id=?";
+const READ_WITHHOLDING_REMIT_JOURNAL_VALUE: NativeReadStatement = NativeReadStatement {
+    kind: RD_WITHHOLDING_REMIT_JOURNAL_VALUE,
+    sql: SQL_RD_WITHHOLDING_REMIT_JOURNAL_VALUE,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_WITHHOLDING_REMIT_BANK_TXN: &str = "finance_rd_withholding_remit_bank_txn";
+const SQL_RD_WITHHOLDING_REMIT_BANK_TXN: &str = "SELECT t.*,s.bank_account,a.chart_id,a.version account_version,a.control_kind,a.status account_status,c.base_currency FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id JOIN finance_accounts a ON a.id=s.bank_account JOIN finance_charts c ON c.id=a.chart_id WHERE t.id=? AND t.company_id=?";
+const READ_WITHHOLDING_REMIT_BANK_TXN: NativeReadStatement = NativeReadStatement {
+    kind: RD_WITHHOLDING_REMIT_BANK_TXN,
+    sql: SQL_RD_WITHHOLDING_REMIT_BANK_TXN,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_WITHHOLDING_REMIT_PACKAGE_EDITION: &str = "finance_rd_withholding_remit_package_edition";
+const SQL_RD_WITHHOLDING_REMIT_PACKAGE_EDITION: &str = "SELECT id,edition FROM finance_withholding_packages WHERE company_id=? AND month=? AND form_kind=? ORDER BY edition DESC LIMIT 1";
+const READ_WITHHOLDING_REMIT_PACKAGE_EDITION: NativeReadStatement = NativeReadStatement {
+    kind: RD_WITHHOLDING_REMIT_PACKAGE_EDITION,
+    sql: SQL_RD_WITHHOLDING_REMIT_PACKAGE_EDITION,
+    bind_count: 3,
+    scope: "holding",
+};
+
+pub const RD_WITHHOLDING_REMIT_ROW: &str = "finance_rd_withholding_remit_row";
+const SQL_RD_WITHHOLDING_REMIT_ROW: &str = "SELECT r.*,p.chart_id,p.month,p.form_kind,j.entry_date FROM finance_withholding_remittances r JOIN finance_withholding_packages p ON p.id=r.package_id JOIN finance_journals j ON j.id=r.journal_id WHERE r.id=? AND r.company_id=?";
+const READ_WITHHOLDING_REMIT_ROW: NativeReadStatement = NativeReadStatement {
+    kind: RD_WITHHOLDING_REMIT_ROW,
+    sql: SQL_RD_WITHHOLDING_REMIT_ROW,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_WITHHOLDING_REMIT_PACKAGE_LIST: &str = "finance_rd_withholding_remit_package_list";
+const SQL_RD_WITHHOLDING_REMIT_PACKAGE_LIST: &str = "SELECT p.*,r.id remittance_id,r.version remittance_version,r.status remittance_status,r.bank_transaction_id FROM finance_withholding_packages p LEFT JOIN finance_withholding_remittances r ON r.package_id=p.id WHERE p.company_id=? ORDER BY p.month DESC,p.edition DESC";
+const READ_WITHHOLDING_REMIT_PACKAGE_LIST: NativeReadStatement = NativeReadStatement {
+    kind: RD_WITHHOLDING_REMIT_PACKAGE_LIST,
+    sql: SQL_RD_WITHHOLDING_REMIT_PACKAGE_LIST,
+    bind_count: 1,
+    scope: "holding",
+};
+
+pub const RD_WITHHOLDING_REMIT_BANK_CANDIDATES: &str = "finance_rd_withholding_remit_bank_candidates";
+const SQL_RD_WITHHOLDING_REMIT_BANK_CANDIDATES: &str = "SELECT t.id,t.version,t.transaction_date,t.external_id,t.amount_minor,s.bank_account FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id JOIN finance_accounts a ON a.id=s.bank_account WHERE t.company_id=? AND t.currency='THB' AND t.match_status IN ('unmatched','proposed') AND a.control_kind='bank' ORDER BY t.transaction_date DESC";
+const READ_WITHHOLDING_REMIT_BANK_CANDIDATES: NativeReadStatement = NativeReadStatement {
+    kind: RD_WITHHOLDING_REMIT_BANK_CANDIDATES,
+    sql: SQL_RD_WITHHOLDING_REMIT_BANK_CANDIDATES,
+    bind_count: 1,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_ASSET_POLICY_ROW,
     READ_ASSET_POLICY_RUNS,
@@ -729,6 +804,14 @@ const READS: &[NativeReadStatement] = &[
     READ_WITHHOLDING_CONSUMED_ASSESSMENT,
     READ_WITHHOLDING_PAYMENT_DOCUMENTS,
     READ_WITHHOLDING_WORKSPACE_IDENTITIES,
+    READ_WITHHOLDING_REMIT_PACKAGE,
+    READ_WITHHOLDING_REMIT_DOCUMENT,
+    READ_WITHHOLDING_REMIT_JOURNAL_VALUE,
+    READ_WITHHOLDING_REMIT_BANK_TXN,
+    READ_WITHHOLDING_REMIT_PACKAGE_EDITION,
+    READ_WITHHOLDING_REMIT_ROW,
+    READ_WITHHOLDING_REMIT_PACKAGE_LIST,
+    READ_WITHHOLDING_REMIT_BANK_CANDIDATES,
 ];
 
 /// Whether a discriminator is an owner read kind (never a write kind).
@@ -809,6 +892,14 @@ mod tests {
             RD_WITHHOLDING_CONSUMED_ASSESSMENT,
             RD_WITHHOLDING_PAYMENT_DOCUMENTS,
             RD_WITHHOLDING_WORKSPACE_IDENTITIES,
+            RD_WITHHOLDING_REMIT_PACKAGE,
+            RD_WITHHOLDING_REMIT_DOCUMENT,
+            RD_WITHHOLDING_REMIT_JOURNAL_VALUE,
+            RD_WITHHOLDING_REMIT_BANK_TXN,
+            RD_WITHHOLDING_REMIT_PACKAGE_EDITION,
+            RD_WITHHOLDING_REMIT_ROW,
+            RD_WITHHOLDING_REMIT_PACKAGE_LIST,
+            RD_WITHHOLDING_REMIT_BANK_CANDIDATES,
         ] {
             assert!(is_read(kind), "{kind}");
             let read = read_statement(kind).expect("read kind");
@@ -823,7 +914,7 @@ mod tests {
             assert_eq!(read.sql.matches('?').count(), read.bind_count, "{kind}");
             assert_eq!(read.scope, "holding", "{kind}");
         }
-        assert_eq!(READS.len(), 61);
+        assert_eq!(READS.len(), 69);
         assert!(!is_read("finance_stmt_1"));
         assert!(read_statement("finance_stmt_1").is_none());
     }
@@ -1245,6 +1336,62 @@ mod tests {
             (
                 RD_WITHHOLDING_WORKSPACE_IDENTITIES,
                 SQL_RD_WITHHOLDING_WORKSPACE_IDENTITIES,
+                1,
+            ),
+        ];
+        assert_eq!(expected.len(), 8);
+        for (kind, sql, binds) in expected {
+            let read = read_statement(kind).unwrap_or_else(|| panic!("{kind}: unregistered"));
+            assert_eq!(read.kind, *kind, "{kind}: discriminator");
+            assert_eq!(read.sql, *sql, "{kind}: byte-identical SQL");
+            assert_eq!(read.bind_count, *binds, "{kind}: bind count");
+            assert_eq!(read.sql.matches('?').count(), *binds, "{kind}: binds");
+            assert_eq!(read.scope, "holding", "{kind}: scope");
+            assert!(is_read(kind), "{kind}");
+            assert!(!read.sql.contains("FOR UPDATE"), "{kind}");
+            assert!(!read.sql.contains("INSERT"), "{kind}");
+        }
+    }
+
+    /// The finance-withholding-remittance point/list family plans the exact
+    /// retired literals; assertions and row locks remain in caller units.
+    #[test]
+    fn withholding_remit_reads_match_retired_owner_statements() {
+        let expected: &[(&str, &str, usize)] = &[
+            (
+                RD_WITHHOLDING_REMIT_PACKAGE,
+                SQL_RD_WITHHOLDING_REMIT_PACKAGE,
+                2,
+            ),
+            (
+                RD_WITHHOLDING_REMIT_DOCUMENT,
+                SQL_RD_WITHHOLDING_REMIT_DOCUMENT,
+                2,
+            ),
+            (
+                RD_WITHHOLDING_REMIT_JOURNAL_VALUE,
+                SQL_RD_WITHHOLDING_REMIT_JOURNAL_VALUE,
+                2,
+            ),
+            (
+                RD_WITHHOLDING_REMIT_BANK_TXN,
+                SQL_RD_WITHHOLDING_REMIT_BANK_TXN,
+                2,
+            ),
+            (
+                RD_WITHHOLDING_REMIT_PACKAGE_EDITION,
+                SQL_RD_WITHHOLDING_REMIT_PACKAGE_EDITION,
+                3,
+            ),
+            (RD_WITHHOLDING_REMIT_ROW, SQL_RD_WITHHOLDING_REMIT_ROW, 2),
+            (
+                RD_WITHHOLDING_REMIT_PACKAGE_LIST,
+                SQL_RD_WITHHOLDING_REMIT_PACKAGE_LIST,
+                1,
+            ),
+            (
+                RD_WITHHOLDING_REMIT_BANK_CANDIDATES,
+                SQL_RD_WITHHOLDING_REMIT_BANK_CANDIDATES,
                 1,
             ),
         ];

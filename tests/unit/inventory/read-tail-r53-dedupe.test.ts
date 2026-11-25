@@ -82,7 +82,7 @@ describe('Inventory read-tail r53 dedupe', () => {
     expect(bridge.length).toBeGreaterThan(0);
     const shared = adapter('read-tail-sql.ts');
     for (const helper of [
-      'reservationsCteHeadSql', 'markedCountExistsSql', 'replayProbePrefixSql',
+      'reservationsCteHeadSql', 'markedCountExistsSql',
       'schemaReadySql', 'initialPhysicalCountJournalSql', 'inList',
       'evidencePositionRowsSql', 'executivePositionPointSql',
     ]) expect(shared, helper).toContain(`export const ${helper}`);

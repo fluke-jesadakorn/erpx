@@ -6,11 +6,13 @@ import type {PostgresDatabase} from '@erpx/server-runtime/public/runtime/postgre
 import type {ConnectionRow} from '@erpx/server-identity_access/domain/directories';
 import {createConnectionLookup,requireDirectoryRoute} from '@erpx/server-identity_access/application/directory-lookup';
 import {iamConnectionByIdSql} from './read-tail-family-r27';
+import {planIdentityControlRead,PC_CONNECTION_ROUTE} from './native-control-read-plan';
 export async function connectionById(db: PostgresDatabase, companyId: string, id: string) { db = iamDb(db); return createConnectionLookup({ error: (...args) => new ApiError(...args), lookup: async (companyId, id) => db.prepare(iamConnectionByIdSql('company_id=? AND id=?')).bind(companyId, id).first<ConnectionRow>() })(companyId, id); }
 export async function routedConnection(id: string) {
     const env = await runtimeEnv();
-    const route = requireDirectoryRoute(await env.CONTROL_DB.prepare("SELECT * FROM iam_connection_routes WHERE connection_id=?")
-        .bind(id)
+    const plan = await planIdentityControlRead(PC_CONNECTION_ROUTE,[id]);
+    const route = requireDirectoryRoute(await env.CONTROL_DB.prepare(plan.sql)
+        .bind(...plan.values)
         .first<{
         holding_id: string | null;
         company_id: string;

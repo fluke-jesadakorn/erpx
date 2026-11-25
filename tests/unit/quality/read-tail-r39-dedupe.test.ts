@@ -112,7 +112,7 @@ describe('quality read-tail r39 lineage-terminal evidence head dedupe', () => {
 
   test('retirement:ts-statements is strictly lower than the BEFORE=23 baseline', () => {
     expect(kpi(/INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT /g)).toBeLessThan(23);
-    expect(kpi(/INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT /g)).toBe(15);
-    expect(kpi(/SELECT /g)).toBe(15);
+    expect(kpi(/INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT /g)).toBe(12);
+    expect(kpi(/SELECT /g)).toBe(12);
   });
 });

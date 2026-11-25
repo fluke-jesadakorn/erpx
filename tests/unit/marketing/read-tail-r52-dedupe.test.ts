@@ -155,7 +155,7 @@ describe('marketing read-tail r52 dedupe', () => {
     expect(headTokens(await src('marketing-purchase-union-sql.ts'))).toBe(0);
   });
 
-  it('pins the owner head KPI to 7 (lane 40 retired 3) (BEFORE=22)', async () => {
-    expect(await ownerHeadTokens()).toEqual({ spaced: 7, bare: 7 });
+  it('pins the owner head KPI to 6 (lane 40 retired 3) (BEFORE=22)', async () => {
+    expect(await ownerHeadTokens()).toEqual({ spaced: 6, bare: 6 });
   });
 });

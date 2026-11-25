@@ -332,19 +332,13 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase, companyId = '')
             propertyId: string;
             fact1: Array<string>;
             search: BookingSearch | undefined;
-        }) => rows<{
+        }) => nativePmsReadAll<{
             id: string;
             kind: Kind;
             data_json: string;
             version: number;
             updated_at: number;
-        }>(nativePmsReadAll<{
-            id: string;
-            kind: Kind;
-            data_json: string;
-            version: number;
-            updated_at: number;
-        }>(facts.search ? PMS_RD_BOOKING_RECORDS_SEARCH : PMS_RD_BOOKING_RECORDS, [facts.propertyId, ...facts.fact1], db).then(result => result.results)),
+        }>(facts.search ? PMS_RD_BOOKING_RECORDS_SEARCH : PMS_RD_BOOKING_RECORDS, [facts.propertyId, ...facts.fact1], db).then(result => result.results),
         readPmsProperties3: async () => {
             const mode = await pmsPackageEnforcementMode(), enforced = mode === "enforced";
             const clock = enforced ? PMS_PURCHASE_CLOCK_CTE_SQL : "";

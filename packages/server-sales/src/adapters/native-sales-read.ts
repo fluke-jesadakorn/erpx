@@ -30,6 +30,8 @@ export const SALES_RD_FOLLOWUP_SOURCE_FOLLOWUP = 'sales_rd_followup_source_follo
 export const SALES_RD_FOLLOWUP_SOURCE_ORDER = 'sales_rd_followup_source_order';
 export const SALES_RD_FOLLOWUP_METRIC_PROJECTION = 'sales_rd_followup_metric_projection';
 export const SALES_RD_FOLLOWUP_METRIC_SOURCE = 'sales_rd_followup_metric_source';
+export const SALES_RD_NOTIFICATION_SOURCE_DEV = 'sales_rd_notification_source_dev';
+export const SALES_RD_NOTIFICATION_SOURCE_PROD = 'sales_rd_notification_source_prod';
 
 /** Owner-planned statement. The caller may run it on its own open unit or
  * compose it into a larger read; no SQL is accepted from the caller. */

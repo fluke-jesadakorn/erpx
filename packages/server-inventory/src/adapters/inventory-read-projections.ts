@@ -1,5 +1,5 @@
 import {inventoryQualityHoldReadSource} from '@erpx/server-quality/public/inventory-hold-read-source';
-import {activeQualityHoldExistsSql,replayProbePrefixSql} from './read-tail-sql';
+import {activeQualityHoldExistsSql} from './read-tail-sql';
 /** Canonical owner-local fixed SQL for the Inventory ledger projection. The
  * native inventory read registry states the same fixed ledger selection; every
  * caller-unit join shares this one literal, so no duplicate TS SQL remains. */
@@ -9,13 +9,9 @@ export const inventoryLedgerProjectionSql = "SELECT \"id\",\"warehouse_id\",\"pr
 export const inventoryLotMovesSql = "SELECT * FROM inventory_lot_moves";
 /** Stock Count status is now owned by the native read registry as
  * `inventory_rd_count_status`; callers use the SQL-free `countStatus` bridge. */
-/** Canonical owner-local fixed SQL for a purchase command-receipt replay probe.
- * Every purchase-source caller shares this one literal, so no duplicate TS SQL remains. */
-export const inventoryPurchaseReplaySql = `${replayProbePrefixSql} AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?`;
-/** Canonical owner-local fixed SQL for an initial Stock Count command-receipt replay
- * probe (no record scope). Every initial-count source caller shares this one
- * literal, so no duplicate TS SQL remains. */
-export const inventoryCommandReplaySql = `${replayProbePrefixSql} AND actor_id=? AND authority_json::jsonb->>'companyId'=?`;
+/** Both command-receipt replay probes are owned by the native read registry:
+ * `inventory_rd_purchase_replay` and `inventory_rd_command_replay`. Callers use
+ * the SQL-free `purchaseReplayExists` / `commandReplayExists` bridges. */
 /** Fixed owner facts used by native joined Inventory projections; application ports return typed rows. */
 export const inventoryReadProjection={
 reservedStock:"COALESCE((SELECT SUM(r.quantity_milli) FROM inventory_active_reservations r WHERE r.warehouse_id=s.warehouse_id AND r.product_id=s.product_id),0)",

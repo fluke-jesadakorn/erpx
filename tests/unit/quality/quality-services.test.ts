@@ -106,7 +106,9 @@ describe('quality metric branch-label dedupe',()=>{
   expect(qualityBranchDisplayLabelSql.match(/SELECT n\.display_name/g)).toHaveLength(1);
   expect(qualityBranchDisplayLabelSql).toContain('organization_nodes');
   const text=readFileSync(source('packages/server-quality/src/adapters/executive-metric-projections.ts'),'utf8');
-  expect(text.match(/SELECT n\.display_name/g)??[]).toHaveLength(1);
+  expect(text.match(/SELECT n\.display_name/g)??[]).toHaveLength(0);
+  expect(text).toContain('import { scopeSql } from "./quality-scope-sql";');
+  expect(text).toContain('COALESCE(${scopeSql(`n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=h.branch_id AND n.company_id=h.company_id`)},\'Company-wide\')');
   expect(text.match(/qualityBranchDisplayLabelSql/g)??[]).toHaveLength(3);
   const sql:string[]=[],db={prepare(statement:string){sql.push(statement);return {bind(){return {all:()=>({results:[]})};}};}};
   const actor={companyId:'company',branchId:'branch'} as never,filters={from:'2026-01-01',to:'2026-01-31'} as never;
@@ -222,7 +224,7 @@ describe('quality package-obligation scope and clock CTE dedupe',()=>{
  test('the owner TS statement KPI stays strictly below the r17 BEFORE=75 baseline',()=>{
   const count=files(source('packages/server-quality/src')).reduce((total,path)=>total+(readFileSync(path,'utf8').match(/INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT /g)?.length??0),0);
   expect(count).toBeLessThan(75);
-  expect(count).toBe(15);
+  expect(count).toBe(12);
  });
 });
 describe('quality command-receipt guard dedupe',()=>{
@@ -250,7 +252,10 @@ describe('quality command-receipt guard dedupe',()=>{
   const adapter=readFileSync(source('packages/server-quality/src/adapters/supply-package-obligations.ts'),'utf8');
   expect(adapter.match(/qualityReceiptGuardSql\(/g)).toHaveLength(4);
   expect(adapter).not.toContain('SELECT 1 FROM command_receipts receipt');
-  expect(readFileSync(source('packages/server-quality/src/adapters/quality-receipt-guard-sql.ts'),'utf8').match(/SELECT /g)).toHaveLength(1);
+  const guardHelper=readFileSync(source('packages/server-quality/src/adapters/quality-receipt-guard-sql.ts'),'utf8');
+  expect(guardHelper.match(/SELECT /g) ?? []).toHaveLength(0);
+  expect(guardHelper).toContain('import {evidenceHead} from "./inspection-evidence-source-sql";');
+  expect(guardHelper).toContain("evidenceHead('1', ` FROM command_receipts receipt WHERE");
  });
 });
 describe('quality hold child aggregate dedupe',()=>{

@@ -119,7 +119,7 @@ describe('Collaboration read-tail r51 excluded SQL stays untouched', () => {
 });
 
 describe('Collaboration read-tail r51 KPI pins', () => {
-  test('retirement:ts-statements is pinned at 300, below the r51 BEFORE=332 baseline', () => {
+  test('retirement:ts-statements is pinned at 297, below the r51 BEFORE=332 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -130,7 +130,7 @@ describe('Collaboration read-tail r51 KPI pins', () => {
     };
     walk(srcRoot);
     // Two byte-identical count heads -> one renderer: 332 -> 331.
-    expect(total).toBe(300);
+    expect(total).toBe(297);
     expect(total).toBeLessThan(332);
   });
 });

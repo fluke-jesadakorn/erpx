@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
-import { inventoryLedgerProjectionSql, inventoryPurchaseReplaySql, inventoryCommandReplaySql } from '../../../packages/server-inventory/src/adapters/inventory-read-projections';
+import { inventoryLedgerProjectionSql } from '../../../packages/server-inventory/src/adapters/inventory-read-projections';
 import { commercialOwnerProjectionSources } from '../../../packages/server-inventory/src/adapters/commercial-owner-projection-sources';
 import { hospitalityOwnerProjectionSources } from '../../../packages/server-inventory/src/adapters/hospitality-owner-projection-sources';
 
@@ -34,25 +34,19 @@ describe('inventory owner projection dedupe', () => {
     expect(projections).toContain('inventory_rd_count_status');
   });
 
-  it('shares one canonical purchase replay SQL with every purchase-source caller', () => {
+  it('routes every purchase replay probe through the native registry', () => {
     const replay = "SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?";
-    expect(inventoryPurchaseReplaySql).toBe(replay);
-    const callers = [
-      'count-purchases.ts',
-      'landed-cost-purchases.ts',
-      'transfer-purchases.ts',
-    ];
+    const callers = ['count-purchases.ts', 'landed-cost-purchases.ts', 'transfer-purchases.ts'];
     for (const file of callers) {
       const text = src(file);
-      expect(text).toContain('inventoryPurchaseReplaySql');
+      expect(text).toContain('purchaseReplayExists');
       expect(text).not.toContain(replay);
     }
+    expect(src('inventory-read-projections.ts')).not.toContain('SELECT 1 FROM command_receipts');
   });
 
-  it('shares one canonical initial-count command replay SQL with every initial-count source caller', () => {
+  it('routes every initial-count command replay probe through the native registry', () => {
     const replay = "SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?";
-    expect(inventoryCommandReplaySql).toBe(replay);
-    expect(inventoryCommandReplaySql).not.toBe(inventoryPurchaseReplaySql);
     const callers = [
       'initial-physical-stock-count-source.ts',
       'pos-initial-physical-stock-count-source.ts',
@@ -60,8 +54,9 @@ describe('inventory owner projection dedupe', () => {
     ];
     for (const file of callers) {
       const text = src(file);
-      expect(text).toContain('inventoryCommandReplaySql');
+      expect(text).toContain('commandReplayExists');
       expect(text).not.toContain(replay);
     }
+    expect(src('inventory-read-projections.ts')).not.toContain('SELECT 1 FROM command_receipts');
   });
 });

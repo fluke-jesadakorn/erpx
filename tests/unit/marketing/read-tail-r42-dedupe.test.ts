@@ -146,7 +146,7 @@ describe('marketing evidence-row tail merge (r42)', () => {
   });
 
   it('confirms the owner KPI of 16 from the AST after the 36 -> 34 r45 drop, 34 -> 32 r46 fold, 32 -> 29 r47 fold, 29 -> 27 r48 fold, 27 -> 24 r49 fold, 24 -> 23 r50 fold, 23 -> 22 r51 fold and 22 -> 21 r52 fold and 21 -> 20 r53 fold', async () => {
-    expect(await ownerSelectTokens()).toBe(7);
+    expect(await ownerSelectTokens()).toBe(6);
     expect(await ownerSelectTokens()).toBeLessThan(32);
   });
 });

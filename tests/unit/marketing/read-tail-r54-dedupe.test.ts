@@ -114,7 +114,7 @@ describe('marketing read-tail r54 dedupe', () => {
     expect(record).not.toContain('`SELECT 1 FROM (${nativeIds}) actual WHERE id=?`');
     // The five-word head now lives only in the one canonical renderer.
     expect(headTokens(await src('marketing-point-exists-sql.ts'))).toBe(1);
-    expect(headTokens(record)).toBe(1); // only the work-row head remains
+    expect(headTokens(record)).toBe(0); // the work-row head now delegates too
     expect(marketingPointExistsSql(`(${IDS}) actual`, 'id=?')).toBe(
       `SELECT 1 FROM (${IDS}) actual WHERE id=?`,
     );
@@ -150,6 +150,6 @@ describe('marketing read-tail r54 dedupe', () => {
   });
 
   it('pins the owner head KPI to 17 (BEFORE=20; lane 40 retired 2 TS SELECTs)', async () => {
-    expect(await ownerHeadTokens()).toEqual({ spaced: 7, bare: 7 });
+    expect(await ownerHeadTokens()).toEqual({ spaced: 6, bare: 6 });
   });
 });

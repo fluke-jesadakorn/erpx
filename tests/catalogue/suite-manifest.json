@@ -165801,6 +165801,129 @@
       },
       "apps": [],
       "packages": []
+    },
+    {
+      "id": "collaboration.native-handover-read.unit",
+      "lane": "unit",
+      "owner": "collaboration",
+      "modules": [
+        "collaboration",
+        "support",
+        "identity_access",
+        "operations"
+      ],
+      "files": [
+        "tests/unit/collaboration/native-handover-read.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "collaboration.read-tail-r55-dedupe.unit",
+      "lane": "unit",
+      "owner": "collaboration",
+      "modules": [
+        "collaboration",
+        "support",
+        "identity_access",
+        "operations"
+      ],
+      "files": [
+        "tests/unit/collaboration/read-tail-r55-dedupe.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "marketing.read-tail-r63-dedupe.unit",
+      "lane": "unit",
+      "owner": "marketing",
+      "modules": [
+        "marketing"
+      ],
+      "files": [
+        "tests/unit/marketing/read-tail-r63-dedupe.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "people_payroll.read-tail-round7-r33-alias.unit",
+      "lane": "unit",
+      "owner": "people_payroll",
+      "modules": [
+        "people_payroll"
+      ],
+      "files": [
+        "tests/unit/people_payroll/read-tail-round7-r33-alias.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "sales.native-notification-source.unit",
+      "lane": "unit",
+      "owner": "sales",
+      "modules": [
+        "sales",
+        "inventory",
+        "finance"
+      ],
+      "files": [
+        "tests/unit/sales/native-notification-source.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
     }
   ]
 }

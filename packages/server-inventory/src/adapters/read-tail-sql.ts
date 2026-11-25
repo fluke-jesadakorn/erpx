@@ -359,10 +359,8 @@ export const reservationsCteHeadSql = `WITH reservations AS (
  *  keeps its own statement, binds and tail. */
 export const markedCountExistsSql = (rows: string) =>
   `c.company_id=scope.company_id AND EXISTS(SELECT 1 FROM (${rows}) marker WHERE marker.id=c.id)`;
-/** r47: the command-receipt replay probe prefix is shared by the record-scoped
- *  purchase probe and the unscoped initial-count probe; only the trailing
- *  record_id and actor/company predicates vary, in their original bind order. */
-export const replayProbePrefixSql = 'SELECT 1 FROM command_receipts WHERE command_id=? AND operation=?';
+/** r47: both command-receipt replay probes are now planned by the native read
+ *  registry (`inventory_rd_purchase_replay` / `inventory_rd_command_replay`). */
 
 /** r53: the count-list projection head is byte-identical across the list, page
  *  and scoped-count reads. Only the literal text is shared; every caller keeps

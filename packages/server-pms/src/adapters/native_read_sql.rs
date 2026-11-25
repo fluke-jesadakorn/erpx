@@ -170,6 +170,14 @@ pub const PMS_RD_BOOKING_PROPERTY_SCOPE: &str = "pms_rd_booking_property_scope";
 pub const PMS_RD_BOOKING_PROPERTY_SCOPE_BRANCH: &str = "pms_rd_booking_property_scope_branch";
 pub const PMS_RD_BOOKING_RECORDS: &str = "pms_rd_booking_records";
 pub const PMS_RD_BOOKING_RECORDS_SEARCH: &str = "pms_rd_booking_records_search";
+/// Native successors of the owner-local `pms.ts` guest-account sum and
+/// charge-correction reads. Fixed SQL with one/three and two positional binds;
+/// the correction read has two closed variants (front-mode requestedBy filter
+/// or pending state). No ledger/receipt/outbox and no lock/refund path; the
+/// caller runs them on its already-open unit.
+pub const PMS_RD_GUEST_ACCOUNT_SUMS: &str = "pms_rd_guest_account_sums";
+pub const PMS_RD_CHARGE_CORRECTIONS: &str = "pms_rd_charge_corrections";
+pub const PMS_RD_CHARGE_CORRECTIONS_FRONT: &str = "pms_rd_charge_corrections_front";
 const SQL_INVENTORY_COMMAND: &str = "SELECT id,kind,data_json,version,updated_at FROM pms_records \
 WHERE property_id=? AND kind IN ('room_type','room','rate','block','item','credit') \
 UNION ALL SELECT id,kind,data_json,version,updated_at FROM pms_records \
@@ -562,8 +570,37 @@ const READ_BOOKING_RECORDS_SEARCH: NativeReadStatement = NativeReadStatement {
     sql: SQL_BOOKING_RECORDS_SEARCH,
     bind_count: 3,
 };
+/// Retired TypeScript literals from `pms.ts`, byte-for-byte, with the closed
+/// correction variant inlined at generation time.
+const SQL_GUEST_ACCOUNT_SUMS: &str = r#"SELECT COALESCE(SUM((data_json::jsonb->>'due')::bigint),0)::double precision due,
+      COALESCE(SUM((data_json::jsonb->>'advance')::bigint),0)::double precision advance,
+      COALESCE(SUM((data_json::jsonb->>'deposit')::bigint),0)::double precision deposit
+      FROM pms_records WHERE property_id=? AND kind='guest_account'"#;
+const READ_GUEST_ACCOUNT_SUMS: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_GUEST_ACCOUNT_SUMS,
+    sql: SQL_GUEST_ACCOUNT_SUMS,
+    bind_count: 1,
+};
+const SQL_CHARGE_CORRECTIONS: &str = r#"SELECT c.id,c.entry_id,c.guest_account_id,c.status,c.version,c.reason,c.requested_by,c.reviewed_by,c.review_reason,c.reversal_entry_id,c.created_at,
+        e.data_json::jsonb->>'kind' entry_kind,e.data_json::jsonb->>'description' entry_description,(e.data_json::jsonb->>'total')::bigint entry_total
+        FROM pms_charge_corrections c JOIN pms_records e ON e.id=c.entry_id AND e.property_id=c.property_id
+        WHERE c.company_id=? AND c.property_id=? AND c.status='pending' ORDER BY c.created_at DESC LIMIT 100"#;
+const SQL_CHARGE_CORRECTIONS_FRONT: &str = r#"SELECT c.id,c.entry_id,c.guest_account_id,c.status,c.version,c.reason,c.requested_by,c.reviewed_by,c.review_reason,c.reversal_entry_id,c.created_at,
+        e.data_json::jsonb->>'kind' entry_kind,e.data_json::jsonb->>'description' entry_description,(e.data_json::jsonb->>'total')::bigint entry_total
+        FROM pms_charge_corrections c JOIN pms_records e ON e.id=c.entry_id AND e.property_id=c.property_id
+        WHERE c.company_id=? AND c.property_id=? AND c.requested_by=? ORDER BY c.created_at DESC LIMIT 100"#;
+const READ_CHARGE_CORRECTIONS: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_CHARGE_CORRECTIONS,
+    sql: SQL_CHARGE_CORRECTIONS,
+    bind_count: 2,
+};
+const READ_CHARGE_CORRECTIONS_FRONT: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_CHARGE_CORRECTIONS_FRONT,
+    sql: SQL_CHARGE_CORRECTIONS_FRONT,
+    bind_count: 3,
+};
 
-const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG, READ_PENDING_HOTEL_TRANSFERS, READ_UNPOSTED_BOOKING_RECEIPTS, READ_UNPOSTED_COUNTER_RECEIPTS, READ_HOSPITALITY_SETUP_PROPERTIES, READ_ATTACHMENT_PROPERTY_IMAGE, READ_ATTACHMENT_RECORD_IMAGE, READ_DOCUMENT_RELATED_POSTINGS, READ_POS_GUEST_HOTELS, READ_POS_GUEST_CHOICES, READ_POS_STRIPE_PAYMENT, READ_POS_BOOKING_PAYMENT, READ_STRIPE_PAYMENT_BY_ID, READ_STRIPE_PAYMENT_BY_ID_COMPANY, READ_STRIPE_PAYMENT_PROPERTY, READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS, READ_TRANSFER_REQUESTS, READ_GUEST_DOCUMENTS, READ_BOOKING_ALLOCATION_EXISTS, READ_PENDING_JOBS, READ_BOOKING_PROPERTY_SCOPE, READ_BOOKING_PROPERTY_SCOPE_BRANCH, READ_BOOKING_RECORDS, READ_BOOKING_RECORDS_SEARCH];
+const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG, READ_PENDING_HOTEL_TRANSFERS, READ_UNPOSTED_BOOKING_RECEIPTS, READ_UNPOSTED_COUNTER_RECEIPTS, READ_HOSPITALITY_SETUP_PROPERTIES, READ_ATTACHMENT_PROPERTY_IMAGE, READ_ATTACHMENT_RECORD_IMAGE, READ_DOCUMENT_RELATED_POSTINGS, READ_POS_GUEST_HOTELS, READ_POS_GUEST_CHOICES, READ_POS_STRIPE_PAYMENT, READ_POS_BOOKING_PAYMENT, READ_STRIPE_PAYMENT_BY_ID, READ_STRIPE_PAYMENT_BY_ID_COMPANY, READ_STRIPE_PAYMENT_PROPERTY, READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS, READ_TRANSFER_REQUESTS, READ_GUEST_DOCUMENTS, READ_BOOKING_ALLOCATION_EXISTS, READ_PENDING_JOBS, READ_BOOKING_PROPERTY_SCOPE, READ_BOOKING_PROPERTY_SCOPE_BRANCH, READ_BOOKING_RECORDS, READ_BOOKING_RECORDS_SEARCH, READ_GUEST_ACCOUNT_SUMS, READ_CHARGE_CORRECTIONS, READ_CHARGE_CORRECTIONS_FRONT];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
 pub fn is_read(kind: &str) -> bool {
@@ -991,7 +1028,7 @@ ORDER BY id"
         assert!(!upper.contains("PG_ADVISORY"));
         assert!(is_read(read.kind));
         assert!(!is_read("pms_rd_section_related_records_v2"));
-        assert_eq!(READS.len(), 49);
+        assert_eq!(READS.len(), 52);
     }
 
     #[test]
@@ -1015,7 +1052,7 @@ ORDER BY id"
         assert!(!upper.contains("PG_ADVISORY"));
         assert!(is_read(read.kind));
         assert!(!is_read("pms_rd_guest_booking_document_v2"));
-        assert_eq!(READS.len(), 49);
+        assert_eq!(READS.len(), 52);
     }
 
     #[test]
@@ -1038,7 +1075,7 @@ ORDER BY id"
         assert!(!upper.contains("PG_ADVISORY"));
         assert!(is_read(read.kind));
         assert!(!is_read("pms_rd_hotel_metrics_v2"));
-        assert_eq!(READS.len(), 49);
+        assert_eq!(READS.len(), 52);
     }
 
     #[test]
@@ -1064,7 +1101,7 @@ ORDER BY id"
             assert!(is_read(read.kind));
         }
         assert!(!is_read("pms_rd_booking_receipt_by_key_v2"));
-        assert_eq!(READS.len(), 49);
+        assert_eq!(READS.len(), 52);
     }
 
     #[test]
@@ -1091,7 +1128,7 @@ ORDER BY id"
         }
         assert!(!is_read("pms_rd_booking_documents_v2"));
         assert!(!is_read("pms_rd_change_payment_pending_v2"));
-        assert_eq!(READS.len(), 49);
+        assert_eq!(READS.len(), 52);
     }
 
     #[test]
@@ -1118,7 +1155,7 @@ ORDER BY id"
         }
         assert!(!is_read("pms_rd_booking_allocations_v2"));
         assert!(!is_read("pms_rd_refund_request_allocations_v2"));
-        assert_eq!(READS.len(), 49);
+        assert_eq!(READS.len(), 52);
     }
 
     #[test]
@@ -1145,7 +1182,7 @@ ORDER BY id"
         }
         assert!(!is_read("pms_rd_transfer_requests_v2"));
         assert!(!is_read("pms_rd_guest_documents_v2"));
-        assert_eq!(READS.len(), 49);
+        assert_eq!(READS.len(), 52);
     }
 
     #[test]
@@ -1172,7 +1209,7 @@ ORDER BY id"
         }
         assert!(!is_read("pms_rd_booking_allocation_exists_v2"));
         assert!(!is_read("pms_rd_pending_jobs_v2"));
-        assert_eq!(READS.len(), 49);
+        assert_eq!(READS.len(), 52);
     }
 
     #[test]
@@ -1202,6 +1239,36 @@ ORDER BY id"
             assert!(is_read(read.kind));
         }
         assert!(!is_read("pms_rd_booking_records_search_v2"));
-        assert_eq!(READS.len(), 49);
+        assert_eq!(READS.len(), 52);
+    }
+
+    #[test]
+    fn guest_account_and_correction_reads_match_retired_typescript_literals() {
+        let sums = read_statement(PMS_RD_GUEST_ACCOUNT_SUMS).expect("guest account sums read");
+        let pending = read_statement(PMS_RD_CHARGE_CORRECTIONS).expect("pending corrections read");
+        let front = read_statement(PMS_RD_CHARGE_CORRECTIONS_FRONT).expect("front corrections read");
+        assert_eq!(sums.kind, "pms_rd_guest_account_sums");
+        assert_eq!(sums.sql, "SELECT COALESCE(SUM((data_json::jsonb->>'due')::bigint),0)::double precision due,\n      COALESCE(SUM((data_json::jsonb->>'advance')::bigint),0)::double precision advance,\n      COALESCE(SUM((data_json::jsonb->>'deposit')::bigint),0)::double precision deposit\n      FROM pms_records WHERE property_id=? AND kind='guest_account'");
+        assert_eq!(sums.bind_count, 1);
+        assert_eq!(pending.kind, "pms_rd_charge_corrections");
+        assert_eq!(pending.sql, "SELECT c.id,c.entry_id,c.guest_account_id,c.status,c.version,c.reason,c.requested_by,c.reviewed_by,c.review_reason,c.reversal_entry_id,c.created_at,\n        e.data_json::jsonb->>'kind' entry_kind,e.data_json::jsonb->>'description' entry_description,(e.data_json::jsonb->>'total')::bigint entry_total\n        FROM pms_charge_corrections c JOIN pms_records e ON e.id=c.entry_id AND e.property_id=c.property_id\n        WHERE c.company_id=? AND c.property_id=? AND c.status='pending' ORDER BY c.created_at DESC LIMIT 100");
+        assert_eq!(pending.bind_count, 2);
+        assert_eq!(front.kind, "pms_rd_charge_corrections_front");
+        assert_eq!(front.sql, "SELECT c.id,c.entry_id,c.guest_account_id,c.status,c.version,c.reason,c.requested_by,c.reviewed_by,c.review_reason,c.reversal_entry_id,c.created_at,\n        e.data_json::jsonb->>'kind' entry_kind,e.data_json::jsonb->>'description' entry_description,(e.data_json::jsonb->>'total')::bigint entry_total\n        FROM pms_charge_corrections c JOIN pms_records e ON e.id=c.entry_id AND e.property_id=c.property_id\n        WHERE c.company_id=? AND c.property_id=? AND c.requested_by=? ORDER BY c.created_at DESC LIMIT 100");
+        assert_eq!(front.bind_count, 3);
+        for read in [sums, pending, front] {
+            assert_eq!(read.sql.matches('?').count(), read.bind_count);
+            let upper = read.sql.to_ascii_uppercase();
+            assert!(upper.starts_with("SELECT"));
+            assert!(!upper.contains("INSERT INTO"));
+            assert!(!upper.contains("UPDATE "));
+            assert!(!upper.contains("DELETE FROM"));
+            assert!(!upper.contains("FOR UPDATE"));
+            assert!(!upper.contains("FOR SHARE"));
+            assert!(!upper.contains("LOCK TABLE"));
+            assert!(is_read(read.kind));
+        }
+        assert!(!is_read("pms_rd_charge_corrections_front_v2"));
+        assert_eq!(READS.len(), 52);
     }
 }

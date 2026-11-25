@@ -234,6 +234,27 @@ const READ_SERVICE_COUNT_PERSISTED: NativeStatement = NativeStatement {
     scope: "holding",
 };
 
+/// Native successors of the canonical command-receipt replay probes. Both are
+/// byte-identical point reads; the caller executes them on its own Holding unit
+/// with the same binds and takes row presence as the replay decision.
+pub const RD_PURCHASE_REPLAY: &str = "inventory_rd_purchase_replay";
+const SQL_RD_PURCHASE_REPLAY: &str = "SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?";
+const READ_PURCHASE_REPLAY: NativeStatement = NativeStatement {
+    kind: RD_PURCHASE_REPLAY,
+    sql: SQL_RD_PURCHASE_REPLAY,
+    bind_count: 5,
+    scope: "holding",
+};
+
+pub const RD_COMMAND_REPLAY: &str = "inventory_rd_command_replay";
+const SQL_RD_COMMAND_REPLAY: &str = "SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?";
+const READ_COMMAND_REPLAY: NativeStatement = NativeStatement {
+    kind: RD_COMMAND_REPLAY,
+    sql: SQL_RD_COMMAND_REPLAY,
+    bind_count: 4,
+    scope: "holding",
+};
+
 /// Native successor of the TypeScript document-posting preview `stockDeltas`
 /// array read. The owner plans this literal and the caller executes it on its
 /// own already-open unit; this crate carries no TypeScript SQL for it.
@@ -607,6 +628,8 @@ pub fn is_read(kind: &str) -> bool {
             | RD_SERVICE_INITIAL_COUNT_ROW
             | RD_COUNT_STATUS
             | RD_SERVICE_COUNT_PERSISTED
+            | RD_PURCHASE_REPLAY
+            | RD_COMMAND_REPLAY
             | RD_STOCK_COUNT_DELTAS
             | RD_ACTIVE_RESERVATIONS_TOTAL
             | RD_LEDGER_MOVEMENT_AFTER
@@ -651,6 +674,8 @@ pub fn read_statement(kind: &str) -> Option<&'static NativeStatement> {
         RD_SERVICE_INITIAL_COUNT_ROW => Some(&READ_SERVICE_INITIAL_COUNT_ROW),
         RD_COUNT_STATUS => Some(&READ_COUNT_STATUS),
         RD_SERVICE_COUNT_PERSISTED => Some(&READ_SERVICE_COUNT_PERSISTED),
+        RD_PURCHASE_REPLAY => Some(&READ_PURCHASE_REPLAY),
+        RD_COMMAND_REPLAY => Some(&READ_COMMAND_REPLAY),
         RD_STOCK_COUNT_DELTAS => Some(&READ_STOCK_COUNT_DELTAS),
         RD_ACTIVE_RESERVATIONS_TOTAL => Some(&READ_ACTIVE_RESERVATIONS_TOTAL),
         RD_LEDGER_MOVEMENT_AFTER => Some(&READ_LEDGER_MOVEMENT_AFTER),
@@ -731,6 +756,8 @@ mod tests {
             RD_SERVICE_INITIAL_COUNT_ROW,
             RD_COUNT_STATUS,
             RD_SERVICE_COUNT_PERSISTED,
+            RD_PURCHASE_REPLAY,
+            RD_COMMAND_REPLAY,
             RD_STOCK_COUNT_DELTAS,
             RD_ACTIVE_RESERVATIONS_TOTAL,
             RD_LEDGER_MOVEMENT_AFTER,
@@ -859,6 +886,26 @@ mod tests {
         assert_eq!(
             marker.sql,
             "SELECT EXISTS(SELECT 1 FROM command_receipts r WHERE r.operation='inventory.count.create' AND r.record_id=? AND (r.result_json IS NULL OR jsonb_typeof(r.result_json::jsonb)<>'object' OR jsonb_exists(r.result_json::jsonb,'_serviceInitialPhysicalStockCount'))) OR EXISTS(SELECT 1 FROM inventory_service_initial_physical_sources WHERE count_id=?) AS marked"
+        );
+    }
+
+    /// Parity witness for the canonical replay probes: both native plans are
+    /// byte-identical to the TypeScript literals, with row presence deciding
+    /// replay on the caller's already-open Holding unit.
+    #[test]
+    fn replay_probe_read_plans_match_retired_owner_statements() {
+        let purchase = read_statement(RD_PURCHASE_REPLAY).expect("read kind");
+        let command = read_statement(RD_COMMAND_REPLAY).expect("read kind");
+        assert!(is_read(RD_PURCHASE_REPLAY) && is_read(RD_COMMAND_REPLAY));
+        assert_eq!(purchase.bind_count, 5);
+        assert_eq!(command.bind_count, 4);
+        assert_eq!(
+            purchase.sql,
+            "SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?"
+        );
+        assert_eq!(
+            command.sql,
+            "SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?"
         );
     }
 

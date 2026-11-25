@@ -157,6 +157,24 @@ pub fn plan_values_statement(
     kind: &str,
     input: &NotificationStatementInput,
 ) -> Option<Result<NotificationStatement, BusinessError>> {
+    // Handover acknowledgement ids keep the caller's closed recipient list: the
+    // owner renders one placeholder per ordered bind after the fixed post/version
+    // pair, with the exact retired bytes (no caller SQL accepted).
+    if kind == "social_handover_acknowledgements" {
+        return match values_from_json(input) {
+            Ok(values) => {
+                let ids = values.len().saturating_sub(2);
+                let placeholders = std::iter::repeat("?").take(ids).collect::<Vec<_>>().join(",");
+                Some(Ok(NotificationStatement {
+                    sql: format!(
+                        "SELECT user_id FROM social_handover_acknowledgements\n    WHERE post_id=? AND post_version=? AND user_id IN ({placeholders})"
+                    ),
+                    values,
+                }))
+            }
+            Err(_) => Some(Err(invalid())),
+        };
+    }
     // The unresolved-event count keeps the caller's closed type list: the owner
     // renders exactly one placeholder per ordered bind (no caller SQL accepted).
     if kind == "inbox_unresolved_metrics" {
@@ -529,6 +547,10 @@ pub fn plan_values_statement(
         "web_push_fanout_subscriptions" => "SELECT s.*,p.* FROM push_subscriptions s JOIN push_preferences p ON p.company_id=s.company_id AND p.user_id=s.user_id WHERE p.enabled=true ORDER BY s.scan_at,s.id LIMIT 25",
         "web_push_new_deliveries" => "SELECT d.id,d.delivered_at,e.category FROM inbox_deliveries d JOIN inbox_events e ON e.id=d.event_id WHERE d.company_id=? AND d.user_id=? AND NOT erpx_field_push_source(e.source_type,e.source_id,e.company_id) AND (d.delivered_at,d.id)>(?,?) ORDER BY d.delivered_at,d.id LIMIT 50",
         "web_push_current_delivery" => "SELECT j.*,s.user_id,s.session_id,s.origin,s.inbox_path,s.sealed_subscription,p.enabled,p.work_enabled,p.mention_enabled,p.system_enabled,p.calendar_enabled,p.notice_enabled,p.quiet_start_minute,p.quiet_end_minute,d.read_at,d.archived_at,e.category FROM push_delivery_jobs j JOIN push_subscriptions s ON s.id=j.subscription_id JOIN push_preferences p ON p.company_id=s.company_id AND p.user_id=s.user_id JOIN inbox_deliveries d ON d.id=j.inbox_delivery_id JOIN inbox_events e ON e.id=d.event_id WHERE j.id=? AND j.lease_token=?",
+        // Social-post handover acknowledgement reads, byte-identical to the
+        // retired TS literals and run on the caller's own unit.
+        "social_handover_recipients" => "SELECT user_id FROM social_post_participants WHERE post_id=? AND user_id<>?",
+        "social_handover_task_origin_absent" => "AND NOT EXISTS(SELECT 1 FROM social_task_origins o WHERE o.task_id=t.id)",
         _ => return None,
     };
     Some(
@@ -809,6 +831,43 @@ mod tests {
             assert_eq!(planned.sql.matches('?').count(), values.len(), "{kind}");
             assert_eq!(planned.values.len(), values.len(), "{kind}");
         }
+
+        let recipients = ["post-1", "author-1"];
+        let planned = super::plan_values_statement(
+            "social_handover_recipients",
+            &read_input("social_handover_recipients", &recipients),
+        )
+        .expect("registered kind")
+        .expect("planned statement");
+        assert_eq!(
+            planned.sql,
+            "SELECT user_id FROM social_post_participants WHERE post_id=? AND user_id<>?"
+        );
+        assert_eq!(planned.values.len(), 2);
+
+        let absent = super::plan_values_statement(
+            "social_handover_task_origin_absent",
+            &read_input("social_handover_task_origin_absent", &[]),
+        )
+        .expect("registered kind")
+        .expect("planned statement");
+        assert_eq!(
+            absent.sql,
+            "AND NOT EXISTS(SELECT 1 FROM social_task_origins o WHERE o.task_id=t.id)"
+        );
+
+        let ids = ["post-1", "3", "user-1", "user-2"];
+        let planned = super::plan_values_statement(
+            "social_handover_acknowledgements",
+            &read_input("social_handover_acknowledgements", &ids),
+        )
+        .expect("registered kind")
+        .expect("planned statement");
+        assert_eq!(
+            planned.sql,
+            "SELECT user_id FROM social_handover_acknowledgements\n    WHERE post_id=? AND post_version=? AND user_id IN (?,?)"
+        );
+        assert_eq!(planned.values.len(), 4);
     }
 }
 

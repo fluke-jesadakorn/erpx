@@ -16,6 +16,10 @@ export const PC_PLATFORM_ASSIGNMENTS = 'pc_platform_assignments';
 export const PC_PROVIDER_CONTEXT = 'pc_provider_context';
 export const PC_WORKSPACE_PREFERENCE = 'pc_workspace_preference';
 export const PC_CONTEXT_RECEIPT = 'pc_context_receipt';
+export const PC_CONNECTION_ROUTE = 'pc_connection_route';
+export const PC_MFA_ENABLED = 'pc_mfa_enabled';
+export const PC_INVITATION_WAITING = 'pc_invitation_waiting';
+export const PC_DELIVERABLE_INVITATION = 'pc_deliverable_invitation';
 
 export type ControlReadPlan = Readonly<{ sql: string; values: readonly string[] }>;
 type PlanReader = (kind: string, values: readonly string[]) => Promise<ControlReadPlan>;
@@ -30,6 +34,10 @@ const ARITY: Readonly<Record<string, number>> = {
   [PC_PROVIDER_CONTEXT]: 1,
   [PC_WORKSPACE_PREFERENCE]: 1,
   [PC_CONTEXT_RECEIPT]: 1,
+  [PC_CONNECTION_ROUTE]: 1,
+  [PC_MFA_ENABLED]: 1,
+  [PC_INVITATION_WAITING]: 1,
+  [PC_DELIVERABLE_INVITATION]: 1,
 };
 /** Byte-oracle SHA-256 of each owner statement: a plan with unexpected bytes is rejected. */
 const PLAN_SHAS: Readonly<Record<string, string>> = {
@@ -38,6 +46,10 @@ const PLAN_SHAS: Readonly<Record<string, string>> = {
   [PC_PROVIDER_CONTEXT]: '187ae3a29228e8f2216facd5ee409aca9f7f1035d5ee554c17e412929ea0ff1d',
   [PC_WORKSPACE_PREFERENCE]: 'f14064c0ee3a3034aa871d0594e0e63ca6f889601efef5b37b65ac9009ac5469',
   [PC_CONTEXT_RECEIPT]: 'def58961eb1edadfd240c2b97b615f7421df74e86d1da5bc2bc5f49742298949',
+  [PC_CONNECTION_ROUTE]: 'e5b27b09f6631e02ba985c0f48972ac6e38a345bc71f6796d3dc19a93be61001',
+  [PC_MFA_ENABLED]: 'ed5645df6420b56f0f1338173e9ae53e3fcc203a3d7fbe165619f396255c5dea',
+  [PC_INVITATION_WAITING]: 'c5c89be91182d5cf9ee647729eb1cd2a03c9f4f72bceb7e6ce2a9b5ffadfd0e0',
+  [PC_DELIVERABLE_INVITATION]: '5ee384b180a89fa15fe0f47f624cac2d15d84bdc76802e8b48d0df897ece6686',
 };
 
 const unavailable = (code = 'IDENTITY_CONTROL_READ_UNAVAILABLE', status = 503): never => {

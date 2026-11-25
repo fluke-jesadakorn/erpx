@@ -132,7 +132,7 @@ describe('Identity access finance-refund-notice native read plan', () => {
 });
 
 describe('Identity access read-tail r30 retirement check', () => {
-  test('retirement:ts-statements is 383 after provider-context native plan cut (before 389)', () => {
+  test('retirement:ts-statements is 379 after Control-side read-plan cut (before 383)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -142,7 +142,7 @@ describe('Identity access read-tail r30 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBeLessThan(384);
-    expect(total).toBe(383);
+    expect(total).toBeLessThan(380);
+    expect(total).toBe(379);
   });
 });

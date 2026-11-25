@@ -48,11 +48,12 @@ describe('People Payroll read-tail r33 four-column and select-star family dedupe
     expect(uses('people-lifecycle.ts', 'ppRd33StarByTwoPredicates\\(')).toBe(1);
   });
 
-  test('the shared module declares each read fragment exactly once', () => {
+  test('the shared module declares its star head and delegates the id/company head', () => {
     const s = src('pp-read-tail-r33-sources.ts');
     expect((s.match(/export const /g) ?? []).length).toBe(2);
-    expect(s.includes('SELECT ${cols} FROM ${table} WHERE id=? AND company_id=?')).toBe(true);
     expect(s.includes('SELECT * FROM ${table} WHERE ${c1}=? AND ${c2}=?')).toBe(true);
+    expect(s).toContain("from './pp-read-tail-round4-sources'");
+    expect(s).toContain('ppRdRound4ByProjectionIdCompany(cols, table)');
   });
 
   test('lock-bearing and advisory reads in touched files remain untouched', () => {
@@ -77,6 +78,6 @@ describe('People Payroll read-tail r33 four-column and select-star family dedupe
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(1399);
-    expect(total).toBe(1164);
+    expect(total).toBeLessThanOrEqual(1139);
   });
 });

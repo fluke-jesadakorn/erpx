@@ -176,6 +176,28 @@ const READ_FOLLOWUP_METRIC_SOURCE: NativeSalesReadStatement = NativeSalesReadSta
     scope: "holding",
 };
 
+/// Native successor of the TypeScript salesNotificationSource read (non-production notice source: [id]).
+/// Fixed owner projections; byte-identical to the retired rendered literal.
+pub const RD_NOTIFICATION_SOURCE_DEV: &str = "sales_rd_notification_source_dev";
+const SQL_NOTIFICATION_SOURCE_DEV: &str = "SELECT n.*,delivery.department_id,delivery.order_state,delivery.company_id source_company,customer.company_id customer_company,customer.status customer_status,customer.notification_email,customer.notification_consent,settings.adapter current_adapter,TRUE release_ready,\n jsonb_build_array(n.id,n.company_id,n.branch_id,n.order_id,n.fulfillment_id,n.party_id,n.party_version,n.recipient_email,n.subject,n.body_text,n.adapter,n.created_by,n.created_at,delivery.fulfillment_id,delivery.order_id,delivery.company_id,delivery.branch_id,delivery.department_id,delivery.party_id,delivery.order_kind,customer.id,customer.company_id,customer.kind)::text image\n FROM commerce_customer_notifications n LEFT JOIN (SELECT f.id fulfillment_id,f.version fulfillment_version,o.id order_id,o.company_id,o.branch_id,o.department_id,o.kind order_kind,o.state order_state,o.currency,o.party_id FROM commerce_fulfillments f JOIN commerce_orders o ON o.id=f.order_id AND o.kind='sales') delivery ON delivery.fulfillment_id=n.fulfillment_id AND delivery.order_id=n.order_id AND delivery.company_id=n.company_id AND delivery.party_id=n.party_id\n LEFT JOIN (SELECT id,company_id,kind,version,status,notification_email,notification_consent FROM finance_parties WHERE kind='customer') customer ON customer.id=n.party_id AND customer.company_id=n.company_id\n LEFT JOIN commerce_customer_notification_settings settings ON settings.company_id=n.company_id WHERE n.id=?";
+const READ_NOTIFICATION_SOURCE_DEV: NativeSalesReadStatement = NativeSalesReadStatement {
+    kind: RD_NOTIFICATION_SOURCE_DEV,
+    sql: SQL_NOTIFICATION_SOURCE_DEV,
+    bind_count: 1,
+    scope: "holding",
+};
+
+/// Native successor of the TypeScript salesNotificationSource read (production notice source: [id]).
+/// Fixed owner projections; byte-identical to the retired rendered literal.
+pub const RD_NOTIFICATION_SOURCE_PROD: &str = "sales_rd_notification_source_prod";
+const SQL_NOTIFICATION_SOURCE_PROD: &str = "SELECT n.*,delivery.department_id,delivery.order_state,delivery.company_id source_company,customer.company_id customer_company,customer.status customer_status,customer.notification_email,customer.notification_consent,settings.adapter current_adapter,FALSE release_ready,\n jsonb_build_array(n.id,n.company_id,n.branch_id,n.order_id,n.fulfillment_id,n.party_id,n.party_version,n.recipient_email,n.subject,n.body_text,n.adapter,n.created_by,n.created_at,delivery.fulfillment_id,delivery.order_id,delivery.company_id,delivery.branch_id,delivery.department_id,delivery.party_id,delivery.order_kind,customer.id,customer.company_id,customer.kind)::text image\n FROM commerce_customer_notifications n LEFT JOIN (SELECT f.id fulfillment_id,f.version fulfillment_version,o.id order_id,o.company_id,o.branch_id,o.department_id,o.kind order_kind,o.state order_state,o.currency,o.party_id FROM commerce_fulfillments f JOIN commerce_orders o ON o.id=f.order_id AND o.kind='sales') delivery ON delivery.fulfillment_id=n.fulfillment_id AND delivery.order_id=n.order_id AND delivery.company_id=n.company_id AND delivery.party_id=n.party_id\n LEFT JOIN (SELECT id,company_id,kind,version,status,notification_email,notification_consent FROM finance_parties WHERE kind='customer') customer ON customer.id=n.party_id AND customer.company_id=n.company_id\n LEFT JOIN commerce_customer_notification_settings settings ON settings.company_id=n.company_id WHERE n.id=?";
+const READ_NOTIFICATION_SOURCE_PROD: NativeSalesReadStatement = NativeSalesReadStatement {
+    kind: RD_NOTIFICATION_SOURCE_PROD,
+    sql: SQL_NOTIFICATION_SOURCE_PROD,
+    bind_count: 1,
+    scope: "holding",
+};
+
 const READS: &[NativeSalesReadStatement] = &[
     READ_PRICE_LIST_ACTIVE,
     READ_PRICE_LIST_ITEMS_ACTIVE,
@@ -191,6 +213,9 @@ const READS: &[NativeSalesReadStatement] = &[
 
     READ_FOLLOWUP_METRIC_SELECT,
     READ_FOLLOWUP_METRIC_SOURCE,
+
+    READ_NOTIFICATION_SOURCE_DEV,
+    READ_NOTIFICATION_SOURCE_PROD,
 
 ];
 
@@ -416,8 +441,32 @@ mod tests {
     }
 
     #[test]
+    fn notification_source_dev_read_is_allow_listed_and_byte_stable() {
+        let read = read_statement(RD_NOTIFICATION_SOURCE_DEV).expect("read kind");
+        assert_eq!(read.kind, "sales_rd_notification_source_dev");
+        assert_eq!(read.bind_count, 1);
+        assert_eq!(read.sql.matches('?').count(), 1);
+        assert_eq!(read.sql.len(), 1438);
+        assert!(read.sql.starts_with("SELECT n.*,delivery.department_id"));
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_NOTIFICATION_SOURCE_DEV));
+    }
+
+    #[test]
+    fn notification_source_prod_read_is_allow_listed_and_byte_stable() {
+        let read = read_statement(RD_NOTIFICATION_SOURCE_PROD).expect("read kind");
+        assert_eq!(read.kind, "sales_rd_notification_source_prod");
+        assert_eq!(read.bind_count, 1);
+        assert_eq!(read.sql.matches('?').count(), 1);
+        assert_eq!(read.sql.len(), 1439);
+        assert!(read.sql.starts_with("SELECT n.*,delivery.department_id"));
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_NOTIFICATION_SOURCE_PROD));
+    }
+
+    #[test]
     fn only_owner_read_kinds_are_registered() {
-        assert_eq!(READS.len(), 13);
+        assert_eq!(READS.len(), 15);
         assert!(READS.iter().all(|read| is_read(read.kind)));
         assert!(!is_read("sales_price_lists"));
         assert!(!is_read("SELECT 1"));

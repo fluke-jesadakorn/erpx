@@ -146,9 +146,11 @@ pub mod native_read_plan {
 /// statement the caller executes on its own Control unit.
 pub mod control_read_plan {
     pub use crate::adapters::control_read_plan::{
-        ControlReadPlan, ControlReadTarget, PC_CONTEXT_RECEIPT, PC_PLATFORM_ASSIGNMENTS,
+        ControlReadPlan, ControlReadTarget, PC_CONTEXT_RECEIPT, PC_CONNECTION_ROUTE,
+        PC_DELIVERABLE_INVITATION, PC_INVITATION_WAITING, PC_MFA_ENABLED, PC_PLATFORM_ASSIGNMENTS,
         PC_PROVIDER_CONTEXT, PC_REVOKED_SESSION, PC_WORKSPACE_PREFERENCE, plan,
-        router_for_holdings, SQL_CONTEXT_RECEIPT, SQL_PLATFORM_ASSIGNMENTS, SQL_PROVIDER_CONTEXT,
+        router_for_holdings, SQL_CONTEXT_RECEIPT, SQL_CONNECTION_ROUTE, SQL_DELIVERABLE_INVITATION,
+        SQL_INVITATION_WAITING, SQL_MFA_ENABLED, SQL_PLATFORM_ASSIGNMENTS, SQL_PROVIDER_CONTEXT,
         SQL_REVOKED_SESSION, SQL_WORKSPACE_PREFERENCE,
     };
 }

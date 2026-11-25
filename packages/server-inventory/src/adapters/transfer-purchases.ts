@@ -1,6 +1,6 @@
 import "server-only";
 import {scopedFieldSql,scopeAllowedSql,transferDetailHeadSql} from './read-tail-sql';
-import {inventoryPurchaseReplaySql} from "./inventory-read-projections";
+import {purchaseReplayExists} from './native-replay-probe';
 import {randomUUID} from "node:crypto";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import type {FlowView} from "@erpx/feature-shared/lib/flow";
@@ -69,8 +69,7 @@ export async function withTransferPurchasedCommand<Result>(owner:SqlDatabase,act
  if(!isTransactionalSqlDatabase(owner))throw new ApiError(503,"TRANSFER_TRANSACTION_REQUIRED","Warehouse movement requires the original owned Holding transaction.");
  try{return await owner.transaction(async database=>{
   await database.batch(companyPurchaseReadLocks(database,actor.companyId));
-  const replay=await database.prepare(inventoryPurchaseReplaySql)
-   .bind(command.key,command.operation,command.target.id,actor.userId,actor.companyId).first();
+  const replay=await purchaseReplayExists(database,command.key,command.operation,command.target.id,actor.userId,actor.companyId);
   const before=command.existing||replay?await source(database,actor,command.target):null;
   const flow=command.flowStep?await database.prepare(scopedFieldSql('status','inventory_transfers','id','company_id')).bind(command.target.id,actor.companyId).first<{status:string}>():null;
   const flowNew=command.flowStep&&(command.saveDefault||["draft","rejected"].includes(flow?.status??"")||command.flowStep==="draft");

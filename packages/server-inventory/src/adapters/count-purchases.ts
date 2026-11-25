@@ -6,7 +6,7 @@ import "server-only";
 import {scopeAllowedSql} from './read-tail-sql';
 import {initialPhysicalStockCountMarked,initialPhysicalStockCapabilities,requireInitialPhysicalStockHistory,withInitialPhysicalStockCountUnit} from "@erpx/server-inventory/adapters/initial-physical-stock-count-source";
 import {qualityDisposalCountSource} from "@erpx/server-inventory/adapters/quality-count-purchases";
-import {inventoryPurchaseReplaySql} from "@erpx/server-inventory/adapters/inventory-read-projections";
+import {purchaseReplayExists} from './native-replay-probe';
 import {countStatus} from './native-count-status';
 import {qualityPurchaseSourceReadLocks} from "@erpx/server-quality/public/purchase-sources";
 import {randomUUID} from "node:crypto";
@@ -101,8 +101,7 @@ export async function withCountPurchasedCommand<Result>(owner:SqlDatabase,actor:
  try{return await owner.transaction(async database=>{
   const purchaseLocks=companyPurchaseReadLocks(database,actor.companyId);
   await database.batch(command.existing?[purchaseLocks[0],...qualityPurchaseSourceReadLocks(database),...purchaseLocks.slice(1)]:purchaseLocks);
-  const replay=await database.prepare(inventoryPurchaseReplaySql)
-   .bind(command.key,command.operation,command.id,actor.userId,actor.companyId).first();
+  const replay=await purchaseReplayExists(database,command.key,command.operation,command.id,actor.userId,actor.companyId);
   const before=command.existing||replay?await source(database,actor,command.id):null;
   const flow=command.flowStep?await countStatus(database,command.id,actor.companyId):null;
   const flowNewWork=command.flowStep&&(command.saveDefault||["draft","rejected"].includes(flow?.status??"")||command.flowStep==="draft");

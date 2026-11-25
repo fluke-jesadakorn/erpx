@@ -4,12 +4,19 @@ import "server-only";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {nativeOwnerWriteSystemUnscoped} from "@erpx/server-collaboration/adapters/native-owner-write";
 import {socialPostDraftById} from './read-tail-sql';
-import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
+import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
+import { nativeSystemNotificationStatement } from './native-system-notification';
+import { nativeInboxSqlFragment } from './native-inbox-statements';
+/** Owner-planned read: no SQL text from the caller, executed on its own unit. */
+const ownerRead = (db: SqlDatabase, company: string, kind: string, values: unknown[]): Promise<SqlStatement> =>
+    nativeSystemNotificationStatement(db, company,
+        { userId: '', recordType: '', recordId: '', recordVersion: 0, message: '', kind, values_json: JSON.stringify(values) }, '', 0);
 export function HandoverCollaborationFacts(database: SqlDatabase) {
-    return { readHandoverViewVersions(companyId: string, ids: string[]) {
+    return { async readHandoverViewVersions(companyId: string, ids: string[]) {
+            const originAbsent = await nativeInboxSqlFragment(companyId, 'social_handover_task_origin_absent');
             return database.prepare(`SELECT t.id,t.version ${operationsSources.operations_handover_facts_staff_tasks_t_from}
     WHERE t.company_id=? AND t.id IN (${ids.map(() => "?").join(",")})
-    AND NOT EXISTS(SELECT 1 FROM social_task_origins o WHERE o.task_id=t.id)`)
+    ${originAbsent}`)
                 .bind(companyId, ...ids).all<{
                 id: string;
                 version: number;
@@ -24,16 +31,13 @@ export function HandoverCollaborationFacts(database: SqlDatabase) {
                 published_post_id: string | null;
             }>();
         },
-        readHandoverAcknowledgementRecipients(postId: string, author_id: string) {
-            return database.prepare(`SELECT user_id FROM social_post_participants WHERE post_id=? AND user_id<>?`)
-                .bind(postId, author_id).all<{
+        async readHandoverAcknowledgementRecipients(postId: string, author_id: string) {
+            return (await ownerRead(database, 'system', 'social_handover_recipients', [postId, author_id])).all<{
                 user_id: string;
             }>();
         },
-        readHandoverAcknowledgementAcknowledgements(postId: string, version: number, ids: string[]) {
-            return database.prepare(`SELECT user_id FROM social_handover_acknowledgements
-    WHERE post_id=? AND post_version=? AND user_id IN (${ids.map(() => "?").join(",")})`)
-                .bind(postId, version, ...ids).all<{
+        async readHandoverAcknowledgementAcknowledgements(postId: string, version: number, ids: string[]) {
+            return (await ownerRead(database, 'system', 'social_handover_acknowledgements', [postId, version, ...ids])).all<{
                 user_id: string;
             }>();
         },

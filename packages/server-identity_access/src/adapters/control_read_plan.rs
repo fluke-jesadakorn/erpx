@@ -18,6 +18,10 @@ pub const PC_PLATFORM_ASSIGNMENTS: &str = "pc_platform_assignments";
 pub const PC_PROVIDER_CONTEXT: &str = "pc_provider_context";
 pub const PC_WORKSPACE_PREFERENCE: &str = "pc_workspace_preference";
 pub const PC_CONTEXT_RECEIPT: &str = "pc_context_receipt";
+pub const PC_CONNECTION_ROUTE: &str = "pc_connection_route";
+pub const PC_MFA_ENABLED: &str = "pc_mfa_enabled";
+pub const PC_INVITATION_WAITING: &str = "pc_invitation_waiting";
+pub const PC_DELIVERABLE_INVITATION: &str = "pc_deliverable_invitation";
 
 /// Byte-identical successors of the five TypeScript statements pinned in
 /// `tests/unit/identity_access/read-tail-r36-dedupe.test.ts`. `?` markers are
@@ -32,6 +36,13 @@ pub const SQL_WORKSPACE_PREFERENCE: &str =
     "SELECT platform_assignment_id FROM account_workspace_preferences WHERE user_id=?";
 pub const SQL_CONTEXT_RECEIPT: &str =
     "SELECT company_id,actor_id,request_hash,result FROM iam_receipts WHERE id=?";
+pub const SQL_CONNECTION_ROUTE: &str =
+    "SELECT * FROM iam_connection_routes WHERE connection_id=?";
+pub const SQL_MFA_ENABLED: &str = "SELECT enabled FROM iam_mfa WHERE user_id=?";
+pub const SQL_INVITATION_WAITING: &str =
+    "SELECT id,invitation_id FROM account_invitation_delivery_jobs WHERE holding_id=? AND state='awaiting_approval' ORDER BY created_at LIMIT 100";
+pub const SQL_DELIVERABLE_INVITATION: &str =
+    "SELECT email,name,status,expires_at FROM account_invitations WHERE id=?";
 
 const BODY_LIMIT: usize = 8 * 1024;
 const ORIGIN_HEADER: HeaderName = HeaderName::from_static("origin");
@@ -60,6 +71,10 @@ pub fn plan(kind: &str, values: &[Value]) -> Result<ControlReadPlan, BusinessErr
         PC_PROVIDER_CONTEXT => (SQL_PROVIDER_CONTEXT, 1),
         PC_WORKSPACE_PREFERENCE => (SQL_WORKSPACE_PREFERENCE, 1),
         PC_CONTEXT_RECEIPT => (SQL_CONTEXT_RECEIPT, 1),
+        PC_CONNECTION_ROUTE => (SQL_CONNECTION_ROUTE, 1),
+        PC_MFA_ENABLED => (SQL_MFA_ENABLED, 1),
+        PC_INVITATION_WAITING => (SQL_INVITATION_WAITING, 1),
+        PC_DELIVERABLE_INVITATION => (SQL_DELIVERABLE_INVITATION, 1),
         _ => return Err(invalid()),
     };
     if values.len() != expected || !values.iter().all(Value::is_string) {
@@ -241,6 +256,10 @@ mod tests {
             (PC_PROVIDER_CONTEXT, SQL_PROVIDER_CONTEXT, 1),
             (PC_WORKSPACE_PREFERENCE, SQL_WORKSPACE_PREFERENCE, 1),
             (PC_CONTEXT_RECEIPT, SQL_CONTEXT_RECEIPT, 1),
+            (PC_CONNECTION_ROUTE, SQL_CONNECTION_ROUTE, 1),
+            (PC_MFA_ENABLED, SQL_MFA_ENABLED, 1),
+            (PC_INVITATION_WAITING, SQL_INVITATION_WAITING, 1),
+            (PC_DELIVERABLE_INVITATION, SQL_DELIVERABLE_INVITATION, 1),
         ] {
             let values = vec![Value::from("v"); count];
             let planned = plan(kind, &values).unwrap();

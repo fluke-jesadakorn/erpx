@@ -94,10 +94,10 @@ describe('pms read-tail r54 owner-local booking-payment head dedupe', () => {
     expect(await src('adapters/feature-availability.ts')).toContain('FOR SHARE');
     expect(await src('adapters/attachment-read-sources.ts')).toContain('LOCK TABLE');
     const rust = await src('adapters/native_read_sql.rs');
-    expect((rust.match(/^pub const PMS_RD_/gm) ?? []).length).toBe(45);
+    expect((rust.match(/^pub const PMS_RD_/gm) ?? []).length).toBe(49);
     expect(rust).toContain('const SQL_STAY_COMMAND: &str = "WITH scope AS (');
     const bridge = await src('adapters/native-pms-read.ts');
-    expect((bridge.match(/^export const PMS_RD_/gm) ?? []).length).toBe(45);
+    expect((bridge.match(/^export const PMS_RD_/gm) ?? []).length).toBe(49);
     // The pms_properties family has cross-owner consumers and stays inline (r53 deferred it).
     expect(await src('adapters/pms-read-tail-r20-sql.ts')).toContain('export const PMS_PROPERTIES_PROJECTION_SQL = "SELECT');
     expect(await src(R29)).toContain('export const PMS_PROPERTIES_TEN_COL_JOIN_SQL = "JOIN (SELECT');
@@ -113,8 +113,8 @@ describe('pms read-tail r54 owner-local booking-payment head dedupe', () => {
       spaced += count(text, 'SELECT ');
       bare += count(text, 'SELECT');
     }
-    expect(spaced).toBe(224);
-    expect(bare).toBe(225);
+    expect(spaced).toBe(222);
+    expect(bare).toBe(223);
     expect(spaced).toBeLessThan(245);
     expect(bare).toBeLessThan(247);
   });

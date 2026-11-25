@@ -114,6 +114,13 @@ export const PMS_RD_BOOKING_PROPERTY_SCOPE = 'pms_rd_booking_property_scope';
 export const PMS_RD_BOOKING_PROPERTY_SCOPE_BRANCH = 'pms_rd_booking_property_scope_branch';
 export const PMS_RD_BOOKING_RECORDS = 'pms_rd_booking_records';
 export const PMS_RD_BOOKING_RECORDS_SEARCH = 'pms_rd_booking_records_search';
+/** Native successors of the owner-local `pms.ts` guest-account sum and
+ * charge-correction reads (with the closed front-mode variant). Fixed SQL with
+ * one/three and two positional binds, no ledger/receipt/outbox and no
+ * lock/refund path; the caller runs them on its already-open unit. */
+export const PMS_RD_GUEST_ACCOUNT_SUMS = 'pms_rd_guest_account_sums';
+export const PMS_RD_CHARGE_CORRECTIONS = 'pms_rd_charge_corrections';
+export const PMS_RD_CHARGE_CORRECTIONS_FRONT = 'pms_rd_charge_corrections_front';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'PMS_NATIVE_READ_UNAVAILABLE', 'The native PMS read service is unavailable.');

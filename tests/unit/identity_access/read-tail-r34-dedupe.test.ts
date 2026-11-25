@@ -168,7 +168,7 @@ describe('Identity access read-tail r34 wiring', () => {
     const pins: [string, string][] = [
       ['adapters/read-tail-family-r34.ts', '95e25ead2dac0a1832535f73794691036025e14748f1c17ac342c9620b3750be'],
       ['adapters/workflow-role-facts.ts', 'be93ded1066a437cdc5f3f6e5158f318599e9ad86bfa018bd51424c4fffaddc9'],
-      ['adapters/iam-service-reads.ts', '827028c5fd81c99c1768f7854e8b11a02f9efe5456ded0bded1412944d76495c'],
+      ['adapters/iam-service-reads.ts', '114a4bdcc9f9241f1df145fe9eec808c405bc3981af41e0423d6e04063f7113f'],
       ['adapters/iam-store.ts', '827ec154f6723367e4974fa0e58fbf86843b779fd68166a6c8897b8a48c3c1fd'],
       ['adapters/queued-social-source-authority.ts', 'a5379950fb6735056405839f43758dd14235fc8da7402097cb120e780a77663e'],
       ['adapters/executive-authority-source.ts', 'd6526a6b37bdcaa1b17eb55e319bf936b5431d46e8ebaa8b142adcc57baa6170'],
@@ -180,7 +180,7 @@ describe('Identity access read-tail r34 wiring', () => {
 });
 
 describe('Identity access read-tail r34 retirement check', () => {
-  test('retirement:ts-statements is 383 after provider-context native plan cut', () => {
+  test('retirement:ts-statements is 379 after Control-side read-plan cut', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -191,6 +191,6 @@ describe('Identity access read-tail r34 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(468);
-    expect(total).toBe(383);
+    expect(total).toBe(379);
   });
 });

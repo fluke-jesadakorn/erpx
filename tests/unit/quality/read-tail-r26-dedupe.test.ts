@@ -168,6 +168,9 @@ describe('quality read-tail r26 evidence-head family (R)', () => {
     const calendar = read('adapters/calendar-quality-facts.ts');
     expect(calendar).toContain("import {qualityClockCte,scopeSql} from \"@erpx/server-quality/adapters/quality-scope-sql\";");
     expect(calendar).toContain("IN ${scopeSql('jsonb_array_elements_text(?::jsonb)')}");
+    expect(calendar).toContain('EXISTS${scopeSql(`1 FROM (${qualityPurchaseSourceRows}) quality_calendar_source');
+    expect(calendar).not.toContain('EXISTS(SELECT 1 FROM (${qualityPurchaseSourceRows})');
+    expect(calendar).toContain('EXISTS${scopeSql(`1 FROM ${qualityWorkScopeTuple(');
     expect(read('adapters/executive-metric-projections.ts')).toContain('qualityBranchDisplayLabelSql');
     expect(read('adapters/customer_return_hold_statement.rs')).toContain('customer_return_hold_statements');
     const counts: Record<string, number> = {
@@ -199,6 +202,6 @@ describe('quality read-tail r26 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(57);
-    expect(total).toBe(15);
+    expect(total).toBe(12);
   });
 });

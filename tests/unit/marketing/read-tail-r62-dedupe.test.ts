@@ -39,7 +39,7 @@ describe('marketing read-tail r62 form-asset head cutover', () => {
     expect(await src('purchases.ts')).toContain("formAssetReadHead({kind:'form-row'})");
   });
 
-  it('retirement:ts-statements is BEFORE=8 -> AFTER=7', async () => {
-    expect(await selectTokens()).toBe(7);
+  it('retirement:ts-statements stays strictly below BEFORE=8 at 6 after r63', async () => {
+    expect(await selectTokens()).toBe(6);
   });
 });

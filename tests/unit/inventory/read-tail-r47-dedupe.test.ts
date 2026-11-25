@@ -5,10 +5,8 @@ import { resolve } from 'node:path';
 import {
   reservationsCteHeadSql,
   markedCountExistsSql,
-  replayProbePrefixSql,
   reservedWarehouseProductQtySql,
 } from '../../../packages/server-inventory/src/adapters/read-tail-sql';
-import { inventoryPurchaseReplaySql, inventoryCommandReplaySql } from '../../../packages/server-inventory/src/adapters/inventory-read-projections';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-inventory/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, name), 'utf8');
@@ -41,7 +39,6 @@ const TAIL_EVIDENCE_SHA = 'c700727f5d1ca681f441a3b5dd6ca3b6fe5dc1c28d433331e54f5
 const MARKED_MFG_SHA = '33a65d51ee5a65e1e7ffb5f7ceda9caa67b0a8a1dafba838255303759d667ce0';
 const MARKED_POS_SHA = '5929d7b5b9c20b4bf6abbc122bcec5253f5fe7081c5eff0610ca05a79a0d5823';
 const MARKED_RENDERED_SHA = '4dd0f231652956c7e3a1fe8179318e15d8f453ccfa6d4e97f0fd4f7b2e3692d2';
-const REPLAY_PREFIX_SHA = '0d3af8196e3cd76ddf478b2fdd254f5403670ef84295564111360b4ad5a6adc3';
 const PURCHASE_REPLAY_SHA = '58c5e07caec8ad8d4cd9f965735c4d6a0e425dd60f57532d5984cc5362e8f27f';
 const COMMAND_REPLAY_SHA = '7fd7a3cfb5c80b2423873745a84487b3021f64f4651a879334a49b1135561c7d';
 
@@ -102,23 +99,15 @@ describe('Inventory read-tail r47 dedupe', () => {
     expect(pos).toContain('.bind(input.companyId).all()).results');
   });
 
-  test('f3: Rank3 replay probe prefix preserves the record_id distinction and bind order', () => {
-    expect(replayProbePrefixSql).toBe('SELECT 1 FROM command_receipts WHERE command_id=? AND operation=?');
-    expect(sha(replayProbePrefixSql)).toBe(REPLAY_PREFIX_SHA);
-    expect(selectCount(replayProbePrefixSql)).toBe(1);
-    expect(replayProbePrefixSql).not.toMatch(lockRe);
-    // Rendered probes stay byte-identical to HEAD: only the literal source is shared.
-    expect(sha(inventoryPurchaseReplaySql)).toBe(PURCHASE_REPLAY_SHA);
-    expect(sha(inventoryCommandReplaySql)).toBe(COMMAND_REPLAY_SHA);
-    expect(inventoryPurchaseReplaySql).toBe(`${replayProbePrefixSql} AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?`);
-    expect(inventoryCommandReplaySql).toBe(`${replayProbePrefixSql} AND actor_id=? AND authority_json::jsonb->>'companyId'=?`);
-    expect(inventoryPurchaseReplaySql).toContain(' AND record_id=? AND actor_id=?');
-    expect(inventoryCommandReplaySql).not.toContain('record_id');
-
-    const ir = adapter('inventory-read-projections.ts');
-    expect(ir.split('${replayProbePrefixSql}').length - 1).toBe(2);
-    expect(ir).not.toContain('= "SELECT 1 FROM command_receipts WHERE command_id=? AND operation=?');
-    expect(ir).toContain("import {activeQualityHoldExistsSql,replayProbePrefixSql} from './read-tail-sql'");
+  test('f3: replay probes moved to the native registry byte-identically', () => {
+    // The two rendered probes stay byte-identical to HEAD; only their owner moved.
+    expect(sha("SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?")).toBe(PURCHASE_REPLAY_SHA);
+    expect(sha("SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?")).toBe(COMMAND_REPLAY_SHA);
+    const rust = src('adapters/native_command_sql.rs');
+    expect(rust).toContain('pub const RD_PURCHASE_REPLAY: &str = "inventory_rd_purchase_replay";');
+    expect(rust).toContain('pub const RD_COMMAND_REPLAY: &str = "inventory_rd_command_replay";');
+    expect(adapter('inventory-read-projections.ts')).not.toContain('SELECT 1 FROM command_receipts');
+    expect(adapter('read-tail-sql.ts')).not.toContain('export const replayProbePrefixSql');
   });
 
   test('f4: r11-r46 helpers, locks, count sources/adapters and native registry stay untouched', () => {
@@ -142,7 +131,7 @@ describe('Inventory read-tail r47 dedupe', () => {
       'transitEventQuantitySumSql', 'inList', 'schemaReadySql', 'posInitialPhysicalSchemaReadySql',
       'mfgInitialPhysicalSchemaReadySql',
     ]) expect(shared, helper).toContain(`export const ${helper}`);
-    for (const helper of ['reservationsCteHeadSql', 'markedCountExistsSql', 'replayProbePrefixSql'])
+    for (const helper of ['reservationsCteHeadSql', 'markedCountExistsSql'])
       expect(shared.split(`export const ${helper}`).length - 1).toBe(1);
     expect(shared).not.toMatch(lockRe);
     expect(src('adapters/manufacturing-package-obligations.ts')).toContain('LOCK TABLE command_receipts,inventory_count_lot_lines');
@@ -176,7 +165,9 @@ describe('Inventory read-tail r47 dedupe', () => {
     // r52 retires 1 landed-cost detail-lines read: 303 -> 302.
     // r53 folds 3 byte-identical count-list projection heads into one helper: 302 -> 300.
     // r54 folds 3 package-obligation stock heads into one kind-parameterized renderer: 300 -> 298.
-    expect(total).toBe(284);
+    // Later owner-native cutovers retire the remaining literal reads; this
+    // slice moves the two command-receipt replay probes to the native registry.
+    expect(total).toBe(277);
     expect(total).toBeLessThan(299);
   });
 });

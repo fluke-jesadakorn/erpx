@@ -280,8 +280,47 @@ describe('Identity access provider-context native plan cutover', () => {
   });
 });
 
+describe('Identity access Control-side read-plan family', () => {
+  const SQLS = [
+    'SELECT * FROM iam_connection_routes WHERE connection_id=?',
+    'SELECT enabled FROM iam_mfa WHERE user_id=?',
+    "SELECT id,invitation_id FROM account_invitation_delivery_jobs WHERE holding_id=? AND state='awaiting_approval' ORDER BY created_at LIMIT 100",
+    'SELECT email,name,status,expires_at FROM account_invitations WHERE id=?',
+  ] as const;
+  const SHAS = [
+    'e5b27b09f6631e02ba985c0f48972ac6e38a345bc71f6796d3dc19a93be61001',
+    'ed5645df6420b56f0f1338173e9ae53e3fcc203a3d7fbe165619f396255c5dea',
+    'c5c89be91182d5cf9ee647729eb1cd2a03c9f4f72bceb7e6ce2a9b5ffadfd0e0',
+    '5ee384b180a89fa15fe0f47f624cac2d15d84bdc76802e8b48d0df897ece6686',
+  ] as const;
+
+  test('the four Control statements are deleted from TS and pinned by the owner', () => {
+    const port = read('adapters/control_read_plan.rs');
+    const client = read('adapters/native-control-read-plan.ts');
+    for (let index = 0; index < SQLS.length; index++) {
+      expect(sha256(SQLS[index]), SHAS[index]).toBe(SHAS[index]);
+      expect(port, SHAS[index]).toContain(SQLS[index].replace(/"/g, '\\"'));
+      expect(client, SHAS[index]).toContain(SHAS[index]);
+    }
+    const files = [
+      'adapters/directory-lookup.ts',
+      'adapters/iam-service-reads.ts',
+      'adapters/invitation-delivery.ts',
+    ];
+    files.forEach((file) => {
+      const source = read(file);
+      expect(source, file).toContain('planIdentityControlRead');
+      SQLS.forEach((sql) => expect(source, sql).not.toContain(sql));
+    });
+    expect(read('adapters/directory-lookup.ts')).toContain('PC_CONNECTION_ROUTE');
+    expect(read('adapters/iam-service-reads.ts')).toContain('PC_MFA_ENABLED');
+    expect(read('adapters/invitation-delivery.ts')).toContain('PC_INVITATION_WAITING');
+    expect(read('adapters/invitation-delivery.ts')).toContain('PC_DELIVERABLE_INVITATION');
+  });
+});
+
 describe('Identity access read-tail r36 retirement check', () => {
-  test('retirement:ts-statements is 383 after provider-context native plan cut', () => {
+  test('retirement:ts-statements is 379 after Control-side read-plan cut', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -292,6 +331,6 @@ describe('Identity access read-tail r36 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(454);
-    expect(total).toBe(383);
+    expect(total).toBe(379);
   });
 });

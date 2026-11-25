@@ -3,6 +3,13 @@ import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 import { legalFeatureSearchSql } from '../../../packages/server-legal/src/adapters/legal-read-tail-r42-sources';
+import { legalItemSelectSql } from '../../../packages/server-legal/src/adapters/legal-read-tail-r16-sources';
+import featureContract from '../../../packages/server-legal/src/adapters/legal-read-tail-r42-sources.json' with {
+  type: 'json',
+};
+import itemContract from '../../../packages/server-legal/src/adapters/legal-read-tail-r16-sources.json' with {
+  type: 'json',
+};
 
 const srcRoot = resolve(__dirname, '../../../packages/server-legal/src');
 const src = (name: string) => readFile(new URL(`../../../packages/server-legal/src/adapters/${name}`, import.meta.url), 'utf8');
@@ -31,6 +38,11 @@ const members = [
 describe('legal read-tail r42 parameterized feature-search head family', () => {
   it('renders byte-identical SQL for every member', () => {
     for (const m of members) expect(legalFeatureSearchSql(m.projection, TABLE) + m.tail).toBe(m.oracle);
+    expect(legalFeatureSearchSql('$&', 'legal_$1')).toBe(
+      "SELECT $& FROM legal_$1 WHERE item_id=? AND (?='' OR strpos(lower(title||' '||data::text),lower(?))>0)",
+    );
+    expect(legalItemSelectSql).toBe('SELECT i.* FROM legal_items i WHERE ');
+    expect(legalItemSelectSql.endsWith(' ')).toBe(true);
   });
 
   it('keeps the head read-only (no writes or row locks)', () => {
@@ -47,6 +59,29 @@ describe('legal read-tail r42 parameterized feature-search head family', () => {
     expect(text.match(/legalFeatureSearchSql\(/g) ?? []).toHaveLength(2);
     expect(text).not.toContain(`FROM \${featureSpecs[facts.capability].table} ${WHERE}`);
     for (const m of members) expect(text).toContain(m.call);
+  });
+
+  it('keeps both heads in their native owner contracts and out of TypeScript', async () => {
+    const [r16, r42, rust16, rust42] = await Promise.all([
+      src('legal-read-tail-r16-sources.ts'),
+      src('legal-read-tail-r42-sources.ts'),
+      src('legal_read_tail_r16.rs'),
+      src('legal_read_tail_r42.rs'),
+    ]);
+    expect(r16.match(/SELECT /g) ?? []).toHaveLength(0);
+    expect(r42.match(/SELECT /g) ?? []).toHaveLength(0);
+    expect(r16).toContain('legal-read-tail-r16-sources.json');
+    expect(r42).toContain('legal-read-tail-r42-sources.json');
+    expect(itemContract).toEqual({ itemSelect: 'SELECT i.* FROM legal_items i WHERE ' });
+    expect(featureContract).toEqual({
+      featureSearch:
+        "SELECT {projection} FROM {table} WHERE item_id=? AND (?='' OR strpos(lower(title||' '||data::text),lower(?))>0)",
+    });
+    expect(rust16).toContain('include_str!("legal-read-tail-r16-sources.json")');
+    expect(rust16).toContain('532f4f3fb14cd17c7c4c3a02ec7c118c21888aa4bb65795cedf6a734d1440ac7');
+    expect(rust42).toContain('include_str!("legal-read-tail-r42-sources.json")');
+    expect(rust42).toContain('render_legal_feature_search');
+    expect(rust42).toContain('d06959eeb15ff385058b086a2c284c22e64d1119c77664f019763c014773d500');
   });
 
   it('leaves the corpus/citation/lock-bearing reads intact', async () => {
@@ -104,5 +139,19 @@ describe('legal read-tail r42 parameterized feature-search head family', () => {
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(217);
+  });
+
+  it('retirement:ts-statements is BEFORE=101 -> AFTER=99 for the r16/r42 native contracts', async () => {
+    let total = 0;
+    const walk = async (dir: string) => {
+      for (const entry of await readdir(dir, { withFileTypes: true })) {
+        const p = resolve(dir, entry.name);
+        if (entry.isDirectory()) await walk(p);
+        else if (entry.name.endsWith('.ts')) total += ((await readFile(p, 'utf8')).match(/SELECT /g) ?? []).length;
+      }
+    };
+    await walk(srcRoot);
+    expect(total).toBeLessThan(101);
+    expect(total).toBe(99);
   });
 });

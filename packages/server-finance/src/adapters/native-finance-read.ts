@@ -78,6 +78,14 @@ export const FINANCE_RD_WITHHOLDING_APPROVED_ASSESSMENT = 'finance_rd_withholdin
 export const FINANCE_RD_WITHHOLDING_CONSUMED_ASSESSMENT = 'finance_rd_withholding_consumed_assessment';
 export const FINANCE_RD_WITHHOLDING_PAYMENT_DOCUMENTS = 'finance_rd_withholding_payment_documents';
 export const FINANCE_RD_WITHHOLDING_WORKSPACE_IDENTITIES = 'finance_rd_withholding_workspace_identities';
+export const FINANCE_RD_WITHHOLDING_REMIT_PACKAGE = 'finance_rd_withholding_remit_package';
+export const FINANCE_RD_WITHHOLDING_REMIT_DOCUMENT = 'finance_rd_withholding_remit_document';
+export const FINANCE_RD_WITHHOLDING_REMIT_JOURNAL_VALUE = 'finance_rd_withholding_remit_journal_value';
+export const FINANCE_RD_WITHHOLDING_REMIT_BANK_TXN = 'finance_rd_withholding_remit_bank_txn';
+export const FINANCE_RD_WITHHOLDING_REMIT_PACKAGE_EDITION = 'finance_rd_withholding_remit_package_edition';
+export const FINANCE_RD_WITHHOLDING_REMIT_ROW = 'finance_rd_withholding_remit_row';
+export const FINANCE_RD_WITHHOLDING_REMIT_PACKAGE_LIST = 'finance_rd_withholding_remit_package_list';
+export const FINANCE_RD_WITHHOLDING_REMIT_BANK_CANDIDATES = 'finance_rd_withholding_remit_bank_candidates';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'FINANCE_NATIVE_READ_UNAVAILABLE', 'The native Finance read service is unavailable.');
