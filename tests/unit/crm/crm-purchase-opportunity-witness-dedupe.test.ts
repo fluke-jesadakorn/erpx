@@ -112,7 +112,7 @@ describe('crm purchase opportunity witness read family', () => {
     const clock = ' AS MATERIALIZED(SELECT ${packageClockSql} now_ms)';
     const scope = 'WITH scope AS(SELECT ?::text company_id),';
     const opportunity = 'SELECT 1 FROM (${crmPurchaseOpportunityRows}) opportunity WHERE ';
-    expect(purchases.split('export const crmClockCteSql=`' + clock + '`;').length - 1).toBe(1);
+    expect(purchases.split('export const crmClockCteSql=` ${crmMaterializedScopeSql(`${packageClockSql} now_ms`)}`;').length - 1).toBe(1);
     expect(purchases.split('export const crmObligationScopeSql=`' + scope + '`;').length - 1).toBe(1);
     expect(crmSalesOpportunitySql('1', '(OPPORTUNITY_ROWS) opportunity', '')).toBe('SELECT 1 FROM (OPPORTUNITY_ROWS) opportunity WHERE ');
     expect(purchases).toContain("export const crmOpportunityExistsSql=crmSalesOpportunitySql('1',`(${crmPurchaseOpportunityRows}) opportunity`,'');");

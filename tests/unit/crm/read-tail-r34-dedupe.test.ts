@@ -41,7 +41,7 @@ describe('crm read-tail r34 byte-identical owned-source row-head family', () => 
   test('owns the head renderer once and composes it at all four retired call sites', () => {
     const helper = src('read-tail-r34-sql.ts');
     expect(helper.match(/crmOwnedSourceRowSql =/g)).toHaveLength(1);
-    expect((helper.match(/SELECT /g) ?? []).length).toBe(1);
+    expect((helper.match(/SELECT /g) ?? []).length).toBe(0);
 
     const p = src('purchases.ts'), rp = src('record-purchases.ts');
     expect(p.match(/crmOwnedSourceRowSql\(/g)).toHaveLength(5);
@@ -94,7 +94,7 @@ describe('crm read-tail r34 byte-identical owned-source row-head family', () => 
   });
 
   test('retirement:ts-statements stays strictly below the recorded BEFORE=119', () => {
-    expect(totalSelects()).toBe(54);
+    expect(totalSelects()).toBe(51);
     expect(totalSelects()).toBeLessThan(114);
   });
 });

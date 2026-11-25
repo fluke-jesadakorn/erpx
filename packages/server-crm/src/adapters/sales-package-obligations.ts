@@ -10,6 +10,7 @@ import {crmObligationScopeSql,crmOpportunityLeadSql,crmHotelReservationProbeSql,
 import {crmAccountContactProbeSql} from './read-tail-r29-sql';
 import {crmSelectOneSql} from './read-tail-r42-sql';
 import {crmUnionAllSql} from './read-tail-r44-sql';
+import {crmMaterializedScopeSql} from './read-tail-r47-sql';
 /** One owner literal for the retained-customer identity guard. The lead-identity
  * and account fact sites pass only the company expression; rendered SQL stays
  * byte-identical to the pre-dedupe text. */
@@ -26,7 +27,7 @@ export async function lockSalesCRMPackageObligationSources(owner:PostgresDatabas
  * would omit them. Hotel outcomes retain their original owner after handoff. */
 export async function salesCRMPackageObligations(owner:PostgresDatabase,database:SqlDatabase,input:Input){
  owner.assertActiveTransaction(database);if(sources.get(database)!==input.companyId)throw Error('SALES_CRM_PACKAGE_OBLIGATION_SOURCE_REQUIRED');assertSalesPackageObligationSources(owner,database,input.companyId);if(input.moduleId!=='crm'||input.packageId!=='sales'||input.packageVersion!==1||!Number.isSafeInteger(input.now)||input.now<0)throw Error('SALES_CRM_PACKAGE_OBLIGATION_SCOPE_REQUIRED');
- const facts=(await database.prepare(`${crmObligationScopeSql}leads AS MATERIALIZED(SELECT l.* FROM crm_leads l,scope WHERE l.company_id=scope.company_id)
+ const facts=(await database.prepare(`${crmObligationScopeSql}leads ${crmMaterializedScopeSql('l.* FROM crm_leads l,scope WHERE l.company_id=scope.company_id')}
  SELECT 'lead' kind,l.id,to_jsonb(l) fact,NOT COALESCE((l.status='disqualified' AND EXISTS(${crmCaseEventReceiptWitnessSql}'-lead' AND receipt.record_id=l.id AND receipt.operation='crm.lead.disqualify' AND receipt.actor_id=event.actor_id AND receipt.authority_json::jsonb->>'companyId'=l.company_id WHERE event.lead_id=l.id AND event.opportunity_id IS NULL AND event.version=l.version AND event.action='disqualify' AND receipt.result_json::jsonb->>'version'=l.version::text)) OR(l.status='qualified' AND EXISTS(${crmOpportunityLeadSql}l.id AND opportunity.stage IN ('won','lost'))),false) pending FROM leads l
  ${crmUnionAllSql(`'lead-identity',l.id,jsonb_build_object('lead',to_jsonb(l),'account',to_jsonb(account),'contact',to_jsonb(contact)),account.id IS NULL OR contact.id IS NULL OR(${financeCustomerMissingSql('l.company_id')}) FROM leads l LEFT JOIN crm_accounts account ON account.id=l.account_id AND account.company_id=l.company_id LEFT JOIN crm_contacts contact ON contact.id=l.contact_id AND contact.company_id=l.company_id AND contact.account_id=account.id`)}
  ${crmUnionAllSql(`'opportunity',o.id,to_jsonb(o),NOT COALESCE(o.stage IN ('won','lost') AND EXISTS(${crmCaseEventReceiptWitnessSql}'-deal' AND receipt.record_id=l.id AND receipt.actor_id=event.actor_id AND receipt.operation=CASE WHEN o.stage='lost' THEN 'crm.opportunity.lose' WHEN o.win_source='pms' THEN 'crm.opportunity.win-pms' ELSE 'crm.opportunity.win' END AND receipt.authority_json::jsonb->>'companyId'=l.company_id WHERE event.lead_id=l.id AND event.opportunity_id=o.id AND event.version=o.version AND event.action=CASE WHEN o.stage='lost' THEN 'lose' WHEN o.win_source='pms' THEN 'win-pms' ELSE 'win' END AND event.snapshot_json->>'stage'=o.stage)`)}

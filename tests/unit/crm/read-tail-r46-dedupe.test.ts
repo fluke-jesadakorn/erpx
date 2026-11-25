@@ -98,7 +98,7 @@ describe('crm read-tail r46 byte-identical projection/FROM head', () => {
     // r37 keeps the two read heads it did not retire this round.
     expect((r28.match(/SELECT /g) ?? []).length).toBe(0);
     expect((r36.match(/SELECT /g) ?? []).length).toBe(0);
-    expect((r37.match(/SELECT /g) ?? []).length).toBe(2);
+    expect((r37.match(/SELECT /g) ?? []).length).toBe(1);
   });
 
   test('every retired call site keeps its projection, tail, binds and ORDER BY verbatim', () => {
@@ -131,7 +131,7 @@ describe('crm read-tail r46 byte-identical projection/FROM head', () => {
   });
 
   test('retirement:ts-statements drops from the r45 AFTER=57 to 54', () => {
-    expect(totalSelects()).toBe(54);
+    expect(totalSelects()).toBe(51);
     expect(totalSelects()).toBeLessThan(57);
   });
 });

@@ -32,6 +32,7 @@ import {crmAssignmentModuleExistsSql} from "./read-tail-r35-sql";
 import {crmSalesOpportunitySql,crmSingleKeySourceSql} from "./read-tail-r37-sql";
 import {crmSelectOneSql} from "./read-tail-r42-sql";
 import {crmScalarSubquerySql} from "./read-tail-r43-sql";
+import {crmMaterializedScopeSql} from "./read-tail-r47-sql";
 
 export type CRMPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 export type CRMPurchaseTarget={kind:"lead"|"activity"|"account"|"contact"|"guest-link";id:string};
@@ -62,7 +63,7 @@ export const crmLeadActivityExists=crmSalesOpportunitySql('1','crm_lead_activiti
 export const crmAssignmentModuleExists=crmAssignmentModuleExistsSql('selected','');
 export const crmLeadVersionProjection=`SELECT v.id,v.lead_id,l.title,l.status lead_status,l.version lead_version,`;
 export const crmObligationScopeSql=`WITH scope AS(SELECT ?::text company_id),`;
-export const crmClockCteSql=` AS MATERIALIZED(SELECT ${packageClockSql} now_ms)`;
+export const crmClockCteSql=` ${crmMaterializedScopeSql(`${packageClockSql} now_ms`)}`;
 /** r21: one renderer for the branch/headquarters option reads shared by the
  * analytics options and the CRM workspace. Callers pass only the display-name
  * alias and whether the active-status filter applies; the rendered SQL stays
