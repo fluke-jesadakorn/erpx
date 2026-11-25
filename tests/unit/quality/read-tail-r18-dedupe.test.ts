@@ -26,7 +26,7 @@ describe('quality customer-return id-source family dedupe (r18)', () => {
     expect(text).toContain("native.owner_id ${qualityIdInSourceSql(commerce.returns, 'returned')}");
     expect(text).toContain("hold.source_id ${qualityIdInSourceSql(commerce.returnLines, 'line')}");
     expect(text).toContain("hold.source_id ${qualityIdInSourceSql(commerce.returnLots, 'lot')}");
-    expect(read('adapters/quality-id-source-sql.ts').match(/SELECT /g)).toHaveLength(1);
+    expect(read('adapters/quality-id-source-sql.ts').match(/SELECT /g) ?? []).toHaveLength(0);
   });
   test('the helper is read-only; descriptor cutover, locks and r1-r17 helpers stay untouched', () => {
     const helper = read('adapters/quality-id-source-sql.ts');
@@ -59,6 +59,6 @@ describe('quality read-tail r18 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(75);
-    expect(total).toBe(21);
+    expect(total).toBe(20);
   });
 });

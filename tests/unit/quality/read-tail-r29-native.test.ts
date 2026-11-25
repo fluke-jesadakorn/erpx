@@ -93,6 +93,6 @@ describe('quality read-tail r29 native hold/spec probes and CAS guards', () => {
       }
     };
     walk(resolve(root, 'packages/server-quality/src'));
-    expect(total).toBe(21);
+    expect(total).toBe(20);
   });
 });
