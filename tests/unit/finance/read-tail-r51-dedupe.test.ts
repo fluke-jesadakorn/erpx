@@ -114,7 +114,7 @@ describe('Finance read-tail r51 helper definitions and retained guards', () => {
     expect(readRepo('packages/server-collaboration/src/adapters/native-finance-billing-corrections.ts')).toContain('Native-owned finance billing correction statements.');
   });
 
-  test('retirement:ts-statements reaches the r52 target of 1764', () => {
+  test('retirement:ts-statements reaches the r53 target of 1754', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -127,8 +127,9 @@ describe('Finance read-tail r51 helper definitions and retained guards', () => {
     // 17 ordered company lists reuse r42, five active-account lists use the new
     // r51 projection helper, and the invoice-read reuse keeps status='active':
     // -23 literals, +1 helper declaration (1805 -> 1783); r52 delegates 20
-    // version/status guards to one helper (-20 literals, +1: 1783 -> 1764).
-    expect(total).toBe(1764);
+    // version/status guards to one helper (-20 literals, +1: 1783 -> 1764);
+    // r53 delegates 11 column-by-id reads to one helper (-11 literals, +1: 1764 -> 1754).
+    expect(total).toBe(1754);
     expect(total).toBeLessThan(1805);
   });
 });

@@ -1,4 +1,5 @@
 import "server-only";
+import { columnByIdSql } from './finance-read-tail-r53-sql';
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {isTransactionalSqlDatabase,type SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
@@ -19,7 +20,7 @@ export function supplierBatchOwnedSql(alias:string){return `EXISTS(SELECT 1 FROM
 export function supplierBatchSourceReadLocks(database:SqlDatabase){return [database.prepare("LOCK TABLE finance_supplier_batches,finance_supplier_instructions IN SHARE MODE")];}
 async function source(database:SqlDatabase,actor:WorkContext,target:SupplierPaymentTarget){
  if(target.type==="new")return {id:target.id,invoiceIds:[...new Set(target.invoiceIds)].sort()};
- const batch=await database.prepare(target.type==="batch"?"SELECT id FROM finance_supplier_batches WHERE id=? AND company_id=?":"SELECT b.id FROM finance_supplier_batches b JOIN finance_supplier_instructions i ON i.batch_id=b.id WHERE i.id=? AND b.company_id=?").bind(target.id,actor.companyId).first<{id:string}>();
+ const batch=await database.prepare(target.type==="batch"?columnByIdSql('id', 'finance_supplier_batches'):"SELECT b.id FROM finance_supplier_batches b JOIN finance_supplier_instructions i ON i.batch_id=b.id WHERE i.id=? AND b.company_id=?").bind(target.id,actor.companyId).first<{id:string}>();
  if(!batch)throw new ApiError(404,"BATCH_NOT_FOUND","Supplier batch not found in this Company.");
  const invoiceIds=(await database.prepare("SELECT DISTINCT invoice_id FROM finance_supplier_instructions WHERE batch_id=? ORDER BY invoice_id").bind(batch.id).all<{invoice_id:string}>()).results.map(row=>row.invoice_id);if(!invoiceIds.length)throw new ApiError(409,"SUPPLIER_BATCH_SOURCE_REQUIRED","Supplier batches require their original invoice instructions.");return {id:batch.id,invoiceIds};
 }

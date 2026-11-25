@@ -1,5 +1,6 @@
 import { FINANCE_SCOPE_BIND_SQL } from './finance-read-tail-r44-sql';
 import { clockProbeSql } from './finance-read-tail-r50-sql';
+import { columnByIdSql } from './finance-read-tail-r53-sql';
 import { ownedDocumentExistsSql } from './finance-read-tail-r40-sql';
 import {rootOwnerExistsSql, materializedClockCteSql} from './finance-read-tail-r19-sql';
 import { JOURNAL_SELECT_PREFIX } from './finance-read-tail-r30-sql';
@@ -262,7 +263,7 @@ export async function financeProductDocumentEntry(database:SqlDatabase,scope:Fin
  * Field marker closes every TS path, including internal jobs and retries.
  * Remove this fence with the last non-Field Finance Flow caller. */
 export async function requireLegacyFinanceInvoiceFlow(database:SqlDatabase,actor:Pick<WorkContext,'companyId'>,id:string){
- const row=await database.prepare("SELECT source_type FROM finance_invoices WHERE id=? AND company_id=?").bind(id,actor.companyId).first<{source_type:string|null}>();
+ const row=await database.prepare(columnByIdSql('source_type', 'finance_invoices')).bind(id,actor.companyId).first<{source_type:string|null}>();
  if(row?.source_type==='field_service')throw new ApiError(503,'NATIVE_SERVICE_INVOICE_FLOW_REQUIRED','Use the native Field invoice workflow.');
 }
 

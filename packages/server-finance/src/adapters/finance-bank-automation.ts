@@ -1,4 +1,5 @@
 import { versionStatusGuardSql } from './finance-read-tail-r52-sql';
+import { columnByIdSql } from './finance-read-tail-r53-sql';
 import { financeReferenceListSql } from './finance-read-tail-r42-sql';
 import { tableByIdSql } from './finance-read-tail-r49-sql';
 import { bankCashLinesSql } from './finance-read-tail-r39-sql';
@@ -59,13 +60,13 @@ function nativeBankAutomation(provided?:SqlDatabase,owned=false){let write:SqlDa
   ]);},
 mapping:async(actor,mappingId)=>write
       .prepare(
-        "SELECT columns_json FROM finance_bank_csv_mappings WHERE id=? AND company_id=?",
+        columnByIdSql('columns_json', 'finance_bank_csv_mappings'),
       )
       .bind(mappingId, actor.companyId)
       .first<{ columns_json: string }>(),
 account:async(actor,accountId)=>write
         .prepare(
-          "SELECT currency FROM finance_accounts WHERE id=? AND company_id=?",
+          columnByIdSql('currency', 'finance_accounts'),
         )
         .bind(accountId, actor.companyId)
         .first<{ currency: string }>(),

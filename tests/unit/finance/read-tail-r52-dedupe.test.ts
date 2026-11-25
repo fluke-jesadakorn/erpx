@@ -89,7 +89,7 @@ describe('Finance read-tail r52 protected families and retirement', () => {
     expect(read('finance-business-contracts.ts')).toContain('EXISTS(SELECT 1 FROM finance_business_contracts WHERE id=? AND company_id=? AND status=? AND version=?)');
   });
 
-  test('retirement:ts-statements reaches the r52 target of 1764', () => {
+  test('retirement:ts-statements reaches the r53 target of 1754', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -99,9 +99,10 @@ describe('Finance read-tail r52 protected families and retirement', () => {
       }
     };
     walk(srcRoot);
-    // 20 guard literals collapse into one helper (-20 literals, +1 declaration: 1783 -> 1764).
+    // 20 guard literals collapse into one helper (-20 literals, +1 declaration: 1783 -> 1764);
+    // r53 delegates 11 column-by-id reads to one helper (-11 literals, +1 declaration: 1764 -> 1754).
     expect(CASES).toHaveLength(20);
-    expect(total).toBe(1764);
+    expect(total).toBe(1754);
     expect(total).toBeLessThan(1783);
   });
 });

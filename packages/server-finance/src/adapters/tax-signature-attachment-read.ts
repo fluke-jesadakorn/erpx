@@ -10,6 +10,7 @@ import {isTransactionalSqlDatabase,type SqlDatabase,type StoredFile} from '@erpx
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {inFinanceSignatureParent,financeSignatureParent,deferFinanceSignatureRead} from '@erpx/server-finance/adapters/tax-signature-read-parent';
 import {WORKFORCE_ACTOR_SCOPE_SQL} from './finance-read-tail-r35-sql';
+import { columnByIdSql } from './finance-read-tail-r53-sql';
 
 const approvalFields="ARRAY['status','reviewed_by','review_reason','reviewed_at','signature_link_id','signature_sha256','signature_media_type','signature_data_uri','version','updated_at']::text[]";
 async function identityImage(database:SqlDatabase,actor:WorkContext,id:string,approval:boolean){
@@ -27,7 +28,7 @@ export async function withFinanceTaxSignatureAttachmentContentRead<Result extend
   const approval=command.operation==='finance.tax-identity.approve';if(approval&&command.signatureRecordId!==selectedRoute.targetId)throw attachmentReadChanged();
   const before=await attachmentReadSource(database,actor.companyId,linkId);assertAttachmentReadRoute(selectedRoute,before);if(!before)throw attachmentReadChanged();
   const image=await identityImage(database,actor,before.targetId,approval);if(!image)throw new ApiError(404,'ATTACHMENT_TARGET_NOT_FOUND','The original Company Tax identity is unavailable.');
-  const version=await database.prepare('SELECT version FROM finance_tax_identities WHERE id=? AND company_id=?').bind(before.targetId,actor.companyId).first<number>('version');
+  const version=await database.prepare(columnByIdSql('version', 'finance_tax_identities')).bind(before.targetId,actor.companyId).first<number>('version');
   const current=currentAssignmentReadScope(actor,'workforce_actor_scope'),initiallyCurrent=standalone&&!!await database.prepare(`${WORKFORCE_ACTOR_SCOPE_SQL}${current.where}`).bind(actor.companyId,actor.branchId,actor.departmentId,...current.args).first();
   const invalidAuthority=standalone&&!initiallyCurrent?await privateFileDenialAuthorityWitness(database,actor):null;
   const checkpoint=standalone?new Set((await attachmentDeniedReadAudits(database,actor,linkId)).map(event=>event.id)):null;let result:Result;

@@ -1,4 +1,5 @@
 import 'server-only';
+import { columnByIdSql } from './finance-read-tail-r53-sql';
 import {randomUUID} from 'node:crypto';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {requirePermission} from '@erpx/server-identity_access/public/iam-permissions';
@@ -44,7 +45,7 @@ export async function withAssetsFinancialCommand(actor:WorkContext,command:{oper
  try{return await (await assetsFinancialOwner(actor)).transaction(async database=>{
   await assetsFinancialLeases(database,actor.companyId,true);const current=await requireAssetsFinancialAuthority(database,actor,permission);
   let assetId=command.assetId;
-  if(command.disposalId){const source=await database.prepare('SELECT asset_id FROM finance_asset_disposals WHERE id=? AND company_id=?').bind(command.disposalId,actor.companyId).first<{asset_id:string}>();if(!source)throw new ApiError(404,'ASSET_DISPOSAL_NOT_FOUND','Disposal not found.');assetId=source.asset_id;}
+  if(command.disposalId){const source=await database.prepare(columnByIdSql('asset_id', 'finance_asset_disposals')).bind(command.disposalId,actor.companyId).first<{asset_id:string}>();if(!source)throw new ApiError(404,'ASSET_DISPOSAL_NOT_FOUND','Disposal not found.');assetId=source.asset_id;}
   if(!assetId)throw new ApiError(503,'ASSETS_FINANCIAL_COMPOSITION_REQUIRED','Use the original Asset financial command.');
   const prior=await receiptImage(database,actor,command.key,command.operation),purpose=prior?'history' as const:command.operation==='finance.asset.create'||command.operation==='finance.asset.edit'?'new-work' as const:'settle-existing' as const,capabilities=['assets.register',capability],guard=`assets-financial:${randomUUID()}`;
   for(const selected of capabilities)await checkPurchasedCapability(database,'enforced',{companyId:actor.companyId,capability:selected,purpose});

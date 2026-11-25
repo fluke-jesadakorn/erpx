@@ -1,4 +1,5 @@
 import { versionStatusGuardSql } from './finance-read-tail-r52-sql';
+import { columnByIdSql } from './finance-read-tail-r53-sql';
 import { PAYMENT_FULL_ROW_SQL } from './finance-read-tail-r40-sql';
 import { APPROVED_SECONDARY_CHART_CORRELATED_GUARD } from './finance-read-tail-r41-sql';
 import { moneySnapshotExistsSql } from './finance-read-tail-r39-sql';
@@ -342,7 +343,7 @@ function configurationService(provided?: SqlDatabase,boundRequest?:unknown) {
         commitCreateLoan: async (facts) => { const { loanId, actor, input, principal, now, id, output } = facts; const write = await db(actor); const pendingStatements: SqlStatement[] = []; pendingStatements.push(await nativeFinanceOwnerWrite(write, actor, 'finance_stmt_9', [loanId, actor.companyId, input.loanNumber, input.lender, input.currency, principal, decimalToMinor(input.annualRate, 6), input.commencementDate, input.maturityDate, principal, actor.userId, now, now])); return saveCommand(write, actor, id, "finance.loan.create", input, output, pendingStatements); },
         revenueCustomer: async (facts) => { const { input, actor } = facts; const write = await db(actor); return !!await write.prepare("SELECT id FROM finance_parties WHERE id=? AND company_id=? AND kind='customer'").bind(input.customerId, actor.companyId).first(); },
         commitCreateRevenueContract: async (facts) => { const { contractId, actor, input, now, id, output } = facts; const write = await db(actor); const pendingStatements: SqlStatement[] = []; pendingStatements.push(await nativeFinanceOwnerWrite(write, actor, 'finance_stmt_10', [contractId, actor.companyId, input.customerId, input.contractNumber, input.currency, decimalToMinor(input.transactionPrice), actor.userId, now, now])); return saveCommand(write, actor, id, "finance.revenue-contract.create", input, output, pendingStatements); },
-        revenueContract: async (facts) => { const { input, actor } = facts; const write = await db(actor); return !!await write.prepare("SELECT id FROM finance_revenue_contracts WHERE id=? AND company_id=?").bind(input.contractId, actor.companyId).first(); },
+        revenueContract: async (facts) => { const { input, actor } = facts; const write = await db(actor); return !!await write.prepare(columnByIdSql('id', 'finance_revenue_contracts')).bind(input.contractId, actor.companyId).first(); },
         commitCreateRevenueObligation: async (facts) => { const { obligationId, input, actor, id, output } = facts; const write = await db(actor); const pendingStatements: SqlStatement[] = []; pendingStatements.push(await nativeFinanceOwnerWrite(write, actor, 'finance_stmt_11', [obligationId, input.contractId, input.description, decimalToMinor(input.allocated), input.recognitionMethod, input.startDate, input.endDate ?? null, input.revenueAccountId, input.deferredAccountId])); return saveCommand(write, actor, id, "finance.revenue-obligation.create", input, output, pendingStatements); } });
 }
 

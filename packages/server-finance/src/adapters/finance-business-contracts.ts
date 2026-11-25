@@ -1,4 +1,5 @@
 import { activeAccountListSql } from './finance-read-tail-r51-sql';
+import { columnByIdSql } from './finance-read-tail-r53-sql';
 import { tableByIdSql } from './finance-read-tail-r49-sql';
 import {childBillingRunExistsSql} from './finance-read-tail-r43-sql';
 import { billingCorrectionPointSql, chartPointSql, financeReferenceListSql } from './finance-read-tail-r42-sql';
@@ -177,7 +178,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async billContractId(parentId: string, companyId: string) {
             const db = read();
             return db
-                .prepare("SELECT contract_id FROM finance_business_billing_runs WHERE id=? AND company_id=?")
+                .prepare(columnByIdSql('contract_id', 'finance_business_billing_runs'))
                 .bind(parentId, companyId)
                 .first<{
                 contract_id: string;
