@@ -106,15 +106,20 @@ describe('billing read-tail r38 dedupe of three residual exec heads', () => {
   it('routes each head through the shared head and drops every inline SELECT', async () => {
     for (const head of HEADS) {
       const text = await src(head.file);
-      expect(text, head.name).toContain(head.route);
       expect(text.split('SELECT').length - 1, head.name).toBe(0);
-      expect(text, head.name).toContain("from './billing-read-tail-r35-sql'");
+      if (head.file === 'executive-metric-watermarks.ts') {
+        // Native lane 38 cutover: this head is now owner-owned Rust SQL.
+        expect(text, head.name).toContain('nativeBillingWatermarks(context)');
+      } else {
+        expect(text, head.name).toContain(head.route);
+        expect(text, head.name).toContain("from './billing-read-tail-r35-sql'");
+      }
     }
     // The point read keeps its five binds in the original order (id last).
     expect(await src('executive-main-evidence-sources.ts'))
       .toContain('.bind(actor.holdingId, Date.parse(filters.from), Date.parse(filters.to) + 86400000, now, id)');
-    // The watermark reader still binds only the holding id.
-    expect(await src('executive-metric-watermarks.ts')).toContain(')).bind(holdingId)');
+    // The native watermark reader carries only the bounded holding id.
+    expect(await src('executive-metric-watermarks.ts')).toContain('nativeBillingWatermarks(context)');
   });
 
   it('keeps the divergent pending-scan suffixes and the overdue id suffix', async () => {

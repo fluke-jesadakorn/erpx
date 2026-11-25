@@ -61,7 +61,7 @@ function application(){const databases=new Map<string,Promise<SqlDatabase>>(),da
       .bind(...companyIds)
       .all<NodeRow>()
   ).results;
-},brands:async(holdingId,companyIds)=>workspaceChoiceBrands(await database(holdingId),companyIds)});}
+},brands:async(holdingId,companyIds)=>{const binding=(await activeHoldingBindings()).find(h=>h.id===holdingId);return workspaceChoiceBrands(await database(holdingId),companyIds,binding?{holdingId,holdingSlug:binding.slug}:undefined)}});}
 export const workspaceChoices=cache(()=>measureReadPhase('workspace_choices',()=>application().all()));
 export const workspaceChoicesForAssignment=(holdingId:string,assignmentId:string)=>application().forAssignment(holdingId,assignmentId);
 

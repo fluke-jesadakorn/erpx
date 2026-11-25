@@ -173,14 +173,36 @@ describe("native Brand pure-read cutover", () => {
       expect(kind).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
   });
 
-  it("plans workspace choice by kind and runs the returned SQL on the caller unit", async () => {
-    const { workspaceChoiceBrands } = await import("../../../packages/server-brand/src/adapters/workspace-choice-brand");
-    const { BRAND_RD_WORKSPACE_CHOICE } = await import("../../../packages/server-brand/src/adapters/native-brand-read-ports");
-    const { db, prepared, bound } = fakeDb();
-    expect(await workspaceChoiceBrands(db as never, ["co-a", "co-b"])).toEqual([{ row: 1 }]);
-    expect(bodies[0]).toMatchObject({ kind: BRAND_RD_WORKSPACE_CHOICE, values: ["co-a", "co-b"] });
-    expect(prepared[0]).toBe("SELECT 1 AS row");
-    expect(bound[0]).toEqual(["co-a", "co-b"]);
+  it("executes the owner workspace-choice read through the native lane 39 client", async () => {
+    const laneEnv = "ERPX_NATIVE_BRAND_LANE39_CONFIG";
+    const prior = process.env[laneEnv];
+    process.env[laneEnv] = JSON.stringify({
+      privateBaseUrl: "http://127.0.0.1:3198",
+      timeoutMs: 10000,
+      holdings: [
+        { origin: "https://acme.jesadakorn.com", host: "acme.jesadakorn.com", holdingId: "h001", holdingSlug: "acme", companyId: "acme-co" },
+        { origin: "https://northstar.jesadakorn.com", host: "northstar.jesadakorn.com", holdingId: "h002", holdingSlug: "northstar" },
+        { origin: "https://erpx-internal.jesadakorn.com", host: "erpx-internal.jesadakorn.com", holdingId: "h003", holdingSlug: "erpx" },
+      ],
+    });
+    vi.stubGlobal("fetch", vi.fn(async (_url: URL, init: RequestInit) => {
+      expect(_url.toString()).toBe("http://127.0.0.1:3198/api/v1/holdings/acme/branding/lane39-workspace-choice");
+      expect(String(init.body)).toBe(JSON.stringify({ companyIds: ["co-a", "co-b"] }));
+      return new Response(JSON.stringify({ brands: [
+        { scope_kind: "holding", scope_id: "holding-1", primary_publication_id: "pub-1" },
+        { scope_kind: "branch", scope_id: "branch-1", primary_publication_id: null },
+      ] }), { status: 200, headers: { "content-type": "application/json" } });
+    }));
+    try {
+      const { workspaceChoiceBrands } = await import("../../../packages/server-brand/src/adapters/workspace-choice-brand");
+      expect(await workspaceChoiceBrands({} as never, ["co-a", "co-b"], { holdingId: "h001", holdingSlug: "acme" })).toEqual([
+        { scope_kind: "holding", scope_id: "holding-1", primary_publication_id: "pub-1" },
+        { scope_kind: "branch", scope_id: "branch-1", primary_publication_id: null },
+      ]);
+    } finally {
+      if (prior === undefined) delete process.env[laneEnv];
+      else process.env[laneEnv] = prior;
+    }
   });
 
   it("plans evidence search with the declared predicate families and bind order", async () => {

@@ -79,13 +79,14 @@ describe('billing read-tail r40 dedupe of the r22 watermark revision head', () =
     }
   });
 
-  it('leaves every watermark call site routed through the unchanged helper', async () => {
+  it('moves every watermark call site to the owner-native reader with no residual inline SQL', async () => {
     const watermarks = await src('executive-metric-watermarks.ts');
-    expect(watermarks.split("from './billing-read-tail-r22-sql'").length - 1).toBe(1);
-    expect(watermarks.split('revision(').length - 1).toBe(4);
+    expect(watermarks).toContain("from './native-lane-38/client'");
+    expect(watermarks).toContain('nativeBillingWatermarks(context)');
     for (const r of REVISIONS) {
       expect(watermarks, r.name).not.toContain(`(SELECT md5(COALESCE(string_agg(jsonb_build_array(${r.fields.split(',')[0]},`);
     }
+    expect(watermarks.split('SELECT').length - 1).toBe(0);
   });
 
   it('leaves FOR UPDATE, advisory, native and try-lock reads untouched', async () => {

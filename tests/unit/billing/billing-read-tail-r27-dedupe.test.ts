@@ -75,7 +75,7 @@ describe('billing read-tail r27 metric count projection dedupe', () => {
     expect(text.split('e.id,COALESCE(p.name,e.plan_id) plan').length - 1).toBe(1);
     expect(text.split('billingLegacySubscriptionSql(').length - 1).toBe(1);
     expect(text).toContain("from './billing-read-tail-r32-sql'");
-    expect(await src('executive-metric-watermarks.ts')).toContain('billingWatermarkRevisionSql as revision');
+    expect(await src('executive-metric-watermarks.ts')).toContain('nativeBillingWatermarks(context)');
     expect(await src('executive-main-evidence-sources.ts')).toContain('commercialSubscriptionSelect()');
     expect(text).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
   });

@@ -667,5 +667,35 @@ pub fn mount(
         ).map_err(|_| "PRIVATE_API_MARKETING_LANE40_INVALID")?,
     );
 
+    // Billing lane 38: executive snapshot watermarks.
+    router = router.merge(
+        erpx_server_billing::public::native_lane_38::router_for_holdings(
+            config.holdings.iter().enumerate().map(|(i, holding)| {
+                (
+                    erpx_server_billing::public::native_lane_38::LaneTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                    },
+                    pools[i + 1].clone(),
+                )
+            }).collect(),
+        ).map_err(|_| "PRIVATE_API_BILLING_LANE38_INVALID")?,
+    );
+
+    // Brand lane 39: workspace-choice publication reads.
+    router = router.merge(
+        erpx_server_brand::public::native_lane_39::router_for_holdings(
+            config.holdings.iter().enumerate().map(|(i, holding)| {
+                (
+                    erpx_server_brand::public::native_lane_39::LaneTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                    },
+                    pools[i + 1].clone(),
+                )
+            }).collect(),
+        ).map_err(|_| "PRIVATE_API_BRAND_LANE39_INVALID")?,
+    );
+
     Ok(router)
 }

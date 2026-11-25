@@ -27,17 +27,17 @@ describe('billing read-tail r22 parameterized family dedupe', () => {
     expect(billingWatermarkRevisionSql('p.id,p.revision,p.name,p.effective_month', 'p.id,p.revision', 'billing_plans p', 'p.id IN (SELECT e.plan_id FROM billing_enrollments e WHERE e.holding_id=a.holding_id)')).toBe(PLAN);
   });
 
-  it('routes every revision call site through the shared helper with no residual inline SQL', async () => {
+  it('moves every revision call site to the owner-native reader with no residual inline SQL', async () => {
     const watermarks = await src('executive-metric-watermarks.ts');
-    expect(watermarks.split("from './billing-read-tail-r22-sql'").length - 1).toBe(1);
-    expect(watermarks.split('revision(').length - 1).toBe(4);
+    expect(watermarks).toContain("from './native-lane-38/client'");
+    expect(watermarks).toContain('nativeBillingWatermarks(context)');
     for (const inline of [
       '(SELECT md5(COALESCE(string_agg(jsonb_build_array(e.id,',
       '(SELECT md5(COALESCE(string_agg(jsonb_build_array(i.id,',
       '(SELECT md5(COALESCE(string_agg(jsonb_build_array(b.subscription_id,',
       '(SELECT md5(COALESCE(string_agg(jsonb_build_array(p.id,',
     ]) expect(watermarks).not.toContain(inline);
-    expect(watermarks).toContain("from './billing-read-tail-r22-sql'");
+    expect(watermarks.split('SELECT').length - 1).toBe(0);
   });
 
   it('keeps the helper read-only and leaves advisory/FOR UPDATE reads untouched', async () => {

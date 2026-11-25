@@ -1,6 +1,22 @@
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import {billingWatermarkRevisionSql as revision} from './billing-read-tail-r22-sql';import {billingPointReadSql} from './billing-read-tail-r29-sql';import {billingProjectionSql} from './billing-read-tail-r35-sql';export async function executiveBillingWatermarks(sourceDb:SqlDatabase,holdingId:string){return await sourceDb.prepare(billingProjectionSql(`a.version::text account_version,
-        ${revision('e.id,e.plan_id,e.started_at,e.ended_at,e.pending_end,e.pending_plan,e.effective_at','e.id','billing_enrollments e','e.holding_id=a.holding_id')} enrollment_revision,
-        ${revision('i.id,i.status,i.due_at,i.total_satang,i.updated_at,i.kind','i.id','billing_invoices i','i.holding_id=a.holding_id')} invoice_revision,
-        ${revision('b.subscription_id,b.status,b.current_period_end,b.last_event_at,b.updated_at','b.holding_id','beta_billing b','b.holding_id=a.holding_id')} legacy_subscription_revision,
-        ${revision('p.id,p.revision,p.name,p.effective_month','p.id,p.revision','billing_plans p',`p.id IN (${billingPointReadSql('e.plan_id','billing_enrollments e','e.holding_id=a.holding_id')})`)} plan_revision
-       `, 'FROM billing_accounts a WHERE a.holding_id=?')).bind(holdingId).first<Record<string, string>>().then((row) => row ? [{ table_name: "billing_snapshot", revision: JSON.stringify(row) }] : []);}
+import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import {
+  nativeBillingWatermarks,
+  type NativeLane38Context,
+  type NativeLane38Watermark,
+} from './native-lane-38/client';
+
+/**
+ * Native lane 38 cutover. The statement and revision projection now live in the
+ * Billing owner crate; this adapter is a strict, fail-closed transport. The
+ * `sourceDb` argument is retained for call-site compatibility only: no query is
+ * issued on it and there is no TypeScript fallback. Callers that hold a full
+ * WorkContext should pass `{holdingId, holdingSlug, companyId?}` so the native
+ * target is selected from both identity fields; the retained executive caller
+ * still supplies a holding id, which must resolve to exactly one target.
+ */
+export async function executiveBillingWatermarks(
+  _sourceDb: SqlDatabase,
+  context: string | NativeLane38Context,
+): Promise<NativeLane38Watermark[]> {
+  return nativeBillingWatermarks(context);
+}
