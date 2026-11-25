@@ -108,8 +108,8 @@ describe('billing read-tail r40 dedupe of the r22 watermark revision head', () =
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(6);
-    expect(bare).toBe(6);
+    expect(spaced).toBe(5);
+    expect(bare).toBe(5);
     expect(spaced).toBeLessThan(9);
     expect(bare).toBeLessThan(9);
   });

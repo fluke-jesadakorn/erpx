@@ -85,6 +85,7 @@ describe('billing read-tail r27 metric count projection dedupe', () => {
     let count = 0;
     for (const file of files) count += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     expect(count).toBeLessThan(59);
-    expect(count).toBe(6); // r36 routed the six residual heads; r40 folded the r22 head; r41 folded the r18 lateral; r42 folded the r33 head.
+    expect(count).toBe(5); // r36 routed the six residual heads; r40 folded the r22 head; r41 folded the r18 lateral;
+    // r42 folded the r33 head; r43 folded the r32 beta_billing head.
   });
 });

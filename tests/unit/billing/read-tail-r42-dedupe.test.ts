@@ -56,7 +56,7 @@ describe('billing read-tail r42 tail-aware fold of the r33 enrollment head', () 
     expect(projection.split('SELECT').length - 1).toBe(1);
     expect(projection.split('billingProjectionSql').length - 1).toBe(1);
     expect(projection).toContain("tail.startsWith('\\n') ? '' : ' '");
-    expect((await src('billing-read-tail-r32-sql.ts')).split('SELECT').length - 1).toBe(1);
+    expect((await src('billing-read-tail-r32-sql.ts')).split('SELECT').length - 1).toBe(0);
     for (const helper of [enrollment, projection]) {
       expect(helper).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
     }
@@ -134,8 +134,8 @@ describe('billing read-tail r42 tail-aware fold of the r33 enrollment head', () 
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(6);
-    expect(bare).toBe(6);
+    expect(spaced).toBe(5);
+    expect(bare).toBe(5);
     expect(spaced).toBeLessThan(7);
     expect(bare).toBeLessThan(7);
   });

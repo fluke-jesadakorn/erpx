@@ -133,7 +133,7 @@ describe('billing read-tail r41 dedupe of the r18 plan-name lateral', () => {
     expect(r33.split('SELECT').length - 1).toBe(0);
     expect(r33.split('billingProjectionSql(').length - 1).toBe(1);
     expect(r33).toContain("import { billingProjectionSql } from './billing-read-tail-r35-sql';");
-    expect((await src('billing-read-tail-r32-sql.ts')).split('SELECT').length - 1).toBe(1);
+    expect((await src('billing-read-tail-r32-sql.ts')).split('SELECT').length - 1).toBe(0);
   });
 
   it('leaves FOR UPDATE, advisory, native and try-lock reads untouched', async () => {
@@ -156,8 +156,8 @@ describe('billing read-tail r41 dedupe of the r18 plan-name lateral', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(6);
-    expect(bare).toBe(6);
+    expect(spaced).toBe(5);
+    expect(bare).toBe(5);
     expect(spaced).toBeLessThan(8);
     expect(bare).toBeLessThan(8);
   });

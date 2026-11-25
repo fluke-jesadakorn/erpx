@@ -82,7 +82,9 @@ async function tsFiles(directory: URL): Promise<string[]> {
 describe('billing read-tail r32 dedupe', () => {
   it('authors the legacy beta_billing head exactly once as read-only text', async () => {
     const helper = await src('billing-read-tail-r32-sql.ts');
-    expect(helper.split('SELECT').length - 1).toBe(1);
+    expect(helper.split('SELECT').length - 1).toBe(0); // r43 routes the beta_billing head through r35
+    expect(helper).toContain("from './billing-read-tail-r35-sql'");
+    expect(helper.split('billingProjectionSql(').length - 1).toBe(1);
     expect(helper.split('FROM beta_billing b WHERE').length - 1).toBe(1);
     expect(helper.split('billingLegacySubscriptionSql').length - 1).toBe(1);
     expect(helper).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
@@ -160,8 +162,8 @@ describe('billing read-tail r32 dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(6);
-    expect(bare).toBe(6);
+    expect(spaced).toBe(5);
+    expect(bare).toBe(5);
     expect(spaced).toBeLessThan(48);
     expect(bare).toBeLessThan(48);
   });
