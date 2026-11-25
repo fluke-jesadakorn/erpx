@@ -74,7 +74,7 @@ describe('manage_erpx beta_slots point-read parameterized family', () => {
 
   it('lowers the owner TS SELECT count from the recorded BEFORE=26 baseline', async () => {
     const total = (await tsSources(srcDir)).join('\n').match(/SELECT /g)?.length ?? 0;
-    expect(total).toBe(20);
+    expect(total).toBe(19);
     expect(total).toBeLessThan(26);
   });
 });
@@ -124,7 +124,7 @@ describe('manage_erpx beta_members count SELECT-head family (r12)', () => {
 
   it('lowers the owner TS SELECT count from the recorded BEFORE=25 baseline', async () => {
     const total = (await tsSources(srcDir)).join('\n').match(/SELECT /g)?.length ?? 0;
-    expect(total).toBe(20);
+    expect(total).toBe(19);
     expect(total).toBeLessThan(25);
   });
 });
@@ -166,7 +166,7 @@ describe('manage_erpx beta_bootstrap point-read parameterized family (r13)', () 
 
   it('lowers the owner TS SELECT count from the recorded BEFORE=24 baseline', async () => {
     const total = (await tsSources(srcDir)).join('\n').match(/SELECT /g)?.length ?? 0;
-    expect(total).toBe(20);
+    expect(total).toBe(19);
     expect(total).toBeLessThan(24);
   });
 });

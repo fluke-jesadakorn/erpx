@@ -34,7 +34,7 @@ describe('manage_erpx native owner-write no-op dedupe', () => {
 
   it('lowers the owner TS SELECT count from the recorded BEFORE=23 baseline', () => {
     const total = tsSources(src).join('\n').match(/SELECT /g)?.length ?? 0;
-    expect(total).toBe(20);
-    expect(total).toBeLessThan(21);
+    expect(total).toBe(19);
+    expect(total).toBeLessThan(20);
   });
 });

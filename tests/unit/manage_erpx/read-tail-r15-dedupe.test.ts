@@ -101,9 +101,9 @@ describe('manage_erpx beta point-by-key head family (r15)', () => {
     }
   });
 
-  it('lowers the owner TS SELECT count from BEFORE=22 to 20', async () => {
+  it('lowers the owner TS SELECT count from BEFORE=22 to 19', async () => {
     const total = (await tsSources(srcDir)).join('\n').match(/SELECT /g)?.length ?? 0;
-    expect(total).toBe(20);
-    expect(total).toBeLessThan(21);
+    expect(total).toBe(19);
+    expect(total).toBeLessThan(20);
   });
 });

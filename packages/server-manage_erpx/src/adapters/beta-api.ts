@@ -31,6 +31,7 @@ import { sendBetaEmail } from "@erpx/server-manage_erpx/adapters/beta-email";
 import { nativeOwnerWrite, NATIVE_OWNER_WRITE_NOOP_SQL } from "./native-owner-write";
 import { betaPolicyPointKind } from "./beta-policy-point-sql";
 import { nativeManageOwnerReadFirst } from "./native-owner-read";
+import { usageHeadSql } from "./usage-head-sql";
 import { billingLink } from "@erpx/server-billing/public/beta-billing";
 
 import type {SqlDatabase,SqlStatement} from '@erpx/server-runtime/public/runtime/types';
@@ -46,7 +47,7 @@ async function inward<T>(action:()=>Promise<T>){try{return await action();}catch
 function repository(db:SqlDatabase,env:RuntimeEnv):BetaApiRepository<SqlStatement>{const people=betaManagementPeopleSources(db),organization=betaManagementOrganizationSources(db),collaboration=betaManagementCollaborationSources(db),finance=betaManagementFinanceSources(db),requests=betaManagementRequestSources(db);return {async policy(companyId:string){return nativeManageOwnerReadFirst(betaPolicyPointKind['*'], [companyId], db);},
 async usage(companyId:string,month:string,companyId2:string,month2:string){return db
               .prepare(
-                `SELECT count(*) requests,sum(input_tokens) inputTokens,sum(output_tokens) outputTokens FROM (${collaboration.aiUsageSource} UNION ALL SELECT input_tokens,output_tokens FROM (${people.aiUsageSource} UNION ALL ${requests.aiUsageSource} UNION ALL ${finance.aiUsageSource}) WHERE company_id=? AND month=?)`,
+                `${usageHeadSql('count(*) requests,sum(input_tokens) inputTokens,sum(output_tokens) outputTokens')}${collaboration.aiUsageSource} UNION ALL ${usageHeadSql('input_tokens,output_tokens')}${people.aiUsageSource} UNION ALL ${requests.aiUsageSource} UNION ALL ${finance.aiUsageSource}) WHERE company_id=? AND month=?)`,
               )
               .bind(
                 companyId,
