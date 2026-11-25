@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 13737,
+    "revision": 13788,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261125-g",
       "agentId": "lead",
       "startedAt": "2026-11-25T13:28:24.118Z",
-      "heartbeatAt": "2026-11-25T15:13:43.410Z",
-      "expiresAt": "2026-11-25T15:43:43.410Z",
+      "heartbeatAt": "2026-11-25T15:21:43.251Z",
+      "expiresAt": "2026-11-25T15:51:43.251Z",
       "generation": 177,
       "tokenHash": "58dfe8b75da5fd46cf77c2d0cb6291dea94bb80da105d8ed790ca1a07326d35d"
     },
@@ -136995,7 +136995,7 @@
         "owner": "ecommerce",
         "title": "ecommerce executive metric native port",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -137007,7 +137007,14 @@
         "resources": [
           "owner:ecommerce"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-ecom",
+          "claimedAt": "2026-11-25T15:20:02.304Z",
+          "heartbeatAt": "2026-11-25T15:21:43.251Z",
+          "expiresAt": "2026-11-25T15:51:43.251Z",
+          "generation": 177
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -161311,7 +161318,7 @@
         "owner": "legal",
         "title": "legal TS read tail native cutover (round 31)",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -161323,7 +161330,14 @@
         "resources": [
           "owner:legal"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-legal",
+          "claimedAt": "2026-11-25T15:20:01.088Z",
+          "heartbeatAt": "2026-11-25T15:21:43.251Z",
+          "expiresAt": "2026-11-25T15:51:43.251Z",
+          "generation": 177
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -196298,7 +196312,7 @@
         "owner": "brand",
         "title": "brand read slice",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -196309,7 +196323,14 @@
         "resources": [
           "owner:brand"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-brand",
+          "claimedAt": "2026-11-25T15:20:01.877Z",
+          "heartbeatAt": "2026-11-25T15:21:43.251Z",
+          "expiresAt": "2026-11-25T15:51:43.251Z",
+          "generation": 177
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -196548,18 +196569,11 @@
           "lane:02",
           "cargo:lane-02"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "lane-02",
-          "claimedAt": "2026-11-25T13:29:04.569Z",
-          "heartbeatAt": "2026-11-25T15:13:43.410Z",
-          "expiresAt": "2026-11-25T15:43:43.410Z",
-          "generation": 177
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+        "lastPushedSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
         "checks": [
           {
             "command": "retirement:ts-statements",
@@ -196568,11 +196582,25 @@
             "before": 1701,
             "after": 1693,
             "note": "Owner-batch native cutover integrated; acceptance deferred."
+          },
+          {
+            "command": "cargo check -p erpx-service --lib",
+            "result": "passed",
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "wave-3 integration check"
+          },
+          {
+            "command": "retirement:ts-writes",
+            "result": "passed",
+            "before": 2894,
+            "after": 0,
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "global owner writer KPI at pushed wave commit"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Cutover integrated and pushed; continue next owner slice",
+        "nextAction": "Wave-3 lane closed; continue read-tail retirement",
         "handoff": {
           "runId": "run-20261125-f",
           "agentId": "wm501",
@@ -196581,7 +196609,12 @@
           "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
           "nextAction": "Cutover integrated and pushed; continue next owner slice"
         },
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "migrate_rs.lane_03",
@@ -196659,18 +196692,11 @@
           "lane:03",
           "cargo:lane-03"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "lane-03",
-          "claimedAt": "2026-11-25T13:29:04.700Z",
-          "heartbeatAt": "2026-11-25T15:13:43.410Z",
-          "expiresAt": "2026-11-25T15:43:43.410Z",
-          "generation": 177
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+        "lastPushedSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
         "checks": [
           {
             "command": "retirement:ts-statements",
@@ -196679,11 +196705,25 @@
             "before": 1701,
             "after": 1693,
             "note": "Owner-batch native cutover integrated; acceptance deferred."
+          },
+          {
+            "command": "cargo check -p erpx-service --lib",
+            "result": "passed",
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "wave-3 integration check"
+          },
+          {
+            "command": "retirement:ts-writes",
+            "result": "passed",
+            "before": 2894,
+            "after": 0,
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "global owner writer KPI at pushed wave commit"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Cutover integrated and pushed; continue next owner slice",
+        "nextAction": "Wave-3 lane closed; continue read-tail retirement",
         "handoff": {
           "runId": "run-20261125-f",
           "agentId": "wm502",
@@ -196692,7 +196732,12 @@
           "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
           "nextAction": "Cutover integrated and pushed; continue next owner slice"
         },
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "migrate_rs.lane_04",
@@ -196770,18 +196815,11 @@
           "lane:04",
           "cargo:lane-04"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "lane-04",
-          "claimedAt": "2026-11-25T13:29:04.840Z",
-          "heartbeatAt": "2026-11-25T15:13:43.410Z",
-          "expiresAt": "2026-11-25T15:43:43.410Z",
-          "generation": 177
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+        "lastPushedSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
         "checks": [
           {
             "command": "retirement:ts-statements",
@@ -196790,11 +196828,25 @@
             "before": 1701,
             "after": 1693,
             "note": "Owner-batch native cutover integrated; acceptance deferred."
+          },
+          {
+            "command": "cargo check -p erpx-service --lib",
+            "result": "passed",
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "wave-3 integration check"
+          },
+          {
+            "command": "retirement:ts-statements",
+            "result": "passed",
+            "before": 1693,
+            "after": 1690,
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "wave-3 lane-04 report KPI"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Cutover integrated and pushed; continue next owner slice",
+        "nextAction": "Wave-3 native slice pushed; continue the next ready slice",
         "handoff": {
           "runId": "run-20261125-f",
           "agentId": "wm503",
@@ -196803,7 +196855,13 @@
           "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
           "nextAction": "Cutover integrated and pushed; continue next owner slice"
         },
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        },
+        "retireTaskId": "retire.finance.period-close-ts"
       },
       {
         "id": "migrate_rs.lane_05",
@@ -197129,18 +197187,11 @@
           "lane:07",
           "cargo:lane-07"
         ],
-        "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "lane-07",
-          "claimedAt": "2026-11-25T13:29:05.160Z",
-          "heartbeatAt": "2026-11-25T15:13:43.410Z",
-          "expiresAt": "2026-11-25T15:43:43.410Z",
-          "generation": 177
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+        "lastPushedSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
         "checks": [
           {
             "command": "retirement:ts-statements",
@@ -197149,11 +197200,25 @@
             "before": 1195,
             "after": 1175,
             "note": "Owner-batch native cutover integrated; acceptance deferred."
+          },
+          {
+            "command": "cargo check -p erpx-service --lib",
+            "result": "passed",
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "wave-3 integration check"
+          },
+          {
+            "command": "retirement:ts-writes",
+            "result": "passed",
+            "before": 2894,
+            "after": 0,
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "global owner writer KPI at pushed wave commit"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Lead resolves ledger evidence before migrated",
+        "nextAction": "Wave-3 lane closed; continue read-tail retirement",
         "handoff": {
           "runId": "run-20261125-f",
           "agentId": "wm506",
@@ -197162,7 +197227,12 @@
           "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
           "nextAction": "Cutover integrated and pushed; continue next owner slice"
         },
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "migrate_rs.lane_08",
@@ -197251,18 +197321,11 @@
           "lane:08",
           "cargo:lane-08"
         ],
-        "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "lane-08",
-          "claimedAt": "2026-11-25T13:29:05.351Z",
-          "heartbeatAt": "2026-11-25T15:13:43.410Z",
-          "expiresAt": "2026-11-25T15:43:43.410Z",
-          "generation": 177
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+        "lastPushedSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
         "checks": [
           {
             "command": "retirement:ts-statements",
@@ -197271,11 +197334,25 @@
             "before": 1195,
             "after": 1175,
             "note": "Owner-batch native cutover integrated; acceptance deferred."
+          },
+          {
+            "command": "cargo check -p erpx-service --lib",
+            "result": "passed",
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "wave-3 integration check"
+          },
+          {
+            "command": "retirement:ts-writes",
+            "result": "passed",
+            "before": 2894,
+            "after": 0,
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "global owner writer KPI at pushed wave commit"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Lead resolves ledger evidence before migrated",
+        "nextAction": "Wave-3 lane closed; continue read-tail retirement",
         "handoff": {
           "runId": "run-20261125-f",
           "agentId": "wm507",
@@ -197284,7 +197361,12 @@
           "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
           "nextAction": "Cutover integrated and pushed; continue next owner slice"
         },
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "migrate_rs.lane_09",
@@ -197504,18 +197586,11 @@
           "owner:identity_access",
           "cargo:lane-10"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "lane-10",
-          "claimedAt": "2026-11-25T13:29:05.812Z",
-          "heartbeatAt": "2026-11-25T15:13:43.410Z",
-          "expiresAt": "2026-11-25T15:43:43.410Z",
-          "generation": 177
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+        "lastPushedSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
         "checks": [
           {
             "command": "retirement:ts-statements",
@@ -197524,11 +197599,25 @@
             "before": 438,
             "after": 431,
             "note": "Owner-batch native cutover integrated; acceptance deferred."
+          },
+          {
+            "command": "cargo check -p erpx-service --lib",
+            "result": "passed",
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "wave-3 integration check"
+          },
+          {
+            "command": "retirement:ts-writes",
+            "result": "passed",
+            "before": 2894,
+            "after": 0,
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "global owner writer KPI at pushed wave commit"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Cutover integrated and pushed; continue next owner slice",
+        "nextAction": "Wave-3 lane closed; continue read-tail retirement",
         "handoff": {
           "runId": "run-20261125-f",
           "agentId": "wm509",
@@ -197537,7 +197626,12 @@
           "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
           "nextAction": "Cutover integrated and pushed; continue next owner slice"
         },
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "migrate_rs.lane_11",
@@ -198011,22 +198105,30 @@
           "lane:14",
           "cargo:lane-14"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "lane-14",
-          "claimedAt": "2026-11-25T13:29:07.187Z",
-          "heartbeatAt": "2026-11-25T15:13:43.410Z",
-          "expiresAt": "2026-11-25T15:43:43.410Z",
-          "generation": 177
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+        "lastPushedSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --lib",
+            "result": "passed",
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "wave-3 integration check"
+          },
+          {
+            "command": "retirement:ts-writes",
+            "result": "passed",
+            "before": 2894,
+            "after": 0,
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "global owner writer KPI at pushed wave commit"
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Claim, inventory the lane bucket, migrate one live read family to native Rust axum/sqlx, delete the replaced TS SQL, and report parity/KPI evidence.",
+        "nextAction": "Wave-3 lane closed; continue read-tail retirement",
         "handoff": {
           "runId": "run-20261125-f",
           "agentId": "wm513",
@@ -198035,7 +198137,12 @@
           "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
           "nextAction": "Claim, inventory the lane bucket, migrate one live read family to native Rust axum/sqlx, delete the replaced TS SQL, and report parity/KPI evidence."
         },
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "migrate_rs.lane_15",
@@ -198300,18 +198407,11 @@
           "lane:16",
           "cargo:lane-16"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "lane-16",
-          "claimedAt": "2026-11-25T13:29:08.199Z",
-          "heartbeatAt": "2026-11-25T15:13:43.410Z",
-          "expiresAt": "2026-11-25T15:43:43.410Z",
-          "generation": 177
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+        "lastPushedSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
         "checks": [
           {
             "command": "retirement:ts-statements",
@@ -198320,11 +198420,25 @@
             "before": 329,
             "after": 324,
             "note": "Native lane cutover integrated; acceptance deferred."
+          },
+          {
+            "command": "cargo check -p erpx-service --lib",
+            "result": "passed",
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "wave-3 integration check"
+          },
+          {
+            "command": "retirement:ts-writes",
+            "result": "passed",
+            "before": 2894,
+            "after": 0,
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "global owner writer KPI at pushed wave commit"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Cutover integrated and pushed; continue next owner slice",
+        "nextAction": "Wave-3 lane closed; continue read-tail retirement",
         "handoff": {
           "runId": "run-20261125-f",
           "agentId": "wm515",
@@ -198333,7 +198447,12 @@
           "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
           "nextAction": "Cutover integrated and pushed; continue next owner slice"
         },
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "migrate_rs.lane_17",
@@ -198683,18 +198802,11 @@
           "lane:20",
           "cargo:lane-20"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "lane-20",
-          "claimedAt": "2026-11-25T13:29:09.563Z",
-          "heartbeatAt": "2026-11-25T15:13:43.410Z",
-          "expiresAt": "2026-11-25T15:43:43.410Z",
-          "generation": 177
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+        "lastPushedSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
         "checks": [
           {
             "command": "retirement:ts-statements",
@@ -198703,11 +198815,25 @@
             "before": 241,
             "after": 239,
             "note": "Native lane cutover integrated; acceptance deferred."
+          },
+          {
+            "command": "cargo check -p erpx-service --lib",
+            "result": "passed",
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "wave-3 integration check"
+          },
+          {
+            "command": "retirement:ts-statements",
+            "result": "passed",
+            "before": 238,
+            "after": 237,
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "wave-3 lane-20 report KPI"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Cutover integrated and pushed; continue next owner slice",
+        "nextAction": "Wave-3 native slice pushed; continue the next ready slice",
         "handoff": {
           "runId": "run-20261125-f",
           "agentId": "wm519",
@@ -198716,7 +198842,13 @@
           "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
           "nextAction": "Cutover integrated and pushed; continue next owner slice"
         },
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        },
+        "retireTaskId": "retire.pms.pms-booking"
       },
       {
         "id": "migrate_rs.lane_21",
@@ -198797,22 +198929,30 @@
           "owner:files",
           "cargo:lane-21"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "lane-21",
-          "claimedAt": "2026-11-25T13:29:10.293Z",
-          "heartbeatAt": "2026-11-25T15:13:43.410Z",
-          "expiresAt": "2026-11-25T15:43:43.410Z",
-          "generation": 177
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+        "lastPushedSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --lib",
+            "result": "passed",
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "wave-3 integration check"
+          },
+          {
+            "command": "retirement:ts-statements",
+            "result": "passed",
+            "before": 112,
+            "after": 106,
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "wave-3 lane-21 report KPI"
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Claim, inventory the lane bucket, migrate one live read family to native Rust axum/sqlx, delete the replaced TS SQL, and report parity/KPI evidence.",
+        "nextAction": "Wave-3 native slice pushed; continue the next ready slice",
         "handoff": {
           "runId": "run-20261125-f",
           "agentId": "wm520",
@@ -198821,7 +198961,13 @@
           "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
           "nextAction": "Claim, inventory the lane bucket, migrate one live read family to native Rust axum/sqlx, delete the replaced TS SQL, and report parity/KPI evidence."
         },
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        },
+        "retireTaskId": "retire.files.service-repository"
       },
       {
         "id": "migrate_rs.lane_22",
@@ -198901,22 +199047,30 @@
           "lane:22",
           "cargo:lane-22"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "lane-22",
-          "claimedAt": "2026-11-25T13:29:11.134Z",
-          "heartbeatAt": "2026-11-25T15:13:43.410Z",
-          "expiresAt": "2026-11-25T15:43:43.410Z",
-          "generation": 177
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "implementedCommit": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+        "lastPushedSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --lib",
+            "result": "passed",
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "wave-3 integration check"
+          },
+          {
+            "command": "retirement:ts-writes",
+            "result": "passed",
+            "before": 2894,
+            "after": 0,
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "global owner writer KPI at pushed wave commit"
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Claim, inventory the lane bucket, migrate one live read family to native Rust axum/sqlx, delete the replaced TS SQL, and report parity/KPI evidence.",
+        "nextAction": "Wave-3 lane closed; continue read-tail retirement",
         "handoff": {
           "runId": "run-20261125-f",
           "agentId": "wm521",
@@ -198925,7 +199079,12 @@
           "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
           "nextAction": "Claim, inventory the lane bucket, migrate one live read family to native Rust axum/sqlx, delete the replaced TS SQL, and report parity/KPI evidence."
         },
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "migrate_rs.lane_23",
@@ -199685,18 +199844,11 @@
           "owner:support",
           "cargo:lane-31"
         ],
-        "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "lane-31",
-          "claimedAt": "2026-11-25T13:29:20.387Z",
-          "heartbeatAt": "2026-11-25T15:13:43.410Z",
-          "expiresAt": "2026-11-25T15:43:43.410Z",
-          "generation": 177
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+        "lastPushedSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
         "checks": [
           {
             "command": "native:owner-read",
@@ -199705,11 +199857,25 @@
             "before": 32,
             "after": 32,
             "note": "Native lane cutover integrated; acceptance deferred."
+          },
+          {
+            "command": "cargo check -p erpx-service --lib",
+            "result": "passed",
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "wave-3 integration check"
+          },
+          {
+            "command": "retirement:ts-writes",
+            "result": "passed",
+            "before": 2894,
+            "after": 0,
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "global owner writer KPI at pushed wave commit"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Lead verifies mount and records the integrated KPI at the wave milestone",
+        "nextAction": "Wave-3 lane closed; continue read-tail retirement",
         "handoff": {
           "runId": "run-20261125-f",
           "agentId": "wm530",
@@ -199718,7 +199884,12 @@
           "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
           "nextAction": "Cutover integrated and pushed; continue next owner slice"
         },
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "migrate_rs.lane_32",
@@ -200020,18 +200191,11 @@
           "owner:planning",
           "cargo:lane-36"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "lane-36",
-          "claimedAt": "2026-11-25T13:29:26.141Z",
-          "heartbeatAt": "2026-11-25T15:13:43.410Z",
-          "expiresAt": "2026-11-25T15:43:43.410Z",
-          "generation": 177
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+        "lastPushedSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
         "checks": [
           {
             "command": "native:owner-read",
@@ -200040,11 +200204,25 @@
             "before": 30,
             "after": 30,
             "note": "Native lane cutover integrated; acceptance deferred."
+          },
+          {
+            "command": "cargo check -p erpx-service --lib",
+            "result": "passed",
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "wave-3 integration check"
+          },
+          {
+            "command": "retirement:ts-statements",
+            "result": "passed",
+            "before": 3,
+            "after": 0,
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "wave-3 lane-36 report KPI"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Cutover integrated and pushed; continue next owner slice",
+        "nextAction": "Wave-3 native slice pushed; continue the next ready slice",
         "handoff": {
           "runId": "run-20261125-f",
           "agentId": "wm535",
@@ -200053,7 +200231,12 @@
           "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
           "nextAction": "Cutover integrated and pushed; continue next owner slice"
         },
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "migrate_rs.lane_37",
@@ -200083,18 +200266,11 @@
           "owner:customer_360",
           "cargo:lane-37"
         ],
-        "status": "ready_for_integration",
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "lane-37",
-          "claimedAt": "2026-11-25T13:29:27.282Z",
-          "heartbeatAt": "2026-11-25T15:13:43.410Z",
-          "expiresAt": "2026-11-25T15:43:43.410Z",
-          "generation": 177
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+        "lastPushedSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
         "checks": [
           {
             "command": "native:owner-read",
@@ -200103,11 +200279,25 @@
             "before": 20,
             "after": 20,
             "note": "Native lane cutover integrated; acceptance deferred."
+          },
+          {
+            "command": "cargo check -p erpx-service --lib",
+            "result": "passed",
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "wave-3 integration check"
+          },
+          {
+            "command": "retirement:ts-writes",
+            "result": "passed",
+            "before": 2894,
+            "after": 0,
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "global owner writer KPI at pushed wave commit"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Lead records wave-3 evidence and closes the lane",
+        "nextAction": "Wave-3 lane closed; continue read-tail retirement",
         "handoff": {
           "runId": "run-20261125-f",
           "agentId": "wm536",
@@ -200116,7 +200306,12 @@
           "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
           "nextAction": "Cutover integrated and pushed; continue next owner slice"
         },
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        }
       },
       {
         "id": "migrate_rs.lane_38",
@@ -200302,18 +200497,11 @@
           "owner:marketing",
           "cargo:lane-40"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "lane-40",
-          "claimedAt": "2026-11-25T13:29:31.007Z",
-          "heartbeatAt": "2026-11-25T15:13:43.410Z",
-          "expiresAt": "2026-11-25T15:43:43.410Z",
-          "generation": 177
-        },
+        "status": "migrated",
+        "claim": null,
         "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
+        "implementedCommit": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+        "lastPushedSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
         "checks": [
           {
             "command": "retirement:ts-statements",
@@ -200322,11 +200510,25 @@
             "before": 19,
             "after": 17,
             "note": "Native lane cutover integrated; acceptance deferred."
+          },
+          {
+            "command": "cargo check -p erpx-service --lib",
+            "result": "passed",
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "wave-3 integration check"
+          },
+          {
+            "command": "retirement:ts-statements",
+            "result": "passed",
+            "before": 17,
+            "after": 16,
+            "sourceSha": "24b89131fcb9d4fe2b2fce55214cac70f5688c46",
+            "note": "wave-3 lane-40 report KPI"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Cutover integrated and pushed; continue next owner slice",
+        "nextAction": "Wave-3 native slice pushed; continue the next ready slice",
         "handoff": {
           "runId": "run-20261125-f",
           "agentId": "wm539",
@@ -200335,7 +200537,13 @@
           "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
           "nextAction": "Cutover integrated and pushed; continue next owner slice"
         },
-        "scopeRefinementRequired": false
+        "scopeRefinementRequired": false,
+        "cutover": {
+          "clientParity": true,
+          "routeAuthority": true,
+          "presenterParity": true
+        },
+        "retireTaskId": "retire.marketing.asset-writers"
       },
       {
         "goalId": "G4",
@@ -200499,20 +200707,20 @@
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
       "totalPackets": 2117,
-      "migratedPackets": 353,
+      "migratedPackets": 368,
       "statusCounts": {
-        "pending": 21,
-        "in_progress": 11,
-        "ready_for_integration": 4,
+        "pending": 18,
+        "in_progress": 3,
+        "ready_for_integration": 0,
         "integrating": 0,
-        "migrated": 353,
+        "migrated": 368,
         "blocked": 1726,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 177,
-    "updatedAt": "2026-11-25T15:16:38.041Z",
+    "updatedAt": "2026-11-25T15:22:40.773Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
