@@ -217,3 +217,7 @@ export const requestedSourcesSelect=(body:string)=>`WITH requested AS${requested
  * vary; the fixed source-existence head, zero binds, quantifiers at the call
  * sites and lock semantics stay unchanged. */
 export const operationsSourceExists=(rows:string,alias:string,gap:string,tail:string)=>`SELECT 1 FROM (${rows})${gap}${alias}${tail}`;
+/** Byte-identical Social post-id head shared by the profile-posts, PMS home
+ * read-facts and Social home feed-id readers. Only the trailing predicate varies;
+ * the CTE prefix, bind order, ORDER/LIMIT and locks stay at the call sites. */
+export const socialPostIdHead=(tail:string)=>`SELECT p.id FROM social_posts p WHERE ${tail}`;

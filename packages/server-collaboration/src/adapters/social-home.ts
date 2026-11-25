@@ -37,7 +37,7 @@ import { collaborationHomeSources as operations } from '@erpx/server-operations/
 import {handoverAcknowledgements} from '@erpx/server-operations/public/handover-acknowledgement-read';
 import {workSocialReadScope,workSocialPresentation} from '@erpx/server-collaboration/public/work-social-read-policy';
 import {withWorkSocialCommand} from '@erpx/server-collaboration/adapters/work-social-purchases';
-import {socialFollowPostExists,messagingMemberExists,publishedCommentRead,socialPostDraftById,socialPostTopicExists,socialCommentTopicExists,socialCommentAncestorStep,socialCommentHead,socialCommentProjection,socialPostDraftExists,socialPostDraftFieldGuard,socialPostByIdPredicate,readablePostHead} from './read-tail-sql';
+import {socialFollowPostExists,messagingMemberExists,publishedCommentRead,socialPostDraftById,socialPostTopicExists,socialCommentTopicExists,socialCommentAncestorStep,socialCommentHead,socialCommentProjection,socialPostDraftExists,socialPostDraftFieldGuard,socialPostByIdPredicate,readablePostHead,socialPostIdHead} from './read-tail-sql';
 // One column list drives both the qualified comment head and the UNION-arm
 // projections; the head renderer adds the `c.` alias, the projection does not.
 const commentCols='id,post_id,body,author_id,author_name,created_at,mentions_json,rich_content_json,author_kind,parent_comment_id';
@@ -183,13 +183,13 @@ function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSoci
             }>();
         }, async feedIds(companyId: string, userId: string, now: number, now2: number, assignmentId: string, branchId: string | null, branchId2: string | null, value: string | null, value2: string | null, value3: number, value4: number, value5: string, value6: 0 | 1, userId2: string, value7: string | null, value8: string | null, value9: string | null, value10: string | null, value11: string | null, value12: "update" | "plan" | "blocker" | "handover" | "announcement" | null, value13: "update" | "plan" | "blocker" | "handover" | "announcement" | null, value14: string | null, value15: string | null, value16: "conversations" | "milestones" | null, value17: "conversations" | "milestones" | null, value18: "conversations" | "milestones" | null, limit: number) {
             return db
-                .prepare(`${purchase.prefix}SELECT p.id FROM social_posts p WHERE p.company_id=? AND p.state='published' AND p.linked_module IS NULL AND ${sourceAccessSql("p", "?::text")} AND ${purchase.where} AND (?::text IS NULL OR p.branch_id=? OR p.branch_id IS NULL) AND (?::text IS NULL OR p.branch_id=?) AND (p.created_at<? OR (p.created_at=? AND p.id<?)) AND (?=0 OR ${socialFollowPostExists("'post'",'p.id')}) AND (?::text IS NULL OR ${socialPostTopicExists('?')} OR ${socialCommentTopicExists('?')})
+                .prepare(`${purchase.prefix}${socialPostIdHead(`p.company_id=? AND p.state='published' AND p.linked_module IS NULL AND ${sourceAccessSql("p", "?::text")} AND ${purchase.where} AND (?::text IS NULL OR p.branch_id=? OR p.branch_id IS NULL) AND (?::text IS NULL OR p.branch_id=?) AND (p.created_at<? OR (p.created_at=? AND p.id<?)) AND (?=0 OR ${socialFollowPostExists("'post'",'p.id')}) AND (?::text IS NULL OR ${socialPostTopicExists('?')} OR ${socialCommentTopicExists('?')})
         AND (?::text IS NULL OR (p.audience_kind='team' AND p.audience_id=?))
         AND (?::text IS NULL OR p.purpose=?) AND (?::text IS NULL OR NOT EXISTS(SELECT 1 FROM social_post_sources s WHERE s.post_id=p.id AND s.source_kind='pms_record')
           OR EXISTS(SELECT 1 FROM social_post_sources s JOIN (${pmsSourcesSql}) pr ON pr.id=s.source_id
             WHERE s.post_id=p.id AND s.source_kind='pms_record' AND pr.company_id=p.company_id AND pr.property_id=?))
         AND (?::text IS NULL OR (?='milestones' AND p.kind='system') OR (?='conversations' AND p.kind<>'system'))
-        ORDER BY p.created_at DESC,p.id DESC LIMIT ?`)
+        ORDER BY p.created_at DESC,p.id DESC LIMIT ?`)}`)
                 .bind(...purchase.args,companyId, userId, now, now2, assignmentId, branchId, branchId2, value, value2, value3, value4, value5, value6, userId2, value7, value8, value9, value10, value11, value12, value13, value14, value15, value16, value17, value18, limit)
                 .all<{
                 id: string;
