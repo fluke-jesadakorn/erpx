@@ -695,11 +695,14 @@ describe('Operations bound-parameter child JSON and viewer clock dedupe',()=>{
   expect(src).not.toContain("(SELECT to_jsonb(t) FROM routine_templates t WHERE t.id=?");
   expect(src).not.toContain("(SELECT to_jsonb(s) FROM routine_schedules s WHERE s.id=?");
  });
- test('the attachment file guard composes the canonical viewer clock and keeps no local literal',()=>{
+ test('the projection and attachment guards compose the canonical viewer clock and keep no local literal',()=>{
   expect(OPERATIONS_VIEWER_CLOCK_SQL).toBe('(SELECT ?::text user_id,?::text assignment_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint now_ms)');
   const src=readFileSync(new URL('../../../packages/server-operations/src/adapters/record-purchases.ts',import.meta.url),'utf8');
-  expect(src).toContain('MATERIALIZED${OPERATIONS_VIEWER_CLOCK_SQL}');
+  const attachment=readFileSync(new URL('../../../packages/server-operations/src/adapters/task-attachment-purchases.ts',import.meta.url),'utf8');
+  expect(src).toContain("operationsViewerClockHead(viewer,' ')");
+  expect(attachment).toContain('operationsViewerClockHead(viewer)');
   expect(src).not.toContain('MATERIALIZED(SELECT ?::text user_id,?::text assignment_id,floor(');
+  expect(attachment).not.toContain('MATERIALIZED(SELECT ?::text user_id,?::text assignment_id,floor(');
  });
 });
 
