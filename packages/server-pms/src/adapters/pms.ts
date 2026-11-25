@@ -7,6 +7,7 @@ import { pmsBookingPaymentIdProbeSql } from "./pms-read-tail-r29-sql";
 import { pmsRefundPaymentJoinHeadSql } from "./pms-read-tail-r34-sql";
 import { PMS_PROPERTY_POINT_HEAD_SQL } from "./pms-read-tail-r36-sql";
 import { pmsBookingEmailPendingSql } from "./pms-read-tail-r43-sql";
+import { PMS_GUEST_ACCOUNT_PROJECTION_HEAD_SQL } from "./pms-read-tail-r55-sql";
 import { roomChargeReversalWork } from "@erpx/server-pos/public/room-charge-reversal-queue";
 import { withPmsPurchasedCommand } from "@erpx/server-pms/adapters/purchase-boundary";
 import { readPurchasedAccesses, pmsPackageEnforcementMode, type PurchasedAccess } from "@erpx/server-commercial/public/purchase-command-boundary";
@@ -96,7 +97,7 @@ function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
             guest_account_id: string;
             kind: string;
             created_at: number;
-        }>(db, `SELECT id,guest_account_id,kind,created_at FROM pms_documents WHERE property_id=? AND (?::jsonb IS NULL OR guest_account_id IN ${PMS_IDS_JSONB_MEMBER_SQL}) ORDER BY created_at DESC,id LIMIT 200`, facts.id, facts.fact1, facts.fact2),
+        }>(db, `${PMS_GUEST_ACCOUNT_PROJECTION_HEAD_SQL}kind,created_at FROM pms_documents WHERE property_id=? AND (?::jsonb IS NULL OR guest_account_id IN ${PMS_IDS_JSONB_MEMBER_SQL}) ORDER BY created_at DESC,id LIMIT 200`, facts.id, facts.fact1, facts.fact2),
         readFinanceJournalLines: facts => finance.readFinanceJournalLines(facts),
         readReceiptAllocationCredits: async facts => {
             const postings=await query<{entryId:string;date:string;journalId:string}>(db,`
@@ -167,7 +168,7 @@ function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
             amount_minor: number;
             refund_state: string | null;
             payer_email: string | null;
-        }>(db, "SELECT id,guest_account_id,state,kind,amount_minor,refund_state,payer_email FROM pms_stripe_payments WHERE property_id=? ORDER BY created_at DESC LIMIT 100", facts.id),
+        }>(db, `${PMS_GUEST_ACCOUNT_PROJECTION_HEAD_SQL}state,kind,amount_minor,refund_state,payer_email FROM pms_stripe_payments WHERE property_id=? ORDER BY created_at DESC LIMIT 100`, facts.id),
         readPmsRecords2: (facts: {
             companyId: string;
             propertyId: string;
