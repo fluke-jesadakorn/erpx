@@ -96,7 +96,7 @@ async function tsFiles(directory: URL): Promise<string[]> {
 describe('billing read-tail r34 dedupe of residual point reads', () => {
   it('authors the r29 point-read head exactly once as read-only text', async () => {
     const helper = await src('billing-read-tail-r29-sql.ts');
-    expect(helper.split('SELECT').length - 1).toBe(1);
+    expect(helper.split('SELECT').length - 1).toBe(0); // r39 routes the point read through r35
     expect(helper.split('billingPointReadSql').length - 1).toBe(1);
     expect(helper).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
   });
@@ -137,8 +137,8 @@ describe('billing read-tail r34 dedupe of residual point reads', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(10);
-    expect(bare).toBe(10);
+    expect(spaced).toBe(9);
+    expect(bare).toBe(9);
     expect(spaced).toBeLessThan(42);
     expect(bare).toBeLessThan(42);
   });

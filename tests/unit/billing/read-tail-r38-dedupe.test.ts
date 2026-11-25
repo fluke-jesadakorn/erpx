@@ -144,8 +144,8 @@ describe('billing read-tail r38 dedupe of three residual exec heads', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(10);
-    expect(bare).toBe(10);
+    expect(spaced).toBe(9);
+    expect(bare).toBe(9);
     expect(spaced).toBeLessThan(13);
     expect(bare).toBeLessThan(13);
   });

@@ -102,10 +102,13 @@ async function tsFiles(directory: URL): Promise<string[]> {
 
 describe('billing read-tail r36 dedupe of residual read heads', () => {
   it('authors the r29/r35 heads exactly once and keeps them read-only text', async () => {
-    for (const [file, fn] of [['billing-read-tail-r29-sql.ts', 'billingPointReadSql'], ['billing-read-tail-r35-sql.ts', 'billingProjectionSql']] as const) {
+    for (const [file, fn, selects] of [
+      ['billing-read-tail-r29-sql.ts', 'billingPointReadSql', 0],
+      ['billing-read-tail-r35-sql.ts', 'billingProjectionSql', 1],
+    ] as const) {
       const helper = await src(file);
-      expect(helper.split('SELECT').length - 1).toBe(1);
-      expect(helper.split(fn).length - 1).toBe(1);
+      expect(helper.split('SELECT').length - 1, file).toBe(selects); // r39: r29 delegates to r35
+      expect(helper.split(fn).length - 1, file).toBe(1);
       expect(helper).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
     }
   });
@@ -157,8 +160,8 @@ describe('billing read-tail r36 dedupe of residual read heads', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(10);
-    expect(bare).toBe(10);
+    expect(spaced).toBe(9);
+    expect(bare).toBe(9);
     expect(spaced).toBeLessThan(24);
     expect(bare).toBeLessThan(24);
   });

@@ -149,7 +149,7 @@ async function tsFiles(directory: URL): Promise<string[]> {
 describe('billing read-tail r35 dedupe of residual point and projection heads', () => {
   it('authors the r29 point-read and r35 projection heads exactly once as read-only text', async () => {
     const point = await src('billing-read-tail-r29-sql.ts');
-    expect(point.split('SELECT').length - 1).toBe(1);
+    expect(point.split('SELECT').length - 1).toBe(0); // r39 routes the point read through r35
     expect(point.split('billingPointReadSql').length - 1).toBe(1);
     const projection = await src('billing-read-tail-r35-sql.ts');
     expect(projection.split('SELECT').length - 1).toBe(1);
@@ -226,8 +226,8 @@ describe('billing read-tail r35 dedupe of residual point and projection heads', 
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(10);
-    expect(bare).toBe(10);
+    expect(spaced).toBe(9);
+    expect(bare).toBe(9);
     expect(spaced).toBeLessThan(36);
     expect(bare).toBeLessThan(36);
   });
