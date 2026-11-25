@@ -427,7 +427,8 @@
     "./public/directory-mapping": "./src/public/directory-mapping.ts",
     "./adapters/native-directory-operations": "./src/adapters/native-directory-operations.ts",
     "./adapters/directory-operation-preview": "./src/adapters/directory-operation-preview.ts",
-    "./domain/directory-operation": "./src/domain/directory-operation.ts"
+    "./domain/directory-operation": "./src/domain/directory-operation.ts",
+    "./public/native-control-read-plan": "./src/public/native-control-read-plan.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

@@ -1,24 +1,2 @@
-export {
-  identityControlReadConfigured,
-  parseIdentityControlReadConfig,
-  planIdentityControlRead,
-  setIdentityControlReadForTest,
-  PC_CONTEXT_RECEIPT,
-  PC_CONNECTION_ROUTE,
-  PC_DELIVERABLE_INVITATION,
-  PC_FRESH_MFA,
-  PC_INVITATION_WAITING,
-  PC_MFA_ENABLED,
-  PC_PLATFORM_ASSIGNMENTS,
-  PC_PREF_BINDING_PROBE,
-  PC_PREF_BINDING_SHARE,
-  PC_PREF_PARENT_BINDING_SHARE,
-  PC_PREF_SESSION_IMAGE,
-  PC_PREF_SESSION_SHARE,
-  PC_PROVIDER_CONTEXT,
-  PC_QUEUED_ASSIGNMENT_VERSION,
-  PC_REVOKED_SESSION,
-  PC_WORKFLOW_ACTIVE_CONTEXT,
-  PC_WORKSPACE_PREFERENCE,
-} from '@erpx/server-identity_access/adapters/native-control-read-plan';
-export type { ControlReadPlan } from '@erpx/server-identity_access/adapters/native-control-read-plan';
+//! Public surface for the native Identity Control read-plan port.
+export * from '../adapters/native-control-read-plan';

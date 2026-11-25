@@ -502,7 +502,7 @@ describe('native PMS unposted counter receipts read retirement', () => {
     const call = controls.split('\n').find(line => line.includes('PMS_RD_UNPOSTED_COUNTER_RECEIPTS,')) ?? '';
     expect(call).toContain('nativePmsReadFirst');
     expect(call).not.toContain('db.prepare');
-    expect(controls).toContain("refund_state='failed'");
+    expect(controls).toContain('PMS_RD_FAILED_COUNTER_REFUNDS');
   });
 
   it('plans the unposted counter receipts read in Rust and runs it on the caller unit', async () => {
