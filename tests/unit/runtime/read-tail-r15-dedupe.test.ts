@@ -96,7 +96,7 @@ describe('Runtime read-tail r15 report guards/share jsonb and holding bindings r
     expect(shared.split('`SELECT ${columns} FROM executive_reports${suffix}`')).toHaveLength(2);
   });
 
-  test('retirement:ts-statements records BEFORE=36 strictly lower to 29', () => {
+  test('retirement:ts-statements records BEFORE=36 strictly lower to 28', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -106,7 +106,7 @@ describe('Runtime read-tail r15 report guards/share jsonb and holding bindings r
       }
     };
     walk(srcRoot);
-    expect(total).toBe(29);
+    expect(total).toBe(28);
     expect(total).toBeLessThan(36);
   });
 });

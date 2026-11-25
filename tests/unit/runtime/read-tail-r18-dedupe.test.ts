@@ -51,7 +51,7 @@ describe('runtime read-tail r18 catalog-object presence head family', () => {
 
   test('both migration probes are composed by the named adapter, never inlined', () => {
     const migrations = src('runtime/migrations.ts');
-    expect(migrations).toContain("import { catalogObjectExistsSql } from '../read-tail-sql';");
+    expect(migrations).toContain("import { catalogObjectExistsSql, migrationControlReadSql } from '../read-tail-sql';");
     for (const probe of probes) expect(migrations, probe[3]).not.toContain(probe[3]);
     expect(migrations).toContain("catalogObjectExistsSql('to_regclass', 'public.erpx_migrations')");
     expect(migrations).toContain("catalogObjectExistsSql('to_regprocedure', 'ensure_work_cache_coverage()')");
@@ -86,8 +86,8 @@ describe('runtime read-tail r18 catalog-object presence head family', () => {
     const migrations = src('runtime/migrations.ts');
     expect(migrations).toContain("const MIGRATION_LOCK_SQL = 'SELECT pg_advisory_lock(714928001)'");
     expect(migrations).toContain("const MIGRATION_UNLOCK_SQL = 'SELECT pg_advisory_unlock(714928001)'");
-    expect(migrations).toContain('SELECT name FROM erpx_migration_receipts() ORDER BY name');
-    expect(migrations).toContain('SELECT checksum FROM erpx_migrations WHERE name=$1');
+    expect(migrations).toContain("migrationControlReadSql('name', 'erpx_migration_receipts()', ' ORDER BY name')");
+    expect(migrations).toContain("migrationControlReadSql('checksum', 'erpx_migrations', ' WHERE name=$1')");
     const postgres = src('runtime/postgres.ts');
     expect(postgres).toContain("'SELECT pg_advisory_lock(hashtextextended($1,0))'");
     expect(postgres).not.toContain('catalogObjectExistsSql');
@@ -104,8 +104,8 @@ describe('runtime read-tail r18 catalog-object presence head family', () => {
     ]) expect(shared.split(template)).toHaveLength(2);
   });
 
-  test('retirement:ts-statements records BEFORE=30 strictly lower to 29', () => {
-    expect(kpi()).toBe(29);
+  test('retirement:ts-statements records BEFORE=30 strictly lower to 28', () => {
+    expect(kpi()).toBe(28);
     expect(kpi()).toBeLessThan(30);
   });
 });

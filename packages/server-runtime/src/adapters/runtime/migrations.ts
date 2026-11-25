@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { PostgresDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
 import type { PoolClient } from 'pg';
-import { catalogObjectExistsSql } from '../read-tail-sql';
+import { catalogObjectExistsSql, migrationControlReadSql } from '../read-tail-sql';
 const MIGRATION_LOCK_SQL = 'SELECT pg_advisory_lock(714928001)';
 const MIGRATION_UNLOCK_SQL = 'SELECT pg_advisory_unlock(714928001)';
 
@@ -39,7 +39,7 @@ export async function inspectMigrations(
     // receipt table. The migration-owned, read-only function exposes only the
     // receipt names needed by the operational screen while preserving that
     // boundary.
-    names = (await db.prepare('SELECT name FROM erpx_migration_receipts() ORDER BY name').all<{ name: string }>()).results.map(row => row.name);
+    names = (await db.prepare(migrationControlReadSql('name', 'erpx_migration_receipts()', ' ORDER BY name')).all<{ name: string }>()).results.map(row => row.name);
   } catch (error) {
     if (!['42P01', '42883'].includes((error as { code?: string }).code ?? '')) throw error;
     // A missing function does not prove that no migrations were applied.
@@ -82,7 +82,7 @@ export async function migrateDatabase(db: PostgresDatabase, track: string, root 
     await client.query('CREATE TABLE IF NOT EXISTS erpx_migrations(name TEXT PRIMARY KEY,checksum TEXT NOT NULL,applied_at TIMESTAMPTZ NOT NULL DEFAULT now())');
     for (const name of (await readdir(join(root, track))).filter(f => f.endsWith('.sql')).sort()) {
       const sql = await readFile(join(root, track, name), 'utf8'), checksum = createHash('sha256').update(sql).digest('hex');
-      const previous = await client.query('SELECT checksum FROM erpx_migrations WHERE name=$1', [name]);
+      const previous = await client.query(migrationControlReadSql('checksum', 'erpx_migrations', ' WHERE name=$1'), [name]);
       if (previous.rows.length) {
         // Two shipped 0041 variants exist in development. Preserve the original receipt;
         // 0042 repairs entitlement provenance additively and 0043 normalizes approval kinds.

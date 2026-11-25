@@ -80,3 +80,18 @@ export const executiveReportsSql = (columns: string, suffix = '') =>
  */
 export const catalogObjectExistsSql = (fn: 'to_regclass' | 'to_regprocedure', name: string) =>
   `SELECT ${fn}('${name}') IS NOT NULL present`;
+
+/**
+ * Runtime-owned canonical SQL for the closed migration control read family.
+ * Receipt-name inspection and checksum lookup project different columns from
+ * the two fixed migration relations; one builder keeps the query text
+ * byte-identical across both callers. The relation is a closed literal union
+ * owned by the migration adapter, never caller input; binds stay at the call
+ * site. Control-plane lock and unlock statements are not part of this family.
+ */
+export const migrationControlReadSql = (
+  columns: string,
+  relation: 'erpx_migration_receipts()' | 'erpx_migrations',
+  suffix = '',
+) =>
+  `SELECT ${columns} FROM ${relation}${suffix}`;
