@@ -73,6 +73,11 @@ export const socialPostByIdPredicate=(predicate:string)=>`SELECT 1 FROM social_p
  * trailing predicate varies; the fixed `recipient.post_id=p.id AND
  * recipient.user_id<>p.author_id` head, bind order and lock semantics stay. */
 export const socialPostRecipientExists=(tail:string)=>`EXISTS(SELECT 1 FROM social_post_participants recipient WHERE recipient.post_id=p.id AND recipient.user_id<>p.author_id AND ${tail})`;
+/** Byte-identical handover acknowledgement/recipient join head shared by the
+ * `acknowledged` and `acknowledgedCount` projections in handover-receipts.ts.
+ * Only the projected expression and trailing predicate vary; the fixed join,
+ * post/version references, bind order and lock semantics stay unchanged. */
+export const socialHandoverAckJoin=(projection:string,tail:string)=>`SELECT ${projection} FROM social_handover_acknowledgements ack JOIN social_post_participants recipient ON recipient.post_id=ack.post_id AND recipient.user_id=ack.user_id WHERE ack.post_id=p.id AND ack.post_version=p.version${tail}`;
 export const messagingMemberIds=(table:string,column:string)=>`SELECT user_id FROM ${table} WHERE ${column}=?`;
 export const socialPostTopicExists=(tag:string)=>`EXISTS(SELECT 1 FROM social_post_topics pt WHERE pt.post_id=p.id AND pt.tag=${tag})`;
 export const socialCommentTopicExists=(tag:string)=>`EXISTS(SELECT 1 FROM social_comment_topics ct JOIN social_comments c ON c.id=ct.comment_id WHERE c.post_id=p.id AND c.state='published' AND ct.tag=${tag})`;
@@ -102,6 +107,11 @@ export const socialPostDraftExists=(tail:string)=>`EXISTS(SELECT 1 FROM social_p
  * publish and draft-policy readers. Only the trailing predicate varies; the fixed
  * `id=? AND company_id=?` prefix, bind order and lock semantics stay unchanged. */
 export const socialPostByIdGuard=(tail:string)=>`SELECT 1 FROM social_posts WHERE id=? AND company_id=? AND ${tail}`;
+/** Byte-identical absent-social-post guard shared by the notice-source and
+ * social-agent-reply arms of work-package-obligations.ts. Only the closed id and
+ * company column references vary; the fixed `social_posts p` head, zero binds
+ * and lock semantics stay unchanged. */
+export const absentSocialPostGuard=(idRef:string,companyRef:string)=>`NOT EXISTS(SELECT 1 FROM social_posts p WHERE p.id=${idRef} AND p.company_id=${companyRef})`;
 /** Byte-identical Social draft-field existence guard shared by the retained comment
  * and rich draft readers in social-home.ts. Only the trailing field predicate
  * varies; the fixed `id=?` prefix, bind order and lock semantics stay unchanged. */
@@ -146,6 +156,11 @@ export const socialPmsSourceFactExists=(rows:string,alias:string,sourceRef:strin
  * column list varies; the fixed `id=? AND company_id=? AND <access>` predicate,
  * bind order and lock semantics stay unchanged. */
 export const messagingRoomByIdSql=(cols:string,access:string)=>`SELECT ${cols} FROM messaging_rooms r WHERE r.id=? AND r.company_id=? AND ${access}`;
+/** Byte-identical latest-message tail shared by the overview preview and updated-at
+ * projections in messaging.ts. Only the projected expression varies; the fixed
+ * table head, room reference, ordering, limit and lock semantics stay unchanged,
+ * and the caller's COALESCE wrapper stays at the call site. */
+export const messagingLatestMessage=(projection:string)=>`(SELECT ${projection} FROM messaging_messages msg WHERE msg.room_id=r.id ORDER BY msg.seq DESC LIMIT 1)`;
 /** Byte-identical Social agent-reply identity read shared by the request and
  * retry readers in social-agent.ts. Only the projected column list varies; the
  * fixed `id=? AND company_id=? AND actor_id=?` prefix, bind order and lock
@@ -196,3 +211,9 @@ export const socialPurchaseActorCte=(body:string)=>`WITH social_purchase_actor A
  * projected body varies; the `requestedSourcesJsonb` CTE, JSON bind order and
  * lock semantics stay unchanged. */
 export const requestedSourcesSelect=(body:string)=>`WITH requested AS${requestedSourcesJsonb} SELECT ${body}`;
+/** Byte-identical settlement-source existence head shared by the Work
+ * package-obligation notice-source and action-card readers and the queued Task
+ * source reader. Only the source rowset, alias, alias gap and trailing predicate
+ * vary; the fixed source-existence head, zero binds, quantifiers at the call
+ * sites and lock semantics stay unchanged. */
+export const operationsSourceExists=(rows:string,alias:string,gap:string,tail:string)=>`SELECT 1 FROM (${rows})${gap}${alias}${tail}`;

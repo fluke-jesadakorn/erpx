@@ -21,7 +21,7 @@ import { ApiError } from '@erpx/server-runtime/public/http';
 import { createMessagingApplication, type MessagingRepository } from '@erpx/server-collaboration/application/messaging';
 import { nativeOwnerWrite } from '@erpx/server-collaboration/adapters/native-owner-write';
 import {messagingPurchaseControls,requireMessagingCurrentAccount,requireMessagingPurchase,withMessagingPurchasedCommand} from '@erpx/server-collaboration/adapters/messaging-purchases';
-import {messagingMemberIds,messagingOwnerGuard,messagingTeamAccessSql,messagingRoomByIdSql,messagingTeamMemberGuard} from './read-tail-sql';
+import {messagingMemberIds,messagingOwnerGuard,messagingTeamAccessSql,messagingRoomByIdSql,messagingTeamMemberGuard,messagingLatestMessage} from './read-tail-sql';
 async function inward<T>(action: () => Promise<T>) {
     try {
         return await action();
@@ -90,8 +90,8 @@ function application(db: SqlDatabase, actor: WorkContext, allowProvision=true) {
             return db
                 .prepare(`SELECT r.*,
     (SELECT count(*) FROM messaging_messages msg WHERE msg.room_id=r.id AND msg.sender_id<>? AND msg.seq>COALESCE((SELECT rd.seq FROM messaging_reads rd WHERE rd.room_id=r.id AND rd.user_id=?),0)) unread,
-    (SELECT CASE WHEN msg.body='' THEN 'Attachment' ELSE left(msg.body,160) END FROM messaging_messages msg WHERE msg.room_id=r.id ORDER BY msg.seq DESC LIMIT 1) preview,
-    COALESCE((SELECT msg.created_at FROM messaging_messages msg WHERE msg.room_id=r.id ORDER BY msg.seq DESC LIMIT 1),r.created_at) updated_at
+    ${messagingLatestMessage("CASE WHEN msg.body='' THEN 'Attachment' ELSE left(msg.body,160) END")} preview,
+    COALESCE(${messagingLatestMessage('msg.created_at')},r.created_at) updated_at
     FROM messaging_rooms r WHERE r.company_id=? AND ${access} ORDER BY updated_at DESC,r.id`)
                 .bind(userId, userId2, companyId, ...value)
                 .all<MessagingRoom>();
