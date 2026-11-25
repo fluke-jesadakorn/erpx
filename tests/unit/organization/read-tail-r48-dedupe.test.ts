@@ -76,7 +76,8 @@ describe('Organization read-tail r48 parameterized head', () => {
     // Bind arrays and the separate version guard stay byte-identical.
     expect(authority).toContain('[actor.companyId,actor.companyId,power,actor.userId]');
     expect(authority).toContain('[actor.companyId,authority,authority==="head"?input.departmentId:actor.companyId,actor.userId]');
-    expect(authority).toContain('(?=0 AND NOT EXISTS(SELECT 1 FROM authority_seats WHERE company_id=? AND kind=? AND scope_id=?)) OR EXISTS(SELECT 1 FROM authority_seats WHERE company_id=? AND kind=? AND scope_id=? AND version=?)');
+    // r57 renders this version guard through the authority-seat EXISTS renderer.
+    expect(authority).toContain("(?=0 AND NOT ${authoritySeatExistsSql('WHERE company_id=? AND kind=? AND scope_id=?')}) OR ${authoritySeatExistsSql('WHERE company_id=? AND kind=? AND scope_id=? AND version=?')}");
     // Native owner writes are untouched.
     expect(authority.split('nativeOrgStatement(').length - 1).toBe(4);
 

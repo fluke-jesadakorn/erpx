@@ -53,7 +53,8 @@ describe('Organization read-tail r52 native cutover', () => {
 
     // Locks/advisory/version guards/spaced joins and native writes stay untouched.
     expect(org.split('nativeOrgStatement(').length - 1).toBe(15);
-    expect(org).toContain("EXISTS(SELECT 1 FROM authority_seats WHERE company_id=? AND kind='head' AND scope_id=? AND version=?");
+    // r57 renders this head guard through the authority-seat EXISTS renderer.
+    expect(org).toContain('authoritySeatExistsSql("WHERE company_id=? AND kind=\'head\' AND scope_id=? AND version=?');
     expect(read('project-worker-startup-sources.ts')).toContain('LOCK TABLE organization_nodes,organization_positions,staff_levels,authority_seats IN SHARE MODE');
     expect(read('pms-command-facts.ts')).toContain('FOR SHARE');
     expect(read('organization-nodes-spaced-projections.ts')).toContain('"id", "kind", "slug"');

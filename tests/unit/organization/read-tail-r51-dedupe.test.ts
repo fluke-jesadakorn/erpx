@@ -118,10 +118,11 @@ describe('Organization read-tail r51 dedupe', () => {
     expect(profile).toContain('[actor.userId, input.version, objectKey]');
 
     // Other version guards, locks, native statements and spaced JOINs stay untouched.
+    // r57 renders these version guards through the authority-seat EXISTS renderer.
     expect(read('department-authority.ts')).toContain(
-      'EXISTS(SELECT 1 FROM authority_seats WHERE company_id=? AND kind=? AND scope_id=? AND version=?)',
+      "authoritySeatExistsSql('WHERE company_id=? AND kind=? AND scope_id=? AND version=?')",
     );
-    expect(org).toContain("EXISTS(SELECT 1 FROM authority_seats WHERE company_id=? AND kind='head' AND scope_id=? AND version=?");
+    expect(org).toContain('authoritySeatExistsSql("WHERE company_id=? AND kind=\'head\' AND scope_id=? AND version=?');
     expect(profile).toContain('NOT EXISTS(SELECT 1 FROM member_profiles WHERE user_id=?)');
     expect(org.split('nativeOrgStatement(').length - 1).toBe(15);
     expect(profile.split('nativeOrgStatement(').length - 1).toBe(3);
