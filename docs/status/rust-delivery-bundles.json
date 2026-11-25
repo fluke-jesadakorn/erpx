@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12920,
+    "revision": 12923,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -188893,7 +188893,7 @@
         "owner": "pms",
         "title": "pms read slice",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -188904,7 +188904,14 @@
         "resources": [
           "owner:pms"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n217",
+          "claimedAt": "2026-11-25T01:29:36.146Z",
+          "heartbeatAt": "2026-11-25T01:29:36.146Z",
+          "expiresAt": "2026-11-25T01:59:36.146Z",
+          "generation": 174
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -189012,7 +189019,7 @@
         "owner": "quality",
         "title": "quality read slice",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -189023,7 +189030,14 @@
         "resources": [
           "owner:quality"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n219",
+          "claimedAt": "2026-11-25T01:29:36.548Z",
+          "heartbeatAt": "2026-11-25T01:29:36.548Z",
+          "expiresAt": "2026-11-25T01:59:36.548Z",
+          "generation": 174
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -189040,7 +189054,7 @@
         "owner": "files",
         "title": "files read slice",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -189051,7 +189065,14 @@
         "resources": [
           "owner:files"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n220",
+          "claimedAt": "2026-11-25T01:29:36.994Z",
+          "heartbeatAt": "2026-11-25T01:29:36.994Z",
+          "expiresAt": "2026-11-25T01:59:36.994Z",
+          "generation": 174
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -189282,8 +189303,8 @@
       "totalPackets": 1913,
       "migratedPackets": 330,
       "statusCounts": {
-        "pending": 23,
-        "in_progress": 14,
+        "pending": 20,
+        "in_progress": 17,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -189293,7 +189314,7 @@
       }
     },
     "lastCoordinatorGeneration": 174,
-    "updatedAt": "2026-11-25T01:29:23.436Z",
+    "updatedAt": "2026-11-25T01:29:36.999Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
