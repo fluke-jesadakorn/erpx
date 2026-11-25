@@ -164,7 +164,7 @@ describe('Collaboration read-tail r43 KPI pins', () => {
     // 344 replaced 350; locks and notification targets were not touched.
     // r44 retired the latest-message tail, absent-social-post guard and handover
     // ack join: 344 -> 341. Prior pins were refreshed only where 341 replaced 344.
-    expect(total).toBe(331);
+    expect(total).toBe(330);
     expect(total).toBeLessThan(344);
   });
 });

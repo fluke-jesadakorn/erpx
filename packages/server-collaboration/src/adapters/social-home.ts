@@ -37,7 +37,7 @@ import { collaborationHomeSources as operations } from '@erpx/server-operations/
 import {handoverAcknowledgements} from '@erpx/server-operations/public/handover-acknowledgement-read';
 import {workSocialReadScope,workSocialPresentation} from '@erpx/server-collaboration/public/work-social-read-policy';
 import {withWorkSocialCommand} from '@erpx/server-collaboration/adapters/work-social-purchases';
-import {socialFollowPostExists,messagingMemberExists,publishedCommentRead,socialPostDraftById,socialPostTopicExists,socialCommentTopicExists,socialCommentAncestorStep,socialCommentHead,socialCommentProjection,socialPostDraftExists,socialPostDraftFieldGuard,socialPostByIdPredicate,readablePostHead,socialPostIdHead} from './read-tail-sql';
+import {socialFollowPostExists,messagingMemberExists,publishedCommentRead,socialPostDraftById,socialPostTopicExists,socialCommentTopicExists,socialCommentAncestorStep,socialCommentHead,socialCommentProjection,socialCommentExistsGuard,socialPostDraftExists,socialPostDraftFieldGuard,socialPostByIdPredicate,readablePostHead,socialPostIdHead} from './read-tail-sql';
 // One column list drives both the qualified comment head and the UNION-arm
 // projections; the head renderer adds the `c.` alias, the projection does not.
 const commentCols='id,post_id,body,author_id,author_name,created_at,mentions_json,rich_content_json,author_kind,parent_comment_id';
@@ -221,13 +221,13 @@ function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSoci
         }, async ownAgentReply(id: string, userId: string, commentId: string) {
             return db.prepare("SELECT 1 FROM social_agent_replies WHERE post_id=? AND actor_id=? AND ('reply-' || id)=? AND state='completed'").bind(id, userId, commentId).first();
         }, guardCommentAuthor(key: string, value: "comment-author", commentId: string, id: string, userId: string, version: number) {
-            return assertion(db, key, value, "EXISTS(SELECT 1 FROM social_comments WHERE id=? AND post_id=? AND author_id=? AND author_kind='person' AND state='published' AND version=?)", [commentId, id, userId, version]);
+            return assertion(db, key, value, socialCommentExistsGuard("WHERE id=? AND post_id=? AND author_id=? AND author_kind='person' AND state='published' AND version=?)"), [commentId, id, userId, version]);
         }, clearCommentMentions(commentId: string) { return nativeOwnerWriteDescriptor(db, 'SH_COMMENT_MENTIONS_CLEAR', [commentId]); }, clearCommentTopics(commentId: string) { return nativeOwnerWriteDescriptor(db, 'SH_COMMENT_TOPICS_CLEAR', [commentId]); }, updateComment(body: string, value: string, value2: string, now: number, key: string, commentId: string, id: string, userId: string, version: number) {
             return nativeOwnerWriteDescriptor(db, 'SH_COMMENT_UPDATE', [body, value, value2, now, key, commentId, id, userId, version]);
         }, prepareAgentMention(commentId: string, kind: "record" | "person" | "agent", targetId: string, label: string, userId: string, now: number) {
             return nativeOwnerWriteDescriptor(db, 'SH_COMMENT_MENTION_PREPARE', [commentId, kind, targetId, label, userId, now]);
         }, guardCommentRemoval(key: string, value: "comment-author", commentId: string, id: string, version: number, userId: string, userId2: string) {
-            return assertion(db, key, value, "EXISTS(SELECT 1 FROM social_comments c WHERE c.id=? AND c.post_id=? AND c.state='published' AND c.version=? AND (c.author_id=? OR EXISTS(SELECT 1 FROM social_agent_replies r WHERE r.post_id=c.post_id AND r.actor_id=? AND ('reply-' || r.id)=c.id AND r.state='completed')))", [commentId, id, version, userId, userId2]);
+            return assertion(db, key, value, socialCommentExistsGuard("c WHERE c.id=? AND c.post_id=? AND c.state='published' AND c.version=? AND (c.author_id=? OR EXISTS(SELECT 1 FROM social_agent_replies r WHERE r.post_id=c.post_id AND r.actor_id=? AND ('reply-' || r.id)=c.id AND r.state='completed')))"), [commentId, id, version, userId, userId2]);
         }, removeComment(now: number, key: string, commentId: string, id: string, version: number) {
             return nativeOwnerWriteDescriptor(db, 'SH_COMMENT_REMOVE', [now, key, commentId, id, version]);
         }, prepareRevision(value: string, id: string, version: number, action: "edit" | "retract", body: string, content_json: string | null, rich_content_json: string | null, mentions_json: string, userId: string, now: number) {

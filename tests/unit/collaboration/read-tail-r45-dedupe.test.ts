@@ -169,7 +169,7 @@ describe('Collaboration read-tail r45 KPI pins', () => {
     // Four byte-identical settlement-source heads -> one owner-local renderer:
     // 341 -> 338. Prior pins were refreshed only where 338 replaced 341;
     // quantifiers, binds, notification targets and locks were untouched.
-    expect(total).toBe(331);
+    expect(total).toBe(330);
     expect(total).toBeLessThan(341);
   });
 });

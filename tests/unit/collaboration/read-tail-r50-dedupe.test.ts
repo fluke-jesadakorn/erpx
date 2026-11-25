@@ -162,12 +162,12 @@ describe('Collaboration read-tail r50 excluded SQL stays untouched', () => {
     expect(purchases).toContain('ORDER BY pending.created_at,pending.id FOR UPDATE SKIP LOCKED LIMIT 500');
     expect(purchases).toContain('social_agent_replies IN SHARE ROW EXCLUSIVE MODE');
     expect(src('social-agent.ts')).toContain('SELECT pg_advisory_xact_lock(hashtext(?))');
-    expect(sha(shared)).toBe('095bd977c2b5017bda02a9daee6d5ec81be9ce464e7dffb45e8822aa7eb9ed94');
+    expect(sha(shared)).toBe('f1aaaa5928ad7728f74fac9e7c0401190f616af6fd7d2f8ee60c5522376c711c');
   });
 });
 
 describe('Collaboration read-tail r50 KPI pins', () => {
-  test('retirement:ts-statements is pinned at 331, below the r50 BEFORE=333 baseline', () => {
+  test('retirement:ts-statements is pinned at 330, below the r50 BEFORE=333 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -180,7 +180,7 @@ describe('Collaboration read-tail r50 KPI pins', () => {
     // Two byte-identical revision aggregate heads -> one alias-parameterized
     // renderer with two thin wrappers. Net: 333 -> 332.
     // r51 folded the shared count head: 332 -> 331.
-    expect(total).toBe(331);
+    expect(total).toBe(330);
     expect(total).toBeLessThan(333);
   });
 });

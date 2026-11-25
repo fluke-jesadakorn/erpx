@@ -101,6 +101,11 @@ export const socialCommentHead=(cols:string)=>`SELECT ${cols},`;
  * `ancestors` UNION arms of the home comments CTE. Only the closed source
  * table varies; the column list, bind order and other arms stay local. */
 export const socialCommentProjection=(cols:string,table:'selected'|'ancestors')=>`SELECT ${cols} FROM ${table}`;
+/** Byte-identical comment author/removal existence guard shared by the two
+ * guard assertions in social-home.ts. Only the WHERE tail varies; the fixed
+ * existence head, bind order and lock semantics stay unchanged. The nested
+ * agent-reply guard in the removal tail stays local to its caller. */
+export const socialCommentExistsGuard=(tail:string)=>`EXISTS(SELECT 1 FROM social_comments ${tail}`;
 export const socialAgentReplyLeaseIdentity=(tail:string)=>`SELECT 1 FROM social_agent_replies WHERE id=? AND company_id=? AND actor_id=? AND post_id=? AND lease_token=? AND actor_json=? AND owner_type=? AND owner_id=?${tail}`;
 /** Byte-identical project-purchase source-absence guard shared across the two
  * read-policy call sites in work-social-read-policy.ts. Only the trailing
