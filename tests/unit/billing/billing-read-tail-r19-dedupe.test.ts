@@ -23,7 +23,7 @@ describe('billing read-tail r19 parameterized family dedupe', () => {
 
   it('routes every family call site through the shared helpers with no residual literal SQL', async () => {
     const billing = await src('billing.ts');
-    expect(billing.split('billingProviderCostsSql(" AND source_key=$3")').length - 1).toBe(1);
+    expect(billing.split('billingProviderCostsSql(" AND source_key=$3")').length - 1).toBe(0); // native provider-cost cut retired the existingProviderCost call site; the helper remains owned by billing-target.ts
     expect(billing).not.toContain('"SELECT * FROM billing_target_provider_costs WHERE holding_id=$1 AND month=$2 AND source_key=$3"');
 
     const target = await src('billing-target.ts');

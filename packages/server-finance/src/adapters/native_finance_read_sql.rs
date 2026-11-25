@@ -812,7 +812,7 @@ mod tests {
     /// caller's positional binds intact and no write or lock text.
     #[test]
     fn tax_identity_reads_match_retired_owner_statements() {
-        let expected = [
+        let expected: &[(&str, &str, usize)] = &[
             (
                 RD_TAX_IDENTITY_ACTIVE_PARTY,
                 SQL_RD_TAX_IDENTITY_ACTIVE_PARTY,

@@ -52,9 +52,9 @@ describe('Commercial read-tail r6 byte-identical / parameterized family', () => 
     expect(pcb.match(/purchaseObservationAgg\(/g)).toHaveLength(2); // 2 call sites
   });
 
-  test('r3/r4/r5 helpers and advisory-lock statements stay untouched', () => {
+  test('r1/r3 are retired; r4/r5 helpers and advisory-lock statements stay untouched', () => {
     expect(() => adapters('commercial-read-tail-r1-sources.ts')).toThrow();
-    expect(adapters('commercial-read-tail-r3-sources.ts')).toContain('seatHistorySql');
+    expect(() => adapters('commercial-read-tail-r3-sources.ts')).toThrow();
     expect(adapters('commercial-read-tail-r4-sources.ts')).toContain('purchaseFactAgg');
     expect(adapters('commercial-read-tail-r4-sources.ts')).toContain('coverageProbe');
     expect(adapters('commercial-read-tail-r5-sources.ts')).toContain('receiptProbe');
@@ -80,7 +80,7 @@ describe('Commercial read-tail r6 byte-identical / parameterized family', () => 
       }
     };
     walk(srcRoot);
-    expect(total).toBe(12);
+    expect(total).toBe(11);
     expect(total).toBeLessThan(34);
   });
 });

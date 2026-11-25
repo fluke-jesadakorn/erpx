@@ -1,10 +1,9 @@
 import {z} from 'zod';
 import {billingMonth,monthBounds,proratedSupport,type BillingView,type InvoiceLine} from "@erpx/feature-billing/lib/billing";
-import {roundSatang} from "@erpx/feature-billing/lib/billing-target-pricing";
 import {monthBounds as targetMonthBounds} from "@erpx/feature-billing/lib/billing";
 import {stripeList,stripeUrl,testObject,type BillingStripe} from '@erpx/server-billing/domain/stripe';
 import {billingInput,type BillingActor,type BillingInput} from '@erpx/server-billing/domain/billing';
-import type {BillingReceipt,BillingAccount,BillingEnrollment,BillingPeriod,BillingPlan,BillingInvoiceRow,BillingPriceRow,BillingMeterRow,BillingViewFacts} from '@erpx/server-billing/domain/billing';
+import type {BillingReceipt,BillingAccount,BillingEnrollment,BillingPeriod,BillingPlan,BillingInvoiceRow,BillingPriceRow,BillingViewFacts} from '@erpx/server-billing/domain/billing';
 import type {TargetBillingPeriodView} from '@erpx/server-billing/domain/target';
 export interface BillingRepository {recordRatingRun(value0:string,value1:string,value2:string,value3:string,value4:string,value5:string,value6:string,value7:string,value8:number|null,value9:string,value10:string,value11:number):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 retainRatedPeriod(value0:string,value1:string,value2:string,value3:string,value4:string,value5:string,value6:number,value7:number,value8:string,value9:string,value10:string,value11:number|null,value12:number):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
@@ -41,11 +40,6 @@ currentTargetPrice(value0:string | undefined):Promise<{rows:BillingPriceRow[];ro
 sandboxHolding(value0:string):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 approvedRollout(value0:string,value1:string | undefined):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 assignTargetPrice(value0:string,value1:string | undefined,value2:string,value3:string | undefined,value4:number,value5:string,value6:unknown,value7:number):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
-successfulPlatformMeter(value0:string,value1:string | undefined,value2:string | undefined):Promise<{rows:BillingMeterRow[];rowCount:number|null}>;
-availableProviderEvidence(value0:string | null | undefined,value1:string):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
-approvedProviderPeriod(value0:string,value1:string | undefined):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
-existingProviderCost(value0:string,value1:string | undefined,value2:string | undefined):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
-recordProviderCost(value0:string,value1:string | undefined,value2:string | undefined,value3:string | undefined,value4:string | undefined,value5:string | undefined,value6:number | undefined,value7:number | undefined,value8:number | undefined,value9:number | undefined,value10:string | null | undefined,value11:string,value12:number):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 availableOperatingEvidence(value0:string | null | undefined,value1:string):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 recordOperatingCost(value0:string,value1:string | undefined,value2:string | undefined,value3:number | undefined,value4:string | null | undefined,value5:string,value6:number):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 availableCapacityEvidence(value0:string | null | undefined,value1:string):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
@@ -107,6 +101,7 @@ const nativeActions = new Set<BillingInput["action"]>([
   "retry",
   "approve-target-rollout",
   "verify-statement",
+  "verify-provider-cost",
 ]);
 const adminActions = new Set([
   "cost",
@@ -114,7 +109,6 @@ const adminActions = new Set([
   "complete-costs",
   "revise-plan",
   "assign-target",
-  "verify-provider-cost",
   "approve-target",
   "rate-target",
   "record-operating-cost",
@@ -403,33 +397,6 @@ async function billingCommand(
           ? targetBounds.start : Math.max(now, targetBounds.start);
         const inserted = await c.assignTargetPrice(holdingId,input.targetMonth,price.id,input.targetMode,serviceStartedAt,actor.userId,input.reason,now);
         if (!inserted.rowCount) fail("TARGET_ASSIGNMENT_EXISTS", "This month's assignment is immutable. Choose a later month.");
-        break;
-      }
-      case "verify-provider-cost": {
-        if (!input.targetMonth || !input.sourceKey || !input.provider || !input.statementId ||
-            !input.originalCurrency || input.originalMinor === undefined ||
-            input.fxNumerator === undefined || input.fxDenominator === undefined ||
-            input.providerCostSatang === undefined || !input.evidenceId)
-          fail("PROVIDER_COST_REQUIRED", "Source, provider, statement, currency, FX, amount and evidence are required.");
-        const meter = (await c.successfulPlatformMeter(holdingId,input.targetMonth,input.sourceKey)).rows[0];
-        if (!meter || meter.provider !== input.provider ||
-            meter.cost_status !== "reconciled" || meter.cost_reconciled_at === null ||
-            meter.verified_cost_satang === null ||
-            Number(meter.verified_cost_satang) !== input.providerCostSatang)
-          fail("PROVIDER_COST_UNVERIFIED", "Match a successful Platform-key meter to verified provider cost first.");
-        const expectedSatang = roundSatang(
-          BigInt(input.originalMinor) * BigInt(input.fxNumerator),
-          BigInt(input.fxDenominator),
-        );
-        if (expectedSatang !== input.providerCostSatang)
-          fail("FX_MISMATCH", "The reviewed THB amount does not match original units and the FX ratio.");
-        const evidence = (await c.availableProviderEvidence(input.evidenceId,holdingId)).rowCount;
-        if (!evidence) fail("EVIDENCE_REQUIRED", "Attach available private cost evidence.");
-        const prior = (await c.approvedProviderPeriod(holdingId,input.targetMonth)).rowCount;
-        if (prior) fail("TARGET_PERIOD_FROZEN", "Approved target charges cannot be changed.");
-        const existing = (await c.existingProviderCost(holdingId,input.targetMonth,input.sourceKey)).rows[0];
-        if (existing) fail("PROVIDER_COST_ALREADY_VERIFIED", "The source already has verified cost; preserve its audit trail.");
-        await c.recordProviderCost(holdingId,input.targetMonth,input.sourceKey,input.provider,input.statementId,input.originalCurrency,input.originalMinor,input.fxNumerator,input.fxDenominator,input.providerCostSatang,input.evidenceId,actor.userId,now);
         break;
       }
       case "record-operating-cost": {

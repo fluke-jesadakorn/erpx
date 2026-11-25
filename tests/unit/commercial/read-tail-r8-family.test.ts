@@ -32,9 +32,9 @@ describe('Commercial read-tail r8 parameterized Company-scoped star-read family'
     expect(pg).toContain('ORDER BY package_id,package_version');
   });
 
-  test('r3/r4/r5/r6/r7 helpers and advisory/row locks stay untouched', () => {
+  test('r1/r3 are retired; r4/r5/r6/r7 helpers and advisory/row locks stay untouched', () => {
     expect(() => adapters('commercial-read-tail-r1-sources.ts')).toThrow();
-    expect(adapters('commercial-read-tail-r3-sources.ts')).toContain('seatHistorySql');
+    expect(() => adapters('commercial-read-tail-r3-sources.ts')).toThrow();
     expect(adapters('commercial-read-tail-r4-sources.ts')).toContain('purchaseFactAgg');
     expect(adapters('commercial-read-tail-r4-sources.ts')).toContain('coverageProbe');
     expect(adapters('commercial-read-tail-r5-sources.ts')).toContain('receiptProbe');
@@ -67,7 +67,7 @@ describe('Commercial read-tail r8 parameterized Company-scoped star-read family'
       }
     };
     walk(srcRoot);
-    expect(total).toBe(12);
+    expect(total).toBe(11);
     expect(total).toBeLessThan(31);
   });
 });

@@ -3,7 +3,7 @@
 //! The exact statement that retained the company-wide Legal obligations lived
 //! in TypeScript and was built from `featureSpecs` at call time. The SQL now
 //! lives in this owner's JSON contract, bound into Rust with `include_str!` and
-//! rendered by the TypeScript adapter through its native contract port. No
+//! imported by the TypeScript adapter as its native contract source. No
 //! statement token remains in TypeScript. The caller still prepares the
 //! returned statement on its own open Holding transaction, so the read keeps
 //! observing uncommitted grants, holds, shares and feature rows under the same
@@ -23,21 +23,6 @@ pub const PACKAGE_OBLIGATION_SOURCES_JSON: &str =
 /// `[companyId, now]` and rejects any other plan.
 pub const PACKAGE_OBLIGATION_PREFIX: &str =
     "WITH scope AS(SELECT ?::text company_id,?::bigint now_ms)";
-
-/// Feature tables in `featureSpecs` declaration order. Compile-owned names; no
-/// request value selects a relation.
-const FEATURE_TABLES: [&str; 10] = [
-    "legal_case_events",
-    "legal_compliance_actions",
-    "legal_privacy_cases",
-    "legal_corporate_actions",
-    "legal_ip_actions",
-    "legal_counsel_entries",
-    "legal_obligation_schedule",
-    "legal_custody_events",
-    "legal_policy_acknowledgements",
-    "legal_intake_questions",
-];
 
 #[derive(serde::Deserialize)]
 struct PackageObligationSources {
@@ -103,6 +88,21 @@ mod tests {
     use super::*;
     use serde_json::json;
     use sha2::{Digest, Sha256};
+
+    /// Feature tables in `featureSpecs` declaration order. Test oracle for the
+    /// native-owned contract.
+    const FEATURE_TABLES: [&str; 10] = [
+        "legal_case_events",
+        "legal_compliance_actions",
+        "legal_privacy_cases",
+        "legal_corporate_actions",
+        "legal_ip_actions",
+        "legal_counsel_entries",
+        "legal_obligation_schedule",
+        "legal_custody_events",
+        "legal_policy_acknowledgements",
+        "legal_intake_questions",
+    ];
 
     fn values(value: Value) -> Vec<Value> {
         value.as_array().cloned().unwrap_or_default()

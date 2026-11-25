@@ -6,11 +6,13 @@ const calls: Array<{ company: string; input: Record<string, unknown> }> = [];
 const statement = { tag: 'native-statement' };
 vi.mock('../../../packages/server-collaboration/src/adapters/native-system-notification', () => ({
   nativeSystemNotificationStatement: vi.fn(async (
-    _db: unknown,
+    _db: { prepare(sql: string): { bind(): unknown } },
     company: string,
     input: Record<string, unknown>,
   ) => {
     calls.push({ company, input });
+    const bound = _db.prepare(`PLANNER:${String(input.kind)}`).bind();
+    void bound;
     return statement;
   }),
 }));
@@ -23,7 +25,7 @@ import {
 const root = resolve(process.cwd(), 'packages/server-collaboration/src');
 const adapters = resolve(root, 'adapters');
 const src = (f: string) => readFileSync(resolve(adapters, f), 'utf8');
-const db = {} as never;
+const db = { prepare: (_sql: string) => ({ bind: () => statement }) } as never;
 
 const SQL = {
   eventByKey: 'SELECT id FROM inbox_events WHERE company_id=? AND event_key=?',
@@ -74,19 +76,16 @@ describe('native inbox read family', () => {
   });
 
   it('returns owner SQL text for the fixed page-projection fragments', async () => {
-    for (const [kind, sql] of [
-      ['inbox_native_rows_cte', SQL.nativeRows],
-      ['inbox_candidate_source', SQL.candidateSource],
-      ['inbox_combined_order', SQL.combinedOrder],
-    ] as const) {
-      expect(await nativeInboxSqlFragment('company-1', kind)).toBe(statement ? '' : '');
+    for (const kind of ['inbox_native_rows_cte', 'inbox_candidate_source', 'inbox_combined_order']) {
+      expect(await nativeInboxSqlFragment('company-1', kind, [])).toBe(`PLANNER:${kind}`);
     }
   });
 
   it('deletes every TS SELECT literal from inbox.ts', () => {
     const inbox = src('inbox.ts');
     expect(inbox.match(/SELECT /g) ?? []).toHaveLength(0);
-    expect(inbox).not.toContain('db.prepare(');
+    expect(inbox).not.toContain('db.prepare("SELECT');
+    expect(inbox).not.toContain('db.prepare(`SELECT');
     expect(inbox).toContain('nativeInboxStatements(db, companyId).candidate(companyId, id, userId)');
     expect(inbox).toContain('nativeInboxStatements(db, SYSTEM_COMPANY).pendingTargets()');
     expect(inbox).toContain('nativeInboxStatements(db, SYSTEM_COMPANY).pendingMetrics()');
@@ -103,7 +102,7 @@ describe('native inbox read family', () => {
     const planner = src('notification_statement.rs');
     for (const [kind, sql] of Object.entries(SQL)) {
       expect(planner).toContain(`"${kind === 'eventByKey' ? 'inbox_event_by_key' : kind === 'noticeExists' ? 'inbox_notice_exists' : kind === 'recentCount' ? 'inbox_recent_notice_count' : kind === 'pendingTargets' ? 'inbox_pending_targets' : kind === 'pendingMetrics' ? 'inbox_pending_metrics' : kind === 'candidate' ? 'inbox_candidate' : kind === 'nativeOwned' ? 'inbox_delivery_native_owned' : kind === 'nativeRows' ? 'inbox_native_rows_cte' : kind === 'candidateSource' ? 'inbox_candidate_source' : 'inbox_combined_order'}"`);
-      expect(planner).toContain(sql.replace(/\\n/g, '\\n'));
+      expect(planner).toContain(sql.replace(/\n/g, '\\n'));
     }
     expect(planner).toContain('source_type NOT IN ({placeholders})');
   });

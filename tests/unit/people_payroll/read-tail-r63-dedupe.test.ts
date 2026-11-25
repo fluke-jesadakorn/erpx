@@ -82,11 +82,12 @@ describe('People Payroll read-tail r63 dedupe', () => {
     expect(uses('people-payroll.ts', 'ppRd63CompRevisionEngagementGuard')).toBe(1);
   });
 
-  test('helper owns exactly one SELECT head with no write, lock, advisory or native text', () => {
+  test('helper delegates its SELECT head to the shared round-2b builder', () => {
     const helper = src('pp-read-tail-r63-sources.ts');
     expect((helper.match(/export const ppRd63/g) ?? []).length).toBe(1);
-    expect((helper.match(/SELECT /g) ?? []).length).toBe(1);
-    expect(helper).toContain('`NOT EXISTS(SELECT 1 FROM hr_compensation_revisions WHERE engagement_id=?${tail})`');
+    expect((helper.match(/SELECT /g) ?? []).length).toBe(0);
+    expect(helper).toContain("from './pp-read-tail-round2b-sources'");
+    expect(helper).toContain("ppRdRound2bNotExistsByOnePred('hr_compensation_revisions', 'engagement_id', tail)");
     expect(helper).not.toMatch(/FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory|nativePpStatement/i);
     expect(helper).not.toMatch(/INSERT\s+INTO|DELETE\s+FROM|UPDATE\s+\w+\s+SET/i);
     expect(helper).not.toContain('@erpx/server-');
@@ -134,6 +135,6 @@ describe('People Payroll read-tail r63 dedupe', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(1197);
-    expect(total).toBe(1164);
+    expect(total).toBeLessThanOrEqual(1148);
   });
 });

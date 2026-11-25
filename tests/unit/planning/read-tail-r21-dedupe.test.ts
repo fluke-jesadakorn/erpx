@@ -31,7 +31,7 @@ describe('Planning read-tail r21 attachment-target version guard dedupe', () => 
 
   test('wrapper delegates and the generalized builder owns the single read literal', () => {
     const shared = src('planning-attachment-target-sql.ts');
-    expect(selectCount(shared)).toBe(1); // only the target-row builder keeps a SELECT literal
+    expect(selectCount(shared)).toBe(0); // r29: the target-row literal folded into the generalized fact builder
     expect(shared).toContain('planningCommandExistsGuard(table,');
     expect(shared).not.toContain('SELECT 1 FROM');
     expect(shared).not.toContain('EXISTS(');
@@ -96,7 +96,7 @@ describe('Planning read-tail r21 attachment-target version guard dedupe', () => 
     // r23 folded the resource-calendar point lookup into the single-line projection/FROM builder (16 -> 15).
     // r24 folded the scoped single-row family into that same builder (15 -> 14).
     // r25 folded the scoped branch-list family into the single-line projection/FROM builder (14 -> 13).
-    expect(total).toBe(11);
+    expect(total).toBe(10);
     expect(total).toBeLessThan(17);
   });
 });

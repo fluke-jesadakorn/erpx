@@ -36,9 +36,9 @@ describe('Commercial read-tail r5 byte-identical / parameterized family', () => 
     expect(pg.split('receiptProbe("company_package_change_sets","1")')).toHaveLength(2);
   });
 
-  test('r1 is retired; r3/r4 helpers and advisory-lock statements stay untouched', () => {
+  test('r1/r3 are retired; r4 helpers and advisory-lock statements stay untouched', () => {
     expect(() => adapters('commercial-read-tail-r1-sources.ts')).toThrow();
-    expect(adapters('commercial-read-tail-r3-sources.ts')).toContain('seatHistorySql');
+    expect(() => adapters('commercial-read-tail-r3-sources.ts')).toThrow();
     expect(adapters('commercial-read-tail-r4-sources.ts')).toContain('purchaseFactAgg');
     expect(adapters('commercial-read-tail-r4-sources.ts')).toContain('coverageProbe');
     expect(adapters('package-grants.ts')).toContain('SELECT pg_advisory_xact_lock(hashtextextended(?,0))');
@@ -65,7 +65,7 @@ describe('Commercial read-tail r5 byte-identical / parameterized family', () => 
       }
     };
     walk(srcRoot);
-    expect(total).toBe(12);
+    expect(total).toBe(11);
     expect(total).toBeLessThan(36);
   });
 });

@@ -60,7 +60,7 @@ describe('Planning r27 executive projection native cutover', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(11);
+    expect(total).toBe(10);
     expect(total).toBeLessThan(13);
   });
 });

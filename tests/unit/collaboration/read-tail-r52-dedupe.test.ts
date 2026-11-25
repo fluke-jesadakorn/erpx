@@ -99,7 +99,7 @@ describe('Collaboration read-tail r52 renderer fold', () => {
 
 describe('Collaboration read-tail r52 excluded SQL stays untouched', () => {
   test('inbox whole-file pins, agent-reply locks/finalize and notifications are unchanged', () => {
-    expect(sha(fixed('adapters/inbox.ts'))).toBe('cde03a2e7d9b86710255c0f4411a299b141c91ce00169f79428cfbf5e110116b');
+    expect(sha(fixed('adapters/inbox.ts'))).toBe('8983c717a5753fd3d9bb436150455abde716cec0d1f51b724d0558296ed3109e');
     expect(sha(fixed('adapters/staff-notifications.ts'))).toBe('3ce65abf55973c3a41228531a9d2778739a6a7f859a37591c016bda9f9a2508a');
     expect(sha(fixed('adapters/messaging-purchases.ts'))).toBe('6921fd7a922dccbab407a37ecf8544b26494388c442871f4b084c45b39133c9b');
     expect(sha(fixed('public/field-outbox-predicate.generated.ts'))).toBe('1c1945bec812a3981738b0d36af5483786ff8e372c669453c0bc8683976a6c84');
@@ -115,7 +115,7 @@ describe('Collaboration read-tail r52 excluded SQL stays untouched', () => {
 });
 
 describe('Collaboration read-tail r52 KPI pins', () => {
-  test('retirement:ts-statements is pinned at 316, below the r52 BEFORE=331 baseline', () => {
+  test('retirement:ts-statements is pinned at 308, below the r52 BEFORE=331 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -127,7 +127,7 @@ describe('Collaboration read-tail r52 KPI pins', () => {
     walk(srcRoot);
     // Two byte-identical guard heads -> one renderer: 331 -> 330.
     // r53 folded the comment-aggregate head family: 330 -> 329.
-    expect(total).toBe(316);
+    expect(total).toBe(308);
     expect(total).toBeLessThan(331);
   });
 });

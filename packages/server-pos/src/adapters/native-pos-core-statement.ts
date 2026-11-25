@@ -28,6 +28,17 @@ export async function nativePosCashMovementsStatement(db: SqlDatabase, scope: Sc
   return nativePosAll(db, scope.company, 'pos_core_cash_movements', [scope.company, scope.branch, scope.branch2]);
 }
 
+/** Exact row shape of the retired startup register projection. */
+export type PosStartupRegisterRow = Readonly<{
+  id: string;
+  branch_id: string;
+  warehouse_id: string;
+  name: string;
+  mode: string;
+  active: boolean;
+  version: number;
+}>;
+
 /**
  * Owner-issued POS startup register list. The SQL lives in the native POS owner
  * registry (`erpx-server-pos::adapters::core_reads`, kind
@@ -38,10 +49,10 @@ export async function nativePosCashMovementsStatement(db: SqlDatabase, scope: Sc
 export async function nativePosStartupRegistersStatement(
   db: SqlDatabase,
   scope: Scope,
-): Promise<SqlValueRow[]> {
+): Promise<PosStartupRegisterRow[]> {
   return nativePosAll(db, scope.company, 'pos_core_startup_registers', [
     scope.company, scope.branch, scope.branch2,
-  ]);
+  ]) as Promise<PosStartupRegisterRow[]>;
 }
 
 export type PosSalesEvidenceScope = {

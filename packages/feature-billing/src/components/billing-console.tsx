@@ -172,6 +172,7 @@ export function BillingConsole({
         "retry",
         "approve-target-rollout",
         "verify-statement",
+        "verify-provider-cost",
       ].includes(action)
     )
       return null;
@@ -189,8 +190,8 @@ export function BillingConsole({
   }
   async function command(action: string, fields: Record<string, unknown> = {}) {
     if (!data || !writable) return false;
-    // Cost review, approval, void, retry, rollout approval and statement verification
-    // are native-authoritative on the Holding's own host (the owner binds the session audience to that Host). A platform
+    // Cost review, approval, void, retry, rollout approval and provider/statement
+    // verification are native-authoritative on the Holding's own host (the owner binds the session audience to that Host). A platform
     // reviewer acting on another Holding is sent to that Holding's workspace
     // instead of opening a cross-Holding native call.
     const holdingWorkspace = holdingWorkspaceUrl(action);

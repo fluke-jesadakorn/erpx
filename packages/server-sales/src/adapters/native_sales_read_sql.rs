@@ -221,7 +221,7 @@ mod tests {
 
     #[test]
     fn only_owner_read_kinds_are_registered() {
-        assert_eq!(READS.len(), 4);
+        assert_eq!(READS.len(), 5);
         assert!(READS.iter().all(|read| is_read(read.kind)));
         assert!(!is_read("sales_price_lists"));
         assert!(!is_read("SELECT 1"));

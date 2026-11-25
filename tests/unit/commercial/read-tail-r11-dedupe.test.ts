@@ -52,9 +52,9 @@ describe('Commercial read-tail r11 parameterized package-source projection famil
     expect(consumer.match(/packageSourceProbe\(/g)).toHaveLength(4);
   });
 
-  test('r1-r10 helpers, source locks and native statement kinds stay untouched', () => {
+  test('r1/r3 retired; r4-r10 helpers, source locks and native statement kinds stay untouched', () => {
     expect(() => src('commercial-read-tail-r1-sources.ts')).toThrow();
-    expect(src('commercial-read-tail-r3-sources.ts')).toContain('seatHistorySql');
+    expect(() => src('commercial-read-tail-r3-sources.ts')).toThrow();
     expect(src('commercial-read-tail-r4-sources.ts')).toContain('purchaseFactAgg');
     expect(src('commercial-read-tail-r5-sources.ts')).toContain('receiptProbe');
     expect(src('commercial-read-tail-r6-sources.ts')).toContain('purchaseObservationAgg');
@@ -84,6 +84,6 @@ describe('Commercial read-tail r11 parameterized package-source projection famil
     };
     walk(srcRoot);
     expect(total).toBeLessThan(25);
-    expect(total).toBe(12);
+    expect(total).toBe(11);
   });
 });

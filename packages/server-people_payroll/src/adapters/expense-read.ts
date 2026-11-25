@@ -1,3 +1,4 @@
+import { ppRdRound2ByIdCompanyConstant } from './pp-read-tail-round2-sources';
 import {expensePaymentCancellations,expensePreparedPaymentSources,expensePaymentTreasurySql} from '@erpx/server-people_payroll/adapters/expense-payment-cancellation-sources';
 
 import {peoplePackageEnforcementMode,readPurchasedAccess} from "@erpx/server-commercial/public/purchase-command-boundary";
@@ -108,7 +109,7 @@ export function originalNativeExpenseReads(write: SqlDatabase, actor: WorkContex
         .bind(context.companyId).all<{ id: string }>()).results.map(row => row.id);
     },
     async isLegacy(context, id) {
-      return Boolean(await write.prepare("SELECT 1 FROM finance_expenses WHERE id=? AND company_id=? AND workflow_version=1").bind(id, context.companyId).first());
+      return Boolean(await write.prepare(ppRdRound2ByIdCompanyConstant('1', 'finance_expenses', 'workflow_version', '1', false)).bind(id, context.companyId).first());
     },
     async initializeApproval(context, id) { await approvalView(write, "expense", id, context); },
     async visibleRows() {

@@ -28,9 +28,9 @@ describe('Commercial read-tail r9 parameterized Holding-scoped usage-snapshot fa
     expect(pj).toContain('.bind(binding.id).all<{ month: string }>()');
   });
 
-  test('r3/r4/r5/r6/r7/r8 helpers and advisory/row locks stay untouched', () => {
+  test('r1/r3 are retired; r4/r5/r6/r7/r8 helpers and advisory/row locks stay untouched', () => {
     expect(() => adapters('commercial-read-tail-r1-sources.ts')).toThrow();
-    expect(adapters('commercial-read-tail-r3-sources.ts')).toContain('seatHistorySql');
+    expect(() => adapters('commercial-read-tail-r3-sources.ts')).toThrow();
     expect(adapters('commercial-read-tail-r4-sources.ts')).toContain('purchaseFactAgg');
     expect(adapters('commercial-read-tail-r5-sources.ts')).toContain('receiptProbe');
     expect(adapters('commercial-read-tail-r6-sources.ts')).toContain('snapshotByMonthSql');
@@ -59,7 +59,7 @@ describe('Commercial read-tail r9 parameterized Holding-scoped usage-snapshot fa
       }
     };
     walk(srcRoot);
-    expect(total).toBe(12);
+    expect(total).toBe(11);
     expect(total).toBeLessThan(29);
   });
 });

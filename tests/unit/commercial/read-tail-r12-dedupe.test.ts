@@ -53,9 +53,9 @@ describe('Commercial read-tail r12 parameterized purchase-scope read family', ()
     expect(consumer).toContain('clock + purchaseScopeRead(`true commercial_purchase_observation');
   });
 
-  test('r1-r11 helpers, source locks and native statement kinds stay untouched', () => {
+  test('r1/r3 are retired; r4-r11 helpers, source locks and native statement kinds stay untouched', () => {
+    expect(() => src('commercial-read-tail-r3-sources.ts')).toThrow();
     for (const [file, symbol] of [
-      ['commercial-read-tail-r3-sources.ts', 'seatHistorySql'],
       ['commercial-read-tail-r4-sources.ts', 'purchaseFactAgg'],
       ['commercial-read-tail-r5-sources.ts', 'receiptProbe'],
       ['commercial-read-tail-r6-sources.ts', 'purchaseObservationAgg'],
@@ -87,6 +87,6 @@ describe('Commercial read-tail r12 parameterized purchase-scope read family', ()
     };
     walk(srcRoot);
     expect(total).toBeLessThan(24);
-    expect(total).toBe(12);
+    expect(total).toBe(11);
   });
 });

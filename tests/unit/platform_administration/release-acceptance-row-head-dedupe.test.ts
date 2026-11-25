@@ -43,7 +43,7 @@ describe('Platform Administration release-acceptance row SELECT-head family dedu
     const predicate = source('adapters/release-predicate.ts');
     expect(source('adapters/release-acceptance.ts')).toContain("export const RELEASE_ROW_LOCK_SQL = 'SELECT id FROM company_release_acceptances WHERE company_id=? AND id=? FOR UPDATE'");
     expect(source('adapters/pms-rollout-guards.ts')).toContain('SELECT id FROM company_release_acceptances WHERE id=? FOR SHARE');
-    expect(source('adapters/collaboration-reply-rollout.ts')).toContain('SELECT company_id FROM engineering_verification_contexts WHERE company_id=? FOR SHARE');
+    expect(source('adapters/collaboration-reply-rollout.ts')).toContain("releaseAcceptanceRowSql('company_id','company_id=?',' FOR SHARE','engineering_verification_contexts')");
     expect(source('adapters/company-release-attachment-read-sources.ts')).toContain('LOCK TABLE company_release_acceptances,company_release_gate_reviews,company_release_events,company_release_revisions IN SHARE ROW EXCLUSIVE MODE');
     expect(source('adapters/engineering-verification.ts')).not.toContain('SELECT source_fingerprint,software_version,release_manifest_sha256 FROM engineering_verification_contexts WHERE company_id=? AND run_id=?');
     expect(source('adapters/engineering-verification.ts')).toContain('nativeEngineeringPriorRead(companyId, run)');

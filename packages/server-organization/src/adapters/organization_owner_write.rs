@@ -143,6 +143,10 @@ pub const PEOPLE_LIFECYCLE_DATA_NODES: &str = "people_lifecycle_data_nodes";
 /// keyed with the position id; the caller keeps its lifecycle authority and
 /// receives the retained level/branch/department row or null.
 pub const LIFECYCLE_READ_SAVE_POSITION: &str = "lifecycle_read_save_position";
+/// Native-owned rehire active position snapshot. SELECT-only and Company
+/// keyed with the position id; the caller keeps its rehire authority and
+/// receives the retained active-position row or null.
+pub const LIFECYCLE_READ_REHIRE_POSITION: &str = "lifecycle_read_rehire_position";
 
 // -- profile-media-command ----------------------------------------------------
 pub const PROFILE_MEDIA_UPLOAD_AVATAR: &str = "profile_media_upload_avatar";
@@ -322,6 +326,7 @@ pub const KINDS: &[&str] = &[
     LIFECYCLE_POSITION_VERSION_STEP,
     PEOPLE_LIFECYCLE_DATA_NODES,
     LIFECYCLE_READ_SAVE_POSITION,
+    LIFECYCLE_READ_REHIRE_POSITION,
     PROFILE_MEDIA_UPLOAD_AVATAR,
     PROFILE_MEDIA_UPLOAD_COVER,
     PROFILE_MEDIA_UPDATE_AVATAR,
@@ -587,6 +592,9 @@ fn sql(kind: &str) -> Option<&'static str> {
         }
         LIFECYCLE_READ_SAVE_POSITION => {
             "SELECT level_id,branch_id,department_id FROM organization_positions WHERE company_id=? AND id=?"
+        }
+        LIFECYCLE_READ_REHIRE_POSITION => {
+            "SELECT * FROM organization_positions WHERE company_id=? AND id=? AND active=1"
         }
         PROFILE_MEDIA_UPLOAD_AVATAR => {
             "INSERT INTO member_profiles(user_id,avatar_key,avatar_media_type,version,updated_at) VALUES(?,?,?,?,?)"
@@ -1740,6 +1748,42 @@ mod tests {
         assert!(owner_statement(LIFECYCLE_READ_SAVE_POSITION, &[Value::from("company")]).is_err());
         assert!(owner_statement(
             LIFECYCLE_READ_SAVE_POSITION,
+            &[Value::from("company"), Value::from("position"), Value::from("extra")],
+        )
+        .is_err());
+        let upper = statement.to_ascii_uppercase();
+        assert!(upper.starts_with("SELECT "));
+        assert!(!upper.contains(" INSERT ") && !upper.contains(" UPDATE ") && !upper.contains(" DELETE "));
+        assert!(!upper.contains(" FOR UPDATE ") && !upper.contains(" FOR SHARE ") && !upper.contains(" LOCK TABLE "));
+    }
+
+    #[test]
+    fn lifecycle_read_rehire_position_kind_is_byte_identical_and_read_only() {
+        assert!(supported(LIFECYCLE_READ_REHIRE_POSITION));
+        const RETIRED: &str =
+            "SELECT * FROM organization_positions WHERE company_id=? AND id=? AND active=1";
+        assert_eq!(sql(LIFECYCLE_READ_REHIRE_POSITION).unwrap(), RETIRED);
+        let digest = {
+            use sha2::Digest;
+            let mut hasher = sha2::Sha256::new();
+            hasher.update(RETIRED.as_bytes());
+            format!("{:x}", hasher.finalize())
+        };
+        assert_eq!(
+            digest,
+            "5e19e3c48061ce902c502bdeb5668f2731ef1ce622754de690c0203bbbba87c3"
+        );
+        let (statement, values) = owner_statement(
+            LIFECYCLE_READ_REHIRE_POSITION,
+            &[Value::from("company"), Value::from("position")],
+        )
+        .expect("lifecycle rehire position statement");
+        assert_eq!(statement, RETIRED);
+        assert_eq!(values, vec![Value::from("company"), Value::from("position")]);
+        // Missing either positional value fails closed.
+        assert!(owner_statement(LIFECYCLE_READ_REHIRE_POSITION, &[Value::from("company")]).is_err());
+        assert!(owner_statement(
+            LIFECYCLE_READ_REHIRE_POSITION,
             &[Value::from("company"), Value::from("position"), Value::from("extra")],
         )
         .is_err());

@@ -10,9 +10,9 @@ use erpx_server_shared::public::BusinessError;
 use serde::Serialize;
 use serde_json::{json, Value};
 
-/// Byte-identical statements from `commercial-read-tail-r4-sources.coverageProbe`
-/// and `commercial-read-tail-r3-sources.seatHistorySql`. Kept verbatim as the
-/// SQL oracle; `SQL_*_PG` are the same statements with sqlx bind placeholders.
+/// Byte-identical statements retained from the retired r4 `coverageProbe`
+/// and r3 `seatHistorySql` renderers. Kept verbatim as the SQL oracle;
+/// `SQL_*_PG` are the same statements with sqlx bind placeholders.
 pub const SQL_COVERAGE: &str =
     "SELECT started_at FROM billing_seat_history_coverage WHERE singleton=1";
 pub const SQL_ASSIGNMENTS: &str = concat!(

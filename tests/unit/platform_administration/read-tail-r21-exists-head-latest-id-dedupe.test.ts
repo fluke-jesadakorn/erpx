@@ -63,7 +63,7 @@ describe('Platform Administration EXISTS-head and latest-id parameterized fold',
     const predicate = source('adapters/release-predicate.ts');
     expect(source('adapters/release-acceptance.ts')).toContain("export const RELEASE_ROW_LOCK_SQL = 'SELECT id FROM company_release_acceptances WHERE company_id=? AND id=? FOR UPDATE'");
     expect(source('adapters/pms-rollout-guards.ts')).toContain('SELECT id FROM company_release_acceptances WHERE id=? FOR SHARE');
-    expect(source('adapters/collaboration-reply-rollout.ts')).toContain('SELECT company_id FROM engineering_verification_contexts WHERE company_id=? FOR SHARE');
+    expect(source('adapters/collaboration-reply-rollout.ts')).toContain("releaseAcceptanceRowSql('company_id','company_id=?',' FOR SHARE','engineering_verification_contexts')");
     expect(source('adapters/engineering-verification.ts')).toContain('/*erpx-native-engineering-fence*/');
     expect(source('adapters/company-release-attachment-read-sources.ts')).toContain('readNativeReleaseChildImage(actor,id)');
     expect(predicate).toContain('export function releaseAcceptanceRowSql');
@@ -81,7 +81,7 @@ describe('Platform Administration EXISTS-head and latest-id parameterized fold',
       }
     };
     walk(srcRoot);
-    expect(total).toBe(20);
+    expect(total).toBe(18);
     expect(total).toBeLessThan(23);
   });
 });

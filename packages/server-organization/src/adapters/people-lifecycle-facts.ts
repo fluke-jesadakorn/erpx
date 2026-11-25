@@ -6,7 +6,6 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { type LifecyclePositionFact } from '@erpx/server-people_payroll/public/people-lifecycle-contract';
 import { nativeOrgAll, nativeOrgExecute, nativeOrgOne } from './native-organization-owner-write';
 import { maxVersionSubquery } from './organization-column-alias-families-r29';
-import { activePositionById } from './organization-column-alias-families-r38';
 import { recommendedPayDefault } from './organization-read-tail-sources-r40';
 import { positionPackageProjectionSql } from './organization-read-tail-sources-r61';
 export function peopleLifecycleOrganizationFacts(database: SqlDatabase, client?: PoolClient) {
@@ -65,14 +64,12 @@ export function peopleLifecycleOrganizationFacts(database: SqlDatabase, client?:
             }>(database, companyId, 'lifecycle_read_save_position', [companyId, positionId]);
         },
         readCreateRehireEngagementPosition(companyId: string, positionId: string) {
-            return database.prepare(activePositionById('?', '?'))
-                .bind(companyId, positionId)
-                .first<{
+            return nativeOrgOne<{
                 branch_id: string | null;
                 department_id: string | null;
                 level_id: string;
                 title: string;
-            }>();
+            }>(database, companyId, 'lifecycle_read_rehire_position', [companyId, positionId]);
         },
         applyValidatePackageEffect2(companyId: unknown, scopeNodeId: unknown, scopeKind: unknown) { return client!.query<Record<string, unknown>>("SELECT 1 FROM organization_nodes WHERE company_id=$1 AND id=$2 AND kind=$3 AND status='active'", [companyId, scopeNodeId, scopeKind]); },
         readBindPositionPackageposition(companyId: unknown, positionId: unknown) { return client!.query<LifecyclePositionFact>("SELECT * FROM organization_positions WHERE company_id=$1 AND id=$2 AND active=1 FOR UPDATE", [companyId, positionId]); },

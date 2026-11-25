@@ -1,37 +1,27 @@
 import {describe,expect,test} from 'vitest';
 import {readFileSync} from 'node:fs';
-import {seatHistorySql} from '../../../packages/server-commercial/src/adapters/commercial-read-tail-r3-sources';
 
 const src = (name: string) => readFileSync(new URL(`../../../packages/server-commercial/src/adapters/${name}`, import.meta.url), 'utf8');
-const ORIGINALS = {
-  assignment: "SELECT event_id,assignment_id,captured_at,present,state::text state_json FROM billing_seat_assignment_events WHERE captured_at<? ORDER BY assignment_id,captured_at,event_id",
-  member: "SELECT event_id,company_id,user_id,captured_at,present,state::text state_json FROM billing_seat_member_events WHERE captured_at<? ORDER BY company_id,user_id,captured_at,event_id",
-  role: "SELECT event_id,company_id,role_id,captured_at,present,state::text state_json FROM billing_seat_role_events WHERE captured_at<? ORDER BY company_id,role_id,captured_at,event_id",
-};
 
-describe('Commercial read-tail r3 parameterized family', () => {
-  test('builder reproduces each original SELECT byte-identically', () => {
-    expect(seatHistorySql("assignment_id","assignment","assignment_id")).toBe(ORIGINALS.assignment);
-    expect(seatHistorySql("company_id,user_id","member","company_id,user_id")).toBe(ORIGINALS.member);
-    expect(seatHistorySql("company_id,role_id","role","company_id,role_id")).toBe(ORIGINALS.role);
-  });
-
-  test('builder SQL is pure read and free of writes/locks', () => {
-    for (const sql of [ORIGINALS.assignment, ORIGINALS.member, ORIGINALS.role]) {
-      expect(sql.toUpperCase()).toMatch(/^SELECT /);
-      expect(sql).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
-    }
-  });
-
-  test('every consumer keeps its own prepare/bind and no inline literal remains', () => {
+describe('Commercial read-tail r3 retired seat-history family', () => {
+  test('the r3 TS builder module is deleted and no consumer references it', () => {
+    expect(() => src('commercial-read-tail-r3-sources.ts')).toThrow();
     const seats = src('seats.ts');
-    // Lane 37 moved the three event reads into the native axum/sqlx owner.
     expect(seats).not.toContain('seatHistorySql');
     expect(seats).toContain('readNativeSeatHistory');
-    for (const sql of Object.values(ORIGINALS)) expect(seats, sql).not.toContain(sql);
   });
 
-  test('shared module declares the literal exactly once', () => {
-    expect(src('commercial-read-tail-r3-sources.ts').split('SELECT ')).toHaveLength(2); // one literal in the builder template
+  test('native lane 37 keeps the three byte-identical seat-history SQL oracles', () => {
+    const rust = src('native_lane_37/domain.rs');
+    for (const symbol of ['SQL_ASSIGNMENTS', 'SQL_MEMBERS', 'SQL_ROLES']) expect(rust).toContain(symbol);
+    for (const table of ['billing_seat_assignment_events', 'billing_seat_member_events', 'billing_seat_role_events'])
+      expect(rust).toContain(table);
+    expect(rust).toContain('seatHistorySql');
+  });
+
+  test('no commercial TS adapter renders the retired seat-history SELECT', () => {
+    const seats = src('seats.ts');
+    for (const table of ['billing_seat_assignment_events', 'billing_seat_member_events', 'billing_seat_role_events'])
+      expect(seats).not.toContain(table);
   });
 });

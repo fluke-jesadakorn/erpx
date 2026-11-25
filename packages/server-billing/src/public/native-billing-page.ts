@@ -81,11 +81,12 @@ export async function nativeBillingWorkspace(
  * caller receives `undefined` and the route fails closed with a typed 503
  * instead of running the retained TypeScript writer.
  *
- * `retry`, `approve-target-rollout` and `verify-statement` are also
- * native-authoritative: the Holding-host navigation default sends a Platform
- * reviewer to the target Holding host, where the owner's `require_target_command`
- * gate sees the Holding owner. The remaining target/provider/evidence/rate
- * actions stay on the TypeScript command until their own cutovers land.
+ * `retry`, `approve-target-rollout`, `verify-statement` and `verify-provider-cost`
+ * are also native-authoritative: the Holding-host navigation default sends a
+ * Platform reviewer to the target Holding host, where the owner's
+ * `require_target_command` gate sees the Holding owner. The remaining
+ * target/evidence/rate actions stay on the TypeScript command until their own
+ * cutovers land.
  */
 export async function nativeBillingCostCommand(
   actor: Omit<NativeBillingPageContext, 'holdingSlug'>,

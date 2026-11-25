@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import { identitySnapshotSources as peoplepayrollSnapshotSources } from '@erpx/server-people_payroll/public/identity-snapshot-sources';
@@ -108,8 +108,31 @@ describe('Identity access read-tail r30 probe families', () => {
   });
 });
 
+describe('Identity access finance-refund-notice native read plan', () => {
+  const FRAGMENT =
+    'JOIN (SELECT "id","user_id","role","modules_json","company_id","branch_id","valid_from","valid_until","revoked_at","version","scope_kind","scope_node_id","parent_id","source","source_id" FROM assignments) a';
+
+  test('the dead TypeScript producer and its re-export are gone', () => {
+    expect(existsSync(resolve(srcRoot, 'adapters/finance-refund-notice-source.ts'))).toBe(false);
+    expect(existsSync(resolve(srcRoot, 'public/finance-refund-notice-source.ts'))).toBe(false);
+  });
+
+  test('the owner Rust plan pins the retired fragment byte for byte', () => {
+    const plan = read('adapters/native_read_plan.rs');
+    // The Rust literal escapes its double quotes; the rendered bytes are unescaped.
+    expect(plan).toContain(FRAGMENT.replace(/"/g, '\\"'));
+    expect(plan).toContain('dc11981c00603befbc6a70880dede5a69363220831ddb77a70c9800ce0edf44f');
+    expect(createHash('sha256').update(FRAGMENT).digest('hex')).toBe(
+      'dc11981c00603befbc6a70880dede5a69363220831ddb77a70c9800ce0edf44f',
+    );
+    const declaration = plan.split('\n').find((line) => line.startsWith('    "JOIN (SELECT')) ?? '';
+    expect(declaration).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE/i);
+    expect(read('public/mod.rs')).toContain('native_read_plan');
+  });
+});
+
 describe('Identity access read-tail r30 retirement check', () => {
-  test('retirement:ts-statements is 390 after private-file denial retirement (before 423)', () => {
+  test('retirement:ts-statements is 389 after finance-refund-notice plan retirement (before 423)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -119,7 +142,7 @@ describe('Identity access read-tail r30 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBeLessThan(391);
-    expect(total).toBe(390);
+    expect(total).toBeLessThan(390);
+    expect(total).toBe(389);
   });
 });

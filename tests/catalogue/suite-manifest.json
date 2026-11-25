@@ -165274,6 +165274,29 @@
       },
       "apps": [],
       "packages": []
+    },
+    {
+      "id": "people_payroll.read-tail-round2-by-id-company-constant.unit",
+      "lane": "unit",
+      "owner": "people_payroll",
+      "modules": [
+        "people_payroll"
+      ],
+      "files": [
+        "tests/unit/people_payroll/read-tail-round2-by-id-company-constant.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
     }
   ]
 }

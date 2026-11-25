@@ -1,3 +1,4 @@
+import { ppRdRound2ByIdCompanyConstant } from './pp-read-tail-round2-sources';
 import { workforcePurchaseControls, withWorkforcePurchasedRead } from "@erpx/server-people_payroll/adapters/workforce-purchases";
 
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
@@ -18,7 +19,7 @@ import { type LeaveRequest } from '@erpx/server-people_payroll/domain/leave';
 
 import{createLeaveRead,type LeaveReadPorts}from '@erpx/server-people_payroll/application/leave';
 export function nativeLeaveReadRepository(database:SqlDatabase):LeaveReadPorts<SqlStatement>['repository']{return{readGetLeaveLegacy(id: string, companyId: string) {
-            return database.prepare("SELECT id FROM leave_requests WHERE id=? AND company_id=? AND state='pending_approval'")
+            return database.prepare(ppRdRound2ByIdCompanyConstant('id', 'leave_requests', 'state', 'pending_approval'))
                 .bind(id, companyId)
                 .first();
         },readGetLeaveRow(id: string, companyId: string, userId: string, userId2: string, userId3: string, assignmentId: string, userId4: string, assignmentId2: string, evidenceReader: boolean) {

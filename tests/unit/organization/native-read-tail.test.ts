@@ -490,6 +490,10 @@ describe('Organization read-tail r30 native cutover — finance starter node lis
     walk(srcRoot);
     expect(total).toBe(189);
     expect(total).toBeLessThan(190);
+    // The rehire-position cut retired a helper render, not an inline literal:
+    // its SELECT lives in organization-column-alias-families-r38 and remains
+    // shared with people-lifecycle-worker-effects.ts, so the literal KPI holds.
+    expect(read('people-lifecycle-facts.ts').split('SELECT ').length - 1).toBe(4);
   });
 });
 
@@ -580,5 +584,54 @@ describe('Organization lifecycle save position native cutover', () => {
     expect(arm).toBe(SQL);
     expect(arm.toUpperCase().startsWith('SELECT ')).toBe(true);
     expect(arm).not.toMatch(/INSERT|UPDATE|DELETE|FOR UPDATE|FOR SHARE|LOCK TABLE/);
+  });
+});
+
+describe('Organization lifecycle rehire position native cutover', () => {
+  const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+  const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
+  const sha = (value: string) => createHash('sha256').update(value).digest('hex');
+  const KIND = 'lifecycle_read_rehire_position';
+  const SQL = 'SELECT * FROM organization_positions WHERE company_id=? AND id=? AND active=1';
+
+  it('deletes the TS literal/helper render and sends the typed kind with both values', async () => {
+    const source = read('people-lifecycle-facts.ts');
+    expect(source).not.toContain(SQL);
+    expect(source).not.toContain('activePositionById');
+    expect(source).toContain(`}>(database, companyId, '${KIND}', [companyId, positionId]);`);
+    expect(source.split(KIND).length - 1).toBe(1);
+    // The Company-owning FOR UPDATE lock on the lifecycle position stays excluded.
+    expect(source).toContain('FOR UPDATE');
+    const {peopleLifecycleOrganizationFacts} = await import(
+      '../../../packages/server-organization/src/adapters/people-lifecycle-facts'
+    );
+    one.mockClear();
+    const handle = db();
+    const row = {branch_id: null, department_id: 'department', level_id: 'level', title: 'Engineer'};
+    one.mockResolvedValueOnce(row);
+    await expect(peopleLifecycleOrganizationFacts(handle).readCreateRehireEngagementPosition('company-1', 'position-1')).resolves.toBe(row);
+    expect(one).toHaveBeenCalledWith(handle, 'company-1', KIND, ['company-1', 'position-1']);
+    expect(handle.prepare).not.toHaveBeenCalled();
+  });
+
+  it('keeps the nullable single-row parity for an inactive or missing position', async () => {
+    const {peopleLifecycleOrganizationFacts} = await import(
+      '../../../packages/server-organization/src/adapters/people-lifecycle-facts'
+    );
+    one.mockClear();
+    one.mockResolvedValueOnce(null);
+    await expect(peopleLifecycleOrganizationFacts(db()).readCreateRehireEngagementPosition('company-1', 'position-1')).resolves.toBeNull();
+  });
+
+  it('pins the byte-identical SQL now owned by the Rust registry', () => {
+    expect(sha(SQL)).toBe('5e19e3c48061ce902c502bdeb5668f2731ef1ce622754de690c0203bbbba87c3');
+    const registry = read('organization_owner_write.rs');
+    expect(registry).toContain(`pub const LIFECYCLE_READ_REHIRE_POSITION: &str = "${KIND}";`);
+    expect(registry).toContain(`    LIFECYCLE_READ_REHIRE_POSITION,\n`);
+    expect(registry).toContain(`        LIFECYCLE_READ_REHIRE_POSITION => {\n            "${SQL}"\n        }`);
+    const rehire = registry.match(/LIFECYCLE_READ_REHIRE_POSITION => \{\n            "([^"]+)"\n        \}/)?.[1] ?? '';
+    expect(rehire).toBe(SQL);
+    expect(rehire.toUpperCase().startsWith('SELECT ')).toBe(true);
+    expect(rehire).not.toMatch(/INSERT|UPDATE|DELETE|FOR UPDATE|FOR SHARE|LOCK TABLE/);
   });
 });

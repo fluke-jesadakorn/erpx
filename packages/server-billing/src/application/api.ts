@@ -19,9 +19,9 @@ import type {TargetBillingPeriodView} from '@erpx/server-billing/domain/target';
  * default: the Platform console moves to the target Holding host before
  * dispatching, so the actor is the Holding owner.
  *
- * `verify-statement` is native-authoritative on the same gate. The remaining
- * target/provider/evidence/rate actions are still deliberately absent; they
- * stay on the TypeScript command until their own Holding-host cutovers land.
+ * `verify-statement` and `verify-provider-cost` are native-authoritative on the
+ * same gate. The remaining target/evidence/rate actions are still deliberately
+ * absent; they stay on the TypeScript command until their own cutovers land.
  *
  * For every action in this set the TypeScript command is never an alternative
  * authority, so a missing or unavailable native transport fails closed.
@@ -33,6 +33,7 @@ const nativeBillingCommandActions = new Set<BillingInput["action"]>([
   "retry",
   "approve-target-rollout",
   "verify-statement",
+  "verify-provider-cost",
 ]);
 export interface BillingApiRepository {platformAccounts():Promise<{rows:Record<string,unknown>[]}>;holdingSlug(id:string):Promise<{rows:{slug:string}[]}>;scopedEvidence(id:string,holdingId:string):Promise<{rows:BillingEvidenceSource[]}>;deniedUnavailable(id:string,evidenceId:string,holdingId:string,actorId:string,reason:string,now:number):Promise<unknown>;deniedMissingFile(id:string,evidenceId:string,holdingId:string,actorId:string,reason:string,now:number):Promise<unknown>;allowedEvidence(id:string,evidenceId:string,holdingId:string,actorId:string,now:number):Promise<unknown>;existingEvidence(id:string):Promise<{rows:BillingEvidenceSource[]}>;billingAccountExists(holdingId:string):Promise<{rowCount:number|null}>;retainQuarantine(facts:{id:string;holdingId:string;filename:string;mime:string;size:number;sha:string;actorId:string;now:number;objectKey:string;detected:string}):Promise<void>;}
 export interface BillingApiPorts {ready():Promise<void>;repository:BillingApiRepository;platformActor():Promise<{userId:string;email:string;role:string;assignmentId?:string}>;workActor(slug:string):Promise<WorkContext>;companyAuthority(actor:WorkContext):Promise<unknown>;error(status:number,code:string,message:string):Error;errorResponse(error:unknown):Response;now():number;id():string;origin():string;publicOrigin(request:Request):string;readOnly():boolean;uploadsFrozen():boolean;scannerReadiness():Promise<{ready:boolean;enabled:boolean}>;object(key:string):Promise<{body:ReadableStream<Uint8Array>}|null>;objectHead(key:string):Promise<{customMetadata:Record<string,string>}|null>;putObject(key:string,bytes:Uint8Array,options:{onlyIf:{etagDoesNotMatch:string};httpMetadata:{contentType:string;cacheControl:string};customMetadata:{sha256:string;state:string}}):Promise<unknown>;hash(value:string|Uint8Array):string;detect(bytes:Uint8Array,mime:string):string|null;target(holdingId:string,month:string):Promise<TargetBillingPeriodView>;view(actor:BillingActor,holdingId:string):Promise<BillingView|undefined>;body(request:Request):Promise<unknown>;command(actor:BillingActor,holdingId:string,input:BillingInput,key:string,returnUrl:string):Promise<{ok:boolean;url?:string}>;nativeCostCommand?(actor:BillingActor,holdingId:string,input:BillingInput,key:string):Promise<{ok:boolean;url?:string}>;nativeInvoiceCommand?(actor:BillingActor,holdingId:string,route:string,body:unknown,key:string):Promise<{ok:boolean}>;}

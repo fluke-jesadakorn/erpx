@@ -82,7 +82,7 @@ describe('Collaboration read-tail r54 retirement check', () => {
     walk(srcRoot);
     // Two byte-identical source CTE heads -> one parameterized renderer.
     // -2 at the call site, +1 in the shared helper, net -1.
-    expect(total).toBe(316);
+    expect(total).toBe(308);
     expect(total).toBeLessThan(320);
   });
 });

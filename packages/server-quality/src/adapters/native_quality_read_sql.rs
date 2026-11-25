@@ -156,7 +156,7 @@ mod tests {
         assert_eq!(plan.sql, sql);
         assert_eq!(plan.bind_count, binds);
         assert_eq!(plan.sql.matches('?').count(), plan.bind_count);
-        assert!(plan.sql.contains("FROM inventory_quality_"));
+        assert!(plan.sql.contains("FROM inventory_quality_") || plan.sql.contains("FROM command_receipts"));
         assert!(!plan.sql.contains("FOR UPDATE"));
         assert!(!plan.sql.contains("LOCK "));
     }

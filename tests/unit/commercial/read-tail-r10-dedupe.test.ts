@@ -59,9 +59,9 @@ describe('Commercial read-tail r10 parameterized EXISTS package-source family', 
     expect(consumer.match(/EXISTS\(SELECT 1 FROM/g) ?? []).toHaveLength(0);
   });
 
-  test('r1-r9 helpers, source locks and native statement kinds stay untouched', () => {
+  test('r1/r3 retired; r4-r9 helpers, source locks and native statement kinds stay untouched', () => {
     expect(() => src('commercial-read-tail-r1-sources.ts')).toThrow();
-    expect(src('commercial-read-tail-r3-sources.ts')).toContain('seatHistorySql');
+    expect(() => src('commercial-read-tail-r3-sources.ts')).toThrow();
     expect(src('commercial-read-tail-r4-sources.ts')).toContain('purchaseFactAgg');
     expect(src('commercial-read-tail-r5-sources.ts')).toContain('receiptProbe');
     expect(src('commercial-read-tail-r6-sources.ts')).toContain('purchaseObservationAgg');
@@ -90,6 +90,6 @@ describe('Commercial read-tail r10 parameterized EXISTS package-source family', 
     };
     walk(srcRoot);
     expect(total).toBeLessThan(28);
-    expect(total).toBe(12);
+    expect(total).toBe(11);
   });
 });

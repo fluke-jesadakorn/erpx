@@ -11,6 +11,7 @@ import { createEngineeringVerificationApplication } from "@erpx/server-platform_
 import {NativeEngineeringEnrollmentError,nativeEnrollEngineeringVerification} from "./native-engineering-enrollment-command";
 import {nativeEngineeringPriorRead} from "./native-engineering-verification-read/client";
 import { selectOneSql } from "./native-owner-write";
+import { releaseTableExistsSql } from "@erpx/server-platform_administration/adapters/release-predicate";
 import { isEngineeringVerificationOrigin as acceptsOrigin, type EngineeringAttestation, type EngineeringAttestationFacts } from "@erpx/server-platform_administration/domain/engineering-verification";
 
 const manifestDigestKey=Symbol.for("erpx.engineering.manifestDigest");
@@ -111,7 +112,9 @@ export function engineeringVerificationPredicate(companyExpression: string) {
   const context = engineeringVerificationContext();
   if (!context) return "FALSE";
   const identity=context.nativeRoster?nativeEngineeringIdentityPredicate(context.nativeRoster):`current_database() IN ('erpx_browser_${context.run}_h001_db','erpx_browser_${context.run}_h002_db','erpx_browser_${context.run}_h003_db')`;
-  return `(${identity} AND EXISTS(SELECT 1 FROM engineering_verification_contexts engineering WHERE engineering.company_id=${companyExpression} AND engineering.run_id='${context.run}' AND engineering.source_fingerprint='${context.sourceFingerprint}' AND engineering.software_version='${context.softwareVersion}' AND engineering.release_manifest_sha256='${context.fileManifestSha256}' AND engineering.enabled AND engineering.expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint))`;
+  // The persisted context sub-read is rendered through the owner-local EXISTS
+  // head; the database-identity fence above stays in this caller's own SQL.
+  return `(${identity} AND ${releaseTableExistsSql('engineering_verification_contexts engineering', `engineering.company_id=${companyExpression} AND engineering.run_id='${context.run}' AND engineering.source_fingerprint='${context.sourceFingerprint}' AND engineering.software_version='${context.softwareVersion}' AND engineering.release_manifest_sha256='${context.fileManifestSha256}' AND engineering.enabled AND engineering.expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint`)})`;
 }
 export async function isolatedEngineeringVerification(db: SqlDatabase, companyId: string) { const predicate = engineeringVerificationPredicate("?"); return predicate !== "FALSE" && !!await db.prepare(selectOneSql(` WHERE ${predicate}`)).bind(companyId).first(); }
 export function enrollEngineeringVerification(db: SqlDatabase, raw: unknown) {

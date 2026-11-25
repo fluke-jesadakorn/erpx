@@ -1,7 +1,5 @@
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 type Row=Record<string,unknown>;
-import {hasModuleAccess} from '@erpx/catalogue/module-access';
-import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import {BusinessRuleError,type Clock} from '@erpx/server-shared/index';
 import {agentSourceAllowed} from '@erpx/server-agent/domain/source-policy';
 import type {AssistantGovernance} from '@erpx/server-agent/domain/governance';
@@ -13,21 +11,10 @@ export interface AgentGovernanceRepository<Effect>{policyCandidates(companyId:st
  lockApprovedAssignment(assignmentId:string):Effect;
  lockAssignedPool(poolId:string):Effect;
  guardApprovedPolicy(key:string,value:"approved-agent",assignmentId:string,companyId:string,assignmentVersion:number | null,agentVersionId:string | null,agentVersionRevision:number | null,catalogVersion:number | null,userId:string,poolId:string | null,poolVersion:number | null):Effect;
- workspaceAgents(companyId:string):Promise<(Row)[]>;
- workspaceVersions(companyId:string):Promise<(Row)[]>;
- workspacePools(companyId:string):Promise<(Row)[]>;
- workspaceAssignments(companyId:string):Promise<(Row)[]>;
- workspaceInvocations(companyId:string):Promise<(Row)[]>;
- workspacePeople(companyId:string,now:number):Promise<(Row)[]>;
- workspaceMembers(companyId:string):Promise<(Row)[]>;
- workspacePoolHistory(companyId:string):Promise<(Row)[]>;
- workspaceSessions(companyId:string,userId:string,value:0 | 1):Promise<(Row)[]>;
  latestPrivateSession(companyId:string,userId:string,assignmentId:string,scopeKey:string,conversationKey:string):Promise<{id:string;generation:number;status:string;expires_at:number}|null>;
  preparePrivateSession(id:string,companyId:string,userId:string,assignmentId:string,scopeKey:string,conversationKey:string,assignmentId2:string | null,now:number,generation:number):Promise<Effect>;
  preparePrivateSessionControls(id:string,value:number,now:number):Promise<Effect>;
  recordInvocation(value:string,sessionId:string,turnId:string,companyId:string,userId:string,agentVersionId:string | null,value2:string,value3:string,value4:string,value5:string,outcome:"succeeded" | "failed",value6:number | null,value7:number | null,value8:string | null,now:number,value9:string):Promise<void>;
- invocationRecord(companyId:string,id:string):Promise<Row|null>;
- sessionRecord(companyId:string,id:string,userId:string,value:0 | 1):Promise<Row|null>;
  batch(effects:Effect[]):Promise<void>;}
 export function createAssistantGovernanceGuards<Effect>(r:AgentGovernanceRepository<Effect>){return (a:WorkContext,key:string,path:string,governance:AssistantGovernance):Effect[]=>{
   const sessionGuards=[r.lockSession(governance.sessionId),
@@ -38,16 +25,7 @@ export function createAssistantGovernanceGuards<Effect>(r:AgentGovernanceReposit
     r.guardApprovedPolicy(key,"approved-agent",governance.assignmentId,a.companyId,governance.assignmentVersion,governance.agentVersionId,governance.agentVersionRevision,governance.catalogVersion,a.userId,governance.poolId,governance.poolVersion)];
 };}
 export interface AgentGovernancePorts<Effect>{repository(actor:WorkContext):Promise<AgentGovernanceRepository<Effect>>;clock:Clock;hash(value:string):Promise<string>;authorize(actor:WorkContext,permission:string):void;}
-export function createAgentGovernanceApplication<Effect>(ports:AgentGovernancePorts<Effect>){function access(a: WorkContext, write = false) {
-  ports.authorize(a, write ? "ai.manage" : "records.read");
-  if (!hasModuleAccess(a.modules, "agent"))
-    throw new BusinessRuleError(
-      403,
-      "MODULE_FORBIDDEN",
-      "Your current role cannot access Agent governance.",
-    );
-}
-async function assistantPolicy(a: WorkContext, path: string): Promise<Omit<AssistantGovernance, "sessionId">> {
+export function createAgentGovernanceApplication<Effect>(ports:AgentGovernancePorts<Effect>){async function assistantPolicy(a: WorkContext, path: string): Promise<Omit<AssistantGovernance, "sessionId">> {
 const r=await ports.repository(a);
   const candidates = (await r.policyCandidates(a.companyId,a.userId));
   const row = candidates.find(candidate => agentSourceAllowed(path,[String(candidate.scope_path)]));
@@ -64,37 +42,6 @@ const r=await ports.repository(a);
     throw new BusinessRuleError(409,"AI_AGENT_CHANGED","The approved agent or its assignment changed. Continue manually or ask again.");
   const session=await r.activePrivateSession(governance.sessionId,a.companyId,a.userId,a.assignmentId,ports.clock.now());
   if(!session)throw new BusinessRuleError(409,"AI_SESSION_EXPIRED","This private session expired. Ask again to start a new session; retained evidence stays private.");
-}
-async function agentWorkspace(a: WorkContext, includeEvidence = true) {
-  access(a);
-  const r = await ports.repository(a),
-    [agents, versions, pools, assignments, people, members, poolHistory] =
-      await Promise.all([
-        r.workspaceAgents(a.companyId),
-        r.workspaceVersions(a.companyId),
-        r.workspacePools(a.companyId),
-        r.workspaceAssignments(a.companyId),
-        r.workspacePeople(a.companyId,ports.clock.now()),
-        r.workspaceMembers(a.companyId),
-        r.workspacePoolHistory(a.companyId),
-      ]);
-  const [invocations, sessions]: [Row[], Row[]] = includeEvidence
-    ? await Promise.all([
-        r.workspaceInvocations(a.companyId),
-        r.workspaceSessions(a.companyId,a.userId,hasPermission(a,"ai.manage")?1:0),
-      ])
-    : [[], []];
-  return {
-    agents: agents,
-    versions: versions,
-    pools: pools,
-    assignments: assignments,
-    invocations: invocations,
-    people: people,
-    members: members,
-    poolHistory: poolHistory,
-    sessions: sessions.map((session):Row & {effective_status:string}=>({...session,effective_status:session.status==="active"&&Number(session.expires_at)<=ports.clock.now()?"expired":String(session.status)})),
-  };
 }
 async function assistantGovernanceContext(
   a: WorkContext,
@@ -144,14 +91,4 @@ const r=await ports.repository(a);
         departmentId: a.departmentId,
       }),JSON.stringify(input.provider),input.outcome,input.inputTokens ?? null,input.outputTokens ?? null,input.error ?? null,ports.clock.now(),JSON.stringify({assignmentId:input.assignmentId??null,assignmentVersion:input.assignmentVersion??null,agentVersionId:input.agentVersionId,agentVersionRevision:input.agentVersionRevision??null,catalogVersion:input.catalogVersion??null,poolId:input.poolId??null,poolVersion:input.poolVersion??null,promptDigest:input.prompt?await ports.hash(input.prompt):null,allowedSources:input.allowedSources??["/"]}));
 }
-async function agentEvidenceRecord(a:WorkContext,kind:'agent_invocation'|'agent_session',id:string){
- access(a);const r = await ports.repository(a);
- const row=kind==='agent_invocation'
-  ?await r.invocationRecord(a.companyId,id)
-  :await r.sessionRecord(a.companyId,id,a.userId,hasPermission(a,'ai.manage')?1:0);
- if(!row)throw new BusinessRuleError(404,'AGENT_RECORD_NOT_FOUND','Agent record not found in this work scope.');
- const effective_status=row.status==='active'&&Number(row.expires_at)<=ports.clock.now()?'expired':String(row.status);
- const sessionData=kind==='agent_session'?{agents:[],versions:[],pools:[],assignments:[],invocations:[],people:[],members:[],poolHistory:[],sessions:[{...row,effective_status}]}:undefined;
- return {row:{...row,name:String(row.turn_id??row.conversation_key??id),...(kind==='agent_session'?{effective_status}:{})},sessionData};
-}
-return {validateAssistantGovernance,agentWorkspace,assistantGovernanceContext,recordAssistantInvocation,agentEvidenceRecord};}
+return {validateAssistantGovernance,assistantGovernanceContext,recordAssistantInvocation};}

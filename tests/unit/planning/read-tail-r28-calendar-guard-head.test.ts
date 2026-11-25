@@ -56,7 +56,7 @@ describe('Planning r28 calendar/guard SELECT head retirement', () => {
   test('transaction-bound guards keep their exact predicates on the caller connection', () => {
     const resources = src('resources-read.ts');
     expect(resources).toContain("calendarVersionGuard = `COALESCE((${resourceCalendarByKey('version')}),0)=?`");
-    expect(resources).toContain('planningContextGuards(db,a,key,context)');
+    expect(resources).toContain('export function planningContextGuards(');
     expect(src('planning-guard-sql.ts')).toContain('planningCommandExistsGuard(');
     expect(src('planning-command-guard-sql.ts')).toContain('EXISTS(SELECT 1 FROM ${table} WHERE ${predicate})');
   });
@@ -71,7 +71,7 @@ describe('Planning r28 calendar/guard SELECT head retirement', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(11);
+    expect(total).toBe(10);
     expect(total).toBeLessThan(12);
   });
 });

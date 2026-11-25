@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 14118,
+    "revision": 14126,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261125-g",
       "agentId": "lead",
       "startedAt": "2026-11-25T13:28:24.118Z",
-      "heartbeatAt": "2026-11-25T18:25:43.161Z",
-      "expiresAt": "2026-11-25T18:55:43.161Z",
+      "heartbeatAt": "2026-11-25T18:33:43.171Z",
+      "expiresAt": "2026-11-25T19:03:43.171Z",
       "generation": 177,
       "tokenHash": "58dfe8b75da5fd46cf77c2d0cb6291dea94bb80da105d8ed790ca1a07326d35d"
     },
@@ -110237,8 +110237,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-files",
           "claimedAt": "2026-11-25T17:52:02.531Z",
-          "heartbeatAt": "2026-11-25T18:25:43.161Z",
-          "expiresAt": "2026-11-25T18:55:43.161Z",
+          "heartbeatAt": "2026-11-25T18:33:43.171Z",
+          "expiresAt": "2026-11-25T19:03:43.171Z",
           "generation": 177
         },
         "baseSha": "d15bbdf7095f86bedb5c69bd0f4b297c357f0061",
@@ -117025,8 +117025,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-support",
           "claimedAt": "2026-11-25T18:00:33.310Z",
-          "heartbeatAt": "2026-11-25T18:25:43.161Z",
-          "expiresAt": "2026-11-25T18:55:43.161Z",
+          "heartbeatAt": "2026-11-25T18:33:43.171Z",
+          "expiresAt": "2026-11-25T19:03:43.171Z",
           "generation": 177
         },
         "baseSha": null,
@@ -142731,8 +142731,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-marketing",
           "claimedAt": "2026-11-25T18:00:32.561Z",
-          "heartbeatAt": "2026-11-25T18:25:43.161Z",
-          "expiresAt": "2026-11-25T18:55:43.161Z",
+          "heartbeatAt": "2026-11-25T18:33:43.171Z",
+          "expiresAt": "2026-11-25T19:03:43.171Z",
           "generation": 177
         },
         "baseSha": null,
@@ -191992,8 +191992,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-commercial",
           "claimedAt": "2026-11-25T17:52:01.454Z",
-          "heartbeatAt": "2026-11-25T18:25:43.161Z",
-          "expiresAt": "2026-11-25T18:55:43.161Z",
+          "heartbeatAt": "2026-11-25T18:33:43.171Z",
+          "expiresAt": "2026-11-25T19:03:43.171Z",
           "generation": 177
         },
         "baseSha": null,
@@ -200950,8 +200950,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-legal",
           "claimedAt": "2026-11-25T17:56:53.293Z",
-          "heartbeatAt": "2026-11-25T18:25:43.161Z",
-          "expiresAt": "2026-11-25T18:55:43.161Z",
+          "heartbeatAt": "2026-11-25T18:33:43.171Z",
+          "expiresAt": "2026-11-25T19:03:43.171Z",
           "generation": 177
         },
         "baseSha": null,
@@ -201083,8 +201083,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-agent",
           "claimedAt": "2026-11-25T17:59:25.872Z",
-          "heartbeatAt": "2026-11-25T18:25:43.161Z",
-          "expiresAt": "2026-11-25T18:55:43.161Z",
+          "heartbeatAt": "2026-11-25T18:33:43.171Z",
+          "expiresAt": "2026-11-25T19:03:43.171Z",
           "generation": 177
         },
         "baseSha": null,
@@ -201290,8 +201290,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-collaboration",
           "claimedAt": "2026-11-25T18:03:11.485Z",
-          "heartbeatAt": "2026-11-25T18:25:43.161Z",
-          "expiresAt": "2026-11-25T18:55:43.161Z",
+          "heartbeatAt": "2026-11-25T18:33:43.171Z",
+          "expiresAt": "2026-11-25T19:03:43.171Z",
           "generation": 177
         },
         "baseSha": null,
@@ -201395,8 +201395,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-talent",
           "claimedAt": "2026-11-25T18:13:19.797Z",
-          "heartbeatAt": "2026-11-25T18:25:43.161Z",
-          "expiresAt": "2026-11-25T18:55:43.161Z",
+          "heartbeatAt": "2026-11-25T18:33:43.171Z",
+          "expiresAt": "2026-11-25T19:03:43.171Z",
           "generation": 177
         },
         "baseSha": null,
@@ -201430,8 +201430,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-finance",
           "claimedAt": "2026-11-25T18:16:32.152Z",
-          "heartbeatAt": "2026-11-25T18:25:43.161Z",
-          "expiresAt": "2026-11-25T18:55:43.161Z",
+          "heartbeatAt": "2026-11-25T18:33:43.171Z",
+          "expiresAt": "2026-11-25T19:03:43.171Z",
           "generation": 177
         },
         "baseSha": null,
@@ -201465,8 +201465,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-inventory",
           "claimedAt": "2026-11-25T18:16:32.450Z",
-          "heartbeatAt": "2026-11-25T18:25:43.161Z",
-          "expiresAt": "2026-11-25T18:55:43.161Z",
+          "heartbeatAt": "2026-11-25T18:33:43.171Z",
+          "expiresAt": "2026-11-25T19:03:43.171Z",
           "generation": 177
         },
         "baseSha": null,
@@ -201570,8 +201570,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-manufacturing",
           "claimedAt": "2026-11-25T18:16:33.495Z",
-          "heartbeatAt": "2026-11-25T18:25:43.161Z",
-          "expiresAt": "2026-11-25T18:55:43.161Z",
+          "heartbeatAt": "2026-11-25T18:33:43.171Z",
+          "expiresAt": "2026-11-25T19:03:43.171Z",
           "generation": 177
         },
         "baseSha": null,
@@ -201675,8 +201675,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-sales",
           "claimedAt": "2026-11-25T18:16:32.892Z",
-          "heartbeatAt": "2026-11-25T18:25:43.161Z",
-          "expiresAt": "2026-11-25T18:55:43.161Z",
+          "heartbeatAt": "2026-11-25T18:33:43.171Z",
+          "expiresAt": "2026-11-25T19:03:43.171Z",
           "generation": 177
         },
         "baseSha": null,
@@ -201815,8 +201815,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-pms",
           "claimedAt": "2026-11-25T18:19:36.663Z",
-          "heartbeatAt": "2026-11-25T18:25:43.161Z",
-          "expiresAt": "2026-11-25T18:55:43.161Z",
+          "heartbeatAt": "2026-11-25T18:33:43.171Z",
+          "expiresAt": "2026-11-25T19:03:43.171Z",
           "generation": 177
         },
         "baseSha": null,
@@ -201850,8 +201850,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-pos",
           "claimedAt": "2026-11-25T18:20:33.102Z",
-          "heartbeatAt": "2026-11-25T18:25:43.161Z",
-          "expiresAt": "2026-11-25T18:55:43.161Z",
+          "heartbeatAt": "2026-11-25T18:33:43.171Z",
+          "expiresAt": "2026-11-25T19:03:43.171Z",
           "generation": 177
         },
         "baseSha": null,
@@ -201885,8 +201885,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-customer-360",
           "claimedAt": "2026-11-25T18:21:00.961Z",
-          "heartbeatAt": "2026-11-25T18:25:43.161Z",
-          "expiresAt": "2026-11-25T18:55:43.161Z",
+          "heartbeatAt": "2026-11-25T18:33:43.171Z",
+          "expiresAt": "2026-11-25T19:03:43.171Z",
           "generation": 177
         },
         "baseSha": null,
@@ -201912,25 +201912,25 @@
       {
         "goalId": "G4",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-customer-authority",
-          "claimedAt": "2026-11-25T18:21:01.112Z",
-          "heartbeatAt": "2026-11-25T18:25:43.161Z",
-          "expiresAt": "2026-11-25T18:55:43.161Z",
-          "generation": 177
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-customer-authority",
+          "at": "2026-11-25T18:32:49.159Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Access sources read 15->14; attachment-link linkScope needs Files native plan"
+        },
         "scopeRefinementRequired": false,
         "id": "retire.customer_authority.next-read-family",
         "owner": "customer_authority",
@@ -201942,7 +201942,7 @@
         "resources": [
           "owner:customer_authority"
         ],
-        "nextAction": "Pick the next safe read family inside the owner, move to native plans, delete replaced TS SQL, byte-oracle tests, KPI before/after"
+        "nextAction": "Access sources read 15->14; attachment-link linkScope needs Files native plan"
       },
       {
         "goalId": "G4",
@@ -201955,8 +201955,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-runtime",
           "claimedAt": "2026-11-25T18:21:01.255Z",
-          "heartbeatAt": "2026-11-25T18:25:43.161Z",
-          "expiresAt": "2026-11-25T18:55:43.161Z",
+          "heartbeatAt": "2026-11-25T18:33:43.171Z",
+          "expiresAt": "2026-11-25T19:03:43.171Z",
           "generation": 177
         },
         "baseSha": null,
@@ -201990,8 +201990,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-manage-erpx",
           "claimedAt": "2026-11-25T18:21:01.420Z",
-          "heartbeatAt": "2026-11-25T18:25:43.161Z",
-          "expiresAt": "2026-11-25T18:55:43.161Z",
+          "heartbeatAt": "2026-11-25T18:33:43.171Z",
+          "expiresAt": "2026-11-25T19:03:43.171Z",
           "generation": 177
         },
         "baseSha": null,
@@ -202025,8 +202025,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-quality",
           "claimedAt": "2026-11-25T18:21:01.566Z",
-          "heartbeatAt": "2026-11-25T18:25:43.161Z",
-          "expiresAt": "2026-11-25T18:55:43.161Z",
+          "heartbeatAt": "2026-11-25T18:33:43.171Z",
+          "expiresAt": "2026-11-25T19:03:43.171Z",
           "generation": 177
         },
         "baseSha": null,
@@ -202095,8 +202095,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-identity-access",
           "claimedAt": "2026-11-25T18:24:03.224Z",
-          "heartbeatAt": "2026-11-25T18:25:43.161Z",
-          "expiresAt": "2026-11-25T18:55:43.161Z",
+          "heartbeatAt": "2026-11-25T18:33:43.171Z",
+          "expiresAt": "2026-11-25T19:03:43.171Z",
           "generation": 177
         },
         "baseSha": null,
@@ -202130,8 +202130,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-crm",
           "claimedAt": "2026-11-25T18:24:03.380Z",
-          "heartbeatAt": "2026-11-25T18:25:43.161Z",
-          "expiresAt": "2026-11-25T18:55:43.161Z",
+          "heartbeatAt": "2026-11-25T18:33:43.171Z",
+          "expiresAt": "2026-11-25T19:03:43.171Z",
           "generation": 177
         },
         "baseSha": null,
@@ -202165,8 +202165,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-platform-administration",
           "claimedAt": "2026-11-25T18:24:03.547Z",
-          "heartbeatAt": "2026-11-25T18:25:43.161Z",
-          "expiresAt": "2026-11-25T18:55:43.161Z",
+          "heartbeatAt": "2026-11-25T18:33:43.171Z",
+          "expiresAt": "2026-11-25T19:03:43.171Z",
           "generation": 177
         },
         "baseSha": null,
@@ -202200,8 +202200,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-planning",
           "claimedAt": "2026-11-25T18:25:43.028Z",
-          "heartbeatAt": "2026-11-25T18:25:43.161Z",
-          "expiresAt": "2026-11-25T18:55:43.161Z",
+          "heartbeatAt": "2026-11-25T18:33:43.171Z",
+          "expiresAt": "2026-11-25T19:03:43.171Z",
           "generation": 177
         },
         "baseSha": null,
@@ -202223,6 +202223,111 @@
           "owner:planning"
         ],
         "nextAction": "Retire the transaction-bound calendar/guard SELECT head in planning-select-columns-sql.ts (12->11) with byte-oracle pins"
+      },
+      {
+        "goalId": "G4",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-organization",
+          "claimedAt": "2026-11-25T18:31:01.501Z",
+          "heartbeatAt": "2026-11-25T18:33:43.171Z",
+          "expiresAt": "2026-11-25T19:03:43.171Z",
+          "generation": 177
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false,
+        "id": "retire.organization.rehire-position-read",
+        "owner": "organization",
+        "title": "organization rehire engagement position read",
+        "allowedPaths": [
+          "packages/server-organization/src/**",
+          "tests/unit/organization/**"
+        ],
+        "resources": [
+          "owner:organization"
+        ],
+        "nextAction": "Move readCreateRehireEngagementPosition to the native owner (189->188); FOR UPDATE locks stay excluded"
+      },
+      {
+        "goalId": "G4",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-people-payroll",
+          "claimedAt": "2026-11-25T18:31:01.643Z",
+          "heartbeatAt": "2026-11-25T18:33:43.171Z",
+          "expiresAt": "2026-11-25T19:03:43.171Z",
+          "generation": 177
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false,
+        "id": "retire.people_payroll.read-tail-round-2",
+        "owner": "people_payroll",
+        "title": "people_payroll next read round",
+        "allowedPaths": [
+          "packages/server-people-payroll/src/**",
+          "tests/unit/people_payroll/**"
+        ],
+        "resources": [
+          "owner:people_payroll"
+        ],
+        "nextAction": "Pick the next safe read family (non-lock) and cut it (1150->lower); if none, report the exact blocker"
+      },
+      {
+        "goalId": "G4",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-billing",
+          "claimedAt": "2026-11-25T18:31:22.525Z",
+          "heartbeatAt": "2026-11-25T18:33:43.171Z",
+          "expiresAt": "2026-11-25T19:03:43.171Z",
+          "generation": 177
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false,
+        "id": "retire.billing.actions-round-2",
+        "owner": "billing",
+        "title": "billing next native action",
+        "allowedPaths": [
+          "packages/server-billing/src/**",
+          "tests/unit/billing/**"
+        ],
+        "resources": [
+          "owner:billing"
+        ],
+        "nextAction": "Cut the next billing action (evidence/provider/rate/assign) into the native action set with exact mapping; delete replaced TS; tests; writer surface before/after"
       }
     ],
     "migrationProgress": {
@@ -202231,21 +202336,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 2160,
+      "totalPackets": 2163,
       "migratedPackets": 369,
       "statusCounts": {
         "pending": 21,
-        "in_progress": 23,
+        "in_progress": 25,
         "ready_for_integration": 37,
         "integrating": 0,
         "migrated": 369,
-        "blocked": 1708,
+        "blocked": 1709,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 177,
-    "updatedAt": "2026-11-25T18:30:03.172Z",
+    "updatedAt": "2026-11-25T18:33:43.176Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",

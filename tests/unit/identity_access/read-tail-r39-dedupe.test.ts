@@ -114,7 +114,7 @@ describe('Identity access read-tail r39 wiring', () => {
 });
 
 describe('Identity access read-tail r39 retirement check', () => {
-  test('retirement:ts-statements is 390 after private-file denial retirement', () => {
+  test('retirement:ts-statements is 389 after finance-refund-notice plan retirement', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -125,6 +125,6 @@ describe('Identity access read-tail r39 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(442);
-    expect(total).toBe(390);
+    expect(total).toBe(389);
   });
 });

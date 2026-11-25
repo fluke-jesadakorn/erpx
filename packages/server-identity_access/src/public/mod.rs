@@ -137,6 +137,11 @@ pub mod position_gpo_http {
 pub mod private_file_denial;
 pub mod private_file_denial_http;
 
+/// Byte-pinned owner plans for TypeScript read fragments retired in this owner.
+pub mod native_read_plan {
+    pub use crate::adapters::native_read_plan::{plan_sha256, FINANCE_REFUND_NOTICE_ASSIGNMENT_SQL};
+}
+
 pub mod people_access;
 
 /// Native Identity port for People account linking (Control DB `user` plus

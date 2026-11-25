@@ -58,9 +58,9 @@ describe('Commercial read-tail r13 parameterized month-scoped read family', () =
     expect(pj.match(/SELECT /g) ?? []).toHaveLength(0); // principal-status event base is native now
   });
 
-  test('r1-r12 helpers, source locks and native statement kinds stay untouched', () => {
+  test('r1/r3 are retired; r4-r12 helpers, source locks and native statement kinds stay untouched', () => {
+    expect(() => src('commercial-read-tail-r3-sources.ts')).toThrow();
     for (const [file, symbol] of [
-      ['commercial-read-tail-r3-sources.ts', 'seatHistorySql'],
       ['commercial-read-tail-r4-sources.ts', 'purchaseFactAgg'],
       ['commercial-read-tail-r5-sources.ts', 'receiptProbe'],
       ['commercial-read-tail-r6-sources.ts', 'purchaseObservationAgg'],
@@ -94,6 +94,6 @@ describe('Commercial read-tail r13 parameterized month-scoped read family', () =
     };
     walk(srcRoot);
     expect(total).toBeLessThan(23);
-    expect(total).toBe(12);
+    expect(total).toBe(11);
   });
 });

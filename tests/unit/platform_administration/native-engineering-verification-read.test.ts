@@ -7,6 +7,8 @@ vi.mock('server-only', () => ({}));
 import {
   parseNativeEngineeringReadConfig,
   nativeEngineeringPriorRead,
+  nativeEngineeringActiveRead,
+  nativeEngineeringReplyGuard,
   nativeEngineeringReadAvailable,
 } from '../../../packages/server-platform_administration/src/adapters/native-engineering-verification-read/client';
 
@@ -51,6 +53,16 @@ describe('Platform Administration native engineering read binding', () => {
     await expect(nativeEngineeringPriorRead('company-1', 'abcdef123456', {} as unknown as NodeJS.ProcessEnv)).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ENGINEERING_CONFIG_REQUIRED' });
   });
 
+  test('active and reply-guard native clients reject unbounded inputs before transport', async () => {
+    const env = { ERPX_NATIVE_PLATFORM_ENGINEERING_CONFIG: validRaw } as unknown as NodeJS.ProcessEnv;
+    const source = 'a'.repeat(64);
+    await expect(nativeEngineeringActiveRead('', 'abcdef123456', source, `release-${source}`, 'b'.repeat(64), env)).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ENGINEERING_READ_INPUT_INVALID' });
+    await expect(nativeEngineeringActiveRead('company-1', 'xyz', source, `release-${source}`, 'b'.repeat(64), env)).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ENGINEERING_READ_INPUT_INVALID' });
+    await expect(nativeEngineeringActiveRead('company-1', 'abcdef123456', source, 'other', 'b'.repeat(64), env)).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ENGINEERING_READ_INPUT_INVALID' });
+    await expect(nativeEngineeringReplyGuard('', env)).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ENGINEERING_READ_INPUT_INVALID' });
+    await expect(nativeEngineeringReplyGuard('company-1', {} as unknown as NodeJS.ProcessEnv)).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ENGINEERING_CONFIG_REQUIRED' });
+  });
+
   test('the TypeScript prior SQL is deleted and the consumer is bound to the native client', () => {
     const engineering = source('adapters/engineering-verification.ts');
     const client = source('adapters/native-engineering-verification-read/client.ts');
@@ -83,30 +95,37 @@ describe('Platform Administration native engineering read binding', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(20);
+    expect(total).toBe(18);
     expect(total).toBeLessThan(21);
   });
 
-  test('retirement boundary records the retained active and reply-guard families ready for the lead cut', () => {
+  test('active and reply-guard native routes exist and TS statements are owner-local renderings', () => {
     const engineering = source('adapters/engineering-verification.ts');
     const reply = source('adapters/collaboration-reply-rollout.ts');
+    const http = source('adapters/native_engineering_verification_read_http.rs');
+    const client = source('adapters/native-engineering-verification-read/client.ts');
     const nativeRead = source('adapters/native_engineering_verification_read.rs');
     const nativeApp = source('application/native_engineering_verification_read.rs');
     const nativePublic = source('public/native_engineering_verification_read.rs');
 
-    // The synchronous SQL-predicate callers of these two fragments live in
-    // server-pms/feature-availability and server-collaboration/social-agent,
-    // outside this owner's allowed paths. Their TypeScript stays authoritative
-    // until those callers move; no in-path cut is invented here.
-    expect(engineering).toContain('EXISTS(SELECT 1 FROM engineering_verification_contexts engineering');
-    const replyTs = 'SELECT company_id FROM engineering_verification_contexts WHERE company_id=? FOR SHARE';
-    expect(reply).toContain(replyTs);
+    // The two TS adapters no longer own inline statements: each renders the
+    // byte-identical SQL through an owner-local head, keeping their synchronous
+    // SqlStatement callers in server-pms and server-collaboration unchanged.
+    expect(engineering).toContain("releaseTableExistsSql('engineering_verification_contexts engineering'");
+    expect(engineering).not.toContain('EXISTS(SELECT 1 FROM engineering_verification_contexts engineering');
+    expect(reply).toContain("releaseAcceptanceRowSql('company_id','company_id=?',' FOR SHARE','engineering_verification_contexts')");
+    expect(reply).not.toContain('SELECT company_id FROM engineering_verification_contexts');
 
-    // Both statements and use cases already exist in the owner-native port, so
-    // the remaining cut is a caller move plus route mount, not new native logic.
+    // Native reads and routes exist; the lead extends the mounted backend.
+    expect(http).toContain('/platform/engineering-verification/read/active');
+    expect(http).toContain('/platform/engineering-verification/read/reply-guard');
+    expect(http).toContain('fn active<');
+    expect(http).toContain('fn reply_rollout_guard<');
+    expect(client).toContain('nativeEngineeringActiveRead');
+    expect(client).toContain('nativeEngineeringReplyGuard');
     expect(nativeRead).toContain('pub const ACTIVE_SQL');
     expect(nativeRead).toContain('pub const REPLY_ROLLOUT_GUARD_SQL');
-    expect(nativeRead).toContain(replyTs.replace('?', '$1'));
+    expect(nativeRead).toContain('SELECT company_id FROM engineering_verification_contexts WHERE company_id=$1 FOR SHARE');
     expect(nativeApp).toContain('pub async fn read_active');
     expect(nativeApp).toContain('pub async fn read_reply_rollout_guard');
     expect(nativePublic).toContain('read_active');
