@@ -61639,6 +61639,33 @@
       }
     },
     {
+      "lane": "unit",
+      "owner": "maintenance",
+      "modules": [
+        "maintenance"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Maintenance lane 36 native reads must stay tenant-isolated."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-maintenance"
+      ],
+      "id": "maintenance.native-lane-36.unit",
+      "files": [
+        "tests/unit/maintenance/native-lane-36.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "maintenance.native-maintenance-transport.unit",
       "lane": "unit",
       "owner": "maintenance",
@@ -78688,6 +78715,33 @@
       "packages": [
         "@erpx/server-planning"
       ]
+    },
+    {
+      "lane": "unit",
+      "owner": "planning",
+      "modules": [
+        "planning"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Planning lane 36 native reads must stay tenant-isolated."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-planning"
+      ],
+      "id": "planning.native-lane-36.unit",
+      "files": [
+        "tests/unit/planning/native-lane-36.test.ts"
+      ],
+      "framework": "vitest"
     },
     {
       "id": "planning.native-planning-workspace-transport.unit",
@@ -97080,6 +97134,33 @@
         "@erpx/ui",
         "@erpx/workplace"
       ]
+    },
+    {
+      "lane": "unit",
+      "owner": "sales",
+      "modules": [
+        "sales"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Sales native customer note route must stay contract-compatible."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-sales"
+      ],
+      "id": "sales.native-lane-30.unit",
+      "files": [
+        "tests/unit/sales/native-lane-30.test.ts"
+      ],
+      "framework": "vitest"
     },
     {
       "id": "sales.native-sales-documents-transport.unit",

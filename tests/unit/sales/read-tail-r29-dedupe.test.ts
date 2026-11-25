@@ -147,8 +147,9 @@ describe('Sales read-tail r29 scope-tuple family', () => {
     expect(byKey).toContain('export const byKey =');
     expect(pointRead).toContain('export const pointRead =');
     expect(orderRead).toContain('export const followupCustomerOrderRead =');
-    expect(notes).toContain('const notesProjection=');
-    expect(notes).toContain('const historyJoin=');
+    // lane 30 retired both customer-note SELECT literals from TypeScript.
+    expect(notes).not.toContain('SELECT');
+    expect(notes).toContain("from './native-lane-30/client'");
     expect(native).toContain('export const SALES_RD_PRICE_LIST_ACTIVE');
     expect(native).toContain('export const SALES_RD_PRICE_LIST_ITEMS_ACTIVE');
     expect(native).toContain('export const SALES_RD_NOTIFICATION_ATTEMPT');
@@ -173,7 +174,7 @@ describe('Sales read-tail r29 retirement check', () => {
     // tableRead (-3) and priceListSelect (-1).
     // r33 folds the tail generator into the primary read generator (-1).
     // r35: delivery-presence head shared by order/return/notice guards (-1).
-    expect(total).toBe(44);
+    expect(total).toBe(42);
     expect(total).toBeLessThan(54);
   });
 });

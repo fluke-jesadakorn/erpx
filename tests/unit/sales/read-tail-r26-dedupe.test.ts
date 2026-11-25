@@ -110,8 +110,9 @@ describe('Sales read-tail r26 parameterized presence-guard families', () => {
     expect(byKey).toContain('export const byKey ='); // r19
     expect(pointRead).toContain('export const pointRead ='); // r20
     expect(orderRead).toContain('export const followupCustomerOrderRead ='); // r21
-    expect(notes).toContain('const notesProjection=');
-    expect(notes).toContain('const historyJoin=');
+    // lane 30 retired both customer-note SELECT literals from TypeScript.
+    expect(notes).not.toContain('SELECT');
+    expect(notes).toContain("from './native-lane-30/client'");
     expect(purchases).toContain('assignmentReadSql(');
     expect(metric).toContain('assignmentReadSql(');
     expect(purchases).toContain('LOCK TABLE customer_followups,customer_followup_events IN SHARE ROW EXCLUSIVE MODE');
@@ -141,7 +142,7 @@ describe('Sales read-tail r26 retirement check', () => {
     // r30 shared tableRead (-3) and priceListSelect (-1).
     // r33 folds the tail generator into the primary read generator (-1).
     // r35: delivery-presence head shared by order/return/notice guards (-1).
-    expect(total).toBe(44);
+    expect(total).toBe(42);
     expect(total).toBeLessThan(60);
   });
 });

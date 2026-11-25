@@ -2,7 +2,7 @@ import "server-only";
 import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {attachmentOwnerVersionGuardSql} from "./attachment-owner-version-guard";
-import {attachmentDescriptorReadSql} from "./attachment-descriptor-read";
+import {requireAttachmentDescriptor} from './native-lane-36/client';
 import type {TargetRow} from "@erpx/server-files/public/contracts/attachments-operational";
 const versionOwners:Record<string,string>={};
 const allowedTargets=new Set<string>([]);
@@ -43,5 +43,8 @@ if(!allowedTargets.has(targetType))return null;
     .bind(now, targetId, expectedVersion);
 }
 export function OperationalAttachmentMaintenanceFacts(db:SqlDatabase){return {
-readModuleScoped:(facts:{targetType:string;targetId:string;companyId:string;})=>{const moduleTarget=({"maintenance_work": {"table": "maintenance_work_orders", "branch": "branch_id", "department": "department_id"}} as Record<string,{table:string;branch:string;department:string|null}>)[facts.targetType];return db.prepare(attachmentDescriptorReadSql(moduleTarget.table,`${moduleTarget.branch} branch_id`,`${moduleTarget.department ?? "NULL::text"} department_id`,"version")).bind(facts.targetId,facts.companyId).first<TargetRow>();},versionGuard:(commandId:string,targetType:string,targetId:string,companyId:string,version:number,index:number)=>remainingOperationalAttachmentTargetVersionGuard(db,commandId,targetType,targetId,companyId,version,index),versionStep:(targetType:string,targetId:string,expectedVersion:number,now:number)=>remainingOperationalAttachmentRecordVersionStep(db,targetType,targetId,expectedVersion,now)
+readModuleScoped:(facts:{targetType:string;targetId:string;companyId:string;}):Promise<TargetRow | null>=>{
+  if (facts.targetType !== 'maintenance_work') return Promise.resolve(null);
+  return requireAttachmentDescriptor(facts.targetType,facts.targetId,facts.companyId) as Promise<TargetRow | null>;
+},versionGuard:(commandId:string,targetType:string,targetId:string,companyId:string,version:number,index:number)=>remainingOperationalAttachmentTargetVersionGuard(db,commandId,targetType,targetId,companyId,version,index),versionStep:(targetType:string,targetId:string,expectedVersion:number,now:number)=>remainingOperationalAttachmentRecordVersionStep(db,targetType,targetId,expectedVersion,now)
 };}

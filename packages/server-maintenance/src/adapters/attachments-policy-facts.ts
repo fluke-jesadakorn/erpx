@@ -1,5 +1,11 @@
 import "server-only";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
-import {attachmentDescriptorReadSql} from "./attachment-descriptor-read";
-const descriptors:Record<string,{table:string;version:string;branch?:string;department?:string;extra?:string;readPermission:string;writePermission:string}>={"maintenance_work": {"table": "maintenance_work_orders", "version": "version", "branch": "branch_id", "department": "department_id", "readPermission": "records.read", "writePermission": "records.write"}};
-export function policyMaintenanceFacts(db:SqlDatabase){return {readDescriptor:(facts:{targetId:string;companyId:string;targetType:string;})=>{const descriptor=descriptors[facts.targetType];if(!descriptor)return Promise.resolve(null);const version=descriptor.version==="1"?"1":descriptor.version,branch=descriptor.branch??"NULL",department=descriptor.department??"NULL";return db.prepare(attachmentDescriptorReadSql(descriptor.table,`${branch} AS branch_id`,`${department} AS department_id`,`${version} AS version`,descriptor.extra)).bind(facts.targetId,facts.companyId).first<{ company_id: string; branch_id: string | null; department_id: string | null; version: number; }>();}};}
+import {requireAttachmentDescriptor} from './native-lane-36/client';
+/** Owner-local Maintenance attachment descriptor. The native axum route is
+ * the sole read authority; no descriptor SQL is built or executed here. */
+export function policyMaintenanceFacts(_db:SqlDatabase){return {
+  readDescriptor:(facts:{targetId:string;companyId:string;targetType:string;}) =>
+    facts.targetType === 'maintenance_work'
+      ? requireAttachmentDescriptor(facts.targetType,facts.targetId,facts.companyId)
+      : Promise.resolve(null),
+};}

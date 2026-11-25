@@ -4,6 +4,7 @@ import {productionReadProjection as productionorganizationProjection} from '@erp
 import {planningSelectFrom} from "./planning-select-from-sql";
 import {planningSelectColumnsFrom} from "./planning-select-columns-sql";
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {Row} from '@erpx/server-commerce/public/commerce';import {assertion} from "@erpx/server-workflow/public/command-assertions";import {productionResourcesExists,planningAllocatedMinutes} from "./planning-guard-sql";import {planningCommandExistsGuard} from "./planning-command-guard-sql";import {planningScopedBranchList} from "./planning-scoped-list-sql";import {planningScopedBranchRow} from "./planning-scoped-row-sql";
+import {nativeRecommendations,nativeResources,nativeCalendar} from './native-lane-36/client';
 
 const sourceJoins = `
     ${productionmanufacturingProjection.executiveSpecification}
@@ -37,17 +38,9 @@ export function productionCommandSources(db:SqlDatabase){return {async scenarios
           )
           .bind(companyId, branchId, branchId2)
           .all<Row>();},
-async recommendations(companyId:string,branchId:string | null,branchId2:string | null){return db
-          .prepare(
-            planningScopedBranchList('r.*,s.company_id,s.branch_id', 'planning_recommendations r JOIN planning_scenarios s ON s.id=r.scenario_id', 's.company_id=?', 's.branch_id=?', 'r.updated_at DESC'),
-          )
-          .bind(companyId, branchId, branchId2)
-          .all<Row>();},
-async resources(companyId:string,branchId:string | null,branchId2:string | null){return db.prepare(planningScopedBranchList('*', 'production_resources', 'company_id=?', 'branch_id=?', 'name'))
-          .bind(companyId, branchId, branchId2).all<Row>();},
-async calendar(companyId:string,branchId:string | null,branchId2:string | null){return db.prepare(planningSelectColumnsFrom('c.*', `production_resource_calendar c JOIN production_resources r ON r.id=c.resource_id
-          WHERE r.company_id=? AND (?::text IS NULL OR r.branch_id=?) ORDER BY c.work_date DESC LIMIT 500`))
-          .bind(companyId, branchId, branchId2).all<Row>();},
+async recommendations(companyId:string,branchId:string | null,branchId2:string | null){return nativeRecommendations(companyId,branchId,branchId2);},
+async resources(companyId:string,branchId:string | null,branchId2:string | null){return nativeResources(companyId,branchId,branchId2);},
+async calendar(companyId:string,branchId:string | null,branchId2:string | null){return nativeCalendar(companyId,branchId,branchId2);},
 async executiveShortage(recordId:string,companyId:string,branchId:string | null,branchId2:string | null,from:string,to:string){const branchScope = "(?::text IS NULL OR s.branch_id=?)";
 return db.prepare(`${projection}
       WHERE s.id=? AND s.company_id=? AND ${branchScope} AND s.due_date BETWEEN ? AND ?
