@@ -20,11 +20,12 @@ import {nativeHandbookReads} from '@erpx/feature-collaboration/lib/native-handbo
 import {currentAssignmentReadScope} from '@erpx/server-identity_access/public/record-source-authority';
 import {operationsStaffTaskExists} from './operations-staff-task-exists';
 import {operationsTableExists} from './identity-policy-version-guard';
+import {OPERATIONS_SELECT_1_FROM} from './read-tail-r56-sources';
 
 /** Canonical project-source history probe shared by the Work and routine
  * metric gates. Both sites rendered the exact same bytes; only the source
  * table and the caller's scope predicate vary. Binds and SQL are unchanged. */
-export const projectSourceProbe = (table: string, scopeWhere: string) => `SELECT 1 FROM ${table} t WHERE t.company_id=? AND t.project_id IS NOT NULL AND ${scopeWhere} LIMIT 1`;
+export const projectSourceProbe = (table: string, scopeWhere: string) => `${OPERATIONS_SELECT_1_FROM(`${table} t`)} WHERE t.company_id=? AND t.project_id IS NOT NULL AND ${scopeWhere} LIMIT 1`;
 
 /**
  * Operations-owned policy fragment for records that point at a handbook

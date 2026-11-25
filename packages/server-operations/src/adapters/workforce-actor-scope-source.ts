@@ -1,6 +1,7 @@
 import 'server-only';
 import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
 import {scheduledFeaturePredicate} from '@erpx/server-pms/public/feature-availability';
+import {OPERATIONS_SELECT_1_FROM} from './read-tail-r56-sources';
 const operationsClockCte = (bound: boolean) => `(SELECT ${bound ? '?::text user_id,?::text assignment_id,' : ''}${packageClockSql} now_ms)`;
 /** Canonical clock CTE projection shared by Operations owner reads. */
 export const OPERATIONS_CLOCK_CTE_SQL = operationsClockCte(false);
@@ -19,7 +20,7 @@ export const OPERATIONS_ACTOR_SCOPE_INPUT_SQL = '(SELECT ?::text company_id,?::t
 /** Canonical current-workforce scope existence clause shared by Operations owner reads. */
 export const workforceActorScopeSql = (where: string) => operationsActorScopeInputExists(where, '', '');
 /** Canonical materialized-clock existence probe shared by Operations owner predicate families. */
-export const operationsClockProbe = (name: string) => `WITH ${name} AS MATERIALIZED${OPERATIONS_CLOCK_CTE_SQL} SELECT 1 FROM ${name}`;
+export const operationsClockProbe = (name: string) => `WITH ${name} AS MATERIALIZED${OPERATIONS_CLOCK_CTE_SQL} ${OPERATIONS_SELECT_1_FROM(name)}`;
 /** Canonical actor-scope input projection with caller-supplied segments. Company,
  *  branch, department and clock segments are the only varying bytes; every
  *  rendering is byte-identical to the original inline literals. */
