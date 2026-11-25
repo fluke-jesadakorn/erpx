@@ -137,8 +137,8 @@ describe('billing read-tail r34 dedupe of residual point reads', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(13);
-    expect(bare).toBe(13);
+    expect(spaced).toBe(10);
+    expect(bare).toBe(10);
     expect(spaced).toBeLessThan(42);
     expect(bare).toBeLessThan(42);
   });

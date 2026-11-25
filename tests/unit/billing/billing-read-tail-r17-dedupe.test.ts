@@ -33,7 +33,8 @@ describe('billing read-tail r17 alias-parameterized family dedupe', () => {
     expect(billing).not.toContain(PLAN_SQL);
     expect(billing).not.toContain(PERIOD_SQL);
     const attachments = await src('billing-attachments.ts');
-    expect(attachments.split(PENDING_SCAN).length - 1).toBe(1);
+    expect(attachments.split(PENDING_SCAN).length - 1).toBe(0);
+    expect(attachments.split('billingProjectionSql("count(*) FILTER (WHERE source_state IN (').length - 1).toBe(1);
     const jobs = await src('billing-jobs.ts');
     expect(jobs.split(INVOICE_ID_ROUTE).length - 1).toBe(1);
     expect(jobs).not.toContain(INVOICE_ID);

@@ -27,7 +27,7 @@ import {billingProjectionSql} from './billing-read-tail-r35-sql';
 export {billingEvidenceReconciliationReady} from '@erpx/server-billing/domain/evidence';
 /** r17 read tail: byte-identical pending-scan count prefix shared by the readiness
  * totals and the scan-queue count. Each caller keeps its own suffix and result type. */
-const BILLING_PENDING_SCAN_COUNT_SQL = "SELECT count(*) FILTER (WHERE source_state IN ('legacy_unscanned','quarantined','scanning','scan_error'))::bigint pending";
+const BILLING_PENDING_SCAN_COUNT_SQL = billingProjectionSql("count(*) FILTER (WHERE source_state IN ('legacy_unscanned','quarantined','scanning','scan_error'))::bigint",'pending');
 function nativeEvidence(env:RuntimeEnv){const db=env.CONTROL_DB as PostgresDatabase,store=billingEvidenceStore(env),scannerEnvironment={...process.env,ERPX_ATTACHMENTS_V2:'true'};const repository:BillingEvidenceRepository={
 readinessCounts:async()=>(await db.pool.query(`${BILLING_PENDING_SCAN_COUNT_SQL},count(*) FILTER (WHERE source_state='malware_rejected')::bigint sealed_malware FROM billing_evidence`)).rows[0],
 latestFinalReconciliation:async()=>(await db.pool.query(billingPointReadSql('ready,created_at','billing_evidence_reconciliation_runs',"mode='final' AND upload_frozen=true AND checksums_verified=true ORDER BY created_at DESC,id DESC LIMIT 1"))).rows[0],

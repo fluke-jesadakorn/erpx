@@ -190,8 +190,8 @@ describe('billing read-tail r33 residual dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(13);
-    expect(bare).toBe(13);
+    expect(spaced).toBe(10);
+    expect(bare).toBe(10);
     expect(spaced).toBeLessThan(48);
     expect(bare).toBeLessThan(48);
   });

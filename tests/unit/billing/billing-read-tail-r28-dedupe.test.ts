@@ -61,6 +61,6 @@ describe('billing read-tail r28 storage-ledger parameterized family dedupe', () 
     let count = 0;
     for (const file of files) count += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     expect(count).toBeLessThan(59);
-    expect(count).toBe(13); // r36 routed the six residual heads and the r16 UNION ALL guard.
+    expect(count).toBe(10); // r36 routed the six residual heads and the r16 UNION ALL guard.
   });
 });

@@ -26,9 +26,9 @@ function commercialSubscriptionSelect() {
     return `${commercialSubscriptionSource()} ${billingProjectionSql('source_kind,record_id,plan_name,status,started_at,effective_at,record_version','FROM subscriptions')}`;
 }
 function overdueInvoiceSource() {
-    return `SELECT i.id,i.kind,i.status,i.total_satang,i.due_at,i.updated_at,p.month
-    FROM billing_invoices i JOIN billing_periods p ON p.id=i.period_id AND p.holding_id=i.holding_id
-    WHERE i.holding_id=? AND i.status IN ('open','uncollectible') AND i.due_at>=? AND i.due_at<? AND i.due_at<?`;
+    return billingProjectionSql(`i.id,i.kind,i.status,i.total_satang,i.due_at,i.updated_at,p.month
+   `, `FROM billing_invoices i JOIN billing_periods p ON p.id=i.period_id AND p.holding_id=i.holding_id
+    WHERE i.holding_id=? AND i.status IN ('open','uncollectible') AND i.due_at>=? AND i.due_at<? AND i.due_at<?`);
 }
 export function executiveMainEvidenceSources(db: SqlDatabase) {
     // Billing evidence is recorded in its control store; the caller Holding DB owns its audit event.
