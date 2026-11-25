@@ -1,6 +1,7 @@
 import 'server-only';
 import type {SqlDatabase,SqlResult} from '@erpx/server-runtime/public/runtime/types';
 import {nativeOrgAll} from './native-organization-owner-write';
+import { levelHistorySql } from './organization-read-tail-sources-r60';
 
 /**
  * Draft/presentation company-identity reads are native-owned in the
@@ -12,7 +13,7 @@ const asResult = <T>(rows:T[]):SqlResult<T>=>({results:rows,success:true,meta:{c
 export function activeCompanyIdentity(db:SqlDatabase,companyId:string){return nativeOrgAll<{slug:string;display_name:string}>(db,companyId,'presentation_active_company_identity',[companyId]).then(rows=>rows[0]??null);}
 export function personLevelHistory(db:SqlDatabase,engagementId:unknown){return db
         .prepare(
-          "SELECT h.*,l.name level_name,old.name previous_level_name FROM staff_level_history h JOIN staff_levels l ON l.id=h.level_id LEFT JOIN staff_levels old ON old.id=h.previous_level_id WHERE h.engagement_id=? ORDER BY h.created_at DESC",
+          levelHistorySql(",old.name previous_level_name FROM staff_level_history h JOIN staff_levels l ON l.id=h.level_id LEFT JOIN staff_levels old ON old.id=h.previous_level_id WHERE h.engagement_id=? ORDER BY h.created_at DESC"),
         )
         .bind(engagementId)
         .all();}

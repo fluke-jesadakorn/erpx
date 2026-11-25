@@ -49,7 +49,7 @@ describe('Organization read-tail r53 retirement', () => {
       }
     };
     walk(srcRoot);
-    expect(space).toBe(208);
+    expect(space).toBe(207);
     expect(space).toBeLessThan(224);
   });
 });
