@@ -51,7 +51,8 @@ describe('Inventory read-tail r22 parameterized EXISTS/agg-family dedupe', () =>
     expect(mfg.match(/sourceExistsSql\(/g) ?? []).toHaveLength(1);
     expect(pos.match(/sourceExistsSql\(/g) ?? []).toHaveLength(1);
     expect(sales.match(/sourceExistsSql\(/g) ?? []).toHaveLength(2);
-    expect(landed.match(/sourceExistsSql\(/g) ?? []).toHaveLength(1);
+    expect(landed.match(/sourceExistsSql\(/g) ?? []).toHaveLength(0);
+    expect(landed).toContain("from './native-lane-17/client'");
   });
 
   test('journal-line SUM terms are composed, never inlined, in finance-record-sources', () => {

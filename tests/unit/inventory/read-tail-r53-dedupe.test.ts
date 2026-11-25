@@ -108,7 +108,7 @@ describe('Inventory read-tail r53 dedupe', () => {
     // warehouse_name,` head shared by the list, page and scoped-count reads
     // into one owner-local helper: 3 source tokens -> 1, i.e. 302 -> 300.
     // r54 folds 3 package-obligation stock heads into one kind-parameterized renderer: 300 -> 298.
-    expect(total).toBe(292);
+    expect(total).toBe(287);
     expect(total).toBeLessThan(299);
   });
 });

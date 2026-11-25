@@ -1,2 +1,17 @@
-import { finalRootOwnerProjectionSources as organizationProjectionSources } from "@erpx/server-organization/public/final-root-owner-projection-sources";
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';export function peopleLevelHistory(db:SqlDatabase,engagementId:unknown){return db.prepare(`SELECT h.created_at,h.reason,l.name AS level_name,old.name AS previous_level_name FROM (${organizationProjectionSources.staff_level_history}) h JOIN (${organizationProjectionSources.staff_levels}) l ON l.id=h.level_id LEFT JOIN (${organizationProjectionSources.staff_levels}) old ON old.id=h.previous_level_id WHERE h.engagement_id=? ORDER BY h.created_at DESC`).bind(engagementId).all().then(result=>result.results);}
+import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import { nativeLane28LevelHistory, type Lane28WorkContext } from './native-lane-28/client';
+
+/** Native owner read: one engagement's staff-level history. The retired inline
+ *  projection is executed by the Rust axum owner with sqlx (lane 28); this
+ *  adapter is a strict transport that emits no SQL and fails closed. The
+ *  caller's unit is retained for transport compatibility. Holding selection
+ *  requires a WorkContext or an explicit company identity — there is no
+ *  first-holding default. */
+export function peopleLevelHistory(
+  _db: SqlDatabase,
+  engagementId: unknown,
+  actor?: Lane28WorkContext,
+  companyId?: string,
+) {
+  return nativeLane28LevelHistory(String(engagementId), actor, companyId);
+}

@@ -1,12 +1,20 @@
-import { finalRootOwnerProjectionSources as organizationProjectionSources } from "@erpx/server-organization/public/final-root-owner-projection-sources";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-import { OPERATIONS_PROJECTION_FROM_SOURCE } from './read-tail-r58-sources';
-/** Canonical active staff-level read shared by Operations owner facts.
- *  Projection and trailing filter are the only varying bytes; every rendering
- *  is byte-identical to the original inline literals. */
-export const operationsActiveStaffLevels = (projection: string, tail = '') =>
-  `${OPERATIONS_PROJECTION_FROM_SOURCE(projection, organizationProjectionSources.staff_levels)} staff_levels WHERE company_id=? AND active=1${tail}`;
-/** Native staff level facts for legacy route eligibility. */
-export async function activeStaffLevelRanks(db: SqlDatabase, companyId: string) {
-  return (await db.prepare(operationsActiveStaffLevels('id,rank')).bind(companyId).all<{ id: string; rank: number }>()).results;
+import { nativeLane28StaffLevels, type Lane28WorkContext } from './native-lane-28/client';
+
+/**
+ * Native owner read: active staff-level ranks for legacy route eligibility.
+ *
+ * The retired inline ranks projection is now executed by the Rust axum owner
+ * with sqlx (lane 28).
+ * This adapter is a strict transport: it emits no SQL and fails closed when
+ * the native owner is unavailable. The caller's unit remains in the signature
+ * for transport compatibility and is intentionally unused.
+ */
+export async function activeStaffLevelRanks(
+  _db: SqlDatabase,
+  companyId: string,
+  actor?: Lane28WorkContext,
+) {
+  const facts = await nativeLane28StaffLevels(companyId, actor);
+  return facts.levels.map(({ id, rank }) => ({ id, rank }));
 }

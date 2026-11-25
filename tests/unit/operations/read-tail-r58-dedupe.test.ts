@@ -4,9 +4,7 @@ import { createHash } from 'node:crypto';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 import { OPERATIONS_PROJECTION_FROM_SOURCE } from '../../../packages/server-operations/src/adapters/read-tail-r58-sources';
-import { operationsActiveStaffLevels } from '../../../packages/server-operations/src/adapters/staff-facts';
 import { operationsOverdueAlertSql } from '../../../packages/server-operations/src/adapters/executive-task-cohort';
-import { finalRootOwnerProjectionSources as organizationProjectionSources } from '@erpx/server-organization/public/final-root-owner-projection-sources';
 import { finalRootOwnerProjectionSources as collaborationProjectionSources } from '@erpx/server-collaboration/public/final-root-owner-projection-sources';
 import { OPERATIONS_VIEWER_CLOCK_SQL } from '../../../packages/server-operations/src/adapters/workforce-actor-scope-source';
 import { OPERATIONS_STAFF_TASK_HEAD, OPERATIONS_TASK_LIST_HEAD } from '../../../packages/server-operations/src/adapters/read-tail-r53-sources';
@@ -23,14 +21,11 @@ const binds = (sql: string) => (sql.match(/\?/g) ?? []).length;
  *  `SELECT ${projection} FROM (${source})` heads. Literal hashes are fixed
  *  before the routing edit; rendered hashes are the fully composed statements. */
 const retired = {
-  staff: `SELECT id,rank FROM (${organizationProjectionSources.staff_levels}) staff_levels WHERE company_id=? AND active=1`,
   overdue: `SELECT 1 FROM (${collaborationProjectionSources.staff_notifications}) n WHERE n.company_id=t.company_id AND n.user_id=? AND n.record_type='staff_task_alert' AND n.record_id=t.id AND n.record_version=t.version AND n.id LIKE 'staff-task-alert-overdue-%'`,
   overdueSep: `SELECT 1 FROM (${collaborationProjectionSources.staff_notifications}) n\n        WHERE n.company_id=t.company_id AND n.user_id=? AND n.record_type='staff_task_alert'\n          AND n.record_id=t.id AND n.record_version=t.version\n          AND n.id LIKE 'staff-task-alert-overdue-%'`,
 };
 const oracle = {
-  staffHead: '77c5efb973fac990b29b600e433a38437be545686b37f27d5789eac7125c54f9',
   overdueHead: '0d69ea1c928405751c599b96582660d07be5516fb1a878f3ef4f8b618d0573a9',
-  staff: '14831355462ef2164edc5a22ea4b4b424eff791e70a49fb73e286b3a3f118fd7',
   overdue: 'bab603b35a63be4d7101ffbfbac45287debd6892f5bca7882dab046c5d69db79',
   overdueSep: 'cf621cddcabc9d1cd3a5d9bf19b0473af76e37700a264b3ec158de6d98bc5d6e',
 };
@@ -41,20 +36,12 @@ describe('operations read-tail r58 projection-source head consolidation', () => 
     expect(OPERATIONS_PROJECTION_FROM_SOURCE('x', 'y').match(/SELECT /g)).toHaveLength(1);
     expect(binds(OPERATIONS_PROJECTION_FROM_SOURCE('x', 'y'))).toBe(0);
     expect(OPERATIONS_PROJECTION_FROM_SOURCE('x', 'y')).not.toMatch(/FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|INSERT\s+INTO|DELETE\s+FROM/i);
-    const staffHead = OPERATIONS_PROJECTION_FROM_SOURCE('id,rank', organizationProjectionSources.staff_levels);
     const overdueHead = OPERATIONS_PROJECTION_FROM_SOURCE('1', collaborationProjectionSources.staff_notifications);
-    expect(staffHead).toBe(`SELECT id,rank FROM (${organizationProjectionSources.staff_levels})`);
     expect(overdueHead).toBe(`SELECT 1 FROM (${collaborationProjectionSources.staff_notifications})`);
-    expect(sha(staffHead)).toBe(oracle.staffHead);
     expect(sha(overdueHead)).toBe(oracle.overdueHead);
   });
 
-  it('renders both retired owner projections byte-identically through the oracles', () => {
-    const staff = operationsActiveStaffLevels('id,rank');
-    expect(staff).toBe(retired.staff);
-    expect(sha(staff)).toBe(oracle.staff);
-    expect(operationsActiveStaffLevels('id,rank', ' ORDER BY rank')).toBe(retired.staff + ' ORDER BY rank');
-
+  it('renders the retired overdue projection byte-identically through the oracles', () => {
     const overdue = operationsOverdueAlertSql('1', 't');
     expect(overdue).toBe(retired.overdue);
     expect(sha(overdue)).toBe(oracle.overdue);
@@ -62,28 +49,27 @@ describe('operations read-tail r58 projection-source head consolidation', () => 
     expect(overdueSep).toBe(retired.overdueSep);
     expect(sha(overdueSep)).toBe(oracle.overdueSep);
 
-    for (const sql of [staff, overdue, overdueSep]) {
+    for (const sql of [overdue, overdueSep]) {
       expect(binds(sql)).toBe(1);
       expect(sql).not.toMatch(/FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|INSERT\s+INTO|DELETE\s+FROM/i);
+      // The embedded native projection contributes its own SELECT; the head adds exactly one.
+      expect(sql.match(/SELECT /g)).toHaveLength(2);
     }
-    // The embedded native projection contributes its own SELECT; the head adds exactly one.
-    expect(staff.match(/SELECT /g)).toHaveLength(2);
-    expect(overdue.match(/SELECT /g)).toHaveLength(2);
   });
 
-  it('keeps one head definition and routes both family files through it', async () => {
+  it('keeps one head definition and routes the remaining family file through it', async () => {
     const [helper, staff, cohort] = await Promise.all([
       src('read-tail-r58-sources.ts'), src('staff-facts.ts'), src('executive-task-cohort.ts'),
     ]);
     expect(helper.match(/export const OPERATIONS_PROJECTION_FROM_SOURCE/g)).toHaveLength(1);
     expect(helper).toContain('`SELECT ${projection} FROM (${source})`');
-    for (const text of [staff, cohort]) {
-      expect(text.match(/OPERATIONS_PROJECTION_FROM_SOURCE\(/g)).toHaveLength(1);
-      expect(text).toContain("from './read-tail-r58-sources'");
-      expect(text).not.toContain('SELECT ${projection} FROM (');
-    }
-    expect(staff).toContain('${OPERATIONS_PROJECTION_FROM_SOURCE(projection, organizationProjectionSources.staff_levels)} staff_levels WHERE');
+    expect(cohort.match(/OPERATIONS_PROJECTION_FROM_SOURCE\(/g)).toHaveLength(1);
+    expect(cohort).toContain("from './read-tail-r58-sources'");
+    expect(cohort).not.toContain('SELECT ${projection} FROM (');
     expect(cohort).toContain('${OPERATIONS_PROJECTION_FROM_SOURCE(projection, collaborationProjectionSources.staff_notifications)} n${whereSep}WHERE');
+    // The staff-level reader migrated to the native lane-28 owner: no SQL remains.
+    expect(staff).not.toContain('OPERATIONS_PROJECTION_FROM_SOURCE(');
+    expect(staff).toContain('nativeLane28StaffLevels');
   });
 
   it('leaves viewer clock, native reads, locks and prior r53/r55/r56/r57 helpers untouched', async () => {
@@ -109,7 +95,7 @@ describe('operations read-tail r58 projection-source head consolidation', () => 
     expect(locks).toContain('LOCK TABLE staff_tasks IN SHARE ROW EXCLUSIVE MODE');
   });
 
-  it('retirement:ts-statements lowers the operations SELECT KPI from 66 to 65', async () => {
+  it('retirement:ts-statements lowers the operations SELECT KPI below 62', async () => {
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -119,7 +105,7 @@ describe('operations read-tail r58 projection-source head consolidation', () => 
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(62);
-    expect(total).toBeLessThan(66);
+    expect(total).toBe(61);
+    expect(total).toBeLessThan(62);
   });
 });

@@ -105,7 +105,7 @@ describe('Inventory read-tail r55 command-receipt guard dedupe', () => {
     // guard head shared by the sales quality-hold and supply transit-cancel
     // reads into one kind-parameterized owner-local renderer: 2 source tokens
     // -> 1, i.e. 298 -> 297.
-    expect(total).toBe(292);
+    expect(total).toBe(287);
     expect(total).toBeLessThan(297);
   });
 });

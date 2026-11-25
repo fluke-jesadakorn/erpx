@@ -16,15 +16,16 @@ const readOnly = (sql: string) => {
   expect(sql).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
 }
 
+// Lane-18 cutover retired the POS stock snapshot from TypeScript: the axum
+// owner now owns reservedStockAggSql and qualityHeldExistsSql for that read, so
+// pos-facts.ts is no longer a composed-SQL caller.
 const reservedOwners = [
   ['commerce-facts.ts', 2],
   ['commerce-page-sources.ts', 1],
-  ['pos-facts.ts', 1],
   ['commerce-joined-facts.ts', 1],
 ] as const;
 const qualityOwners = [
   ['commerce-facts.ts', 2],
-  ['pos-facts.ts', 1],
 ] as const;
 const imageOwners = [
   'manufacturing-initial-physical-stock-count-source.ts',

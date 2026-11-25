@@ -114,7 +114,7 @@ describe('Inventory read-tail r60 transfer detail head dedupe', () => {
     expect(adapter('transfer-record-purchases.ts')).not.toMatch(/FOR SHARE|FOR UPDATE|LOCK TABLE/);
   });
 
-  test('retirement:ts-statements KPI is 292 after the r60 transfer detail head fold (strictly below r59 293)', () => {
+  test('retirement:ts-statements KPI is 287 after lanes 17+18 (r60 transfer detail head fold was 292)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -127,7 +127,7 @@ describe('Inventory read-tail r60 transfer detail head dedupe', () => {
     // r58 ended at 294 and r59 at 293. r60 folds the byte-identical, bind-free
     // transfer detail/read-purchase projection head shared by two owner-local
     // adapters into one renderer: 2 source tokens -> 1, i.e. 293 -> 292.
-    expect(total).toBe(292);
+    expect(total).toBe(287);
     expect(total).toBeLessThan(293);
   });
 });

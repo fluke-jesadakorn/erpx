@@ -607,5 +607,50 @@ pub fn mount(
         ).map_err(|_| "PRIVATE_API_COLLABORATION_LANE15_INVALID")?,
     );
 
+    // Inventory lane 17: landed-cost reads.
+    router = router.merge(
+        erpx_server_inventory::public::native_lane_17::router_for_holdings(
+            config.holdings.iter().enumerate().map(|(i, holding)| {
+                (
+                    erpx_server_inventory::public::native_lane_17::LaneTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                    },
+                    pools[i + 1].clone(),
+                )
+            }).collect(),
+        ).map_err(|_| "PRIVATE_API_INVENTORY_LANE17_INVALID")?,
+    );
+
+    // Inventory lane 18: POS stock-availability facts.
+    router = router.merge(
+        erpx_server_inventory::public::native_lane_18::router_for_holdings(
+            config.holdings.iter().enumerate().map(|(i, holding)| {
+                (
+                    erpx_server_inventory::public::native_lane_18::LaneTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                    },
+                    pools[i + 1].clone(),
+                )
+            }).collect(),
+        ).map_err(|_| "PRIVATE_API_INVENTORY_LANE18_INVALID")?,
+    );
+
+    // Operations lane 28: staff-level acceptance facts.
+    router = router.merge(
+        erpx_server_operations::public::native_lane_28::router_for_holdings(
+            config.holdings.iter().enumerate().map(|(i, holding)| {
+                (
+                    erpx_server_operations::public::native_lane_28::Lane28Target {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                    },
+                    pools[i + 1].clone(),
+                )
+            }).collect(),
+        ).map_err(|_| "PRIVATE_API_OPERATIONS_LANE28_INVALID")?,
+    );
+
     Ok(router)
 }
