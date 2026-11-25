@@ -433,7 +433,7 @@ describe('commerce read-tail r14 projection guard / adapter pair dedupe', () => 
     expect(finance.split('COMMERCE_PAYMENT_EMPTY_SOURCE_SQL').length - 1).toBe(3);
 
     const attachment = await readFile(adapters('attachment-read-sources.ts'), 'utf8');
-    expect(attachment.split('EXISTS(SELECT 1 FROM commerce_fulfillments f WHERE f.id=child.fulfillment_id AND f.order_id=o.id)').length - 1).toBe(2); // shared const + remaining distinct valuations fragment
+    expect(attachment.split('EXISTS(SELECT 1 FROM commerce_fulfillments f WHERE f.id=child.fulfillment_id AND f.order_id=o.id)').length - 1).toBe(0); // both fragments now rendered by fulfillmentParentGuardSql
     expect(attachment.split('EXISTS(SELECT 1 FROM commerce_returns r WHERE r.id=child.return_id AND r.order_id=o.id AND r.company_id=o.company_id)').length - 1).toBe(1); // shared const only
     expect(attachment.split('FULFILLMENT_LINE_PARENT_GUARD').length - 1).toBe(3); // const + 2 rows() calls
     expect(attachment.split('RETURN_LINE_PARENT_GUARD').length - 1).toBe(3); // const + 2 rows() calls
