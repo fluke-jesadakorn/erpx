@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 13561,
+    "revision": 13575,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261125-f",
       "agentId": "lead",
       "startedAt": "2026-11-25T04:14:52.936Z",
-      "heartbeatAt": "2026-11-25T06:43:40.226Z",
-      "expiresAt": "2026-11-25T07:13:40.226Z",
+      "heartbeatAt": "2026-11-25T06:45:59.432Z",
+      "expiresAt": "2026-11-25T07:15:59.432Z",
       "generation": 176,
       "tokenHash": "2ab871835f01a6adaf1547aecf3f0ddb338bace4559a95b135f6aac1546c96ec"
     },
@@ -196429,17 +196429,26 @@
           "runId": "run-20261125-f",
           "agentId": "wm500",
           "claimedAt": "2026-11-25T04:17:39.247Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements",
+            "result": "passed",
+            "sourceSha": "dcadc3d57",
+            "before": 1701,
+            "after": 1693,
+            "note": "Owner-batch native cutover integrated; acceptance deferred."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Claim, inventory the lane bucket, migrate one live read family to native Rust axum/sqlx, delete the replaced TS SQL, and report parity/KPI evidence.",
+        "nextAction": "Cutover integrated and pushed; continue next owner slice",
         "handoff": null,
         "scopeRefinementRequired": false
       },
@@ -196524,17 +196533,26 @@
           "runId": "run-20261125-f",
           "agentId": "wm501",
           "claimedAt": "2026-11-25T04:18:12.569Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements",
+            "result": "passed",
+            "sourceSha": "dcadc3d57",
+            "before": 1701,
+            "after": 1693,
+            "note": "Owner-batch native cutover integrated; acceptance deferred."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Claim, inventory the lane bucket, migrate one live read family to native Rust axum/sqlx, delete the replaced TS SQL, and report parity/KPI evidence.",
+        "nextAction": "Cutover integrated and pushed; continue next owner slice",
         "handoff": null,
         "scopeRefinementRequired": false
       },
@@ -196619,17 +196637,26 @@
           "runId": "run-20261125-f",
           "agentId": "wm502",
           "claimedAt": "2026-11-25T04:18:13.026Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements",
+            "result": "passed",
+            "sourceSha": "dcadc3d57",
+            "before": 1701,
+            "after": 1693,
+            "note": "Owner-batch native cutover integrated; acceptance deferred."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Claim, inventory the lane bucket, migrate one live read family to native Rust axum/sqlx, delete the replaced TS SQL, and report parity/KPI evidence.",
+        "nextAction": "Cutover integrated and pushed; continue next owner slice",
         "handoff": null,
         "scopeRefinementRequired": false
       },
@@ -196714,17 +196741,26 @@
           "runId": "run-20261125-f",
           "agentId": "wm503",
           "claimedAt": "2026-11-25T04:18:13.511Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements",
+            "result": "passed",
+            "sourceSha": "dcadc3d57",
+            "before": 1701,
+            "after": 1693,
+            "note": "Owner-batch native cutover integrated; acceptance deferred."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Claim, inventory the lane bucket, migrate one live read family to native Rust axum/sqlx, delete the replaced TS SQL, and report parity/KPI evidence.",
+        "nextAction": "Cutover integrated and pushed; continue next owner slice",
         "handoff": null,
         "scopeRefinementRequired": false
       },
@@ -196807,17 +196843,26 @@
           "runId": "run-20261125-f",
           "agentId": "wm504",
           "claimedAt": "2026-11-25T04:18:14.049Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements",
+            "result": "passed",
+            "sourceSha": "dcadc3d57",
+            "before": 1701,
+            "after": 1693,
+            "note": "Owner-batch native cutover integrated; acceptance deferred."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Claim, inventory the lane bucket, migrate one live read family to native Rust axum/sqlx, delete the replaced TS SQL, and report parity/KPI evidence.",
+        "nextAction": "Cutover integrated and pushed; continue next owner slice",
         "handoff": null,
         "scopeRefinementRequired": false
       },
@@ -196913,17 +196958,26 @@
           "runId": "run-20261125-f",
           "agentId": "wm505",
           "claimedAt": "2026-11-25T04:17:39.541Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements",
+            "result": "passed",
+            "sourceSha": "a91072689",
+            "before": 1195,
+            "after": 1175,
+            "note": "Owner-batch native cutover integrated; acceptance deferred."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Claim, inventory the lane bucket, migrate one live read family to native Rust axum/sqlx, delete the replaced TS SQL, and report parity/KPI evidence.",
+        "nextAction": "Cutover integrated and pushed; continue next owner slice",
         "handoff": null,
         "scopeRefinementRequired": false
       },
@@ -197019,17 +197073,26 @@
           "runId": "run-20261125-f",
           "agentId": "wm506",
           "claimedAt": "2026-11-25T04:18:14.644Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements",
+            "result": "passed",
+            "sourceSha": "a91072689",
+            "before": 1195,
+            "after": 1175,
+            "note": "Owner-batch native cutover integrated; acceptance deferred."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Claim, inventory the lane bucket, migrate one live read family to native Rust axum/sqlx, delete the replaced TS SQL, and report parity/KPI evidence.",
+        "nextAction": "Cutover integrated and pushed; continue next owner slice",
         "handoff": null,
         "scopeRefinementRequired": false
       },
@@ -197125,17 +197188,26 @@
           "runId": "run-20261125-f",
           "agentId": "wm507",
           "claimedAt": "2026-11-25T04:18:15.300Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements",
+            "result": "passed",
+            "sourceSha": "a91072689",
+            "before": 1195,
+            "after": 1175,
+            "note": "Owner-batch native cutover integrated; acceptance deferred."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Claim, inventory the lane bucket, migrate one live read family to native Rust axum/sqlx, delete the replaced TS SQL, and report parity/KPI evidence.",
+        "nextAction": "Cutover integrated and pushed; continue next owner slice",
         "handoff": null,
         "scopeRefinementRequired": false
       },
@@ -197228,17 +197300,26 @@
           "runId": "run-20261125-f",
           "agentId": "wm508",
           "claimedAt": "2026-11-25T04:18:16.074Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements",
+            "result": "passed",
+            "sourceSha": "a91072689",
+            "before": 1195,
+            "after": 1175,
+            "note": "Owner-batch native cutover integrated; acceptance deferred."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Claim, inventory the lane bucket, migrate one live read family to native Rust axum/sqlx, delete the replaced TS SQL, and report parity/KPI evidence.",
+        "nextAction": "Cutover integrated and pushed; continue next owner slice",
         "handoff": null,
         "scopeRefinementRequired": false
       },
@@ -197333,17 +197414,26 @@
           "runId": "run-20261125-f",
           "agentId": "wm509",
           "claimedAt": "2026-11-25T04:17:39.815Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements",
+            "result": "passed",
+            "sourceSha": "044435fe4",
+            "before": 438,
+            "after": 431,
+            "note": "Owner-batch native cutover integrated; acceptance deferred."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Claim, inventory the lane bucket, migrate one live read family to native Rust axum/sqlx, delete the replaced TS SQL, and report parity/KPI evidence.",
+        "nextAction": "Cutover integrated and pushed; continue next owner slice",
         "handoff": null,
         "scopeRefinementRequired": false
       },
@@ -197438,17 +197528,26 @@
           "runId": "run-20261125-f",
           "agentId": "wm510",
           "claimedAt": "2026-11-25T04:18:16.874Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements",
+            "result": "passed",
+            "sourceSha": "044435fe4",
+            "before": 438,
+            "after": 431,
+            "note": "Owner-batch native cutover integrated; acceptance deferred."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Claim, inventory the lane bucket, migrate one live read family to native Rust axum/sqlx, delete the replaced TS SQL, and report parity/KPI evidence.",
+        "nextAction": "Cutover integrated and pushed; continue next owner slice",
         "handoff": null,
         "scopeRefinementRequired": false
       },
@@ -197543,17 +197642,26 @@
           "runId": "run-20261125-f",
           "agentId": "wm511",
           "claimedAt": "2026-11-25T04:18:17.769Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements",
+            "result": "passed",
+            "sourceSha": "044435fe4",
+            "before": 438,
+            "after": 431,
+            "note": "Owner-batch native cutover integrated; acceptance deferred."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Claim, inventory the lane bucket, migrate one live read family to native Rust axum/sqlx, delete the replaced TS SQL, and report parity/KPI evidence.",
+        "nextAction": "Cutover integrated and pushed; continue next owner slice",
         "handoff": null,
         "scopeRefinementRequired": false
       },
@@ -197644,8 +197752,8 @@
           "runId": "run-20261125-f",
           "agentId": "wm512",
           "claimedAt": "2026-11-25T04:17:40.067Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
@@ -197745,8 +197853,8 @@
           "runId": "run-20261125-f",
           "agentId": "wm513",
           "claimedAt": "2026-11-25T04:18:18.759Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
@@ -197872,8 +197980,8 @@
           "runId": "run-20261125-f",
           "agentId": "wm514",
           "claimedAt": "2026-11-25T04:17:40.294Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
@@ -198007,8 +198115,8 @@
           "runId": "run-20261125-f",
           "agentId": "wm515",
           "claimedAt": "2026-11-25T04:18:19.826Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
@@ -198090,8 +198198,8 @@
           "runId": "run-20261125-f",
           "agentId": "wm516",
           "claimedAt": "2026-11-25T04:17:40.588Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
@@ -198173,8 +198281,8 @@
           "runId": "run-20261125-f",
           "agentId": "wm517",
           "claimedAt": "2026-11-25T04:18:21.031Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
@@ -198268,8 +198376,8 @@
           "runId": "run-20261125-f",
           "agentId": "wm518",
           "claimedAt": "2026-11-25T04:17:40.860Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
@@ -198363,8 +198471,8 @@
           "runId": "run-20261125-f",
           "agentId": "wm519",
           "claimedAt": "2026-11-25T04:18:22.263Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
@@ -198470,8 +198578,8 @@
           "runId": "run-20261125-f",
           "agentId": "wm520",
           "claimedAt": "2026-11-25T04:17:41.162Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
@@ -198567,8 +198675,8 @@
           "runId": "run-20261125-f",
           "agentId": "wm521",
           "claimedAt": "2026-11-25T04:18:23.585Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
@@ -198681,8 +198789,8 @@
           "runId": "run-20261125-f",
           "agentId": "wm522",
           "claimedAt": "2026-11-25T04:17:41.517Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
@@ -198804,8 +198912,8 @@
           "runId": "run-20261125-f",
           "agentId": "wm523",
           "claimedAt": "2026-11-25T04:18:25.020Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
@@ -198854,8 +198962,8 @@
           "runId": "run-20261125-f",
           "agentId": "wm524",
           "claimedAt": "2026-11-25T04:17:41.920Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
@@ -198904,8 +199012,8 @@
           "runId": "run-20261125-f",
           "agentId": "wm525",
           "claimedAt": "2026-11-25T04:17:42.202Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
@@ -198960,8 +199068,8 @@
           "runId": "run-20261125-f",
           "agentId": "wm526",
           "claimedAt": "2026-11-25T04:17:42.492Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
@@ -199016,8 +199124,8 @@
           "runId": "run-20261125-f",
           "agentId": "wm527",
           "claimedAt": "2026-11-25T04:17:42.790Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
@@ -199072,17 +199180,26 @@
           "runId": "run-20261125-f",
           "agentId": "wm528",
           "claimedAt": "2026-11-25T04:17:43.134Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements",
+            "result": "passed",
+            "sourceSha": "4b98c03d4",
+            "before": 47,
+            "after": 46,
+            "note": "Owner-batch native cutover integrated; acceptance deferred."
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Claim, inventory the lane bucket, migrate one live read family to native Rust axum/sqlx, delete the replaced TS SQL, and report parity/KPI evidence.",
+        "nextAction": "Cutover integrated and pushed; continue next owner slice",
         "handoff": null,
         "scopeRefinementRequired": false
       },
@@ -199119,8 +199236,8 @@
           "runId": "run-20261125-f",
           "agentId": "wm529",
           "claimedAt": "2026-11-25T04:17:43.443Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
@@ -199175,8 +199292,8 @@
           "runId": "run-20261125-f",
           "agentId": "wm530",
           "claimedAt": "2026-11-25T04:17:43.752Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
@@ -199231,8 +199348,8 @@
           "runId": "run-20261125-f",
           "agentId": "wm531",
           "claimedAt": "2026-11-25T04:17:44.072Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
@@ -199278,8 +199395,8 @@
           "runId": "run-20261125-f",
           "agentId": "wm532",
           "claimedAt": "2026-11-25T04:17:44.439Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
@@ -199325,8 +199442,8 @@
           "runId": "run-20261125-f",
           "agentId": "wm533",
           "claimedAt": "2026-11-25T04:17:44.775Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
@@ -199372,8 +199489,8 @@
           "runId": "run-20261125-f",
           "agentId": "wm534",
           "claimedAt": "2026-11-25T04:17:45.120Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
@@ -199419,8 +199536,8 @@
           "runId": "run-20261125-f",
           "agentId": "wm535",
           "claimedAt": "2026-11-25T04:17:45.473Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
@@ -199475,8 +199592,8 @@
           "runId": "run-20261125-f",
           "agentId": "wm536",
           "claimedAt": "2026-11-25T04:17:45.851Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
@@ -199531,8 +199648,8 @@
           "runId": "run-20261125-f",
           "agentId": "wm537",
           "claimedAt": "2026-11-25T04:17:46.215Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
@@ -199599,8 +199716,8 @@
           "runId": "run-20261125-f",
           "agentId": "wm538",
           "claimedAt": "2026-11-25T04:17:46.632Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
@@ -199649,8 +199766,8 @@
           "runId": "run-20261125-f",
           "agentId": "wm539",
           "claimedAt": "2026-11-25T04:17:47.015Z",
-          "heartbeatAt": "2026-11-25T06:43:40.226Z",
-          "expiresAt": "2026-11-25T07:13:40.226Z",
+          "heartbeatAt": "2026-11-25T06:45:59.432Z",
+          "expiresAt": "2026-11-25T07:15:59.432Z",
           "generation": 176
         },
         "baseSha": null,
@@ -199693,7 +199810,7 @@
       }
     },
     "lastCoordinatorGeneration": 176,
-    "updatedAt": "2026-11-25T06:43:40.817Z",
+    "updatedAt": "2026-11-25T06:50:27.514Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
