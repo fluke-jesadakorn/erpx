@@ -74,8 +74,8 @@ describe('billing read-tail r30 whole-account-projection dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(16);
-    expect(bare).toBe(16);
+    expect(spaced).toBe(13);
+    expect(bare).toBe(13);
     expect(spaced).toBeLessThan(48);
     expect(bare).toBeLessThan(48);
   });

@@ -67,7 +67,7 @@ describe('billing read-tail r20 parameterized family dedupe', () => {
       expect(fragment).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
     }
     const billing = await src('billing.ts');
-    expect(billing).toContain('BILLING_ADVISORY_XACT_LOCK_SQL');
+    expect(billing).toContain("nativeBillingOwnerQuery(c,'billing_rd_advisory_xact_lock',[value0])");
     expect(billing).toContain('"SELECT * FROM billing_enrollments WHERE holding_id=$1 AND ended_at IS NULL FOR UPDATE"');
     const jobs = await src('billing-jobs.ts');
     expect(jobs).toContain('"SELECT pg_try_advisory_lock(hashtextextended($1,0)) AS locked"');

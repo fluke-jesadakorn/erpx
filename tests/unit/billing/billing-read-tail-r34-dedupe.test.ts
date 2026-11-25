@@ -123,10 +123,10 @@ describe('billing read-tail r34 dedupe of residual point reads', () => {
     const billing = await src('billing.ts');
     expect(billing).toContain('"SELECT * FROM billing_enrollments WHERE holding_id=$1 AND ended_at IS NULL FOR UPDATE"');
     expect(billing).toContain('"SELECT * FROM billing_accounts WHERE holding_id=$1 FOR UPDATE"');
-    expect(billing).toContain('BILLING_ADVISORY_XACT_LOCK_SQL');
-    expect(billing).toContain('WHERE holding_id=$1 AND month=$2 FOR UPDATE');
+    expect(billing).toContain("nativeBillingOwnerQuery(c,'billing_rd_advisory_xact_lock',[value0])");
+    expect(billing).toContain("nativeBillingOwnerQuery(c,'billing_rd_target_snapshot_lock',[value0,value1])");
     const jobs = await src('billing-jobs.ts');
-    expect(jobs).toContain('BILLING_ADVISORY_UNLOCK_SQL');
+    expect(jobs).toContain("nativeBillingOwnerQuery(c,'billing_rd_advisory_unlock',[v0])");
     expect(jobs).toContain('pg_try_advisory_lock');
   });
 
@@ -137,8 +137,8 @@ describe('billing read-tail r34 dedupe of residual point reads', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(16);
-    expect(bare).toBe(16);
+    expect(spaced).toBe(13);
+    expect(bare).toBe(13);
     expect(spaced).toBeLessThan(42);
     expect(bare).toBeLessThan(42);
   });

@@ -1,4 +1,3 @@
-import {nativeCommercialOwnerRead,COMMERCIAL_RD_USAGE_METER,COMMERCIAL_RD_USAGE_SNAPSHOT} from '@erpx/server-commercial/adapters/native-owner-read';
 import 'server-only';
 import {createHash,randomUUID} from 'node:crypto';
 import {nativeBillingOwnerQuery} from '@erpx/server-billing/adapters/native-billing-owner-write';
@@ -7,13 +6,12 @@ import type {PostgresDatabase} from '@erpx/server-runtime/public/runtime/postgre
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {billingHoldingFacts} from '@erpx/server-runtime/public/billing-holding-facts';
 import {createBillingService,type BillingRepository} from '@erpx/server-billing/application/billing';
-import type {BillingActor,BillingInput,BillingReceipt,BillingAccount,BillingEnrollment,BillingPeriod,BillingPlan,BillingInvoiceRow,BillingJobRow,BillingMeterRow} from '@erpx/server-billing/domain/billing';
+import type {BillingActor,BillingInput,BillingReceipt,BillingAccount,BillingEnrollment,BillingPeriod,BillingPlan,BillingInvoiceRow,BillingJobRow} from '@erpx/server-billing/domain/billing';
 import type {BillingStripe} from '@erpx/server-billing/domain/stripe';
 import {calculateTargetBillingPeriod} from '@erpx/server-billing/adapters/billing-target';
 import {calculateTargetRolloutReadiness} from '@erpx/server-billing/adapters/billing-target-rollout';
 import {BILLING_ROLLOUT_ELIGIBILITY_SQL,BILLING_LEGACY_ENROLLMENT_OVERLAP_SQL,BILLING_MONTH_INVOICE_SQL} from './billing-read-tail-r16-sql';
 import {billingProviderCostsSql} from './billing-read-tail-r19-sql';
-import {BILLING_ADVISORY_XACT_LOCK_SQL} from './billing-read-tail-r25-sql';
 import {billingPointReadSql} from './billing-read-tail-r29-sql';
 export {billingInput} from '@erpx/server-billing/domain/billing';
 export type {BillingActor,BillingInput} from '@erpx/server-billing/domain/billing';
@@ -40,8 +38,8 @@ effectivePlan:(value0,value1)=>c.query<BillingPlan>(billingPlanByRevisionSql(" A
 createBillingPeriod:(value0,value1,value2,value3,value4,value5,value6,value7,value8)=>nativeBillingOwnerQuery(c, 'create_billing_period', [value0,value1,value2,value3,value4,value5,value6,value7,value8]),
 closeElapsedPeriods:(value0,value1)=>nativeBillingOwnerQuery(c, 'close_elapsed_periods', [value0,value1]),
 begin:()=>c.query<Record<string,unknown>>("BEGIN",[]),
-lockHolding:(value0)=>c.query<Record<string,unknown>>(BILLING_ADVISORY_XACT_LOCK_SQL,[value0]),
-lockCommand:(value0)=>c.query<Record<string,unknown>>(BILLING_ADVISORY_XACT_LOCK_SQL,[value0]),
+lockHolding:(value0)=>nativeBillingOwnerQuery(c,'billing_rd_advisory_xact_lock',[value0]),
+lockCommand:(value0)=>nativeBillingOwnerQuery(c,'billing_rd_advisory_xact_lock',[value0]),
 receipt:(value0)=>c.query<BillingReceipt>(billingPointReadSql('*','billing_receipts','id=$1'),[value0]),
 commitReplay:()=>c.query<Record<string,unknown>>("COMMIT",[]),
 holdingExists:value0=>billingHoldingFacts(c).holdingExists(value0),
@@ -64,8 +62,7 @@ currentTargetPrice:(value0)=>nativeBillingOwnerQuery(c, 'current_target_price', 
 sandboxHolding:(value0)=>c.query<Record<string,unknown>>(billingPointReadSql('1','billing_target_sandbox_holdings','holding_id=$1'),[value0]),
 approvedRollout:(value0,value1)=>c.query<Record<string,unknown>>(billingEffectiveMonthGuardSql("billing_target_rollout_approvals"),[value0,value1]),
 assignTargetPrice:(value0,value1,value2,value3,value4,value5,value6,value7)=>nativeBillingOwnerQuery(c, 'assign_target_price', [value0,value1,value2,value3,value4,value5,value6,value7]),
-successfulPlatformMeter:async(value0,value1,value2)=>c.query<BillingMeterRow>(`SELECT * FROM (${await nativeCommercialOwnerRead(COMMERCIAL_RD_USAGE_METER)}) billing_usage_meters WHERE holding_id=$1 AND month=$2 AND source_key=$3
-           AND meter_kind='ai' AND funding_source='erpx' AND request_status='succeeded'`,[value0,value1,value2]),
+successfulPlatformMeter:(value0,value1,value2)=>nativeBillingOwnerQuery(c,'billing_rd_successful_platform_meter',[value0,value1,value2]),
 availableProviderEvidence:(value0,value1)=>nativeBillingOwnerQuery(c, 'available_evidence', [value0,value1]),
 approvedProviderPeriod:(value0,value1)=>nativeBillingOwnerQuery(c, 'APPROVED_RATED_PERIOD', [value0,value1]),
 existingProviderCost:(value0,value1,value2)=>c.query<Record<string,unknown>>(billingProviderCostsSql(" AND source_key=$3"),[value0,value1,value2]),
@@ -83,7 +80,7 @@ extraTargetAssignment:(value0,value1)=>c.query<Record<string,unknown>>(billingEf
 approvedExtraPeriod:(value0,value1)=>nativeBillingOwnerQuery(c, 'APPROVED_RATED_PERIOD', [value0,value1]),
 availableExtraEvidence:(value0,value1)=>nativeBillingOwnerQuery(c, 'available_evidence', [value0,value1]),
 recordTargetExtra:(value0,value1,value2,value3,value4,value5,value6,value7,value8,value9,value10,value11)=>nativeBillingOwnerQuery(c, 'record_target_extra', [value0,value1,value2,value3,value4,value5,value6,value7,value8,value9,value10,value11]),
-lockTargetSnapshot:async(value0,value1)=>c.query<Record<string,unknown>>(`SELECT snapshot_id FROM (${await nativeCommercialOwnerRead(COMMERCIAL_RD_USAGE_SNAPSHOT)}) billing_usage_snapshots WHERE holding_id=$1 AND month=$2 FOR UPDATE`,[value0,value1]),
+lockTargetSnapshot:(value0,value1)=>nativeBillingOwnerQuery(c,'billing_rd_target_snapshot_lock',[value0,value1]),
 targetRolloutEligible:(value0,value1)=>c.query<Record<string,unknown>>(BILLING_ROLLOUT_ELIGIBILITY_SQL,[value0,value1]),
 approvedTargetPeriod:(value0,value1)=>nativeBillingOwnerQuery(c, 'APPROVED_RATED_PERIOD', [value0,value1]),
 legacyEnrollmentOverlap:(value0,value1,value2)=>c.query<BillingEnrollment>(BILLING_LEGACY_ENROLLMENT_OVERLAP_SQL,[value0,value1,value2]),

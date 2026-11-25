@@ -100,6 +100,10 @@ pub const RETRY_JOB: &str = "retry_job";
 pub const INCREMENT_ACCOUNT_VERSION: &str = "increment_account_version";
 pub const RECORD_COMMAND_AUDIT: &str = "record_command_audit";
 pub const RECORD_COMMAND_RECEIPT: &str = "record_command_receipt";
+pub const BILLING_RD_SUCCESSFUL_PLATFORM_METER: &str = "billing_rd_successful_platform_meter";
+pub const BILLING_RD_TARGET_SNAPSHOT_LOCK: &str = "billing_rd_target_snapshot_lock";
+pub const BILLING_RD_ADVISORY_XACT_LOCK: &str = "billing_rd_advisory_xact_lock";
+pub const BILLING_RD_ADVISORY_UNLOCK: &str = "billing_rd_advisory_unlock";
 
 /// Every owner write kind. Anything else is rejected before an owner unit opens.
 pub const OWNER_WRITE_KINDS: &[&str] = &[
@@ -196,6 +200,10 @@ pub const OWNER_WRITE_KINDS: &[&str] = &[
     INCREMENT_ACCOUNT_VERSION,
     RECORD_COMMAND_AUDIT,
     RECORD_COMMAND_RECEIPT,
+    BILLING_RD_SUCCESSFUL_PLATFORM_METER,
+    BILLING_RD_TARGET_SNAPSHOT_LOCK,
+    BILLING_RD_ADVISORY_XACT_LOCK,
+    BILLING_RD_ADVISORY_UNLOCK,
 ];
 
 fn invalid() -> BusinessError {

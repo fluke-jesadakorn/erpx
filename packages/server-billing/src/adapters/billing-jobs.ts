@@ -21,7 +21,6 @@ import {BILLING_INVOICE_BY_ID_SQL} from './billing-read-tail-r15-sql';
 import {billingPointReadSql} from './billing-read-tail-r29-sql';
 import {billingProjectionSql} from './billing-read-tail-r35-sql';
 import {billingPendingInboxSql} from './billing-read-tail-r23-sql';
-import {BILLING_ADVISORY_UNLOCK_SQL} from './billing-read-tail-r25-sql';
 import {billingAccountProjectionSql} from './billing-read-tail-r30-sql';
 import type {BillingAccount,BillingInvoiceRow,BillingJobRow} from '@erpx/server-billing/domain/billing';
 import {billingTestFinanceReady} from '@erpx/server-commerce/public/billing-test-finance-ready';
@@ -63,7 +62,7 @@ paidTargetInvoices:(v0,v1)=>c.query<{id:string}>(billingProjectionSql('i.id',`FR
            AND (f.synced_at IS NULL OR f.synced_at<$2)
          ORDER BY i.updated_at DESC LIMIT 10`),[v0,v1]),
 rollback:()=>c.query<Record<string,unknown>>("ROLLBACK",[]),
-unlockHolding:(v0)=>c.query<Record<string,unknown>>(BILLING_ADVISORY_UNLOCK_SQL,[v0]),release:()=>c.release(),advance:(id,now)=>advanceBilling(c,id,now)}}
+unlockHolding:(v0)=>nativeBillingOwnerQuery(c,'billing_rd_advisory_unlock',[v0]),release:()=>c.release(),advance:(id,now)=>advanceBilling(c,id,now)}}
 function nativeBillingJobs(env?:BillingJobEnv,stripe:BillingStripe=env?billingStripe(env):async()=>{throw new Error('BILLING_PROVIDER_REQUIRED')}){const db=env?.CONTROL_DB as PostgresDatabase|undefined;return createBillingJobs({accountHoldings:()=>db!.pool.query<{holding_id:string}>(billingAccountProjectionSql('holding_id'),[]),
 legacyEvents:(v0)=>db!.pool.query<BillingInboxRow>(billingPendingInboxSql(`NOT EXISTS(${billingPointReadSql('1','billing_accounts a',"a.customer_id=stripe_inbox.payload_json::jsonb #>> '{data,object,customer}')")} LIMIT 20`),[v0]),now:Date.now,stripe,promptpay:(env?.ERPX_BILLING_PROMPTPAY_SANDBOX??process.env.ERPX_BILLING_PROMPTPAY_SANDBOX)==='true',session:async()=>nativeJobRepository(await db!.pool.connect()),errorCode:error=>error instanceof ApiError?error.code:error instanceof Error?error.message:'STRIPE_UNAVAILABLE',financeReady:()=>billingTestFinanceReady(env!),syncFinance:(local,s,notes,now)=>syncBillingTestFinance(env!,local,s,notes,now),applyLegacyEvent:event=>applyLegacyStripeEvent(env!,event),retryLegacy:async(id,nextAt,code)=>nativeBillingOwnerBind(db!,'jobs_retry_legacy_event',[nextAt,code,id])})}
 export const mirrorInvoice=(c:PoolClient,invoiceId:string,stripe:BillingStripe,now:number,env?:BillingJobEnv)=>nativeBillingJobs(env,stripe).mirrorInvoice(nativeJobRepository(c),invoiceId,stripe,now,Boolean(env));

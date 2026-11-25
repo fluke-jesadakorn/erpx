@@ -140,25 +140,25 @@ describe('billing read-tail r36 dedupe of residual read heads', () => {
     const billing = await src('billing.ts');
     expect(billing).toContain('"SELECT * FROM billing_enrollments WHERE holding_id=$1 AND ended_at IS NULL FOR UPDATE"');
     expect(billing).toContain('"SELECT * FROM billing_accounts WHERE holding_id=$1 FOR UPDATE"');
-    expect(billing).toContain('WHERE holding_id=$1 AND month=$2 FOR UPDATE');
-    expect(billing).toContain('BILLING_ADVISORY_XACT_LOCK_SQL');
+    expect(billing).toContain("nativeBillingOwnerQuery(c,'billing_rd_target_snapshot_lock',[value0,value1])");
+    expect(billing).toContain("nativeBillingOwnerQuery(c,'billing_rd_advisory_xact_lock',[value0])");
     expect(billing).toContain('nativeBillingOwnerQuery');
     const jobs = await src('billing-jobs.ts');
-    expect(jobs).toContain('BILLING_ADVISORY_UNLOCK_SQL');
+    expect(jobs).toContain("nativeBillingOwnerQuery(c,'billing_rd_advisory_unlock',[v0])");
     expect(jobs).toContain('pg_try_advisory_lock');
     expect(jobs).toContain('nativeBillingOwnerQuery');
     expect(jobs.split('SELECT ').length - 1).toBe(1); // advisory only
   });
 
-  it('lowers the billing owner SELECT KPI from BEFORE=24 to 16', async () => {
+  it('lowers the billing owner SELECT KPI from BEFORE=16 to 13', async () => {
     let spaced = 0, bare = 0;
     for (const file of await tsFiles(srcRoot)) {
       const text = await readFile(file, 'utf8');
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(16);
-    expect(bare).toBe(16);
+    expect(spaced).toBe(13);
+    expect(bare).toBe(13);
     expect(spaced).toBeLessThan(24);
     expect(bare).toBeLessThan(24);
   });

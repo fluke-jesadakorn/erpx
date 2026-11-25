@@ -44,11 +44,11 @@ describe('billing read-tail r23 parameterized family dedupe', () => {
       expect(fragment).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
     }
     const billing = await src('billing.ts');
-    expect(billing).toContain('BILLING_ADVISORY_XACT_LOCK_SQL');
+    expect(billing).toContain("nativeBillingOwnerQuery(c,'billing_rd_advisory_xact_lock',[value0])");
     expect(billing).toContain('"SELECT * FROM billing_enrollments WHERE holding_id=$1 AND ended_at IS NULL FOR UPDATE"');
     const jobs = await src('billing-jobs.ts');
     expect(jobs).toContain('"SELECT pg_try_advisory_lock(hashtextextended($1,0)) AS locked"');
-    expect(jobs).toContain('BILLING_ADVISORY_UNLOCK_SQL');
+    expect(jobs).toContain("nativeBillingOwnerQuery(c,'billing_rd_advisory_unlock',[v0])");
   });
 
   it('lowers the billing owner SELECT KPI strictly below the recorded BEFORE=63 baseline', async () => {
@@ -56,6 +56,6 @@ describe('billing read-tail r23 parameterized family dedupe', () => {
     let count = 0;
     for (const file of files) count += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     expect(count).toBeLessThan(63);
-    expect(count).toBe(16); // r36 routed the six residual heads and the r16 UNION ALL guard.
+    expect(count).toBe(13); // r36 routed the six residual heads and the r16 UNION ALL guard.
   });
 });

@@ -32,6 +32,16 @@ fn invalid() -> BusinessError {
     )
 }
 
+// r37: the two retired Commercial owner-read subqueries for these reads are
+// now authored by this owner, byte-for-byte, so the consumer composes no SQL.
+// The caller still executes these on its own serializable PoolClient, so the
+// snapshot `FOR UPDATE` and the advisory locks stay in the caller's unit.
+const SUCCESSFUL_PLATFORM_METER_SQL: &str = r####"SELECT * FROM (SELECT "holding_id","month","source_key","company_id","company_name","branch_id","branch_name","meter_kind","funding_source","pricing_status","quantity","input_tokens","output_tokens","average_daily_bytes","active_at_period_end","snapshot_id","request_status","gateway_status","provider","model","units_json","cost_status","verified_cost_satang","cost_evidence_key","cost_reconciled_at","active_from","active_until","byte_milliseconds" FROM billing_usage_meters) billing_usage_meters WHERE holding_id=$1 AND month=$2 AND source_key=$3
+           AND meter_kind='ai' AND funding_source='erpx' AND request_status='succeeded'"####;
+const TARGET_SNAPSHOT_LOCK_SQL: &str = r####"SELECT snapshot_id FROM (SELECT "holding_id","month","snapshot_id","refreshed_at","source_count","ai_coverage","storage_coverage","unreconciled_originals","seat_coverage","seat_source_count","active_seat_count","active_seat_observed_at" FROM billing_usage_snapshots) billing_usage_snapshots WHERE holding_id=$1 AND month=$2 FOR UPDATE"####;
+const ADVISORY_XACT_LOCK_SQL: &str = r####"SELECT pg_advisory_xact_lock(hashtextextended($1,0))"####;
+const ADVISORY_UNLOCK_SQL: &str = r####"SELECT pg_advisory_unlock(hashtextextended($1,0))"####;
+
 /// Return the authoritative SQL for an allow-listed owner write kind.
 fn sql(kind: &str) -> Option<&'static str> {
     Some(match kind {
@@ -200,6 +210,10 @@ fn sql(kind: &str) -> Option<&'static str> {
         INCREMENT_ACCOUNT_VERSION => r####"UPDATE billing_accounts SET version=version+1 WHERE holding_id=$1"####,
         RECORD_COMMAND_AUDIT => r####"INSERT INTO billing_audit VALUES($1,$2,$3,$4,$5,$6,$7)"####,
         RECORD_COMMAND_RECEIPT => r####"INSERT INTO billing_receipts VALUES($1,$2,$3,$4)"####,
+        BILLING_RD_SUCCESSFUL_PLATFORM_METER => SUCCESSFUL_PLATFORM_METER_SQL,
+        BILLING_RD_TARGET_SNAPSHOT_LOCK => TARGET_SNAPSHOT_LOCK_SQL,
+        BILLING_RD_ADVISORY_XACT_LOCK => ADVISORY_XACT_LOCK_SQL,
+        BILLING_RD_ADVISORY_UNLOCK => ADVISORY_UNLOCK_SQL,
         _ => return None,
     })
 }
@@ -706,5 +720,59 @@ mod tests {
             })
             .is_err());
         }
+    }
+    #[test]
+    fn r37_read_kinds_are_owner_authored_fully_bound_and_lock_safe() {
+        let holding = HoldingId::new("h001").unwrap();
+        let meter_values = vec![
+            serde_json::json!("h001"),
+            serde_json::json!("2026-01"),
+            serde_json::json!("src-1"),
+        ];
+        let snapshot_values = vec![
+            serde_json::json!("h001"),
+            serde_json::json!("2026-01"),
+        ];
+        let lock_values = vec![serde_json::json!("billing:h001")];
+        for (kind, values, expected) in [
+            (BILLING_RD_SUCCESSFUL_PLATFORM_METER, meter_values.clone(), SUCCESSFUL_PLATFORM_METER_SQL),
+            (BILLING_RD_TARGET_SNAPSHOT_LOCK, snapshot_values.clone(), TARGET_SNAPSHOT_LOCK_SQL),
+            (BILLING_RD_ADVISORY_XACT_LOCK, lock_values.clone(), ADVISORY_XACT_LOCK_SQL),
+            (BILLING_RD_ADVISORY_UNLOCK, lock_values.clone(), ADVISORY_UNLOCK_SQL),
+        ] {
+            let statement = billing_owner_statement(&holding, &BillingOwnerWriteInput {
+                kind: kind.into(),
+                values: values.clone(),
+                now: 1,
+            })
+            .unwrap_or_else(|_| panic!("{kind} is an allow-listed owner read kind"));
+            assert_eq!(statement.sql, expected, "{kind}");
+            assert_eq!(statement.values, values, "{kind}");
+            // A missing or widened bind cannot broaden an owner-local read or
+            // move a lock off the caller's holding.
+            for wrong in [vec![], {
+                let mut widened = values.clone();
+                widened.push(serde_json::json!("extra"));
+                widened
+            }] {
+                assert!(billing_owner_statement(&holding, &BillingOwnerWriteInput {
+                    kind: kind.into(),
+                    values: wrong,
+                    now: 1,
+                })
+                .is_err(), "{kind} must reject a wrong bind count");
+            }
+        }
+        // The commercial subqueries are authored byte-for-byte by this owner;
+        // the caller adds no SQL text of its own.
+        assert!(SUCCESSFUL_PLATFORM_METER_SQL.contains(r#"SELECT "holding_id","month","source_key","company_id","company_name","branch_id","branch_name","meter_kind","funding_source","pricing_status","quantity","input_tokens","output_tokens","average_daily_bytes","active_at_period_end","snapshot_id","request_status","gateway_status","provider","model","units_json","cost_status","verified_cost_satang","cost_evidence_key","cost_reconciled_at","active_from","active_until","byte_milliseconds" FROM billing_usage_meters"#));
+        assert!(TARGET_SNAPSHOT_LOCK_SQL.contains(r#"SELECT "holding_id","month","snapshot_id","refreshed_at","source_count","ai_coverage","storage_coverage","unreconciled_originals","seat_coverage","seat_source_count","active_seat_count","active_seat_observed_at" FROM billing_usage_snapshots"#));
+        // The snapshot read keeps its lock in the owner SQL; advisory lock and
+        // unlock are distinct kinds so a caller cannot swap their shapes.
+        assert!(TARGET_SNAPSHOT_LOCK_SQL.contains("FOR UPDATE"));
+        assert!(ADVISORY_XACT_LOCK_SQL.contains("pg_advisory_xact_lock"));
+        assert!(ADVISORY_UNLOCK_SQL.contains("pg_advisory_unlock"));
+        assert_ne!(BILLING_RD_ADVISORY_XACT_LOCK, BILLING_RD_ADVISORY_UNLOCK);
+        assert_ne!(ADVISORY_XACT_LOCK_SQL, ADVISORY_UNLOCK_SQL);
     }
 }

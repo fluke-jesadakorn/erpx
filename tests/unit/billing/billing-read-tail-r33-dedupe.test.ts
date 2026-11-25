@@ -173,13 +173,13 @@ describe('billing read-tail r33 residual dedupe', () => {
     const jobs = await src('billing-jobs.ts');
     expect(billing).toContain('"SELECT * FROM billing_enrollments WHERE holding_id=$1 AND ended_at IS NULL FOR UPDATE"');
     expect(billing).toContain('"SELECT * FROM billing_accounts WHERE holding_id=$1 FOR UPDATE"');
-    expect(billing).toContain('SELECT snapshot_id FROM (${await nativeCommercialOwnerRead(COMMERCIAL_RD_USAGE_SNAPSHOT)}) billing_usage_snapshots WHERE holding_id=$1 AND month=$2 FOR UPDATE');
-    expect(billing).toContain('BILLING_ADVISORY_XACT_LOCK_SQL');
+    expect(billing).toContain("nativeBillingOwnerQuery(c,'billing_rd_target_snapshot_lock',[value0,value1])");
+    expect(billing).toContain("nativeBillingOwnerQuery(c,'billing_rd_advisory_xact_lock',[value0])");
     expect(billing).toContain('nativeBillingOwnerQuery');
-    expect(jobs).toContain('BILLING_ADVISORY_UNLOCK_SQL');
+    expect(jobs).toContain("nativeBillingOwnerQuery(c,'billing_rd_advisory_unlock',[v0])");
     expect(jobs).toContain('pg_try_advisory_lock');
     expect(jobs).toContain('nativeBillingOwnerQuery');
-    expect(await src('billing-read-tail-r25-sql.ts')).toContain('BILLING_ADVISORY_XACT_LOCK_SQL');
+    expect(billing).not.toContain('billing-read-tail-r25-sql');
     expect(await src('billing-read-tail-r18-sql.ts')).toContain('BILLING_PLAN_NAME_LATERAL_SQL');
   });
 
@@ -190,8 +190,8 @@ describe('billing read-tail r33 residual dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(16);
-    expect(bare).toBe(16);
+    expect(spaced).toBe(13);
+    expect(bare).toBe(13);
     expect(spaced).toBeLessThan(48);
     expect(bare).toBeLessThan(48);
   });

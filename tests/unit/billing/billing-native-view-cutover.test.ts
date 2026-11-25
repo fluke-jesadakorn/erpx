@@ -14,7 +14,7 @@ describe('billing native-authoritative view cutover', () => {
     expect(billing).not.toContain("SELECT * FROM billing_plans WHERE id IN ('infrastructure','standard','priority')");
     expect(billing).not.toContain('SELECT i.id,\'attention\' AS state,i.last_error FROM stripe_inbox');
     // Advisory locks and FOR UPDATE statements stay untouched.
-    expect(billing).toContain('BILLING_ADVISORY_XACT_LOCK_SQL');
+    expect(billing).toContain("nativeBillingOwnerQuery(c,'billing_rd_advisory_xact_lock',[value0])");
     expect(billing).toContain('"SELECT * FROM billing_enrollments WHERE holding_id=$1 AND ended_at IS NULL FOR UPDATE"');
     expect(billing).toContain('"SELECT * FROM billing_accounts WHERE holding_id=$1 FOR UPDATE"');
 

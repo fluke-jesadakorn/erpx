@@ -46,7 +46,7 @@ describe('billing read-tail r18 cross-file LATERAL dedupe', () => {
       new URL('../../../packages/server-billing/src/adapters/billing.ts', import.meta.url),
       'utf8',
     );
-    expect(billing).toContain('BILLING_ADVISORY_XACT_LOCK_SQL');
+    expect(billing).toContain("nativeBillingOwnerQuery(c,'billing_rd_advisory_xact_lock',[value0])");
     expect(billing).toContain('"SELECT * FROM billing_enrollments WHERE holding_id=$1 AND ended_at IS NULL FOR UPDATE"');
   });
 
