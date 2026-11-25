@@ -243,6 +243,107 @@ export async function nativeCalendarPersonScope(
   return value.present;
 }
 
+export type NativeCalendarPerson = Readonly<{
+  id: string;
+  name: string;
+  userId: string | null;
+  departmentId: string | null;
+  branchId: string | null;
+  managerId: string | null;
+  status: string;
+}>;
+
+/** Owner-local Company calendar-access people list. The retired `people`
+ * query now runs in Rust against the caller's exact registered Holding; this
+ * bridge carries no SQL and has no fallback reader. */
+export async function nativeCalendarAccessPeople(
+  scope: LaneHoldingScope | undefined,
+  companyId: string,
+  peopleIds: readonly string[],
+  lifecycleReader: boolean,
+  search: string,
+  take: number,
+  cursor: number,
+): Promise<NativeCalendarPerson[]> {
+  if (
+    !id(companyId) ||
+    peopleIds.length < 1 ||
+    peopleIds.length > 200 ||
+    peopleIds.some(value => !id(value)) ||
+    typeof lifecycleReader !== 'boolean' ||
+    !text(search, 200) ||
+    !Number.isSafeInteger(take) || take < 1 || take > 1000 ||
+    !Number.isSafeInteger(cursor) || cursor < 0
+  )
+    return unavailable(LANE6_RESPONSE_INVALID, 'Invalid calendar people request.');
+  const config = configuration();
+  const target = targetFor(config, scope, companyId);
+  const body = JSON.stringify({ peopleIds, lifecycleReader, search, take, cursor });
+  if (new TextEncoder().encode(body).length > 8 * 1024)
+    return unavailable(LANE6_RESPONSE_INVALID, 'Invalid calendar people request.');
+  let response: globalThis.Response;
+  try {
+    response = await fetch(
+      `${config.base}/api/v1/holdings/${encodeURIComponent(target.holdingSlug)}/people-payroll/lane6/calendar-access-people`,
+      {
+        method: 'POST',
+        headers: new Headers({
+          host: target.host,
+          origin: target.origin,
+          accept: 'application/json',
+          'content-type': 'application/json',
+          'cache-control': 'no-cache',
+          'x-erpx-context-company': companyId,
+        }),
+        body,
+        cache: 'no-store',
+        redirect: 'error',
+        signal: AbortSignal.timeout(config.timeoutMs),
+      },
+    );
+  } catch {
+    return unavailable();
+  }
+  if (response.status !== 200) {
+    void response.body?.cancel().catch(() => undefined);
+    return unavailable();
+  }
+  let value: unknown;
+  try {
+    value = await response.json();
+  } catch {
+    return unavailable(LANE6_RESPONSE_INVALID);
+  }
+  if (!record(value) || Object.keys(value).length !== 1 || !Array.isArray(value.people))
+    return unavailable(LANE6_RESPONSE_INVALID);
+  const people: NativeCalendarPerson[] = [];
+  const nullable = (v: unknown): v is string | null => v === null || text(v, 200);
+  for (const row of value.people) {
+    if (
+      !record(row) ||
+      Object.keys(row).length !== 7 ||
+      !id(row.id) ||
+      !text(row.name, 320) ||
+      !nullable(row.userId) ||
+      !nullable(row.departmentId) ||
+      !nullable(row.branchId) ||
+      !nullable(row.managerId) ||
+      !text(row.status, 64)
+    )
+      return unavailable(LANE6_RESPONSE_INVALID);
+    people.push({
+      id: row.id,
+      name: row.name,
+      userId: row.userId,
+      departmentId: row.departmentId,
+      branchId: row.branchId,
+      managerId: row.managerId,
+      status: row.status,
+    });
+  }
+  return people;
+}
+
 export type NativeLeaveDay = Readonly<{ user_id: string; leave_date: string }>;
 
 /**

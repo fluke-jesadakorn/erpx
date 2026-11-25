@@ -97,18 +97,21 @@ describe('billing read-tail r42 tail-aware fold of the r33 enrollment head', () 
   });
 
   it('leaves every executive caller routed through the unchanged r32/r33 helpers', async () => {
-    for (const file of ['executive-main-evidence-sources.ts', 'executive-metric-projections.ts']) {
-      const text = await src(file);
-      expect(text, file).toContain("from './billing-read-tail-r33-sql'");
-      expect(text, file).toContain("from './billing-read-tail-r32-sql'");
-      expect(text.split('billingEnrollmentSubscriptionSql(').length - 1, file).toBe(1);
-      expect(text.split('billingLegacySubscriptionSql(').length - 1, file).toBe(1);
-      expect(text, file).not.toContain(LATERAL);
-      expect(text, file).not.toContain("from './billing-read-tail-r18-sql'");
-      expect(text, file).toContain(file === 'executive-main-evidence-sources.ts'
-        ? '[actor.holdingId, now, now, actor.holdingId, now]'
-        : '[a.holdingId, now, now, a.holdingId, now]');
-    }
+    const text = await src('executive-metric-projections.ts');
+    expect(text).toContain("from './billing-read-tail-r33-sql'");
+    expect(text).toContain("from './billing-read-tail-r32-sql'");
+    expect(text.split('billingEnrollmentSubscriptionSql(').length - 1).toBe(1);
+    expect(text.split('billingLegacySubscriptionSql(').length - 1).toBe(1);
+    expect(text).not.toContain(LATERAL);
+    expect(text).not.toContain("from './billing-read-tail-r18-sql'");
+    expect(text).toContain('[a.holdingId, now, now, a.holdingId, now]');
+    // Native lane 38 wave 2: the other caller carries no SQL; the byte-identical
+    // head is pinned in the owner crate instead.
+    const evidence = await src('executive-main-evidence-sources.ts');
+    expect(evidence).toContain("from './native-lane-38/client'");
+    expect(evidence).not.toContain(LATERAL);
+    const rust = await src('native_lane_38/postgres.rs');
+    expect(rust).toContain(LATERAL);
     const r33 = await src('billing-read-tail-r33-sql.ts');
     expect(r33.split("from './billing-read-tail-r18-sql'").length - 1).toBe(1);
     expect(r33.split('${BILLING_PLAN_NAME_LATERAL_SQL}').length - 1).toBe(1);

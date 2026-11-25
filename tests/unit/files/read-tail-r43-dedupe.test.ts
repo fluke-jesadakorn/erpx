@@ -141,7 +141,7 @@ describe('Files read-tail r43 byte-oracle dedupe', () => {
     }
   });
 
-  test('retirement:ts-statements is 215, strictly below the r42 BEFORE=248 (248->246->242)', () => {
+  test('retirement:ts-statements is 211, strictly below the r42 BEFORE=248 (248->246->242)', () => {
     let literal = 0, total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -160,10 +160,11 @@ describe('Files read-tail r43 byte-oracle dedupe', () => {
     // carries no SELECT and both commerce sites keep their projections (0).
     // r44 lowers 246->242 (three more shared heads folded).
     // r46 folds two closed-union heads (orphan-preservation event, draft/bound count): 239->237.
-    // Native lanes 21+22 retire six more inlined statements from the owner tree:
-    // 221->215 (spaced) and 222->216 (bare). These pins equal the worktree count.
-    expect(literal).toBe(215);
-    expect(total).toBe(216);
+    // Native lanes 21+22 retire inlined statements from the owner tree; lane 21
+    // wave 2 also retires the two finance-tax-signature reads. Pins equal the
+    // current worktree count: 221->211 (spaced) and 222->212 (bare).
+    expect(literal).toBe(211);
+    expect(total).toBe(212);
     expect(literal).toBeLessThan(248);
     expect(total).toBeLessThan(249);
   });

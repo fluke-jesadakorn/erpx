@@ -156,16 +156,26 @@ impl LaneState {
             .filter(|value| super::domain::valid_id(value))
             .ok_or_else(invalid)?;
         let branch = query_value(query, "branch")?;
+        let id = query_value(query, "id")?;
+        let comparison = query_value(query, "comparisonScenarioId")?;
+        let specification = query_value(query, "specificationId")?;
         // Reject unrelated query keys so a caller cannot smuggle a predicate.
         if let Some(query) = query {
             for pair in query.split('&') {
                 let name = pair.split_once('=').map(|(name, _)| name).unwrap_or(pair);
-                if name != "branch" {
+                if !matches!(name, "branch" | "id" | "comparisonScenarioId" | "specificationId") {
                     return Err(invalid());
                 }
             }
         }
-        let scope = LaneScope::new(kind, company, branch.as_deref())?;
+        let scope = LaneScope::new(
+            kind,
+            company,
+            branch.as_deref(),
+            id.as_deref(),
+            comparison.as_deref(),
+            specification.as_deref(),
+        )?;
         application::handle(reader.as_ref(), scope).await
     }
 }
@@ -338,6 +348,54 @@ mod tests {
             )
             .await;
         assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
+    #[tokio::test]
+    async fn row_reads_require_closed_identity_query() {
+        let state = state();
+        assert_eq!(
+            state
+                .read(
+                    &headers("company-1"),
+                    "acme",
+                    "scenario",
+                    Some("id=s1&branch=b1"),
+                )
+                .await
+                .status(),
+            StatusCode::OK
+        );
+        assert_eq!(
+            state
+                .read(&headers("company-1"), "acme", "scenario", None)
+                .await
+                .status(),
+            StatusCode::UNPROCESSABLE_ENTITY
+        );
+        assert_eq!(
+            state
+                .read(
+                    &headers("company-1"),
+                    "acme",
+                    "comparison",
+                    Some("comparisonScenarioId=other&specificationId=spec&branch=b1"),
+                )
+                .await
+                .status(),
+            StatusCode::OK
+        );
+        assert_eq!(
+            state
+                .read(
+                    &headers("company-1"),
+                    "acme",
+                    "scenario",
+                    Some("id=s1&where=x"),
+                )
+                .await
+                .status(),
+            StatusCode::UNPROCESSABLE_ENTITY
+        );
     }
 
     #[tokio::test]

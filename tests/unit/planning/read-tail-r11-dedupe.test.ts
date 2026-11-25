@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { planningResourceAllocationRows } from '../../../packages/server-planning/src/adapters/planning-resource-allocation-sql';
 
@@ -53,7 +53,7 @@ describe('Planning read-tail r11 parameterized resource-allocation point-lookup 
     expect(src('planning-attachment-target-sql.ts')).toContain('planningAttachmentTargetRow');
     expect(src('planning-attachment-target-sql.ts')).toContain('planningAttachmentTargetVersionExists');
     expect(src('planning-scoped-list-sql.ts')).toContain('planningScopedBranchList');
-    expect(src('planning-scoped-row-sql.ts')).toContain('planningScopedBranchRow');
+    expect(existsSync(resolve(srcRoot, 'adapters/planning-scoped-row-sql.ts'))).toBe(false);
     expect(src('planning-calendar-source-sql.ts')).toContain('resourceCalendarByKey');
     expect(src('executive-metric-projections.ts')).toContain('planningBranchDisplayLabelSql');
     expect(src('executive-metric-projections.ts')).toContain('metricLabelCountProjection');

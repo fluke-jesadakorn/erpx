@@ -11,11 +11,21 @@ mod domain;
 mod http;
 mod postgres;
 
-pub use application::{WorkEvidenceFuture, WorkEvidenceRead};
-pub use domain::{WorkEvidenceKind, WorkEvidenceResponse, WorkEvidenceRow, parse_read_only, valid_id};
+pub use application::{
+    PersonnelEvidenceFuture, PersonnelEvidenceRead, PersonnelEvidenceRequest, WorkEvidenceFuture,
+    WorkEvidenceRead,
+};
+pub use domain::{
+    PersonnelEvidenceKind, PersonnelEvidenceResponse, WorkEvidenceKind, WorkEvidenceResponse,
+    WorkEvidenceRow, parse_read_only, valid_id,
+};
 pub use http::{
-    LaneTarget, WorkEvidenceTarget, router, router_for_holdings, router_with_pool,
+    LaneTarget, PersonnelEvidenceTarget, PersonnelLaneTarget, WorkEvidenceTarget, router,
+    router_for_holdings, router_with_pool, personnel_evidence_router,
+    personnel_evidence_router_for_holdings, personnel_evidence_router_with_pool,
 };
 pub use postgres::{
-    EVIDENCE_SETS_READ_ONLY_SQL, EVIDENCE_SETS_SQL, LEGACY_EVIDENCE_SQL, PgWorkEvidenceRead,
+    EVALUATION_FILES_SQL, EVALUATION_LINK_SQL, EMPLOYEE_REQUEST_ATTACHMENTS_SQL,
+    EVIDENCE_SETS_READ_ONLY_SQL, EVIDENCE_SETS_SQL, LEGACY_EVIDENCE_SQL, PgPersonnelEvidenceRead,
+    PgWorkEvidenceRead,
 };

@@ -51,9 +51,10 @@ describe('Commercial read-tail r13 parameterized month-scoped read family', () =
     expect(r6.match(/SELECT /g)).toHaveLength(1); // only purchaseObservationAgg remains local
 
     const pj = src('projection.ts');
-    expect(pj.match(/monthScopedRead\(/g)).toHaveLength(1); // one meter call site; import has no paren
-    expect(pj).toContain('monthScopedRead(`holding_id,month,source_key');
-    expect(pj).not.toContain('FROM billing_usage_meters WHERE month=?`');
+    // Lane 37 wave 2 moved the three control-DB facts reads to the native owner.
+    expect((pj.match(/monthScopedRead\(/g) ?? [])).toHaveLength(0);
+    expect(pj).not.toContain('monthScopedRead(`holding_id,month,source_key');
+    expect(pj).toContain('readNativeProjectionFacts');
     expect(pj.match(/SELECT /g)).toHaveLength(1); // only the principal-status events read is local now
   });
 

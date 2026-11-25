@@ -1,6 +1,7 @@
 import {peoplePurchaseControls} from "@erpx/server-people_payroll/adapters/people-purchases";
 import {ppRd43ActiveLeavePolicyProjection} from './pp-read-tail-r43-sources';
 import {ppRd61HolidayCalendarsByCompanySql} from './pp-read-tail-r61-sources';
+import { readHrAffectedPeople, readHrCurrentPolicies, readHrEligibility, readHrEngagement, readHrFutureShifts, readHrPayGroups, type Lane8Actor } from './native-lane-8/client';
 import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { ApiError } from "@erpx/server-runtime/public/http";
@@ -26,18 +27,14 @@ export { peopleHrTopics } from '@erpx/server-people_payroll/domain/people-hr-set
 export type { PeopleHrTopic } from '@erpx/server-people_payroll/domain/people-hr-settings';
 function application() {
     let write: SqlDatabase;
+    let lane8Actor: Lane8Actor | undefined;
     const repository: PeopleHrRepository = { holidays: (companyId: string) => write.prepare("SELECT h.id,h.calendar_id,h.holiday_date,h.name FROM leave_holidays h JOIN leave_holiday_calendars c ON c.id=h.calendar_id WHERE c.company_id=? ORDER BY h.holiday_date,h.name").bind(companyId).all<{
             id: string;
             calendar_id: string;
             holiday_date: string;
             name: string;
         }>(),
-        engagement: (engagementId: string, companyId: string, value: string | null, value2: string | null, value3: string | null, value4: string | null) => write.prepare("SELECT id,person_id,branch_id,department_id FROM hr_engagements WHERE id=? AND company_id=? AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?)").bind(engagementId, companyId, value, value2, value3, value4).first<{
-            id: string;
-            person_id: string;
-            branch_id: string | null;
-            department_id: string | null;
-        }>(),
+        engagement: (engagementId: string, companyId: string, value: string | null, _value2: string | null, value3: string | null, _value4: string | null) => readHrEngagement(write, companyId, engagementId, value, value3, lane8Actor),
         assignments: (companyId: string, engagementId: string) => write.prepare("SELECT a.id,a.policy_version_id,a.holiday_calendar_id,a.effective_from,a.effective_to,a.version,p.name policy,p.workweek_json,p.timezone,c.name calendar FROM leave_policy_assignments a JOIN leave_policy_versions p ON p.id=a.policy_version_id LEFT JOIN leave_holiday_calendars c ON c.id=a.holiday_calendar_id WHERE a.company_id=? AND a.engagement_id=? ORDER BY a.effective_from DESC").bind(companyId, engagementId).all<{
             id: string;
             policy_version_id: string;
@@ -60,34 +57,16 @@ function application() {
             id: string;
             name: string;
         }>(),
-        eligibility: (engagementId: string, companyId: string) => write.prepare("SELECT o.eligible,o.version,e.self_service_top_level top_level FROM hr_engagements e LEFT JOIN overtime_eligibility o ON o.engagement_id=e.id AND o.company_id=e.company_id WHERE e.id=? AND e.company_id=?").bind(engagementId, companyId).first<{
-            eligible: boolean | null;
-            version: number | null;
-            top_level: boolean;
-        }>(),
-        affectedPeople: (companyId: string, encoded: string, value: string | null, value2: string | null, value3: string | null, value4: string | null) => write.prepare("SELECT e.id engagement_id,e.person_id,p.legal_name name FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id AND p.company_id=e.company_id WHERE e.company_id=? AND e.id IN (SELECT jsonb_array_elements_text(?::jsonb)) AND (?::text IS NULL OR e.branch_id=?) AND (?::text IS NULL OR e.department_id=?) ORDER BY p.legal_name,e.id").bind(companyId, encoded, value, value2, value3, value4).all<{
-            engagement_id: string;
-            person_id: string;
-            name: string;
-        }>(),
-        futureShifts: (companyId: string, encoded: string, now: number) => write.prepare("SELECT a.engagement_id,count(*)::int total FROM people_roster_assignments a JOIN people_roster_shifts s ON s.id=a.shift_id JOIN people_roster_weeks w ON w.id=s.week_id WHERE w.company_id=? AND a.engagement_id IN (SELECT jsonb_array_elements_text(?::jsonb)) AND a.state='assigned' AND s.state='active' AND s.ends_at>? GROUP BY a.engagement_id").bind(companyId, encoded, now).all<{
-            engagement_id: string;
-            total: number;
-        }>(),
+        eligibility: (engagementId: string, companyId: string) => readHrEligibility(write, companyId, engagementId, lane8Actor),
+        affectedPeople: (companyId: string, encoded: string, value: string | null, _value2: string | null, value3: string | null, _value4: string | null) => readHrAffectedPeople(write, companyId, JSON.parse(encoded) as string[], value, value3, lane8Actor),
+        futureShifts: (companyId: string, encoded: string, now: number) => readHrFutureShifts(write, companyId, JSON.parse(encoded) as string[], now, lane8Actor),
         futureLeaves: (companyId: string, today: string, companyId2: string, encoded: string) => write.prepare("SELECT coalesce(l.person_id,e.person_id) person_id,count(*)::int total FROM leave_requests l LEFT JOIN employees e ON e.id=l.employee_id AND e.company_id=l.company_id WHERE l.company_id=? AND l.state='approved' AND coalesce(l.end_date::date,l.start_date::date+(l.days::int-1))>=?::date AND coalesce(l.person_id,e.person_id) IN (SELECT person_id FROM hr_engagements WHERE company_id=? AND id IN (SELECT jsonb_array_elements_text(?::jsonb))) GROUP BY coalesce(l.person_id,e.person_id)").bind(companyId, today, companyId2, encoded).all<{
             person_id: string;
             total: number;
         }>(),
-        currentPolicies: (companyId: string, encoded: string, today: string, today2: string) => write.prepare("SELECT DISTINCT ON (a.engagement_id) a.engagement_id,p.name policy,c.name calendar FROM leave_policy_assignments a JOIN leave_policy_versions p ON p.id=a.policy_version_id LEFT JOIN leave_holiday_calendars c ON c.id=a.holiday_calendar_id WHERE a.company_id=? AND a.engagement_id IN (SELECT jsonb_array_elements_text(?::jsonb)) AND a.effective_from<=? AND coalesce(a.effective_to,'9999-12-31')>=? ORDER BY a.engagement_id,a.effective_from DESC").bind(companyId, encoded, today, today2).all<{
-            engagement_id: string;
-            policy: string;
-            calendar: string | null;
-        }>(),
-        payGroups: (companyId: string, encoded: string) => write.prepare("SELECT e.id engagement_id,g.name FROM hr_engagements e LEFT JOIN hr_pay_groups g ON g.id=e.pay_group_id AND g.company_id=e.company_id WHERE e.company_id=? AND e.id IN (SELECT jsonb_array_elements_text(?::jsonb))").bind(companyId, encoded).all<{
-            engagement_id: string;
-            name: string | null;
-        }>() };
-    return createPeopleHrApplication({ clock: { now: Date.now }, repository, prepare: async (actor) => { write = (await holdingResources(actor.holdingId)).write; }, companyAuthority: actor => requireCompanyAuthority(write, actor), staffSettings: actor => staffSettings(write, actor), defaults: actor => defaultCatalog(write, actor), leave: leaveAdministration, payrollOptions, organization: actor => organizationOverview(write, actor), templates: actor => peopleTemplatesData(write as PostgresDatabase, iamActorFromWork(actor)), lifecycle: actor => peopleLifecycleData(write, actor), iam: actor => iamOverview(write as PostgresDatabase, iamActorFromWork(actor)), directoryOptions });
+        currentPolicies: (companyId: string, encoded: string, today: string, _today2: string) => readHrCurrentPolicies(write, companyId, JSON.parse(encoded) as string[], today, lane8Actor),
+        payGroups: (companyId: string, encoded: string) => readHrPayGroups(write, companyId, JSON.parse(encoded) as string[], lane8Actor) };
+    return createPeopleHrApplication({ clock: { now: Date.now }, repository, prepare: async (actor) => { write = (await holdingResources(actor.holdingId)).write; lane8Actor = actor; }, companyAuthority: actor => requireCompanyAuthority(write, actor), staffSettings: actor => staffSettings(write, actor), defaults: actor => defaultCatalog(write, actor), leave: leaveAdministration, payrollOptions, organization: actor => organizationOverview(write, actor), templates: actor => peopleTemplatesData(write as PostgresDatabase, iamActorFromWork(actor)), lifecycle: actor => peopleLifecycleData(write, actor), iam: actor => iamOverview(write as PostgresDatabase, iamActorFromWork(actor)), directoryOptions });
 }
 async function invoke<Result>(run: () => Promise<Result>) { try {
     return await run();

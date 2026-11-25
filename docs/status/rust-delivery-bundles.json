@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 13589,
+    "revision": 13651,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261125-f",
+      "runId": "run-20261125-g",
       "agentId": "lead",
-      "startedAt": "2026-11-25T04:14:52.936Z",
-      "heartbeatAt": "2026-11-25T07:02:58.973Z",
-      "expiresAt": "2026-11-25T07:32:58.973Z",
-      "generation": 176,
-      "tokenHash": "2ab871835f01a6adaf1547aecf3f0ddb338bace4559a95b135f6aac1546c96ec"
+      "startedAt": "2026-11-25T13:28:24.118Z",
+      "heartbeatAt": "2026-11-25T14:01:43.527Z",
+      "expiresAt": "2026-11-25T14:31:43.527Z",
+      "generation": 177,
+      "tokenHash": "58dfe8b75da5fd46cf77c2d0cb6291dea94bb80da105d8ed790ca1a07326d35d"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -196426,12 +196426,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm500",
-          "claimedAt": "2026-11-25T04:17:39.247Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-01",
+          "claimedAt": "2026-11-25T13:29:04.440Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -196449,7 +196449,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Cutover integrated and pushed; continue next owner slice",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm500",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Cutover integrated and pushed; continue next owner slice"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -196530,12 +196537,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm501",
-          "claimedAt": "2026-11-25T04:18:12.569Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-02",
+          "claimedAt": "2026-11-25T13:29:04.569Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -196553,7 +196560,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Cutover integrated and pushed; continue next owner slice",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm501",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Cutover integrated and pushed; continue next owner slice"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -196634,12 +196648,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm502",
-          "claimedAt": "2026-11-25T04:18:13.026Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-03",
+          "claimedAt": "2026-11-25T13:29:04.700Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -196657,7 +196671,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Cutover integrated and pushed; continue next owner slice",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm502",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Cutover integrated and pushed; continue next owner slice"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -196738,12 +196759,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm503",
-          "claimedAt": "2026-11-25T04:18:13.511Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-04",
+          "claimedAt": "2026-11-25T13:29:04.840Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -196761,7 +196782,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Cutover integrated and pushed; continue next owner slice",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm503",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Cutover integrated and pushed; continue next owner slice"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -196953,14 +196981,14 @@
           "owner:people_payroll",
           "cargo:lane-06"
         ],
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm505",
-          "claimedAt": "2026-11-25T04:17:39.541Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-06",
+          "claimedAt": "2026-11-25T13:29:04.991Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -196977,8 +197005,15 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Cutover integrated and pushed; continue next owner slice",
-        "handoff": null,
+        "nextAction": "Lead mounts CALENDAR_PEOPLE_PATH and integrates lane-06 at the next green wave milestone",
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm505",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Cutover integrated and pushed; continue next owner slice"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -197068,14 +197103,14 @@
           "lane:07",
           "cargo:lane-07"
         ],
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm506",
-          "claimedAt": "2026-11-25T04:18:14.644Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-07",
+          "claimedAt": "2026-11-25T13:29:05.160Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -197092,8 +197127,15 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Cutover integrated and pushed; continue next owner slice",
-        "handoff": null,
+        "nextAction": "Lead verifies mount/@source, updates out-of-path pins and records the integrated KPI at the wave milestone",
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm506",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Cutover integrated and pushed; continue next owner slice"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -197185,12 +197227,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm507",
-          "claimedAt": "2026-11-25T04:18:15.300Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-08",
+          "claimedAt": "2026-11-25T13:29:05.351Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -197208,7 +197250,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Cutover integrated and pushed; continue next owner slice",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm507",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Cutover integrated and pushed; continue next owner slice"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -197295,14 +197344,14 @@
           "lane:09",
           "cargo:lane-09"
         ],
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm508",
-          "claimedAt": "2026-11-25T04:18:16.074Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-09",
+          "claimedAt": "2026-11-25T13:29:05.568Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -197319,8 +197368,15 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Cutover integrated and pushed; continue next owner slice",
-        "handoff": null,
+        "nextAction": "Lead verifies mounts/@source and records the integrated KPI at the wave milestone",
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm508",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Cutover integrated and pushed; continue next owner slice"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -197411,12 +197467,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm509",
-          "claimedAt": "2026-11-25T04:17:39.815Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-10",
+          "claimedAt": "2026-11-25T13:29:05.812Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -197434,7 +197490,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Cutover integrated and pushed; continue next owner slice",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm509",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Cutover integrated and pushed; continue next owner slice"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -197525,12 +197588,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm510",
-          "claimedAt": "2026-11-25T04:18:16.874Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-11",
+          "claimedAt": "2026-11-25T13:29:06.098Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -197548,7 +197611,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Cutover integrated and pushed; continue next owner slice",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm510",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Cutover integrated and pushed; continue next owner slice"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -197639,12 +197709,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm511",
-          "claimedAt": "2026-11-25T04:18:17.769Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-12",
+          "claimedAt": "2026-11-25T13:29:06.419Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -197662,7 +197732,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Cutover integrated and pushed; continue next owner slice",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm511",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Cutover integrated and pushed; continue next owner slice"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -197749,12 +197826,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm512",
-          "claimedAt": "2026-11-25T04:17:40.067Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-13",
+          "claimedAt": "2026-11-25T13:29:06.781Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -197763,7 +197840,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Claim, inventory the lane bucket, migrate one live read family to native Rust axum/sqlx, delete the replaced TS SQL, and report parity/KPI evidence.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm512",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Claim, inventory the lane bucket, migrate one live read family to native Rust axum/sqlx, delete the replaced TS SQL, and report parity/KPI evidence."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -197850,12 +197934,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm513",
-          "claimedAt": "2026-11-25T04:18:18.759Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-14",
+          "claimedAt": "2026-11-25T13:29:07.187Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -197864,7 +197948,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Claim, inventory the lane bucket, migrate one live read family to native Rust axum/sqlx, delete the replaced TS SQL, and report parity/KPI evidence.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm513",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Claim, inventory the lane bucket, migrate one live read family to native Rust axum/sqlx, delete the replaced TS SQL, and report parity/KPI evidence."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -197977,12 +198068,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm514",
-          "claimedAt": "2026-11-25T04:17:40.294Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-15",
+          "claimedAt": "2026-11-25T13:29:07.649Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -198000,7 +198091,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Cutover integrated and pushed; continue next owner slice",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm514",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Cutover integrated and pushed; continue next owner slice"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -198112,12 +198210,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm515",
-          "claimedAt": "2026-11-25T04:18:19.826Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-16",
+          "claimedAt": "2026-11-25T13:29:08.199Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -198135,7 +198233,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Cutover integrated and pushed; continue next owner slice",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm515",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Cutover integrated and pushed; continue next owner slice"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -198193,14 +198298,14 @@
           "owner:inventory",
           "cargo:lane-17"
         ],
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm516",
-          "claimedAt": "2026-11-25T04:17:40.588Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-17",
+          "claimedAt": "2026-11-25T13:29:08.864Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -198217,8 +198322,15 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Cutover integrated and pushed; continue next owner slice",
-        "handoff": null,
+        "nextAction": "Lead verifies mount/@source and records the integrated KPI at the wave milestone",
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm516",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Cutover integrated and pushed; continue next owner slice"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -198468,12 +198580,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm519",
-          "claimedAt": "2026-11-25T04:18:22.263Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-20",
+          "claimedAt": "2026-11-25T13:29:09.563Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -198491,7 +198603,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Cutover integrated and pushed; continue next owner slice",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm519",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Cutover integrated and pushed; continue next owner slice"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -198575,12 +198694,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm520",
-          "claimedAt": "2026-11-25T04:17:41.162Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-21",
+          "claimedAt": "2026-11-25T13:29:10.293Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -198589,7 +198708,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Claim, inventory the lane bucket, migrate one live read family to native Rust axum/sqlx, delete the replaced TS SQL, and report parity/KPI evidence.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm520",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Claim, inventory the lane bucket, migrate one live read family to native Rust axum/sqlx, delete the replaced TS SQL, and report parity/KPI evidence."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -198672,12 +198798,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm521",
-          "claimedAt": "2026-11-25T04:18:23.585Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-22",
+          "claimedAt": "2026-11-25T13:29:11.134Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -198686,7 +198812,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Claim, inventory the lane bucket, migrate one live read family to native Rust axum/sqlx, delete the replaced TS SQL, and report parity/KPI evidence.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm521",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Claim, inventory the lane bucket, migrate one live read family to native Rust axum/sqlx, delete the replaced TS SQL, and report parity/KPI evidence."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -198784,14 +198917,14 @@
           "owner:organization",
           "cargo:lane-23"
         ],
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm522",
-          "claimedAt": "2026-11-25T04:17:41.517Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-23",
+          "claimedAt": "2026-11-25T13:29:12.030Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -198808,8 +198941,15 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Cutover integrated and pushed; continue next owner slice",
-        "handoff": null,
+        "nextAction": "Lead registers test, verifies mount/@source and records the integrated KPI at the wave milestone",
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm522",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Cutover integrated and pushed; continue next owner slice"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -198909,12 +199049,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm523",
-          "claimedAt": "2026-11-25T04:18:25.020Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-24",
+          "claimedAt": "2026-11-25T13:29:13.040Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -198932,7 +199072,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Cutover integrated and pushed; continue next owner slice",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm523",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Cutover integrated and pushed; continue next owner slice"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -198957,14 +199104,14 @@
           "owner:pos",
           "cargo:lane-25"
         ],
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm524",
-          "claimedAt": "2026-11-25T04:17:41.920Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-25",
+          "claimedAt": "2026-11-25T13:29:14.036Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -198981,8 +199128,15 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Cutover integrated and pushed; continue next owner slice",
-        "handoff": null,
+        "nextAction": "Lead registers test, verifies mount/@source and records the integrated KPI at the wave milestone",
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm524",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Cutover integrated and pushed; continue next owner slice"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -199009,12 +199163,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm525",
-          "claimedAt": "2026-11-25T04:17:42.202Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-26",
+          "claimedAt": "2026-11-25T13:29:15.037Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -199032,7 +199186,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Cutover integrated and pushed; continue next owner slice",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm525",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Cutover integrated and pushed; continue next owner slice"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -199063,14 +199224,14 @@
           "owner:projects",
           "cargo:lane-27"
         ],
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm526",
-          "claimedAt": "2026-11-25T04:17:42.492Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-27",
+          "claimedAt": "2026-11-25T13:29:16.049Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -199087,8 +199248,15 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Cutover integrated and pushed; continue next owner slice",
-        "handoff": null,
+        "nextAction": "Lead registers test, verifies mount/@source and records the integrated KPI at the wave milestone",
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm526",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Cutover integrated and pushed; continue next owner slice"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -199119,14 +199287,14 @@
           "owner:manufacturing",
           "cargo:lane-28"
         ],
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm527",
-          "claimedAt": "2026-11-25T04:17:42.790Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-28",
+          "claimedAt": "2026-11-25T13:29:17.074Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -199143,8 +199311,15 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Cutover integrated and pushed; continue next owner slice",
-        "handoff": null,
+        "nextAction": "Lead verifies native_lane_28 mounts and both KPIs at the wave milestone",
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm527",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Cutover integrated and pushed; continue next owner slice"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -199175,14 +199350,14 @@
           "owner:crm",
           "cargo:lane-29"
         ],
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm528",
-          "claimedAt": "2026-11-25T04:17:43.134Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-29",
+          "claimedAt": "2026-11-25T13:29:18.117Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -199199,8 +199374,15 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Cutover integrated and pushed; continue next owner slice",
-        "handoff": null,
+        "nextAction": "Lead verifies work-projection mount and reruns the crate build after cross-owner fixes at the wave milestone",
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm528",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Cutover integrated and pushed; continue next owner slice"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -199233,12 +199415,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm529",
-          "claimedAt": "2026-11-25T04:17:43.443Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-30",
+          "claimedAt": "2026-11-25T13:29:19.239Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -199256,7 +199438,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Cutover integrated and pushed; continue next owner slice",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm529",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Cutover integrated and pushed; continue next owner slice"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -199287,14 +199476,14 @@
           "owner:support",
           "cargo:lane-31"
         ],
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm530",
-          "claimedAt": "2026-11-25T04:17:43.752Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-31",
+          "claimedAt": "2026-11-25T13:29:20.387Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -199311,8 +199500,15 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Cutover integrated and pushed; continue next owner slice",
-        "handoff": null,
+        "nextAction": "Lead verifies mount and records the integrated KPI at the wave milestone",
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm530",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Cutover integrated and pushed; continue next owner slice"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -199343,14 +199539,14 @@
           "owner:workflow",
           "cargo:lane-32"
         ],
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm531",
-          "claimedAt": "2026-11-25T04:17:44.072Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-32",
+          "claimedAt": "2026-11-25T13:29:21.556Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -199358,8 +199554,15 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Claim, inventory the lane bucket, migrate one live read family to native Rust axum/sqlx, delete the replaced TS SQL, and report parity/KPI evidence.",
-        "handoff": null,
+        "nextAction": "Lead verifies mounts/@source and records the integrated KPI at the wave milestone",
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm531",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Claim, inventory the lane bucket, migrate one live read family to native Rust axum/sqlx, delete the replaced TS SQL, and report parity/KPI evidence."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -199390,14 +199593,14 @@
           "owner:platform_administration",
           "cargo:lane-33"
         ],
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm532",
-          "claimedAt": "2026-11-25T04:17:44.439Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-33",
+          "claimedAt": "2026-11-25T13:29:22.723Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -199405,8 +199608,15 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Claim, inventory the lane bucket, migrate one live read family to native Rust axum/sqlx, delete the replaced TS SQL, and report parity/KPI evidence.",
-        "handoff": null,
+        "nextAction": "Lead verifies mount/@source, updates out-of-path pins and records the integrated KPI at the wave milestone",
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm532",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Claim, inventory the lane bucket, migrate one live read family to native Rust axum/sqlx, delete the replaced TS SQL, and report parity/KPI evidence."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -199437,14 +199647,14 @@
           "owner:manage_erpx",
           "cargo:lane-34"
         ],
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm533",
-          "claimedAt": "2026-11-25T04:17:44.775Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-34",
+          "claimedAt": "2026-11-25T13:29:23.890Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -199452,8 +199662,15 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Claim, inventory the lane bucket, migrate one live read family to native Rust axum/sqlx, delete the replaced TS SQL, and report parity/KPI evidence.",
-        "handoff": null,
+        "nextAction": "Lead mounts email receipt route, sets ERPX_NATIVE_MANAGE_ERPX_EMAIL_RECEIPT_CONFIG and records the integrated KPI at the wave milestone",
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm533",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Claim, inventory the lane bucket, migrate one live read family to native Rust axum/sqlx, delete the replaced TS SQL, and report parity/KPI evidence."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -199486,12 +199703,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm534",
-          "claimedAt": "2026-11-25T04:17:45.120Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-35",
+          "claimedAt": "2026-11-25T13:29:25.012Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -199500,7 +199717,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Claim, inventory the lane bucket, migrate one live read family to native Rust axum/sqlx, delete the replaced TS SQL, and report parity/KPI evidence.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm534",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Claim, inventory the lane bucket, migrate one live read family to native Rust axum/sqlx, delete the replaced TS SQL, and report parity/KPI evidence."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -199533,12 +199757,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm535",
-          "claimedAt": "2026-11-25T04:17:45.473Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-36",
+          "claimedAt": "2026-11-25T13:29:26.141Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -199556,7 +199780,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Cutover integrated and pushed; continue next owner slice",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm535",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Cutover integrated and pushed; continue next owner slice"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -199589,12 +199820,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm536",
-          "claimedAt": "2026-11-25T04:17:45.851Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-37",
+          "claimedAt": "2026-11-25T13:29:27.282Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -199612,7 +199843,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Cutover integrated and pushed; continue next owner slice",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm536",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Cutover integrated and pushed; continue next owner slice"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -199643,14 +199881,14 @@
           "owner:billing",
           "cargo:lane-38"
         ],
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm537",
-          "claimedAt": "2026-11-25T04:17:46.215Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-38",
+          "claimedAt": "2026-11-25T13:29:28.438Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -199667,8 +199905,15 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Cutover integrated and pushed; continue next owner slice",
-        "handoff": null,
+        "nextAction": "Lead verifies mounts/@source and records the integrated KPI at the wave milestone",
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm537",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Cutover integrated and pushed; continue next owner slice"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -199711,14 +199956,14 @@
           "owner:field_service",
           "cargo:lane-39"
         ],
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm538",
-          "claimedAt": "2026-11-25T04:17:46.632Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-39",
+          "claimedAt": "2026-11-25T13:29:29.676Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -199735,8 +199980,15 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Cutover integrated and pushed; continue next owner slice",
-        "handoff": null,
+        "nextAction": "Lead added brand evidence and ecommerce mounts in erpx-service plus @source for both new TS clients; wave verification pending",
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm538",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Cutover integrated and pushed; continue next owner slice"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -199763,12 +200015,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm539",
-          "claimedAt": "2026-11-25T04:17:47.015Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-40",
+          "claimedAt": "2026-11-25T13:29:31.007Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -199786,7 +200038,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Cutover integrated and pushed; continue next owner slice",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm539",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Cutover integrated and pushed; continue next owner slice"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -199796,22 +200055,22 @@
         "kind": "inventory",
         "dependsOn": [],
         "requiredPorts": [],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm517",
-          "claimedAt": "2026-11-25T06:55:57.345Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
-        },
+        "status": "done",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm517",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Review committed tests/KPI pins and produce 10 ready packets; report."
+        },
         "scopeRefinementRequired": false,
         "id": "migrate_rs.lane_18.wave3",
         "owner": "shared.integration",
@@ -199823,7 +200082,7 @@
         "resources": [
           "review:lane18"
         ],
-        "nextAction": "Review committed tests/KPI pins and produce 10 ready packets; report."
+        "nextAction": "Read-only inventory audit recorded in .scratch/lanes/reports/lane-18w3.json; lead dispatches the first bounded slice after the current wave"
       },
       {
         "goalId": "G4",
@@ -199832,22 +200091,22 @@
         "kind": "inventory",
         "dependsOn": [],
         "requiredPorts": [],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm518",
-          "claimedAt": "2026-11-25T06:56:00.206Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
-        },
+        "status": "done",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm518",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Review committed tests/KPI pins and produce 10 ready packets; report."
+        },
         "scopeRefinementRequired": false,
         "id": "migrate_rs.lane_19.wave3",
         "owner": "shared.integration",
@@ -199859,7 +200118,7 @@
         "resources": [
           "review:lane19"
         ],
-        "nextAction": "Review committed tests/KPI pins and produce 10 ready packets; report."
+        "nextAction": "Read-only PMS read-tail audit recorded in .scratch/lanes/reports/lane-19w3.json; lead dispatches the first bounded slice after the current wave"
       },
       {
         "id": "migrate_rs.lane_05b.record_details",
@@ -199882,12 +200141,12 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261125-f",
-          "agentId": "wm504",
-          "claimedAt": "2026-11-25T06:59:34.969Z",
-          "heartbeatAt": "2026-11-25T07:02:58.973Z",
-          "expiresAt": "2026-11-25T07:32:58.973Z",
-          "generation": 176
+          "runId": "run-20261125-g",
+          "agentId": "lane-05b",
+          "claimedAt": "2026-11-25T13:29:34.901Z",
+          "heartbeatAt": "2026-11-25T14:01:43.527Z",
+          "expiresAt": "2026-11-25T14:31:43.527Z",
+          "generation": 177
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -199896,7 +200155,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Implement native finance read kinds for record-details facts, thread WorkContext from the records consumer, retain no TS fallback, and report parity/KPI.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-f",
+          "agentId": "wm504",
+          "at": "2026-11-25T13:28:24.118Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
+          "nextAction": "Implement native finance read kinds for record-details facts, thread WorkContext from the records consumer, retain no TS fallback, and report parity/KPI."
+        },
         "scopeRefinementRequired": false
       }
     ],
@@ -199910,8 +200176,8 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 20,
-        "in_progress": 38,
-        "ready_for_integration": 0,
+        "in_progress": 23,
+        "ready_for_integration": 15,
         "integrating": 0,
         "migrated": 330,
         "blocked": 1726,
@@ -199919,8 +200185,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 176,
-    "updatedAt": "2026-11-25T07:02:59.614Z",
+    "lastCoordinatorGeneration": 177,
+    "updatedAt": "2026-11-25T14:03:00.545Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
@@ -199955,10 +200221,10 @@
       }
     },
     "lastRecovery": {
-      "previousRunId": "run-20261125-e",
-      "runId": "run-20261125-f",
-      "at": "2026-11-25T04:14:52.936Z",
-      "reason": "Previous coordinator lease expired with zero active claims; source and WIP reviewed; starting weighted native-migration wave",
+      "previousRunId": "run-20261125-f",
+      "runId": "run-20261125-g",
+      "at": "2026-11-25T13:28:24.119Z",
+      "reason": "Previous OpenCode session was deleted after 40 lane jobs exhausted the host (load 72); all lane jobs and cargo processes are stopped; 576-entry WIP preserved in .scratch/checkpoints/2026-11-25-wip and triaged; resuming the same 40 lanes with a single-slot build queue.",
       "wipReviewed": true,
       "previousRunStopped": true
     },

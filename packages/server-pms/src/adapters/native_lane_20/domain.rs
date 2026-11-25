@@ -48,6 +48,33 @@ pub fn valid_filter(value: &str) -> bool {
     value.len() <= 200
 }
 
+/// A calendar record after the retired `decodePmsRecord` step. The owner
+/// parses the stored JSON itself, so the wire already has the final shape.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CalendarRecord {
+    pub id: String,
+    pub kind: String,
+    pub data: serde_json::Value,
+    pub version: i32,
+    pub updated_at: i64,
+}
+
+/// One cutover-import batch row. The projection is byte-for-byte the column
+/// list retired from `adapters/pms/import.ts`; the report payload stays its
+/// original JSON text so the owner application keeps its derived field.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ImportBatchRow {
+    pub id: String,
+    pub cutover_date: String,
+    pub state: String,
+    pub version: i32,
+    pub created_by: String,
+    pub approved_by: Option<String>,
+    pub opening_journal_id: Option<String>,
+    pub report_json: String,
+    pub created_at: i64,
+}
+
 pub fn invalid_request() -> BusinessError {
     BusinessError::invalid(
         "PMS_NATIVE_LANE_20_REQUEST_INVALID",

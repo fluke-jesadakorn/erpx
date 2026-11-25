@@ -12,10 +12,15 @@ import {
   LANE24_EVAL_WORKSPACE_LEVELS,
   LANE24_EVAL_WORKSPACE_POSITIONS,
   LANE24_ORG_ACCESS_NODES,
+  LANE24_ORG_BRANCH_OPTIONS_ALL,
+  LANE24_ORG_BRANCH_OPTIONS_POS,
+  LANE24_ORG_BRANCH_OPTIONS_SCOPED,
   nativeLane24AccessNodes,
+  nativeLane24BranchOptions,
   nativeLane24LevelActive,
   nativeLane24MarketLevels,
   nativeLane24PositionByLevel,
+  nativeLane24PosBranchOptions,
   nativeLane24WorkspaceLevels,
   nativeLane24WorkspacePositions,
   validateFacts,
@@ -128,6 +133,9 @@ describe('native lane-24 organization transport', () => {
       [LANE24_EVAL_WORKSPACE_LEVELS]: { kind: LANE24_EVAL_WORKSPACE_LEVELS, rows: [{ id: 'l1', name: 'L1' }] },
       [LANE24_EVAL_MARKET_LEVELS]: { kind: LANE24_EVAL_MARKET_LEVELS, rows: [{ id: 'l1' }] },
       [LANE24_ORG_ACCESS_NODES]: { kind: LANE24_ORG_ACCESS_NODES, rows: [{ id: 'n1', parent_id: null, kind: 'branch', display_name: 'Main', status: 'active' }] },
+      [LANE24_ORG_BRANCH_OPTIONS_ALL]: { kind: LANE24_ORG_BRANCH_OPTIONS_ALL, rows: [{ id: 'b1', name: 'Main' }] },
+      [LANE24_ORG_BRANCH_OPTIONS_SCOPED]: { kind: LANE24_ORG_BRANCH_OPTIONS_SCOPED, rows: [{ id: 'b1', name: 'Main' }] },
+      [LANE24_ORG_BRANCH_OPTIONS_POS]: { kind: LANE24_ORG_BRANCH_OPTIONS_POS, rows: [{ id: 'b1', name: 'Main' }] },
     };
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       seen.push({
@@ -149,7 +157,10 @@ describe('native lane-24 organization transport', () => {
     await expect(nativeLane24AccessNodes(acme, 'acme-company')).resolves.toEqual([
       { id: 'n1', parent_id: null, kind: 'branch', display_name: 'Main', status: 'active' },
     ]);
-    expect(seen).toHaveLength(6);
+    await expect(nativeLane24BranchOptions(acme, 'acme-company')).resolves.toEqual([{ id: 'b1', name: 'Main' }]);
+    await expect(nativeLane24BranchOptions(acme, 'acme-company', 'b1')).resolves.toEqual([{ id: 'b1', name: 'Main' }]);
+    await expect(nativeLane24PosBranchOptions(acme, 'acme-company', null, null)).resolves.toEqual([{ id: 'b1', name: 'Main' }]);
+    expect(seen).toHaveLength(9);
     for (const req of seen) {
       expect(new URL(req.url!).pathname).toBe('/api/v1/holdings/acme/organization/lane24/evaluation-facts');
       expect(req.headers.host).toBe('acme.jesadakorn.com');
@@ -159,6 +170,9 @@ describe('native lane-24 organization transport', () => {
     }
     expect(JSON.parse(seen[0]!.body)).toEqual({ kind: LANE24_EVAL_POSITION_BY_LEVEL, values: ['p1', 'l1'] });
     expect(JSON.parse(seen[5]!.body)).toEqual({ kind: LANE24_ORG_ACCESS_NODES, values: [] });
+    expect(JSON.parse(seen[6]!.body)).toEqual({ kind: LANE24_ORG_BRANCH_OPTIONS_ALL, values: [] });
+    expect(JSON.parse(seen[7]!.body)).toEqual({ kind: LANE24_ORG_BRANCH_OPTIONS_SCOPED, values: ['b1'] });
+    expect(JSON.parse(seen[8]!.body)).toEqual({ kind: LANE24_ORG_BRANCH_OPTIONS_POS, values: [null, null] });
   });
 
   it('routes a different WorkContext to its own registered holding', async () => {

@@ -10,12 +10,16 @@ use serde::{Deserialize, Serialize};
 pub const KIND_EMAIL_EXISTS: &str = "email_exists";
 pub const KIND_INVITATION_STATUS: &str = "invitation_status";
 pub const KIND_INVITATION_BY_TOKEN: &str = "invitation_by_token";
+pub const KIND_RECOVERY_ACCOUNT_EMAIL: &str = "recovery_account_email";
+pub const KIND_RECOVERY_LATEST_JOB: &str = "recovery_latest_job";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AccountAccessReadKind {
     EmailExists,
     InvitationStatus,
     InvitationByToken,
+    RecoveryAccountEmail,
+    RecoveryLatestJob,
 }
 
 impl AccountAccessReadKind {
@@ -24,6 +28,8 @@ impl AccountAccessReadKind {
             KIND_EMAIL_EXISTS => Some(Self::EmailExists),
             KIND_INVITATION_STATUS => Some(Self::InvitationStatus),
             KIND_INVITATION_BY_TOKEN => Some(Self::InvitationByToken),
+            KIND_RECOVERY_ACCOUNT_EMAIL => Some(Self::RecoveryAccountEmail),
+            KIND_RECOVERY_LATEST_JOB => Some(Self::RecoveryLatestJob),
             _ => None,
         }
     }
@@ -33,6 +39,8 @@ impl AccountAccessReadKind {
             Self::EmailExists => KIND_EMAIL_EXISTS,
             Self::InvitationStatus => KIND_INVITATION_STATUS,
             Self::InvitationByToken => KIND_INVITATION_BY_TOKEN,
+            Self::RecoveryAccountEmail => KIND_RECOVERY_ACCOUNT_EMAIL,
+            Self::RecoveryLatestJob => KIND_RECOVERY_LATEST_JOB,
         }
     }
 }
@@ -119,6 +127,7 @@ pub enum AccountAccessReadResult {
     Boolean(bool),
     Status(Option<String>),
     Invitation(Option<Invitation>),
+    Text(Option<String>),
 }
 
 impl AccountAccessReadResult {
@@ -127,6 +136,7 @@ impl AccountAccessReadResult {
             Self::Boolean(value) => serde_json::Value::Bool(value),
             Self::Status(value) => value.map_or(serde_json::Value::Null, serde_json::Value::String),
             Self::Invitation(value) => serde_json::to_value(value).unwrap_or(serde_json::Value::Null),
+            Self::Text(value) => value.map_or(serde_json::Value::Null, serde_json::Value::String),
         }
     }
 }
@@ -194,6 +204,8 @@ mod tests {
         assert_eq!(AccountAccessReadKind::parse(KIND_EMAIL_EXISTS), Some(AccountAccessReadKind::EmailExists));
         assert_eq!(AccountAccessReadKind::parse(KIND_INVITATION_STATUS), Some(AccountAccessReadKind::InvitationStatus));
         assert_eq!(AccountAccessReadKind::parse(KIND_INVITATION_BY_TOKEN), Some(AccountAccessReadKind::InvitationByToken));
+        assert_eq!(AccountAccessReadKind::parse(KIND_RECOVERY_ACCOUNT_EMAIL), Some(AccountAccessReadKind::RecoveryAccountEmail));
+        assert_eq!(AccountAccessReadKind::parse(KIND_RECOVERY_LATEST_JOB), Some(AccountAccessReadKind::RecoveryLatestJob));
         assert_eq!(AccountAccessReadKind::parse("DROP TABLE"), None);
         assert_eq!(AccountAccessReadKind::EmailExists.as_str(), KIND_EMAIL_EXISTS);
     }
@@ -249,5 +261,7 @@ mod tests {
         assert_eq!(AccountAccessReadResult::Boolean(true).into_json(), serde_json::json!(true));
         assert_eq!(AccountAccessReadResult::Status(None).into_json(), serde_json::Value::Null);
         assert_eq!(AccountAccessReadResult::Invitation(None).into_json(), serde_json::Value::Null);
+        assert_eq!(AccountAccessReadResult::Text(Some("user@example.test".into())).into_json(), serde_json::json!("user@example.test"));
+        assert_eq!(AccountAccessReadResult::Text(None).into_json(), serde_json::Value::Null);
     }
 }

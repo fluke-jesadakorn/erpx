@@ -4,12 +4,16 @@ import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { ApiError } from '@erpx/server-runtime/public/http';
 import {
+  LANE40_ACTIVE_FORM_SOURCE,
   LANE40_CAMPAIGN_SUMMARY,
   LANE40_CANDIDATE_DETAIL,
   LANE40_CANDIDATE_HISTORY,
   LANE40_CANDIDATE_LIST,
+  LANE40_FORM_CONTENT_ROW,
+  LANE40_PUBLIC_RECEIPT,
   nativeLane40Configured,
   readMarketingLane40,
+  readMarketingLane40ForCompany,
 } from '../../../packages/server-marketing/src/adapters/native-lane-40/client';
 
 vi.mock('server-only', () => ({}));
@@ -111,10 +115,58 @@ describe('native Marketing lane-40 read client', () => {
         branchId: null,
         departmentId: null,
         recordId: 'marketing-candidate-1',
+        assetId: null,
+        version: null,
         enforced: false,
       });
     }
     expect(sha(JSON.stringify(summaryRow))).toBe('c9fc2d79260454b50ce986211f9b304e41fa99190c511f35b512b94a953d777a');
+  });
+
+  it('routes the three wave-2 owner reads with closed scope and validated rows', async () => {
+    const cases = [
+      {
+        kind: LANE40_ACTIVE_FORM_SOURCE,
+        scope: { assetId: 'form-1', version: 3 },
+        row: { company_id: 'company-acme', configuration_json: '{"f":"v"}' },
+      },
+      {
+        kind: LANE40_FORM_CONTENT_ROW,
+        scope: { assetId: 'content-1', version: 2 },
+        row: { company_id: 'company-acme', id: 'content-1', version: 2, preview_json: '{"p":"c"}' },
+      },
+      {
+        kind: LANE40_PUBLIC_RECEIPT,
+        scope: { recordId: 'marketing-candidate-1' },
+        row: { company_id: 'company-acme', request_hash: 'a'.repeat(64), candidate_id: 'marketing-candidate-1' },
+      },
+    ];
+    for (const current of cases) {
+      let sent: Record<string, unknown> | undefined;
+      vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
+        sent = JSON.parse(String(init.body)) as Record<string, unknown>;
+        return ok({ kind: current.kind, companyId: 'company-acme', rows: [current.row] });
+      }));
+      const rows = await readMarketingLane40ForCompany(current.kind, 'company-acme', current.scope);
+      expect(rows).toEqual([current.row]);
+      expect(sent).toMatchObject({ kind: current.kind, ...current.scope });
+    }
+    const noFetch = vi.fn(async () => ok({ data: {} }));
+    vi.stubGlobal('fetch', noFetch);
+    await expect(readMarketingLane40ForCompany(LANE40_ACTIVE_FORM_SOURCE, 'company-acme', { assetId: 'form-1' }))
+      .rejects.toMatchObject({ code: 'MARKETING_LANE40_READ_REQUEST_INVALID', status: 503 });
+    await expect(readMarketingLane40ForCompany(LANE40_FORM_CONTENT_ROW, 'company-acme', { assetId: 'content-1', version: 0 }))
+      .rejects.toMatchObject({ code: 'MARKETING_LANE40_READ_REQUEST_INVALID', status: 503 });
+    await expect(readMarketingLane40ForCompany(LANE40_PUBLIC_RECEIPT, 'company-acme', {}))
+      .rejects.toMatchObject({ code: 'MARKETING_LANE40_READ_REQUEST_INVALID', status: 503 });
+    expect(noFetch).not.toHaveBeenCalled();
+    vi.stubGlobal('fetch', vi.fn(async () => ok({
+      kind: LANE40_PUBLIC_RECEIPT,
+      companyId: 'company-acme',
+      rows: [{ ...cases[2]!.row, company_id: 'company-other' }],
+    })));
+    await expect(readMarketingLane40ForCompany(LANE40_PUBLIC_RECEIPT, 'company-acme', { recordId: 'marketing-candidate-1' }))
+      .rejects.toMatchObject({ status: 503 });
   });
 
   it('pins every rendered SQL oracle and its owner-local table set', async () => {
@@ -257,7 +309,7 @@ describe('native Marketing lane-40 read client', () => {
     }
   });
 
-  it('retirement:ts-statements KPI is 17 for the owner (BEFORE=19)', async () => {
+  it('retirement:ts-statements KPI is 16 for the owner (BEFORE=17; wave 2 retired 1)', async () => {
     const root = resolve('packages/server-marketing/src');
     let total = 0;
     const walk = async (dir: string) => {
@@ -268,7 +320,7 @@ describe('native Marketing lane-40 read client', () => {
       }
     };
     await walk(root);
-    expect(total).toBe(17);
+    expect(total).toBe(16);
     const workspace = await readFile(new URL('../../../packages/server-marketing/src/adapters/marketing.ts', import.meta.url), 'utf8');
     expect(workspace).not.toMatch(/SELECT COALESCE\(NULLIF\(BTRIM\(attribution_json/);
     expect(workspace).toContain('readMarketingLane40');

@@ -333,26 +333,46 @@ mod tests {
         };
         assert!(validate_calendar_people("company-1", &ok).is_ok());
         assert!(validate_calendar_people("", &ok).is_err());
-        assert!(validate_calendar_people(
-            "company-1",
-            &CalendarPeopleQuery { people_ids: vec![], ..ok.clone() }
-        )
-        .is_err());
-        assert!(validate_calendar_people(
-            "company-1",
-            &CalendarPeopleQuery { take: 0, ..ok.clone() }
-        )
-        .is_err());
-        assert!(validate_calendar_people(
-            "company-1",
-            &CalendarPeopleQuery { cursor: -1, ..ok.clone() }
-        )
-        .is_err());
-        assert!(validate_calendar_people(
-            "company-1",
-            &CalendarPeopleQuery { search: "x".repeat(MAX_SEARCH_LEN + 1), ..ok }
-        )
-        .is_err());
+        assert!(
+            validate_calendar_people(
+                "company-1",
+                &CalendarPeopleQuery {
+                    people_ids: vec![],
+                    ..ok.clone()
+                }
+            )
+            .is_err()
+        );
+        assert!(
+            validate_calendar_people(
+                "company-1",
+                &CalendarPeopleQuery {
+                    take: 0,
+                    ..ok.clone()
+                }
+            )
+            .is_err()
+        );
+        assert!(
+            validate_calendar_people(
+                "company-1",
+                &CalendarPeopleQuery {
+                    cursor: -1,
+                    ..ok.clone()
+                }
+            )
+            .is_err()
+        );
+        assert!(
+            validate_calendar_people(
+                "company-1",
+                &CalendarPeopleQuery {
+                    search: "x".repeat(MAX_SEARCH_LEN + 1),
+                    ..ok
+                }
+            )
+            .is_err()
+        );
     }
 
     #[test]

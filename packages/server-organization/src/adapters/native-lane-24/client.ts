@@ -19,6 +19,9 @@ export const LANE24_EVAL_WORKSPACE_POSITIONS = 'eval_workspace_positions';
 export const LANE24_EVAL_WORKSPACE_LEVELS = 'eval_workspace_levels';
 export const LANE24_EVAL_MARKET_LEVELS = 'eval_market_levels';
 export const LANE24_ORG_ACCESS_NODES = 'org_access_nodes';
+export const LANE24_ORG_BRANCH_OPTIONS_ALL = 'org_branch_options_all';
+export const LANE24_ORG_BRANCH_OPTIONS_SCOPED = 'org_branch_options_scoped';
+export const LANE24_ORG_BRANCH_OPTIONS_POS = 'org_branch_options_pos';
 
 export type Holding = Readonly<{
   origin: string;
@@ -61,6 +64,9 @@ const KINDS = new Set<string>([
   LANE24_EVAL_WORKSPACE_LEVELS,
   LANE24_EVAL_MARKET_LEVELS,
   LANE24_ORG_ACCESS_NODES,
+  LANE24_ORG_BRANCH_OPTIONS_ALL,
+  LANE24_ORG_BRANCH_OPTIONS_SCOPED,
+  LANE24_ORG_BRANCH_OPTIONS_POS,
 ]);
 const CONTEXT_HEADERS = [
   'cookie',
@@ -258,6 +264,12 @@ export function validateFacts(value: unknown, kind: string): Record<string, unkn
       if (keys.length !== 1 || keys[0] !== 'rows' ||
           stringRows(data.rows, ['id']) === null) return invalid();
       break;
+    case LANE24_ORG_BRANCH_OPTIONS_ALL:
+    case LANE24_ORG_BRANCH_OPTIONS_SCOPED:
+    case LANE24_ORG_BRANCH_OPTIONS_POS:
+      if (keys.length !== 1 || keys[0] !== 'rows' ||
+          stringRows(data.rows, ['id', 'name']) === null) return invalid();
+      break;
     case LANE24_ORG_ACCESS_NODES:
       if (keys.length !== 1 || keys[0] !== 'rows' || !Array.isArray(data.rows)) return invalid();
       for (const item of data.rows) {
@@ -275,10 +287,10 @@ export function validateFacts(value: unknown, kind: string): Record<string, unkn
   return data;
 }
 
-async function read(target: Lane24Target | undefined, companyId: string, kind: string, values: readonly string[]): Promise<Record<string, unknown>> {
-  if (!identifier(companyId) || !KINDS.has(kind) || values.some(value => !identifier(value))) return invalid();
-  const expected = kind === LANE24_EVAL_POSITION_BY_LEVEL ? 2
-    : kind === LANE24_EVAL_LEVEL_ACTIVE ? 1 : 0;
+async function read(target: Lane24Target | undefined, companyId: string, kind: string, values: readonly (string | null)[]): Promise<Record<string, unknown>> {
+  if (!identifier(companyId) || !KINDS.has(kind) || values.some(value => value !== null && !identifier(value))) return invalid();
+  const expected = kind === LANE24_EVAL_POSITION_BY_LEVEL || kind === LANE24_ORG_BRANCH_OPTIONS_POS ? 2
+    : kind === LANE24_EVAL_LEVEL_ACTIVE || kind === LANE24_ORG_BRANCH_OPTIONS_SCOPED ? 1 : 0;
   if (values.length !== expected) return invalid();
   const config = configuration(process.env[ENV]);
   const holding = holdingFor(target ?? {}, config);
@@ -358,4 +370,25 @@ export async function nativeLane24AccessNodes(
 ): Promise<Array<{ id: string; parent_id: string | null; kind: string; display_name: string | null; status: string }>> {
   const data = await read(target, companyId, LANE24_ORG_ACCESS_NODES, []);
   return data.rows as Array<{ id: string; parent_id: string | null; kind: string; display_name: string | null; status: string }>;
+}
+
+export async function nativeLane24BranchOptions(
+  target: Lane24Target | undefined,
+  companyId: string,
+  scopedBranchId?: string | null,
+): Promise<Array<{ id: string; name: string }>> {
+  const kind = scopedBranchId ? LANE24_ORG_BRANCH_OPTIONS_SCOPED : LANE24_ORG_BRANCH_OPTIONS_ALL;
+  const data = await read(target, companyId, kind, scopedBranchId ? [scopedBranchId] : []);
+  return data.rows as Array<{ id: string; name: string }>;
+}
+
+/** POS branch options: both scope values are bound in their original order. */
+export async function nativeLane24PosBranchOptions(
+  target: Lane24Target | undefined,
+  companyId: string,
+  branch: string | null,
+  branch2: string | null,
+): Promise<Array<{ id: string; name: string }>> {
+  const data = await read(target, companyId, LANE24_ORG_BRANCH_OPTIONS_POS, [branch, branch2]);
+  return data.rows as Array<{ id: string; name: string }>;
 }

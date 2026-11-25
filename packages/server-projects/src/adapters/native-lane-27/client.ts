@@ -9,6 +9,7 @@ import type {
   ProjectCostAllocationRow,
   ProjectWorkLogRow,
 } from "@erpx/server-projects/domain/actuals";
+import type { ProjectRow as NativeProjectRow } from "@erpx/server-projects/domain/staff-projects";
 
 /**
  * Strict private transport for the lane 27 native Projects actuals reads.
@@ -72,13 +73,22 @@ export type NativeHandoffWorkRow = {
 
 export type NativeHandoffProject = { project_id: string };
 
-type ReadKind = "work-logs" | "cost-allocations" | "handoffs" | "handoff-work" | "handoff-project";
+type ReadKind =
+  | "work-logs"
+  | "cost-allocations"
+  | "handoffs"
+  | "handoff-work"
+  | "handoff-project"
+  | "visible-project"
+  | "visible-projects";
 const ENVELOPES: Record<ReadKind, string> = {
   "work-logs": "workLogs",
   "cost-allocations": "costAllocations",
   handoffs: "handoffs",
   "handoff-work": "handoffs",
   "handoff-project": "handoff",
+  "visible-project": "project",
+  "visible-projects": "projects",
 };
 const ROUTES: Record<ReadKind, string> = {
   "work-logs": "projects/actuals/work-logs",
@@ -86,6 +96,8 @@ const ROUTES: Record<ReadKind, string> = {
   handoffs: "projects/handoffs",
   "handoff-work": "projects/handoff-work",
   "handoff-project": "projects/handoff-project",
+  "visible-project": "projects/visible-project",
+  "visible-projects": "projects/visible-projects",
 };
 const HANDOFF_STATUSES = ["pending", "accepted", "rejected", "cancelled"];
 const LIFECYCLE_STATUSES = ["active", "handoff_pending", "completed", "cancelled"];
@@ -332,6 +344,10 @@ const HANDOFF_WORK_KEYS = [
   "id", "version", "project_id", "recipient_id", "prepared_by", "status", "prepared_at",
   "decided_at", "title", "lifecycle_status",
 ] as const;
+const PROJECT_KEYS = [
+  "id", "company_id", "branch_id", "department_id", "title", "description",
+  "owner_user_id", "lifecycle_status", "version", "updated_at",
+] as const;
 
 function handoffRow(value: unknown): NativeHandoffRow {
   if (
@@ -378,6 +394,27 @@ function handoffWorkRow(value: unknown): NativeHandoffWorkRow {
 function handoffProject(value: unknown): NativeHandoffProject {
   if (!exact(value, ["project_id"]) || !identifier(value.project_id)) return invalidResponse();
   return value as unknown as NativeHandoffProject;
+}
+
+/** Exact mirror of the Rust `ProjectRow` projection; no extra schema column is
+ * accepted and the owner-or-member scope is never re-evaluated in TypeScript. */
+function visibleProjectRow(value: unknown): NativeProjectRow {
+  if (
+    !exact(value, PROJECT_KEYS) ||
+    !identifier(value.id) ||
+    !identifier(value.company_id) ||
+    !nullableText(value.branch_id, 200) ||
+    !nullableText(value.department_id, 200) ||
+    !text(value.title, 200) ||
+    value.title.length === 0 ||
+    !text(value.description, 10_000) ||
+    !identifier(value.owner_user_id) ||
+    !LIFECYCLE_STATUSES.includes(String(value.lifecycle_status)) ||
+    !integer(value.version, 1) ||
+    !integer(value.updated_at, 0)
+  )
+    return invalidResponse();
+  return value as unknown as NativeProjectRow;
 }
 
 async function read(
@@ -459,6 +496,8 @@ export interface ProjectActualsReader {
   handoffs(projectId: string): Promise<NativeHandoffRow[]>;
   handoffWork(): Promise<NativeHandoffWorkRow[]>;
   handoffProject(handoffId: string): Promise<NativeHandoffProject | null>;
+  visibleProject(projectId: string): Promise<NativeProjectRow | null>;
+  visibleProjects(): Promise<NativeProjectRow[]>;
 }
 
 const rowsFrom = (value: unknown): unknown[] => {
@@ -499,6 +538,14 @@ export function createProjectActualsReader(
     async handoffProject(handoffId) {
       const value = await read(config, actor, holding, "handoff-project", { handoffId }, transport);
       return value === null ? null : handoffProject(value);
+    },
+    async visibleProject(projectId) {
+      const value = await read(config, actor, holding, "visible-project", { projectId }, transport);
+      return value === null ? null : visibleProjectRow(value);
+    },
+    async visibleProjects() {
+      const value = await read(config, actor, holding, "visible-projects", {}, transport);
+      return rowsFrom(value).map(visibleProjectRow);
     },
   };
 }
@@ -542,4 +589,17 @@ export async function nativeProjectHandoffProject(
   handoffId: string,
 ): Promise<NativeHandoffProject | null> {
   return (await nativeProjectActualsReader(actor)).handoffProject(handoffId);
+}
+
+export async function nativeProjectVisibleProject(
+  actor: ProjectActualsActor,
+  projectId: string,
+): Promise<NativeProjectRow | null> {
+  return (await nativeProjectActualsReader(actor)).visibleProject(projectId);
+}
+
+export async function nativeProjectVisibleProjects(
+  actor: ProjectActualsActor,
+): Promise<NativeProjectRow[]> {
+  return (await nativeProjectActualsReader(actor)).visibleProjects();
 }

@@ -14,18 +14,40 @@ import {
   LANE8_RD_SLIP,
   LANE8_RD_PAYMENT,
   LANE8_RD_EXPORT_BYTES,
+  LANE8_RD_COUNTRY_PACK,
+  LANE8_RD_PAY_GROUP_FACTS,
+  LANE8_RD_STATUTORY_RUN,
+  LANE8_RD_STATUTORY_ITEMS,
+  LANE8_RD_RETAINED_PACK,
+  LANE8_RD_HR_ENGAGEMENT,
+  LANE8_RD_HR_ELIGIBILITY,
+  LANE8_RD_HR_AFFECTED_PEOPLE,
+  LANE8_RD_HR_FUTURE_SHIFTS,
+  LANE8_RD_HR_CURRENT_POLICIES,
+  LANE8_RD_HR_PAY_GROUPS,
   lane8Configuration,
   nativeLane8Configured,
   readApproverName,
   readExportBytes,
   readHireHandoffPayGroups,
   readHireHandoffPeople,
+  readHrAffectedPeople,
+  readHrCurrentPolicies,
+  readHrEligibility,
+  readHrEngagement,
+  readHrFutureShifts,
+  readHrPayGroups,
   readIssuableItems,
   readIssuableRun,
   readOwnSlips,
   readPayment,
+  readRetainedPack,
   readRosterShift,
   readSlip,
+  readStatutoryCountryPack,
+  readStatutoryItems,
+  readStatutoryPayGroup,
+  readStatutoryRun,
   type Lane8Actor,
 } from "../../../packages/server-people_payroll/src/adapters/native-lane-8/client";
 
@@ -91,6 +113,14 @@ const slip = {
 };
 const payment = { status: "settled", settled_at: null, batch_status: "settled" };
 const exportBytes = { export_html: "<p>x</p>", export_sha256: "e" };
+const countryPack = {
+  id: "pack", country_code: "TH", version: 1, status: "active", rules_json: "{}",
+  adapter_id: "thai", source_digest: "s", record_version: 1,
+};
+const statutoryGroup = { country_code: "TH", currency: "THB", frequency: "monthly" };
+const statutoryRun = { mode: "production", country_pack_id: null, currency: "THB" };
+const statutoryItems = [{ gross_minor: 1000, deductions_minor: 10, net_minor: 990, result_json: "{}" }];
+const retainedPack = { ...countryPack, status: "superseded", record_version: 2 };
 
 beforeEach(() => {
   process.env[ENV] = config();
@@ -312,5 +342,129 @@ describe("native People Payroll lane 8 app-entrypoint reads", () => {
     expect(await readSlip(db, "slip", "company-acme", "user")).toBeNull();
     expect(await readPayment(db, "company-acme", "run", "person")).toBeNull();
     expect(await readExportBytes(db, "slip", "company-acme")).toBeNull();
+  });
+
+  it("reads Thai statutory country pack and active pay group with pinned oracles", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok(countryPack)));
+    expect(await readStatutoryCountryPack(db, "pack")).toEqual(countryPack);
+    expect(digest(countryPack)).toBe("13bf5d02520371cf1f0673103675b0cde636797ad33e6919bf2ebc92ee4578fc");
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))).toEqual({
+      kind: LANE8_RD_COUNTRY_PACK, values: ["pack"],
+    });
+    expect(headersOf(0)["x-erpx-context-company"]).toBe("company-acme");
+
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok(statutoryGroup)));
+    expect(await readStatutoryPayGroup(db, "company-acme", "group")).toEqual(statutoryGroup);
+    expect(digest(statutoryGroup)).toBe("8ff624e68f15d4ee1659cd6173b0d02d6fb20d42651a9c2fccd8d391fc37c8e6");
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))).toEqual({
+      kind: LANE8_RD_PAY_GROUP_FACTS, values: ["group"],
+    });
+  });
+
+  it("reads statutory run, item totals and retained pack with pinned oracles", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok(statutoryRun)));
+    expect(await readStatutoryRun(db, "run")).toEqual(statutoryRun);
+    expect(digest(statutoryRun)).toBe("ccd4213201881bd66e00e2f464076e19cf86afc731f73efa6f7c386288709b40");
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))).toEqual({
+      kind: LANE8_RD_STATUTORY_RUN, values: ["run"],
+    });
+
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok(statutoryItems)));
+    expect((await readStatutoryItems(db, "run")).results).toEqual(statutoryItems);
+    expect(digest(statutoryItems)).toBe("450526b45b05d32bec54f5b3319355fe18ae1339e1b6ecfdfe109922957a18d2");
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))).toEqual({
+      kind: LANE8_RD_STATUTORY_ITEMS, values: ["run"],
+    });
+
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok(retainedPack)));
+    expect(await readRetainedPack(db, "pack")).toEqual(retainedPack);
+    expect(digest(retainedPack)).toBe("a45986148d4c72195ada0153c180d5f0c06bc5ab4f7de5be7720e7cada91df27");
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))).toEqual({
+      kind: LANE8_RD_RETAINED_PACK, values: ["pack"],
+    });
+  });
+
+  it("fails closed on malformed statutory rows and delegates target selection", async () => {
+    incomingHeaders.value = new Headers({ host: "erpx-internal.jesadakorn.com" });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok({ ...countryPack, version: "1" })));
+    await expect(readStatutoryCountryPack(db, "pack")).rejects.toMatchObject({
+      code: "PEOPLE_PAYROLL_LANE8_UNAVAILABLE", status: 503,
+    });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok(countryPack)));
+    await readStatutoryCountryPack(db, "pack", actor("h003", "erpx", "company-erpx"));
+    expect(urlOf(0).toString()).toBe("http://127.0.0.1:44994/api/v1/holdings/erpx/people-payroll/app-entrypoint-read");
+    expect(headersOf(0).host).toBe("erpx-internal.jesadakorn.com");
+    await expect(readStatutoryCountryPack(db, "pack", actor("h999", "erpx", "company-erpx")))
+      .rejects.toMatchObject({ code: "WORK_CONTEXT_CHANGED", status: 409 });
+  });
+
+  it("reads HR settings engagement and overtime eligibility facts with pinned oracles", async () => {
+    const hrEngagement = { id: "eng", person_id: "person", branch_id: "branch", department_id: null };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok(hrEngagement)));
+    expect(await readHrEngagement(db, "company-acme", "eng", "branch", null)).toEqual(hrEngagement);
+    expect(digest(hrEngagement)).toBe("9bf0416be778b11ccb7e3e9c5d062d66e83818660f9f899b8056b68bb4e8f6d2");
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))).toEqual({
+      kind: LANE8_RD_HR_ENGAGEMENT, values: ["eng", "branch", "branch", "", ""],
+    });
+    expect(headersOf(0)["x-erpx-context-company"]).toBe("company-acme");
+
+    const eligibility = { eligible: true, version: 2, top_level: true };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok(eligibility)));
+    expect(await readHrEligibility(db, "company-acme", "eng")).toEqual(eligibility);
+    expect(digest(eligibility)).toBe("41d4b7ac53465eb272dd1faf886b9d796d03ce9a6223b6d2ef1d18435e6231de");
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))).toEqual({
+      kind: LANE8_RD_HR_ELIGIBILITY, values: ["eng"],
+    });
+  });
+
+  it("reads affected people, shifts, policies and pay groups with pinned oracles", async () => {
+    const affected = [{ engagement_id: "eng", person_id: "person", name: "Alice" }];
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok(affected)));
+    expect((await readHrAffectedPeople(db, "company-acme", ["eng"], "branch", null)).results).toEqual(affected);
+    expect(digest(affected)).toBe("1ed13dbf367c71ac1b467d1a6308fdc5837d2e2851c9192d04e4ad17c3e772ee");
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))).toEqual({
+      kind: LANE8_RD_HR_AFFECTED_PEOPLE, values: ['["eng"]', "branch", "branch", "", ""],
+    });
+
+    const shifts = [{ engagement_id: "eng", total: 3 }];
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok(shifts)));
+    expect((await readHrFutureShifts(db, "company-acme", ["eng"], 1774483200000)).results).toEqual(shifts);
+    expect(digest(shifts)).toBe("2d7b04dabb5c245c3d264af9ba8879c9de6b9d5de47d9b7bd23766af4d27d656");
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))).toEqual({
+      kind: LANE8_RD_HR_FUTURE_SHIFTS, values: ['["eng"]', "1774483200000"],
+    });
+
+    const policies = [{ engagement_id: "eng", policy: "Annual", calendar: null }];
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok(policies)));
+    expect((await readHrCurrentPolicies(db, "company-acme", ["eng"], "2026-11-25")).results).toEqual(policies);
+    expect(digest(policies)).toBe("affb3859275ec02af057bf965e907829ac54018d6850e61b8032e96fab06288a");
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))).toEqual({
+      kind: LANE8_RD_HR_CURRENT_POLICIES, values: ['["eng"]', "2026-11-25", "2026-11-25"],
+    });
+
+    const groups = [{ engagement_id: "eng", name: "Monthly" }];
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok(groups)));
+    expect((await readHrPayGroups(db, "company-acme", ["eng"])).results).toEqual(groups);
+    expect(digest(groups)).toBe("3bbb0ab1b52e6a219ffce5d661e665b3eb294df6ffa6a7fd0f0762b63210c6b7");
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))).toEqual({
+      kind: LANE8_RD_HR_PAY_GROUPS, values: ['["eng"]'],
+    });
+  });
+
+  it("fails closed on malformed HR rows and bounded filters", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok({ id: "eng", person_id: "person", branch_id: 1, department_id: null })));
+    await expect(readHrEngagement(db, "company-acme", "eng", null, null)).rejects.toMatchObject({
+      code: "PEOPLE_PAYROLL_LANE8_UNAVAILABLE", status: 503,
+    });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok({ id: "eng", person_id: "person", branch_id: null, department_id: null })));
+    await expect(readHrEngagement(db, "company-acme", "eng", "../other", null)).rejects.toMatchObject({
+      code: "PEOPLE_PAYROLL_LANE8_UNAVAILABLE", status: 503,
+    });
+    await expect(readHrPayGroups(db, "company-acme", [])).rejects.toMatchObject({
+      code: "PEOPLE_PAYROLL_LANE8_UNAVAILABLE", status: 503,
+    });
+    await expect(readHrFutureShifts(db, "company-acme", ["eng"], 1.5)).rejects.toMatchObject({
+      code: "PEOPLE_PAYROLL_LANE8_UNAVAILABLE", status: 503,
+    });
   });
 });

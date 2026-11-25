@@ -157,7 +157,7 @@ describe('Sales read-tail r27 retirement check', () => {
     // r35: delivery-presence head shared by order/return/notice guards (-1).
     // lane 30 retires the two customer-note SELECT literals (-2) to the native
     // Sales axum owner.
-    expect(total).toBe(42);
+    expect(total).toBe(40);
     expect(total).toBeLessThan(60);
   });
 });

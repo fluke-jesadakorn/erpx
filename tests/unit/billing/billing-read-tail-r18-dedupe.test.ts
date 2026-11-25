@@ -20,10 +20,7 @@ describe('billing read-tail r18 cross-file LATERAL dedupe', () => {
   });
 
   it('routes both executive readers through the shared fragment with byte-identical SQL', async () => {
-    for (const file of [
-      'executive-main-evidence-sources.ts',
-      'executive-metric-projections.ts',
-    ]) {
+    for (const file of ['executive-metric-projections.ts']) {
       const text = await readFile(
         new URL(`../../../packages/server-billing/src/adapters/${file}`, import.meta.url),
         'utf8',
@@ -32,6 +29,14 @@ describe('billing read-tail r18 cross-file LATERAL dedupe', () => {
       expect(text.split('billingEnrollmentSubscriptionSql(').length - 1).toBe(1);
       expect(text).not.toContain(LATERAL);
     }
+    // Native lane 38 wave 2: this caller no longer carries SQL text.
+    const evidence = await readFile(
+      new URL('../../../packages/server-billing/src/adapters/executive-main-evidence-sources.ts', import.meta.url),
+      'utf8',
+    );
+    expect(evidence).not.toContain("from './billing-read-tail-r33-sql'");
+    expect(evidence).not.toContain(LATERAL);
+    expect(evidence).toContain('nativeBillingCommercialSubscriptions(');
     const r33 = await readFile(
       new URL('../../../packages/server-billing/src/adapters/billing-read-tail-r33-sql.ts', import.meta.url),
       'utf8',

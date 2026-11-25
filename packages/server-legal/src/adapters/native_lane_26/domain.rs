@@ -83,6 +83,19 @@ pub struct TrustMaterial {
     pub checksum: String,
 }
 
+/// An approved OCR text chunk used to pin a legal citation. Both the parent
+/// review and the Company scope are enforced by the owner query.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct CitationChunk {
+    pub id: String,
+    pub document_id: String,
+    pub page: Option<i64>,
+    pub page_mapping: bool,
+    pub section: String,
+    pub text: String,
+    pub document_checksum: String,
+}
+
 /// The bounded command-side witness for one trust material row.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct TrustMaterialDetail {

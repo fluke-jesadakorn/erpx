@@ -249,6 +249,26 @@ mod tests {
             let invitation = self.invitation.clone();
             Box::pin(async move { Ok(invitation) })
         }
+        fn recovery_account_email<'a>(
+            &'a self,
+            user_id: &'a str,
+        ) -> AccountAccessReadFuture<'a, Option<String>> {
+            assert_eq!(user_id, "u1");
+            Box::pin(async move {
+                if self.fail {
+                    Err(unavailable())
+                } else {
+                    Ok(Some("user@example.test".into()))
+                }
+            })
+        }
+        fn recovery_latest_job<'a>(
+            &'a self,
+            user_id: &'a str,
+        ) -> AccountAccessReadFuture<'a, Option<String>> {
+            assert_eq!(user_id, "u1");
+            Box::pin(async move { Ok(Some("job_1".into())) })
+        }
     }
 
     fn probe(fail: bool) -> Arc<Probe> {
@@ -375,6 +395,41 @@ mod tests {
         let bytes = axum::body::to_bytes(response.into_body(), 64 * 1024).await.expect("bytes");
         let value: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
         assert_eq!(value["error"]["code"], "ACCOUNT_ACCESS_READ_UNAVAILABLE");
+    }
+
+    #[tokio::test]
+    async fn recovery_control_reads_pin_the_response_shape() {
+        let app = build_app(probe(false));
+        for (body, expected) in [
+            (
+                r#"{"kind":"recovery_account_email","user_id":"u1"}"#,
+                serde_json::json!({"kind":"recovery_account_email","value":"user@example.test"}),
+            ),
+            (
+                r#"{"kind":"recovery_latest_job","user_id":"u1"}"#,
+                serde_json::json!({"kind":"recovery_latest_job","value":"job_1"}),
+            ),
+        ] {
+            let response = app
+                .clone()
+                .oneshot(request("acme.example.test", "acme", Some("platform"), body))
+                .await
+                .expect("response");
+            assert_eq!(response.status(), StatusCode::OK);
+            let bytes = axum::body::to_bytes(response.into_body(), 64 * 1024).await.expect("bytes");
+            assert_eq!(serde_json::from_slice::<serde_json::Value>(&bytes).expect("json"), expected);
+        }
+        let failing = build_app(probe(true));
+        let response = failing
+            .oneshot(request(
+                "acme.example.test",
+                "acme",
+                Some("platform"),
+                r#"{"kind":"recovery_account_email","user_id":"u1"}"#,
+            ))
+            .await
+            .expect("response");
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
     }
 
     #[tokio::test]

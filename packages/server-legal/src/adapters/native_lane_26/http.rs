@@ -18,9 +18,13 @@ use erpx_server_runtime::public::{
 use erpx_server_shared::public::{BusinessError, FailureKind};
 
 use super::{
-    application::{ExecutedCopySource, TrustMaterialSource, read_executed_copies},
-    domain::{LaneTarget, TrustMaterial, TrustMaterialDetail, valid_id, valid_slug},
-    postgres::{PgExecutedCopySource, PgTrustMaterialSource},
+    application::{
+        CitationEvidenceSource, ExecutedCopySource, TrustMaterialSource, read_executed_copies,
+    },
+    domain::{
+        CitationChunk, LaneTarget, TrustMaterial, TrustMaterialDetail, valid_id, valid_slug,
+    },
+    postgres::{PgCitationEvidenceSource, PgExecutedCopySource, PgTrustMaterialSource},
 };
 
 const CONTEXT_COMPANY: HeaderName = HeaderName::from_static("x-erpx-context-company");
@@ -29,11 +33,31 @@ const CONTEXT_USER: HeaderName = HeaderName::from_static("x-erpx-context-user");
 struct LaneState {
     targets: BTreeMap<(String, String), Arc<dyn ExecutedCopySource>>,
     trust: BTreeMap<(String, String), Arc<dyn TrustMaterialSource>>,
+    citation: BTreeMap<(String, String), Arc<dyn CitationEvidenceSource>>,
 }
 
-/// Reader-injection fallback for constructors that only inject the copy source.
-/// Trust reads stay closed rather than silently using another Holding's pool.
+/// Reader-injection fallbacks for constructors that only inject some sources.
+/// The remaining reads stay closed rather than silently using another pool.
 struct UnavailableTrustSource;
+struct UnavailableCitationSource;
+
+impl CitationEvidenceSource for UnavailableCitationSource {
+    fn chunk<'a>(
+        &'a self,
+        _company: &'a str,
+        _id: &'a str,
+    ) -> super::application::LaneFuture<'a, Option<CitationChunk>> {
+        Box::pin(async { Err(unavailable()) })
+    }
+    fn text_approved<'a>(
+        &'a self,
+        _company: &'a str,
+        _review: &'a str,
+        _document: &'a str,
+    ) -> super::application::LaneFuture<'a, bool> {
+        Box::pin(async { Err(unavailable()) })
+    }
+}
 
 impl TrustMaterialSource for UnavailableTrustSource {
     fn approved<'a>(&'a self, _company: &'a str) -> super::application::LaneFuture<'a, Vec<TrustMaterial>> {
@@ -145,6 +169,7 @@ fn configure_targets<Source: ?Sized>(
 fn into_router(
     targets: BTreeMap<(String, String), Arc<dyn ExecutedCopySource>>,
     trust: BTreeMap<(String, String), Arc<dyn TrustMaterialSource>>,
+    citation: BTreeMap<(String, String), Arc<dyn CitationEvidenceSource>>,
 ) -> Router {
     Router::new()
         .route(
@@ -159,15 +184,32 @@ fn into_router(
             "/api/v1/holdings/{holding_slug}/legal/native-lane-26/trust-materials/{id}",
             get(trust_material),
         )
-        .with_state(Arc::new(LaneState { targets, trust }))
+        .route(
+            "/api/v1/holdings/{holding_slug}/legal/native-lane-26/citation-chunk/{id}",
+            get(citation_chunk),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/legal/native-lane-26/text-approved/{review}/{document}",
+            get(text_approved),
+        )
+        .with_state(Arc::new(LaneState {
+            targets,
+            trust,
+            citation,
+        }))
 }
 
 fn sources_for_one_pool(
     pool: DatabasePool,
-) -> (Arc<dyn ExecutedCopySource>, Arc<dyn TrustMaterialSource>) {
+) -> (
+    Arc<dyn ExecutedCopySource>,
+    Arc<dyn TrustMaterialSource>,
+    Arc<dyn CitationEvidenceSource>,
+) {
     (
         Arc::new(PgExecutedCopySource::new(pool.clone())),
-        Arc::new(PgTrustMaterialSource::new(pool)),
+        Arc::new(PgTrustMaterialSource::new(pool.clone())),
+        Arc::new(PgCitationEvidenceSource::new(pool)),
     )
 }
 
@@ -175,56 +217,71 @@ fn sources_for_one_pool(
 /// The lead mounts it alongside the other Legal owner routers; composition owns
 /// the pool and the exact registered targets.
 pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
-    let (reader, trust) = sources_for_one_pool(pool);
+    let (reader, trust, citation) = sources_for_one_pool(pool);
     let copies = configure_targets(
         targets.iter().map(|target| (target.clone(), reader.clone())).collect(),
     )?;
     let trust = configure_targets(
-        targets.into_iter().map(|target| (target, trust.clone())).collect(),
+        targets.iter().map(|target| (target.clone(), trust.clone())).collect(),
     )?;
-    Ok(into_router(copies, trust))
+    let citation = configure_targets(
+        targets.into_iter().map(|target| (target, citation.clone())).collect(),
+    )?;
+    Ok(into_router(copies, trust, citation))
 }
 
 /// Reader-injection constructor used by owner tests. It installs the supplied
-/// copy reader for every exact target; trust reads stay closed.
+/// copy reader for every exact target; the other reads stay closed.
 pub fn router_with_reader(
     reader: Arc<dyn ExecutedCopySource>,
     targets: Vec<LaneTarget>,
 ) -> Result<Router, BusinessError> {
-    router_with_sources(reader, Arc::new(UnavailableTrustSource), targets)
+    router_with_all_sources(
+        reader,
+        Arc::new(UnavailableTrustSource),
+        Arc::new(UnavailableCitationSource),
+        targets,
+    )
 }
 
-/// Owner-test injection path for both read families.
-fn router_with_sources(
+/// Owner-test injection path for all read families.
+fn router_with_all_sources(
     reader: Arc<dyn ExecutedCopySource>,
     trust: Arc<dyn TrustMaterialSource>,
+    citation: Arc<dyn CitationEvidenceSource>,
     targets: Vec<LaneTarget>,
 ) -> Result<Router, BusinessError> {
     let copies = configure_targets(
         targets.iter().map(|target| (target.clone(), reader.clone())).collect(),
     )?;
     let trust = configure_targets(
-        targets.into_iter().map(|target| (target, trust.clone())).collect(),
+        targets.iter().map(|target| (target.clone(), trust.clone())).collect(),
     )?;
-    Ok(into_router(copies, trust))
+    let citation = configure_targets(
+        targets.into_iter().map(|target| (target, citation.clone())).collect(),
+    )?;
+    Ok(into_router(copies, trust, citation))
 }
 
 /// Per-Holding constructor. Each `(LaneTarget, DatabasePool)` pair gets its own
-/// reader pair, so every Holding reads only from its own database pool while
+/// source trio, so every Holding reads only from its own database pool while
 /// the same `host`/`holding_slug` isolation applies to all of them.
 pub fn router_for_holdings(
     targets: Vec<(LaneTarget, DatabasePool)>,
 ) -> Result<Router, BusinessError> {
     let mut copies_targets = Vec::with_capacity(targets.len());
     let mut trust_targets = Vec::with_capacity(targets.len());
+    let mut citation_targets = Vec::with_capacity(targets.len());
     for (target, pool) in targets {
-        let (reader, trust) = sources_for_one_pool(pool);
+        let (reader, trust, citation) = sources_for_one_pool(pool);
         copies_targets.push((target.clone(), reader));
-        trust_targets.push((target, trust));
+        trust_targets.push((target.clone(), trust));
+        citation_targets.push((target, citation));
     }
     Ok(into_router(
         configure_targets(copies_targets)?,
         configure_targets(trust_targets)?,
+        configure_targets(citation_targets)?,
     ))
 }
 
@@ -308,6 +365,64 @@ async fn trust_material(
         let (company, source) = trust_scope(&state, &request, &slug)?;
         let material = source.material(&company, &id).await?;
         Ok::<_, BusinessError>(serde_json::json!({"material": material}))
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
+}
+
+fn citation_scope<'a>(
+    state: &'a LaneState,
+    request: &Request,
+    slug: &str,
+) -> Result<(String, &'a dyn CitationEvidenceSource), BusinessError> {
+    let host = unique_header(request.headers(), header::HOST)?
+        .filter(|host| !host.is_empty())
+        .ok_or_else(missing)?;
+    let source = state
+        .citation
+        .get(&(host.to_owned(), slug.to_owned()))
+        .ok_or_else(missing)?;
+    let company = unique_header(request.headers(), CONTEXT_COMPANY)?
+        .filter(|value| valid_id(value))
+        .ok_or_else(invalid)?;
+    Ok((company.to_owned(), source.as_ref()))
+}
+
+async fn citation_chunk(
+    State(state): State<Arc<LaneState>>,
+    Path((slug, id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        if !valid_id(&id) {
+            return Err(invalid());
+        }
+        let (company, source) = citation_scope(&state, &request, &slug)?;
+        let chunk = source.chunk(&company, &id).await?;
+        Ok::<_, BusinessError>(serde_json::json!({"chunk": chunk}))
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn text_approved(
+    State(state): State<Arc<LaneState>>,
+    Path((slug, review, document)): Path<(String, String, String)>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        if !valid_id(&review) || !valid_id(&document) {
+            return Err(invalid());
+        }
+        let (company, source) = citation_scope(&state, &request, &slug)?;
+        let approved = source.text_approved(&company, &review, &document).await?;
+        Ok::<_, BusinessError>(serde_json::json!({"approved": approved}))
     }
     .await;
     match result {
@@ -434,6 +549,7 @@ mod tests {
         let state = Arc::new(LaneState {
             targets: configured,
             trust: BTreeMap::new(),
+            citation: BTreeMap::new(),
         });
         let _ = current(
             State(state.clone()),
@@ -514,6 +630,7 @@ mod tests {
         let state = Arc::new(LaneState {
             targets: BTreeMap::new(),
             trust,
+            citation: BTreeMap::new(),
         });
 
         for (slug, host) in [
@@ -540,6 +657,162 @@ mod tests {
         }
     }
 
+    struct TaggedCitation {
+        tag: &'static str,
+        seen: Arc<Mutex<Vec<String>>>,
+    }
+
+    impl CitationEvidenceSource for TaggedCitation {
+        fn chunk<'a>(
+            &'a self,
+            company: &'a str,
+            id: &'a str,
+        ) -> super::super::application::LaneFuture<'a, Option<CitationChunk>> {
+            let tag = self.tag;
+            let seen = self.seen.clone();
+            let company = company.to_owned();
+            let id = id.to_owned();
+            Box::pin(async move {
+                seen.lock().unwrap().push(format!("{tag}:{company}:{id}"));
+                Ok(Some(CitationChunk {
+                    id: id.clone(),
+                    document_id: "doc-1".to_owned(),
+                    page: Some(3),
+                    page_mapping: true,
+                    section: "section".to_owned(),
+                    text: "text".to_owned(),
+                    document_checksum: "checksum".to_owned(),
+                }))
+            })
+        }
+        fn text_approved<'a>(
+            &'a self,
+            company: &'a str,
+            review: &'a str,
+            document: &'a str,
+        ) -> super::super::application::LaneFuture<'a, bool> {
+            let tag = self.tag;
+            let seen = self.seen.clone();
+            let company = company.to_owned();
+            let review = review.to_owned();
+            let document = document.to_owned();
+            Box::pin(async move {
+                seen.lock()
+                    .unwrap()
+                    .push(format!("{tag}:{company}:{review}:{document}"));
+                Ok(true)
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn citation_reads_route_to_each_holdings_own_pool() {
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let acme: Arc<dyn CitationEvidenceSource> = Arc::new(TaggedCitation {
+            tag: "citation-acme",
+            seen: seen.clone(),
+        });
+        let north: Arc<dyn CitationEvidenceSource> = Arc::new(TaggedCitation {
+            tag: "citation-north",
+            seen: seen.clone(),
+        });
+        let citation = configure_targets(vec![
+            (
+                LaneTarget {
+                    host: "acme.jesadakorn.com".to_owned(),
+                    holding_slug: "acme".to_owned(),
+                },
+                acme.clone(),
+            ),
+            (
+                LaneTarget {
+                    host: "north.jesadakorn.com".to_owned(),
+                    holding_slug: "northstar".to_owned(),
+                },
+                north.clone(),
+            ),
+        ])
+        .expect("citation targets");
+        let state = Arc::new(LaneState {
+            targets: BTreeMap::new(),
+            trust: BTreeMap::new(),
+            citation,
+        });
+        let holdings = [
+            ("acme", "acme.jesadakorn.com"),
+            ("northstar", "north.jesadakorn.com"),
+        ];
+        for (slug, host) in holdings {
+            let response = citation_chunk(
+                State(state.clone()),
+                Path((slug.to_owned(), "chunk-1".to_owned())),
+                request(host),
+            )
+            .await;
+            let body = to_bytes(response.into_body(), usize::MAX).await.expect("body");
+            let value: serde_json::Value = serde_json::from_slice(&body).expect("json");
+            assert_eq!(value["chunk"]["id"], "chunk-1");
+            assert_eq!(value["chunk"]["page"], 3);
+        }
+        assert_eq!(
+            *seen.lock().unwrap(),
+            vec![
+                "citation-acme:company-1:chunk-1".to_owned(),
+                "citation-north:company-1:chunk-1".to_owned(),
+            ]
+        );
+
+        seen.lock().unwrap().clear();
+        for (slug, host) in holdings {
+            let response = text_approved(
+                State(state.clone()),
+                Path((slug.to_owned(), "review-1".to_owned(), "doc-1".to_owned())),
+                request(host),
+            )
+            .await;
+            let body = to_bytes(response.into_body(), usize::MAX).await.expect("body");
+            let value: serde_json::Value = serde_json::from_slice(&body).expect("json");
+            assert_eq!(value["approved"], true);
+        }
+        assert_eq!(
+            *seen.lock().unwrap(),
+            vec![
+                "citation-acme:company-1:review-1:doc-1".to_owned(),
+                "citation-north:company-1:review-1:doc-1".to_owned(),
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn citation_handlers_fail_closed_for_unregistered_or_unbounded_requests() {
+        let state = Arc::new(LaneState {
+            targets: BTreeMap::new(),
+            trust: BTreeMap::new(),
+            citation: BTreeMap::new(),
+        });
+        let response = citation_chunk(
+            State(state.clone()),
+            Path(("acme".to_owned(), "chunk-1".to_owned())),
+            request("acme.jesadakorn.com"),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let response = citation_chunk(
+            State(state.clone()),
+            Path(("acme".to_owned(), "bad id!".to_owned())),
+            request("acme.jesadakorn.com"),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        let response = text_approved(
+            State(state),
+            Path(("acme".to_owned(), "bad id!".to_owned(), "doc-1".to_owned())),
+            request("acme.jesadakorn.com"),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
     #[test]
     fn reader_injection_rejects_duplicate_targets() {
         let reader: Arc<dyn ExecutedCopySource> = Arc::new(TaggedReader {
@@ -554,7 +827,7 @@ mod tests {
             router_with_reader(reader, vec![target.clone(), target])
                 .err()
                 .map(|error| error.code),
-            Some("NATIVE_LEGAL_COPY_READ_CONFIG_INVALID".to_owned())
+            Some("NATIVE_LEGAL_COPY_READ_CONFIG_INVALID")
         );
     }
 }

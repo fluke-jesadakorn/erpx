@@ -4,7 +4,8 @@
 //! handler only enforces the Company boundary and the response invariants.
 
 use crate::adapters::native_lane_34::domain::{
-    FeedbackPage, InvitationPage, invalid_request, valid_company_id,
+    EmailReceipt, FeedbackPage, InvitationPage, invalid_request, valid_company_id,
+    valid_delivery_key,
 };
 use erpx_server_shared::public::BusinessError;
 use std::{future::Future, pin::Pin};
@@ -47,6 +48,31 @@ pub async fn load_invitations(
         return Err(invalid_request());
     }
     query.list(company).await?.validated()
+}
+
+pub type EmailReceiptFuture<'a> =
+    Pin<Box<dyn Future<Output = Result<Option<EmailReceipt>, BusinessError>> + Send + 'a>>;
+
+/// Owner sandbox email receipt port. The sqlx adapter owns the single
+/// `delivery_key` bind; this handler only enforces the key boundary and pins
+/// the returned projection.
+pub trait EmailReceiptQuery: Send + Sync {
+    fn receipt<'a>(&'a self, delivery_key: &'a str) -> EmailReceiptFuture<'a>;
+}
+
+/// Validate the delivery key, run the owner read and pin the receipt shape.
+pub async fn load_email_receipt(
+    query: &dyn EmailReceiptQuery,
+    delivery_key: &str,
+) -> Result<Option<EmailReceipt>, BusinessError> {
+    if !valid_delivery_key(delivery_key) {
+        return Err(invalid_request());
+    }
+    query
+        .receipt(delivery_key)
+        .await?
+        .map(|receipt| receipt.validated())
+        .transpose()
 }
 
 #[cfg(test)]
@@ -159,6 +185,73 @@ mod tests {
         );
         assert_eq!(
             load_invitations(&InvitationStub { fail: true }, "acme:co")
+                .await
+                .unwrap_err(),
+            unavailable()
+        );
+    }
+
+    struct ReceiptStub {
+        fail: bool,
+    }
+
+    impl EmailReceiptQuery for ReceiptStub {
+        fn receipt<'a>(&'a self, key: &'a str) -> EmailReceiptFuture<'a> {
+            let fail = self.fail;
+            let bad = key == "badshape:receipt";
+            Box::pin(async move {
+                if fail {
+                    return Err(unavailable());
+                }
+                if bad {
+                    return Ok(Some(EmailReceipt {
+                        delivery_key: String::new(),
+                        recipient: "to@example.test".to_owned(),
+                        subject: "S".to_owned(),
+                        body_text: "body".to_owned(),
+                        body_ciphertext: None,
+                        provider_id: "sandbox-key-1".to_owned(),
+                    }));
+                }
+                Ok(Some(EmailReceipt {
+                    delivery_key: format!("{key}-receipt"),
+                    recipient: "to@example.test".to_owned(),
+                    subject: "S".to_owned(),
+                    body_text: "body".to_owned(),
+                    body_ciphertext: None,
+                    provider_id: "sandbox-key-1".to_owned(),
+                }))
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn load_email_receipt_returns_the_pinned_projection() {
+        let receipt = load_email_receipt(&ReceiptStub { fail: false }, "portal:key")
+            .await
+            .expect("receipt")
+            .expect("some");
+        assert_eq!(receipt.delivery_key, "portal:key-receipt");
+        assert_eq!(receipt.recipient, "to@example.test");
+        assert_eq!(receipt.body_ciphertext, None);
+    }
+
+    #[tokio::test]
+    async fn load_email_receipt_fails_closed_on_bad_key_owner_failure_and_shape() {
+        assert_eq!(
+            load_email_receipt(&ReceiptStub { fail: false }, "bad/key")
+                .await
+                .unwrap_err(),
+            invalid_request()
+        );
+        assert_eq!(
+            load_email_receipt(&ReceiptStub { fail: true }, "portal:key")
+                .await
+                .unwrap_err(),
+            unavailable()
+        );
+        assert_eq!(
+            load_email_receipt(&ReceiptStub { fail: false }, "badshape:receipt")
                 .await
                 .unwrap_err(),
             unavailable()

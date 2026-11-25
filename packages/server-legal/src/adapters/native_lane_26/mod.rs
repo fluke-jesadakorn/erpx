@@ -10,12 +10,18 @@ mod domain;
 mod http;
 mod postgres;
 
-pub use application::{ExecutedCopySource, LaneFuture, read_executed_copies};
+pub use application::{
+    CitationEvidenceSource, ExecutedCopySource, LaneFuture, TrustMaterialSource,
+    read_executed_copies,
+};
 pub use domain::{
-    ApprovalCycle, COPY_LIMIT, CopyAuthors, CopyHead, ExecutedCopyRead, ExecutedCopyRow,
-    LaneTarget, ReviewRow, project, valid_id, valid_slug,
+    ApprovalCycle, COPY_LIMIT, CitationChunk, CopyAuthors, CopyHead, ExecutedCopyRead,
+    ExecutedCopyRow, LaneTarget, ReviewRow, TrustMaterial, TrustMaterialDetail, project, valid_id,
+    valid_slug,
 };
 pub use http::{router, router_for_holdings, router_with_reader};
 pub use postgres::{
-    PgExecutedCopySource, SQL_APPROVAL, SQL_AUTHORS, SQL_LIST, SQL_MEMBER, SQL_REVIEWS,
+    PgCitationEvidenceSource, PgExecutedCopySource, PgTrustMaterialSource, SQL_APPROVAL,
+    SQL_AUTHORS, SQL_CITATION_CHUNK, SQL_LIST, SQL_MEMBER, SQL_REVIEWS, SQL_TEXT_APPROVED,
+    SQL_TRUST_APPROVED, SQL_TRUST_MATERIAL,
 };

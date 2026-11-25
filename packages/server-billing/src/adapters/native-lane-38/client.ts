@@ -39,6 +39,8 @@ export type NativeLane38Transport = (
   url: URL,
   headers: Record<string, string>,
   timeoutMs: number,
+  method?: "GET" | "POST",
+  body?: string,
 ) => Promise<{ status: number; value: unknown }>;
 
 const WATERMARK_TABLE = 'billing_snapshot';
@@ -145,7 +147,7 @@ function configuration(raw: unknown): Config {
 }
 
 /** GET with an explicit Host header; fetch forbids overriding Host. */
-const defaultTransport: NativeLane38Transport = (url, headers, timeoutMs) =>
+const defaultTransport: NativeLane38Transport = (url, headers, timeoutMs, method = "GET", body) =>
   new Promise((resolve, reject) => {
     const agent = new Agent({
       keepAlive: false,
@@ -155,7 +157,13 @@ const defaultTransport: NativeLane38Transport = (url, headers, timeoutMs) =>
     });
     const outgoing = httpRequest(
       url,
-      { method: 'GET', agent, headers, signal: AbortSignal.timeout(timeoutMs), maxHeaderSize: 8192 },
+      {
+        method,
+        agent,
+        headers: body === undefined ? headers : { ...headers, "content-type": "application/json" },
+        signal: AbortSignal.timeout(timeoutMs),
+        maxHeaderSize: 8192,
+      },
       (incoming) => {
         const chunks: Buffer[] = [];
         incoming.on('data', (chunk: Buffer) => chunks.push(chunk));
@@ -180,6 +188,7 @@ const defaultTransport: NativeLane38Transport = (url, headers, timeoutMs) =>
       agent.destroy();
       reject(error);
     });
+    if (body !== undefined) outgoing.write(body);
     outgoing.end();
   });
 
@@ -199,6 +208,120 @@ function validate(value: unknown): NativeLane38Watermark[] {
   }
   return out;
 }
+
+// ---- Executive-main evidence family (wave 2) ------------------------------
+
+const COMMERCIAL_KEYS = [
+  'source_kind',
+  'record_id',
+  'plan_name',
+  'status',
+  'started_at',
+  'effective_at',
+  'record_version',
+] as const;
+const OVERDUE_KEYS = [
+  'id',
+  'kind',
+  'status',
+  'total_satang',
+  'due_at',
+  'updated_at',
+  'month',
+] as const;
+
+export type NativeLane38CommercialRow = Readonly<{
+  source_kind: "enrollment" | "legacy";
+  record_id: string;
+  plan_name: string;
+  status: string;
+  started_at: number | string | null;
+  effective_at: number | string | null;
+  record_version: number | string;
+}>;
+export type NativeLane38OverdueRow = Readonly<{
+  id: string;
+  kind: "main" | "adjustment";
+  status: "open" | "uncollectible";
+  total_satang: string | number;
+  due_at: string | number;
+  updated_at: string | number;
+  month: string;
+}>;
+export type NativeLane38CommercialContext = { sourceKind: string; recordId: string };
+export type NativeLane38CommercialSearch = {
+  query: string;
+  sourceKind?: string | null;
+  recordId?: string | null;
+  limit: number;
+  now: number;
+};
+export type NativeLane38OverdueSearch = {
+  from: string;
+  to: string;
+  query: string;
+  dueAt?: number | null;
+  id?: string | null;
+  limit: number;
+  end: number;
+  now: number;
+};
+
+const unavailableEvidence = (): never => {
+  throw new ApiError(
+    503,
+    'NATIVE_LANE_38_BILLING_EVIDENCE_UNAVAILABLE',
+    'The native Billing evidence service is unavailable.',
+  );
+};
+const numeric = (value: unknown): boolean =>
+  typeof value === 'number' && Number.isSafeInteger(value) ||
+  typeof value === 'string' && /^-?\d+$/.test(value) ||
+  value === null;
+
+function evidenceRows<T>(
+  value: unknown,
+  keys: readonly string[],
+  shape: (row: Record<string, unknown>) => boolean,
+  max: number,
+): T[] {
+  if (!exact(value, ['rows']) || !Array.isArray(value.rows) || value.rows.length > max)
+    return unavailableEvidence();
+  if (!value.rows.every((row: unknown) => exact(row, keys) && shape(row)))
+    return unavailableEvidence();
+  return value.rows as T[];
+}
+
+function evidenceRow<T>(
+  value: unknown,
+  keys: readonly string[],
+  shape: (row: Record<string, unknown>) => boolean,
+): T | null {
+  if (!exact(value, ['row'])) return unavailableEvidence();
+  const row = value.row;
+  if (row === null) return null;
+  if (!exact(row, keys) || !shape(row)) return unavailableEvidence();
+  return row as T;
+}
+
+const commercialShape = (row: Record<string, unknown>): boolean =>
+  text(row.source_kind, 40) &&
+  ['enrollment', 'legacy'].includes(String(row.source_kind)) &&
+  text(row.record_id, 200) &&
+  text(row.plan_name, 200) &&
+  text(row.status, 40) &&
+  numeric(row.started_at) &&
+  numeric(row.effective_at) &&
+  numeric(row.record_version);
+
+const overdueShape = (row: Record<string, unknown>): boolean =>
+  text(row.id, 200) &&
+  ['main', 'adjustment'].includes(String(row.kind)) &&
+  ['open', 'uncollectible'].includes(String(row.status)) &&
+  numeric(row.total_satang) &&
+  numeric(row.due_at) &&
+  numeric(row.updated_at) &&
+  /^\d{4}-\d{2}$/.test(String(row.month));
 
 /**
  * Build a native-backed watermark reader. The caller supplies its WorkContext
@@ -245,6 +368,47 @@ export function createNativeLane38Client(
       company: context.companyId ?? holding.companyId ?? holding.holdingId,
     };
   };
+  const post = async (
+    context: string | NativeLane38Context,
+    route: string,
+    body: Record<string, unknown>,
+  ): Promise<unknown> => {
+    const { holding, company } = select(context);
+    let response: { status: number; value: unknown };
+    try {
+      const encoded = JSON.stringify(body);
+      if (new TextEncoder().encode(encoded).length > 16 * 1024) return invalid();
+      response = await transport(
+        new URL(
+          `/api/v1/holdings/${encodeURIComponent(holding.holdingSlug)}/billing/native-lane-38/evidence/${route}`,
+          config.base,
+        ),
+        {
+          host: holding.host,
+          origin: holding.origin,
+          accept: 'application/json',
+          'content-type': 'application/json',
+          'cache-control': 'no-cache',
+          'x-erpx-context-company': company,
+        },
+        config.timeoutMs,
+        'POST',
+        encoded,
+      );
+    } catch {
+      return unavailableEvidence();
+    }
+    const value: unknown = response.value;
+    if (response.status !== 200) {
+      const error = record(value) && record(value.error) ? value.error : {};
+      throw new ApiError(
+        response.status >= 500 ? 503 : response.status,
+        text(error.code, 200) ? String(error.code) : 'NATIVE_LANE_38_BILLING_EVIDENCE_FAILED',
+        text(error.message, 2000) ? String(error.message) : 'The Billing evidence could not be read.',
+      );
+    }
+    return value;
+  };
   return {
     async watermarks(
       context: string | NativeLane38Context,
@@ -280,6 +444,123 @@ export function createNativeLane38Client(
       }
       return validate(value);
     },
+
+    async commercialSubscriptions(
+      context: string | NativeLane38Context,
+      input: NativeLane38CommercialSearch,
+    ): Promise<NativeLane38CommercialRow[]> {
+      if (
+        !record(input) ||
+        typeof input.query !== 'string' ||
+        input.query.length > 200 ||
+        !Number.isSafeInteger(input.limit) ||
+        input.limit < 1 ||
+        input.limit > 100 ||
+        !Number.isSafeInteger(input.now) ||
+        input.now <= 0
+      )
+        return invalid();
+      const body = {
+        query: input.query,
+        sourceKind: input.sourceKind ?? null,
+        recordId: input.recordId ?? null,
+        limit: input.limit,
+        now: input.now,
+      };
+      return evidenceRows<NativeLane38CommercialRow>(
+        await post(context, 'commercial-subscriptions', body),
+        COMMERCIAL_KEYS,
+        commercialShape,
+        101,
+      );
+    },
+
+    async commercialSubscription(
+      context: string | NativeLane38Context,
+      decoded: NativeLane38CommercialContext,
+      now: number,
+    ): Promise<NativeLane38CommercialRow | null> {
+      if (
+        !record(decoded) ||
+        !['enrollment', 'legacy'].includes(String(decoded.sourceKind)) ||
+        !text(decoded.recordId, 200) ||
+        !Number.isSafeInteger(now) ||
+        now <= 0
+      )
+        return invalid();
+      return evidenceRow<NativeLane38CommercialRow>(
+        await post(context, 'commercial-subscription', {
+          sourceKind: decoded.sourceKind,
+          recordId: decoded.recordId,
+          now,
+        }),
+        COMMERCIAL_KEYS,
+        commercialShape,
+      );
+    },
+
+    async overdueInvoices(
+      context: string | NativeLane38Context,
+      input: NativeLane38OverdueSearch,
+    ): Promise<NativeLane38OverdueRow[]> {
+      const fromMs = Date.parse(input.from);
+      if (
+        !record(input) ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(input.from) ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(input.to) ||
+        !Number.isSafeInteger(fromMs) ||
+        typeof input.query !== 'string' ||
+        input.query.length > 200 ||
+        !Number.isSafeInteger(input.limit) ||
+        input.limit < 1 ||
+        input.limit > 100 ||
+        !Number.isSafeInteger(input.end) ||
+        input.end <= 0 ||
+        !Number.isSafeInteger(input.now) ||
+        input.now <= 0
+      )
+        return invalid();
+      return evidenceRows<NativeLane38OverdueRow>(
+        await post(context, 'overdue-invoices', {
+          fromMs,
+          query: input.query,
+          dueAt: input.dueAt ?? null,
+          id: input.id ?? null,
+          limit: input.limit,
+          end: input.end,
+          now: input.now,
+        }),
+        OVERDUE_KEYS,
+        overdueShape,
+        101,
+      );
+    },
+
+    async overdueInvoice(
+      context: string | NativeLane38Context,
+      filters: { from: string; to: string },
+      now: number,
+      id: string,
+    ): Promise<NativeLane38OverdueRow | null> {
+      const fromMs = Date.parse(filters.from);
+      const toExclusiveMs = Date.parse(filters.to) + 86400000;
+      if (
+        !record(filters) ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(filters.from) ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(filters.to) ||
+        !Number.isSafeInteger(fromMs) ||
+        !Number.isSafeInteger(toExclusiveMs) ||
+        !text(id, 200) ||
+        !Number.isSafeInteger(now) ||
+        now <= 0
+      )
+        return invalid();
+      return evidenceRow<NativeLane38OverdueRow>(
+        await post(context, 'overdue-invoice', { fromMs, toExclusiveMs, now, id }),
+        OVERDUE_KEYS,
+        overdueShape,
+      );
+    },
   };
 }
 
@@ -289,4 +570,37 @@ export async function nativeBillingWatermarks(
 ): Promise<NativeLane38Watermark[]> {
   const raw = process.env[ENV];
   return createNativeLane38Client(raw ?? '', defaultTransport).watermarks(context);
+}
+
+const envClient = () => createNativeLane38Client(process.env[ENV] ?? '', defaultTransport);
+
+export async function nativeBillingCommercialSubscriptions(
+  context: string | NativeLane38Context,
+  input: NativeLane38CommercialSearch,
+): Promise<NativeLane38CommercialRow[]> {
+  return envClient().commercialSubscriptions(context, input);
+}
+
+export async function nativeBillingCommercialSubscription(
+  context: string | NativeLane38Context,
+  decoded: NativeLane38CommercialContext,
+  now: number,
+): Promise<NativeLane38CommercialRow | null> {
+  return envClient().commercialSubscription(context, decoded, now);
+}
+
+export async function nativeBillingOverdueInvoices(
+  context: string | NativeLane38Context,
+  input: NativeLane38OverdueSearch,
+): Promise<NativeLane38OverdueRow[]> {
+  return envClient().overdueInvoices(context, input);
+}
+
+export async function nativeBillingOverdueInvoice(
+  context: string | NativeLane38Context,
+  filters: { from: string; to: string },
+  now: number,
+  id: string,
+): Promise<NativeLane38OverdueRow | null> {
+  return envClient().overdueInvoice(context, filters, now, id);
 }

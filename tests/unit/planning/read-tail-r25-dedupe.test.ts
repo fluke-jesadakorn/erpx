@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { createHash } from 'node:crypto';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { planningScopedBranchList } from '../../../packages/server-planning/src/adapters/planning-scoped-list-sql';
 import { planningSelectColumnsFrom } from '../../../packages/server-planning/src/adapters/planning-select-columns-sql';
@@ -74,7 +74,7 @@ describe('Planning read-tail r25 scoped branch-list head fold', () => {
     expect(src('planning-select-columns-sql.ts')).toContain('export const planningSelectColumnsFrom =');
     expect(src('planning-select-from-sql.ts')).toContain('export const planningSelectFrom =');
     expect(src('planning-package-fact-sql.ts')).toContain('export const planningPackageFactRows =');
-    expect(src('planning-scoped-row-sql.ts')).toContain('export const planningScopedBranchRow =');
+    expect(existsSync(resolve(srcRoot, 'adapters/planning-scoped-row-sql.ts'))).toBe(false);
     expect(src('planning-scoped-list-sql.ts')).toContain('export const planningScopedBranchList =');
     expect(src('planning-guard-sql.ts')).toContain('export const productionResourcesExists =');
     expect(src('planning-guard-sql.ts')).toContain('export const planningAllocatedMinutes =');

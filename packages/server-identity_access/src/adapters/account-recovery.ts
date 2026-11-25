@@ -1,5 +1,5 @@
 import { nativePrepare } from '@erpx/server-identity_access/public/native-identity-write';
-import { userAttributeByIdExtendedSql } from './identity-user-projection-family-r21';
+import { nativeRecoveryAccountEmail, nativeRecoveryLatestJobId } from './native-lane-10/client';
 import "server-only";
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, } from "node:crypto";
 import type { User } from "better-auth";
@@ -36,7 +36,9 @@ function open(secret: string, value: string) {
     decipher.setAuthTag(tag);
     return Buffer.concat([decipher.update(data), decipher.final()]).toString("utf8");
 }
-function repository(control: SqlDatabase): AccountRecoveryRepository {
+/** `control` is retained for call-site compatibility; the two owner reads are
+ * native-only and every command already uses the native write transport. */
+function repository(_control: SqlDatabase): AccountRecoveryRepository {
     const event = (id: string, userId: string, jobId: string | null, action: string, evidence: Record<string, unknown>, now: number) => nativePrepare("w_c26b534670da").bind(id, userId, jobId, action, JSON.stringify(evidence), now);
     return {
         async queue(input) {
@@ -49,14 +51,15 @@ function repository(control: SqlDatabase): AccountRecoveryRepository {
         },
         async recoverInterrupted(now) { await nativePrepare("w_77aad90d676e").bind(now, now, now).run(); },
         claim: (lease, now) => nativePrepare("w_b56d93903546").bind(lease, now + 30000, now, now).first<RecoveryDeliveryJob>(),
-        account: userId => control.prepare(userAttributeByIdExtendedSql('email')).bind(userId).first<{
-            email: string;
-        }>(),
+        account: async userId => {
+            const email = await nativeRecoveryAccountEmail(userId);
+            return email === null ? null : { email };
+        },
         async cancel(job, lease, reason, now, eventId) { await Promise.all([nativePrepare("w_af917c230df0").bind(reason, now, job.id, lease), event(eventId, job.user_id, job.id, 'cancelled', { reason }, now)]); },
         async sent(job, lease, providerId, now, eventId) { await Promise.all([nativePrepare("w_f77801fb504a").bind(now, providerId ?? job.id, now, job.id, lease), event(eventId, job.user_id, job.id, 'sent', { providerId }, now)]); },
         async failed(job, lease, failure, now, eventId) { await Promise.all([nativePrepare("w_75e34d6665ef").bind(failure.state, failure.code, failure.nextAttemptAt, now, job.id, lease), event(eventId, job.user_id, job.id, 'delivery_failed', { attempt: job.attempts, terminal: failure.terminal, error: failure.code }, now)]); },
         async complete(userId, now, eventId) {
-            const latest = await control.prepare('SELECT id FROM account_recovery_delivery_jobs WHERE user_id=? ORDER BY created_at DESC,id DESC LIMIT 1').bind(userId).first<string>('id');
+            const latest = await nativeRecoveryLatestJobId(userId);
             await Promise.all([
                 nativePrepare("w_13a241f7e1ff").bind(userId),
                 nativePrepare("w_6d14d44114fd").bind(now, userId), event(eventId, userId, latest ?? null, 'completed', { sessionsRevoked: true }, now)

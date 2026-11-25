@@ -107,7 +107,6 @@ describe('Projects read-tail r36 package-actual source and event-fact arm dedupe
       ['read-tail-r27.ts', 'projectMemberExistsSql'],
       ['read-tail-r28.ts', 'assignmentViewerSelect'],
       ['read-tail-r29.ts', 'orderedImageAggregateHead'],
-      ['read-tail-r30.ts', 'visibleProjectRowsHead'],
       ['read-tail-r32.ts', 'projectPurchaseSourceHead'],
       ['read-tail-r33.ts', 'projectPointReadHead'],
       ['read-tail-r34.ts', 'staffTaskPointHead'],
@@ -131,7 +130,7 @@ describe('Projects read-tail r36 package-actual source and event-fact arm dedupe
     // the two package-actual source NOT EXISTS
     // witnesses into one helper (96-in-file -> 95-in-file, -1) and Rank2 folds
     // the work-log/cost-allocation UNION arms into one closed helper (-1).
-    expect(total).toBe(67); // lane 27 wave 2 moved the two handoff list/work reads to native (-2) // lane 27 moved the two actuals reads to native Rust (-2) // r38 member EXISTS closed helper (-4) + evidence super-head (-3): 88->81
+    expect(total).toBe(66); // lane 27 wave 2 moved the two handoff list/work reads to native (-2) // lane 27 moved the two actuals reads to native Rust (-2) // r38 member EXISTS closed helper (-4) + evidence super-head (-3): 88->81
     expect(total).toBeLessThan(88);
   });
 });

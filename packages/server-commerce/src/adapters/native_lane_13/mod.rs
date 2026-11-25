@@ -1,8 +1,8 @@
 //! Native migration lane 13 for commerce.
 //!
-//! Owner-local successor of the five live entrypoint identity reads in
-//! `adapters/entrypoint-facts.ts`. The axum router owns the SQL, projection and
-//! Company scope; the retained TypeScript adapter is a strict transport only.
+//! Owner-local successor of the live Commerce identity, invoice/delivery and
+//! billing-test entry reads. The axum router owns the SQL, projection and
+//! Company scope; the retained TypeScript adapters are strict transports only.
 
 pub mod application;
 pub mod domain;

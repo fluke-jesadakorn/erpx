@@ -154,7 +154,7 @@ describe('manufacturing read-tail r37 projection-from-source head-family fold', 
     for (const file of await tsFiles(new URL('../../../packages/server-manufacturing/src/', import.meta.url))) {
       total += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     }
-    expect(total).toBe(48);
+    expect(total).toBe(46);
     expect(total).toBeLessThan(49);
   });
 });

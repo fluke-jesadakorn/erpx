@@ -55,10 +55,7 @@ describe('marketing form/content asset read-head dedupe (r38)', () => {
     expect(contentSource).not.toContain('FROM marketing_assets');
     expect(contentSource.match(/SELECT /g)).toBeNull();
 
-    const activeForm = await src('active-form-sql.ts');
-    expect(activeForm).toContain("formAssetReadHead({ kind:'form', projection, company, version })");
-    expect(activeForm).not.toContain('FROM marketing_assets');
-    expect(activeForm.match(/SELECT /g)).toBeNull();
+    await expect(src('active-form-sql.ts')).rejects.toThrow();
 
     const purchases = await src('purchases.ts');
     expect(purchases).toContain("formAssetRow:string=formAssetReadHead({kind:'form-row'})");
@@ -68,12 +65,12 @@ describe('marketing form/content asset read-head dedupe (r38)', () => {
   it('preserves binds and every existing consumer of the two public helpers', async () => {
     const publicForm = await src('public-form.ts');
     expect(publicForm).toContain("marketingFormContentSql('1')");
-    expect(publicForm).toContain("marketingFormContentSql('id,version,preview_json')");
-    expect(publicForm).toContain("activeFormSql('public')");
-    expect(publicForm).toContain('.bind(refs.contentAssetId!,companyId,refs.contentVersion!)');
+    expect(publicForm).toContain('readMarketingLane40ForCompany(LANE40_FORM_CONTENT_ROW,companyId,');
+    expect(publicForm).toContain('nativeMarketingReadFirst<PublicMarketingForm>(MARKETING_RD_FORM_PUBLIC');
+    expect(publicForm).not.toContain('.bind(refs.contentAssetId!,companyId,refs.contentVersion!)');
     const marketing = await src('marketing.ts');
-    expect(marketing).toContain("activeFormSql('source',true,true)");
-    expect(marketing).toContain('.bind(formId,a.companyId,formVersion)');
+    expect(marketing).toContain('readMarketingLane40(LANE40_ACTIVE_FORM_SOURCE,a,');
+    expect(marketing).toContain('{assetId:formId,version:formVersion}');
     const purchases = await src('purchases.ts');
     expect(purchases).toContain('database.prepare(formAssetRow).bind(form.id,form.company_id)');
     expect(purchases).toContain('database.prepare(formAssetRow).bind(actual.id,actual.company_id)');

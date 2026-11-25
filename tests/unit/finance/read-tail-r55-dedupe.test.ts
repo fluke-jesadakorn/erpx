@@ -121,11 +121,14 @@ describe('Finance read-tail r55 protected families and retirement', () => {
     expect(workspace).toContain('${financeWorkspacePendingPeopleSql}');
     expect(workspace).toContain('${UNMATCHED_BANK_TXN_COUNT_SQL}');
     expect(workspace).toContain('${financeWorkspaceReadyExpenseAiSql}');
-    // :123-129: output alias `count`, count(DISTINCT), JOIN and derived table are
-    // not the closed company-first template and remain byte-for-byte inline.
-    expect(workspace).toContain('"SELECT count(*) count FROM finance_accounts WHERE company_id=? AND status=\'active\'"');
-    expect(workspace).toContain('"SELECT count(*) count FROM finance_periods WHERE company_id=?"');
-    expect(workspace).toContain('"SELECT count(DISTINCT bank_account) count FROM finance_bank_statements WHERE company_id=?"');
+    // :123-129: the closed company-first counts and count(DISTINCT) are now
+    // owned by native lane 3; the TypeScript adapter only transports facts.
+    expect(workspace).not.toContain('"SELECT count(*) count FROM finance_accounts WHERE company_id=? AND status=\'active\'"');
+    expect(workspace).not.toContain('"SELECT count(*) count FROM finance_periods WHERE company_id=?"');
+    expect(workspace).not.toContain('"SELECT count(DISTINCT bank_account) count FROM finance_bank_statements WHERE company_id=?"');
+    expect(workspace).toContain('nativeSetupCounts');
+    expect(workspace).toContain('setupFacts');
+    // These two heads are not closed company-first templates, so they stay inline.
     expect(workspace).toContain('"SELECT count(*) count FROM finance_accounting_profiles p JOIN finance_charts c');
     expect(workspace).toContain('"SELECT count(*) count FROM (SELECT a.chart_id FROM finance_accounts a');
     expect(read(ir)).not.toContain('${UNMATCHED_BANK_TXN_COUNT_SQL}');
@@ -141,7 +144,7 @@ describe('Finance read-tail r55 protected families and retirement', () => {
     expect(read(ir)).not.toContain("import { UNMATCHED_BANK_TXN_COUNT_SQL } from './finance-read-tail-r44-sql';");
   });
 
-  test('retirement:ts-statements pins the current owner target of 1693', () => {
+  test('retirement:ts-statements pins the current owner target of 1678', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -154,7 +157,7 @@ describe('Finance read-tail r55 protected families and retirement', () => {
     // 18 count literals collapsed into two helpers (-18 literals, +2 declarations: 1742 -> 1726);
     // native lane 2 then retired the six invoice-read TS sites (12 retained).
     expect(CASES).toHaveLength(12);
-    expect(total).toBe(1693);
+    expect(total).toBe(1678);
     expect(total).toBeLessThan(1742);
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { resourceCalendarByKey } from '../../../packages/server-planning/src/adapters/planning-calendar-source-sql';
 import { planningSelectColumnsFrom } from '../../../packages/server-planning/src/adapters/planning-select-columns-sql';
@@ -71,7 +71,7 @@ describe('Planning read-tail r23 resource-calendar point-lookup fold', () => {
     expect(src('planning-attachment-target-sql.ts')).toContain('export const planningAttachmentTargetRow =');
     expect(src('planning-attachment-target-sql.ts')).toContain('export const planningAttachmentTargetVersionExists =');
     expect(src('planning-scoped-list-sql.ts')).toContain('export const planningScopedBranchList =');
-    expect(src('planning-scoped-row-sql.ts')).toContain('export const planningScopedBranchRow =');
+    expect(existsSync(resolve(srcRoot, 'adapters/planning-scoped-row-sql.ts'))).toBe(false);
     expect(src('planning-image-source-sql.ts')).toContain('export const planningSourceRows =');
     expect(src('executive-metric-projections.ts')).toContain('planningBranchDisplayLabelSql');
     expect(src('executive-metric-projections.ts')).toContain('metricLabelCountProjection');

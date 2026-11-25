@@ -2,15 +2,21 @@
 //! isolation, exact company-header scope and error mapping follow the Commerce
 //! `quality_product_read` reference. No session, actor or Holding authority is
 //! minted here; the caller's private transport supplies the bound context.
-use super::application::{BillingWatermarkRead, read_watermark_body};
-use super::domain::invalid;
-use super::postgres::PgBillingWatermarkRead;
+use super::application::{
+    BillingEvidenceRead, BillingWatermarkRead, read_commercial_point, read_commercial_search,
+    read_overdue_point, read_overdue_search, read_watermark_body,
+};
+use super::domain::{
+    CommercialPointInput, CommercialSearchInput, OverduePointInput, OverdueSearchInput, invalid,
+};
+use super::postgres::{PgBillingEvidenceRead, PgBillingWatermarkRead};
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
-    StatusCode, header, routing::get, serde_json,
+    StatusCode, body::to_bytes, header, routing::get, routing::post, serde_json,
 };
 use erpx_server_runtime::public::postgres::DatabasePool;
 use erpx_server_shared::public::{BusinessError, FailureKind};
+use serde::de::DeserializeOwned;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -30,6 +36,7 @@ pub type NativeLane38Target = LaneTarget;
 
 struct Lane38State {
     targets: BTreeMap<(String, String), SharedWatermarkRead>,
+    evidence: BTreeMap<(String, String), Arc<dyn BillingEvidenceRead>>,
 }
 
 fn missing() -> BusinessError {
@@ -116,6 +123,33 @@ fn build_state(
     }
     Ok(Arc::new(Lane38State {
         targets: configured,
+        evidence: BTreeMap::new(),
+    }))
+}
+
+/// Attach one evidence reader per Holding target. The target set is the same
+/// validated `(host, slug)` set used for the watermark reader map.
+fn with_evidence(
+    state: &Lane38State,
+    targets: Vec<(LaneTarget, DatabasePool)>,
+) -> Result<Arc<Lane38State>, BusinessError> {
+    let mut configured = BTreeMap::new();
+    for (target, pool) in targets {
+        if target.host.is_empty()
+            || !valid_slug(&target.holding_slug)
+            || configured
+                .insert(
+                    (target.host.clone(), target.holding_slug.clone()),
+                    Arc::new(PgBillingEvidenceRead::new(pool)) as Arc<dyn BillingEvidenceRead>,
+                )
+                .is_some()
+        {
+            return Err(configuration_invalid());
+        }
+    }
+    Ok(Arc::new(Lane38State {
+        targets: state.targets.clone(),
+        evidence: configured,
     }))
 }
 
@@ -124,6 +158,22 @@ fn build_router(state: Arc<Lane38State>) -> Router {
         .route(
             "/api/v1/holdings/{holding_slug}/billing/native-lane-38/watermarks",
             get(watermarks),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/billing/native-lane-38/evidence/commercial-subscriptions",
+            post(commercial_subscriptions),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/billing/native-lane-38/evidence/commercial-subscription",
+            post(commercial_subscription),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/billing/native-lane-38/evidence/overdue-invoices",
+            post(overdue_invoices),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/billing/native-lane-38/evidence/overdue-invoice",
+            post(overdue_invoice),
         )
         .with_state(state)
 }
@@ -150,7 +200,25 @@ pub fn router_with_reader(
 
 /// Pool-backed variant matching the lane contract. The lead mounts this router.
 pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
-    router_with_reader(Arc::new(PgBillingWatermarkRead::new(pool)), targets)
+    let state = build_state(
+        targets
+            .iter()
+            .map(|target| {
+                (
+                    target.clone(),
+                    Arc::new(PgBillingWatermarkRead::new(pool.clone())) as SharedWatermarkRead,
+                )
+            })
+            .collect::<Vec<_>>(),
+    )?;
+    let with = with_evidence(
+        &state,
+        targets
+            .into_iter()
+            .map(|target| (target, pool.clone()))
+            .collect(),
+    )?;
+    Ok(build_router(with))
 }
 
 /// Per-Holding constructor: one `PgBillingWatermarkRead` (and therefore one
@@ -159,15 +227,19 @@ pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, Bu
 pub fn router_for_holdings(
     targets: Vec<(LaneTarget, DatabasePool)>,
 ) -> Result<Router, BusinessError> {
-    router_for_readers(
+    let state = build_state(
         targets
-            .into_iter()
+            .iter()
             .map(|(target, pool)| {
-                let reader: SharedWatermarkRead = Arc::new(PgBillingWatermarkRead::new(pool));
-                (target, reader)
+                (
+                    target.clone(),
+                    Arc::new(PgBillingWatermarkRead::new(pool.clone())) as SharedWatermarkRead,
+                )
             })
-            .collect(),
-    )
+            .collect::<Vec<_>>(),
+    )?;
+    let with = with_evidence(&state, targets)?;
+    Ok(build_router(with))
 }
 
 async fn watermarks(
@@ -187,6 +259,121 @@ async fn watermarks(
             .filter(|value| super::domain::valid_holding(value))
             .ok_or_else(invalid)?;
         read_watermark_body(reader.as_ref(), holding).await
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn parse_body<T: DeserializeOwned>(request: Request) -> Result<T, BusinessError> {
+    let bytes = to_bytes(request.into_body(), 64 * 1024)
+        .await
+        .map_err(|_| invalid())?;
+    serde_json::from_slice(&bytes).map_err(|_| invalid())
+}
+
+async fn commercial_subscriptions(
+    State(state): State<Arc<Lane38State>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let host = unique_header(request.headers(), header::HOST)?
+            .filter(|host| !host.is_empty())
+            .ok_or_else(missing)?;
+        let reader = state
+            .evidence
+            .get(&(host.to_owned(), slug.clone()))
+            .ok_or_else(missing)?;
+        let company = unique_header(request.headers(), CONTEXT_COMPANY)?
+            .filter(|value| super::domain::valid_holding(value))
+            .ok_or_else(invalid)?
+            .to_owned();
+        let input: CommercialSearchInput = parse_body(request).await?;
+        read_commercial_search(reader.as_ref(), &company, &input).await
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn commercial_subscription(
+    State(state): State<Arc<Lane38State>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let host = unique_header(request.headers(), header::HOST)?
+            .filter(|host| !host.is_empty())
+            .ok_or_else(missing)?;
+        let reader = state
+            .evidence
+            .get(&(host.to_owned(), slug.clone()))
+            .ok_or_else(missing)?;
+        let company = unique_header(request.headers(), CONTEXT_COMPANY)?
+            .filter(|value| super::domain::valid_holding(value))
+            .ok_or_else(invalid)?
+            .to_owned();
+        let input: CommercialPointInput = parse_body(request).await?;
+        read_commercial_point(reader.as_ref(), &company, &input).await
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn overdue_invoices(
+    State(state): State<Arc<Lane38State>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let host = unique_header(request.headers(), header::HOST)?
+            .filter(|host| !host.is_empty())
+            .ok_or_else(missing)?;
+        let reader = state
+            .evidence
+            .get(&(host.to_owned(), slug.clone()))
+            .ok_or_else(missing)?;
+        let company = unique_header(request.headers(), CONTEXT_COMPANY)?
+            .filter(|value| super::domain::valid_holding(value))
+            .ok_or_else(invalid)?
+            .to_owned();
+        let input: OverdueSearchInput = parse_body(request).await?;
+        read_overdue_search(reader.as_ref(), &company, &input).await
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn overdue_invoice(
+    State(state): State<Arc<Lane38State>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let host = unique_header(request.headers(), header::HOST)?
+            .filter(|host| !host.is_empty())
+            .ok_or_else(missing)?;
+        let reader = state
+            .evidence
+            .get(&(host.to_owned(), slug.clone()))
+            .ok_or_else(missing)?;
+        let company = unique_header(request.headers(), CONTEXT_COMPANY)?
+            .filter(|value| super::domain::valid_holding(value))
+            .ok_or_else(invalid)?
+            .to_owned();
+        let input: OverduePointInput = parse_body(request).await?;
+        read_overdue_point(reader.as_ref(), &company, &input).await
     }
     .await;
     match result {

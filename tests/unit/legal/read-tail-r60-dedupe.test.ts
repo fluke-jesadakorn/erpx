@@ -81,7 +81,8 @@ describe('legal read-tail r60 approved-cycle head reuse', () => {
     expect(r33).toContain('export const legalStatePointSql');
     expect(r34).toContain('export const legalPointByIdAndKeySql');
     expect(citations).toContain('export function legalCitation');
-    expect(citations).toContain('FROM legal_source_chunks c JOIN legal_text_reviews r');
+    expect(citations).toContain("from '../native-lane-26/client'");
+    expect(citations).not.toContain('FROM legal_source_chunks c JOIN legal_text_reviews r');
     expect(worker).toContain('FOR UPDATE OF x,i');
     expect(purchases).toContain('LOCK TABLE legal_settings,legal_destructions,legal_comments,legal_envelopes,legal_signers,legal_counsel_entries IN SHARE ROW EXCLUSIVE MODE');
   });

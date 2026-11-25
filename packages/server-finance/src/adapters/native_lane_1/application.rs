@@ -7,7 +7,7 @@ use super::domain::{
     valid_identifier,
 };
 use erpx_server_shared::public::BusinessError;
-use std::{future::Future, pin::Pin};
+use std::{future::Future, pin::Pin, sync::Arc};
 
 pub type LaneReadFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, BusinessError>> + Send + 'a>>;
@@ -25,6 +25,25 @@ pub trait ExpenseProjectionReader: Send + Sync {
         &'a self,
         scope: &'a CompanyScope,
     ) -> LaneReadFuture<'a, Vec<PostingAccountRow>>;
+}
+
+/// A trait-object reader keeps one owner adapter per Holding in the router's
+/// state map while preserving the same validation service for every request.
+impl ExpenseProjectionReader for Arc<dyn ExpenseProjectionReader> {
+    fn journal_lines<'a>(
+        &'a self,
+        scope: &'a CompanyScope,
+        journal_id: &'a str,
+    ) -> LaneReadFuture<'a, Vec<JournalLineRow>> {
+        (**self).journal_lines(scope, journal_id)
+    }
+
+    fn posting_accounts<'a>(
+        &'a self,
+        scope: &'a CompanyScope,
+    ) -> LaneReadFuture<'a, Vec<PostingAccountRow>> {
+        (**self).posting_accounts(scope)
+    }
 }
 
 pub struct ExpenseProjectionService<R: ExpenseProjectionReader> {

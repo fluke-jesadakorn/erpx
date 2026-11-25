@@ -1,10 +1,10 @@
 //! Pure domain for the native Planning lane-36 scoped workspace reads.
 //!
-//! The three reads in this family touch only Planning-owned relations
-//! (`planning_recommendations`, `planning_scenarios`, `production_resources`
-//! and `production_resource_calendar`). This module owns the closed read-kind
-//! set, the bounded scope/identifier validation and the exact response row
-//! shapes. There is no SQL and no I/O here.
+//! All six reads touch only Planning-owned relations (`planning_recommendations`,
+//! `planning_scenarios`, `production_resources` and
+//! `production_resource_calendar`). This module owns the closed read-kind set,
+//! bounded scope/identifier validation and the exact response row shapes.
+//! There is no SQL and no I/O here.
 
 use erpx_server_shared::public::BusinessError;
 use serde::Serialize;
@@ -13,12 +13,27 @@ use serde_json::{Value, json};
 pub const KIND_RECOMMENDATIONS: &str = "recommendations";
 pub const KIND_RESOURCES: &str = "resources";
 pub const KIND_CALENDAR: &str = "calendar";
+pub const KIND_SCENARIO: &str = "scenario";
+pub const KIND_SCOPED_RECOMMENDATION: &str = "scoped-recommendation";
+pub const KIND_COMPARISON: &str = "comparison";
 
 /// The closed discriminator set. The wire accepts no other value.
-pub const KINDS: [&str; 3] = [KIND_RECOMMENDATIONS, KIND_RESOURCES, KIND_CALENDAR];
+pub const KINDS: [&str; 6] = [
+    KIND_RECOMMENDATIONS,
+    KIND_RESOURCES,
+    KIND_CALENDAR,
+    KIND_SCENARIO,
+    KIND_SCOPED_RECOMMENDATION,
+    KIND_COMPARISON,
+];
 
 pub fn valid_kind(value: &str) -> bool {
     KINDS.contains(&value)
+}
+
+/// Row reads return one optional row; list reads return an array.
+pub fn is_row_kind(kind: &str) -> bool {
+    matches!(kind, KIND_SCENARIO | KIND_SCOPED_RECOMMENDATION | KIND_COMPARISON)
 }
 
 /// Bounded record identifier. Postgres ids are text; only the same safe
@@ -43,40 +58,76 @@ fn invalid() -> BusinessError {
     )
 }
 
-/// Validated transport facts for one scoped list read. Commissioning both a
-/// Company and an optional branch is mandatory; no caller-supplied SQL,
-/// relation, permission or projection reaches the query port.
+/// Validated transport facts for one scoped read. Both Company and a bounded
+/// branch scope are mandatory; row reads additionally require their closed
+/// identity fields. No caller-supplied SQL, relation, permission or projection
+/// reaches the query port.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LaneScope {
     pub kind: String,
     pub company_id: String,
     pub branch: Option<String>,
+    pub id: Option<String>,
+    pub comparison_scenario_id: Option<String>,
+    pub specification_id: Option<String>,
 }
 
 impl LaneScope {
-    pub fn new(kind: &str, company_id: &str, branch: Option<&str>) -> Result<Self, BusinessError> {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        kind: &str,
+        company_id: &str,
+        branch: Option<&str>,
+        id: Option<&str>,
+        comparison_scenario_id: Option<&str>,
+        specification_id: Option<&str>,
+    ) -> Result<Self, BusinessError> {
         if !valid_kind(kind) || !valid_id(company_id) {
             return Err(invalid());
         }
-        let branch = branch
-            .map(|value| {
-                if valid_scope(value) {
-                    Ok(value.to_owned())
-                } else {
-                    Err(invalid())
-                }
-            })
-            .transpose()?;
+        let bounded = |value: &str| {
+            if valid_scope(value) {
+                Ok(value.to_owned())
+            } else {
+                Err(invalid())
+            }
+        };
+        let branch = branch.map(bounded).transpose()?;
+        let id = id.map(bounded).transpose()?;
+        let comparison_scenario_id = comparison_scenario_id.map(bounded).transpose()?;
+        let specification_id = specification_id.map(bounded).transpose()?;
+        match kind {
+            KIND_SCENARIO | KIND_SCOPED_RECOMMENDATION if id.is_none() => return Err(invalid()),
+            KIND_COMPARISON if comparison_scenario_id.is_none() || specification_id.is_none() => {
+                return Err(invalid());
+            }
+            _ => {}
+        }
         Ok(Self {
             kind: kind.to_owned(),
             company_id: company_id.to_owned(),
             branch,
+            id,
+            comparison_scenario_id,
+            specification_id,
         })
+    }
+
+    /// List reads carry only Company and optional branch scope.
+    pub fn new_list(kind: &str, company_id: &str, branch: Option<&str>) -> Result<Self, BusinessError> {
+        Self::new(kind, company_id, branch, None, None, None)
     }
 
     /// Stable, closed projection of the scope used for the SQL/result oracle.
     pub fn oracle_key(&self) -> Value {
-        json!([self.kind.as_str(), self.company_id.as_str(), self.branch.as_deref()])
+        json!([
+            self.kind.as_str(),
+            self.company_id.as_str(),
+            self.branch.as_deref(),
+            self.id.as_deref(),
+            self.comparison_scenario_id.as_deref(),
+            self.specification_id.as_deref(),
+        ])
     }
 }
 
@@ -130,23 +181,81 @@ pub struct CalendarListItem {
     pub updated_at: i64,
 }
 
-/// One closed response. List reads always return an array; a row is never
-/// mixed with a list in the same envelope.
+/// Exact row shape of the single scenario row read.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct ScenarioRow {
+    pub id: String,
+    pub company_id: String,
+    pub branch_id: String,
+    pub warehouse_id: String,
+    pub specification_id: String,
+    pub specification_version: i64,
+    pub demand_quantity_milli: i64,
+    pub due_date: String,
+    pub capacity_minutes: i64,
+    pub shortages_json: String,
+    pub status: String,
+    pub created_by: String,
+    pub version: i64,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub context_json: String,
+}
+
+/// Exact row shape of the single scoped recommendation row read.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct ScopedRecommendationRow {
+    pub id: String,
+    pub scenario_id: String,
+    pub scenario_version: i64,
+    pub recommended_quantity_milli: i64,
+    pub required_minutes: i64,
+    pub feasible_date: String,
+    pub status: String,
+    pub created_by: String,
+    pub reviewed_by: Option<String>,
+    pub version: i64,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub company_id: String,
+    pub branch_id: String,
+    pub warehouse_id: String,
+    pub specification_id: String,
+    pub specification_version: i64,
+    pub context_json: String,
+    pub scenario_created_by: String,
+}
+
+/// Exact row shape of the single comparison row read.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct ComparisonRow {
+    pub id: String,
+    pub version: i64,
+    pub shortages_json: String,
+    pub required_minutes: i64,
+    pub feasible_date: String,
+}
+
+/// One closed response. List reads return an array; row reads return one row
+/// or `null`. A row is never mixed with a list in the same envelope.
 #[derive(Clone, Debug, PartialEq)]
 pub enum LaneData {
     List(Vec<Value>),
+    One(Option<Value>),
 }
 
 impl LaneData {
     pub fn value(&self) -> Value {
         match self {
             LaneData::List(rows) => json!(rows),
+            LaneData::One(row) => json!(row),
         }
     }
 
     pub fn len(&self) -> usize {
         match self {
             LaneData::List(rows) => rows.len(),
+            LaneData::One(row) => usize::from(row.is_some()),
         }
     }
 
@@ -162,6 +271,8 @@ mod tests {
     #[test]
     fn closed_kind_set() {
         assert!(KINDS.iter().all(|kind| valid_kind(kind)));
+        assert!(is_row_kind(KIND_SCENARIO));
+        assert!(!is_row_kind(KIND_RESOURCES));
         assert!(!valid_kind("scenarios"));
         assert!(!valid_kind("executive-shortage"));
         assert!(!valid_kind(""));
@@ -177,23 +288,34 @@ mod tests {
     }
 
     #[test]
-    fn scope_requires_company_and_bounded_branch() {
-        let scope = LaneScope::new(KIND_RESOURCES, "company-1", Some("branch-1")).unwrap();
+    fn list_scope_requires_company_and_bounded_branch() {
+        let scope = LaneScope::new_list(KIND_RESOURCES, "company-1", Some("branch-1")).unwrap();
         assert_eq!(scope.company_id, "company-1");
         assert_eq!(scope.branch.as_deref(), Some("branch-1"));
-        assert_eq!(
-            scope.oracle_key(),
-            json!(["resources", "company-1", "branch-1"])
+        assert!(LaneScope::new_list(KIND_RESOURCES, "", None).is_err());
+        assert!(LaneScope::new_list("other", "company-1", None).is_err());
+        assert!(LaneScope::new_list(KIND_CALENDAR, "company-1", Some("x/y")).is_err());
+    }
+
+    #[test]
+    fn row_scope_requires_closed_identity_fields() {
+        let scenario =
+            LaneScope::new(KIND_SCENARIO, "company-1", Some("b1"), Some("s1"), None, None).unwrap();
+        assert_eq!(scenario.id.as_deref(), Some("s1"));
+        assert!(LaneScope::new(KIND_SCENARIO, "company-1", None, None, None, None).is_err());
+        assert!(
+            LaneScope::new(
+                KIND_COMPARISON,
+                "company-1",
+                Some("b1"),
+                None,
+                Some("other"),
+                Some("spec"),
+            )
+            .is_ok()
         );
-        assert!(LaneScope::new(KIND_RESOURCES, "", None).is_err());
-        assert!(LaneScope::new("other", "company-1", None).is_err());
-        assert!(LaneScope::new(KIND_CALENDAR, "company-1", Some("x/y")).is_err());
-        assert_eq!(
-            LaneScope::new(KIND_CALENDAR, "company-1", None)
-                .unwrap()
-                .branch,
-            None
-        );
+        assert!(LaneScope::new(KIND_COMPARISON, "company-1", None, None, Some("other"), None).is_err());
+        assert!(LaneScope::new(KIND_SCOPED_RECOMMENDATION, "company-1", None, Some("x/y"), None, None).is_err());
     }
 
     #[test]
@@ -223,5 +345,8 @@ mod tests {
         let list = LaneData::List(vec![value]);
         assert_eq!(list.len(), 1);
         assert!(list.value().is_array());
+        let missing = LaneData::One(None);
+        assert!(missing.is_empty());
+        assert!(missing.value().is_null());
     }
 }

@@ -7,7 +7,10 @@ use std::{future::Future, pin::Pin};
 
 use erpx_server_shared::public::BusinessError;
 
-use super::domain::{self, LegacyPeopleTransition, WorkspacePaymentRow};
+use super::domain::{
+    self, AuthorityKind, AuthorityPerson, AuthorityPersonQuery, LegacyPeopleTransition,
+    WorkspacePaymentRow,
+};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TransitionQuery {
@@ -57,6 +60,60 @@ pub async fn read_workspace_people_payments(
 ) -> Result<Vec<WorkspacePaymentRow>, BusinessError> {
     domain::validate_company(company)?;
     reader.outstanding(company).await
+}
+
+/// Owned, validated form of the wire query; no SQL is constructed from it.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AuthorityQuery {
+    pub kind: AuthorityKind,
+    pub user_id: String,
+    pub person_id: String,
+    pub position_id: Option<String>,
+    pub appointment_kind: String,
+    pub scope_id: String,
+    pub self_ceo: bool,
+}
+
+impl TryFrom<&AuthorityPersonQuery> for AuthorityQuery {
+    type Error = BusinessError;
+
+    fn try_from(query: &AuthorityPersonQuery) -> Result<Self, Self::Error> {
+        domain::validate_authority_query(query)?;
+        Ok(Self {
+            kind: query.kind,
+            user_id: query.user_id.clone(),
+            person_id: query.person_id.clone(),
+            position_id: (!query.position_id.is_empty()).then(|| query.position_id.clone()),
+            appointment_kind: query.appointment_kind.clone(),
+            scope_id: query.scope_id.clone(),
+            self_ceo: query.self_ceo,
+        })
+    }
+}
+
+pub trait AuthorityPersonLookup: Send + Sync {
+    fn lookup<'a>(
+        &'a self,
+        company: &'a str,
+        query: AuthorityQuery,
+    ) -> TransitionFuture<'a, AuthorityPerson>;
+}
+
+pub async fn read_authority_person(
+    lookup: &(dyn AuthorityPersonLookup + '_),
+    company: &str,
+    query: AuthorityQuery,
+) -> Result<AuthorityPerson, BusinessError> {
+    domain::validate_company(company)?;
+    domain::validate_authority_fields(
+        query.kind,
+        &query.user_id,
+        &query.person_id,
+        query.position_id.as_deref().unwrap_or(""),
+        &query.appointment_kind,
+        &query.scope_id,
+    )?;
+    lookup.lookup(company, query).await
 }
 
 #[cfg(test)]
@@ -147,5 +204,45 @@ mod tests {
                 .await
                 .is_err()
         );
+    }
+
+    struct StubAuthority;
+    impl AuthorityPersonLookup for StubAuthority {
+        fn lookup<'a>(
+            &'a self,
+            company: &'a str,
+            query: AuthorityQuery,
+        ) -> TransitionFuture<'a, AuthorityPerson> {
+            let company = company.to_owned();
+            Box::pin(async move {
+                Ok(AuthorityPerson {
+                    id: (query.kind == AuthorityKind::Actor).then(|| format!("{company}-person")),
+                })
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn authority_handler_validates_and_delegates() {
+        let lookup = StubAuthority;
+        let query = AuthorityQuery {
+            kind: AuthorityKind::Actor,
+            user_id: "usr_1".to_owned(),
+            person_id: String::new(),
+            position_id: None,
+            appointment_kind: String::new(),
+            scope_id: String::new(),
+            self_ceo: false,
+        };
+        let result = read_authority_person(&lookup, "acme", query.clone())
+            .await
+            .expect("read");
+        assert_eq!(result.id.as_deref(), Some("acme-person"));
+        let bad = AuthorityQuery {
+            kind: AuthorityKind::Appointee,
+            person_id: String::new(),
+            ..query
+        };
+        assert!(read_authority_person(&lookup, "acme", bad).await.is_err());
     }
 }

@@ -73,7 +73,7 @@ describe('maintenance read-tail r30 alias-row head delegation', () => {
   it('leaves locks, native reads, r3-r29 families and cross-owner consumers untouched', async () => {
     const names = [
       'package-obligations.ts', 'asset-settlement-refs.ts', 'calendar-maintenance-facts.ts',
-      'projection-lookup.ts', 'attachment-descriptor-read.ts', 'purchase-sources.ts',
+      'projection-lookup.ts', 'purchase-sources.ts',
     ];
     const texts = await Promise.all(names.map(src));
     expect(texts[0]).toContain('export const factRow=');
@@ -83,8 +83,7 @@ describe('maintenance read-tail r30 alias-row head delegation', () => {
     expect(texts[2]).toContain('export const scheduledSourceSql');
     expect(texts[3]).toContain('export const projectionHead');
     expect(texts[3]).toContain('export const existsGuardPrefix');
-    expect(texts[4]).toContain('attachmentDescriptorReadSql');
-    expect(texts[5]).toContain('LOCK TABLE maintenance_work_orders,maintenance_preventive_plans,maintenance_preventive_occurrences IN SHARE ROW EXCLUSIVE MODE');
+    expect(texts[4]).toContain('LOCK TABLE maintenance_work_orders,maintenance_preventive_plans,maintenance_preventive_occurrences IN SHARE ROW EXCLUSIVE MODE');
     for (const text of texts) {
       expect(text).not.toMatch(/INSERT\s+INTO|DELETE\s+FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|pg_advisory/i);
     }

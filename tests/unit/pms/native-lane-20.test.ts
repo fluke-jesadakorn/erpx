@@ -13,6 +13,10 @@ import {
   roomSummaryFacts,
   type RoomSummary,
 } from "../../../packages/server-pms/src/adapters/native-lane-20/room-summary-client";
+import {
+  importBatches,
+  type ImportBatchRow,
+} from "../../../packages/server-pms/src/adapters/native-lane-20/import-batch-client";
 
 const ENV = "ERPX_NATIVE_LANE_20_CONFIG";
 const db = {} as SqlDatabase;
@@ -40,6 +44,17 @@ const filters = {
   building: "Main",
   floor: "1",
   typeId: "room-1",
+};
+const batch: ImportBatchRow = {
+  id: "b1",
+  cutover_date: "2026-11-01",
+  state: "preview",
+  version: 2,
+  created_by: "user",
+  approved_by: null,
+  opening_journal_id: null,
+  report_json: "{}",
+  created_at: 99,
 };
 
 let cleanup: Array<() => void> = [];
@@ -287,5 +302,73 @@ describe("native PMS lane 20 room-summary transport", () => {
     expect(
       sha(JSON.stringify({ active: 3, clean: 2, dirty: 1, dnd: 1, inspected: 0, occupied: 2, total: 4 })),
     ).toBe("a73433d444f53f1d87215bfceed8efb5429c8e87f5f02dc5000c199d9120d859");
+  });
+});
+
+describe("native PMS lane 20 import-batch transport", () => {
+  it("pins the exact route, Company header, Property binding and row shape", async () => {
+    await withServer((_request, response) => json(response, 200, { batches: [batch] }), async seen => {
+      expect(await importBatches(db, acme, "acme-co", "property-1")).toEqual([batch]);
+      expect(seen.method).toBe("GET");
+      expect(seen.url).toBe(
+        "/api/v1/holdings/acme/pms/native-lane-20/import-batches?property=property-1",
+      );
+      expect(seen.headers.host).toBe("acme.jesadakorn.com");
+      expect(seen.headers.origin).toBe("https://acme.jesadakorn.com");
+      expect(seen.headers["x-erpx-context-company"]).toBe("acme-co");
+    });
+  });
+
+  it("selects the second Holding by origin and accepts an explicit null list", async () => {
+    await withServer((_request, response) => json(response, 200, { batches: null }), async seen => {
+      expect(await importBatches(db, northstar, "northstar-co", "foreign")).toBeNull();
+      expect(seen.url?.startsWith("/api/v1/holdings/northstar/pms/native-lane-20/import-batches")).toBe(true);
+      expect(seen.headers.host).toBe("northstar.jesadakorn.com");
+      expect(seen.headers["x-erpx-context-company"]).toBe("northstar-co");
+    });
+  });
+
+  it("fails closed on malformed rows and unknown targets", async () => {
+    for (const body of [
+      { batches: [{ ...batch, injected: 1 }] },
+      { batches: [{ ...batch, version: "2" }] },
+      { value: [batch] },
+    ]) {
+      await withServer((_request, response) => json(response, 200, body), async () => {
+        await expect(importBatches(db, acme, "acme-co", "property-1")).rejects.toMatchObject({
+          status: 503,
+          code: "PMS_NATIVE_LANE_20_RESPONSE_INVALID",
+        });
+      });
+      cleanup.forEach(stop => stop());
+      cleanup = [];
+    }
+    let called = false;
+    await withServer(
+      () => { called = true; },
+      async () => {
+        await expect(
+          importBatches(db, { holdingId: "h999", holdingSlug: "ghost", companyId: "ghost-co" }, "ghost-co", "property-1"),
+        ).rejects.toMatchObject({ status: 503, code: "PMS_NATIVE_LANE_20_TARGET_UNAVAILABLE" });
+      },
+    );
+    expect(called).toBe(false);
+  });
+
+  it("pins the rendered import-batch SQL and result oracles", () => {
+    const sql = "SELECT id,cutover_date,state,version,created_by,approved_by,opening_journal_id,report_json,created_at FROM pms_import_batches WHERE company_id=$1 AND property_id=$2 ORDER BY created_at DESC,id LIMIT 30";
+    const sha = (value: string) => createHash("sha256").update(value).digest("hex");
+    expect(sha(sql)).toBe("67821c399421eaf1320683cc3aec083dcb69a7ffe38b5492d4c81bff3161bb5c");
+    expect(sha(JSON.stringify({
+      approved_by: null,
+      created_at: 99,
+      created_by: "user",
+      cutover_date: "2026-11-01",
+      id: "b1",
+      opening_journal_id: null,
+      report_json: "{}",
+      state: "preview",
+      version: 2,
+    }))).toBe("bb9e21645dd88dc468bd9822b1121839afcbc29ff62d5b8bfaa5e915a50a2e1e");
   });
 });

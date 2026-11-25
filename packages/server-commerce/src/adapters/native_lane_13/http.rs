@@ -4,9 +4,9 @@
 //! Host/Company headers, bounded identities, no-store responses and explicit
 //! error mapping. No SQL is planned or executed on the TypeScript side.
 
-use super::application::{CommerceEntrypointRead, read_facts};
-use super::domain::{validate, valid_id};
-use super::postgres::PgCommerceEntrypointRead;
+use super::application::{CommerceEntrypointRead, CommerceInvoiceRead, read_facts, read_invoice};
+use super::domain::{validate, validate_invoice, valid_id};
+use super::postgres::{PgCommerceEntrypointRead, PgCommerceInvoiceRead};
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
     StatusCode, body::to_bytes, header, post,
@@ -27,9 +27,11 @@ pub struct LaneTarget {
 }
 
 pub type LaneReader = Arc<dyn CommerceEntrypointRead>;
+pub type InvoiceReader = Arc<dyn CommerceInvoiceRead>;
 
 struct LaneState {
     targets: BTreeMap<(String, String), LaneReader>,
+    invoice: BTreeMap<(String, String), InvoiceReader>,
 }
 
 fn missing() -> BusinessError {
@@ -100,10 +102,10 @@ fn bounded(body: Value) -> Response {
     response
 }
 
-/// Build the target map with one reader per Holding. Each pair is keyed by the
-/// exact `(host, holding_slug)` identity; no reader is shared across Holdings.
-fn state_with_readers(entries: Vec<(LaneTarget, LaneReader)>) -> Result<Arc<LaneState>, BusinessError> {
-    let mut configured = BTreeMap::new();
+fn insert_readers<T>(
+    entries: Vec<(LaneTarget, T)>,
+    configured: &mut BTreeMap<(String, String), T>,
+) -> Result<(), BusinessError> {
     for (target, reader) in entries {
         if target.host.is_empty()
             || !valid_slug(&target.holding_slug)
@@ -114,10 +116,31 @@ fn state_with_readers(entries: Vec<(LaneTarget, LaneReader)>) -> Result<Arc<Lane
             return Err(configuration_invalid());
         }
     }
+    Ok(())
+}
+
+/// Build both per-Holding reader maps. Each pair is keyed by its exact
+/// `(host, holding_slug)` identity; no reader is shared across Holdings.
+fn state_with_both(
+    targets: Vec<(LaneTarget, LaneReader)>,
+    invoice: Vec<(LaneTarget, InvoiceReader)>,
+) -> Result<Arc<LaneState>, BusinessError> {
+    let mut configured = BTreeMap::new();
+    insert_readers(targets, &mut configured)?;
     if configured.is_empty() {
         return Err(configuration_invalid());
     }
-    Ok(Arc::new(LaneState { targets: configured }))
+    let mut invoice_configured = BTreeMap::new();
+    insert_readers(invoice, &mut invoice_configured)?;
+    Ok(Arc::new(LaneState {
+        targets: configured,
+        invoice: invoice_configured,
+    }))
+}
+
+/// Entrypoint-only variant retained for the earlier tests.
+fn state_with_readers(entries: Vec<(LaneTarget, LaneReader)>) -> Result<Arc<LaneState>, BusinessError> {
+    state_with_both(entries, Vec::new())
 }
 
 /// Shared-reader variant retained for single-pool callers and tests.
@@ -131,34 +154,57 @@ fn mount(lane: Arc<LaneState>) -> Router {
             "/api/v1/holdings/{holding_slug}/commerce/entrypoint-facts",
             post(read),
         )
+        .route(
+            "/api/v1/holdings/{holding_slug}/commerce/invoice-read",
+            post(read_invoice_request),
+        )
         .with_state(lane)
 }
 
-/// Mountable router. Composition supplies only the pool and exact targets; the
-/// owner owns the reader, SQL and response projection.
+/// Mountable router. Composition supplies one pool and exact targets; the
+/// owner owns both readers, their SQL and their response projections.
 pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
-    router_with_reader(Arc::new(PgCommerceEntrypointRead::new(pool)), targets)
+    router_for_holdings(targets.into_iter().map(|target| (target, pool.clone())).collect())
 }
 
-/// Per-Holding mount: every target carries its own database pool, so each
-/// Holding's reads execute against its own database. Composition passes the
-/// pool paired with each registered `(host, holding_slug)` target.
+/// Per-Holding mount: each target carries its own database pool and produces
+/// its own pair of owner readers, so every Holding reads from its own database.
 pub fn router_for_holdings(
     targets: Vec<(LaneTarget, DatabasePool)>,
 ) -> Result<Router, BusinessError> {
-    let entries = targets
+    let (entrypoint, invoice): (Vec<_>, Vec<_>) = targets
         .into_iter()
         .map(|(target, pool)| {
-            let reader: LaneReader = Arc::new(PgCommerceEntrypointRead::new(pool));
-            (target, reader)
+            let entrypoint_pool = pool.clone();
+            (
+                (
+                    target.clone(),
+                    Arc::new(PgCommerceEntrypointRead::new(entrypoint_pool)) as LaneReader,
+                ),
+                (
+                    target,
+                    Arc::new(PgCommerceInvoiceRead::new(pool)) as InvoiceReader,
+                ),
+            )
         })
-        .collect();
-    Ok(mount(state_with_readers(entries)?))
+        .unzip();
+    Ok(mount(state_with_both(entrypoint, invoice)?))
 }
 
 /// Injectable variant used by the owner's own tests.
 pub fn router_with_reader(reader: LaneReader, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
     Ok(mount(state(targets, reader)?))
+}
+
+/// Exact target key and Company scope shared by both read families.
+fn context(headers: &HeaderMap, slug: &str) -> Result<((String, String), String), BusinessError> {
+    let host = unique_header(headers, header::HOST)?
+        .filter(|value| !value.is_empty())
+        .ok_or_else(missing)?;
+    let company = unique_header(headers, CONTEXT_COMPANY)?
+        .filter(|value| valid_id(value))
+        .ok_or_else(invalid)?;
+    Ok(((host.to_owned(), slug.to_owned()), company.to_owned()))
 }
 
 /// Pure request processing shared by the router and the unit tests.
@@ -168,20 +214,28 @@ async fn process(
     body: &[u8],
     lane: &LaneState,
 ) -> Result<Value, BusinessError> {
-    let host = unique_header(headers, header::HOST)?
-        .filter(|value| !value.is_empty())
-        .ok_or_else(missing)?;
-    let reader = lane
-        .targets
-        .get(&(host.to_owned(), slug.to_owned()))
-        .ok_or_else(missing)?;
-    let company = unique_header(headers, CONTEXT_COMPANY)?
-        .filter(|value| valid_id(value))
-        .ok_or_else(invalid)?;
+    let (key, company) = context(headers, slug)?;
+    let reader = lane.targets.get(&key).ok_or_else(missing)?;
     let value: Value = serde_json::from_slice(body).map_err(|_| invalid())?;
-    let (query, company) = validate(&value, company)?;
+    let (query, company) = validate(&value, &company)?;
     let facts = read_facts(reader.as_ref(), &company, &query).await?;
     Ok(serde_json::json!({"facts": facts.map(|facts| facts.into_value())}))
+}
+
+/// Pure invoice/delivery processing. No reader is shared with another Holding
+/// and a missing target fails closed rather than falling back.
+async fn process_invoice(
+    headers: &HeaderMap,
+    slug: &str,
+    body: &[u8],
+    lane: &LaneState,
+) -> Result<Value, BusinessError> {
+    let (key, company) = context(headers, slug)?;
+    let reader = lane.invoice.get(&key).ok_or_else(missing)?;
+    let value: Value = serde_json::from_slice(body).map_err(|_| super::domain::invoice_invalid())?;
+    let (query, company) = validate_invoice(&value, &company)?;
+    let facts = read_invoice(reader.as_ref(), &company, &query).await?;
+    Ok(facts.into_value())
 }
 
 async fn read(
@@ -203,11 +257,32 @@ async fn read(
     }
 }
 
+async fn read_invoice_request(
+    State(lane): State<Arc<LaneState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let headers = request.headers().clone();
+        let bytes = to_bytes(request.into_body(), 64 * 1024)
+            .await
+            .map_err(|_| super::domain::invoice_invalid())?;
+        process_invoice(&headers, &slug, &bytes, &lane).await
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::super::application::EntrypointReadFuture;
-    use super::super::domain::{EntrypointFacts, EntrypointKind};
+    use super::super::application::{EntrypointReadFuture, InvoiceReadFuture};
+    use super::super::domain::{
+        CommandTarget, EntrypointFacts, EntrypointKind, InvoiceFacts, InvoiceReadKind, SalesLine,
+    };
     use std::{collections::BTreeMap, sync::Mutex};
 
     #[derive(Clone)]
@@ -402,6 +477,171 @@ mod tests {
                 .unwrap_err()
                 .kind,
             FailureKind::NotFound
+        );
+    }
+
+    #[derive(Clone)]
+    struct InvoiceProbe {
+        seen: Arc<Mutex<Vec<(String, InvoiceReadKind, String)>>>,
+        target: Option<CommandTarget>,
+        lines: Vec<SalesLine>,
+    }
+
+    impl CommerceInvoiceRead for InvoiceProbe {
+        fn read<'a>(
+            &'a self,
+            company: &'a str,
+            kind: InvoiceReadKind,
+            id: &'a str,
+        ) -> InvoiceReadFuture<'a, InvoiceFacts> {
+            let seen = self.seen.clone();
+            let target = self.target.clone();
+            let lines = self.lines.clone();
+            let company = company.to_owned();
+            let id = id.to_owned();
+            Box::pin(async move {
+                seen.lock().expect("lock").push((company, kind, id));
+                Ok(match kind {
+                    InvoiceReadKind::DeliveryTarget => InvoiceFacts::Target(target),
+                    InvoiceReadKind::InvoiceSalesLines => InvoiceFacts::Lines(lines),
+                })
+            })
+        }
+    }
+
+    fn invoice_probe(target: Option<&str>) -> Arc<InvoiceProbe> {
+        Arc::new(InvoiceProbe {
+            seen: Arc::new(Mutex::new(Vec::new())),
+            target: target.map(|order_id| CommandTarget {
+                kind: "order".to_owned(),
+                id: order_id.to_owned(),
+                action: "invoice".to_owned(),
+            }),
+            lines: vec![SalesLine {
+                id: "fl-1".to_owned(),
+                fulfillment_id: "f-1".to_owned(),
+                description: "service".to_owned(),
+                quantity_milli: 1000,
+                price_minor: 250,
+                tax_bps: 700,
+                subtotal_minor: 250,
+                tax_minor: 18,
+                item_type: "service".to_owned(),
+                product_id: "p-1".to_owned(),
+                completion_date: "2026-11-25".to_owned(),
+            }],
+        })
+    }
+
+    #[tokio::test]
+    async fn invoice_target_and_lines_envelopes() {
+        let reader = invoice_probe(Some("o-1"));
+        let seen = reader.seen.clone();
+        let lane = state_with_both(
+            vec![(target()[0].clone(), probe() as LaneReader)],
+            vec![(target()[0].clone(), reader as InvoiceReader)],
+        )
+        .expect("state");
+        let target = process_invoice(
+            &headers("acme.example.test", "co-1"),
+            "acme",
+            br#"{"kind":"deliveryTarget","id":"d-1"}"#,
+            &lane,
+        )
+        .await
+        .expect("target");
+        assert_eq!(
+            target,
+            serde_json::json!({"target":{"kind":"order","id":"o-1","action":"invoice"}})
+        );
+        let lines = process_invoice(
+            &headers("acme.example.test", "co-1"),
+            "acme",
+            br#"{"kind":"invoiceSalesLines","id":"inv-1"}"#,
+            &lane,
+        )
+        .await
+        .expect("lines");
+        assert_eq!(lines["lines"][0]["id"], "fl-1");
+        assert_eq!(lines["lines"][0]["quantity_milli"], 1000);
+        assert!(lines.get("target").is_none());
+        assert_eq!(
+            *seen.lock().expect("seen"),
+            vec![
+                ("co-1".to_owned(), InvoiceReadKind::DeliveryTarget, "d-1".to_owned()),
+                ("co-1".to_owned(), InvoiceReadKind::InvoiceSalesLines, "inv-1".to_owned()),
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn invoice_readers_are_isolated_per_holding() {
+        let acme = invoice_probe(Some("acme-order"));
+        let northstar = invoice_probe(Some("northstar-order"));
+        let acme_seen = acme.seen.clone();
+        let northstar_seen = northstar.seen.clone();
+        let lane = state_with_both(
+            vec![
+                (target()[0].clone(), probe() as LaneReader),
+                (
+                    LaneTarget {
+                        host: "northstar.example.test".to_owned(),
+                        holding_slug: "northstar".to_owned(),
+                    },
+                    probe() as LaneReader,
+                ),
+            ],
+            vec![
+                (target()[0].clone(), acme as InvoiceReader),
+                (
+                    LaneTarget {
+                        host: "northstar.example.test".to_owned(),
+                        holding_slug: "northstar".to_owned(),
+                    },
+                    northstar as InvoiceReader,
+                ),
+            ],
+        )
+        .expect("state");
+        let body = br#"{"kind":"deliveryTarget","id":"d-1"}"#;
+        assert_eq!(
+            process_invoice(&headers("acme.example.test", "co-1"), "acme", body, &lane)
+                .await
+                .expect("acme")["target"]["id"],
+            "acme-order"
+        );
+        assert_eq!(
+            process_invoice(&headers("northstar.example.test", "co-2"), "northstar", body, &lane)
+                .await
+                .expect("northstar")["target"]["id"],
+            "northstar-order"
+        );
+        assert_eq!(
+            *acme_seen.lock().expect("acme seen"),
+            vec![("co-1".to_owned(), InvoiceReadKind::DeliveryTarget, "d-1".to_owned())]
+        );
+        assert_eq!(
+            *northstar_seen.lock().expect("northstar seen"),
+            vec![("co-2".to_owned(), InvoiceReadKind::DeliveryTarget, "d-1".to_owned())]
+        );
+        assert_eq!(
+            process_invoice(&headers("acme.example.test", "co-1"), "northstar", body, &lane)
+                .await
+                .unwrap_err()
+                .kind,
+            FailureKind::NotFound
+        );
+        assert_eq!(
+            process_invoice(
+                &headers("acme.example.test", "bad company"),
+                "acme",
+                body,
+                &lane,
+            )
+            .await
+            .unwrap_err()
+            .kind,
+            FailureKind::InvalidInput
         );
     }
 }

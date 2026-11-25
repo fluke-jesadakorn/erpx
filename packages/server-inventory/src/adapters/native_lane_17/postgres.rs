@@ -1,8 +1,8 @@
-//! Postgres execution for the lane 17 landed-cost read family.
+//! Postgres execution for the lane 17 owner read family.
 //!
-//! The statements below are the byte-identical owner SQL retained from
-//! `adapters/inventory-landed-costs.ts` (with the owner projection fragments
-//! inlined). Only this file turns `?` into sqlx placeholders, wraps each result
+//! The statements below are the byte-identical owner SQL retained from the
+//! replaced TypeScript adapters (with the owner projection fragments inlined).
+//! Only this file turns `?` into sqlx placeholders, wraps each result
 //! in a `jsonb` projection and binds values. No predicate is accepted from a
 //! caller and no transaction is opened by the HTTP layer.
 
@@ -55,6 +55,9 @@ const SQL_SERVICE_SPARES: &str = r#"SELECT b.lot_id,b.warehouse_id,l.product_id,
   AND NOT EXISTS(SELECT 1 FROM (SELECT warehouse_id, product_id, lot_id, status FROM inventory_quality_holds) h WHERE h.warehouse_id=b.warehouse_id AND h.lot_id=l.id AND h.status NOT IN ('released','cancelled','disposed'))
   ORDER BY l.expiry_date NULLS LAST,l.lot_code,l.serial_number LIMIT 500"#;
 
+/// `countLotLines` — the byte-identical owner statement.
+const SQL_COUNT_LOT_LINES: &str = r#"SELECT cl.*,b.quantity_milli current_quantity_milli,b.value_minor current_value_minor,COALESCE(b.version,0) current_version FROM inventory_count_lot_lines cl JOIN inventory_count_lines l ON l.id=cl.count_line_id LEFT JOIN inventory_lot_balances b ON b.lot_id=cl.result_lot_id AND b.warehouse_id=? WHERE l.count_id=? ORDER BY l.ordinal,cl.id"#;
+
 /// Company witness for the order-scoped moved-stock probe: the caller already
 /// checked the receipt in its Holding unit, and the owner repeats that company
 /// isolation instead of trusting an absent caller company value.
@@ -78,6 +81,7 @@ pub fn owner_sql(kind: LaneReadKind) -> &'static str {
         LaneReadKind::LandedCostWorkRows => SQL_WORK_ROWS,
         LaneReadKind::ReorderPolicies => SQL_REORDER_POLICIES,
         LaneReadKind::ServiceSpares => SQL_SERVICE_SPARES,
+        LaneReadKind::CountLotLines => SQL_COUNT_LOT_LINES,
     }
 }
 
@@ -101,6 +105,17 @@ fn numbered(sql: &str) -> String {
 /// numbering; the outer wrapper only serializes the projected row to JSON.
 pub fn statement(kind: LaneReadKind) -> String {
     let mut sql = numbered(owner_sql(kind));
+    if kind == LaneReadKind::CountLotLines {
+        // The retained count-lot statement is count-scoped only. The owner adds
+        // a Company witness on the wrapping row so a count from another Company
+        // cannot be read through this route. The inner SQL stays byte-identical.
+        return format!(
+            "SELECT to_jsonb(__lane17)::text FROM ({sql}) __lane17 \
+             WHERE EXISTS(SELECT 1 FROM inventory_counts c \
+             JOIN inventory_count_lines l2 ON l2.count_id=c.id \
+             WHERE l2.id=__lane17.count_line_id AND c.company_id=$3)"
+        );
+    }
     if kind.needs_company_witness() {
         sql.push_str(COMPANY_WITNESS);
     }
@@ -219,6 +234,10 @@ mod tests {
             hash(owner_sql(LaneReadKind::ServiceSpares)),
             "32d473fafcdd9f247f0f1ae01175fc9dac9b9047e96c69724d7feefb65082e83"
         );
+        assert_eq!(
+            hash(owner_sql(LaneReadKind::CountLotLines)),
+            "bb8e0feecd8b8a5c70ed079d6371cb57958c7cce34c02ae016e1d34eab7e41db"
+        );
     }
 
     #[test]
@@ -243,6 +262,15 @@ mod tests {
             assert!(!statement(kind).contains("go.company_id"));
             assert!(!statement(kind).contains("w2o.company_id"));
         }
+    }
+
+    #[test]
+    fn count_lot_lines_gets_a_wrapper_company_witness() {
+        let sql = statement(LaneReadKind::CountLotLines);
+        assert!(sql.contains("c.company_id=$3"));
+        assert!(sql.contains("l2.id=__lane17.count_line_id"));
+        assert!(!sql.contains("go.company_id"));
+        assert!(sql.contains("ORDER BY l.ordinal,cl.id"));
     }
 
     #[test]

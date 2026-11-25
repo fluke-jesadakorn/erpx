@@ -8,12 +8,12 @@ pub mod domain;
 pub mod http;
 pub mod postgres;
 
-pub use application::{EvidenceFuture, PosEvidenceReader};
+pub use application::{EvidenceFuture, PosEvidenceReader, read_day_closes};
 pub use domain::{
-    EvidenceCursor, EvidenceQuery, EvidenceRow, METRIC_NET_POS_SALES, METRIC_POS_PAYMENT_MIX,
-    METRIC_POS_SALES, METRICS, ROW_KEYS,
+    DAY_CLOSES_KEYS, DayClosesQuery, DayClosesRow, EvidenceCursor, EvidenceQuery, EvidenceRow,
+    METRIC_NET_POS_SALES, METRIC_POS_PAYMENT_MIX, METRIC_POS_SALES, METRICS, ROW_KEYS,
 };
 pub use http::{
     LaneTarget, router, router_for_holdings, router_with_reader, router_with_readers,
 };
-pub use postgres::{PgEvidenceReader, render};
+pub use postgres::{DAY_CLOSES_SQL, PgEvidenceReader, render, render_day_closes};

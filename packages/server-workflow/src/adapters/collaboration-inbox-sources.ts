@@ -1,2 +1,13 @@
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';export function collaborationInboxSources(db:SqlDatabase){return {async failedMetrics(){return db.prepare("SELECT count(*)::int count FROM outbox_events WHERE dead_letter_at IS NOT NULL")
-    .first<{count:number}>();}};}
+import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
+import {nativeInboxFailedMetrics,type HoldingSelector} from './native-lane-32/client';
+/**
+ * Native owner read. The axum/sqlx owner executes the dead-letter count; this
+ * adapter carries no SQL. A WorkContext/origin scope must be threaded in by the
+ * caller: with no scope the native client fails closed rather than choosing a
+ * Holding. The current `server-collaboration` owner3 source calls
+ * `collaborationInboxSources(db)` without a WorkContext and therefore stays
+ * fail-closed until composition passes one through.
+ */
+export function collaborationInboxSources(db:SqlDatabase,scope?:HoldingSelector){return {
+async failedMetrics(){return nativeInboxFailedMetrics(db,scope);},
+};}

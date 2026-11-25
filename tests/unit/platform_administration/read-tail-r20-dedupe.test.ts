@@ -97,7 +97,7 @@ describe('Platform Administration r20 derived-source EXISTS head fold', () => {
     expect(source('adapters/release-predicate.ts')).toContain('export function releaseTableExistsSql');
     expect(source('adapters/release-predicate.ts')).toContain('export function projectionSourceHeadSql');
     expect(source('adapters/release-predicate.ts')).toContain('export function releaseAcceptanceRowSql');
-    expect(source('adapters/company-release-attachment-read-sources.ts')).toContain('export function releaseChildAggSql');
+    expect(source('adapters/company-release-attachment-read-sources.ts')).toContain('readNativeReleaseChildImage(actor,id)');
   });
 });
 
@@ -112,7 +112,7 @@ describe('Platform Administration r20 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(25);
+    expect(total).toBe(23);
     expect(total).toBeLessThan(26);
   });
 });

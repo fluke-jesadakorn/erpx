@@ -12,7 +12,8 @@ pub mod postgres;
 
 pub use application::{LaneRead, MAX_ROWS};
 pub use domain::{
-    CalendarListItem, KINDS, LaneData, LaneScope, RecommendationListItem, ResourceListItem,
+    CalendarListItem, ComparisonRow, KINDS, LaneData, LaneScope, RecommendationListItem,
+    ResourceListItem, ScenarioRow, ScopedRecommendationRow, is_row_kind,
 };
 pub use http::{LaneTarget, router, router_for_holdings, router_with_reader};
 pub use postgres::{PgLaneRead, sql_for};

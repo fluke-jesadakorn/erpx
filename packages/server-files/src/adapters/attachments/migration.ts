@@ -1,5 +1,6 @@
 import { nativeWrite, resolveNativeEffects } from '../native-files-command';
 import { legacyAttachmentOwnerScope, legacyHoldingBrandCompanies } from '@erpx/server-files/adapters/attachments/migration-owner-sources';
+import type { HoldingIdentity } from '@erpx/server-records/public/attachment-migration-owner';
 import { attachmentMigrationcollaboration } from '@erpx/server-collaboration/public/attachment-migration-facts';
 import { attachmentMigrationlegal } from '@erpx/server-legal/public/attachment-migration-facts';
 import { attachmentMigrationpos } from '@erpx/server-pos/public/attachment-migration-facts';
@@ -21,7 +22,7 @@ import { ledgerBytesSumSql } from '../read-tail-r31-source-sql';
 import { LEDGER_OBJECT_KEY_PROJECTION_HEAD_SQL } from '../read-tail-r42-source-sql';
 import { ORPHAN_PRESERVATION_EVENT_HEAD_SQL } from '../read-tail-r46-source-sql';
 import { PUBLICATION_ID_HEAD_SQL } from '../read-tail-r54-source-sql';
-function application(db: SqlDatabase) {
+function application(db: SqlDatabase, context?: HoldingIdentity) {
     const database = db, repository: AttachmentMigrationRepository<SqlStatement> = { readBackfillSpecializedAttachmentsMessaging() { return attachmentMigrationcollaboration(database).readBackfillSpecializedAttachmentsMessaging(); },
         readBackfillSpecializedAttachmentsDocuments() { return attachmentMigrationlegal(database).readBackfillSpecializedAttachmentsDocuments(); },
         readBackfillSpecializedAttachmentsExternal() { return attachmentMigrationlegal(database).readBackfillSpecializedAttachmentsExternal(); },
@@ -180,7 +181,7 @@ function application(db: SqlDatabase) {
         }>(); },
         readReconcileAttachmentStorageEffect7() { return database.prepare(ledgerBytesSumSql("state='stored'")).first("coalesce"); },
         readReconcileAttachmentStorageEffect8() { return database.prepare(`SELECT count(*) FROM (${LEDGER_OBJECT_KEY_PROJECTION_HEAD_SQL}state='stored' GROUP BY object_key HAVING count(*)>1) duplicates`).first("count"); } };
-    return createAttachmentMigrationApplication<SqlStatement>({ repository, clock: { now: Date.now }, policy: attachmentPolicy, legacyPolicy: legacyAttachmentPolicy, retention: attachmentRetentionSnapshot, ownerScope: source => legacyAttachmentOwnerScope(db, source), brandCompanies: () => legacyHoldingBrandCompanies(db), digest: value => createHash('sha256').update(value).digest('hex'), bytesDigest: buffer => sha256(new Uint8Array(buffer).slice().buffer), thumbnailChecksum: async (bytes) => createHash('sha256').update(await sharp(bytes, { limitInputPixels: 25000000, animated: false }).rotate().resize(480, 480, { fit: 'cover' }).webp({ quality: 82 }).toBuffer()).digest('hex'), preservationMetadataDigest: head => requireOrphan().preservationMetadataDigest(head), verifiedPreservedDirectory: (...args) => requireOrphan().verifiedPreservedDirectory(...args), batch: async effects => { const resolved = await resolveNativeEffects(effects, { companyId: '', key: 'files-migration', now: Date.now(), db }); return db.batch(resolved.statements); } });
+    return createAttachmentMigrationApplication<SqlStatement>({ repository, clock: { now: Date.now }, policy: attachmentPolicy, legacyPolicy: legacyAttachmentPolicy, retention: attachmentRetentionSnapshot, ownerScope: source => legacyAttachmentOwnerScope(db, source, context), brandCompanies: () => legacyHoldingBrandCompanies(db), digest: value => createHash('sha256').update(value).digest('hex'), bytesDigest: buffer => sha256(new Uint8Array(buffer).slice().buffer), thumbnailChecksum: async (bytes) => createHash('sha256').update(await sharp(bytes, { limitInputPixels: 25000000, animated: false }).rotate().resize(480, 480, { fit: 'cover' }).webp({ quality: 82 }).toBuffer()).digest('hex'), preservationMetadataDigest: head => requireOrphan().preservationMetadataDigest(head), verifiedPreservedDirectory: (...args) => requireOrphan().verifiedPreservedDirectory(...args), batch: async effects => { const resolved = await resolveNativeEffects(effects, { companyId: '', key: 'files-migration', now: Date.now(), db }); return db.batch(resolved.statements); } });
 }
 import * as orphan from '@erpx/server-files/public/attachments/orphan-preservation';
 const requireOrphan = () => orphan;
@@ -190,7 +191,7 @@ export function backfillSpecializedAttachments(db: SqlDatabase, options: {
 } = {}) { return application(db).backfillSpecializedAttachments(options); }
 export function backfillLegacyAttachments(db: SqlDatabase, options: {
     apply?: boolean;
-} = {}) { return application(db).backfillLegacyAttachments(options); }
+} = {}, context?: HoldingIdentity) { return application(db, context).backfillLegacyAttachments(options); }
 export function reconcileAttachmentStorage(db: SqlDatabase, files: FileStore, options: {
     verifyChecksums?: boolean;
 } = {}) { return application(db).reconcileAttachmentStorage(files, options); }

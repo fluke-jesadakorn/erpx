@@ -293,6 +293,18 @@ export async function nativeInvitationByToken(
   );
 }
 
+/** Control-wide account-recovery reads. No WorkContext exists on these paths;
+ * the explicitly marked Control Holding is selected, never the first one. */
+export async function nativeRecoveryAccountEmail(userId: string): Promise<string | null> {
+  if (!id(userId)) return unavailable("ACCOUNT_ACCESS_READ_REQUEST_INVALID", 422);
+  return nullableText(await nativeRead("recovery_account_email", { user_id: userId }, controlScope()));
+}
+
+export async function nativeRecoveryLatestJobId(userId: string): Promise<string | null> {
+  if (!id(userId)) return unavailable("ACCOUNT_ACCESS_READ_REQUEST_INVALID", 422);
+  return nullableText(await nativeRead("recovery_latest_job", { user_id: userId }, controlScope()));
+}
+
 /** True when the native lane 10 consumer switch is configured. */
 export function nativeAccountAccessReadConfigured(
   environment: Readonly<Record<string, string | undefined>> = process.env,

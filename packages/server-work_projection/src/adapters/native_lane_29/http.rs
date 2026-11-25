@@ -200,7 +200,10 @@ async fn read(
             | ReadKind::MovedOccurrences
             | ReadKind::AvailabilitySources
             | ReadKind::SeriesBatch
-            | ReadKind::ConflictProbe => {}
+            | ReadKind::ConflictProbe
+            | ReadKind::AppointmentCandidates
+            | ReadKind::AttendeeRows
+            | ReadKind::AnnouncementCandidates => {}
         }
         service.read(request).await
     }

@@ -10,9 +10,10 @@ use crate::adapters::native_lane_25::application::{
     EvidenceFuture, PosEvidenceReader,
 };
 use crate::adapters::native_lane_25::domain::{
-    DETAIL_KIND_PAYMENT, DETAIL_KIND_REFUND, EvidenceDetailQuery, EvidenceDetailRow,
-    METRIC_NET_POS_SALES, METRIC_POS_PAYMENT_MIX, METRIC_POS_SALES, EvidenceQuery, EvidenceRow,
-    valid_detail_row, valid_row,
+    DAY_CLOSES_KEYS, DETAIL_KIND_PAYMENT, DETAIL_KIND_REFUND, DayClosesQuery, DayClosesRow,
+    EvidenceDetailQuery, EvidenceDetailRow, METRIC_NET_POS_SALES, METRIC_POS_PAYMENT_MIX,
+    METRIC_POS_SALES, EvidenceQuery, EvidenceRow, valid_day_closes_row, valid_detail_row,
+    valid_row,
 };
 use erpx_server_runtime::public::postgres::DatabasePool;
 use erpx_server_shared::public::{BusinessError, FailureKind};
@@ -88,6 +89,11 @@ pub const PAYMENT_DETAIL_SQL: &str = r#"SELECT p.id source_id,'payment' source_t
    FROM pos_payments p JOIN pos_sales s ON s.id=p.sale_id AND s.company_id=p.company_id
    WHERE p.id=? AND p.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND s.currency=?
      AND s.business_date BETWEEN ? AND ? AND s.state='completed' AND p.state='succeeded' LIMIT 1"#;
+
+// ---- Wave 3: exact retired TypeScript day-close report list literal ------
+
+/// Byte-identical retired `readPosDayCloses1` literal from `pos.ts`.
+pub const DAY_CLOSES_SQL: &str = "SELECT id,company_id,branch_id,business_date,currency,state,prepared_by,confirmed_by,version,snapshot_json::text FROM pos_day_closes WHERE company_id=? AND (?::text IS NULL OR branch_id=?) ORDER BY business_date DESC LIMIT 90";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Bind {
@@ -265,6 +271,39 @@ fn detail_projection(
     Ok(row)
 }
 
+/// Render the day-close report list: byte-identical retired SQL wrapped in a
+/// uniform text projection, binds in the exact order `(company, branch, branch)`.
+pub fn render_day_closes(query: &DayClosesQuery) -> (String, Vec<Bind>) {
+    let projection = DAY_CLOSES_KEYS
+        .iter()
+        .map(|key| format!("{key}::text AS {key}"))
+        .collect::<Vec<_>>()
+        .join(",");
+    (
+        format!("SELECT {projection} FROM ({}) d", numbered(DAY_CLOSES_SQL)),
+        vec![
+            Bind::Text(query.company.clone()),
+            Bind::Opt(query.branch.clone()),
+            Bind::Opt(query.branch.clone()),
+        ],
+    )
+}
+
+fn day_closes_projection(row: &sqlx::postgres::PgRow) -> Result<DayClosesRow, BusinessError> {
+    let mut values = Vec::with_capacity(DAY_CLOSES_KEYS.len());
+    for key in DAY_CLOSES_KEYS {
+        let value = row
+            .try_get::<Option<String>, _>(key)
+            .map_err(|_| unavailable())?;
+        values.push((key.to_owned(), value));
+    }
+    let row = DayClosesRow { values };
+    if !valid_day_closes_row(&row) {
+        return Err(unavailable());
+    }
+    Ok(row)
+}
+
 fn args(binds: &[Bind]) -> Result<PgArguments, BusinessError> {
     let mut args = PgArguments::default();
     for bind in binds {
@@ -354,6 +393,18 @@ impl PosEvidenceReader for PgEvidenceReader {
             rows.first()
                 .map(|row| detail_projection(&query.kind, row))
                 .transpose()
+        })
+    }
+
+    fn day_closes<'a>(&'a self, query: &'a DayClosesQuery) -> EvidenceFuture<'a, Vec<DayClosesRow>> {
+        Box::pin(async move {
+            let (sql, binds) = render_day_closes(query);
+            let arguments = args(&binds)?;
+            let rows = sqlx::query_with(sqlx::AssertSqlSafe(sql), arguments)
+                .fetch_all(self.pool.raw())
+                .await
+                .map_err(|_| unavailable())?;
+            rows.iter().map(day_closes_projection).collect()
         })
     }
 }
@@ -542,5 +593,77 @@ mod detail_tests {
     #[test]
     fn detail_unknown_kind_fails_closed() {
         assert!(render_detail(&query("other")).is_err());
+    }
+}
+
+#[cfg(test)]
+mod day_closes_tests {
+    use super::*;
+
+    fn query() -> DayClosesQuery {
+        DayClosesQuery {
+            company: "co".into(),
+            branch: Some("br".into()),
+        }
+    }
+
+    #[test]
+    fn day_closes_sql_is_owner_local_lock_free_and_byte_stable() {
+        assert!(DAY_CLOSES_SQL.starts_with("SELECT id,company_id,branch_id,"));
+        assert!(DAY_CLOSES_SQL.contains(" ORDER BY business_date DESC LIMIT 90"));
+        for forbidden in [
+            "FOR UPDATE",
+            "FOR SHARE",
+            "LOCK TABLE",
+            "pg_advisory",
+            "INSERT ",
+            "UPDATE ",
+            "DELETE ",
+            "pms_",
+            "commerce_",
+            "finance_",
+            "inventory_",
+        ] {
+            assert!(
+                !DAY_CLOSES_SQL.contains(forbidden),
+                "day-close SQL must stay owner-local: {forbidden}"
+            );
+        }
+        assert_eq!(
+            hash(DAY_CLOSES_SQL),
+            "70c1300ca8e63dd32d0c5763af42c84d27d25504618cbf23f546ffc3725e7807"
+        );
+    }
+
+    #[test]
+    fn day_closes_render_preserves_bind_order_and_casts_projection() {
+        let (sql, binds) = render_day_closes(&query());
+        assert!(sql.starts_with("SELECT id::text AS id,company_id::text AS company_id,"));
+        assert!(sql.contains(" FROM (SELECT "));
+        assert_eq!(binds.len(), 3);
+        assert_eq!(binds[0], Bind::Text("co".into()));
+        assert_eq!(binds[1], Bind::Opt(Some("br".into())));
+        assert_eq!(binds[2], Bind::Opt(Some("br".into())));
+        let max = sql
+            .split('$')
+            .skip(1)
+            .filter_map(|part| {
+                part.chars()
+                    .take_while(|c| c.is_ascii_digit())
+                    .collect::<String>()
+                    .parse::<usize>()
+                    .ok()
+            })
+            .max()
+            .unwrap_or(0);
+        assert_eq!(max, 3);
+
+        let without_branch = render_day_closes(&DayClosesQuery {
+            company: "co".into(),
+            branch: None,
+        })
+        .1;
+        assert_eq!(without_branch[1], Bind::Opt(None));
+        assert_eq!(without_branch[2], Bind::Opt(None));
     }
 }

@@ -11,6 +11,9 @@ vi.mock('next/headers', () => ({
 }));
 import {
   nativeLane16Configured,
+  pushEndpointOwner,
+  pushPreferences,
+  pushSessionSubscriptionCount,
   sentNoticeDeliveryCount,
   sentNoticeRow,
   sentNoticeRows,
@@ -134,6 +137,47 @@ describe('native Collaboration lane 16 sent-notice facts', () => {
     }
   });
 
+  it('transports the three push registration reads with strict shapes', async () => {
+    const calls: { url: URL; headers: Record<string, string>; body: Record<string, unknown> }[] = [];
+    const prefs = {
+      enabled: true, work_enabled: true, mention_enabled: true, system_enabled: true,
+      calendar_enabled: false, notice_enabled: false, quiet_start_minute: null, quiet_end_minute: null,
+    };
+    const fn = vi.fn(async (url: URL, headers: Record<string, string>, raw: string) => {
+      calls.push({ url, headers, body: JSON.parse(raw) as Record<string, unknown> });
+      const kind = calls[calls.length - 1]!.body.kind;
+      return ok(kind === 'push-preferences'
+        ? { kind, row: prefs }
+        : kind === 'push-session-count'
+          ? { kind, n: 2 }
+          : { kind, row: null });
+    });
+    expect(await pushPreferences(db, 'company-1', 'user-1', actor, fn)).toEqual(prefs);
+    expect(await pushSessionSubscriptionCount(db, 'company-1', 'user-1', 'session-1', actor, fn)).toEqual({ n: 2 });
+    expect(await pushEndpointOwner(db, 'company-1', 'hash-1', actor, fn)).toBeNull();
+    expect(calls.map(c => c.body)).toEqual([
+      { kind: 'push-preferences', companyId: 'company-1', userId: 'user-1' },
+      { kind: 'push-session-count', companyId: 'company-1', userId: 'user-1', sessionId: 'session-1' },
+      { kind: 'push-endpoint-owner', companyId: 'company-1', endpointHash: 'hash-1' },
+    ]);
+    for (const call of calls) {
+      expect(call.url.toString()).toContain('/collaboration/native-lane-16/push-settings');
+      expect(call.headers['x-erpx-context-company']).toBe('company-1');
+      expect(call.headers['x-erpx-context-holding']).toBe('h001');
+    }
+  });
+
+  it('fails closed on malformed push projections', async () => {
+    for (const payload of [
+      { data: { kind: 'push-preferences', row: { enabled: 'true' } } },
+      { data: { kind: 'push-session-count', n: '2' } },
+      { data: { kind: 'push-endpoint-owner', row: { id: 'sub-1' } } },
+    ]) {
+      await expect(pushPreferences(db, 'company-1', 'user-1', actor, transport(payload)))
+        .rejects.toMatchObject({ status: 503 });
+    }
+  });
+
   it('pins the SQL and result oracles shared with the Rust lane', () => {
     const src = readFileSync(
       'packages/server-collaboration/src/adapters/native_lane_16/postgres.rs', 'utf8',
@@ -151,6 +195,14 @@ describe('native Collaboration lane 16 sent-notice facts', () => {
     const render = (sql: string) => { let n = 0; return sql.replace(/\?/g, () => `$${++n}`); };
     expect(sha(render(needle('SQL_NOTICES')))).toBe('d6cee0018f2cbe771d5960313020f476ea2659c2280e9de8a0e6a551068d7dcd');
     expect(sha(needle('RESULT_ORACLE_JSON'))).toBe('2ceaa6b93c6b879c5e5a718e3f8fbc7ae75994ab09a0ec73727807b0cdd3857b');
+    const http = readFileSync(
+      'packages/server-collaboration/src/adapters/native_lane_16/http.rs', 'utf8',
+    );
+    expect(http.match(/#\[serde\(rename_all = "camelCase", deny_unknown_fields\)\]/g)).toHaveLength(2);
+    for (const field of [
+      'company_id', 'sender_id', 'notice_id', 'event_key', 'task_id',
+      'user_id', 'session_id', 'endpoint_hash',
+    ]) expect(http).toContain(field);
   });
 
   it('emits no SQL from the replaced TypeScript adapter or the client', () => {
@@ -161,6 +213,10 @@ describe('native Collaboration lane 16 sent-notice facts', () => {
       const source = readFileSync(path, 'utf8');
       expect(source).not.toMatch(/SELECT\s|INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|pg_advisory/i);
     }
+    const push = readFileSync('packages/server-collaboration/src/adapters/web-push.ts', 'utf8');
+    expect(push).not.toContain('SELECT * FROM push_preferences');
+    expect(push).not.toContain('SELECT id,user_id,session_id FROM push_subscriptions');
+    expect(push).not.toContain("countIntNFrom('push_subscriptions WHERE company_id=? AND user_id=? AND session_id=?')");
   });
 
   it('fails closed on missing config, 5xx and malformed payloads', async () => {
@@ -194,6 +250,6 @@ describe('native Collaboration lane 16 sent-notice facts', () => {
     for (const file of files) {
       count += (readFileSync(`${root}/${file}`, 'utf8').match(/SELECT /g) ?? []).length;
     }
-    expect(count).toBe(324);
+    expect(count).toBe(320);
   });
 });

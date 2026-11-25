@@ -1,4 +1,4 @@
-//! Query port and handler for lane 10's account invitation reads.
+//! Query port and handler for lane 10's owner-local Control reads.
 //!
 //! No SQL lives here. The handler validates the registered read kind, binds the
 //! Company from the transport header and dispatches to the owner reader.
@@ -30,6 +30,14 @@ pub trait AccountAccessRead: Send + Sync {
         token_hash: &'a str,
         now: i64,
     ) -> AccountAccessReadFuture<'a, Option<super::domain::Invitation>>;
+    fn recovery_account_email<'a>(
+        &'a self,
+        user_id: &'a str,
+    ) -> AccountAccessReadFuture<'a, Option<String>>;
+    fn recovery_latest_job<'a>(
+        &'a self,
+        user_id: &'a str,
+    ) -> AccountAccessReadFuture<'a, Option<String>>;
 }
 
 /// Closed wire request. Unknown kinds and extra fields are rejected before any
@@ -44,6 +52,8 @@ pub enum AccountAccessReadRequest {
         invitation_id: String,
     },
     InvitationByToken { token_hash: String, now: i64 },
+    RecoveryAccountEmail { user_id: String },
+    RecoveryLatestJob { user_id: String },
 }
 
 impl AccountAccessReadRequest {
@@ -52,6 +62,8 @@ impl AccountAccessReadRequest {
             Self::EmailExists { .. } => AccountAccessReadKind::EmailExists,
             Self::InvitationStatus { .. } => AccountAccessReadKind::InvitationStatus,
             Self::InvitationByToken { .. } => AccountAccessReadKind::InvitationByToken,
+            Self::RecoveryAccountEmail { .. } => AccountAccessReadKind::RecoveryAccountEmail,
+            Self::RecoveryLatestJob { .. } => AccountAccessReadKind::RecoveryLatestJob,
         }
     }
 
@@ -65,6 +77,11 @@ impl AccountAccessReadRequest {
             }
             Self::InvitationByToken { token_hash, now }
                 if valid_token_hash(token_hash) && valid_now(*now) =>
+            {
+                Ok(())
+            }
+            Self::RecoveryAccountEmail { user_id } | Self::RecoveryLatestJob { user_id }
+                if valid_id(user_id) =>
             {
                 Ok(())
             }
@@ -101,13 +118,23 @@ pub async fn execute(
             .invitation_by_token(&token_hash, now)
             .await
             .map(AccountAccessReadResult::Invitation),
+        AccountAccessReadRequest::RecoveryAccountEmail { user_id } => reader
+            .recovery_account_email(&user_id)
+            .await
+            .map(AccountAccessReadResult::Text),
+        AccountAccessReadRequest::RecoveryLatestJob { user_id } => reader
+            .recovery_latest_job(&user_id)
+            .await
+            .map(AccountAccessReadResult::Text),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::adapters::native_lane_10::domain::{KIND_EMAIL_EXISTS, KIND_INVITATION_STATUS, KIND_INVITATION_BY_TOKEN};
+    use crate::adapters::native_lane_10::domain::{
+        KIND_EMAIL_EXISTS, KIND_INVITATION_BY_TOKEN, KIND_INVITATION_STATUS, KIND_RECOVERY_LATEST_JOB,
+    };
     use std::sync::Mutex;
 
     struct Probe {
@@ -136,6 +163,20 @@ mod tests {
         ) -> AccountAccessReadFuture<'a, Option<super::super::domain::Invitation>> {
             self.seen.lock().unwrap().push(format!("token:{token_hash}:{now}"));
             Box::pin(async { Ok(None) })
+        }
+        fn recovery_account_email<'a>(
+            &'a self,
+            user_id: &'a str,
+        ) -> AccountAccessReadFuture<'a, Option<String>> {
+            self.seen.lock().unwrap().push(format!("recovery-email:{user_id}"));
+            Box::pin(async { Ok(Some("user@example.test".into())) })
+        }
+        fn recovery_latest_job<'a>(
+            &'a self,
+            user_id: &'a str,
+        ) -> AccountAccessReadFuture<'a, Option<String>> {
+            self.seen.lock().unwrap().push(format!("recovery-job:{user_id}"));
+            Box::pin(async { Ok(Some("job_1".into())) })
         }
     }
 
@@ -217,5 +258,39 @@ mod tests {
             r#"{"kind":"email_exists","email":"a@example.test","sql":"SELECT 1"}"#
         )
         .is_err());
+    }
+
+    #[tokio::test]
+    async fn recovery_control_reads_are_closed_and_dispatched() {
+        let probe = Probe { seen: Mutex::new(Vec::new()) };
+        let email = execute(
+            &probe,
+            "platform",
+            AccountAccessReadRequest::RecoveryAccountEmail { user_id: "u1".into() },
+        )
+        .await
+        .expect("recovery email read");
+        assert_eq!(email, AccountAccessReadResult::Text(Some("user@example.test".into())));
+        let job = execute(
+            &probe,
+            "platform",
+            AccountAccessReadRequest::RecoveryLatestJob { user_id: "u1".into() },
+        )
+        .await
+        .expect("recovery job read");
+        assert_eq!(job, AccountAccessReadResult::Text(Some("job_1".into())));
+        assert!(probe.seen.lock().unwrap().contains(&"recovery-email:u1".to_owned()));
+        assert!(probe.seen.lock().unwrap().contains(&"recovery-job:u1".to_owned()));
+        let bad = execute(
+            &probe,
+            "platform",
+            AccountAccessReadRequest::RecoveryAccountEmail { user_id: "bad id".into() },
+        )
+        .await;
+        assert_eq!(bad, Err(invalid()));
+        let value: serde_json::Value =
+            serde_json::from_str(r#"{"kind":"recovery_latest_job","user_id":"u1"}"#).expect("json");
+        let request: AccountAccessReadRequest = serde_json::from_value(value).expect("request");
+        assert_eq!(request.kind().as_str(), KIND_RECOVERY_LATEST_JOB);
     }
 }

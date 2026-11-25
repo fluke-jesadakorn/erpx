@@ -24,6 +24,7 @@ import {financeWorkspacePeoplePayments,financeWorkspacePendingPeopleSql,financeW
 import {headers as nextHeaders} from 'next/headers';
 import {nativePeriodCloseWorkspace} from '@erpx/feature-finance/public/server';
 import {financeWorkspaceReturnJoinSql} from '@erpx/server-commerce/public/finance-obligation-sources';
+import {nativeSetupCounts, type SetupCounts} from './native-lane-3/setup-client';
 export type {FinanceAttention,PaymentObligation,PaymentObligationFilters,ClosePeriodRow} from '@erpx/server-finance/domain/workspace';
 const readinessUnavailable=(status=503,code='NATIVE_FINANCE_PERIOD_CLOSE_UNAVAILABLE'):never=>{throw new ApiError(status,code,'The native Finance period-close readiness is unavailable.');};
 /** Exact native readiness projection. The native owner computes the count; a
@@ -43,7 +44,15 @@ export async function nativePeriodCloseReadiness(actor:WorkContext,periodId:stri
   const reply=await nativePeriodCloseWorkspace(new Request('http://native-period-close.invalid',{headers:new Headers(await nextHeaders() as unknown as Headers)}),actor as Parameters<typeof nativePeriodCloseWorkspace>[1],actor.holdingSlug,periodId);
   return periodCloseReadiness(reply);
 }
-function nativeFinanceWorkspace(provided?:SqlDatabase){let write:SqlDatabase;return createFinanceWorkspace({error:(...args)=>new ApiError(...args),permission:requirePermission,hasPermission,ready:async actor=>{write=provided??(await holdingResources(actor.holdingId)).write;await requireFinancePurchasedRead(write,actor)},today:()=>new Date().toISOString().slice(0,10),businessDate:()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()),reconciliation:(actor,period)=>calculateCloseReconciliations(write,actor,period),expansionPending:(actor,start,end)=>financeExpansionClosePending(write,actor.companyId,start,end),closeReadiness:(actor,periodId)=>nativePeriodCloseReadiness(actor,periodId),consolidation:consolidationRunWorkspace,intercompany:intercompanyWorkspace,setupAuthority:actor=>financeSetupAuthority(write,actor.companyId),paymentRecords:async(actor,query)=>{  const clauses = ["p.company_id=?"], args: unknown[] = [actor.companyId];
+function nativeFinanceWorkspace(provided?:SqlDatabase){let write:SqlDatabase;
+  const setup = new Map<string, Promise<SetupCounts>>();
+  const setupFacts = (actor: WorkContext) => {
+    const key = `${actor.holdingId}\u0000${actor.companyId}`;
+    let pending = setup.get(key);
+    if (!pending) { pending = nativeSetupCounts(actor); setup.set(key, pending); }
+    return pending;
+  };
+  return createFinanceWorkspace({error:(...args)=>new ApiError(...args),permission:requirePermission,hasPermission,ready:async actor=>{write=provided??(await holdingResources(actor.holdingId)).write;await requireFinancePurchasedRead(write,actor)},today:()=>new Date().toISOString().slice(0,10),businessDate:()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()),reconciliation:(actor,period)=>calculateCloseReconciliations(write,actor,period),expansionPending:(actor,start,end)=>financeExpansionClosePending(write,actor.companyId,start,end),closeReadiness:(actor,periodId)=>nativePeriodCloseReadiness(actor,periodId),consolidation:consolidationRunWorkspace,intercompany:intercompanyWorkspace,setupAuthority:actor=>financeSetupAuthority(write,actor.companyId),paymentRecords:async(actor,query)=>{  const clauses = ["p.company_id=?"], args: unknown[] = [actor.companyId];
   const search = query.search;
   if (search) { clauses.push("(p.payment_number ILIKE ? OR COALESCE(f.name,'') ILIKE ?)"); args.push(`%${search}%`,`%${search}%`); }
   if (query.status) { clauses.push("p.status=?"); args.push(query.status); }
@@ -91,10 +100,7 @@ function nativeFinanceWorkspace(provided?:SqlDatabase){let write:SqlDatabase;ret
       today,
     )
     .first<CountRow>(),
-firstCurrency:async(actor)=>write
-    .prepare("SELECT base_currency FROM finance_charts WHERE company_id=? ORDER BY created_at LIMIT 1")
-    .bind(actor.companyId)
-    .first<{ base_currency: string }>(),
+firstCurrency:async(actor)=>{const currency=(await setupFacts(actor)).firstCurrency;return currency===null?null:{base_currency:currency};},
 dueAmounts:async(actor,today)=>(await write.prepare(`SELECT kind,currency,SUM(outstanding_minor) amount_minor FROM finance_invoices
     WHERE company_id=? AND status IN ('posted','partially_paid') AND outstanding_minor>0
       AND ((kind='receivable' AND due_date<?) OR (kind='payable' AND due_date<=?))
@@ -121,10 +127,10 @@ periods:async(actor)=>(await write
     .all<ClosePeriodSource>()).results,
 pendingTax:async(actor,endDate)=>write.prepare(pendingVatReviewSql).bind(endDate,actor.companyId).first("value"),
 charts:async(actor)=>(await write.prepare(financeReferenceListSql('finance_charts','company_id=?','created_at')).bind(actor.companyId).all<Record<string, string | number | null>>()).results,
-accountCount:async(actor)=>write.prepare("SELECT count(*) count FROM finance_accounts WHERE company_id=? AND status='active'").bind(actor.companyId).first<{ count: number }>(),
-periodCount:async(actor)=>write.prepare("SELECT count(*) count FROM finance_periods WHERE company_id=?").bind(actor.companyId).first<{ count: number }>(),
-taxCount:async(actor)=>write.prepare("SELECT count(*) count FROM finance_tax_codes WHERE company_id=? AND status='active'").bind(actor.companyId).first<{ count: number }>(),
-bankCount:async(actor)=>write.prepare("SELECT count(DISTINCT bank_account) count FROM finance_bank_statements WHERE company_id=?").bind(actor.companyId).first<{ count: number }>(),
+accountCount:async(actor)=>({count:(await setupFacts(actor)).accountCount}),
+periodCount:async(actor)=>({count:(await setupFacts(actor)).periodCount}),
+taxCount:async(actor)=>({count:(await setupFacts(actor)).taxCount}),
+bankCount:async(actor)=>({count:(await setupFacts(actor)).bankCount}),
 parties:async(actor)=>(await write.prepare("SELECT id,kind,code,name,currency,status,version,updated_at FROM finance_parties WHERE company_id=? AND kind IN ('customer','supplier') AND status='active' ORDER BY kind,name").bind(actor.companyId).all<Record<string, string | number | null>>()).results,
 profileCount:async(actor,businessDate)=>write.prepare("SELECT count(*) count FROM finance_accounting_profiles p JOIN finance_charts c ON c.id=p.statutory_chart_id AND c.company_id=p.company_id AND c.status='active' WHERE p.company_id=? AND p.status='approved' AND p.effective_date<=?").bind(actor.companyId,businessDate).first<{count:number}>(),
 controlCount:async(actor)=>write.prepare("SELECT count(*) count FROM (SELECT a.chart_id FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id AND c.status='active' WHERE a.company_id=? AND a.status='active' AND NOT EXISTS(SELECT 1 FROM finance_book_rules r WHERE r.secondary_chart_id=a.chart_id AND r.status='approved') GROUP BY a.chart_id HAVING bool_or(a.control_kind='bank' AND a.category='asset') AND bool_or(a.control_kind='receivable' AND a.category='asset') AND bool_or(a.control_kind='payable' AND a.category='liability')) configured").bind(actor.companyId).first<{count:number}>()});}

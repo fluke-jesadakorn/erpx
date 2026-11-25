@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { planningJsonbRowByKey } from '../../../packages/server-planning/src/adapters/planning-jsonb-row-sql';
 import { planningAttachmentScenarioSourceRows, planningAttachmentRecommendationSourceRows } from '../../../packages/server-planning/src/adapters/attachment-read-sources';
@@ -66,7 +66,7 @@ describe('Planning read-tail r12 parameterized attachment-lineage JSON-row famil
     expect(src('planning-attachment-target-sql.ts')).toContain('planningAttachmentTargetRow');
     expect(src('planning-attachment-target-sql.ts')).toContain('planningAttachmentTargetVersionExists');
     expect(src('planning-scoped-list-sql.ts')).toContain('planningScopedBranchList');
-    expect(src('planning-scoped-row-sql.ts')).toContain('planningScopedBranchRow');
+    expect(existsSync(resolve(srcRoot, 'adapters/planning-scoped-row-sql.ts'))).toBe(false);
     expect(src('planning-calendar-source-sql.ts')).toContain('resourceCalendarByKey');
     expect(src('planning-resource-allocation-sql.ts')).toContain('planningResourceAllocationRows');
     expect(src('executive-metric-projections.ts')).toContain('planningBranchDisplayLabelSql');

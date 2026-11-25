@@ -6,7 +6,7 @@
 use super::application::{ActualsFuture, ProjectActualsRead};
 use super::domain::{
     ActualsScope, CostAllocationRow, HandoffProject, HandoffRow, HandoffScope, HandoffWorkRow,
-    WorkLogRow, minor_to_decimal, unavailable,
+    ProjectRow, WorkLogRow, minor_to_decimal, unavailable,
 };
 use erpx_server_runtime::public::postgres::DatabasePool;
 use sqlx::Row;
@@ -49,6 +49,19 @@ const HANDOFF_WORK: &str = "SELECT h.id,h.version,h.project_id,h.recipient_id,h.
      WHERE h.company_id=$1 AND (iam_same_person(h.recipient_id,$2,h.company_id) OR iam_same_person(h.prepared_by,$3,h.company_id))\
        AND (p.owner_user_id=$4 OR EXISTS(SELECT 1 FROM staff_project_members m WHERE m.project_id=p.id AND m.user_id=$5))\
      ORDER BY COALESCE(h.decided_at,h.prepared_at) DESC,h.id LIMIT 200";
+
+/// The former byte-identical visible-row heads (`read-tail-r30.ts` plus the
+/// owner-or-member scope from `project-read-projections.ts`) with `?` bound as
+/// `$n` and an explicit fixed projection. Bind order stays id,company,user,user
+/// for the point read and company,user,user for the list.
+const VISIBLE_PROJECT: &str = "SELECT p.id,p.company_id,p.branch_id,p.department_id,p.title,p.description,p.owner_user_id,p.lifecycle_status,p.version,p.updated_at\
+     FROM staff_projects p WHERE p.id=$1 AND p.company_id=$2\
+       AND (p.owner_user_id=$3 OR EXISTS(SELECT 1 FROM staff_project_members m WHERE m.project_id=p.id AND m.user_id=$4))";
+
+const VISIBLE_PROJECTS: &str = "SELECT p.id,p.company_id,p.branch_id,p.department_id,p.title,p.description,p.owner_user_id,p.lifecycle_status,p.version,p.updated_at\
+     FROM staff_projects p WHERE p.company_id=$1\
+       AND (p.owner_user_id=$2 OR EXISTS(SELECT 1 FROM staff_project_members m WHERE m.project_id=p.id AND m.user_id=$3))\
+     ORDER BY p.updated_at DESC";
 
 pub struct PgProjectActualsRead {
     pool: DatabasePool,
@@ -248,6 +261,70 @@ impl ProjectActualsRead for PgProjectActualsRead {
                 .map_err(|_| unavailable())
         })
     }
+
+    fn visible_project<'a>(
+        &'a self,
+        scope: &'a ActualsScope,
+    ) -> ActualsFuture<'a, Option<ProjectRow>> {
+        Box::pin(async move {
+            let row = sqlx::query(VISIBLE_PROJECT)
+                .bind(&scope.project)
+                .bind(&scope.company)
+                .bind(&scope.user)
+                .bind(&scope.user)
+                .fetch_optional(self.pool.raw())
+                .await
+                .map_err(|_| unavailable())?;
+            row.map(|row| -> Result<ProjectRow, sqlx::Error> {
+                Ok(ProjectRow {
+                    id: text(&row, "id")?,
+                    company_id: text(&row, "company_id")?,
+                    branch_id: opt_text(&row, "branch_id")?,
+                    department_id: opt_text(&row, "department_id")?,
+                    title: text(&row, "title")?,
+                    description: text(&row, "description")?,
+                    owner_user_id: text(&row, "owner_user_id")?,
+                    lifecycle_status: text(&row, "lifecycle_status")?,
+                    version: integer(&row, "version")?,
+                    updated_at: integer(&row, "updated_at")?,
+                })
+            })
+            .transpose()
+            .map_err(|_| unavailable())
+        })
+    }
+
+    fn visible_projects<'a>(
+        &'a self,
+        scope: &'a ActualsScope,
+    ) -> ActualsFuture<'a, Vec<ProjectRow>> {
+        Box::pin(async move {
+            let rows = sqlx::query(VISIBLE_PROJECTS)
+                .bind(&scope.company)
+                .bind(&scope.user)
+                .bind(&scope.user)
+                .fetch_all(self.pool.raw())
+                .await
+                .map_err(|_| unavailable())?;
+            rows.into_iter()
+                .map(|row| {
+                    Ok(ProjectRow {
+                        id: text(&row, "id")?,
+                        company_id: text(&row, "company_id")?,
+                        branch_id: opt_text(&row, "branch_id")?,
+                        department_id: opt_text(&row, "department_id")?,
+                        title: text(&row, "title")?,
+                        description: text(&row, "description")?,
+                        owner_user_id: text(&row, "owner_user_id")?,
+                        lifecycle_status: text(&row, "lifecycle_status")?,
+                        version: integer(&row, "version")?,
+                        updated_at: integer(&row, "updated_at")?,
+                    })
+                })
+                .collect::<Result<Vec<_>, sqlx::Error>>()
+                .map_err(|_| unavailable())
+        })
+    }
 }
 
 #[cfg(test)]
@@ -284,5 +361,21 @@ mod tests {
         assert!(HANDOFF_WORK.contains("p.owner_user_id=$4"));
         assert!(HANDOFF_WORK.contains("m.user_id=$5"));
         assert!(!HANDOFF_WORK.contains("$6"));
+    }
+
+    #[test]
+    fn visible_project_statements_keep_owner_member_scope_and_bind_order() {
+        assert!(VISIBLE_PROJECT.contains("p.id=$1 AND p.company_id=$2"));
+        assert!(VISIBLE_PROJECT.contains("p.owner_user_id=$3"));
+        assert!(VISIBLE_PROJECT.contains("m.user_id=$4"));
+        assert!(!VISIBLE_PROJECT.contains("$5"));
+        assert!(VISIBLE_PROJECTS.contains("p.company_id=$1"));
+        assert!(VISIBLE_PROJECTS.contains("p.owner_user_id=$2"));
+        assert!(VISIBLE_PROJECTS.contains("m.user_id=$3"));
+        assert!(VISIBLE_PROJECTS.ends_with("ORDER BY p.updated_at DESC"));
+        for sql in [VISIBLE_PROJECT, VISIBLE_PROJECTS] {
+            assert!(sql.contains("p.lifecycle_status"));
+            assert!(!sql.contains("SELECT p.*"));
+        }
     }
 }

@@ -7,6 +7,7 @@
 pub mod application;
 pub mod domain;
 pub mod http;
+pub mod owner_scope;
 pub mod postgres;
 
 pub use application::{LaneFuture, LaneQueryHandler, WorkReportSource};
@@ -15,4 +16,8 @@ pub use domain::{
     WorkReportEvent,
 };
 pub use http::{router, router_for_holdings, router_with_reader, validate_targets};
+pub use owner_scope::{
+    OwnerScope, OwnerScopeQuery, OwnerScopeTarget, PgOwnerScopeSource,
+    owner_scope_router, owner_scope_router_for_holdings, owner_scope_router_with_reader,
+};
 pub use postgres::PgWorkReportSource;

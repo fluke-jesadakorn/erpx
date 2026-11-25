@@ -4,9 +4,11 @@
 
 use super::application::{
     ProjectActualsRead, read_cost_allocations, read_handoff_project, read_handoff_work,
-    read_handoffs, read_work_logs,
+    read_handoffs, read_visible_project, read_visible_projects, read_work_logs,
 };
-use super::domain::{HandoffScope, LaneTarget, handoff_scope, invalid, scope, valid_slug};
+use super::domain::{
+    HandoffScope, LaneTarget, company_scope, handoff_scope, invalid, scope, valid_slug,
+};
 use super::postgres::PgProjectActualsRead;
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
@@ -135,6 +137,14 @@ fn router_from_state(state: LaneState) -> Router {
             "/api/v1/holdings/{holding_slug}/projects/handoff-project",
             get(handoff_project),
         )
+        .route(
+            "/api/v1/holdings/{holding_slug}/projects/visible-project",
+            get(visible_project),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/projects/visible-projects",
+            get(visible_projects),
+        )
         .with_state(Arc::new(state))
 }
 
@@ -213,6 +223,19 @@ fn request_scope(
         .ok_or_else(invalid)?;
     let scope = scope(company, user, project)?;
     Ok((reader, scope))
+}
+
+/// Company/user-only scope for the visible-project list; no Project identity is
+/// accepted or required because the owner query scopes every row by membership.
+fn request_company_scope(
+    state: &LaneState,
+    request: &Request,
+    slug: &str,
+) -> Result<(Arc<dyn ProjectActualsRead>, super::domain::ActualsScope), BusinessError> {
+    let reader = target_reader(state, request, slug)?;
+    let company = required_context(request.headers(), CONTEXT_COMPANY)?;
+    let user = required_context(request.headers(), CONTEXT_USER)?;
+    Ok((reader, company_scope(&company, &user)?))
 }
 
 fn required_context(headers: &HeaderMap, name: HeaderName) -> Result<String, BusinessError> {
@@ -342,13 +365,47 @@ async fn handoff_project(
     }
 }
 
+async fn visible_project(
+    State(state): State<Arc<LaneState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let (reader, scope) = request_scope(&state, &request, &slug)?;
+        let row = read_visible_project(reader.as_ref(), &scope).await?;
+        Ok::<_, BusinessError>(serde_json::json!({"project": row}))
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn visible_projects(
+    State(state): State<Arc<LaneState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let (reader, scope) = request_company_scope(&state, &request, &slug)?;
+        let rows = read_visible_projects(reader.as_ref(), &scope).await?;
+        Ok::<_, BusinessError>(serde_json::json!({"projects": rows}))
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::adapters::native_lane_27::application::ActualsFuture;
     use crate::adapters::native_lane_27::domain::{
         ActualsScope, CostAllocationRow, HandoffProject, HandoffRow, HandoffScope, HandoffWorkRow,
-        WorkLogRow,
+        ProjectRow, WorkLogRow,
     };
     use erpx_server_runtime::public::http_support::Body;
 
@@ -379,6 +436,18 @@ mod tests {
             &'a self,
             _: &'a HandoffScope,
         ) -> ActualsFuture<'a, Vec<HandoffWorkRow>> {
+            Box::pin(async { Ok(vec![]) })
+        }
+        fn visible_project<'a>(
+            &'a self,
+            _: &'a ActualsScope,
+        ) -> ActualsFuture<'a, Option<ProjectRow>> {
+            Box::pin(async { Ok(None) })
+        }
+        fn visible_projects<'a>(
+            &'a self,
+            _: &'a ActualsScope,
+        ) -> ActualsFuture<'a, Vec<ProjectRow>> {
             Box::pin(async { Ok(vec![]) })
         }
     }
@@ -479,5 +548,33 @@ mod tests {
         let scoped = request_handoff_scope(&state, &request(true), "acme", false, true).unwrap();
         assert_eq!(scoped.1.handoff, "handoff-1");
         assert_eq!(scoped.1.company, "company-1");
+    }
+
+    /// The point read carries a Project identity; the list read carries only
+    /// Company + user and must not accept a caller-supplied Project.
+    #[test]
+    fn visible_project_scopes_are_bounded_per_route() {
+        let reader: Arc<dyn ProjectActualsRead> = Arc::new(Empty);
+        let state = state_from_readers(vec![(
+            LaneTarget { host: "acme.jesadakorn.com".into(), holding_slug: "acme".into() },
+            reader,
+        )])
+        .unwrap();
+        let request = |with_project: bool| {
+            let mut builder = Request::builder()
+                .header(header::HOST, "acme.jesadakorn.com")
+                .header(CONTEXT_COMPANY, "company-1")
+                .header(CONTEXT_USER, "user-1");
+            if with_project {
+                builder = builder.header(CONTEXT_PROJECT, "project-1");
+            }
+            builder.body(Body::empty()).unwrap()
+        };
+        assert!(request_scope(&state, &request(false), "acme").is_err());
+        let (_, point) = request_scope(&state, &request(true), "acme").unwrap();
+        assert_eq!(point.project, "project-1");
+        let (_, list) = request_company_scope(&state, &request(false), "acme").unwrap();
+        assert!(list.project.is_empty());
+        assert_eq!(list.company, "company-1");
     }
 }

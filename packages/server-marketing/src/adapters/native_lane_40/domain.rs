@@ -16,11 +16,18 @@ pub const RD_CANDIDATE_LIST: &str = "candidate-list";
 pub const RD_CANDIDATE_DETAIL: &str = "candidate-detail";
 pub const RD_CANDIDATE_HISTORY: &str = "candidate-history";
 pub const RD_CAMPAIGN_SUMMARY: &str = "campaign-summary";
+// Wave 2: active-form and form-content reads on Marketing-owned assets.
+pub const RD_ACTIVE_FORM_SOURCE: &str = "active-form-source-v2";
+pub const RD_FORM_CONTENT_ROW: &str = "form-content-row-v2";
+pub const RD_PUBLIC_RECEIPT: &str = "public-receipt-v2";
 pub const KINDS: &[&str] = &[
     RD_CANDIDATE_LIST,
     RD_CANDIDATE_DETAIL,
     RD_CANDIDATE_HISTORY,
     RD_CAMPAIGN_SUMMARY,
+    RD_ACTIVE_FORM_SOURCE,
+    RD_FORM_CONTENT_ROW,
+    RD_PUBLIC_RECEIPT,
 ];
 
 /// Maximum length of any identifier accepted from the wire.
@@ -40,6 +47,11 @@ pub struct Lane40ReadInput {
     pub department_id: Option<String>,
     #[serde(default)]
     pub record_id: Option<String>,
+    /// Form / content asset id for the wave-2 active-form family.
+    #[serde(default)]
+    pub asset_id: Option<String>,
+    #[serde(default)]
+    pub version: Option<i64>,
     /// Trusted current enforcement mode resolved by the caller. It selects
     /// the retained form-provenance predicate; it never authorizes a row.
     #[serde(default)]
@@ -56,6 +68,8 @@ pub struct Lane40Request {
     pub branch_id: Option<String>,
     pub department_id: Option<String>,
     pub record_id: Option<String>,
+    pub asset_id: Option<String>,
+    pub version: Option<i64>,
     pub enforced: bool,
     pub limit: Option<i64>,
 }
@@ -137,6 +151,7 @@ pub fn request(input: &Lane40ReadInput, company_id: &str) -> Result<Lane40Reques
         input.branch_id.as_deref(),
         input.department_id.as_deref(),
         input.record_id.as_deref(),
+        input.asset_id.as_deref(),
     ]
     .into_iter()
     .flatten()
@@ -145,8 +160,15 @@ pub fn request(input: &Lane40ReadInput, company_id: &str) -> Result<Lane40Reques
             return Err(invalid());
         }
     }
-    let needs_record = matches!(kind, RD_CANDIDATE_DETAIL | RD_CANDIDATE_HISTORY);
+    let needs_record = matches!(
+        kind,
+        RD_CANDIDATE_DETAIL | RD_CANDIDATE_HISTORY | RD_PUBLIC_RECEIPT
+    );
     if needs_record && input.record_id.is_none() {
+        return Err(invalid());
+    }
+    let needs_asset = matches!(kind, RD_ACTIVE_FORM_SOURCE | RD_FORM_CONTENT_ROW);
+    if needs_asset && (input.asset_id.is_none() || !input.version.is_some_and(|v| (1..=i64::MAX).contains(&v))) {
         return Err(invalid());
     }
     if input
@@ -161,6 +183,8 @@ pub fn request(input: &Lane40ReadInput, company_id: &str) -> Result<Lane40Reques
         branch_id: input.branch_id.clone(),
         department_id: input.department_id.clone(),
         record_id: input.record_id.clone(),
+        asset_id: input.asset_id.clone(),
+        version: input.version,
         enforced: input.enforced,
         limit: input.limit,
     })
@@ -183,6 +207,54 @@ pub fn check_attribution(row: &AttributionRow) -> Result<(), BusinessError> {
             .checked_add(row.handed_off)
             .and_then(|value| value.checked_add(row.rejected))
             != Some(row.captured)
+    {
+        return Err(unavailable());
+    }
+    Ok(())
+}
+
+/// The wave-2 active-form projection invariant: a form source row carries its
+/// configuration text, and a content row carries its id, version and preview.
+pub fn check_form_row(kind: &'static str, row: &Value) -> Result<(), BusinessError> {
+    if !row
+        .get("company_id")
+        .and_then(Value::as_str)
+        .is_some_and(valid_id)
+    {
+        return Err(unavailable());
+    }
+    if kind == RD_ACTIVE_FORM_SOURCE
+        && !row
+            .get("configuration_json")
+            .is_some_and(Value::is_string)
+    {
+        return Err(unavailable());
+    }
+    if kind == RD_FORM_CONTENT_ROW
+        && !(row.get("id").is_some_and(Value::is_string)
+            && row.get("version").is_some_and(Value::is_i64)
+            && row.get("preview_json").is_some_and(Value::is_string))
+    {
+        return Err(unavailable());
+    }
+    Ok(())
+}
+
+/// The public-receipt projection invariant: a receipt carries a SHA-256 request
+/// hash and a candidate id from the selected Company.
+pub fn check_receipt_row(row: &Value) -> Result<(), BusinessError> {
+    if !row
+        .get("company_id")
+        .and_then(Value::as_str)
+        .is_some_and(valid_id)
+        || !row
+            .get("request_hash")
+            .and_then(Value::as_str)
+            .is_some_and(|value| value.len() == 64 && value.bytes().all(|b| b.is_ascii_hexdigit()))
+        || !row
+            .get("candidate_id")
+            .and_then(Value::as_str)
+            .is_some_and(valid_id)
     {
         return Err(unavailable());
     }
@@ -214,6 +286,8 @@ mod tests {
             branch_id: None,
             department_id: None,
             record_id: None,
+            asset_id: Some("asset-1".into()),
+            version: Some(1),
             enforced: false,
             limit: None,
         }
@@ -221,7 +295,7 @@ mod tests {
 
     #[test]
     fn closed_kinds_and_bounded_identifiers() {
-        assert_eq!(KINDS.len(), 4);
+        assert_eq!(KINDS.len(), 7);
         assert!(valid_id("marketing-candidate-1"));
         assert!(!valid_id(""));
         assert!(!valid_id(&"x".repeat(MAX_ID + 1)));

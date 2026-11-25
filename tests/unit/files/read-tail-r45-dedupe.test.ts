@@ -148,7 +148,7 @@ describe('Files read-tail r45 byte-oracle dedupe', () => {
     expect(home).toContain("import { socialDraftImageExistsSql } from './social-draft-image-guard-sql';");
   });
 
-  test('retirement:ts-statements is 215, strictly below the r44 BEFORE=242 (242->239)', () => {
+  test('retirement:ts-statements is 211, strictly below the r44 BEFORE=242 (242->239)', () => {
     let literal = 0, total = 0;
     for (const path of tsFiles(srcRoot)) {
       const text = readFileSync(path, 'utf8');
@@ -158,8 +158,8 @@ describe('Files read-tail r45 byte-oracle dedupe', () => {
     // Three heads fold two sites into one each (-3): unaliased attachment_events,
     // attachment_sets star and the guardPublishImage EXISTS prefix.
     // r46 folds two closed-union heads (orphan-preservation event, draft/bound count): 239->237.
-    expect(literal).toBe(215);
-    expect(total).toBe(216);
+    expect(literal).toBe(211);
+    expect(total).toBe(212);
     expect(literal).toBeLessThan(242);
     expect(total).toBeLessThan(243);
   });

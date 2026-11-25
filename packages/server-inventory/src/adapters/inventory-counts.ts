@@ -19,6 +19,7 @@ import {inventoryReadProjection as inventoryfinanceProjection} from '@erpx/serve
 import {inventoryReadProjection as inventorypeople_payrollProjection} from '@erpx/server-people_payroll/public/inventory-read-projections';
 import {readListPage} from "@erpx/server-work_projection/public/list-page";
 import {allInitialPhysicalStockMarkedRowsSql,clockCteSql,countInitialPhysicalSourceMarkersSql,countSelectHeadSql,decisionActorRowsSql,countLineStockHeadSql} from './read-tail-sql';
+import {readLane17CountRows,LANE17_RD_COUNT_LOT_LINES} from './native-lane-17/client';
 
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import "server-only";
@@ -61,7 +62,7 @@ function repository(db:SqlDatabase,context?:WorkContext){
  });},
  async scopedCount(id:string,companyId:string,branchId:string | null,branchId2:string | null){return db.prepare(`${countSelectHeadSql}chart.base_currency currency FROM inventory_counts c ${inventorycommerceProjection.countWarehouse} ${inventorycommerceProjection.countSettings} ${inventoryfinanceProjection.countCurrency} WHERE c.id=? AND c.company_id=? AND (?::text IS NULL OR c.branch_id=?)`).bind(id,companyId,branchId,branchId2).first<CountRow>();},
  async countLines(warehouse_id:string | number | null,id:string){return db.prepare(`${countLineStockHeadSql}s.quantity_milli current_quantity_milli,s.value_minor current_value_minor,COALESCE(s.version,0) current_version FROM inventory_count_lines l ${inventorycommerceProjection.lineProduct} ${inventorycommerceProjection.lineStock} WHERE l.count_id=? ORDER BY l.ordinal`).bind(warehouse_id,id).all<CountRow>();},
- async countLotLines(warehouse_id:string | number | null,id:string){return db.prepare("SELECT cl.*,b.quantity_milli current_quantity_milli,b.value_minor current_value_minor,COALESCE(b.version,0) current_version FROM inventory_count_lot_lines cl JOIN inventory_count_lines l ON l.id=cl.count_line_id LEFT JOIN inventory_lot_balances b ON b.lot_id=cl.result_lot_id AND b.warehouse_id=? WHERE l.count_id=? ORDER BY l.ordinal,cl.id").bind(warehouse_id,id).all<CountRow>();},
+ async countLotLines(warehouse_id:string | number | null,id:string,actor:WorkContext){return readLane17CountRows<CountRow>(LANE17_RD_COUNT_LOT_LINES,[warehouse_id,id],actor);},
  async countDecisions(companyId:string,id:string){return db.prepare(decisionActorRowsSql('inventory_count_decisions','count_id',inventorypeople_payrollProjection.decisionActor)).bind(companyId,id).all<CountRow>();},
  ...owner0(db),...owner1(db),...owner2(db)};
 }
@@ -69,14 +70,14 @@ function readable(actor:WorkContext){if(!canReadCounts(actor))throw new Business
 export async function listCounts(actor:WorkContext){readable(actor);const {write}=await holdingResources(actor.holdingId);await requireCountListHistory(write,actor);return exposed(async()=>(await repository(write,actor).counts(actor.companyId,actor.branchId,actor.branchId)).results);}
 export async function countsPage(actor:WorkContext,query:{q?:string;status?:string;cursor?:string}){readable(actor);const {write}=await holdingResources(actor.holdingId);await requireCountListHistory(write,actor);return exposed(()=>repository(write,actor).readPage(actor,query));}
 export async function getCount(actor:WorkContext,id:string,provided?:SqlDatabase){readable(actor);const write=provided??(await holdingResources(actor.holdingId)).write;await requireCountPurchasedRead(write,actor,id);const row=await exposed(()=>repository(write).scopedCount(id,actor.companyId,actor.branchId,actor.branchId));if(!row)throw new ApiError(404,"COUNT_NOT_FOUND","Stock count not found in your workspace.");return row;}
-export async function countDetail(actor:WorkContext,id:string){const {write}=await holdingResources(actor.holdingId);await requireCountPurchasedRead(write,actor,id);const count=await getCount(actor,id,write);const [lines,lotLines,history,decisions]=await Promise.all([repository(write).countLines(count.warehouse_id,id),repository(write).countLotLines(count.warehouse_id,id),repository(write).countHistory(actor.companyId,id),repository(write).countDecisions(actor.companyId,id)]);return {count,lines:lines.results,lotLines:lotLines.results,history:history.results,decisions:decisions.results};}
+export async function countDetail(actor:WorkContext,id:string){const {write}=await holdingResources(actor.holdingId);await requireCountPurchasedRead(write,actor,id);const count=await getCount(actor,id,write);const [lines,lotLines,history,decisions]=await Promise.all([repository(write).countLines(count.warehouse_id,id),repository(write).countLotLines(count.warehouse_id,id,actor),repository(write).countHistory(actor.companyId,id),repository(write).countDecisions(actor.companyId,id)]);return {count,lines:lines.results,lotLines,history:history.results,decisions:decisions.results};}
 export async function countOptions(actor:WorkContext){readable(actor);const {write}=await holdingResources(actor.holdingId);const [warehouses,products,stock,settings]=await Promise.all([repository(write).activeWarehouses(actor.companyId,actor.branchId,actor.branchId),repository(write).activeProducts(actor.companyId),repository(write).stockOptions(actor.companyId,actor.branchId,actor.branchId),repository(write).functionalCurrency(actor.companyId)]);return {warehouses:warehouses.results,products:products.results,stock:stock.results,lots:[],currency:settings?.currency??""};}
 /** In-unit reads for owner adapters that already hold the Holding transaction. */
 export async function readCountDetail(database:SqlDatabase,actor:WorkContext,id:string){
  const count=await repository(database).scopedCount(id,actor.companyId,actor.branchId,actor.branchId);
  if(!count)throw new ApiError(404,"COUNT_NOT_FOUND","Stock count not found in your workspace.");
- const [lines,lotLines,history,decisions]=await Promise.all([repository(database).countLines(count.warehouse_id,id),repository(database).countLotLines(count.warehouse_id,id),repository(database).countHistory(actor.companyId,id),repository(database).countDecisions(actor.companyId,id)]);
- return {count,lines:lines.results,lotLines:lotLines.results,history:history.results,decisions:decisions.results};
+ const [lines,lotLines,history,decisions]=await Promise.all([repository(database).countLines(count.warehouse_id,id),repository(database).countLotLines(count.warehouse_id,id,actor),repository(database).countHistory(actor.companyId,id),repository(database).countDecisions(actor.companyId,id)]);
+ return {count,lines:lines.results,lotLines,history:history.results,decisions:decisions.results};
 }
 export async function readScopedCount(database:SqlDatabase,actor:WorkContext,id:string){
  const count=await repository(database).scopedCount(id,actor.companyId,actor.branchId,actor.branchId);

@@ -12,13 +12,11 @@ import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-a
 import {withPublicMarketingFormRead} from '@erpx/server-marketing/adapters/public-form-read';
 import {marketingFormContentSql} from './public-form-content-source';
 import {formAssetLockSql} from './form-asset-lock-sql';
-import {activeFormSql} from './active-form-sql';
 import {
-  MARKETING_RD_FORM_CONTENT_ROW,
   MARKETING_RD_FORM_PUBLIC,
-  nativeMarketingReadConfigured,
   nativeMarketingReadFirst,
 } from './native-marketing-read';
+import { LANE40_FORM_CONTENT_ROW, readMarketingLane40ForCompany } from './native-lane-40/client';
 function translate(error:unknown):never{if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}
 export function marketingPresentationReferences(configuration:unknown){try{return references(configuration);}catch(error){return translate(error);}}
 const contentPredicate=`EXISTS(${marketingFormContentSql('1')})`;
@@ -29,12 +27,13 @@ export function marketingPresentationAssertions(db:SqlDatabase,key:string,compan
 }
 function application(db:SqlDatabase){return createMarketingPresentationApplication({
 async content(companyId,refs){
-  if(nativeMarketingReadConfigured())return nativeMarketingReadFirst<MarketingContent>(MARKETING_RD_FORM_CONTENT_ROW,{assetId:refs.contentAssetId!,companyId,version:refs.contentVersion!},db);
-  return db.prepare(marketingFormContentSql('id,version,preview_json')).bind(refs.contentAssetId!,companyId,refs.contentVersion!).first<MarketingContent>();},
+  const rows=await readMarketingLane40ForCompany(LANE40_FORM_CONTENT_ROW,companyId,{assetId:refs.contentAssetId!,version:refs.contentVersion!});
+  const row=rows[0];
+  return row&&typeof row.id==='string'&&typeof row.version==='number'&&typeof row.preview_json==='string'
+    ?{id:row.id,version:row.version,preview_json:row.preview_json}:null;},
 media:(companyId,refs)=>approvedMarketingCreative(db,companyId,refs.mediaPublicationId!,refs.contentAssetId!),
 async form(id){
-  if(nativeMarketingReadConfigured())return nativeMarketingReadFirst<PublicMarketingForm>(MARKETING_RD_FORM_PUBLIC,{assetId:id},db);
-  return db.prepare(activeFormSql('public')).bind(id).first<PublicMarketingForm>();},
+  return nativeMarketingReadFirst<PublicMarketingForm>(MARKETING_RD_FORM_PUBLIC,{assetId:id},db);},
 });}
 export async function marketingFormReadiness(db:SqlDatabase,companyId:string,configuration:unknown){try{return await application(db).readiness(companyId,configuration);}catch(error){return translate(error);}}
 async function load(db:SqlDatabase,id:string,submissionKey?:string){

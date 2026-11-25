@@ -63,7 +63,8 @@ describe('Ecommerce read-tail r14 four-family dedupe', () => {
       expect(shared.match(new RegExp(`export const ${name} = `, 'g')) ?? []).toHaveLength(count);
     }
     expect((src.match(/ecommerceExistsGuard\(/g) ?? []).length).toBe(6);
-    expect((src.match(/ecommerceOrderedList\(/g) ?? []).length).toBe(8);
+    // Lane 39 cut the cart workspace list over to the native owner read: 8 -> 7.
+    expect((src.match(/ecommerceOrderedList\(/g) ?? []).length).toBe(7);
     expect((src.match(/ecommerceListingChannelRow\(/g) ?? []).length).toBe(1);
     expect((ao.match(/ecommerceListingChannelRow\(/g) ?? []).length).toBe(1);
     expect((pb.match(/ecommerceSourceIdentity\(/g) ?? []).length).toBe(3);

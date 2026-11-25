@@ -147,8 +147,8 @@ describe('Organization read-tail r55 dedupe', () => {
     expect(read('organization-nodes-spaced-projections.ts')).toContain('"id", "kind", "slug"');
   });
 
-  test('retirement:ts-statements drops 218 -> 200', () => {
-    // Lane 23 moved three directory reads to the native owner; the absolute pin reflects the current owner source.
+  test('retirement:ts-statements drops 218 -> 196', () => {
+    // Wave 2 moved three node-reference reads to the native owner (six lane-23 reads total); the absolute pin reflects the current owner source.
     let space = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -168,7 +168,7 @@ describe('Organization read-tail r55 dedupe', () => {
     // r60 folds two level-history head literals (-2 literals, +1 renderer): 208 - 1 = 207.
     // r61 folds two position-package projection heads (-2 literals, +1 renderer): 207 - 1 = 206.
     // No other owner path is touched.
-    expect(space).toBe(200);
+    expect(space).toBe(196);
     expect(space).toBeLessThan(218);
   });
 });

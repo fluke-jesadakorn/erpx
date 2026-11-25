@@ -2,7 +2,6 @@ import {salesPricingPurchaseControls} from '@erpx/server-sales/adapters/pricing-
 import {byKey} from './by-key';
 import {priceListSchema,priceListUpdateSchema,priceListDecisionSchema} from '@erpx/server-sales/domain/price-lists';
 import { commercialOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/commercial-owner-projection-sources";
-import { commercialOwnerProjectionSources as financeProjectionSources } from "@erpx/server-finance/public/commercial-owner-projection-sources";
 import {salesPricingCurrency,salesPricingProducts,salesPricingProduct} from "@erpx/server-commerce/public/sales-order-sources";
 import {salesPricingCustomers,salesPricingCustomerValid} from "@erpx/server-finance/public/sales-customer-sources";
 import {createSalesPricingApplication} from "@erpx/server-sales/application/pricing";
@@ -21,6 +20,7 @@ import {replayCommand} from "@erpx/server-workflow/public/commands";
 
 import {createPriceListApplication,type PriceListRepository} from '@erpx/server-sales/application/price-lists';
 import {priceListSelect} from './pricing-source-sql';
+import {readPriceListWorkspace} from './native-lane-30/pricing-client';
 export {priceListSchema,priceListUpdateSchema,priceListDecisionSchema} from '@erpx/server-sales/domain/price-lists';
 type Row=Record<string,string|number|null>;
 const activeCurrencySql=`(SELECT currency FROM (${commerceProjectionSources.commerce_settings}) commerce_settings WHERE company_id=?)`;
@@ -28,13 +28,11 @@ const priceListByIdSql=priceListSelect('WHERE id=? AND company_id=?');
 function access(actor:WorkContext){requirePermission(actor,'commerce.read');requirePermission(actor,'commerce.sales');}
 function application(actor:WorkContext,provided?:SqlDatabase){let resource:Promise<SqlDatabase>|null=provided?Promise.resolve(provided):null;const database=()=>resource??=holdingResources(actor.holdingId).then(x=>x.write);return createPriceListApplication({companyScope:!actor.branchId&&!actor.departmentId,authorize:()=>access(actor),authorizeReview:()=>{requirePermission(actor,'commerce.approve');},canApprove:hasPermission(actor,'commerce.approve'),isSamePerson:id=>samePerson(actor,id),clock:{now:()=>Date.now()},repository:async()=>repository(await database(),actor)});}
 function repository(write:SqlDatabase,actor:WorkContext):PriceListRepository{return {
- async workspace(){const [lists,items,products,customers,settings]=await Promise.all([
- write.prepare(`SELECT l.*,p.name customer_name FROM sales_price_lists l LEFT JOIN (${financeProjectionSources.finance_parties}) p ON p.id=l.customer_id WHERE l.company_id=? ORDER BY l.created_at DESC`).bind(actor.companyId).all<Row>(),
- write.prepare(`SELECT i.*,p.sku,p.name product_name FROM sales_price_list_items i JOIN sales_price_lists l ON l.id=i.price_list_id JOIN (${commerceProjectionSources.commerce_products}) p ON p.id=i.product_id WHERE l.company_id=? ORDER BY i.price_list_id,i.ordinal`).bind(actor.companyId).all<Row>(),
+ async workspace(){const [products,customers,settings]=await Promise.all([
  salesPricingProducts(write,actor),
  salesPricingCustomers(write,actor),
  salesPricingCurrency(write,actor),
-]);return {lists:lists.results,items:items.results,products:products.results,customers:customers.results,settings};},
+ ]);const native=await readPriceListWorkspace(actor);return {lists:native.lists as Row[],items:native.items as Row[],products:products.results,customers:customers.results,settings};},
  replay:(key,operation,id,input)=>replayCommand(write,actor,key,operation,id,input),
  list:id=>write.prepare(priceListByIdSql).bind(id,actor.companyId).first<Row>(),
  currency:()=>salesPricingCurrency(write,actor),

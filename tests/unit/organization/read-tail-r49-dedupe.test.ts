@@ -3,7 +3,6 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import {
-  branchNodeOptions,
   fullNodeSelection,
   messagingNodeExists,
 } from '../../../packages/server-organization/src/adapters/organization-read-tail-sources-r49';
@@ -19,9 +18,6 @@ const messaging = read('collaboration-messaging-projections.ts');
 
 // Byte oracles recorded verbatim from the pre-r49 (BEFORE=237) source. Only
 // caller-supplied tails vary; each head is rendered verbatim by its helper.
-const BRANCH_HEAD =
-  "SELECT id,display_name name FROM organization_nodes WHERE company_id=? AND kind='branch' AND ";
-const branchOracle = (tail: string) => `${BRANCH_HEAD}${tail}`;
 const NODE_HEAD =
   'SELECT id,kind,slug,display_name,branch_id,status,hierarchy_revision FROM organization_nodes WHERE ';
 const nodeOracle = (where: string) => `${NODE_HEAD}${where}`;
@@ -30,15 +26,6 @@ const existsOracle = (predicate: string) => `${EXISTS_HEAD}${predicate})`;
 
 // Tails and exact delegated call expressions from the pre-r49 source. The
 // template-literal sites are escaped so the `${...}` text stays verbatim.
-const PMS_TAIL = `status='active'\${facts.actor.branchId ? " AND id=?" : ""}`;
-const BRANCH_SITES: [file: string, call: string, tail: string][] = [
-  ['pms-command-facts.ts', `branchNodeOptions(\`${PMS_TAIL}\`)`, PMS_TAIL],
-  [
-    'pos-facts.ts',
-    'branchNodeOptions("(?::text IS NULL OR id=?) ORDER BY display_name")',
-    '(?::text IS NULL OR id=?) ORDER BY display_name',
-  ],
-];
 const NODE_SITES: [call: string, where: string][] = [
   [
     `fullNodeSelection("company_id=? AND kind IN ('company','branch','department') AND (?::text IS NULL OR id=? OR branch_id=?) AND (?::text IS NULL OR kind!='department' OR id=?) ORDER BY status,display_name")`,
@@ -58,16 +45,14 @@ const MESSAGE_SITES: [call: string, predicate: string][] = [
 
 describe('Organization read-tail r49 dedupe', () => {
   test('r49 helpers render byte-identical SQL to every replaced literal', () => {
-    expect(branchNodeOptions('<T>')).toBe(branchOracle('<T>'));
     expect(fullNodeSelection('<W>')).toBe(nodeOracle('<W>'));
     expect(messagingNodeExists('<P>')).toBe(existsOracle('<P>'));
-    for (const [, , tail] of BRANCH_SITES) expect(branchNodeOptions(tail)).toBe(branchOracle(tail));
     for (const [, where] of NODE_SITES) expect(fullNodeSelection(where)).toBe(nodeOracle(where));
     for (const [, predicate] of MESSAGE_SITES) expect(messagingNodeExists(predicate)).toBe(existsOracle(predicate));
   });
 
-  test('r49 defines three new helpers and every r17-r48 helper is untouched', () => {
-    for (const name of ['branchNodeOptions', 'fullNodeSelection', 'messagingNodeExists']) {
+  test('r49 defines two remaining helpers and every r17-r48 helper is untouched', () => {
+    for (const name of ['fullNodeSelection', 'messagingNodeExists']) {
       expect(helper.match(new RegExp(`export const ${name} =`, 'g')) ?? []).toHaveLength(1);
     }
     for (const [file, names] of [
@@ -100,23 +85,24 @@ describe('Organization read-tail r49 dedupe', () => {
   });
 
   test('inline heads are gone; call sites delegate with unchanged binds, locks and native', () => {
-    expect(pms).not.toContain(BRANCH_HEAD);
-    expect(pos).not.toContain(BRANCH_HEAD);
+    // Lane 24 retired the branch-option head: both consumers now delegate to
+    // the native owner, and the helper is gone from this module.
+    expect(helper).not.toContain('SELECT id,display_name name FROM organization_nodes');
+    expect(pms).toContain('nativeLane24BranchOptions(facts.actor, facts.companyId, facts.actor.branchId)');
+    expect(pos).toContain('nativeLane24PosBranchOptions(target, facts.company, facts.branch, facts.branch2)');
+    expect(pms).not.toContain('branchNodeOptions');
+    expect(pos).not.toContain('branchNodeOptions');
     expect(org).not.toContain(NODE_HEAD);
     expect(messaging).not.toContain(EXISTS_HEAD);
-    expect(helper.split(BRANCH_HEAD).length - 1).toBe(1);
     expect(helper.split(NODE_HEAD).length - 1).toBe(1);
     expect(helper.split(EXISTS_HEAD).length - 1).toBe(1);
 
-    for (const [file, call] of BRANCH_SITES) {
-      expect(read(file).split(call).length - 1).toBe(1);
-    }
     for (const [call] of NODE_SITES) expect(org.split(call).length - 1).toBe(1);
     for (const [call] of MESSAGE_SITES) expect(messaging.split(call).length - 1).toBe(1);
 
     // Bind arrays stay byte-identical at every replaced call site.
-    expect(pms).toContain('facts.companyId, ...facts.fact1');
-    expect(pos).toContain('facts.company,facts.branch,facts.branch2');
+    expect(pms).toContain('nativeLane24BranchOptions(facts.actor, facts.companyId, facts.actor.branchId)');
+    expect(pos).toContain('nativeLane24PosBranchOptions(target, facts.company, facts.branch, facts.branch2)');
     expect(org).toContain('.bind(actor.companyId,actor.branchId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId)');
     expect(org).toContain('.bind(id,companyId).first<OrganizationNode>()');
 
@@ -144,8 +130,8 @@ describe('Organization read-tail r49 dedupe', () => {
     expect(approvals).toContain('authoritySeatExistsSql(`s JOIN');
   });
 
-  test('retirement:ts-statements is strictly lower than the r49 BEFORE=237 baseline (expected 200)', () => {
-    // Lane 23 moved three directory reads to the native owner; the absolute pin reflects the current owner source.
+  test('retirement:ts-statements is strictly lower than the r49 BEFORE=237 baseline (expected 196)', () => {
+    // Wave 2 moved three node-reference reads to the native owner (six lane-23 reads total); the absolute pin reflects the current owner source.
     let space = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -160,7 +146,7 @@ describe('Organization read-tail r49 dedupe', () => {
     // r59 folds two executive-metric count heads (-2 literals, +1 renderer): 209 - 1 = 208.
     // r60 folds two level-history head literals (-2 literals, +1 renderer): 208 - 1 = 207.
     // r61 folds two position-package projection heads (-2 literals, +1 renderer): 207 - 1 = 206.
-    expect(space).toBe(200);
+    expect(space).toBe(196);
     expect(space).toBeLessThan(237);
   });
 });

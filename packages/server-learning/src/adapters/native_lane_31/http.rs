@@ -7,7 +7,9 @@
 //! shared error envelope and a missing runtime fails closed with 503.
 
 use super::application::{EvidenceReader, EvidenceService};
-use super::domain::{EvidenceRow, LaneTarget, configuration_invalid, invalid, missing};
+use super::domain::{
+    EvidenceRow, EvidenceSearchQuery, LaneTarget, configuration_invalid, invalid, missing,
+};
 use super::postgres::PgEvidenceReader;
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
@@ -135,13 +137,15 @@ fn configure_readers(
     Ok(configured)
 }
 
-fn into_router(
-    targets: BTreeMap<(String, String), Arc<dyn EvidenceReader>>,
-) -> Router {
+fn into_router(targets: BTreeMap<(String, String), Arc<dyn EvidenceReader>>) -> Router {
     Router::new()
         .route(
             "/api/v1/holdings/{holding_slug}/learning/evidence-detail",
             post(read),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/learning/evidence-search",
+            post(search),
         )
         .with_state(Arc::new(LaneState { targets }))
 }
@@ -175,7 +179,12 @@ pub fn router_for_holdings(
 /// for callers with a single Holding database.
 pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
     let reader: Arc<dyn EvidenceReader> = Arc::new(PgEvidenceReader::new(pool));
-    router_with_reader(targets.into_iter().map(|target| (target, reader.clone())).collect())
+    router_with_reader(
+        targets
+            .into_iter()
+            .map(|target| (target, reader.clone()))
+            .collect(),
+    )
 }
 
 async fn read(
@@ -220,11 +229,103 @@ async fn read(
     }
 }
 
+async fn search(
+    State(state): State<Arc<LaneState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async {
+        let host = unique_header(request.headers(), header::HOST)?
+            .filter(|host| !host.is_empty())
+            .ok_or_else(missing)?;
+        let reader = state
+            .targets
+            .get(&(host.to_owned(), slug.clone()))
+            .ok_or_else(missing)?
+            .clone();
+        let company = unique_header(request.headers(), CONTEXT_COMPANY)?
+            .filter(|value| valid_scope(value))
+            .ok_or_else(invalid)?
+            .to_owned();
+        let branch = unique_header(request.headers(), CONTEXT_BRANCH)?
+            .filter(|value| valid_scope(value))
+            .map(str::to_owned);
+        let department = unique_header(request.headers(), CONTEXT_DEPARTMENT)?
+            .filter(|value| valid_scope(value))
+            .map(str::to_owned);
+
+        let bytes = to_bytes(request.into_body(), BODY_LIMIT)
+            .await
+            .map_err(|_| invalid())?;
+        let query: EvidenceSearchQuery = serde_json::from_slice(&bytes).map_err(|_| invalid())?;
+        let rows: Vec<EvidenceRow> = EvidenceService::new(reader)
+            .search(&query, &company, branch.as_deref(), department.as_deref())
+            .await?;
+        Ok::<_, BusinessError>(serde_json::json!({"rows": rows}))
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::adapters::native_lane_31::application::EvidenceFuture;
-    use crate::adapters::native_lane_31::domain::{EvidenceKind, EvidenceQuery};
+    use crate::adapters::native_lane_31::domain::{
+        EvidenceKind, EvidenceQuery, EvidenceSearchQuery,
+    };
+    use erpx_server_runtime::public::http_support::Body;
+
+    fn search_request(host: &str, company: Option<&str>, body: serde_json::Value) -> Request {
+        let mut builder = Request::builder()
+            .method("POST")
+            .uri("/api/v1/holdings/acme/learning/evidence-search")
+            .header(header::HOST, host);
+        if let Some(company) = company {
+            builder = builder.header(CONTEXT_COMPANY, company);
+        }
+        builder
+            .body(Body::from(serde_json::to_vec(&body).unwrap()))
+            .unwrap()
+    }
+
+    async fn search_json(
+        targets: BTreeMap<(String, String), Arc<dyn EvidenceReader>>,
+        slug: &str,
+        request: Request,
+    ) -> (StatusCode, serde_json::Value) {
+        let response = search(
+            State(Arc::new(LaneState { targets })),
+            Path(slug.to_owned()),
+            request,
+        )
+        .await;
+        let status = response.status();
+        let cache_control = response.headers().get(header::CACHE_CONTROL).cloned();
+        let bytes = to_bytes(response.into_body(), BODY_LIMIT).await.unwrap();
+        if status == StatusCode::OK {
+            assert_eq!(
+                cache_control.as_ref().and_then(|value| value.to_str().ok()),
+                Some("private, no-store"),
+            );
+        }
+        let payload = serde_json::from_slice(&bytes).unwrap();
+        (status, payload)
+    }
+
+    fn completion_body() -> serde_json::Value {
+        serde_json::json!({
+            "kind": "learning-completions",
+            "query": "",
+            "from": 100,
+            "toExclusive": 200,
+            "limit": 25,
+            "cursor": null,
+        })
+    }
 
     /// Injectable reader that tags every projected row with its own identity,
     /// so a test can prove which Holding's reader answered a read.
@@ -255,25 +356,67 @@ mod tests {
                 }))
             })
         }
+
+        fn search<'a>(
+            &'a self,
+            kind: EvidenceKind,
+            _query: &'a EvidenceSearchQuery,
+            company: &'a str,
+            _branch: Option<&'a str>,
+            _department: Option<&'a str>,
+        ) -> EvidenceFuture<'a, Vec<EvidenceRow>> {
+            let tag = self.0;
+            let company = company.to_owned();
+            Box::pin(async move {
+                Ok(vec![EvidenceRow {
+                    id: format!("{tag}:{company}"),
+                    assignment_id: None,
+                    event_version: None,
+                    version: None,
+                    status: kind.as_str().to_owned(),
+                    created_at: None,
+                    due_date: None,
+                    updated_at: None,
+                    course_title: tag.to_owned(),
+                    required_for: None,
+                }])
+            })
+        }
     }
 
-    fn injected(host: &str, slug: &str, tag: &'static str) -> (LaneTarget, Arc<dyn EvidenceReader>) {
+    fn injected(
+        host: &str,
+        slug: &str,
+        tag: &'static str,
+    ) -> (LaneTarget, Arc<dyn EvidenceReader>) {
         (
-            LaneTarget { host: host.to_owned(), holding_slug: slug.to_owned() },
+            LaneTarget {
+                host: host.to_owned(),
+                holding_slug: slug.to_owned(),
+            },
             Arc::new(TaggedReader(tag)) as Arc<dyn EvidenceReader>,
         )
     }
 
     #[test]
     fn rejects_empty_or_duplicate_targets() {
-        assert_eq!(configure_readers(vec![]).err(), Some(configuration_invalid()));
+        assert_eq!(
+            configure_readers(vec![]).err(),
+            Some(configuration_invalid())
+        );
         let duplicate = vec![
             injected("acme.jesadakorn.com", "acme", "a"),
             injected("acme.jesadakorn.com", "acme", "b"),
         ];
-        assert_eq!(configure_readers(duplicate).err(), Some(configuration_invalid()));
+        assert_eq!(
+            configure_readers(duplicate).err(),
+            Some(configuration_invalid())
+        );
         let bad_slug = vec![injected("acme.jesadakorn.com", "ACME", "a")];
-        assert_eq!(configure_readers(bad_slug).err(), Some(configuration_invalid()));
+        assert_eq!(
+            configure_readers(bad_slug).err(),
+            Some(configuration_invalid())
+        );
         let ok = configure_readers(vec![injected("acme.jesadakorn.com", "acme", "a")]).unwrap();
         assert_eq!(ok.len(), 1);
     }
@@ -286,7 +429,10 @@ mod tests {
         assert_eq!(map.len(), 2);
 
         let acme = &map[&("acme.jesadakorn.com".to_owned(), "acme".to_owned())];
-        let northstar = &map[&("northstar.jesadakorn.com".to_owned(), "northstar".to_owned())];
+        let northstar = &map[&(
+            "northstar.jesadakorn.com".to_owned(),
+            "northstar".to_owned(),
+        )];
         assert!(!Arc::ptr_eq(acme, northstar));
 
         let query = EvidenceQuery {
@@ -313,11 +459,13 @@ mod tests {
         assert_eq!(northstar_row.id, "second:company-2");
 
         // The injection constructor builds the same per-target map into a router.
-        assert!(router_with_reader(vec![
-            injected("acme.jesadakorn.com", "acme", "first"),
-            injected("northstar.jesadakorn.com", "northstar", "second"),
-        ])
-        .is_ok());
+        assert!(
+            router_with_reader(vec![
+                injected("acme.jesadakorn.com", "acme", "first"),
+                injected("northstar.jesadakorn.com", "northstar", "second"),
+            ])
+            .is_ok()
+        );
     }
 
     #[test]
@@ -330,5 +478,65 @@ mod tests {
         assert!(valid_scope("branch:west"));
         assert!(!valid_scope(""));
         assert!(!valid_scope(&"x".repeat(201)));
+    }
+
+    #[tokio::test]
+    async fn search_routes_each_holding_to_its_own_reader() {
+        let targets = configure_readers(vec![
+            injected("acme.jesadakorn.com", "acme", "first"),
+            injected("northstar.jesadakorn.com", "northstar", "second"),
+        ])
+        .unwrap();
+
+        let (status, payload) = search_json(
+            targets.clone(),
+            "acme",
+            search_request("acme.jesadakorn.com", Some("co-1"), completion_body()),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(payload["rows"][0]["id"], "first:co-1");
+        assert_eq!(payload["rows"][0]["course_title"], "first");
+
+        let (status, payload) = search_json(
+            targets,
+            "northstar",
+            search_request("northstar.jesadakorn.com", Some("co-2"), completion_body()),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(payload["rows"][0]["id"], "second:co-2");
+        assert_eq!(payload["rows"][0]["course_title"], "second");
+    }
+
+    #[tokio::test]
+    async fn search_fails_closed_on_unregistered_target_and_bounded_inputs() {
+        let targets =
+            configure_readers(vec![injected("acme.jesadakorn.com", "acme", "first")]).unwrap();
+
+        for request in [
+            search_request("unknown.jesadakorn.com", Some("co-1"), completion_body()),
+            search_request("acme.jesadakorn.com", None, completion_body()),
+            search_request("acme.jesadakorn.com", Some("co 1"), completion_body()),
+            search_request(
+                "acme.jesadakorn.com",
+                Some("co-1"),
+                serde_json::json!({
+                    "kind": "learning-completions", "from": 100, "toExclusive": 200, "limit": 51,
+                }),
+            ),
+            search_request(
+                "acme.jesadakorn.com",
+                Some("co-1"),
+                serde_json::json!({
+                    "kind": "learning-completions", "from": 100, "toExclusive": 200, "limit": 25,
+                    "cursor": {"createdAt": 10, "dueDate": "2026-11-25", "id": "event-1"},
+                }),
+            ),
+        ] {
+            let (status, payload) = search_json(targets.clone(), "acme", request).await;
+            assert_ne!(status, StatusCode::OK);
+            assert!(payload["error"]["code"].is_string());
+        }
     }
 }

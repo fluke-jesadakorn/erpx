@@ -9,9 +9,18 @@ mod domain;
 mod http;
 mod postgres;
 
-pub use application::{DirectoryHierarchyRead, read_directory_hierarchy};
+pub use application::{
+    read_directory_hierarchy, read_executive_evidence, read_node_references,
+    DirectoryHierarchyRead, ExecutiveEvidenceRead, ExecutiveEvidenceRequest, NodeReferenceRead,
+};
 pub use domain::{
-    DirectoryHierarchy, DirectoryLevel, DirectoryNode, DirectoryPosition, MAX_ROWS,
+    AttachmentNodeFact, AudienceNode, DirectoryHierarchy, DirectoryLevel, DirectoryNode,
+    DirectoryPosition, ExecutiveEvidence, ExecutiveEvidenceKind, NodeReferences, UnitReference,
+    MAX_ROWS,
 };
 pub use http::{LaneTarget, router, router_for_holdings};
-pub use postgres::{PgDirectoryHierarchyRead, NODES_SQL, LEVELS_SQL, POSITIONS_SQL};
+pub use postgres::{
+    PgDirectoryHierarchyRead, ATTACHMENT_NODE_SQL, AUDIENCE_NODE_SQL, CONNECTION_SCOPES_SQL,
+    CONTEXT_NODES_SQL, CONTEXT_POSITIONS_SQL, LEVELS_SQL, NODE_EVIDENCE_SQL, NODES_SQL,
+    PENDING_EVIDENCE_SQL, POSITIONS_SQL, UNIT_REFERENCE_SQL,
+};

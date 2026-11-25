@@ -5,9 +5,10 @@
 //! fail-closed error envelope. Composition mounts this router; this lane never
 //! edits composition.
 
-use super::application::{FinanceReferenceRead, read_reference};
+use super::application::{FinanceReferenceRead, read_guard, read_reference};
 use super::domain::{
-    ReferenceKind, configuration_invalid, invalid, missing, unique_header, valid_id, valid_slug,
+    GuardKind, ReferenceKind, configuration_invalid, invalid, missing, unique_header, valid_id,
+    valid_slug,
 };
 use super::postgres::PgFinanceReferenceRead;
 use erpx_server_runtime::public::http_support::{
@@ -21,6 +22,9 @@ use std::sync::Arc;
 
 const CONTEXT_COMPANY: HeaderName = HeaderName::from_static("x-erpx-context-company");
 const CONTEXT_KIND: HeaderName = HeaderName::from_static("x-erpx-lane4-kind");
+const CONTEXT_ID: HeaderName = HeaderName::from_static("x-erpx-lane4-id");
+const CONTEXT_CHART: HeaderName = HeaderName::from_static("x-erpx-lane4-chart");
+const CONTEXT_CURRENCY: HeaderName = HeaderName::from_static("x-erpx-lane4-currency");
 
 /// A Holding host and slug pair. Both must be exact and distinct; no wildcard
 /// or suffix matching is performed.
@@ -85,7 +89,44 @@ async fn read_value(
     read_reference(reader.as_ref(), kind, company).await
 }
 
+/// Resolve and run one lock-free posting guard probe after the same target and
+/// Company validation as the reference reads.
+async fn read_guard_value(
+    state: &LaneState,
+    host: Option<&str>,
+    slug: &str,
+    kind: &str,
+    company: Option<&str>,
+    id: Option<&str>,
+    chart: Option<&str>,
+    currency: Option<&str>,
+) -> Result<serde_json::Value, BusinessError> {
+    let host = host.filter(|value| !value.is_empty()).ok_or_else(missing)?;
+    let reader = state
+        .targets
+        .get(&(host.to_owned(), slug.to_owned()))
+        .ok_or_else(missing)?;
+    let kind = GuardKind::parse(kind).ok_or_else(invalid)?;
+    let company = company.filter(|value| valid_id(value)).ok_or_else(invalid)?;
+    let id = id.filter(|value| valid_id(value)).ok_or_else(invalid)?;
+    let currency = currency
+        .filter(|value| {
+            !value.is_empty()
+                && value.len() <= 16
+                && value.bytes().all(|byte| byte.is_ascii_alphanumeric())
+        })
+        .ok_or_else(invalid)?;
+    let chart = match kind {
+        GuardKind::AccountLiability => {
+            Some(chart.filter(|value| valid_id(value)).ok_or_else(invalid)?)
+        }
+        _ => chart.filter(|value| valid_id(value)),
+    };
+    read_guard(reader.as_ref(), kind, company, id, chart, currency).await
+}
+
 const READ_PATH: &str = "/api/v1/holdings/{holding_slug}/finance/native-lane-4/reference-options";
+const GUARD_PATH: &str = "/api/v1/holdings/{holding_slug}/finance/native-lane-4/posting-guard";
 
 /// Validate target uniqueness and build the shared state map. Every path into
 /// the router uses this seam, so per-Holding pools cannot weaken isolation.
@@ -110,7 +151,10 @@ fn configure_entries(
 }
 
 fn into_router(state: Arc<LaneState>) -> Router {
-    Router::new().route(READ_PATH, get(read)).with_state(state)
+    Router::new()
+        .route(READ_PATH, get(read))
+        .route(GUARD_PATH, get(posting_guard))
+        .with_state(state)
 }
 
 /// Build the owner router with one pool for every target. The lead mounts it
@@ -174,10 +218,34 @@ async fn read(
     }
 }
 
+async fn posting_guard(
+    State(state): State<Arc<LaneState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let host = unique_header(request.headers(), header::HOST)?;
+        let company = unique_header(request.headers(), CONTEXT_COMPANY)?;
+        let kind = unique_header(request.headers(), CONTEXT_KIND)?
+            .filter(|value| !value.is_empty())
+            .ok_or_else(invalid)?;
+        let id = unique_header(request.headers(), CONTEXT_ID)?;
+        let chart = unique_header(request.headers(), CONTEXT_CHART)?;
+        let currency = unique_header(request.headers(), CONTEXT_CURRENCY)?;
+        let data = read_guard_value(&state, host, &slug, kind, company, id, chart, currency).await?;
+        Ok::<_, BusinessError>(data)
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::adapters::native_lane_4::domain::ReferenceRow;
+    use crate::adapters::native_lane_4::domain::{GuardRow, ReferenceRow};
     use std::future::Future;
     use std::pin::Pin;
 
@@ -199,6 +267,17 @@ mod tests {
                     category: Some("asset".to_owned()),
                 }])
             })
+        }
+        fn guard<'a>(
+            &'a self,
+            _kind: GuardKind,
+            _company: &'a str,
+            id: &'a str,
+            _chart: Option<&'a str>,
+            _currency: &'a str,
+        ) -> Pin<Box<dyn Future<Output = Result<Option<GuardRow>, BusinessError>> + Send + 'a>> {
+            let id = id.to_owned();
+            Box::pin(async move { Ok(Some(GuardRow { id })) })
         }
     }
 
@@ -276,6 +355,69 @@ mod tests {
             read_value(&state, None, "acme", "accounts", Some("company-1"))
                 .await
                 .unwrap_err(),
+            missing()
+        );
+    }
+
+    #[tokio::test]
+    async fn read_guard_value_validates_target_kind_and_guard_args() {
+        let state = state();
+        let ok = read_guard_value(
+            &state,
+            Some("acme.jesadakorn.com"),
+            "acme",
+            "chart_active",
+            Some("company-1"),
+            Some("chart-1"),
+            None,
+            Some("THB"),
+        )
+        .await
+        .unwrap();
+        assert_eq!(ok, serde_json::json!({"data": {"id": "chart-1"}}));
+        assert_eq!(
+            read_guard_value(
+                &state,
+                Some("acme.jesadakorn.com"),
+                "acme",
+                "account_liability",
+                Some("company-1"),
+                Some("acct-1"),
+                None,
+                Some("THB"),
+            )
+            .await
+            .unwrap_err(),
+            invalid()
+        );
+        assert_eq!(
+            read_guard_value(
+                &state,
+                Some("acme.jesadakorn.com"),
+                "acme",
+                "party_customer",
+                Some("company-1"),
+                Some("party-1"),
+                None,
+                Some("BAD-CURRENCY"),
+            )
+            .await
+            .unwrap_err(),
+            invalid()
+        );
+        assert_eq!(
+            read_guard_value(
+                &state,
+                Some("wrong.example"),
+                "acme",
+                "chart_active",
+                Some("company-1"),
+                Some("chart-1"),
+                None,
+                Some("THB"),
+            )
+            .await
+            .unwrap_err(),
             missing()
         );
     }

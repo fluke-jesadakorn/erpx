@@ -27,8 +27,9 @@ describe('Ecommerce read-tail r11 source-row read family', () => {
 
   test('family is defined once and composed at all three call sites; literals are gone', () => {
     expect(src.match(/const readSource = /g) ?? []).toHaveLength(1);
-    expect(src.match(/readSource\(/g) ?? []).toHaveLength(3);
-    expect(src.match(/readSource\("ecommerce_channels", "company_id=\?", "updated_at DESC"\)/g) ?? []).toHaveLength(1);
+    // Lane 39 cut the channel list over to the native owner read: 3 -> 2 call sites.
+    expect(src.match(/readSource\(/g) ?? []).toHaveLength(2);
+    expect(src.match(/readSource\("ecommerce_channels", "company_id=\?", "updated_at DESC"\)/g) ?? []).toHaveLength(0);
     expect(src.match(/readSource\("ecommerce_cart_lines", "cart_id=\?", "ordinal"\)/g) ?? []).toHaveLength(1);
     expect(src.match(/readSource\("ecommerce_fulfillment_links", "checkout_id=\?"\)/g) ?? []).toHaveLength(1);
     expect(src.includes('"SELECT * FROM ecommerce_channels WHERE company_id=? ORDER BY updated_at DESC"')).toBe(false);

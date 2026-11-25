@@ -118,7 +118,7 @@ describe('Inventory read-tail r56 lot-allocation head dedupe', () => {
     // 297. r56 folds the byte-identical lot-allocation projection head shared
     // by the commerce return-lot and transfer-lot reads into one owner-local
     // renderer: 2 source tokens -> 1, i.e. 297 -> 296.
-    expect(total).toBe(285);
+    expect(total).toBe(284);
     expect(total).toBeLessThan(296);
   });
 });

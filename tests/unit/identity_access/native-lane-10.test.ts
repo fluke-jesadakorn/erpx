@@ -7,6 +7,8 @@ const h = vi.hoisted(() => ({
   email: vi.fn(),
   status: vi.fn(),
   invitation: vi.fn(),
+  recoveryEmail: vi.fn(),
+  recoveryJob: vi.fn(),
 }));
 const clientPath = '../../../packages/server-identity_access/src/adapters/native-lane-10/client';
 vi.mock('server-only', () => ({}));
@@ -50,6 +52,8 @@ describe('native lane 10 TypeScript boundary', () => {
       nativeEmailExists: h.email,
       nativeInvitationStatus: h.status,
       nativeInvitationByToken: h.invitation,
+      nativeRecoveryAccountEmail: h.recoveryEmail,
+      nativeRecoveryLatestJobId: h.recoveryJob,
     }));
   });
   afterEach(() => {
@@ -65,6 +69,9 @@ describe('native lane 10 TypeScript boundary', () => {
     expect(adapter).not.toMatch(/CONTROL_DB\.prepare/);
     expect(adapter).toContain("from './native-lane-10/client'");
     expect(source('adapters/native-lane-10/client.ts')).not.toMatch(/\.prepare\(|SELECT\s/i);
+    const recovery = source('adapters/account-recovery.ts');
+    expect(recovery).not.toMatch(/SELECT\s/i);
+    expect(recovery).toContain("from './native-lane-10/client'");
   });
 
   it('cuts inspectInvitation over to the native reader using the hashed token', async () => {
@@ -140,6 +147,25 @@ describe('native lane 10 multi-holding client', () => {
     await expect(client.nativeEmailExists('person@example.test')).rejects.toMatchObject({
       status: 503,
       code: 'ACCOUNT_ACCESS_READ_CONFIGURATION_INVALID',
+    });
+  });
+
+  it('routes Control account-recovery reads to the marked Control holding', async () => {
+    const seen: Array<{ kind: string; values: Record<string, unknown>; company: string; host: string }> = [];
+    client.setAccountAccessReadForTest(async (kind, values, company, target) => {
+      seen.push({ kind, values, company, host: target.host });
+      return kind === 'recovery_account_email' ? 'user@example.test' : 'job_1';
+    });
+    expect(await client.nativeRecoveryAccountEmail('u1')).toBe('user@example.test');
+    expect(await client.nativeRecoveryLatestJobId('u1')).toBe('job_1');
+    expect(seen).toEqual([
+      { kind: 'recovery_account_email', values: { user_id: 'u1' }, company: 'platform', host: 'erpx-internal.jesadakorn.com' },
+      { kind: 'recovery_latest_job', values: { user_id: 'u1' }, company: 'platform', host: 'erpx-internal.jesadakorn.com' },
+    ]);
+    client.setAccountAccessReadForTest(async () => ({ kind: 'recovery_latest_job', value: 42 }));
+    await expect(client.nativeRecoveryLatestJobId('u1')).rejects.toMatchObject({
+      status: 503,
+      code: 'ACCOUNT_ACCESS_READ_RESPONSE_INVALID',
     });
   });
 

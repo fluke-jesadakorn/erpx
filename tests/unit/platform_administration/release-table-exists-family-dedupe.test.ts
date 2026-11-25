@@ -52,7 +52,7 @@ describe('Platform Administration release-table EXISTS SELECT-head family dedupe
     for (const helper of ['releaseAcceptanceExistsSql', 'latestReleaseIdSql', 'activeBranchCountSql', 'businessAcceptanceSetupSql', 'releaseRevisionReadSql', 'releaseRevisionShareLockSql', 'releaseAcceptanceRowSql', 'latestReleaseRowSql', 'thbCurrencyProbeSql', 'releaseCurrencyPredicate']) {
       expect(predicate).toContain(`export function ${helper}`);
     }
-    expect(source('adapters/company-release-attachment-read-sources.ts')).toContain('export function releaseChildAggSql');
+    expect(source('adapters/company-release-attachment-read-sources.ts')).toContain('readNativeReleaseChildImage(actor,id)');
     expect(source('adapters/native-owner-write.ts')).toContain('export function selectOneSql');
   });
 
@@ -66,6 +66,6 @@ describe('Platform Administration release-table EXISTS SELECT-head family dedupe
       }
     };
     walk(srcRoot);
-    expect(total).toBe(25);
+    expect(total).toBe(23);
   });
 });

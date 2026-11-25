@@ -10,6 +10,7 @@ import { loadPms, persistPmsRecords } from "../../../../../packages/server-pms/s
 import { createPmsImport, type Batch, type PmsImportUnit, type PmsImportRepository } from "@erpx/server-pms/application/import";
 import { pmsImportFinanceFacts } from "@erpx/server-finance/public/pms-import-facts";
 import { nativePmsConfiguration, nativePmsImportCommand, NativePmsError } from "@erpx/feature-pms/public/native-pms";
+import { importBatches } from "../native-lane-20/import-batch-client";
 
 /**
  * Cutover-import write authority is native. The six retained write facts are
@@ -34,10 +35,15 @@ function unit(db: SqlDatabase, actor: WorkContext, key = ""): PmsImportUnit<SqlS
     const write = (command: string, facts: Record<string, unknown>): any =>
         nativeWrite(actor, command, facts, key);
     return {
-        batches: (facts: {
+        // The bounded Company/Property batch list is owned by native lane 20.
+        // No SQL is issued here; a foreign Property yields the original empty
+        // result and any native failure fails closed in the client.
+        batches: async (facts: {
             companyId: string;
             propertyId: string;
-        }) => db.prepare(`SELECT id,cutover_date,state,version,created_by,approved_by,opening_journal_id,report_json,created_at FROM pms_import_batches WHERE company_id=? AND property_id=? ORDER BY created_at DESC,id LIMIT 30`).bind(facts.companyId, facts.propertyId).all<Batch>(),
+        }) => ({
+            results: ((await importBatches(db, actor, facts.companyId, facts.propertyId)) ?? []) as Batch[],
+        }),
         preview: (facts: {
             batchId: string;
             companyId: string;

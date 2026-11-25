@@ -11,15 +11,23 @@ use erpx_server_shared::public::{BusinessError, FailureKind};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use super::application::{CustomerRead, handle};
-use super::domain::{self, CustomerReadRequest, LaneTarget, MAX_BODY_BYTES};
-use super::postgres::PgCustomerRead;
+use super::application::{
+    CustomerRead, RecordFactsRead, handle, handle_record_facts,
+};
+use super::domain::{
+    self, CustomerReadRequest, LaneTarget, MAX_BODY_BYTES, RecordFactsRequest,
+};
+use super::postgres::{PgCustomerRead, PgRecordFactsRead};
 
 const CONTEXT_COMPANY: HeaderName = HeaderName::from_static("x-erpx-context-company");
 const CONTEXT_BRANCH: HeaderName = HeaderName::from_static("x-erpx-context-branch");
 
 struct CustomerReadState {
     targets: BTreeMap<(String, String), Arc<dyn CustomerRead>>,
+}
+
+struct RecordFactsState {
+    targets: BTreeMap<(String, String), Arc<dyn RecordFactsRead>>,
 }
 
 fn status(kind: FailureKind) -> StatusCode {
@@ -160,6 +168,81 @@ async fn read(
     }
 }
 
+/// Build the record-supplement read router with one owner reader per Holding
+/// pool. Each reader is bound to its own Holding database via the exact
+/// `(Host, holding_slug)` target.
+fn record_facts_state_from<I>(entries: I) -> Result<Arc<RecordFactsState>, BusinessError>
+where
+    I: IntoIterator<Item = (LaneTarget, Arc<dyn RecordFactsRead>)>,
+{
+    let mut configured = BTreeMap::new();
+    for (target, reader) in entries {
+        if target.host.is_empty()
+            || !domain::valid_slug(&target.holding_slug)
+            || configured
+                .insert((target.host.clone(), target.holding_slug.clone()), reader)
+                .is_some()
+        {
+            return Err(domain::configuration_invalid());
+        }
+    }
+    if configured.is_empty() {
+        return Err(domain::configuration_invalid());
+    }
+    Ok(Arc::new(RecordFactsState {
+        targets: configured,
+    }))
+}
+
+pub fn record_facts_router_for_holdings(
+    targets: Vec<(LaneTarget, DatabasePool)>,
+) -> Result<Router, BusinessError> {
+    let state = record_facts_state_from(targets.into_iter().map(|(target, pool)| {
+        (
+            target,
+            Arc::new(PgRecordFactsRead::new(pool)) as Arc<dyn RecordFactsRead>,
+        )
+    }))?;
+    Ok(Router::new()
+        .route(
+            "/api/v1/holdings/{holding_slug}/finance/record-facts",
+            post(read_record_facts),
+        )
+        .with_state(state))
+}
+
+async fn read_record_facts(
+    State(state): State<Arc<RecordFactsState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let host = unique_header(request.headers(), header::HOST)?
+            .filter(|host| !host.is_empty())
+            .ok_or_else(domain::missing)?;
+        let reader = state
+            .targets
+            .get(&(host.to_owned(), slug.clone()))
+            .ok_or_else(domain::missing)?;
+        let company = unique_header(request.headers(), CONTEXT_COMPANY)?
+            .filter(|company| domain::valid_company(company))
+            .ok_or_else(domain::invalid)?
+            .to_owned();
+        let bytes = to_bytes(request.into_body(), MAX_BODY_BYTES)
+            .await
+            .map_err(|_| domain::invalid())?;
+        let payload: RecordFactsRequest =
+            serde_json::from_slice(&bytes).map_err(|_| domain::invalid())?;
+        let value = handle_record_facts(reader.as_ref(), &company, &payload).await?;
+        Ok::<_, BusinessError>(serde_json::json!({"kind":payload.kind,"value":value}))
+    }
+    .await;
+    match result {
+        Ok(value) => bounded(value),
+        Err(error) => error_response(error),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -228,6 +311,49 @@ mod tests {
         assert!(Arc::ptr_eq(routed_acme, &acme));
         assert!(Arc::ptr_eq(routed_northstar, &northstar));
         assert!(!Arc::ptr_eq(routed_acme, routed_northstar));
+    }
+
+    struct FactsReader;
+
+    impl RecordFactsRead for FactsReader {
+        fn read<'a>(
+            &'a self,
+            _company: &'a str,
+            _request: &'a RecordFactsRequest,
+        ) -> super::super::application::CustomerReadFuture<'a, serde_json::Value> {
+            Box::pin(async { Ok(serde_json::json!(null)) })
+        }
+    }
+
+    #[test]
+    fn native_lane_5_record_facts_routes_two_holdings_to_two_readers() {
+        let acme: Arc<dyn RecordFactsRead> = Arc::new(FactsReader);
+        let northstar: Arc<dyn RecordFactsRead> = Arc::new(FactsReader);
+        assert!(!Arc::ptr_eq(&acme, &northstar));
+        assert!(record_facts_state_from(Vec::new()).is_err());
+        let state = record_facts_state_from([
+            (target("acme.example.com", "acme"), acme.clone()),
+            (target("northstar.example.com", "northstar"), northstar.clone()),
+        ])
+        .unwrap();
+        let routed_acme = state
+            .targets
+            .get(&("acme.example.com".to_owned(), "acme".to_owned()))
+            .unwrap();
+        let routed_northstar = state
+            .targets
+            .get(&("northstar.example.com".to_owned(), "northstar".to_owned()))
+            .unwrap();
+        assert!(Arc::ptr_eq(routed_acme, &acme));
+        assert!(Arc::ptr_eq(routed_northstar, &northstar));
+        assert!(!Arc::ptr_eq(routed_acme, routed_northstar));
+        assert!(record_facts_state_from([
+            (target("acme.example.com", "acme"), acme),
+            (target("acme.example.com", "acme"), northstar),
+        ])
+        .is_err());
+        let invalid: Arc<dyn RecordFactsRead> = Arc::new(FactsReader);
+        assert!(record_facts_state_from([(target("", "acme"), invalid)]).is_err());
     }
 
     #[test]

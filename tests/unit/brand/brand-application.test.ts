@@ -205,24 +205,49 @@ describe("native Brand pure-read cutover", () => {
     }
   });
 
-  it("plans evidence search with the declared predicate families and bind order", async () => {
-    const { executiveEvidenceSources } = await import("../../../packages/server-brand/src/adapters/executive-evidence-sources");
-    const { BRAND_RD_EVIDENCE_SEARCH } = await import("../../../packages/server-brand/src/adapters/native-brand-read-ports");
-    const { db, bound } = fakeDb();
-    const input = {
-      metric: "brand-profile-updates",
-      filters: { from: "2026-01-01", to: "2026-01-31", currency: "THB" },
-      query: "north", limit: 25,
-    };
-    await executiveEvidenceSources(db as never).searchRows0(actor, input as never, { branchName: "North", id: "profile-1" });
-    expect(bodies[0]).toMatchObject({ kind: BRAND_RD_EVIDENCE_SEARCH, range: true, query: true, cursor: true });
-    expect(bodies[0].values).toEqual([
-      "company-1", "branch-1", "branch-1",
-      Date.parse("2026-01-01"), Date.parse("2026-01-31") + 86400000,
-      "north", "north", "north",
-      "North", "North", "profile-1", 26,
-    ]);
-    expect(bound[0]).toEqual(bodies[0].values);
+  it("executes evidence search on the native lane 39 owner with no TS statement", async () => {
+    const laneEnv = "ERPX_NATIVE_BRAND_LANE39_CONFIG";
+    const prior = process.env[laneEnv];
+    process.env[laneEnv] = JSON.stringify({
+      privateBaseUrl: "http://127.0.0.1:3198",
+      timeoutMs: 10000,
+      holdings: [
+        { origin: "https://acme.jesadakorn.com", host: "acme.jesadakorn.com", holdingId: "h001", holdingSlug: "acme" },
+      ],
+    });
+    const rows = [{
+      id: "profile-1", branch_name: "North", document_mode: "branch", updated_at: 7,
+      primary_attachment_id: "image-1", inverse_attachment_id: null,
+    }];
+    vi.stubGlobal("fetch", vi.fn(async (url: URL, init: RequestInit) => {
+      expect(url.toString()).toBe("http://127.0.0.1:3198/api/v1/holdings/acme/branding/lane39-evidence-search");
+      expect(init.method).toBe("POST");
+      expect(String(init.body)).toBe(JSON.stringify({
+        companyId: "company-1", branchId: "branch-1",
+        from: Date.parse("2026-01-01"), toExclusive: Date.parse("2026-01-31") + 86400000,
+        query: "north", cursor: { branchName: "North", id: "profile-1" }, limit: 26,
+      }));
+      expect((init.headers as Headers).get("x-erpx-context-company")).toBe("company-1");
+      return new Response(JSON.stringify({ rows }), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    }));
+    try {
+      const { executiveEvidenceSources } = await import("../../../packages/server-brand/src/adapters/executive-evidence-sources");
+      const { db, bound, prepared } = fakeDb();
+      const input = {
+        metric: "brand-profile-updates",
+        filters: { from: "2026-01-01", to: "2026-01-31", currency: "THB" },
+        query: "north", limit: 25,
+      };
+      expect(await executiveEvidenceSources(db as never).searchRows0(actor, input as never, { branchName: "North", id: "profile-1" })).toEqual(rows);
+      expect(prepared).toEqual([]);
+      expect(bound).toEqual([]);
+      expect(bodies).toEqual([]);
+    } finally {
+      if (prior === undefined) delete process.env[laneEnv];
+      else process.env[laneEnv] = prior;
+    }
   });
 
   it("selects the metric read kind per reachable compound breakdown", async () => {

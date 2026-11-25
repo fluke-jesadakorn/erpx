@@ -105,7 +105,7 @@ describe('runtime read-tail r18 catalog-object presence head family', () => {
   });
 
   test('retirement:ts-statements records BEFORE=30 strictly lower to 27', () => {
-    expect(kpi()).toBe(27);
+    expect(kpi()).toBe(26);
     expect(kpi()).toBeLessThan(30);
   });
 });

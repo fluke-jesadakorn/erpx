@@ -1,8 +1,6 @@
-import {ppRd36SinglePred} from './pp-read-tail-r36-sources';
 import { ppRd59ThaiProfilesByCompanySql } from './pp-read-tail-r59-sources';
 import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
-import { ppRd34ActivePayGroupProjection } from './pp-read-tail-r34-sources';
-import { ppRd35PayrollItemsByRun } from './pp-read-tail-r35-sources';
+import { readRetainedPack, readStatutoryCountryPack, readStatutoryItems, readStatutoryPayGroup, readStatutoryRun } from './native-lane-8/client';
 import { ppRd30Exists4Guard } from './pp-read-tail-r30-sources';
 import { ppRd27IdCompanyEngagementApprovedVersionGuard } from './pp-read-tail-r27-sources';
 import { ppRd48IdCompanyVersionPairGuard } from './pp-read-tail-r48-sources';
@@ -24,14 +22,14 @@ import { type PayrollStatutoryRun, type PackRow, thaiPayrollProfileSchema, thaiP
 import { createPayrollStatutoryApplication, type PayrollStatutoryRepository } from '@erpx/server-people_payroll/application/payroll-statutory';
 export { thaiPayrollProfileSchema, thaiPayrollProfileDecisionSchema } from '@erpx/server-people_payroll/domain/payroll-statutory';
 export type { PayrollStatutoryRun, ThaiPayrollEvidence } from '@erpx/server-people_payroll/domain/payroll-statutory';
+/** The native row exposes a numeric `version`; the owner application pins the
+ * historical string-typed `PackRow` contract. */
+const asPackRow = (row: Awaited<ReturnType<typeof readStatutoryCountryPack>>): PackRow | null =>
+    row ? { ...row, version: String(row.version) } : null;
 function application(provided?: SqlDatabase) {
     let database = provided!;
-    const repository: PayrollStatutoryRepository<SqlStatement> = { countryPack(country_pack_id: string) { return database.prepare(ppRd36SinglePred("id,country_code,version,status,rules_json,adapter_id,source_digest,record_version", "hr_country_packs", "id")).bind(country_pack_id).first<PackRow>(); },
-        payGroup(pay_group_id: string, company_id: string) { return database.prepare(ppRd34ActivePayGroupProjection('country_code,currency,frequency')).bind(pay_group_id, company_id).first<{
-            country_code: string;
-            currency: string;
-            frequency: string;
-        }>(); },
+    const repository: PayrollStatutoryRepository<SqlStatement> = { countryPack(country_pack_id: string) { return readStatutoryCountryPack(database, country_pack_id).then(asPackRow); },
+        payGroup(pay_group_id: string, company_id: string) { return readStatutoryPayGroup(database, company_id, pay_group_id); },
         guardEmployeeEngagement(key: string, value: "engagement", engagementId: string, companyId: string, expectedEngagementVersion: number) { return assertion(database, key, value, ppRd48IdCompanyVersionPairGuard('hr_engagements', "currency='THB'", "worker_type='employee'"), [engagementId, companyId, expectedEngagementVersion]); },
         insertProfile(id: string, companyId: string, engagementId: string, taxYear: number, effectiveFrom: string, effectiveTo: string, verifiedAnnualDeductionsMinor: number, scheduledPaysInYear: number, socialSecurityEligible: boolean, value: string | null, openingThroughDate: string, openingTaxableMinor: number, openingIrregularMinor: number, openingWithheldMinor: number, priorIncomeComplete: boolean, evidenceRef: string, userId: string, now: number, now2: number) {
             return payrollStatutory(database).insertProfile({ id, companyId, engagementId, taxYear, effectiveFrom, effectiveTo, annualDeductionsMinor: verifiedAnnualDeductionsMinor, scheduledPaysInYear, socialSecurityEligible, exemptionEvidence: value, openingThroughDate, openingTaxableMinor, openingIrregularMinor, openingWithheldMinor, priorIncomeComplete, evidenceRef, userId, now, now2 });
@@ -54,18 +52,9 @@ function application(provided?: SqlDatabase) {
         guardApprovedProfile(key: string, value: string, id: string, company_id: string, engagementId: string, version: number) { return assertion(database, key, value, ppRd27IdCompanyEngagementApprovedVersionGuard('hr_thai_payroll_profiles'), [id, company_id, engagementId, version]); },
         guardRetainedYtdCount(key: string, value: string, company_id: string, engagementId: string, opening_through_date: string, value2: string, id: string, value3: string, length: number) { return assertion(database, key, value, "(SELECT COUNT(*) FROM hr_payroll_items i JOIN hr_payroll_runs r ON r.id=i.run_id WHERE r.company_id=? AND i.engagement_id=? AND r.status='posted' AND r.currency='THB' AND r.pay_date>? AND r.pay_date<=? AND r.id<>? AND r.pay_date>=?)=?", [company_id, engagementId, opening_through_date, value2, id, value3, length]); },
         guardRetainedYtdItem(key: string, value: string, id: string, run_id: string, run_version: number, input_digest: string, result_json: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_payroll_items i JOIN hr_payroll_runs r ON r.id=i.run_id WHERE i.id=? AND i.run_id=? AND r.version=? AND r.status='posted' AND r.input_digest=? AND i.result_json=?)", [id, run_id, run_version, input_digest, result_json]); },
-        run(runId: string) { return database.prepare(ppRd36SinglePred("mode,country_pack_id,currency", "hr_payroll_runs", "id")).bind(runId).first<{
-            mode: string;
-            country_pack_id: string | null;
-            currency: string;
-        }>(); },
-        items(runId: string) { return database.prepare(ppRd35PayrollItemsByRun('gross_minor,deductions_minor,net_minor,result_json')).bind(runId).all<{
-            gross_minor: number;
-            deductions_minor: number;
-            net_minor: number;
-            result_json: string;
-        }>(); },
-        retainedPack(country_pack_id: string) { return database.prepare("SELECT * FROM hr_country_packs WHERE id=? AND status IN ('active','superseded')").bind(country_pack_id).first<PackRow>(); } };
+        run(runId: string) { return readStatutoryRun(database, runId); },
+        items(runId: string) { return readStatutoryItems(database, runId); },
+        retainedPack(country_pack_id: string) { return readRetainedPack(database, country_pack_id).then(asPackRow); } };
     return createPayrollStatutoryApplication({ repository, clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, hash: sha256, authorize: requirePermission, prepare: async (holding) => { database = provided ?? (await holdingResources(holding)).write; }, commands: { replay: (...args) => replayCommand(database, ...args), commit: (...args) => executeCommand(database, ...args) } });
 }
 function sync<Result>(run: () => Result) { try {

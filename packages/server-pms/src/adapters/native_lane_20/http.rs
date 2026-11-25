@@ -6,14 +6,18 @@
 //! missing/malformed native reply fails closed in the TS client with 503.
 
 use super::application::{
+    CalendarFuture, CalendarQuery, CalendarRead, ImportBatchFuture, ImportBatchRead,
     PropertyReadinessFuture, PropertyReadinessRead, RoomSummaryFuture, RoomSummaryQuery,
     RoomSummaryRead,
 };
 use super::domain::{
-    PropertyReadinessFacts, RoomSummaryFacts, configuration_unavailable, invalid_configuration,
-    invalid_request, valid_filter, valid_id, valid_slug,
+    CalendarRecord, ImportBatchRow, PropertyReadinessFacts, RoomSummaryFacts,
+    configuration_unavailable, invalid_configuration, invalid_request, valid_filter, valid_id,
+    valid_slug,
 };
-use super::postgres::{PgPropertyReadinessRead, PgRoomSummaryRead};
+use super::postgres::{
+    PgCalendarRead, PgImportBatchRead, PgPropertyReadinessRead, PgRoomSummaryRead,
+};
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Query, Request, Response, Router,
     State, StatusCode, header, routing::get, serde_json,
@@ -96,9 +100,37 @@ where
     }
 }
 
+/// Deterministic import-batch reader used by unit tests.
+pub struct ProbeImportBatchRead<F> {
+    load: F,
+}
+
+impl<F> ProbeImportBatchRead<F>
+where
+    F: Fn(&str, &str) -> ImportBatchFuture<'static, Option<Vec<ImportBatchRow>>> + Send + Sync,
+{
+    pub fn new(load: F) -> Self {
+        Self { load }
+    }
+}
+
+impl<F> ImportBatchRead for ProbeImportBatchRead<F>
+where
+    F: Fn(&str, &str) -> ImportBatchFuture<'static, Option<Vec<ImportBatchRow>>> + Send + Sync,
+{
+    fn load<'a>(
+        &'a self,
+        company: &'a str,
+        property: &'a str,
+    ) -> ImportBatchFuture<'a, Option<Vec<ImportBatchRow>>> {
+        (self.load)(company, property)
+    }
+}
+
 struct LaneState {
     targets: BTreeMap<(String, String), Arc<dyn PropertyReadinessRead>>,
     summaries: BTreeMap<(String, String), Arc<dyn RoomSummaryRead>>,
+    batches: BTreeMap<(String, String), Arc<dyn ImportBatchRead>>,
 }
 
 fn missing() -> BusinessError {
@@ -185,6 +217,10 @@ fn route(state: Arc<LaneState>) -> Router {
             "/api/v1/holdings/{holding_slug}/pms/native-lane-20/room-summary",
             get(room_summary),
         )
+        .route(
+            "/api/v1/holdings/{holding_slug}/pms/native-lane-20/import-batches",
+            get(import_batches),
+        )
         .with_state(state)
 }
 
@@ -202,6 +238,7 @@ pub fn router_for_holdings(
 ) -> Result<Router, BusinessError> {
     let mut readiness = Vec::with_capacity(targets.len());
     let mut summaries = Vec::with_capacity(targets.len());
+    let mut batches = Vec::with_capacity(targets.len());
     for (target, pool) in targets {
         readiness.push((
             LaneTarget {
@@ -211,13 +248,21 @@ pub fn router_for_holdings(
             Arc::new(PgPropertyReadinessRead::new(pool.clone())) as Arc<dyn PropertyReadinessRead>,
         ));
         summaries.push((
+            LaneTarget {
+                host: target.host.clone(),
+                holding_slug: target.holding_slug.clone(),
+            },
+            Arc::new(PgRoomSummaryRead::new(pool.clone())) as Arc<dyn RoomSummaryRead>,
+        ));
+        batches.push((
             target,
-            Arc::new(PgRoomSummaryRead::new(pool)) as Arc<dyn RoomSummaryRead>,
+            Arc::new(PgImportBatchRead::new(pool)) as Arc<dyn ImportBatchRead>,
         ));
     }
     Ok(route(Arc::new(LaneState {
         targets: reader_map(readiness)?,
         summaries: reader_map(summaries)?,
+        batches: reader_map(batches)?,
     })))
 }
 
@@ -229,6 +274,7 @@ pub fn router_with_readers(
     Ok(route(Arc::new(LaneState {
         targets: reader_map(targets)?,
         summaries: BTreeMap::new(),
+        batches: BTreeMap::new(),
     })))
 }
 
@@ -254,7 +300,25 @@ fn router_with_summary_readers(
     Ok(route(Arc::new(LaneState {
         targets: reader_map(readiness)?,
         summaries: reader_map(summaries)?,
+        batches: BTreeMap::new(),
     })))
+}
+
+/// Test-facing constructor for the import-batch family without a live database.
+#[cfg(test)]
+fn router_with_batch_readers(
+    batches: Vec<(LaneTarget, Arc<dyn ImportBatchRead>)>,
+) -> Result<Router, BusinessError> {
+    Ok(route(Arc::new(LaneState {
+        targets: BTreeMap::new(),
+        summaries: BTreeMap::new(),
+        batches: reader_map(batches)?,
+    })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ImportBatchParams {
+    pub property: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -356,6 +420,53 @@ async fn room_summary(
             })
         });
         Ok::<_, BusinessError>(serde_json::json!({"summary": summary}))
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn import_batches(
+    State(state): State<Arc<LaneState>>,
+    Path(slug): Path<String>,
+    Query(params): Query<ImportBatchParams>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let host = unique_header(request.headers(), header::HOST)?
+            .filter(|value| !value.is_empty())
+            .ok_or_else(missing)?;
+        let reader = state
+            .batches
+            .get(&(host.to_owned(), slug.clone()))
+            .ok_or_else(missing)?;
+        let company = unique_header(request.headers(), CONTEXT_COMPANY)?
+            .filter(|value| valid_id(value))
+            .ok_or_else(invalid_request)?;
+        if !valid_id(&params.property) {
+            return Err(invalid_request());
+        }
+        let rows = reader.load(company, &params.property).await?;
+        let rows = rows.map(|rows| {
+            rows.into_iter()
+                .map(|row| {
+                    serde_json::json!({
+                        "id": row.id,
+                        "cutover_date": row.cutover_date,
+                        "state": row.state,
+                        "version": row.version,
+                        "created_by": row.created_by,
+                        "approved_by": row.approved_by,
+                        "opening_journal_id": row.opening_journal_id,
+                        "report_json": row.report_json,
+                        "created_at": row.created_at,
+                    })
+                })
+                .collect::<Vec<_>>()
+        });
+        Ok::<_, BusinessError>(serde_json::json!({"batches": rows}))
     }
     .await;
     match result {
@@ -543,6 +654,179 @@ mod room_summary_tests {
         assert_eq!(
             sha(&result),
             "a73433d444f53f1d87215bfceed8efb5429c8e87f5f02dc5000c199d9120d859"
+        );
+    }
+}
+
+#[cfg(test)]
+mod import_batch_tests {
+    use super::*;
+    use crate::adapters::native_lane_20::postgres::IMPORT_BATCHES_SQL;
+    use erpx_server_runtime::public::http_support::serve;
+    use sha2::{Digest, Sha256};
+    use std::sync::Mutex;
+
+    fn row() -> ImportBatchRow {
+        ImportBatchRow {
+            id: "b1".to_owned(),
+            cutover_date: "2026-11-01".to_owned(),
+            state: "preview".to_owned(),
+            version: 2,
+            created_by: "user".to_owned(),
+            approved_by: None,
+            opening_journal_id: None,
+            report_json: "{}".to_owned(),
+            created_at: 99,
+        }
+    }
+
+    fn sha(value: &str) -> String {
+        let mut hasher = Sha256::new();
+        hasher.update(value.as_bytes());
+        hasher
+            .finalize()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect()
+    }
+
+    async fn http(addr: std::net::SocketAddr, raw: String) -> (u16, serde_json::Value) {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let mut stream = tokio::net::TcpStream::connect(addr).await.unwrap();
+        stream.write_all(raw.as_bytes()).await.unwrap();
+        let mut bytes = Vec::new();
+        stream.read_to_end(&mut bytes).await.unwrap();
+        let text = String::from_utf8_lossy(&bytes);
+        let status = text
+            .lines()
+            .next()
+            .and_then(|line| line.split_whitespace().nth(1))
+            .and_then(|value| value.parse().ok())
+            .unwrap();
+        let body = text.split("\r\n\r\n").nth(1).unwrap_or("");
+        (status, serde_json::from_str(body).unwrap_or(serde_json::Value::Null))
+    }
+
+    async fn serve_probe(
+        seen: Arc<Mutex<Vec<(String, String)>>>,
+        answer: Option<Vec<ImportBatchRow>>,
+    ) -> (u16, tokio::task::JoinHandle<()>) {
+        let probe = Arc::new(ProbeImportBatchRead::new(move |company, property| {
+            let company = company.to_owned();
+            let property = property.to_owned();
+            let seen = seen.clone();
+            let answer = answer.clone();
+            Box::pin(async move {
+                seen.lock().unwrap().push((company, property));
+                Ok::<Option<Vec<ImportBatchRow>>, BusinessError>(answer)
+            })
+        }));
+        let router = router_with_batch_readers(vec![(
+            LaneTarget {
+                host: "acme.example.test".to_owned(),
+                holding_slug: "acme".to_owned(),
+            },
+            probe,
+        )])
+        .unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let _ = serve(listener, router).await;
+        });
+        (addr.port(), server)
+    }
+
+    fn request(host: &str, company: &str, property: &str) -> String {
+        format!(
+            "GET /api/v1/holdings/acme/pms/native-lane-20/import-batches?property={property} HTTP/1.1\r\n\
+             Host: {host}\r\n\
+             Accept: application/json\r\n\
+             Connection: close\r\n\
+             x-erpx-context-company: {company}\r\n\r\n"
+        )
+    }
+
+    #[tokio::test]
+    async fn import_batches_parity_and_scope() {
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let (port, server) = serve_probe(seen.clone(), Some(vec![row()])).await;
+        let (status, body) = http(
+            std::net::SocketAddr::from(([127, 0, 0, 1], port)),
+            request("acme.example.test", "company", "property-1"),
+        )
+        .await;
+        server.abort();
+        assert_eq!(status, 200);
+        assert_eq!(body["batches"][0]["id"], "b1");
+        assert_eq!(body["batches"][0]["cutover_date"], "2026-11-01");
+        assert_eq!(body["batches"][0]["state"], "preview");
+        assert_eq!(body["batches"][0]["version"], 2);
+        assert_eq!(body["batches"][0]["created_by"], "user");
+        assert!(body["batches"][0]["approved_by"].is_null());
+        assert!(body["batches"][0]["opening_journal_id"].is_null());
+        assert_eq!(body["batches"][0]["report_json"], "{}");
+        assert_eq!(body["batches"][0]["created_at"], 99);
+        assert_eq!(
+            *seen.lock().unwrap(),
+            vec![("company".to_owned(), "property-1".to_owned())]
+        );
+    }
+
+    #[tokio::test]
+    async fn foreign_property_is_null() {
+        let (port, server) = serve_probe(Arc::new(Mutex::new(Vec::new())), None).await;
+        let (status, body) = http(
+            std::net::SocketAddr::from(([127, 0, 0, 1], port)),
+            request("acme.example.test", "company", "foreign"),
+        )
+        .await;
+        server.abort();
+        assert_eq!(status, 200);
+        assert!(body["batches"].is_null());
+    }
+
+    #[tokio::test]
+    async fn wrong_host_and_bad_property_fail_closed() {
+        let (port, server) = serve_probe(Arc::new(Mutex::new(Vec::new())), Some(vec![row()])).await;
+        let (status, body) = http(
+            std::net::SocketAddr::from(([127, 0, 0, 1], port)),
+            request("attacker.example.test", "company", "property-1"),
+        )
+        .await;
+        assert_eq!(status, 404);
+        assert_eq!(body["error"]["code"], "NOT_FOUND");
+        let (status, body) = http(
+            std::net::SocketAddr::from(([127, 0, 0, 1], port)),
+            request("acme.example.test", "company", "bad%20id!"),
+        )
+        .await;
+        server.abort();
+        assert_eq!(status, 422);
+        assert_eq!(body["error"]["code"], "PMS_NATIVE_LANE_20_REQUEST_INVALID");
+    }
+
+    #[test]
+    fn import_batch_oracles() {
+        assert_eq!(
+            sha(IMPORT_BATCHES_SQL),
+            "67821c399421eaf1320683cc3aec083dcb69a7ffe38b5492d4c81bff3161bb5c"
+        );
+        let result = serde_json::json!({
+            "id": "b1",
+            "cutover_date": "2026-11-01",
+            "state": "preview",
+            "version": 2,
+            "created_by": "user",
+            "approved_by": null,
+            "opening_journal_id": null,
+            "report_json": "{}",
+            "created_at": 99,
+        })
+        .to_string();
+        assert_eq!(
+            sha(&result),
+            "bb9e21645dd88dc468bd9822b1121839afcbc29ff62d5b8bfaa5e915a50a2e1e"
         );
     }
 }

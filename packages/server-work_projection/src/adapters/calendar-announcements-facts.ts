@@ -1,8 +1,11 @@
-import {calendarPeopleProjectionSources} from "@erpx/server-people_payroll/public/calendar-people-projection-sources";
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { AnnouncementRow } from "@erpx/server-work_projection/domain/calendar/announcements";
-import { inList } from './read-tail-sql';
+import { lane29ContextFor, nativeAnnouncementCandidates } from './native-lane-29/client';
+
+/** The announcement candidate list is an owner-native lane 29 read. The axum
+ * router owns the SQL, Company scope and projection; no TypeScript SQL remains.
+ */
 export function calendarAnnouncementsWorkProjectionFacts(db: SqlDatabase) {
     return { read1: (facts: {
             value1: string;
@@ -13,11 +16,8 @@ export function calendarAnnouncementsWorkProjectionFacts(db: SqlDatabase) {
             value6: string;
             value7: string;
             value8: number;
-        }) => {
-            return db.prepare(`SELECT n.*,coalesce(p.legal_name,'Publisher') owner_name FROM calendar_announcements n LEFT JOIN (${calendarPeopleProjectionSources.people}) p ON p.user_id=n.created_by AND p.company_id=n.company_id AND p.merged_into_id IS NULL
- WHERE n.company_id=? AND ${inList("coalesce(n.department_id,n.branch_id,n.company_id)")} AND (n.status='published' OR (? AND ${inList("coalesce(n.department_id,n.branch_id,n.company_id)")}))
- AND n.start_date<? AND n.end_date>=? AND (?='' OR n.title ILIKE '%'||?||'%' OR n.content ILIKE '%'||?||'%') ORDER BY n.id LIMIT ?`).bind(facts.value1, facts.value2, facts.value3, facts.value4, facts.value5, facts.value6, facts.value7, facts.value7, facts.value7, facts.value8).all<AnnouncementRow & {
-                owner_name: string;
-            }>().then(result => result.results);
-        } };
+        }) => nativeAnnouncementCandidates(lane29ContextFor(db, facts.value1), facts.value1, [
+            facts.value1, facts.value2, facts.value3, facts.value4, facts.value5,
+            facts.value6, facts.value7, facts.value7, facts.value7, facts.value8,
+        ]).then(rows => rows as unknown as (AnnouncementRow & {owner_name: string})[]) };
 }

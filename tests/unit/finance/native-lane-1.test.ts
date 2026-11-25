@@ -10,6 +10,14 @@ import {
   nativeLane1Configured,
   type Lane1Actor,
 } from '../../../packages/server-finance/src/adapters/native-lane-1/client';
+import {
+  documentPostingAccounts,
+  documentPostingJournalLines,
+  documentPostingStockConfiguration,
+  DOC_ACCOUNTS,
+  DOC_JOURNAL_LINES,
+  DOC_STOCK_CONFIGURATION,
+} from '../../../packages/server-finance/src/adapters/native-lane-1/doc-preview-client';
 
 const ENV = 'ERPX_NATIVE_LANE_1_READ_CONFIG';
 const original = process.env[ENV];
@@ -159,6 +167,8 @@ describe('native Finance lane 1 expense posting projection', () => {
     for (const path of [
       'packages/server-finance/src/adapters/expense-posting-projection.ts',
       'packages/server-finance/src/adapters/native-lane-1/client.ts',
+      'packages/server-finance/src/adapters/document-posting-preview.ts',
+      'packages/server-finance/src/adapters/native-lane-1/doc-preview-client.ts',
     ]) {
       const src = readFileSync(path, 'utf8');
       expect(src).not.toMatch(/SELECT\s|INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|pg_advisory/i);
@@ -209,5 +219,92 @@ describe('native Finance lane 1 expense posting projection', () => {
     await expect(expenseJournalProjection({} as never, actors[0]!, ''))
       .rejects.toMatchObject({ status: 503, code: 'LANE_01_JOURNAL_INVALID' });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('native Finance lane 1 document posting preview', () => {
+  const docAccounts = [{ id: 'acc-1', code: '1210', name: 'Receivable', status: 'active' }];
+  const docLines = [{ id: 'acc-1', debit: 500, credit: 0 }];
+  const docConfig = { inventory_account_id: 'inv', variance_account_id: 'var' };
+  const docOk = (kind: string, rows: unknown) =>
+    new Response(JSON.stringify({ data: { kind, rows } }), {
+      status: 200, headers: { 'content-type': 'application/json' },
+    });
+
+  it('routes all three preview reads for every registered Holding', async () => {
+    const calls: { url: URL; init: RequestInit }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: URL, init: RequestInit) => {
+      calls.push({ url, init });
+      const kind = String(JSON.parse(String(init.body)).kind);
+      return docOk(kind, kind === DOC_ACCOUNTS ? docAccounts : kind === DOC_JOURNAL_LINES ? docLines : docConfig);
+    }));
+    const db = {} as never;
+
+    for (let i = 0; i < holdings.length; i += 1) {
+      const actor = actors[i]!;
+      expect(await documentPostingAccounts(db, actor, holdings[i]!.companyId)).toEqual(docAccounts);
+      expect(await documentPostingJournalLines(db, actor, 'journal-1')).toEqual(docLines);
+      expect(await documentPostingStockConfiguration(db, actor, holdings[i]!.companyId)).toEqual(docConfig);
+    }
+
+    expect(calls).toHaveLength(9);
+    for (let i = 0; i < holdings.length; i += 1) {
+      const h = holdings[i]!;
+      for (const call of calls.slice(i * 3, i * 3 + 3)) {
+        expect(call.url.toString()).toBe(
+          `http://127.0.0.1:44995/api/v1/holdings/${h.holdingSlug}/finance/document-posting-preview`,
+        );
+        const headers = call.init.headers as Record<string, string>;
+        expect(headers.host).toBe(h.host);
+        expect(headers.origin).toBe(h.origin);
+        expect(headers['x-erpx-context-company']).toBe(h.companyId);
+      }
+      expect(calls[i * 3]!.init.body).toBe(JSON.stringify({ kind: DOC_ACCOUNTS }));
+      expect(calls[i * 3 + 1]!.init.body).toBe(JSON.stringify({ kind: DOC_JOURNAL_LINES, journalId: 'journal-1' }));
+      expect(calls[i * 3 + 2]!.init.body).toBe(JSON.stringify({ kind: DOC_STOCK_CONFIGURATION }));
+    }
+  });
+
+  it('validates preview envelopes strictly and fails closed', async () => {
+    const malformed = [
+      docOk(DOC_ACCOUNTS, [{ ...docAccounts[0]!, injected: 'SELECT 1' }]),
+      docOk(DOC_ACCOUNTS, [{ ...docAccounts[0]!, status: 1 }]),
+      docOk(DOC_JOURNAL_LINES, [{ id: 'acc-1', debit: '500', credit: 0 }]),
+      docOk(DOC_STOCK_CONFIGURATION, { inventory_account_id: 'inv' }),
+      new Response(JSON.stringify({ data: { kind: DOC_ACCOUNTS, rows: {} } }), { status: 200 }),
+    ];
+    for (const response of malformed) {
+      vi.stubGlobal('fetch', vi.fn(async () => response.clone()));
+      await expect(documentPostingAccounts({} as never, actors[0]!))
+        .rejects.toMatchObject({ status: 503, code: 'LANE_01_DOC_PREVIEW_RESPONSE_INVALID' });
+    }
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(documentPostingAccounts({} as never, { holdingId: 'h999', holdingSlug: 'acme' }))
+      .rejects.toMatchObject({ status: 503, code: 'LANE_01_TARGET_UNAVAILABLE' });
+    // A different Company yields an owner-scoped empty result, never a query.
+    expect(await documentPostingAccounts({} as never, actors[0]!, 'other-co')).toEqual([]);
+    expect(await documentPostingStockConfiguration({} as never, actors[0]!, 'other-co')).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('pins the document preview SQL and result oracles', () => {
+    const src = readFileSync(
+      'packages/server-finance/src/adapters/native_lane_1/doc_preview/postgres.rs',
+      'utf8',
+    );
+    const constant = (name: string) => src.match(new RegExp(`pub const ${name}: &str\\s*=\\s*"([^"]+)"`))?.[1];
+    const accounts = constant('SQL_DOC_ACCOUNTS')!;
+    const journalOriginal = constant('SQL_DOC_JOURNAL_LINES_ORIGINAL')!;
+    const journal = constant('SQL_DOC_JOURNAL_LINES')!;
+    const stock = constant('SQL_DOC_STOCK_CONFIGURATION')!;
+    expect(accounts).toBeDefined();
+    expect(sha(accounts)).toBe('c408c881433c13cdd0eb41702bc621784053af55769857c8b947206ba06a5fcc');
+    expect(sha(journalOriginal)).toBe('521029aa4b962b93a4f4bf06b97c10f6edbf565f599f6f36f83ce9c98ceacfa5');
+    expect(sha(journal)).toBe('11f89684aee589e754f10306ca8e365d0101ef7879b52d0749e4f8b2b6a31e9e');
+    expect(sha(stock)).toBe('62919d5460c74425c09bea6aac557d3ad312537332b2f47333c5617c7b489559');
+    expect(sha(JSON.stringify({ kind: DOC_ACCOUNTS, rows: docAccounts }))).toBe(
+      '15ead879f6b450d1c847973bfb50bfc56c3b4bfb9d49cde8a384916565413de3',
+    );
   });
 });

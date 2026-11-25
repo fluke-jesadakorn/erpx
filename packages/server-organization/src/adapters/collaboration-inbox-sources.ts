@@ -1,2 +1,15 @@
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';export function collaborationInboxSources(db:SqlDatabase){return {async audienceNode(id:string,companyId:string){return db.prepare("SELECT id,kind,branch_id FROM organization_nodes WHERE id=? AND company_id=? AND status='active'")
-        .bind(id,companyId).first<{id:string;kind:string;branch_id:string|null}>();}};}
+import "server-only";
+import {headers} from 'next/headers';
+import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
+import {nativeNodeReferences} from './native-lane-23/client';
+
+/** Native owner read: the SQL and projection live in
+ * `erpx-server-organization::adapters::native_lane_23`; this adapter only
+ * transports validated facts and fails closed when unavailable. */
+export function collaborationInboxSources(_db: SqlDatabase) {
+  return {
+    async audienceNode(id: string, companyId: string) {
+      return (await nativeNodeReferences(await headers(), { companyId, nodeId: id })).node;
+    },
+  };
+}

@@ -98,6 +98,39 @@ export type SlipRow = Readonly<{
 }>;
 export type PaymentRow = Readonly<{ status: string; settled_at: string | null; batch_status: string }>;
 export type ExportBytesRow = Readonly<{ export_html: string; export_sha256: string }>;
+export type CountryPackRow = Readonly<{
+  id: string;
+  country_code: string;
+  version: number;
+  status: string;
+  rules_json: string;
+  adapter_id: string;
+  source_digest: string;
+  record_version: number;
+}>;
+export type PayGroupFacts = Readonly<{ country_code: string; currency: string; frequency: string }>;
+export type StatutoryRun = Readonly<{ mode: string; country_pack_id: string | null; currency: string }>;
+export type PayrollItemTotals = Readonly<{
+  gross_minor: number;
+  deductions_minor: number;
+  net_minor: number;
+  result_json: string;
+}>;
+export type HrEngagementRow = Readonly<{
+  id: string;
+  person_id: string;
+  branch_id: string | null;
+  department_id: string | null;
+}>;
+export type HrEligibilityRow = Readonly<{
+  eligible: boolean | null;
+  version: number | null;
+  top_level: boolean;
+}>;
+export type HrAffectedPerson = Readonly<{ engagement_id: string; person_id: string; name: string }>;
+export type HrFutureShift = Readonly<{ engagement_id: string; total: number }>;
+export type HrCurrentPolicy = Readonly<{ engagement_id: string; policy: string; calendar: string | null }>;
+export type HrPayGroupRow = Readonly<{ engagement_id: string; name: string | null }>;
 
 const ENV = "ERPX_NATIVE_PEOPLE_PAYROLL_LANE8_CONFIG";
 const RESERVED_PORTS = new Set([3000, 3001, 3100, 3101, 3103, 5432, 5433, 5435, 8080]);
@@ -114,6 +147,17 @@ export const LANE8_RD_OWN_SLIPS = "payslip_own_slips";
 export const LANE8_RD_SLIP = "payslip_slip";
 export const LANE8_RD_PAYMENT = "payslip_payment";
 export const LANE8_RD_EXPORT_BYTES = "payslip_export_bytes";
+export const LANE8_RD_COUNTRY_PACK = "statutory_country_pack";
+export const LANE8_RD_PAY_GROUP_FACTS = "statutory_pay_group";
+export const LANE8_RD_STATUTORY_RUN = "statutory_run";
+export const LANE8_RD_STATUTORY_ITEMS = "statutory_items";
+export const LANE8_RD_RETAINED_PACK = "statutory_retained_pack";
+export const LANE8_RD_HR_ENGAGEMENT = "hr_engagement_facts";
+export const LANE8_RD_HR_ELIGIBILITY = "hr_overtime_eligibility";
+export const LANE8_RD_HR_AFFECTED_PEOPLE = "hr_affected_people";
+export const LANE8_RD_HR_FUTURE_SHIFTS = "hr_future_shifts";
+export const LANE8_RD_HR_CURRENT_POLICIES = "hr_current_policies";
+export const LANE8_RD_HR_PAY_GROUPS = "hr_engagement_pay_groups";
 
 const unavailable = (): never => {
   throw new ApiError(503, "PEOPLE_PAYROLL_LANE8_UNAVAILABLE", "The native People Payroll read service is unavailable.");
@@ -292,10 +336,15 @@ async function read(
   companyId: string,
   actor?: Lane8Actor,
 ): Promise<unknown> {
-  if (!id(companyId)) throw new ApiError(422, "PEOPLE_PAYROLL_LANE8_COMPANY_INVALID", "Use a bounded Company id.");
   const config = lane8Configuration();
   const target = await targetFor(config, actor);
-  if (target.companyId !== undefined && target.companyId !== companyId) return targetChanged();
+  // Company-less owner reads (country pack, run, item totals) inherit the
+  // resolved Holding's configured default Company; the wire always carries a
+  // single valid Company scope from the exact registered target.
+  const company = companyId === "" ? target.companyId : companyId;
+  if (!company || !id(company))
+    throw new ApiError(422, "PEOPLE_PAYROLL_LANE8_COMPANY_INVALID", "Use a bounded Company id.");
+  if (target.companyId !== undefined && target.companyId !== company) return targetChanged();
   const url = new URL(
     `/api/v1/holdings/${encodeURIComponent(target.holdingSlug)}/people-payroll/app-entrypoint-read`,
     config.base,
@@ -310,7 +359,7 @@ async function read(
         accept: "application/json",
         "content-type": "application/json",
         "cache-control": "no-cache",
-        "x-erpx-context-company": companyId,
+        "x-erpx-context-company": company,
       },
       body: JSON.stringify({ kind, values }),
       cache: "no-store",
@@ -524,4 +573,237 @@ export async function readExportBytes(
 ): Promise<ExportBytesRow | null> {
   void db;
   return exportBytes(await read(LANE8_RD_EXPORT_BYTES, [slipId], companyId, actor));
+}
+
+const PACK_KEYS = ["id", "country_code", "version", "status", "rules_json", "adapter_id", "source_digest", "record_version"] as const;
+
+function countryPack(value: unknown): CountryPackRow | null {
+  if (value === null) return null;
+  if (
+    !keysExact(value, PACK_KEYS) || !id(value.id) || !text(value.country_code, 8) ||
+    !whole(value.version) || !text(value.status, 32) || !text(value.rules_json, 1_048_576) ||
+    !text(value.adapter_id, 200) || !text(value.source_digest, 200) || !whole(value.record_version)
+  ) return unavailable();
+  return {
+    id: value.id, country_code: value.country_code, version: value.version,
+    status: value.status, rules_json: value.rules_json, adapter_id: value.adapter_id,
+    source_digest: value.source_digest, record_version: value.record_version,
+  };
+}
+
+function payGroupFacts(value: unknown): PayGroupFacts | null {
+  if (value === null) return null;
+  if (
+    !keysExact(value, ["country_code", "currency", "frequency"]) ||
+    !text(value.country_code, 8) || !text(value.currency, 32) || !text(value.frequency, 32)
+  ) return unavailable();
+  return { country_code: value.country_code, currency: value.currency, frequency: value.frequency };
+}
+
+function statutoryRun(value: unknown): StatutoryRun | null {
+  if (value === null) return null;
+  if (
+    !keysExact(value, ["mode", "country_pack_id", "currency"]) || !text(value.mode, 64) ||
+    !(value.country_pack_id === null || id(value.country_pack_id)) || !text(value.currency, 32)
+  ) return unavailable();
+  return {
+    mode: value.mode, country_pack_id: value.country_pack_id as string | null,
+    currency: value.currency,
+  };
+}
+
+function itemTotals(value: unknown): PayrollItemTotals {
+  if (
+    !keysExact(value, ["gross_minor", "deductions_minor", "net_minor", "result_json"]) ||
+    !whole(value.gross_minor) || !whole(value.deductions_minor) || !whole(value.net_minor) ||
+    !text(value.result_json, 1_048_576)
+  ) return unavailable();
+  return {
+    gross_minor: value.gross_minor, deductions_minor: value.deductions_minor,
+    net_minor: value.net_minor, result_json: value.result_json,
+  };
+}
+
+/** Thai statutory run evidence: five compact owner-local reads. */
+export async function readStatutoryCountryPack(
+  db: SqlDatabase, packId: string, actor?: Lane8Actor,
+): Promise<CountryPackRow | null> {
+  void db;
+  if (!id(packId)) return unavailable();
+  return countryPack(await read(LANE8_RD_COUNTRY_PACK, [packId], "", actor));
+}
+
+export async function readStatutoryPayGroup(
+  db: SqlDatabase, companyId: string, groupId: string, actor?: Lane8Actor,
+): Promise<PayGroupFacts | null> {
+  void db;
+  if (!id(groupId)) return unavailable();
+  return payGroupFacts(await read(LANE8_RD_PAY_GROUP_FACTS, [groupId], companyId, actor));
+}
+
+export async function readStatutoryRun(
+  db: SqlDatabase, runId: string, actor?: Lane8Actor,
+): Promise<StatutoryRun | null> {
+  void db;
+  if (!id(runId)) return unavailable();
+  return statutoryRun(await read(LANE8_RD_STATUTORY_RUN, [runId], "", actor));
+}
+
+export async function readStatutoryItems(
+  db: SqlDatabase, runId: string, actor?: Lane8Actor,
+): Promise<SqlLikeResult<PayrollItemTotals>> {
+  void db;
+  if (!id(runId)) return unavailable();
+  return rows(await read(LANE8_RD_STATUTORY_ITEMS, [runId], "", actor), itemTotals);
+}
+
+export async function readRetainedPack(
+  db: SqlDatabase, packId: string, actor?: Lane8Actor,
+): Promise<CountryPackRow | null> {
+  void db;
+  if (!id(packId)) return unavailable();
+  return countryPack(await read(LANE8_RD_RETAINED_PACK, [packId], "", actor));
+}
+
+/** HR settings facts: six owner-local reads keyed by the isolated Company.
+ * Optional branch/department filters travel as empty-string absent sentinels,
+ * paired exactly as the owner application supplies them. */
+const filter = (value: string | null): string => {
+  if (value === null) return "";
+  if (!id(value)) return unavailable();
+  return value;
+};
+const encodedIds = (engagementIds: readonly string[]): string => {
+  if (!Array.isArray(engagementIds) || engagementIds.length === 0 ||
+      engagementIds.length > 5000 || !engagementIds.every((item) => id(item))) return unavailable();
+  const encoded = JSON.stringify(engagementIds.map((item) => String(item)));
+  if (new TextEncoder().encode(encoded).length > 8192) return unavailable();
+  return encoded;
+};
+
+function hrEngagement(value: unknown): HrEngagementRow | null {
+  if (value === null) return null;
+  if (
+    !keysExact(value, ["id", "person_id", "branch_id", "department_id"]) ||
+    !id(value.id) || !id(value.person_id) ||
+    !(value.branch_id === null || id(value.branch_id)) ||
+    !(value.department_id === null || id(value.department_id))
+  ) return unavailable();
+  return {
+    id: value.id, person_id: value.person_id,
+    branch_id: value.branch_id as string | null,
+    department_id: value.department_id as string | null,
+  };
+}
+
+function hrEligibility(value: unknown): HrEligibilityRow | null {
+  if (value === null) return null;
+  if (
+    !keysExact(value, ["eligible", "version", "top_level"]) ||
+    !(value.eligible === null || typeof value.eligible === "boolean") ||
+    !(value.version === null || whole(value.version)) ||
+    typeof value.top_level !== "boolean"
+  ) return unavailable();
+  return {
+    eligible: value.eligible as boolean | null, version: value.version as number | null,
+    top_level: value.top_level,
+  };
+}
+
+function hrAffected(value: unknown): HrAffectedPerson {
+  if (
+    !keysExact(value, ["engagement_id", "person_id", "name"]) ||
+    !id(value.engagement_id) || !id(value.person_id) || !text(value.name, 200)
+  ) return unavailable();
+  return { engagement_id: value.engagement_id, person_id: value.person_id, name: value.name };
+}
+
+function hrFutureShift(value: unknown): HrFutureShift {
+  if (
+    !keysExact(value, ["engagement_id", "total"]) ||
+    !id(value.engagement_id) || !whole(value.total)
+  ) return unavailable();
+  return { engagement_id: value.engagement_id, total: value.total };
+}
+
+function hrCurrentPolicy(value: unknown): HrCurrentPolicy {
+  if (
+    !keysExact(value, ["engagement_id", "policy", "calendar"]) ||
+    !id(value.engagement_id) || !text(value.policy, 200) ||
+    !(value.calendar === null || text(value.calendar, 200))
+  ) return unavailable();
+  return {
+    engagement_id: value.engagement_id, policy: value.policy,
+    calendar: value.calendar as string | null,
+  };
+}
+
+function hrPayGroup(value: unknown): HrPayGroupRow {
+  if (
+    !keysExact(value, ["engagement_id", "name"]) ||
+    !id(value.engagement_id) || !(value.name === null || text(value.name, 200))
+  ) return unavailable();
+  return { engagement_id: value.engagement_id, name: value.name as string | null };
+}
+
+export async function readHrEngagement(
+  db: SqlDatabase, companyId: string, engagementId: string,
+  branchId: string | null, departmentId: string | null, actor?: Lane8Actor,
+): Promise<HrEngagementRow | null> {
+  void db;
+  if (!id(engagementId)) return unavailable();
+  const branch = filter(branchId);
+  const department = filter(departmentId);
+  return hrEngagement(await read(LANE8_RD_HR_ENGAGEMENT,
+    [engagementId, branch, branch, department, department], companyId, actor));
+}
+
+export async function readHrEligibility(
+  db: SqlDatabase, companyId: string, engagementId: string, actor?: Lane8Actor,
+): Promise<HrEligibilityRow | null> {
+  void db;
+  if (!id(engagementId)) return unavailable();
+  return hrEligibility(await read(LANE8_RD_HR_ELIGIBILITY, [engagementId], companyId, actor));
+}
+
+export async function readHrAffectedPeople(
+  db: SqlDatabase, companyId: string, engagementIds: readonly string[],
+  branchId: string | null, departmentId: string | null, actor?: Lane8Actor,
+): Promise<SqlLikeResult<HrAffectedPerson>> {
+  void db;
+  const encoded = encodedIds(engagementIds);
+  const branch = filter(branchId);
+  const department = filter(departmentId);
+  return rows(await read(LANE8_RD_HR_AFFECTED_PEOPLE,
+    [encoded, branch, branch, department, department], companyId, actor), hrAffected);
+}
+
+export async function readHrFutureShifts(
+  db: SqlDatabase, companyId: string, engagementIds: readonly string[],
+  now: number, actor?: Lane8Actor,
+): Promise<SqlLikeResult<HrFutureShift>> {
+  void db;
+  const encoded = encodedIds(engagementIds);
+  if (!whole(now)) return unavailable();
+  return rows(await read(LANE8_RD_HR_FUTURE_SHIFTS,
+    [encoded, String(now)], companyId, actor), hrFutureShift);
+}
+
+export async function readHrCurrentPolicies(
+  db: SqlDatabase, companyId: string, engagementIds: readonly string[],
+  today: string, actor?: Lane8Actor,
+): Promise<SqlLikeResult<HrCurrentPolicy>> {
+  void db;
+  const encoded = encodedIds(engagementIds);
+  if (!id(today)) return unavailable();
+  return rows(await read(LANE8_RD_HR_CURRENT_POLICIES,
+    [encoded, today, today], companyId, actor), hrCurrentPolicy);
+}
+
+export async function readHrPayGroups(
+  db: SqlDatabase, companyId: string, engagementIds: readonly string[], actor?: Lane8Actor,
+): Promise<SqlLikeResult<HrPayGroupRow>> {
+  void db;
+  const encoded = encodedIds(engagementIds);
+  return rows(await read(LANE8_RD_HR_PAY_GROUPS, [encoded], companyId, actor), hrPayGroup);
 }

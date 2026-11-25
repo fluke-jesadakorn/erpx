@@ -91,7 +91,8 @@ describe('Identity access read-tail r29 assignment probe families', () => {
       ['adapters/workflow-command-authority.ts', 'assignmentActiveProbeSql', 2],
       ['adapters/records-request-ai-facts.ts', 'assignmentActiveProbeSql', 2],
       ['adapters/collaboration-agent-authority.ts', 'assignmentActiveProbeSql', 2],
-      ['adapters/workflow-approvals-facts.ts', 'assignmentActiveProbeSql', 2],
+      // Lane 12 wave 2 moved this read to the native owner; the guard uses the user-scope head.
+      ['adapters/workflow-approvals-facts.ts', 'assignmentActiveProbeSql', 0],
       ['adapters/workflow-approvals-facts.ts', 'assignmentUserScopeProbeSql', 2],
       ['adapters/beta-invitation-sources.ts', 'assignmentActiveProbeSql', 2],
       ['adapters/beta-invitation-sources.ts', 'assignmentUserScopeProbeSql', 2],

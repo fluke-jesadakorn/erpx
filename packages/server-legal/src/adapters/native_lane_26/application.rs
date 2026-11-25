@@ -10,7 +10,8 @@ use std::{future::Future, pin::Pin};
 use erpx_server_shared::public::BusinessError;
 
 use super::domain::{
-    CopyAuthors, CopyHead, ExecutedCopyRead, ReviewRow, TrustMaterial, TrustMaterialDetail,
+    CitationChunk, CopyAuthors, CopyHead, ExecutedCopyRead, ReviewRow, TrustMaterial,
+    TrustMaterialDetail,
 };
 
 pub type LaneFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, BusinessError>> + Send + 'a>>;
@@ -57,6 +58,23 @@ pub trait TrustMaterialSource: Send + Sync {
         company: &'a str,
         id: &'a str,
     ) -> LaneFuture<'a, Option<TrustMaterialDetail>>;
+}
+
+/// Owner-local citation evidence facts. The Files availability check stays
+/// outside this port: no Files port is available to this lane, so that read is
+/// deliberately retained in TypeScript rather than duplicated as owner SQL.
+pub trait CitationEvidenceSource: Send + Sync {
+    fn chunk<'a>(
+        &'a self,
+        company: &'a str,
+        id: &'a str,
+    ) -> LaneFuture<'a, Option<CitationChunk>>;
+    fn text_approved<'a>(
+        &'a self,
+        company: &'a str,
+        review: &'a str,
+        document: &'a str,
+    ) -> LaneFuture<'a, bool>;
 }
 
 /// Owner handler. The query order is fixed: copies first, then their bounded

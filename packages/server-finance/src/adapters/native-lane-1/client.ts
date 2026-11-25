@@ -12,14 +12,14 @@ import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
  * default. Missing configuration, an unknown target or any native failure
  * fails closed with no TypeScript fallback.
  */
-type Holding = Readonly<{
+export type Holding = Readonly<{
   origin: string;
   host: string;
   holdingId: string;
   holdingSlug: string;
   companyId?: string;
 }>;
-type Settings = Readonly<{ privateBaseUrl: string; timeoutMs: number; holdings: readonly Holding[] }>;
+export type Settings = Readonly<{ privateBaseUrl: string; timeoutMs: number; holdings: readonly Holding[] }>;
 type ColumnType = 'string' | 'number' | 'nullable-string';
 type RowSpec = Readonly<Record<string, ColumnType>>;
 
@@ -56,7 +56,7 @@ const slug = (value: unknown): value is string =>
 const identifier = (value: unknown): value is string =>
   text(value, 200) && /^[A-Za-z0-9_-]+$/.test(value as string);
 
-function configuration(): Settings {
+export function lane1Settings(): Settings {
   const raw = process.env[LANE_01_CONFIG_KEY];
   if (!raw) return unavailable('LANE_01_READ_CONFIGURATION_REQUIRED');
   let value: unknown;
@@ -120,7 +120,8 @@ function configuration(): Settings {
 }
 
 /** Resolve the exact registered target from the caller's WorkContext. */
-function resolve(actor: Lane1Actor, config: Settings): { holding: Holding; companyId: string } {
+export function resolveLane1Target(actor: Lane1Actor): { config: Settings; holding: Holding; companyId: string } {
+  const config = lane1Settings();
   if (!record(actor) || !identifier(actor.holdingId) || !slug(actor.holdingSlug))
     return unavailable('LANE_01_ACTOR_INVALID');
   const holding = config.holdings.find(
@@ -129,7 +130,7 @@ function resolve(actor: Lane1Actor, config: Settings): { holding: Holding; compa
   if (!holding) return unavailable('LANE_01_TARGET_UNAVAILABLE');
   const companyId = actor.companyId ?? holding.companyId;
   if (!identifier(companyId)) return unavailable('LANE_01_COMPANY_SCOPE_UNAVAILABLE');
-  return { holding, companyId };
+  return { config, holding, companyId };
 }
 
 function validRows(rows: unknown, spec: RowSpec): rows is ExpenseLedgerRow[] {
@@ -153,8 +154,7 @@ async function read(
   actor: Lane1Actor,
   journalId?: string,
 ): Promise<ExpenseLedgerRow[]> {
-  const config = configuration();
-  const { holding, companyId } = resolve(actor, config);
+  const { config, holding, companyId } = resolveLane1Target(actor);
   if (kind === LANE_01_JOURNAL_LINES && (typeof journalId !== 'string' || !journalId))
     return unavailable('LANE_01_JOURNAL_INVALID');
   if (kind === LANE_01_POSTING_ACCOUNTS && journalId !== undefined)

@@ -207,8 +207,9 @@ async function read(
   const company = body.companyId ?? target.company;
   if (!scopeId(company)) return unavailable('LANE_16_COMPANY_SCOPE_UNAVAILABLE');
   if (holding.companyId !== undefined && company !== holding.companyId) return changed();
+  const route = String(body.kind).startsWith('push-') ? 'push-settings' : 'sent-notices';
   const url = new URL(
-    `/api/v1/holdings/${encodeURIComponent(holding.holdingSlug)}/collaboration/native-lane-16/sent-notices`,
+    `/api/v1/holdings/${encodeURIComponent(holding.holdingSlug)}/collaboration/native-lane-16/${route}`,
     config.privateBaseUrl,
   );
   const headers: Record<string, string> = {
@@ -331,6 +332,79 @@ export async function sentNoticeDeliveryCount(
   const data = await request({ kind: 'delivery-count', companyId, eventKey: eventKeyValue }, actor, transport);
   if (!('n' in data) || !integer(data.n)) return unavailable('LANE_16_NATIVE_READ_RESPONSE_INVALID');
   return { n: data.n };
+}
+
+const preferenceKeys = [
+  'calendar_enabled', 'enabled', 'mention_enabled', 'notice_enabled', 'quiet_end_minute',
+  'quiet_start_minute', 'system_enabled', 'work_enabled',
+];
+const boolean = (value: unknown): value is boolean => typeof value === 'boolean';
+const nullableMinute = (value: unknown): value is number | null =>
+  value === null || (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && value <= 1439);
+
+function preference(value: unknown): Record<string, boolean | number | null> {
+  if (!record(value) || !exactKeys(value, preferenceKeys)) return unavailable('LANE_16_NATIVE_READ_RESPONSE_INVALID');
+  if (
+    !boolean(value.enabled) || !boolean(value.work_enabled) || !boolean(value.mention_enabled) ||
+    !boolean(value.system_enabled) || !boolean(value.calendar_enabled) || !boolean(value.notice_enabled) ||
+    !nullableMinute(value.quiet_start_minute) || !nullableMinute(value.quiet_end_minute)
+  ) return unavailable('LANE_16_NATIVE_READ_RESPONSE_INVALID');
+  return value as Record<string, boolean | number | null>;
+}
+
+function endpointOwner(value: unknown): { id: string; user_id: string; session_id: string } | null {
+  if (value === null) return null;
+  if (!record(value) || Object.keys(value).length !== 3 ||
+    !scopeId(value.id) || !scopeId(value.user_id) || !scopeId(value.session_id))
+    return unavailable('LANE_16_NATIVE_READ_RESPONSE_INVALID');
+  return value as unknown as { id: string; user_id: string; session_id: string };
+}
+
+/** Native successor of the push `preferences` read. */
+export async function pushPreferences(
+  _db: SqlDatabase,
+  companyId: string,
+  userId: string,
+  actor?: Lane16Actor,
+  transport: NativeLane16Transport = directHttp,
+): Promise<Record<string, boolean | number | null> | null> {
+  void _db;
+  if (!scopeId(companyId) || !scopeId(userId)) return unavailable('LANE_16_READ_INPUT_INVALID');
+  const data = await request({ kind: 'push-preferences', companyId, userId }, actor, transport);
+  if (!('row' in data)) return unavailable('LANE_16_NATIVE_READ_RESPONSE_INVALID');
+  return data.row === null ? null : preference(data.row);
+}
+
+/** Native successor of the push `sessionSubscriptionCount` read. */
+export async function pushSessionSubscriptionCount(
+  _db: SqlDatabase,
+  companyId: string,
+  userId: string,
+  sessionId: string,
+  actor?: Lane16Actor,
+  transport: NativeLane16Transport = directHttp,
+): Promise<{ n: number } | null> {
+  void _db;
+  if (!scopeId(companyId) || !scopeId(userId) || !scopeId(sessionId))
+    return unavailable('LANE_16_READ_INPUT_INVALID');
+  const data = await request({ kind: 'push-session-count', companyId, userId, sessionId }, actor, transport);
+  if (!('n' in data) || !integer(data.n)) return unavailable('LANE_16_NATIVE_READ_RESPONSE_INVALID');
+  return { n: data.n };
+}
+
+/** Native successor of the push `endpointOwner` read. */
+export async function pushEndpointOwner(
+  _db: SqlDatabase,
+  companyId: string,
+  endpointHash: string,
+  actor?: Lane16Actor,
+  transport: NativeLane16Transport = directHttp,
+): Promise<{ id: string; user_id: string; session_id: string } | null> {
+  void _db;
+  if (!scopeId(companyId) || !scopeId(endpointHash)) return unavailable('LANE_16_READ_INPUT_INVALID');
+  const data = await request({ kind: 'push-endpoint-owner', companyId, endpointHash }, actor, transport);
+  if (!('row' in data)) return unavailable('LANE_16_NATIVE_READ_RESPONSE_INVALID');
+  return endpointOwner(data.row);
 }
 
 /** True when the native lane 16 consumer switch is configured. */

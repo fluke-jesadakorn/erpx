@@ -14,7 +14,8 @@ describe('work_projection read-tail r16 dedupe', () => {
 
     const facts = await readFile(src('calendar-appointments-facts.ts'), 'utf8');
     expect(facts).not.toContain(scopeArm);
-    expect(facts.split('${attendeeScopeExistsSql}')).toHaveLength(4);
+    expect(facts).not.toContain('attendeeScopeExistsSql');
+    expect(facts).toContain('nativeAppointmentCandidates(');
   });
 
   it('emits the original byte-identical scope arm for every interpolated caller', async () => {

@@ -5,6 +5,8 @@ vi.mock('server-only', () => ({}));
 
 import {
   NATIVE_FINANCE_LANE_2_CONFIG_KEY,
+  financeAgingBalancesNative,
+  financeInvoicesPageNative,
   financeOverviewCountsNative,
   nativeLane2Config,
   nativeLane2Configured,
@@ -80,7 +82,11 @@ describe('native Finance lane 2 overview counts', () => {
     );
     expect(adapter).not.toContain('companyCountSql');
     expect(adapter).not.toContain('UNMATCHED_BANK_TXN_COUNT_SQL');
+    expect(adapter).not.toContain('invoiceHistoryCte');
+    expect(adapter).not.toMatch(/EXISTS \(SELECT 1 FROM finance_accounts/);
     expect(adapter).toContain('financeOverviewCountsNative(actor)');
+    expect(adapter).toContain('financeInvoicesPageNative(actor, query)');
+    expect(adapter).toContain('financeAgingBalancesNative(facts.actor');
   });
 
   it('pins the response shape and the owner-local transport', async () => {
@@ -196,5 +202,58 @@ describe('native Finance lane 2 overview counts', () => {
       code: 'FINANCE_NATIVE_LANE_2_UNAVAILABLE',
       status: 503,
     });
+  });
+
+  it('pins the invoice page contract and the bounded query transport', async () => {
+    const page = {
+      items: [{ id: 'inv-1', page_key: '2026-01-01:INV-1', total_minor: 100 }],
+      nextCursor: 'next',
+      previousCursor: null,
+      hasMore: true,
+    };
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ data: page })));
+    await expect(
+      financeInvoicesPageNative(actor, { q: 'inv', kind: 'receivable', queue: 'open', cursor: 'cur' }),
+    ).resolves.toEqual(page);
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as unknown as [URL, RequestInit];
+    expect(url.pathname).toBe('/api/v1/holdings/acme/finance/native-lane-2/invoices-page');
+    expect(Object.fromEntries(url.searchParams)).toEqual({ q: 'inv', kind: 'receivable', queue: 'open', cursor: 'cur' });
+    expect((init.headers as Record<string, string>).host).toBe('acme.example.com');
+    expect((init.headers as Record<string, string>)['x-erpx-context-company']).toBe('acme:co-1');
+
+    for (const [query, status] of [
+      [{ kind: 'all' }, 422],
+      [{ q: 'x'.repeat(201) }, 422],
+      [{ cursor: '' }, 422],
+    ] as const) {
+      await expect(financeInvoicesPageNative(actor, { ...query })).rejects.toMatchObject({ status });
+    }
+    for (const body of [
+      { data: { ...page, items: [{ id: 'x' }] } },
+      { data: { ...page, hasMore: 'true' } },
+      { data: { items: [] } },
+      { wrong: page },
+    ]) {
+      vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(body)));
+      await expect(financeInvoicesPageNative(actor)).rejects.toMatchObject({ code: 'FINANCE_NATIVE_LANE_2_UNAVAILABLE', status: 502 });
+    }
+  });
+
+  it('pins the aging contract and fails closed on malformed rows', async () => {
+    const rows = [{
+      id: 'inv-1', source_id: null, due_date: '2026-01-01',
+      historical_outstanding_minor: 125, historical_base_outstanding_minor: 4500,
+      legacy_date_evidence: false,
+    }];
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ data: rows })));
+    await expect(financeAgingBalancesNative(actor, '2026-02-01', 'receivable')).resolves.toEqual(rows);
+    const [url] = vi.mocked(fetch).mock.calls[0] as unknown as [URL];
+    expect(url.pathname).toBe('/api/v1/holdings/acme/finance/native-lane-2/aging');
+    expect(Object.fromEntries(url.searchParams)).toEqual({ kind: 'receivable', asOf: '2026-02-01' });
+
+    await expect(financeAgingBalancesNative(actor, '2026-02-30', 'receivable')).rejects.toMatchObject({ status: 422 });
+    await expect(financeAgingBalancesNative(actor, '2026-02-01', 'all' as 'receivable')).rejects.toMatchObject({ status: 422 });
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ data: [{ id: 'x' }] })));
+    await expect(financeAgingBalancesNative(actor, '2026-02-01', 'receivable')).rejects.toMatchObject({ code: 'FINANCE_NATIVE_LANE_2_UNAVAILABLE', status: 502 });
   });
 });

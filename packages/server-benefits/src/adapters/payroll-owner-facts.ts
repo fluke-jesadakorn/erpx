@@ -1,13 +1,14 @@
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
-import { benefitPayrollInputsSql } from '@erpx/server-benefits/adapters/benefits-read-sql';
+import { benefitPayrollInputs } from './native-lane-32/client';
+/** Native owner read. The axum/sqlx owner executes the released payroll-input
+ * projection; this adapter carries only bounded identities, no SQL. */
 export function payrollBenefitOwnerFacts(database: SqlDatabase) {
-    return { readCalculateItemBenefitInputs(id: string, currency: string, period_end: string, period_start: string) {
-            return database.prepare(benefitPayrollInputsSql).bind(id, currency, period_end, period_start).all<{
-                id: string;
-                plan_name: string;
-                employee_deduction_minor: number;
-                employer_cost_minor: number;
-                source_election_version: number;
-            }>();
+    return { readCalculateItemBenefitInputs(id: string, currency: string, period_end: string, period_start: string, companyId?: string) {
+            return benefitPayrollInputs(database, {
+                engagementId: id,
+                currency,
+                periodEnd: period_end,
+                periodStart: period_start,
+            }, companyId);
         } };
 }

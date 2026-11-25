@@ -108,8 +108,8 @@ describe('Commercial read-tail r14 single closed scoped head', () => {
     expect(pj).toContain('.bind(binding.id, month).first<{refreshed_at:number}>()');
     expect(pj).toContain('.bind(binding.id).all<{ month: string }>()');
     expect(pj).toContain(' AND month=? FOR UPDATE'); // row lock stays caller-side
-    expect(pj.match(/monthScopedRead\(/g)).toHaveLength(1);
-    expect(pj).toContain('.bind(month).all<MeterRow>()');
+    expect((pj.match(/monthScopedRead\(/g) ?? [])).toHaveLength(0);
+    expect(pj).toContain('readNativeProjectionFacts');
 
     expect(pg).toContain('SELECT pg_advisory_xact_lock(hashtextextended(?,0))');
     expect(pg).toContain('SELECT version FROM company_package_revisions WHERE company_id=? FOR UPDATE');

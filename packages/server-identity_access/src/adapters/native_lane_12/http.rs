@@ -4,7 +4,7 @@
 //! company context. Missing or malformed configuration fails closed.
 
 use super::application::PeopleTemplateRead;
-use super::domain::{AttributeRead, LaneTarget};
+use super::domain::{ApprovalRead, AttributeRead, LaneTarget, valid_id};
 use super::postgres::PgPeopleTemplateRead;
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Query, Request, Response, Router,
@@ -149,6 +149,10 @@ fn router_with_readers(
             "/api/v1/holdings/{holding_slug}/identity-access/people-template-attributes/{kind}",
             get(read),
         )
+        .route(
+            "/api/v1/holdings/{holding_slug}/identity-access/approval-facts/{kind}",
+            get(approval_read),
+        )
         .with_state(Arc::new(LaneState { targets: configured })))
 }
 
@@ -176,6 +180,43 @@ async fn read(
             query.value.as_deref(),
         )?;
         let page = reader.read(&read).await?;
+        Ok::<_, BusinessError>(json!({"rows": page.rows, "rowCount": page.row_count}))
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
+}
+
+/// Owner-local workflow approval assignment facts. Command guards and their
+/// cross-owner assertions remain in TypeScript; only these three reads are
+/// executed here with the same per-Holding reader/pool as the attribute reads.
+async fn approval_read(
+    State(state): State<Arc<LaneState>>,
+    Path((slug, kind)): Path<(String, String)>,
+    Query(query): Query<BTreeMap<String, String>>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let host = unique_header(request.headers(), header::HOST)?
+            .filter(|host| !host.is_empty())
+            .ok_or_else(missing)?;
+        let reader = state
+            .targets
+            .get(&(host.to_owned(), slug.clone()))
+            .ok_or_else(missing)?;
+        let company = unique_header(request.headers(), CONTEXT_COMPANY)?
+            .filter(|value| valid_id(value))
+            .ok_or_else(invalid)?;
+        if !query
+            .get("company")
+            .is_some_and(|value| value.as_str() == company)
+        {
+            return Err(invalid());
+        }
+        let read = ApprovalRead::parse(&kind, &query)?;
+        let page = reader.approval(&read).await?;
         Ok::<_, BusinessError>(json!({"rows": page.rows, "rowCount": page.row_count}))
     }
     .await;
@@ -226,6 +267,15 @@ mod tests {
                     },
                 })]))
             })
+        }
+        fn approval<'a>(
+            &'a self,
+            read: &'a ApprovalRead,
+        ) -> super::super::application::AttributeReadFuture<'a, super::super::domain::AttributePage> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            let kind = read.kind().to_owned();
+            let label = self.label.clone();
+            Box::pin(async move { Ok(ReadPage::new(vec![json!({"reader": label, "kind": kind})])) })
         }
     }
 
@@ -402,5 +452,76 @@ mod tests {
     fn native_lane_12_router_for_holdings_rejects_empty_configuration() {
         // No pools are needed to prove the constructor validates its target set.
         assert!(router_for_holdings(Vec::new()).is_err());
+    }
+
+    #[tokio::test]
+    async fn native_lane_12_serves_owner_local_approval_reads() {
+        let app = router_with_reader(Arc::new(RecordingReader::labelled("approval-pool")), target()).unwrap();
+        let (status, body) = call(
+            &app,
+            "acme.jesadakorn.com",
+            Some("acme-1"),
+            "/api/v1/holdings/acme/identity-access/approval-facts/canOverrideStaffStepRole?company=acme-1&assignment=a1&user=u1",
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["rows"][0]["kind"], json!("canOverrideStaffStepRole"));
+        assert_eq!(body["rows"][0]["reader"], json!("approval-pool"));
+
+        let (status, body) = call(
+            &app,
+            "acme.jesadakorn.com",
+            Some("acme-1"),
+            "/api/v1/holdings/acme/identity-access/approval-facts/expenseDecisionEvidence?company=acme-1&assignment=a1&now=1&now2=2",
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["rows"][0]["kind"], json!("expenseDecisionEvidence"));
+
+        let (status, body) = call(
+            &app,
+            "acme.jesadakorn.com",
+            Some("acme-1"),
+            "/api/v1/holdings/acme/identity-access/approval-facts/approvalViewActiveScope?company=acme-1&assignment=a1&user=u1&role=r&now=1&now2=2&policyStep=true",
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["rows"][0]["kind"], json!("approvalViewActiveScope"));
+    }
+
+    #[tokio::test]
+    async fn native_lane_12_fails_closed_on_unbounded_approval_input() {
+        let app = router_with_reader(Arc::new(RecordingReader::default()), target()).unwrap();
+        // The company query must match the trusted context header.
+        let crossed = call(
+            &app,
+            "acme.jesadakorn.com",
+            Some("acme-1"),
+            "/api/v1/holdings/acme/identity-access/approval-facts/canOverrideStaffStepRole?company=other&assignment=a1&user=u1",
+        )
+        .await;
+        assert_eq!(crossed.0, StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(
+            crossed.1["error"]["code"],
+            json!("NATIVE_LANE_12_READ_REQUEST_INVALID")
+        );
+
+        let unknown_kind = call(
+            &app,
+            "acme.jesadakorn.com",
+            Some("acme-1"),
+            "/api/v1/holdings/acme/identity-access/approval-facts/drop-table?company=acme-1",
+        )
+        .await;
+        assert_eq!(unknown_kind.0, StatusCode::UNPROCESSABLE_ENTITY);
+
+        let unknown_target = call(
+            &app,
+            "evil.example",
+            Some("acme-1"),
+            "/api/v1/holdings/acme/identity-access/approval-facts/canOverrideStaffStepRole?company=acme-1&assignment=a1&user=u1",
+        )
+        .await;
+        assert_eq!(unknown_target.0, StatusCode::NOT_FOUND);
     }
 }

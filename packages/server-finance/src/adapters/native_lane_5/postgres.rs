@@ -10,12 +10,13 @@ use erpx_server_runtime::public::postgres::{
 use erpx_server_shared::public::BusinessError;
 use serde_json::{Value, json};
 
-use super::application::{CustomerRead, CustomerReadFuture};
+use super::application::{CustomerRead, CustomerReadFuture, RecordFactsRead};
 use super::domain::{
     self, CUSTOMER_DIRECTORY_SQL, CUSTOMER_PROFILE_SQL, KIND_CUSTOMER_DIRECTORY,
     KIND_CUSTOMER_PROFILE, KIND_NOTE_CUSTOMER, KIND_PRICING_CUSTOMER_VALID,
     KIND_PRICING_CUSTOMERS, NOTE_CUSTOMER_SQL, PAGE_SIZE, PRICING_CUSTOMER_VALID_SQL,
-    PRICING_CUSTOMERS_SQL,
+    PRICING_CUSTOMERS_SQL, RF_ACCOUNT_SQL, RF_KIND_ACCOUNT, RF_KIND_PARTY, RF_KIND_PERIOD,
+    RF_KIND_ROWS, RF_PARTY_SQL, RF_PERIOD_SQL, RF_ROWS_SQL, RecordFactsRequest,
 };
 use super::domain::cursor::{decode_cursor, encode_cursor, scope_hash};
 
@@ -289,6 +290,125 @@ impl CustomerRead for PgCustomerRead {
     }
 }
 
+async fn record_fact_one(
+    connection: &mut sqlx::PgConnection,
+    sql: &str,
+    id: &str,
+    company: &str,
+) -> Result<Value, PgTransactionError<BusinessError>> {
+    let statement = sqlx::AssertSqlSafe(rows_sql(sql));
+    let row: Option<String> = sqlx::query_scalar::<_, String>(statement)
+        .bind(id)
+        .bind(company)
+        .fetch_optional(&mut *connection)
+        .await
+        .map_err(|_| domain::unavailable())?;
+    row.as_deref()
+        .map(parse)
+        .transpose()
+        .map(|value| value.unwrap_or(Value::Null))
+}
+
+async fn record_fact_rows(
+    connection: &mut sqlx::PgConnection,
+    request: &RecordFactsRequest,
+    company: &str,
+) -> Result<Value, PgTransactionError<BusinessError>> {
+    let sql = sqlx::AssertSqlSafe(rows_sql(RF_ROWS_SQL));
+    let rows = sqlx::query_scalar::<_, String>(sql)
+        .bind(request.id.as_deref().unwrap_or(""))
+        .bind(company)
+        .bind(request.chart_id.as_deref())
+        .bind(request.value.as_deref().unwrap_or("0"))
+        .bind(request.value2.as_deref())
+        .bind(request.value3.as_deref())
+        .bind(request.value4.as_deref())
+        .bind(request.value5.as_deref())
+        .bind(request.offset.unwrap_or(0))
+        .fetch_all(&mut *connection)
+        .await
+        .map_err(|_| domain::unavailable())?;
+    Ok(Value::Array(
+        rows.iter().map(|row| parse(row)).collect::<Result<Vec<_>, _>>()?,
+    ))
+}
+
+pub struct PgRecordFactsRead {
+    pool: DatabasePool,
+}
+
+impl PgRecordFactsRead {
+    pub fn new(pool: DatabasePool) -> Self {
+        Self { pool }
+    }
+}
+
+impl RecordFactsRead for PgRecordFactsRead {
+    fn read<'a>(
+        &'a self,
+        company: &'a str,
+        request: &'a RecordFactsRequest,
+    ) -> CustomerReadFuture<'a, Value> {
+        let unit = PgUnitOfWork::new(self.pool.clone());
+        let company = company.to_owned();
+        let kind = request.kind.clone();
+        let id = request.id.clone();
+        let chart_id = request.chart_id.clone();
+        let value = request.value.clone();
+        let value2 = request.value2.clone();
+        let value3 = request.value3.clone();
+        let value4 = request.value4.clone();
+        let value5 = request.value5.clone();
+        let offset = request.offset;
+        Box::pin(async move {
+            let result = unit
+                .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                    let kind = kind.clone();
+                    let company = company.clone();
+                    let id = id.clone();
+                    let chart_id = chart_id.clone();
+                    let value = value.clone();
+                    let value2 = value2.clone();
+                    let value3 = value3.clone();
+                    let value4 = value4.clone();
+                    let value5 = value5.clone();
+                    Box::pin(async move {
+                        let request = RecordFactsRequest {
+                            kind: kind.clone(),
+                            id: id.clone(),
+                            chart_id,
+                            value,
+                            value2,
+                            value3,
+                            value4,
+                            value5,
+                            offset,
+                        };
+                        match kind.as_str() {
+                            RF_KIND_PARTY => {
+                                record_fact_one(connection, RF_PARTY_SQL, id.as_deref().unwrap_or(""), &company).await
+                            }
+                            RF_KIND_ACCOUNT => {
+                                record_fact_one(connection, RF_ACCOUNT_SQL, id.as_deref().unwrap_or(""), &company).await
+                            }
+                            RF_KIND_PERIOD => {
+                                record_fact_one(connection, RF_PERIOD_SQL, id.as_deref().unwrap_or(""), &company).await
+                            }
+                            RF_KIND_ROWS => record_fact_rows(connection, &request, &company).await,
+                            _ => Err(domain::invalid().into()),
+                        }
+                    })
+                })
+                .await;
+            match result {
+                Ok(value) => Ok(value),
+                Err(PgTransactionError::Business(error)) => Err(error),
+                Err(PgTransactionError::Persistence(_)) => Err(domain::unavailable()),
+            }
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -323,5 +443,17 @@ mod tests {
         assert_eq!(page["hasMore"], false);
         assert!(page.get("nextCursor").is_some());
         assert!(page.get("previousCursor").is_some());
+    }
+
+    #[test]
+    fn native_lane_5_record_facts_bind_conversion_and_row_wrapper() {
+        assert_eq!(pg(RF_PARTY_SQL).matches('$').count(), 2);
+        assert_eq!(pg(RF_ACCOUNT_SQL).matches('$').count(), 2);
+        assert_eq!(pg(RF_PERIOD_SQL).matches('$').count(), 2);
+        assert_eq!(pg(RF_ROWS_SQL).matches('$').count(), 9);
+        let wrapped = rows_sql(RF_ROWS_SQL);
+        assert!(wrapped.contains(&pg(RF_ROWS_SQL)));
+        assert!(wrapped.starts_with("SELECT to_jsonb(__r)::text FROM ("));
+        assert!(pg(RF_ROWS_SQL).contains("$4='0'"));
     }
 }

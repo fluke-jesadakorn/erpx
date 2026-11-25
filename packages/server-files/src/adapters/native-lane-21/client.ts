@@ -388,6 +388,172 @@ export function createCommercialReadClient(
   };
 }
 
+// --- Finance tax-signature attachment reads -------------------------------
+
+export const FILES_TAX_METADATA = "metadata";
+export const FILES_TAX_WORKSPACE = "workspace";
+
+export type TaxSignatureParams =
+  | { kind: typeof FILES_TAX_METADATA; id: string; linkId: string }
+  | { kind: typeof FILES_TAX_WORKSPACE };
+export type TaxSignatureMetadata = {
+  checksum_sha256: string;
+  media_type: string;
+  bytes: number;
+};
+export type TaxSignatureRow = {
+  id: string;
+  target_id: string;
+  original_name: string;
+  checksum_sha256: string;
+};
+export type TaxSignatureReadResult =
+  | { kind: typeof FILES_TAX_METADATA; metadata: TaxSignatureMetadata | null }
+  | { kind: typeof FILES_TAX_WORKSPACE; rows: TaxSignatureRow[] };
+
+const metadata = (value: unknown): value is TaxSignatureMetadata =>
+  object(value) &&
+  text(value.checksum_sha256, 200) &&
+  text(value.media_type, 200) &&
+  timestamp(value.bytes);
+const signatureRow = (value: unknown): value is TaxSignatureRow =>
+  object(value) &&
+  text(value.id, 200) &&
+  text(value.target_id, 200) &&
+  text(value.original_name, 8192) &&
+  text(value.checksum_sha256, 200);
+
+function taxPayload(value: unknown, kind: string): TaxSignatureReadResult {
+  const invalid = () => unavailable("FILES_TAX_SIGNATURE_RESPONSE_INVALID");
+  if (!object(value)) return invalid();
+  if (
+    !text(value.witness, 64) ||
+    !/^[a-f0-9]{64}$/.test(String(value.witness)) ||
+    !object(value.data) ||
+    value.data.kind !== kind
+  )
+    return invalid();
+  if (kind === FILES_TAX_METADATA) {
+    if (value.data.metadata !== null && !metadata(value.data.metadata)) return invalid();
+    return { kind: FILES_TAX_METADATA, metadata: value.data.metadata as TaxSignatureMetadata | null };
+  }
+  if (kind === FILES_TAX_WORKSPACE) {
+    if (!Array.isArray(value.data.rows) || !value.data.rows.every(signatureRow)) return invalid();
+    return { kind: FILES_TAX_WORKSPACE, rows: value.data.rows as TaxSignatureRow[] };
+  }
+  return invalid();
+}
+
+/** Create a tax-signature client with an injectable transport for tests. */
+export function createTaxSignatureClient(
+  config: unknown,
+  transport: CommercialReadTransport = post,
+) {
+  const settings = parseCommercialReadConfig(config);
+  return {
+    async read(
+      actor: FilesCommercialActor | undefined,
+      params: TaxSignatureParams,
+    ): Promise<TaxSignatureReadResult> {
+      const invalidRequest = () =>
+        unavailable("FILES_TAX_SIGNATURE_REQUEST_INVALID", "Use one bounded Files tax-signature read.");
+      if (!object(actor)) return invalidRequest();
+      if (!identifier(actor.companyId)) return invalidRequest();
+      const target = selectTarget(settings, actor);
+      const body =
+        params.kind === FILES_TAX_METADATA
+          ? JSON.stringify({ kind: params.kind, id: params.id, linkId: params.linkId })
+          : JSON.stringify({ kind: params.kind });
+      if (params.kind === FILES_TAX_METADATA) {
+        if (!identifier(params.id) || !identifier(params.linkId)) return invalidRequest();
+      }
+      if (new TextEncoder().encode(body).length > 16 * 1024) return invalidRequest();
+      const url = new URL(
+        `/api/v1/holdings/${encodeURIComponent(target.holdingSlug)}/files/finance-tax-signatures`,
+        settings.base,
+      );
+      let response: { status: number; value: unknown };
+      try {
+        response = await transport(
+          url,
+          {
+            host: target.host,
+            origin: target.origin,
+            accept: "application/json",
+            "cache-control": "no-cache",
+            "x-erpx-context-company": actor.companyId!,
+          },
+          body,
+          settings.timeoutMs,
+        );
+      } catch {
+        return unavailable();
+      }
+      if (response.status !== 200) {
+        const error =
+          object(response.value) && object(response.value.error) ? response.value.error : {};
+        if (response.status >= 400 && response.status < 500)
+          throw new ApiError(
+            response.status,
+            text(error.code, 100) ? String(error.code) : "FILES_TAX_SIGNATURE_READ_FAILED",
+            text(error.message, 300)
+              ? String(error.message)
+              : "The native Files tax-signature read was rejected.",
+          );
+        return unavailable();
+      }
+      return taxPayload(response.value, params.kind);
+    },
+  };
+}
+
+async function taxFromEnv(
+  params: TaxSignatureParams,
+  actor: FilesCommercialActor | undefined,
+  environment: Environment,
+  transport?: CommercialReadTransport,
+): Promise<TaxSignatureReadResult> {
+  const raw = environment[ENV];
+  if (!raw) return unavailable("FILES_TAX_SIGNATURE_CONFIG_REQUIRED");
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    return unavailable("FILES_TAX_SIGNATURE_CONFIG_INVALID");
+  }
+  return createTaxSignatureClient(value, transport).read(actor, params);
+}
+
+/** Env-bound metadata read. `null` means no bound signer was found, matching
+ * the original `db.prepare(...).first()` caller contract. */
+export async function readTaxSignatureMetadata(
+  actor: FilesCommercialActor,
+  id: string,
+  linkId: string,
+  environment: Environment = process.env,
+  transport?: CommercialReadTransport,
+): Promise<TaxSignatureMetadata | null> {
+  const result = await taxFromEnv(
+    { kind: FILES_TAX_METADATA, id, linkId },
+    actor,
+    environment,
+    transport,
+  );
+  const metadata = result as Extract<TaxSignatureReadResult, { kind: typeof FILES_TAX_METADATA }>;
+  return metadata.metadata;
+}
+
+/** Env-bound workspace read. */
+export async function readTaxSignatureWorkspace(
+  actor: FilesCommercialActor,
+  environment: Environment = process.env,
+  transport?: CommercialReadTransport,
+): Promise<TaxSignatureRow[]> {
+  const result = await taxFromEnv({ kind: FILES_TAX_WORKSPACE }, actor, environment, transport);
+  const workspace = result as Extract<TaxSignatureReadResult, { kind: typeof FILES_TAX_WORKSPACE }>;
+  return workspace.rows;
+}
+
 /** Env-bound entry point. The caller's WorkContext is required; no Holding is
  * inferred from configuration order. */
 export function readFilesCommercialUsage(

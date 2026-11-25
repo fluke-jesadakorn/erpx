@@ -6,12 +6,12 @@
 //! No predicate or projection is accepted from the caller.
 
 use super::application::{EvidenceFuture, EvidenceReader};
-use super::domain::{EvidenceKind, EvidenceQuery, EvidenceRow, unavailable};
+use super::domain::{EvidenceKind, EvidenceQuery, EvidenceRow, EvidenceSearchQuery, unavailable};
 use erpx_server_runtime::public::postgres::{
     DatabasePool, PgTransactionError, PgUnitOfWork, TransactionOptions,
 };
 use erpx_server_shared::public::BusinessError;
-use sqlx::Row;
+use sqlx::{Postgres, QueryBuilder, Row};
 
 /// Byte-identical completion projection (was `${completionEvidenceColumns}` +
 /// the FROM/JOIN/WHERE/LIMIT tail in `learning.ts`). Positional binds replace
@@ -116,20 +116,131 @@ impl EvidenceReader for PgEvidenceReader {
                                 .map(map_completion)
                                 .transpose()?
                         }
-                        EvidenceKind::Overdue => {
-                            sqlx::query(sqlx::AssertSqlSafe(OVERDUE_SQL))
-                                .bind(id.as_str())
-                                .bind(company.as_str())
-                                .bind(branch.as_deref())
-                                .bind(department.as_deref())
-                                .fetch_optional(&mut *connection)
-                                .await
-                                .map_err(|_| unavailable())?
-                                .map(map_overdue)
-                                .transpose()?
-                        }
+                        EvidenceKind::Overdue => sqlx::query(sqlx::AssertSqlSafe(OVERDUE_SQL))
+                            .bind(id.as_str())
+                            .bind(company.as_str())
+                            .bind(branch.as_deref())
+                            .bind(department.as_deref())
+                            .fetch_optional(&mut *connection)
+                            .await
+                            .map_err(|_| unavailable())?
+                            .map(map_overdue)
+                            .transpose()?,
                     };
                     Ok(row)
+                })
+            })
+            .await
+            .map_err(|error| match error {
+                PgTransactionError::Business(error) => error,
+                PgTransactionError::Persistence(_) => unavailable(),
+            })
+        })
+    }
+
+    fn search<'a>(
+        &'a self,
+        kind: EvidenceKind,
+        query: &'a EvidenceSearchQuery,
+        company: &'a str,
+        branch: Option<&'a str>,
+        department: Option<&'a str>,
+    ) -> EvidenceFuture<'a, Vec<EvidenceRow>> {
+        let unit = PgUnitOfWork::new(self.pool.clone());
+        let company = company.to_owned();
+        let branch = branch.map(str::to_owned);
+        let department = department.map(str::to_owned);
+        let text_query = query.query.clone();
+        let from = query.from;
+        let to_exclusive = query.to_exclusive;
+        let limit = query.limit;
+        let cursor = query.cursor.clone();
+        Box::pin(async move {
+            unit.run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                let company = company.clone();
+                let branch = branch.clone();
+                let department = department.clone();
+                let text_query = text_query.clone();
+                let cursor = cursor.clone();
+                Box::pin(async move {
+                    let mut builder = match kind {
+                        EvidenceKind::Completion => {
+                            let mut builder = QueryBuilder::<Postgres>::new(concat!(
+                                "SELECT e.id,e.assignment_id,e.version event_version,e.status,e.created_at,c.title course_title",
+                                " FROM learning_assignment_events e",
+                                " JOIN learning_assignments a ON a.id=e.assignment_id AND a.company_id=",
+                            ));
+                            builder.push_bind(company);
+                            builder.push(" AND (");
+                            builder.push_bind(branch.clone()).push("::text IS NULL OR a.branch_id=").push_bind(branch);
+                            builder.push(") AND (");
+                            builder.push_bind(department.clone()).push("::text IS NULL OR a.department_id=").push_bind(department);
+                            builder.push(
+                                ") AND e.action='complete' AND e.status='completed'",
+                            );
+                            builder.push(" AND e.created_at>=").push_bind(from);
+                            builder.push(" AND e.created_at<").push_bind(to_exclusive);
+                            if !text_query.is_empty() {
+                                builder.push(" AND (position(lower(").push_bind(text_query.clone());
+                                builder.push(") in lower(c.title))>0 OR position(lower(").push_bind(text_query);
+                                builder.push(
+                                    ") in to_char(to_timestamp(e.created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM-DD'))>0)",
+                                );
+                            }
+                            if let Some(cursor) = &cursor {
+                                builder.push(" AND (e.created_at<").push_bind(cursor.created_at);
+                                builder.push(" OR (e.created_at=").push_bind(cursor.created_at);
+                                builder.push(" AND e.id<").push_bind(cursor.id.as_str()).push("))");
+                            }
+                            builder.push(" ORDER BY e.created_at DESC,e.id DESC LIMIT ");
+                            builder.push_bind(limit + 1);
+                            builder
+                        }
+                        EvidenceKind::Overdue => {
+                            let mut builder = QueryBuilder::<Postgres>::new(concat!(
+                                "SELECT a.id,a.version,a.status,a.due_date,a.updated_at,c.title course_title,c.required_for",
+                                " FROM learning_assignments a JOIN learning_courses c ON c.id=a.course_id AND c.company_id=a.company_id",
+                                " WHERE a.company_id=",
+                            ));
+                            builder.push_bind(company);
+                            builder.push(" AND (");
+                            builder.push_bind(branch.clone()).push("::text IS NULL OR a.branch_id=").push_bind(branch);
+                            builder.push(") AND (");
+                            builder.push_bind(department.clone()).push("::text IS NULL OR a.department_id=").push_bind(department);
+                            builder
+                                .push(") AND c.required_for IS NOT NULL")
+                                .push(" AND a.due_date<to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD')")
+                                .push(" AND a.status IN ('assigned','in_progress')");
+                            if !text_query.is_empty() {
+                                builder.push(" AND (position(lower(").push_bind(text_query.clone());
+                                builder.push(") in lower(c.title))>0 OR position(lower(").push_bind(text_query.clone());
+                                builder.push(") in lower(a.status))>0 OR position(lower(").push_bind(text_query.clone());
+                                builder.push(") in a.due_date)>0 OR position(lower(").push_bind(text_query);
+                                builder.push(") in lower(c.required_for))>0)");
+                            }
+                            if let Some(cursor) = &cursor {
+                                builder.push(" AND (a.due_date>").push_bind(cursor.due_date.clone());
+                                builder.push(" OR (a.due_date=").push_bind(cursor.due_date.clone());
+                                builder.push(" AND a.id>").push_bind(cursor.id.as_str()).push("))");
+                            }
+                            builder.push(" ORDER BY a.due_date,a.id LIMIT ");
+                            builder.push_bind(limit + 1);
+                            builder
+                        }
+                    };
+                    let rows = builder
+                        .build()
+                        .fetch_all(&mut *connection)
+                        .await
+                        .map_err(|_| unavailable())?;
+                    let mapped = rows
+                        .into_iter()
+                        .map(|row| match kind {
+                            EvidenceKind::Completion => map_completion(row),
+                            EvidenceKind::Overdue => map_overdue(row),
+                        })
+                        .collect::<Result<Vec<_>, BusinessError>>()?;
+                    Ok(mapped)
                 })
             })
             .await
@@ -159,6 +270,31 @@ mod tests {
             assert!(!sql.to_uppercase().contains("FOR SHARE"));
             assert!(!sql.to_uppercase().contains("LOCK TABLE"));
             assert!(!sql.to_uppercase().contains("ADVISORY"));
+        }
+    }
+
+    #[test]
+    fn search_predicates_are_owner_local_and_company_scoped() {
+        // The search family renders every predicate from fixed owner-local
+        // fragments; only scalar values are bound. No caller text becomes SQL.
+        let source = include_str!("postgres.rs");
+        for fragment in [
+            "JOIN learning_assignments a ON a.id=e.assignment_id AND a.company_id=",
+            "::text IS NULL OR a.branch_id=",
+            "::text IS NULL OR a.department_id=",
+            "e.action='complete' AND e.status='completed'",
+            "to_char(to_timestamp(e.created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM-DD')",
+            "ORDER BY e.created_at DESC,e.id DESC LIMIT ",
+            "c.required_for IS NOT NULL",
+            "a.due_date<to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD')",
+            "a.status IN ('assigned','in_progress')",
+            "ORDER BY a.due_date,a.id LIMIT ",
+            "position(lower(",
+        ] {
+            assert!(
+                source.contains(fragment),
+                "missing search fragment: {fragment}"
+            );
         }
     }
 }

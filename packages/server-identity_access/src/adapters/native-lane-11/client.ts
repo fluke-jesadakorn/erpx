@@ -29,6 +29,22 @@ type NativeConfig = Readonly<{
   holdings: readonly LaneHolding[];
 }>;
 
+export type DirectoryKind = "connections" | "groups" | "previews" | "identities";
+const DIRECTORY_KINDS: readonly DirectoryKind[] = ["connections", "groups", "previews", "identities"];
+const MAX_DIRECTORY_ROWS = 500;
+
+export type NativeRoleRevision = {
+  id: string;
+  name: string;
+  companyId: string;
+  revision: number;
+  builtIn: boolean;
+  permissions: string[];
+  grantablePermissions: string[];
+  scopes: string[];
+  status: string;
+};
+
 export type NativePersonIdentityReader = Readonly<{
   identityIds(
     actor: NativeLane11Actor | undefined,
@@ -41,6 +57,26 @@ export type NativePersonIdentityReader = Readonly<{
     snapshot: boolean,
     companyId: string | undefined,
   ): Promise<Map<string, string>>;
+  directory(
+    actor: NativeLane11Actor | undefined,
+    kind: DirectoryKind,
+    canManage: boolean,
+    companyId: string | undefined,
+  ): Promise<Record<string, unknown>[]>;
+  role(
+    actor: NativeLane11Actor | undefined,
+    id: string,
+    companyId: string | undefined,
+  ): Promise<NativeRoleRevision | null>;
+  roles(
+    actor: NativeLane11Actor | undefined,
+    ids: readonly string[],
+    companyId: string | undefined,
+  ): Promise<NativeRoleRevision[]>;
+  roleIds(
+    actor: NativeLane11Actor | undefined,
+    companyId: string | undefined,
+  ): Promise<string[]>;
 }>;
 
 const ENV = "ERPX_NATIVE_IDENTITY_ACCESS_LANE_11_CONFIG";
@@ -216,7 +252,7 @@ async function post(
   let response: Response;
   try {
     response = await fetch(
-      `${config.base}/api/v1/holdings/${encodeURIComponent(holding.holdingSlug)}/identity-access/person/${path}`,
+      `${config.base}/api/v1/holdings/${encodeURIComponent(holding.holdingSlug)}/identity-access/${path}`,
       {
         method: "POST",
         headers,
@@ -290,7 +326,7 @@ export async function nativeIdentityIds(
   if (testReader) return testReader.identityIds(actor, ids, legacyCompanyId);
   const config = configuration();
   const target = selectTarget(config, actor, legacyCompanyId);
-  return parseIdentityIds(await post(config, target.holding, target.companyId, "identity-ids", { ids }));
+  return parseIdentityIds(await post(config, target.holding, target.companyId, "person/identity-ids", { ids }));
 }
 
 export async function nativePrincipals(
@@ -306,8 +342,125 @@ export async function nativePrincipals(
   const config = configuration();
   const target = selectTarget(config, actor, legacyCompanyId);
   return parsePrincipals(
-    await post(config, target.holding, target.companyId, "principals", { ids, snapshot }),
+    await post(config, target.holding, target.companyId, "person/principals", { ids, snapshot }),
   );
+}
+
+function parseDirectoryRows(value: unknown): Record<string, unknown>[] {
+  if (!object(value)) return unavailable("The native directory reply was invalid.");
+  const rows = value.rows;
+  if (!Array.isArray(rows) || rows.length > MAX_DIRECTORY_ROWS || rows.some((row) => !object(row) || !bounded(row.id)))
+    return unavailable("The native directory reply was invalid.");
+  return rows as Record<string, unknown>[];
+}
+
+function strings(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => text(item, 1000));
+}
+
+function parseRole(value: unknown): NativeRoleRevision {
+  if (
+    !object(value) ||
+    !bounded(value.id) ||
+    !text(value.name, 200) ||
+    !text(value.companyId, 200) ||
+    !Number.isSafeInteger(value.revision) ||
+    typeof value.builtIn !== "boolean" ||
+    !strings(value.permissions) ||
+    !strings(value.grantablePermissions) ||
+    !strings(value.scopes) ||
+    !text(value.status, 100)
+  )
+    return unavailable("The native role reply was invalid.");
+  return {
+    id: value.id,
+    name: value.name,
+    companyId: value.companyId,
+    revision: value.revision as number,
+    builtIn: value.builtIn,
+    permissions: value.permissions,
+    grantablePermissions: value.grantablePermissions,
+    scopes: value.scopes,
+    status: value.status,
+  };
+}
+
+/**
+ * Read the four owner-local directory configuration projections. A
+ * WorkContext selects the Holding; callers without one (the IAM overview
+ * actor has no holding slug) use the legacy Company-to-Holding resolution.
+ */
+export async function nativeDirectoryConfig(
+  actor: NativeLane11Actor | undefined,
+  kind: DirectoryKind,
+  canManage: boolean,
+  legacyCompanyId?: string,
+): Promise<Record<string, unknown>[]> {
+  if (!DIRECTORY_KINDS.includes(kind) || typeof canManage !== "boolean")
+    throw new ApiError(422, "IDENTITY_ACCESS_NATIVE_LANE_11_REQUEST_INVALID", "Use a bounded directory read.");
+  if (testReader) return testReader.directory(actor, kind, canManage, legacyCompanyId);
+  const config = configuration();
+  const target = selectTarget(config, actor, legacyCompanyId);
+  const payload = await post(config, target.holding, target.companyId, `directory/${kind}`, {
+    canManage,
+  });
+  return parseDirectoryRows(payload);
+}
+
+/** Read one published role definition, or null when no active revision exists. */
+export async function nativeRole(
+  actor: NativeLane11Actor | undefined,
+  id: string,
+  legacyCompanyId?: string,
+): Promise<NativeRoleRevision | null> {
+  if (!bounded(id))
+    throw new ApiError(422, "IDENTITY_ACCESS_NATIVE_LANE_11_REQUEST_INVALID", "Use a bounded role id.");
+  if (testReader) return testReader.role(actor, id, legacyCompanyId);
+  const config = configuration();
+  const target = selectTarget(config, actor, legacyCompanyId);
+  const payload = await post(config, target.holding, target.companyId, `role/${encodeURIComponent(id)}`, {});
+  if (!object(payload) || !("role" in payload))
+    return unavailable("The native role reply was invalid.");
+  return payload.role === null ? null : parseRole(payload.role);
+}
+
+/** Read published definitions for a bounded role id list, first row per id. */
+export async function nativeRoles(
+  actor: NativeLane11Actor | undefined,
+  ids: readonly string[],
+  legacyCompanyId?: string,
+): Promise<NativeRoleRevision[]> {
+  validateIds(ids);
+  if (testReader) return testReader.roles(actor, ids, legacyCompanyId);
+  const config = configuration();
+  const target = selectTarget(config, actor, legacyCompanyId);
+  const payload = await post(config, target.holding, target.companyId, "roles", { ids });
+  if (!object(payload) || !Array.isArray(payload.roles) || payload.roles.length > MAX_IDS)
+    return unavailable("The native role reply was invalid.");
+  const seen = new Set<string>();
+  const roles: NativeRoleRevision[] = [];
+  for (const row of payload.roles) {
+    const role = parseRole(row);
+    if (!seen.has(role.id)) {
+      seen.add(role.id);
+      roles.push(role);
+    }
+  }
+  return roles;
+}
+
+/** Read the published active role ids in their owner-defined order. */
+export async function nativeRoleIds(
+  actor: NativeLane11Actor | undefined,
+  legacyCompanyId?: string,
+): Promise<string[]> {
+  if (testReader) return testReader.roleIds(actor, legacyCompanyId);
+  const config = configuration();
+  const target = selectTarget(config, actor, legacyCompanyId);
+  const payload = await post(config, target.holding, target.companyId, "role-ids", {});
+  if (!object(payload) || !Array.isArray(payload.ids) || payload.ids.length > MAX_IDS || payload.ids.some((id) => !bounded(id)))
+    return unavailable("The native role reply was invalid.");
+  return payload.ids as string[];
 }
 
 /** True only when the native lane 11 consumer switch is configured. */

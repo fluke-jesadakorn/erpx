@@ -1,18 +1,30 @@
-//! sqlx execution for the native Finance overview-counts read.
+//! sqlx execution for the native Finance overview-counts and invoice reads.
 //!
-//! The statement is the byte-identical successor of the seven subqueries that
-//! used to live in `finance-invoice-read.ts`: only the `?` placeholders were
-//! renumbered to `$1..$7`, in the original bind order. Every table is
-//! Finance-owned and every subquery carries the Company bind.
+//! The overview statement is the byte-identical successor of the seven
+//! subqueries that used to live in `finance-invoice-read.ts`: only the `?`
+//! placeholders were renumbered to `$1..$7`, in the original bind order. The
+//! invoice page and historical aging statements are executed by the existing
+//! owner reads in `finance_invoice_read.rs`, inside a serializable unit. Every
+//! table is Finance-owned and every predicate carries the Company bind.
 
-use crate::adapters::native_lane_2::{
-    application::{OverviewCountsFuture, OverviewCountsQuery},
-    domain::{OverviewCounts, unavailable},
+use crate::adapters::{
+    finance_invoice_read::{InvoicePageQuery, read_invoice_aging, read_invoice_page},
+    native_lane_2::{
+        application::{
+            AgingFuture, CompanyToolsFuture, CompanyToolsQuery, InvoicePageFuture, InvoiceReadQuery,
+            OverviewCountsFuture, OverviewCountsQuery,
+        },
+        domain::{
+            AgingRequest, CompanyTool, InvoicePageRequest, InvoicePageWire, OverviewCounts,
+            unavailable,
+        },
+    },
 };
 use erpx_server_runtime::public::postgres::{
     DatabasePool, PgTransactionError, PgUnitOfWork, TransactionOptions,
 };
 use erpx_server_shared::public::BusinessError;
+use serde_json::Value;
 use sqlx::Row;
 
 /// The rendered TS statement with `?` replaced by positional `$n` binds.
@@ -72,6 +84,141 @@ impl OverviewCountsQuery for PgOverviewCountsQuery {
                 PgTransactionError::Business(error) => error,
                 PgTransactionError::Persistence(_) => unavailable(),
             })
+        })
+    }
+}
+
+/// The rendered TS statement with its single `?` bind renumbered to `$1`.
+pub const COMPANY_TOOLS_SQL: &str =
+    "SELECT * FROM finance_company_tools WHERE company_id=$1 ORDER BY tool";
+
+/// Postgres-backed owner reader for the standalone tool-list read.
+pub struct PgCompanyToolsQuery {
+    pool: DatabasePool,
+}
+
+impl PgCompanyToolsQuery {
+    pub fn new(pool: DatabasePool) -> Self {
+        Self { pool }
+    }
+}
+
+impl CompanyToolsQuery for PgCompanyToolsQuery {
+    fn company_tools<'a>(&'a self, company_id: &'a str) -> CompanyToolsFuture<'a> {
+        let unit = PgUnitOfWork::new(self.pool.clone());
+        let company_id = company_id.to_owned();
+        Box::pin(async move {
+            unit.run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                let company_id = company_id.clone();
+                Box::pin(async move {
+                    let rows = sqlx::query(COMPANY_TOOLS_SQL)
+                        .bind(company_id.as_str())
+                        .fetch_all(&mut *connection)
+                        .await
+                        .map_err(|_| unavailable())?;
+                    rows.into_iter()
+                        .map(|row| {
+                            Ok(CompanyTool {
+                                tool: row.try_get("tool").map_err(|_| unavailable())?,
+                                enabled: row.try_get("enabled").map_err(|_| unavailable())?,
+                                version: row.try_get("version").map_err(|_| unavailable())?,
+                            })
+                        })
+                        .collect()
+                })
+            })
+            .await
+            .map_err(to_business)
+        })
+    }
+}
+
+fn to_business(error: PgTransactionError<BusinessError>) -> BusinessError {
+    match error {
+        PgTransactionError::Business(error) => error,
+        PgTransactionError::Persistence(_) => unavailable(),
+    }
+}
+
+/// Postgres-backed owner reader for the invoice page and aging family.
+pub struct PgInvoiceReadQuery {
+    pool: DatabasePool,
+}
+
+impl PgInvoiceReadQuery {
+    pub fn new(pool: DatabasePool) -> Self {
+        Self { pool }
+    }
+}
+
+impl InvoiceReadQuery for PgInvoiceReadQuery {
+    fn page<'a>(
+        &'a self,
+        company_id: &'a str,
+        request: &'a InvoicePageRequest,
+    ) -> InvoicePageFuture<'a> {
+        let unit = PgUnitOfWork::new(self.pool.clone());
+        let company_id = company_id.to_owned();
+        let query = InvoicePageQuery {
+            q: request.q.clone().unwrap_or_default(),
+            kind: request.kind.clone().unwrap_or_default(),
+            status: request.status.clone().unwrap_or_default(),
+            queue: request.queue.clone().unwrap_or_default(),
+            chart_id: request.chart_id.clone(),
+            cursor: request.cursor.clone(),
+        };
+        Box::pin(async move {
+            unit.run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                let company_id = company_id.clone();
+                let query = query.clone();
+                Box::pin(async move {
+                    let page = read_invoice_page(connection, &company_id, &query)
+                        .await
+                        .map_err(to_business)?;
+                    Ok(InvoicePageWire {
+                        items: page.items,
+                        next_cursor: page.next_cursor,
+                        previous_cursor: page.previous_cursor,
+                        has_more: page.has_more,
+                    })
+                })
+            })
+            .await
+            .map_err(to_business)
+        })
+    }
+
+    fn aging<'a>(
+        &'a self,
+        company_id: &'a str,
+        request: &'a AgingRequest,
+    ) -> AgingFuture<'a> {
+        let unit = PgUnitOfWork::new(self.pool.clone());
+        let company_id = company_id.to_owned();
+        let kind = request.kind.clone();
+        let as_of = request.as_of.clone();
+        let chart_id = request.chart_id.clone();
+        Box::pin(async move {
+            unit.run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                let company_id = company_id.clone();
+                let kind = kind.clone();
+                let as_of = as_of.clone();
+                let chart_id = chart_id.clone();
+                Box::pin(async move {
+                    let rows = read_invoice_aging(
+                        connection,
+                        &company_id,
+                        &kind,
+                        &as_of,
+                        chart_id.as_deref(),
+                    )
+                    .await
+                    .map_err(to_business)?;
+                    Ok(rows)
+                })
+            })
+            .await
+            .map_err(to_business)
         })
     }
 }

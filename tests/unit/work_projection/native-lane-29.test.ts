@@ -113,6 +113,26 @@ describe('native lane 29 contract', () => {
     expect(parseNativeLane29Response({conflict: false}, 'conflict_probe', company)).toEqual({conflict: false});
   });
 
+  it('pins candidate-list response shapes', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const keys = (source: string, name: string) => {
+      const match = source.match(new RegExp(`const ${name} = \\[([\\s\\S]*?)\\] as const;`));
+      return match ? match[1]!.split(',').map(s => s.trim().replace(/'/g, '')).filter(Boolean) : [];
+    };
+    const client = await readFile(
+      new URL('../../../packages/server-work_projection/src/adapters/native-lane-29/client.ts', import.meta.url),
+      'utf8',
+    );
+    const appointmentKeys = keys(client, 'APPOINTMENT_KEYS');
+    const attendeeKeys = keys(client, 'ATTENDEE_KEYS');
+    const announcementKeys = keys(client, 'ANNOUNCEMENT_KEYS');
+    const row = (names: string[], ids: string[]) => Object.fromEntries(names.map(name => [name, ids.includes(name) ? company : null]));
+    expect(parseNativeLane29Response({appointments: [row(appointmentKeys, ['id', 'company_id'])]}, 'appointment_candidates', company)).toHaveLength(1);
+    expect(parseNativeLane29Response({attendees: [row(attendeeKeys, ['appointment_id', 'user_id'])]}, 'attendee_rows', company)).toHaveLength(1);
+    expect(parseNativeLane29Response({announcements: [row(announcementKeys, ['id', 'company_id'])]}, 'announcement_candidates', company)).toHaveLength(1);
+    expect(() => parseNativeLane29Response({appointments: [{}]}, 'appointment_candidates', company)).toThrow();
+  });
+
   it('rejects malformed, widened or extra-field responses', () => {
     const bad = [
       [{}, 'occurrence_exception'],
@@ -306,6 +326,29 @@ describe('native lane 29 contract', () => {
     ).rejects.toMatchObject({status: 422});
   });
 
+  it('pins the candidate-list wire arity', async () => {
+    const seen: string[] = [];
+    await expect(
+      readNativeLane29(
+        {kind: 'attendee_rows', companyId: company, values: ['[]', '[]']},
+        context,
+        async (_url, headers, body) => {
+          seen.push(String(headers.get('x-erpx-context-company')));
+          expect(JSON.parse(body).values).toEqual(['[]', '[]']);
+          return json({attendees: []});
+        },
+      ),
+    ).resolves.toEqual([]);
+    expect(seen).toEqual([company]);
+    await expect(
+      readNativeLane29(
+        {kind: 'appointment_candidates', companyId: company, values: ['[]']},
+        context,
+        ok({appointments: []}),
+      ),
+    ).rejects.toMatchObject({status: 422});
+  });
+
   it('pins the SQL oracle and proves TypeScript SQL was deleted', async () => {
     const rust = await readFile(src('adapters/native_lane_29/postgres.rs'), 'utf8');
     const facts = await readFile(src('adapters/calendar-availability-facts.ts'), 'utf8');
@@ -326,8 +369,14 @@ describe('native lane 29 contract', () => {
     expect(hash(
       'SELECT 1 FROM calendar_appointments a JOIN calendar_attendees p ON p.appointment_id=a.id WHERE a.company_id=$1 AND a.status=\'scheduled\' AND a.id!=$2 AND a.starts_at<$3 AND a.ends_at>$4 AND p.response!=\'declined\' AND p.user_id IN (SELECT jsonb_array_elements_text($5::jsonb)) LIMIT 1',
     )).toBe('fa8e749772b2dc348cf49b54bbb5d4f06a4802ef132e8e49fe7aafc41ae52a31');
+    expect(hash(
+      'WITH candidates AS (\n SELECT x.*,p.legal_name organizer_name,\n (($1 AND coalesce(x.department_id,x.branch_id,x.company_id) IN (SELECT jsonb_array_elements_text($2::jsonb))) OR x.organizer_person_id=$3 OR EXISTS(SELECT 1 FROM calendar_attendees ap WHERE ap.appointment_id=x.id AND ap.user_id=$4)) full_detail\n FROM calendar_appointments x LEFT JOIN (SELECT id,user_id,company_id,legal_name,merged_into_id FROM hr_people) p ON p.id=x.organizer_person_id AND p.company_id=x.company_id\n WHERE x.company_id=$5 AND x.starts_at<$6 AND (x.ends_at>$7 OR EXISTS(SELECT 1 FROM calendar_series s WHERE s.appointment_id=x.id))\n AND (coalesce(x.department_id,x.branch_id,x.company_id) IN (SELECT jsonb_array_elements_text($8::jsonb)) OR EXISTS(SELECT 1 FROM calendar_attendees ap WHERE ap.appointment_id=x.id AND ap.user_id=$9) OR EXISTS(SELECT 1 FROM calendar_appointment_participants ap JOIN (SELECT person_id,company_id,status,branch_id,department_id FROM hr_engagements) e ON e.person_id=ap.person_id AND e.company_id=ap.company_id WHERE ap.appointment_id=x.id AND e.status=\'active\' AND coalesce(e.department_id,e.branch_id,e.company_id) IN (SELECT jsonb_array_elements_text($10::jsonb)))))\n SELECT x.* FROM candidates x WHERE (full_detail OR ($11 AND x.status=\'scheduled\'))\n AND (($12::text IS NOT NULL AND EXISTS(SELECT 1 FROM calendar_appointment_participants ap WHERE ap.appointment_id=x.id AND ap.person_id=$13))\n   OR ($14::text IS NULL AND ($15=\'team\' OR EXISTS(SELECT 1 FROM calendar_attendees ap WHERE ap.appointment_id=x.id AND ap.user_id=$16) OR x.organizer_person_id=$17)))\n AND ($18=\'\' OR (CASE WHEN full_detail THEN x.title ELSE \'Busy\' END) ILIKE \'%\'||$19||\'%\') ORDER BY x.id LIMIT $20',
+    )).toBe('d6c5f523d29aefbf566e6d80bf3827d5de0e2d4e9b1e395a4fccfaedf5788265');
+    const announcements = await readFile(src('adapters/calendar-announcements-facts.ts'), 'utf8');
+    expect(announcements).not.toMatch(/\bSELECT\b/);
+    expect(announcements).toContain('nativeAnnouncementCandidates');
     const appointments = await readFile(src('adapters/calendar-appointments-facts.ts'), 'utf8');
-    expect(appointments).not.toMatch(/byAppointmentIds|overlapProbe/);
+    expect(appointments).not.toMatch(/byAppointmentIds|overlapProbe|attendeeScopeExistsSql|participantScopeExistsSql|derivedProbeSql|\bSELECT\b/);
     expect(appointments).toContain('nativeSeriesBatch');
     expect(appointments).toContain('nativeConflictProbe');
     expect(facts).not.toMatch(/\bSELECT\b/);

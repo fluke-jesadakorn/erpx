@@ -2,6 +2,7 @@ import { nativeCreateCandidate, nativeRecordEngagement, nativeReviewAsset } from
 import {filterMarketingPurchasedWork} from "@erpx/server-marketing/adapters/record-purchases";
 import {marketingEvidenceCandidateRows,marketingEvidenceEventRows} from "./executive-evidence-rows";
 import {
+  LANE40_ACTIVE_FORM_SOURCE,
   LANE40_CAMPAIGN_SUMMARY,
   LANE40_CANDIDATE_DETAIL,
   LANE40_CANDIDATE_HISTORY,
@@ -27,14 +28,12 @@ import { marketingCampaigns, marketingCostSources } from "@erpx/server-marketing
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import {commercePackageEnforcementMode} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {marketingFormReadiness,marketingPresentationAssertions} from "@erpx/server-marketing/adapters/public-form";
-import {activeFormSql} from "./active-form-sql";
 import {marketingCompanyListSql} from "./marketing-company-list-sql";
 import {marketingLocalPointReadSql} from "./marketing-local-point-read-sql";
 import {marketingSelectHeadSql} from './select-head-sql';
 import {
   MARKETING_RD_ASSET_LIST,
   MARKETING_RD_ASSET_POINT,
-  MARKETING_RD_FORM_SOURCE,
   nativeMarketingReadAll,
   nativeMarketingReadConfigured,
   nativeMarketingReadFirst,
@@ -89,8 +88,9 @@ async campaignSummary(){return readMarketingLane40(LANE40_CAMPAIGN_SUMMARY, a, {
         enforced: await commercePackageEnforcementMode() === 'enforced',
       });},
 async sourceForm(formId,formVersion){
-      if(nativeMarketingReadConfigured())return nativeMarketingReadFirst<{configuration_json:string}>(MARKETING_RD_FORM_SOURCE,{assetId:formId,companyId:a.companyId,version:formVersion},write);
-      return write.prepare(activeFormSql('source',true,true)).bind(formId,a.companyId,formVersion).first<{configuration_json:string}>();},
+      const rows=await readMarketingLane40(LANE40_ACTIVE_FORM_SOURCE,a,{assetId:formId,version:formVersion});
+      const row=rows[0];
+      return row&&typeof row.configuration_json==='string'?{configuration_json:row.configuration_json}:null;},
 async asset(id){
       if(nativeMarketingReadConfigured())return nativeMarketingReadFirst<Row>(MARKETING_RD_ASSET_POINT,{assetId:id,companyId:a.companyId},write);
       return write

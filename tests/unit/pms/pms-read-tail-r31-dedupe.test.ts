@@ -72,7 +72,10 @@ describe('pms read-tail r31 closed-family dedupe', () => {
 
   it('routes setup/eligibility probes and point projections through shared SQL', async () => {
     const text = await src(REPO);
-    expect(text.split('pmsSetupExistsSql').length - 1).toBe(5); // import + 4 uses
+    // Setup/stay readiness is now owned by native lane 20; the TS repository
+    // keeps only a strict transport call and no fragment SQL.
+    expect(text.split('pmsSetupExistsSql').length - 1).toBe(0);
+    expect(text).toContain('propertyReadinessFacts');
     expect(text.split('PMS_RECORD_POINT_PREFIX_SQL').length - 1).toBe(2); // import + 1 use after r48
     expect(text).not.toContain("EXISTS(SELECT 1 FROM pms_records WHERE property_id=? AND kind='room_type')");
     expect(text).not.toContain("EXISTS(SELECT 1 FROM pms_records WHERE property_id=? AND kind='stay')");
@@ -117,8 +120,8 @@ describe('pms read-tail r31 closed-family dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(241);
-    expect(bare).toBe(243);
+    expect(spaced).toBe(237);
+    expect(bare).toBe(238);
     expect(spaced).toBeLessThan(358);
     expect(bare).toBeLessThan(360);
   });

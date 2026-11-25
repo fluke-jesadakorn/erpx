@@ -153,7 +153,7 @@ describe('Identity access read-tail r33 wiring', () => {
       ['adapters/read-tail-family-r33.ts', '3b6789a67a614277f39bedad7411a89d048870f41d5438ab88779e94a9b9e52d'],
       ['adapters/payroll-payslip-grant.ts', '3135c8ee936025148f0bcdc50b7a0ffbd215f26ee9adde00ef8692ecfb4bcef3'],
       ['adapters/payroll-recovery-grant.ts', 'f8c30abffc5fa9ba1d93f50fd2c32794d9645cf39df5387cae3ce874178ae0c0'],
-      ['adapters/workflow-approvals-facts.ts', 'a73b0f0d65a33347b22b24f303bbe14940acaa3fa7f8212dfb2bcf249452d13f'],
+      ['adapters/workflow-approvals-facts.ts', 'ede40e8b130d2ea56dfc304622fe30e8cba457c5aeeeb90d2c39cf66497a1044'],
       ['adapters/collaboration-messaging-authorization.ts', 'a424bde90984f30c8d7287b17d05180d0d33b7694d652913b9dd3f72485d2cea'],
       ['adapters/project-worker-startup-subject.ts', 'c83fd8ea6b1a360d859695448d95bba90ffefcecc6f221615d9b45361c559c75'],
       ['adapters/legal-ai-actor-facts.ts', 'fb14fcf39793fe15e7ebda1fa64bc0f51dd8aa416d2987ac461b7ad32e9bfa07'],
@@ -164,7 +164,7 @@ describe('Identity access read-tail r33 wiring', () => {
 });
 
 describe('Identity access read-tail r33 retirement check', () => {
-  test('retirement:ts-statements is 431 after lanes 10-12 (r42 was 438)', () => {
+  test('retirement:ts-statements is 424 after wave-2 lane 10 (r42 was 438)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -175,6 +175,6 @@ describe('Identity access read-tail r33 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(472);
-    expect(total).toBe(431);
+    expect(total).toBe(424);
   });
 });

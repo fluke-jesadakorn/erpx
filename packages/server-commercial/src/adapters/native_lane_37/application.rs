@@ -6,10 +6,13 @@ use std::{future::Future, pin::Pin, sync::Arc};
 use erpx_server_shared::public::BusinessError;
 
 use crate::adapters::native_lane_37::domain::{
-    response, unavailable_meter, validate_window, SeatHistoryResponse, SeatHistoryRows,
+    response, unavailable_meter, valid_month, validate_window, ProjectionFacts,
+    SeatHistoryResponse, SeatHistoryRows,
 };
 
 pub type SeatHistoryFuture<'a, T> =
+    Pin<Box<dyn Future<Output = Result<T, BusinessError>> + Send + 'a>>;
+pub type ProjectionFactsFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, BusinessError>> + Send + 'a>>;
 
 /// Composition injects the owner reader behind this port. The owner owns the
@@ -57,6 +60,38 @@ pub fn unavailable_response() -> SeatHistoryResponse {
     }
 }
 
+/// Wave 2 control-DB port: the owner executes the three byte-identical
+/// projection statements and projects typed rows; this layer only validates
+/// the month and transports the facts to the retained TypeScript calculation.
+pub trait ProjectionFactsRead: Send + Sync {
+    fn facts<'a>(&'a self, month: &'a str) -> ProjectionFactsFuture<'a, ProjectionFacts>;
+}
+
+pub fn projection_facts_handler(
+    reader: Arc<dyn ProjectionFactsRead>,
+    month: &str,
+) -> ProjectionFactsFuture<'static, ProjectionFacts> {
+    if !valid_month(month) {
+        return Box::pin(async {
+            Err(BusinessError::invalid(
+                "LANE37_MONTH_INVALID",
+                "Use a bounded billing month.",
+            ))
+        });
+    }
+    let month = month.to_owned();
+    Box::pin(async move { reader.facts(&month).await })
+}
+
+/// A no-op projection reader for the seat-only constructors and tests.
+pub struct EmptyProjectionFactsRead;
+
+impl ProjectionFactsRead for EmptyProjectionFactsRead {
+    fn facts<'a>(&'a self, _month: &'a str) -> ProjectionFactsFuture<'a, ProjectionFacts> {
+        Box::pin(async { Ok(ProjectionFacts::default()) })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -74,6 +109,24 @@ mod tests {
         .await
         .expect("handler");
         assert_eq!(value.meter, unavailable_meter());
+    }
+
+    #[tokio::test]
+    async fn projection_facts_validate_the_month() {
+        let reader: Arc<dyn ProjectionFactsRead> = Arc::new(EmptyProjectionFactsRead);
+        assert_eq!(
+            projection_facts_handler(reader.clone(), "2026-11")
+                .await
+                .expect("facts"),
+            ProjectionFacts::default()
+        );
+        assert_eq!(
+            projection_facts_handler(reader, "2026-13")
+                .await
+                .unwrap_err()
+                .code,
+            "LANE37_MONTH_INVALID"
+        );
     }
 
     #[tokio::test]

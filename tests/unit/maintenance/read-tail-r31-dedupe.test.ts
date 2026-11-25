@@ -73,7 +73,7 @@ describe('maintenance read-tail r31 alias-row head reuse', () => {
   it('leaves locks, native reads, r3-r30 families and cross-owner consumers untouched', async () => {
     const names = [
       'package-obligations.ts', 'asset-settlement-refs.ts', 'projection-lookup.ts',
-      'purchase-sources.ts', 'finance-record-sources.ts', 'attachment-descriptor-read.ts',
+      'purchase-sources.ts', 'finance-record-sources.ts',
       'executive-metric-projections.ts', 'work.ts',
     ];
     const texts = await Promise.all(names.map(src));
@@ -87,9 +87,8 @@ describe('maintenance read-tail r31 alias-row head reuse', () => {
     expect(texts[3]).toContain('LOCK TABLE maintenance_work_orders,maintenance_preventive_plans,maintenance_preventive_occurrences IN SHARE ROW EXCLUSIVE MODE');
     expect(texts[4]).toContain('const journalLineSum=');
     expect(texts[4]).toContain('LOCK TABLE operational_inventory_consumptions,maintenance_work_orders,operational_assets IN SHARE MODE');
-    expect(texts[5]).toContain('attachmentDescriptorReadSql');
-    expect(texts[6]).toContain('export const windowedIntervalCte');
-    expect(texts[7]).toContain('export const workAssetSource');
+    expect(texts[5]).toContain('export const windowedIntervalCte');
+    expect(texts[6]).toContain('export const workAssetSource');
     for (const text of texts) {
       expect(text).not.toMatch(/INSERT\s+INTO|DELETE\s+FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|pg_advisory/i);
     }

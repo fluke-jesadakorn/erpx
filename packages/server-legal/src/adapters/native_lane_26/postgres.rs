@@ -8,10 +8,12 @@ use erpx_server_runtime::public::postgres::DatabasePool;
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use sqlx::Row;
 
-use super::application::{ExecutedCopySource, LaneFuture, TrustMaterialSource};
+use super::application::{
+    CitationEvidenceSource, ExecutedCopySource, LaneFuture, TrustMaterialSource,
+};
 use super::domain::{
-    COPY_LIMIT, CopyAuthors, CopyHead, ReviewRow, TRUST_MATERIAL_LIMIT, TrustMaterial,
-    TrustMaterialDetail,
+    COPY_LIMIT, CitationChunk, CopyAuthors, CopyHead, ReviewRow, TRUST_MATERIAL_LIMIT,
+    TrustMaterial, TrustMaterialDetail,
 };
 
 /// Copy list. Original owner SQL selected `e.*,d.name,d.version` for one item;
@@ -219,6 +221,14 @@ impl ExecutedCopySource for PgExecutedCopySource {
     }
 }
 
+/// Approved OCR chunk, byte-identical to the retired owner statement apart
+/// from the `$n` binds and the explicit bigint cast for the page column.
+pub const SQL_CITATION_CHUNK: &str = "SELECT c.id,c.document_id,CASE WHEN c.page_mapping THEN c.page::bigint ELSE NULL END page,c.page_mapping,c.section,c.text,c.document_checksum FROM legal_source_chunks c JOIN legal_text_reviews r ON r.id=c.text_review_id AND r.state='approved' AND r.company_id=c.company_id AND r.item_id=c.item_id AND r.document_id=c.document_id AND r.document_checksum=c.document_checksum WHERE c.id=$1 AND c.company_id=$2";
+
+/// Approved-text witness. The original point read gains a Company bind so the
+/// owner never answers for another Company's review.
+pub const SQL_TEXT_APPROVED: &str = "SELECT 1 FROM legal_text_reviews WHERE id=$1 AND document_id=$2 AND company_id=$3 AND state='approved'";
+
 /// Pg-backed trust-material reader. Every query is Company-scoped by bind.
 pub struct PgTrustMaterialSource {
     pool: DatabasePool,
@@ -281,6 +291,73 @@ impl TrustMaterialSource for PgTrustMaterialSource {
     }
 }
 
+/// Pg-backed citation-evidence reader.
+pub struct PgCitationEvidenceSource {
+    pool: DatabasePool,
+}
+
+impl PgCitationEvidenceSource {
+    pub fn new(pool: DatabasePool) -> Self {
+        Self { pool }
+    }
+}
+
+impl CitationEvidenceSource for PgCitationEvidenceSource {
+    fn chunk<'a>(
+        &'a self,
+        company: &'a str,
+        id: &'a str,
+    ) -> LaneFuture<'a, Option<CitationChunk>> {
+        let pool = self.pool.clone();
+        let company = company.to_owned();
+        let id = id.to_owned();
+        Box::pin(async move {
+            let row = sqlx::query(SQL_CITATION_CHUNK)
+                .bind(id.as_str())
+                .bind(company.as_str())
+                .fetch_optional(pool.raw())
+                .await
+                .map_err(|_| unavailable())?;
+            row.map(|r| {
+                Ok(CitationChunk {
+                    id: r.try_get("id").map_err(|_| unavailable())?,
+                    document_id: r.try_get("document_id").map_err(|_| unavailable())?,
+                    page: r.try_get("page").map_err(|_| unavailable())?,
+                    page_mapping: r.try_get("page_mapping").map_err(|_| unavailable())?,
+                    section: r.try_get("section").map_err(|_| unavailable())?,
+                    text: r.try_get("text").map_err(|_| unavailable())?,
+                    document_checksum: r
+                        .try_get("document_checksum")
+                        .map_err(|_| unavailable())?,
+                })
+            })
+            .transpose()
+        })
+    }
+
+    fn text_approved<'a>(
+        &'a self,
+        company: &'a str,
+        review: &'a str,
+        document: &'a str,
+    ) -> LaneFuture<'a, bool> {
+        let pool = self.pool.clone();
+        let company = company.to_owned();
+        let review = review.to_owned();
+        let document = document.to_owned();
+        Box::pin(async move {
+            sqlx::query(SQL_TEXT_APPROVED)
+                .bind(review.as_str())
+                .bind(document.as_str())
+                .bind(company.as_str())
+                .fetch_optional(pool.raw())
+                .await
+                .map(|row| row.is_some())
+                .map_err(|_| unavailable())
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -312,6 +389,8 @@ mod tests {
             SQL_APPROVAL,
             SQL_TRUST_APPROVED,
             SQL_TRUST_MATERIAL,
+            SQL_CITATION_CHUNK,
+            SQL_TEXT_APPROVED,
         ] {
             assert!(sql.contains("company_id=$"), "missing Company scope: {sql}");
             assert!(!sql.contains('?'), "placeholder must be $n: {sql}");
@@ -345,6 +424,14 @@ mod tests {
             (
                 SQL_TRUST_MATERIAL,
                 "2f1d12f82c6c275cb3f78b008ec12fbfaca0a282a52d990f558f9ef42f5eb37e",
+            ),
+            (
+                SQL_CITATION_CHUNK,
+                "3ab2742c3d1567bd1246addd1d266956a6df118e7797fd62817420da6438200c",
+            ),
+            (
+                SQL_TEXT_APPROVED,
+                "94496468f3e030d95426815dc682e892cc54557694f2574177da3f41e7743ef5",
             ),
         ] {
             assert_eq!(hash(sql), expected);

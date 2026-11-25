@@ -133,7 +133,7 @@ describe('runtime read-tail r20 bare-head fold', () => {
   });
 
   test('retirement:ts-statements records BEFORE=28 strictly lower to 27', () => {
-    expect(kpi()).toBe(27);
+    expect(kpi()).toBe(26);
     expect(kpi()).toBeLessThan(28);
   });
 });

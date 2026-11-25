@@ -6,17 +6,23 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use erpx_server_runtime::public::http_support::{
-    HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
-    StatusCode, header, json, routing::get,
+    HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Query, Request, Response, Router,
+    State, StatusCode, header, json, routing::get,
 };
 use erpx_server_runtime::public::postgres::DatabasePool;
 use erpx_server_shared::public::{BusinessError, FailureKind};
 
-use super::application::{self, LegacyPeopleClock, TransitionFuture, WorkspacePeoplePayments};
-use super::domain::{
-    self, PAYMENTS_READ_KIND, PAYMENTS_ROUTE, READ_KIND, ROUTE, WorkspacePaymentRow,
+use super::application::{
+    self, AuthorityPersonLookup, AuthorityQuery, LegacyPeopleClock, TransitionFuture,
+    WorkspacePeoplePayments,
 };
-use super::postgres::{PgLegacyPeopleClock, PgWorkspacePeoplePayments};
+use super::domain::{
+    self, AUTHORITY_READ_KIND, AUTHORITY_ROUTE, AuthorityPerson, AuthorityPersonQuery,
+    PAYMENTS_READ_KIND, PAYMENTS_ROUTE, READ_KIND, ROUTE, WorkspacePaymentRow,
+};
+use super::postgres::{
+    PgAuthorityPersonLookup, PgLegacyPeopleClock, PgWorkspacePeoplePayments,
+};
 
 const CONTEXT_COMPANY: HeaderName = HeaderName::from_static("x-erpx-context-company");
 const CONTEXT_OBSERVED_AT: HeaderName = HeaderName::from_static("x-erpx-observed-at");
@@ -32,6 +38,18 @@ pub struct LaneTarget {
 struct Lane7State {
     targets: BTreeMap<(String, String), Arc<dyn LegacyPeopleClock>>,
     payments: BTreeMap<(String, String), Arc<dyn WorkspacePeoplePayments>>,
+    authority: BTreeMap<(String, String), Arc<dyn AuthorityPersonLookup>>,
+}
+
+struct UnavailableAuthority;
+impl AuthorityPersonLookup for UnavailableAuthority {
+    fn lookup<'a>(
+        &'a self,
+        _company: &'a str,
+        _query: AuthorityQuery,
+    ) -> TransitionFuture<'a, AuthorityPerson> {
+        Box::pin(async { Err(domain::unavailable()) })
+    }
 }
 
 /// Test/alternative-host reader: the payments route fails closed instead of
@@ -113,18 +131,24 @@ fn bounded(body: serde_json::Value) -> Response {
 /// its own reader, so a Holding never observes another Holding's pool.
 fn build_state<P>(
     targets: Vec<(LaneTarget, P)>,
-    factory: impl Fn(P) -> (Arc<dyn LegacyPeopleClock>, Arc<dyn WorkspacePeoplePayments>),
+    factory: impl Fn(P) -> (
+        Arc<dyn LegacyPeopleClock>,
+        Arc<dyn WorkspacePeoplePayments>,
+        Arc<dyn AuthorityPersonLookup>,
+    ),
 ) -> Result<Arc<Lane7State>, BusinessError> {
     let mut clocks = BTreeMap::new();
     let mut payments = BTreeMap::new();
+    let mut authority = BTreeMap::new();
     for (target, source) in targets {
         if target.host.is_empty() || !valid_slug(&target.holding_slug) {
             return Err(domain::configuration_invalid());
         }
         let key = (target.host.clone(), target.holding_slug.clone());
-        let (clock, payment_reader) = factory(source);
+        let (clock, payment_reader, authority_reader) = factory(source);
         if clocks.insert(key.clone(), clock).is_some()
-            || payments.insert(key, payment_reader).is_some()
+            || payments.insert(key.clone(), payment_reader).is_some()
+            || authority.insert(key, authority_reader).is_some()
         {
             return Err(domain::configuration_invalid());
         }
@@ -135,6 +159,7 @@ fn build_state<P>(
     Ok(Arc::new(Lane7State {
         targets: clocks,
         payments,
+        authority,
     }))
 }
 
@@ -142,6 +167,7 @@ fn router_from_state(state: Arc<Lane7State>) -> Router {
     Router::new()
         .route(ROUTE, get(next_transition))
         .route(PAYMENTS_ROUTE, get(payments))
+        .route(AUTHORITY_ROUTE, get(authority_person))
         .with_state(state)
 }
 
@@ -169,6 +195,18 @@ fn payments_reader_for(
         .ok_or_else(missing)
 }
 
+fn authority_reader_for(
+    state: &Lane7State,
+    host: &str,
+    slug: &str,
+) -> Result<Arc<dyn AuthorityPersonLookup>, BusinessError> {
+    state
+        .authority
+        .get(&(host.to_owned(), slug.to_owned()))
+        .cloned()
+        .ok_or_else(missing)
+}
+
 fn build(
     reader: Arc<dyn LegacyPeopleClock>,
     targets: Vec<LaneTarget>,
@@ -182,6 +220,7 @@ fn build(
             (
                 reader,
                 Arc::new(UnavailablePayments) as Arc<dyn WorkspacePeoplePayments>,
+                Arc::new(UnavailableAuthority) as Arc<dyn AuthorityPersonLookup>,
             )
         },
     )?;
@@ -199,7 +238,9 @@ pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, Bu
         |pool| {
             (
                 Arc::new(PgLegacyPeopleClock::new(pool.clone())) as Arc<dyn LegacyPeopleClock>,
-                Arc::new(PgWorkspacePeoplePayments::new(pool)) as Arc<dyn WorkspacePeoplePayments>,
+                Arc::new(PgWorkspacePeoplePayments::new(pool.clone()))
+                    as Arc<dyn WorkspacePeoplePayments>,
+                Arc::new(PgAuthorityPersonLookup::new(pool)) as Arc<dyn AuthorityPersonLookup>,
             )
         },
     )?;
@@ -207,7 +248,7 @@ pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, Bu
 }
 
 /// Build the native router with one owner reader per registered Holding pool.
-/// Both read families get their own per-Holding reader, so a request can never
+/// Every read family gets its own per-Holding reader, so a request can never
 /// cross a Holding boundary. Composition keeps `targets[i]` aligned with
 /// `pools[i + 1]`.
 pub fn router_for_holdings(
@@ -216,7 +257,9 @@ pub fn router_for_holdings(
     let state = build_state(targets, |pool| {
         (
             Arc::new(PgLegacyPeopleClock::new(pool.clone())) as Arc<dyn LegacyPeopleClock>,
-            Arc::new(PgWorkspacePeoplePayments::new(pool)) as Arc<dyn WorkspacePeoplePayments>,
+            Arc::new(PgWorkspacePeoplePayments::new(pool.clone()))
+                as Arc<dyn WorkspacePeoplePayments>,
+            Arc::new(PgAuthorityPersonLookup::new(pool)) as Arc<dyn AuthorityPersonLookup>,
         )
     })?;
     Ok(router_from_state(state))
@@ -277,6 +320,34 @@ async fn payments(
         Ok::<_, BusinessError>(json!({
             "kind": PAYMENTS_READ_KIND,
             "payments": rows
+        }))
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn authority_person(
+    State(state): State<Arc<Lane7State>>,
+    Path(slug): Path<String>,
+    Query(query): Query<AuthorityPersonQuery>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let host = unique_header(request.headers(), header::HOST)?
+            .filter(|host| !host.is_empty())
+            .ok_or_else(missing)?;
+        let reader = authority_reader_for(&state, host, &slug)?;
+        let company = unique_header(request.headers(), CONTEXT_COMPANY)?
+            .filter(|value| domain::valid_id(value))
+            .ok_or_else(domain::invalid_company)?;
+        let query = AuthorityQuery::try_from(&query)?;
+        let person = application::read_authority_person(reader.as_ref(), company, query).await?;
+        Ok::<_, BusinessError>(json!({
+            "kind": AUTHORITY_READ_KIND,
+            "person": {"id": person.id}
         }))
     }
     .await;
@@ -394,6 +465,98 @@ mod tests {
         }
     }
 
+    struct TaggedAuthority(&'static str);
+    impl AuthorityPersonLookup for TaggedAuthority {
+        fn lookup<'a>(
+            &'a self,
+            _company: &'a str,
+            _query: AuthorityQuery,
+        ) -> TransitionFuture<'a, AuthorityPerson> {
+            let tag = self.0;
+            Box::pin(async move {
+                Ok(AuthorityPerson {
+                    id: Some(format!("{tag}-person")),
+                })
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn authority_route_projects_only_the_bounded_id() {
+        let state = build_state(vec![(target(), "acme")], |tag| {
+            (
+                Arc::new(TaggedClock(tag)) as Arc<dyn LegacyPeopleClock>,
+                Arc::new(TaggedPayments(tag)) as Arc<dyn WorkspacePeoplePayments>,
+                Arc::new(TaggedAuthority(tag)) as Arc<dyn AuthorityPersonLookup>,
+            )
+        })
+        .expect("state");
+        let request = Request::builder()
+            .header(header::HOST, "acme.jesadakorn.com")
+            .header(CONTEXT_COMPANY, "acme")
+            .body(erpx_server_runtime::public::http_support::Body::empty())
+            .expect("request");
+        let response = authority_person(
+            State(state),
+            Path("acme".to_owned()),
+            Query(AuthorityPersonQuery {
+                kind: super::super::domain::AuthorityKind::Actor,
+                user_id: "usr_1".to_owned(),
+                person_id: String::new(),
+                position_id: String::new(),
+                appointment_kind: String::new(),
+                scope_id: String::new(),
+                self_ceo: false,
+            }),
+            request,
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = erpx_server_runtime::public::http_support::body::to_bytes(
+            response.into_body(),
+            usize::MAX,
+        )
+        .await
+        .expect("body");
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(&bytes).expect("json"),
+            serde_json::json!({"kind": AUTHORITY_READ_KIND, "person": {"id": "acme-person"}})
+        );
+    }
+
+    #[tokio::test]
+    async fn authority_route_rejects_unbounded_queries() {
+        let state = build_state(vec![(target(), "acme")], |_tag| {
+            (
+                Arc::new(BusyClock) as Arc<dyn LegacyPeopleClock>,
+                Arc::new(UnavailablePayments) as Arc<dyn WorkspacePeoplePayments>,
+                Arc::new(UnavailableAuthority) as Arc<dyn AuthorityPersonLookup>,
+            )
+        })
+        .expect("state");
+        let request = Request::builder()
+            .header(header::HOST, "acme.jesadakorn.com")
+            .header(CONTEXT_COMPANY, "acme")
+            .body(erpx_server_runtime::public::http_support::Body::empty())
+            .expect("request");
+        let response = authority_person(
+            State(state),
+            Path("acme".to_owned()),
+            Query(AuthorityPersonQuery {
+                kind: super::super::domain::AuthorityKind::Appointee,
+                user_id: String::new(),
+                person_id: String::new(),
+                position_id: String::new(),
+                appointment_kind: "head".to_owned(),
+                scope_id: "dept_1".to_owned(),
+                self_ceo: false,
+            }),
+            request,
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
     #[tokio::test]
     async fn two_holdings_route_to_distinct_readers() {
         let first = LaneTarget {
@@ -408,6 +571,7 @@ mod tests {
             (
                 Arc::new(TaggedClock(tag)) as Arc<dyn LegacyPeopleClock>,
                 Arc::new(TaggedPayments(tag)) as Arc<dyn WorkspacePeoplePayments>,
+                Arc::new(TaggedAuthority(tag)) as Arc<dyn AuthorityPersonLookup>,
             )
         })
         .expect("state");

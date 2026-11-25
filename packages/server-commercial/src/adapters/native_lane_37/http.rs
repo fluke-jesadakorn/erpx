@@ -14,9 +14,12 @@ use erpx_server_runtime::public::postgres::DatabasePool;
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use serde::Deserialize;
 
-use crate::adapters::native_lane_37::application::{handler, ReadRequest, SeatHistoryRead};
-use crate::adapters::native_lane_37::domain::{valid_id, valid_slug};
-use crate::adapters::native_lane_37::postgres::PgSeatHistoryRead;
+use crate::adapters::native_lane_37::application::{
+    handler, projection_facts_handler, EmptyProjectionFactsRead, ProjectionFactsRead, ReadRequest,
+    SeatHistoryRead,
+};
+use crate::adapters::native_lane_37::domain::{valid_id, valid_month, valid_slug};
+use crate::adapters::native_lane_37::postgres::{PgProjectionFactsRead, PgSeatHistoryRead};
 
 const CONTEXT_HOLDING: HeaderName = HeaderName::from_static("x-erpx-context-holding");
 const SEAT_CUTOFF_DEPENDENCY: HeaderName =
@@ -39,8 +42,19 @@ struct WindowQuery {
     end: Option<String>,
 }
 
+#[derive(Deserialize)]
+struct MonthQuery {
+    month: Option<String>,
+}
+
+struct TargetReaders {
+    holding_id: String,
+    seat: Arc<dyn SeatHistoryRead>,
+    projection: Arc<dyn ProjectionFactsRead>,
+}
+
 struct Lane37State {
-    targets: BTreeMap<(String, String), (String, Arc<dyn SeatHistoryRead>)>,
+    targets: BTreeMap<(String, String), TargetReaders>,
 }
 
 fn missing() -> BusinessError {
@@ -113,20 +127,27 @@ fn parse_i64(value: Option<String>) -> Result<i64, BusinessError> {
         .map_err(|_| invalid())
 }
 
-/// Validate and index one reader per exact (Host, Holding slug) target.
+/// Validate and index both owner readers per exact (Host, Holding slug) target.
 fn configured_state(
-    entries: Vec<(LaneTarget, Arc<dyn SeatHistoryRead>)>,
+    entries: Vec<(
+        LaneTarget,
+        Arc<dyn SeatHistoryRead>,
+        Arc<dyn ProjectionFactsRead>,
+    )>,
 ) -> Result<Arc<Lane37State>, BusinessError> {
-    let mut configured: BTreeMap<(String, String), (String, Arc<dyn SeatHistoryRead>)> =
-        BTreeMap::new();
-    for (target, reader) in entries {
+    let mut configured: BTreeMap<(String, String), TargetReaders> = BTreeMap::new();
+    for (target, seat, projection) in entries {
         if target.host.is_empty()
             || !valid_slug(&target.holding_slug)
             || !valid_id(&target.holding_id)
             || configured
                 .insert(
                     (target.host.clone(), target.holding_slug.clone()),
-                    (target.holding_id.clone(), reader),
+                    TargetReaders {
+                        holding_id: target.holding_id.clone(),
+                        seat,
+                        projection,
+                    },
                 )
                 .is_some()
         {
@@ -147,15 +168,26 @@ fn router_from_state(state: Arc<Lane37State>) -> Router {
             "/api/v1/holdings/{holding_slug}/commercial/seat-history",
             get(history),
         )
+        .route(
+            "/api/v1/holdings/{holding_slug}/commercial/usage-projection-facts",
+            get(projection_facts),
+        )
         .with_state(state)
 }
 
 /// Reader-injection path: one distinct reader per target, used by tests and by
-/// the per-Holding pool constructor below.
+/// the per-Holding pool constructor below. The projection reader defaults to a
+/// no-op so the original seat-only constructors keep their behaviour.
 pub fn router_with_readers(
     entries: Vec<(LaneTarget, Arc<dyn SeatHistoryRead>)>,
 ) -> Result<Router, BusinessError> {
-    Ok(router_from_state(configured_state(entries)?))
+    let projection: Arc<dyn ProjectionFactsRead> = Arc::new(EmptyProjectionFactsRead);
+    Ok(router_from_state(configured_state(
+        entries
+            .into_iter()
+            .map(|(target, seat)| (target, seat, projection.clone()))
+            .collect(),
+    )?))
 }
 
 /// Build the native seat-history router from one injected reader.
@@ -185,11 +217,13 @@ pub fn router_for_holdings(
     let entries = targets
         .into_iter()
         .map(|(target, pool)| {
-            let reader: Arc<dyn SeatHistoryRead> = Arc::new(PgSeatHistoryRead::new(pool));
-            (target, reader)
+            let seat: Arc<dyn SeatHistoryRead> = Arc::new(PgSeatHistoryRead::new(pool.clone()));
+            let projection: Arc<dyn ProjectionFactsRead> =
+                Arc::new(PgProjectionFactsRead::new(pool));
+            (target, seat, projection)
         })
         .collect();
-    router_with_readers(entries)
+    Ok(router_from_state(configured_state(entries)?))
 }
 
 async fn history(
@@ -202,10 +236,11 @@ async fn history(
         let host = unique_header(request.headers(), header::HOST)?
             .filter(|host| !host.is_empty())
             .ok_or_else(missing)?;
-        let (expected_holding, reader) = state
+        let target_readers = state
             .targets
             .get(&(host.to_owned(), slug.clone()))
             .ok_or_else(missing)?;
+        let expected_holding = &target_readers.holding_id;
         let holding = unique_header(request.headers(), CONTEXT_HOLDING)?
             .filter(|value| valid_id(value))
             .ok_or_else(invalid)?;
@@ -219,7 +254,7 @@ async fn history(
         let start = parse_i64(window.start)?;
         let end = parse_i64(window.end)?;
         let value = handler(
-            reader.clone(),
+            target_readers.seat.clone(),
             ReadRequest {
                 start,
                 end,
@@ -227,6 +262,40 @@ async fn history(
             },
         )
         .await?;
+        Ok::<_, BusinessError>(serde_json::json!(value))
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn projection_facts(
+    State(state): State<Arc<Lane37State>>,
+    Path(slug): Path<String>,
+    Query(query): Query<MonthQuery>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let host = unique_header(request.headers(), header::HOST)?
+            .filter(|host| !host.is_empty())
+            .ok_or_else(missing)?;
+        let target_readers = state
+            .targets
+            .get(&(host.to_owned(), slug.clone()))
+            .ok_or_else(missing)?;
+        let holding = unique_header(request.headers(), CONTEXT_HOLDING)?
+            .filter(|value| valid_id(value))
+            .ok_or_else(invalid)?;
+        if holding != target_readers.holding_id {
+            return Err(invalid());
+        }
+        let month = query.month.as_deref().ok_or_else(invalid)?;
+        if !valid_month(month) {
+            return Err(invalid());
+        }
+        let value = projection_facts_handler(target_readers.projection.clone(), month).await?;
         Ok::<_, BusinessError>(serde_json::json!(value))
     }
     .await;
@@ -291,37 +360,60 @@ mod tests {
         let acme: Arc<dyn SeatHistoryRead> = Arc::new(EmptySeatHistoryRead);
         let northstar: Arc<dyn SeatHistoryRead> = Arc::new(EmptySeatHistoryRead);
         assert!(!Arc::ptr_eq(&acme, &northstar));
+        let acme_projection: Arc<dyn ProjectionFactsRead> = Arc::new(EmptyProjectionFactsRead);
+        let northstar_projection: Arc<dyn ProjectionFactsRead> = Arc::new(EmptyProjectionFactsRead);
         let entries = || {
             vec![
                 (
                     target("acme.jesadakorn.com", "acme", "holding-1"),
                     acme.clone(),
+                    acme_projection.clone(),
                 ),
                 (
                     target("northstar.jesadakorn.com", "northstar", "holding-2"),
                     northstar.clone(),
+                    northstar_projection.clone(),
                 ),
             ]
         };
-        assert!(router_with_readers(entries()).is_ok());
+        assert!(configured_state(entries()).is_ok());
         let state = configured_state(entries()).expect("state");
         assert_eq!(state.targets.len(), 2);
-        let (acme_holding, acme_reader) = state
+        let acme_target = state
             .targets
             .get(&("acme.jesadakorn.com".to_owned(), "acme".to_owned()))
             .expect("acme target");
-        let (northstar_holding, northstar_reader) = state
+        let northstar_target = state
             .targets
             .get(&(
                 "northstar.jesadakorn.com".to_owned(),
                 "northstar".to_owned(),
             ))
             .expect("northstar target");
-        assert_eq!(acme_holding, "holding-1");
-        assert_eq!(northstar_holding, "holding-2");
-        assert!(Arc::ptr_eq(acme_reader, &acme));
-        assert!(Arc::ptr_eq(northstar_reader, &northstar));
-        assert!(!Arc::ptr_eq(acme_reader, northstar_reader));
+        assert_eq!(acme_target.holding_id, "holding-1");
+        assert_eq!(northstar_target.holding_id, "holding-2");
+        assert!(Arc::ptr_eq(&acme_target.seat, &acme));
+        assert!(Arc::ptr_eq(&northstar_target.seat, &northstar));
+        assert!(!Arc::ptr_eq(&acme_target.seat, &northstar_target.seat));
+        assert!(Arc::ptr_eq(&acme_target.projection, &acme_projection));
+        assert!(Arc::ptr_eq(
+            &northstar_target.projection,
+            &northstar_projection
+        ));
+        assert!(!Arc::ptr_eq(
+            &acme_target.projection,
+            &northstar_target.projection
+        ));
+    }
+
+    #[test]
+    fn seat_only_constructors_keep_a_no_op_projection_reader() {
+        let router = router_with_reader(
+            Arc::new(EmptySeatHistoryRead),
+            vec![target("acme.jesadakorn.com", "acme", "holding-1")],
+        )
+        .expect("router");
+        let _ = router;
     }
 
     #[test]

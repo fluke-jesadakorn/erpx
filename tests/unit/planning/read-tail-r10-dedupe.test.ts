@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { resourceCalendarByKey } from '../../../packages/server-planning/src/adapters/planning-calendar-source-sql';
 
@@ -53,7 +53,7 @@ describe('Planning read-tail r10 parameterized resource-calendar point-lookup fa
     expect(src('planning-attachment-target-sql.ts')).toContain('planningAttachmentTargetRow');
     expect(src('planning-attachment-target-sql.ts')).toContain('planningAttachmentTargetVersionExists');
     expect(src('planning-scoped-list-sql.ts')).toContain('planningScopedBranchList');
-    expect(src('planning-scoped-row-sql.ts')).toContain('planningScopedBranchRow');
+    expect(existsSync(resolve(srcRoot, 'adapters/planning-scoped-row-sql.ts'))).toBe(false);
     expect(src('executive-metric-projections.ts')).toContain('planningBranchDisplayLabelSql');
     expect(src('executive-metric-projections.ts')).toContain('metricLabelCountProjection');
     expect(src('purchase-sources.ts')).toContain('LOCK TABLE planning_scenarios,planning_recommendations,planning_scenario_events,planning_resource_allocations,production_resources,production_resource_calendar IN ${writer?"SHARE ROW EXCLUSIVE":"SHARE"} MODE');

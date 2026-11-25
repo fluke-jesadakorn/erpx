@@ -170,28 +170,40 @@ function row(value: unknown): NativeLearningEvidenceRow | null {
   };
 }
 
-/** Read one owner-local evidence row from the native axum route. */
-export async function nativeLearningEvidenceRow(
-  actor: Pick<WorkContext, "holdingId" | "holdingSlug" | "companyId" | "branchId" | "departmentId">,
-  kind: LearningEvidenceKind,
-  id: string,
-  range?: { from: number; toExclusive: number },
-): Promise<NativeLearningEvidenceRow | null> {
-  if (!text(id, 200) || (range && (!integer(range.from) || !integer(range.toExclusive) || range.from >= range.toExclusive)))
-    throw new ApiError(422, "LEARNING_EVIDENCE_READ_REQUEST_INVALID", "Use one bounded Learning evidence read.");
+/** The actor fields that select a registered Holding and its company scope. */
+export type LearningEvidenceActor = Pick<
+  WorkContext,
+  "holdingId" | "holdingSlug" | "companyId" | "branchId" | "departmentId"
+>;
+
+export type LearningEvidenceSearchInput = Readonly<{
+  metric: LearningEvidenceKind;
+  query: string;
+  filters: Readonly<{ from: string; to: string; currency: string }>;
+  limit: number;
+}>;
+
+export type LearningEvidenceCursor =
+  | Readonly<{ createdAt: number; id: string }>
+  | Readonly<{ dueDate: string; id: string }>
+  | null;
+
+/** Select the actor's exact registered Holding. Never falls back to holdings[0]. */
+function selectTarget(actor: LearningEvidenceActor) {
   const config = configuration();
-  // Select only the actor's registered Holding. There is no default: an unknown
-  // (holdingId, holdingSlug) pair fails closed instead of using holdings[0].
   const target = config.holdings.find(
     (holding) => holding.holdingId === actor.holdingId && holding.holdingSlug === actor.holdingSlug,
   );
   if (!target) return unavailable("LEARNING_EVIDENCE_READ_TARGET_UNAVAILABLE");
   if (target.companyId !== undefined && target.companyId !== actor.companyId)
     return unavailable("LEARNING_EVIDENCE_READ_TARGET_CHANGED");
+  return { config, target };
+}
 
+function contextHeaders(actor: LearningEvidenceActor, host: string, origin: string) {
   const headers = new Headers({
-    host: target.host,
-    origin: target.origin,
+    host,
+    origin,
     accept: "application/json",
     "content-type": "application/json",
     "cache-control": "no-cache",
@@ -199,6 +211,20 @@ export async function nativeLearningEvidenceRow(
   });
   if (text(actor.branchId, 200)) headers.set("x-erpx-context-branch", actor.branchId);
   if (text(actor.departmentId, 200)) headers.set("x-erpx-context-department", actor.departmentId);
+  return headers;
+}
+
+/** Read one owner-local evidence row from the native axum route. */
+export async function nativeLearningEvidenceRow(
+  actor: LearningEvidenceActor,
+  kind: LearningEvidenceKind,
+  id: string,
+  range?: { from: number; toExclusive: number },
+): Promise<NativeLearningEvidenceRow | null> {
+  if (!text(id, 200) || (range && (!integer(range.from) || !integer(range.toExclusive) || range.from >= range.toExclusive)))
+    throw new ApiError(422, "LEARNING_EVIDENCE_READ_REQUEST_INVALID", "Use one bounded Learning evidence read.");
+  const { config, target } = selectTarget(actor);
+  const headers = contextHeaders(actor, target.host, target.origin);
 
   const body = JSON.stringify({
     kind,
@@ -242,6 +268,88 @@ export async function nativeLearningEvidenceRow(
   const payload = await response.json().catch((): unknown => null);
   if (!object(payload) || !("row" in payload)) return unavailable();
   return row(payload.row);
+}
+
+/** Search the owner-local evidence list on the native axum route. The caller
+ * supplies only bounded scalar filters and an already-parsed cursor; the owner
+ * renders the predicates, applies company scope, projects rows and validates
+ * the reply. No SQL is emitted here and a rejected runtime fails closed. */
+export async function nativeLearningEvidenceSearch(
+  actor: LearningEvidenceActor,
+  input: LearningEvidenceSearchInput,
+  cursor: LearningEvidenceCursor,
+): Promise<NativeLearningEvidenceRow[]> {
+  const fromMs = Date.parse(input.filters.from);
+  const toMs = Date.parse(input.filters.to);
+  if (
+    !integer(input.limit) ||
+    input.limit < 1 ||
+    input.limit > 50 ||
+    !text(input.query, 100) ||
+    !text(input.filters.from, 10) ||
+    !text(input.filters.to, 10) ||
+    !Number.isFinite(fromMs) ||
+    !Number.isFinite(toMs) ||
+    fromMs >= toMs
+  )
+    throw new ApiError(422, "LEARNING_EVIDENCE_READ_REQUEST_INVALID", "Use one bounded Learning evidence search.");
+  if (cursor && (!text(cursor.id, 200) ||
+    ("createdAt" in cursor ? !integer(cursor.createdAt) : !/^\d{4}-\d{2}-\d{2}$/.test(cursor.dueDate))))
+    throw new ApiError(422, "LEARNING_EVIDENCE_READ_REQUEST_INVALID", "Use one bounded Learning evidence cursor.");
+
+  const { config, target } = selectTarget(actor);
+  const headers = contextHeaders(actor, target.host, target.origin);
+  const completion = input.metric === "learning-completions";
+  const body = JSON.stringify({
+    kind: input.metric,
+    query: input.query,
+    from: completion ? Date.parse(input.filters.from) : null,
+    toExclusive: completion ? Date.parse(input.filters.to) + 86_400_000 : null,
+    limit: input.limit,
+    cursor: cursor ?? null,
+  });
+  if (new TextEncoder().encode(body).length > 16 * 1024)
+    throw new ApiError(422, "LEARNING_EVIDENCE_READ_REQUEST_INVALID", "Use one bounded Learning evidence search.");
+
+  const url = new URL(
+    `/api/v1/holdings/${encodeURIComponent(target.holdingSlug)}/learning/evidence-search`,
+    config.base,
+  );
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: Object.fromEntries(headers),
+      body,
+      cache: "no-store",
+      redirect: "error",
+      signal: AbortSignal.timeout(config.timeoutMs),
+    });
+  } catch {
+    return unavailable();
+  }
+  if (response.status !== 200) {
+    const payload = await response.json().catch((): unknown => null);
+    void response.body?.cancel().catch(() => undefined);
+    if (response.status >= 400 && response.status < 500) {
+      const error = object(payload) && object(payload.error) ? payload.error : undefined;
+      throw new ApiError(
+        response.status,
+        text(error?.code, 100) ? String(error!.code) : "LEARNING_EVIDENCE_READ_FAILED",
+        text(error?.message, 300) ? String(error!.message) : "The native Learning evidence search was rejected.",
+      );
+    }
+    return unavailable();
+  }
+  const payload = await response.json().catch((): unknown => null);
+  if (!object(payload) || !Array.isArray(payload.rows)) return unavailable();
+  const rows: NativeLearningEvidenceRow[] = [];
+  for (const value of payload.rows) {
+    const parsed = row(value);
+    if (parsed === null) return unavailable(); // a null row inside a list is invalid
+    rows.push(parsed);
+  }
+  return rows;
 }
 
 /** True when the native consumer switch is configured. */

@@ -4,6 +4,7 @@ import { nativePosSaleLinesStatement, nativePosSalePaymentsStatement } from './n
 import { nativePosRegistersStatement, nativePosRegistersFrontStatement, nativePosSaleStatement, nativePosSettingsStatement } from './native-pos-registers-statement';
 import { nativePosConnectionsRowStatement, nativePosRefundsListStatement, nativePosSalesListStatement, nativePosSettlementsListStatement } from './native-pos-list-reads';
 import { nativePosEvidenceDetail } from './native-lane-25/detail-client';
+import { nativePosDayCloses } from './native-lane-25/day-closes-client';
 import { roomChargeReversalWork } from "@erpx/server-pos/adapters/room-charge-reversal-queue";
 import { posGuestAccountInterface } from "@erpx/server-pms/public/pos-guest-account-interface";
 import { hospitalityOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/hospitality-owner-projection-sources";
@@ -156,7 +157,10 @@ function unit(db: SqlDatabase, actor: WorkContext): PosReadUnit<SqlStatement> {
             company: string;
             branch: string | null;
             branch2: string | null;
-        }) => all(db, 'SELECT id,company_id,branch_id,business_date,currency,state,prepared_by,confirmed_by,version,snapshot_json::text FROM pos_day_closes WHERE company_id=? AND (?::text IS NULL OR branch_id=?) ORDER BY business_date DESC LIMIT 90', facts.company, facts.branch, facts.branch2),
+        }) => nativePosDayCloses({
+            holdingId: actor.holdingId, holdingSlug: actor.holdingSlug,
+            companyId: actor.companyId, branchId: facts.branch,
+        }),
         readFinanceAccounts2: facts => PosReadFinanceFacts(db).readFinanceAccounts2(facts),
         readFinanceCharts1: facts => PosReadFinanceFacts(db).readFinanceCharts1(facts),
         readPosConnections2: (facts: {

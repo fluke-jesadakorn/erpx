@@ -7,13 +7,16 @@
 //! exists behind this route.
 
 use crate::adapters::native_lane_34::application::{
-    BetaFeedbackQuery, BetaInvitationQuery, load, load_invitations,
+    BetaFeedbackQuery, BetaInvitationQuery, EmailReceiptQuery, load, load_email_receipt,
+    load_invitations,
 };
 use crate::adapters::native_lane_34::domain::{
-    FeedbackResponse, InvitationResponse, configuration_invalid, invalid_request, missing,
-    valid_company_id, valid_slug,
+    EmailReceiptResponse, FeedbackResponse, InvitationResponse, configuration_invalid,
+    invalid_request, missing, valid_company_id, valid_delivery_key, valid_slug,
 };
-use crate::adapters::native_lane_34::postgres::{PgBetaFeedbackQuery, PgBetaInvitationQuery};
+use crate::adapters::native_lane_34::postgres::{
+    PgBetaFeedbackQuery, PgBetaInvitationQuery, PgEmailReceiptQuery,
+};
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
     StatusCode, get, header, serde_json,
@@ -24,6 +27,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 const CONTEXT_COMPANY: HeaderName = HeaderName::from_static("x-erpx-context-company");
+const DELIVERY_KEY: HeaderName = HeaderName::from_static("x-erpx-delivery-key");
 
 /// One exact registered Holding target. Duplicate or malformed pairs are
 /// rejected at router construction; no prefix or wildcard resolution occurs.
@@ -37,10 +41,12 @@ pub struct LaneTarget {
 /// Holding can never borrow another Holding's database pool.
 type Targets = BTreeMap<(String, String), Arc<dyn BetaFeedbackQuery>>;
 type InvitationTargets = BTreeMap<(String, String), Arc<dyn BetaInvitationQuery>>;
+type ReceiptTargets = BTreeMap<(String, String), Arc<dyn EmailReceiptQuery>>;
 
 struct LaneState {
     targets: Targets,
     invitation_targets: InvitationTargets,
+    receipt_targets: ReceiptTargets,
 }
 
 /// Validate the exact distinct target set and insert each reader under its
@@ -65,7 +71,11 @@ fn configure_targets<R>(
     Ok(configured)
 }
 
-fn from_targets(targets: Targets, invitation_targets: InvitationTargets) -> Router {
+fn from_targets(
+    targets: Targets,
+    invitation_targets: InvitationTargets,
+    receipt_targets: ReceiptTargets,
+) -> Router {
     Router::new()
         .route(
             "/api/v1/holdings/{holding_slug}/manage-erpx/beta-feedback",
@@ -75,9 +85,14 @@ fn from_targets(targets: Targets, invitation_targets: InvitationTargets) -> Rout
             "/api/v1/holdings/{holding_slug}/manage-erpx/beta-invitations",
             get(invitations),
         )
+        .route(
+            "/api/v1/holdings/{holding_slug}/manage-erpx/sandbox-email/receipt",
+            get(email_receipt),
+        )
         .with_state(Arc::new(LaneState {
             targets,
             invitation_targets,
+            receipt_targets,
         }))
 }
 
@@ -93,7 +108,7 @@ pub fn router_with_reader(
             .map(|target| (target, reader.clone()))
             .collect(),
     )?;
-    Ok(from_targets(feedback, BTreeMap::new()))
+    Ok(from_targets(feedback, BTreeMap::new(), BTreeMap::new()))
 }
 
 /// Per-Holding constructor: every target carries its own database pool, so
@@ -105,15 +120,19 @@ pub fn router_for_holdings(
 ) -> Result<Router, BusinessError> {
     let mut feedback_entries = Vec::new();
     let mut invitation_entries = Vec::new();
+    let mut receipt_entries = Vec::new();
     for (target, pool) in targets {
         let feedback: Arc<dyn BetaFeedbackQuery> = Arc::new(PgBetaFeedbackQuery::new(pool.clone()));
-        let invitation: Arc<dyn BetaInvitationQuery> = Arc::new(PgBetaInvitationQuery::new(pool));
+        let invitation: Arc<dyn BetaInvitationQuery> = Arc::new(PgBetaInvitationQuery::new(pool.clone()));
+        let receipt: Arc<dyn EmailReceiptQuery> = Arc::new(PgEmailReceiptQuery::new(pool));
         feedback_entries.push((target.clone(), feedback));
-        invitation_entries.push((target, invitation));
+        invitation_entries.push((target.clone(), invitation));
+        receipt_entries.push((target, receipt));
     }
     Ok(from_targets(
         configure_targets(feedback_entries)?,
         configure_targets(invitation_entries)?,
+        configure_targets(receipt_entries)?,
     ))
 }
 
@@ -224,10 +243,38 @@ async fn invitations(
     }
 }
 
+async fn email_receipt(
+    State(state): State<Arc<LaneState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let host = unique_header(request.headers(), header::HOST)?
+            .filter(|host| !host.is_empty())
+            .ok_or_else(missing)?;
+        let reader = state
+            .receipt_targets
+            .get(&(host.to_owned(), slug.clone()))
+            .ok_or_else(missing)?;
+        let key = unique_header(request.headers(), DELIVERY_KEY)?
+            .filter(|value| valid_delivery_key(value))
+            .ok_or_else(invalid_request)?;
+        let receipt = load_email_receipt(reader.as_ref(), key).await?;
+        Ok::<_, BusinessError>(EmailReceiptResponse::from(receipt))
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::adapters::native_lane_34::application::{FeedbackFuture, InvitationFuture};
+    use crate::adapters::native_lane_34::application::{
+        EmailReceiptFuture, FeedbackFuture, InvitationFuture,
+    };
     use crate::adapters::native_lane_34::domain::{
         FeedbackItem, FeedbackPage, InvitationItem, InvitationPage,
     };
@@ -383,6 +430,7 @@ mod tests {
         let state = Arc::new(LaneState {
             targets,
             invitation_targets: BTreeMap::new(),
+            receipt_targets: BTreeMap::new(),
         });
         assert!(
             call(state.clone(), "acme.example.test", "acme")
@@ -414,6 +462,7 @@ mod tests {
         let state = Arc::new(LaneState {
             targets: BTreeMap::new(),
             invitation_targets: targets,
+            receipt_targets: BTreeMap::new(),
         });
         for (host, slug, expected) in [
             ("acme.example.test", "acme", "inv-acme"),
@@ -438,6 +487,60 @@ mod tests {
     #[test]
     fn router_with_reader_keeps_the_single_reader_convenience() {
         assert!(router_with_reader(reader("acme"), vec![acme()]).is_ok());
+    }
+
+    struct ReceiptReader;
+
+    impl EmailReceiptQuery for ReceiptReader {
+        fn receipt<'a>(&'a self, key: &'a str) -> EmailReceiptFuture<'a> {
+            let delivery_key = key.to_owned();
+            Box::pin(async move {
+                Ok(Some(crate::adapters::native_lane_34::domain::EmailReceipt {
+                    delivery_key,
+                    recipient: "to@example.test".to_owned(),
+                    subject: "S".to_owned(),
+                    body_text: "body".to_owned(),
+                    body_ciphertext: None,
+                    provider_id: "sandbox-key-1".to_owned(),
+                }))
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn email_receipt_route_binds_only_the_delivery_key() {
+        let receipt: Arc<dyn EmailReceiptQuery> = Arc::new(ReceiptReader);
+        let receipt_targets = configure_targets(vec![(acme(), receipt)]).expect("targets");
+        let state = Arc::new(LaneState {
+            targets: BTreeMap::new(),
+            invitation_targets: BTreeMap::new(),
+            receipt_targets,
+        });
+        let request = Request::builder()
+            .header(header::HOST, "acme.example.test")
+            .header(DELIVERY_KEY, "portal:key")
+            .body(Body::empty())
+            .expect("request");
+        let response = email_receipt(State(state), Path("acme".to_owned()), request).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = to_bytes(response.into_body(), 1 << 20).await.expect("body");
+        let body = String::from_utf8(bytes.to_vec()).expect("utf8");
+        assert!(body.contains("portal:key"));
+        assert!(body.contains("sandbox-key-1"));
+
+        let bad = Request::builder()
+            .header(header::HOST, "acme.example.test")
+            .header(DELIVERY_KEY, "bad/key")
+            .body(Body::empty())
+            .expect("request");
+        let state = Arc::new(LaneState {
+            targets: BTreeMap::new(),
+            invitation_targets: BTreeMap::new(),
+            receipt_targets: configure_targets(vec![(acme(), Arc::new(ReceiptReader) as Arc<dyn EmailReceiptQuery>)])
+                .expect("targets"),
+        });
+        let response = email_receipt(State(state), Path("acme".to_owned()), bad).await;
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
     }
 
     #[test]

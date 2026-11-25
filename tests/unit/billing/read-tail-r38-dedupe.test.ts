@@ -109,25 +109,35 @@ describe('billing read-tail r38 dedupe of three residual exec heads', () => {
       expect(text.split('SELECT').length - 1, head.name).toBe(0);
       if (head.file === 'executive-metric-watermarks.ts') {
         // Native lane 38 cutover: this head is now owner-owned Rust SQL.
+        expect(text, head.name).toContain("from './native-lane-38/client'");
         expect(text, head.name).toContain('nativeBillingWatermarks(context)');
+      } else if (head.file === 'executive-main-evidence-sources.ts') {
+        expect(text, head.name).toContain("from './native-lane-38/client'");
+        expect(text, head.name).toContain('nativeBillingOverdueInvoices(');
       } else {
         expect(text, head.name).toContain(head.route);
         expect(text, head.name).toContain("from './billing-read-tail-r35-sql'");
       }
     }
-    // The point read keeps its five binds in the original order (id last).
-    expect(await src('executive-main-evidence-sources.ts'))
-      .toContain('.bind(actor.holdingId, Date.parse(filters.from), Date.parse(filters.to) + 86400000, now, id)');
+    // The point read keeps its five binds in the original order (id last), now
+    // in the owner crate, and the adapter only transports the bounded inputs.
+    const rust = await readFile(new URL('adapters/native_lane_38/postgres.rs', srcRoot), 'utf8');
+    expect(rust).toContain('let sql = format!("{OVERDUE_SOURCE} AND i.id=? LIMIT 1")');
+    expect(rust).toContain('Bind::Text(input.id.clone())');
+    expect(await src('executive-main-evidence-sources.ts')).toContain('nativeBillingOverdueInvoice(');
     // The native watermark reader carries only the bounded holding id.
     expect(await src('executive-metric-watermarks.ts')).toContain('nativeBillingWatermarks(context)');
   });
 
   it('keeps the divergent pending-scan suffixes and the overdue id suffix', async () => {
-    for (const suffix of SUFFIXES) {
+    for (const suffix of SUFFIXES.filter((item) => item.file !== 'executive-main-evidence-sources.ts')) {
       const text = await src(suffix.file);
       expect(text.split(suffix.text).length - 1, suffix.text).toBe(1);
       expect(text, suffix.text).toContain(suffix.use);
     }
+    const evidence = await src('executive-main-evidence-sources.ts');
+    expect(evidence).not.toContain(' AND i.id=? LIMIT 1');
+    expect(evidence).toContain('nativeBillingOverdueInvoice(');
   });
 
   it('leaves FOR UPDATE, advisory and try-lock reads untouched', async () => {

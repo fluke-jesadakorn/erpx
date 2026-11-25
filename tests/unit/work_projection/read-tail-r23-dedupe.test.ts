@@ -57,7 +57,8 @@ describe('work_projection read-tail r23 dedupe', () => {
     expect(facts).not.toContain('overlapProbe');
     expect(facts).toContain("conflictProbe(db, 'participant', facts)");
     expect(facts).toContain("conflictProbe(db, 'attendee', facts)");
-    expect(facts).toContain('attendeeScopeExistsSql');
+    expect(facts).not.toContain('attendeeScopeExistsSql');
+    expect(facts).toContain('nativeAppointmentCandidates(');
 
     const purchases = await readFile(src('calendar/purchases.ts'), 'utf8');
     expect(purchases).toContain(
@@ -242,6 +243,6 @@ describe('work_projection native read r34 cutover', () => {
         .split('\n')
         .filter(Boolean).length,
     );
-    expect(count).toBe(45);
+    expect(count).toBe(40);
   });
 });

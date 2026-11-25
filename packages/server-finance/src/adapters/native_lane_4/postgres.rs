@@ -7,8 +7,8 @@
 //! `PG_*_SQL` differ only by the positional placeholder required by Postgres.
 //! No predicate, limit or ordering is added here.
 
-use super::application::{FinanceReferenceRead, ReferenceReadFuture};
-use super::domain::{ReferenceKind, ReferenceRow, unavailable};
+use super::application::{FinanceReferenceRead, GuardReadFuture, ReferenceReadFuture};
+use super::domain::{GuardKind, GuardRow, ReferenceKind, ReferenceRow, unavailable};
 use erpx_server_runtime::public::postgres::DatabasePool;
 use erpx_server_shared::public::BusinessError;
 use sqlx::Row;
@@ -26,6 +26,20 @@ pub const PG_CHARTS_SQL: &str =
     "SELECT id,name FROM finance_charts WHERE company_id=$1 AND base_currency='THB' AND status='active'";
 pub const PG_PARTIES_SQL: &str =
     "SELECT id,name FROM finance_parties WHERE company_id=$1 AND kind='customer' AND status='active' AND currency='THB' AND person_id IS NULL";
+
+pub const TS_CHART_ACTIVE_SQL: &str =
+    "SELECT id FROM finance_charts WHERE id=? AND company_id=? AND status='active' AND base_currency=?";
+pub const TS_ACCOUNT_LIABILITY_SQL: &str =
+    "SELECT id FROM finance_accounts WHERE id=? AND company_id=? AND chart_id=? AND currency=? AND category='liability' AND status='active'";
+pub const TS_PARTY_CUSTOMER_SQL: &str =
+    "SELECT 1 FROM finance_parties WHERE id=? AND company_id=? AND kind='customer' AND status='active' AND currency=? AND person_id IS NULL";
+
+pub const PG_CHART_ACTIVE_SQL: &str =
+    "SELECT id FROM finance_charts WHERE id=$1 AND company_id=$2 AND status='active' AND base_currency=$3";
+pub const PG_ACCOUNT_LIABILITY_SQL: &str =
+    "SELECT id FROM finance_accounts WHERE id=$1 AND company_id=$2 AND chart_id=$3 AND currency=$4 AND category='liability' AND status='active'";
+pub const PG_PARTY_CUSTOMER_SQL: &str =
+    "SELECT 1 FROM finance_parties WHERE id=$1 AND company_id=$2 AND kind='customer' AND status='active' AND currency=$3 AND person_id IS NULL";
 
 /// The owner reader. It never sees a caller-supplied statement; each registered
 /// kind resolves to exactly one constant above.
@@ -107,6 +121,51 @@ impl FinanceReferenceRead for PgFinanceReferenceRead {
             rows.iter().map(project).collect()
         })
     }
+
+    fn guard<'a>(
+        &'a self,
+        kind: GuardKind,
+        company: &'a str,
+        id: &'a str,
+        chart: Option<&'a str>,
+        currency: &'a str,
+    ) -> GuardReadFuture<'a> {
+        let pool = self.pool.clone();
+        let company = company.to_owned();
+        let id = id.to_owned();
+        let chart = chart.map(str::to_owned);
+        let currency = currency.to_owned();
+        Box::pin(async move {
+            let row = match kind {
+                GuardKind::ChartActive => sqlx::query(PG_CHART_ACTIVE_SQL)
+                    .bind(id.as_str())
+                    .bind(company.as_str())
+                    .bind(currency.as_str())
+                    .fetch_optional(pool.raw())
+                    .await
+                    .map_err(|_| unavailable())?,
+                GuardKind::AccountLiability => {
+                    let chart = chart.ok_or_else(unavailable)?;
+                    sqlx::query(PG_ACCOUNT_LIABILITY_SQL)
+                        .bind(id.as_str())
+                        .bind(company.as_str())
+                        .bind(chart.as_str())
+                        .bind(currency.as_str())
+                        .fetch_optional(pool.raw())
+                        .await
+                        .map_err(|_| unavailable())?
+                }
+                GuardKind::PartyCustomer => sqlx::query(PG_PARTY_CUSTOMER_SQL)
+                    .bind(id.as_str())
+                    .bind(company.as_str())
+                    .bind(currency.as_str())
+                    .fetch_optional(pool.raw())
+                    .await
+                    .map_err(|_| unavailable())?,
+            };
+            Ok(row.map(|_| GuardRow { id: id.clone() }))
+        })
+    }
 }
 
 /// Byte-for-byte mapping from the retired TS renderings to the Postgres
@@ -124,6 +183,22 @@ pub fn executed_sql(kind: ReferenceKind) -> &'static str {
         ReferenceKind::Accounts => PG_ACCOUNTS_SQL,
         ReferenceKind::Charts => PG_CHARTS_SQL,
         ReferenceKind::Parties => PG_PARTIES_SQL,
+    }
+}
+
+pub fn rendered_guard_sql(kind: GuardKind) -> &'static str {
+    match kind {
+        GuardKind::ChartActive => TS_CHART_ACTIVE_SQL,
+        GuardKind::AccountLiability => TS_ACCOUNT_LIABILITY_SQL,
+        GuardKind::PartyCustomer => TS_PARTY_CUSTOMER_SQL,
+    }
+}
+
+pub fn executed_guard_sql(kind: GuardKind) -> &'static str {
+    match kind {
+        GuardKind::ChartActive => PG_CHART_ACTIVE_SQL,
+        GuardKind::AccountLiability => PG_ACCOUNT_LIABILITY_SQL,
+        GuardKind::PartyCustomer => PG_PARTY_CUSTOMER_SQL,
     }
 }
 
@@ -159,6 +234,44 @@ mod tests {
             assert!(sql.starts_with("SELECT "));
             assert!(sql.contains("company_id=?"));
             assert!(!sql.contains(';'));
+        }
+    }
+
+    fn positional(sql: &str) -> String {
+        let mut out = String::with_capacity(sql.len());
+        let mut n = 1;
+        for ch in sql.chars() {
+            if ch == '?' {
+                out.push('$');
+                out.push_str(&n.to_string());
+                n += 1;
+            } else {
+                out.push(ch);
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn guard_statements_are_byte_identical_and_pinned() {
+        for kind in [
+            GuardKind::ChartActive,
+            GuardKind::AccountLiability,
+            GuardKind::PartyCustomer,
+        ] {
+            let ts = rendered_guard_sql(kind);
+            assert_eq!(executed_guard_sql(kind), positional(ts));
+            assert!(ts.contains("company_id=?"));
+            assert!(!ts.contains("FOR UPDATE"));
+            assert!(!ts.contains("FOR SHARE"));
+        }
+        let expected = [
+            (GuardKind::ChartActive, "e0d6087cb00a7d070006fbe0e3d60af1a171f69dc789c3377a6769f2b204f50e"),
+            (GuardKind::AccountLiability, "58f166cb8e98ac1f60a648e149316ea01e6910645b3af0e4cd80f33bb5c6a061"),
+            (GuardKind::PartyCustomer, "7d208210d860c9156ed05c89e3ff05384688efddfece5419eb0cb54ca93e046e"),
+        ];
+        for (kind, digest) in expected {
+            assert_eq!(sha256(rendered_guard_sql(kind)), digest, "{kind:?}");
         }
     }
 

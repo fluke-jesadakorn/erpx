@@ -76,7 +76,11 @@ describe('billing read-tail r27 metric count projection dedupe', () => {
     expect(text.split('billingLegacySubscriptionSql(').length - 1).toBe(1);
     expect(text).toContain("from './billing-read-tail-r32-sql'");
     expect(await src('executive-metric-watermarks.ts')).toContain('nativeBillingWatermarks(context)');
-    expect(await src('executive-main-evidence-sources.ts')).toContain('commercialSubscriptionSelect()');
+    const evidence = await src('executive-main-evidence-sources.ts');
+    // Native lane 38 wave 2: the CTE text is owner-owned Rust; the caller carries no SQL.
+    expect(evidence).toContain("from './native-lane-38/client'");
+    expect(evidence).toContain('nativeBillingCommercialSubscriptions(');
+    expect(evidence).not.toContain('commercialSubscriptionSelect()');
     expect(text).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
   });
 

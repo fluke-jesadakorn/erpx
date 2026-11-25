@@ -190,10 +190,30 @@ const parseCounts = (payload: unknown): OverviewCounts => {
   };
 };
 
-/** Read the owner-owned overview counts for one bounded Company. */
-export async function financeOverviewCountsNative(
-  actor: Pick<WorkContext, 'holdingId' | 'holdingSlug' | 'companyId'>,
-): Promise<OverviewCounts> {
+export type InvoicePageQuery = {
+  q?: string;
+  kind?: string;
+  status?: string;
+  queue?: string;
+  cursor?: string;
+  chartId?: string;
+};
+export type InvoicePage = {
+  items: Array<Record<string, string | number | null> & { id: string; page_key: string }>;
+  nextCursor: string | null;
+  previousCursor: string | null;
+  hasMore: boolean;
+};
+export type AgingRow = Record<string, string | number | null | boolean> & {
+  id: string;
+  source_id: string | null;
+  legacy_date_evidence: boolean;
+  due_date: string;
+};
+
+type NativeActor = Pick<WorkContext, 'holdingId' | 'holdingSlug' | 'companyId'>;
+
+function selectTarget(actor: NativeActor) {
   const config = nativeLane2Config();
   if (!validIdentifier(actor.companyId)) return fail(422);
   // A holding is selected only by the caller's exact WorkContext pair. There is
@@ -204,11 +224,22 @@ export async function financeOverviewCountsNative(
   if (!target) throw new ApiError(409, 'WORK_CONTEXT_CHANGED', 'The Holding context changed.');
   if (target.companyId !== undefined && target.companyId !== actor.companyId)
     throw new ApiError(409, 'WORK_CONTEXT_CHANGED', 'The Holding company scope changed.');
+  return { config, target };
+}
 
+async function nativeGet(
+  actor: NativeActor,
+  route: string,
+  params: Record<string, string | undefined> = {},
+): Promise<unknown> {
+  const { config, target } = selectTarget(actor);
   const url = new URL(
-    `/api/v1/holdings/${encodeURIComponent(target.holdingSlug)}/finance/native-lane-2/overview-counts`,
+    `/api/v1/holdings/${encodeURIComponent(target.holdingSlug)}/finance/native-lane-2/${route}`,
     config.base,
   );
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== '') url.searchParams.set(key, value);
+  }
   let response: Response;
   try {
     response = await fetch(url, {
@@ -236,10 +267,109 @@ export async function financeOverviewCountsNative(
     return fail(502);
   }
   try {
-    return parseCounts(JSON.parse(await readBody(response.body)));
+    return JSON.parse(await readBody(response.body));
   } catch {
     return fail(502);
   }
+}
+
+const parsePage = (payload: unknown): InvoicePage => {
+  if (!record(payload) || !record(payload.data)) return fail(502);
+  const data = payload.data;
+  if (!Array.isArray(data.items)) return fail(502);
+  const items = data.items.map((item: unknown) => {
+    if (!record(item) || typeof item.id !== 'string' || typeof item.page_key !== 'string')
+      return fail(502);
+    if (!Object.values(item).every((value) =>
+      value === null || typeof value === 'string' || typeof value === 'number'))
+      return fail(502);
+    return item as Record<string, string | number | null> & { id: string; page_key: string };
+  });
+  if (
+    !(data.nextCursor === null || typeof data.nextCursor === 'string') ||
+    !(data.previousCursor === null || typeof data.previousCursor === 'string') ||
+    typeof data.hasMore !== 'boolean'
+  )
+    return fail(502);
+  return {
+    items,
+    nextCursor: data.nextCursor as string | null,
+    previousCursor: data.previousCursor as string | null,
+    hasMore: data.hasMore,
+  };
+};
+
+const parseAging = (payload: unknown): AgingRow[] => {
+  if (!record(payload) || !Array.isArray(payload.data)) return fail(502);
+  return payload.data.map((row: unknown) => {
+    if (
+      !record(row) ||
+      typeof row.id !== 'string' ||
+      typeof row.due_date !== 'string' ||
+      typeof row.historical_outstanding_minor !== 'number' ||
+      typeof row.historical_base_outstanding_minor !== 'number' ||
+      typeof row.legacy_date_evidence !== 'boolean'
+    )
+      return fail(502);
+    return row as AgingRow;
+  });
+};
+
+const validAgingDate = (value: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const year = Number(value.slice(0, 4));
+  const month = Number(value.slice(5, 7));
+  const day = Number(value.slice(8, 10));
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return month >= 1 && month <= 12 && day >= 1 && day <= days[month - 1]!;
+};
+
+/** Read the owner-owned overview counts for one bounded Company. */
+export async function financeOverviewCountsNative(actor: NativeActor): Promise<OverviewCounts> {
+  return parseCounts(await nativeGet(actor, 'overview-counts'));
+}
+
+/** Read the owner-owned, Company-scoped invoice list page. */
+export async function financeInvoicesPageNative(
+  actor: NativeActor,
+  query: InvoicePageQuery = {},
+): Promise<InvoicePage> {
+  const kind = query.kind ?? '';
+  const queue = query.queue ?? '';
+  if (
+    !['', 'receivable', 'payable'].includes(kind) ||
+    !['', 'open'].includes(queue) ||
+    (query.q?.length ?? 0) > 200 ||
+    (query.status?.length ?? 0) > 40 ||
+    (query.chartId !== undefined && (query.chartId.length === 0 || query.chartId.length > 200)) ||
+    (query.cursor !== undefined && (query.cursor.length === 0 || query.cursor.length > 4096))
+  )
+    return fail(422);
+  return parsePage(await nativeGet(actor, 'invoices-page', {
+    q: query.q,
+    kind: query.kind,
+    status: query.status,
+    queue: query.queue,
+    chartId: query.chartId,
+    cursor: query.cursor,
+  }));
+}
+
+/** Read the owner-owned, Company-scoped historical aging rows. */
+export async function financeAgingBalancesNative(
+  actor: NativeActor,
+  asOf: string,
+  kind: 'receivable' | 'payable',
+  chartId?: string,
+): Promise<AgingRow[]> {
+  if (
+    !['receivable', 'payable'].includes(kind) ||
+    !validAgingDate(asOf) ||
+    (chartId !== undefined && (chartId.length === 0 || chartId.length > 200))
+  )
+    return fail(422);
+  return parseAging(await nativeGet(actor, 'aging', { kind, asOf, chartId }));
 }
 
 /** True when the native lane consumer switch is configured. */

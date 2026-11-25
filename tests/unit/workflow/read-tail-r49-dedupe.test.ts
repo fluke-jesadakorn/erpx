@@ -47,8 +47,11 @@ describe('command-receipt read-tail dedupe (r49)', () => {
     expect(flow).toContain("const approvalIndex = `(SELECT current_step FROM approval_instances");
     expect(flow).toContain("EXISTS(SELECT 1 FROM approval_steps s JOIN approval_instances i");
     expect(flow).toContain("COALESCE((SELECT CASE status WHEN 'draft' THEN 'payment_draft'");
-    // Collaboration dead-letter count, finance request-AI month head, hospitality decision projection.
-    expect(inbox).toContain('"SELECT count(*)::int count FROM outbox_events WHERE dead_letter_at IS NOT NULL"');
+    // Collaboration dead-letter count moved to the lane-32 native reader; the
+    // switched owner adapter now carries no SQL. Finance request-AI month head,
+    // hospitality decision projection remain floor singles.
+    expect(inbox).not.toContain('SELECT count(*)::int count FROM outbox_events');
+    expect(inbox).toContain("from './native-lane-32/client'");
     expect(aiRequest).toContain('`SELECT company_id,month ${recordsFinalSources.');
     expect(hospitality).toContain('approval_decisions: "SELECT');
     // Inventory history head, project-worker audit/outbox evidence, finance source revision.
@@ -64,7 +67,6 @@ describe('command-receipt read-tail dedupe (r49)', () => {
       'adapters/approval-planning.ts': 3,
       'adapters/approval-projection-sources.ts': 5,
       'adapters/closed-projection-sources.ts': 2,
-      'adapters/collaboration-inbox-sources.ts': 1,
       'adapters/finance-ai-request-sources.ts': 1,
       'adapters/finance-ai-revision-sources.ts': 1,
       'adapters/flow-planning-ports.ts': 6,
@@ -91,7 +93,7 @@ describe('command-receipt read-tail dedupe (r49)', () => {
     expect(expected['adapters/receipt-sql.ts'] ?? 0).toBe(0);
   });
 
-  it('retirement:ts-statements is 28 after the r53 head fold (29->28)', async () => {
+  it('retirement:ts-statements is 27 after the lane-32 failed-metrics cut (28->27)', async () => {
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -102,6 +104,6 @@ describe('command-receipt read-tail dedupe (r49)', () => {
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(30);
-    expect(total).toBe(28);
+    expect(total).toBe(27);
   });
 });

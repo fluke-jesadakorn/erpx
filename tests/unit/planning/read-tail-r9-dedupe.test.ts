@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'vitest';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { planningScopedBranchRow } from '../../../packages/server-planning/src/adapters/planning-scoped-row-sql';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-planning/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
@@ -9,33 +8,27 @@ const selectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;
 
 // Verbatim pre-dedupe renderings from HEAD for the Planning command-source
 // single-row readers. Byte-identity oracles only, never live query sources.
+// Lane 36 retired both TS reads; their sole authority is now the native
+// Planning owner route, so these strings are historical oracles only.
 const SCENARIO = 'SELECT * FROM planning_scenarios WHERE id=? AND company_id=? AND (?::text IS NULL OR branch_id=?)';
 const SCOPED_RECOMMENDATION = 'SELECT r.*,s.company_id,s.branch_id,s.warehouse_id,s.specification_id,s.specification_version,s.context_json,s.created_by scenario_created_by FROM planning_recommendations r JOIN planning_scenarios s ON s.id=r.scenario_id WHERE r.id=? AND s.company_id=? AND (?::text IS NULL OR s.branch_id=?)';
 
-const generated = [
-  planningScopedBranchRow('*', 'planning_scenarios', 'id', 'company_id', 'branch_id'),
-  planningScopedBranchRow('r.*,s.company_id,s.branch_id,s.warehouse_id,s.specification_id,s.specification_version,s.context_json,s.created_by scenario_created_by', 'planning_recommendations r JOIN planning_scenarios s ON s.id=r.scenario_id', 'r.id', 's.company_id', 's.branch_id'),
-];
-
 describe('Planning read-tail r9 parameterized branch-scoped single-row family', () => {
-  test('row builder reproduces both originals byte-identically', () => {
-    expect(generated).toEqual([SCENARIO, SCOPED_RECOMMENDATION]);
-  });
-
-  test('every former row site composes the builder and keeps its own prepare/bind', () => {
+  test('retired row reads are now served by the native owner route', () => {
     const text = src('production-command-sources-read.ts');
     for (const literal of [SCENARIO, SCOPED_RECOMMENDATION]) expect(text).not.toContain(literal);
-    expect(text.match(/planningScopedBranchRow\(/g) ?? []).toHaveLength(2);
-    expect(text).toContain('planning-scoped-row-sql');
-    expect(text).toContain('.bind(id, companyId, branchId, branchId2)');
+    expect(text).not.toContain('planningScopedBranchRow(');
+    expect(text).toContain("from './native-lane-36/client'");
+    expect(text).toContain('nativeScenario({id},companyId,branchId)');
+    expect(text).toContain('nativeScopedRecommendation({id},companyId,branchId)');
     expect(text).toContain('planningScopedBranchList('); // r8 family untouched
     expect(text).toContain('planningCommandExistsGuard('); // r7 family untouched
+    expect(existsSync(resolve(srcRoot, 'adapters/planning-scoped-row-sql.ts'))).toBe(false);
   });
 
-  test('shared module declares the read literal exactly once and stays read-only', () => {
-    const shared = src('planning-scoped-row-sql.ts');
-    expect(selectCount(shared)).toBe(0); // r24: scoped single-row literal folded into the single-line projection/FROM builder
-    for (const sql of generated) {
+  test('the historical row oracles are read-only SELECTs', () => {
+    for (const sql of [SCENARIO, SCOPED_RECOMMENDATION]) {
+      expect(selectCount(sql)).toBe(1);
       expect(sql.toUpperCase()).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
     }
   });

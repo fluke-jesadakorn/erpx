@@ -169,7 +169,6 @@ describe('Projects read-tail r38 closed member EXISTS and evidence super-head de
       ['read-tail-r27.ts', 'projectMemberExistsSql'],
       ['read-tail-r28.ts', 'assignmentViewerSelect'],
       ['read-tail-r29.ts', 'orderedImageAggregateHead'],
-      ['read-tail-r30.ts', 'visibleProjectRowsHead'],
       ['read-tail-r32.ts', 'projectPurchaseSourceHead'],
       ['read-tail-r33.ts', 'projectPointReadHead'],
       ['read-tail-r34.ts', 'staffTaskPointHead'],
@@ -193,7 +192,7 @@ describe('Projects read-tail r38 closed member EXISTS and evidence super-head de
     // r37 left 88. r38 Rank1 folds five member EXISTS witnesses into one closed
     // helper (-4) and Rank2 folds four evidence heads into one closed super-head
     // (-3): 88-7 = 81. Rank3 keeps its tail inline; r43 folds only the closed head.
-    expect(total).toBe(67); // lane 27 wave 2 moved the two handoff list/work reads to native (-2) // lane 27 moved the two actuals reads to native Rust (-2)
+    expect(total).toBe(66); // lane 27 wave 2 moved the two handoff list/work reads to native (-2) // lane 27 moved the two actuals reads to native Rust (-2)
     expect(total).toBeLessThan(88);
   });
 });

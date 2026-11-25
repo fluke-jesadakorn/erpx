@@ -113,8 +113,8 @@ describe('pms read-tail r54 owner-local booking-payment head dedupe', () => {
       spaced += count(text, 'SELECT ');
       bare += count(text, 'SELECT');
     }
-    expect(spaced).toBe(238);
-    expect(bare).toBe(239);
+    expect(spaced).toBe(237);
+    expect(bare).toBe(238);
     expect(spaced).toBeLessThan(245);
     expect(bare).toBeLessThan(247);
   });

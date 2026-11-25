@@ -26,6 +26,13 @@ export const RESPONSE_ORACLE_SHA256 = "b9d5a6988cbe97e37f2c13ff946ff430253e78d54
 export const PAYMENTS_SQL_ORACLE_SHA256 = "97047147e5dc9782b5de8e4c0659cb6c693f45a398186acb19ddb1f2b0200c2e";
 /** SHA-256 of the pinned People-payments response payload. */
 export const PAYMENTS_RESPONSE_ORACLE_SHA256 = "991dbb8da772de20366554766db436b89235fad81b537272fdf54702bb348f2e";
+const AUTHORITY_KIND = "people_payroll_lane_7_organization_authority_person";
+/** SHA-256 of the owner Rust `SQL_AUTHORITY_ACTOR` constant. */
+export const AUTHORITY_ACTOR_SQL_ORACLE_SHA256 = "c5264c5c857254afc0d7f10e7627a513e05a9d3aea5c250e08858d6b759a0840";
+/** SHA-256 of the owner Rust `SQL_AUTHORITY_APPOINTEE` constant. */
+export const AUTHORITY_APPOINTEE_SQL_ORACLE_SHA256 = "f579db98f3ccd908d63b13ef6c64fbb39096f7a8864cf2598dfd78bff8a5face";
+/** SHA-256 of the pinned non-null authority response payload. */
+export const AUTHORITY_RESPONSE_ORACLE_SHA256 = "e8888517d3fb5b2ba2f6b6c3de973ed39168d86f1efa8b80e7b594e30ec1c3b9";
 
 /** Owner-projected payment row; keys are the original Finance column names. */
 export type WorkspacePaymentRow = {
@@ -37,6 +44,18 @@ export type WorkspacePaymentRow = {
   due_date: string | null;
   amount_minor: number;
 };
+
+/** Bounded, discriminator-only query for the two authority person lookups. */
+export type AuthorityQuery =
+  | { kind: "actor"; userId: string }
+  | {
+      kind: "appointee";
+      personId: string;
+      positionId: string;
+      appointmentKind: "ceo" | "hr" | "head";
+      scopeId: string;
+      selfCeo: boolean;
+    };
 
 export type Holding = Readonly<{
   origin: string;
@@ -327,4 +346,95 @@ export async function readFinanceWorkspacePeoplePayments(
     return fail("NATIVE_PEOPLE_PAYROLL_LANE7_RESPONSE_INVALID", 502);
   }
   return payload.payments;
+}
+
+/** Serialize the bounded authority query; no caller SQL reaches the service. */
+function authorityParams(query: AuthorityQuery): URLSearchParams {
+  const invalid = () => fail("PEOPLE_PAYROLL_LANE7_AUTHORITY_QUERY_INVALID", 422);
+  const params = new URLSearchParams();
+  if (query.kind === "actor") {
+    if (!validId(query.userId)) return invalid();
+    params.set("kind", "actor");
+    params.set("user_id", query.userId);
+    return params;
+  }
+  if (
+    !validId(query.personId) ||
+    !text(query.positionId, 200) ||
+    !["ceo", "hr", "head"].includes(query.appointmentKind) ||
+    !validId(query.scopeId) ||
+    typeof query.selfCeo !== "boolean"
+  ) {
+    return invalid();
+  }
+  params.set("kind", "appointee");
+  params.set("person_id", query.personId);
+  params.set("position_id", query.positionId);
+  params.set("appointment_kind", query.appointmentKind);
+  params.set("scope_id", query.scopeId);
+  params.set("self_ceo", query.selfCeo ? "true" : "false");
+  return params;
+}
+
+/**
+ * Native-backed replacement of the Company-scoped Organization actor/appointee
+ * lookups. Rust owns both statements, the Company guard and the id projection;
+ * this bridge transports the discriminator query and validates the reply with
+ * no TypeScript SQL or fallback.
+ */
+export async function readOrganizationAuthorityPerson(
+  companyId: string,
+  query: AuthorityQuery,
+  actor?: Lane7Actor,
+  transport: Transport = direct,
+): Promise<string | null> {
+  const config = configuration(process.env[ENV]);
+  if (!validId(companyId)) return fail("PEOPLE_PAYROLL_LANE7_COMPANY_INVALID", 422);
+  const params = authorityParams(query);
+  const target = selectTarget(config, actor, companyId);
+  const headers = new Headers({
+    host: target.host,
+    origin: target.origin,
+    accept: "application/json",
+    "cache-control": "no-cache",
+    "x-erpx-context-holding": target.holdingId,
+    "x-erpx-context-company": companyId,
+  });
+  const url = new URL(
+    `/api/v1/holdings/${encodeURIComponent(target.holdingSlug)}/people-payroll/organization-authority-person?${params.toString()}`,
+    config.base,
+  );
+  let response: Response;
+  try {
+    response = await transport(url, headers, AbortSignal.timeout(config.timeoutMs));
+  } catch {
+    return fail("NATIVE_PEOPLE_PAYROLL_LANE7_UNAVAILABLE");
+  }
+  if (response.redirected) {
+    void response.body?.cancel().catch(() => undefined);
+    return fail("NATIVE_PEOPLE_PAYROLL_LANE7_REDIRECT");
+  }
+  if (response.status !== 200) {
+    void response.body?.cancel().catch(() => undefined);
+    if (response.status >= 400 && response.status < 500) {
+      return fail("NATIVE_PEOPLE_PAYROLL_LANE7_REJECTED", response.status);
+    }
+    return fail("NATIVE_PEOPLE_PAYROLL_LANE7_UNAVAILABLE");
+  }
+  const payload: unknown = await response.json().catch(() => null);
+  if (
+    !object(payload) ||
+    Object.keys(payload).length !== 2 ||
+    payload.kind !== AUTHORITY_KIND ||
+    !object(payload.person) ||
+    Object.keys(payload.person).length !== 1 ||
+    !Object.hasOwn(payload.person, "id") ||
+    !(
+      payload.person.id === null ||
+      (typeof payload.person.id === "string" && validId(payload.person.id))
+    )
+  ) {
+    return fail("NATIVE_PEOPLE_PAYROLL_LANE7_RESPONSE_INVALID", 502);
+  }
+  return payload.person.id;
 }

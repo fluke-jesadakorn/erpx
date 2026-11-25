@@ -101,7 +101,7 @@ describe('billing read-tail r32 dedupe', () => {
   });
 
   it('routes both executive readers through the shared head with unchanged binds', async () => {
-    for (const oracle of LEGACY) {
+    for (const oracle of LEGACY.filter((item) => item.file === 'executive-metric-projections.ts')) {
       const text = await src(oracle.file);
       expect(text).toContain("from './billing-read-tail-r32-sql'");
       expect(text.split('billingLegacySubscriptionSql(').length - 1).toBe(1);
@@ -109,6 +109,14 @@ describe('billing read-tail r32 dedupe', () => {
       expect(text.split('beta_billing b WHERE').length - 1).toBe(0);
       expect(text).toContain(oracle.binds);
     }
+    // Native lane 38 wave 2: this caller carries no SQL; the byte-identical head
+    // is now pinned in the owner crate instead.
+    const evidence = await src('executive-main-evidence-sources.ts');
+    expect(evidence).toContain("from './native-lane-38/client'");
+    expect(evidence).not.toContain('billingLegacySubscriptionSql(');
+    const rust = await readFile(new URL('adapters/native_lane_38/postgres.rs', srcRoot), 'utf8');
+    expect(rust).toContain("'legacy'::text source_kind,b.holding_id record_id,'Legacy subscription'::text plan_name,b.status");
+    expect(rust).toContain('FROM beta_billing b WHERE b.holding_id=?');
   });
 
   it('recomposes all four point reads byte-for-byte through the r29 text', () => {

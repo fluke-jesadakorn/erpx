@@ -4,6 +4,7 @@ import type { BetaEnvironment } from '@erpx/server-manage_erpx/domain/config';
 import { createBetaEmailApplication } from '@erpx/server-manage_erpx/application/email';
 import type { BetaEmailReceipt } from '@erpx/server-manage_erpx/domain/email';
 import {NativeEmailDeliveryError,nativeReserveEmailDelivery} from './native-email-delivery-command';
+import {nativeEmailDeliveryReceipt} from './native-lane-34/client';
 
 type EmailEnvironment = BetaEnvironment & {
   BETTER_AUTH_SECRET?: string;
@@ -19,15 +20,6 @@ const encryptionSalt = Buffer.from('erpx:sandbox-email-body:hkdf-salt:v1', 'utf8
 const encryptionContext = Buffer.from('erpx:manage_erpx:sandbox-email-body:aes-256-gcm:v1', 'utf8');
 
 type CipherContext = { deliveryKey: string; to: string; subject: string; providerId: string };
-type StoredSandboxEmailReceipt = {
-  delivery_key: string;
-  recipient: string;
-  subject: string;
-  body_text: string;
-  body_ciphertext: string | null;
-  provider_id: string;
-};
-
 function encryptionKey(secret: string | undefined): Buffer {
   if (!secret) throw new Error('EMAIL_SENSITIVE_ENCRYPTION_NOT_CONFIGURED');
   return Buffer.from(hkdfSync('sha256', Buffer.from(secret, 'utf8'), encryptionSalt, encryptionContext, 32));
@@ -122,9 +114,10 @@ export async function sendBetaEmail(
         }
       },
       async receipt(deliveryKey) {
-        const stored = await env.CONTROL_DB!.prepare(
-          'SELECT delivery_key,recipient,subject,body_text,body_ciphertext,provider_id FROM sandbox_email_deliveries WHERE delivery_key=?',
-        ).bind(deliveryKey).first<StoredSandboxEmailReceipt>();
+        // Native axum owner owns the sandbox_email_deliveries SELECT. This
+        // adapter only transports the delivery key; decryption of an
+        // authenticated ciphertext stays here and no TypeScript SQL remains.
+        const stored = await nativeEmailDeliveryReceipt(deliveryKey);
         if (!stored) return null;
         if (stored.body_ciphertext === null) {
           return {

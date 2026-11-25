@@ -106,7 +106,8 @@ describe('legal read-tail r59 point-read head reuse', () => {
     expect(worker).toContain('FOR UPDATE OF x,i');
     expect(portalPurchases).toContain('LOCK TABLE legal_settings,legal_destructions,legal_comments,legal_envelopes,legal_signers,legal_counsel_entries IN SHARE ROW EXCLUSIVE MODE');
     expect(citations).toContain('export function legalCitation');
-    expect(citations).toContain('FROM legal_source_chunks c JOIN legal_text_reviews r');
+    expect(citations).toContain("from '../native-lane-26/client'");
+    expect(citations).not.toContain('FROM legal_source_chunks c JOIN legal_text_reviews r');
   });
 
   it('retirement:ts-statements is BEFORE=141 -> AFTER=139', async () => {

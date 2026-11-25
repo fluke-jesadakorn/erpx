@@ -27,6 +27,7 @@ const config = (
 ) => JSON.stringify({ privateBaseUrl, timeoutMs, holdings });
 
 type Seen = { url: URL; headers: Record<string, string>; timeoutMs: number };
+type Posted = Seen & { method?: string; body?: unknown };
 const transport = (
   status: number,
   value: unknown,
@@ -35,6 +36,20 @@ const transport = (
 ): NativeLane38Transport => async (url, headers, timeoutMs) => {
   if (seen) Object.assign(seen, { url, headers, timeoutMs });
   if (throwError) throw new Error('offline');
+  return { status, value };
+};
+const postTransport = (
+  status: number,
+  value: unknown,
+  seen: Posted,
+): NativeLane38Transport => async (url, headers, timeoutMs, method, body) => {
+  Object.assign(seen, {
+    url,
+    headers,
+    timeoutMs,
+    method,
+    body: body === undefined ? undefined : JSON.parse(body),
+  });
   return { status, value };
 };
 
@@ -257,5 +272,163 @@ describe('native lane 38 owner oracle and dev configuration', () => {
     await client.watermarks({ holdingId: 'erpx', holdingSlug: 'erpx' });
     expect(seen.url.pathname).toBe('/api/v1/holdings/erpx/billing/native-lane-38/watermarks');
     expect(seen.headers.host).toBe('erpx-internal.jesadakorn.com');
+  });
+});
+
+describe('native lane 38 billing evidence transport', () => {
+  const commercialRow = {
+    source_kind: 'enrollment',
+    record_id: 'r1',
+    plan_name: 'Plan',
+    status: 'active',
+    started_at: 100,
+    effective_at: null,
+    record_version: 3,
+  };
+  const overdueRow = {
+    id: 'i1',
+    kind: 'main',
+    status: 'open',
+    total_satang: '100',
+    due_at: 1000,
+    updated_at: 2,
+    month: '2026-01',
+  };
+  const cfg = () => config('http://127.0.0.1:3401');
+  const commercialSearch = {
+    query: '',
+    sourceKind: null,
+    recordId: null,
+    limit: 30,
+    now: 1000,
+  };
+  const overdueSearch = {
+    from: '2026-01-01',
+    to: '2026-01-31',
+    query: '',
+    dueAt: null,
+    id: null,
+    limit: 30,
+    end: 2_000,
+    now: 1_000,
+  };
+
+  it('posts commercial subscription search through the owner route and pins the row shape', async () => {
+    const seen: Posted = {} as Posted;
+    const client = createNativeLane38Client(
+      cfg(),
+      postTransport(200, { rows: [commercialRow] }, seen),
+    );
+    const rows = await client.commercialSubscriptions(context, commercialSearch);
+    expect(rows).toEqual([commercialRow]);
+    expect(seen.url.pathname).toBe(
+      '/api/v1/holdings/acme/billing/native-lane-38/evidence/commercial-subscriptions',
+    );
+    expect(seen.method).toBe('POST');
+    expect(seen.body).toEqual(commercialSearch);
+    expect(seen.headers['x-erpx-context-company']).toBe(holdingId);
+  });
+
+  it('posts a commercial subscription point read and preserves an absent row', async () => {
+    const seen: Posted = {} as Posted;
+    const client = createNativeLane38Client(
+      cfg(),
+      postTransport(200, { row: null }, seen),
+    );
+    const row = await client.commercialSubscription(
+      context,
+      { sourceKind: 'legacy', recordId: 'r2' },
+      1000,
+    );
+    expect(row).toBeNull();
+    expect(seen.url.pathname).toBe(
+      '/api/v1/holdings/acme/billing/native-lane-38/evidence/commercial-subscription',
+    );
+    expect(seen.body).toEqual({ sourceKind: 'legacy', recordId: 'r2', now: 1000 });
+  });
+
+  it('parses overdue date filters to epoch milliseconds for the owner', async () => {
+    const seen: Posted = {} as Posted;
+    const client = createNativeLane38Client(cfg(), postTransport(200, { rows: [overdueRow] }, seen));
+    const rows = await client.overdueInvoices(context, overdueSearch);
+    expect(rows).toEqual([overdueRow]);
+    expect(seen.url.pathname).toBe(
+      '/api/v1/holdings/acme/billing/native-lane-38/evidence/overdue-invoices',
+    );
+    expect(seen.body).toMatchObject({
+      fromMs: Date.parse('2026-01-01'),
+      query: '',
+      dueAt: null,
+      id: null,
+      limit: 30,
+      end: 2_000,
+      now: 1_000,
+    });
+  });
+
+  it('computes the exclusive end for an overdue invoice point read', async () => {
+    const seen: Posted = {} as Posted;
+    const client = createNativeLane38Client(
+      cfg(),
+      postTransport(200, { row: overdueRow }, seen),
+    );
+    const row = await client.overdueInvoice(
+      context,
+      { from: '2026-01-01', to: '2026-01-31' },
+      1_000,
+      'i1',
+    );
+    expect(row).toEqual(overdueRow);
+    expect(seen.url.pathname).toBe(
+      '/api/v1/holdings/acme/billing/native-lane-38/evidence/overdue-invoice',
+    );
+    expect(seen.body).toEqual({
+      fromMs: Date.parse('2026-01-01'),
+      toExclusiveMs: Date.parse('2026-01-31') + 86400000,
+      now: 1_000,
+      id: 'i1',
+    });
+  });
+
+  it('fails closed on evidence rows that are not byte-exact to the owner key set', async () => {
+    const client = createNativeLane38Client(
+      cfg(),
+      postTransport(200, { rows: [{ ...commercialRow, extra: 1 }] }, {} as Posted),
+    );
+    const error = await apiError(() => client.commercialSubscriptions(context, commercialSearch));
+    expect(error.status).toBe(503);
+    expect(error.code).toBe('NATIVE_LANE_38_BILLING_EVIDENCE_UNAVAILABLE');
+
+    const wrongFamily = createNativeLane38Client(
+      cfg(),
+      postTransport(200, { rows: [overdueRow] }, {} as Posted),
+    );
+    const familyError = await apiError(() =>
+      wrongFamily.commercialSubscriptions(context, commercialSearch),
+    );
+    expect(familyError.status).toBe(503);
+  });
+
+  it('rejects unbounded evidence inputs before any transport call', async () => {
+    let called = false;
+    const spy: NativeLane38Transport = async () => {
+      called = true;
+      return { status: 200, value: { rows: [] } };
+    };
+    const client = createNativeLane38Client(cfg(), spy);
+    const badLimit = await apiError(() =>
+      client.commercialSubscriptions(context, { ...commercialSearch, limit: 0 }),
+    );
+    const badPoint = await apiError(() =>
+      client.commercialSubscription(context, { sourceKind: 'other', recordId: 'r1' }, 1000),
+    );
+    const badFrom = await apiError(() =>
+      client.overdueInvoices(context, { ...overdueSearch, from: 'not-a-date' }),
+    );
+    for (const error of [badLimit, badPoint, badFrom]) {
+      expect(error.status).toBe(422);
+      expect(error.code).toBe('NATIVE_LANE_38_BILLING_WATERMARK_REQUEST_INVALID');
+    }
+    expect(called).toBe(false);
   });
 });

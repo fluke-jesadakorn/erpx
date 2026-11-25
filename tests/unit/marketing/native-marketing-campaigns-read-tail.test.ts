@@ -176,9 +176,11 @@ describe('Marketing owner-local campaign read tail', () => {
     expect(helper).toContain("formAssetReadHead({ kind: 'content', projection })");
     expect(head).toContain('FROM marketing_assets WHERE ${predicate}');
 
-    // Both the presentation assertion and the content reader share the helper.
+    // The presentation assertion keeps the shared EXISTS helper; the content
+    // reader itself is now a closed native lane-40 owner read.
     expect(form).toContain("const contentPredicate=`EXISTS(${marketingFormContentSql('1')})`");
-    expect(form).toContain("marketingFormContentSql('id,version,preview_json')");
+    expect(form).toContain('readMarketingLane40ForCompany(LANE40_FORM_CONTENT_ROW,companyId,');
+    expect(form).not.toContain("marketingFormContentSql('id,version,preview_json')");
     expect(form).not.toContain("SELECT id,version,preview_json FROM marketing_assets");
     expect(form).not.toContain("SELECT 1 FROM marketing_assets WHERE id=? AND company_id=? AND kind='content'");
   });

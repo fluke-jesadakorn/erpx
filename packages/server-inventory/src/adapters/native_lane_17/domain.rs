@@ -1,7 +1,8 @@
 //! Pure response types, request validation and invariants for native lane 17.
 //!
-//! This module owns no SQL and no I/O. It admits one of six closed owner-local
-//! read kinds (four landed-cost reads and two replenishment reads), bounds every
+//! This module owns no SQL and no I/O. It admits one of seven closed owner-local
+//! read kinds (four landed-cost reads, two replenishment reads and the
+//! count-scoped lot-line read), bounds every
 //! caller value, and fixes the response shape that the owner-local axum route
 //! returns. Nothing here grants authority; the caller's Holding/company context
 //! is carried by headers and checked against the row scope on the application side.
@@ -12,8 +13,8 @@ use erpx_server_shared::public::BusinessError;
 /// Owner-local native route mounted by composition.
 pub const READ_PATH: &str = "/api/v1/holdings/{holding_slug}/inventory/native-lane-17/read";
 
-/// The closed owner-local read kinds: landed-cost reads and the replenishment
-/// reads (reorder policies and service spares).
+/// The closed owner-local read kinds: landed-cost reads, the replenishment
+/// reads (reorder policies and service spares) and the count-scoped lot lines.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LaneReadKind {
     /// `scopedCost`: one cost in the caller's company/branch.
@@ -28,16 +29,19 @@ pub enum LaneReadKind {
     ReorderPolicies,
     /// `availableServiceSpares`: company/branch scoped lot spares.
     ServiceSpares,
+    /// `countLotLines`: count-scoped lot lines with a balance snapshot.
+    CountLotLines,
 }
 
 impl LaneReadKind {
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::LandedCostScoped,
         Self::LandedCostsForOrder,
         Self::LandedCostMovedStock,
         Self::LandedCostWorkRows,
         Self::ReorderPolicies,
         Self::ServiceSpares,
+        Self::CountLotLines,
     ];
 
     pub fn as_str(self) -> &'static str {
@@ -48,6 +52,7 @@ impl LaneReadKind {
             Self::LandedCostWorkRows => "landed_cost_work_rows",
             Self::ReorderPolicies => "reorder_policies",
             Self::ServiceSpares => "service_spares",
+            Self::CountLotLines => "count_lot_lines",
         }
     }
 
@@ -64,18 +69,20 @@ impl LaneReadKind {
             Self::LandedCostWorkRows => 2,
             Self::ReorderPolicies => 3,
             Self::ServiceSpares => 2,
+            Self::CountLotLines => 2,
         }
     }
 
     /// Position of the company id among the caller values, when the retained
-    /// statement already carries a company predicate. The moved-stock probe is
-    /// order-scoped in the TS source, so the native route adds its own company
-    /// witness instead of trusting an absent caller company value.
+    /// statement already carries a company predicate. The moved-stock probe and
+    /// the count-lot-line read are order/count-scoped in the TS source, so the
+    /// native route adds its own company witness instead of trusting an absent
+    /// caller company value.
     pub fn company_value_index(self) -> Option<usize> {
         match self {
             Self::LandedCostScoped | Self::LandedCostsForOrder => Some(1),
             Self::LandedCostWorkRows | Self::ReorderPolicies | Self::ServiceSpares => Some(0),
-            Self::LandedCostMovedStock => None,
+            Self::LandedCostMovedStock | Self::CountLotLines => None,
         }
     }
 
@@ -239,12 +246,15 @@ mod tests {
     }
 
     #[test]
-    fn moved_stock_probe_always_needs_an_owner_company_witness() {
-        assert!(LaneReadKind::LandedCostMovedStock.needs_company_witness());
+    fn order_scoped_reads_need_an_owner_company_witness() {
+        for kind in [LaneReadKind::LandedCostMovedStock, LaneReadKind::CountLotLines] {
+            assert!(kind.needs_company_witness());
+        }
         for kind in LaneReadKind::ALL {
-            if kind != LaneReadKind::LandedCostMovedStock {
+            if !matches!(kind, LaneReadKind::LandedCostMovedStock | LaneReadKind::CountLotLines) {
                 assert!(!kind.needs_company_witness());
             }
         }
+        assert_eq!(LaneReadKind::CountLotLines.value_count(), 2);
     }
 }

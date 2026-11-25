@@ -16,13 +16,19 @@ use erpx_server_runtime::public::http_support::{
 use erpx_server_runtime::public::postgres::DatabasePool;
 use erpx_server_shared::public::{BusinessError, FailureKind, RecordId};
 
-use super::application::WorkEvidenceRead;
-use super::domain::{WorkEvidenceKind, parse_read_only, valid_id};
-use super::postgres::PgWorkEvidenceRead;
+use super::application::{
+    PersonnelEvidenceRead, PersonnelEvidenceRequest, WorkEvidenceRead,
+};
+use super::domain::{
+    PersonnelEvidenceKind, WorkEvidenceKind, parse_read_only, valid_id,
+};
+use super::postgres::{PgPersonnelEvidenceRead, PgWorkEvidenceRead};
 
 const CONTEXT_COMPANY: HeaderName = HeaderName::from_static("x-erpx-context-company");
 const CONTEXT_RECORD: HeaderName = HeaderName::from_static("x-erpx-context-record");
 const READ_ONLY: HeaderName = HeaderName::from_static("x-erpx-files-read-only");
+const CONTEXT_ASSESSMENT: HeaderName = HeaderName::from_static("x-erpx-context-assessment");
+const CONTEXT_SOURCE: HeaderName = HeaderName::from_static("x-erpx-context-source");
 
 /// Exact registered Holding target. No wildcard or fallback host is accepted.
 pub struct WorkEvidenceTarget {
@@ -36,6 +42,18 @@ pub type LaneTarget = WorkEvidenceTarget;
 struct WorkEvidenceReadState {
     targets: BTreeMap<(String, String), Arc<dyn WorkEvidenceRead>>,
 }
+
+struct PersonnelEvidenceReadState {
+    targets: BTreeMap<(String, String), Arc<dyn PersonnelEvidenceRead>>,
+}
+
+/// Registered Holding target for the personnel-evidence family.
+pub struct PersonnelEvidenceTarget {
+    pub host: String,
+    pub holding_slug: String,
+}
+
+pub type PersonnelLaneTarget = PersonnelEvidenceTarget;
 
 fn unavailable() -> BusinessError {
     BusinessError::new(
@@ -203,6 +221,134 @@ pub fn router_for_holdings(
     )?))
 }
 
+fn build_personnel_state(
+    entries: impl IntoIterator<Item = (PersonnelEvidenceTarget, Arc<dyn PersonnelEvidenceRead>)>,
+) -> Result<Arc<PersonnelEvidenceReadState>, BusinessError> {
+    let mut configured = BTreeMap::new();
+    for (target, reader) in entries {
+        if target.host.is_empty()
+            || !valid_slug(&target.holding_slug)
+            || configured
+                .insert(
+                    (target.host.clone(), target.holding_slug.clone()),
+                    reader,
+                )
+                .is_some()
+        {
+            return Err(configuration_invalid());
+        }
+    }
+    if configured.is_empty() {
+        return Err(configuration_invalid());
+    }
+    Ok(Arc::new(PersonnelEvidenceReadState {
+        targets: configured,
+    }))
+}
+
+fn personnel_router_from_state(state: Arc<PersonnelEvidenceReadState>) -> Router {
+    Router::new()
+        .route(
+            "/api/v1/holdings/{holding_slug}/files/personnel-evidence",
+            get(personnel_read),
+        )
+        .with_state(state)
+}
+
+/// Native router for the Files-owned personnel-evidence reads.
+pub fn personnel_evidence_router(
+    reader: Arc<dyn PersonnelEvidenceRead>,
+    targets: Vec<PersonnelEvidenceTarget>,
+) -> Result<Router, BusinessError> {
+    Ok(personnel_router_from_state(build_personnel_state(
+        targets.into_iter().map(|target| (target, reader.clone())),
+    )?))
+}
+
+pub fn personnel_evidence_router_with_pool(
+    pool: DatabasePool,
+    targets: Vec<PersonnelEvidenceTarget>,
+) -> Result<Router, BusinessError> {
+    personnel_evidence_router(Arc::new(PgPersonnelEvidenceRead::new(pool)), targets)
+}
+
+/// Per-holding form: one reader/pool for each registered Holding.
+pub fn personnel_evidence_router_for_holdings(
+    targets: Vec<(PersonnelLaneTarget, DatabasePool)>,
+) -> Result<Router, BusinessError> {
+    Ok(personnel_router_from_state(build_personnel_state(
+        targets.into_iter().map(|(target, pool)| {
+            let reader: Arc<dyn PersonnelEvidenceRead> =
+                Arc::new(PgPersonnelEvidenceRead::new(pool));
+            (target, reader)
+        }),
+    )?))
+}
+
+async fn personnel_read(
+    State(state): State<Arc<PersonnelEvidenceReadState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let host = unique_header(request.headers(), header::HOST)?
+            .filter(|host| !host.is_empty())
+            .ok_or_else(missing)?;
+        let reader = state
+            .targets
+            .get(&(host.to_owned(), slug.clone()))
+            .ok_or_else(missing)?;
+        let company = unique_header(request.headers(), CONTEXT_COMPANY)?
+            .filter(|value| valid_id(value) && RecordId::new(*value).is_ok())
+            .ok_or_else(invalid)?;
+        let raw_kind = query_value(&request, "kind").ok_or_else(invalid)?;
+        let kind = PersonnelEvidenceKind::parse(&raw_kind).ok_or_else(invalid)?;
+        let assessment = unique_header(request.headers(), CONTEXT_ASSESSMENT)?
+            .filter(|value| valid_id(value) && RecordId::new(*value).is_ok())
+            .unwrap_or("");
+        let source = unique_header(request.headers(), CONTEXT_SOURCE)?
+            .filter(|value| valid_id(value) && RecordId::new(*value).is_ok())
+            .unwrap_or("");
+        let record = unique_header(request.headers(), CONTEXT_RECORD)?
+            .filter(|value| valid_id(value) && RecordId::new(*value).is_ok())
+            .unwrap_or("");
+        let invalid_request = || invalid();
+        match kind {
+            PersonnelEvidenceKind::EvaluationFiles | PersonnelEvidenceKind::EvaluationLink => {
+                if assessment.is_empty() {
+                    return Err(invalid_request());
+                }
+            }
+            PersonnelEvidenceKind::EmployeeRequestAttachments => {
+                if record.is_empty() {
+                    return Err(invalid_request());
+                }
+            }
+        }
+        if kind == PersonnelEvidenceKind::EvaluationLink && source.is_empty() {
+            return Err(invalid_request());
+        }
+        let response = reader
+            .read(
+                PersonnelEvidenceRequest {
+                    company,
+                    assessment,
+                    source,
+                    record,
+                },
+                kind,
+            )
+            .await?;
+        let body = serde_json::to_value(response).map_err(|_| unavailable())?;
+        Ok::<_, BusinessError>(body)
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
+}
+
 async fn read(
     State(state): State<Arc<WorkEvidenceReadState>>,
     Path(slug): Path<String>,
@@ -240,7 +386,9 @@ async fn read(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::super::domain::{WorkEvidenceResponse, WorkEvidenceRow};
+    use super::super::domain::{
+        PersonnelEvidenceResponse, WorkEvidenceResponse, WorkEvidenceRow,
+    };
     use erpx_server_runtime::public::http_support::serve;
     use std::future::Future;
     use std::pin::Pin;
@@ -509,5 +657,133 @@ mod tests {
             vec![WorkEvidenceTarget { host: "a".into(), holding_slug: "BAD".into() }]
         )
         .is_err());
+    }
+
+    #[derive(Clone)]
+    struct PersonnelProbe {
+        seen: Arc<Mutex<Vec<(String, String, String, String)>>>,
+    }
+
+    impl PersonnelEvidenceRead for PersonnelProbe {
+        fn read<'a>(
+            &'a self,
+            request: PersonnelEvidenceRequest<'a>,
+            kind: PersonnelEvidenceKind,
+        ) -> Pin<Box<dyn Future<Output = Result<PersonnelEvidenceResponse, BusinessError>> + Send + 'a>>
+        {
+            let seen = self.seen.clone();
+            let company = request.company.to_owned();
+            let assessment = request.assessment.to_owned();
+            let source = request.source.to_owned();
+            let record = request.record.to_owned();
+            Box::pin(async move {
+                seen.lock().unwrap().push((company, assessment, source, record));
+                Ok(PersonnelEvidenceResponse {
+                    kind: kind.as_str().to_owned(),
+                    rows: vec![serde_json::json!({"id": "row-1", "filename": "file.pdf"})],
+                })
+            })
+        }
+    }
+
+    fn personnel_target() -> PersonnelEvidenceTarget {
+        PersonnelEvidenceTarget {
+            host: "acme.example.test".into(),
+            holding_slug: "acme".into(),
+        }
+    }
+
+    fn personnel_request(
+        host: &str,
+        company: &str,
+        kind: &str,
+        assessment: Option<&str>,
+        source: Option<&str>,
+        record: Option<&str>,
+    ) -> String {
+        let header = |name: &str, value: &str| format!("{name}: {value}\r\n");
+        format!(
+            "GET /api/v1/holdings/acme/files/personnel-evidence?kind={kind} HTTP/1.1\r\n\
+             Host: {host}\r\n\
+             Accept: application/json\r\n\
+             Connection: close\r\n\
+             {company_header}\
+             {assessment_header}\
+             {source_header}\
+             {record_header}\r\n",
+            company_header = header("x-erpx-context-company", company),
+            assessment_header = assessment.map(|v| header("x-erpx-context-assessment", v)).unwrap_or_default(),
+            source_header = source.map(|v| header("x-erpx-context-source", v)).unwrap_or_default(),
+            record_header = record.map(|v| header("x-erpx-context-record", v)).unwrap_or_default(),
+        )
+    }
+
+    #[tokio::test]
+    async fn personnel_kinds_route_to_the_owner_reader() {
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let reader = Arc::new(PersonnelProbe { seen: seen.clone() });
+        let router = personnel_evidence_router(reader, vec![personnel_target()]).unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let _ = serve(listener, router).await;
+        });
+
+        let (status_a, body_a) = http(
+            addr,
+            personnel_request("acme.example.test", "company-1", "evaluation-files", Some("assessment-1"), None, None),
+        )
+        .await;
+        let (status_l, body_l) = http(
+            addr,
+            personnel_request("acme.example.test", "company-1", "evaluation-link", Some("assessment-1"), Some("source-1"), None),
+        )
+        .await;
+        let (status_e, body_e) = http(
+            addr,
+            personnel_request("acme.example.test", "company-1", "employee-request-attachments", None, None, Some("request-1")),
+        )
+        .await;
+        server.abort();
+
+        assert_eq!(status_a, 200);
+        assert_eq!(body_a["kind"], "evaluation-files");
+        assert_eq!(body_a["rows"][0]["filename"], "file.pdf");
+        assert_eq!(status_l, 200);
+        assert_eq!(body_l["kind"], "evaluation-link");
+        assert_eq!(status_e, 200);
+        assert_eq!(body_e["kind"], "employee-request-attachments");
+        assert_eq!(
+            *seen.lock().unwrap(),
+            vec![
+                ("company-1".to_owned(), "assessment-1".to_owned(), "".to_owned(), "".to_owned()),
+                ("company-1".to_owned(), "assessment-1".to_owned(), "source-1".to_owned(), "".to_owned()),
+                ("company-1".to_owned(), "".to_owned(), "".to_owned(), "request-1".to_owned()),
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn personnel_invalid_requests_fail_closed() {
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let reader = Arc::new(PersonnelProbe { seen: seen.clone() });
+        let router = personnel_evidence_router(reader, vec![personnel_target()]).unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let _ = serve(listener, router).await;
+        });
+        for (expected, raw) in [
+            (404, personnel_request("attacker.example.test", "company-1", "evaluation-files", Some("assessment-1"), None, None)),
+            (422, personnel_request("acme.example.test", "company-1", "drop", Some("assessment-1"), None, None)),
+            (422, personnel_request("acme.example.test", "company-1", "evaluation-files", None, None, None)),
+            (422, personnel_request("acme.example.test", "company-1", "employee-request-attachments", None, None, None)),
+        ] {
+            let (status, body) = http(addr, raw).await;
+            assert_eq!(status, expected);
+            assert!(body["error"]["code"].is_string());
+        }
+        server.abort();
+        assert!(seen.lock().unwrap().is_empty());
     }
 }

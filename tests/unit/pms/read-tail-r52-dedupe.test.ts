@@ -101,8 +101,8 @@ describe('pms read-tail r52 dead-export retirement', () => {
       spaced += count(text, 'SELECT ');
       bare += count(text, 'SELECT');
     }
-    expect(spaced).toBe(238);
-    expect(bare).toBe(239);
+    expect(spaced).toBe(237);
+    expect(bare).toBe(238);
     expect(spaced).toBeLessThan(252);
     expect(bare).toBeLessThan(254);
   });

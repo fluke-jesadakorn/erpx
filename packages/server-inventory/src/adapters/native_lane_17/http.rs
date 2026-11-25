@@ -1,4 +1,4 @@
-//! Owner-local axum router for the lane 17 landed-cost read family.
+//! Owner-local axum router for the lane 17 owner read family.
 //!
 //! Target, header and Company isolation follow the owner-read reference: a
 //! request is served only on an exact registered Holding host/slug pair, with
@@ -41,7 +41,7 @@ fn missing() -> BusinessError {
 fn invalid(code: &'static str) -> BusinessError {
     BusinessError::invalid(
         code,
-        "Use one bounded native Inventory landed-cost read.",
+        "Use one bounded native Inventory owner read.",
     )
 }
 

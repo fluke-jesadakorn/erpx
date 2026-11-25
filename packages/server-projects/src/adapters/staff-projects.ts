@@ -4,10 +4,8 @@ import { ApiError } from '@erpx/server-runtime/public/http';
 import type { StaffActor } from '@erpx/server-operations/public/staff-policy';
 import { BusinessRuleError } from '@erpx/server-shared/index';
 import {requireProjectPurchasedRead} from '@erpx/server-projects/adapters/purchases';
-import {projectMemberScopeSql} from '@erpx/server-projects/adapters/project-read-projections';
-import {visibleProjectRowsHead} from './read-tail-r30';
 import { createStaffProjectsApplication, type StaffProjectsRepository } from '@erpx/server-projects/application/staff-projects';
-import type { ProjectRow } from '@erpx/server-projects/domain/staff-projects';
+import {nativeProjectVisibleProject,nativeProjectVisibleProjects,type ProjectActualsActor} from './native-lane-27/client';
 async function exposed<T>(action: () => Promise<T>) { try {
     return await action();
 }
@@ -16,21 +14,18 @@ catch (error) {
         throw new ApiError(error.status, error.code, error.message);
     throw error;
 } }
-function application(db: SqlDatabase) {
-    const repository: StaffProjectsRepository<SqlStatement> = { async visibleProject(id: string, companyId: string, userId: string, userId2: string) {
-            return db
-                .prepare(visibleProjectRowsHead(`p.id=? AND p.company_id=? AND ${projectMemberScopeSql}`))
-                .bind(id, companyId, userId, userId2)
-                .first<ProjectRow>();
+/** The native owner executes the visible-row SQL and projects the fixed row
+ * shape; this adapter carries only identities and keeps its public signature. */
+const caller = (actor: unknown) => actor as ProjectActualsActor;
+function application(actor: ProjectActualsActor) {
+    const repository: StaffProjectsRepository<SqlStatement> = { async visibleProject(id: string, companyId: string, userId: string, _userId2: string) {
+            return nativeProjectVisibleProject({ ...actor, companyId, userId }, id);
         },
-        async visibleProjects(companyId: string, userId: string, userId2: string) {
-            return db
-                .prepare(`${visibleProjectRowsHead(`p.company_id=? AND ${projectMemberScopeSql}`)} ORDER BY p.updated_at DESC`)
-                .bind(companyId, userId, userId2)
-                .all<ProjectRow>();
+        async visibleProjects(companyId: string, userId: string, _userId2: string) {
+            return { results: await nativeProjectVisibleProjects({ ...actor, companyId, userId }) };
         },
         };
     return createStaffProjectsApplication({ repository });
 }
-export async function getProject(db: SqlDatabase, actor: StaffActor, id: string) { await requireProjectPurchasedRead(db,actor,id);return exposed(() => application(db).getProject(actor, id)); }
-export async function listProjects(db: SqlDatabase, actor: StaffActor) { await requireProjectPurchasedRead(db,actor);return exposed(() => application(db).listProjects(actor)); }
+export async function getProject(db: SqlDatabase, actor: StaffActor, id: string) { await requireProjectPurchasedRead(db,actor,id);return exposed(() => application(caller(actor)).getProject(actor, id)); }
+export async function listProjects(db: SqlDatabase, actor: StaffActor) { await requireProjectPurchasedRead(db,actor);return exposed(() => application(caller(actor)).listProjects(actor)); }

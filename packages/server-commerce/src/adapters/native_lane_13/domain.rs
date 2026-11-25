@@ -101,6 +101,217 @@ pub fn validate(value: &Value, company: &str) -> Result<(EntrypointQuery, String
     Ok((EntrypointQuery { kind, id: id.to_owned() }, company.to_owned()))
 }
 
+// ---- Invoice/delivery read family ---------------------------------------
+// Retired from `invoice-command-policy.ts` (`invoiceCommandFlowTarget`) and
+// `finance-sales-sources.ts` (`commerceInvoiceSalesLines`). Both are plain
+// reads of committed Commerce records, owner-local and company-scoped.
+
+/// Closed discriminator for the invoice/delivery read family.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum InvoiceReadKind {
+    DeliveryTarget,
+    InvoiceSalesLines,
+}
+
+impl InvoiceReadKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::DeliveryTarget => "deliveryTarget",
+            Self::InvoiceSalesLines => "invoiceSalesLines",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "deliveryTarget" => Some(Self::DeliveryTarget),
+            "invoiceSalesLines" => Some(Self::InvoiceSalesLines),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct InvoiceReadQuery {
+    pub kind: InvoiceReadKind,
+    pub id: String,
+}
+
+/// Bounded owner projection of a delivery -> order command target.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CommandTarget {
+    pub kind: String,
+    pub id: String,
+    pub action: String,
+}
+
+impl CommandTarget {
+    pub fn into_value(self) -> Value {
+        serde_json::json!({"kind": self.kind, "id": self.id, "action": self.action})
+    }
+}
+
+/// One delivered sales line; the owner keeps the original column names.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SalesLine {
+    pub id: String,
+    pub fulfillment_id: String,
+    pub description: String,
+    pub quantity_milli: i64,
+    pub price_minor: i64,
+    pub tax_bps: i64,
+    pub subtotal_minor: i64,
+    pub tax_minor: i64,
+    pub item_type: String,
+    pub product_id: String,
+    pub completion_date: String,
+}
+
+impl SalesLine {
+    pub fn into_value(self) -> Value {
+        serde_json::json!({
+            "id": self.id,
+            "fulfillment_id": self.fulfillment_id,
+            "description": self.description,
+            "quantity_milli": self.quantity_milli,
+            "price_minor": self.price_minor,
+            "tax_bps": self.tax_bps,
+            "subtotal_minor": self.subtotal_minor,
+            "tax_minor": self.tax_minor,
+            "item_type": self.item_type,
+            "product_id": self.product_id,
+            "completion_date": self.completion_date,
+        })
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum InvoiceFacts {
+    Target(Option<CommandTarget>),
+    Lines(Vec<SalesLine>),
+}
+
+impl InvoiceFacts {
+    /// Exactly one envelope key is present, so a strict client cannot confuse
+    /// a command target with a line list.
+    pub fn into_value(self) -> Value {
+        match self {
+            Self::Target(target) => serde_json::json!({"target": target.map(CommandTarget::into_value)}),
+            Self::Lines(lines) => {
+                serde_json::json!({"lines": lines.into_iter().map(SalesLine::into_value).collect::<Vec<_>>()})
+            }
+        }
+    }
+}
+
+pub fn invoice_invalid() -> BusinessError {
+    BusinessError::invalid(
+        "COMMERCE_INVOICE_READ_REQUEST_INVALID",
+        "Use one bounded Commerce invoice read.",
+    )
+}
+
+pub fn validate_invoice(value: &Value, company: &str) -> Result<(InvoiceReadQuery, String), BusinessError> {
+    let kind = value.get("kind").and_then(Value::as_str).ok_or_else(invoice_invalid)?;
+    let id = value.get("id").and_then(Value::as_str).ok_or_else(invoice_invalid)?;
+    let kind = InvoiceReadKind::parse(kind).ok_or_else(invoice_invalid)?;
+    if !valid_id(id) || !valid_id(company) {
+        return Err(invoice_invalid());
+    }
+    Ok((InvoiceReadQuery { kind, id: id.to_owned() }, company.to_owned()))
+}
+
+// ---- Billing test finance entry reads -----------------------------------
+// Retired from `billing-test-finance.ts`: the two plain reads of Commerce-owned
+// `billing_test_finance_entries`. The `FOR UPDATE` document read and the
+// lines-balance read stay in the retained TypeScript unit.
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum BillingTestReadKind {
+    EntryBySourceKey,
+    EntryTotalsByStripe,
+}
+
+impl BillingTestReadKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::EntryBySourceKey => "entryBySourceKey",
+            Self::EntryTotalsByStripe => "entryTotalsByStripe",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "entryBySourceKey" => Some(Self::EntryBySourceKey),
+            "entryTotalsByStripe" => Some(Self::EntryTotalsByStripe),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BillingTestQuery {
+    pub kind: BillingTestReadKind,
+    pub id: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BillingEntry {
+    pub entry_kind: String,
+    pub amount_satang: i64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BillingTotals {
+    pub issued: i64,
+    pub received: i64,
+    pub reversed: i64,
+    pub credited: i64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum BillingFacts {
+    Entry(Option<BillingEntry>),
+    Totals(BillingTotals),
+}
+
+impl BillingFacts {
+    pub fn into_value(self) -> Value {
+        match self {
+            Self::Entry(entry) => serde_json::json!({
+                "entry": entry.map(|entry| serde_json::json!({
+                    "entry_kind": entry.entry_kind,
+                    "amount_satang": entry.amount_satang,
+                }))
+            }),
+            Self::Totals(totals) => serde_json::json!({
+                "totals": {
+                    "issued": totals.issued,
+                    "received": totals.received,
+                    "reversed": totals.reversed,
+                    "credited": totals.credited,
+                }
+            }),
+        }
+    }
+}
+
+pub fn billing_invalid() -> BusinessError {
+    BusinessError::invalid(
+        "COMMERCE_BILLING_TEST_READ_REQUEST_INVALID",
+        "Use one bounded Commerce billing test read.",
+    )
+}
+
+pub fn validate_billing(value: &Value, company: &str) -> Result<(BillingTestQuery, String), BusinessError> {
+    let kind = value.get("kind").and_then(Value::as_str).ok_or_else(billing_invalid)?;
+    let id = value.get("id").and_then(Value::as_str).ok_or_else(billing_invalid)?;
+    let kind = BillingTestReadKind::parse(kind).ok_or_else(billing_invalid)?;
+    if !valid_id(id) || !valid_id(company) {
+        return Err(billing_invalid());
+    }
+    Ok((BillingTestQuery { kind, id: id.to_owned() }, company.to_owned()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -153,5 +364,106 @@ mod tests {
         }
         .into_value();
         assert_eq!(facts, serde_json::json!({"kind": "sales", "state": "draft"}));
+    }
+
+    #[test]
+    fn invoice_registry_is_closed_and_validated() {
+        assert_eq!(InvoiceReadKind::parse("deliveryTarget"), Some(InvoiceReadKind::DeliveryTarget));
+        assert_eq!(InvoiceReadKind::parse("invoiceSalesLines"), Some(InvoiceReadKind::InvoiceSalesLines));
+        assert!(InvoiceReadKind::parse("SELECT").is_none());
+        let (query, company) = validate_invoice(
+            &serde_json::json!({"kind": "deliveryTarget", "id": "d-1"}),
+            "co-1",
+        )
+        .expect("valid");
+        assert_eq!(query.kind, InvoiceReadKind::DeliveryTarget);
+        assert_eq!(query.id, "d-1");
+        assert_eq!(company, "co-1");
+        assert!(validate_invoice(&serde_json::json!({"kind": "x", "id": "d"}), "co-1").is_err());
+        assert!(validate_invoice(&serde_json::json!({"kind": "deliveryTarget", "id": "d"}), "bad company").is_err());
+    }
+
+    #[test]
+    fn invoice_response_envelopes_are_disjoint() {
+        let target = InvoiceFacts::Target(Some(CommandTarget {
+            kind: "order".to_owned(),
+            id: "o-1".to_owned(),
+            action: "invoice".to_owned(),
+        }))
+        .into_value();
+        assert_eq!(
+            target,
+            serde_json::json!({"target":{"kind":"order","id":"o-1","action":"invoice"}})
+        );
+        assert!(target.get("lines").is_none());
+        let null = InvoiceFacts::Target(None).into_value();
+        assert_eq!(null, serde_json::json!({"target":null}));
+        let lines = InvoiceFacts::Lines(vec![SalesLine {
+            id: "fl-1".to_owned(),
+            fulfillment_id: "f-1".to_owned(),
+            description: "service".to_owned(),
+            quantity_milli: 1000,
+            price_minor: 250,
+            tax_bps: 700,
+            subtotal_minor: 250,
+            tax_minor: 18,
+            item_type: "service".to_owned(),
+            product_id: "p-1".to_owned(),
+            completion_date: "2026-11-25".to_owned(),
+        }])
+        .into_value();
+        assert!(lines.get("lines").is_some());
+        assert!(lines.get("target").is_none());
+        assert_eq!(lines["lines"][0]["quantity_milli"], 1000);
+    }
+
+    #[test]
+    fn billing_registry_is_closed_and_validated() {
+        assert_eq!(
+            BillingTestReadKind::parse("entryBySourceKey"),
+            Some(BillingTestReadKind::EntryBySourceKey)
+        );
+        assert_eq!(
+            BillingTestReadKind::parse("entryTotalsByStripe"),
+            Some(BillingTestReadKind::EntryTotalsByStripe)
+        );
+        assert!(BillingTestReadKind::parse("FOR UPDATE").is_none());
+        let (query, company) = validate_billing(
+            &serde_json::json!({"kind": "entryBySourceKey", "id": "inv:issued"}),
+            "erpx_billing_sandbox",
+        )
+        .expect("valid");
+        assert_eq!(query.kind, BillingTestReadKind::EntryBySourceKey);
+        assert_eq!(query.id, "inv:issued");
+        assert_eq!(company, "erpx_billing_sandbox");
+        assert!(validate_billing(&serde_json::json!({"kind": "x", "id": "k"}), "co").is_err());
+    }
+
+    #[test]
+    fn billing_envelopes_are_disjoint() {
+        let entry = BillingFacts::Entry(Some(BillingEntry {
+            entry_kind: "issued".to_owned(),
+            amount_satang: 500,
+        }))
+        .into_value();
+        assert_eq!(
+            entry,
+            serde_json::json!({"entry":{"entry_kind":"issued","amount_satang":500}})
+        );
+        assert!(entry.get("totals").is_none());
+        let absent = BillingFacts::Entry(None).into_value();
+        assert_eq!(absent, serde_json::json!({"entry":null}));
+        let totals = BillingFacts::Totals(BillingTotals {
+            issued: 500,
+            received: 400,
+            reversed: 0,
+            credited: 100,
+        })
+        .into_value();
+        assert_eq!(
+            totals,
+            serde_json::json!({"totals":{"issued":500,"received":400,"reversed":0,"credited":100}})
+        );
+        assert!(totals.get("entry").is_none());
     }
 }

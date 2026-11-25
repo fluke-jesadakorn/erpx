@@ -18,6 +18,17 @@ pub const KIND_CUSTOMER_PROFILE: &str = "customer_profile";
 pub const KIND_CUSTOMER_DIRECTORY: &str = "customer_directory";
 pub const KIND_NOTE_CUSTOMER: &str = "note_customer";
 
+pub const RF_KIND_PARTY: &str = "record_facts_party";
+pub const RF_KIND_ACCOUNT: &str = "record_facts_account";
+pub const RF_KIND_PERIOD: &str = "record_facts_period";
+pub const RF_KIND_ROWS: &str = "record_facts_rows";
+
+/// Byte-identical heads of the four retired record-supplement statements.
+pub const RF_PARTY_SQL: &str = "SELECT * FROM finance_parties WHERE id=? AND company_id=? AND kind IN ('customer','supplier') AND person_id IS NULL";
+pub const RF_ACCOUNT_SQL: &str = "SELECT a.*,c.base_currency FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id WHERE a.id=? AND a.company_id=?";
+pub const RF_PERIOD_SQL: &str = "SELECT start_date,end_date FROM finance_periods WHERE id=? AND company_id=?";
+pub const RF_ROWS_SQL: &str = "SELECT l.*,j.id journal_id,j.journal_number,j.entry_date,j.currency,j.status FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id WHERE l.account_id=? AND j.company_id=? AND j.chart_id=? AND j.status IN ('posted','reversed') AND (?='0' OR NOT (j.source_type='fiscal_close' OR (j.source_type='book_projection' AND EXISTS (SELECT 1 FROM finance_journals fiscal_origin WHERE fiscal_origin.id=j.source_id AND fiscal_origin.company_id=j.company_id AND fiscal_origin.source_type='fiscal_close')))) AND (?::text IS NULL OR j.entry_date>=?) AND (?::text IS NULL OR j.entry_date<=?) ORDER BY j.entry_date DESC,j.id,l.ordinal LIMIT 31 OFFSET ?";
+
 /// Default `listPageSize(undefined)` from the work-projection cursor contract.
 pub const PAGE_SIZE: usize = 30;
 pub const MAX_BODY_BYTES: usize = 16 * 1024;
@@ -51,6 +62,29 @@ pub struct CustomerReadRequest {
     pub cursor: Option<String>,
     #[serde(default)]
     pub version: Option<i64>,
+}
+
+/// Wire shape posted by the strict TS record-facts transport. `chart_id`
+/// stays snake_case so the Rust reader binds exactly what the client sends.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct RecordFactsRequest {
+    pub kind: String,
+    #[serde(default)]
+    pub id: Option<String>,
+    #[serde(default)]
+    pub chart_id: Option<String>,
+    #[serde(default)]
+    pub value: Option<String>,
+    #[serde(default)]
+    pub value2: Option<String>,
+    #[serde(default)]
+    pub value3: Option<String>,
+    #[serde(default)]
+    pub value4: Option<String>,
+    #[serde(default)]
+    pub value5: Option<String>,
+    #[serde(default)]
+    pub offset: Option<i64>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -161,6 +195,45 @@ pub fn validate_request(request: &CustomerReadRequest) -> Result<(), BusinessErr
         }
         KIND_NOTE_CUSTOMER => {
             require_id()?;
+        }
+        _ => return Err(invalid()),
+    }
+    Ok(())
+}
+
+pub fn validate_record_facts(request: &RecordFactsRequest) -> Result<(), BusinessError> {
+    let require_id = || {
+        request
+            .id
+            .as_deref()
+            .filter(|id| valid_id(id))
+            .ok_or_else(invalid)
+    };
+    match request.kind.as_str() {
+        RF_KIND_PARTY | RF_KIND_ACCOUNT | RF_KIND_PERIOD => {
+            require_id()?;
+        }
+        RF_KIND_ROWS => {
+            require_id()?;
+            if !matches!(request.value.as_deref(), Some("0") | Some("1")) {
+                return Err(invalid());
+            }
+            if request.chart_id.as_deref().is_some_and(|id| id.is_empty() || id.len() > 200) {
+                return Err(invalid());
+            }
+            for bound in [
+                &request.value2,
+                &request.value3,
+                &request.value4,
+                &request.value5,
+            ] {
+                if bound.as_deref().is_some_and(|value| value.len() > 40) {
+                    return Err(invalid());
+                }
+            }
+            if request.offset.is_none_or(|offset| offset < 0 || offset > 1_000_000) {
+                return Err(invalid());
+            }
         }
         _ => return Err(invalid()),
     }
@@ -316,5 +389,76 @@ mod tests {
             assert!(sql.contains("finance_parties"), "{kind}");
             assert_eq!(hash(sql), expected, "{kind}");
         }
+    }
+
+    fn facts(kind: &'static str) -> RecordFactsRequest {
+        RecordFactsRequest {
+            kind: kind.to_owned(),
+            id: Some("record-1".into()),
+            chart_id: None,
+            value: None,
+            value2: None,
+            value3: None,
+            value4: None,
+            value5: None,
+            offset: None,
+        }
+    }
+
+    #[test]
+    fn native_lane_5_record_facts_wire_shape_is_snake_case() {
+        let request: RecordFactsRequest = serde_json::from_value(serde_json::json!({
+            "kind": RF_KIND_ROWS,
+            "id": "record-1",
+            "chart_id": "7",
+            "value": "1",
+            "value2": "2026-01-01",
+            "value3": "2026-01-01",
+            "value4": "2026-01-31",
+            "value5": "2026-01-31",
+            "offset": 30,
+        }))
+        .unwrap();
+        assert_eq!(request.chart_id.as_deref(), Some("7"));
+        assert_eq!(request.offset, Some(30));
+        let value = serde_json::to_value(&request).unwrap();
+        assert_eq!(value["chart_id"], "7");
+        assert!(value.get("chartId").is_none());
+    }
+
+    #[test]
+    fn native_lane_5_record_facts_validate_each_kind() {
+        for kind in [RF_KIND_PARTY, RF_KIND_ACCOUNT, RF_KIND_PERIOD] {
+            assert!(validate_record_facts(&facts(kind)).is_ok(), "{kind}");
+        }
+        let mut r = facts(RF_KIND_ROWS);
+        assert!(validate_record_facts(&r).is_err());
+        r.value = Some("0".into());
+        assert!(validate_record_facts(&r).is_err());
+        r.offset = Some(0);
+        assert!(validate_record_facts(&r).is_ok());
+        r.value = Some("1".into());
+        r.value2 = Some("2026-01-01".into());
+        assert!(validate_record_facts(&r).is_ok());
+        r.offset = Some(-1);
+        assert!(validate_record_facts(&r).is_err());
+        r = facts("other");
+        assert!(validate_record_facts(&r).is_err());
+    }
+
+    #[test]
+    fn native_lane_5_record_facts_sql_oracles_are_byte_identical() {
+        let oracle = [
+            ("recordFactsParty", RF_PARTY_SQL, "79689b31d9cfbff8f1bda82066aac43ad5bb25e894c5409433976e4e8c62a797"),
+            ("recordFactsAccount", RF_ACCOUNT_SQL, "96f24f09d9e1b31101e112a94f6c4e4fa53df19c6e2d7463aecdc7c9e64ee6ee"),
+            ("recordFactsPeriod", RF_PERIOD_SQL, "d447a713437d5c3dc293c50cdb1835d31131b3b3c1f2f181d36e3d1b0bbece3b"),
+            ("recordFactsRows", RF_ROWS_SQL, "cb40a97c5a78297b84e46acb663e5a0687dd09c99b63fed75e47439f05c1cefc"),
+        ];
+        for (kind, sql, expected) in oracle {
+            assert!(sql.starts_with("SELECT "), "{kind}");
+            assert_eq!(hash(sql), expected, "{kind}");
+        }
+        assert!(!RF_ROWS_SQL.contains("${"), "no TS interpolation survived");
+        assert!(RF_ROWS_SQL.contains("fiscal_close"));
     }
 }

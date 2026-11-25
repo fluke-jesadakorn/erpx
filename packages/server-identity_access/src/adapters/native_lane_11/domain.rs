@@ -7,6 +7,7 @@
 
 use erpx_server_shared::public::{BusinessError, FailureKind, RecordId};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 /// Maximum identities accepted in one request. The TypeScript callers already
 /// pass bounded lists; this cap keeps the rendered `IN (...)` bind list safe.
@@ -52,6 +53,47 @@ pub struct SuccessorRow {
     pub current_id: String,
 }
 
+/// The four owner-local directory configuration reads that used to be inline
+/// in `adapters/iam-service-reads.ts`.
+pub const DIRECTORY_KINDS: [&str; 4] = ["connections", "groups", "previews", "identities"];
+const MAX_DIRECTORY_ROWS: usize = 500;
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DirectoryConfigRequest {
+    #[serde(default)]
+    pub can_manage: bool,
+}
+
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DirectoryConfigResponse {
+    pub rows: Vec<Value>,
+}
+
+pub fn valid_directory_kind(kind: &str) -> bool {
+    DIRECTORY_KINDS.contains(&kind)
+}
+
+impl DirectoryConfigResponse {
+    /// The owner projection must be a bounded list of JSON objects with a
+    /// stable identity. Fail closed rather than emit a partial configuration.
+    pub fn validated(self) -> Result<Self, BusinessError> {
+        if self.rows.len() > MAX_DIRECTORY_ROWS
+            || self.rows.iter().any(|row| {
+                !matches!(row, Value::Object(_))
+                    || row
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .is_none_or(|id| id.is_empty() || id.len() > 200)
+            })
+        {
+            return Err(unavailable());
+        }
+        Ok(self)
+    }
+}
+
 pub fn invalid() -> BusinessError {
     BusinessError::invalid(
         "IDENTITY_ACCESS_NATIVE_LANE_11_REQUEST_INVALID",
@@ -65,6 +107,67 @@ pub fn unavailable() -> BusinessError {
         "IDENTITY_ACCESS_NATIVE_LANE_11_UNAVAILABLE",
         "The native person identity service is unavailable.",
     )
+}
+
+/// Published role definition shared by the IAM store and the IAM overview.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RoleRevision {
+    pub id: String,
+    pub name: String,
+    pub company_id: String,
+    pub revision: i64,
+    pub built_in: bool,
+    pub permissions: Vec<String>,
+    pub grantable_permissions: Vec<String>,
+    pub scopes: Vec<String>,
+    pub status: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RoleRequest {
+    pub id: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RolesRequest {
+    pub ids: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RoleResponse {
+    pub role: Option<RoleRevision>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RolesResponse {
+    pub roles: Vec<RoleRevision>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RoleIdsResponse {
+    pub ids: Vec<String>,
+}
+
+impl RoleRevision {
+    /// Fail closed on an impossible published definition rather than emitting
+    /// a malformed permission set.
+    pub fn validated(self) -> Result<Self, BusinessError> {
+        if self.id.is_empty()
+            || self.id.len() > 200
+            || self.name.is_empty()
+            || self.name.len() > 200
+            || self.status != "active"
+        {
+            return Err(unavailable());
+        }
+        Ok(self)
+    }
 }
 
 pub fn missing() -> BusinessError {

@@ -129,7 +129,7 @@ describe('Inventory read-tail r54 stock-head dedupe', () => {
     // 300. r54 folds the three byte-identical package-obligation stock heads
     // (initial-physical-stock, stock-invalid, invalid-stock) into one
     // kind-parameterized owner-local renderer: 3 source tokens -> 1, i.e. 300 -> 298.
-    expect(total).toBe(285);
+    expect(total).toBe(284);
     expect(total).toBeLessThan(299);
   });
 });

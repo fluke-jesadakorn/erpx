@@ -1,3 +1,26 @@
-import "server-only";
-import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
-export function workReportRecordsFacts(db:SqlDatabase){return {events:(companyId:string,ids:string)=>db.prepare(`SELECT request_id record_id,action,actor_id actor,created_at at,note reason FROM employee_request_events WHERE company_id=? AND request_id IN (SELECT jsonb_array_elements_text(?::jsonb)) ORDER BY created_at,id`).bind(companyId,ids).all<{record_id:string;action:string;actor:string;at:number;reason:string}>()};}
+import 'server-only';
+import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import { readNativeWorkReportEvents } from './native-lane-35/client';
+
+type WorkReportEventRow = {
+  record_id: string;
+  action: string;
+  actor: string;
+  at: number;
+  reason: string;
+};
+
+type WorkReportRows<T> = { results: T[] };
+
+/**
+ * Lane 35 cutover. The owner query and the legacy `ORDER BY created_at,id` now
+ * live in the Rust axum/sqlx route. This adapter is a thin transport only and
+ * fails closed when the native reader is unavailable.
+ */
+export function workReportRecordsFacts(_db: SqlDatabase) {
+  return {
+    events: async (companyId: string, ids: string): Promise<WorkReportRows<WorkReportEventRow>> => ({
+      results: await readNativeWorkReportEvents(companyId, ids),
+    }),
+  };
+}

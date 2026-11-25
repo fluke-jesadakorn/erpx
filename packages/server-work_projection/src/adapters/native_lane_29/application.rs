@@ -8,8 +8,8 @@ use erpx_server_shared::public::BusinessError;
 use std::{future::Future, pin::Pin};
 
 use super::domain::{
-    AvailabilitySource, ConflictProbe, ConflictScope, MovedOccurrence, OccurrenceException,
-    ReadKind, ReadRequest, SeriesRow, validate,
+    AnnouncementCandidate, AppointmentCandidate, AttendeeRow, AvailabilitySource, ConflictProbe,
+    ConflictScope, MovedOccurrence, OccurrenceException, ReadKind, ReadRequest, SeriesRow, validate,
 };
 
 pub type Lane29Future<'a, T> = Pin<Box<dyn Future<Output = Result<T, BusinessError>> + Send + 'a>>;
@@ -52,6 +52,12 @@ pub trait Lane29Read: Send + Sync {
         after: i64,
         ids: &'a [String],
     ) -> Lane29Future<'a, ConflictProbe>;
+
+    fn appointment_candidates<'a>(&'a self, values: &'a [Value]) -> Lane29Future<'a, Vec<AppointmentCandidate>>;
+
+    fn attendee_rows<'a>(&'a self, values: &'a [Value]) -> Lane29Future<'a, Vec<AttendeeRow>>;
+
+    fn announcement_candidates<'a>(&'a self, values: &'a [Value]) -> Lane29Future<'a, Vec<AnnouncementCandidate>>;
 }
 
 /// Maps a validated request onto the owner port and pins the exact JSON shape
@@ -114,6 +120,18 @@ impl<R: Lane29Read> Lane29Service<R> {
                     .await?;
                 Ok(serde_json::json!({ "conflict": probe.conflict }))
             }
+            ReadKind::AppointmentCandidates => {
+                let rows = self.reader.appointment_candidates(&request.values).await?;
+                Ok(serde_json::json!({ "appointments": rows }))
+            }
+            ReadKind::AttendeeRows => {
+                let rows = self.reader.attendee_rows(&request.values).await?;
+                Ok(serde_json::json!({ "attendees": rows }))
+            }
+            ReadKind::AnnouncementCandidates => {
+                let rows = self.reader.announcement_candidates(&request.values).await?;
+                Ok(serde_json::json!({ "announcements": rows }))
+            }
         }
     }
 }
@@ -174,6 +192,81 @@ mod tests {
             })
         }
 
+        fn appointment_candidates<'a>(
+            &'a self,
+            _values: &'a [Value],
+        ) -> Lane29Future<'a, Vec<AppointmentCandidate>> {
+            Box::pin(async {
+                Ok(vec![AppointmentCandidate {
+                    id: "appointment-1".into(),
+                    company_id: "company-1".into(),
+                    branch_id: None,
+                    department_id: None,
+                    organizer_person_id: Some("person-1".into()),
+                    title: "Standup".into(),
+                    description: String::new(),
+                    starts_at: 100,
+                    ends_at: 200,
+                    timezone: "Asia/Bangkok".into(),
+                    location: String::new(),
+                    meeting_url: String::new(),
+                    private: true,
+                    guests: serde_json::json!([]),
+                    status: "scheduled".into(),
+                    version: 1,
+                    created_by: "user-1".into(),
+                    created_at: 1,
+                    updated_at: 2,
+                    all_day: false,
+                    start_date: None,
+                    end_date: None,
+                    full_detail: true,
+                    organizer_name: Some("Owner".into()),
+                }])
+            })
+        }
+
+        fn attendee_rows<'a>(
+            &'a self,
+            _values: &'a [Value],
+        ) -> Lane29Future<'a, Vec<AttendeeRow>> {
+            Box::pin(async {
+                Ok(vec![AttendeeRow {
+                    appointment_id: "appointment-1".into(),
+                    user_id: "user-1".into(),
+                    person_id: Some("person-1".into()),
+                    name: Some("Attendee".into()),
+                    in_scope: true,
+                    attendance: "required".into(),
+                    response: "accepted".into(),
+                }])
+            })
+        }
+
+        fn announcement_candidates<'a>(
+            &'a self,
+            _values: &'a [Value],
+        ) -> Lane29Future<'a, Vec<AnnouncementCandidate>> {
+            Box::pin(async {
+                Ok(vec![AnnouncementCandidate {
+                    id: "announcement-1".into(),
+                    company_id: "company-1".into(),
+                    branch_id: None,
+                    department_id: None,
+                    title: "Notice".into(),
+                    content: "Body".into(),
+                    start_date: "2026-11-25".into(),
+                    end_date: "2026-11-26".into(),
+                    status: "published".into(),
+                    version: 1,
+                    created_by: "user-1".into(),
+                    created_at: 1,
+                    updated_at: 2,
+                    owner_name: "Publisher".into(),
+                }])
+            })
+        }
+
         fn conflict_probe<'a>(
             &'a self,
             _company: &'a str,
@@ -230,6 +323,32 @@ mod tests {
             after: 1_000,
             probe_ids: vec!["person-1".into()],
             conflict_scope: ConflictScope::Participant,
+            values: Vec::new(),
+        }
+    }
+
+    /// Bounded positional facts that satisfy domain validation; the Stub reader
+    /// ignores them, but `Lane29Service::read` validates before the port call.
+    fn candidate_values(kind: ReadKind) -> Vec<Value> {
+        let scope = || serde_json::json!("[\"company-1\"]");
+        let null = || Value::Null;
+        match kind {
+            ReadKind::AppointmentCandidates => vec![
+                serde_json::json!(true), scope(), serde_json::json!("person-1"),
+                serde_json::json!("user-1"), serde_json::json!("company-1"),
+                serde_json::json!(100), serde_json::json!(200), serde_json::json!(false),
+                null(), serde_json::json!("user-1"), scope(),
+                serde_json::json!("mine"), serde_json::json!(50),
+                null(), null(), null(), null(), null(), null(), null(),
+            ],
+            ReadKind::AttendeeRows => vec![scope(), scope()],
+            ReadKind::AnnouncementCandidates => vec![
+                serde_json::json!("company-1"), scope(), serde_json::json!(false),
+                scope(), scope(), serde_json::json!("2026-01-01"),
+                serde_json::json!("2026-12-31"), serde_json::json!(""),
+                serde_json::json!(50), null(),
+            ],
+            _ => vec![],
         }
     }
 
@@ -287,6 +406,21 @@ mod tests {
         let service = Lane29Service::new(Stub);
         let value = service.read(request(ReadKind::ConflictProbe)).await.unwrap();
         assert_eq!(value, serde_json::json!({"conflict": true}));
+    }
+
+    #[tokio::test]
+    async fn pins_candidate_list_projections() {
+        let service = Lane29Service::new(Stub);
+        for (kind, key) in [
+            (ReadKind::AppointmentCandidates, "appointments"),
+            (ReadKind::AttendeeRows, "attendees"),
+            (ReadKind::AnnouncementCandidates, "announcements"),
+        ] {
+            let mut r = request(kind);
+            r.values = candidate_values(kind);
+            let value = service.read(r).await.unwrap();
+            assert_eq!(value[key].as_array().unwrap().len(), 1);
+        }
     }
 
     #[tokio::test]

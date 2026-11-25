@@ -114,7 +114,7 @@ describe('Platform Administration r16 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(25);
+    expect(total).toBe(23);
     expect(total).toBeLessThan(31);
   });
 });

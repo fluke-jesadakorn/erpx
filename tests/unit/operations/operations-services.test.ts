@@ -481,9 +481,7 @@ import {readFileSync,readdirSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {OPERATIONS_TASK_DELEGATION_SOURCE_SQL,OPERATIONS_TASK_TEMPLATE_SOURCE_SQL,OPERATIONS_TASK_SCHEDULE_SOURCE_SQL,operationsActiveDelegationSql,operationsChildJsonSql,operationsChildAggJsonSql,operationsChildJsonByBoundId} from '../../../packages/server-operations/src/adapters/task-delegation-source';
 import {workforceActorScopeSql,OPERATIONS_VIEWER_CLOCK_SQL,operationsActorScopeInput,operationsActorScopeInputExists,operationsPurchasedActorScopeClockExists} from '../../../packages/server-operations/src/adapters/workforce-actor-scope-source';
-import {operationsActiveStaffLevels} from '../../../packages/server-operations/src/adapters/staff-facts';
 import {operationsOwnerVersionExists} from '../../../packages/server-operations/src/adapters/identity-policy-version-guard';
-import {finalRootOwnerProjectionSources as organizationProjectionSources} from '@erpx/server-organization/public/final-root-owner-projection-sources';
 import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
 import {scheduledFeaturePredicate} from '@erpx/server-pms/public/feature-availability';
 import {OPERATIONS_TASK_START_APPROVER_SQL,OPERATIONS_TASK_COMPLETION_APPROVER_SQL,approverJsonExistsSql} from '../../../packages/server-operations/src/adapters/task-approver-access-source';
@@ -709,7 +707,6 @@ describe('Operations bound-parameter child JSON and viewer clock dedupe',()=>{
 describe('Operations read-tail r38 dedupe',()=>{
  const source=(name:string)=>readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
  const clock=`,${packageClockSql} now_ms`;
- const levels=`(${organizationProjectionSources.staff_levels}) staff_levels`;
  test('actor scope input family renders every inline variant byte-identically',()=>{
   expect(operationsActorScopeInput('a.company_id','?::text branch_id','?::text department_id')).toBe('(SELECT a.company_id,?::text branch_id,?::text department_id)');
   expect(operationsActorScopeInput(`${'workspace_records.company_id'} company_id`,'workspace_records.branch_id','workspace_records.department_id',clock)).toBe(`(SELECT workspace_records.company_id company_id,workspace_records.branch_id,workspace_records.department_id,${packageClockSql} now_ms)`);
@@ -732,14 +729,14 @@ describe('Operations read-tail r38 dedupe',()=>{
   expect(purchases).not.toContain('(SELECT a.company_id,?::text branch_id,?::text department_id)workforce_actor_scope');
   expect(purchases).not.toContain('(SELECT ?::text company_id,?::text branch_id,?::text department_id,${packageClockSql} now_ms)workforce_actor_scope');
  });
- test('active staff-level family renders both readers byte-identically',()=>{
-  expect(operationsActiveStaffLevels('id,rank')).toBe(`SELECT id,rank FROM ${levels} WHERE company_id=? AND active=1`);
-  expect(operationsActiveStaffLevels('count(*) count',' AND level_number BETWEEN 1 AND 6')).toBe(`SELECT count(*) count FROM ${levels} WHERE company_id=? AND active=1 AND level_number BETWEEN 1 AND 6`);
-  expect(operationsActiveStaffLevels('id,rank').match(/SELECT /g)).toHaveLength(2);
-  expect(source('staff-facts.ts')).toContain("operationsActiveStaffLevels('id,rank')");
-  expect(source('company-acceptance-facts.ts')).toContain("operationsActiveStaffLevels('count(*) count',' AND level_number BETWEEN 1 AND 6')");
+ test('active staff-level family is served by the native lane-28 owner',()=>{
+ for(const name of ['staff-facts.ts','company-acceptance-facts.ts','people-level-history.ts']){
+  const text=source(name);
+  expect(text).not.toMatch(/SELECT |prepare\(|FROM staff_level/);
+  expect(text).toContain('nativeLane28');
+ }
  });
- test('owner-version guard family renders all four sites byte-identically',()=>{
+test('owner-version guard family renders all four sites byte-identically',()=>{
   expect(operationsOwnerVersionExists('operations_queue_policies',' AND status=? ')).toBe('EXISTS(SELECT 1 FROM operations_queue_policies WHERE id=? AND company_id=? AND version=? AND status=? )');
   expect(operationsOwnerVersionExists('staff_tasks',' AND state IN (?,?)','id=? AND version=?')).toBe('EXISTS(SELECT 1 FROM staff_tasks WHERE id=? AND version=? AND state IN (?,?))');
   expect(operationsOwnerVersionExists('t',' AND status=\'active\'')).toBe("EXISTS(SELECT 1 FROM t WHERE id=? AND company_id=? AND version=? AND status='active')");
@@ -888,7 +885,7 @@ describe('Operations read-tail r41 retirement',()=>{
     walk(root);
     // r42 deduped the social task-origin EXISTS family and r43 deduped the
     // command-receipt version guard; the r41 BEFORE=110 baseline is unchanged.
-    expect(space).toBe(63);
+    expect(space).toBe(61);
     expect(space).toBeLessThan(110);
   });
 });
@@ -928,7 +925,7 @@ describe('Operations read-tail r42 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(63);
+    expect(space).toBe(61);
     expect(space).toBeLessThan(110);
   });
 });
@@ -973,7 +970,7 @@ describe('Operations read-tail r43 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(63);
+    expect(space).toBe(61);
     expect(space).toBeLessThan(109);
   });
 });
@@ -1018,7 +1015,7 @@ describe('Operations read-tail r44 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(63);
+    expect(space).toBe(61);
     expect(space).toBeLessThan(108);
   });
 });
@@ -1067,7 +1064,7 @@ describe('Operations read-tail r45 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(63);
+    expect(space).toBe(61);
     expect(space).toBeLessThan(107);
   });
 });
@@ -1115,7 +1112,7 @@ describe('Operations read-tail r46 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(63);
+    expect(space).toBe(61);
     expect(space).toBeLessThan(106);
   });
 });

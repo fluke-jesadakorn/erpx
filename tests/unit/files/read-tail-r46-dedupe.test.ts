@@ -143,7 +143,7 @@ describe('Files read-tail r46 byte-oracle dedupe', () => {
     expect(sr).toContain("import {SET_DRAFT_BOUND_COUNT_SQL} from \"../read-tail-r46-source-sql\";");
   });
 
-  test('retirement:ts-statements is 215, strictly below the r45 BEFORE=239 (239->237)', () => {
+  test('retirement:ts-statements is 211, strictly below the r45 BEFORE=239 (239->237)', () => {
     let literal = 0, total = 0;
     for (const path of tsFiles(srcRoot)) {
       const text = readFileSync(path, 'utf8');
@@ -152,8 +152,8 @@ describe('Files read-tail r46 byte-oracle dedupe', () => {
     }
     // Two closed-union families fold two sites into one helper each (-2):
     // the orphan-preservation event head and the draft/bound link count head.
-    expect(literal).toBe(215);
-    expect(total).toBe(216);
+    expect(literal).toBe(211);
+    expect(total).toBe(212);
     expect(literal).toBeLessThan(239);
     expect(total).toBeLessThan(240);
   });

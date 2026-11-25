@@ -164,13 +164,12 @@ describe('Projects read-tail r39 closed scope-bind and point-read dedupe', () =>
       ['read-tail-r23.ts', 'projectAssignmentAuthorityReadSql'],
       ['read-tail-r28.ts', 'assignmentViewerSelect'],
       ['read-tail-r29.ts', 'orderedImageAggregateHead'],
-      ['read-tail-r30.ts', 'visibleProjectRowsHead'],
       ['read-tail-r33.ts', 'projectPointReadHead'],
       ['read-tail-r34.ts', 'staffTaskPointHead'],
       ['read-tail-r38.ts', 'memberExistsSql'],
     ] as const) expect(src(file)).toContain(symbol);
     // They are not routed through the new helpers.
-    for (const file of ['read-tail-r23.ts','read-tail-r27.ts','read-tail-r28.ts','read-tail-r29.ts','read-tail-r30.ts','read-tail-r33.ts','read-tail-r34.ts','read-tail-r37.ts','read-tail-r38.ts']) {
+    for (const file of ['read-tail-r23.ts','read-tail-r27.ts','read-tail-r28.ts','read-tail-r29.ts','read-tail-r33.ts','read-tail-r34.ts','read-tail-r37.ts','read-tail-r38.ts']) {
       expect(src(file)).not.toContain('read-tail-r39');
     }
   });
@@ -194,7 +193,7 @@ describe('Projects read-tail r39 closed scope-bind and point-read dedupe', () =>
     // r38 left 81. r39 folds four scope bind heads into one closed helper (-3)
     // and three aliased point-read tails into one closed helper (-2): 81-5 = 76.
     // The assignment-viewer authority tail (S3) is not a byte-identical family.
-    expect(total).toBe(67); // lane 27 wave 2 moved the two handoff list/work reads to native (-2) // lane 27 moved the two actuals reads to native Rust (-2)
+    expect(total).toBe(66); // lane 27 wave 2 moved the two handoff list/work reads to native (-2) // lane 27 moved the two actuals reads to native Rust (-2)
     expect(total).toBeLessThan(81);
   });
 });

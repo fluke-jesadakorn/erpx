@@ -1,35 +1,24 @@
 import { describe, expect, test } from 'vitest';
-import { readFileSync, readdirSync, type Dirent } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, type Dirent } from 'node:fs';
 import { resolve } from 'node:path';
-import { visibleProjectRowsHead } from '../../../packages/server-projects/src/adapters/read-tail-r30';
-import { projectMemberScopeSql } from '../../../packages/server-projects/src/adapters/project-read-projections';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-projects/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 
-// Verbatim pre-dedupe visible-row heads from HEAD before the r30 edit.
-// These are byte-identity oracles only, never live query sources.
-const byId = `SELECT p.* FROM staff_projects p WHERE p.id=? AND p.company_id=? AND ${projectMemberScopeSql}`;
-const list = `SELECT p.* FROM staff_projects p WHERE p.company_id=? AND ${projectMemberScopeSql} ORDER BY p.updated_at DESC`;
-const sharedHead = `SELECT p.* FROM staff_projects p WHERE `;
-
-describe('Projects read-tail r30 visible project rows select-head dedupe', () => {
-  test('helper reproduces both former inline heads byte for byte', () => {
-    expect(visibleProjectRowsHead(`p.id=? AND p.company_id=? AND ${projectMemberScopeSql}`)).toBe(byId);
-    expect(`${visibleProjectRowsHead(`p.company_id=? AND ${projectMemberScopeSql}`)} ORDER BY p.updated_at DESC`).toBe(list);
-    expect(visibleProjectRowsHead('p.company_id=?')).toBe(`${sharedHead}p.company_id=?`);
-    for (const h of [byId, list]) expect(h.startsWith(sharedHead)).toBe(true);
-  });
-
-  test('both call sites compose the helper and keep their outer SQL unchanged', () => {
+describe('Projects read-tail r30 visible project rows retired to native Rust', () => {
+  test('the TS select head is deleted and the Rust owner owns the fixed projection', () => {
+    expect(existsSync(resolve(srcRoot, 'adapters/read-tail-r30.ts'))).toBe(false);
     const staff = src('staff-projects.ts');
-    expect(staff).toContain("import {visibleProjectRowsHead} from './read-tail-r30';");
-    expect(staff).toContain('visibleProjectRowsHead(`p.id=? AND p.company_id=? AND ${projectMemberScopeSql}`)');
-    expect(staff).toContain('${visibleProjectRowsHead(`p.company_id=? AND ${projectMemberScopeSql}`)} ORDER BY p.updated_at DESC');
-    expect(staff).not.toContain('`SELECT p.* FROM staff_projects p WHERE p.id=?');
-    expect(staff).not.toContain('`SELECT p.* FROM staff_projects p WHERE p.company_id=?');
-    expect(staff).toContain("import {projectMemberScopeSql} from '@erpx/server-projects/adapters/project-read-projections';");
-    expect(locksUntouched()).toBe(true);
+    expect(staff).not.toContain('visibleProjectRowsHead');
+    expect(staff).not.toContain('SELECT p.*');
+    expect(staff).toContain('nativeProjectVisibleProject');
+    expect(staff).toContain('nativeProjectVisibleProjects');
+    const sql = src('native_lane_27/postgres.rs');
+    expect(sql).toContain('const VISIBLE_PROJECT: &str = "SELECT p.id,p.company_id');
+    expect(sql).toContain('const VISIBLE_PROJECTS: &str = "SELECT p.id,p.company_id');
+    expect(sql).toContain('p.owner_user_id=$3');
+    expect(sql).toContain('m.user_id=$4');
+    expect(sql).toContain('assert!(!sql.contains("SELECT p.*"))');
   });
 
   test('locks, r2-r29 helpers and spaced JOIN constants stay untouched', () => {
@@ -39,8 +28,6 @@ describe('Projects read-tail r30 visible project rows select-head dedupe', () =>
       'projectHandoverSourceSql', 'socialProjectAudienceSql']) {
       expect(defs).toContain(kept);
     }
-    // r38: the protected member scope now delegates to the closed helper;
-    // its byte-identical render is pinned by read-tail-r38-dedupe.test.ts.
     expect(defs).toContain("${memberExistsSql('', 'm', 'p', 'id', '?')}");
     expect(defs).not.toContain('(p.owner_user_id=? OR EXISTS(SELECT 1 FROM staff_project_members m WHERE');
     expect(src('clock-cte.ts')).toContain('export const projectsClockCte=');
@@ -68,7 +55,7 @@ describe('Projects read-tail r30 visible project rows select-head dedupe', () =>
     expect(untouchedInvariants()).toBe(true);
   });
 
-  test('retirement:ts-statements is 74 after r40 (BEFORE=81)', () => {
+  test('retirement:ts-statements drops to 66 (BEFORE=71 for lane 27)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {
@@ -79,14 +66,10 @@ describe('Projects read-tail r30 visible project rows select-head dedupe', () =>
     };
     walk(srcRoot);
     expect(total).toBeLessThan(88);
-    expect(total).toBe(67); // lane 27 wave 2 moved the two handoff list/work reads to native (-2) // lane 27 moved the two actuals reads to native Rust (-2) // r37 four-arm fact UNION closed helper (-3) + 3-arm NOT EXISTS proof group (-2): 93->88 // r36 package-actual source + event-fact arms: 95->93 // r35 point-read family merge (projectIdSql -> projectPointReadHead): 96->95 // r29 left 113; r30 visible-project-rows head 113->112; r31 receipt-event proof 112->111; r31 owner-or-member column 111->110; r32 purchase-source head 110->108; r33 point-read head and owner-or-member reuse 108->105. r34 staff_tasks point 4->1 (-3) and staff_projects by-ref 7->1 (-6): 105->96 // r38 member EXISTS closed helper (-4) + evidence super-head (-3): 88->81
+    // r30 visible-row head retired to native Rust (-1): 67 -> 66.
+    expect(total).toBe(66);
   });
 });
-
-function locksUntouched(): boolean {
-  const staff = src('staff-projects.ts');
-  return staff.includes('requireProjectPurchasedRead') && staff.includes('createStaffProjectsApplication');
-}
 
 function untouchedInvariants(): boolean {
   const alert = src('scheduled-tasks.ts');

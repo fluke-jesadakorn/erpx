@@ -80,7 +80,7 @@ mod tests {
 
     #[tokio::test]
     async fn envelope_pins_kind_and_company_scope() {
-        let scope = LaneScope::new("resources", "company-1", Some("branch-1")).unwrap();
+        let scope = LaneScope::new_list("resources", "company-1", Some("branch-1")).unwrap();
         let reader = Fake {
             rows: vec![json!({"id": "r1"})],
             fail: false,
@@ -99,7 +99,7 @@ mod tests {
 
     #[tokio::test]
     async fn rejects_an_oversized_response() {
-        let scope = LaneScope::new("resources", "company-1", None).unwrap();
+        let scope = LaneScope::new_list("resources", "company-1", None).unwrap();
         let reader = Fake {
             rows: (0..=MAX_ROWS).map(|_| json!({})).collect(),
             fail: false,
@@ -110,7 +110,7 @@ mod tests {
 
     #[tokio::test]
     async fn maps_owner_failure_to_unavailable() {
-        let scope = LaneScope::new("resources", "company-1", None).unwrap();
+        let scope = LaneScope::new_list("resources", "company-1", None).unwrap();
         let reader = Fake {
             rows: Vec::new(),
             fail: true,

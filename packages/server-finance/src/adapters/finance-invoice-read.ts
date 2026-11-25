@@ -1,7 +1,11 @@
 import { activeAccountListSql } from './finance-read-tail-r51-sql';
 import { financeReferenceListSql } from './finance-read-tail-r42-sql';
 import { finPartiesAllByCompanySql } from './finance-read-tail-r57-sql';
-import { financeOverviewCountsNative } from './native-lane-2/client';
+import {
+  financeAgingBalancesNative,
+  financeInvoicesPageNative,
+  financeOverviewCountsNative,
+} from './native-lane-2/client';
 
 
 import { requireFinanceDocumentHistory } from "@erpx/server-finance/adapters/document-purchases";
@@ -17,11 +21,9 @@ import { createFinanceResourcePolicy } from '@erpx/server-finance/application/ac
 
 import { createFinanceReads } from '@erpx/server-finance/application/finance-reads';
 
-import { type FinanceRow, type HistoricalAgingRow } from '@erpx/server-finance/domain/finance';
+import { type FinanceRow } from '@erpx/server-finance/domain/finance';
 import { fiscalCloseSourceSql } from "@erpx/server-finance/public/finance-fiscal-close-source";
 import { readListPage } from "@erpx/server-work_projection/public/list-page";
-
-import { invoiceHistoryCte } from "@erpx/server-finance/public/finance-history";
 
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
@@ -147,34 +149,9 @@ export function financeReadService(provided?:SqlDatabase,historyOnly=false) {
         workspacePeriods: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare("SELECT * FROM finance_periods WHERE company_id=? AND state='open' ORDER BY start_date DESC").bind(actor.companyId).all<FinanceRow>()).results; },
         statement: async (facts) => { const { id, actor } = facts; const write = await db(actor); return write.prepare("SELECT s.*,a.currency,a.code,a.name,c.base_currency FROM finance_bank_statements s JOIN finance_accounts a ON a.id=s.bank_account AND a.company_id=s.company_id JOIN finance_charts c ON c.id=a.chart_id AND c.company_id=s.company_id WHERE s.id=? AND s.company_id=?").bind(id, actor.companyId).first<FinanceRow>(); },
         statementRows: async (facts) => { const { id, actor, page } = facts; const write = await db(actor); return (await write.prepare('SELECT * FROM finance_bank_transactions WHERE statement_id=? AND company_id=? ORDER BY transaction_date,id LIMIT 31 OFFSET ?').bind(id, actor.companyId, (page - 1) * 30).all<FinanceRow>()).results; },
-        agingBalances: async (facts) => {
-            const { actor, asOf, kind, chartId } = facts;
-            const write = await db(actor);
-            return (await write.prepare(`${invoiceHistoryCte}
-    SELECT i.*,p.code party_code,p.name party_name FROM historical_invoice_balances i
-    JOIN finance_parties p ON p.id=i.party_id AND p.company_id=i.company_id
-    WHERE i.kind=? AND i.historical_outstanding_minor>0 AND (?::text IS NULL OR i.chart_id=?) ORDER BY i.due_date,i.id`)
-                .bind(actor.companyId, asOf, kind, chartId ?? null, chartId ?? null).all<HistoricalAgingRow>()).results;
-        },
+        agingBalances: async (facts) => financeAgingBalancesNative(facts.actor, facts.asOf, facts.kind, facts.chartId),
         financeOverviewCounts: async (actor) => financeOverviewCountsNative(actor),
-        invoicesPage: async (actor, query) => {
-            const write = await db(actor);
-            return readListPage<FinanceRow & {
-                id: string;
-                page_key: string;
-            }>(write, {
-                sql: `SELECT i.id,i.invoice_number,i.kind,i.invoice_date,i.due_date,i.currency,i.total_minor,i.outstanding_minor,i.status,p.name AS party_name,
-      s.usd_units::text AS snapshot_usd_units,s.amount_units::text AS snapshot_source_units,s.fx_rate_id AS snapshot_rate_id,
-      i.invoice_date||':'||i.invoice_number AS page_key FROM finance_invoices i JOIN finance_parties p ON p.id=i.party_id
-      LEFT JOIN money_transaction_snapshots s ON s.company_id=i.company_id AND s.source_type='finance_invoice' AND s.source_id=i.id AND s.amount_kind='total'
-      WHERE i.company_id=?
-      AND (?='' OR EXISTS (SELECT 1 FROM finance_accounts a WHERE a.id=i.debit_account_id AND a.company_id=i.company_id AND a.chart_id=?))
-      AND (?='' OR i.kind=?) AND (?='' OR i.status=?) AND (?<>'open' OR (i.status IN ('posted','partially_paid') AND i.outstanding_minor>0))
-      AND (?='' OR strpos(lower(i.invoice_number||' '||p.name),lower(?))>0)`,
-                args: [actor.companyId, query.chartId ?? '', query.chartId ?? '', query.kind ?? '', query.kind ?? '', query.status ?? '', query.status ?? '', query.queue ?? '', query.q ?? '', query.q ?? ''],
-                descending: true, cursor: query.cursor, scope: [actor.companyId, 'invoices', query.chartId ?? '', query.q ?? '', query.kind ?? '', query.status ?? '', query.queue ?? ''],
-            });
-        },
+        invoicesPage: async (actor, query) => financeInvoicesPageNative(actor, query),
         bankWorkspace: async (actor, query) => {
             const write = await db(actor);
             const statementSql = `SELECT s.*,a.currency,c.base_currency,s.statement_date AS page_key FROM finance_bank_statements s JOIN finance_accounts a ON a.id=s.bank_account AND a.company_id=s.company_id JOIN finance_charts c ON c.id=a.chart_id AND c.company_id=s.company_id WHERE s.company_id=? AND (?='' OR a.chart_id=?)`;

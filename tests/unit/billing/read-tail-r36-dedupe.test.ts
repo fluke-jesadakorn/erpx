@@ -127,17 +127,19 @@ describe('billing read-tail r36 dedupe of residual read heads', () => {
     for (const head of HEADS) {
       const text = await src(head.file);
       expect(text.split(head.full).length - 1, head.name).toBe(0);
-      if (head.file === 'executive-metric-watermarks.ts') {
-        // Native lane 38 cutover: the watermark head is now owner-owned Rust SQL.
-        expect(text, head.name).toContain('nativeBillingWatermarks(context)');
+      if (head.file === 'executive-metric-watermarks.ts' || head.file === 'executive-main-evidence-sources.ts') {
+        // Native lane 38 cutover: these heads are now owner-owned Rust SQL.
+        expect(text, head.name).toContain("from './native-lane-38/client'");
         expect(text.split('SELECT').length - 1, head.name).toBe(0);
       } else {
         expect(text, head.name).toContain(head.route);
       }
     }
-    for (const file of ['billing-jobs.ts', 'billing-attachments.ts', 'executive-main-evidence-sources.ts']) {
+    for (const file of ['billing-jobs.ts', 'billing-attachments.ts']) {
       expect(await src(file), file).toContain("from './billing-read-tail-r35-sql'");
     }
+    const rust = await readFile(new URL('adapters/native_lane_38/postgres.rs', srcRoot), 'utf8');
+    expect(rust).toContain('SELECT source_kind,record_id,plan_name,status,started_at,effective_at,record_version FROM subscriptions');
     expect(await src('billing-read-tail-r16-sql.ts'), 'r16').toContain("from './billing-read-tail-r29-sql'");
     expect((await src('billing-jobs.ts')).split('billingPointReadSql(').length - 1).toBe(8); // + legacyEvents inner guard
     expect((await src('billing-read-tail-r16-sql.ts')).split('SELECT').length - 1).toBe(0);

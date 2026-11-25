@@ -10,6 +10,8 @@ import {
   nativeExecutedCopiesRead,
   nativeLane26Configured,
   nativeLane26Scope,
+  nativeLegalCitationChunk,
+  nativeLegalTextApproved,
   nativeLegalTrustApprovedMaterials,
   nativeLegalTrustMaterial,
 } from '../../../packages/server-legal/src/adapters/native-lane-26/client';
@@ -48,6 +50,26 @@ const TRUST_MATERIAL = { id: 'tm-1', kind: 'root', content: 'base64', checksum: 
 const TRUST_DETAIL = { id: 'tm-1', state: 'approved', version: 2, created_by: 'user-1' };
 const APPROVED_ORACLE = 'aa68e4a64feba27173de3958d4a7ed9c1fa849d1b8e53e4b57e41b3226501a0c';
 const DETAIL_ORACLE = 'cd633e5af71aed5a7e82d05bb1737dd2787551ea8aa86f19516e556fe7207645';
+
+const CITATION_SQL = [
+  "SELECT c.id,c.document_id,CASE WHEN c.page_mapping THEN c.page ELSE NULL END page,c.page_mapping,c.section,c.text,c.document_checksum FROM legal_source_chunks c JOIN legal_text_reviews r ON r.id=c.text_review_id AND r.state='approved' AND r.company_id=c.company_id AND r.item_id=c.item_id AND r.document_id=c.document_id AND r.document_checksum=c.document_checksum WHERE c.id=? AND c.company_id=?",
+  "SELECT 1 FROM legal_text_reviews WHERE id=? AND document_id=? AND state='approved'",
+];
+const CITATION_SQL_ORACLES = [
+  '8a5dab616d56323ba8abdb3682b1722845c7b49dc2aed404c2a778406e7609df',
+  'f6e2085835219b43c8e7e74fba4abefbac94f3fbd41aa3847b1490fa399f7104',
+];
+const CITATION_CHUNK = {
+  id: 'chunk-1',
+  document_id: 'doc-1',
+  page: 3,
+  page_mapping: true,
+  section: 'section',
+  text: 'text',
+  document_checksum: 'checksum',
+};
+const CHUNK_ORACLE = '713d0760c45e1ae9f77d0c2b17a26610b31827e5ff8934c3c56a9aab96cdcefd';
+const TEXT_APPROVED_ORACLE = '20ec2f38fc96bc7d416a9af537493ae0bae26c5ad4c5a0f2d94f56f9c3e04958';
 
 const read: NativeExecutedCopyRead = {
   item_id: 'item-1',
@@ -185,6 +207,10 @@ beforeAll(async () => {
       return respond(res, mode === 'bad' ? { materials: [{ id: 'only-id' }] } : { materials: [TRUST_MATERIAL] });
     if (url.pathname.includes('/trust-materials/'))
       return respond(res, mode === 'bad' ? { material: { id: 'only-id' } } : { material: TRUST_DETAIL });
+    if (url.pathname.includes('/citation-chunk/'))
+      return respond(res, mode === 'bad' ? { chunk: { id: 'only-id' } } : { chunk: CITATION_CHUNK });
+    if (url.pathname.includes('/text-approved/'))
+      return respond(res, mode === 'bad' ? { approved: 'yes' } : { approved: true });
     if (mode === 'bad') return respond(res, { ...read, copies: [{ id: 'copy-1' }] });
     return respond(res, read);
   });
@@ -240,6 +266,9 @@ describe('native Legal lane 26 executed-copy reads', () => {
     expect(sha(TRUST_SQL.join('\n'))).toBe(TRUST_SQL_JOINED_ORACLE);
     expect(sha(JSON.stringify({ materials: [TRUST_MATERIAL] }))).toBe(APPROVED_ORACLE);
     expect(sha(JSON.stringify({ material: TRUST_DETAIL }))).toBe(DETAIL_ORACLE);
+    expect(CITATION_SQL.map(sha)).toEqual(CITATION_SQL_ORACLES);
+    expect(sha(JSON.stringify({ chunk: CITATION_CHUNK }))).toBe(CHUNK_ORACLE);
+    expect(sha(JSON.stringify({ approved: true }))).toBe(TEXT_APPROVED_ORACLE);
   });
 
   it('delegates both trust-material reads to native routes with isolated headers', async () => {
@@ -410,7 +439,71 @@ describe('native Legal lane 26 executed-copy reads', () => {
     });
   });
 
-  it('removed all five owner statements from the TypeScript read source', () => {
+  it('delegates both citation-evidence reads to native routes with isolated headers', async () => {
+    const chunk = await nativeLegalCitationChunk(scope, 'chunk-1');
+    expect(chunk).toEqual(CITATION_CHUNK);
+    expect(requests[0].url).toBe(
+      '/api/v1/holdings/acme/legal/native-lane-26/citation-chunk/chunk-1',
+    );
+    expect(requests[0].origin).toBe('https://acme.jesadakorn.com');
+    expect(requests[0].company).toBe('acme-co');
+    requests = [];
+    expect(await nativeLegalTextApproved(scope, 'review-1', 'doc-1')).toBe(true);
+    expect(requests[0].url).toBe(
+      '/api/v1/holdings/acme/legal/native-lane-26/text-approved/review-1/doc-1',
+    );
+    expect(requests[0].user).toBe('user-1');
+  });
+
+  it('selects citation evidence per Holding and never defaults to the first', async () => {
+    for (const holding of HOLDINGS) {
+      requests = [];
+      const actorCompany = holding.companyId ?? `company-for-${holding.holdingId}`;
+      const actor = {
+        holdingId: holding.holdingId,
+        holdingSlug: holding.holdingSlug,
+        companyId: actorCompany,
+        userId: 'user-1',
+      };
+      expect(await nativeLegalCitationChunk(actor, 'chunk-1')).toEqual(CITATION_CHUNK);
+      expect(requests[0].url).toBe(
+        `/api/v1/holdings/${holding.holdingSlug}/legal/native-lane-26/citation-chunk/chunk-1`,
+      );
+      expect(requests[0].origin).toBe(holding.origin);
+      expect(requests[0].company).toBe(actorCompany);
+    }
+    requests = [];
+    await expect(
+      nativeLegalCitationChunk({ ...scope, holdingSlug: 'unknown' }, 'chunk-1'),
+    ).rejects.toMatchObject({ status: 503 });
+    expect(requests).toHaveLength(0);
+  });
+
+  it('fails closed when citation reads are down, malformed or unbounded', async () => {
+    mode = 'down';
+    await expect(nativeLegalCitationChunk(scope, 'chunk-1')).rejects.toMatchObject({ status: 503 });
+    await expect(nativeLegalTextApproved(scope, 'review-1', 'doc-1')).rejects.toMatchObject({
+      status: 503,
+    });
+    mode = 'bad';
+    await expect(nativeLegalCitationChunk(scope, 'chunk-1')).rejects.toMatchObject({
+      status: 503,
+      code: 'NATIVE_LEGAL_COPY_READ_RESPONSE_INVALID',
+    });
+    await expect(nativeLegalTextApproved(scope, 'review-1', 'doc-1')).rejects.toMatchObject({
+      status: 503,
+      code: 'NATIVE_LEGAL_COPY_READ_RESPONSE_INVALID',
+    });
+    await expect(nativeLegalCitationChunk(scope, 'bad id!')).rejects.toMatchObject({ status: 503 });
+    await expect(nativeLegalTextApproved(scope, 'bad id!', 'doc-1')).rejects.toMatchObject({
+      status: 503,
+    });
+    await expect(nativeLegalTextApproved(scope, 'review-1', 'bad id!')).rejects.toMatchObject({
+      status: 503,
+    });
+  });
+
+  it('removed all seven owner statements from the TypeScript read source', () => {
     const source = fs.readFileSync(
       path.join(root, 'packages/server-legal/src/adapters/legal/executed-copies.ts'),
       'utf8',
@@ -435,5 +528,37 @@ describe('native Legal lane 26 executed-copy reads', () => {
     expect(trust).not.toContain(TRUST_SQL[1]);
     expect(trust).not.toContain('legalByIdAndCompanySql');
     expect(trust).toContain("from '../native-lane-26/client'");
+
+    const citation = fs.readFileSync(
+      path.join(root, 'packages/server-legal/src/adapters/legal/citations.ts'),
+      'utf8',
+    );
+    expect(citation).not.toContain(CITATION_SQL[0]);
+    expect(citation).not.toContain('legal_source_chunks');
+    // Only the Files availability witness stays owner-local in TypeScript.
+    expect((citation.match(/\.prepare\(/g) ?? []).length).toBe(1);
+    expect(citation).toContain("from '../native-lane-26/client'");
+
+    const knowledge = fs.readFileSync(
+      path.join(root, 'packages/server-legal/src/adapters/legal/knowledge.ts'),
+      'utf8',
+    );
+    expect(knowledge).not.toContain('legalStatePointSql');
+    expect(knowledge).toContain("from '../native-lane-26/client'");
+  });
+
+  it('retirement:ts-statements is BEFORE=127 -> AFTER=126', () => {
+    let total = 0;
+    const walk = (dir: string) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, entry.name);
+        if (entry.isDirectory()) walk(p);
+        else if (entry.name.endsWith('.ts'))
+          total += (fs.readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length;
+      }
+    };
+    walk(path.join(root, 'packages/server-legal/src'));
+    expect(total).toBeLessThan(127);
+    expect(total).toBeLessThanOrEqual(126);
   });
 });

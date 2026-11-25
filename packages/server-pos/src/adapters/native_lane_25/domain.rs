@@ -294,6 +294,73 @@ pub fn valid_detail_row(kind: &str, row: &EvidenceDetailRow) -> bool {
         && get("amount_minor").and_then(|value| value.as_deref()).is_some_and(|v| !v.is_empty())
 }
 
+// ---- Wave 3: POS workspace day-close report list ------------------------
+
+/// Exact `readPosDayCloses1` projection column order retired from `pos.ts`.
+pub const DAY_CLOSES_KEYS: [&str; 10] = [
+    "id",
+    "company_id",
+    "branch_id",
+    "business_date",
+    "currency",
+    "state",
+    "prepared_by",
+    "confirmed_by",
+    "version",
+    "snapshot_json",
+];
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DayClosesQuery {
+    pub company: String,
+    pub branch: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DayClosesRow {
+    pub values: Vec<(String, Option<String>)>,
+}
+
+impl DayClosesRow {
+    pub fn value(self) -> Value {
+        let mut map = serde_json::Map::new();
+        for (key, value) in self.values {
+            map.insert(key, value.map(Value::String).unwrap_or(Value::Null));
+        }
+        Value::Object(map)
+    }
+}
+
+/// Company/branch scope is the only untrusted input; both must be bounded
+/// identities. The date range, metric and pagination are fixed by the owner.
+pub fn validate_day_closes(query: &DayClosesQuery) -> Result<(), BusinessError> {
+    if !safe_id(&query.company) || query.branch.as_deref().is_some_and(|v| !safe_id(v)) {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
+/// Fail closed on a malformed native day-close row: exact key set and a
+/// well-formed identity/date/currency discriminator.
+pub fn valid_day_closes_row(row: &DayClosesRow) -> bool {
+    if row.values.len() != DAY_CLOSES_KEYS.len() {
+        return false;
+    }
+    let get = |key: &str| -> Option<&Option<String>> {
+        row.values.iter().find(|(name, _)| name == key).map(|(_, value)| value)
+    };
+    if !DAY_CLOSES_KEYS.iter().all(|key| get(key).is_some()) {
+        return false;
+    }
+    let id = get("id").and_then(|value| value.as_deref());
+    let date = get("business_date").and_then(|value| value.as_deref());
+    let ccy = get("currency").and_then(|value| value.as_deref());
+    id.is_some_and(|value| bounded(value, 1, MAX_ID_LEN))
+        && date.is_some_and(calendar_date)
+        && ccy.is_some_and(|value| currency(value))
+        && get("snapshot_json").and_then(|value| value.as_deref()).is_some()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -446,5 +513,61 @@ mod detail_tests {
         assert!(!valid_detail_row(DETAIL_KIND_REFUND, &bad));
         let value = row(DETAIL_KIND_REFUND).value();
         assert_eq!(value.as_object().unwrap().len(), REFUND_DETAIL_KEYS.len());
+    }
+}
+
+#[cfg(test)]
+mod day_closes_tests {
+    use super::*;
+
+    fn query() -> DayClosesQuery {
+        DayClosesQuery {
+            company: "co".into(),
+            branch: Some("br".into()),
+        }
+    }
+
+    fn row() -> DayClosesRow {
+        DayClosesRow {
+            values: DAY_CLOSES_KEYS
+                .iter()
+                .map(|key| {
+                    let value = match *key {
+                        "id" => "dc1".to_owned(),
+                        "business_date" => "2026-01-31".to_owned(),
+                        "currency" => "USD".to_owned(),
+                        _ => "v".to_owned(),
+                    };
+                    ((*key).to_owned(), Some(value))
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn day_closes_query_validates_bounded_scope() {
+        assert!(validate_day_closes(&query()).is_ok());
+        let mut q = query();
+        q.branch = None;
+        assert!(validate_day_closes(&q).is_ok());
+        q.company.clear();
+        assert!(validate_day_closes(&q).is_err());
+        q = query();
+        q.branch = Some("bad branch".into());
+        assert!(validate_day_closes(&q).is_err());
+    }
+
+    #[test]
+    fn day_closes_row_pins_exact_key_set() {
+        assert_eq!(DAY_CLOSES_KEYS.len(), 10);
+        assert!(valid_day_closes_row(&row()));
+        let value = row().value();
+        assert_eq!(value.as_object().unwrap().len(), DAY_CLOSES_KEYS.len());
+        let mut bad = row();
+        bad.values.pop();
+        assert!(!valid_day_closes_row(&bad));
+        bad = row();
+        bad.values[3].1 = Some("not-a-date".into());
+        assert!(!valid_day_closes_row(&bad));
     }
 }

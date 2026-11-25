@@ -5,6 +5,16 @@ import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { sourceRecordLabel, type SourceRecordReference } from "@erpx/feature-records/lib/source-record";
 import { staffNotificationSourceTypes, type StaffNotification } from '@erpx/server-collaboration/domain/staff-notifications';
 import { noticeInput, type InboxCategory, type InboxEventInput, type InboxItem, type Candidate } from '@erpx/server-collaboration/domain/inbox';
+
+/** Caller-supplied Holding authority for the native failed-metrics read.
+ * No positional or first-Holding fallback exists: callers without a request
+ * context leave this undefined and the native owner fails closed. */
+export type InboxFailedScope = Readonly<{
+    holdingId: string;
+    holdingSlug: string;
+    companyId?: string;
+}>;
+
 export interface InboxRepository {
     publishEvent(id: string, companyId: string, key: string, sourceType: string, sourceId: string, sourceVersion: number, value: string | null, category: InboxCategory, preview: string, now: number): Promise<unknown>;
     publishedEvent(companyId: string, key: string): Promise<{
@@ -61,7 +71,7 @@ export interface InboxRepository {
     unresolvedMetrics(types: string[]): Promise<{
         count: number;
     } | null>;
-    failedMetrics(): Promise<{
+    failedMetrics(scope?: InboxFailedScope): Promise<{
         count: number;
     } | null>;
 }
@@ -272,11 +282,11 @@ export function createInboxApplication<Effect>(ports: InboxPorts<Effect>) {
         }
         return targets.length;
     }
-    async function inboxOperationalMetrics(now = ports.clock.now()) {
+    async function inboxOperationalMetrics(now = ports.clock.now(), scope?: InboxFailedScope) {
         const pending = await r.pendingMetrics();
         const types = ["notice", "calendar_appointment", "calendar_removed", ...staffNotificationSourceTypes];
         const unresolved = await r.unresolvedMetrics(types);
-        const failed = await r.failedMetrics();
+        const failed = await r.failedMetrics(scope);
         return { pendingDeliveries: pending?.count ?? 0, oldestDeliveryLagMs: pending?.oldest ? now - pending.oldest : 0,
             unresolvedEventTypes: unresolved?.count ?? 0, failedJobs: failed?.count ?? 0 };
     }

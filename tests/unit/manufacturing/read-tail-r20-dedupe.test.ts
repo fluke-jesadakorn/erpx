@@ -70,9 +70,13 @@ describe('manufacturing read-tail r20 EXISTS-guard family', () => {
       ['manufacturing-read-tail-r20-sql.ts', 'EXISTS(${manufacturingExistsSelect('],
       ['manufacturing-read-sql-fragments.ts', 'EXISTS(${manufacturingExistsSelect('],
       ['posting-setup-sources.ts', 'EXISTS(${manufacturingExistsSelect(table,predicate)})'],
-      ['initial-physical-stock-sources.ts', 'EXISTS(${manufacturingExistsSelect('],
       ['production-command-sources.ts', 'NOT EXISTS(${manufacturingExistsSelect('],
     ] as const) expect(src(file)).toContain(needle);
+    // The initial-physical-stock history guard moved to the native lane-28
+    // owner: its adapter is a strict transport with no inline guard.
+    const stock = src('initial-physical-stock-sources.ts');
+    expect(stock).not.toContain('EXISTS(${manufacturingExistsSelect(');
+    expect(stock).toContain('nativeManufacturingLane28StockHistory');
     // The r26 exclusions stay inline and untouched.
     expect(src('purchases.ts')).toContain('export const commandReceiptSelect');
     expect(probe).toContain('export const manufacturingNativeProductionProbe');

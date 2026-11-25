@@ -21,9 +21,15 @@ import {
   nativeWorkEvidenceConfigured,
   parseWorkEvidenceConfig,
   readNativeWorkEvidence,
+  workEvidenceHttpTransport,
   type WorkEvidenceActor,
   type WorkEvidenceTransport,
 } from '../../../packages/server-files/src/adapters/native-lane-22/client';
+import {
+  createPersonnelEvidenceClient,
+  type PersonnelEvidenceArgs,
+  type PersonnelEvidenceKind,
+} from '../../../packages/server-files/src/adapters/native-lane-22/personnel-client';
 
 const ENV = 'ERPX_NATIVE_FILES_CONFIG';
 
@@ -291,5 +297,111 @@ describe('native Files work-evidence lane 22 contract', () => {
     expect(source).not.toMatch(/\.prepare\(/);
     expect(source).not.toMatch(/\.bind\(/);
     expect(source).toContain('readNativeWorkEvidence');
+  });
+});
+
+describe('native Files personnel-evidence lane 22 contract', () => {
+  const personnelPayload = (kind: PersonnelEvidenceKind) => ({
+    kind,
+    rows:
+      kind === 'evaluation-link'
+        ? [{ id: 'link-1' }]
+        : kind === 'evaluation-files'
+          ? [{ id: 'link-1', filename: 'file.pdf' }]
+          : [
+              {
+                id: 'attachment-1',
+                original_name: 'request.pdf',
+                media_type: 'application/pdf',
+                bytes: 512,
+                checksum_sha256: 'abc',
+                purpose: 'medical_certificate',
+                revision: 2,
+              },
+            ],
+  });
+  const personnelCall = (
+    kind: PersonnelEvidenceKind,
+    args: PersonnelEvidenceArgs,
+    overrides: Record<string, unknown> = {},
+    transport?: WorkEvidenceTransport,
+  ) =>
+    createPersonnelEvidenceClient(
+      config(),
+      transport ?? (async () => ({ status: 200, value: personnelPayload(kind) })),
+    ).read(actor(overrides), db, kind, args);
+
+  it('pins the three byte-identical SQL oracles with the Rust adapter', () => {
+    expect(hash('SELECT l.id,a.original_name filename FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id JOIN attachments a ON a.id=l.attachment_id WHERE s.company_id=$1 AND s.target_type=\'hr_evaluation_assessment\' AND s.target_id=$2 AND l.state=\'bound\' AND a.source_state=\'available\'')).toBe(
+      '2fe88e15a79ddf05c007e5c602765c640ad55d034197bd2346ca994025db3c6b',
+    );
+    expect(hash('SELECT l.id FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id JOIN attachments f ON f.id=l.attachment_id WHERE l.id=$1 AND s.target_type=\'hr_evaluation_assessment\' AND s.target_id=$2 AND s.company_id=$3 AND l.state=\'bound\' AND f.source_state=\'available\'')).toBe(
+      'b8ab97daf89b673665b79b3513782f4a98fa566932a85541d8a266e18908a08c',
+    );
+    expect(hash("SELECT id,original_name,media_type,bytes,checksum_sha256,purpose,revision FROM attachments WHERE owner_type='employee_request' AND owner_id=$1 AND revoked_at IS NULL ORDER BY created_at,id")).toBe(
+      'd82915c70cc853729de238d6ab83be9b0424e219fac877d6684d1544ae21182a',
+    );
+  });
+
+  it('routes each kind to the registered Holding with the exact scoped headers', async () => {
+    for (const [kind, args, expected] of [
+      ['evaluation-files', { assessmentId: 'assessment-1' }, { assessment: 'assessment-1', source: undefined, record: undefined }],
+      ['evaluation-link', { assessmentId: 'assessment-1', sourceId: 'source-1' }, { assessment: 'assessment-1', source: 'source-1', record: undefined }],
+      ['employee-request-attachments', { recordId: 'request-1' }, { assessment: undefined, source: undefined, record: 'request-1' }],
+    ] as const) {
+      let url: URL | undefined;
+      let headers: Record<string, string> | undefined;
+      const result = await createPersonnelEvidenceClient(
+        config(),
+        async (sentUrl, sentHeaders) => {
+          url = sentUrl;
+          headers = sentHeaders;
+          return { status: 200, value: personnelPayload(kind) };
+        },
+      ).read(actor({ holdingId: 'h002', holdingSlug: 'northstar' }), db, kind, args);
+      expect(result.results).toEqual(personnelPayload(kind).rows);
+      expect(result.meta).toEqual({ changes: 0, duration: 0 });
+      expect(url?.toString()).toBe(
+        `http://127.0.0.1:3198/api/v1/holdings/northstar/files/personnel-evidence?kind=${kind}`,
+      );
+      expect(headers?.host).toBe('northstar.jesadakorn.com');
+      expect(headers?.['x-erpx-context-company']).toBe('company-1');
+      expect(headers?.['x-erpx-context-assessment']).toBe(expected.assessment);
+      expect(headers?.['x-erpx-context-source']).toBe(expected.source);
+      expect(headers?.['x-erpx-context-record']).toBe(expected.record);
+    }
+  });
+
+  it('rejects malformed rows, wrong kinds and unknown Holdings', async () => {
+    await expect503(
+      () => personnelCall('evaluation-files', { assessmentId: 'a-1' }, {}, async () => ({ status: 200, value: { kind: 'evaluation-files', rows: [{ id: 1, filename: 'f' }] } })),
+      'NATIVE_PERSONNEL_EVIDENCE_RESPONSE_INVALID',
+    );
+    await expect503(
+      () => personnelCall('evaluation-files', { assessmentId: 'a-1' }, {}, async () => ({ status: 200, value: { kind: 'evaluation-link', rows: [{ id: 'x' }] } })),
+      'NATIVE_PERSONNEL_EVIDENCE_RESPONSE_INVALID',
+    );
+    await expect503(
+      () => personnelCall('evaluation-files', { assessmentId: 'a-1' }, { holdingId: 'h999', holdingSlug: 'unknown' }),
+      'NATIVE_WORK_EVIDENCE_TARGET_UNAVAILABLE',
+    );
+  });
+
+  it('retired the personnel TS SQL: both adapters delegate to the native client', () => {
+    for (const [file, api] of [
+      ['people-evaluation-facts.ts', 'readNativePersonnelEvidence'],
+      ['records-employee-requests-owned-facts.ts', 'readNativePersonnelEvidence'],
+    ] as const) {
+      const source = readFileSync(
+        new URL(`../../../packages/server-files/src/adapters/${file}`, import.meta.url),
+        'utf8',
+      );
+      expect(source).not.toMatch(/SELECT /i);
+      expect(source).not.toMatch(/\.prepare\(/);
+      expect(source).not.toMatch(/\.bind\(/);
+      expect(source).toContain(api);
+    }
+    // The shared HTTP transport is exported once for both lane 22 clients.
+    expect(typeof workEvidenceHttpTransport).toBe('function');
   });
 });

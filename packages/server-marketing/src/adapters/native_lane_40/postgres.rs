@@ -5,8 +5,9 @@
 //! accepted from the wire.
 use crate::adapters::native_lane_40::application::{Lane40ReadFuture, Lane40Reader};
 use crate::adapters::native_lane_40::domain::{
-    Lane40ReadResult, Lane40Request, RD_CAMPAIGN_SUMMARY, RD_CANDIDATE_DETAIL,
-    RD_CANDIDATE_HISTORY, RD_CANDIDATE_LIST, unavailable,
+    Lane40ReadResult, Lane40Request, RD_ACTIVE_FORM_SOURCE, RD_CAMPAIGN_SUMMARY,
+    RD_CANDIDATE_DETAIL, RD_CANDIDATE_HISTORY, RD_CANDIDATE_LIST, RD_FORM_CONTENT_ROW,
+    RD_PUBLIC_RECEIPT, unavailable,
 };
 use erpx_server_runtime::public::postgres::{
     DatabasePool, PgTransactionError, PgUnitOfWork, TransactionOptions,
@@ -59,11 +60,13 @@ pub fn candidate_detail_sql() -> String {
 pub fn candidate_history_sql() -> String {
     // Engagement rows have no company column; the joined candidate supplies
     // the authoritative Company in the response for the owner scope check.
-    "SELECT (to_jsonb(e) || jsonb_build_object('company_id',c.company_id))::text AS value\
-     FROM marketing_engagement_events e\
-     JOIN marketing_lead_candidates c ON c.id=e.candidate_id AND c.company_id=$2\
-     WHERE e.candidate_id=$1 ORDER BY e.version"
-        .to_owned()
+    concat!(
+        "SELECT (to_jsonb(e) || jsonb_build_object('company_id',c.company_id))::text AS value ",
+        "FROM marketing_engagement_events e ",
+        "JOIN marketing_lead_candidates c ON c.id=e.candidate_id AND c.company_id=$2 ",
+        "WHERE e.candidate_id=$1 ORDER BY e.version"
+    )
+    .to_owned()
 }
 
 /// Rendered attribution aggregate. The `COALESCE` defaults and status
@@ -81,6 +84,40 @@ pub fn campaign_summary_sql(enforced: bool) -> String {
          FROM marketing_lead_candidates c WHERE c.company_id=$1 AND {guard}{SCOPE_TAIL}\
          GROUP BY 1,2 ORDER BY COUNT(*) DESC,campaign,source"
     )
+}
+
+/// Wave 2: the active-form source projection. The single JSON text column
+/// carries `company_id` in the response so the owner's company-scope invariant
+/// covers every returned row; `fetch_text` only decodes the first column.
+pub fn active_form_source_sql() -> String {
+    concat!(
+        "SELECT (jsonb_build_object('configuration_json',a.configuration_json,'company_id',a.company_id))::text AS value ",
+        "FROM marketing_assets a ",
+        "WHERE a.id=$2 AND a.company_id=$1 AND a.version=$3 AND a.kind='form' AND a.status='active'"
+    )
+    .to_owned()
+}
+
+/// Wave 2: the active form-content row projection with the same company scope.
+pub fn form_content_row_sql() -> String {
+    concat!(
+        "SELECT (jsonb_build_object('id',a.id,'version',a.version,'preview_json',a.preview_json,'company_id',a.company_id))::text AS value ",
+        "FROM marketing_assets a ",
+        "WHERE a.id=$2 AND a.company_id=$1 AND a.version=$3 AND a.kind='content' AND a.status='active'"
+    )
+    .to_owned()
+}
+
+/// The public-submission receipt read. The receipt table has no company
+/// column, so the joined candidate supplies the authoritative Company.
+pub fn public_receipt_sql() -> String {
+    concat!(
+        "SELECT (jsonb_build_object('request_hash',receipt.request_hash,'candidate_id',receipt.candidate_id,'company_id',candidate.company_id))::text AS value ",
+        "FROM marketing_public_receipts receipt ",
+        "JOIN marketing_lead_candidates candidate ON candidate.id=receipt.candidate_id ",
+        "WHERE receipt.key=$2 AND candidate.company_id=$1"
+    )
+    .to_owned()
 }
 
 /// Pool-backed owner reader. Every read runs on an owner transaction leased
@@ -197,6 +234,31 @@ impl Lane40Reader for PgLane40Reader {
                                 )
                                 .await
                             }
+                            RD_ACTIVE_FORM_SOURCE | RD_FORM_CONTENT_ROW => {
+                                let sql = if request.kind == RD_ACTIVE_FORM_SOURCE {
+                                    active_form_source_sql()
+                                } else {
+                                    form_content_row_sql()
+                                };
+                                fetch_text(
+                                    connection,
+                                    sql,
+                                    vec![
+                                        Some(company),
+                                        request.asset_id,
+                                        request.version.map(|version| version.to_string()),
+                                    ],
+                                )
+                                .await
+                            }
+                            RD_PUBLIC_RECEIPT => {
+                                fetch_text(
+                                    connection,
+                                    public_receipt_sql(),
+                                    vec![Some(company), request.record_id],
+                                )
+                                .await
+                            }
                             _ => Err(unavailable()),
                         };
                         rows.map_err(PgTransactionError::Business)
@@ -261,6 +323,10 @@ mod tests {
         assert!(detail.contains("c.company_id=$1"));
         assert_eq!(bind_slots(&detail), 4);
         let history = candidate_history_sql();
+        assert_eq!(
+            history,
+            "SELECT (to_jsonb(e) || jsonb_build_object('company_id',c.company_id))::text AS value FROM marketing_engagement_events e JOIN marketing_lead_candidates c ON c.id=e.candidate_id AND c.company_id=$2 WHERE e.candidate_id=$1 ORDER BY e.version"
+        );
         assert!(history.contains("e.candidate_id=$1"));
         assert!(history.contains("c.company_id=$2"));
         assert_eq!(bind_slots(&history), 2);
@@ -286,6 +352,42 @@ mod tests {
                 assert!(!sql.contains(table), "{table}");
             }
         }
+    }
+
+    #[test]
+    fn active_form_sql_oracles_pin_company_asset_version_bind_order() {
+        let source = active_form_source_sql();
+        assert_eq!(
+            source,
+            "SELECT (jsonb_build_object('configuration_json',a.configuration_json,'company_id',a.company_id))::text AS value FROM marketing_assets a WHERE a.id=$2 AND a.company_id=$1 AND a.version=$3 AND a.kind='form' AND a.status='active'"
+        );
+        assert_eq!(bind_slots(&source), 3);
+        let content = form_content_row_sql();
+        assert_eq!(
+            content,
+            "SELECT (jsonb_build_object('id',a.id,'version',a.version,'preview_json',a.preview_json,'company_id',a.company_id))::text AS value FROM marketing_assets a WHERE a.id=$2 AND a.company_id=$1 AND a.version=$3 AND a.kind='content' AND a.status='active'"
+        );
+        assert_eq!(bind_slots(&content), 3);
+        for sql in [&source, &content] {
+            assert!(sql.contains("::text AS value"));
+            assert!(sql.contains("'company_id',a.company_id"));
+            assert!(sql.contains("a.company_id=$1"));
+            assert!(sql.contains("a.status='active'"));
+            assert!(!sql.contains(" FOR UPDATE"));
+        }
+    }
+
+    #[test]
+    fn public_receipt_oracle_pins_company_scoped_key_lookup() {
+        let sql = public_receipt_sql();
+        assert_eq!(
+            sql,
+            "SELECT (jsonb_build_object('request_hash',receipt.request_hash,'candidate_id',receipt.candidate_id,'company_id',candidate.company_id))::text AS value FROM marketing_public_receipts receipt JOIN marketing_lead_candidates candidate ON candidate.id=receipt.candidate_id WHERE receipt.key=$2 AND candidate.company_id=$1"
+        );
+        assert_eq!(bind_slots(&sql), 2);
+        assert!(sql.contains("::text AS value"));
+        assert!(sql.contains("'company_id',candidate.company_id"));
+        assert!(sql.contains("candidate.company_id=$1"));
     }
 
     fn plain() -> String {

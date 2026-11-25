@@ -50,8 +50,11 @@ describe('billing read-tail r16 byte-identical SQL dedupe', () => {
       new URL('../../../packages/server-billing/src/adapters/executive-main-evidence-sources.ts', import.meta.url),
       'utf8',
     );
-    expect(text.split(SUBSCRIPTION_SELECT).length - 1).toBe(0); // r36 routes the tail through r35
-    expect(text).toContain("billingProjectionSql('source_kind,record_id,plan_name,status,started_at,effective_at,record_version','FROM subscriptions')");
-    expect(text.split('${commercialSubscriptionSelect()}').length - 1).toBe(3);
+    // Native lane 38 wave 2: the owner crate owns this statement text.
+    expect(text.split(SUBSCRIPTION_SELECT).length - 1).toBe(0);
+    expect(text).not.toContain('billingProjectionSql(');
+    expect(text).not.toContain('commercialSubscriptionSelect()');
+    expect(text).toContain("from './native-lane-38/client'");
+    expect(text).toContain('nativeBillingCommercialSubscriptions(');
   });
 });

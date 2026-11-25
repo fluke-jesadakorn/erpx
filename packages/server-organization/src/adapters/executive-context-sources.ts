@@ -1,1 +1,28 @@
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {WorkContext} from '@erpx/server-identity_access/public/authorization';import {nodeKindDisplayNameHeadSql} from './organization-read-tail-sources-r62';export async function executiveOrganizationNodes(db:SqlDatabase,a:WorkContext){return (await db.prepare(nodeKindDisplayNameHeadSql(`parent_id,branch_id FROM organization_nodes WHERE company_id=? AND status='active' AND (kind='company' OR ((?::text IS NULL OR id=? OR branch_id=?) AND (?::text IS NULL OR id=? OR (kind='branch' AND id=(SELECT branch_id FROM organization_nodes WHERE id=? AND company_id=?))))) ORDER BY kind,display_name,id LIMIT 501`)).bind(a.companyId,a.branchId,a.branchId,a.branchId,a.departmentId,a.departmentId,a.departmentId,a.companyId).all()).results;}export async function executiveOrganizationPositions(db:SqlDatabase,a:WorkContext){return (await db.prepare(`SELECT p.id,p.title,p.branch_id,p.department_id,p.level_id,p.reports_to_position_id,l.level_number FROM organization_positions p JOIN staff_levels l ON l.id=p.level_id AND l.company_id=p.company_id WHERE p.company_id=? AND p.active=1 AND l.active=1 AND (?::text IS NULL OR p.branch_id=? OR p.branch_id IS NULL) AND (?::text IS NULL OR p.department_id=? OR p.department_id IS NULL) ORDER BY l.level_number,p.title,p.id LIMIT 501`).bind(a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId).all()).results;}
+import "server-only";
+import {headers} from 'next/headers';
+import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
+import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
+import {nativeExecutiveEvidence} from './native-lane-23/client';
+
+type NodeRow={id:string;kind:string;display_name:string;parent_id:string|null;branch_id:string|null};
+type PositionRow={id:string;title:string;branch_id:string|null;department_id:string|null;level_id:string;reports_to_position_id:string|null;level_number:number|null};
+
+/** Native owner reads: SQL and projection live in the Rust organization crate;
+ * these adapters transport validated facts and fail closed when unavailable. */
+export async function executiveOrganizationNodes(_db:SqlDatabase,a:WorkContext){
+  const evidence=await nativeExecutiveEvidence(await headers(),{
+    kind:'context-nodes',
+    companyId:a.companyId,
+    values:[a.branchId,a.branchId,a.branchId,a.departmentId,a.departmentId,a.departmentId,a.companyId],
+  });
+  return evidence.rows as unknown as NodeRow[];
+}
+
+export async function executiveOrganizationPositions(_db:SqlDatabase,a:WorkContext){
+  const evidence=await nativeExecutiveEvidence(await headers(),{
+    kind:'context-positions',
+    companyId:a.companyId,
+    values:[a.branchId,a.branchId,a.departmentId,a.departmentId],
+  });
+  return evidence.rows as unknown as PositionRow[];
+}

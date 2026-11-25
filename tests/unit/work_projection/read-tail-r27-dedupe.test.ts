@@ -28,7 +28,8 @@ describe('work_projection read-tail r27 dedupe', () => {
 
     const facts = await readFile(src('calendar-appointments-facts.ts'), 'utf8');
     expect(facts).not.toContain('EXISTS(SELECT 1 FROM (${calendarPeopleProjectionSources.engagements}) e WHERE');
-    expect(facts).toContain("EXISTS(${derivedProbeSql(calendarPeopleProjectionSources.engagements, 'e',");
+    expect(facts).not.toContain('derivedProbeSql');
+    expect(facts).toContain('nativeAttendeeRows(');
   });
 
   it('emits the original byte-identical SQL for every parameterized caller', () => {

@@ -6,6 +6,7 @@
 
 pub(crate) mod application;
 pub(crate) mod domain;
+pub mod field_command;
 pub(crate) mod http;
 pub(crate) mod postgres;
 

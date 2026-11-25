@@ -85,7 +85,7 @@ describe('Organization read-tail r50 dedupe', () => {
       ['organization-read-tail-sources-r46.ts', ['snapshotJsonByAction']],
       ['organization-read-tail-sources-r47.ts', ['workerCompanyRolloutGuard']],
       ['organization-read-tail-sources-r48.ts', ['authoritySeatHolderGuard']],
-      ['organization-read-tail-sources-r49.ts', ['branchNodeOptions', 'fullNodeSelection', 'messagingNodeExists']],
+      ['organization-read-tail-sources-r49.ts', ['fullNodeSelection', 'messagingNodeExists']],
     ] as [string, string[]][]) {
       const source = read(file);
       for (const name of names) expect(source.match(new RegExp(`export const ${name} =`, 'g')) ?? []).toHaveLength(1);
@@ -130,8 +130,8 @@ describe('Organization read-tail r50 dedupe', () => {
     expect(read('organization-nodes-spaced-projections.ts')).toContain('"id", "kind", "slug"');
   });
 
-  test('retirement:ts-statements is strictly lower than the r50 BEFORE=234 baseline (expected 200)', () => {
-    // Lane 23 moved three directory reads to the native owner; the absolute pin reflects the current owner source.
+  test('retirement:ts-statements is strictly lower than the r50 BEFORE=234 baseline (expected 196)', () => {
+    // Wave 2 moved three node-reference reads to the native owner (six lane-23 reads total); the absolute pin reflects the current owner source.
     let space = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -144,7 +144,7 @@ describe('Organization read-tail r50 dedupe', () => {
     // r50 collapsed three node-existence guards and three active-position
     // lookups into two shared helpers (-2, -2 = -4); r53 routes the two
     // remaining inline node-EXISTS bodies through nodeExistsGuard (-2).
-    expect(space).toBe(200);
+    expect(space).toBe(196);
     expect(space).toBeLessThan(234);
   });
 });

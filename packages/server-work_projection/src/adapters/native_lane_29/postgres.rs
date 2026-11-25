@@ -6,7 +6,7 @@
 //! Company first, then the read's own identities, then the recipient list.
 //! No predicate or aggregation is added in TypeScript.
 
-use erpx_server_runtime::public::http_support::serde_json;
+use erpx_server_runtime::public::http_support::serde_json::{self, Value};
 use erpx_server_runtime::public::postgres::{
     DatabasePool, PgTransactionError, PgUnitOfWork, TransactionOptions,
 };
@@ -16,7 +16,8 @@ use sqlx::Row;
 
 use super::application::{Lane29Future, Lane29Read};
 use super::domain::{
-    AvailabilitySource, ConflictProbe, ConflictScope, MovedOccurrence, OccurrenceException, SeriesRow,
+    AnnouncementCandidate, AppointmentCandidate, AttendeeRow, AvailabilitySource, ConflictProbe,
+    ConflictScope, MovedOccurrence, OccurrenceException, SeriesRow,
 };
 
 /// `occurrenceExceptionPointSql('start_local,end_local,cancelled')`.
@@ -66,6 +67,27 @@ pub const SQL_CONFLICT_ATTENDEE: &str =
      ON p.appointment_id=a.id WHERE a.company_id=$1 AND a.status='scheduled' AND a.id!=$2 \
      AND a.starts_at<$3 AND a.ends_at>$4 AND p.response!='declined' \
      AND p.user_id IN (SELECT jsonb_array_elements_text($5::jsonb)) LIMIT 1";
+
+/// Byte-identical rendered candidate-list SQL; 20 binds in original order.
+pub const SQL_APPOINTMENT_CANDIDATES: &str = r#"WITH candidates AS (
+ SELECT x.*,p.legal_name organizer_name,
+ (($1 AND coalesce(x.department_id,x.branch_id,x.company_id) IN (SELECT jsonb_array_elements_text($2::jsonb))) OR x.organizer_person_id=$3 OR EXISTS(SELECT 1 FROM calendar_attendees ap WHERE ap.appointment_id=x.id AND ap.user_id=$4)) full_detail
+ FROM calendar_appointments x LEFT JOIN (SELECT id,user_id,company_id,legal_name,merged_into_id FROM hr_people) p ON p.id=x.organizer_person_id AND p.company_id=x.company_id
+ WHERE x.company_id=$5 AND x.starts_at<$6 AND (x.ends_at>$7 OR EXISTS(SELECT 1 FROM calendar_series s WHERE s.appointment_id=x.id))
+ AND (coalesce(x.department_id,x.branch_id,x.company_id) IN (SELECT jsonb_array_elements_text($8::jsonb)) OR EXISTS(SELECT 1 FROM calendar_attendees ap WHERE ap.appointment_id=x.id AND ap.user_id=$9) OR EXISTS(SELECT 1 FROM calendar_appointment_participants ap JOIN (SELECT person_id,company_id,status,branch_id,department_id FROM hr_engagements) e ON e.person_id=ap.person_id AND e.company_id=ap.company_id WHERE ap.appointment_id=x.id AND e.status='active' AND coalesce(e.department_id,e.branch_id,e.company_id) IN (SELECT jsonb_array_elements_text($10::jsonb)))))
+ SELECT x.* FROM candidates x WHERE (full_detail OR ($11 AND x.status='scheduled'))
+ AND (($12::text IS NOT NULL AND EXISTS(SELECT 1 FROM calendar_appointment_participants ap WHERE ap.appointment_id=x.id AND ap.person_id=$13))
+   OR ($14::text IS NULL AND ($15='team' OR EXISTS(SELECT 1 FROM calendar_attendees ap WHERE ap.appointment_id=x.id AND ap.user_id=$16) OR x.organizer_person_id=$17)))
+ AND ($18='' OR (CASE WHEN full_detail THEN x.title ELSE 'Busy' END) ILIKE '%'||$19||'%') ORDER BY x.id LIMIT $20"#;
+
+/// Byte-identical rendered candidate-list SQL; 2 binds in original order.
+pub const SQL_ATTENDEE_ROWS: &str = r#"SELECT ap.appointment_id,ap.user_id,ap.person_id,p.legal_name name,EXISTS(SELECT 1 FROM (SELECT person_id,company_id,status,branch_id,department_id FROM hr_engagements) e WHERE e.person_id=p.id AND e.company_id=p.company_id AND coalesce(e.department_id,e.branch_id,e.company_id) IN (SELECT jsonb_array_elements_text($1::jsonb)))) in_scope,ap.attendance,ap.response
+          FROM calendar_attendees ap LEFT JOIN (SELECT id,user_id,company_id,legal_name,merged_into_id FROM hr_people) p ON p.id=ap.person_id AND p.company_id=ap.company_id WHERE ap.appointment_id IN (SELECT jsonb_array_elements_text($2::jsonb)) ORDER BY p.legal_name,ap.user_id"#;
+
+/// Byte-identical rendered candidate-list SQL; 10 binds in original order.
+pub const SQL_ANNOUNCEMENT_CANDIDATES: &str = r#"SELECT n.*,coalesce(p.legal_name,'Publisher') owner_name FROM calendar_announcements n LEFT JOIN (SELECT id,user_id,company_id,legal_name,merged_into_id FROM hr_people) p ON p.user_id=n.created_by AND p.company_id=n.company_id AND p.merged_into_id IS NULL
+ WHERE n.company_id=$1 AND coalesce(n.department_id,n.branch_id,n.company_id) IN (SELECT jsonb_array_elements_text($2::jsonb)) AND (n.status='published' OR ($3 AND coalesce(n.department_id,n.branch_id,n.company_id) IN (SELECT jsonb_array_elements_text($4::jsonb))))
+ AND n.start_date<$5 AND n.end_date>=$6 AND ($7='' OR n.title ILIKE '%'||$8||'%' OR n.content ILIKE '%'||$9||'%') ORDER BY n.id LIMIT $10"#;
 
 fn unavailable() -> BusinessError {
     BusinessError::new(
@@ -361,6 +383,185 @@ impl Lane29Read for PgLane29Read {
             .map_err(transaction)
         })
     }
+
+    fn appointment_candidates<'a>(
+        &'a self,
+        values: &'a [Value],
+    ) -> Lane29Future<'a, Vec<AppointmentCandidate>> {
+        let unit = PgUnitOfWork::new(self.pool.clone());
+        let values = values.to_vec();
+        Box::pin(async move {
+            unit.run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                let values = values.clone();
+                Box::pin(async move {
+                    let scope = text_value(&values[1])?;
+                    let organizer = nullable_text(&values[2])?;
+                    let person = nullable_text(&values[8])?;
+                    let rows = sqlx::query(SQL_APPOINTMENT_CANDIDATES)
+                        .bind(flag_value(&values[0])?)
+                        .bind(scope.as_str())
+                        .bind(organizer.as_deref())
+                        .bind(text_value(&values[3])?)
+                        .bind(text_value(&values[4])?)
+                        .bind(number_value(&values[5])?)
+                        .bind(number_value(&values[6])?)
+                        .bind(scope.as_str())
+                        .bind(text_value(&values[3])?)
+                        .bind(scope.as_str())
+                        .bind(flag_value(&values[7])?)
+                        .bind(person.as_deref())
+                        .bind(person.as_deref())
+                        .bind(person.as_deref())
+                        .bind(text_value(&values[9])?)
+                        .bind(text_value(&values[3])?)
+                        .bind(text_value(&values[10])?)
+                        .bind(text_value(&values[11])?)
+                        .bind(text_value(&values[11])?)
+                        .bind(number_value(&values[12])?)
+                        .fetch_all(&mut *connection)
+                        .await
+                        .map_err(|_| unavailable())?;
+                    Ok(rows.iter().map(appointment_row).collect::<Result<Vec<_>, BusinessError>>()?)
+                })
+            })
+            .await
+            .map_err(transaction)
+        })
+    }
+
+    fn attendee_rows<'a>(&'a self, values: &'a [Value]) -> Lane29Future<'a, Vec<AttendeeRow>> {
+        let unit = PgUnitOfWork::new(self.pool.clone());
+        let values = values.to_vec();
+        Box::pin(async move {
+            unit.run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                let values = values.clone();
+                Box::pin(async move {
+                    let scope = text_value(&values[0])?;
+                    let ids = text_value(&values[1])?;
+                    let rows = sqlx::query(SQL_ATTENDEE_ROWS)
+                        .bind(scope.as_str())
+                        .bind(ids.as_str())
+                        .fetch_all(&mut *connection)
+                        .await
+                        .map_err(|_| unavailable())?;
+                    Ok(rows.iter().map(attendee_row).collect::<Result<Vec<_>, BusinessError>>()?)
+                })
+            })
+            .await
+            .map_err(transaction)
+        })
+    }
+
+    fn announcement_candidates<'a>(
+        &'a self,
+        values: &'a [Value],
+    ) -> Lane29Future<'a, Vec<AnnouncementCandidate>> {
+        let unit = PgUnitOfWork::new(self.pool.clone());
+        let values = values.to_vec();
+        Box::pin(async move {
+            unit.run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                let values = values.clone();
+                Box::pin(async move {
+                    let scope = text_value(&values[1])?;
+                    let scope2 = text_value(&values[3])?;
+                    let query = text_value(&values[7])?;
+                    let rows = sqlx::query(SQL_ANNOUNCEMENT_CANDIDATES)
+                        .bind(text_value(&values[0])?)
+                        .bind(scope.as_str())
+                        .bind(flag_value(&values[2])?)
+                        .bind(scope2.as_str())
+                        .bind(text_value(&values[5])?)
+                        .bind(text_value(&values[6])?)
+                        .bind(query.as_str())
+                        .bind(query.as_str())
+                        .bind(query.as_str())
+                        .bind(number_value(&values[8])?)
+                        .fetch_all(&mut *connection)
+                        .await
+                        .map_err(|_| unavailable())?;
+                    Ok(rows.iter().map(announcement_row).collect::<Result<Vec<_>, BusinessError>>()?)
+                })
+            })
+            .await
+            .map_err(transaction)
+        })
+    }
+}
+
+fn text_value(value: &serde_json::Value) -> Result<String, BusinessError> {
+    value.as_str().map(str::to_owned).ok_or_else(unavailable)
+}
+
+fn nullable_text(value: &serde_json::Value) -> Result<Option<String>, BusinessError> {
+    if value.is_null() { Ok(None) } else { text_value(value).map(Some) }
+}
+
+fn number_value(value: &serde_json::Value) -> Result<i64, BusinessError> {
+    value.as_i64().ok_or_else(unavailable)
+}
+
+fn flag_value(value: &serde_json::Value) -> Result<bool, BusinessError> {
+    value.as_bool().ok_or_else(unavailable)
+}
+
+fn appointment_row(row: &sqlx::postgres::PgRow) -> Result<AppointmentCandidate, BusinessError> {
+    Ok(AppointmentCandidate {
+        id: row.try_get("id").map_err(|_| unavailable())?,
+        company_id: row.try_get("company_id").map_err(|_| unavailable())?,
+        branch_id: row.try_get("branch_id").map_err(|_| unavailable())?,
+        department_id: row.try_get("department_id").map_err(|_| unavailable())?,
+        organizer_person_id: row.try_get("organizer_person_id").map_err(|_| unavailable())?,
+        title: row.try_get("title").map_err(|_| unavailable())?,
+        description: row.try_get("description").map_err(|_| unavailable())?,
+        starts_at: row.try_get("starts_at").map_err(|_| unavailable())?,
+        ends_at: row.try_get("ends_at").map_err(|_| unavailable())?,
+        timezone: row.try_get("timezone").map_err(|_| unavailable())?,
+        location: row.try_get("location").map_err(|_| unavailable())?,
+        meeting_url: row.try_get("meeting_url").map_err(|_| unavailable())?,
+        private: row.try_get("private").map_err(|_| unavailable())?,
+        guests: row.try_get("guests").map_err(|_| unavailable())?,
+        status: row.try_get("status").map_err(|_| unavailable())?,
+        version: row.try_get("version").map_err(|_| unavailable())?,
+        created_by: row.try_get("created_by").map_err(|_| unavailable())?,
+        created_at: row.try_get("created_at").map_err(|_| unavailable())?,
+        updated_at: row.try_get("updated_at").map_err(|_| unavailable())?,
+        all_day: row.try_get("all_day").map_err(|_| unavailable())?,
+        start_date: row.try_get("start_date").map_err(|_| unavailable())?,
+        end_date: row.try_get("end_date").map_err(|_| unavailable())?,
+        full_detail: row.try_get("full_detail").map_err(|_| unavailable())?,
+        organizer_name: row.try_get("organizer_name").map_err(|_| unavailable())?,
+    })
+}
+
+fn attendee_row(row: &sqlx::postgres::PgRow) -> Result<AttendeeRow, BusinessError> {
+    Ok(AttendeeRow {
+        appointment_id: row.try_get("appointment_id").map_err(|_| unavailable())?,
+        user_id: row.try_get("user_id").map_err(|_| unavailable())?,
+        person_id: row.try_get("person_id").map_err(|_| unavailable())?,
+        name: row.try_get("name").map_err(|_| unavailable())?,
+        in_scope: row.try_get("in_scope").map_err(|_| unavailable())?,
+        attendance: row.try_get("attendance").map_err(|_| unavailable())?,
+        response: row.try_get("response").map_err(|_| unavailable())?,
+    })
+}
+
+fn announcement_row(row: &sqlx::postgres::PgRow) -> Result<AnnouncementCandidate, BusinessError> {
+    Ok(AnnouncementCandidate {
+        id: row.try_get("id").map_err(|_| unavailable())?,
+        company_id: row.try_get("company_id").map_err(|_| unavailable())?,
+        branch_id: row.try_get("branch_id").map_err(|_| unavailable())?,
+        department_id: row.try_get("department_id").map_err(|_| unavailable())?,
+        title: row.try_get("title").map_err(|_| unavailable())?,
+        content: row.try_get("content").map_err(|_| unavailable())?,
+        start_date: row.try_get("start_date").map_err(|_| unavailable())?,
+        end_date: row.try_get("end_date").map_err(|_| unavailable())?,
+        status: row.try_get("status").map_err(|_| unavailable())?,
+        version: row.try_get("version").map_err(|_| unavailable())?,
+        created_by: row.try_get("created_by").map_err(|_| unavailable())?,
+        created_at: row.try_get("created_at").map_err(|_| unavailable())?,
+        updated_at: row.try_get("updated_at").map_err(|_| unavailable())?,
+        owner_name: row.try_get("owner_name").map_err(|_| unavailable())?,
+    })
 }
 
 #[cfg(test)]
@@ -399,6 +600,22 @@ mod tests {
         assert_eq!(
             hash(SQL_MOVED_OCCURRENCES),
             "a57f2c260b73dd27eb8ab93a5bb4d5ecc13e6b1aee1a0327354dc2137addddd8"
+        );
+    }
+
+    #[test]
+    fn candidate_list_sql_is_byte_identical() {
+        assert_eq!(
+            hash(SQL_APPOINTMENT_CANDIDATES),
+            "d6c5f523d29aefbf566e6d80bf3827d5de0e2d4e9b1e395a4fccfaedf5788265"
+        );
+        assert_eq!(
+            hash(SQL_ATTENDEE_ROWS),
+            "2291bea94a779bee303217b13d61a76f42d9c5ec27f81edca1b5b9c7a87e467d"
+        );
+        assert_eq!(
+            hash(SQL_ANNOUNCEMENT_CANDIDATES),
+            "dd8aac8bb80605a577e0e3bfcaae1d076b7c163d5f83fdb30926c1db19d4b8a7"
         );
     }
 

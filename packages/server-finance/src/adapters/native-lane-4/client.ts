@@ -32,6 +32,8 @@ type Settings = Readonly<{
 }>;
 
 export type ReferenceKind = 'accounts' | 'charts' | 'parties';
+export type GuardKind = 'chart_active' | 'account_liability' | 'party_customer';
+export type GuardArgs = Readonly<{ id: string; chartId?: string; currency: string }>;
 export type AccountOption = Readonly<{
   id: string;
   name: string;
@@ -45,6 +47,7 @@ const ENV = 'ERPX_NATIVE_FINANCE_LANE4_CONFIG';
 const BODY_LIMIT = 2 * 1024 * 1024;
 const RESERVED_PORTS = new Set([3000, 3001, 3100, 3101, 3103, 5432, 5433, 5435, 8080]);
 const KINDS: readonly ReferenceKind[] = ['accounts', 'charts', 'parties'];
+const GUARD_KINDS: readonly GuardKind[] = ['chart_active', 'account_liability', 'party_customer'];
 
 const fail = (status = 503, code = 'NATIVE_FINANCE_LANE4_UNAVAILABLE'): never => {
   throw new ApiError(status, code, 'The native Finance reference-option read is unavailable.');
@@ -269,6 +272,81 @@ export async function financeReferenceOptions(
     return fail(502, 'NATIVE_FINANCE_LANE4_RESPONSE_INVALID');
   }
   return rows(payload, kind) as AccountOption[] | NamedOption[];
+}
+
+function guardRow(value: unknown): { id: string } | null | never {
+  if (value === null) return null;
+  if (
+    !object(value) ||
+    Object.keys(value).length !== 1 ||
+    !text(value.id)
+  )
+    return fail(502, 'NATIVE_FINANCE_LANE4_RESPONSE_INVALID');
+  return { id: String(value.id) };
+}
+
+/** Run one lock-free native posting guard probe on the caller's Holding. */
+export async function financePostingGuard(
+  kind: GuardKind,
+  companyId: string,
+  actor: Lane4Actor,
+  args: GuardArgs,
+): Promise<{ id: string } | null> {
+  if (!GUARD_KINDS.includes(kind)) return fail(422, 'NATIVE_FINANCE_LANE4_REQUEST_INVALID');
+  if (
+    !validId(args.id) ||
+    !text(args.currency, 16) ||
+    !/^[A-Z0-9]{1,16}$/.test(args.currency) ||
+    (kind === 'account_liability' && !validId(args.chartId)) ||
+    (args.chartId !== undefined && !validId(args.chartId))
+  )
+    return fail(422, 'NATIVE_FINANCE_LANE4_REQUEST_INVALID');
+  const config = configuration();
+  const selected = target(actor, companyId);
+  const url = new URL(
+    `/api/v1/holdings/${encodeURIComponent(selected.holdingSlug)}/finance/native-lane-4/posting-guard`,
+    config.base,
+  );
+  const headers = new Headers({
+    host: selected.host,
+    origin: selected.origin,
+    accept: 'application/json',
+    'cache-control': 'no-cache',
+    'x-erpx-context-company': companyId,
+    'x-erpx-lane4-kind': kind,
+    'x-erpx-lane4-id': args.id,
+    'x-erpx-lane4-currency': args.currency,
+    ...(args.chartId !== undefined ? { 'x-erpx-lane4-chart': args.chartId } : {}),
+  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: 'GET',
+      headers: Object.fromEntries(headers),
+      cache: 'no-store',
+      redirect: 'error',
+      signal: AbortSignal.timeout(config.timeoutMs),
+    });
+  } catch {
+    return fail();
+  }
+  if (response.redirected || response.status !== 200 || !response.body) {
+    void response.body?.cancel().catch(() => undefined);
+    return fail(response.status >= 400 && response.status < 500 ? response.status : 503);
+  }
+  if (response.headers.get('content-type')?.split(';')[0]?.trim() !== 'application/json') {
+    void response.body.cancel().catch(() => undefined);
+    return fail(502, 'NATIVE_FINANCE_LANE4_RESPONSE_INVALID');
+  }
+  let payload: unknown;
+  try {
+    payload = JSON.parse(await readBody(response.body));
+  } catch {
+    return fail(502, 'NATIVE_FINANCE_LANE4_RESPONSE_INVALID');
+  }
+  if (!object(payload)) return fail(502, 'NATIVE_FINANCE_LANE4_RESPONSE_INVALID');
+  if (payload.error && object(payload.error)) return fail(502, 'NATIVE_FINANCE_LANE4_RESPONSE_INVALID');
+  return guardRow(payload.data);
 }
 
 /** True when the native lane-4 consumer switch is configured. */

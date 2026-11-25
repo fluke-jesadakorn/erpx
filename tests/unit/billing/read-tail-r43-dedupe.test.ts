@@ -86,15 +86,17 @@ describe('billing read-tail r43 tail-aware fold of the r32 beta_billing head', (
   });
 
   it('leaves both executive callers routed through the unchanged r32 helper', async () => {
-    for (const [file, binds] of [
-      ['executive-main-evidence-sources.ts', '[actor.holdingId, now, now, actor.holdingId, now]'],
-      ['executive-metric-projections.ts', '[a.holdingId, now, now, a.holdingId, now]'],
-    ] as const) {
-      const text = await src(file);
-      expect(text, file).toContain("from './billing-read-tail-r32-sql'");
-      expect(text.split('billingLegacySubscriptionSql(').length - 1, file).toBe(1);
-      expect(text, file).toContain(binds);
-    }
+    const text = await src('executive-metric-projections.ts');
+    expect(text).toContain("from './billing-read-tail-r32-sql'");
+    expect(text.split('billingLegacySubscriptionSql(').length - 1).toBe(1);
+    expect(text).toContain('[a.holdingId, now, now, a.holdingId, now]');
+    // Native lane 38 wave 2: the other caller carries no SQL; the byte-identical
+    // beta_billing head is pinned in the owner crate instead.
+    const evidence = await src('executive-main-evidence-sources.ts');
+    expect(evidence).toContain("from './native-lane-38/client'");
+    expect(evidence).not.toContain('billingLegacySubscriptionSql(');
+    const rust = await src('native_lane_38/postgres.rs');
+    expect(rust).toContain("'legacy'::text source_kind,b.holding_id record_id,'Legacy subscription'::text plan_name,b.status");
     const r32 = await src('billing-read-tail-r32-sql.ts');
     expect(r32.split("from './billing-read-tail-r35-sql'").length - 1).toBe(1);
   });

@@ -123,6 +123,6 @@ describe('People Payroll read-tail r54 dedupe', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(1217);
-    expect(total).toBe(1167);
+    expect(total).toBe(1164);
   });
 });

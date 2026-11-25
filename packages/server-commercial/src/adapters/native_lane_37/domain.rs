@@ -50,6 +50,49 @@ pub const SQL_ROLES_PG: &str = concat!(
 
 pub const SQL_ORACLE: &[&str] = &[SQL_COVERAGE, SQL_ASSIGNMENTS, SQL_MEMBERS, SQL_ROLES];
 
+// Wave 2: the control-DB usage-projection facts family. Byte-identical to the
+// renderers in commercial-read-tail-r6/r13; only `?` becomes `$1` for sqlx.
+pub const SQL_PROJECTION_SNAPSHOTS: &str = concat!(
+    "SELECT holding_id,ai_coverage,storage_coverage,seat_coverage,seat_source_count,unreconciled_originals,\n",
+    "      active_seat_count,active_seat_observed_at\n",
+    "      FROM billing_usage_snapshots WHERE month=?"
+);
+pub const SQL_PROJECTION_METERS: &str = concat!(
+    "SELECT holding_id,month,source_key,company_id,company_name,branch_id,branch_name,\n",
+    "      meter_kind,funding_source,pricing_status,quantity,input_tokens,output_tokens,\n",
+    "      average_daily_bytes,active_at_period_end,request_status,gateway_status,provider,model,\n",
+    "      units_json::text units_json,cost_status,verified_cost_satang,cost_evidence_key,\n",
+    "      cost_reconciled_at,active_from,active_until,byte_milliseconds::text byte_milliseconds\n",
+    "      FROM billing_usage_meters WHERE month=?"
+);
+pub const SQL_PROJECTION_CURRENT: &str = concat!(
+    "SELECT holding_id,active_seat_count,active_seat_observed_at\n",
+    "      FROM billing_usage_snapshots WHERE month=?"
+);
+pub const SQL_PROJECTION_SNAPSHOTS_PG: &str = concat!(
+    "SELECT holding_id,ai_coverage,storage_coverage,seat_coverage,seat_source_count,unreconciled_originals,\n",
+    "      active_seat_count,active_seat_observed_at\n",
+    "      FROM billing_usage_snapshots WHERE month=$1"
+);
+pub const SQL_PROJECTION_METERS_PG: &str = concat!(
+    "SELECT holding_id,month,source_key,company_id,company_name,branch_id,branch_name,\n",
+    "      meter_kind,funding_source,pricing_status,quantity,input_tokens,output_tokens,\n",
+    "      average_daily_bytes,active_at_period_end,request_status,gateway_status,provider,model,\n",
+    "      units_json::text units_json,cost_status,verified_cost_satang,cost_evidence_key,\n",
+    "      cost_reconciled_at,active_from,active_until,byte_milliseconds::text byte_milliseconds\n",
+    "      FROM billing_usage_meters WHERE month=$1"
+);
+pub const SQL_PROJECTION_CURRENT_PG: &str = concat!(
+    "SELECT holding_id,active_seat_count,active_seat_observed_at\n",
+    "      FROM billing_usage_snapshots WHERE month=$1"
+);
+
+pub const PROJECTION_SQL_ORACLE: &[&str] = &[
+    SQL_PROJECTION_SNAPSHOTS,
+    SQL_PROJECTION_METERS,
+    SQL_PROJECTION_CURRENT,
+];
+
 /// One historical event row, projected identically to the TS `Event` type.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SeatEvent {
@@ -201,6 +244,80 @@ impl SeatHistoryRows {
                 .collect(),
         }
     }
+}
+
+// -- control-DB usage projection facts ---------------------------------------
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SnapshotHeaderFact {
+    pub holding_id: String,
+    pub ai_coverage: String,
+    pub storage_coverage: String,
+    pub seat_coverage: String,
+    pub seat_source_count: i64,
+    pub unreconciled_originals: i64,
+    pub active_seat_count: Option<i64>,
+    pub active_seat_observed_at: Option<i64>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MeterRowFact {
+    pub holding_id: String,
+    pub month: String,
+    pub source_key: String,
+    pub company_id: String,
+    pub company_name: String,
+    pub branch_id: Option<String>,
+    pub branch_name: Option<String>,
+    pub meter_kind: String,
+    pub funding_source: String,
+    pub pricing_status: String,
+    pub quantity: i64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub average_daily_bytes: i64,
+    pub active_at_period_end: bool,
+    pub request_status: Option<String>,
+    pub gateway_status: Option<String>,
+    pub provider: Option<String>,
+    pub model: Option<String>,
+    pub units_json: Option<String>,
+    pub cost_status: String,
+    pub verified_cost_satang: Option<i64>,
+    pub cost_evidence_key: Option<String>,
+    pub cost_reconciled_at: Option<i64>,
+    pub active_from: Option<i64>,
+    pub active_until: Option<i64>,
+    pub byte_milliseconds: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CurrentSnapshotFact {
+    pub holding_id: String,
+    pub active_seat_count: Option<i64>,
+    pub active_seat_observed_at: Option<i64>,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectionFacts {
+    pub snapshots: Vec<SnapshotHeaderFact>,
+    pub source_rows: Vec<MeterRowFact>,
+    pub current_snapshots: Vec<CurrentSnapshotFact>,
+}
+
+pub fn valid_month(value: &str) -> bool {
+    let b = value.as_bytes();
+    b.len() == 7
+        && b[4] == b'-'
+        && b[..4].iter().all(u8::is_ascii_digit)
+        && matches!(
+            &value[5..7],
+            "01" | "02" | "03" | "04" | "05" | "06" | "07" | "08" | "09" | "10" | "11" | "12"
+        )
 }
 
 pub fn unavailable_meter() -> HoldingSeatMeter {
@@ -577,6 +694,37 @@ mod tests {
         assert_eq!(SQL_MEMBERS.matches('?').count(), 1);
         assert_eq!(SQL_ROLES.matches('?').count(), 1);
         assert_eq!(SQL_COVERAGE.matches('?').count(), 0);
+    }
+
+    #[test]
+    fn projection_sql_oracle_is_byte_identical_and_select_only() {
+        for sql in PROJECTION_SQL_ORACLE {
+            assert!(sql.starts_with("SELECT "), "{sql}");
+            assert!(sql.contains(" WHERE month=?"), "{sql}");
+            assert!(!sql.contains(';'), "{sql}");
+            assert!(!sql.contains("INSERT"), "{sql}");
+        }
+        assert_eq!(PROJECTION_SQL_ORACLE.len(), 3);
+        let hash = result_hash(&json!(PROJECTION_SQL_ORACLE));
+        assert_eq!(
+            hash,
+            "f76eab84d67ef697bd279eb663313044dffd8b4ecb6ce678f97fc82b42851a15"
+        );
+    }
+
+    #[test]
+    fn month_validation_is_closed() {
+        assert!(valid_month("2026-11"));
+        for value in [
+            "2026-13",
+            "2026-1",
+            "2026-00",
+            "202611",
+            "abcd-11",
+            "2026-11-01",
+        ] {
+            assert!(!valid_month(value), "{value}");
+        }
     }
 
     #[test]

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { planningSelectFrom } from '../../../packages/server-planning/src/adapters/planning-select-from-sql';
 
@@ -49,7 +49,7 @@ describe('Planning read-tail r19 capacity projection/FROM head', () => {
     expect(src('planning-attachment-target-sql.ts')).toContain('planningAttachmentTargetRow');
     expect(src('planning-attachment-target-sql.ts')).toContain('planningAttachmentTargetVersionExists');
     expect(src('planning-scoped-list-sql.ts')).toContain('planningScopedBranchList');
-    expect(src('planning-scoped-row-sql.ts')).toContain('planningScopedBranchRow');
+    expect(existsSync(resolve(srcRoot, 'adapters/planning-scoped-row-sql.ts'))).toBe(false);
     expect(src('planning-calendar-source-sql.ts')).toContain('resourceCalendarByKey');
     expect(src('planning-resource-allocation-sql.ts')).toContain('planningResourceAllocationRows');
     expect(src('planning-jsonb-row-sql.ts')).toContain('planningJsonbRowByKey');
@@ -69,7 +69,7 @@ describe('Planning read-tail r19 capacity projection/FROM head', () => {
     expect(capacity).not.toContain('LOCK TABLE');
     const read = src('production-command-sources-read.ts');
     expect(read).toContain('planningSelectFrom(');
-    expect(read).toContain('planningSelectColumnsFrom(');
+    expect(read).toContain('nativeComparison(');
     expect(read).not.toContain('LOCK TABLE');
     const nativeRead = readFileSync(resolve(srcRoot, 'adapters/planning_read.rs'), 'utf8');
     expect(nativeRead).toContain('pub async fn workspace');

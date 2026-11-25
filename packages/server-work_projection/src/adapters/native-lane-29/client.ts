@@ -17,7 +17,10 @@ export type NativeLane29Kind =
   | 'moved_occurrences'
   | 'availability_sources'
   | 'series_batch'
-  | 'conflict_probe';
+  | 'conflict_probe'
+  | 'appointment_candidates'
+  | 'attendee_rows'
+  | 'announcement_candidates';
 
 export type NativeOccurrenceException = {
   start_local: string | null;
@@ -64,12 +67,36 @@ export type NativeConflictScope = 'participant' | 'attendee';
 
 export type NativeConflictProbe = {conflict: boolean};
 
+export type NativeCandidateRow = Record<string, unknown>;
+
+const APPOINTMENT_KEYS = [
+  'all_day','branch_id','company_id','created_at','created_by','department_id','description',
+  'end_date','ends_at','full_detail','guests','id','location','meeting_url','organizer_name',
+  'organizer_person_id','private','start_date','starts_at','status','timezone','title',
+  'updated_at','version',
+] as const;
+const ATTENDEE_KEYS = [
+  'appointment_id','attendance','in_scope','name','person_id','response','user_id',
+] as const;
+const ANNOUNCEMENT_KEYS = [
+  'branch_id','company_id','content','created_at','created_by','department_id','end_date','id',
+  'owner_name','start_date','status','title','updated_at','version',
+] as const;
+// Identity fields pinned per keyset; every one is a bounded non-null identifier
+// on the owner side. This list is the single source for response validation.
+const APPOINTMENT_ID_KEYS = ['id', 'company_id'] as const;
+const ATTENDEE_ID_KEYS = ['appointment_id', 'user_id'] as const;
+const ANNOUNCEMENT_ID_KEYS = ['id', 'company_id'] as const;
+
 export type NativeLane29Input =
   | {kind: 'occurrence_exception'; companyId: string; appointmentId: string; occurrenceKey: string}
   | {kind: 'moved_occurrences'; companyId: string; appointmentId: string}
   | {kind: 'availability_sources'; companyId: string; before: number; userIds: string[]}
   | {kind: 'series_batch'; companyId: string; appointmentIds: string[]}
-  | {kind: 'conflict_probe'; companyId: string; scope: NativeConflictScope; excludeId: string; before: number; after: number; ids: string[]};
+  | {kind: 'conflict_probe'; companyId: string; scope: NativeConflictScope; excludeId: string; before: number; after: number; ids: string[]}
+  | {kind: 'appointment_candidates'; companyId: string; values: unknown[]}
+  | {kind: 'attendee_rows'; companyId: string; values: unknown[]}
+  | {kind: 'announcement_candidates'; companyId: string; values: unknown[]};
 
 export type NativeLane29Transport = (
   url: URL,
@@ -265,6 +292,13 @@ const contexts = new WeakMap<SqlDatabase, Lane29Context>();
 export function bindLane29Context(db: SqlDatabase, context: Lane29Context): void {
   contexts.set(db, context);
 }
+export function lane29ContextBound(db: SqlDatabase): Lane29Context {
+  const bound = contexts.get(db);
+  if (!bound)
+    return fail(503, 'NATIVE_WORK_LANE29_TARGET_UNAVAILABLE', 'The native Work availability read has no bound Work context.');
+  return bound;
+}
+
 export function lane29ContextFor(db: SqlDatabase, companyId: string): Lane29Context {
   const bound = contexts.get(db);
   if (bound && (bound.companyId === undefined || bound.companyId === companyId)) return bound;
@@ -298,7 +332,7 @@ export function validateNativeLane29Input(input: NativeLane29Input): void {
       !input.appointmentIds.every(identifier)
     )
       return fail(422, 'LANE29_SERIES_REQUEST_INVALID', 'Use between one and 64 bounded appointments.');
-  } else {
+  } else if (input.kind === 'conflict_probe') {
     if (
       !identifier(input.excludeId) ||
       !integer(input.after, MAX_BEFORE_MS) ||
@@ -311,6 +345,20 @@ export function validateNativeLane29Input(input: NativeLane29Input): void {
       !input.ids.every(identifier)
     )
       return fail(422, 'LANE29_CONFLICT_REQUEST_INVALID', 'Use a bounded appointment window and recipient list.');
+  } else {
+    const expected = input.kind === 'appointment_candidates' ? 20 : input.kind === 'attendee_rows' ? 2 : 10;
+    if (!Array.isArray(input.values) || input.values.length !== expected)
+      return fail(422, 'LANE29_CANDIDATES_REQUEST_INVALID', 'Use the exact owner fact arity.');
+    // Scope values are JSON-encoded bounded id lists; no caller text is SQL.
+    const scopes = input.kind === 'attendee_rows' ? [0, 1] : input.kind === 'appointment_candidates' ? [1, 10] : [1, 3];
+    for (const index of scopes) {
+      const raw = input.values[index];
+      if (typeof raw !== 'string') return fail(422, 'LANE29_CANDIDATES_REQUEST_INVALID', 'Use a bounded scope list.');
+      let parsed: unknown;
+      try { parsed = JSON.parse(raw); } catch { return fail(422, 'LANE29_CANDIDATES_REQUEST_INVALID', 'Use a bounded scope list.'); }
+      if (!Array.isArray(parsed) || parsed.length > 64 || !parsed.every(id => typeof id === 'string' && id.length > 0 && id.length <= 200))
+        return fail(422, 'LANE29_CANDIDATES_REQUEST_INVALID', 'Use a bounded scope list.');
+    }
   }
 }
 
@@ -367,6 +415,16 @@ function validateConflict(value: unknown): NativeConflictProbe {
   return value as unknown as NativeConflictProbe;
 }
 
+function validateCandidateRows(value: unknown, keys: readonly string[], ids: readonly string[]): NativeCandidateRow[] {
+  if (!Array.isArray(value)) return invalidResponse();
+  for (const row of value) {
+    if (!object(row) || Object.keys(row).length !== keys.length) return invalidResponse();
+    if (!keys.every(key => Object.prototype.hasOwnProperty.call(row, key))) return invalidResponse();
+    if (!ids.every(key => identifier(row[key]))) return invalidResponse();
+  }
+  return value;
+}
+
 function validateSeriesRow(value: unknown): NativeSeriesRow {
   if (
     !object(value) ||
@@ -396,7 +454,8 @@ export function parseNativeLane29Response(
   | NativeMovedOccurrence[]
   | NativeAvailabilitySource[]
   | NativeSeriesRow[]
-  | NativeConflictProbe {
+  | NativeConflictProbe
+  | NativeCandidateRow[] {
   if (!object(payload) || Object.keys(payload).length !== 1) return invalidResponse();
   if (kind === 'occurrence_exception') {
     if (!Object.prototype.hasOwnProperty.call(payload, 'exception')) return invalidResponse();
@@ -417,7 +476,10 @@ export function parseNativeLane29Response(
     if (!Array.isArray(payload.series)) return invalidResponse();
     return payload.series.map(validateSeriesRow);
   }
-  return validateConflict(payload);
+  if (kind === 'conflict_probe') return validateConflict(payload);
+  if (kind === 'appointment_candidates') return validateCandidateRows(payload.appointments, APPOINTMENT_KEYS, APPOINTMENT_ID_KEYS);
+  if (kind === 'attendee_rows') return validateCandidateRows(payload.attendees, ATTENDEE_KEYS, ATTENDEE_ID_KEYS);
+  return validateCandidateRows(payload.announcements, ANNOUNCEMENT_KEYS, ANNOUNCEMENT_ID_KEYS);
 }
 
 function direct(
@@ -545,6 +607,10 @@ function wire(input: NativeLane29Input) {
         after: input.after,
         ids: input.ids,
       };
+    case 'appointment_candidates':
+    case 'attendee_rows':
+    case 'announcement_candidates':
+      return {kind: input.kind, companyId: input.companyId, values: input.values};
   }
 }
 
@@ -628,6 +694,27 @@ export const nativeSeriesBatch = (
   appointmentIds: string[],
 ): Promise<NativeSeriesRow[]> =>
   readNativeLane29({kind: 'series_batch', companyId, appointmentIds}, context);
+
+export const nativeAppointmentCandidates = (
+  context: Lane29Context,
+  companyId: string,
+  values: unknown[],
+): Promise<NativeCandidateRow[]> =>
+  readNativeLane29({kind: 'appointment_candidates', companyId, values}, context);
+
+export const nativeAttendeeRows = (
+  context: Lane29Context,
+  companyId: string,
+  values: unknown[],
+): Promise<NativeCandidateRow[]> =>
+  readNativeLane29({kind: 'attendee_rows', companyId, values}, context);
+
+export const nativeAnnouncementCandidates = (
+  context: Lane29Context,
+  companyId: string,
+  values: unknown[],
+): Promise<NativeCandidateRow[]> =>
+  readNativeLane29({kind: 'announcement_candidates', companyId, values}, context);
 
 export const nativeConflictProbe = (
   context: Lane29Context,

@@ -25,8 +25,19 @@ type Holding = Readonly<{
 }>;
 type Config = Readonly<{ privateBaseUrl: string; timeoutMs: number; holdings: readonly Holding[] }>;
 
-export type LaneKind = 'recommendations' | 'resources' | 'calendar';
+export type LaneKind =
+  | 'recommendations'
+  | 'resources'
+  | 'calendar'
+  | 'scenario'
+  | 'scoped-recommendation'
+  | 'comparison';
 export type ScopedActor = Pick<WorkContext, 'holdingId' | 'holdingSlug' | 'companyId'>;
+export type LaneIdentity = Readonly<{
+  id?: string;
+  comparisonScenarioId?: string;
+  specificationId?: string;
+}>;
 
 const ENV = 'ERPX_NATIVE_PLANNING_LANE36_CONFIG';
 const RESERVED_PORTS = new Set([3000, 3001, 3100, 3101, 3103, 5432, 5433, 5435, 8080]);
@@ -58,8 +69,13 @@ const nullableText = (value: unknown, max = 4096): boolean => value === null || 
 const inSet = (value: unknown, values: readonly string[]): boolean =>
   typeof value === 'string' && values.includes(value);
 
-const KINDS: readonly LaneKind[] = ['recommendations', 'resources', 'calendar'];
+const KINDS: readonly LaneKind[] = [
+  'recommendations', 'resources', 'calendar', 'scenario', 'scoped-recommendation', 'comparison',
+];
+const isRowKind = (kind: LaneKind): boolean =>
+  kind === 'scenario' || kind === 'scoped-recommendation' || kind === 'comparison';
 const REVIEW_STATUSES = ['proposed', 'approved', 'rejected'];
+const SCENARIO_STATUSES = ['calculated', 'released', 'cancelled'];
 const RESOURCE_STATUSES = ['active', 'archived'];
 
 const RECOMMENDATION_KEYS = [
@@ -74,18 +90,34 @@ const RESOURCE_KEYS = [
 const CALENDAR_KEYS = [
   'resource_id', 'work_date', 'available_minutes', 'reason', 'version', 'updated_by', 'updated_at',
 ] as const;
+const SCENARIO_KEYS = [
+  'id', 'company_id', 'branch_id', 'warehouse_id', 'specification_id', 'specification_version',
+  'demand_quantity_milli', 'due_date', 'capacity_minutes', 'shortages_json', 'status',
+  'created_by', 'version', 'created_at', 'updated_at', 'context_json',
+] as const;
+const SCOPED_RECOMMENDATION_KEYS = [
+  'id', 'scenario_id', 'scenario_version', 'recommended_quantity_milli', 'required_minutes',
+  'feasible_date', 'status', 'created_by', 'reviewed_by', 'version', 'created_at', 'updated_at',
+  'company_id', 'branch_id', 'warehouse_id', 'specification_id', 'specification_version',
+  'context_json', 'scenario_created_by',
+] as const;
+const COMPARISON_KEYS = [
+  'id', 'version', 'shortages_json', 'required_minutes', 'feasible_date',
+] as const;
+
+const recommendationFields = (row: Row): boolean =>
+  identifier(row.id) && identifier(row.scenario_id) &&
+  integer(row.scenario_version, 1) && integer(row.recommended_quantity_milli, 1) &&
+  integer(row.required_minutes, 0) && text(row.feasible_date, 40) &&
+  inSet(row.status, REVIEW_STATUSES) && identifier(row.created_by) &&
+  nullableText(row.reviewed_by, 200) && integer(row.version, 1) &&
+  integer(row.created_at) && integer(row.updated_at) &&
+  identifier(row.company_id) && identifier(row.branch_id);
+const recommendationShape = (row: unknown): boolean =>
+  exact(row, RECOMMENDATION_KEYS) && recommendationFields(row as Row);
 
 function rowValidator(kind: LaneKind): (row: unknown) => boolean {
-  if (kind === 'recommendations')
-    return (row: unknown) =>
-      exact(row, RECOMMENDATION_KEYS) &&
-      identifier(row.id) && identifier(row.scenario_id) &&
-      integer(row.scenario_version, 1) && integer(row.recommended_quantity_milli, 1) &&
-      integer(row.required_minutes, 0) && text(row.feasible_date, 40) &&
-      inSet(row.status, REVIEW_STATUSES) && identifier(row.created_by) &&
-      nullableText(row.reviewed_by, 200) && integer(row.version, 1) &&
-      integer(row.created_at) && integer(row.updated_at) &&
-      identifier(row.company_id) && identifier(row.branch_id);
+  if (kind === 'recommendations') return recommendationShape;
   if (kind === 'resources')
     return (row: unknown) =>
       exact(row, RESOURCE_KEYS) &&
@@ -95,12 +127,35 @@ function rowValidator(kind: LaneKind): (row: unknown) => boolean {
       text(row.work_weekdays_json, 4096) && inSet(row.status, RESOURCE_STATUSES) &&
       integer(row.version, 1) && identifier(row.created_by) &&
       integer(row.created_at) && integer(row.updated_at);
+  if (kind === 'calendar')
+    return (row: unknown) =>
+      exact(row, CALENDAR_KEYS) &&
+      identifier(row.resource_id) && text(row.work_date, 40) &&
+      boundedInteger(row.available_minutes, 0, 1440) &&
+      text(row.reason, 4096) && integer(row.version, 1) &&
+      identifier(row.updated_by) && integer(row.updated_at);
+  if (kind === 'scenario')
+    return (row: unknown) =>
+      exact(row, SCENARIO_KEYS) &&
+      identifier(row.id) && identifier(row.company_id) && identifier(row.branch_id) &&
+      identifier(row.warehouse_id) && identifier(row.specification_id) &&
+      integer(row.specification_version, 1) && integer(row.demand_quantity_milli, 1) &&
+      text(row.due_date, 40) && integer(row.capacity_minutes, 0) &&
+      text(row.shortages_json, 1_048_576) && inSet(row.status, SCENARIO_STATUSES) &&
+      identifier(row.created_by) && integer(row.version, 1) &&
+      integer(row.created_at) && integer(row.updated_at) && text(row.context_json, 1_048_576);
+  if (kind === 'scoped-recommendation')
+    return (row: unknown) =>
+      exact(row, SCOPED_RECOMMENDATION_KEYS) &&
+      recommendationFields(row as Row) &&
+      identifier(row.warehouse_id) && identifier(row.specification_id) &&
+      integer(row.specification_version, 1) && text(row.context_json, 1_048_576) &&
+      identifier(row.scenario_created_by);
   return (row: unknown) =>
-    exact(row, CALENDAR_KEYS) &&
-    identifier(row.resource_id) && text(row.work_date, 40) &&
-    boundedInteger(row.available_minutes, 0, 1440) &&
-    text(row.reason, 4096) && integer(row.version, 1) &&
-    identifier(row.updated_by) && integer(row.updated_at);
+    exact(row, COMPARISON_KEYS) &&
+    identifier(row.id) && integer(row.version, 1) &&
+    text(row.shortages_json, 1_048_576) && integer(row.required_minutes, 0) &&
+    text(row.feasible_date, 40);
 }
 
 function settings(raw: string): Config {
@@ -184,12 +239,18 @@ async function read(
   companyId: string,
   branchId: string | null,
   actor?: ScopedActor,
-): Promise<Row[] | undefined> {
+  identity: LaneIdentity = {},
+): Promise<Row[] | Row | null | undefined> {
   const raw = process.env[ENV];
   if (raw === undefined) return undefined;
-  if (!KINDS.includes(kind) || !scopeId(companyId) ||
-    (branchId !== null && !scopeId(branchId)))
-    return fail('PLANNING_LANE36_QUERY_INVALID', 422);
+  if (
+    !KINDS.includes(kind) || !scopeId(companyId) ||
+    (branchId !== null && !scopeId(branchId)) ||
+    Object.values(identity).some(value => value !== undefined && !scopeId(value)) ||
+    (isRowKind(kind) && kind !== 'comparison' && identity.id === undefined) ||
+    (kind === 'comparison' &&
+      (identity.comparisonScenarioId === undefined || identity.specificationId === undefined))
+  ) return fail('PLANNING_LANE36_QUERY_INVALID', 422);
   const config = settings(raw);
   const target = await targetFor(config, actor);
   if (target.companyId !== undefined && target.companyId !== companyId)
@@ -212,6 +273,11 @@ async function read(
     config.privateBaseUrl,
   );
   if (branchId !== null) url.searchParams.set('branch', branchId);
+  if (identity.id !== undefined) url.searchParams.set('id', identity.id);
+  if (identity.comparisonScenarioId !== undefined)
+    url.searchParams.set('comparisonScenarioId', identity.comparisonScenarioId);
+  if (identity.specificationId !== undefined)
+    url.searchParams.set('specificationId', identity.specificationId);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), config.timeoutMs);
   let response: Response;
@@ -247,18 +313,24 @@ async function read(
   if (!response.ok) return fail();
   if (
     parsed.kind !== kind || parsed.companyId !== companyId ||
-    parsed.branchId !== (branchId ?? null) ||
-    !Array.isArray(parsed.data) || parsed.data.length > MAX_ROWS
+    parsed.branchId !== (branchId ?? null)
   ) return fail('NATIVE_PLANNING_LANE36_RESPONSE_INVALID', 502);
   const valid = rowValidator(kind);
   const scopedRow = (row: unknown): boolean => {
     if (!valid(row)) return false;
-    if (kind === 'calendar') return true;
+    if (kind === 'calendar' || isRowKind(kind)) return true;
     const scoped = row as Row;
     return scoped.company_id === companyId &&
       (branchId === null || scoped.branch_id === branchId);
   };
-  if (!parsed.data.every(scopedRow)) return fail('NATIVE_PLANNING_LANE36_RESPONSE_INVALID', 502);
+  if (isRowKind(kind)) {
+    if (parsed.data !== null && !scopedRow(parsed.data))
+      return fail('NATIVE_PLANNING_LANE36_RESPONSE_INVALID', 502);
+    return parsed.data as Row | null;
+  }
+  if (!Array.isArray(parsed.data) || parsed.data.length > MAX_ROWS ||
+    !parsed.data.every(scopedRow))
+    return fail('NATIVE_PLANNING_LANE36_RESPONSE_INVALID', 502);
   return parsed.data as Row[];
 }
 
@@ -270,7 +342,18 @@ const scoped = (kind: LaneKind) => async (
 ): Promise<{ results: Row[] }> => {
   const rows = await read(kind, companyId, branchId, actor);
   if (rows === undefined) return fail('NATIVE_PLANNING_LANE36_CONFIG_REQUIRED');
-  return { results: rows };
+  return { results: rows as Row[] };
+};
+
+const single = (kind: LaneKind) => async (
+  identity: LaneIdentity,
+  companyId: string,
+  branchId: string | null,
+  actor?: ScopedActor,
+): Promise<Row | null> => {
+  const row = await read(kind, companyId, branchId, actor, identity);
+  if (row === undefined) return fail('NATIVE_PLANNING_LANE36_CONFIG_REQUIRED');
+  return row as Row | null;
 };
 
 /** Scoped recommendation list; sole read authority is the native owner route. */
@@ -279,3 +362,9 @@ export const nativeRecommendations = scoped('recommendations');
 export const nativeResources = scoped('resources');
 /** Resource calendar list; sole read authority is the native owner route. */
 export const nativeCalendar = scoped('calendar');
+/** Single scenario row; sole read authority is the native owner route. */
+export const nativeScenario = single('scenario');
+/** Single scoped recommendation row; sole read authority is the native owner route. */
+export const nativeScopedRecommendation = single('scoped-recommendation');
+/** Single comparison row; sole read authority is the native owner route. */
+export const nativeComparison = single('comparison');

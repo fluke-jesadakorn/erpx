@@ -421,25 +421,23 @@ describe('Manufacturing posting-source economics guard dedupe',()=>{
     expect(registry).not.toContain(orders);
   });
 });
-describe('Manufacturing initial-physical-stock history guard dedupe',()=>{
+describe('Manufacturing initial-physical-stock history native cutover',()=>{
   const source=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/adapters/initial-physical-stock-sources.ts',import.meta.url),'utf8');
-  const registry=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/public/native_command.rs',import.meta.url),'utf8');
+  const domain=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/adapters/native_lane_28/domain.rs',import.meta.url),'utf8');
   const reservation='EXISTS(SELECT 1 FROM manufacturing_material_reservations r JOIN manufacturing_orders o ON o.id=r.order_id WHERE o.company_id=? AND r.warehouse_id=? AND r.product_id=?)';
   const movement='EXISTS(SELECT 1 FROM manufacturing_inventory_moves m JOIN manufacturing_orders o ON o.id=m.order_id WHERE o.company_id=? AND m.warehouse_id=? AND m.product_id=?)';
-  const guard=(table:string,alias:string)=>`EXISTS(SELECT 1 FROM ${table} ${alias} JOIN manufacturing_orders o ON o.id=${alias}.order_id WHERE o.company_id=? AND ${alias}.warehouse_id=? AND ${alias}.product_id=?)`;
-  it('keeps one parameterized guard definition and routes both history guards through it',()=>{
-    expect(source).toContain('const initialStockHistoryGuard = (table: string, alias: string) =>');
+  it('removes the inline guard from the adapter and delegates to the native owner',()=>{
     expect(source).not.toContain(reservation);
     expect(source).not.toContain(movement);
-    expect(source).toContain('initialStockHistoryGuard("manufacturing_material_reservations","r")');
-    expect(source).toContain('initialStockHistoryGuard("manufacturing_inventory_moves","m")');
-    expect(source.split('EXISTS(SELECT 1 FROM ')).toHaveLength(1); // r26 leaves no inline probe here.
+    expect(source).not.toContain('const initialStockHistoryGuard');
+    expect(source).toContain('nativeManufacturingLane28StockHistory');
+    expect(source).toContain('LOCK TABLE manufacturing_orders,manufacturing_material_reservations');
   });
-  it('emits both former guards byte for byte and stays outside the RD_* registry',()=>{
-    expect(guard('manufacturing_material_reservations','r')).toBe(reservation);
-    expect(guard('manufacturing_inventory_moves','m')).toBe(movement);
-    expect(registry).not.toContain(reservation);
-    expect(registry).not.toContain(movement);
+  it('pins the rendered SQL oracle in the Rust owner',()=>{
+    expect(domain).toContain('f0c4bf5922861bd1152a965183c89f9175125d30af2eab2c3c600ebd02c289cf');
+    expect(domain).toContain('0x374c62bc1d3d2304');
+    expect(domain).toContain('manufacturing_material_reservations r');
+    expect(domain).toContain('manufacturing_inventory_moves m');
   });
 });
 describe('Manufacturing read-tail text-only fragment dedupe', () => {

@@ -11,9 +11,12 @@ pub mod domain;
 pub mod http;
 pub mod postgres;
 
-pub use application::{CustomerRead, CustomerReadFuture, handle};
-pub use domain::{
-    CustomerPage, CustomerReadRequest, CustomerReadResponse, LaneTarget, scope_hash,
+pub use application::{
+    CustomerRead, CustomerReadFuture, RecordFactsRead, handle, handle_record_facts,
 };
-pub use http::{customer_read_router, router_for_holdings};
-pub use postgres::PgCustomerRead;
+pub use domain::{
+    CustomerPage, CustomerReadRequest, CustomerReadResponse, LaneTarget, RecordFactsRequest,
+    scope_hash,
+};
+pub use http::{customer_read_router, record_facts_router_for_holdings, router_for_holdings};
+pub use postgres::{PgCustomerRead, PgRecordFactsRead};

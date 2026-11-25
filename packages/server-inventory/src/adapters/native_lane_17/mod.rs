@@ -1,6 +1,6 @@
 //! Native migration lane 17 for inventory.
 //!
-//! Owner-local native landed-cost reads. The axum route owns the SQL, the bind
+//! Owner-local native inventory reads. The axum route owns the SQL, the bind
 //! order, the Company witness, the projection and the response envelope; the
 //! retained TypeScript adapter is a strict, fail-closed transport only.
 

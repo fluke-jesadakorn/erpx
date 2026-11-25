@@ -2,8 +2,8 @@
 //! the owner reader executes the query and the HTTP layer only transports it.
 
 use crate::adapters::native_lane_25::domain::{
-    EvidenceDetailQuery, EvidenceDetailRow, EvidenceQuery, EvidenceRow, invalid, validate,
-    validate_detail,
+    DayClosesQuery, DayClosesRow, EvidenceDetailQuery, EvidenceDetailRow, EvidenceQuery,
+    EvidenceRow, invalid, validate, validate_day_closes, validate_detail,
 };
 use erpx_server_shared::public::BusinessError;
 use std::{future::Future, pin::Pin};
@@ -26,6 +26,18 @@ pub trait PosEvidenceReader: Send + Sync {
                 erpx_server_shared::public::FailureKind::Unavailable,
                 "POS_EVIDENCE_DETAIL_UNAVAILABLE",
                 "The native POS evidence detail reader is unavailable.",
+            ))
+        })
+    }
+
+    /// Wave 3 day-close report list. The default keeps single-purpose test
+    /// readers compiling; the pool-backed owner reader overrides it.
+    fn day_closes<'a>(&'a self, _: &'a DayClosesQuery) -> EvidenceFuture<'a, Vec<DayClosesRow>> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                erpx_server_shared::public::FailureKind::Unavailable,
+                "POS_DAY_CLOSES_UNAVAILABLE",
+                "The native POS day-close reader is unavailable.",
             ))
         })
     }
@@ -54,6 +66,15 @@ pub async fn read_detail<R: PosEvidenceReader + ?Sized>(
 ) -> Result<Option<EvidenceDetailRow>, BusinessError> {
     validate_detail(query)?;
     reader.detail(query).await
+}
+
+/// Validate and delegate the bounded day-close report list to the owner reader.
+pub async fn read_day_closes<R: PosEvidenceReader + ?Sized>(
+    reader: &R,
+    query: &DayClosesQuery,
+) -> Result<Vec<DayClosesRow>, BusinessError> {
+    validate_day_closes(query)?;
+    reader.day_closes(query).await
 }
 
 #[cfg(test)]
@@ -156,5 +177,49 @@ mod tests {
         assert!(block_on(read(&reader, &query(1))).is_ok());
         let reader = Fake(vec![value(), value(), value()]);
         assert!(block_on(read(&reader, &query(1))).is_err());
+    }
+
+    struct DayClosesFake;
+    impl PosEvidenceReader for DayClosesFake {
+        fn search<'a>(&'a self, _: &'a EvidenceQuery) -> EvidenceFuture<'a, Vec<EvidenceRow>> {
+            Box::pin(async { Ok(Vec::new()) })
+        }
+        fn day_closes<'a>(&'a self, _: &'a DayClosesQuery) -> EvidenceFuture<'a, Vec<DayClosesRow>> {
+            use crate::adapters::native_lane_25::domain::DAY_CLOSES_KEYS;
+            Box::pin(async move {
+                Ok(vec![DayClosesRow {
+                    values: DAY_CLOSES_KEYS
+                        .iter()
+                        .map(|key| {
+                            let value = match *key {
+                                "id" => "dc1".to_owned(),
+                                "business_date" => "2026-01-31".to_owned(),
+                                "currency" => "USD".to_owned(),
+                                _ => "v".to_owned(),
+                            };
+                            ((*key).to_owned(), Some(value))
+                        })
+                        .collect(),
+                }])
+            })
+        }
+    }
+
+    #[test]
+    fn read_day_closes_returns_owner_rows_and_validates_scope() {
+        let reader = DayClosesFake;
+        let q = DayClosesQuery {
+            company: "co".into(),
+            branch: Some("br".into()),
+        };
+        let rows = block_on(read_day_closes(&reader, &q)).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(
+            rows[0].clone().value().as_object().unwrap().len(),
+            crate::adapters::native_lane_25::domain::DAY_CLOSES_KEYS.len()
+        );
+        let mut bad = q;
+        bad.company.clear();
+        assert!(block_on(read_day_closes(&reader, &bad)).is_err());
     }
 }

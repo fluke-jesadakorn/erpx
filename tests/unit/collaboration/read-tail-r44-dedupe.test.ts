@@ -164,7 +164,7 @@ describe('Collaboration read-tail r44 protected SQL isolation', () => {
   });
 
   test('agent-reply locks, notification targets and r42/r43 helpers stay unchanged', () => {
-    expect(sha(fixed('adapters/inbox.ts'))).toBe('add8defc4e1a0b3d369362e96d00acb93e34d0d0734cd0a1783b98a7382eb721');
+    expect(sha(fixed('adapters/inbox.ts'))).toBe('8c2fdafbb118a000f35836196bd2917d60afc8ab345171895d573e97678b73b5');
     expect(sha(fixed('adapters/staff-notifications.ts'))).toBe('3ce65abf55973c3a41228531a9d2778739a6a7f859a37591c016bda9f9a2508a');
     expect(sha(fixed('adapters/messaging-purchases.ts'))).toBe('6921fd7a922dccbab407a37ecf8544b26494388c442871f4b084c45b39133c9b');
     expect(sha(fixed('public/field-outbox-predicate.generated.ts'))).toBe('1c1945bec812a3981738b0d36af5483786ff8e372c669453c0bc8683976a6c84');
@@ -183,7 +183,7 @@ describe('Collaboration read-tail r44 protected SQL isolation', () => {
 });
 
 describe('Collaboration read-tail r44 KPI pins', () => {
-  test('retirement:ts-statements is pinned at 324, below the r44 BEFORE=344 baseline', () => {
+  test('retirement:ts-statements is pinned at 320, below the r44 BEFORE=344 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -196,7 +196,7 @@ describe('Collaboration read-tail r44 KPI pins', () => {
     // Latest-message tail 2->1 (-1), absent-social-post guard 2->1 (-1) and
     // handover ack join 2->1 (-1): 344 -> 341. Prior exact pins were refreshed
     // only where 341 replaced 344; locks and notification targets were untouched.
-    expect(total).toBe(324);
+    expect(total).toBe(320);
     expect(total).toBeLessThan(344);
   });
 });

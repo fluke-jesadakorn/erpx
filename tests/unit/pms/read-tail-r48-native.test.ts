@@ -140,8 +140,8 @@ describe('pms read-tail r48 native read retirement', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(238);
-    expect(bare).toBe(239);
+    expect(spaced).toBe(237);
+    expect(bare).toBe(238);
     expect(spaced).toBeLessThan(275);
     expect(bare).toBeLessThan(277);
   });

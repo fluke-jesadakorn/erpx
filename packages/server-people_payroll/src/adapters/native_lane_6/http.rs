@@ -183,8 +183,7 @@ pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, Bu
         Arc::new(PgCalendarAvailabilityRead::new(pool.clone()));
     let scope_reader: Arc<dyn CalendarPersonScopeRead> =
         Arc::new(PgCalendarPersonScopeRead::new(pool.clone()));
-    let people_reader: Arc<dyn CalendarPeopleRead> =
-        Arc::new(PgCalendarPeopleRead::new(pool));
+    let people_reader: Arc<dyn CalendarPeopleRead> = Arc::new(PgCalendarPeopleRead::new(pool));
     let state = configure_entries(
         targets
             .into_iter()
@@ -435,6 +434,40 @@ mod tests {
         }
     }
 
+    struct FakePeopleReader {
+        id: &'static str,
+    }
+
+    impl CalendarPeopleRead for FakePeopleReader {
+        fn people<'a>(
+            &'a self,
+            company: &'a str,
+            query: &'a CalendarPeopleQuery,
+        ) -> super::super::application::CalendarPeopleFuture<
+            'a,
+            Vec<super::super::domain::CalendarPerson>,
+        > {
+            assert!(valid_id(company));
+            assert!(!query.people_ids.is_empty());
+            let id = self.id;
+            Box::pin(async move {
+                Ok(vec![super::super::domain::CalendarPerson {
+                    id: id.into(),
+                    name: "Alice".into(),
+                    user_id: None,
+                    department_id: None,
+                    branch_id: None,
+                    manager_id: None,
+                    status: "active".into(),
+                }])
+            })
+        }
+    }
+
+    fn people_reader(id: &'static str) -> Arc<dyn CalendarPeopleRead> {
+        Arc::new(FakePeopleReader { id })
+    }
+
     fn scope_reader(present: bool) -> Arc<dyn CalendarPersonScopeRead> {
         Arc::new(FakeScopeReader { present })
     }
@@ -487,13 +520,13 @@ mod tests {
                 acme.clone(),
                 acme_reader.clone(),
                 scope_reader(true),
-                people_reader(true),
+                people_reader("acme-person"),
             ),
             (
                 northstar.clone(),
                 northstar_reader.clone(),
                 scope_reader(false),
-                people_reader(false),
+                people_reader("northstar-person"),
             ),
         ])
         .expect("two distinct holding targets configure");
@@ -534,8 +567,18 @@ mod tests {
         let acme_scope = scope_reader(true);
         let northstar_scope = scope_reader(false);
         let state = configure_entries(vec![
-            (acme.clone(), reader(), acme_scope.clone()),
-            (northstar.clone(), reader(), northstar_scope.clone()),
+            (
+                acme.clone(),
+                reader(),
+                acme_scope.clone(),
+                people_reader("acme-person"),
+            ),
+            (
+                northstar.clone(),
+                reader(),
+                northstar_scope.clone(),
+                people_reader("northstar-person"),
+            ),
         ])
         .expect("both scope readers configure");
         assert_eq!(state.scope_targets.len(), 2);
@@ -552,6 +595,50 @@ mod tests {
                 .get(&(northstar.host.clone(), northstar.holding_slug.clone()))
                 .unwrap(),
             &northstar_scope
+        ));
+    }
+
+    #[test]
+    fn calendar_people_reader_is_isolated_per_holding() {
+        let acme = LaneTarget {
+            host: "acme.example.test".into(),
+            holding_slug: "acme".into(),
+        };
+        let northstar = LaneTarget {
+            host: "northstar.example.test".into(),
+            holding_slug: "northstar".into(),
+        };
+        let acme_people = people_reader("acme-person");
+        let northstar_people = people_reader("northstar-person");
+        let state = configure_entries(vec![
+            (
+                acme.clone(),
+                reader(),
+                scope_reader(true),
+                acme_people.clone(),
+            ),
+            (
+                northstar.clone(),
+                reader(),
+                scope_reader(false),
+                northstar_people.clone(),
+            ),
+        ])
+        .expect("both people readers configure");
+        assert_eq!(state.people_targets.len(), 2);
+        assert!(Arc::ptr_eq(
+            state
+                .people_targets
+                .get(&(acme.host.clone(), acme.holding_slug.clone()))
+                .unwrap(),
+            &acme_people
+        ));
+        assert!(Arc::ptr_eq(
+            state
+                .people_targets
+                .get(&(northstar.host.clone(), northstar.holding_slug.clone()))
+                .unwrap(),
+            &northstar_people
         ));
     }
 

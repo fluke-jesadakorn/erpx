@@ -1,4 +1,4 @@
-//! Owner query port for the lane 17 landed-cost read family. No SQL lives here.
+//! Owner query port for the lane 17 owner read family. No SQL lives here.
 //!
 //! Composition injects the owner reader behind this port exactly as it does for
 //! the other owner-local native routers. The port transports bounded identities

@@ -9,16 +9,22 @@ pub mod domain;
 pub mod http;
 pub mod postgres;
 
-pub use application::{EmptySeatHistoryRead, ReadRequest, SeatHistoryFuture, SeatHistoryRead};
+pub use application::{
+    projection_facts_handler, EmptyProjectionFactsRead, EmptySeatHistoryRead, ProjectionFactsRead,
+    ProjectionFactsFuture, ReadRequest, SeatHistoryFuture, SeatHistoryRead,
+};
 pub use domain::{
-    derive_holding_seat_intervals, result_hash, HoldingSeatMeter, SeatCoverage,
-    SeatHistoryResponse, SeatHistoryRows, SeatInterval, SeatMeterUser, SQL_ASSIGNMENTS,
-    SQL_COVERAGE, SQL_MEMBERS, SQL_ORACLE, SQL_ROLES,
+    derive_holding_seat_intervals, result_hash, valid_month, CurrentSnapshotFact, HoldingSeatMeter,
+    MeterRowFact, ProjectionFacts, SeatCoverage, SeatHistoryResponse, SeatHistoryRows, SeatInterval,
+    SeatMeterUser, SnapshotHeaderFact, SQL_ASSIGNMENTS, SQL_COVERAGE, SQL_MEMBERS, SQL_ORACLE,
+    SQL_PROJECTION_CURRENT, SQL_PROJECTION_CURRENT_PG, SQL_PROJECTION_METERS,
+    SQL_PROJECTION_METERS_PG, SQL_PROJECTION_SNAPSHOTS, SQL_PROJECTION_SNAPSHOTS_PG, SQL_ROLES,
+    PROJECTION_SQL_ORACLE,
 };
 pub use http::{
     router, router_for_holdings, router_with_reader, router_with_readers, Lane37Target, LaneTarget,
 };
-pub use postgres::PgSeatHistoryRead;
+pub use postgres::{PgProjectionFactsRead, PgSeatHistoryRead};
 
 #[cfg(test)]
 mod lane_tests {

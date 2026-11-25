@@ -21,7 +21,9 @@ import {
   NATIVE_COLLABORATION_LANE15_CONFIG_ENV,
   type HoldingActor,
 } from '../../../packages/server-collaboration/src/adapters/native-lane-15/client';
+import { fieldCollaborationCommand } from '../../../packages/server-collaboration/src/adapters/native-lane-15/field-command-client';
 import { betaManagementFacts } from '../../../packages/server-collaboration/src/adapters/beta-management-facts';
+import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 
 const root = process.cwd();
 const sha = (value: string) => createHash('sha256').update(value).digest('hex');
@@ -94,6 +96,15 @@ beforeAll(async () => {
     if (mode === 'down') return respond(res, { error: { code: 'DOWN', message: 'down' } }, 503);
     if (mode === 'rejected') return respond(res, { error: { code: 'NATIVE_LANE15_REJECTED', message: 'rejected' } }, 422);
     if (mode === 'bad') return respond(res, { data: { kind: 'post_drafts', drafts: [{ id: 'only-id' }] } });
+    if (url.pathname.endsWith('/field-command')) {
+      const command = body as { entity?: string; id?: string; sourceType?: string; targetType?: string };
+      // Simulate the owner's collaboration_* row projection for id reads.
+      if (command.id === 'rel-1') return respond(res, { data: { fieldOwned: true } });
+      if (command.id === 'card-1') return respond(res, { data: { fieldOwned: false } });
+      const owned = command.sourceType === 'field_service_order' ||
+        (command.entity === 'relation' && command.targetType === 'field_service_order');
+      return respond(res, { data: { fieldOwned: owned } });
+    }
     const kind = (body as { kind?: string } | undefined)?.kind ?? '';
     return respond(res, { data: dataFor(kind, mode === 'empty') });
   });
@@ -253,7 +264,7 @@ describe('native Collaboration lane 15 beta-facts reads', () => {
     expect(source).toContain("from './native-lane-15/client'");
   });
 
-  it('lowers the owner SELECT-space KPI from 52 to 50', () => {
+  it('lowers the lane SELECT-space KPI from 52 to 48 across both families', () => {
     const brief = fs.readFileSync(
       path.join(root, '.scratch/wave0/briefs/lane_15.md'), 'utf8',
     );
@@ -265,6 +276,81 @@ describe('native Collaboration lane 15 beta-facts reads', () => {
       if (!fs.existsSync(absolute)) continue;
       count += fs.readFileSync(absolute, 'utf8').split('SELECT ').length - 1;
     }
-    expect(count).toBe(50);
+    expect(count).toBe(48);
+  });
+});
+
+describe('native Collaboration lane 15 field-command routing read', () => {
+  const asActor = (actor: HoldingActor) => actor as unknown as WorkContext;
+
+  it('owns the route decision and the boolean response shape', async () => {
+    expect(await fieldCollaborationCommand(asActor(ACME), {
+      entity: 'relation',
+      id: 'rel-1',
+      sourceType: 'support_ticket',
+      targetType: 'field_service_order',
+    })).toBe(true);
+    expect(await fieldCollaborationCommand(asActor(ACME), {
+      id: 'card-1',
+      sourceType: 'support_ticket',
+    })).toBe(false);
+    expect(await fieldCollaborationCommand(asActor(ACME), {
+      entity: 'relation',
+      sourceType: 'staff_task',
+      targetType: 'field_service_order',
+    })).toBe(true);
+    expect(await fieldCollaborationCommand(asActor(ACME), null)).toBe(false);
+    expect(requests.map(r => r.url)).toEqual([
+      '/api/v1/holdings/acme/collaboration/native-lane-15/field-command',
+      '/api/v1/holdings/acme/collaboration/native-lane-15/field-command',
+      '/api/v1/holdings/acme/collaboration/native-lane-15/field-command',
+    ]);
+    expect(requests.map(r => r.host)).toEqual(Array(3).fill('acme.jesadakorn.com'));
+    expect(requests.map(r => r.company)).toEqual(Array(3).fill('c1'));
+    expect(requests[0].body).toEqual({
+      entity: 'relation', id: 'rel-1', companyId: 'c1',
+    });
+  });
+
+  it('selects every registered Holding by WorkContext holdingId+holdingSlug', async () => {
+    await fieldCollaborationCommand(asActor(ACME), { id: 'card-1' });
+    await fieldCollaborationCommand(asActor(NORTHSTAR), { id: 'card-1' });
+    await fieldCollaborationCommand(asActor(ERPX), { id: 'card-1' });
+    expect(requests.map(r => r.host)).toEqual([
+      'acme.jesadakorn.com', 'northstar.jesadakorn.com', 'erpx-internal.jesadakorn.com',
+    ]);
+  });
+
+  it('fails closed on an unknown or mismatched WorkContext target', async () => {
+    await expect(fieldCollaborationCommand(
+      { holdingId: 'h999', holdingSlug: 'acme', companyId: 'c1' } as WorkContext,
+      { id: 'card-1' },
+    )).rejects.toMatchObject({ status: 409, code: 'WORK_CONTEXT_CHANGED' });
+    await expect(fieldCollaborationCommand(
+      { holdingId: 'h002', holdingSlug: 'acme', companyId: 'c1' } as WorkContext,
+      { id: 'card-1' },
+    )).rejects.toMatchObject({ status: 409, code: 'WORK_CONTEXT_CHANGED' });
+    expect(requests).toHaveLength(0);
+  });
+
+  it('fails closed when config is absent or the native service is down', async () => {
+    delete process.env[ENV];
+    await expect(fieldCollaborationCommand(asActor(ACME), { id: 'card-1' }))
+      .rejects.toMatchObject({ status: 503, code: 'NATIVE_COLLABORATION_LANE15_UNAVAILABLE' });
+    process.env[ENV] = JSON.stringify(DEV_CONFIG(port));
+    mode = 'down';
+    await expect(fieldCollaborationCommand(asActor(ACME), { id: 'card-1' }))
+      .rejects.toMatchObject({ status: 503 });
+  });
+
+  it('removed every owner statement from the field-command TypeScript source', () => {
+    const source = fs.readFileSync(
+      path.join(root, 'packages/server-collaboration/src/adapters/field-command-owner.ts'),
+      'utf8',
+    );
+    expect(source).not.toMatch(/SELECT /);
+    expect(source).not.toMatch(/\.prepare\(/);
+    expect(source).not.toMatch(/\.bind\(/);
+    expect(source).toContain("from './native-lane-15/field-command-client'");
   });
 });

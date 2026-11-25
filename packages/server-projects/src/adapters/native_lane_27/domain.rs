@@ -112,6 +112,39 @@ pub struct HandoffWorkRow {
     pub lifecycle_status: String,
 }
 
+/// Owner-local Project row projected by the visible-row reads. The former TS
+/// `SELECT p.*` projection is made explicit here so the response shape is owned
+/// by Rust and cannot grow with unrelated schema columns.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct ProjectRow {
+    pub id: String,
+    pub company_id: String,
+    pub branch_id: Option<String>,
+    pub department_id: Option<String>,
+    pub title: String,
+    pub description: String,
+    pub owner_user_id: String,
+    pub lifecycle_status: String,
+    pub version: i64,
+    pub updated_at: i64,
+}
+
+pub fn check_project(row: &ProjectRow) -> Result<(), BusinessError> {
+    if !valid_id(&row.id)
+        || !valid_id(&row.company_id)
+        || !valid_id(&row.owner_user_id)
+        || row.title.is_empty()
+        || row.title.len() > 200
+        || row.description.len() > 10_000
+        || !matches!(row.lifecycle_status.as_str(), "active" | "handoff_pending" | "completed" | "cancelled")
+        || row.version < 1
+        || row.updated_at < 0
+    {
+        return Err(unavailable());
+    }
+    Ok(())
+}
+
 pub fn invalid() -> BusinessError {
     BusinessError::invalid(
         "PROJECT_ACTUALS_LANE27_REQUEST_INVALID",
@@ -154,6 +187,20 @@ pub fn scope(company: &str, user: &str, project: &str) -> Result<ActualsScope, B
         company: company.to_owned(),
         user: user.to_owned(),
         project: project.to_owned(),
+    })
+}
+
+/// Company/user identity for list reads where no Project id is supplied. The
+/// empty Project keeps the shared `ActualsScope` shape without weakening the
+/// owner-or-member predicate executed by the visible-project query.
+pub fn company_scope(company: &str, user: &str) -> Result<ActualsScope, BusinessError> {
+    if !valid_id(company) || !valid_id(user) {
+        return Err(invalid());
+    }
+    Ok(ActualsScope {
+        company: company.to_owned(),
+        user: user.to_owned(),
+        project: String::new(),
     })
 }
 
@@ -302,6 +349,36 @@ mod tests {
         assert!(valid_sha256(&"a".repeat(64)));
         assert!(!valid_sha256(&"A".repeat(64)));
         assert!(!valid_sha256(&"a".repeat(63)));
+    }
+
+    #[test]
+    fn company_scope_allows_list_reads_without_a_project() {
+        let scope = company_scope("company-1", "user-1").unwrap();
+        assert_eq!(scope.company, "company-1");
+        assert_eq!(scope.user, "user-1");
+        assert!(scope.project.is_empty());
+        assert!(company_scope("", "user-1").is_err());
+        assert!(company_scope("company-1", "bad/id").is_err());
+    }
+
+    #[test]
+    fn visible_project_row_is_bounded() {
+        let row = ProjectRow {
+            id: "project-1".into(),
+            company_id: "company-1".into(),
+            branch_id: None,
+            department_id: None,
+            title: "Project 1".into(),
+            description: String::new(),
+            owner_user_id: "user-1".into(),
+            lifecycle_status: "active".into(),
+            version: 1,
+            updated_at: 1,
+        };
+        assert!(check_project(&row).is_ok());
+        let mut bad = row;
+        bad.lifecycle_status = "unknown".into();
+        assert!(check_project(&bad).is_err());
     }
 
     #[test]

@@ -6,7 +6,7 @@ use erpx_server_shared::public::BusinessError;
 use serde_json::Value;
 use std::{future::Future, pin::Pin};
 
-use super::domain::{self, CustomerReadRequest};
+use super::domain::{self, CustomerReadRequest, RecordFactsRequest};
 
 pub type CustomerReadFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, BusinessError>> + Send + 'a>>;
@@ -36,6 +36,30 @@ pub fn handle<'a, R: CustomerRead + ?Sized>(
             return Err(domain::invalid());
         }
         reader.read(company, branch, request).await
+    })
+}
+
+/// Owner reader for the four Finance-owned record supplement facts. SQL,
+/// projections and row shapes stay inside the owner Postgres adapter.
+pub trait RecordFactsRead: Send + Sync {
+    fn read<'a>(
+        &'a self,
+        company: &'a str,
+        request: &'a RecordFactsRequest,
+    ) -> CustomerReadFuture<'a, Value>;
+}
+
+pub fn handle_record_facts<'a, R: RecordFactsRead + ?Sized>(
+    reader: &'a R,
+    company: &'a str,
+    request: &'a RecordFactsRequest,
+) -> CustomerReadFuture<'a, Value> {
+    Box::pin(async move {
+        domain::validate_record_facts(request)?;
+        if !domain::valid_company(company) {
+            return Err(domain::invalid());
+        }
+        reader.read(company, request).await
     })
 }
 
@@ -86,5 +110,42 @@ mod tests {
         let value = handle(&reader, "company-1", "", &r).await.unwrap();
         assert_eq!(value["kind"], domain::KIND_CUSTOMER_PROFILE);
         assert_eq!(seen.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    struct FactsReader;
+
+    impl RecordFactsRead for FactsReader {
+        fn read<'a>(
+            &'a self,
+            company: &'a str,
+            _request: &'a RecordFactsRequest,
+        ) -> CustomerReadFuture<'a, Value> {
+            let company = company.to_owned();
+            Box::pin(async move { Ok(serde_json::json!({"company": company})) })
+        }
+    }
+
+    fn facts(kind: &'static str) -> RecordFactsRequest {
+        RecordFactsRequest {
+            kind: kind.to_owned(),
+            id: Some("record-1".into()),
+            chart_id: None,
+            value: Some("0".into()),
+            value2: None,
+            value3: None,
+            value4: None,
+            value5: None,
+            offset: Some(0),
+        }
+    }
+
+    #[tokio::test]
+    async fn native_lane_5_record_facts_handler_binds_company_before_reading() {
+        let mut r = facts("unknown");
+        assert!(handle_record_facts(&FactsReader, "company-1", &r).await.is_err());
+        r = facts(domain::RF_KIND_PARTY);
+        assert!(handle_record_facts(&FactsReader, "", &r).await.is_err());
+        let value = handle_record_facts(&FactsReader, "company-1", &r).await.unwrap();
+        assert_eq!(value["company"], "company-1");
     }
 }

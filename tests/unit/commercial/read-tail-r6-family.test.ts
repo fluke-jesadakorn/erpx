@@ -39,10 +39,12 @@ describe('Commercial read-tail r6 byte-identical / parameterized family', () => 
 
   test('every former site composes the builder and keeps its own prepare/bind', () => {
     const pj = adapters('projection.ts');
-    expect(pj).toContain('snapshotByMonthSql');
+    // Lane 37 wave 2: header reads are executed by the native owner.
+    expect(pj).not.toContain('snapshotByMonthSql');
     expect(pj).not.toContain('SELECT holding_id,ai_coverage');
     expect(pj).not.toContain('SELECT holding_id,active_seat_count,active_seat_observed_at\n');
-    expect(pj.match(/snapshotByMonthSql\(/g)).toHaveLength(2); // 2 call sites
+    expect((pj.match(/snapshotByMonthSql\(/g) ?? [])).toHaveLength(0);
+    expect(pj).toContain('readNativeProjectionFacts');
 
     const pcb = adapters('purchase-command-boundary.ts');
     expect(pcb).toContain('purchaseObservationAgg');

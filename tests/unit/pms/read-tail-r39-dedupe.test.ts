@@ -94,8 +94,8 @@ describe('pms read-tail r39 home-sum and journal-union dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(238);
-    expect(bare).toBe(239);
+    expect(spaced).toBe(237);
+    expect(bare).toBe(238);
     expect(spaced).toBeLessThan(317);
   });
 });

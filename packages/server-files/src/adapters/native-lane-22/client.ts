@@ -163,6 +163,13 @@ export function parseWorkEvidenceConfig(value: unknown): Settings {
 }
 
 /** Pick exactly one registered Holding. Two selectors must agree; no first-Holding default. */
+export function selectWorkEvidenceTarget(
+  settings: Settings,
+  actor: WorkEvidenceActor,
+): WorkEvidenceHolding {
+  return selectTarget(settings, actor);
+}
+
 function selectTarget(settings: Settings, actor: WorkEvidenceActor): WorkEvidenceHolding {
   const invalidRequest = () =>
     unavailable('NATIVE_WORK_EVIDENCE_REQUEST_INVALID', 'Use one bounded Files work-evidence request.');
@@ -247,6 +254,9 @@ function get(
     outgoing.end();
   });
 }
+
+/** Shared node:http transport for every lane 22 native client. */
+export const workEvidenceHttpTransport: WorkEvidenceTransport = get;
 
 const nullableText = (value: unknown, max = 8192): value is string | null =>
   value === null || text(value, max);

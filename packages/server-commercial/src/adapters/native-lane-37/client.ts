@@ -43,6 +43,53 @@ export type SeatHistoryRows = {
 };
 export type NativeSeatHistory = { rows: SeatHistoryRows; meter: HoldingSeatMeter };
 
+export type ProjectionFacts = {
+  snapshots: {
+    holdingId: string;
+    aiCoverage: string;
+    storageCoverage: string;
+    seatCoverage: string;
+    seatSourceCount: number;
+    unreconciledOriginals: number;
+    activeSeatCount: number | null;
+    activeSeatObservedAt: number | null;
+  }[];
+  sourceRows: {
+    holdingId: string;
+    month: string;
+    sourceKey: string;
+    companyId: string;
+    companyName: string;
+    branchId: string | null;
+    branchName: string | null;
+    meterKind: string;
+    fundingSource: string;
+    pricingStatus: string;
+    quantity: number;
+    inputTokens: number;
+    outputTokens: number;
+    averageDailyBytes: number;
+    activeAtPeriodEnd: boolean;
+    requestStatus: string | null;
+    gatewayStatus: string | null;
+    provider: string | null;
+    model: string | null;
+    unitsJson: string | null;
+    costStatus: string;
+    verifiedCostSatang: number | null;
+    costEvidenceKey: string | null;
+    costReconciledAt: number | null;
+    activeFrom: number | null;
+    activeUntil: number | null;
+    byteMilliseconds: string | null;
+  }[];
+  currentSnapshots: {
+    holdingId: string;
+    activeSeatCount: number | null;
+    activeSeatObservedAt: number | null;
+  }[];
+};
+
 type Holding = Readonly<{
   origin: string;
   host: string;
@@ -71,6 +118,88 @@ const integer = (value: unknown, max = 9_007_199_254_740_991): value is number =
   typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && value <= max;
 const stateJson = (value: unknown): value is string | null => value === null || text(value, 65536);
 const slug = (value: unknown): value is string => text(value, 128) && /^[a-z0-9_-]+$/.test(value as string);
+const month = (value: unknown): value is string => text(value, 7) && /^\d{4}-(0[1-9]|1[0-2])$/.test(value as string);
+const nullableText = (value: unknown, max = 8192): value is string | null => value === null || text(value, max);
+const nullableInteger = (value: unknown): value is number | null => value === null || integer(value);
+
+/** Resolve the exact registered target for the caller's WorkContext. No bare
+ * slug, no configuration order and no first-holding default is consulted. */
+function selectTarget(cfg: Config, actor: Lane37Actor): Holding {
+  if (
+    !object(actor) ||
+    !text(actor.holdingId, 200) ||
+    actor.holdingId.length === 0 ||
+    !slug(actor.holdingSlug) ||
+    !(actor.companyId === undefined || text(actor.companyId, 200))
+  )
+    return unavailable("LANE37_INPUT_INVALID");
+  const target = cfg.holdings.find(
+    (holding) =>
+      holding.holdingId === actor.holdingId && holding.holdingSlug === actor.holdingSlug,
+  );
+  if (!target) return unavailable("LANE37_TARGET_UNAVAILABLE");
+  return target;
+}
+
+/** Strict projection-facts validator: no field is coerced or defaulted. */
+function parseProjectionFacts(value: unknown): value is ProjectionFacts {
+  if (
+    !object(value) ||
+    !Array.isArray(value.snapshots) ||
+    !Array.isArray(value.sourceRows) ||
+    !Array.isArray(value.currentSnapshots)
+  )
+    return false;
+  const snapshot = (row: unknown): boolean =>
+    object(row) &&
+    text(row.holdingId, 200) &&
+    text(row.aiCoverage, 40) &&
+    text(row.storageCoverage, 40) &&
+    text(row.seatCoverage, 40) &&
+    integer(row.seatSourceCount) &&
+    integer(row.unreconciledOriginals) &&
+    nullableInteger(row.activeSeatCount) &&
+    nullableInteger(row.activeSeatObservedAt);
+  const meter = (row: unknown): boolean =>
+    object(row) &&
+    text(row.holdingId, 200) &&
+    month(row.month) &&
+    text(row.sourceKey, 200) &&
+    text(row.companyId, 200) &&
+    text(row.companyName, 200) &&
+    nullableText(row.branchId, 200) &&
+    nullableText(row.branchName, 200) &&
+    text(row.meterKind, 40) &&
+    text(row.fundingSource, 40) &&
+    text(row.pricingStatus, 40) &&
+    integer(row.quantity) &&
+    integer(row.inputTokens) &&
+    integer(row.outputTokens) &&
+    integer(row.averageDailyBytes) &&
+    typeof row.activeAtPeriodEnd === "boolean" &&
+    nullableText(row.requestStatus, 40) &&
+    nullableText(row.gatewayStatus, 40) &&
+    nullableText(row.provider, 200) &&
+    nullableText(row.model, 200) &&
+    nullableText(row.unitsJson, 65536) &&
+    text(row.costStatus, 40) &&
+    nullableInteger(row.verifiedCostSatang) &&
+    nullableText(row.costEvidenceKey, 200) &&
+    nullableInteger(row.costReconciledAt) &&
+    nullableInteger(row.activeFrom) &&
+    nullableInteger(row.activeUntil) &&
+    nullableText(row.byteMilliseconds, 200);
+  const current = (row: unknown): boolean =>
+    object(row) &&
+    text(row.holdingId, 200) &&
+    nullableInteger(row.activeSeatCount) &&
+    nullableInteger(row.activeSeatObservedAt);
+  return (
+    value.snapshots.every(snapshot) &&
+    value.sourceRows.every(meter) &&
+    value.currentSnapshots.every(current)
+  );
+}
 
 function configuration(): Config {
   const raw = process.env[ENV];
@@ -209,11 +338,6 @@ export async function readNativeSeatHistory(
   hasCutoffDependency: boolean,
 ): Promise<NativeSeatHistory> {
   if (
-    !object(actor) ||
-    !text(actor.holdingId, 200) ||
-    actor.holdingId.length === 0 ||
-    !slug(actor.holdingSlug) ||
-    !(actor.companyId === undefined || text(actor.companyId, 200)) ||
     !integer(start) ||
     !integer(end) ||
     start >= end ||
@@ -221,11 +345,7 @@ export async function readNativeSeatHistory(
   )
     return unavailable("LANE37_INPUT_INVALID");
   const cfg = configuration();
-  const target = cfg.holdings.find(
-    (holding) =>
-      holding.holdingId === actor.holdingId && holding.holdingSlug === actor.holdingSlug,
-  );
-  if (!target) return unavailable("LANE37_TARGET_UNAVAILABLE");
+  const target = selectTarget(cfg, actor);
   const companyId = actor.companyId ?? target.companyId;
   if (companyId !== undefined && !text(companyId, 200)) return unavailable("LANE37_INPUT_INVALID");
 
@@ -265,6 +385,49 @@ export async function readNativeSeatHistory(
   )
     return unavailable("LANE37_RESPONSE_INVALID");
   return { rows: payload.rows, meter: payload.meter };
+}
+
+/** Read the owner-owned control-DB usage projection facts for one billing
+ * month. The owner executes the three retired SELECTs with sqlx; this bridge
+ * emits no SQL and fails closed with 503 on any transport/validation failure. */
+export async function readNativeProjectionFacts(
+  actor: Lane37Actor,
+  period: string,
+): Promise<ProjectionFacts> {
+  if (!month(period)) return unavailable("LANE37_INPUT_INVALID");
+  const cfg = configuration();
+  const target = selectTarget(cfg, actor);
+  const companyId = actor.companyId ?? target.companyId;
+  let response: Response;
+  try {
+    const url = new URL(
+      `/api/v1/holdings/${encodeURIComponent(target.holdingSlug)}/commercial/usage-projection-facts?month=${period}`,
+      cfg.base,
+    );
+    response = await fetch(url, {
+      method: "GET",
+      headers: new Headers({
+        host: target.host,
+        origin: target.origin,
+        accept: "application/json",
+        "cache-control": "no-cache",
+        "x-erpx-context-holding": target.holdingId,
+        ...(companyId === undefined ? {} : { "x-erpx-context-company": companyId }),
+      }),
+      cache: "no-store",
+      redirect: "error",
+      signal: AbortSignal.timeout(cfg.timeoutMs),
+    });
+  } catch {
+    return unavailable();
+  }
+  if (response.status !== 200) {
+    void response.body?.cancel().catch(() => undefined);
+    return unavailable();
+  }
+  const payload: unknown = await response.json().catch((): unknown => null);
+  if (!parseProjectionFacts(payload)) return unavailable("LANE37_RESPONSE_INVALID");
+  return payload;
 }
 
 /** True when the native lane 37 consumer switch is configured. */

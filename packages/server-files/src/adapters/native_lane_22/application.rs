@@ -5,7 +5,9 @@ use std::{future::Future, pin::Pin};
 
 use erpx_server_shared::public::BusinessError;
 
-use super::domain::{WorkEvidenceKind, WorkEvidenceResponse};
+use super::domain::{
+    PersonnelEvidenceKind, PersonnelEvidenceResponse, WorkEvidenceKind, WorkEvidenceResponse,
+};
 
 pub type WorkEvidenceFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, BusinessError>> + Send + 'a>>;
@@ -21,4 +23,26 @@ pub trait WorkEvidenceRead: Send + Sync {
         kind: WorkEvidenceKind,
         read_only: bool,
     ) -> WorkEvidenceFuture<'a, WorkEvidenceResponse>;
+}
+
+/// Bounded identities for one personnel-evidence read. The router fills only
+/// the fields the selected kind needs; the rest are empty strings.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PersonnelEvidenceRequest<'a> {
+    pub company: &'a str,
+    pub assessment: &'a str,
+    pub source: &'a str,
+    pub record: &'a str,
+}
+
+pub type PersonnelEvidenceFuture<'a, T> =
+    Pin<Box<dyn Future<Output = Result<T, BusinessError>> + Send + 'a>>;
+
+/// Owner port for the Files-owned personnel-evidence reads. No SQL lives here.
+pub trait PersonnelEvidenceRead: Send + Sync {
+    fn read<'a>(
+        &'a self,
+        request: PersonnelEvidenceRequest<'a>,
+        kind: PersonnelEvidenceKind,
+    ) -> PersonnelEvidenceFuture<'a, PersonnelEvidenceResponse>;
 }

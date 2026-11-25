@@ -39,7 +39,10 @@ describe('manufacturing read-tail r29 scoped EXISTS probe family', () => {
     const evidence = src('executive-main-evidence-sources.ts');
     const posting = src('existing-posting-sources.ts');
     expect(evidence.split('manufacturingScopedExistsProbe(').length - 1).toBe(1); // one call site
-    expect(posting.split('manufacturingScopedExistsProbe(').length - 1).toBe(1);
+    // The posting witness moved to the native lane-28 owner; its adapter is a
+    // strict transport with no inline probe and no SQL.
+    expect(posting).not.toContain('manufacturingScopedExistsProbe(');
+    expect(posting).toContain('nativeManufacturingLane28PostingReferences');
     expect(evidence).not.toContain('EXISTS(SELECT 1 FROM (${purchased.sql}) purchased_production WHERE purchased_production.id=o.id)');
     expect(posting).not.toContain('EXISTS(SELECT 1 FROM (${manufacturingFinanceRecordSources.posting}) actual WHERE');
   });
@@ -65,7 +68,7 @@ describe('manufacturing read-tail r29 scoped EXISTS probe family', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(48); // r28 left 57; r29 parameterizes the scoped EXISTS probe family 57->56; r30 scope CTE family 56->55; r31 allowed-select head family 55->53; r32 metric breakdown head 53->52; r34 r15/r23 head fold 52->51; r35 scope-row head fold 51->50; r36 owner-table head fold 50->49; r37 projection-from-source head fold 49->48.
+    expect(total).toBe(46); // r28 left 57; r29 parameterizes the scoped EXISTS probe family 57->56; r30 scope CTE family 56->55; r31 allowed-select head family 55->53; r32 metric breakdown head 53->52; r34 r15/r23 head fold 52->51; r35 scope-row head fold 51->50; r36 owner-table head fold 50->49; r37 projection-from-source head fold 49->48.
     expect(total).toBeLessThan(57);
   });
 });

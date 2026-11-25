@@ -3,7 +3,7 @@ import { ApiError } from "@erpx/server-runtime/public/http";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 
 /**
- * Strict private transport for the lane 17 owner-local landed-cost reads.
+ * Strict private transport for the lane 17 owner-local inventory reads.
  *
  * The axum route executes the statement, applies the Company witness and
  * projects the row array. This bridge emits no SQL, accepts no SQL from a
@@ -35,6 +35,7 @@ export const LANE17_RD_LANDED_COST_MOVED_STOCK = "landed_cost_moved_stock";
 export const LANE17_RD_LANDED_COST_WORK_ROWS = "landed_cost_work_rows";
 export const LANE17_RD_REORDER_POLICIES = "reorder_policies";
 export const LANE17_RD_SERVICE_SPARES = "service_spares";
+export const LANE17_RD_COUNT_LOT_LINES = "count_lot_lines";
 
 export type Lane17Kind =
   | typeof LANE17_RD_LANDED_COST_SCOPED
@@ -42,7 +43,8 @@ export type Lane17Kind =
   | typeof LANE17_RD_LANDED_COST_MOVED_STOCK
   | typeof LANE17_RD_LANDED_COST_WORK_ROWS
   | typeof LANE17_RD_REORDER_POLICIES
-  | typeof LANE17_RD_SERVICE_SPARES;
+  | typeof LANE17_RD_SERVICE_SPARES
+  | typeof LANE17_RD_COUNT_LOT_LINES;
 export type Lane17Value = string | number | null;
 
 const KINDS: ReadonlySet<string> = new Set([
@@ -52,6 +54,7 @@ const KINDS: ReadonlySet<string> = new Set([
   LANE17_RD_LANDED_COST_WORK_ROWS,
   LANE17_RD_REORDER_POLICIES,
   LANE17_RD_SERVICE_SPARES,
+  LANE17_RD_COUNT_LOT_LINES,
 ]);
 const VALUE_COUNTS: Readonly<Record<Lane17Kind, number>> = {
   [LANE17_RD_LANDED_COST_SCOPED]: 4,
@@ -60,6 +63,7 @@ const VALUE_COUNTS: Readonly<Record<Lane17Kind, number>> = {
   [LANE17_RD_LANDED_COST_WORK_ROWS]: 2,
   [LANE17_RD_REORDER_POLICIES]: 3,
   [LANE17_RD_SERVICE_SPARES]: 2,
+  [LANE17_RD_COUNT_LOT_LINES]: 2,
 };
 
 const unavailable = (code = "NATIVE_INVENTORY_LANE17_UNAVAILABLE"): never => {
@@ -263,6 +267,18 @@ export async function readLane17Rows<T = Record<string, unknown>>(
  * Shares the strict, WorkContext-selected transport; no SQL is authored here. */
 export function readLane17ReplenishmentRows<T = Record<string, unknown>>(
   kind: typeof LANE17_RD_REORDER_POLICIES | typeof LANE17_RD_SERVICE_SPARES,
+  values: readonly unknown[],
+  actor: Lane17Actor,
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+): Promise<T[]> {
+  return readLane17Rows<T>(kind, values, actor, environment);
+}
+
+/** Count-scoped lot-line reads. Shares the WorkContext-selected transport; the
+ * owner adds its own Company witness because the retained statement is scoped
+ * by count id only. */
+export function readLane17CountRows<T = Record<string, unknown>>(
+  kind: typeof LANE17_RD_COUNT_LOT_LINES,
   values: readonly unknown[],
   actor: Lane17Actor,
   environment: Readonly<Record<string, string | undefined>> = process.env,

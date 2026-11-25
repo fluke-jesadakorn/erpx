@@ -79,8 +79,8 @@ describe('Organization read-tail r42 byte-identical families', () => {
     expect(read('organization-nodes-spaced-projections.ts')).toContain('"id", "kind", "slug"');
   });
 
-  test('retirement:ts-statements is strictly lower than the r42 BEFORE=249 baseline (expected 200)', () => {
-    // Lane 23 moved three directory reads to the native owner; the absolute pin reflects the current owner source.
+  test('retirement:ts-statements is strictly lower than the r42 BEFORE=249 baseline (expected 196)', () => {
+    // Wave 2 moved three node-reference reads to the native owner (six lane-23 reads total); the absolute pin reflects the current owner source.
     let space = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -92,7 +92,7 @@ describe('Organization read-tail r42 byte-identical families', () => {
     walk(srcRoot);
     // r42 collapses three active-company-node, two branch-optional-id, two
     // latest-department-flow and two change-row reads into four shared sources (-5).
-    expect(space).toBe(200);
+    expect(space).toBe(196);
     expect(space).toBeLessThan(249);
   });
 });

@@ -153,7 +153,7 @@ describe('Projects read-tail r40 universal projection head family', () => {
     // r39 left 76. Three named heads (one inline SELECT each) delegate to one
     // closed universal head: 76-3+1 = 74. The final-root cross-owner projection
     // keeps its own quoted head and is deliberately not folded.
-    expect(total).toBe(67); // lane 27 wave 2 moved the two handoff list/work reads to native (-2) // lane 27 moved the two actuals reads to native Rust (-2)
+    expect(total).toBe(66); // lane 27 wave 2 moved the two handoff list/work reads to native (-2) // lane 27 moved the two actuals reads to native Rust (-2)
     expect(total).toBeLessThan(76);
   });
 });

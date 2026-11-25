@@ -4,9 +4,12 @@
 //! and branch headers, a strict JSON envelope and business-error mapping. The
 //! pool-backed owner reader owns the SQL, the projection and the response row.
 
-use crate::adapters::native_lane_25::application::{PosEvidenceReader, read, read_detail};
+use crate::adapters::native_lane_25::application::{
+    PosEvidenceReader, read, read_day_closes, read_detail,
+};
 use crate::adapters::native_lane_25::domain::{
-    DETAIL_KINDS, EvidenceDetailQuery, EvidenceQuery, invalid, validate, validate_detail,
+    DETAIL_KINDS, DayClosesQuery, EvidenceDetailQuery, EvidenceQuery, invalid, validate,
+    validate_day_closes, validate_detail,
 };
 use crate::adapters::native_lane_25::postgres::PgEvidenceReader;
 use erpx_server_runtime::public::http_support::{
@@ -291,6 +294,49 @@ impl LaneState {
         let row = read_detail(reader.as_ref(), &query).await?;
         Ok(row.map(|row| row.value()))
     }
+
+    async fn day_closes(&self, headers: &HeaderMap, slug: &str) -> Response {
+        match self.day_closes_inner(headers, slug).await {
+            Ok(rows) => bounded(serde_json::json!({ "rows": rows })),
+            Err(error) => error_response(error),
+        }
+    }
+
+    async fn day_closes_inner(
+        &self,
+        headers: &HeaderMap,
+        slug: &str,
+    ) -> Result<Vec<serde_json::Value>, BusinessError> {
+        let host = unique_header(headers, header::HOST.as_str())?
+            .filter(|value| !value.is_empty())
+            .ok_or_else(missing)?;
+        let reader = self
+            .targets
+            .get(&(host.to_owned(), slug.to_owned()))
+            .ok_or_else(missing)?;
+        let company = unique_header(headers, CONTEXT_COMPANY)?
+            .filter(|value| valid_id(value))
+            .ok_or_else(invalid)?;
+        let branch = unique_header(headers, WORKSPACE_BRANCH)?
+            .filter(|value| !value.is_empty() && valid_id(value))
+            .map(str::to_owned);
+        let query = DayClosesQuery {
+            company: company.to_owned(),
+            branch,
+        };
+        validate_day_closes(&query)?;
+        let rows = read_day_closes(reader.as_ref(), &query).await?;
+        Ok(rows.into_iter().map(|row| row.value()).collect())
+    }
+}
+
+async fn day_closes(
+    State(state): State<Arc<LaneState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    state.day_closes(&headers, &slug).await
 }
 
 /// Build the native read router with a single pool shared by every target.
@@ -346,6 +392,10 @@ pub fn router_with_readers(
         .route(
             "/api/v1/holdings/{holding_slug}/pos/evidence/detail",
             post(detail),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/pos/day-closes",
+            post(day_closes),
         )
         .with_state(Arc::new(LaneState::with_readers(entries)?)))
 }
@@ -704,6 +754,79 @@ mod tests {
         let failing = detail_state(true);
         assert_eq!(
             block_on(failing.detail(&headers(), "acme", &detail_body("payment"))).status(),
+            StatusCode::SERVICE_UNAVAILABLE
+        );
+    }
+
+    struct DayClosesFake(bool);
+    impl PosEvidenceReader for DayClosesFake {
+        fn search<'a>(&'a self, _: &'a EvidenceQuery) -> EvidenceFuture<'a, Vec<EvidenceRow>> {
+            Box::pin(async { Ok(Vec::new()) })
+        }
+        fn day_closes<'a>(&'a self, _: &'a DayClosesQuery) -> EvidenceFuture<'a, Vec<crate::adapters::native_lane_25::domain::DayClosesRow>> {
+            use crate::adapters::native_lane_25::domain::DAY_CLOSES_KEYS;
+            if self.0 {
+                return Box::pin(async { Err(unavailable()) });
+            }
+            Box::pin(async move {
+                Ok(vec![crate::adapters::native_lane_25::domain::DayClosesRow {
+                    values: DAY_CLOSES_KEYS
+                        .iter()
+                        .map(|key| {
+                            let value = match *key {
+                                "id" => "dc1".to_owned(),
+                                "business_date" => "2026-01-31".to_owned(),
+                                "currency" => "USD".to_owned(),
+                                _ => "v".to_owned(),
+                            };
+                            ((*key).to_owned(), Some(value))
+                        })
+                        .collect(),
+                }])
+            })
+        }
+    }
+
+    fn day_closes_state(fails: bool) -> LaneState {
+        LaneState::with_readers(vec![(
+            LaneTarget {
+                host: "acme.example.com".into(),
+                holding_slug: "acme".into(),
+            },
+            Arc::new(DayClosesFake(fails)) as Arc<dyn PosEvidenceReader>,
+        )])
+        .unwrap()
+    }
+
+    #[test]
+    fn day_closes_route_returns_the_exact_row_shape() {
+        let state = day_closes_state(false);
+        let response = block_on(state.day_closes(&headers(), "acme"));
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = block_on(to_bytes(response.into_body(), 1 << 20)).unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        let rows = value["rows"].as_array().unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].as_object().unwrap().len(), crate::adapters::native_lane_25::domain::DAY_CLOSES_KEYS.len());
+        assert_eq!(rows[0]["id"], "dc1");
+    }
+
+    #[test]
+    fn day_closes_route_fails_closed_on_bad_scope_and_reader_error() {
+        let state = day_closes_state(false);
+        let mut no_company = headers();
+        no_company.remove(CONTEXT_COMPANY);
+        assert_eq!(
+            block_on(state.day_closes(&no_company, "acme")).status(),
+            StatusCode::UNPROCESSABLE_ENTITY
+        );
+        assert_eq!(
+            block_on(state.day_closes(&headers(), "other")).status(),
+            StatusCode::NOT_FOUND
+        );
+        let failing = day_closes_state(true);
+        assert_eq!(
+            block_on(failing.day_closes(&headers(), "acme")).status(),
             StatusCode::SERVICE_UNAVAILABLE
         );
     }

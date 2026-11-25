@@ -10,6 +10,11 @@ import {
   type Lane39HoldingContext,
   type NativeLane39Transport,
 } from "../../../packages/server-brand/src/adapters/native-lane-39/client";
+import {
+  createLane39EvidenceClient,
+  nativeLane39EvidenceConfigured,
+  type EvidenceScope,
+} from "../../../packages/server-brand/src/adapters/native-lane-39/evidence-client";
 
 /** Exact dev value for ERPX_NATIVE_BRAND_LANE39_CONFIG (1..64 holdings). */
 export const DEV_CONFIG = {
@@ -231,6 +236,149 @@ describe("lane 39 Brand native workspace-choice transport", () => {
     );
     expect(sha256(JSON.stringify(rows))).toBe(
       "ea79543d73a2a2560cb8afd9c78076be065f74037e8e90fe2cc1c1fcf04c398b",
+    );
+  });
+});
+
+describe("lane 39 Brand native evidence transport", () => {
+  const escope: EvidenceScope = {
+    companyId: "co-1", branchId: "br-1",
+    from: 1, toExclusive: 2, query: "north",
+    cursor: { branchName: "North", id: "profile-1" }, limit: 26,
+  };
+  const evidenceRows = [{
+    id: "profile-1", branch_name: "North", document_mode: "branch", updated_at: 7,
+    primary_attachment_id: "image-1", inverse_attachment_id: null,
+  }];
+  const eok = (value: unknown) =>
+    new Response(JSON.stringify(value), {
+      status: 200, headers: { "content-type": "application/json" },
+    });
+  const expectedBody = {
+    companyId: "co-1", branchId: "br-1", from: 1, toExclusive: 2, query: "north",
+    cursor: { branchName: "North", id: "profile-1" }, limit: 26,
+  };
+
+  it("selects the exact WorkContext holding and pins the owner request and row shape", async () => {
+    const transport: NativeLane39Transport = vi.fn(async (url, init) => {
+      expect(url.toString()).toBe(
+        "http://127.0.0.1:3198/api/v1/holdings/acme/branding/lane39-evidence-search",
+      );
+      expect(init.method).toBe("POST");
+      expect(String(init.body)).toBe(JSON.stringify(expectedBody));
+      const headers = init.headers as Headers;
+      expect(headers.get("host")).toBe("acme.jesadakorn.com");
+      expect(headers.get("origin")).toBe("https://acme.jesadakorn.com");
+      expect(headers.get("x-erpx-context-company")).toBe("co-1");
+      return eok({ rows: evidenceRows });
+    });
+    const client = createLane39EvidenceClient(raw, transport);
+    expect(await client.search(escope, acme)).toEqual(evidenceRows);
+  });
+
+  it("routes the other two registered holdings by holdingId + holdingSlug", async () => {
+    for (const [actor, slug, host] of [
+      [northstar, "northstar", "northstar.jesadakorn.com"],
+      [erpx, "erpx", "erpx-internal.jesadakorn.com"],
+    ] as const) {
+      const transport: NativeLane39Transport = vi.fn(async (url, init) => {
+        expect(url.toString()).toBe(
+          `http://127.0.0.1:3198/api/v1/holdings/${slug}/branding/lane39-evidence-search`,
+        );
+        expect((init.headers as Headers).get("host")).toBe(host);
+        return eok({ rows: evidenceRows });
+      });
+      expect(await createLane39EvidenceClient(raw, transport).search(escope, actor)).toEqual(evidenceRows);
+    }
+  });
+
+  it("never falls back to the first holding for an unmatched or absent WorkContext", async () => {
+    const transport: NativeLane39Transport = vi.fn(async () => eok({ rows: evidenceRows }));
+    const client = createLane39EvidenceClient(raw, transport);
+    for (const actor of [undefined, { holdingId: "h404", holdingSlug: "acme" }, { holdingId: "h001", holdingSlug: "northstar" }]) {
+      await expect(client.search(escope, actor)).rejects.toMatchObject({
+        status: 503, code: "BRAND_EVIDENCE_SEARCH_TARGET_UNAVAILABLE",
+      });
+    }
+    expect(transport).not.toHaveBeenCalled();
+  });
+
+  it("rejects drifted evidence rows, wrong predicate pairs and malformed envelopes", async () => {
+    const badRows = [
+      { rows: [{ ...evidenceRows[0], document_mode: "unknown" }] },
+      { rows: [{ ...evidenceRows[0], unexpected: true }] },
+      { rows: [{ ...evidenceRows[0], updated_at: -1 }] },
+      { rows: "not-an-array" },
+    ];
+    for (const body of badRows) {
+      const client = createLane39EvidenceClient(raw, vi.fn(async () => eok(body)));
+      await expect(client.search(escope, acme)).rejects.toMatchObject({
+        status: 503, code: "BRAND_EVIDENCE_SEARCH_RESPONSE_INVALID",
+      });
+    }
+    const client = createLane39EvidenceClient(raw, vi.fn(async () => eok({ rows: evidenceRows })));
+    await expect(client.search({ ...escope, from: 1, toExclusive: undefined }, acme)).rejects.toMatchObject({
+      status: 422, code: "BRAND_EVIDENCE_SEARCH_REQUEST_INVALID",
+    });
+    await expect(client.search({ ...escope, limit: 52 }, acme)).rejects.toMatchObject({
+      status: 422, code: "BRAND_EVIDENCE_SEARCH_REQUEST_INVALID",
+    });
+  });
+
+  it("fails closed when unconfigured, unreachable, rejected or malformed", async () => {
+    expect(nativeLane39EvidenceConfigured({})).toBe(false);
+    expect(() => createLane39EvidenceClient(undefined, vi.fn())).toThrowError(
+      expect.objectContaining({ status: 503, code: "BRAND_EVIDENCE_SEARCH_UNAVAILABLE" }),
+    );
+    const unreachable = createLane39EvidenceClient(raw, vi.fn(async () => { throw new Error("offline"); }));
+    await expect(unreachable.search(escope, acme)).rejects.toMatchObject({
+      status: 503, code: "BRAND_EVIDENCE_SEARCH_UNAVAILABLE",
+    });
+    const rejected = createLane39EvidenceClient(
+      raw,
+      vi.fn(async () =>
+        new Response(JSON.stringify({ error: { code: "BRAND_EVIDENCE_SEARCH_REQUEST_INVALID", message: "bounded search" } }), {
+          status: 422, headers: { "content-type": "application/json" },
+        }),
+      ),
+    );
+    await expect(rejected.search(escope, acme)).rejects.toMatchObject({
+      status: 422, code: "BRAND_EVIDENCE_SEARCH_REQUEST_INVALID",
+    });
+    const malformed = createLane39EvidenceClient(
+      raw, vi.fn(async () => new Response("not json", { status: 200, headers: { "content-type": "application/json" } })),
+    );
+    await expect(malformed.search(escope, acme)).rejects.toMatchObject({
+      status: 503, code: "BRAND_EVIDENCE_SEARCH_RESPONSE_INVALID",
+    });
+  });
+
+  it("pins the TS-statement retirement and the exact owner SQL head oracle", () => {
+    const owner = readFileSync(
+      resolve(process.cwd(), "packages/server-brand/src/adapters/executive-evidence-sources.ts"),
+      "utf8",
+    );
+    expect(owner).not.toMatch(/planBrandRead|BRAND_RD_EVIDENCE_SEARCH|db\.prepare|SELECT /);
+    expect(owner).toContain("nativeBrandEvidence");
+    const domain = readFileSync(
+      resolve(process.cwd(), "packages/server-brand/src/adapters/native_lane_39/evidence_domain.rs"),
+      "utf8",
+    );
+    expect(domain).toContain("pub const MAX_LIMIT: i64 = 51;");
+    const source = readFileSync(
+      resolve(process.cwd(), "packages/server-brand/src/adapters/native_lane_39/evidence_postgres.rs"),
+      "utf8",
+    );
+    expect(source).toMatch(/plan_brand_read\(\s*RD_EVIDENCE_SEARCH,/);
+    expect(source).toContain("query.into_sql()");
+    const head = source.match(/const HEAD: &str = "([^"]+)";/)![1];
+    expect(head).toBe(
+      "SELECT p.scope_id id,b.display_name branch_name,p.document_mode,p.updated_at," +
+      "p.primary_attachment_id,p.inverse_attachment_id FROM organization_brand_profiles p JOIN (",
+    );
+    expect(sha256(head)).toBe("ce6db0fecf34242f4394cd6476d14c22b12981565f3622e43431bffe18070a2f");
+    expect(sha256(JSON.stringify(evidenceRows))).toBe(
+      "70bca29d3117a2a7d6ef3041e14db72717c10818999f5eabef0f71cc3c99870a",
     );
   });
 });

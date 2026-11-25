@@ -228,6 +228,185 @@ export async function nativeBetaFeedback(
 }
 
 /**
+ * Strict transport for the native sandbox email delivery receipt read. The
+ * axum owner executes the byte-identical owner statement with one `delivery_key`
+ * bind; this bridge emits no SQL, accepts none from a caller
+ * and fails closed when the owner is unavailable or its reply is malformed.
+ * Decryption of an authenticated ciphertext stays in the caller.
+ */
+export type EmailReceiptRow = {
+  delivery_key: string;
+  recipient: string;
+  subject: string;
+  body_text: string;
+  body_ciphertext: string | null;
+  provider_id: string;
+};
+
+export const NATIVE_EMAIL_RECEIPT_ENV = "ERPX_NATIVE_MANAGE_ERPX_EMAIL_RECEIPT_CONFIG";
+const MAX_RECEIPT_BODY = 131072;
+const MAX_CIPHERTEXT = 180 * 1024;
+
+const unavailableReceipt = (
+  code = "MANAGE_ERPX_NATIVE_EMAIL_RECEIPT_UNAVAILABLE",
+  status = 503,
+  message = "The native Manage ERPX email receipt read is unavailable.",
+): never => {
+  throw new ApiError(status, code, message);
+};
+
+/** Closed loopback/front-origin configuration; any malformed value fails closed. */
+export function emailReceiptConfig(raw: string | undefined): Settings {
+  if (raw === undefined) return unavailableReceipt("MANAGE_ERPX_NATIVE_EMAIL_RECEIPT_UNAVAILABLE");
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    return unavailableReceipt("MANAGE_ERPX_NATIVE_EMAIL_RECEIPT_CONFIG_INVALID");
+  }
+  if (
+    !record(value) ||
+    !text(value.privateBaseUrl, 512) ||
+    typeof value.timeoutMs !== "number" ||
+    !Number.isSafeInteger(value.timeoutMs) ||
+    value.timeoutMs < 250 ||
+    value.timeoutMs > 30_000 ||
+    !Array.isArray(value.holdings) ||
+    value.holdings.length !== 1
+  )
+    return unavailableReceipt("MANAGE_ERPX_NATIVE_EMAIL_RECEIPT_CONFIG_INVALID");
+  let base: URL;
+  try {
+    base = new URL(value.privateBaseUrl);
+  } catch {
+    return unavailableReceipt("MANAGE_ERPX_NATIVE_EMAIL_RECEIPT_CONFIG_INVALID");
+  }
+  const port = Number(base.port);
+  if (
+    base.protocol !== "http:" ||
+    !["127.0.0.1", "[::1]"].includes(base.hostname) ||
+    !base.port ||
+    RESERVED_PORTS.has(port) ||
+    (port >= 3200 && port <= 3299) ||
+    base.origin !== value.privateBaseUrl ||
+    base.username ||
+    base.password
+  )
+    return unavailableReceipt("MANAGE_ERPX_NATIVE_EMAIL_RECEIPT_CONFIG_INVALID");
+  const holding = value.holdings[0];
+  if (
+    !record(holding) ||
+    !text(holding.origin, 512) ||
+    !text(holding.holdingSlug, 128) ||
+    !/^[a-z0-9_-]+$/.test(String(holding.holdingSlug))
+  )
+    return unavailableReceipt("MANAGE_ERPX_NATIVE_EMAIL_RECEIPT_CONFIG_INVALID");
+  let origin: URL;
+  try {
+    origin = new URL(String(holding.origin));
+  } catch {
+    return unavailableReceipt("MANAGE_ERPX_NATIVE_EMAIL_RECEIPT_CONFIG_INVALID");
+  }
+  if (origin.protocol !== "https:" || origin.origin !== holding.origin || origin.username || origin.password)
+    return unavailableReceipt("MANAGE_ERPX_NATIVE_EMAIL_RECEIPT_CONFIG_INVALID");
+  return {
+    base: base.origin,
+    timeoutMs: value.timeoutMs,
+    holding: {
+      origin: origin.origin,
+      holdingSlug: String(holding.holdingSlug),
+    },
+  };
+}
+
+/** Delivery keys are bounded binds only; never interpolated into SQL or a path. */
+export function validEmailReceiptKey(key: string): boolean {
+  return /^[A-Za-z0-9:_.-]{1,200}$/.test(key);
+}
+
+/** Strictly validate the owner receipt; extra fields are rejected. */
+export function parseEmailReceipt(value: unknown): EmailReceiptRow | null {
+  const invalid = () => unavailableReceipt("MANAGE_ERPX_NATIVE_EMAIL_RECEIPT_RESPONSE_INVALID");
+  if (!record(value)) return invalid();
+  if (value.receipt === null) return null;
+  const row: unknown = value.receipt;
+  if (
+    !record(row) ||
+    Object.keys(row).length !== 6 ||
+    typeof row.delivery_key !== "string" ||
+    !validEmailReceiptKey(row.delivery_key) ||
+    typeof row.recipient !== "string" ||
+    row.recipient.length === 0 ||
+    row.recipient.length > 320 ||
+    typeof row.subject !== "string" ||
+    row.subject.length > 4096 ||
+    typeof row.body_text !== "string" ||
+    row.body_text.length > MAX_RECEIPT_BODY ||
+    (row.body_ciphertext !== null &&
+      (typeof row.body_ciphertext !== "string" ||
+        !row.body_ciphertext.startsWith("v1.") ||
+        row.body_ciphertext.length > MAX_CIPHERTEXT)) ||
+    typeof row.provider_id !== "string" ||
+    !/^[A-Za-z0-9:_.-]{1,200}$/.test(row.provider_id)
+  )
+    return invalid();
+  return {
+    delivery_key: row.delivery_key,
+    recipient: row.recipient,
+    subject: row.subject,
+    body_text: row.body_text,
+    body_ciphertext: row.body_ciphertext as string | null,
+    provider_id: row.provider_id,
+  };
+}
+
+/** Ask the native owner for one sandbox email receipt; no SQL comes back. */
+export async function nativeEmailDeliveryReceipt(
+  deliveryKey: string,
+  post: FeedbackPost = httpPost,
+): Promise<EmailReceiptRow | null> {
+  if (!validEmailReceiptKey(deliveryKey))
+    throw new ApiError(
+      422,
+      "MANAGE_ERPX_NATIVE_EMAIL_RECEIPT_REQUEST_INVALID",
+      "Use a bounded delivery key.",
+    );
+  const cfg = emailReceiptConfig(process.env[NATIVE_EMAIL_RECEIPT_ENV]);
+  const url = new URL(
+    `/api/v1/holdings/${encodeURIComponent(cfg.holding.holdingSlug)}/manage-erpx/sandbox-email/receipt`,
+    cfg.base,
+  );
+  let reply: { status: number; value: unknown };
+  try {
+    reply = await post(
+      url,
+      {
+        host: new URL(cfg.holding.origin).host,
+        origin: cfg.holding.origin,
+        accept: "application/json",
+        "cache-control": "no-cache",
+        "x-erpx-delivery-key": deliveryKey,
+      },
+      "",
+      cfg.timeoutMs,
+    );
+  } catch {
+    return unavailableReceipt();
+  }
+  if (reply.status !== 200) {
+    const error = record(reply.value) && record(reply.value.error) ? reply.value.error : undefined;
+    if (reply.status >= 400 && reply.status < 500)
+      throw new ApiError(
+        reply.status,
+        text(error?.code, 100) ? String(error!.code) : "MANAGE_ERPX_NATIVE_EMAIL_RECEIPT_FAILED",
+        text(error?.message, 300) ? String(error!.message) : "The native email receipt read was rejected.",
+      );
+    return unavailableReceipt();
+  }
+  return parseEmailReceipt(reply.value);
+}
+
+/**
  * Multi-Holding transport for the native beta invitations read. The owner
  * executes the company-scoped join and computes `invitation_state`; this bridge
  * only selects the exact registered Holding target, transports the bounded

@@ -11,13 +11,20 @@ mod domain;
 mod http;
 mod postgres;
 
-pub use application::{LegacyPeopleClock, TransitionFuture, TransitionQuery, read_next_transition};
+pub use application::{
+    AuthorityPersonLookup, AuthorityQuery, LegacyPeopleClock, TransitionFuture, TransitionQuery,
+    read_authority_person, read_next_transition,
+};
 pub use domain::{
+    AUTHORITY_READ_KIND, AUTHORITY_ROUTE, AuthorityKind, AuthorityPerson, AuthorityPersonQuery,
     LegacyPeopleTransition, READ_KIND, ROUTE, invalid_company, invalid_observed_at, unavailable,
-    validate_company,
+    validate_authority_query, validate_company,
 };
 pub use http::{LaneTarget, router, router_for_holdings, router_with_reader};
-pub use postgres::{PgLegacyPeopleClock, SQL_LEGACY_PEOPLE_TRANSITION};
+pub use postgres::{
+    PgAuthorityPersonLookup, PgLegacyPeopleClock, SQL_AUTHORITY_ACTOR, SQL_AUTHORITY_APPOINTEE,
+    SQL_LEGACY_PEOPLE_TRANSITION,
+};
 
 #[cfg(test)]
 mod tests {
@@ -67,6 +74,27 @@ mod tests {
         assert_eq!(
             hex,
             "bd064dfed7af1df5efe7abc0ae841cc03c6bd998ea8845416b8d3189c30431b3"
+        );
+    }
+
+    #[test]
+    fn authority_response_payload_matches_the_client_contract() {
+        let body = serde_json::to_string(&serde_json::json!({
+            "kind": AUTHORITY_READ_KIND,
+            "person": {"id": "usr_1"}
+        }))
+        .expect("serialize");
+        assert_eq!(
+            body,
+            r#"{"kind":"people_payroll_lane_7_organization_authority_person","person":{"id":"usr_1"}}"#
+        );
+        let hex = sha2::Sha256::digest(body.as_bytes())
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        assert_eq!(
+            hex,
+            "e8888517d3fb5b2ba2f6b6c3de973ed39168d86f1efa8b80e7b594e30ec1c3b9"
         );
     }
 }

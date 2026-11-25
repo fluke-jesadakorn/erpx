@@ -6,10 +6,13 @@
 //! input and persistence faults fail closed. No fallback read exists in TS.
 
 use crate::adapters::native_lane_11::{
-    application::{load_identity_ids, load_principals},
+    application::{
+        load_directory_config, load_identity_ids, load_principals, load_role, load_role_ids,
+        load_roles,
+    },
     domain::{
-        IdentityIdsRequest, PrincipalsRequest, configuration_invalid, invalid, missing,
-        unavailable, valid_company, valid_slug,
+        DirectoryConfigRequest, IdentityIdsRequest, PrincipalsRequest, RolesRequest,
+        configuration_invalid, invalid, missing, unavailable, valid_company, valid_slug,
     },
     postgres::PgPersonIdentityQuery,
     PersonIdentityQuery,
@@ -73,6 +76,22 @@ fn routes(configured: BTreeMap<(String, String), Arc<dyn PersonIdentityQuery>>) 
         .route(
             "/api/v1/holdings/{holding_slug}/identity-access/person/principals",
             post(principals),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/identity-access/directory/{kind}",
+            post(directory_config),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/identity-access/role/{id}",
+            post(role),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/identity-access/roles",
+            post(roles),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/identity-access/role-ids",
+            post(role_ids),
         )
         .with_state(Arc::new(LaneState {
             targets: configured,
@@ -263,12 +282,150 @@ async fn principals(
     }
 }
 
+async fn directory_config(
+    State(state): State<Arc<LaneState>>,
+    Path((slug, kind)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let result = async {
+        let (host, company) = {
+            let headers = request.headers();
+            let host = unique_header(headers, header::HOST)?
+                .filter(|host| !host.is_empty())
+                .ok_or_else(missing)?
+                .to_owned();
+            let company = unique_header(headers, CONTEXT_COMPANY)?
+                .filter(|value| valid_company(value))
+                .ok_or_else(invalid)?
+                .to_owned();
+            (host, company)
+        };
+        let reader = state
+            .targets
+            .get(&(host, slug))
+            .ok_or_else(missing)?
+            .clone();
+        let body: DirectoryConfigRequest = parse_body(request).await?;
+        let result = load_directory_config(reader.as_ref(), &company, &kind, body.can_manage).await?;
+        serde_json::to_value(result).map_err(|_| unavailable())
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn role(
+    State(state): State<Arc<LaneState>>,
+    Path((slug, id)): Path<(String, String)>,
+    headers: HeaderMap,
+) -> Response {
+    let result = async {
+        let (host, company) = {
+            let host = unique_header(&headers, header::HOST)?
+                .filter(|host| !host.is_empty())
+                .ok_or_else(missing)?
+                .to_owned();
+            let company = unique_header(&headers, CONTEXT_COMPANY)?
+                .filter(|value| valid_company(value))
+                .ok_or_else(invalid)?
+                .to_owned();
+            (host, company)
+        };
+        let reader = state
+            .targets
+            .get(&(host, slug))
+            .ok_or_else(missing)?
+            .clone();
+        if !valid_id(&id) {
+            return Err(invalid());
+        }
+        let result = load_role(reader.as_ref(), &company, &id).await?;
+        serde_json::to_value(result).map_err(|_| unavailable())
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn roles(
+    State(state): State<Arc<LaneState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async {
+        let (host, company) = {
+            let headers = request.headers();
+            let host = unique_header(headers, header::HOST)?
+                .filter(|host| !host.is_empty())
+                .ok_or_else(missing)?
+                .to_owned();
+            let company = unique_header(headers, CONTEXT_COMPANY)?
+                .filter(|value| valid_company(value))
+                .ok_or_else(invalid)?
+                .to_owned();
+            (host, company)
+        };
+        let reader = state
+            .targets
+            .get(&(host, slug))
+            .ok_or_else(missing)?
+            .clone();
+        let body: RolesRequest = parse_body(request).await?;
+        if body.ids.iter().any(|id| !valid_id(id)) {
+            return Err(invalid());
+        }
+        let result = load_roles(reader.as_ref(), &company, &body.ids).await?;
+        serde_json::to_value(result).map_err(|_| unavailable())
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn role_ids(
+    State(state): State<Arc<LaneState>>,
+    Path(slug): Path<String>,
+    headers: HeaderMap,
+) -> Response {
+    let result = async {
+        let (host, company) = {
+            let host = unique_header(&headers, header::HOST)?
+                .filter(|host| !host.is_empty())
+                .ok_or_else(missing)?
+                .to_owned();
+            let company = unique_header(&headers, CONTEXT_COMPANY)?
+                .filter(|value| valid_company(value))
+                .ok_or_else(invalid)?
+                .to_owned();
+            (host, company)
+        };
+        let reader = state
+            .targets
+            .get(&(host, slug))
+            .ok_or_else(missing)?
+            .clone();
+        let result = load_role_ids(reader.as_ref(), &company).await?;
+        serde_json::to_value(result).map_err(|_| unavailable())
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::adapters::native_lane_11::{
         application::PersonIdentityFuture,
-        domain::{SuccessorRow, unavailable},
+        domain::{RoleRevision, SuccessorRow, unavailable},
     };
     use std::sync::Mutex;
 
@@ -319,6 +476,63 @@ mod tests {
                 }])
             })
         }
+
+        fn directory_rows<'a>(
+            &'a self,
+            company: &'a str,
+            kind: &'a str,
+            can_manage: bool,
+        ) -> PersonIdentityFuture<'a, Vec<serde_json::Value>> {
+            let captured = self.captured.clone();
+            let company = company.to_owned();
+            let kind = kind.to_owned();
+            Box::pin(async move {
+                let mut guard = captured.lock().unwrap();
+                guard.company.push(company);
+                guard.ids.push(None);
+                let projection = if can_manage { "full" } else { "restricted" };
+                Ok(vec![serde_json::json!({
+                    "id": format!("{kind}-{projection}"),
+                    "name": "Directory",
+                })])
+            })
+        }
+
+        fn role_one<'a>(
+            &'a self,
+            _company: &'a str,
+            id: &'a str,
+        ) -> PersonIdentityFuture<'a, Option<RoleRevision>> {
+            let role = probe_role(id);
+            Box::pin(async move { Ok(role) })
+        }
+
+        fn role_list<'a>(
+            &'a self,
+            _company: &'a str,
+            ids: &'a [String],
+        ) -> PersonIdentityFuture<'a, Vec<RoleRevision>> {
+            let roles = ids.iter().filter_map(|id| probe_role(id)).collect();
+            Box::pin(async move { Ok(roles) })
+        }
+
+        fn role_ids<'a>(&'a self, _company: &'a str) -> PersonIdentityFuture<'a, Vec<String>> {
+            Box::pin(async { Ok(vec!["employee".into()]) })
+        }
+    }
+
+    fn probe_role(id: &str) -> Option<RoleRevision> {
+        (id == "employee").then(|| RoleRevision {
+            id: id.to_owned(),
+            name: "Employee".into(),
+            company_id: "acme:co".into(),
+            revision: 2,
+            built_in: true,
+            permissions: vec!["iam.read".into()],
+            grantable_permissions: vec![],
+            scopes: vec!["holding".into()],
+            status: "active".into(),
+        })
     }
 
     struct Failing;
@@ -337,6 +551,35 @@ mod tests {
             _company: &'a str,
             _ids: Option<&'a [String]>,
         ) -> PersonIdentityFuture<'a, Vec<SuccessorRow>> {
+            Box::pin(async { Err(unavailable()) })
+        }
+
+        fn directory_rows<'a>(
+            &'a self,
+            _company: &'a str,
+            _kind: &'a str,
+            _can_manage: bool,
+        ) -> PersonIdentityFuture<'a, Vec<serde_json::Value>> {
+            Box::pin(async { Err(unavailable()) })
+        }
+
+        fn role_one<'a>(
+            &'a self,
+            _company: &'a str,
+            _id: &'a str,
+        ) -> PersonIdentityFuture<'a, Option<RoleRevision>> {
+            Box::pin(async { Err(unavailable()) })
+        }
+
+        fn role_list<'a>(
+            &'a self,
+            _company: &'a str,
+            _ids: &'a [String],
+        ) -> PersonIdentityFuture<'a, Vec<RoleRevision>> {
+            Box::pin(async { Err(unavailable()) })
+        }
+
+        fn role_ids<'a>(&'a self, _company: &'a str) -> PersonIdentityFuture<'a, Vec<String>> {
             Box::pin(async { Err(unavailable()) })
         }
     }
@@ -464,6 +707,77 @@ mod tests {
         let guard = captured.lock().unwrap();
         assert_eq!(guard.ids, vec![Some(vec!["old".to_owned()])]);
         drop(guard);
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn directory_config_returns_owner_rows_and_rejects_unknown_kind() {
+        let captured = Arc::new(Mutex::new(Captured::default()));
+        let (port, server) = serve(Arc::new(Probe {
+            captured: captured.clone(),
+            aliases: vec!["alias".into()],
+        }))
+        .await;
+        let addr: std::net::SocketAddr = format!("127.0.0.1:{port}").parse().unwrap();
+        let post = |kind: &str, payload: &str| {
+            format!(
+                "POST /api/v1/holdings/acme/identity-access/directory/{kind} HTTP/1.1\r\nHost: acme.example.test\r\nx-erpx-context-company: acme:co\r\ncontent-type: application/json\r\ncontent-length: {}\r\nConnection: close\r\n\r\n{payload}",
+                payload.len()
+            )
+        };
+        let body = r#"{"canManage":true}"#;
+        let (status, value) = http(addr, post("connections", body)).await;
+        assert_eq!(status, 200);
+        assert_eq!(
+            value,
+            serde_json::json!({"rows":[{"id":"connections-full","name":"Directory"}]})
+        );
+        let (status, _) = http(addr, post("not-a-kind", body)).await;
+        assert_eq!(status, 422);
+        let guard = captured.lock().unwrap();
+        // The unknown-kind request is rejected before reaching the owner reader.
+        assert_eq!(guard.company, vec!["acme:co".to_owned()]);
+        assert_eq!(guard.ids, vec![None]);
+        drop(guard);
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn role_reads_serve_the_exact_published_projection() {
+        let (port, server) = serve(Arc::new(Probe {
+            captured: Arc::new(Mutex::new(Captured::default())),
+            aliases: vec![],
+        }))
+        .await;
+        let addr: std::net::SocketAddr = format!("127.0.0.1:{port}").parse().unwrap();
+        let post = |path: &str, payload: &str| {
+            format!(
+                "POST /api/v1/holdings/acme/identity-access/{path} HTTP/1.1\r\nHost: acme.example.test\r\nx-erpx-context-company: acme:co\r\ncontent-type: application/json\r\ncontent-length: {}\r\nConnection: close\r\n\r\n{payload}",
+                payload.len()
+            )
+        };
+        let definition = serde_json::json!({
+            "id": "employee",
+            "name": "Employee",
+            "companyId": "acme:co",
+            "revision": 2,
+            "builtIn": true,
+            "permissions": ["iam.read"],
+            "grantablePermissions": [],
+            "scopes": ["holding"],
+            "status": "active",
+        });
+        let (status, value) = http(addr, post("role/employee", "{}")).await;
+        assert_eq!(status, 200);
+        assert_eq!(value, serde_json::json!({"role": definition}));
+        let (status, value) = http(addr, post("roles", r#"{"ids":["employee"]}"#)).await;
+        assert_eq!(status, 200);
+        assert_eq!(value, serde_json::json!({"roles": [definition]}));
+        let (status, value) = http(addr, post("role-ids", "{}")).await;
+        assert_eq!(status, 200);
+        assert_eq!(value, serde_json::json!({"ids": ["employee"]}));
+        let (status, _) = http(addr, post("roles", r#"{"ids":"#)).await;
+        assert_eq!(status, 422);
         server.abort();
     }
 

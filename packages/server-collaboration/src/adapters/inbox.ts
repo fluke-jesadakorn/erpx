@@ -28,7 +28,7 @@ import type { WorkContext } from '@erpx/server-identity_access/public/authorizat
 import type { InboxCategory, InboxEventInput, Candidate, InboxItem } from '@erpx/server-collaboration/domain/inbox';
 import { executeCommand, replayCommand } from '@erpx/server-workflow/public/commands';
 import { visibleNotifications } from '@erpx/server-collaboration/public/staff-notifications';
-import { createInboxApplication, createInboxNoticeApplication, type InboxRepository } from '@erpx/server-collaboration/application/inbox';
+import { createInboxApplication, createInboxNoticeApplication, type InboxFailedScope, type InboxRepository } from '@erpx/server-collaboration/application/inbox';
 import { collaborationInboxSources as owner0 } from '@erpx/server-work_projection/public/collaboration-inbox-sources';
 import { collaborationInboxSources as owner1 } from '@erpx/server-identity_access/public/collaboration-inbox-sources';
 import { collaborationInboxSources as owner2 } from '@erpx/server-organization/public/collaboration-inbox-sources';
@@ -58,7 +58,7 @@ const candidateSql = `SELECT d.id,d.event_id,d.company_id,d.user_id,d.delivered_
   FROM inbox_deliveries d JOIN inbox_events e ON e.id=d.event_id
   WHERE d.company_id=? AND d.user_id=? AND d.archived_at IS NULL`;
 const inboxEventByKeySql = "SELECT id FROM inbox_events WHERE company_id=? AND event_key=?";
-function application(db: SqlDatabase) {
+function application(db: SqlDatabase, failedScope?: InboxFailedScope) {
     const repository: InboxRepository = { async publishEvent(id: string, companyId: string, key: string, sourceType: string, sourceId: string, sourceVersion: number, value: string | null, category: InboxCategory, preview: string, now: number) {
             return await nativeInboxStatements(db, companyId).eventInsert([id, companyId, key, sourceType, sourceId, sourceVersion, value, category, preview, now]);
         }, async publishedEvent(companyId: string, key: string) {
@@ -116,7 +116,9 @@ function application(db: SqlDatabase) {
                 .bind(...types).first<{
                 count: number;
             }>();
-        }, ...owner0(db), ...owner1(db), ...owner2(db), ...owner3(db) };
+        }, ...owner0(db), ...owner1(db), ...owner2(db), ...owner3(db, failedScope
+            ? { holdingId: failedScope.holdingId, holdingSlug: failedScope.holdingSlug }
+            : undefined) };
     return createInboxApplication<SqlStatement>({ repository, commands: { replay: (...args) => inward(() => replayCommand(db, ...args)), commit: (...args) => inward(() => executeCommand(db, ...args)) }, clock: { now: () => Date.now() }, identifiers: { next: () => crypto.randomUUID() }, visibleNotifications: (...args) => inward(() => visibleNotifications(db, ...args)), async candidates(actor, view, category, search, cursor) {
             const native=await nativeFieldInboxCandidates(actor,{all:view==='all',...(category?{category}:{}),search,...(cursor?{before:cursor}:{}),limit:100});
             // Keep the validated native projection outside the SQL adapter, whose JSONB
@@ -169,7 +171,9 @@ export function markStaffNotificationRead(db:SqlDatabase,actor:WorkContext,id:st
     });
 }
 export function drainInboxNotices(db: SqlDatabase) { return exposed(() => application(db).drainInboxNotices()); }
-export function inboxOperationalMetrics(db: SqlDatabase, now = Date.now()) { return exposed(() => application(db).inboxOperationalMetrics(now)); }
+export function inboxOperationalMetrics(db: SqlDatabase, failedScope?: InboxFailedScope, now = Date.now()) {
+    return exposed(() => application(db, failedScope).inboxOperationalMetrics(now, failedScope));
+}
 export function sendNotice(database: TransactionalSqlDatabase, actor: WorkContext, raw: unknown, key: string) { return exposed(() => createInboxNoticeApplication({ execute: (actor, input, key) => database.transaction(db => application(db).sendPreparedNotice(actor, input, key)) }).sendNotice(actor, raw, key)); }
 export { noticeInput } from '@erpx/server-collaboration/domain/inbox';
 export type { InboxCategory, InboxEventInput, InboxItem } from '@erpx/server-collaboration/domain/inbox';

@@ -1,10 +1,11 @@
-//! sqlx execution for lane 10's account invitation reads.
+//! sqlx execution for lane 10's owner-local Control reads.
 //!
-//! These are the three byte-identical successors of the deleted TypeScript
-//! `prepare()` calls in `adapters/account-access.ts`. Only the placeholder
-//! syntax is translated (`?` to `$n`); predicates, bind order and projections
-//! are unchanged. Every statement runs inside one owner transaction and every
-//! persistence fault maps to an explicit 503.
+//! These are the byte-identical successors of the deleted TypeScript
+//! `prepare()` calls in `adapters/account-access.ts` (invitation family) and
+//! `adapters/account-recovery.ts` (Control account-recovery family). Only the
+//! placeholder syntax is translated (`?` to `$n`); predicates, bind order and
+//! projections are unchanged. Every statement runs inside one owner
+//! transaction and every persistence fault maps to an explicit 503.
 
 use crate::adapters::native_lane_10::application::{
     AccountAccessRead, AccountAccessReadFuture,
@@ -23,6 +24,9 @@ pub const SQL_EMAIL_EXISTS: &str = r#"SELECT 1 FROM "user" WHERE lower(email)=lo
 pub const SQL_INVITATION_STATUS: &str =
     "SELECT status FROM account_invitations WHERE id=$1 AND holding_id=$2 AND company_id=$3 AND person_id=$4";
 pub const SQL_INVITATION_BY_TOKEN: &str = "SELECT * FROM account_invitations WHERE token_hash=$1 AND (status='pending' OR (status='accepted' AND accepted_at IS NULL)) AND expires_at>$2";
+pub const SQL_RECOVERY_ACCOUNT_EMAIL: &str = r#"SELECT email FROM "user" WHERE id=$1"#;
+pub const SQL_RECOVERY_LATEST_JOB: &str =
+    "SELECT id FROM account_recovery_delivery_jobs WHERE user_id=$1 ORDER BY created_at DESC,id DESC LIMIT 1";
 
 /// Pre-migration TypeScript statements (`?` placeholders), kept only as the
 /// byte-identical result oracle for the inventory and parity tests.
@@ -30,6 +34,12 @@ pub const TS_ORACLE_SQL: [&str; 3] = [
     r#"SELECT 1 FROM "user" WHERE lower(email)=lower(?)"#,
     "SELECT status FROM account_invitations WHERE id=? AND holding_id=? AND company_id=? AND person_id=?",
     "SELECT * FROM account_invitations WHERE token_hash=? AND (status='pending' OR (status='accepted' AND accepted_at IS NULL)) AND expires_at>?",
+];
+
+/// Pre-migration `account-recovery.ts` statements (`?` placeholders).
+pub const TS_ORACLE_RECOVERY_SQL: [&str; 2] = [
+    r#"SELECT email FROM "user" WHERE id=?"#,
+    "SELECT id FROM account_recovery_delivery_jobs WHERE user_id=? ORDER BY created_at DESC,id DESC LIMIT 1",
 ];
 
 pub struct PgAccountAccessRead {
@@ -154,6 +164,56 @@ impl AccountAccessRead for PgAccountAccessRead {
             .map_err(persistence)
         })
     }
+
+    fn recovery_account_email<'a>(&'a self, user_id: &'a str) -> AccountAccessReadFuture<'a, Option<String>> {
+        let unit = PgUnitOfWork::new(self.control.clone());
+        let user_id = user_id.to_owned();
+        Box::pin(async move {
+            unit.run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                let user_id = user_id.clone();
+                Box::pin(async move {
+                    let row = sqlx::query(SQL_RECOVERY_ACCOUNT_EMAIL)
+                        .bind(user_id.as_str())
+                        .fetch_optional(&mut *connection)
+                        .await
+                        .map_err(|_| unavailable())?;
+                    row.map(|row| {
+                        row.try_get::<String, _>("email")
+                            .map_err(|_| invalid_result())
+                    })
+                    .transpose()
+                    .map_err(PgTransactionError::Business)
+                })
+            })
+            .await
+            .map_err(persistence)
+        })
+    }
+
+    fn recovery_latest_job<'a>(&'a self, user_id: &'a str) -> AccountAccessReadFuture<'a, Option<String>> {
+        let unit = PgUnitOfWork::new(self.control.clone());
+        let user_id = user_id.to_owned();
+        Box::pin(async move {
+            unit.run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                let user_id = user_id.clone();
+                Box::pin(async move {
+                    let row = sqlx::query(SQL_RECOVERY_LATEST_JOB)
+                        .bind(user_id.as_str())
+                        .fetch_optional(&mut *connection)
+                        .await
+                        .map_err(|_| unavailable())?;
+                    row.map(|row| {
+                        row.try_get::<String, _>("id")
+                            .map_err(|_| invalid_result())
+                    })
+                    .transpose()
+                    .map_err(PgTransactionError::Business)
+                })
+            })
+            .await
+            .map_err(persistence)
+        })
+    }
 }
 
 #[cfg(test)]
@@ -187,6 +247,22 @@ mod tests {
         assert_eq!(
             hash(&serde_json::to_string(&TS_ORACLE_SQL).expect("json")),
             "0d36e9c87c85df5a2342fd0e394769dd73101e1731ffeed374b6453e3c6e4f26"
+        );
+    }
+
+    #[test]
+    fn recovery_sql_oracles_are_pinned() {
+        assert_eq!(
+            hash(SQL_RECOVERY_ACCOUNT_EMAIL),
+            "e204c63a41af20c5969d0c1e768c9eea77916159898279eebc68a461090c18f2"
+        );
+        assert_eq!(
+            hash(SQL_RECOVERY_LATEST_JOB),
+            "d0bca3afd6f65d13ef4575172fd90bd843cc9d185252d2313625ce8c496de3c0"
+        );
+        assert_eq!(
+            hash(&serde_json::to_string(&TS_ORACLE_RECOVERY_SQL).expect("json")),
+            "f655ea45635701e13ced50d791f625758de6ef1f63dfc043e2e6c3474245b98f"
         );
     }
 

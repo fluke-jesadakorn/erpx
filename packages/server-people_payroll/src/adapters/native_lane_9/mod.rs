@@ -8,6 +8,7 @@ mod application;
 mod domain;
 pub mod flow_routing;
 mod http;
+pub mod person_route;
 mod postgres;
 
 pub use application::{PersonImageFuture, PersonImageRead};

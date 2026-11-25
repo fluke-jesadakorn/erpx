@@ -118,7 +118,7 @@ describe('manufacturing read-tail r34 r15/r23 head-fold dedupe', () => {
     for (const file of await tsFiles(new URL('../../../packages/server-manufacturing/src/', import.meta.url))) {
       total += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     }
-    expect(total).toBe(48);
+    expect(total).toBe(46);
     expect(total).toBeLessThan(50);
   });
 });

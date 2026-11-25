@@ -125,7 +125,7 @@ describe('POS read-tail r44 catalog aggregate head dedupe', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(161);
+    expect(total).toBe(160);
     expect(total).toBeLessThan(172);
   });
 });

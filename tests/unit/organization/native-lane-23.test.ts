@@ -10,7 +10,11 @@ import {
   configuration,
   holdingFor,
   nativeDirectoryHierarchy,
+  nativeExecutiveEvidence,
+  nativeNodeReferences,
   validateDirectoryHierarchy,
+  validateExecutiveEvidence,
+  validateNodeReferences,
   type DirectoryHierarchy,
 } from '../../../packages/server-organization/src/adapters/native-lane-23/client';
 
@@ -265,5 +269,194 @@ describe('native lane 23 — organization directory hierarchy', () => {
     expect((request.headers as Headers).get('host')).toBe('erpx-internal.jesadakorn.com');
     expect((request.headers as Headers).get('x-erpx-context-company')).toBe('erpx-company');
     expect((request.headers as Headers).get('cookie')).toBe('session=x');
+  });
+});
+
+describe('native lane 23 — organization node references', () => {
+  const REF_SQL = {
+    audience: "SELECT id,kind,branch_id FROM organization_nodes WHERE id=? AND company_id=? AND status='active'",
+    units: 'SELECT id,display_name AS name,kind,branch_id AS "branchId" FROM organization_nodes\n    WHERE company_id=? AND status=\'active\' AND kind IN (\'branch\',\'department\') ORDER BY display_name,id',
+    attachment: "SELECT company_id,CASE WHEN kind='branch' THEN id ELSE branch_id END branch_id,NULL::text department_id,hierarchy_revision AS version,kind\n      FROM organization_nodes WHERE id=? AND company_id=? AND kind IN ('company','headquarters','branch','department')",
+  };
+
+  const REF_PAYLOAD = {
+    data: {
+      node: { id: 'node-1', kind: 'branch', branch_id: 'node-1' },
+      units: [{ id: 'node-1', name: 'Branch', kind: 'branch', branchId: null }],
+      attachment: {
+        company_id: 'company-1',
+        branch_id: 'node-1',
+        department_id: null,
+        version: 3,
+        kind: 'branch',
+      },
+    },
+  };
+
+  it('retired all three node-reference literals and kept only the client', () => {
+    for (const [name, file] of [
+      ['audience', 'collaboration-inbox-sources.ts'],
+      ['units', 'iam-unit-facts.ts'],
+      ['attachment', 'attachments-finance-facts.ts'],
+    ] as const) {
+      const source = readFileSync(resolve(ROOT, 'packages/server-organization/src/adapters', file), 'utf8');
+      expect(source).not.toContain(REF_SQL[name]);
+      expect(source).toContain('nativeNodeReferences');
+    }
+  });
+
+  it('pins the retired node-reference SQL oracles', () => {
+    expect(sha(REF_SQL.audience)).toBe('f735e1687f8991d098fb440a9b42ac848db5e518ba2d55897bffc2b07c814f09');
+    expect(sha(REF_SQL.units)).toBe('4487d2a30b78b49145077dc6003ffbbd729d64b0f72dbc66238724cfb903f336');
+    expect(sha(REF_SQL.attachment)).toBe('1a550056dc4a644104b5b7fadcdfd2581362ad20ae24a30bfad8a7914021e7c3');
+  });
+
+  it('strictly projects the native node-reference payload', () => {
+    const facts = validateNodeReferences(REF_PAYLOAD);
+    expect(facts.node?.id).toBe('node-1');
+    expect(facts.units[0]!.branchId).toBeNull();
+    expect(facts.attachment?.version).toBe(3);
+  });
+
+  it.each([
+    ['bad unit camelCase', { data: { ...REF_PAYLOAD.data, units: [{ ...REF_PAYLOAD.data.units[0], branch_id: null }] } }],
+    ['duplicate unit ids', { data: { ...REF_PAYLOAD.data, units: [REF_PAYLOAD.data.units[0], REF_PAYLOAD.data.units[0]] } }],
+    ['bad attachment version', { data: { ...REF_PAYLOAD.data, attachment: { ...REF_PAYLOAD.data.attachment, version: 0 } } }],
+    ['missing attachment field', { data: { ...REF_PAYLOAD.data, attachment: { company_id: 'c1' } } }],
+    ['unknown field', { data: { ...REF_PAYLOAD.data, extra: true } }],
+  ])('fails closed on %s', (_label, payload) => {
+    expect(() => validateNodeReferences(payload)).toThrowError(ApiError);
+    try {
+      validateNodeReferences(payload);
+    } catch (error) {
+      expect(error).toMatchObject({ status: 503, code: 'ORGANIZATION_DIRECTORY_HIERARCHY_INVALID' });
+    }
+  });
+
+  it('fails closed on an invalid reference scope with no TS fallback', async () => {
+    process.env.ERPX_NATIVE_ORGANIZATION_CONFIG = NATIVE_CONFIG;
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(
+      nativeNodeReferences(
+        { holdingId: 'h001', holdingSlug: 'acme' },
+        { companyId: 'bad id', nodeId: 'node-1' },
+      ),
+    ).rejects.toMatchObject({ status: 503, code: 'ORGANIZATION_DIRECTORY_HIERARCHY_INVALID' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('routes the reference read to the selected Holding with bounded query', async () => {
+    process.env.ERPX_NATIVE_ORGANIZATION_CONFIG = NATIVE_CONFIG;
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => REF_PAYLOAD });
+    vi.stubGlobal('fetch', fetchMock);
+    const facts = await nativeNodeReferences(
+      { holdingId: 'h002', holdingSlug: 'northstar' },
+      { companyId: 'company-1', nodeId: 'node-1' },
+    );
+    expect(facts).toEqual(validateNodeReferences(REF_PAYLOAD));
+    const url = String(fetchMock.mock.calls[0]![0]);
+    expect(url).toContain('/api/v1/holdings/northstar/organization/node-references?companyId=company-1&nodeId=node-1');
+    const request = fetchMock.mock.calls[0]![1] as RequestInit;
+    expect((request.headers as Headers).get('host')).toBe('northstar.jesadakorn.com');
+  });
+});
+
+describe('native lane 23 — organization executive evidence', () => {
+  const EVIDENCE_SQL = {
+    connection:
+      `SELECT n.id,n.kind,n.display_name,n.branch_id,b.display_name branch_name
+    FROM organization_nodes n LEFT JOIN organization_nodes b ON b.id=n.branch_id AND b.company_id=n.company_id AND b.status='active'
+    WHERE n.company_id=? AND n.status='active' AND n.kind IN ('company','branch','department')
+      AND (n.branch_id IS NULL OR b.id IS NOT NULL)
+      AND (?::text IS NULL OR n.id=? OR n.branch_id=?)
+      AND (?::text IS NULL OR n.id=?) ORDER BY n.kind,n.display_name,n.id`,
+    contextNodes:
+      `SELECT id,kind,display_name,parent_id,branch_id FROM organization_nodes WHERE company_id=? AND status='active' AND (kind='company' OR ((?::text IS NULL OR id=? OR branch_id=?) AND (?::text IS NULL OR id=? OR (kind='branch' AND id=(SELECT branch_id FROM organization_nodes WHERE id=? AND company_id=?))))) ORDER BY kind,display_name,id LIMIT 501`,
+    contextPositions:
+      `SELECT p.id,p.title,p.branch_id,p.department_id,p.level_id,p.reports_to_position_id,l.level_number FROM organization_positions p JOIN staff_levels l ON l.id=p.level_id AND l.company_id=p.company_id WHERE p.company_id=? AND p.active=1 AND l.active=1 AND (?::text IS NULL OR p.branch_id=? OR p.branch_id IS NULL) AND (?::text IS NULL OR p.department_id=? OR p.department_id IS NULL) ORDER BY l.level_number,p.title,p.id LIMIT 501`,
+    nodeEvidence:
+      `SELECT n.id,n.kind,n.slug,n.display_name,n.status,n.hierarchy_revision,p.display_name parent_name,
+  b.display_name branch_name FROM organization_nodes n
+  LEFT JOIN organization_nodes p ON p.id=n.parent_id AND p.company_id=n.company_id
+  LEFT JOIN organization_nodes b ON b.id=CASE WHEN n.kind='branch' THEN n.id ELSE n.branch_id END AND b.company_id=n.company_id
+  WHERE n.company_id=? AND n.kind IN ('branch','department') AND n.status='active'
+    AND (?::text IS NULL OR n.id=? OR n.branch_id=?) AND (?::text IS NULL OR n.id=?)`,
+    pending:
+      `SELECT c.id,c.action,c.node_kind,c.display_name,c.state,c.version,c.created_at,c.updated_at,
+  COALESCE(b.display_name,'Company-wide') branch_name FROM organization_node_changes c
+  LEFT JOIN organization_nodes b ON b.id=c.branch_id AND b.company_id=c.company_id
+  WHERE c.company_id=? AND c.state='submitted' AND (?::text IS NULL OR c.branch_id=?)`,
+  };
+  const EVIDENCE_FILES = [
+    ['connection', 'executive-connection-facts.ts'],
+    ['contextNodes', 'executive-context-sources.ts'],
+    ['contextPositions', 'executive-context-sources.ts'],
+    ['nodeEvidence', 'executive-main-evidence-sources.ts'],
+    ['pending', 'executive-main-evidence-sources.ts'],
+  ] as const;
+
+  const EVIDENCE_PAYLOAD = { data: { rows: [{ id: 'node-1', kind: 'branch', display_name: 'Branch' }] } };
+
+  it('retired every executive evidence SQL literal and kept only the client', () => {
+    const sources = new Map<string, string>();
+    for (const file of new Set(EVIDENCE_FILES.map(([, name]) => name))) {
+      sources.set(file, readFileSync(resolve(ROOT, 'packages/server-organization/src/adapters', file), 'utf8'));
+    }
+    for (const [key, file] of EVIDENCE_FILES) {
+      expect(sources.get(file)).not.toContain(EVIDENCE_SQL[key]);
+      expect(sources.get(file)).toContain('nativeExecutiveEvidence');
+    }
+  });
+
+  it('pins the retired executive evidence SQL oracles', () => {
+    expect(sha(EVIDENCE_SQL.connection)).toBe('270124c0154df0b1f42c8a76baa46168719ff009c88362a3ea46ed875af54f4a');
+    expect(sha(EVIDENCE_SQL.contextNodes)).toBe('217fcab9daf0f888e232b67e858e8536754a0e5a839b0a21664e969494dd6170');
+    expect(sha(EVIDENCE_SQL.contextPositions)).toBe('13d40c34f8423ea329375fac2892fc96d31f56b7687a4416100393ba5979ff49');
+    expect(sha(EVIDENCE_SQL.nodeEvidence)).toBe('1f2cc5c5dff8a615f55fdfd0d0334c75006d0e69f856f56ec9e121f1c5ae4f0b');
+    expect(sha(EVIDENCE_SQL.pending)).toBe('00ac378a2a99356eb5a98f4b6ff6ad020baa19dc2c9e04fab09f1b0d189664f5');
+  });
+
+  it('strictly projects the native evidence payload', () => {
+    expect(validateExecutiveEvidence(EVIDENCE_PAYLOAD).rows).toHaveLength(1);
+    expect(() => validateExecutiveEvidence({ data: { rows: [{}] } })).toThrowError(ApiError);
+    expect(() => validateExecutiveEvidence({ data: { rows: [], extra: true } })).toThrowError(ApiError);
+  });
+
+  it('fails closed on an invalid evidence request with no TS fallback', async () => {
+    process.env.ERPX_NATIVE_ORGANIZATION_CONFIG = NATIVE_CONFIG;
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(
+      nativeExecutiveEvidence({ holdingId: 'h001', holdingSlug: 'acme' }, {
+        kind: 'node-evidence', companyId: 'company-1', limit: 501,
+      }),
+    ).rejects.toMatchObject({ status: 503, code: 'ORGANIZATION_DIRECTORY_HIERARCHY_INVALID' });
+    await expect(
+      nativeExecutiveEvidence({ holdingId: 'h001', holdingSlug: 'acme' }, {
+        kind: 'unsupported' as 'node-evidence', companyId: 'company-1',
+      }),
+    ).rejects.toMatchObject({ status: 503, code: 'ORGANIZATION_DIRECTORY_HIERARCHY_INVALID' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('posts a bounded evidence body to the selected Holding', async () => {
+    process.env.ERPX_NATIVE_ORGANIZATION_CONFIG = NATIVE_CONFIG;
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => EVIDENCE_PAYLOAD });
+    vi.stubGlobal('fetch', fetchMock);
+    const facts = await nativeExecutiveEvidence(
+      { holdingId: 'h002', holdingSlug: 'northstar' },
+      { kind: 'node-evidence', companyId: 'company-1', values: [null, 'node-1'], nodeId: 'node-2' },
+    );
+    expect(facts.rows[0]!.id).toBe('node-1');
+    const url = String(fetchMock.mock.calls[0]![0]);
+    expect(url).toContain('/api/v1/holdings/northstar/organization/executive-evidence');
+    const init = fetchMock.mock.calls[0]![1] as RequestInit;
+    expect(init.method).toBe('POST');
+    expect((init.headers as Headers).get('content-type')).toBe('application/json');
+    expect(JSON.parse(String(init.body))).toEqual({
+      kind: 'node-evidence', companyId: 'company-1', values: [null, 'node-1'], nodeId: 'node-2',
+    });
+    expect((init.headers as Headers).get('host')).toBe('northstar.jesadakorn.com');
   });
 });

@@ -12,7 +12,7 @@ import { requestPublicOrigin } from '@erpx/server-manage_erpx/public/public-orig
 import { configuredProductOrigin } from "@erpx/feature-runtime/lib/product-hosts";
 import { legacyConsoleRetired } from "@erpx/feature-runtime/lib/console-retirement";
 import { createCurrentPushSessionCleanup, createWebPushApplication, type WebPushRepository } from '@erpx/server-collaboration/application/web-push';
-import { countIntNFrom } from './read-tail-sql';
+import { pushEndpointOwner, pushPreferences, pushSessionSubscriptionCount } from './native-lane-16/client';
 import { nativeOwnerWriteSystem, nativeOwnerWriteSystemUnscoped } from '@erpx/server-collaboration/adapters/native-owner-write';
 import { pushOriginAllowed, b64, validatePushSubscription as validateSubscription, type PushConfig, Subscription, Preference, StoredSubscription, DeliveryJob, Send } from '@erpx/server-collaboration/domain/web-push';
 async function exposed<T>(action: () => Promise<T>) {
@@ -79,7 +79,7 @@ export function validatePushSubscription(raw: unknown) {
         throw error;
     }
 }
-function application(db: SqlDatabase, control?: SqlDatabase, contextCompanyId = 'owner-system') {
+function application(db: SqlDatabase, control?: SqlDatabase, contextCompanyId = 'owner-system', actor?: WorkContext) {
     // Every write is owned by the native axum service; no TS SQL literal remains.
     const write = (companyId: string, kind: string, values: unknown[], key: string, now = Date.now()) =>
         companyId === 'owner-system'
@@ -89,13 +89,13 @@ function application(db: SqlDatabase, control?: SqlDatabase, contextCompanyId = 
         write(contextCompanyId, kind, values, key, now);
     const repository: WebPushRepository = {
         async preferences(companyId: string, userId: string) {
-            return db.prepare("SELECT * FROM push_preferences WHERE company_id=? AND user_id=?").bind(companyId, userId).first<Preference>();
+            return pushPreferences(db, companyId, userId, actor) as Promise<Preference | null>;
         },
         async sessionSubscriptionCount(companyId: string, userId: string, value: unknown) {
-            return db.prepare(countIntNFrom('push_subscriptions WHERE company_id=? AND user_id=? AND session_id=?')).bind(companyId, userId, value).first<{ n: number; }>();
+            return pushSessionSubscriptionCount(db, companyId, userId, String(value), actor);
         },
         async endpointOwner(companyId: string, endpointHash: unknown) {
-            return db.prepare("SELECT id,user_id,session_id FROM push_subscriptions WHERE company_id=? AND endpoint_hash=?").bind(companyId, endpointHash).first<{ id: string; user_id: string; session_id: string; }>();
+            return pushEndpointOwner(db, companyId, String(endpointHash), actor);
         },
         async removePreviousJobs(id: string) { return (await scoped('push_jobs_remove', [id], `push-jobs:${id}`)).run(); },
         async removePreviousSubscription(id: string) { return (await scoped('push_subscription_remove', [id], `push-sub:${id}`)).run(); },
@@ -164,10 +164,10 @@ function application(db: SqlDatabase, control?: SqlDatabase, contextCompanyId = 
     };
     return createWebPushApplication({ repository, clock: { now: () => Date.now() }, identifiers: { next: () => crypto.randomUUID() }, configuration: pushConfig, allowedOrigin: allowedPushOrigin, validate: validateSubscription, hashEndpoint, seal, open, currentSession: (s, now) => currentPushSession(control!, db, s, now), send: sendWebPush });
 }
-export function pushSettings(db: SqlDatabase, actor: WorkContext) { return exposed(() => application(db, undefined, actor.companyId).pushSettings(actor)); }
-export function registerPush(db: SqlDatabase, actor: WorkContext, origin: string, inboxPath: string, raw: unknown) { return exposed(() => application(db, undefined, actor.companyId).registerPush(actor, origin, inboxPath, raw)); }
-export function savePushPreferences(db: SqlDatabase, actor: WorkContext, raw: unknown) { return exposed(() => application(db, undefined, actor.companyId).savePushPreferences(actor, raw)); }
-export function removePushDevice(db: SqlDatabase, actor: WorkContext, endpoint?: string) { return exposed(() => application(db, undefined, actor.companyId).removePushDevice(actor, endpoint)); }
+export function pushSettings(db: SqlDatabase, actor: WorkContext) { return exposed(() => application(db, undefined, actor.companyId, actor).pushSettings(actor)); }
+export function registerPush(db: SqlDatabase, actor: WorkContext, origin: string, inboxPath: string, raw: unknown) { return exposed(() => application(db, undefined, actor.companyId, actor).registerPush(actor, origin, inboxPath, raw)); }
+export function savePushPreferences(db: SqlDatabase, actor: WorkContext, raw: unknown) { return exposed(() => application(db, undefined, actor.companyId, actor).savePushPreferences(actor, raw)); }
+export function removePushDevice(db: SqlDatabase, actor: WorkContext, endpoint?: string) { return exposed(() => application(db, undefined, actor.companyId, actor).removePushDevice(actor, endpoint)); }
 export function removePushSession(db: SqlDatabase, userId: string, sid: string) { return exposed(() => application(db, undefined, 'owner-system').removePushSession(userId, sid)); }
 export function removeCurrentPushSession(request: Request, holdingSlug: string) {
     return exposed(() => createCurrentPushSessionCleanup({

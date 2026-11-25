@@ -5,11 +5,12 @@
 //! pinned owner types happens here; no predicate or bind order is rewritten.
 
 use crate::adapters::native_lane_34::application::{
-    BetaFeedbackQuery, BetaInvitationQuery, FeedbackFuture, InvitationFuture,
+    BetaFeedbackQuery, BetaInvitationQuery, EmailReceiptFuture, EmailReceiptQuery, FeedbackFuture,
+    InvitationFuture,
 };
 use crate::adapters::native_lane_34::domain::{
-    FEEDBACK_SQL, FeedbackItem, FeedbackPage, INVITATIONS_SQL, InvitationItem, InvitationPage,
-    unavailable,
+    EMAIL_RECEIPT_SQL, FEEDBACK_SQL, EmailReceipt, FeedbackItem, FeedbackPage, INVITATIONS_SQL,
+    InvitationItem, InvitationPage, unavailable,
 };
 use erpx_server_runtime::public::postgres::{
     DatabasePool, PgTransactionError, PgUnitOfWork, TransactionOptions,
@@ -122,6 +123,66 @@ impl BetaInvitationQuery for PgBetaInvitationQuery {
                         })
                         .collect::<Result<Vec<_>, BusinessError>>()?;
                     Ok(InvitationPage { items })
+                })
+            })
+            .await
+            .map_err(|error| match error {
+                PgTransactionError::Business(error) => error,
+                PgTransactionError::Persistence(_) => unavailable(),
+            })
+        })
+    }
+}
+
+/// Postgres-backed sandbox email receipt reader. `sandbox_email_deliveries` is
+/// manage_erpx-owned; `delivery_key` is the only bind and the projection stays
+/// byte-identical to the retired TypeScript literal.
+pub struct PgEmailReceiptQuery {
+    pool: DatabasePool,
+}
+
+impl PgEmailReceiptQuery {
+    pub fn new(pool: DatabasePool) -> Self {
+        Self { pool }
+    }
+}
+
+impl EmailReceiptQuery for PgEmailReceiptQuery {
+    fn receipt<'a>(&'a self, delivery_key: &'a str) -> EmailReceiptFuture<'a> {
+        let unit = PgUnitOfWork::new(self.pool.clone());
+        let delivery_key = delivery_key.to_owned();
+        Box::pin(async move {
+            unit.run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                let delivery_key = delivery_key.clone();
+                Box::pin(async move {
+                    let row = sqlx::query(EMAIL_RECEIPT_SQL)
+                        .bind(delivery_key.as_str())
+                        .fetch_optional(&mut *connection)
+                        .await
+                        .map_err(|_| unavailable())?;
+                    let Some(row) = row else {
+                        return Ok(None);
+                    };
+                    Ok(Some(EmailReceipt {
+                        delivery_key: row
+                            .try_get::<String, _>("delivery_key")
+                            .map_err(|_| unavailable())?,
+                        recipient: row
+                            .try_get::<String, _>("recipient")
+                            .map_err(|_| unavailable())?,
+                        subject: row
+                            .try_get::<String, _>("subject")
+                            .map_err(|_| unavailable())?,
+                        body_text: row
+                            .try_get::<String, _>("body_text")
+                            .map_err(|_| unavailable())?,
+                        body_ciphertext: row
+                            .try_get::<Option<String>, _>("body_ciphertext")
+                            .map_err(|_| unavailable())?,
+                        provider_id: row
+                            .try_get::<String, _>("provider_id")
+                            .map_err(|_| unavailable())?,
+                    }))
                 })
             })
             .await

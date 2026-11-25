@@ -3,14 +3,19 @@ import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  NATIVE_EMAIL_RECEIPT_ENV,
   NATIVE_FEEDBACK_ENV,
   NATIVE_INVITATIONS_ENV,
+  emailReceiptConfig,
   feedbackConfig,
   invitationsConfig,
   nativeBetaFeedback,
   nativeBetaInvitations,
+  nativeEmailDeliveryReceipt,
+  parseEmailReceipt,
   parseFeedbackResponse,
   parseInvitationsResponse,
+  validEmailReceiptKey,
   validFeedbackCompany,
   type FeedbackPost,
 } from "../../../packages/server-manage_erpx/src/adapters/native-lane-34/client";
@@ -193,7 +198,7 @@ describe("native manage_erpx lane 34 beta feedback read", () => {
     expect(client).not.toContain("SELECT ");
   });
 
-  it("pins the owner TypeScript SELECT KPI at 17 (before 18)", () => {
+  it("pins the owner TypeScript SELECT KPI at 16 (before 17)", () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -203,7 +208,7 @@ describe("native manage_erpx lane 34 beta feedback read", () => {
       }
     };
     walk(resolve(root, "packages/server-manage_erpx/src"));
-    expect(total).toBe(17);
+    expect(total).toBe(16);
   });
 });
 
@@ -286,5 +291,134 @@ describe("native manage_erpx lane 34 multi-holding invitations read", () => {
       .rejects.toMatchObject({ status: 503, code: "MANAGE_ERPX_NATIVE_INVITATIONS_RESPONSE_INVALID" });
     await expect(nativeBetaInvitations("bad/id?", "acme", post(INV_BODY).fn))
       .rejects.toMatchObject({ status: 422, code: "MANAGE_ERPX_NATIVE_INVITATIONS_REQUEST_INVALID" });
+  });
+});
+
+const EMAIL_SQL = "SELECT delivery_key,recipient,subject,body_text,body_ciphertext,provider_id FROM sandbox_email_deliveries WHERE delivery_key=?";
+const EMAIL_SQL_HASH = createHash("sha256").update(EMAIL_SQL).digest("hex");
+const RECEIPT_ROW = {
+  delivery_key: "portal:key",
+  recipient: "to@example.test",
+  subject: "S",
+  body_text: "body",
+  body_ciphertext: null,
+  provider_id: "sandbox-key-1",
+};
+const RECEIPT_BODY = { receipt: RECEIPT_ROW };
+const emailConfig = (extra: Record<string, unknown> = {}) => JSON.stringify({
+  privateBaseUrl: "http://127.0.0.1:3301",
+  timeoutMs: 1000,
+  holdings: [{ origin: "https://acme.example.test", holdingSlug: "acme" }],
+  ...extra,
+});
+const savedReceipt = process.env[NATIVE_EMAIL_RECEIPT_ENV];
+
+describe("native manage_erpx lane 34 sandbox email receipt read", () => {
+  afterEach(() => {
+    if (savedReceipt === undefined) delete process.env[NATIVE_EMAIL_RECEIPT_ENV];
+    else process.env[NATIVE_EMAIL_RECEIPT_ENV] = savedReceipt;
+  });
+
+  it("pins the owner SQL oracle and the single-bind statement", () => {
+    expect(hash(EMAIL_SQL)).toBe(EMAIL_SQL_HASH);
+    expect(EMAIL_SQL).toMatch(/^SELECT /);
+    expect(EMAIL_SQL.match(/\?/g)).toHaveLength(1);
+    expect(EMAIL_SQL).toContain("body_ciphertext,provider_id FROM sandbox_email_deliveries WHERE delivery_key=?");
+    expect(EMAIL_SQL).not.toMatch(/FOR UPDATE|LOCK |;|INSERT |UPDATE |DELETE /);
+  });
+
+  it("accepts only closed loopback/front-origin configuration and fails closed otherwise", () => {
+    expect(emailReceiptConfig(emailConfig())).toEqual({
+      base: "http://127.0.0.1:3301",
+      timeoutMs: 1000,
+      holding: { origin: "https://acme.example.test", holdingSlug: "acme" },
+    });
+    const rejects = (raw: string | undefined, code: string) => {
+      try {
+        emailReceiptConfig(raw);
+      } catch (error) {
+        expect(error).toMatchObject({ status: 503, code });
+        return;
+      }
+      throw new Error(`expected rejection: ${code}`);
+    };
+    rejects(undefined, "MANAGE_ERPX_NATIVE_EMAIL_RECEIPT_UNAVAILABLE");
+    rejects("{", "MANAGE_ERPX_NATIVE_EMAIL_RECEIPT_CONFIG_INVALID");
+    rejects(emailConfig({ privateBaseUrl: "http://10.0.0.8:3301" }), "MANAGE_ERPX_NATIVE_EMAIL_RECEIPT_CONFIG_INVALID");
+    rejects(emailConfig({ privateBaseUrl: "http://127.0.0.1:3100" }), "MANAGE_ERPX_NATIVE_EMAIL_RECEIPT_CONFIG_INVALID");
+    rejects(emailConfig({ timeoutMs: 249 }), "MANAGE_ERPX_NATIVE_EMAIL_RECEIPT_CONFIG_INVALID");
+    rejects(emailConfig({ holdings: [] }), "MANAGE_ERPX_NATIVE_EMAIL_RECEIPT_CONFIG_INVALID");
+    rejects(emailConfig({ holdings: [{ origin: "http://acme.example.test", holdingSlug: "acme" }] }), "MANAGE_ERPX_NATIVE_EMAIL_RECEIPT_CONFIG_INVALID");
+  });
+
+  it("validates the exact receipt shape and fails closed on any deviation", () => {
+    expect(parseEmailReceipt(RECEIPT_BODY)).toEqual(RECEIPT_ROW);
+    expect(parseEmailReceipt({ receipt: null })).toBeNull();
+    expect(validEmailReceiptKey("portal:key-1")).toBe(true);
+    expect(validEmailReceiptKey("bad/key?")).toBe(false);
+    for (const value of [
+      {},
+      { receipt: "wrong" },
+      { receipt: { ...RECEIPT_ROW, extra: 1 } },
+      { receipt: { ...RECEIPT_ROW, delivery_key: "" } },
+      { receipt: { ...RECEIPT_ROW, recipient: "" } },
+      { receipt: { ...RECEIPT_ROW, body_ciphertext: "plaintext" } },
+      { receipt: { ...RECEIPT_ROW, body_ciphertext: "v1.abc", provider_id: "bad/id" } },
+      { receipt: { ...RECEIPT_ROW, provider_id: "" } },
+    ]) {
+      try {
+        parseEmailReceipt(value);
+      } catch (error) {
+        expect(error).toMatchObject({ status: 503, code: "MANAGE_ERPX_NATIVE_EMAIL_RECEIPT_RESPONSE_INVALID" });
+        continue;
+      }
+      throw new Error("expected strict receipt rejection");
+    }
+  });
+
+  it("transports the delivery key only and returns the native receipt", async () => {
+    process.env[NATIVE_EMAIL_RECEIPT_ENV] = emailConfig();
+    const { fn, calls } = post(RECEIPT_BODY);
+    await expect(nativeEmailDeliveryReceipt("portal:key", fn)).resolves.toEqual(RECEIPT_ROW);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url).toBe("http://127.0.0.1:3301/api/v1/holdings/acme/manage-erpx/sandbox-email/receipt");
+    expect(calls[0]!.headers).toMatchObject({
+      host: "acme.example.test",
+      origin: "https://acme.example.test",
+      "x-erpx-delivery-key": "portal:key",
+    });
+  });
+
+  it("fails closed without config, on transport failure and on a bad response", async () => {
+    delete process.env[NATIVE_EMAIL_RECEIPT_ENV];
+    await expect(nativeEmailDeliveryReceipt("portal:key", post(RECEIPT_BODY).fn))
+      .rejects.toMatchObject({ status: 503, code: "MANAGE_ERPX_NATIVE_EMAIL_RECEIPT_UNAVAILABLE" });
+    process.env[NATIVE_EMAIL_RECEIPT_ENV] = emailConfig();
+    const boom: FeedbackPost = async () => { throw new Error("offline"); };
+    await expect(nativeEmailDeliveryReceipt("portal:key", boom))
+      .rejects.toMatchObject({ status: 503, code: "MANAGE_ERPX_NATIVE_EMAIL_RECEIPT_UNAVAILABLE" });
+    await expect(nativeEmailDeliveryReceipt("portal:key", post({ receipt: "wrong" }).fn))
+      .rejects.toMatchObject({ status: 503, code: "MANAGE_ERPX_NATIVE_EMAIL_RECEIPT_RESPONSE_INVALID" });
+    await expect(nativeEmailDeliveryReceipt("bad/key?", post(RECEIPT_BODY).fn))
+      .rejects.toMatchObject({ status: 422, code: "MANAGE_ERPX_NATIVE_EMAIL_RECEIPT_REQUEST_INVALID" });
+  });
+
+  it("pins the owner Rust SQL, router and the deleted TypeScript literal", () => {
+    const domain = read("packages/server-manage_erpx/src/adapters/native_lane_34/domain.rs");
+    const postgres = read("packages/server-manage_erpx/src/adapters/native_lane_34/postgres.rs");
+    const http = read("packages/server-manage_erpx/src/adapters/native_lane_34/http.rs");
+    const api = read("packages/server-manage_erpx/src/adapters/beta-email.ts");
+    const client = read("packages/server-manage_erpx/src/adapters/native-lane-34/client.ts");
+    expect(domain).toContain('"SELECT delivery_key,recipient,subject,body_text,body_ciphertext,provider_id "');
+    expect(domain).toContain('"FROM sandbox_email_deliveries WHERE delivery_key=?"');
+    expect(domain).toContain("pub const EMAIL_RECEIPT_SQL: &str = concat!(");
+    expect(postgres).toContain("sqlx::query(EMAIL_RECEIPT_SQL)");
+    expect(postgres).toContain(".bind(delivery_key.as_str())");
+    expect(http).toContain('"/api/v1/holdings/{holding_slug}/manage-erpx/sandbox-email/receipt"');
+    expect(http).toContain('HeaderName::from_static("x-erpx-delivery-key")');
+    expect(api).toContain("const stored = await nativeEmailDeliveryReceipt(deliveryKey);");
+    expect(api).not.toContain(EMAIL_SQL);
+    expect(api).not.toContain("sandbox_email_deliveries WHERE delivery_key=?");
+    expect(client).not.toContain("SELECT ");
   });
 });

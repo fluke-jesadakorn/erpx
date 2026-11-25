@@ -5,9 +5,12 @@ vi.mock('next/headers', () => ({ headers: async () => incomingHeaders.value }));
 
 import {
   nativeCalendar,
+  nativeComparison,
   nativePlanningLane36Configured,
   nativeRecommendations,
   nativeResources,
+  nativeScenario,
+  nativeScopedRecommendation,
 } from '../../../packages/server-planning/src/adapters/native-lane-36/client';
 
 const ENV = 'ERPX_NATIVE_PLANNING_LANE36_CONFIG';
@@ -63,7 +66,21 @@ const calendar = {
   resource_id: 'resource', work_date: '2026-10-04', available_minutes: 60,
   reason: 'Verified shutdown', version: 1, updated_by: 'planner', updated_at: 20,
 };
-const ok = (kind: string, data: unknown[], companyId = 'company-acme', branchId: string | null = 'branch-1') =>
+const scenario = (companyId: string) => ({
+  id: 's1', company_id: companyId, branch_id: 'branch-1', warehouse_id: 'warehouse',
+  specification_id: 'spec', specification_version: 2, demand_quantity_milli: 2000,
+  due_date: '2026-10-04', capacity_minutes: 480, shortages_json: '[]', status: 'calculated',
+  created_by: 'planner', version: 1, created_at: 100, updated_at: 100, context_json: '{}',
+});
+const scopedRecommendation = (companyId: string) => ({
+  ...recommendation, company_id: companyId, branch_id: 'branch-1', warehouse_id: 'warehouse',
+  specification_id: 'spec', specification_version: 2, context_json: '{}',
+  scenario_created_by: 'planner',
+});
+const comparison = (companyId: string) => ({
+  id: 'other', version: 2, shortages_json: '[]', required_minutes: 30, feasible_date: '2026-10-05',
+});
+const ok = (kind: string, data: unknown, companyId = 'company-acme', branchId: string | null = 'branch-1') =>
   new Response(JSON.stringify({ data, kind, companyId, branchId }), {
     status: 200, headers: { 'content-type': 'application/json' },
   });
@@ -192,6 +209,64 @@ describe('native Planning lane-36 scoped read transport', () => {
     process.env[ENV] = config(value => { value.holdings[1].host = value.holdings[0].host; });
     await expect(nativeResources('company-acme', 'branch-1', 'branch-1'))
       .rejects.toMatchObject({ code: 'NATIVE_PLANNING_LANE36_CONFIG_INVALID', status: 503 });
+  });
+
+  it('routes the three row reads from every Holding with closed identity params', async () => {
+    const transport = vi.fn().mockResolvedValue(ok('resources', [resource]));
+    vi.stubGlobal('fetch', transport);
+    for (const [actor, host, slug, company] of [
+      [acme, 'acme.jesadakorn.com', 'acme', 'company-acme'],
+      [northstar, 'northstar.jesadakorn.com', 'northstar', 'company-northstar'],
+      [erpx, 'erpx-internal.jesadakorn.com', 'erpx', 'company-erpx'],
+    ] as const) {
+      incomingHeaders.value = incoming(host);
+      transport.mockResolvedValue(ok('scenario', scenario(company), company));
+      await expect(nativeScenario({ id: 's1' }, company, 'branch-1', actor))
+        .resolves.toEqual(scenario(company));
+      const [url, init] = transport.mock.calls.at(-1) as [URL, RequestInit];
+      expect(url.pathname).toBe(`/api/v1/holdings/${slug}/planning/lane-36/scenario`);
+      expect(url.searchParams.get('id')).toBe('s1');
+      expect(url.searchParams.get('branch')).toBe('branch-1');
+      expect((init.headers as Headers).get('host')).toBe(host);
+      expect((init.headers as Headers).get('x-erpx-context-company')).toBe(company);
+    }
+    incomingHeaders.value = incoming('acme.jesadakorn.com');
+    transport.mockResolvedValue(ok('scoped-recommendation', scopedRecommendation('company-acme')));
+    await expect(nativeScopedRecommendation({ id: 'r1' }, 'company-acme', 'branch-1', acme))
+      .resolves.toEqual(scopedRecommendation('company-acme'));
+    expect((transport.mock.calls.at(-1) as [URL])[0].pathname)
+      .toBe('/api/v1/holdings/acme/planning/lane-36/scoped-recommendation');
+    transport.mockResolvedValue(ok('comparison', comparison('company-acme')));
+    await expect(nativeComparison(
+      { comparisonScenarioId: 'other', specificationId: 'spec' },
+      'company-acme', 'branch-1', acme,
+    )).resolves.toEqual(comparison('company-acme'));
+    const [comparisonUrl] = transport.mock.calls.at(-1) as [URL];
+    expect(comparisonUrl.searchParams.get('comparisonScenarioId')).toBe('other');
+    expect(comparisonUrl.searchParams.get('specificationId')).toBe('spec');
+  });
+
+  it('fails closed on missing identity, malformed rows and accepts a bounded null row', async () => {
+    await expect(nativeScenario({}, 'company-acme', 'branch-1', acme))
+      .rejects.toMatchObject({ code: 'PLANNING_LANE36_QUERY_INVALID', status: 422 });
+    await expect(nativeComparison(
+      { comparisonScenarioId: 'other' }, 'company-acme', 'branch-1', acme,
+    )).rejects.toMatchObject({ code: 'PLANNING_LANE36_QUERY_INVALID', status: 422 });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(ok('scenario', null)));
+    await expect(nativeScenario({ id: 's1' }, 'company-acme', 'branch-1', acme))
+      .resolves.toBeNull();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(ok('scenario', {
+      ...scenario('company-acme'), extra: 1,
+    })));
+    await expect(nativeScenario({ id: 's1' }, 'company-acme', 'branch-1', acme))
+      .rejects.toMatchObject({ code: 'NATIVE_PLANNING_LANE36_RESPONSE_INVALID', status: 502 });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(ok('comparison', {
+      ...comparison('company-acme'), version: '2',
+    })));
+    await expect(nativeComparison(
+      { comparisonScenarioId: 'other', specificationId: 'spec' },
+      'company-acme', 'branch-1', acme,
+    )).rejects.toMatchObject({ code: 'NATIVE_PLANNING_LANE36_RESPONSE_INVALID', status: 502 });
   });
 
   it('surfaces a bounded owner error', async () => {

@@ -69,7 +69,7 @@ describe('work_projection read-tail r32 dedupe', () => {
         .split('\n')
         .filter(Boolean).length,
     );
-    expect(count).toBeLessThanOrEqual(45);
+    expect(count).toBeLessThanOrEqual(40);
     expect(count).toBeLessThan(48);
   });
 });

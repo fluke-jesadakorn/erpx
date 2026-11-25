@@ -46,7 +46,6 @@ describe('Projects read-tail r35 point-read family merge', () => {
       ['read-tail-r27.ts', 'projectMemberExistsSql'],
       ['read-tail-r28.ts', 'assignmentViewerSelect'],
       ['read-tail-r29.ts', 'orderedImageAggregateHead'],
-      ['read-tail-r30.ts', 'visibleProjectRowsHead'],
       ['read-tail-r32.ts', 'projectPurchaseSourceHead'],
       ['read-tail-r33.ts', 'projectPointReadHead'],
       ['read-tail-r34.ts', 'staffTaskPointHead'],
@@ -74,7 +73,7 @@ describe('Projects read-tail r35 point-read family merge', () => {
     walk(srcRoot);
     // r34 left 96. r35 removes the standalone projectIdSql literal (1->0) by
     // composing the r33 point-read head; its two call sites emit unchanged SQL.
-    expect(total).toBe(67); // lane 27 wave 2 moved the two handoff list/work reads to native (-2) // lane 27 moved the two actuals reads to native Rust (-2) // r37 four-arm fact UNION closed helper (-3) + 3-arm NOT EXISTS proof group (-2): 93->88 // r36 package-actual source + event-fact arms: 95->93 // r38 member EXISTS closed helper (-4) + evidence super-head (-3): 88->81
+    expect(total).toBe(66); // lane 27 wave 2 moved the two handoff list/work reads to native (-2) // lane 27 moved the two actuals reads to native Rust (-2) // r37 four-arm fact UNION closed helper (-3) + 3-arm NOT EXISTS proof group (-2): 93->88 // r36 package-actual source + event-fact arms: 95->93 // r38 member EXISTS closed helper (-4) + evidence super-head (-3): 88->81
     expect(total).toBeLessThan(88);
   });
 });

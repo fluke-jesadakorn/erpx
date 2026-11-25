@@ -146,7 +146,7 @@ describe('manufacturing read-tail r25 jsonb_agg helper unification', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(48); // r24 left 70; r25 70->65; r26 EXISTS guards -> 60; r27 journal projection family 60->58; r28 cost-allocation probe 58->57; r29 scoped EXISTS probe 57->56; r30 scope CTE family 56->55; r31 allowed-select head family 55->53; r32 metric breakdown head 53->52; r34 r15/r23 head fold 52->51; r35 scope-row head fold 51->50; r36 owner-table head fold 50->49; r37 projection-from-source head fold 49->48.
+    expect(total).toBe(46); // r24 left 70; r25 70->65; r26 EXISTS guards -> 60; r27 journal projection family 60->58; r28 cost-allocation probe 58->57; r29 scoped EXISTS probe 57->56; r30 scope CTE family 56->55; r31 allowed-select head family 55->53; r32 metric breakdown head 53->52; r34 r15/r23 head fold 52->51; r35 scope-row head fold 51->50; r36 owner-table head fold 50->49; r37 projection-from-source head fold 49->48.
     expect(total).toBeLessThan(60);
   });
 });

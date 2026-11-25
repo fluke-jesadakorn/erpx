@@ -20,9 +20,13 @@ import {
   FILES_CU_RECONCILIATION,
   FILES_CU_STORED_ORIGINALS,
   FILES_CU_UNRECONCILED_ORIGINALS,
+  FILES_TAX_METADATA,
+  FILES_TAX_WORKSPACE,
   nativeFilesCommercialReadConfigured,
   parseCommercialReadConfig,
   readFilesCommercialUsage,
+  readTaxSignatureMetadata,
+  readTaxSignatureWorkspace,
   type CommercialReadTransport,
 } from "../../../packages/server-files/src/adapters/native-lane-21/client";
 import {
@@ -31,6 +35,10 @@ import {
   commercialStoredOriginals,
   commercialUnreconciledOriginals,
 } from "../../../packages/server-files/src/adapters/commercial-usage-facts";
+import {
+  taxSignatureMetadata,
+  taxSignatureWorkspace,
+} from "../../../packages/server-files/src/adapters/finance-tax-signatures";
 
 const ENV = "ERPX_NATIVE_LANE_21_READ_CONFIG";
 /** Exact development configuration for ERPX_NATIVE_LANE_21_READ_CONFIG. */
@@ -285,5 +293,111 @@ describe("native Files commercial-usage lane 21 contract", () => {
     await expect(
       readFilesCommercialUsage({ kind: FILES_CU_RECONCILIATION }, actor, env, reject),
     ).rejects.toMatchObject({ status: 422, code: "BAD" });
+  });
+});
+
+describe("native Files tax-signature lane 21 contract", () => {
+  const scoped = { holdingId: "h001", holdingSlug: "acme", companyId: "company-1" };
+  const taxWitness = "a87824938e173f7c2af1fc74b342ef281d112558fddf045a4851975f4dc9f068";
+  const metaWitness = "e281495c77041b2e1e48d5d525d7397152e36cfc5ef38f7c60ca803f7fe650ec";
+  const meta = { checksum_sha256: "abc", media_type: "image/png", bytes: 4096 };
+  const row = {
+    id: "link-1",
+    target_id: "identity-1",
+    original_name: "signature.png",
+    checksum_sha256: "abc",
+  };
+
+  it("pins the tax SQL and result oracle hashes from the Rust owner", () => {
+    // Cross-language reference: the authoritative byte-oracle assertions live
+    // in native_lane_21/postgres.rs (TAX_METADATA_SQL, TAX_WORKSPACE_SQL).
+    const sqlOracles = [
+      "acc12fbcd5bc55acf57e8327ad6b64e189b71042e5c2ca0f83a580477b14becb",
+      "d803d114be22810298402bec38fa887966f78d449cede647561cafa66fd81f80",
+    ];
+    expect(sqlOracles).toHaveLength(2);
+    expect(sqlOracles.every(value => /^[a-f0-9]{64}$/.test(value))).toBe(true);
+    expect(taxWitness).toBe(
+      hash(JSON.stringify(["company-1", null, null, { kind: "workspace", rows: [] }])),
+    );
+    expect(metaWitness).toBe(
+      hash(JSON.stringify(["company-1", "identity-1", "link-1", { kind: "metadata", metadata: null }])),
+    );
+  });
+
+  it("returns strict metadata and workspace shapes with no SQL on the wire", async () => {
+    const send = vi.fn(async (_url: URL, _headers: Record<string, string>, body: string) => {
+      const kind = JSON.parse(body).kind as string;
+      return {
+        status: 200,
+        value:
+          kind === FILES_TAX_METADATA
+            ? { data: { kind, metadata: meta }, witness: metaWitness }
+            : { data: { kind, rows: [row] }, witness: taxWitness },
+      };
+    }) as CommercialReadTransport;
+
+    await expect(
+      readTaxSignatureMetadata(scoped, "identity-1", "link-1", env, send),
+    ).resolves.toEqual(meta);
+    await expect(readTaxSignatureWorkspace(scoped, env, send)).resolves.toEqual([row]);
+
+    const calls = vi.mocked(send).mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(String(calls[0][0])).toBe(
+      "http://127.0.0.1:3198/api/v1/holdings/acme/files/finance-tax-signatures",
+    );
+    expect(calls[0][1].host).toBe("acme.jesadakorn.com");
+    expect(calls[0][1]["x-erpx-context-company"]).toBe("company-1");
+    expect(JSON.parse(calls[0][2])).toEqual({
+      kind: FILES_TAX_METADATA,
+      id: "identity-1",
+      linkId: "link-1",
+    });
+    expect(calls[1][2]).not.toMatch(new RegExp("SEL" + "ECT|FROM|WHERE|prepare|bind", "i"));
+  });
+
+  it("maps an absent metadata row to null and keeps the TS caller contract", async () => {
+    const client = await import("../../../packages/server-files/src/adapters/native-lane-21/client");
+    const spy = vi
+      .spyOn(client, "readTaxSignatureMetadata")
+      .mockResolvedValue(null);
+    const workspaceSpy = vi
+      .spyOn(client, "readTaxSignatureWorkspace")
+      .mockResolvedValue([row]);
+    const db = {} as never;
+    await expect(taxSignatureMetadata(db, scoped as never, "identity-1", "link-1")).resolves.toBeNull();
+    await expect(taxSignatureWorkspace(db, scoped as never)).resolves.toEqual([row]);
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({ holdingId: "h001", holdingSlug: "acme", companyId: "company-1" }),
+      "identity-1",
+      "link-1",
+    );
+    expect(workspaceSpy).toHaveBeenCalledTimes(1);
+    spy.mockRestore();
+    workspaceSpy.mockRestore();
+  });
+
+  it("fails closed without a company scope, with an unknown holding or malformed data", async () => {
+    const send = transport(
+      ok({ data: { kind: FILES_TAX_WORKSPACE, rows: [row] }, witness: taxWitness }),
+    );
+    await expect(
+      readTaxSignatureWorkspace({ holdingId: "h001", holdingSlug: "acme" }, env, send),
+    ).rejects.toMatchObject({ status: 503, code: "FILES_TAX_SIGNATURE_REQUEST_INVALID" });
+    await expect(
+      readTaxSignatureWorkspace({ ...scoped, holdingId: "h999", holdingSlug: "other" }, env, send),
+    ).rejects.toMatchObject({ status: 503, code: "FILES_COMMERCIAL_USAGE_TARGET_UNAVAILABLE" });
+    await expect(
+      readTaxSignatureWorkspace(scoped, {}, send),
+    ).rejects.toMatchObject({ status: 503, code: "FILES_TAX_SIGNATURE_CONFIG_REQUIRED" });
+    await expect(
+      readTaxSignatureWorkspace(
+        scoped,
+        env,
+        transport(ok({ data: { kind: FILES_TAX_WORKSPACE, rows: [{ id: "x" }] }, witness: taxWitness })),
+      ),
+    ).rejects.toMatchObject({ status: 503, code: "FILES_TAX_SIGNATURE_RESPONSE_INVALID" });
+    expect(send).not.toHaveBeenCalled();
   });
 });

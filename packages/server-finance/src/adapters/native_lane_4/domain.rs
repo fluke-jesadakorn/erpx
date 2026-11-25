@@ -39,6 +39,44 @@ impl ReferenceKind {
     }
 }
 
+/// The lock-free posting guard probes migrated in wave 2. Each resolves one
+/// finance-owned existence/category fact for the caller's Company.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum GuardKind {
+    ChartActive,
+    AccountLiability,
+    PartyCustomer,
+}
+
+impl GuardKind {
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "chart_active" => Some(Self::ChartActive),
+            "account_liability" => Some(Self::AccountLiability),
+            "party_customer" => Some(Self::PartyCustomer),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::ChartActive => "chart_active",
+            Self::AccountLiability => "account_liability",
+            Self::PartyCustomer => "party_customer",
+        }
+    }
+}
+
+/// A posting guard probe returns one identifying column or no row.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GuardRow {
+    pub id: String,
+}
+
+pub fn project_guard(row: &GuardRow) -> Value {
+    serde_json::json!({"id": row.id})
+}
+
 /// A projected row. All columns are strings because the retired TS reads
 /// returned untyped `SqlDatabase` rows whose columns were consumed as text.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -192,6 +230,26 @@ mod tests {
             unavailable()
         );
         assert!(project(ReferenceKind::Charts, &row).is_ok());
+    }
+
+    #[test]
+    fn guard_kind_allow_list_is_exact() {
+        assert_eq!(GuardKind::parse("chart_active"), Some(GuardKind::ChartActive));
+        assert_eq!(GuardKind::parse("account_liability"), Some(GuardKind::AccountLiability));
+        assert_eq!(GuardKind::parse("party_customer"), Some(GuardKind::PartyCustomer));
+        assert_eq!(GuardKind::parse("SELECT 1"), None);
+        assert_eq!(GuardKind::parse(""), None);
+        for kind in [
+            GuardKind::ChartActive,
+            GuardKind::AccountLiability,
+            GuardKind::PartyCustomer,
+        ] {
+            assert_eq!(GuardKind::parse(kind.as_str()), Some(kind));
+        }
+        assert_eq!(
+            project_guard(&GuardRow { id: "acct-1".to_owned() }),
+            serde_json::json!({"id": "acct-1"})
+        );
     }
 
     #[test]

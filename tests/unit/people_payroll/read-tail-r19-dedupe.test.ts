@@ -56,7 +56,7 @@ describe('People Payroll read-tail r19 byte-identical dedupe', () => {
     ];
     for (const name of builders) {
       const s = src(name);
-      expect(s, name).toContain("import { ppRd19InList as inList } from './pp-read-tail-r19-sources';");
+      expect(s, name).toMatch(/import \{ ppRd19InList(?: as inList)? \} from '\.\/pp-read-tail-r19-sources';/);
       expect(s, name).not.toContain('const inList = (expression: string) =>');
       expect(s, name).toContain('inList(');
     }

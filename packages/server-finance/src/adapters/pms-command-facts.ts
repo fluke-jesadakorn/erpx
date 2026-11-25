@@ -1,6 +1,6 @@
 import {financeOwnedSnapshotSources as pmsSnapshotSources} from "@erpx/server-pms/public/finance-owned-snapshot-sources";
 import { ACCOUNT_SELECT_PREFIX } from './finance-read-tail-r30-sql';
-import { financeReferenceOptions, type Lane4Actor } from './native-lane-4/client';
+import { financePostingGuard, financeReferenceOptions, type Lane4Actor } from './native-lane-4/client';
 import { nativePmsFinanceFacts } from '@erpx/server-collaboration/adapters/native-pms-finance-facts';
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
@@ -78,7 +78,7 @@ export function pmsFinanceFacts(db: SqlDatabase, actor: Lane4Actor = {}) {
             chartId: string;
             companyId: string;
             currency: string;
-        }) => db.prepare("SELECT id FROM finance_charts WHERE id=? AND company_id=? AND status='active' AND base_currency=?").bind(facts.chartId, facts.companyId, facts.currency).first(),
+        }) => financePostingGuard('chart_active', facts.companyId, actor, { id: facts.chartId, currency: facts.currency }),
         readFinanceAccounts2: (facts: {
             id: string;
             companyId: string;
@@ -98,7 +98,7 @@ export function pmsFinanceFacts(db: SqlDatabase, actor: Lane4Actor = {}) {
             companyId: string;
             chartId: string;
             currency: string;
-        }) => db.prepare(ACCOUNT_SELECT_PREFIX + "id=? AND company_id=? AND chart_id=? AND currency=? AND category='liability' AND status='active'").bind(facts.id, facts.companyId, facts.chartId, facts.currency).first(),
+        }) => financePostingGuard('account_liability', facts.companyId, actor, { id: facts.id, chartId: facts.chartId, currency: facts.currency }),
         readFinancePeriods: (facts: {
             companyId: string;
             date: string;
@@ -181,7 +181,7 @@ export function pmsFinanceFacts(db: SqlDatabase, actor: Lane4Actor = {}) {
             partyId: string;
             companyId: string;
             currency: string;
-        }) => db.prepare("SELECT 1 FROM finance_parties WHERE id=? AND company_id=? AND kind='customer' AND status='active' AND currency=? AND person_id IS NULL").bind(facts.partyId, facts.companyId, facts.currency).first(),
+        }) => financePostingGuard('party_customer', facts.companyId, actor, { id: facts.partyId, currency: facts.currency }),
         updateFinanceBankTransactions: (facts: {
             bankTransactionId: string;
             companyId: string;

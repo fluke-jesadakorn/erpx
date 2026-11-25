@@ -266,7 +266,7 @@ impl super::application::CalendarPeopleRead for PgCalendarPeopleRead {
                         },
                     )?;
                     if scope_ids.is_empty() {
-                        return Err(unavailable());
+                        return Err(unavailable().into());
                     }
                     let rows = sqlx::query_as::<
                         _,

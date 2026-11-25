@@ -8,6 +8,9 @@ vi.mock('@erpx/server-identity_access/public/native-identity-write', () => ({
 }));
 
 import {
+  nativeApprovalActiveScope,
+  nativeApprovalCanOverride,
+  nativeApprovalExpenseEvidence,
   nativeLane12Configured,
   nativePeopleTemplateActiveRole,
   nativePeopleTemplateAttributes,
@@ -15,6 +18,7 @@ import {
   type LaneHoldingScope,
 } from '../../../packages/server-identity_access/src/adapters/native-lane-12/client';
 import { peopleTemplateAttributes } from '../../../packages/server-identity_access/src/adapters/people-template-attributes';
+import { createApprovalsSourceRepository } from '../../../packages/server-identity_access/src/adapters/workflow-approvals-facts';
 
 /** Exact dev config: three registered Holdings, no first-holding default. */
 const DEV_CONFIG = {
@@ -190,5 +194,68 @@ describe('native lane 12 fails closed', () => {
       code: 'NATIVE_LANE_12_READ_REQUEST_INVALID',
     });
     expect(state.fetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('native lane 12 workflow approval read family', () => {
+  const sql = {
+    override:
+      "SELECT 1 FROM assignments WHERE id=? AND company_id=? AND user_id=? AND iam_role_allows(role,company_id,'workflow.people_manager') AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (scope_kind='holding' OR scope_kind='branch' AND scope_node_id=? OR scope_kind='department' AND scope_node_id=?)",
+    activeScope:
+      'SELECT 1 FROM assignments WHERE id=? AND user_id=? AND company_id=? AND role=? AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_from<=? AND valid_until>? AND (? OR scope_kind=\'holding\' OR scope_kind=\'branch\' AND scope_node_id=? OR scope_kind=\'department\' AND scope_node_id=?)',
+    expenseEvidence:
+      'SELECT id,role,scope_kind,scope_node_id,valid_from,valid_until FROM assignments WHERE company_id=? AND id=? AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_from<=? AND valid_until>? ORDER BY id',
+  };
+
+  it('pins the three byte-identical retired approval statements', () => {
+    expect(sha(sql.override)).toBe('a269b4e5d9157b2eb2660ebd79cdc9d9c5aa678ef87e2777374cdd23628dbe70');
+    expect(sha(sql.activeScope)).toBe('8aee2c29092d5726fb0e0b4d1465e27d78ee766177b310fb0c7dbb7de2ac7dd9');
+    expect(sha(sql.expenseEvidence)).toBe('bf5b9b5ba190c9fa422fb45a9ca904484ec1d408e726db2d16673ca8f58c8683');
+  });
+
+  it('maps first-row reads to row-or-null and .all() reads to {results}', async () => {
+    state.fetch.mockResolvedValueOnce(reply({ rows: [{ one: 1 }], rowCount: 1 }));
+    expect(await nativeApprovalCanOverride('c1', 'a1', 'u1', 'b1', null, acme)).toEqual({ one: 1 });
+    let request = seen();
+    expect(request.url.pathname).toBe('/api/v1/holdings/acme/identity-access/approval-facts/canOverrideStaffStepRole');
+    expect(request.url.searchParams.get('assignment')).toBe('a1');
+    expect(request.url.searchParams.get('branch')).toBe('b1');
+    expect(request.url.searchParams.has('department')).toBe(false);
+    expect(request.headers['x-erpx-context-company']).toBe('c1');
+
+    state.fetch.mockResolvedValueOnce(reply({ rows: [], rowCount: 0 }));
+    expect(await nativeApprovalActiveScope('c1', 'a1', 'u1', 'r', 1, 2, false, null, null, northstar)).toBeNull();
+    request = seen();
+    expect(request.url.searchParams.get('policyStep')).toBe('false');
+    expect(request.url.pathname).toContain('/holdings/northstar/');
+
+    const rows = [{ id: 'a1', role: 'workflow.approve', scope_kind: 'holding', scope_node_id: null, valid_from: 1, valid_until: 2 }];
+    state.fetch.mockResolvedValueOnce(reply({ rows, rowCount: 1 }));
+    expect(await nativeApprovalExpenseEvidence('c1', 'a1', 1, 2, acme)).toEqual({ results: rows });
+    expect(seen().url.pathname).toContain('/approval-facts/expenseDecisionEvidence');
+  });
+
+  it('keeps the retained repository as a transport with no SQL fallback', async () => {
+    state.fetch.mockImplementation(() => Promise.resolve(reply({ rows: [], rowCount: 0 })));
+    const store = createApprovalsSourceRepository({} as never, northstar);
+    expect(await store.readCanOverrideStaffStepRole('a1', 'c2', 'u1', null, null)).toBeNull();
+    expect(await store.readApprovalViewActiveScope('a1', 'u1', 'c2', 'r', 1, 2, false, null, null)).toBeNull();
+    expect(await store.readExpenseDecisionEvidenceAssignmentsreceiptsperson('c2', 'a1', 1, 2)).toEqual({ results: [] });
+    expect(state.fetch).toHaveBeenCalledTimes(3);
+    for (const [url, init] of state.fetch.mock.calls as Array<[URL, RequestInit]>) {
+      expect(url.pathname).toContain('/holdings/northstar/identity-access/approval-facts/');
+      expect(JSON.stringify(init)).not.toMatch(/SELECT/i);
+    }
+  });
+
+  it('fails closed on malformed approval responses and unknown targets', async () => {
+    state.fetch.mockResolvedValueOnce(reply({ rows: [{ id: 'a1' }], rowCount: 1 }));
+    await expect(nativeApprovalExpenseEvidence('c1', 'a1', 1, 2, acme)).rejects.toMatchObject({
+      status: 503,
+      code: 'NATIVE_LANE_12_READ_RESPONSE_INVALID',
+    });
+    await expect(
+      nativeApprovalCanOverride('c1', 'a1', 'u1', null, null, { holdingId: 'h999', holdingSlug: 'acme', companyId: 'c1' }),
+    ).rejects.toMatchObject({ status: 503, code: 'NATIVE_LANE_12_READ_TARGET_UNAVAILABLE' });
   });
 });

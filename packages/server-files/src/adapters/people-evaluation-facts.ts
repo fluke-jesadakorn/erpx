@@ -1,10 +1,51 @@
 import "server-only";
-import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-import {LINK_SET_ID_SELECT_SQL} from "./read-tail-dedupe-sql";
+import type { SqlDatabase, SqlResult } from "@erpx/server-runtime/public/runtime/types";
+import {
+  readNativePersonnelEvidence,
+  type WorkEvidenceActor,
+} from "./native-lane-22/personnel-client";
+
+/**
+ * Files-owned evaluation evidence facts. The two SELECTs formerly rendered
+ * here are owned by the native Files axum router (lane 22, personnel family);
+ * this adapter is a strict transport with no SQL and no fallback. `database`
+ * is retained for call-site compatibility only.
+ *
+ * `actor` is appended (optional) so existing call sites keep compiling; the
+ * native client selects exactly one registered Holding from it and fails
+ * closed when it is absent.
+ */
+type EvaluationFileRow = { id: string; filename: string };
+
 export function peopleEvaluationFilesFacts(database: SqlDatabase) {
-    return { readEvaluationDetailFiles(companyId: string, assessmentId: string) { return database.prepare("SELECT l.id,a.original_name filename FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id JOIN attachments a ON a.id=l.attachment_id WHERE s.company_id=? AND s.target_type='hr_evaluation_assessment' AND s.target_id=? AND l.state='bound' AND a.source_state='available'").bind(companyId, assessmentId).all<{
-            id: string;
-            filename: string;
-        }>(); },
-        readAddEvaluationEvidenceLink(sourceId: string | null, assessmentId: string, companyId: string) { return database.prepare(`${LINK_SET_ID_SELECT_SQL} JOIN attachments f ON f.id=l.attachment_id WHERE l.id=? AND s.target_type='hr_evaluation_assessment' AND s.target_id=? AND s.company_id=? AND l.state='bound' AND f.source_state='available'`).bind(sourceId, assessmentId, companyId).first(); } };
+  return {
+    readEvaluationDetailFiles(
+      companyId: string,
+      assessmentId: string,
+      actor?: WorkEvidenceActor,
+    ): Promise<SqlResult<EvaluationFileRow>> {
+      return readNativePersonnelEvidence(
+        { ...(actor ?? {}), companyId },
+        database,
+        "evaluation-files",
+        { assessmentId },
+      ) as Promise<SqlResult<EvaluationFileRow>>;
+    },
+    readAddEvaluationEvidenceLink(
+      sourceId: string | null,
+      assessmentId: string,
+      companyId: string,
+      actor?: WorkEvidenceActor,
+    ): Promise<Record<string, unknown> | null> {
+      // A missing source never matched the retired statement either; resolve
+      // it without a network call and without issuing any SQL.
+      if (!sourceId) return Promise.resolve(null);
+      return readNativePersonnelEvidence(
+        { ...(actor ?? {}), companyId },
+        database,
+        "evaluation-link",
+        { assessmentId, sourceId },
+      ).then(result => result.results[0] ?? null);
+    },
+  };
 }

@@ -19,6 +19,12 @@ import {
   SQL_DETAIL_ORACLE_SHA256,
   SQL_LIST_ORACLE_SHA256,
 } from "../../../packages/server-people_payroll/src/adapters/native-lane-9/flow-routing-client";
+import {
+  RESPONSE_ORACLE_SHA256 as ROUTE_RESPONSE_ORACLE_SHA256,
+  SQL_ROUTE_ORACLE_SHA256,
+  routePeople,
+  type RouteTransport,
+} from "../../../packages/server-people_payroll/src/adapters/native-lane-9/person-route-client";
 
 const ENV = "ERPX_NATIVE_PEOPLE_PAYROLL_LANE9_CONFIG";
 const ORIGINAL = process.env[ENV];
@@ -362,6 +368,139 @@ describe("native lane-9 payment-batch flow-routing transport", () => {
     await expect(paymentBatches(db, "acme-co", a, flowTransport({}, 500))).rejects.toMatchObject({
       status: 503,
       code: "NATIVE_PEOPLE_PAYROLL_LANE9_FLOW_UNAVAILABLE",
+    });
+  });
+});
+
+describe("native lane-9 work-review person-route transport", () => {
+  const row = { legal_name: "Ada Lovelace", user_id: "user-1" };
+  const payload = { results: [row] };
+  let routeCalls: { url: URL; headers: Headers; body: string }[];
+  const routeTransport = (body: unknown, status = 200): RouteTransport => {
+    return async (url, headers, init) => {
+      routeCalls.push({ url, headers, body: init.body });
+      return new Response(JSON.stringify(body), {
+        status,
+        headers: { "content-type": "application/json" },
+      });
+    };
+  };
+  const a = actor("h001", "acme", "acme-co");
+
+  beforeEach(() => {
+    routeCalls = [];
+  });
+
+  it("selects the exact Holding from the caller's WorkContext", async () => {
+    const target = actor("h002", "northstar", "northstar-co");
+    expect(await routePeople(db, "northstar-co", ["user-1"], target, routeTransport(payload))).toEqual(payload);
+    expect(routeCalls).toHaveLength(1);
+    expect(routeCalls[0]!.url.origin).toBe("http://127.0.0.1:3198");
+    expect(routeCalls[0]!.url.pathname).toBe("/api/v1/holdings/northstar/people-payroll/route-people");
+    expect(routeCalls[0]!.headers.get("host")).toBe("northstar.jesadakorn.com");
+    expect(routeCalls[0]!.headers.get("origin")).toBe("https://northstar.jesadakorn.com");
+    expect(routeCalls[0]!.headers.get("x-erpx-context-company")).toBe("northstar-co");
+    expect(routeCalls[0]!.headers.get("x-erpx-context-holding")).toBe("h002");
+    expect(JSON.parse(routeCalls[0]!.body)).toEqual({ users: ["user-1"] });
+  });
+
+  it("routes the third registered Holding to its own host and path", async () => {
+    const target = actor("h003", "erpx", "erpx-co");
+    expect(await routePeople(db, "erpx-co", ["user-1"], target, routeTransport(payload))).toEqual(payload);
+    expect(routeCalls[0]!.url.pathname).toBe("/api/v1/holdings/erpx/people-payroll/route-people");
+    expect(routeCalls[0]!.headers.get("host")).toBe("erpx-internal.jesadakorn.com");
+  });
+
+  it("resolves no-actor callers only through a configured companyId", async () => {
+    expect(await routePeople(db, "acme-co", ["user-1"], undefined, routeTransport(payload))).toEqual(payload);
+    expect(routeCalls[0]!.headers.get("host")).toBe("acme.jesadakorn.com");
+    await expect(
+      routePeople(db, "unknown-co", ["user-1"], undefined, routeTransport(payload)),
+    ).rejects.toMatchObject({ status: 503, code: "NATIVE_PEOPLE_PAYROLL_LANE9_TARGET_UNAVAILABLE" });
+    expect(routeCalls).toHaveLength(1);
+  });
+
+  it("fails closed on unknown targets and mismatched company", async () => {
+    await expect(
+      routePeople(db, "acme-co", ["user-1"], actor("h099", "acme", "acme-co"), routeTransport(payload)),
+    ).rejects.toMatchObject({ status: 503, code: "NATIVE_PEOPLE_PAYROLL_LANE9_TARGET_UNAVAILABLE" });
+    await expect(
+      routePeople(db, "acme-co", ["user-1"], actor("h001", "acme", "northstar-co"), routeTransport(payload)),
+    ).rejects.toMatchObject({ status: 422, code: "NATIVE_PEOPLE_PAYROLL_LANE9_ACTOR_INVALID" });
+    expect(routeCalls).toHaveLength(0);
+  });
+
+  it("pins SQL and rendered-result oracles and carries no SQL on the wire", async () => {
+    expect(SQL_ROUTE_ORACLE_SHA256).toBe(
+      "0acbcc7c016d3d0aa05fc555575bc458ad4af3759fb51fc7fb677e841df7a589",
+    );
+    expect(ROUTE_RESPONSE_ORACLE_SHA256).toBe(
+      "07600369a17612953f9810e031254acd20df6597dc6246ccdfe405767fed1dc2",
+    );
+    expect(createHash("sha256").update(JSON.stringify(payload)).digest("hex")).toBe(
+      ROUTE_RESPONSE_ORACLE_SHA256,
+    );
+    await routePeople(db, "acme-co", ["user-1"], a, routeTransport(payload));
+    expect(JSON.stringify(routeCalls)).not.toMatch(/SELECT|FROM |UNION|hr_people|merged_into_id/i);
+  });
+
+  it("replaced the TypeScript SQL literal completely", () => {
+    const source = readFileSync(
+      resolve(__dirname, "../../../packages/server-people_payroll/src/adapters/work-review-facts.ts"),
+      "utf8",
+    );
+    expect(source).not.toMatch(/user_id IN \(\$\{ids\.map/);
+    expect(source).not.toMatch(/merged_into_id IS NULL/);
+    expect(source).toContain("native-lane-9/person-route-client");
+  });
+
+  it("short-circuits empty id lists and rejects unbounded Company/user input", async () => {
+    expect(await routePeople(db, "acme-co", [], a, routeTransport(payload))).toEqual({ results: [] });
+    expect(routeCalls).toHaveLength(0);
+    await expect(
+      routePeople(db, "acme-co", Array.from({ length: 201 }, (_, i) => `user-${i}`), a, routeTransport(payload)),
+    ).rejects.toMatchObject({ status: 422, code: "PEOPLE_PAYROLL_LANE9_ROUTE_USERS_INVALID" });
+    await expect(
+      routePeople(db, "../other", ["user-1"], a, routeTransport(payload)),
+    ).rejects.toMatchObject({ status: 422, code: "PEOPLE_PAYROLL_LANE9_ROUTE_COMPANY_INVALID" });
+    await expect(
+      routePeople(db, "acme-co", ["bad id"], a, routeTransport(payload)),
+    ).rejects.toMatchObject({ status: 422 });
+    expect(routeCalls).toHaveLength(0);
+  });
+
+  it("fails closed on malformed or widened response shapes", async () => {
+    await expect(routePeople(db, "acme-co", ["user-1"], a, routeTransport({}))).rejects.toMatchObject({
+      status: 502,
+      code: "NATIVE_PEOPLE_PAYROLL_LANE9_ROUTE_RESPONSE_INVALID",
+    });
+    await expect(routePeople(db, "acme-co", ["user-1"], a, routeTransport({ ...payload, extra: 1 }))).rejects.toMatchObject({
+      status: 502,
+    });
+    await expect(routePeople(db, "acme-co", ["user-1"], a, routeTransport({ results: [{ ...row, extra: 1 }] }))).rejects.toMatchObject({
+      status: 502,
+    });
+    await expect(routePeople(db, "acme-co", ["user-1"], a, routeTransport({ results: [{}] }))).rejects.toMatchObject({
+      status: 502,
+    });
+    await expect(routePeople(db, "acme-co", ["user-1"], a, routeTransport({ results: Array.from({ length: 1001 }, () => row) }))).rejects.toMatchObject({
+      status: 502,
+    });
+  });
+
+  it("maps native failures without inventing a fallback", async () => {
+    await expect(routePeople(db, "acme-co", ["user-1"], a, async () => {
+      throw new Error("offline");
+    })).rejects.toMatchObject({ status: 503, code: "NATIVE_PEOPLE_PAYROLL_LANE9_ROUTE_UNAVAILABLE" });
+    const redirected: RouteTransport = async () => ({ redirected: true, status: 200 }) as Response;
+    await expect(routePeople(db, "acme-co", ["user-1"], a, redirected)).rejects.toMatchObject({ status: 503 });
+    await expect(routePeople(db, "acme-co", ["user-1"], a, routeTransport({}, 422))).rejects.toMatchObject({
+      status: 422,
+      code: "NATIVE_PEOPLE_PAYROLL_LANE9_ROUTE_REJECTED",
+    });
+    await expect(routePeople(db, "acme-co", ["user-1"], a, routeTransport({}, 500))).rejects.toMatchObject({
+      status: 503,
+      code: "NATIVE_PEOPLE_PAYROLL_LANE9_ROUTE_UNAVAILABLE",
     });
   });
 });

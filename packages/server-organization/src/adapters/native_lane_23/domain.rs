@@ -4,6 +4,7 @@
 //! reply is released.
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use serde::Serialize;
+use serde_json::Value;
 
 /// A native reply is holding-wide; cap every collection so one response can
 /// never become an unbounded payload.
@@ -76,6 +77,114 @@ fn unique<'a>(values: impl Iterator<Item = &'a str>) -> Result<(), BusinessError
         }
     }
     Ok(())
+}
+
+/// Bounded point references consumed by Collaboration, IAM and Files through
+/// Organization public ports. All three come from `organization_nodes` only.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct AudienceNode {
+    pub id: String,
+    pub kind: String,
+    pub branch_id: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UnitReference {
+    pub id: String,
+    pub name: String,
+    pub kind: String,
+    pub branch_id: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct AttachmentNodeFact {
+    pub company_id: String,
+    pub branch_id: Option<String>,
+    pub department_id: Option<String>,
+    pub version: i64,
+    pub kind: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize)]
+pub struct NodeReferences {
+    pub node: Option<AudienceNode>,
+    pub units: Vec<UnitReference>,
+    pub attachment: Option<AttachmentNodeFact>,
+}
+
+impl NodeReferences {
+    /// Fail-closed response check; mirrors the owner's TypeScript contract.
+    pub fn validate(&self) -> Result<(), BusinessError> {
+        bounded(self.units.len())?;
+        unique(self.units.iter().map(|unit| unit.id.as_str()))?;
+        if let Some(node) = &self.node {
+            if node.id.is_empty() || node.kind.is_empty() {
+                return Err(invalid());
+            }
+        }
+        if let Some(fact) = &self.attachment {
+            if fact.company_id.is_empty() || fact.kind.is_empty() || fact.version < 1 {
+                return Err(invalid());
+            }
+        }
+        for unit in &self.units {
+            if unit.id.is_empty() || unit.name.is_empty() || unit.kind.is_empty() {
+                return Err(invalid());
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ExecutiveEvidenceKind {
+    ConnectionScopes,
+    ContextNodes,
+    ContextPositions,
+    NodeEvidence,
+    PendingEvidence,
+}
+
+impl ExecutiveEvidenceKind {
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "connection-scopes" => Some(Self::ConnectionScopes),
+            "context-nodes" => Some(Self::ContextNodes),
+            "context-positions" => Some(Self::ContextPositions),
+            "node-evidence" => Some(Self::NodeEvidence),
+            "pending-evidence" => Some(Self::PendingEvidence),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize)]
+pub struct ExecutiveEvidence {
+    pub rows: Vec<Value>,
+}
+
+fn invalid_evidence() -> BusinessError {
+    BusinessError::new(
+        FailureKind::Unavailable,
+        "ORGANIZATION_EXECUTIVE_EVIDENCE_INVALID",
+        "The native Organization executive evidence was invalid.",
+    )
+}
+
+impl ExecutiveEvidence {
+    /// Fail-closed shape check for every executive evidence reply.
+    pub fn validate(&self) -> Result<(), BusinessError> {
+        bounded(self.rows.len())?;
+        for row in &self.rows {
+            let record = row.as_object().ok_or_else(invalid_evidence)?;
+            let id = record.get("id").and_then(Value::as_str).unwrap_or_default();
+            if id.is_empty() {
+                return Err(invalid_evidence());
+            }
+        }
+        Ok(())
+    }
 }
 
 impl DirectoryHierarchy {
@@ -157,6 +266,50 @@ mod tests {
     #[test]
     fn sample_hierarchy_is_valid() {
         assert!(sample().validate().is_ok());
+    }
+
+    #[test]
+    fn executive_evidence_requires_object_rows_with_ids() {
+        assert!(ExecutiveEvidence { rows: vec![] }.validate().is_ok());
+        let good = ExecutiveEvidence {
+            rows: vec![serde_json::json!({"id":"n1","kind":"branch"})],
+        };
+        assert!(good.validate().is_ok());
+        let bad = ExecutiveEvidence {
+            rows: vec![serde_json::json!({"kind":"branch"})],
+        };
+        assert_eq!(bad.validate(), Err(invalid_evidence()));
+    }
+
+    #[test]
+    fn node_references_validate_shape_and_bounds() {
+        let facts = NodeReferences {
+            node: Some(AudienceNode {
+                id: "n1".into(),
+                kind: "branch".into(),
+                branch_id: None,
+            }),
+            units: vec![UnitReference {
+                id: "n1".into(),
+                name: "Branch".into(),
+                kind: "branch".into(),
+                branch_id: None,
+            }],
+            attachment: Some(AttachmentNodeFact {
+                company_id: "c1".into(),
+                branch_id: None,
+                department_id: None,
+                version: 1,
+                kind: "branch".into(),
+            }),
+        };
+        assert!(facts.validate().is_ok());
+        let mut bad = facts.clone();
+        bad.attachment.as_mut().unwrap().version = 0;
+        assert_eq!(bad.validate(), Err(invalid()));
+        let mut bad = facts;
+        bad.units.push(bad.units[0].clone());
+        assert_eq!(bad.validate(), Err(invalid()));
     }
 
     #[test]

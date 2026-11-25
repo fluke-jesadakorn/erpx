@@ -53,8 +53,9 @@ describe('Learning read-tail r3 byte-identical / parameterized family dedupe', (
     readOnly(overdueEvidenceColumns);
     const search = src('executive-evidence-sources.ts');
     expect(search).not.toContain(preOverdueColumns);
-    expect(search).toContain('${overdueEvidenceColumns}');
-    // Lane 31 moved the single-row overdue detail read to the native axum port.
+    // Wave 2 moved the overdue search read to the native axum port as well.
+    expect(search).not.toContain('${overdueEvidenceColumns}');
+    expect(search).toContain('nativeLearningEvidenceSearch(');
     const detail = src('learning.ts');
     expect(detail).toContain('nativeLearningEvidenceRow(');
     expect(detail).not.toContain('${overdueEvidenceColumns}');

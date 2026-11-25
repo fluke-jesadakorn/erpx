@@ -5,7 +5,7 @@
 //! an explicit error envelope. The router never accepts SQL or a caller-chosen
 //! Company; the SQL is owned in `postgres` and executed by the owner pool.
 
-use super::application::ExpenseProjectionService;
+use super::application::{ExpenseProjectionReader, ExpenseProjectionService};
 use super::domain::{CompanyScope, ProjectionKind, valid_identifier};
 use super::postgres::PgExpenseProjectionReader;
 use erpx_server_runtime::public::http_support::{
@@ -20,6 +20,10 @@ use std::sync::Arc;
 
 const CONTEXT_COMPANY: HeaderName = HeaderName::from_static("x-erpx-context-company");
 const MAX_BODY: usize = 16 * 1024;
+
+/// One owner reader instance. A trait object lets the state map hold a distinct
+/// Pg-backed reader for each registered Holding while keeping a single router.
+type LaneReader = Arc<dyn ExpenseProjectionReader>;
 
 /// One exact registered Holding/Company route. Composition owns the list; a
 /// duplicate or malformed target is a configuration error, never a fallback.
@@ -38,9 +42,14 @@ struct ProjectionRequest {
     journal_id: Option<String>,
 }
 
+/// The Company authority and the owner reader bound to one `(host, slug)`.
+struct LaneBinding {
+    company_id: String,
+    reader: LaneReader,
+}
+
 struct LaneState {
-    targets: BTreeMap<(String, String), String>,
-    service: ExpenseProjectionService<PgExpenseProjectionReader>,
+    targets: BTreeMap<(String, String), LaneBinding>,
 }
 
 fn missing() -> BusinessError {
@@ -117,18 +126,23 @@ fn bounded(body: serde_json::Value) -> Response {
     response
 }
 
-/// Build the owner-local router. The lead mounts it; no composition, ledger or
-/// shared module is edited here.
-pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
+/// Build the state map with one reader per Holding. Each pair is keyed by the
+/// exact `(host, holding_slug)` identity; no reader is shared across Holdings.
+fn state_with_readers(
+    entries: Vec<(LaneTarget, LaneReader)>,
+) -> Result<Arc<LaneState>, BusinessError> {
     let mut configured = BTreeMap::new();
-    for target in targets {
+    for (target, reader) in entries {
         if target.host.is_empty()
             || !valid_slug(&target.holding_slug)
             || !valid_id(&target.company_id)
             || configured
                 .insert(
                     (target.host.clone(), target.holding_slug.clone()),
-                    target.company_id.clone(),
+                    LaneBinding {
+                        company_id: target.company_id,
+                        reader,
+                    },
                 )
                 .is_some()
         {
@@ -138,15 +152,57 @@ pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, Bu
     if configured.is_empty() {
         return Err(configuration_invalid());
     }
-    Ok(Router::new()
+    Ok(Arc::new(LaneState {
+        targets: configured,
+    }))
+}
+
+/// Shared-reader variant retained for single-pool callers and tests.
+fn state(targets: Vec<LaneTarget>, reader: LaneReader) -> Result<Arc<LaneState>, BusinessError> {
+    state_with_readers(
+        targets
+            .into_iter()
+            .map(|target| (target, reader.clone()))
+            .collect(),
+    )
+}
+
+fn mount(lane: Arc<LaneState>) -> Router {
+    Router::new()
         .route(
             "/api/v1/holdings/{holding_slug}/finance/expense-posting-projection",
             post(project),
         )
-        .with_state(Arc::new(LaneState {
-            targets: configured,
-            service: ExpenseProjectionService::new(PgExpenseProjectionReader::new(pool)),
-        })))
+        .with_state(lane)
+}
+
+/// Single-pool owner-local router. The lead mounts it; no composition, ledger
+/// or shared module is edited here.
+pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
+    router_with_reader(Arc::new(PgExpenseProjectionReader::new(pool)), targets)
+}
+
+/// Per-Holding mount: composition pairs each exact registered target with that
+/// Holding's own pool, so each reader executes against its own database.
+pub fn router_for_holdings(
+    targets: Vec<(LaneTarget, DatabasePool)>,
+) -> Result<Router, BusinessError> {
+    let entries = targets
+        .into_iter()
+        .map(|(target, pool)| {
+            let reader: LaneReader = Arc::new(PgExpenseProjectionReader::new(pool));
+            (target, reader)
+        })
+        .collect();
+    Ok(mount(state_with_readers(entries)?))
+}
+
+/// Injectable reader variant retained for the owner's own tests.
+pub fn router_with_reader(
+    reader: LaneReader,
+    targets: Vec<LaneTarget>,
+) -> Result<Router, BusinessError> {
+    Ok(mount(state(targets, reader)?))
 }
 
 async fn project(
@@ -163,13 +219,14 @@ async fn project(
             .filter(|company| valid_id(company))
             .ok_or_else(invalid)?
             .to_owned();
-        let expected = state
+        let binding = state
             .targets
             .get(&(host, slug.clone()))
             .ok_or_else(missing)?;
         // The routing target is the Company authority. A header Company that
-        // differs cannot query another Company's Finance data.
-        if context != *expected {
+        // differs cannot query another Company's Finance data, and the bound
+        // reader is the one created from that Holding's own pool.
+        if context != binding.company_id {
             return Err(invalid());
         }
         let bytes = to_bytes(request.into_body(), MAX_BODY)
@@ -183,8 +240,8 @@ async fn project(
         let scope = CompanyScope {
             company_id: context,
         };
-        let projection = state
-            .service
+        let service = ExpenseProjectionService::new(Arc::clone(&binding.reader));
+        let projection = service
             .read(&scope, kind, body.journal_id.as_deref())
             .await?;
         Ok::<_, BusinessError>(json!({
@@ -200,7 +257,68 @@ async fn project(
 
 #[cfg(test)]
 mod tests {
+    use super::super::application::LaneReadFuture;
+    use super::super::domain::{JournalLineRow, PostingAccountRow};
     use super::*;
+
+    #[derive(Default)]
+    struct Probe;
+
+    impl ExpenseProjectionReader for Probe {
+        fn journal_lines<'a>(
+            &'a self,
+            _scope: &'a CompanyScope,
+            _journal_id: &'a str,
+        ) -> LaneReadFuture<'a, Vec<JournalLineRow>> {
+            Box::pin(async { Ok(Vec::new()) })
+        }
+
+        fn posting_accounts<'a>(
+            &'a self,
+            _scope: &'a CompanyScope,
+        ) -> LaneReadFuture<'a, Vec<PostingAccountRow>> {
+            Box::pin(async { Ok(Vec::new()) })
+        }
+    }
+
+    /// Mirrors `router_for_holdings` with injected readers instead of pools:
+    /// two registered targets must resolve to two distinct reader instances in
+    /// the state map keyed by their own `(host, holding_slug)`.
+    #[test]
+    fn two_targets_route_to_two_distinct_readers() {
+        let acme: LaneReader = Arc::new(Probe);
+        let northstar: LaneReader = Arc::new(Probe);
+        let lane = state_with_readers(vec![
+            (
+                LaneTarget {
+                    host: "acme.example.test".into(),
+                    holding_slug: "acme".into(),
+                    company_id: "company-1".into(),
+                },
+                acme.clone(),
+            ),
+            (
+                LaneTarget {
+                    host: "northstar.example.test".into(),
+                    holding_slug: "northstar".into(),
+                    company_id: "company-2".into(),
+                },
+                northstar.clone(),
+            ),
+        ])
+        .expect("two-target state");
+
+        assert_eq!(lane.targets.len(), 2);
+        let bound_acme = &lane.targets[&("acme.example.test".to_owned(), "acme".to_owned())];
+        let bound_northstar =
+            &lane.targets[&("northstar.example.test".to_owned(), "northstar".to_owned())];
+        assert_eq!(bound_acme.company_id, "company-1");
+        assert_eq!(bound_northstar.company_id, "company-2");
+        assert!(Arc::ptr_eq(&bound_acme.reader, &acme));
+        assert!(Arc::ptr_eq(&bound_northstar.reader, &northstar));
+        assert!(!Arc::ptr_eq(&bound_acme.reader, &bound_northstar.reader));
+        assert!(router_for_holdings(Vec::new()).is_err());
+    }
 
     #[test]
     fn targets_are_exact_and_distinct() {

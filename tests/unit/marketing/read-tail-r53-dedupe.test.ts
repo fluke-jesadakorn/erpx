@@ -129,7 +129,7 @@ describe('marketing read-tail r53 dedupe', () => {
   it('leaves settlement, receipts, candidate sources, locks, command_receipts and the purchase union untouched', async () => {
     expect(await src('purchases.ts')).toContain('SELECT 1 FROM command_receipts WHERE command_id=?');
     expect(await src('public-submission.ts')).toContain(
-      'SELECT request_hash,candidate_id FROM marketing_public_receipts WHERE key=?',
+      'readMarketingLane40ForCompany(LANE40_PUBLIC_RECEIPT,companyId,',
     );
     expect(await src('form-asset-lock-sql.ts')).toContain('FOR SHARE');
     expect(await src('marketing-local-point-read-sql.ts')).toContain('FOR UPDATE');
@@ -141,7 +141,7 @@ describe('marketing read-tail r53 dedupe', () => {
     expect(headTokens(await src('marketing-purchase-union-sql.ts'))).toBe(1);
   });
 
-  it('pins the owner head KPI to 17 (BEFORE=21; lane 40 retired 2 TS SELECTs)', async () => {
-    expect(await ownerHeadTokens()).toEqual({ spaced: 17, bare: 17 });
+  it('pins the owner head KPI to 16 (BEFORE=21; lane 40 retired 3 TS SELECTs)', async () => {
+    expect(await ownerHeadTokens()).toEqual({ spaced: 16, bare: 16 });
   });
 });

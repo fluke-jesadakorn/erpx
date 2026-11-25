@@ -90,12 +90,12 @@ describe('Collaboration read-tail r51 renderer fold', () => {
     const push = src('web-push.ts');
     expect(people).toContain("sentNoticeDeliveryCount as nativeDeliveryCount");
     expect(people).toContain("taskSocialOrigin as nativeTaskOrigin");
-    expect(push).toContain("import { countIntNFrom } from './read-tail-sql';");
+    expect(push).toContain("pushSessionSubscriptionCount } from './native-lane-16/client'");
     expect(people).toContain('nativeDeliveryCount(db, companyId, eventKey, actor)');
     expect(people).not.toContain('.bind(companyId,eventKey).first<{n:number}>()');
-    expect(push).toContain("db.prepare(countIntNFrom('push_subscriptions WHERE company_id=? AND user_id=? AND session_id=?')).bind(companyId, userId, value).first<{ n: number; }>()");
+    expect(push).toContain('pushSessionSubscriptionCount(db, companyId, userId, String(value), actor)');
     expect((people.match(/countIntNFrom\(/g) ?? []).length).toBe(0);
-    expect((push.match(/countIntNFrom\(/g) ?? []).length).toBe(1);
+    expect((push.match(/countIntNFrom\(/g) ?? []).length).toBe(0);
     expect(people).not.toContain('`SELECT count(*)::int n FROM inbox_deliveries');
     expect(push).not.toContain('"SELECT count(*)::int n FROM push_subscriptions');
   });
@@ -103,7 +103,7 @@ describe('Collaboration read-tail r51 renderer fold', () => {
 
 describe('Collaboration read-tail r51 excluded SQL stays untouched', () => {
   test('inbox whole-file pins, agent-reply locks/finalize and notifications are unchanged', () => {
-    expect(sha(fixed('adapters/inbox.ts'))).toBe('add8defc4e1a0b3d369362e96d00acb93e34d0d0734cd0a1783b98a7382eb721');
+    expect(sha(fixed('adapters/inbox.ts'))).toBe('8c2fdafbb118a000f35836196bd2917d60afc8ab345171895d573e97678b73b5');
     expect(sha(fixed('adapters/staff-notifications.ts'))).toBe('3ce65abf55973c3a41228531a9d2778739a6a7f859a37591c016bda9f9a2508a');
     expect(sha(fixed('adapters/messaging-purchases.ts'))).toBe('6921fd7a922dccbab407a37ecf8544b26494388c442871f4b084c45b39133c9b');
     expect(sha(fixed('public/field-outbox-predicate.generated.ts'))).toBe('1c1945bec812a3981738b0d36af5483786ff8e372c669453c0bc8683976a6c84');
@@ -119,7 +119,7 @@ describe('Collaboration read-tail r51 excluded SQL stays untouched', () => {
 });
 
 describe('Collaboration read-tail r51 KPI pins', () => {
-  test('retirement:ts-statements is pinned at 324, below the r51 BEFORE=332 baseline', () => {
+  test('retirement:ts-statements is pinned at 320, below the r51 BEFORE=332 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -130,7 +130,7 @@ describe('Collaboration read-tail r51 KPI pins', () => {
     };
     walk(srcRoot);
     // Two byte-identical count heads -> one renderer: 332 -> 331.
-    expect(total).toBe(324);
+    expect(total).toBe(320);
     expect(total).toBeLessThan(332);
   });
 });

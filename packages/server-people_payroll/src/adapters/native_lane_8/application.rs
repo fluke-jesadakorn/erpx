@@ -7,12 +7,18 @@ use serde_json::Value;
 use std::{future::Future, pin::Pin};
 
 use super::domain::{
-    ApproverName, CountryPackRow, ExportBytesRow, IssuableRun, OwnSlipRow, PayGroup, PayGroupFacts,
-    PaymentRow, PayrollItemTotals, PersonOption, PayslipItemRow, ReadKind, RosterShift,
-    SlipRow, StatutoryRun, invalid, unavailable, valid_id, valid_values, value,
+    ApproverName, CountryPackRow, ExportBytesRow, HrAffectedPerson, HrCurrentPolicy,
+    HrEligibilityRow, HrEngagementRow, HrFutureShift, HrPayGroupRow, IssuableRun, OwnSlipRow,
+    PayGroup, PayGroupFacts, PaymentRow, PayrollItemTotals, PersonOption, PayslipItemRow, ReadKind,
+    RosterShift, SlipRow, StatutoryRun, invalid, unavailable, valid_id, valid_values, value,
 };
 
 pub type LaneReadFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, BusinessError>> + Send + 'a>>;
+
+/// Empty-string sentinel for a bounded optional filter.
+fn absent(value: &str) -> Option<&str> {
+    (!value.is_empty()).then_some(value)
+}
 
 /// Composition injects the owner reader; the router transports bounded
 /// identities only. The Company scope is the isolated context header.
@@ -93,6 +99,38 @@ pub trait AppEntrypointRead: Send + Sync {
     fn retained_pack<'a>(&'a self, _id: &'a str) -> LaneReadFuture<'a, Option<CountryPackRow>> {
         Box::pin(async { Err(unavailable()) })
     }
+    fn hr_engagement<'a>(
+        &'a self, _company: &'a str, _id: &'a str, _branch: Option<&'a str>,
+        _department: Option<&'a str>,
+    ) -> LaneReadFuture<'a, Option<HrEngagementRow>> {
+        Box::pin(async { Err(unavailable()) })
+    }
+    fn hr_eligibility<'a>(
+        &'a self, _company: &'a str, _id: &'a str,
+    ) -> LaneReadFuture<'a, Option<HrEligibilityRow>> {
+        Box::pin(async { Err(unavailable()) })
+    }
+    fn hr_affected_people<'a>(
+        &'a self, _company: &'a str, _encoded: &'a str, _branch: Option<&'a str>,
+        _department: Option<&'a str>,
+    ) -> LaneReadFuture<'a, Vec<HrAffectedPerson>> {
+        Box::pin(async { Err(unavailable()) })
+    }
+    fn hr_future_shifts<'a>(
+        &'a self, _company: &'a str, _encoded: &'a str, _now: &'a str,
+    ) -> LaneReadFuture<'a, Vec<HrFutureShift>> {
+        Box::pin(async { Err(unavailable()) })
+    }
+    fn hr_current_policies<'a>(
+        &'a self, _company: &'a str, _encoded: &'a str, _today: &'a str,
+    ) -> LaneReadFuture<'a, Vec<HrCurrentPolicy>> {
+        Box::pin(async { Err(unavailable()) })
+    }
+    fn hr_pay_groups<'a>(
+        &'a self, _company: &'a str, _encoded: &'a str,
+    ) -> LaneReadFuture<'a, Vec<HrPayGroupRow>> {
+        Box::pin(async { Err(unavailable()) })
+    }
 }
 
 /// Dispatch exactly one owner read. `company` comes from the validated context
@@ -137,6 +175,18 @@ pub async fn read<R: AppEntrypointRead + ?Sized>(
         ReadKind::StatutoryRun => value(reader.statutory_run(&values[0]).await?),
         ReadKind::StatutoryItems => value(reader.statutory_items(&values[0]).await?),
         ReadKind::RetainedPack => value(reader.retained_pack(&values[0]).await?),
+        ReadKind::HrEngagement => value(reader.hr_engagement(
+            company, &values[0], absent(&values[1]), absent(&values[3]),
+        ).await?),
+        ReadKind::HrEligibility => value(reader.hr_eligibility(company, &values[0]).await?),
+        ReadKind::HrAffectedPeople => value(reader.hr_affected_people(
+            company, &values[0], absent(&values[1]), absent(&values[3]),
+        ).await?),
+        ReadKind::HrFutureShifts => value(reader.hr_future_shifts(company, &values[0], &values[1]).await?),
+        ReadKind::HrCurrentPolicies => {
+            value(reader.hr_current_policies(company, &values[0], &values[1]).await?)
+        }
+        ReadKind::HrPayGroups => value(reader.hr_pay_groups(company, &values[0]).await?),
     }
 }
 
@@ -295,6 +345,62 @@ mod tests {
                 record_version: 2,
             })) })
         }
+        fn hr_engagement<'a>(
+            &'a self, company: &'a str, id: &'a str, branch: Option<&'a str>, department: Option<&'a str>,
+        ) -> LaneReadFuture<'a, Option<HrEngagementRow>> {
+            self.mark("hr_engagement");
+            let (company, id) = (company.to_owned(), id.to_owned());
+            let (branch, department) = (branch.map(str::to_owned), department.map(str::to_owned));
+            Box::pin(async move { Ok(Some(HrEngagementRow {
+                id, person_id: company, branch_id: branch, department_id: department,
+            })) })
+        }
+        fn hr_eligibility<'a>(
+            &'a self, company: &'a str, id: &'a str,
+        ) -> LaneReadFuture<'a, Option<HrEligibilityRow>> {
+            self.mark("hr_eligibility");
+            let (company, id) = (company.to_owned(), id.to_owned());
+            Box::pin(async move { Ok(Some(HrEligibilityRow {
+                eligible: None, version: Some(1), top_level: id == company,
+            })) })
+        }
+        fn hr_affected_people<'a>(
+            &'a self, company: &'a str, _encoded: &'a str, _branch: Option<&'a str>,
+            _department: Option<&'a str>,
+        ) -> LaneReadFuture<'a, Vec<HrAffectedPerson>> {
+            self.mark("hr_affected_people");
+            let company = company.to_owned();
+            Box::pin(async move { Ok(vec![HrAffectedPerson {
+                engagement_id: "eng".into(), person_id: "person".into(), name: company,
+            }]) })
+        }
+        fn hr_future_shifts<'a>(
+            &'a self, _company: &'a str, encoded: &'a str, now: &'a str,
+        ) -> LaneReadFuture<'a, Vec<HrFutureShift>> {
+            self.mark("hr_future_shifts");
+            let (encoded, now) = (encoded.to_owned(), now.to_owned());
+            Box::pin(async move { Ok(vec![HrFutureShift {
+                engagement_id: encoded, total: now.parse().unwrap_or(0),
+            }]) })
+        }
+        fn hr_current_policies<'a>(
+            &'a self, _company: &'a str, encoded: &'a str, _today: &'a str,
+        ) -> LaneReadFuture<'a, Vec<HrCurrentPolicy>> {
+            self.mark("hr_current_policies");
+            let encoded = encoded.to_owned();
+            Box::pin(async move { Ok(vec![HrCurrentPolicy {
+                engagement_id: encoded, policy: "policy".into(), calendar: None,
+            }]) })
+        }
+        fn hr_pay_groups<'a>(
+            &'a self, _company: &'a str, encoded: &'a str,
+        ) -> LaneReadFuture<'a, Vec<HrPayGroupRow>> {
+            self.mark("hr_pay_groups");
+            let encoded = encoded.to_owned();
+            Box::pin(async move { Ok(vec![HrPayGroupRow {
+                engagement_id: encoded, name: None,
+            }]) })
+        }
     }
 
     #[tokio::test]
@@ -408,5 +514,25 @@ mod tests {
         assert_eq!(read(&reader, "company", "statutory_retained_pack", &["pack".to_owned()])
             .await.unwrap()["status"], "superseded");
         assert_eq!(reader.calls.lock().unwrap().len(), 5);
+    }
+
+    #[tokio::test]
+    async fn dispatcher_maps_hr_roster_reads_with_absent_filters() {
+        let reader = Fake::new();
+        assert_eq!(read(&reader, "company", "hr_engagement_facts",
+            &["eng".to_owned(), "branch".to_owned(), "branch".to_owned(), String::new(), String::new()])
+            .await.unwrap()["branch_id"], "branch");
+        assert_eq!(read(&reader, "company", "hr_overtime_eligibility", &["eng".to_owned()])
+            .await.unwrap()["version"], 1);
+        assert_eq!(read(&reader, "company", "hr_affected_people",
+            &[r#"["eng"]"#.to_owned(), String::new(), String::new(), "dept".to_owned(), "dept".to_owned()])
+            .await.unwrap()[0]["name"], "company");
+        assert_eq!(read(&reader, "company", "hr_future_shifts", &[r#"["eng"]"#.to_owned(), "3".to_owned()])
+            .await.unwrap()[0]["total"], 3);
+        assert_eq!(read(&reader, "company", "hr_current_policies", &[r#"["eng"]"#.to_owned(), "2026-11-25".to_owned(), "2026-11-25".to_owned()])
+            .await.unwrap()[0]["policy"], "policy");
+        assert_eq!(read(&reader, "company", "hr_engagement_pay_groups", &[r#"["eng"]"#.to_owned()])
+            .await.unwrap()[0]["name"], serde_json::Value::Null);
+        assert_eq!(reader.calls.lock().unwrap().len(), 6);
     }
 }

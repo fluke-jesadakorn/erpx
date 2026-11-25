@@ -24,6 +24,93 @@ pub const PAYMENTS_READ_KIND: &str = "people_payroll_lane_7_workspace_people_pay
 pub const PAYMENTS_ROUTE: &str =
     "/api/v1/holdings/{holding_slug}/people-payroll/finance-workspace-payments";
 
+/// Wire discriminator and route for the third lane-7 family: the Company-scoped
+/// Organization authority person lookups (actor and appointee).
+pub const AUTHORITY_READ_KIND: &str = "people_payroll_lane_7_organization_authority_person";
+pub const AUTHORITY_ROUTE: &str =
+    "/api/v1/holdings/{holding_slug}/people-payroll/organization-authority-person";
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum AuthorityKind {
+    Actor,
+    Appointee,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub struct AuthorityPersonQuery {
+    pub kind: AuthorityKind,
+    #[serde(default)]
+    pub user_id: String,
+    #[serde(default)]
+    pub person_id: String,
+    #[serde(default)]
+    pub position_id: String,
+    #[serde(default)]
+    pub appointment_kind: String,
+    #[serde(default)]
+    pub scope_id: String,
+    #[serde(default)]
+    pub self_ceo: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+pub struct AuthorityPerson {
+    pub id: Option<String>,
+}
+
+pub fn validate_authority_query(query: &AuthorityPersonQuery) -> Result<(), BusinessError> {
+    validate_authority_fields(
+        query.kind,
+        &query.user_id,
+        &query.person_id,
+        &query.position_id,
+        &query.appointment_kind,
+        &query.scope_id,
+    )
+}
+
+/// The owned-query form is validated again at the application boundary, so no
+/// reader can be reached with an unbounded discriminator or identifier.
+pub fn validate_authority_fields(
+    kind: AuthorityKind,
+    user_id: &str,
+    person_id: &str,
+    position_id: &str,
+    appointment_kind: &str,
+    scope_id: &str,
+) -> Result<(), BusinessError> {
+    let invalid = || {
+        BusinessError::invalid(
+            "PEOPLE_PAYROLL_LANE7_AUTHORITY_QUERY_INVALID",
+            "Use one bounded authority person lookup.",
+        )
+    };
+    match kind {
+        AuthorityKind::Actor => {
+            if valid_id(user_id) && user_id.len() <= 200 {
+                Ok(())
+            } else {
+                Err(invalid())
+            }
+        }
+        AuthorityKind::Appointee => {
+            if !valid_id(person_id)
+                || person_id.len() > 200
+                || position_id.len() > 200
+                || !matches!(appointment_kind, "ceo" | "hr" | "head")
+                || !valid_id(scope_id)
+                || scope_id.len() > 200
+            {
+                Err(invalid())
+            } else {
+                Ok(())
+            }
+        }
+    }
+}
+
 /// Keys are intentionally snake_case: the Finance workspace maps these rows
 /// directly by their original column names.
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
@@ -113,6 +200,29 @@ mod tests {
         assert!(parse_observed_at("-1").is_err());
         assert!(parse_observed_at("12ms").is_err());
         assert!(parse_observed_at("99999999999999999999").is_err());
+    }
+
+    #[test]
+    fn validates_authority_queries() {
+        let mut q = AuthorityPersonQuery {
+            kind: AuthorityKind::Actor,
+            user_id: "usr_1".to_owned(),
+            person_id: String::new(),
+            position_id: String::new(),
+            appointment_kind: String::new(),
+            scope_id: String::new(),
+            self_ceo: false,
+        };
+        assert!(validate_authority_query(&q).is_ok());
+        q.user_id.clear();
+        assert!(validate_authority_query(&q).is_err());
+        q.kind = AuthorityKind::Appointee;
+        q.person_id = "per_1".to_owned();
+        q.appointment_kind = "head".to_owned();
+        q.scope_id = "dept_1".to_owned();
+        assert!(validate_authority_query(&q).is_ok());
+        q.appointment_kind = "other".to_owned();
+        assert!(validate_authority_query(&q).is_err());
     }
 
     #[test]

@@ -3,7 +3,7 @@
 
 use super::domain::{
     ActualsScope, CostAllocationRow, HandoffProject, HandoffRow, HandoffScope, HandoffWorkRow,
-    WorkLogRow,
+    ProjectRow, WorkLogRow,
 };
 use erpx_server_shared::public::BusinessError;
 use std::{future::Future, pin::Pin};
@@ -33,6 +33,16 @@ pub trait ProjectActualsRead: Send + Sync {
         &'a self,
         scope: &'a HandoffScope,
     ) -> ActualsFuture<'a, Vec<HandoffWorkRow>>;
+
+    /// Owner-or-member visible Project rows, point and list.
+    fn visible_project<'a>(
+        &'a self,
+        scope: &'a ActualsScope,
+    ) -> ActualsFuture<'a, Option<ProjectRow>>;
+    fn visible_projects<'a>(
+        &'a self,
+        scope: &'a ActualsScope,
+    ) -> ActualsFuture<'a, Vec<ProjectRow>>;
 }
 
 pub async fn read_work_logs<R: ProjectActualsRead + ?Sized>(
@@ -98,6 +108,31 @@ pub async fn read_handoff_work<R: ProjectActualsRead + ?Sized>(
     Ok(rows)
 }
 
+pub async fn read_visible_project<R: ProjectActualsRead + ?Sized>(
+    reader: &R,
+    scope: &ActualsScope,
+) -> Result<Option<ProjectRow>, BusinessError> {
+    if scope.project.is_empty() {
+        return Err(super::domain::invalid());
+    }
+    let row = reader.visible_project(scope).await?;
+    if let Some(project) = &row {
+        super::domain::check_project(project)?;
+    }
+    Ok(row)
+}
+
+pub async fn read_visible_projects<R: ProjectActualsRead + ?Sized>(
+    reader: &R,
+    scope: &ActualsScope,
+) -> Result<Vec<ProjectRow>, BusinessError> {
+    let rows = reader.visible_projects(scope).await?;
+    for row in &rows {
+        super::domain::check_project(row)?;
+    }
+    Ok(rows)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -134,6 +169,18 @@ mod tests {
             &'a self,
             _: &'a HandoffScope,
         ) -> ActualsFuture<'a, Vec<HandoffWorkRow>> {
+            Box::pin(async { Ok(vec![]) })
+        }
+        fn visible_project<'a>(
+            &'a self,
+            _: &'a ActualsScope,
+        ) -> ActualsFuture<'a, Option<ProjectRow>> {
+            Box::pin(async { Ok(None) })
+        }
+        fn visible_projects<'a>(
+            &'a self,
+            _: &'a ActualsScope,
+        ) -> ActualsFuture<'a, Vec<ProjectRow>> {
             Box::pin(async { Ok(vec![]) })
         }
     }
@@ -192,5 +239,11 @@ mod tests {
         assert!(read_handoff_project(&reader, &pointed).await.unwrap().is_none());
         assert!(read_handoffs(&reader, &pointed).await.is_err());
         assert!(read_handoff_project(&reader, &handoff).await.is_err());
+
+        assert!(read_visible_project(&reader, &scope).await.unwrap().is_none());
+        assert!(read_visible_projects(&reader, &scope).await.unwrap().is_empty());
+        let list = domain::company_scope("company-1", "user-1").unwrap();
+        assert!(read_visible_projects(&reader, &list).await.unwrap().is_empty());
+        assert!(read_visible_project(&reader, &list).await.is_err());
     }
 }

@@ -12,8 +12,10 @@ import {
   LANE17_RD_LANDED_COSTS_FOR_ORDER,
   LANE17_RD_REORDER_POLICIES,
   LANE17_RD_SERVICE_SPARES,
+  LANE17_RD_COUNT_LOT_LINES,
   readLane17Rows,
   readLane17ReplenishmentRows,
+  readLane17CountRows,
   nativeInventoryLane17Configured,
 } from "../../../packages/server-inventory/src/adapters/native-lane-17/client";
 
@@ -217,6 +219,35 @@ describe("native Inventory lane 17 replenishment reads", () => {
   });
 });
 
+describe("native Inventory lane 17 count lot lines", () => {
+  const read = [LANE17_RD_COUNT_LOT_LINES, ["warehouse-1", "count-1"], ACTOR] as const;
+
+  test("count-scoped lot lines use the WorkContext-selected target and no SQL on the wire", async () => {
+    const fetchMock = vi.fn(async () => ok([{ id: "lot-line-1", current_quantity_milli: 1000 }]));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(readLane17CountRows(...read, env())).resolves.toEqual([
+      { id: "lot-line-1", current_quantity_milli: 1000 },
+    ]);
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
+    expect(url.toString()).toContain("/holdings/acme/");
+    expect((init.headers as Record<string, string>)["x-erpx-context-company"]).toBe("company-1");
+    expect(JSON.parse(String(init.body))).toEqual({ kind: LANE17_RD_COUNT_LOT_LINES, values: ["warehouse-1", "count-1"] });
+    expect(String(init.body)).not.toMatch(/SELECT|FROM |WHERE /i);
+  });
+
+  test("count lot lines fail closed on scope change and unavailable owner", async () => {
+    const fetchMock = vi.fn(async () => ok([]));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(
+      readLane17CountRows(read[0], read[1], { ...ACTOR, holdingSlug: "northstar" }, env()),
+    ).rejects.toMatchObject({ status: 409, code: "WORK_CONTEXT_CHANGED" });
+    await expect(readLane17CountRows(read[0], ["warehouse-1"], ACTOR, env())).rejects.toMatchObject({ status: 503 });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 503 })));
+    await expect(readLane17CountRows(...read, env())).rejects.toMatchObject({ status: 503 });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
 describe("native lane 17 slice evidence", () => {
   const adapters = [
     "inventory-landed-costs.ts",
@@ -238,7 +269,7 @@ describe("native lane 17 slice evidence", () => {
 
   test("Rust owner SQL hashes pin the byte-identical rendered statements", () => {
     const statements = [...rust.matchAll(/const (SQL_\w+): &str = r#"([\s\S]*?)"#;/g)];
-    expect(statements).toHaveLength(6);
+    expect(statements).toHaveLength(7);
     const hashes = Object.fromEntries(
       statements.map(([, name, sql]) => [name, createHash("sha256").update(sql).digest("hex")]),
     );
@@ -249,10 +280,17 @@ describe("native lane 17 slice evidence", () => {
       SQL_WORK_ROWS: "41fb758c4c568aca7436e25c239e2d8c60b7fc999150af07479d5691858c448a",
       SQL_REORDER_POLICIES: "b0e831a4f9960bd0c7d27fcb121c45373d7714ba54d47ee2fe6394c4a13a0cab",
       SQL_SERVICE_SPARES: "32d473fafcdd9f247f0f1ae01175fc9dac9b9047e96c69724d7feefb65082e83",
+      SQL_COUNT_LOT_LINES: "bb8e0feecd8b8a5c70ed079d6371cb57958c7cce34c02ae016e1d34eab7e41db",
     });
   });
 
-  test("owner TS SELECT token KPI is 285 after the lane 17 replenishment slice", () => {
+  test("the count adapter no longer carries the count-lot-line SQL", () => {
+    const counts = readFileSync(`${ROOT}/packages/server-inventory/src/adapters/inventory-counts.ts`, "utf8");
+    expect(counts).not.toContain("FROM inventory_count_lot_lines cl JOIN inventory_count_lines l");
+    expect(counts).toContain("native-lane-17/client");
+  });
+
+  test("owner TS SELECT token KPI is 284 after the lane 17 count-lot-line slice", () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -262,6 +300,6 @@ describe("native lane 17 slice evidence", () => {
       }
     };
     walk(resolve(ROOT, "packages/server-inventory/src"));
-    expect(total).toBe(285);
+    expect(total).toBe(284);
   });
 });

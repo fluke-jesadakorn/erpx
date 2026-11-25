@@ -1,12 +1,21 @@
 import 'server-only';
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
-import {manufacturingFinanceRecordSources} from '@erpx/server-manufacturing/adapters/finance-record-sources';
-import {manufacturingScopedExistsProbe} from './manufacturing-read-tail-r29-sql';
+import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import {
+  nativeManufacturingLane28PostingReferences,
+  type Lane28WorkContext,
+} from './native-lane-28/client';
+
 /** Actual original posting IDs, including an absence witness when a previously
- * recorded posting no longer satisfies its immutable owner/receipt lineage. */
-export async function manufacturingExistingPostingEconomicReferences(database:SqlDatabase,companyId:string){
- const rows=(await database.prepare(`SELECT posting.id,posting.order_id,posting.journal_id,posting.amount_minor,to_jsonb(posting)::text image,
- ${manufacturingScopedExistsProbe(manufacturingFinanceRecordSources.posting,"actual","actual.posting_id=posting.id AND actual.company_id=posting.company_id AND actual.id=posting.journal_id")} proven
- FROM manufacturing_order_postings posting WHERE posting.company_id=? ORDER BY posting.id`).bind(companyId).all<{id:string;order_id:string;journal_id:string;amount_minor:number;image:string;proven:boolean}>()).results;
- return {journalIds:[...new Set(rows.map(row=>row.journal_id))],orderIds:[...new Set(rows.map(row=>row.order_id))],invalid:rows.some(row=>Number(row.amount_minor)>0&&!row.proven),image:JSON.stringify(rows)};
+ *  recorded posting no longer satisfies its immutable owner/receipt lineage.
+ *
+ *  The retired inline statement + scoped EXISTS witness is now owned and executed
+ *  by the Rust axum owner with sqlx (lane 28). This adapter is a strict
+ *  transport: it emits no SQL and fails closed when the native owner is
+ *  unavailable. The caller's unit stays in the signature for compatibility. */
+export async function manufacturingExistingPostingEconomicReferences(
+  _database: SqlDatabase,
+  companyId: string,
+  actor?: Lane28WorkContext,
+) {
+  return nativeManufacturingLane28PostingReferences(companyId, actor);
 }

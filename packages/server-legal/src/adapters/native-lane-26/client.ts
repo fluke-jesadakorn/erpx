@@ -399,6 +399,72 @@ export async function nativeLegalTrustMaterial(
   return payload.material;
 }
 
+export type NativeCitationChunk = Readonly<{
+  id: string;
+  document_id: string;
+  page: number | null;
+  page_mapping: boolean;
+  section: string;
+  text: string;
+  document_checksum: string;
+}>;
+
+function isCitationChunk(value: unknown): value is NativeCitationChunk {
+  return (
+    object(value) &&
+    text(value.id, 200) &&
+    text(value.document_id, 200) &&
+    (value.page === null || safeInteger(value.page)) &&
+    typeof value.page_mapping === 'boolean' &&
+    text(value.section, 8192) &&
+    text(value.text, 1_048_576) &&
+    text(value.document_checksum, 512)
+  );
+}
+
+/** Approved OCR chunk used to pin a legal citation. The native owner joins the
+ * approved review and enforces the Company scope; this transport emits no SQL. */
+export async function nativeLegalCitationChunk(
+  actor: NativeLane26Actor,
+  id: string,
+): Promise<NativeCitationChunk | null> {
+  const { scope } = selectedTarget(actor);
+  if (!id || id.length > 200 || !/^[A-Za-z0-9._:-]+$/.test(id))
+    return unavailable('NATIVE_LEGAL_COPY_READ_REQUEST_INVALID');
+  const payload = await laneGet(actor, holdingsPath(scope, `citation-chunk/${encodeURIComponent(id)}`));
+  if (!object(payload) || !(payload.chunk === null || isCitationChunk(payload.chunk)))
+    return unavailable('NATIVE_LEGAL_COPY_READ_RESPONSE_INVALID');
+  return payload.chunk;
+}
+
+/** True when the native owner confirms an approved text review for a document. */
+export async function nativeLegalTextApproved(
+  actor: NativeLane26Actor,
+  reviewId: string,
+  documentId: string,
+): Promise<boolean> {
+  const { scope } = selectedTarget(actor);
+  if (
+    !reviewId ||
+    reviewId.length > 200 ||
+    !/^[A-Za-z0-9._:-]+$/.test(reviewId) ||
+    !documentId ||
+    documentId.length > 200 ||
+    !/^[A-Za-z0-9._:-]+$/.test(documentId)
+  )
+    return unavailable('NATIVE_LEGAL_COPY_READ_REQUEST_INVALID');
+  const payload = await laneGet(
+    actor,
+    holdingsPath(
+      scope,
+      `text-approved/${encodeURIComponent(reviewId)}/${encodeURIComponent(documentId)}`,
+    ),
+  );
+  if (!object(payload) || typeof payload.approved !== 'boolean')
+    return unavailable('NATIVE_LEGAL_COPY_READ_RESPONSE_INVALID');
+  return payload.approved;
+}
+
 /** True when the owner consumer switch is configured. */
 export function nativeLane26Configured(
   environment: Readonly<Record<string, string | undefined>> = process.env,

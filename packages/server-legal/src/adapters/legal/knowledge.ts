@@ -10,7 +10,7 @@ import {createLegalKnowledgeApplication} from "@erpx/server-legal/application/kn
 import {validateLegalAiCitations as validateCitations,type LegalEvidenceSource,type LegalAiEvidence} from "@erpx/server-legal/domain/knowledge";
 import { legalAccessEvent } from '@erpx/server-collaboration/adapters/native-legal-access-event';
 import { nativeLegalAuxiliaryRead } from '../native-legal-auxiliary';
-import { legalStatePointSql } from '../legal-read-tail-r33-sources';
+import { nativeLegalTextApproved } from '../native-lane-26/client';
 import { legalActiveDestructionGuardHead } from '../legal-read-tail-r46-sources';
 import { legalAttachmentAvailableSql } from '../legal-read-tail-r47-sources';
 import { legalDisposedGuardSql } from '../legal-read-tail-r39-sources';
@@ -34,7 +34,7 @@ function application(db:SqlDatabase,a:WorkContext,view?:LegalKnowledgeView,citat
  authored:async()=>[],
  authoredItem:async()=>view?.authoredItems??[],
  documentAvailable:async id=>{const d={id};return Boolean(await db.prepare(legalCorpusSourceCleanHead(`${v.sql} AND ${(await purchase()).where} AND ${cleanDocument}`)).bind(d.id, ...v.values).first());},
- textApproved:async(reviewId,documentId)=>{const source={text_review_id:reviewId},d={id:documentId};return Boolean(await db.prepare(legalStatePointSql("1","legal_text_reviews","document_id","approved")).bind(source.text_review_id, d.id).first());},
+ textApproved:async(reviewId,documentId)=>nativeLegalTextApproved(a,reviewId,documentId),
  recordReads:async rows=>{const ai=rows.filter(row=>row.action==="ai.source.read");if(ai.length){const statements=await Promise.all(ai.map(source=>legalAccessEvent(db,a.companyId,a.userId).record(source.identifier,source.action,source.item_id,source.document_id,source.now)));await db.batch(statements);}}
  }});}
 export async function lawKnowledge(db:SqlDatabase,a:WorkContext,query:unknown,asOf?:unknown){const q=String(query),date=asOf==null?undefined:String(asOf),view=await nativeLegalAuxiliaryRead<LegalKnowledgeView>(a,"knowledge",undefined,knowledgeParams(q,date));return application(db,a,view).lawKnowledge(query,asOf);}

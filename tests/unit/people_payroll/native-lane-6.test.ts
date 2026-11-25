@@ -10,11 +10,13 @@ import {
   LANE6_TARGET_UNAVAILABLE,
   LANE6_UNAVAILABLE,
   nativeCalendarAvailabilityLeaveDays,
+  nativeCalendarAccessPeople,
   nativeCalendarPersonScope,
   type LaneHoldingScope,
 } from '../../../packages/server-people_payroll/src/adapters/native-lane-6/client';
 import { calendarAvailabilityPeoplePayrollFacts } from '../../../packages/server-people_payroll/src/adapters/calendar-availability-facts';
 import { calendarIndexPeoplePayrollFacts } from '../../../packages/server-people_payroll/src/adapters/calendar-index-facts';
+import { calendarAccessPeoplePayrollFacts } from '../../../packages/server-people_payroll/src/adapters/calendar-access-facts';
 
 const src = (name: string) => readFileSync(new URL(`../../../packages/server-people_payroll/src/${name}`, import.meta.url), 'utf8');
 const sha = (value: string) => createHash('sha256').update(value).digest('hex');
@@ -33,6 +35,13 @@ const RETIRED_SQL = `SELECT DISTINCT p.user_id,d.leave_date::text leave_date
 
 /** Verbatim retired `read1` literal from calendar-index-facts.ts. */
 const RETIRED_PERSON_SCOPE_SQL = `SELECT 1 FROM hr_people p JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id WHERE p.id=? AND p.company_id=? AND \${inList("coalesce(e.department_id,e.branch_id,e.company_id)")} LIMIT 1`;
+
+/** Verbatim retired `people` literal from calendar-access-facts.ts. */
+const RETIRED_CALENDAR_PEOPLE_SQL = `SELECT * FROM (SELECT DISTINCT ON(p.id) p.id,p.legal_name name,p.user_id "userId",e.department_id "departmentId",e.branch_id "branchId",e.manager_person_id "managerId",e.status
+  FROM hr_people p JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id
+  WHERE p.company_id=? AND p.merged_into_id IS NULL AND \${inList("coalesce(e.department_id,e.branch_id,e.company_id)")}
+  AND ((? AND (e.status!='ended' OR \${PP_RD29_LIFECYCLE_CASE_FOR_ENGAGEMENT_SQL})) OR (e.status='active' AND e.start_date<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND (e.end_date IS NULL OR e.end_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD')))) AND (?='' OR p.legal_name ILIKE '%'||?||'%')
+  ORDER BY p.id,CASE WHEN e.status='active' THEN 0 ELSE 1 END,e.start_date DESC,e.id) x ORDER BY name,id LIMIT ? OFFSET ?`;
 
 const ENV = 'ERPX_NATIVE_PEOPLE_PAYROLL_CONFIG';
 const CONFIG = {
@@ -277,6 +286,85 @@ describe('native lane 6 — People Payroll calendar availability leave reads', (
       { holdingId: 'h999', holdingSlug: 'acme', companyId: 'company-1' },
       'company-1', 'person-1', '["company-1"]',
     ), LANE6_TARGET_UNAVAILABLE);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  test('calendar-people SQL oracle: retired literal is byte-identical in Rust and gone from TS', () => {
+    expect(sha(RETIRED_CALENDAR_PEOPLE_SQL)).toBe('94666e17fa2d64329b3e7a2f94ddba1687c10d7f8ce5a1c53c11fc4e8d76abbb');
+    // Two literal SELECTs here; the third comes from the owner-local
+    // PP_RD29 lifecycle fragment inlined byte-identically in Rust.
+    expect(RETIRED_CALENDAR_PEOPLE_SQL.match(/\bSELECT\b/g)).toHaveLength(2);
+    expect(RETIRED_CALENDAR_PEOPLE_SQL).toContain('${PP_RD29_LIFECYCLE_CASE_FOR_ENGAGEMENT_SQL}');
+    const rs = src('adapters/native_lane_6/postgres.rs');
+    expect(rs).toContain(RETIRED_CALENDAR_PEOPLE_SQL);
+    expect(rs).toContain('p.company_id=$1');
+    expect(rs).toContain('jsonb_array_elements_text($2::jsonb)');
+    expect(rs).toContain('LIMIT $6 OFFSET $7');
+    const ts = src('adapters/calendar-access-facts.ts');
+    expect(ts).not.toMatch(/\bSELECT\b/i);
+    expect(ts).toContain('nativeCalendarAccessPeople');
+  });
+
+  test('calendar-people client sends the exact bounded request and pins the response shape', async () => {
+    const calls: { url: string; headers: Record<string, string>; body: unknown }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL, init: RequestInit) => {
+      const headers: Record<string, string> = {};
+      new Headers(init.headers).forEach((value, key) => { headers[key] = value; });
+      calls.push({ url: String(url), headers, body: JSON.parse(String(init.body)) });
+      return reply({ people: [{
+        id: 'p1', name: 'Alice', userId: 'u1', departmentId: null,
+        branchId: 'b1', managerId: null, status: 'active',
+      }] });
+    }));
+    const people = await calendarAccessPeoplePayrollFacts({} as never, scopeOf(0)).people({
+      companyId: 'company-1',
+      peopleIds: ['branch-1', 'department-2'],
+      lifecycleReader: true,
+      search: 'Alice',
+      take: 25,
+      cursor: 0,
+    });
+    expect(people).toEqual([{
+      id: 'p1', name: 'Alice', userId: 'u1', departmentId: null,
+      branchId: 'b1', managerId: null, status: 'active',
+    }]);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.url).toBe('http://127.0.0.1:3198/api/v1/holdings/acme/people-payroll/lane6/calendar-access-people');
+    expect(calls[0]?.headers['host']).toBe('acme.jesadakorn.com');
+    expect(calls[0]?.headers['x-erpx-context-company']).toBe('company-1');
+    expect(calls[0]?.body).toEqual({
+      peopleIds: ['branch-1', 'department-2'], lifecycleReader: true,
+      search: 'Alice', take: 25, cursor: 0,
+    });
+  });
+
+  test.each([
+    ['extra envelope key', () => reply({ people: [], extra: 1 }), LANE6_RESPONSE_INVALID],
+    ['missing list', () => reply({ rows: [] }), LANE6_RESPONSE_INVALID],
+    ['unknown row keys', () => reply({ people: [{ id: 'p1', name: 'A', userId: null, departmentId: null, branchId: null, managerId: null, status: 'active', x: 1 }] }), LANE6_RESPONSE_INVALID],
+    ['non-nullable user', () => reply({ people: [{ id: 'p1', name: 'A', userId: 1, departmentId: null, branchId: null, managerId: null, status: 'active' }] }), LANE6_RESPONSE_INVALID],
+    ['non-200', () => reply({}, 503), LANE6_UNAVAILABLE],
+  ])('calendar-people fails closed on %s', async (_name, build, code) => {
+    vi.stubGlobal('fetch', vi.fn(async () => build()));
+    await expect503(nativeCalendarAccessPeople(undefined, 'company-1', ['branch-1'], true, '', 25, 0), code);
+  });
+
+  test('calendar-people rejects unbounded input before any fetch', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('must not be called'); }));
+    await expect503(nativeCalendarAccessPeople(undefined, 'company-1', [], true, '', 25, 0), LANE6_RESPONSE_INVALID);
+    await expect503(nativeCalendarAccessPeople(undefined, 'company-1', ['branch-1'], true, '', 0, 0), LANE6_RESPONSE_INVALID);
+    await expect503(nativeCalendarAccessPeople(undefined, 'company-1', ['branch-1'], true, '', 25, -1), LANE6_RESPONSE_INVALID);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  test('calendar-people enforces byte bounds before any fetch', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('must not be called'); }));
+    // 201 ASCII bytes, and a multibyte search over 200 bytes: both rejected by the Rust 200-byte bound.
+    await expect503(nativeCalendarAccessPeople(undefined, 'company-1', ['branch-1'], true, 'x'.repeat(201), 25, 0), LANE6_RESPONSE_INVALID);
+    await expect503(nativeCalendarAccessPeople(undefined, 'company-1', ['branch-1'], true, 'ก'.repeat(70), 25, 0), LANE6_RESPONSE_INVALID);
+    // 200 ids of 200 chars each would exceed the axum 8 KiB body limit.
+    const ids = Array.from({ length: 200 }, (_, index) => `${'i'.repeat(190)}${index}`);
+    await expect503(nativeCalendarAccessPeople(undefined, 'company-1', ids, true, '', 25, 0), LANE6_RESPONSE_INVALID);
     expect(fetch).not.toHaveBeenCalled();
   });
 });

@@ -27,6 +27,12 @@ pub const READ_STATUTORY_PAY_GROUP: &str = "statutory_pay_group";
 pub const READ_STATUTORY_RUN: &str = "statutory_run";
 pub const READ_STATUTORY_ITEMS: &str = "statutory_items";
 pub const READ_STATUTORY_RETAINED_PACK: &str = "statutory_retained_pack";
+pub const READ_HR_ENGAGEMENT: &str = "hr_engagement_facts";
+pub const READ_HR_ELIGIBILITY: &str = "hr_overtime_eligibility";
+pub const READ_HR_AFFECTED_PEOPLE: &str = "hr_affected_people";
+pub const READ_HR_FUTURE_SHIFTS: &str = "hr_future_shifts";
+pub const READ_HR_CURRENT_POLICIES: &str = "hr_current_policies";
+pub const READ_HR_PAY_GROUPS: &str = "hr_engagement_pay_groups";
 
 /// The only discriminators the native route accepts.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -46,6 +52,12 @@ pub enum ReadKind {
     StatutoryRun,
     StatutoryItems,
     RetainedPack,
+    HrEngagement,
+    HrEligibility,
+    HrAffectedPeople,
+    HrFutureShifts,
+    HrCurrentPolicies,
+    HrPayGroups,
 }
 
 impl ReadKind {
@@ -66,6 +78,12 @@ impl ReadKind {
             READ_STATUTORY_RUN => Ok(Self::StatutoryRun),
             READ_STATUTORY_ITEMS => Ok(Self::StatutoryItems),
             READ_STATUTORY_RETAINED_PACK => Ok(Self::RetainedPack),
+            READ_HR_ENGAGEMENT => Ok(Self::HrEngagement),
+            READ_HR_ELIGIBILITY => Ok(Self::HrEligibility),
+            READ_HR_AFFECTED_PEOPLE => Ok(Self::HrAffectedPeople),
+            READ_HR_FUTURE_SHIFTS => Ok(Self::HrFutureShifts),
+            READ_HR_CURRENT_POLICIES => Ok(Self::HrCurrentPolicies),
+            READ_HR_PAY_GROUPS => Ok(Self::HrPayGroups),
             _ => Err(invalid()),
         }
     }
@@ -87,6 +105,12 @@ impl ReadKind {
             Self::StatutoryRun => READ_STATUTORY_RUN,
             Self::StatutoryItems => READ_STATUTORY_ITEMS,
             Self::RetainedPack => READ_STATUTORY_RETAINED_PACK,
+            Self::HrEngagement => READ_HR_ENGAGEMENT,
+            Self::HrEligibility => READ_HR_ELIGIBILITY,
+            Self::HrAffectedPeople => READ_HR_AFFECTED_PEOPLE,
+            Self::HrFutureShifts => READ_HR_FUTURE_SHIFTS,
+            Self::HrCurrentPolicies => READ_HR_CURRENT_POLICIES,
+            Self::HrPayGroups => READ_HR_PAY_GROUPS,
         }
     }
 
@@ -101,14 +125,17 @@ impl ReadKind {
             Self::Payment => 2,
             Self::OwnSlips | Self::Slip => 3,
             Self::CountryPack | Self::PayGroupFacts | Self::StatutoryRun | Self::StatutoryItems
-            | Self::RetainedPack => 1,
+            | Self::RetainedPack | Self::HrEligibility | Self::HrPayGroups => 1,
+            Self::HrFutureShifts => 2,
+            Self::HrCurrentPolicies => 3,
+            Self::HrEngagement | Self::HrAffectedPeople => 5,
         }
     }
 
     /// Optional payslip filters use an empty-string sentinel; all other values
     /// must be bounded identifiers. The Company never travels in `values`.
     pub fn accepts_absent(self) -> bool {
-        matches!(self, Self::OwnSlips | Self::Slip)
+        matches!(self, Self::OwnSlips | Self::Slip | Self::HrEngagement | Self::HrAffectedPeople)
     }
 }
 
@@ -246,23 +273,93 @@ pub struct PayrollItemTotals {
     pub result_json: String,
 }
 
-/// Values are bounded identities; the payslip filter kinds additionally allow
-/// an empty-string "absent" sentinel, with user filters always paired.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct HrEngagementRow {
+    pub id: String,
+    pub person_id: String,
+    pub branch_id: Option<String>,
+    pub department_id: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct HrEligibilityRow {
+    pub eligible: Option<bool>,
+    pub version: Option<i64>,
+    pub top_level: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct HrAffectedPerson {
+    pub engagement_id: String,
+    pub person_id: String,
+    pub name: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct HrFutureShift {
+    pub engagement_id: String,
+    pub total: i64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct HrCurrentPolicy {
+    pub engagement_id: String,
+    pub policy: String,
+    pub calendar: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct HrPayGroupRow {
+    pub engagement_id: String,
+    pub name: Option<String>,
+}
+
+/// The encoded engagement-id set is an opaque wire token, but it is parsed and
+/// pinned here so no caller can smuggle SQL or an unbounded document to sqlx.
+fn encoded_engagements(value: &str) -> bool {
+    if value.is_empty() || value.len() > 8192 {
+        return false;
+    }
+    match serde_json::from_str::<Vec<String>>(value) {
+        Ok(ids) => !ids.is_empty() && ids.len() <= 5000 && ids.iter().all(|item| valid_id(item)),
+        Err(_) => false,
+    }
+}
+
+/// Values are bounded identities; the payslip and HR filter kinds additionally
+/// allow an empty-string "absent" sentinel, with user filters always paired.
 pub fn valid_values(kind: ReadKind, values: &[String]) -> bool {
     if values.len() != kind.arity() {
         return false;
     }
-    if !kind.accepts_absent() {
+    let encoded = matches!(
+        kind,
+        ReadKind::HrAffectedPeople
+            | ReadKind::HrFutureShifts
+            | ReadKind::HrCurrentPolicies
+            | ReadKind::HrPayGroups
+    );
+    if !kind.accepts_absent() && !encoded {
         return values.iter().all(|item| valid_id(item));
     }
-    if kind == ReadKind::Slip && !valid_id(&values[0]) {
-        return false;
+    let first_ok = match kind {
+        ReadKind::Slip | ReadKind::HrEngagement => valid_id(&values[0]),
+        ReadKind::OwnSlips => values[0].is_empty() || valid_id(&values[0]),
+        ReadKind::HrAffectedPeople
+        | ReadKind::HrFutureShifts
+        | ReadKind::HrCurrentPolicies
+        | ReadKind::HrPayGroups => encoded_engagements(&values[0]),
+        _ => true,
+    };
+    let pair_ok = |a: &str, b: &str| (a.is_empty() && b.is_empty()) || (valid_id(a) && valid_id(b));
+    if kind == ReadKind::HrAffectedPeople || kind == ReadKind::HrEngagement {
+        return first_ok && pair_ok(&values[1], &values[2]) && pair_ok(&values[3], &values[4]);
     }
-    if kind == ReadKind::OwnSlips && !values[0].is_empty() && !valid_id(&values[0]) {
-        return false;
+    if encoded {
+        return first_ok && values[1..].iter().all(|item| valid_id(item));
     }
-    (values[1].is_empty() && values[2].is_empty())
-        || (valid_id(&values[1]) && valid_id(&values[2]))
+    first_ok && ((values[1].is_empty() && values[2].is_empty())
+        || (valid_id(&values[1]) && valid_id(&values[2])))
 }
 
 pub fn invalid() -> BusinessError {
@@ -344,6 +441,16 @@ mod tests {
         assert!(valid_slug("acme_holding-1"));
         assert!(!valid_slug("Acme"));
         assert!(!valid_slug("../acme"));
+    }
+
+    #[test]
+    fn hr_encoded_sets_are_bounded_json_id_arrays() {
+        assert!(valid_values(ReadKind::HrPayGroups, &[r#"["eng-1"]"#.to_owned()]));
+        assert!(valid_values(ReadKind::HrFutureShifts, &[r#"["eng-1"]"#.to_owned(), "3".to_owned()]));
+        assert!(!valid_values(ReadKind::HrPayGroups, &["[1]".to_owned()]));
+        assert!(!valid_values(ReadKind::HrPayGroups, &["../other".to_owned()]));
+        assert!(!valid_values(ReadKind::HrPayGroups, &[format!("[{}]", "\"x\"".repeat(5000))]));
+        assert!(!valid_values(ReadKind::HrFutureShifts, &[r#"["eng-1"]"#.to_owned(), "../other".to_owned()]));
     }
 
     #[test]

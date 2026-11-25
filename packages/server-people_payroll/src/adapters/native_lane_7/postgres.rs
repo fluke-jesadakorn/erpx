@@ -9,9 +9,12 @@ use erpx_server_shared::public::{BusinessError, FailureKind};
 use sqlx::Row;
 
 use super::application::{
-    LegacyPeopleClock, TransitionFuture, TransitionQuery, WorkspacePeoplePayments,
+    AuthorityPersonLookup, AuthorityQuery, LegacyPeopleClock, TransitionFuture, TransitionQuery,
+    WorkspacePeoplePayments,
 };
-use super::domain::{LegacyPeopleTransition, WorkspacePaymentRow};
+use super::domain::{
+    AuthorityKind, AuthorityPerson, LegacyPeopleTransition, WorkspacePaymentRow,
+};
 
 /// Byte-for-byte successor of `nextLegacyPeopleTransition` in
 /// `adapters/legacy-license-access.ts`: five UNION arms and the `stamp>?`
@@ -144,6 +147,73 @@ impl WorkspacePeoplePayments for PgWorkspacePeoplePayments {
     }
 }
 
+/// Successor of `organizationAuthorityActorPerson`: same Company/active/merge
+/// guards and the owner's `iam_same_person` predicate.
+pub const SQL_AUTHORITY_ACTOR: &str = "SELECT id FROM hr_people WHERE company_id=$1 AND iam_same_person(user_id,$2,company_id) AND status='active' AND merged_into_id IS NULL";
+/// Successor of `organizationAuthorityAppointee`; `p.user_id` is aliased to the
+/// same single `id` projection as the actor lookup.
+pub const SQL_AUTHORITY_APPOINTEE: &str = "SELECT p.user_id id FROM hr_people p JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id WHERE p.id=$1 AND p.company_id=$2 AND p.status='active' AND p.merged_into_id IS NULL AND e.status='active' AND ($3::text IS NULL OR e.position_id=$4 OR $5) AND ($6<>'head' OR e.department_id=$7)";
+
+pub struct PgAuthorityPersonLookup {
+    pool: DatabasePool,
+}
+
+impl PgAuthorityPersonLookup {
+    pub fn new(pool: DatabasePool) -> Self {
+        Self { pool }
+    }
+}
+
+impl AuthorityPersonLookup for PgAuthorityPersonLookup {
+    fn lookup<'a>(
+        &'a self,
+        company: &'a str,
+        query: AuthorityQuery,
+    ) -> TransitionFuture<'a, AuthorityPerson> {
+        let unit = PgUnitOfWork::new(self.pool.clone());
+        let company = company.to_owned();
+        Box::pin(async move {
+            unit.run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                let company = company.clone();
+                let query = query.clone();
+                Box::pin(async move {
+                    let row = match query.kind {
+                        AuthorityKind::Actor => sqlx::query(SQL_AUTHORITY_ACTOR)
+                            .bind(company.as_str())
+                            .bind(query.user_id.as_str())
+                            .fetch_optional(&mut *connection)
+                            .await,
+                        AuthorityKind::Appointee => {
+                            let position = query.position_id.as_deref();
+                            sqlx::query(SQL_AUTHORITY_APPOINTEE)
+                                .bind(query.person_id.as_str())
+                                .bind(company.as_str())
+                                .bind(position)
+                                .bind(position)
+                                .bind(query.self_ceo)
+                                .bind(query.appointment_kind.as_str())
+                                .bind(query.scope_id.as_str())
+                                .fetch_optional(&mut *connection)
+                                .await
+                        }
+                    }
+                    .map_err(|_| unavailable())?;
+                    let id = row
+                        .as_ref()
+                        .map(|row| row.try_get::<String, _>("id").map_err(|_| unavailable()))
+                        .transpose()?;
+                    Ok(AuthorityPerson { id })
+                })
+            })
+            .await
+            .map_err(|error| match error {
+                PgTransactionError::Business(error) => error,
+                PgTransactionError::Persistence(_) => unavailable(),
+            })
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -159,6 +229,26 @@ mod tests {
         assert!(sql.contains("people_lifecycle_cases"));
         assert!(sql.contains("people_applied_packages"));
         assert!(!sql.contains('?'));
+    }
+
+    #[test]
+    fn pins_authority_sql_oracles() {
+        let actor = sha2::Sha256::digest(SQL_AUTHORITY_ACTOR.as_bytes())
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        assert_eq!(
+            actor,
+            "c5264c5c857254afc0d7f10e7627a513e05a9d3aea5c250e08858d6b759a0840"
+        );
+        let appointee = sha2::Sha256::digest(SQL_AUTHORITY_APPOINTEE.as_bytes())
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        assert_eq!(
+            appointee,
+            "f579db98f3ccd908d63b13ef6c64fbb39096f7a8864cf2598dfd78bff8a5face"
+        );
     }
 
     #[test]

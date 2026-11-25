@@ -532,6 +532,34 @@ pub fn mount(
         ).map_err(|_| "PRIVATE_API_FINANCE_LANE5_INVALID")?,
     );
 
+    // Finance lane 1: posting document preview reads. Requires the exact
+    // registered Company per Holding; skip Holdings without a configured Company.
+    let lane1_targets: Vec<_> = config
+        .holdings
+        .iter()
+        .enumerate()
+        .filter_map(|(i, holding)| {
+            config
+                .holding_company(&holding.registration.holding_id)
+                .map(|company_id| {
+                    (
+                        erpx_server_finance::public::native_lane_1::LaneTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                            company_id,
+                        },
+                        pools[i + 1].clone(),
+                    )
+                })
+        })
+        .collect();
+    if !lane1_targets.is_empty() {
+        router = router.merge(
+            erpx_server_finance::public::native_lane_1::doc_preview_router_for_holdings(lane1_targets)
+                .map_err(|_| "PRIVATE_API_FINANCE_LANE1_DOC_PREVIEW_INVALID")?,
+        );
+    }
+
     // People & Payroll lane 8: app-entrypoint reads.
     router = router.merge(
         erpx_server_people_payroll::public::native_lane_8::router_for_holdings(
@@ -697,6 +725,36 @@ pub fn mount(
         ).map_err(|_| "PRIVATE_API_BRAND_LANE39_INVALID")?,
     );
 
+    // Brand lane 39: executive evidence search.
+    router = router.merge(
+        erpx_server_brand::public::native_lane_39::evidence_router_for_holdings(
+            config.holdings.iter().enumerate().map(|(i, holding)| {
+                (
+                    erpx_server_brand::public::native_lane_39::EvidenceTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                    },
+                    pools[i + 1].clone(),
+                )
+            }).collect(),
+        ).map_err(|_| "PRIVATE_API_BRAND_LANE39_EVIDENCE_INVALID")?,
+    );
+
+    // Ecommerce lane 39: workspace list reads.
+    router = router.merge(
+        erpx_server_ecommerce::public::native_lane_39::router_for_holdings(
+            config.holdings.iter().enumerate().map(|(i, holding)| {
+                (
+                    erpx_server_ecommerce::public::native_lane_39::LaneTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                    },
+                    pools[i + 1].clone(),
+                )
+            }).collect(),
+        ).map_err(|_| "PRIVATE_API_ECOMMERCE_LANE39_INVALID")?,
+    );
+
     // Organization lane 24: structural and evaluation reference reads.
     router = router.merge(
         erpx_server_organization::public::native_lane_24::router_for_holdings(
@@ -768,6 +826,21 @@ pub fn mount(
                 )
             }).collect(),
         ).map_err(|_| "PRIVATE_API_FILES_LANE21_INVALID")?,
+    );
+
+    // Records lane 35 wave 2: owner-scope attachment read.
+    router = router.merge(
+        erpx_server_records::public::native_lane_35::owner_scope_router_for_holdings(
+            config.holdings.iter().enumerate().map(|(i, holding)| {
+                (
+                    erpx_server_records::public::native_lane_35::OwnerScopeTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                    },
+                    pools[i + 1].clone(),
+                )
+            }).collect(),
+        ).map_err(|_| "PRIVATE_API_RECORDS_LANE35_OWNER_SCOPE_INVALID")?,
     );
 
     Ok(router)

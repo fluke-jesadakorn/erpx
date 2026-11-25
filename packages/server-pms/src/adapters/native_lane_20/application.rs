@@ -1,7 +1,7 @@
 //! Query port for the native PMS property-readiness read. The port is pure;
 //! the sqlx execution lives in `postgres.rs` and the transport in `http.rs`.
 
-use super::domain::{PropertyReadinessFacts, RoomSummaryFacts};
+use super::domain::{CalendarRecord, ImportBatchRow, PropertyReadinessFacts, RoomSummaryFacts};
 use erpx_server_shared::public::BusinessError;
 use std::{future::Future, pin::Pin};
 
@@ -40,4 +40,33 @@ pub trait RoomSummaryRead: Send + Sync {
         company: &'a str,
         query: &'a RoomSummaryQuery,
     ) -> RoomSummaryFuture<'a, Option<RoomSummaryFacts>>;
+}
+
+pub type CalendarFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, BusinessError>> + Send + 'a>>;
+
+/// Bounded inclusive calendar window for one Property.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CalendarQuery {
+    pub property: String,
+    pub from: String,
+    pub to: String,
+}
+
+pub trait CalendarRead: Send + Sync {
+    fn load<'a>(
+        &'a self,
+        company: &'a str,
+        query: &'a CalendarQuery,
+    ) -> CalendarFuture<'a, Option<Vec<CalendarRecord>>>;
+}
+
+pub type ImportBatchFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, BusinessError>> + Send + 'a>>;
+
+/// Owner reader port for the bounded cutover-import batch list.
+pub trait ImportBatchRead: Send + Sync {
+    fn load<'a>(
+        &'a self,
+        company: &'a str,
+        property: &'a str,
+    ) -> ImportBatchFuture<'a, Option<Vec<ImportBatchRow>>>;
 }

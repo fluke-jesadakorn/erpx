@@ -28,9 +28,9 @@ describe('work_projection read-tail r26 dedupe', () => {
     const facts = await readFile(src('calendar-appointments-facts.ts'), 'utf8');
     expect(facts).not.toContain('EXISTS(SELECT 1 FROM calendar_appointment_participants ap JOIN');
     expect(facts).not.toContain('EXISTS(SELECT 1 FROM calendar_appointment_participants ap WHERE');
-    expect(facts).toContain('${participantScopeExistsSql(`JOIN (');
-    expect(facts).toContain("${participantScopeExistsSql('WHERE ap.appointment_id=x.id AND ap.person_id=?')}");
-    expect(facts.split('${attendeeScopeExistsSql}')).toHaveLength(4);
+    expect(facts).not.toContain('participantScopeExistsSql');
+    expect(facts).not.toContain('attendeeScopeExistsSql');
+    expect(facts).toContain('nativeAppointmentCandidates(');
   });
 
   it('emits the original byte-identical arm for both parameterized callers', () => {

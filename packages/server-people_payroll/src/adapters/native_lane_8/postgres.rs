@@ -10,9 +10,10 @@ use sqlx::Row;
 
 use super::application::{AppEntrypointRead, LaneReadFuture};
 use super::domain::{
-    ApproverName, CountryPackRow, ExportBytesRow, IssuableRun, OwnSlipRow, PayGroup, PayGroupFacts,
-    PaymentRow, PayrollItemTotals, PersonOption, PayslipItemRow, ReadKind, RosterShift, SlipRow,
-    StatutoryRun, unavailable,
+    ApproverName, CountryPackRow, ExportBytesRow, HrAffectedPerson, HrCurrentPolicy,
+    HrEligibilityRow, HrEngagementRow, HrFutureShift, HrPayGroupRow, IssuableRun, OwnSlipRow,
+    PayGroup, PayGroupFacts, PaymentRow, PayrollItemTotals, PersonOption, PayslipItemRow, ReadKind,
+    RosterShift, SlipRow, StatutoryRun, unavailable,
 };
 
 use erpx_server_runtime::public::postgres::DatabasePool;
@@ -46,6 +47,12 @@ const STATUTORY_ITEMS_SQL: &str =
     "SELECT gross_minor,deductions_minor,net_minor,result_json FROM hr_payroll_items WHERE run_id=$1";
 const RETAINED_PACK_SQL: &str =
     "SELECT * FROM hr_country_packs WHERE id=$1 AND status IN ('active','superseded')";
+const HR_ENGAGEMENT_SQL: &str = "SELECT id,person_id,branch_id,department_id FROM hr_engagements WHERE id=$1 AND company_id=$2 AND ($3::text IS NULL OR branch_id=$3) AND ($4::text IS NULL OR department_id=$4)";
+const HR_ELIGIBILITY_SQL: &str = "SELECT o.eligible,o.version,e.self_service_top_level top_level FROM hr_engagements e LEFT JOIN overtime_eligibility o ON o.engagement_id=e.id AND o.company_id=e.company_id WHERE e.id=$1 AND e.company_id=$2";
+const HR_AFFECTED_PEOPLE_SQL: &str = "SELECT e.id engagement_id,e.person_id,p.legal_name name FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id AND p.company_id=e.company_id WHERE e.company_id=$1 AND e.id IN (SELECT jsonb_array_elements_text($2::jsonb)) AND ($3::text IS NULL OR e.branch_id=$3) AND ($4::text IS NULL OR e.department_id=$4) ORDER BY p.legal_name,e.id";
+const HR_FUTURE_SHIFTS_SQL: &str = "SELECT a.engagement_id,count(*)::int total FROM people_roster_assignments a JOIN people_roster_shifts s ON s.id=a.shift_id JOIN people_roster_weeks w ON w.id=s.week_id WHERE w.company_id=$1 AND a.engagement_id IN (SELECT jsonb_array_elements_text($2::jsonb)) AND a.state='assigned' AND s.state='active' AND s.ends_at>$3 GROUP BY a.engagement_id";
+const HR_CURRENT_POLICIES_SQL: &str = "SELECT DISTINCT ON (a.engagement_id) a.engagement_id,p.name policy,c.name calendar FROM leave_policy_assignments a JOIN leave_policy_versions p ON p.id=a.policy_version_id LEFT JOIN leave_holiday_calendars c ON c.id=a.holiday_calendar_id WHERE a.company_id=$1 AND a.engagement_id IN (SELECT jsonb_array_elements_text($2::jsonb)) AND a.effective_from<=$3 AND coalesce(a.effective_to,'9999-12-31')>=$4 ORDER BY a.engagement_id,a.effective_from DESC";
+const HR_PAY_GROUPS_SQL: &str = "SELECT e.id engagement_id,g.name FROM hr_engagements e LEFT JOIN hr_pay_groups g ON g.id=e.pay_group_id AND g.company_id=e.company_id WHERE e.company_id=$1 AND e.id IN (SELECT jsonb_array_elements_text($2::jsonb))";
 
 /// The exact statement owned by each read kind; exposed for the SQL oracle.
 pub fn rendered_sql(kind: ReadKind) -> &'static str {
@@ -65,6 +72,12 @@ pub fn rendered_sql(kind: ReadKind) -> &'static str {
         ReadKind::StatutoryRun => STATUTORY_RUN_SQL,
         ReadKind::StatutoryItems => STATUTORY_ITEMS_SQL,
         ReadKind::RetainedPack => RETAINED_PACK_SQL,
+        ReadKind::HrEngagement => HR_ENGAGEMENT_SQL,
+        ReadKind::HrEligibility => HR_ELIGIBILITY_SQL,
+        ReadKind::HrAffectedPeople => HR_AFFECTED_PEOPLE_SQL,
+        ReadKind::HrFutureShifts => HR_FUTURE_SHIFTS_SQL,
+        ReadKind::HrCurrentPolicies => HR_CURRENT_POLICIES_SQL,
+        ReadKind::HrPayGroups => HR_PAY_GROUPS_SQL,
     }
 }
 
@@ -109,6 +122,32 @@ fn option_text(row: &sqlx::postgres::PgRow, column: &str) -> Result<Option<Strin
 fn integer(row: &sqlx::postgres::PgRow, column: &str) -> Result<i64, BusinessError> {
     row.try_get::<i64, _>(column)
         .or_else(|_| row.try_get::<i32, _>(column).map(i64::from))
+        .map_err(|_| unavailable())
+}
+
+fn option_integer(row: &sqlx::postgres::PgRow, column: &str) -> Result<Option<i64>, BusinessError> {
+    row.try_get::<Option<i64>, _>(column)
+        .or_else(|_| row.try_get::<Option<i32>, _>(column).map(|value| value.map(i64::from)))
+        .map_err(|_| unavailable())
+}
+
+fn option_bool(row: &sqlx::postgres::PgRow, column: &str) -> Result<Option<bool>, BusinessError> {
+    row.try_get::<Option<bool>, _>(column)
+        .or_else(|_| row.try_get::<Option<i32>, _>(column).map(|value| value.map(|item| item != 0)))
+        .map_err(|_| unavailable())
+}
+
+fn boolean(row: &sqlx::postgres::PgRow, column: &str) -> Result<bool, BusinessError> {
+    row.try_get::<bool, _>(column)
+        .or_else(|_| row.try_get::<i32, _>(column).map(|value| value != 0))
+        .map_err(|_| unavailable())
+}
+
+/// The wire carries a canonical JSON array string; sqlx needs a JSONB-encoded
+/// bind for the owner's `jsonb_array_elements_text($n::jsonb)` statements.
+fn engagement_set(encoded: &str) -> Result<sqlx::types::Json<serde_json::Value>, BusinessError> {
+    serde_json::from_str::<serde_json::Value>(encoded)
+        .map(sqlx::types::Json)
         .map_err(|_| unavailable())
 }
 
@@ -550,6 +589,175 @@ impl AppEntrypointRead for PgAppEntrypointRead {
             row.map(|row| pack_row(&row)).transpose()
         })
     }
+
+    fn hr_engagement<'a>(
+        &'a self,
+        company: &'a str,
+        id: &'a str,
+        branch: Option<&'a str>,
+        department: Option<&'a str>,
+    ) -> LaneReadFuture<'a, Option<HrEngagementRow>> {
+        let pool = self.pool.clone();
+        let (company, id) = (company.to_owned(), id.to_owned());
+        let (branch, department) = (branch.map(str::to_owned), department.map(str::to_owned));
+        Box::pin(async move {
+            let row = sqlx::query(HR_ENGAGEMENT_SQL)
+                .bind(id.as_str())
+                .bind(company.as_str())
+                .bind(branch.as_deref())
+                .bind(department.as_deref())
+                .fetch_optional(pool.raw())
+                .await
+                .map_err(|_| unavailable())?;
+            row.map(|row| {
+                Ok(HrEngagementRow {
+                    id: text(&row, "id")?,
+                    person_id: text(&row, "person_id")?,
+                    branch_id: option_text(&row, "branch_id")?,
+                    department_id: option_text(&row, "department_id")?,
+                })
+            })
+            .transpose()
+        })
+    }
+
+    fn hr_eligibility<'a>(
+        &'a self,
+        company: &'a str,
+        id: &'a str,
+    ) -> LaneReadFuture<'a, Option<HrEligibilityRow>> {
+        let pool = self.pool.clone();
+        let (company, id) = (company.to_owned(), id.to_owned());
+        Box::pin(async move {
+            let row = sqlx::query(HR_ELIGIBILITY_SQL)
+                .bind(id.as_str())
+                .bind(company.as_str())
+                .fetch_optional(pool.raw())
+                .await
+                .map_err(|_| unavailable())?;
+            row.map(|row| {
+                Ok(HrEligibilityRow {
+                    eligible: option_bool(&row, "eligible")?,
+                    version: option_integer(&row, "version")?,
+                    top_level: boolean(&row, "top_level")?,
+                })
+            })
+            .transpose()
+        })
+    }
+
+    fn hr_affected_people<'a>(
+        &'a self,
+        company: &'a str,
+        encoded: &'a str,
+        branch: Option<&'a str>,
+        department: Option<&'a str>,
+    ) -> LaneReadFuture<'a, Vec<HrAffectedPerson>> {
+        let pool = self.pool.clone();
+        let company = company.to_owned();
+        let encoded = encoded.to_owned();
+        let (branch, department) = (branch.map(str::to_owned), department.map(str::to_owned));
+        Box::pin(async move {
+            let rows = sqlx::query(HR_AFFECTED_PEOPLE_SQL)
+                .bind(company.as_str())
+                .bind(engagement_set(&encoded)?)
+                .bind(branch.as_deref())
+                .bind(department.as_deref())
+                .fetch_all(pool.raw())
+                .await
+                .map_err(|_| unavailable())?;
+            rows.iter()
+                .map(|row| {
+                    Ok(HrAffectedPerson {
+                        engagement_id: text(row, "engagement_id")?,
+                        person_id: text(row, "person_id")?,
+                        name: text(row, "name")?,
+                    })
+                })
+                .collect()
+        })
+    }
+
+    fn hr_future_shifts<'a>(
+        &'a self,
+        company: &'a str,
+        encoded: &'a str,
+        now: &'a str,
+    ) -> LaneReadFuture<'a, Vec<HrFutureShift>> {
+        let pool = self.pool.clone();
+        let (company, encoded, now) = (company.to_owned(), encoded.to_owned(), now.to_owned());
+        Box::pin(async move {
+            let rows = sqlx::query(HR_FUTURE_SHIFTS_SQL)
+                .bind(company.as_str())
+                .bind(engagement_set(&encoded)?)
+                .bind(now.parse::<i64>().map_err(|_| unavailable())?)
+                .fetch_all(pool.raw())
+                .await
+                .map_err(|_| unavailable())?;
+            rows.iter()
+                .map(|row| {
+                    Ok(HrFutureShift {
+                        engagement_id: text(row, "engagement_id")?,
+                        total: integer(row, "total")?,
+                    })
+                })
+                .collect()
+        })
+    }
+
+    fn hr_current_policies<'a>(
+        &'a self,
+        company: &'a str,
+        encoded: &'a str,
+        today: &'a str,
+    ) -> LaneReadFuture<'a, Vec<HrCurrentPolicy>> {
+        let pool = self.pool.clone();
+        let (company, encoded, today) = (company.to_owned(), encoded.to_owned(), today.to_owned());
+        Box::pin(async move {
+            let rows = sqlx::query(HR_CURRENT_POLICIES_SQL)
+                .bind(company.as_str())
+                .bind(engagement_set(&encoded)?)
+                .bind(today.as_str())
+                .bind(today.as_str())
+                .fetch_all(pool.raw())
+                .await
+                .map_err(|_| unavailable())?;
+            rows.iter()
+                .map(|row| {
+                    Ok(HrCurrentPolicy {
+                        engagement_id: text(row, "engagement_id")?,
+                        policy: text(row, "policy")?,
+                        calendar: option_text(row, "calendar")?,
+                    })
+                })
+                .collect()
+        })
+    }
+
+    fn hr_pay_groups<'a>(
+        &'a self,
+        company: &'a str,
+        encoded: &'a str,
+    ) -> LaneReadFuture<'a, Vec<HrPayGroupRow>> {
+        let pool = self.pool.clone();
+        let (company, encoded) = (company.to_owned(), encoded.to_owned());
+        Box::pin(async move {
+            let rows = sqlx::query(HR_PAY_GROUPS_SQL)
+                .bind(company.as_str())
+                .bind(engagement_set(&encoded)?)
+                .fetch_all(pool.raw())
+                .await
+                .map_err(|_| unavailable())?;
+            rows.iter()
+                .map(|row| {
+                    Ok(HrPayGroupRow {
+                        engagement_id: text(row, "engagement_id")?,
+                        name: option_text(row, "name")?,
+                    })
+                })
+                .collect()
+        })
+    }
 }
 
 #[cfg(test)]
@@ -620,6 +828,33 @@ mod tests {
             "eff2ee208f800ccdec5843c32f4bcc7b58a3a7c892f9067dadf683d708979422",
             "d64573feccd8d1782a8e93a0646689f48c5a31ee93763ef8c3fefd2f298ad994",
             "1774740ccc5998695ed491769cd8626a1dc36c7d84bcbca6d6020bdc838ff5ac",
+        ];
+        for ((kind, result), digest) in results.into_iter().zip(expected) {
+            let sql = rendered_sql(kind);
+            assert!(sql.starts_with("SELECT "), "owner SQL must be a read");
+            assert!(!sql.contains('?'), "sqlx binds use $n");
+            assert!(!sql.to_ascii_uppercase().contains("FOR UPDATE"));
+            assert_eq!(oracle(kind, result), digest);
+        }
+    }
+
+    #[test]
+    fn hr_settings_sql_oracles_are_pinned_and_read_only() {
+        let results = [
+            (ReadKind::HrEngagement, r#"{"id":"eng","person_id":"person","branch_id":"branch","department_id":null}"#),
+            (ReadKind::HrEligibility, r#"{"eligible":true,"version":2,"top_level":true}"#),
+            (ReadKind::HrAffectedPeople, r#"[{"engagement_id":"eng","person_id":"person","name":"Alice"}]"#),
+            (ReadKind::HrFutureShifts, r#"[{"engagement_id":"eng","total":3}]"#),
+            (ReadKind::HrCurrentPolicies, r#"[{"engagement_id":"eng","policy":"Annual","calendar":null}]"#),
+            (ReadKind::HrPayGroups, r#"[{"engagement_id":"eng","name":"Monthly"}]"#),
+        ];
+        let expected = [
+            "1a3abe8b16ccf55ed360d8d3d4ffe63032ec803451f3ea492db702f8162004ca",
+            "93fd5eef62ab0dea3073b5c7aa6da457fc19e6b0a4b2e183f7dd0955c335d71b",
+            "ebab27ea1dd4cd5f6b7966bbbb1da2859f4503cbac338deffbb967997c5ebb62",
+            "86b0c8b3f86ffb67f50cf80f389fe421346dcfa547c8e6021c7b8b2914f1215c",
+            "599358a2d08ae24b1396923d695d6e120321e5931b1230fd2040fafcfb64ce85",
+            "cef576824e7a9d8caf21280ccc01b1975b564cfe8dacb3ce34e0302213f7a65d",
         ];
         for ((kind, result), digest) in results.into_iter().zip(expected) {
             let sql = rendered_sql(kind);

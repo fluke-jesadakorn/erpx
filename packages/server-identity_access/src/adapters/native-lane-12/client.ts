@@ -151,7 +151,7 @@ function controlTarget(config: Settings): Holding {
   return marked[0]!;
 }
 
-type Params = Readonly<{ role?: string; value?: string }>;
+type Params = Readonly<Record<string, string>>;
 
 function validateRows<T extends Record<string, unknown>>(
   kind: string,
@@ -169,14 +169,26 @@ function validateRows<T extends Record<string, unknown>>(
         !object(row.definition)
       )
         return unavailable("NATIVE_LANE_12_READ_RESPONSE_INVALID");
+    } else if (kind === "expenseDecisionEvidence") {
+      if (
+        !text(row.id, 200) ||
+        !text(row.role, 200) ||
+        !text(row.scope_kind, 40) ||
+        typeof row.valid_from !== "number" ||
+        !Number.isSafeInteger(row.valid_from) ||
+        typeof row.valid_until !== "number" ||
+        !Number.isSafeInteger(row.valid_until)
+      )
+        return unavailable("NATIVE_LANE_12_READ_RESPONSE_INVALID");
     } else if (row.one !== 1) {
       return unavailable("NATIVE_LANE_12_READ_RESPONSE_INVALID");
     }
   }
 }
 
-async function read<T extends Record<string, unknown>>(
-  kind: "attributes" | "activeRole" | "groupReferences",
+async function readPage<T extends Record<string, unknown>>(
+  segment: "people-template-attributes" | "approval-facts",
+  kind: string,
   companyId: string,
   params: Params,
   scope?: LaneHoldingScope,
@@ -185,11 +197,10 @@ async function read<T extends Record<string, unknown>>(
   const config = configuration();
   const target = scope ? targetFor(config, scope) : controlTarget(config);
   const url = new URL(
-    `/api/v1/holdings/${encodeURIComponent(target.holdingSlug)}/identity-access/people-template-attributes/${kind}`,
+    `/api/v1/holdings/${encodeURIComponent(target.holdingSlug)}/identity-access/${segment}/${kind}`,
     config.base,
   );
-  if (params.role !== undefined) url.searchParams.set("role", params.role);
-  if (params.value !== undefined) url.searchParams.set("value", params.value);
+  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
 
   let response: Response;
   try {
@@ -238,7 +249,7 @@ async function read<T extends Record<string, unknown>>(
 export function nativePeopleTemplateAttributes<
   T extends Record<string, unknown> = NativeLane12Attribute,
 >(companyId: string, scope?: LaneHoldingScope): Promise<NativeLane12Page<T>> {
-  return read<T>("attributes", companyId, {}, scope);
+  return readPage<T>("people-template-attributes", "attributes", companyId, {}, scope);
 }
 
 export function nativePeopleTemplateActiveRole(
@@ -246,7 +257,7 @@ export function nativePeopleTemplateActiveRole(
   role: string,
   scope?: LaneHoldingScope,
 ): Promise<NativeLane12Page<Record<string, unknown>>> {
-  return read<Record<string, unknown>>("activeRole", companyId, { role }, scope);
+  return readPage<Record<string, unknown>>("people-template-attributes", "activeRole", companyId, { role }, scope);
 }
 
 export function nativePeopleTemplateGroupReferences(
@@ -254,5 +265,88 @@ export function nativePeopleTemplateGroupReferences(
   value: string,
   scope?: LaneHoldingScope,
 ): Promise<NativeLane12Page<Record<string, unknown>>> {
-  return read<Record<string, unknown>>("groupReferences", companyId, { value }, scope);
+  return readPage<Record<string, unknown>>("people-template-attributes", "groupReferences", companyId, { value }, scope);
+}
+
+/* Owner-local workflow approval assignment reads. The retained repository
+ * ports keep their pg-compatible shapes: `.first()` reads map rows[0] or null,
+ * `.all()` reads map `{results}`. Command guards stay in TypeScript. */
+
+async function firstApproval(
+  kind: "canOverrideStaffStepRole" | "approvalViewActiveScope",
+  companyId: string,
+  params: Params,
+  scope?: LaneHoldingScope,
+): Promise<Record<string, unknown> | null> {
+  const page = await readPage<Record<string, unknown>>("approval-facts", kind, companyId, params, scope);
+  return page.rows[0] ?? null;
+}
+
+export function nativeApprovalCanOverride(
+  companyId: string,
+  assignmentId: string,
+  userId: string,
+  branchId: string | null,
+  departmentId: string | null,
+  scope?: LaneHoldingScope,
+): Promise<Record<string, unknown> | null> {
+  return firstApproval(
+    "canOverrideStaffStepRole",
+    companyId,
+    {
+      company: companyId,
+      assignment: assignmentId,
+      user: userId,
+      ...(branchId === null ? {} : { branch: branchId }),
+      ...(departmentId === null ? {} : { department: departmentId }),
+    },
+    scope,
+  );
+}
+
+export function nativeApprovalActiveScope(
+  companyId: string,
+  assignmentId: string,
+  userId: string,
+  role: string,
+  now: number,
+  now2: number,
+  policyStep: boolean,
+  branchId: string | null,
+  departmentId: string | null,
+  scope?: LaneHoldingScope,
+): Promise<Record<string, unknown> | null> {
+  return firstApproval(
+    "approvalViewActiveScope",
+    companyId,
+    {
+      company: companyId,
+      assignment: assignmentId,
+      user: userId,
+      role,
+      now: String(now),
+      now2: String(now2),
+      policyStep: String(policyStep),
+      ...(branchId === null ? {} : { branch: branchId }),
+      ...(departmentId === null ? {} : { department: departmentId }),
+    },
+    scope,
+  );
+}
+
+export async function nativeApprovalExpenseEvidence(
+  companyId: string,
+  assignmentId: string,
+  now: number,
+  now2: number,
+  scope?: LaneHoldingScope,
+): Promise<{ results: Record<string, unknown>[] }> {
+  const page = await readPage<Record<string, unknown>>(
+    "approval-facts",
+    "expenseDecisionEvidence",
+    companyId,
+    { company: companyId, assignment: assignmentId, now: String(now), now2: String(now2) },
+    scope,
+  );
+  return { results: page.rows };
 }

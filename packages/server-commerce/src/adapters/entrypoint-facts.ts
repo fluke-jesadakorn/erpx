@@ -1,11 +1,18 @@
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
-import {commerceFulfillmentKindSql} from "./read-tail-r29-dedupe-sql";
+import {nativeCommerceEntrypointFacts,nativeCommerceEntrypointKind} from './native-lane-13/client';
 /** Closed Commerce relations used only by native owner projections. */
 export const commerceEntrypointReadSources={settings:'SELECT company_id,chart_id FROM commerce_settings',warehouses:'SELECT id,branch_id FROM commerce_warehouses',products:'SELECT id,sku,name FROM commerce_products'} as const;
-export function commerceEntrypointFacts(db:SqlDatabase){return {
- orderKind:(id:string,companyId:string)=>db.prepare('SELECT kind FROM commerce_orders WHERE id=? AND company_id=?').bind(id,companyId).first<{kind:string}>(),
- orderFacts:(id:string,companyId:string)=>db.prepare('SELECT kind,state FROM commerce_orders WHERE id=? AND company_id=?').bind(id,companyId).first<{kind:string;state:string}>(),
- fulfillmentKind:(id:string,companyId:string)=>db.prepare(commerceFulfillmentKindSql('f.id=? AND o.company_id=?')).bind(id,companyId).first<{kind:string}>(),
- invoiceKind:(id:string,companyId:string)=>db.prepare(commerceFulfillmentKindSql('f.invoice_id=? AND o.company_id=?')).bind(id,companyId).first<{kind:string}>(),
- returnKind:(id:string,companyId:string)=>db.prepare('SELECT o.kind FROM commerce_returns r JOIN commerce_orders o ON o.id=r.order_id WHERE r.id=? AND o.company_id=?').bind(id,companyId).first<{kind:string}>()
+/**
+ * Native owner entrypoint identity reads. The `database` argument is retained
+ * only for call-site compatibility; no statement is prepared or executed on it.
+ * The mounted axum owner router owns all five queries, Company scoping and the
+ * response projection. A missing or failing native runtime fails closed with
+ * ApiError(503, ...); there is no TypeScript fallback.
+ */
+export function commerceEntrypointFacts(_db:SqlDatabase){return {
+ orderKind:(id:string,companyId:string)=>nativeCommerceEntrypointKind('orderKind',id,companyId),
+ orderFacts:(id:string,companyId:string)=>nativeCommerceEntrypointFacts(id,companyId),
+ fulfillmentKind:(id:string,companyId:string)=>nativeCommerceEntrypointKind('fulfillmentKind',id,companyId),
+ invoiceKind:(id:string,companyId:string)=>nativeCommerceEntrypointKind('invoiceKind',id,companyId),
+ returnKind:(id:string,companyId:string)=>nativeCommerceEntrypointKind('returnKind',id,companyId)
 };}

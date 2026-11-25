@@ -2,8 +2,9 @@
 //! kind dispatch and the response invariants. It contains no SQL and opens no
 //! connection; the injected repository executes one exact owner-local query.
 use crate::adapters::native_lane_40::domain::{
-    AttributionRow, Lane40ReadInput, Lane40ReadResult, Lane40Request, RD_CAMPAIGN_SUMMARY,
-    check_attribution, check_result, invalid, request,
+    AttributionRow, Lane40ReadInput, Lane40ReadResult, Lane40Request, RD_ACTIVE_FORM_SOURCE,
+    RD_CAMPAIGN_SUMMARY, RD_FORM_CONTENT_ROW, RD_PUBLIC_RECEIPT, check_attribution, check_form_row,
+    check_receipt_row, check_result, invalid, request,
 };
 use erpx_server_shared::public::BusinessError;
 use serde_json::Value;
@@ -34,6 +35,16 @@ pub async fn read<R: Lane40Reader + ?Sized>(
             let attribution: AttributionRow =
                 serde_json::from_value(row.clone()).map_err(|_| invalid())?;
             check_attribution(&attribution)?;
+        }
+    }
+    if matches!(result.kind, RD_ACTIVE_FORM_SOURCE | RD_FORM_CONTENT_ROW) {
+        for row in &result.rows {
+            check_form_row(result.kind, row)?;
+        }
+    }
+    if result.kind == RD_PUBLIC_RECEIPT {
+        for row in &result.rows {
+            check_receipt_row(row)?;
         }
     }
     Ok(result)
@@ -92,6 +103,8 @@ mod tests {
             branch_id: None,
             department_id: None,
             record_id: Some("marketing-candidate-1".into()),
+            asset_id: Some("asset-1".into()),
+            version: Some(1),
             enforced: false,
             limit: None,
         }
@@ -102,6 +115,12 @@ mod tests {
         for kind in KINDS {
             let row = if *kind == RD_CAMPAIGN_SUMMARY {
                 attribution_json("company-1", UNSPECIFIED, UNSPECIFIED, 1, 1, 0, 0)
+            } else if *kind == RD_ACTIVE_FORM_SOURCE {
+                serde_json::json!({"company_id": "company-1", "configuration_json": "{}"})
+            } else if *kind == RD_FORM_CONTENT_ROW {
+                serde_json::json!({"company_id": "company-1", "id": "content-1", "version": 1, "preview_json": "{}"})
+            } else if *kind == RD_PUBLIC_RECEIPT {
+                serde_json::json!({"company_id": "company-1", "request_hash": "a".repeat(64), "candidate_id": "marketing-candidate-1"})
             } else {
                 serde_json::json!({"id": "row-1", "company_id": "company-1"})
             };

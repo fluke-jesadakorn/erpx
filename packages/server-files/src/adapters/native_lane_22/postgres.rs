@@ -12,8 +12,14 @@ use erpx_server_runtime::public::postgres::{
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use sqlx::Row;
 
-use super::application::{WorkEvidenceFuture, WorkEvidenceRead};
-use super::domain::{WorkEvidenceKind, WorkEvidenceResponse, WorkEvidenceRow};
+use super::application::{
+    PersonnelEvidenceFuture, PersonnelEvidenceRead, PersonnelEvidenceRequest, WorkEvidenceFuture,
+    WorkEvidenceRead,
+};
+use super::domain::{
+    PersonnelEvidenceKind, PersonnelEvidenceResponse, WorkEvidenceKind, WorkEvidenceResponse,
+    WorkEvidenceRow,
+};
 
 /// Normal (draft+bound) evidence-set read.
 pub const EVIDENCE_SETS_SQL: &str = "\
@@ -66,6 +72,16 @@ SELECT link.id,link.set_id,set_row.purpose_key,
 /// Legacy attachment evidence read.
 pub const LEGACY_EVIDENCE_SQL: &str = "\
 SELECT id,NULL::text set_id,purpose purpose_key,original_name,bytes,COALESCE(detected_media_type,media_type) media_type,source_state,'bound' link_state,(preview_object_key IS NOT NULL) preview_available,created_at FROM attachments WHERE owner_type='leave_request' AND owner_id=$1 AND company_id=$2 AND revoked_at IS NULL ORDER BY created_at DESC";
+
+/// Evaluation-detail file list, byte-identical to the retired TS literal.
+pub const EVALUATION_FILES_SQL: &str = "SELECT l.id,a.original_name filename FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id JOIN attachments a ON a.id=l.attachment_id WHERE s.company_id=$1 AND s.target_type='hr_evaluation_assessment' AND s.target_id=$2 AND l.state='bound' AND a.source_state='available'";
+
+/// Evaluation evidence-link presence, byte-identical to the TS fragment
+/// `LINK_SET_ID_SELECT_SQL` composed with its retired tail.
+pub const EVALUATION_LINK_SQL: &str = "SELECT l.id FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id JOIN attachments f ON f.id=l.attachment_id WHERE l.id=$1 AND s.target_type='hr_evaluation_assessment' AND s.target_id=$2 AND s.company_id=$3 AND l.state='bound' AND f.source_state='available'";
+
+/// Employee-request attachment list, byte-identical to the retired TS literal.
+pub const EMPLOYEE_REQUEST_ATTACHMENTS_SQL: &str = "SELECT id,original_name,media_type,bytes,checksum_sha256,purpose,revision FROM attachments WHERE owner_type='employee_request' AND owner_id=$1 AND revoked_at IS NULL ORDER BY created_at,id";
 
 fn unavailable() -> BusinessError {
     BusinessError::new(
@@ -162,6 +178,95 @@ impl WorkEvidenceRead for PgWorkEvidenceRead {
     }
 }
 
+/// Postgres-backed owner reader for the personnel-evidence family.
+pub struct PgPersonnelEvidenceRead {
+    pool: DatabasePool,
+}
+
+impl PgPersonnelEvidenceRead {
+    pub fn new(pool: DatabasePool) -> Self {
+        Self { pool }
+    }
+}
+
+impl PersonnelEvidenceRead for PgPersonnelEvidenceRead {
+    fn read<'a>(
+        &'a self,
+        request: PersonnelEvidenceRequest<'a>,
+        kind: PersonnelEvidenceKind,
+    ) -> PersonnelEvidenceFuture<'a, PersonnelEvidenceResponse> {
+        let unit = PgUnitOfWork::new(self.pool.clone());
+        let company = request.company.to_owned();
+        let assessment = request.assessment.to_owned();
+        let source = request.source.to_owned();
+        let record = request.record.to_owned();
+        Box::pin(async move {
+            unit.run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                let company = company.clone();
+                let assessment = assessment.clone();
+                let source = source.clone();
+                let record = record.clone();
+                Box::pin(async move {
+                    let (sql, binds): (&str, Vec<&str>) = match kind {
+                        PersonnelEvidenceKind::EvaluationFiles => (
+                            EVALUATION_FILES_SQL,
+                            vec![company.as_str(), assessment.as_str()],
+                        ),
+                        PersonnelEvidenceKind::EvaluationLink => (
+                            EVALUATION_LINK_SQL,
+                            vec![source.as_str(), assessment.as_str(), company.as_str()],
+                        ),
+                        PersonnelEvidenceKind::EmployeeRequestAttachments => (
+                            EMPLOYEE_REQUEST_ATTACHMENTS_SQL,
+                            vec![record.as_str()],
+                        ),
+                    };
+                    let mut statement = sqlx::query(sql);
+                    for bind in binds {
+                        statement = statement.bind(bind);
+                    }
+                    let rows = statement
+                        .fetch_all(&mut *connection)
+                        .await
+                        .map_err(|_| unavailable())?;
+                    let rows = rows
+                        .into_iter()
+                        .map(|row| match kind {
+                            PersonnelEvidenceKind::EvaluationFiles => Ok(serde_json::json!({
+                                "id": row.try_get::<String, _>("id").map_err(|_| unavailable())?,
+                                "filename": row.try_get::<String, _>("filename").map_err(|_| unavailable())?,
+                            })),
+                            PersonnelEvidenceKind::EvaluationLink => Ok(serde_json::json!({
+                                "id": row.try_get::<String, _>("id").map_err(|_| unavailable())?,
+                            })),
+                            PersonnelEvidenceKind::EmployeeRequestAttachments => {
+                                Ok(serde_json::json!({
+                                    "id": row.try_get::<String, _>("id").map_err(|_| unavailable())?,
+                                    "original_name": row.try_get::<String, _>("original_name").map_err(|_| unavailable())?,
+                                    "media_type": row.try_get::<String, _>("media_type").map_err(|_| unavailable())?,
+                                    "bytes": row.try_get::<i64, _>("bytes").map_err(|_| unavailable())?,
+                                    "checksum_sha256": row.try_get::<String, _>("checksum_sha256").map_err(|_| unavailable())?,
+                                    "purpose": row.try_get::<String, _>("purpose").map_err(|_| unavailable())?,
+                                    "revision": row.try_get::<i64, _>("revision").map_err(|_| unavailable())?,
+                                }))
+                            }
+                        })
+                        .collect::<Result<Vec<_>, BusinessError>>()?;
+                    Ok(PersonnelEvidenceResponse {
+                        kind: kind.as_str().to_owned(),
+                        rows,
+                    })
+                })
+            })
+            .await
+            .map_err(|error| match error {
+                PgTransactionError::Business(error) => error,
+                PgTransactionError::Persistence(_) => unavailable(),
+            })
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -190,6 +295,42 @@ mod tests {
             hash(LEGACY_EVIDENCE_SQL),
             "cc8a48cf37fc9785374fd62da249df3f017675797d3901b5b6523e5608d207a4"
         );
+    }
+
+    #[test]
+    fn personnel_sql_oracle_sha256() {
+        assert_eq!(
+            hash(EVALUATION_FILES_SQL),
+            "2fe88e15a79ddf05c007e5c602765c640ad55d034197bd2346ca994025db3c6b"
+        );
+        assert_eq!(
+            hash(EVALUATION_LINK_SQL),
+            "b8ab97daf89b673665b79b3513782f4a98fa566932a85541d8a266e18908a08c"
+        );
+        assert_eq!(
+            hash(EMPLOYEE_REQUEST_ATTACHMENTS_SQL),
+            "d82915c70cc853729de238d6ab83be9b0424e219fac877d6684d1544ae21182a"
+        );
+    }
+
+    #[test]
+    fn personnel_bind_order_is_record_then_company() {
+        assert_eq!(EVALUATION_FILES_SQL.matches('$').count(), 2);
+        assert!(EVALUATION_FILES_SQL.contains("s.company_id=$1"));
+        assert!(EVALUATION_FILES_SQL.contains("s.target_id=$2"));
+        assert_eq!(EVALUATION_LINK_SQL.matches('$').count(), 3);
+        assert!(EVALUATION_LINK_SQL.contains("l.id=$1"));
+        assert!(EVALUATION_LINK_SQL.contains("s.target_id=$2"));
+        assert!(EVALUATION_LINK_SQL.contains("s.company_id=$3"));
+        assert_eq!(EMPLOYEE_REQUEST_ATTACHMENTS_SQL.matches('$').count(), 1);
+        assert!(EMPLOYEE_REQUEST_ATTACHMENTS_SQL.contains("owner_id=$1"));
+        for sql in [
+            EVALUATION_FILES_SQL,
+            EVALUATION_LINK_SQL,
+            EMPLOYEE_REQUEST_ATTACHMENTS_SQL,
+        ] {
+            assert!(!sql.contains('?'));
+        }
     }
 
     /// Bind order and relation ownership are pinned independently of the SQL

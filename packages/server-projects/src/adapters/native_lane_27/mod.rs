@@ -9,9 +9,13 @@ mod domain;
 mod http;
 mod postgres;
 
-pub use application::{ProjectActualsRead, read_cost_allocations, read_work_logs};
+pub use application::{
+    ProjectActualsRead, read_cost_allocations, read_visible_project, read_visible_projects,
+    read_work_logs,
+};
 pub use domain::{
-    ActualsScope, CostAllocationRow, LaneTarget, WorkLogRow, minor_to_decimal, scope,
+    ActualsScope, CostAllocationRow, LaneTarget, ProjectRow, WorkLogRow, check_project,
+    company_scope, minor_to_decimal, scope,
 };
 pub use http::{router, router_for_holdings, router_with_reader};
 pub use postgres::PgProjectActualsRead;

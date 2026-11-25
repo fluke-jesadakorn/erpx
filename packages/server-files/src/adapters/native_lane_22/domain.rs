@@ -79,6 +79,42 @@ pub fn parse_read_only(value: Option<&str>) -> Result<bool, ()> {
     }
 }
 
+/// Bounded discriminator for the Files-owned personnel-evidence reads retired
+/// from `people-evaluation-facts.ts` and `records-employee-requests-owned-facts.ts`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PersonnelEvidenceKind {
+    EvaluationFiles,
+    EvaluationLink,
+    EmployeeRequestAttachments,
+}
+
+impl PersonnelEvidenceKind {
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "evaluation-files" => Some(Self::EvaluationFiles),
+            "evaluation-link" => Some(Self::EvaluationLink),
+            "employee-request-attachments" => Some(Self::EmployeeRequestAttachments),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::EvaluationFiles => "evaluation-files",
+            Self::EvaluationLink => "evaluation-link",
+            Self::EmployeeRequestAttachments => "employee-request-attachments",
+        }
+    }
+}
+
+/// Envelope for the personnel-evidence reads. `rows` is the complete authority;
+/// the TypeScript transport only validates and forwards these fields.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct PersonnelEvidenceResponse {
+    pub kind: String,
+    pub rows: Vec<serde_json::Value>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -111,6 +147,25 @@ mod tests {
         assert_eq!(parse_read_only(Some("true")), Ok(true));
         assert_eq!(parse_read_only(Some("TRUE")), Err(()));
         assert_eq!(parse_read_only(Some("1")), Err(()));
+    }
+
+    #[test]
+    fn personnel_kind_accepts_only_registered_discriminators() {
+        assert_eq!(
+            PersonnelEvidenceKind::parse("evaluation-files"),
+            Some(PersonnelEvidenceKind::EvaluationFiles)
+        );
+        assert_eq!(
+            PersonnelEvidenceKind::parse("evaluation-link"),
+            Some(PersonnelEvidenceKind::EvaluationLink)
+        );
+        assert_eq!(
+            PersonnelEvidenceKind::parse("employee-request-attachments"),
+            Some(PersonnelEvidenceKind::EmployeeRequestAttachments)
+        );
+        assert_eq!(PersonnelEvidenceKind::parse("EvaluationFiles"), None);
+        assert_eq!(PersonnelEvidenceKind::parse(""), None);
+        assert_eq!(PersonnelEvidenceKind::EvaluationLink.as_str(), "evaluation-link");
     }
 
     /// Result oracle: a fixed projected row is serialized to the exact JSON

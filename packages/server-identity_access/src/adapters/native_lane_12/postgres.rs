@@ -4,7 +4,7 @@
 //! authorization-safe company scope are owned here, not by the TS client.
 
 use super::application::{AttributeReadFuture, PeopleTemplateRead};
-use super::domain::{AttributePage, AttributeRead, ReadPage};
+use super::domain::{ApprovalRead, AttributePage, AttributeRead, ReadPage};
 use erpx_server_runtime::public::postgres::DatabasePool;
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use serde_json::{Value, json};
@@ -19,6 +19,41 @@ pub const ACTIVE_ROLE_SQL: &str =
 /// `SELECT 1 FROM um_groups ... EXISTS(jsonbArrayHeadSql(...))` fully rendered.
 pub const GROUP_REFERENCES_SQL: &str =
     "SELECT 1 FROM um_groups WHERE company_id=$1 AND NOT (definition->>'archived')::boolean AND EXISTS(SELECT 1 FROM jsonb_array_elements(definition->'rule'->'conditions') x WHERE x->>'field'=$2)";
+
+/// Retired TypeScript statements, kept verbatim for the byte/result oracle.
+/// `readCanOverrideStaffStepRole` from `workflow-approvals-facts.ts`.
+pub const APPROVAL_OVERRIDE_SQL_TS: &str =
+    "SELECT 1 FROM assignments WHERE id=? AND company_id=? AND user_id=? AND iam_role_allows(role,company_id,'workflow.people_manager') AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (scope_kind='holding' OR scope_kind='branch' AND scope_node_id=? OR scope_kind='department' AND scope_node_id=?)";
+/// `assignmentActiveProbeSql(...)` rendered at the approval call site.
+pub const APPROVAL_ACTIVE_SCOPE_SQL_TS: &str =
+    "SELECT 1 FROM assignments WHERE id=? AND user_id=? AND company_id=? AND role=? AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_from<=? AND valid_until>? AND (? OR scope_kind='holding' OR scope_kind='branch' AND scope_node_id=? OR scope_kind='department' AND scope_node_id=?)";
+/// `readExpenseDecisionEvidenceAssignmentsreceiptsperson` retired TS literal.
+pub const APPROVAL_EXPENSE_EVIDENCE_SQL_TS: &str =
+    "SELECT id,role,scope_kind,scope_node_id,valid_from,valid_until FROM assignments WHERE company_id=? AND id=? AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_from<=? AND valid_until>? ORDER BY id";
+
+/// Executable forms: only the `?` bind markers are renumbered to `$1..$n`.
+const APPROVAL_OVERRIDE_SQL: &str =
+    "SELECT 1 FROM assignments WHERE id=$1 AND company_id=$2 AND user_id=$3 AND iam_role_allows(role,company_id,'workflow.people_manager') AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (scope_kind='holding' OR scope_kind='branch' AND scope_node_id=$4 OR scope_kind='department' AND scope_node_id=$5)";
+const APPROVAL_ACTIVE_SCOPE_SQL: &str =
+    "SELECT 1 FROM assignments WHERE id=$1 AND user_id=$2 AND company_id=$3 AND role=$4 AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_from<=$5 AND valid_until>$6 AND ($7 OR scope_kind='holding' OR scope_kind='branch' AND scope_node_id=$8 OR scope_kind='department' AND scope_node_id=$9)";
+const APPROVAL_EXPENSE_EVIDENCE_SQL: &str =
+    "SELECT id,role,scope_kind,scope_node_id,valid_from,valid_until FROM assignments WHERE company_id=$1 AND id=$2 AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_from<=$3 AND valid_until>$4 ORDER BY id";
+
+/// Translate `?` placeholders to `$1..$n` without changing any other byte.
+pub fn render(statement: &str) -> String {
+    let mut rendered = String::with_capacity(statement.len());
+    let mut ordinal = 0usize;
+    for character in statement.chars() {
+        if character == '?' {
+            ordinal += 1;
+            rendered.push('$');
+            rendered.push_str(&ordinal.to_string());
+        } else {
+            rendered.push(character);
+        }
+    }
+    rendered
+}
 
 fn unavailable() -> BusinessError {
     BusinessError::new(
@@ -81,6 +116,88 @@ impl PeopleTemplateRead for PgPeopleTemplateRead {
                         .await
                         .map_err(|_| unavailable())?;
                     Ok(ReadPage::new(vec![json!({"one": 1}); rows.len()]))
+                }
+            }
+        })
+    }
+
+    fn approval<'a>(&'a self, read: &'a ApprovalRead) -> AttributeReadFuture<'a, AttributePage> {
+        let pool = self.pool.clone();
+        let read = read.clone();
+        Box::pin(async move {
+            match read {
+                ApprovalRead::CanOverride {
+                    assignment_id,
+                    company_id,
+                    user_id,
+                    branch_id,
+                    department_id,
+                } => {
+                    let rows = sqlx::query(APPROVAL_OVERRIDE_SQL)
+                        .bind(&assignment_id)
+                        .bind(&company_id)
+                        .bind(&user_id)
+                        .bind(branch_id)
+                        .bind(department_id)
+                        .fetch_all(pool.raw())
+                        .await
+                        .map_err(|_| unavailable())?;
+                    Ok(ReadPage::new(vec![json!({"one": 1}); rows.len()]))
+                }
+                ApprovalRead::ActiveScope {
+                    assignment_id,
+                    user_id,
+                    company_id,
+                    role,
+                    now,
+                    now2,
+                    policy_step,
+                    branch_id,
+                    department_id,
+                } => {
+                    let rows = sqlx::query(APPROVAL_ACTIVE_SCOPE_SQL)
+                        .bind(&assignment_id)
+                        .bind(&user_id)
+                        .bind(&company_id)
+                        .bind(&role)
+                        .bind(now)
+                        .bind(now2)
+                        .bind(policy_step)
+                        .bind(branch_id)
+                        .bind(department_id)
+                        .fetch_all(pool.raw())
+                        .await
+                        .map_err(|_| unavailable())?;
+                    Ok(ReadPage::new(vec![json!({"one": 1}); rows.len()]))
+                }
+                ApprovalRead::ExpenseEvidence {
+                    company_id,
+                    assignment_id,
+                    now,
+                    now2,
+                } => {
+                    let rows = sqlx::query(APPROVAL_EXPENSE_EVIDENCE_SQL)
+                        .bind(&company_id)
+                        .bind(&assignment_id)
+                        .bind(now)
+                        .bind(now2)
+                        .fetch_all(pool.raw())
+                        .await
+                        .map_err(|_| unavailable())?;
+                    let rows = rows
+                        .into_iter()
+                        .map(|row| {
+                            Ok(json!({
+                                "id": row.try_get::<String, _>("id").map_err(|_| unavailable())?,
+                                "role": row.try_get::<String, _>("role").map_err(|_| unavailable())?,
+                                "scope_kind": row.try_get::<String, _>("scope_kind").map_err(|_| unavailable())?,
+                                "scope_node_id": row.try_get::<Option<String>, _>("scope_node_id").map_err(|_| unavailable())?,
+                                "valid_from": row.try_get::<i64, _>("valid_from").map_err(|_| unavailable())?,
+                                "valid_until": row.try_get::<i64, _>("valid_until").map_err(|_| unavailable())?,
+                            }))
+                        })
+                        .collect::<Result<Vec<Value>, BusinessError>>()?;
+                    Ok(ReadPage::new(rows))
                 }
             }
         })
@@ -150,5 +267,70 @@ mod tests {
         assert_eq!(attributes.row_count, 2);
         let probes: AttributePage = ReadPage::new(vec![json!({"one": 1})]);
         assert_eq!(serde_json::to_value(&probes).unwrap(), json!({"rows": [{"one": 1}], "rowCount": 1}));
+    }
+
+    #[test]
+    fn native_lane_12_approval_sql_oracle_hashes() {
+        assert_eq!(
+            hash(APPROVAL_OVERRIDE_SQL_TS),
+            "a269b4e5d9157b2eb2660ebd79cdc9d9c5aa678ef87e2777374cdd23628dbe70"
+        );
+        assert_eq!(
+            hash(APPROVAL_ACTIVE_SCOPE_SQL_TS),
+            "8aee2c29092d5726fb0e0b4d1465e27d78ee766177b310fb0c7dbb7de2ac7dd9"
+        );
+        assert_eq!(
+            hash(APPROVAL_EXPENSE_EVIDENCE_SQL_TS),
+            "bf5b9b5ba190c9fa422fb45a9ca904484ec1d408e726db2d16673ca8f58c8683"
+        );
+    }
+
+    #[test]
+    fn native_lane_12_approval_rendered_statements_are_executable() {
+        assert_eq!(render(APPROVAL_OVERRIDE_SQL_TS), APPROVAL_OVERRIDE_SQL);
+        assert_eq!(render(APPROVAL_ACTIVE_SCOPE_SQL_TS), APPROVAL_ACTIVE_SCOPE_SQL);
+        assert_eq!(render(APPROVAL_EXPENSE_EVIDENCE_SQL_TS), APPROVAL_EXPENSE_EVIDENCE_SQL);
+        assert_eq!(APPROVAL_OVERRIDE_SQL.matches('$').count(), 5);
+        assert_eq!(APPROVAL_ACTIVE_SCOPE_SQL.matches('$').count(), 9);
+        assert_eq!(APPROVAL_EXPENSE_EVIDENCE_SQL.matches('$').count(), 4);
+    }
+
+    #[test]
+    fn native_lane_12_approval_bind_order_and_scope() {
+        assert!(APPROVAL_OVERRIDE_SQL.starts_with(
+            "SELECT 1 FROM assignments WHERE id=$1 AND company_id=$2 AND user_id=$3"
+        ));
+        assert!(APPROVAL_ACTIVE_SCOPE_SQL.contains(
+            "WHERE id=$1 AND user_id=$2 AND company_id=$3 AND role=$4"
+        ));
+        assert!(APPROVAL_ACTIVE_SCOPE_SQL.contains("valid_from<=$5 AND valid_until>$6"));
+        assert!(APPROVAL_EXPENSE_EVIDENCE_SQL.starts_with(
+            "SELECT id,role,scope_kind,scope_node_id,valid_from,valid_until FROM assignments WHERE company_id=$1 AND id=$2"
+        ));
+        for sql in [
+            APPROVAL_OVERRIDE_SQL,
+            APPROVAL_ACTIVE_SCOPE_SQL,
+            APPROVAL_EXPENSE_EVIDENCE_SQL,
+        ] {
+            assert!(!sql.to_ascii_uppercase().contains("LOCK TABLE"));
+            assert!(!sql.contains("pg_try_advisory"));
+        }
+    }
+
+    #[test]
+    fn native_lane_12_approval_result_oracle() {
+        let page: AttributePage = ReadPage::new(vec![json!({
+            "id": "a1",
+            "role": "workflow.approve",
+            "scope_kind": "holding",
+            "scope_node_id": null,
+            "valid_from": 1,
+            "valid_until": 2,
+        })]);
+        assert_eq!(page.row_count, 1);
+        assert_eq!(
+            hash(&serde_json::to_string(&page).unwrap()),
+            hash("{\"rows\":[{\"id\":\"a1\",\"role\":\"workflow.approve\",\"scope_kind\":\"holding\",\"scope_node_id\":null,\"valid_from\":1,\"valid_until\":2}],\"rowCount\":1}")
+        );
     }
 }

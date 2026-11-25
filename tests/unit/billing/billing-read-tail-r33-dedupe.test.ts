@@ -127,17 +127,23 @@ describe('billing read-tail r33 residual dedupe', () => {
   });
 
   it('routes both executive readers through the shared head with unchanged binds', async () => {
-    for (const oracle of HEADS) {
+    for (const oracle of HEADS.filter((item) => item.file === 'executive-metric-projections.ts')) {
       const text = await src(oracle.file);
       expect(text).toContain("from './billing-read-tail-r33-sql'");
       expect(text.split('billingEnrollmentSubscriptionSql(').length - 1).toBe(1);
       expect(text).not.toContain('${BILLING_PLAN_NAME_LATERAL_SQL}');
       expect(text).not.toContain("from './billing-read-tail-r18-sql'");
       expect(text).not.toContain(oracle.full.slice(0, oracle.pad.length + 8));
-      expect(text).toContain(oracle.file === 'executive-main-evidence-sources.ts'
-        ? '[actor.holdingId, now, now, actor.holdingId, now]'
-        : 'values = [a.holdingId, now, now, a.holdingId, now];');
+      expect(text).toContain('values = [a.holdingId, now, now, a.holdingId, now];');
     }
+    // Native lane 38 wave 2: this caller carries no SQL; the byte-identical head
+    // is now pinned in the owner crate instead.
+    const evidence = await src('executive-main-evidence-sources.ts');
+    expect(evidence).toContain("from './native-lane-38/client'");
+    expect(evidence).not.toContain('billingEnrollmentSubscriptionSql(');
+    const rust = await readFile(new URL('adapters/native_lane_38/postgres.rs', srcRoot), 'utf8');
+    expect(rust).toContain("'enrollment'::text source_kind,e.id record_id,COALESCE(p.name,e.plan_id) plan_name");
+    expect(rust).toContain('LEFT JOIN LATERAL (SELECT name FROM billing_plans WHERE id=e.plan_id ORDER BY revision DESC LIMIT 1) p ON TRUE');
   });
 
   it('recomposes all five residual point reads byte-for-byte with unchanged binds', () => {

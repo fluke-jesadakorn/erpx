@@ -10,6 +10,9 @@ import {
   nativeLane3Configured,
 } from "../../../packages/server-finance/src/adapters/native-lane-3/client";
 import type { Lane3Actor } from "../../../packages/server-finance/src/adapters/native-lane-3/client";
+import { nativeSetupCounts } from "../../../packages/server-finance/src/adapters/native-lane-3/setup-client";
+import { nativeStarterProbes } from "../../../packages/server-finance/src/adapters/native-lane-3/starter-client";
+import { readFile } from "node:fs/promises";
 
 const KEY = "ERPX_NATIVE_LANE3_READ_CONFIG";
 const DEV_CONFIG = JSON.stringify({
@@ -207,6 +210,155 @@ describe("native Finance lane 3 multi-Holding invoice-line read", () => {
     await expect(nativeCurrentInvoiceLines(actor, "inv/../1", revision)).rejects.toMatchObject({
       status: 422,
       code: "LANE3_INVOICE_LINES_INPUT_INVALID",
+    });
+  });
+});
+
+describe("native Finance lane 3 setup reference counts", () => {
+  const SETUP_SQL = [
+    "SELECT count(*) count FROM finance_accounts WHERE company_id=? AND status='active'",
+    "SELECT count(*) count FROM finance_periods WHERE company_id=?",
+    "SELECT count(*) count FROM finance_tax_codes WHERE company_id=? AND status='active'",
+    "SELECT count(DISTINCT bank_account) count FROM finance_bank_statements WHERE company_id=?",
+    "SELECT base_currency FROM finance_charts WHERE company_id=? ORDER BY created_at LIMIT 1",
+  ];
+  const SETUP_SQL_HASHES = [
+    "93c03579e1470379214f35ceda1a5e6f78449e63f175ff82cf183d3c04782b99",
+    "fe6365c1e885065e2400fe8336d6656f62d659bc03873f43602e0d46e02b6a06",
+    "73cb81137301f8825fd022dbfe6adea056f9bb319d01d6ae69806d888b06959e",
+    "da7ae70b369dcb2c8fad82362585bebf596b7b462f7ea0111e80227be8fce607",
+    "9e36403926f0c29834a89050131429d33f7f5c17fda843c8e73622f52d248970",
+  ];
+  const SETUP_RESULT = {
+    accountCount: 12,
+    periodCount: 3,
+    taxCount: 4,
+    bankCount: 2,
+    firstCurrency: "THB",
+  };
+  const SETUP_RESULT_HASH = "9db081ab14783f3cb24e0fdf1a92478bf6f6a05f2b83fa7413c0693dc1bd7ebc";
+
+  it("pins the five SQL bytes and the result projection", () => {
+    expect(SETUP_SQL.map(hash)).toEqual(SETUP_SQL_HASHES);
+    expect(hash(canonical(SETUP_RESULT))).toBe(SETUP_RESULT_HASH);
+  });
+
+  it("reads setup counts from the exact WorkContext Holding", async () => {
+    const base = await listen((req) => {
+      expect(req.url).toBe("/api/v1/holdings/northstar/finance/lane3/setup-counts");
+      expect(req.headers["x-erpx-native-host"]).toBe("northstar.example.com");
+      expect(req.headers["x-erpx-context-holding"]).toBe("h002");
+      expect(req.headers["x-erpx-context-company"]).toBe(company);
+      return { status: 200, value: { data: { setup: SETUP_RESULT } } };
+    });
+    configure(base, [
+      holdings("acme.example.com", "acme", "h001"),
+      holdings("northstar.example.com", "northstar", "h002"),
+      holdings("erpx-internal.jesadakorn.com", "erpx", "h003"),
+    ]);
+    const result = await nativeSetupCounts({
+      holdingId: "h002",
+      holdingSlug: "northstar",
+      companyId: company,
+    });
+    expect(result).toEqual(SETUP_RESULT);
+    expect(hash(canonical(result))).toBe(SETUP_RESULT_HASH);
+  });
+
+  it("fails closed on an unregistered setup target and a malformed result", async () => {
+    const base = await listen(() => ({ status: 200, value: { data: { setup: SETUP_RESULT } } }));
+    configure(base);
+    await expect(
+      nativeSetupCounts({ holdingId: "h999", holdingSlug: "acme", companyId: company }),
+    ).rejects.toMatchObject({ status: 503, code: "LANE3_SETUP_COUNTS_TARGET_UNAVAILABLE" });
+  });
+
+  it("rejects a malformed setup result without a fallback", async () => {
+    const base = await listen(() => ({
+      status: 200,
+      value: { data: { setup: { ...SETUP_RESULT, bankCount: -1 } } },
+    }));
+    configure(base);
+    await expect(nativeSetupCounts(actor)).rejects.toMatchObject({
+      status: 502,
+      code: "LANE3_SETUP_COUNTS_RESPONSE_INVALID",
+    });
+  });
+
+  it("deletes the migrated SQL from the finance workspace adapter", async () => {
+    const source = await readFile(
+      new URL("../../../packages/server-finance/src/adapters/finance-workspace.ts", import.meta.url),
+      "utf8",
+    );
+    for (const sql of SETUP_SQL) expect(source).not.toContain(sql);
+    expect(source).toContain("nativeSetupCounts");
+    expect(source).toContain("setupFacts");
+  });
+});
+
+describe("native Finance lane 3 starter setup probes", () => {
+  const PROBE_SQL = [
+    "SELECT 1 FROM finance_charts WHERE company_id=?",
+    "SELECT 1 FROM finance_periods WHERE company_id=? AND start_date<=? AND end_date>=?",
+  ];
+  const PROBE_SQL_HASHES = [
+    "c9913a28d54089cb16bb341daeffc59f40214a884cbfc3725a329072a3dd89f8",
+    "a9614765c92d2a128b7a82fe8e9dea4941bc5d928f5bca00ddce9a2f120cc530",
+  ];
+  const PROBES = { existingChart: true, overlappingPeriod: false };
+  const PROBES_HASH = "3479f16cfe2b1389cb0bc790bc8e3ef7d9068459fb420a7d2d934d2c159e4d67";
+  const start = "2026-01-01";
+  const end = "2026-12-31";
+
+  it("pins the two SQL bytes and the boolean projection", () => {
+    expect(PROBE_SQL.map(hash)).toEqual(PROBE_SQL_HASHES);
+    expect(hash(canonical(PROBES))).toBe(PROBES_HASH);
+  });
+
+  it("posts the exact bounded range to the exact Holding target", async () => {
+    const base = await listen((req) => {
+      expect(req.url).toBe("/api/v1/holdings/northstar/finance/lane3/starter-probes");
+      expect(req.headers["x-erpx-native-host"]).toBe("northstar.example.com");
+      expect(req.headers["x-erpx-context-holding"]).toBe("h002");
+      expect(req.headers["x-erpx-context-company"]).toBe(company);
+      expect(JSON.parse(req.body)).toEqual({ start, end });
+      return { status: 200, value: { data: { probes: PROBES } } };
+    });
+    configure(base, [
+      holdings("acme.example.com", "acme", "h001"),
+      holdings("northstar.example.com", "northstar", "h002"),
+      holdings("erpx-internal.jesadakorn.com", "erpx", "h003"),
+    ]);
+    const result = await nativeStarterProbes(
+      { holdingId: "h002", holdingSlug: "northstar", companyId: company },
+      start,
+      end,
+    );
+    expect(result).toEqual(PROBES);
+    expect(hash(canonical(result))).toBe(PROBES_HASH);
+  });
+
+  it("fails closed on an unregistered target and rejects malformed dates", async () => {
+    const base = await listen(() => ({ status: 200, value: { data: { probes: PROBES } } }));
+    configure(base);
+    await expect(
+      nativeStarterProbes({ holdingId: "h999", holdingSlug: "acme", companyId: company }, start, end),
+    ).rejects.toMatchObject({ status: 503, code: "LANE3_STARTER_PROBES_TARGET_UNAVAILABLE" });
+    await expect(nativeStarterProbes(actor, "2026/01/01", end)).rejects.toMatchObject({
+      status: 422,
+      code: "LANE3_STARTER_PROBES_INPUT_INVALID",
+    });
+  });
+
+  it("rejects a malformed native projection without a fallback", async () => {
+    const base = await listen(() => ({
+      status: 200,
+      value: { data: { probes: { ...PROBES, overlappingPeriod: 1 } } },
+    }));
+    configure(base);
+    await expect(nativeStarterProbes(actor, start, end)).rejects.toMatchObject({
+      status: 502,
+      code: "LANE3_STARTER_PROBES_RESPONSE_INVALID",
     });
   });
 });

@@ -218,7 +218,7 @@ describe('finance flow-routing posted_by read dedupe',()=>{
  const SQL='SELECT posted_by FROM finance_journals WHERE id=? AND company_id=?';
  it('keeps one byte-identical literal and adopts no FOR SHARE variant',async()=>{
   const text=await readFile(new URL('../../../packages/server-finance/src/adapters/workflow-flow-routing-facts.ts',import.meta.url),'utf8');
-  expect(text.split(SQL).length-1).toBe(1);
+  expect(text).toContain("columnByIdSql('posted_by', 'finance_journals')");
   expect(text).not.toContain('FOR SHARE');
  });
  it('both readDefinitionsJournal variants prepare the same SQL and binds',async()=>{

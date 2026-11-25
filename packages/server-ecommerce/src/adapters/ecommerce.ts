@@ -24,6 +24,7 @@ import {listingSchema,cartSchema,lineSchema,checkoutSchema,actionSchema} from '@
 import {requireEcommercePurchasedRead,ecommercePurchaseControls,withEcommercePurchasedCommand,type EcommercePurchaseCommand} from '@erpx/server-ecommerce/adapters/purchase-boundary';
 import {nativeEcommerceOwnerWrite,NativeEcommerceWave2Error,type EcommerceOwnerWriteKind} from '@erpx/server-ecommerce/adapters/native-wave2';
 import { ecommerceExistsGuard, ecommerceOrderedList, ecommerceListingChannelRow } from './read-tail-sql';
+import { nativeWorkspaceLists } from './native-lane-39/client';
 /** Single fail-closed bridge to the owner axum command router. No SQL, no fallback. */
 async function nativeWrite(kind:EcommerceOwnerWriteKind,values:readonly unknown[],recordId:string,actorId:string,key:string){
  try{return await nativeEcommerceOwnerWrite(kind,values,recordId,actorId,key);}
@@ -64,25 +65,20 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
   ...(canStartTransaction && isTransactionalSqlDatabase(write) ? { transaction: <Result>(action: (repository: EcommerceRepository) => Promise<Result>) => commerceOwnerTransaction(write,a,tx => action(bindRepository(tx, a, false))) } : {}),
   replay: command => replayCommand(write, a, command.key, command.operation, command.id, command.input),
   async workspace() {
-  const [channels, listings, carts, checkouts, products, parties, warehouses] =
+  // Lane 39: the owner axum service executes both owner-local list reads
+  // (channels and carts) and projects the exact rows; no TS SQL and no
+  // fallback. Remaining cross-owner workspace reads stay on the caller.
+  const [lists, listings, checkouts, products, parties, warehouses] =
       await Promise.all([
-        write
-          .prepare(
-            readSource("ecommerce_channels", "company_id=?", "updated_at DESC"),
-          )
-          .bind(a.companyId)
-          .all<Row>(),
+        nativeWorkspaceLists(
+          { companyId: a.companyId, branchId: a.branchId, departmentId: a.departmentId },
+          a,
+        ),
         write
           .prepare(
             ecommerceOrderedList("l.*,p.name product_name,c.name channel_name", `ecommerce_listings l JOIN ecommerce_channels c ON c.id=l.channel_id JOIN (${commerceProjectionSources.commerce_products}) p ON p.id=l.product_id`, "c.company_id=?", "l.updated_at DESC"),
           )
           .bind(a.companyId)
-          .all<Row>(),
-        write
-          .prepare(
-            ecommerceOrderedList("c.*", "ecommerce_carts c", cartScope, "c.updated_at DESC"),
-          )
-          .bind(...scopeValues(a))
           .all<Row>(),
         write
           .prepare(
@@ -95,9 +91,9 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
         ecommerceWarehouseCandidates(write, a),
       ]);
   return {
-    channels: channels.results,
+    channels: [...lists.channels],
     listings: listings.results,
-    carts: carts.results,
+    carts: [...lists.carts],
     checkouts: checkouts.results,
     products,
     parties,

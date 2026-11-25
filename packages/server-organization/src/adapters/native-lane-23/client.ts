@@ -44,6 +44,64 @@ export type DirectoryHierarchy = {
   positions: DirectoryPosition[];
 };
 
+export type AudienceNode = {
+  id: string;
+  kind: string;
+  branch_id: string | null;
+};
+
+export type UnitReference = {
+  id: string;
+  name: string;
+  kind: string;
+  branchId: string | null;
+};
+
+export type AttachmentNodeFact = {
+  company_id: string;
+  branch_id: string | null;
+  department_id: string | null;
+  version: number;
+  kind: string;
+};
+
+export type NodeReferences = {
+  node: AudienceNode | null;
+  units: UnitReference[];
+  attachment: AttachmentNodeFact | null;
+};
+
+export type NodeReferenceScope = Readonly<{ companyId: string; nodeId?: string | null }>;
+
+export type ExecutiveEvidenceKind =
+  | 'connection-scopes'
+  | 'context-nodes'
+  | 'context-positions'
+  | 'node-evidence'
+  | 'pending-evidence';
+
+export type ExecutiveEvidenceScope = Readonly<{
+  kind: ExecutiveEvidenceKind;
+  companyId: string;
+  values?: readonly (string | null)[];
+  query?: string | null;
+  limit?: number | null;
+  nodeId?: string | null;
+  cursorName?: string | null;
+  cursorAt?: number | null;
+  cursorId?: string | null;
+}>;
+
+export type ExecutiveEvidence = { rows: Record<string, unknown>[] };
+
+const EVIDENCE_KINDS = new Set<ExecutiveEvidenceKind>([
+  'connection-scopes',
+  'context-nodes',
+  'context-positions',
+  'node-evidence',
+  'pending-evidence',
+]);
+
 export type Holding = Readonly<{
   origin: string;
   host: string;
@@ -108,6 +166,9 @@ const identifier = (value: unknown): value is string =>
 
 const nullableIdentifier = (value: unknown): value is string | null =>
   value === null || identifier(value);
+
+const scopeId = (value: unknown): value is string =>
+  identifier(value) && /^[A-Za-z0-9_.:-]+$/.test(value);
 
 const integer = (value: unknown): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value);
@@ -346,18 +407,86 @@ export function validateDirectoryHierarchy(value: unknown): DirectoryHierarchy {
   return facts;
 }
 
-async function read(target: DirectoryTarget, source?: Headers): Promise<DirectoryHierarchy> {
+function audienceOf(value: unknown): AudienceNode {
+  if (
+    !record(value) ||
+    !exactKeys(value, ['id', 'kind', 'branch_id']) ||
+    !identifier(value.id) ||
+    !identifier(value.kind) ||
+    !nullableIdentifier(value.branch_id)
+  )
+    return invalid();
+  return { id: value.id, kind: value.kind, branch_id: value.branch_id };
+}
+
+function unitOf(value: unknown): UnitReference {
+  if (
+    !record(value) ||
+    !exactKeys(value, ['id', 'name', 'kind', 'branchId']) ||
+    !identifier(value.id) ||
+    !identifier(value.name) ||
+    !identifier(value.kind) ||
+    !nullableIdentifier(value.branchId)
+  )
+    return invalid();
+  return { id: value.id, name: value.name, kind: value.kind, branchId: value.branchId };
+}
+
+function attachmentOf(value: unknown): AttachmentNodeFact {
+  if (
+    !record(value) ||
+    !exactKeys(value, ['company_id', 'branch_id', 'department_id', 'version', 'kind']) ||
+    !identifier(value.company_id) ||
+    !nullableIdentifier(value.branch_id) ||
+    !nullableIdentifier(value.department_id) ||
+    !integer(value.version) ||
+    value.version < 1 ||
+    !identifier(value.kind)
+  )
+    return invalid();
+  return {
+    company_id: value.company_id,
+    branch_id: value.branch_id,
+    department_id: value.department_id,
+    version: value.version,
+    kind: value.kind,
+  };
+}
+
+/** Strict projection of the native node-reference payload. */
+export function validateNodeReferences(value: unknown): NodeReferences {
+  if (!record(value) || !exactKeys(value, ['data'])) return invalid();
+  const data = value.data;
+  if (!record(data) || !exactKeys(data, ['node', 'units', 'attachment'])) return invalid();
+  const units = rows(data.units, unitOf);
+  if (new Set(units.map(unit => unit.id)).size !== units.length) return invalid();
+  return {
+    node: data.node === null ? null : audienceOf(data.node),
+    units,
+    attachment: data.attachment === null ? null : attachmentOf(data.attachment),
+  };
+}
+
+async function request(
+  target: DirectoryTarget,
+  source: Headers | undefined,
+  path: string,
+  body?: unknown,
+): Promise<unknown> {
   const config = configuration(process.env.ERPX_NATIVE_ORGANIZATION_CONFIG);
   const holding = holdingFor(target, config);
   const from = headersLike(target) ? target : (source ?? new Headers());
   const companyId = record(target) && typeof target.companyId === 'string' ? target.companyId : undefined;
+  const headers = requestHeaders(from, holding, companyId);
+  if (body !== undefined) headers.set('content-type', 'application/json');
   let response: Response;
   try {
     response = await fetch(
-      `${config.base.origin}/api/v1/holdings/${encodeURIComponent(holding.holdingSlug)}/organization/directory-hierarchy`,
+      `${config.base.origin}/api/v1/holdings/${encodeURIComponent(holding.holdingSlug)}/organization${path}`,
       {
-        method: 'GET',
-        headers: requestHeaders(from, holding, companyId),
+        method: body === undefined ? 'GET' : 'POST',
+        headers,
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         cache: 'no-store',
         signal: AbortSignal.timeout(config.timeout),
       },
@@ -374,7 +503,11 @@ async function read(target: DirectoryTarget, source?: Headers): Promise<Director
       typeof error.message === 'string' ? error.message : 'The native Organization directory request failed.',
     );
   }
-  return validateDirectoryHierarchy(payload);
+  return payload;
+}
+
+async function read(target: DirectoryTarget, source?: Headers): Promise<DirectoryHierarchy> {
+  return validateDirectoryHierarchy(await request(target, source, '/directory-hierarchy'));
 }
 
 /** One bounded native read returning all three owner-local fact arrays. */
@@ -395,4 +528,56 @@ export function nativeDirectoryLevels(target: DirectoryTarget, source?: Headers)
 
 export function nativeDirectoryPositions(target: DirectoryTarget, source?: Headers): Promise<DirectoryPosition[]> {
   return read(target, source).then(facts => facts.positions);
+}
+
+/** Bounded node-reference read shared by Collaboration, IAM and Files ports. */
+export async function nativeNodeReferences(
+  target: DirectoryTarget,
+  scope: NodeReferenceScope,
+  source?: Headers,
+): Promise<NodeReferences> {
+  if (!scopeId(scope.companyId) || (scope.nodeId != null && !scopeId(scope.nodeId))) return invalid();
+  const query = new URLSearchParams({ companyId: scope.companyId });
+  if (scope.nodeId) query.set('nodeId', scope.nodeId);
+  return validateNodeReferences(await request(target, source, `/node-references?${query.toString()}`));
+}
+
+/** Strict projection of one native executive evidence payload. */
+export function validateExecutiveEvidence(value: unknown): ExecutiveEvidence {
+  if (!record(value) || !exactKeys(value, ['data'])) return invalid();
+  const data = value.data;
+  if (!record(data) || !exactKeys(data, ['rows'])) return invalid();
+  const rows = data.rows;
+  if (!Array.isArray(rows) || rows.length > MAX_ROWS) return invalid();
+  return {
+    rows: rows.map(row => {
+      if (!record(row) || !identifier(row.id)) return invalid();
+      return row;
+    }),
+  };
+}
+
+/** Bounded executive evidence read owned by the Rust organization crate. */
+export async function nativeExecutiveEvidence(
+  target: DirectoryTarget,
+  scope: ExecutiveEvidenceScope,
+  source?: Headers,
+): Promise<ExecutiveEvidence> {
+  if (!EVIDENCE_KINDS.has(scope.kind) || !scopeId(scope.companyId)) return invalid();
+  if (scope.values !== undefined && (scope.values.length > 8 || scope.values.some(value => value !== null && !identifier(value)))) return invalid();
+  if (scope.query != null && scope.query.length > 0 && !identifier(scope.query)) return invalid();
+  if (scope.limit != null && (!integer(scope.limit) || scope.limit < 1 || scope.limit > 500)) return invalid();
+  if (scope.nodeId != null && !scopeId(scope.nodeId)) return invalid();
+  if (scope.cursorName != null && !identifier(scope.cursorName)) return invalid();
+  if (scope.cursorAt != null && !integer(scope.cursorAt)) return invalid();
+  if (scope.cursorId != null && !scopeId(scope.cursorId)) return invalid();
+  const body: Record<string, unknown> = { kind: scope.kind, companyId: scope.companyId };
+  if (scope.values !== undefined) body.values = [...scope.values];
+  if (scope.query) body.query = scope.query;
+  if (scope.limit != null) body.limit = scope.limit;
+  if (scope.nodeId != null) body.nodeId = scope.nodeId;
+  if (scope.cursorName != null) body.cursorName = scope.cursorName;
+  if (scope.cursorAt != null) body.cursorAt = scope.cursorAt;
+  if (scope.cursorId != null) body.cursorId = scope.cursorId;
+  return validateExecutiveEvidence(await request(target, source, '/executive-evidence', body));
 }

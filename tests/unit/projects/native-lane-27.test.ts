@@ -107,6 +107,19 @@ const handoffWork = {
   lifecycle_status: "handoff_pending",
 };
 
+const projectRow = {
+  id: "project-1",
+  company_id: "company-1",
+  branch_id: null,
+  department_id: null,
+  title: "Project 1",
+  description: "Owner-local visible row",
+  owner_user_id: "user-1",
+  lifecycle_status: "active",
+  version: 4,
+  updated_at: 100,
+};
+
 const reply = (body: unknown, status = 200): ActualsTransport => async () => ({
   status,
   contentType: "application/json",
@@ -142,9 +155,9 @@ describe("native lane 27 projects actuals transport", () => {
       }
     };
     walk(root);
-    // Before lane 27: 71. Actuals (2) and handoff list/work (2) are native; the
-    // closed r33 point-read head remains shared by other owners (67).
-    expect(total).toBe(67);
+    // Before lane 27: 71. Actuals (2), handoff list/work (2) and the r30
+    // visible-row head (1) are native; other owners keep the shared heads (66).
+    expect(total).toBe(66);
   });
 
   it("pins the native SQL and result oracle", () => {
@@ -155,7 +168,7 @@ describe("native lane 27 projects actuals transport", () => {
       ),
       "utf8",
     );
-    const hashes = ["WORK_LOGS", "COST_ALLOCATIONS", "HANDOFFS", "HANDOFF_PROJECT", "HANDOFF_WORK"].map((name) => {
+    const hashes = ["WORK_LOGS", "COST_ALLOCATIONS", "HANDOFFS", "HANDOFF_PROJECT", "HANDOFF_WORK", "VISIBLE_PROJECT", "VISIBLE_PROJECTS"].map((name) => {
       const literal = source.match(new RegExp(`const ${name}: &str = "([\\s\\S]*?)";`));
       expect(literal).not.toBeNull();
       const rendered = literal![1].replace(/\\\n\s*/g, "");
@@ -167,6 +180,8 @@ describe("native lane 27 projects actuals transport", () => {
       "2d0e7f0c956f8885ac03cf63817f88ad2d6c5ef065fcbdb5b87e1530f4f292ee",
       "4c0832698a78ad2a8c2140281e40a14f90fcfebe5ddffe5b0ea60a47f4f14088",
       "e22d5ff91897cea8271de4816a66db3730b2c840a10322e37f7997a710805280",
+      "d177aa96424d2e995b3393adcce9ae26db436764742bd11336d494d11311928c",
+      "30b6f9068cdb06f8462e9ba4f315d254df02dc1d6668ff22f43cf105e79e90ec",
     ]);
     expect(
       createHash("sha256")
@@ -371,5 +386,52 @@ describe("native lane 27 projects actuals transport", () => {
     await expect(
       reader(reply({ error: { code: "PROJECT_ACTUALS_LANE27_REQUEST_INVALID", message: "bad" } }, 422)).workLogs("project-1"),
     ).rejects.toMatchObject({ status: 422, code: "PROJECT_ACTUALS_LANE27_REQUEST_INVALID" });
+  });
+
+  it("carries bounded identity for visible project reads", async () => {
+    const seen: Array<{ url: string; headers: Record<string, string> }> = [];
+    const transport: ActualsTransport = async (url, headers) => {
+      seen.push({ url: url.toString(), headers: { ...headers } });
+      return {
+        status: 200,
+        contentType: "application/json",
+        text: JSON.stringify(url.pathname.endsWith("visible-projects") ? { projects: [projectRow] } : { project: projectRow }),
+      };
+    };
+    const native = reader(transport);
+    expect(await native.visibleProject("project-1")).toEqual(projectRow);
+    expect(seen[0]!.url).toBe("http://127.0.0.1:3198/api/v1/holdings/acme/projects/visible-project");
+    expect(seen[0]!.headers["x-erpx-context-project"]).toBe("project-1");
+    expect(await native.visibleProjects()).toEqual([projectRow]);
+    expect(seen[1]!.url).toBe("http://127.0.0.1:3198/api/v1/holdings/acme/projects/visible-projects");
+    expect(seen[1]!.headers["x-erpx-context-project"]).toBeUndefined();
+    expect(seen[1]!.headers["x-erpx-context-company"]).toBe("company-1");
+    expect(seen[1]!.headers["x-erpx-context-user"]).toBe("user-1");
+  });
+
+  it("fails closed on off-shape visible project replies", async () => {
+    await expect(reader(reply({ project: { ...projectRow, lifecycle_status: "unknown" } })).visibleProject("project-1"))
+      .rejects.toMatchObject({ status: 503, code: "PROJECT_ACTUALS_LANE27_RESPONSE_INVALID" });
+    await expect(reader(reply({ projects: [{ ...projectRow, extra: true }] })).visibleProjects())
+      .rejects.toMatchObject({ status: 503, code: "PROJECT_ACTUALS_LANE27_RESPONSE_INVALID" });
+    await expect(reader(reply({ project: null })).visibleProject(""))
+      .rejects.toMatchObject({ status: 503, code: "PROJECT_ACTUALS_LANE27_REQUEST_INVALID" });
+    await expect(reader(reply({ projects: [projectRow] }, 503)).visibleProjects())
+      .rejects.toMatchObject({ status: 503, code: "PROJECT_ACTUALS_LANE27_UNAVAILABLE" });
+  });
+
+  it("selects the caller's Holding for visible project reads", async () => {
+    const seen: string[] = [];
+    const transport: ActualsTransport = async (url) => {
+      seen.push(url.toString());
+      return { status: 200, contentType: "application/json", text: JSON.stringify({ projects: [] }) };
+    };
+    await reader(
+      transport,
+      env,
+      { ...actor, holdingId: "h002", holdingSlug: "northstar" },
+      incomingFor("northstar.jesadakorn.com"),
+    ).visibleProjects();
+    expect(seen).toEqual(["http://127.0.0.1:3198/api/v1/holdings/northstar/projects/visible-projects"]);
   });
 });

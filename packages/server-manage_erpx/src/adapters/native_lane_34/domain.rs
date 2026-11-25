@@ -182,6 +182,80 @@ impl From<InvitationPage> for InvitationResponse {
     }
 }
 
+/// Byte-identical successor of the TypeScript receipt literal retired from
+/// `adapters/beta-email.ts`. `delivery_key` is the only bind; the projection
+/// stays owner-local so no TypeScript mirror remains.
+pub const EMAIL_RECEIPT_SQL: &str = concat!(
+    "SELECT delivery_key,recipient,subject,body_text,body_ciphertext,provider_id ",
+    "FROM sandbox_email_deliveries WHERE delivery_key=?",
+);
+const MAX_RECIPIENT: usize = 320;
+const MAX_SUBJECT: usize = 4096;
+const MAX_EMAIL_BODY: usize = 131072;
+const MAX_CIPHERTEXT: usize = 180 * 1024;
+const MAX_PROVIDER: usize = 200;
+
+/// One pinned sandbox email receipt row. Field names and order are the wire
+/// contract consumed by the TypeScript client; `body_ciphertext` is nullable.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct EmailReceipt {
+    pub delivery_key: String,
+    pub recipient: String,
+    pub subject: String,
+    pub body_text: String,
+    pub body_ciphertext: Option<String>,
+    pub provider_id: String,
+}
+
+impl EmailReceipt {
+    /// Fail closed on any impossible projection. Bounds mirror the native write
+    /// adapter and the TypeScript client; a ciphertext must be an `v1.` envelope.
+    pub fn validated(self) -> Result<Self, BusinessError> {
+        if !valid_delivery_key(&self.delivery_key)
+            || self.recipient.is_empty()
+            || self.recipient.len() > MAX_RECIPIENT
+            || self.subject.len() > MAX_SUBJECT
+            || self.body_text.len() > MAX_EMAIL_BODY
+            || self.body_ciphertext.as_ref().is_some_and(|value| {
+                !value.starts_with("v1.") || value.len() > MAX_CIPHERTEXT
+            })
+            || !valid_provider_id(&self.provider_id)
+        {
+            return Err(unavailable());
+        }
+        Ok(self)
+    }
+}
+
+/// The exact response envelope consumed by the TypeScript client.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct EmailReceiptResponse {
+    #[serde(rename = "receipt")]
+    pub receipt: Option<EmailReceipt>,
+}
+
+impl From<Option<EmailReceipt>> for EmailReceiptResponse {
+    fn from(receipt: Option<EmailReceipt>) -> Self {
+        Self { receipt }
+    }
+}
+
+/// Delivery keys are opaque but bounded identifiers used as a SQL bind only.
+pub fn valid_delivery_key(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 200
+        && value
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b':' | b'_' | b'.' | b'-'))
+}
+fn valid_provider_id(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= MAX_PROVIDER
+        && value
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b':' | b'_' | b'.' | b'-'))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -340,5 +414,94 @@ mod tests {
             .unwrap_err(),
             unavailable()
         );
+    }
+
+    fn receipt() -> EmailReceipt {
+        EmailReceipt {
+            delivery_key: "portal:key".to_owned(),
+            recipient: "to@example.test".to_owned(),
+            subject: "S".to_owned(),
+            body_text: "body".to_owned(),
+            body_ciphertext: None,
+            provider_id: "sandbox-key-1".to_owned(),
+        }
+    }
+
+    #[test]
+    fn email_receipt_sql_binds_delivery_key_once_with_no_write() {
+        assert_eq!(EMAIL_RECEIPT_SQL.matches('?').count(), 1);
+        assert!(EMAIL_RECEIPT_SQL.starts_with("SELECT "));
+        assert!(EMAIL_RECEIPT_SQL.contains("delivery_key=?"));
+        assert!(!EMAIL_RECEIPT_SQL.contains("FOR UPDATE"));
+        assert!(!EMAIL_RECEIPT_SQL.contains("LOCK "));
+        assert!(!EMAIL_RECEIPT_SQL.contains(';'));
+        assert!(!EMAIL_RECEIPT_SQL.contains("INSERT "));
+        assert!(!EMAIL_RECEIPT_SQL.contains("UPDATE "));
+        assert!(!EMAIL_RECEIPT_SQL.contains("DELETE "));
+    }
+
+    #[test]
+    fn validates_the_email_receipt_projection_and_envelope() {
+        let row = receipt();
+        assert_eq!(row.clone().validated(), Ok(row.clone()));
+        assert_eq!(
+            serde_json::to_string(&EmailReceiptResponse::from(Some(row.clone()))).expect("json"),
+            concat!(
+                r#"{"receipt":{"delivery_key":"portal:key","recipient":"to@example.test","#,
+                r#""subject":"S","body_text":"body","body_ciphertext":null,"#,
+                r#""provider_id":"sandbox-key-1"}}"#
+            )
+        );
+        assert_eq!(
+            serde_json::to_string(&EmailReceiptResponse::from(None)).expect("json"),
+            r#"{"receipt":null}"#
+        );
+        assert_eq!(
+            EmailReceipt {
+                body_ciphertext: Some("v1.abc".to_owned()),
+                ..row.clone()
+            }
+            .validated(),
+            Ok(EmailReceipt {
+                body_ciphertext: Some("v1.abc".to_owned()),
+                ..row.clone()
+            })
+        );
+        assert_eq!(
+            EmailReceipt {
+                body_ciphertext: Some("plaintext".to_owned()),
+                ..row.clone()
+            }
+            .validated()
+            .unwrap_err(),
+            unavailable()
+        );
+        assert_eq!(
+            EmailReceipt {
+                delivery_key: String::new(),
+                ..row.clone()
+            }
+            .validated()
+            .unwrap_err(),
+            unavailable()
+        );
+        assert_eq!(
+            EmailReceipt {
+                recipient: String::new(),
+                ..row
+            }
+            .validated()
+            .unwrap_err(),
+            unavailable()
+        );
+    }
+
+    #[test]
+    fn accepts_only_bounded_delivery_keys() {
+        assert!(valid_delivery_key("portal:key-1"));
+        assert!(valid_delivery_key("invite.first_2"));
+        assert!(!valid_delivery_key(""));
+        assert!(!valid_delivery_key("bad/key?"));
+        assert!(!valid_delivery_key(&"x".repeat(201)));
     }
 }

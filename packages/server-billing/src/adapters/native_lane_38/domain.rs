@@ -90,6 +90,149 @@ pub fn response_body(watermarks: &[BillingWatermark]) -> serde_json::Value {
     json!({ "watermarks": watermarks })
 }
 
+// ---- Executive-main evidence point/search family (wave 2) -----------------
+//
+// Billing-owned evidence reads over billing_accounts, billing_enrollments,
+// billing_plans, beta_billing, billing_invoices and billing_periods. The owner
+// validates the bounded inputs, executes the statement and pins the exact row
+// key set; the retained TypeScript adapter only transports the response.
+
+pub const COMMERCIAL_ROW_KEYS: [&str; 7] = [
+    "source_kind",
+    "record_id",
+    "plan_name",
+    "status",
+    "started_at",
+    "effective_at",
+    "record_version",
+];
+pub const OVERDUE_ROW_KEYS: [&str; 7] = [
+    "id",
+    "kind",
+    "status",
+    "total_satang",
+    "due_at",
+    "updated_at",
+    "month",
+];
+
+pub fn invalid_evidence() -> BusinessError {
+    BusinessError::invalid(
+        "NATIVE_LANE_38_BILLING_EVIDENCE_REQUEST_INVALID",
+        "Use one bounded Billing evidence read.",
+    )
+}
+
+pub fn valid_text(value: &str, max: usize) -> bool {
+    !value.is_empty() && value.len() <= max
+}
+
+/// A row is accepted only when its exact key set matches the retained contract;
+/// any extra or missing field fails closed.
+pub fn exact_row(value: &serde_json::Value, keys: &[&str]) -> bool {
+    let Some(object) = value.as_object() else {
+        return false;
+    };
+    object.len() == keys.len() && keys.iter().all(|key| object.contains_key(*key))
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CommercialSearchInput {
+    pub query: String,
+    pub source_kind: Option<String>,
+    pub record_id: Option<String>,
+    pub limit: usize,
+    pub now: i64,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CommercialPointInput {
+    pub source_kind: String,
+    pub record_id: String,
+    pub now: i64,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct OverdueSearchInput {
+    /// Epoch milliseconds already parsed by the caller, matching Date.parse.
+    pub from_ms: i64,
+    pub query: String,
+    pub due_at: Option<i64>,
+    pub id: Option<String>,
+    pub limit: usize,
+    pub end: i64,
+    pub now: i64,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct OverduePointInput {
+    /// Epoch milliseconds already parsed by the caller, matching Date.parse.
+    pub from_ms: i64,
+    /// Epoch milliseconds for `Date.parse(filters.to) + 86400000`.
+    pub to_exclusive_ms: i64,
+    pub id: String,
+    pub now: i64,
+}
+
+pub fn validate_commercial_search(input: &CommercialSearchInput) -> Result<(), BusinessError> {
+    if input.query.len() > 200
+        || !(1..=100).contains(&input.limit)
+        || input.now <= 0
+        || input
+            .source_kind
+            .as_deref()
+            .is_some_and(|kind| !matches!(kind, "enrollment" | "legacy") || !valid_text(kind, 40))
+        || input
+            .record_id
+            .as_deref()
+            .is_some_and(|id| !valid_text(id, 200))
+        || input.source_kind.is_some() != input.record_id.is_some()
+    {
+        return Err(invalid_evidence());
+    }
+    Ok(())
+}
+
+pub fn validate_commercial_point(input: &CommercialPointInput) -> Result<(), BusinessError> {
+    if !matches!(input.source_kind.as_str(), "enrollment" | "legacy")
+        || !valid_text(&input.record_id, 200)
+        || input.now <= 0
+    {
+        return Err(invalid_evidence());
+    }
+    Ok(())
+}
+
+pub fn validate_overdue_search(input: &OverdueSearchInput) -> Result<(), BusinessError> {
+    if input.from_ms <= 0
+        || input.query.len() > 200
+        || !(1..=100).contains(&input.limit)
+        || input.end <= 0
+        || input.now <= 0
+        || input.id.as_deref().is_some_and(|id| !valid_text(id, 200))
+        || input.due_at.is_some() != input.id.is_some()
+    {
+        return Err(invalid_evidence());
+    }
+    Ok(())
+}
+
+pub fn validate_overdue_point(input: &OverduePointInput) -> Result<(), BusinessError> {
+    if input.from_ms <= 0
+        || input.to_exclusive_ms <= 0
+        || input.to_exclusive_ms < input.from_ms
+        || !valid_text(&input.id, 200)
+        || input.now <= 0
+    {
+        return Err(invalid_evidence());
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -132,5 +275,90 @@ mod tests {
         let projected = project(None);
         assert!(projected.is_empty());
         assert_eq!(response_body(&projected), json!({"watermarks": []}));
+    }
+
+    #[test]
+    fn native_lane_38_evidence_inputs_are_bounded() {
+        assert!(
+            validate_commercial_search(&CommercialSearchInput {
+                query: String::new(),
+                source_kind: Some("enrollment".to_owned()),
+                record_id: Some("r1".to_owned()),
+                limit: 30,
+                now: 1_000,
+            })
+            .is_ok()
+        );
+        assert!(
+            validate_commercial_search(&CommercialSearchInput {
+                query: String::new(),
+                source_kind: Some("enrollment".to_owned()),
+                record_id: None,
+                limit: 30,
+                now: 1_000,
+            })
+            .is_err()
+        );
+        assert!(
+            validate_commercial_point(&CommercialPointInput {
+                source_kind: "legacy".to_owned(),
+                record_id: "r1".to_owned(),
+                now: 1_000,
+            })
+            .is_ok()
+        );
+        assert!(
+            validate_commercial_point(&CommercialPointInput {
+                source_kind: "other".to_owned(),
+                record_id: "r1".to_owned(),
+                now: 1_000,
+            })
+            .is_err()
+        );
+        assert!(
+            validate_overdue_search(&OverdueSearchInput {
+                from_ms: 1_000,
+                query: String::new(),
+                due_at: Some(100),
+                id: Some("i1".to_owned()),
+                limit: 30,
+                end: 2_000,
+                now: 1_000,
+            })
+            .is_ok()
+        );
+        assert!(
+            validate_overdue_search(&OverdueSearchInput {
+                from_ms: 0,
+                query: String::new(),
+                due_at: None,
+                id: None,
+                limit: 30,
+                end: 2_000,
+                now: 1_000,
+            })
+            .is_err()
+        );
+        assert!(
+            validate_overdue_point(&OverduePointInput {
+                from_ms: 1_000,
+                to_exclusive_ms: 2_000,
+                id: "i1".to_owned(),
+                now: 1_000,
+            })
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn native_lane_38_evidence_rows_pin_exact_key_sets() {
+        let commercial = json!({"source_kind":"enrollment","record_id":"r","plan_name":"p","status":"active","started_at":1,"effective_at":null,"record_version":2});
+        assert!(exact_row(&commercial, &COMMERCIAL_ROW_KEYS));
+        let mut extra = commercial.clone();
+        extra["extra"] = json!(1);
+        assert!(!exact_row(&extra, &COMMERCIAL_ROW_KEYS));
+        let overdue = json!({"id":"i","kind":"main","status":"open","total_satang":"1","due_at":2,"updated_at":3,"month":"2026-01"});
+        assert!(exact_row(&overdue, &OVERDUE_ROW_KEYS));
+        assert!(!exact_row(&json!({"id":"i"}), &OVERDUE_ROW_KEYS));
     }
 }

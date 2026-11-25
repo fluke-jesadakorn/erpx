@@ -38,7 +38,8 @@ describe('legal read-tail r33 state-constrained point-read family', () => {
     expect(shared.match(/export const legalStatePointSql/g) ?? []).toHaveLength(1);
     expect(governance).toContain('legalStatePointSql("fields,sla_days","legal_intake_forms","company_id","approved")');
     expect(sourceWorker).toContain('legalStatePointSql("source_url","legal_law_sources","company_id","active")');
-    expect(knowledge).toContain('legalStatePointSql("1","legal_text_reviews","document_id","approved")');
+    expect(knowledge).toContain("from '../native-lane-26/client'");
+    expect(knowledge).not.toContain('legalStatePointSql("1","legal_text_reviews"');
     for (const [c, t, k, s] of members) {
       const inline = `SELECT ${c} FROM ${t} WHERE id=? AND ${k}=? AND state='${s}'`;
       expect(governance).not.toContain(inline);

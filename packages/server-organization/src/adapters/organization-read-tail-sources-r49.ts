@@ -6,12 +6,6 @@ import 'server-only';
  * statement or spaced JOIN constant is changed. Only the owner-supplied
  * predicate/order tails vary, never caller input. */
 
-/** Branch-node option list. Family: the pms command-facts reader and the pos
- * facts reader. The runtime-selected active/id tail and the pos ORDER BY tail
- * are supplied verbatim by each caller. */
-export const branchNodeOptions = (tail: string) =>
-  `SELECT id,display_name name FROM organization_nodes WHERE company_id=? AND kind='branch' AND ${tail}`;
-
 /** Full node selection projection. Family: the organization ports `nodes` and
  * `node` readers. The WHERE/ORDER BY clause is supplied verbatim by each caller;
  * bind arrays stay at the call sites. */

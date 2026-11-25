@@ -2,13 +2,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
 vi.mock("server-only", () => ({}));
 import {
+  AUTHORITY_ACTOR_SQL_ORACLE_SHA256,
+  AUTHORITY_APPOINTEE_SQL_ORACLE_SHA256,
+  AUTHORITY_RESPONSE_ORACLE_SHA256,
   nativeLane7Configured,
   PAYMENTS_RESPONSE_ORACLE_SHA256,
   PAYMENTS_SQL_ORACLE_SHA256,
   readFinanceWorkspacePeoplePayments,
   readLegacyPeopleTransition,
+  readOrganizationAuthorityPerson,
   RESPONSE_ORACLE_SHA256,
   SQL_ORACLE_SHA256,
+  type AuthorityQuery,
   type Lane7Actor,
   type Transport,
 } from "../../../packages/server-people_payroll/src/adapters/native-lane-7/client";
@@ -289,5 +294,114 @@ describe("native lane-7 Finance workspace people-payments transport", () => {
       readFinanceWorkspacePeoplePayments("acme-co", undefined, transport(payments([row]), 500)),
     ).rejects.toMatchObject({ status: 503 });
     expect(calls).toHaveLength(3);
+  });
+});
+
+describe("native lane-7 Organization authority person transport", () => {
+  const KIND = "people_payroll_lane_7_organization_authority_person";
+  const person = (id: string | number | null) => ({ kind: KIND, person: { id } });
+  const actorQuery: AuthorityQuery = { kind: "actor", userId: "usr_1" };
+  const appointeeQuery: AuthorityQuery = {
+    kind: "appointee",
+    personId: "per_1",
+    positionId: "pos_1",
+    appointmentKind: "head",
+    scopeId: "dept_1",
+    selfCeo: true,
+  };
+
+  it("routes the actor lookup to the selected Holding with a discriminator query", async () => {
+    expect(
+      await readOrganizationAuthorityPerson(
+        "northstar-co",
+        actorQuery,
+        actor("h002", "northstar", "northstar-co"),
+        transport(person("usr_1")),
+      ),
+    ).toBe("usr_1");
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url.pathname).toBe(
+      "/api/v1/holdings/northstar/people-payroll/organization-authority-person",
+    );
+    expect(calls[0]!.url.searchParams.get("kind")).toBe("actor");
+    expect(calls[0]!.url.searchParams.get("user_id")).toBe("usr_1");
+    expect(calls[0]!.url.searchParams.has("person_id")).toBe(false);
+    expect(calls[0]!.headers.get("host")).toBe("northstar.jesadakorn.com");
+    expect(calls[0]!.headers.get("x-erpx-context-holding")).toBe("h002");
+    expect(calls[0]!.headers.get("x-erpx-context-company")).toBe("northstar-co");
+  });
+
+  it("sends every bounded appointee field and accepts a null id", async () => {
+    expect(
+      await readOrganizationAuthorityPerson("acme-co", appointeeQuery, undefined, transport(person(null))),
+    ).toBeNull();
+    const params = calls[0]!.url.searchParams;
+    expect(params.get("kind")).toBe("appointee");
+    expect(params.get("person_id")).toBe("per_1");
+    expect(params.get("position_id")).toBe("pos_1");
+    expect(params.get("appointment_kind")).toBe("head");
+    expect(params.get("scope_id")).toBe("dept_1");
+    expect(params.get("self_ceo")).toBe("true");
+  });
+
+  it("pins both owner SQL oracles and the rendered-result oracle", async () => {
+    expect(AUTHORITY_ACTOR_SQL_ORACLE_SHA256).toBe(
+      "c5264c5c857254afc0d7f10e7627a513e05a9d3aea5c250e08858d6b759a0840",
+    );
+    expect(AUTHORITY_APPOINTEE_SQL_ORACLE_SHA256).toBe(
+      "f579db98f3ccd908d63b13ef6c64fbb39096f7a8864cf2598dfd78bff8a5face",
+    );
+    expect(AUTHORITY_RESPONSE_ORACLE_SHA256).toBe(
+      "e8888517d3fb5b2ba2f6b6c3de973ed39168d86f1efa8b80e7b594e30ec1c3b9",
+    );
+    expect(createHash("sha256").update(JSON.stringify(person("usr_1"))).digest("hex")).toBe(
+      AUTHORITY_RESPONSE_ORACLE_SHA256,
+    );
+    await readOrganizationAuthorityPerson("acme-co", actorQuery, undefined, transport(person(null)));
+    expect(JSON.stringify(calls)).not.toMatch(/SELECT|hr_people|hr_engagements|iam_same_person/i);
+  });
+
+  it("fails closed on a malformed payload, query or target", async () => {
+    await expect(
+      readOrganizationAuthorityPerson("acme-co", actorQuery, undefined, transport({ ...person("usr_1"), extra: 1 })),
+    ).rejects.toMatchObject({ status: 502, code: "NATIVE_PEOPLE_PAYROLL_LANE7_RESPONSE_INVALID" });
+    await expect(
+      readOrganizationAuthorityPerson("acme-co", actorQuery, undefined, transport(person(12))),
+    ).rejects.toMatchObject({ status: 502 });
+    await expect(
+      readOrganizationAuthorityPerson("../other", actorQuery, undefined, transport(person(null))),
+    ).rejects.toMatchObject({ status: 422, code: "PEOPLE_PAYROLL_LANE7_COMPANY_INVALID" });
+    await expect(
+      readOrganizationAuthorityPerson(
+        "acme-co",
+        { kind: "actor", userId: "../bad" },
+        undefined,
+        transport(person(null)),
+      ),
+    ).rejects.toMatchObject({ status: 422, code: "PEOPLE_PAYROLL_LANE7_AUTHORITY_QUERY_INVALID" });
+    await expect(
+      readOrganizationAuthorityPerson(
+        "acme-co",
+        actorQuery,
+        actor("h099", "acme", "acme-co"),
+        transport(person(null)),
+      ),
+    ).rejects.toMatchObject({ status: 503, code: "NATIVE_PEOPLE_PAYROLL_LANE7_TARGET_UNAVAILABLE" });
+    expect(calls).toHaveLength(2);
+  });
+
+  it("maps native failures and unreachable transports without a fallback", async () => {
+    await expect(
+      readOrganizationAuthorityPerson("acme-co", actorQuery, undefined, transport({}, 422)),
+    ).rejects.toMatchObject({ status: 422, code: "NATIVE_PEOPLE_PAYROLL_LANE7_REJECTED" });
+    await expect(
+      readOrganizationAuthorityPerson("acme-co", actorQuery, undefined, transport({}, 500)),
+    ).rejects.toMatchObject({ status: 503, code: "NATIVE_PEOPLE_PAYROLL_LANE7_UNAVAILABLE" });
+    await expect(
+      readOrganizationAuthorityPerson("acme-co", actorQuery, undefined, async () => {
+        throw new Error("offline");
+      }),
+    ).rejects.toMatchObject({ status: 503 });
+    expect(calls).toHaveLength(2);
   });
 });
