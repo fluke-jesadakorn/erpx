@@ -47,7 +47,9 @@ describe('Customer Authority read-tail r44 binding-order core family', () => {
 
   test('one universal core and two delegating helper files', () => {
     const core = src('customer-authority-read-tail-r44-sources.ts');
-    expect(core.match(/\bSELECT\b/g) ?? []).toHaveLength(1);
+    expect(core.match(/\bSELECT\b/g) ?? []).toHaveLength(0);
+    expect(core).toContain('selectProjection(');
+    expect(core).toContain("from './customer-authority-read-tail-r40-sources'");
     expect(core.match(/export const portalBindingOrderCore/g) ?? []).toHaveLength(1);
     for (const [name, symbol] of [
       ['portal-binding-source.ts', 'portalBindingSource'],
