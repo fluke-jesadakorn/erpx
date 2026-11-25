@@ -5,6 +5,7 @@ import {NODE_BRANCH_ACTIVE_EXISTS} from './organization-read-tail-sources';
 import {twoColumnLookup} from './organization-column-alias-families-r27';
 import {activeLevelAbsent} from './organization-column-alias-families-r30';
 import {activeNodeKindList} from './organization-read-tail-sources-r43';
+import {nodeExistsGuard} from './organization-read-tail-sources-r50';
 const ROSTER_REQUIRED_SOURCE = twoColumnLookup('roster_required','organization_positions','company_id','id');
 export function peopleDirectoryOrganizationFacts(database: SqlDatabase) {
     return { readDirectoryOptionsNodes(companyId: string, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null) {
@@ -23,7 +24,7 @@ export function peopleDirectoryOrganizationFacts(database: SqlDatabase) {
             return assertion(database, id, value, NODE_BRANCH_ACTIVE_EXISTS, [branchId, companyId]);
         },
         guard4(id: string, value: "department", departmentId: string | null, departmentId2: string | null, companyId: string, branchId: string) {
-            return assertion(database, id, value, "?::text IS NULL OR EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND branch_id=? AND kind='department' AND status='active')", [departmentId, departmentId2, companyId, branchId]);
+            return assertion(database, id, value, `?::text IS NULL OR ${nodeExistsGuard("branch_id=? AND kind='department' AND status='active'")}`, [departmentId, departmentId2, companyId, branchId]);
         },
         readSaveDirectoryPersonPrevious(companyId: string, position_id: string | number) { return database.prepare(ROSTER_REQUIRED_SOURCE).bind(companyId, position_id).first<{
             roster_required: number;

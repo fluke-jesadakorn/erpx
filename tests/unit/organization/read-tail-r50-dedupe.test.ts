@@ -13,6 +13,7 @@ const helper = read('organization-read-tail-sources-r50.ts');
 const org = read('organization.ts');
 const planning = read('planning-resource-sources.ts');
 const placement = read('people-hire-placement-facts.ts');
+const directory = read('people-directory-facts.ts');
 const staff = read('staff-defaults.ts');
 const evaluation = read('people-evaluation-facts.ts');
 const gpo = read('gpo-sources.ts');
@@ -32,6 +33,8 @@ const NODE_SITES: [file: string, tail: string, source: string][] = [
   ['organization.ts', 'hierarchy_revision=? AND kind=? AND branch_id IS NOT DISTINCT FROM ?', org],
   ['planning-resource-sources.ts', "kind IN ('branch','headquarters') AND status='active'", planning],
   ['people-hire-placement-facts.ts', "status='active'", placement],
+  ['people-hire-placement-facts.ts', "branch_id=? AND status='active'", placement],
+  ['people-directory-facts.ts', "branch_id=? AND kind='department' AND status='active'", directory],
 ];
 const POS_SITES: [file: string, projection: string, tail: string, source: string][] = [
   ['staff-defaults.ts', 'id', 'active=1 AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?)', staff],
@@ -46,12 +49,14 @@ describe('Organization read-tail r50 dedupe', () => {
     for (const [, tail] of NODE_SITES) expect(nodeExistsGuard(tail)).toBe(nodeOracle(tail));
     for (const [, projection, tail] of POS_SITES) expect(activePositionLookup(projection, tail)).toBe(posOracle(projection, tail));
 
-    // The pre-r50 hire-placement string is reproduced exactly: the helper
-    // replaces only its first EXISTS; the optional second EXISTS stays inline.
-    const PLACEMENT_REMAINDER = " AND (?::text IS NULL OR EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND branch_id=? AND status='active'))";
-    expect(`${nodeExistsGuard("status='active'")}${PLACEMENT_REMAINDER}`).toBe(
-      'EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND status=\'active\')' + PLACEMENT_REMAINDER,
-    );
+    // r53 retired the two inline remainders that r50 had left intentional: the
+    // optional hire-placement EXISTS and the department guard. Both tails are
+    // rendered verbatim by nodeExistsGuard; only their call sites vary.
+    const PLACEMENT_ORACLE = "EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND status='active') AND (?::text IS NULL OR EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND branch_id=? AND status='active'))";
+    expect(`${nodeExistsGuard("status='active'")} AND (?::text IS NULL OR ${nodeExistsGuard("branch_id=? AND status='active'")})`).toBe(PLACEMENT_ORACLE);
+
+    const DIRECTORY_ORACLE = "?::text IS NULL OR EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND branch_id=? AND kind='department' AND status='active')";
+    expect(`?::text IS NULL OR ${nodeExistsGuard("branch_id=? AND kind='department' AND status='active'")}`).toBe(DIRECTORY_ORACLE);
   });
 
   test('r50 defines two new helpers and every r17-r49 helper is untouched', () => {
@@ -95,7 +100,7 @@ describe('Organization read-tail r50 dedupe', () => {
     expect(helper.split(NODE_HEAD).length - 1).toBe(1);
     expect(helper.split(POS_HEAD).length - 1).toBe(1);
     for (const [file, , source] of NODE_SITES) {
-      expect(source.split('nodeExistsGuard(').length - 1).toBe(1);
+      expect(source.split('nodeExistsGuard(').length - 1).toBe(NODE_SITES.filter(([f]) => f === file).length);
       expect(read(file)).toBe(source);
     }
     for (const [file, , , source] of POS_SITES) {
@@ -111,15 +116,17 @@ describe('Organization read-tail r50 dedupe', () => {
     expect(evaluation).toContain('.bind(positionId, companyId, levelId).first()');
     expect(gpo).toContain('.bind(positionId,companyId).first<{id:string;title:string}>()');
 
-    // Protected fragments stay untouched.
-    expect(placement).toContain("EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND branch_id=? AND status='active')");
+    // The r50 intentional remainders are gone; their exact bodies are now
+    // rendered by the helper (asserted byte-for-byte above).
+    expect(placement).not.toContain("EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND branch_id=? AND status='active')");
+    expect(directory).not.toContain("EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND branch_id=? AND kind='department' AND status='active')");
     expect(org.split('nativeOrgStatement(').length - 1).toBe(15);
     expect(read('pms-command-facts.ts')).toContain('FOR SHARE');
     expect(read('project-worker-startup-sources.ts')).toContain('LOCK TABLE organization_nodes,organization_positions,staff_levels,authority_seats IN SHARE MODE');
     expect(read('organization-nodes-spaced-projections.ts')).toContain('"id", "kind", "slug"');
   });
 
-  test('retirement:ts-statements is strictly lower than the r50 BEFORE=234 baseline (expected 230)', () => {
+  test('retirement:ts-statements is strictly lower than the r50 BEFORE=234 baseline (expected 222)', () => {
     let space = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -129,9 +136,10 @@ describe('Organization read-tail r50 dedupe', () => {
       }
     };
     walk(srcRoot);
-    // r50 collapses three node-existence guards and three active-position
-    // lookups into two shared helpers (-2, -2 = -4).
-    expect(space).toBe(224);
+    // r50 collapsed three node-existence guards and three active-position
+    // lookups into two shared helpers (-2, -2 = -4); r53 routes the two
+    // remaining inline node-EXISTS bodies through nodeExistsGuard (-2).
+    expect(space).toBe(222);
     expect(space).toBeLessThan(234);
   });
 });

@@ -83,7 +83,7 @@ describe('Organization read-tail r43 byte-identical family', () => {
     };
     walk(srcRoot);
     // r43 collapses three active-node-kind option reads into one shared source (-2).
-    expect(space).toBe(224);
+    expect(space).toBe(222);
     expect(space).toBeLessThan(244);
   });
 });
