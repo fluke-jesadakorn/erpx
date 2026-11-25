@@ -107,6 +107,8 @@ describe('Files read-tail r42 byte-oracle dedupe', () => {
       }
     }
     expect(changed.every(p => [
+      'packages/server-files/src/adapters/mod.rs',
+      'packages/server-files/src/public/mod.rs',
       'packages/server-files/src/adapters/commerce-facts.ts',
       'packages/server-files/src/adapters/field-file-writer-owner.ts',
       'packages/server-files/src/adapters/app-attachment-sources.ts',

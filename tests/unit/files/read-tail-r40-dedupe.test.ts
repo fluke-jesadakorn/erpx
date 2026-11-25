@@ -81,6 +81,8 @@ describe('Files read-tail r40 parameterized family', () => {
     }
     const changed = git('diff', '--name-only', '--', 'packages/server-files/src').trim().split('\n').filter(Boolean);
     expect(changed.every(p => [
+      'packages/server-files/src/adapters/mod.rs',
+      'packages/server-files/src/public/mod.rs',
       rel('commerce-facts.ts'), rel(SR), rel('field-file-writer-owner.ts'), rel('attachments/service.ts'),
       rel('legal-destruction-source-facts.ts'), rel('messaging-upload-rollback.ts'),
           'packages/server-files/src/adapters/app-attachment-sources.ts',

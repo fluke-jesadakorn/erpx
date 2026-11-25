@@ -102,6 +102,8 @@ describe('Files read-tail r41 byte-oracle dedupe', () => {
       expect(git('rev-parse', `HEAD:${p}`).trim()).toBe(git('hash-object', p).trim());
     }
     expect(changed.every(p => [
+      'packages/server-files/src/adapters/mod.rs',
+      'packages/server-files/src/public/mod.rs',
       'packages/server-files/src/adapters/commerce-facts.ts',
       'packages/server-files/src/adapters/field-file-writer-owner.ts',
       'packages/server-files/src/adapters/attachments/service.ts',

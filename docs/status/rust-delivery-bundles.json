@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 14514,
+    "revision": 14520,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -206049,25 +206049,25 @@
       {
         "goalId": "G4",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-finance",
-          "claimedAt": "2026-11-25T20:16:42.847Z",
-          "heartbeatAt": "2026-11-25T20:17:43.158Z",
-          "expiresAt": "2026-11-25T20:47:43.158Z",
-          "generation": 177
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-finance",
+          "at": "2026-11-25T20:24:20.735Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Asset policies 1597->1586; next queued"
+        },
         "scopeRefinementRequired": false,
         "id": "retire.finance.next-read-family-10",
         "owner": "finance",
@@ -206079,7 +206079,7 @@
         "resources": [
           "owner:finance"
         ],
-        "nextAction": "Port another bounded static point/list family (8-ish reads) to native (1597->lower); oracle + 55 pins"
+        "nextAction": "Asset policies 1597->1586; next queued"
       },
       {
         "goalId": "G4",
@@ -206329,25 +206329,25 @@
       {
         "goalId": "G4",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-legal",
-          "claimedAt": "2026-11-25T20:20:03.504Z",
-          "heartbeatAt": "2026-11-25T20:20:03.504Z",
-          "expiresAt": "2026-11-25T20:50:03.504Z",
-          "generation": 177
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-legal",
+          "at": "2026-11-25T20:24:40.459Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Register/detail 68->60; next legal family queued"
+        },
         "scopeRefinementRequired": false,
         "id": "retire.legal.next-read-family-16",
         "owner": "legal",
@@ -206359,7 +206359,7 @@
         "resources": [
           "owner:legal"
         ],
-        "nextAction": "Apply include_str! contract to the next legal read family (68->lower); tests"
+        "nextAction": "Register/detail 68->60; next legal family queued"
       },
       {
         "goalId": "G4",
@@ -206500,6 +206500,76 @@
           "owner:commerce"
         ],
         "nextAction": "Cut inventory-executive-owner-projections reads (364->lower) after caller/predicate verification; tests"
+      },
+      {
+        "goalId": "G4",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-finance",
+          "claimedAt": "2026-11-25T20:24:21.066Z",
+          "heartbeatAt": "2026-11-25T20:24:21.066Z",
+          "expiresAt": "2026-11-25T20:54:21.066Z",
+          "generation": 177
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false,
+        "id": "retire.finance.next-read-family-11",
+        "owner": "finance",
+        "title": "finance next read family 11",
+        "allowedPaths": [
+          "packages/server-finance/src/**",
+          "tests/unit/finance/**"
+        ],
+        "resources": [
+          "owner:finance"
+        ],
+        "nextAction": "Port another bounded static point/list family (8-ish reads) to native (1586->lower); oracle + 55 pins"
+      },
+      {
+        "goalId": "G4",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-legal",
+          "claimedAt": "2026-11-25T20:24:40.790Z",
+          "heartbeatAt": "2026-11-25T20:24:40.790Z",
+          "expiresAt": "2026-11-25T20:54:40.790Z",
+          "generation": 177
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false,
+        "id": "retire.legal.next-read-family-17",
+        "owner": "legal",
+        "title": "legal next read family 17",
+        "allowedPaths": [
+          "packages/server-legal/src/**",
+          "tests/unit/legal/**"
+        ],
+        "resources": [
+          "owner:legal"
+        ],
+        "nextAction": "Apply include_str! contract to the next legal read family (60->lower); tests"
       }
     ],
     "migrationProgress": {
@@ -206508,7 +206578,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 2283,
+      "totalPackets": 2285,
       "migratedPackets": 369,
       "statusCounts": {
         "pending": 21,
@@ -206516,13 +206586,13 @@
         "ready_for_integration": 37,
         "integrating": 0,
         "migrated": 369,
-        "blocked": 1844,
+        "blocked": 1846,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 177,
-    "updatedAt": "2026-11-25T20:24:02.204Z",
+    "updatedAt": "2026-11-25T20:24:40.794Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",

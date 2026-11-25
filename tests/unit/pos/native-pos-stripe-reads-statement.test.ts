@@ -10,6 +10,7 @@ import {
   nativePosStripePaymentIdStatement,
   nativePosStripeRefundStatement,
   nativePosStripeRefundIdStatement,
+  nativePosSettlementByJournalStatement,
 } from '../../../packages/server-pos/src/adapters/native-pos-stripe-reads';
 
 const config = () => JSON.stringify({ privateBaseUrl: 'http://127.0.0.1:44994', timeoutMs: 1000 });
@@ -102,6 +103,14 @@ const cases = [
     facts: { ...scope, source: 're_1' },
     values: ['re_1', 'company', 'acct', true],
     bridge: nativePosStripeRefundIdStatement,
+  },
+  {
+    name: 'settlement id by Finance journal (idempotency guard)',
+    kind: 'pos_stripe_settlement_by_journal',
+    sql: 'SELECT id FROM pos_settlements WHERE journal_id=?',
+    facts: 'journal_1',
+    values: ['journal_1'],
+    bridge: nativePosSettlementByJournalStatement,
   },
 ] as const;
 

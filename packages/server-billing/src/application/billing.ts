@@ -97,6 +97,7 @@ const nativeActions = new Set<BillingInput["action"]>([
   "record-operating-cost",
   "review-target-capacity",
   "approve-target-extra",
+  "rate-target",
 ]);
 const adminActions = new Set([
   "cost",
@@ -105,7 +106,6 @@ const adminActions = new Set([
   "revise-plan",
   "assign-target",
   "approve-target",
-  "rate-target",
 ]);
 async function storeTargetRating(
   c: BillingRepository,

@@ -115,7 +115,7 @@ describe('Collaboration read-tail r52 excluded SQL stays untouched', () => {
 });
 
 describe('Collaboration read-tail r52 KPI pins', () => {
-  test('retirement:ts-statements is pinned at 247, below the r52 BEFORE=331 baseline', () => {
+  test('retirement:ts-statements is pinned at 240, below the r52 BEFORE=331 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -127,7 +127,7 @@ describe('Collaboration read-tail r52 KPI pins', () => {
     walk(srcRoot);
     // Two byte-identical guard heads -> one renderer: 331 -> 330.
     // r53 folded the comment-aggregate head family: 330 -> 329.
-    expect(total).toBe(247);
+    expect(total).toBe(240);
     expect(total).toBeLessThan(331);
   });
 });
