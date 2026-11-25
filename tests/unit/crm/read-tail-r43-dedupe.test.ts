@@ -141,7 +141,7 @@ describe('crm read-tail r43 byte-identical scalar-subquery reuse', () => {
   });
 
   test('retirement:ts-statements drops from the r42 AFTER=78 to 73', () => {
-    expect(totalSelects()).toBe(73);
+    expect(totalSelects()).toBe(61);
     expect(totalSelects()).toBeLessThan(78);
   });
 });

@@ -16,17 +16,18 @@ import {crmLeadRowSourceSql} from './read-tail-r40-sql';
 import {crmSalesOpportunitySql} from './read-tail-r37-sql';
 import {crmSelectOneSql} from './read-tail-r42-sql';
 import {crmScalarSubquerySql} from './read-tail-r43-sql';
+import {crmUnionAllSql} from './read-tail-r44-sql';
 const crmNativeIdSql=(table:string)=>`SELECT id FROM ${table}`;
 const nativeIds=[crmNativeIdSql('crm_leads'),crmNativeIdSql('crm_lead_activities'),crmNativeIdSql('crm_opportunities'),crmNativeIdSql('crm_accounts'),crmNativeIdSql('crm_contacts'),crmNativeIdSql('crm_guest_links')].join(' UNION ALL ');
 const validLeads=crmLeadRowSourceSql(`FROM (${crmPurchaseLeadRows}) lead WHERE NOT EXISTS(${crmOpportunityLeadSql}lead.id) OR EXISTS(${crmOpportunityExistsSql}opportunity.id=lead.id AND opportunity.company_id=lead.company_id)`);
 /** Native record identity is classified independently of generic module labels.
  * Opportunity IDs are mapped to the original lead-ID command/read interface. */
 const recordRows=`SELECT lead.id,'lead' kind,lead.id target_id,lead.company_id,lead.branch_id,lead.department_id,NULL::text created_by,NULL::text account_id,NULL::text contact_id FROM (${validLeads}) lead
- UNION ALL SELECT activity.id,'activity',activity.id,activity.company_id,activity.branch_id,activity.department_id,NULL,NULL,NULL FROM (${crmPurchaseActivityRows}) activity JOIN (${validLeads}) lead ON lead.id=${crmScalarSubquerySql('lead_id','crm_lead_activities WHERE id=activity.id')} AND lead.company_id=activity.company_id
- UNION ALL SELECT opportunity.id,'lead',lead.id,lead.company_id,lead.branch_id,lead.department_id,NULL,NULL,NULL FROM crm_opportunities opportunity JOIN (${validLeads}) lead ON lead.id=opportunity.lead_id
- UNION ALL SELECT account.id,'account',account.id,account.company_id,NULL,NULL,account.created_by,account.id,NULL FROM (${crmPurchaseAccountRows}) account
- UNION ALL SELECT contact.id,'contact',contact.id,contact.company_id,NULL,NULL,contact.created_by,NULL,contact.id FROM (${crmPurchaseContactRows}) contact
- UNION ALL SELECT link.id,'guest-link',link.id,link.company_id,link.branch_id,NULL,link.created_by,NULL,native.contact_id FROM (${crmPurchaseGuestLinkRows}) link JOIN crm_guest_links native ON native.id=link.id`;
+ ${crmUnionAllSql(`activity.id,'activity',activity.id,activity.company_id,activity.branch_id,activity.department_id,NULL,NULL,NULL FROM (${crmPurchaseActivityRows}) activity JOIN (${validLeads}) lead ON lead.id=${crmScalarSubquerySql('lead_id','crm_lead_activities WHERE id=activity.id')} AND lead.company_id=activity.company_id`)}
+ ${crmUnionAllSql(`opportunity.id,'lead',lead.id,lead.company_id,lead.branch_id,lead.department_id,NULL,NULL,NULL FROM crm_opportunities opportunity JOIN (${validLeads}) lead ON lead.id=opportunity.lead_id`)}
+ ${crmUnionAllSql(`account.id,'account',account.id,account.company_id,NULL,NULL,account.created_by,account.id,NULL FROM (${crmPurchaseAccountRows}) account`)}
+ ${crmUnionAllSql(`contact.id,'contact',contact.id,contact.company_id,NULL,NULL,contact.created_by,NULL,contact.id FROM (${crmPurchaseContactRows}) contact`)}
+ ${crmUnionAllSql(`link.id,'guest-link',link.id,link.company_id,link.branch_id,NULL,link.created_by,NULL,native.contact_id FROM (${crmPurchaseGuestLinkRows}) link JOIN crm_guest_links native ON native.id=link.id`)}`;
 function scope(actor:WorkContext,id:string,company:string){
  const history=purchasedCapabilityPredicate('crm_source.company_id','sales.crm','history','crm_clock.now_ms'),hotel=purchasedCapabilityPredicate('crm_source.company_id','pms.reservations','history','crm_clock.now_ms');
  return {where:crmClockedSourceScopeSql('crm_clock',crmClockCteSql,recordRows,'crm_source',id,company,`${hasPermission(actor,'commerce.read')?'TRUE':'FALSE'} AND ${history}

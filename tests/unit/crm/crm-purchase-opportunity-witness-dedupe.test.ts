@@ -7,6 +7,7 @@ import { crmCreatorLeadScopeSql } from '../../../packages/server-crm/src/adapter
 import { crmCurrentScopeAllowedSql } from '../../../packages/server-crm/src/adapters/read-tail-r30-sql';
 import { crmOwnedSourceRowSql } from '../../../packages/server-crm/src/adapters/read-tail-r34-sql';
 import { crmSalesOpportunitySql, crmSingleKeySourceSql } from '../../../packages/server-crm/src/adapters/read-tail-r37-sql';
+import { crmUnionAllSql } from '../../../packages/server-crm/src/adapters/read-tail-r44-sql';
 
 const purchasesUrl = new URL('../../../packages/server-crm/src/adapters/purchases.ts', import.meta.url);
 const adapter = (name: string) => new URL(`../../../packages/server-crm/src/adapters/${name}`, import.meta.url);
@@ -413,7 +414,7 @@ describe('crm read-tail r20 parameterized history families', () => {
     const sales = src('sales-package-obligations.ts');
     const line = sales.split('\n').find(value => value.includes('const historyFactSql=')) ?? '';
     const body = line.slice(line.indexOf('`') + 1, line.lastIndexOf('`'));
-    const render = (kind: string, source: string) => body.replace('${kind}', kind).replace('${source}', source);
+    const render = (kind: string, source: string) => crmUnionAllSql(body.replace('${kind}', kind).replace('${source}', source));
     const facts: [string, string][] = [
       ['lead-history', 'crm_case_events event JOIN leads l ON l.id=event.lead_id'],
       ['activity-history', 'crm_lead_activity_events event JOIN crm_lead_activities activity ON activity.id=event.activity_id CROSS JOIN scope WHERE activity.company_id=scope.company_id'],
@@ -422,6 +423,7 @@ describe('crm read-tail r20 parameterized history families', () => {
     for (const [kind, source] of facts)
       expect(render(kind, source)).toBe(`UNION ALL SELECT '${kind}',event.id,to_jsonb(event),false FROM ${source}`);
     expect(sales.match(/const historyFactSql=/g)).toHaveLength(1);
+    expect(sales).toContain('const historyFactSql=(kind:string,source:string)=>crmUnionAllSql(');
     expect(sales.match(/\$\{historyFactSql\('/g)).toHaveLength(3);
     expect(sales).not.toContain("UNION ALL SELECT 'lead-history'");
     expect(sales).not.toContain("UNION ALL SELECT 'activity-history'");
