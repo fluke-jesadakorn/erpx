@@ -126,6 +126,6 @@ describe('marketing read-tail r49 dedupe', () => {
   });
 
   it('pins the owner SELECT KPI to 24 (BEFORE=27)', async () => {
-    expect(await ownerSelectTokens()).toEqual({ spaced: 24, bare: 24 });
+    expect(await ownerSelectTokens()).toEqual({ spaced: 23, bare: 23 });
   });
 });

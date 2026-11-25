@@ -110,7 +110,7 @@ describe('marketing read-tail r45 dedupe', () => {
   });
 
   it('pins the owner SELECT KPI to 24 (BEFORE=36)', async () => {
-    expect(await ownerSelectTokens()).toBe(24);
+    expect(await ownerSelectTokens()).toBe(23);
     expect(await ownerSelectTokens()).toBeLessThan(32);
   });
 });

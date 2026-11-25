@@ -177,6 +177,6 @@ describe('marketing projection-source and point-read head dedupe (r40)', () => {
     // into one renderer (36 -> 34); r46 folds two byte-identical head pairs (34 -> 32);
     // r47 folds three plain heads (32 -> 29); r48 routes the two purchase witness
     // heads through marketingSelectHeadSql (29 -> 27).
-    expect(await selectTokens()).toBe(24);
+    expect(await selectTokens()).toBe(23);
   });
 });

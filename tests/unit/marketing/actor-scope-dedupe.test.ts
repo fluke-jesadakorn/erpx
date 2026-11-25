@@ -25,7 +25,8 @@ describe('marketing actor-scope subquery dedupe', () => {
       expect(source).toContain('actorScopeAssignmentSql');
     }
     const guard = await readFile(adapter('marketing-actor-scope-guard.ts'), 'utf8');
-    expect(guard.match(/SELECT /g)).toHaveLength(1);
+    expect(guard.match(/SELECT /g)).toHaveLength(0);
+    expect(guard).toContain('marketingSelectHeadSql(');
     expect(guard).toContain("from './marketing-actor-scope-sql'");
 
     const read = await readFile(adapter('attachment-read.ts'), 'utf8');
