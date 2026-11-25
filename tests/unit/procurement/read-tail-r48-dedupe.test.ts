@@ -74,6 +74,6 @@ describe('Procurement read-tail r48 supplier detail head dedupe', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(90);
-    expect(total).toBe(82); // r50: four bill-receipt heads (-4 +1 helper) 85 -> 82.
+    expect(total).toBe(81); // r50: four bill-receipt heads (-4 +1 helper) 85 -> 82; r51: two jsonb_agg heads (-2 +1 helper) 82 -> 81.
   });
 });

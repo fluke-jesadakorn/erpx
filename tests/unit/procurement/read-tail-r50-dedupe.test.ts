@@ -125,7 +125,7 @@ describe('Procurement read-tail r50 bill-receipt head dedupe', () => {
     expect(src('attachment-purchases.ts')).toContain('FOR SHARE');
   });
 
-  test('worktree SELECT count is 85 - 4 + 1 = 82', () => {
+  test('worktree SELECT count is 85 - 4 + 1 = 82, then r51 82 - 2 + 1 = 81', () => {
     const root = new URL('../../../packages/server-procurement/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
@@ -138,6 +138,6 @@ describe('Procurement read-tail r50 bill-receipt head dedupe', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(85);
-    expect(total).toBe(82);
+    expect(total).toBe(81); // r51: two jsonb_agg heads (-2 +1 helper) 82 -> 81.
   });
 });
