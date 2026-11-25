@@ -36,9 +36,12 @@ import { posCoreOrganizationFacts } from "@erpx/server-organization/public/pos-c
 // r37: owner-local renderers for byte-identical serializable-unit keyed row-lock reads.
 // Each returns the exact literal previously authored inline at its call sites; the
 // trailing row lock, single bind and bind order are unchanged. The companion
-// `pos_sales` by-id lock pair stays inline and untouched.
+// `pos_sales` by-id lock pair is folded by r38 below.
 const posFulfillmentByIdLockSql = (): string => 'SELECT * FROM pos_fulfillments WHERE id=? FOR UPDATE';
 const posRegisterByIdLockSql = (): string => 'SELECT * FROM pos_registers WHERE id=? FOR UPDATE';
+// r38: the two byte-identical `pos_sales` by-id row-lock heads share one owner-local
+// renderer; both call sites delegate with their original binds and lock semantics.
+const posSaleByIdLockSql = (): string => 'SELECT * FROM pos_sales WHERE id=? FOR UPDATE';
 
 function unit(db: SqlDatabase): PosUnit<SqlStatement> {
     return {
@@ -58,7 +61,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         linkRegister: async (id,propertyId) => { await nativePosRun(db, '', 'core_linkregister_44', [propertyId, id]); },
         readPosSales1: (facts: {
             saleId: string;
-        }) => one(db, 'SELECT * FROM pos_sales WHERE id=? FOR UPDATE', facts.saleId),
+        }) => one(db, posSaleByIdLockSql(), facts.saleId),
         readPosSettings1: (facts: {
             companyId: string;
         }) => nativePosKeyedSettingsStatement(db, facts.companyId),
@@ -130,7 +133,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         }) => nativePosRun(db, '', 'core_writeposfulfillments2_116', [facts.cost, facts.id]),
         readPosSales2: (facts: {
             sale_id: string | number | boolean | null;
-        }) => one(db, 'SELECT * FROM pos_sales WHERE id=? FOR UPDATE', facts.sale_id),
+        }) => one(db, posSaleByIdLockSql(), facts.sale_id),
         writeFinancePayments1: facts => posCoreFinanceFacts(db).writeFinancePayments1(facts),
         writePosPayments1: (facts: {
             financeId: `${string}-${string}-${string}-${string}-${string}`;

@@ -46,10 +46,11 @@ describe('POS read-tail r33 by-id payment native cutover', () => {
   test('row locks, advisory lock, PMS fragments and day-report/Stripe registries stay untouched', () => {
     const core = read('pos-core.ts');
     const pos = read('pos.ts');
-    // r37 folded the two byte-identical fulfillment/register by-id lock heads into
-    // owner-local renderers (still byte-identical, still locked); 18 literal locks remain.
-    expect((core.match(/FOR UPDATE/g) ?? []).length).toBe(18);
-    expect(core).toContain('SELECT * FROM pos_sales WHERE id=? FOR UPDATE');
+    // r37 folded the fulfillment/register by-id lock heads and r38 folded the sales
+    // by-id lock pair into owner-local renderers (still byte-identical, still locked);
+    // 17 literal locks remain.
+    expect((core.match(/FOR UPDATE/g) ?? []).length).toBe(17);
+    expect(core).toContain("const posSaleByIdLockSql = (): string => 'SELECT * FROM pos_sales WHERE id=? FOR UPDATE';");
     expect(core).toContain('FOR UPDATE OF rp,r');
     expect(core).toContain("SELECT pg_advisory_xact_lock(hashtextextended('pos-daily:'||?,0))");
     expect(core).toContain('${pmsProjectionSources.pms_properties}');
@@ -58,7 +59,7 @@ describe('POS read-tail r33 by-id payment native cutover', () => {
     expect(read('native-pos-stripe-reads.ts')).toContain("'pos_stripe_");
   });
 
-  test('retirement:ts-statements is strictly lower than the r33 BEFORE=189 baseline (expected 180)', () => {
+  test('retirement:ts-statements is strictly lower than the r33 BEFORE=189 baseline (179 after r38)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -68,7 +69,7 @@ describe('POS read-tail r33 by-id payment native cutover', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(180);
+    expect(total).toBe(179);
     expect(total).toBeLessThan(189);
   });
 });

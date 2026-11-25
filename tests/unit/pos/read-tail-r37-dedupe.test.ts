@@ -12,7 +12,8 @@ const occurrences = (text: string, needle: string) => text.split(needle).length 
 // oracles only, never live query sources. The two folded heads are each a
 // Company/sale-scoped by-id row read on the caller's serializable unit; the
 // renderer returns the exact literal, so the trailing FOR UPDATE row lock, the
-// single bind and the bind order are unchanged. The `pos_sales` lock pair stays inline.
+// single bind and the bind order are unchanged. r38 folds the `pos_sales` lock pair
+// into one zero-arg renderer; ORACLE.sales remains a byte oracle only.
 const ORACLE = {
   fulfillment: 'SELECT * FROM pos_fulfillments WHERE id=? FOR UPDATE',
   register: 'SELECT * FROM pos_registers WHERE id=? FOR UPDATE',
@@ -56,13 +57,14 @@ describe('POS read-tail r37 owner-local lock-head dedupe', () => {
     expect(occurrences(core, 'posRegisterByIdLockSql()')).toBe(2);
   });
 
-  test('protected sales lock pair, advisory lock, PMS fragments and registries stay untouched', () => {
+  test('r38 sales lock fold, advisory lock, PMS fragments and registries stay pinned', () => {
     const core = read('pos-core.ts');
-    // The sales by-id lock pair is deliberately NOT folded; both inline sites remain.
-    expect(occurrences(core, ORACLE.sales)).toBe(2);
-    expect(core).toContain("}) => one(db, 'SELECT * FROM pos_sales WHERE id=? FOR UPDATE', facts.saleId),");
-    expect(core).toContain("}) => one(db, 'SELECT * FROM pos_sales WHERE id=? FOR UPDATE', facts.sale_id),");
-    expect((core.match(/FOR UPDATE/g) ?? []).length).toBe(18);
+    // r38 folds both sales by-id lock sites into one zero-arg owner-local renderer.
+    expect(occurrences(core, ORACLE.sales)).toBe(1);
+    expect(core).toContain("const posSaleByIdLockSql = (): string => 'SELECT * FROM pos_sales WHERE id=? FOR UPDATE';");
+    expect(core).toContain('one(db, posSaleByIdLockSql(), facts.saleId)');
+    expect(core).toContain('one(db, posSaleByIdLockSql(), facts.sale_id)');
+    expect((core.match(/FOR UPDATE/g) ?? []).length).toBe(17);
     expect(core).toContain('FOR UPDATE OF rp,r');
     expect(core).toContain("SELECT pg_advisory_xact_lock(hashtextextended('pos-daily:'||?,0))");
     expect(core).toContain('${pmsProjectionSources.pms_properties}');
@@ -72,7 +74,7 @@ describe('POS read-tail r37 owner-local lock-head dedupe', () => {
     expect(read('owner_writes.rs')).toContain('assert_eq!(KINDS.len(), 196)');
   });
 
-  test('retirement:ts-statements decreased 182 -> 180 (strictly lower than the r37 BEFORE=182 baseline)', () => {
+  test('retirement:ts-statements decreased 182 -> 179 (r38 continues below the r37 BEFORE=182 baseline)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -82,7 +84,7 @@ describe('POS read-tail r37 owner-local lock-head dedupe', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(180);
+    expect(total).toBe(179);
     expect(total).toBeLessThan(182);
   });
 });

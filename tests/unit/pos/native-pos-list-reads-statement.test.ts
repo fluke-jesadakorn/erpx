@@ -121,7 +121,7 @@ describe('native POS list-read bridge (round 31)', () => {
     const pos = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos.ts', import.meta.url), 'utf8');
     const dayReport = readFileSync(new URL('../../../packages/server-pos/src/adapters/native-pos-day-report.ts', import.meta.url), 'utf8');
     const stripe = readFileSync(new URL('../../../packages/server-pos/src/adapters/native-pos-stripe-reads.ts', import.meta.url), 'utf8');
-    expect(core).toContain('SELECT * FROM pos_sales WHERE id=? FOR UPDATE');
+    expect(core).toContain("const posSaleByIdLockSql = (): string => 'SELECT * FROM pos_sales WHERE id=? FOR UPDATE';");
     expect(core).toContain("SELECT pg_advisory_xact_lock(hashtextextended('pos-daily:'||?,0))");
     expect(core).toContain('FOR UPDATE OF rp,r');
     expect(pos).toContain('${pmsProjectionSources.pms_sources}');

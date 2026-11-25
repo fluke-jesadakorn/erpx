@@ -37,7 +37,7 @@ describe('POS read-tail r31 list-read native cutover', () => {
   test('row locks, PMS fragments and day-report/Stripe registries stay inline', () => {
     const core = read('pos-core.ts');
     const pos = read('pos.ts');
-    expect(core).toContain('SELECT * FROM pos_sales WHERE id=? FOR UPDATE');
+    expect(core).toContain("const posSaleByIdLockSql = (): string => 'SELECT * FROM pos_sales WHERE id=? FOR UPDATE';");
     expect(core).toContain('FOR UPDATE OF rp,r');
     expect(core).toContain("SELECT pg_advisory_xact_lock(hashtextextended('pos-daily:'||?,0))");
     expect(core).toContain('${pmsProjectionSources.pms_properties}');
@@ -46,7 +46,7 @@ describe('POS read-tail r31 list-read native cutover', () => {
     expect(read('native-pos-stripe-reads.ts')).toContain("'pos_stripe_");
   });
 
-  test('retirement:ts-statements stays strictly lower than the r31 BEFORE=195 baseline (180 after r37)', () => {
+  test('retirement:ts-statements stays strictly lower than the r31 BEFORE=195 baseline (179 after r38)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -56,7 +56,7 @@ describe('POS read-tail r31 list-read native cutover', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(180);
+    expect(total).toBe(179);
     expect(total).toBeLessThan(191);
   });
 });

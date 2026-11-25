@@ -98,7 +98,7 @@ describe('native POS audit actor read bridge', () => {
 
   it('keeps row locks, the day-report registry and the Stripe registry inline', () => {
     const core = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos-core.ts', import.meta.url), 'utf8');
-    expect(core).toContain("SELECT * FROM pos_sales WHERE id=? FOR UPDATE");
+    expect(core).toContain("const posSaleByIdLockSql = (): string => 'SELECT * FROM pos_sales WHERE id=? FOR UPDATE';");
     expect(core).toContain("SELECT * FROM pos_fulfillments WHERE id=? FOR UPDATE");
     const owner = readFileSync(new URL('../../../packages/server-pos/src/adapters/owner_writes.rs', import.meta.url), 'utf8');
     expect(owner).toContain('crate::adapters::day_report_reads::SETTLEMENTS');

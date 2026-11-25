@@ -207,7 +207,7 @@ describe('native POS sale-child detail read bridge', () => {
     expect(daily).toContain('${pmsProjectionSources.pms_sources}');
     expect(daily).toContain('SELECT * FROM pos_day_closes WHERE id=? FOR UPDATE');
     expect(pos).toContain('${pmsProjectionSources.pms_sources}');
-    expect(core).toContain('SELECT * FROM pos_sales WHERE id=? FOR UPDATE');
+    expect(core).toContain("const posSaleByIdLockSql = (): string => 'SELECT * FROM pos_sales WHERE id=? FOR UPDATE';");
     expect(core).toContain("SELECT pg_advisory_xact_lock(hashtextextended('pos-daily:'||?,0))");
     expect(core).not.toContain("SELECT rp.id FROM pos_refund_payments rp JOIN pos_payments p ON p.id=rp.payment_id WHERE p.sale_id=? AND rp.state<>'succeeded'");
     expect(core).toContain('nativePosChildTailRefundPaymentStatement');

@@ -46,7 +46,7 @@ describe('POS read-tail r32 hotel property native cutover', () => {
   test('row locks, PMS fragments and day-report/Stripe registries stay inline', () => {
     const core = read('pos-core.ts');
     const pos = read('pos.ts');
-    expect(core).toContain('SELECT * FROM pos_sales WHERE id=? FOR UPDATE');
+    expect(core).toContain("const posSaleByIdLockSql = (): string => 'SELECT * FROM pos_sales WHERE id=? FOR UPDATE';");
     expect(core).toContain('FOR UPDATE OF rp,r');
     expect(core).toContain("SELECT pg_advisory_xact_lock(hashtextextended('pos-daily:'||?,0))");
     expect(core).toContain('${pmsProjectionSources.pms_properties}');
@@ -56,7 +56,7 @@ describe('POS read-tail r32 hotel property native cutover', () => {
     expect(read('list_reads.rs')).toContain('pos_list_sales');
   });
 
-  test('retirement:ts-statements is strictly lower than the r32 BEFORE=191 baseline (expected 180)', () => {
+  test('retirement:ts-statements is strictly lower than the r32 BEFORE=191 baseline (expected 179)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -66,7 +66,7 @@ describe('POS read-tail r32 hotel property native cutover', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(180);
+    expect(total).toBe(179);
     expect(total).toBeLessThan(191);
   });
 });
