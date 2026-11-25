@@ -9,10 +9,11 @@ import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import { specs } from '@erpx/server-runtime/public/executive/metric-projection-contract';
 import type { MetricSnapshot, RawMetricRow } from '@erpx/server-runtime/public/executive/metric-projection-contract';
 import {crmMetricBreakdownSql} from './read-tail-r37-sql';
+import {crmScalarSubquerySql} from './read-tail-r43-sql';
 /** Byte-identical org label fragment shared by the branch/department breakdowns.
  * The alias, column and fallback stay caller-owned; the rendered SQL is unchanged. */
 const orgLabelSql = (alias: string, column: string, fallback: string) =>
-    `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=${alias}.${column} AND n.company_id=${alias}.company_id),'${fallback}')`;
+    `COALESCE(${crmScalarSubquerySql('n.display_name',`(${organizationProjectionSources.organization_nodes}) n WHERE n.id=${alias}.${column} AND n.company_id=${alias}.company_id`)},'${fallback}')`;
 export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown): Promise<MetricSnapshot> {
     const spec = specs[id], scopedAlias = (alias: string) => `${alias}.company_id=? AND (?::text IS NULL OR ${alias}.branch_id=?) AND (?::text IS NULL OR ${alias}.department_id=?)`, scopeArgs = [a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId];
     const purchased=await crmMetricSource(sourceDb,a,id);

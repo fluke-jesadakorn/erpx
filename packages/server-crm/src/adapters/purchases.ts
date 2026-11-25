@@ -31,6 +31,7 @@ import {crmOwnedSourceRowSql} from "./read-tail-r34-sql";
 import {crmAssignmentModuleExistsSql} from "./read-tail-r35-sql";
 import {crmSalesOpportunitySql,crmSingleKeySourceSql} from "./read-tail-r37-sql";
 import {crmSelectOneSql} from "./read-tail-r42-sql";
+import {crmScalarSubquerySql} from "./read-tail-r43-sql";
 
 export type CRMPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 export type CRMPurchaseTarget={kind:"lead"|"activity"|"account"|"contact"|"guest-link";id:string};
@@ -121,7 +122,7 @@ async function source(database:SqlDatabase,actor:WorkContext,target:CRMPurchaseT
  const identity=target.kind==="account"?"l.account_id":target.kind==="contact"?"l.contact_id":"l.contact_id";
  const scoped=target.kind==="lead"||target.kind==="activity"
   ?"(?::text IS NULL OR actual.branch_id=?) AND (?::text IS NULL OR actual.department_id=?)"
-  :crmCreatorLeadScopeSql('actual','l',`${identity}=${target.kind==="guest-link"?"(SELECT contact_id FROM crm_guest_links WHERE id=actual.id)":"actual.id"}`,'l.company_id=actual.company_id');
+  :crmCreatorLeadScopeSql('actual','l',`${identity}=${target.kind==="guest-link"?crmScalarSubquerySql('contact_id','crm_guest_links WHERE id=actual.id'):"actual.id"}`,'l.company_id=actual.company_id');
  const args=target.kind==="lead"||target.kind==="activity"?[actor.branchId,actor.branchId,actor.departmentId,actor.departmentId]:[actor.branchId,actor.userId,actor.branchId,actor.departmentId,actor.departmentId];
  const row=await database.prepare(crmOwnedSourceRowSql('id,company_id,branch_id,department_id,witness::text witness',sourceRows[target.kind],'actual',` AND ${scoped}`)).bind(target.id,actor.companyId,...args).first<Source>();
  if(!row||target.kind==="guest-link"&&actor.branchId&&row.branch_id!==actor.branchId)throw new ApiError(404,"CRM_SOURCE_NOT_FOUND","The original CRM source is unavailable in this workspace.");

@@ -15,13 +15,14 @@ import {crmOwnedSourceRowSql} from './read-tail-r34-sql';
 import {crmLeadRowSourceSql} from './read-tail-r40-sql';
 import {crmSalesOpportunitySql} from './read-tail-r37-sql';
 import {crmSelectOneSql} from './read-tail-r42-sql';
+import {crmScalarSubquerySql} from './read-tail-r43-sql';
 const crmNativeIdSql=(table:string)=>`SELECT id FROM ${table}`;
 const nativeIds=[crmNativeIdSql('crm_leads'),crmNativeIdSql('crm_lead_activities'),crmNativeIdSql('crm_opportunities'),crmNativeIdSql('crm_accounts'),crmNativeIdSql('crm_contacts'),crmNativeIdSql('crm_guest_links')].join(' UNION ALL ');
 const validLeads=crmLeadRowSourceSql(`FROM (${crmPurchaseLeadRows}) lead WHERE NOT EXISTS(${crmOpportunityLeadSql}lead.id) OR EXISTS(${crmOpportunityExistsSql}opportunity.id=lead.id AND opportunity.company_id=lead.company_id)`);
 /** Native record identity is classified independently of generic module labels.
  * Opportunity IDs are mapped to the original lead-ID command/read interface. */
 const recordRows=`SELECT lead.id,'lead' kind,lead.id target_id,lead.company_id,lead.branch_id,lead.department_id,NULL::text created_by,NULL::text account_id,NULL::text contact_id FROM (${validLeads}) lead
- UNION ALL SELECT activity.id,'activity',activity.id,activity.company_id,activity.branch_id,activity.department_id,NULL,NULL,NULL FROM (${crmPurchaseActivityRows}) activity JOIN (${validLeads}) lead ON lead.id=(SELECT lead_id FROM crm_lead_activities WHERE id=activity.id) AND lead.company_id=activity.company_id
+ UNION ALL SELECT activity.id,'activity',activity.id,activity.company_id,activity.branch_id,activity.department_id,NULL,NULL,NULL FROM (${crmPurchaseActivityRows}) activity JOIN (${validLeads}) lead ON lead.id=${crmScalarSubquerySql('lead_id','crm_lead_activities WHERE id=activity.id')} AND lead.company_id=activity.company_id
  UNION ALL SELECT opportunity.id,'lead',lead.id,lead.company_id,lead.branch_id,lead.department_id,NULL,NULL,NULL FROM crm_opportunities opportunity JOIN (${validLeads}) lead ON lead.id=opportunity.lead_id
  UNION ALL SELECT account.id,'account',account.id,account.company_id,NULL,NULL,account.created_by,account.id,NULL FROM (${crmPurchaseAccountRows}) account
  UNION ALL SELECT contact.id,'contact',contact.id,contact.company_id,NULL,NULL,contact.created_by,NULL,contact.id FROM (${crmPurchaseContactRows}) contact
