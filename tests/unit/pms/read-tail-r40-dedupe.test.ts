@@ -166,8 +166,8 @@ describe('pms read-tail r40 receipt/change, branch-label and refund dedupe', () 
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(241);
-    expect(bare).toBe(243);
+    expect(spaced).toBe(239);
+    expect(bare).toBe(240);
     expect(spaced).toBeLessThan(313);
   });
 });

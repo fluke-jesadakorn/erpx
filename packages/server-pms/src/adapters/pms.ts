@@ -38,6 +38,7 @@ import { isTransactionalSqlDatabase, type SqlDatabase, type TransactionalSqlData
 import type { SqlStatement } from "@erpx/server-runtime/public/runtime/types";
 import type { Kind } from "@erpx/server-pms/domain/pms-model";
 import { createPmsApplication, type PmsUnit, type PropertyRow, type TransferRequestRow, type ChargeCorrectionRow } from "@erpx/server-pms/application/pms";
+import type { LaneActor } from "./native-lane-20/client";
 import { pmsOperationalWork } from "@erpx/server-pms/public/pms/home";
 const query = async <T>(db: SqlDatabase, sql: string, ...values: unknown[]) => (await db
     .prepare(sql)
@@ -56,7 +57,7 @@ import { pmsWorkflowFacts } from "@erpx/server-workflow/public/pms-command-facts
 import { pmsFilesFacts } from "@erpx/server-files/public/pms-command-facts";
 import { nativePmsOwnerWrite } from "@erpx/feature-pms/public/native-pms";
 import { nativePmsReadAll, nativePmsReadFirst, PMS_RD_POSTING_CHARGE, PMS_RD_POSTING_BY_RECORD, PMS_RD_CHARGE_CORRECTION_PENDING, PMS_RD_GUEST_COMMAND_RECORD, PMS_RD_STAY_COMMAND, PMS_RD_CASHIER_COMMAND, PMS_RD_POS_COMMAND, PMS_RD_NIGHT_COMMAND, PMS_RD_HOUSEKEEPING_COMMAND } from "./native-pms-read";
-function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
+function unit(db: SqlDatabase, companyId = '', actor: LaneActor = {}): PmsUnit<SqlStatement> {
         const write = (kind: string, values: unknown[]): any => nativePmsOwnerWrite(companyId, kind, values);
     const identity_access = pmsIdentityAccessFacts(db);
     const organization = pmsOrganizationFacts(db);
@@ -494,7 +495,7 @@ function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
         AND source_id LIKE ? AND amount_kind=? AND amount_units=?`).bind(facts.companyId, facts.fact1, facts.date, facts.fact3).all<{
             source_id: string;
         }>(),
-        readPmsDashboard: (arg0: string, arg1: string) => readPmsDashboard(db, arg0, arg1),
+        readPmsDashboard: (arg0: string, arg1: string) => readPmsDashboard(db, actor.holdingId ? actor : { companyId }, arg0, arg1),
         readPmsOperationsList: (arg0: string, arg1: string, arg2: {
             view: "list";
             section: "inventory" | "reservations" | "front-desk" | "rooms" | "housekeeping" | "guest-accounts" | "cashier" | "guests" | "night-audit";
@@ -531,7 +532,7 @@ function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
             .then(rows => rows.results.map(decodePmsRecord)),
         readPmsGuestCommandRecord: (propertyId: string, guestId: string) => nativePmsReadAll<PmsStoredRecord>(PMS_RD_GUEST_COMMAND_RECORD, [propertyId, guestId], db).then(rows => rows.results.map(decodePmsRecord)),
         readPmsChoices: (id,selection) => readPmsChoices(db,id,selection),
-        readPmsSetupFacts: (arg0: string) => readPmsSetupFacts(db, arg0),
+        readPmsSetupFacts: (arg0: string) => readPmsSetupFacts(db, actor.holdingId ? actor : { companyId }, arg0),
         hospitalityDayControls: (arg0: string, arg1: string, arg2: string, arg3: string) => hospitalityDayControls(db, arg0, arg1, arg2, arg3),
         prepareJournal: (arg0: WorkContext, arg1: {
             chartId: string;
@@ -659,14 +660,14 @@ function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
             transactionDate: string;
         }) => snapshotMoneyCarry(db, arg0, arg1), transactional: isTransactionalSqlDatabase(db), transaction: (work,propertyLockId,command) => { if (!isTransactionalSqlDatabase(db))
             throw new Error("POSTGRES_REQUIRED"); const options=propertyLockId?{sessionLock:{namespace:'erpx:pms:property',key:propertyLockId},preferIndexedReads:true,pipelineBatches:true}:undefined;
-            return command ? withPmsPurchasedCommand(db,command,tx=>work(unit(tx, companyId)),options) : db.transaction(tx => work(unit(tx, companyId)),options); }, batch: steps => db.batch(steps), replay: (...args) => replayCommand(db, ...args), execute: (...args) => executeCommand(db, ...args)
+            return command ? withPmsPurchasedCommand(db,command,tx=>work(unit(tx, companyId, actor)),options) : db.transaction(tx => work(unit(tx, companyId, actor)),options); }, batch: steps => db.batch(steps), replay: (...args) => replayCommand(db, ...args), execute: (...args) => executeCommand(db, ...args)
     };
 }
-const application = createPmsApplication<SqlStatement>({ forActor: async (actor) => unit((await holdingResources(actor.holdingId)).write, actor.companyId), clock: { now: () => Date.now() }, uuid: randomUUID, hash: value => createHash("sha256").update(value).digest("hex"), require: requirePermission, error: (status, code, message,details) => new ApiError(status, code, message,details), isBusinessError: (error): error is ApiError => error instanceof ApiError, environment: key => process.env[key] });
+const application = createPmsApplication<SqlStatement>({ forActor: async (actor) => unit((await holdingResources(actor.holdingId)).write, actor.companyId, actor), clock: { now: () => Date.now() }, uuid: randomUUID, hash: value => createHash("sha256").update(value).digest("hex"), require: requirePermission, error: (status, code, message,details) => new ApiError(status, code, message,details), isBusinessError: (error): error is ApiError => error instanceof ApiError, environment: key => process.env[key] });
 export const pmsPermissions = application.pmsPermissions;
 /** Private owner bridge for other locked PMS command snapshots. */
 export function hydratePmsReceiptAllocationCredits(db:SqlDatabase,s:Snapshot){return application.hydrateReceiptAllocationCredits(unit(db, s.property.companyId),s);}
-export function loadPms(db: SqlDatabase, actor: WorkContext, id: string, lock = false, selection?: PmsReadSelection) { return application.loadPms(unit(db, actor.companyId), actor, id, lock, selection); }
+export function loadPms(db: SqlDatabase, actor: WorkContext, id: string, lock = false, selection?: PmsReadSelection) { return application.loadPms(unit(db, actor.companyId, actor), actor, id, lock, selection); }
 export async function pmsWorkspace(actor: WorkContext, propertyId?: string, includeDayControls = false, frontMode = false, selection?: PmsReadSelection) {
     requirePermission(actor, "pms.read");
     const mode = await pmsPackageEnforcementMode(), purchases = mode === "disabled" ? undefined
@@ -677,8 +678,8 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
     if (purchases) data.purchases = purchases;
     return data;
 }
-export function effects(db: SqlDatabase, actor: WorkContext, s: Snapshot, e: Effects) { return application.effects(unit(db, actor.companyId), actor, s, e); }
-export function pmsCommand(db: TransactionalSqlDatabase, actor: WorkContext, raw: unknown, key: string, worker = false) { return application.pmsCommand(unit(db, actor.companyId), actor, raw, key, worker); }
+export function effects(db: SqlDatabase, actor: WorkContext, s: Snapshot, e: Effects) { return application.effects(unit(db, actor.companyId, actor), actor, s, e); }
+export function pmsCommand(db: TransactionalSqlDatabase, actor: WorkContext, raw: unknown, key: string, worker = false) { return application.pmsCommand(unit(db, actor.companyId, actor), actor, raw, key, worker); }
 export function drainPms(db: TransactionalSqlDatabase, propertyId?: string, jobId?: string) { return application.drainPms(unit(db, ''), propertyId, jobId); }
 export async function pmsWork(actor: WorkContext): Promise<import("@erpx/feature-work_projection/lib/work-item").WorkItem[]> {
     if (!(hasPermission(actor, "pms.read") || hasPermission(actor, "finance.read") && hasPermission(actor, "pms.reports")) || actor.departmentId || actor.beta) return [];
@@ -688,13 +689,13 @@ export async function pmsWork(actor: WorkContext): Promise<import("@erpx/feature
     const rows = [...await application.pmsWork(actor), ...await roomChargeReversalWork(actor, "pms")];
     return access && !access.settleExisting ? rows.map(row => ({ ...row, canAct: false, queue: "waiting" })) : rows;
 }
-export function applyPosRoomCharge(tx: SqlDatabase, actor: WorkContext, raw: z.infer<typeof roomChargeSchema>, expectedPropertyVersion: number) { return application.applyPosRoomCharge(unit(tx, actor.companyId), actor, raw, expectedPropertyVersion); }
+export function applyPosRoomCharge(tx: SqlDatabase, actor: WorkContext, raw: z.infer<typeof roomChargeSchema>, expectedPropertyVersion: number) { return application.applyPosRoomCharge(unit(tx, actor.companyId, actor), actor, raw, expectedPropertyVersion); }
 export function reversePosRoomCharge(tx: SqlDatabase, actor: WorkContext, input: {
     propertyId: string;
     sourceKey: string;
     expectedPropertyVersion: number;
     reason: string;
     total: number;
-}) { return application.reversePosRoomCharge(unit(tx, actor.companyId), actor, input); }
+}) { return application.reversePosRoomCharge(unit(tx, actor.companyId, actor), actor, input); }
 export function persistPmsRecords(tx: SqlDatabase, s: Snapshot, original: Map<string, string>) { return application.persistPmsRecords(unit(tx, s.property.companyId), s, original); }
 export type PmsWorkspace = Awaited<ReturnType<typeof pmsWorkspace>>;

@@ -97,8 +97,11 @@ describe('pms read-tail r36 point-read head dedupe', () => {
     }
   });
 
-  it('routes all six call sites through the shared exports and removes inline heads', async () => {
+  it('routes all remaining call sites through the shared exports and removes inline heads', async () => {
     for (const oracle of ORIGINALS) {
+      // The guest-account evidence call site was cut over to native lane 19;
+      // its byte oracle above is retained, but it no longer routes in TS.
+      if (oracle.file === 'adapters/guest-account-finance-evidence.ts') continue;
       const text = await src(oracle.file);
       expect(text).toContain(oracle.routed);
     }
@@ -108,6 +111,7 @@ describe('pms read-tail r36 point-read head dedupe', () => {
     expect(facts).not.toContain(REC.ownerFact);
     const guest = await src('adapters/guest-account-finance-evidence.ts');
     expect(guest).not.toContain(REC.guestEvidence);
+    expect(guest).toContain('nativeLane19GuestAccountEvidence');
     const pms = await src('adapters/pms.ts');
     expect(pms.split(PROP).length - 1).toBe(0);
     const booking = await src('adapters/pms-booking.ts');
@@ -138,8 +142,8 @@ describe('pms read-tail r36 point-read head dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(241);
-    expect(bare).toBe(243);
+    expect(spaced).toBe(239);
+    expect(bare).toBe(240);
     expect(spaced).toBeLessThan(332);
   });
 });

@@ -6,7 +6,7 @@ import { decodePmsRecord, type PmsStoredRecord } from "@erpx/server-pms/domain/s
 import { PMS_RECORDS_PROJECTION_PREFIX_SQL } from "../pms-read-tail-r24-sql";
 import { PMS_GUEST_STAYS_CHOSEN_MEMBER_SQL } from "../pms-read-tail-r25-sql";
 import { PMS_CHOSEN_RECORDS_SQL } from "../pms-read-tail-r26-sql";
-import { PMS_RECORD_POINT_PREFIX_SQL, pmsSetupExistsSql } from "../pms-read-tail-r31-sql";
+import { PMS_RECORD_POINT_PREFIX_SQL } from "../pms-read-tail-r31-sql";
 import { PMS_RECORD_ID_PROPERTY_HEAD_SQL } from "../pms-read-tail-r35-sql";
 import { PMS_STAY_SOURCE_PROJECTION_SQL } from "../pms-read-tail-r38-sql";
 import { pmsGuestIdJoinSql } from "../pms-read-tail-r41-sql";
@@ -14,6 +14,7 @@ import { PMS_ORDERED_RECORDS_TAIL_SQL, pmsStayExistsHeadSql } from "../pms-read-
 import { pmsBookingEmailPendingSql } from "../pms-read-tail-r43-sql";
 import { pmsChosenKindPointSql, pmsReservationRelationArmSql } from "../pms-read-tail-r45-sql";
 import { nativePmsReadAll, PMS_RD_INVENTORY_COMMAND, PMS_RD_SECTION_RELATED_RECORDS } from "../native-pms-read";
+import { propertyReadinessFacts, type LaneActor } from "../native-lane-20/client";
 import * as application from "@erpx/server-pms/application/read-repository";
 const stayPredicate = `(data_json::jsonb->>'state' IN ('reserved','in_house') OR
     data_json::jsonb->>'arrival'=? OR data_json::jsonb->>'departure'=?)`;
@@ -30,7 +31,7 @@ export const pmsDashboardRecordsSql = `WITH selected_stays AS MATERIALIZED (
  UNION ALL ${PMS_RECORDS_PROJECTION_PREFIX_SQL}
  WHERE property_id=(SELECT property_id FROM scope) AND kind='guest' AND id IN (SELECT data_json::jsonb->>'guestId' FROM selected_stays)
 ) ${PMS_ORDERED_RECORDS_TAIL_SQL}`;
-function repository(db: SqlDatabase): application.PmsReadRepository {
+function repository(db: SqlDatabase, actor: LaneActor = {}): application.PmsReadRepository {
     return {
         roomSummary: facts => db.prepare(`SELECT count(*)::integer total,
           count(*) FILTER(WHERE r.data_json::jsonb->>'active'='true')::integer active,
@@ -92,19 +93,27 @@ function repository(db: SqlDatabase): application.PmsReadRepository {
    ORDER BY CASE WHEN kind='room' THEN data_json::jsonb->>'number' WHEN kind='guest' THEN data_json::jsonb->>'name' ELSE '' END,updated_at DESC,id LIMIT 51 OFFSET ?`).bind(facts.propertyId, facts.kind, facts.status, facts.status2, facts.q, facts.q2, facts.building, facts.building, facts.floor, facts.floor, facts.typeId, facts.typeId, facts.from, facts.to, facts.offset).all<{
             id: string;
         }>(),
-        setupFacts: (facts: {
+        // Setup/stay readiness is owned by the native axum reader. No SQL is
+        // issued here; the owner scopes by Company and projects the booleans.
+        setupFacts: async (facts: {
             propertyId: string;
             propertyId2: string;
             propertyId3: string;
-        }) => db.prepare(`SELECT
-    ${pmsSetupExistsSql('room_type')} AS "hasRoomTypes",
-    ${pmsSetupExistsSql('room')} AS "hasActiveRooms",
-    ${pmsSetupExistsSql('rate')} AS "hasActiveRates"`).bind(facts.propertyId, facts.propertyId2, facts.propertyId3).first<PmsSetupFacts>(),
-        hasStays: (facts: {
+        }): Promise<PmsSetupFacts | null> => {
+            const readiness = await propertyReadinessFacts(db, actor, facts.propertyId);
+            if (!readiness) return null;
+            return {
+                hasRoomTypes: readiness.hasRoomTypes,
+                hasActiveRooms: readiness.hasActiveRooms,
+                hasActiveRates: readiness.hasActiveRates,
+            };
+        },
+        hasStays: async (facts: {
             propertyId: string;
-        }) => db.prepare(`SELECT ${pmsSetupExistsSql('stay')} present`).bind(facts.propertyId).first<{
-            present: boolean;
-        }>(),
+        }): Promise<{ present: boolean } | null> => {
+            const readiness = await propertyReadinessFacts(db, actor, facts.propertyId);
+            return readiness ? { present: readiness.hasStays } : null;
+        },
         allRecords: (facts: {
             propertyId: string;
         }) => db.prepare(`${PMS_RECORDS_PROJECTION_PREFIX_SQL} WHERE property_id=? ORDER BY updated_at,id`).bind(facts.propertyId).all<PmsStoredRecord>().then(rows => rows.results.map(decodePmsRecord)),
@@ -219,8 +228,8 @@ export async function readPmsChoices(db:SqlDatabase,propertyId:string,selection:
  .bind(propertyId,selection.kind,selection.q,selection.q,propertyId,selection.kind,selection.selectedId??'').all<PmsStoredRecord>();
  return rows.results.map(decodePmsRecord);
 }
-export function readPmsSetupFacts(db: SqlDatabase, propertyId: string) { return application.readPmsSetupFacts(repository(db), propertyId); }
-export function readPmsDashboard(db: SqlDatabase, propertyId: string, date: string) { return application.readPmsDashboard(repository(db), propertyId, date); }
+export function readPmsSetupFacts(db: SqlDatabase, actor: LaneActor, propertyId: string) { return application.readPmsSetupFacts(repository(db, actor), propertyId); }
+export function readPmsDashboard(db: SqlDatabase, actor: LaneActor, propertyId: string, date: string) { return application.readPmsDashboard(repository(db, actor), propertyId, date); }
 export function readPmsCalendar(db: SqlDatabase, propertyId: string, from: string, to: string) { return application.readPmsCalendar(repository(db), propertyId, from, to); }
 export function readPmsDetail(db: SqlDatabase, propertyId: string, id: string) { return application.readPmsDetail(repository(db), propertyId, id); }
 
