@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12708,
+    "revision": 12710,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -186093,7 +186093,7 @@
         "owner": "people_payroll",
         "title": "people_payroll read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -186104,22 +186104,37 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "claim": {
-          "runId": "run-20261125-d",
-          "agentId": "wH4n152",
-          "claimedAt": "2026-11-25T00:17:10.427Z",
-          "heartbeatAt": "2026-11-25T00:17:44.890Z",
-          "expiresAt": "2026-11-25T00:47:44.890Z",
-          "generation": 174
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-people_payroll/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "412e70dd9",
+            "owner": "people_payroll",
+            "before": 1217,
+            "after": 1214,
+            "note": "Four hr_payroll_runs guards through ppRd54RunEvidenceGuard; status-list order, NULL tails, binds 3/4/3/3 and EXISTS-only preserved."
+          },
+          {
+            "command": "vitest payroll (660) + scoped tsc + 4 byte oracles",
+            "result": "passed",
+            "sourceSha": "412e70dd9"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "hr_payroll_runs evidence guards (-3): 1217->1214. BEFORE=1217.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n152",
+          "at": "2026-11-25T00:23:23.425Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -186653,17 +186668,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 14,
+        "in_progress": 13,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1493,
+        "blocked": 1494,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 174,
-    "updatedAt": "2026-11-25T00:22:59.664Z",
+    "updatedAt": "2026-11-25T00:23:23.429Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
