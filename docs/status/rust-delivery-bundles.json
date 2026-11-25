@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12735,
+    "revision": 12737,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -186458,7 +186458,7 @@
         "owner": "commerce",
         "title": "commerce read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -186469,22 +186469,37 @@
         "resources": [
           "owner:commerce"
         ],
-        "claim": {
-          "runId": "run-20261125-d",
-          "agentId": "wH4n159",
-          "claimedAt": "2026-11-25T00:18:39.535Z",
-          "heartbeatAt": "2026-11-25T00:31:25.848Z",
-          "expiresAt": "2026-11-25T01:01:25.848Z",
-          "generation": 174
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-commerce/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "475c9303e",
+            "owner": "commerce",
+            "before": 448,
+            "after": 443,
+            "note": "Five warehouse-config kinds (registry 15->20); distinct branch values passed through uncollapsed; warehouse.identity/pos-facts excluded. Cargo lib 25 + parity 2; vitest 29."
+          },
+          {
+            "command": "cargo lib + residual parity + vitest r18/r19/r20 + scoped tsc",
+            "result": "passed",
+            "sourceSha": "475c9303e"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Warehouse config five native kinds (-5): 448->443. BEFORE=448.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n159",
+          "at": "2026-11-25T00:35:53.666Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -186848,17 +186863,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 1,
+        "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1506,
+        "blocked": 1507,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 174,
-    "updatedAt": "2026-11-25T00:33:22.864Z",
+    "updatedAt": "2026-11-25T00:35:53.669Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
