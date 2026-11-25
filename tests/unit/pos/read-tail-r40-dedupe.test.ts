@@ -61,8 +61,8 @@ describe('POS read-tail r40 refund-payment subquery dedupe', () => {
   test('both sites delegate; rendered payment SQL stays byte-identical with 9 binds and 3 SELECTs', () => {
     const ev = read('executive-evidence-sources.ts');
     expect(occurrences(ev, CALL)).toBe(2);
-    expect(ev).toContain(`(p.amount_minor::numeric-COALESCE(${CALL})) contribution_minor,`);
-    expect(ev).toContain(`COALESCE(${CALL}) refunded_minor,`);
+    expect(ev).toContain(`(p.amount_minor::numeric-COALESCE(${CALL}) contribution_minor,`);
+    expect(ev).toContain(`COALESCE(${CALL} refunded_minor,`);
     const start = ev.indexOf("return `SELECT 'payment:'");
     expect(start).toBeGreaterThanOrEqual(0);
     const bodyStart = ev.indexOf('`', start) + 1;

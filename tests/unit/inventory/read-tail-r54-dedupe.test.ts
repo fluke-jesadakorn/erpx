@@ -74,7 +74,7 @@ describe('Inventory read-tail r54 stock-head dedupe', () => {
       expect(sales + supply, kind).not.toContain(`SELECT '${kind}',${BODY}`);
     }
     expect(sales).toContain('disposalCountsSql,packageObligationStockHeadSql,postedInitialPhysicalStockSourceSql');
-    expect(supply).toContain('childJoinJsonAggSql,packageObligationStockHeadSql,scopeExistsSql');
+    expect(supply).toContain('childJoinJsonAggSql,commandReceiptRecordIdGuardSql,packageObligationStockHeadSql,scopeExistsSql');
   });
 
   test('f3: guard/ORDER tails, binds and statements stay unchanged in their callers', () => {
