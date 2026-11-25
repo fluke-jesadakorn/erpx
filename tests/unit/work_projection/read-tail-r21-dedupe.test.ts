@@ -100,7 +100,7 @@ describe('work_projection read-tail r21 dedupe', () => {
     expect(pageLayouts).toContain('SELECT pg_advisory_xact_lock(hashtextextended(?,0))');
     const reminders = await readFile(src('calendar-reminders-facts.ts'), 'utf8');
     expect(reminders).toContain('readOccurrenceException(db,facts)');
-    expect(reminders).toContain('readOccurrenceResponse(db,facts)');
+    expect(reminders).toContain('readOccurrenceResponse(facts)');
     expect(reminders).toContain('nativeOwnerWriteRow');
   });
 });

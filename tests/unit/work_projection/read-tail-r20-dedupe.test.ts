@@ -50,7 +50,8 @@ describe('work_projection read-tail r20 dedupe', () => {
     const reminders = await readFile(src('calendar-reminders-facts.ts'), 'utf8');
     expect(norm(availability)).not.toContain(norm(inlineJoin));
     expect(norm(reminders)).not.toContain(norm(inlineJoin));
-    expect(availability).toContain('appointmentAttendeeSeriesSql(');
+    // Lane 29 cutover: the availability series read delegates to the native client.
+    expect(availability).toContain('nativeAvailabilitySources(');
     expect(reminders).toContain('appointmentAttendeeSeriesSql(');
   });
 
@@ -95,7 +96,7 @@ describe('work_projection read-tail r20 dedupe', () => {
     // Reminder fact units keep their shared occurrence readers and native writers.
     const reminders = await readFile(src('calendar-reminders-facts.ts'), 'utf8');
     expect(reminders).toContain('readOccurrenceException(db,facts)');
-    expect(reminders).toContain('readOccurrenceResponse(db,facts)');
+    expect(reminders).toContain('readOccurrenceResponse(facts)');
     expect(reminders).toContain('nativeOwnerWriteRow');
   });
 });

@@ -52,7 +52,12 @@ describe('work_projection read-tail r26 dedupe', () => {
     ]) {
       expect(shared).toContain(`export const ${helper} =`);
     }
-    expect(shared.match(/`SELECT \$\{columns\} FROM calendar_appointments a JOIN calendar_attendees t ON t\.appointment_id=a\.id AND t\.company_id=a\.company_id WHERE a\.id=\? AND a\.company_id=\?\$\{tail\}`/g)).toHaveLength(1);
+    // One canonical appointment/attendee head; reminder and series builders
+    // delegate to it instead of carrying inline SELECT literals.
+    expect(shared.split('export const appointmentAttendeesSql =')).toHaveLength(2);
+    expect(shared).toContain(
+      'appointmentAttendeesSql(columns, `WHERE a.id=? AND a.company_id=?${tail}`)',
+    );
 
     const purchases = await readFile(src('calendar/purchases.ts'), 'utf8');
     expect(purchases).toContain(

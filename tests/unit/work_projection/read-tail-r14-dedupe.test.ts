@@ -31,7 +31,9 @@ describe('work_projection read-tail r14 dedupe', () => {
 
     const availability = await readFile(src('calendar-availability-facts.ts'), 'utf8');
     expect(availability).not.toContain('"SELECT start_local,end_local,cancelled FROM calendar_occurrence_exceptions');
-    expect(availability).toContain("occurrenceExceptionPointSql('start_local,end_local,cancelled')");
+    // Lane 29 cutover: this read is now owned by the native axum/sqlx route.
+    expect(availability).not.toContain("occurrenceExceptionPointSql('start_local,end_local,cancelled')");
+    expect(availability).toContain('nativeOccurrenceException(');
 
     const reminders = await readFile(src('calendar/reminder-purchases.ts'), 'utf8');
     expect(reminders).not.toContain("'SELECT cancelled,start_local FROM calendar_occurrence_exceptions");
@@ -70,6 +72,6 @@ describe('work_projection read-tail r14 dedupe', () => {
     );
     const remindersFacts = await readFile(src('calendar-reminders-facts.ts'), 'utf8');
     expect(remindersFacts).toContain('readOccurrenceException(db,facts)');
-    expect(remindersFacts).toContain('readOccurrenceResponse(db,facts)');
+    expect(remindersFacts).toContain('readOccurrenceResponse(facts)');
   });
 });

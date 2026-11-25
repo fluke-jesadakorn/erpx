@@ -1,12 +1,29 @@
 import "server-only";
+import { nativeCalendarRead } from '@erpx/feature-work_projection/lib/native-calendar-read';
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-import { type RecurrenceRule } from "@erpx/feature-work_projection/lib/calendar-recurrence";
-import { nativeCalendarRead } from "@erpx/feature-work_projection/lib/native-calendar-read";
-import { occurrenceExceptionPointSql, occurrenceExceptionsSql, appointmentAttendeeSeriesSql } from './read-tail-sql';
+import {
+  lane29ContextFor,
+  nativeAvailabilitySources,
+  nativeMovedOccurrences,
+  nativeOccurrenceException,
+} from './native-lane-29/client';
 
-// Fixed occurrence reads shared by the availability and reminders fact units.
-// One implementation serves the series, moved-exception and reminder paths.
-export function readOccurrenceResponse(_db: SqlDatabase, facts: {
+/**
+ * Owner-native availability reads. The axum lane 29 router executes the
+ * calendar SQL, the Company scope and the projection; these adapters are a
+ * strict transport only. There is no TypeScript SQL or fallback for these
+ * reads: an unavailable native route fails closed with an ApiError.
+ */
+export function readOccurrenceException(db: SqlDatabase, facts: {
+        value1: string;
+        value2: string;
+        value3: string;
+    }) {
+    return nativeOccurrenceException(lane29ContextFor(db, facts.value2), facts.value2, facts.value1, facts.value3);
+}
+
+/** Occurrence-response reads remain on the already-native calendar read port. */
+export function readOccurrenceResponse(facts: {
         value1: string;
         value2: string;
         value3: string;
@@ -14,51 +31,37 @@ export function readOccurrenceResponse(_db: SqlDatabase, facts: {
     }) {
     return nativeCalendarRead.read61(facts);
 }
-export function readOccurrenceException(db: SqlDatabase, facts: {
-        value1: string;
-        value2: string;
-        value3: string;
-    }) {
-    return db.prepare(occurrenceExceptionPointSql('start_local,end_local,cancelled')).bind(facts.value1, facts.value2, facts.value3).first<{
-        start_local: string | null;
-        end_local: string | null;
-        cancelled: boolean;
-    }>();
-}
+
 export function readMovedOccurrences(db: SqlDatabase, facts: {
         value1: string;
         value2: string;
     }) {
-    return db.prepare(occurrenceExceptionsSql('occurrence_key,start_local,end_local', 'cancelled=false AND start_local IS NOT NULL AND end_local IS NOT NULL')).bind(facts.value1, facts.value2).all<{
-        occurrence_key: string;
-        start_local: string;
-        end_local: string;
-    }>();
+    return nativeMovedOccurrences(lane29ContextFor(db, facts.value2), facts.value2, facts.value1)
+        .then(results => ({results}));
 }
 
 export function calendarAvailabilityWorkProjectionFacts(db: SqlDatabase) {
-    return { read2: (facts: {
+    return {
+        // The series batch read, the exception point read and the moved-occurrence
+        // list are now lane 29 native reads; no SQL is rendered in TypeScript.
+        read2: (facts: {
             value1: string;
             value2: number;
             value3: string[];
-        }) => {
-            return db.prepare(appointmentAttendeeSeriesSql(
-                'a.id,a.starts_at,a.ends_at,a.timezone,a.status,a.all_day,s.frequency,s.interval_count,s.weekdays,s.end_kind,s.occurrence_count,s.until_date,t.user_id,t.response',
-                `a.company_id=? AND a.status='scheduled' AND a.starts_at<? AND t.response!='declined' AND t.user_id IN (${facts.value3.map(() => "?").join(",")})`
-            )).bind(facts.value1, facts.value2, ...facts.value3).all<{
+        }) => nativeAvailabilitySources(lane29ContextFor(db, facts.value1), facts.value1, facts.value2, facts.value3)
+            .then(results => ({results: results as unknown as {
                 id: string;
                 starts_at: number;
                 ends_at: number;
                 timezone: string;
-                frequency: RecurrenceRule["frequency"] | null;
+                frequency: 'daily' | 'weekly' | 'monthly' | 'yearly' | null;
                 interval_count: number | null;
                 weekdays: string | null;
-                end_kind: RecurrenceRule["endKind"] | null;
+                end_kind: 'never' | 'count' | 'until' | null;
                 occurrence_count: number | null;
                 until_date: string | null;
                 user_id: string;
-            }>();
-        },
+            }[]})),
         read3: (facts: {
             value1: string;
             value2: string;
@@ -69,7 +72,7 @@ export function calendarAvailabilityWorkProjectionFacts(db: SqlDatabase) {
             value2: string;
             value3: string;
             value4: string;
-        }) => readOccurrenceResponse(db, facts),
+        }) => nativeCalendarRead.read61(facts),
         read5: (facts: {
             value1: string;
             value2: string;
@@ -79,5 +82,5 @@ export function calendarAvailabilityWorkProjectionFacts(db: SqlDatabase) {
             value2: string;
             value3: string;
             value4: string;
-        }) => readOccurrenceResponse(db, facts) };
+        }) => nativeCalendarRead.read61(facts) };
 }

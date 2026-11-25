@@ -6,8 +6,10 @@ import { calendarAvailabilityIdentityAccessFacts } from "@erpx/server-identity_a
 import { calendarAvailabilityWorkProjectionFacts } from "@erpx/server-work_projection/public/calendar-availability-facts";
 import { calendarAvailabilityPeoplePayrollFacts } from "@erpx/server-people_payroll/public/calendar-availability-facts";
 import { createCalendarAvailability, type CalendarAvailabilityUnit } from "@erpx/server-work_projection/application/calendar/availability";
+import { bindLane29Context } from "../native-lane-29/client";
 const service = createCalendarAvailability({ clock: { now: () => Date.now() }, error: (status, code, message) => new ApiError(status, code, message) });
-export function calendarAvailabilityUnit(db: SqlDatabase): CalendarAvailabilityUnit {
+export function calendarAvailabilityUnit(db: SqlDatabase, actor?: WorkContext): CalendarAvailabilityUnit {
+    if (actor) bindLane29Context(db, actor);
     return { read1: facts => calendarAvailabilityIdentityAccessFacts(db).read1(facts),
         read2: facts => calendarAvailabilityWorkProjectionFacts(db).read2(facts),
         read3: facts => calendarAvailabilityWorkProjectionFacts(db).read3(facts),
@@ -16,4 +18,4 @@ export function calendarAvailabilityUnit(db: SqlDatabase): CalendarAvailabilityU
         read6: facts => calendarAvailabilityWorkProjectionFacts(db).read6(facts),
         read7: facts => calendarAvailabilityPeoplePayrollFacts(db).read7(facts) };
 }
-export function calendarAvailability(db: SqlDatabase, actor: WorkContext, ids: string[], from: number, to: number) { return service.calendarAvailability(calendarAvailabilityUnit(db), actor, ids, from, to); }
+export function calendarAvailability(db: SqlDatabase, actor: WorkContext, ids: string[], from: number, to: number) { return service.calendarAvailability(calendarAvailabilityUnit(db, actor), actor, ids, from, to); }

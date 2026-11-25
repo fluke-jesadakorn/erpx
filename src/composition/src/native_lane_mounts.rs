@@ -740,5 +740,20 @@ pub fn mount(
         );
     }
 
+    // Work projection lane 29: calendar owner reads.
+    router = router.merge(
+        erpx_server_work_projection::public::native_lane_29::router_for_holdings(
+            config.holdings.iter().enumerate().map(|(i, holding)| {
+                (
+                    erpx_server_work_projection::public::native_lane_29::LaneTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                    },
+                    pools[i + 1].clone(),
+                )
+            }).collect(),
+        ).map_err(|_| "PRIVATE_API_WORK_PROJECTION_LANE29_INVALID")?,
+    );
+
     Ok(router)
 }

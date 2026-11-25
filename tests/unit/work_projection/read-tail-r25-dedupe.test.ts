@@ -17,11 +17,12 @@ describe('work_projection read-tail r25 dedupe', () => {
   it('keeps one canonical reminder-attendee join builder and no inline copies', async () => {
     const shared = await readFile(src('read-tail-sql.ts'), 'utf8');
     expect(shared.split('export const reminderAttendeesSql =')).toHaveLength(2);
-    expect(
-      shared.match(
-        /`SELECT \$\{columns\} FROM calendar_appointments a JOIN calendar_attendees t ON t\.appointment_id=a\.id AND t\.company_id=a\.company_id WHERE a\.id=\? AND a\.company_id=\?\$\{tail\}`/g,
-      ),
-    ).toHaveLength(1);
+    // One canonical appointment/attendee head; the reminder builder delegates
+    // to it instead of carrying a second inline SELECT literal.
+    expect(shared.split('export const appointmentAttendeesSql =')).toHaveLength(2);
+    expect(shared).toContain(
+      'appointmentAttendeesSql(columns, `WHERE a.id=? AND a.company_id=?${tail}`)',
+    );
     expect(shared).toContain('reminderAttendeesSql(columns, \' AND t.user_id=?\')');
 
     const authority = await readFile(src('calendar/reminder-authority.ts'), 'utf8');

@@ -25,7 +25,9 @@ describe('work_projection read-tail r28 dedupe', () => {
 
     const availability = await readFile(src('calendar-availability-facts.ts'), 'utf8');
     expect(availability).not.toContain('"SELECT occurrence_key,start_local,end_local FROM calendar_occurrence_exceptions WHERE');
-    expect(availability).toContain("occurrenceExceptionsSql('occurrence_key,start_local,end_local', 'cancelled=false AND start_local IS NOT NULL AND end_local IS NOT NULL')");
+    // Lane 29 cutover: the moved-occurrence list is a native owner read.
+    expect(availability).not.toContain("occurrenceExceptionsSql('occurrence_key,start_local,end_local'");
+    expect(availability).toContain('nativeMovedOccurrences(');
 
     const reminders = await readFile(src('calendar/reminder-purchases.ts'), 'utf8');
     expect(reminders).toContain("occurrenceExceptionPointSql('cancelled,start_local')");

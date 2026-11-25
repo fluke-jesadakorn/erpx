@@ -14,19 +14,23 @@ const original = {
 } as const;
 
 describe('work_projection read-tail r23 dedupe', () => {
-  it('keeps one canonical byAppointmentIds series builder and no inline occurrence copies', async () => {
+  it('keeps the series batch on the native lane 29 route and no inline occurrence copies', async () => {
     const facts = await readFile(src('calendar-appointments-facts.ts'), 'utf8');
-    expect(facts.match(/`SELECT \$\{columns\} FROM \$\{table\} WHERE company_id=\? AND \$\{inList\("appointment_id"\)\}`/g)).toHaveLength(1);
+    expect(facts).not.toContain('SELECT ${columns} FROM ${table} WHERE company_id=?');
+    expect(facts).not.toContain('byAppointmentIds');
+    expect(facts).toContain('nativeSeriesBatch(');
     expect(facts).not.toContain('SELECT appointment_id,occurrence_key,user_id,response FROM calendar_occurrence_responses WHERE');
     expect(facts).toContain('nativeCalendarRead.read63(facts)');
     expect(facts).toContain('nativeCalendarRead.read64(facts)');
   });
 
-  it('emits the original byte-identical series SQL and records the retired occurrence SQL', async () => {
-    const { byAppointmentIds } = await import(
-      '../../../packages/server-work_projection/src/adapters/calendar-appointments-facts.ts'
+  it('keeps the byte-identical series SQL in Rust and records the retired occurrence SQL', async () => {
+    const rust = await readFile(src('native_lane_29/postgres.rs'), 'utf8');
+    expect(rust).toContain('SELECT * FROM calendar_series WHERE company_id=$1');
+    expect(rust).toContain('SELECT jsonb_array_elements_text($2::jsonb)');
+    expect(original.series).toBe(
+      'SELECT * FROM calendar_series WHERE company_id=? AND appointment_id IN (SELECT jsonb_array_elements_text(?::jsonb))',
     );
-    expect(byAppointmentIds()).toBe(original.series);
     expect(original.exceptions).toBe(
       'SELECT * FROM calendar_occurrence_exceptions WHERE company_id=? AND appointment_id IN (SELECT jsonb_array_elements_text(?::jsonb))',
     );
@@ -48,8 +52,8 @@ describe('work_projection read-tail r23 dedupe', () => {
     }
 
     const facts = await readFile(src('calendar-appointments-facts.ts'), 'utf8');
-    expect(facts).toContain("byAppointmentIds('calendar_series')");
-    expect(facts).not.toContain("byAppointmentIds('calendar_occurrence_exceptions')");
+    expect(facts).toContain('nativeSeriesBatch(');
+    expect(facts).not.toContain('byAppointmentIds');
     expect(facts).toContain("overlapProbe('calendar_appointment_participants', 'p.person_id')");
     expect(facts).toContain("overlapProbe('calendar_attendees', 'p.user_id', \" AND p.response!='declined'\")");
     expect(facts).toContain('attendeeScopeExistsSql');
@@ -82,8 +86,8 @@ describe('work_projection read-tail r23 dedupe', () => {
 });
 
 /** r34 native cutover: READ_67/61/63/64 replace the three retired SQL literals.
- * The calendar_series batch stays owner-local TS, so one SELECT token remains
- * in byAppointmentIds: 50 -> 48, not 50 -> 47. */
+ * Lane 29 then moved byAppointmentIds to its native owner route, so the final
+ * owner SELECT count is 46 (50 -> 48 at r34, 48 -> 46 at lane 29). */
 const retiredSql = {
   authorization: 'SELECT * FROM calendar_reminder_execution_authorizations WHERE appointment_id=? AND company_id=? AND recipient_id=? ORDER BY source_version DESC,created_at DESC,command_id DESC LIMIT 1',
   response: 'SELECT response FROM calendar_occurrence_responses WHERE appointment_id=? AND company_id=? AND occurrence_key=? AND user_id=?',
@@ -225,7 +229,7 @@ describe('work_projection native read r34 cutover', () => {
     await expect(noResponse.value).rejects.toBeInstanceOf(NativeCalendarReadError);
   });
 
-  it('retires exactly two further SELECT tokens; the series helper retains one', () => {
+  it('pins the final owner SELECT count after the lane 29 native cutover', () => {
     const count = Number(
       execFileSync(
         'git',
@@ -236,6 +240,6 @@ describe('work_projection native read r34 cutover', () => {
         .split('\n')
         .filter(Boolean).length,
     );
-    expect(count).toBe(48);
+    expect(count).toBe(46);
   });
 });

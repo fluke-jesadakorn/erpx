@@ -4,10 +4,21 @@ import { nativeCalendarRead } from "@erpx/feature-work_projection/lib/native-cal
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { type RecurrenceRule } from "@erpx/feature-work_projection/lib/calendar-recurrence";
 import type { AppointmentRow } from "@erpx/server-work_projection/domain/calendar/appointments";
+import { ApiError } from '@erpx/server-runtime/public/http';
+import { lane29ContextFor, nativeSeriesBatch } from './native-lane-29/client';
 import { inList, overlapProbe, attendeeScopeExistsSql, participantScopeExistsSql, derivedProbeSql } from './read-tail-sql';
-/** The series batch read stays owner-local SQL; occurrence batches are native reads 63/64. */
-export const byAppointmentIds = (table: 'calendar_series' = 'calendar_series', columns = '*') =>
-    `SELECT ${columns} FROM ${table} WHERE company_id=? AND ${inList("appointment_id")}`;
+
+/** The series batch read is now an owner-native lane 29 read; no TypeScript SQL
+ * remains for it. The caller's JSON id list is validated before transport. */
+function appointmentIds(value: string): string[] {
+    try {
+        const parsed: unknown = JSON.parse(value);
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed.length <= 64 &&
+            parsed.every(id => typeof id === 'string' && id.length > 0 && id.length <= 200))
+            return parsed as string[];
+    } catch { /* fall through to the named failure */ }
+    throw new ApiError(422, 'LANE29_SERIES_REQUEST_INVALID', 'Use between one and 64 bounded appointments.');
+}
 export function calendarAppointmentsWorkProjectionFacts(db: SqlDatabase) {
     return { read1: (facts: {
             value1: boolean;
@@ -56,15 +67,17 @@ export function calendarAppointmentsWorkProjectionFacts(db: SqlDatabase) {
         read3: (facts: {
             value1: string;
             value2: string;
-        }) => { return db.prepare(byAppointmentIds('calendar_series')).bind(facts.value1, facts.value2).all<{
-            appointment_id: string;
-            frequency: RecurrenceRule["frequency"];
-            interval_count: number;
-            weekdays: string;
-            end_kind: RecurrenceRule["endKind"];
-            occurrence_count: number | null;
-            until_date: string | null;
-        }>(); },
+        }) => nativeSeriesBatch(lane29ContextFor(db, facts.value1), facts.value1, appointmentIds(facts.value2)).then(results => ({
+            results: results as unknown as {
+                appointment_id: string;
+                frequency: RecurrenceRule["frequency"];
+                interval_count: number;
+                weekdays: string;
+                end_kind: RecurrenceRule["endKind"];
+                occurrence_count: number | null;
+                until_date: string | null;
+            }[],
+        })),
         read4: async (facts: {
             value1: string;
             value2: string;

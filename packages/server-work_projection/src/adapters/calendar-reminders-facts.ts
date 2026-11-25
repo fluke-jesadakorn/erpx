@@ -12,7 +12,7 @@ export function calendarRemindersWorkProjectionFacts(db:SqlDatabase){return {rea
       )).bind(facts.value1,facts.value2,facts.value3).all<Row>(),
 read2:(facts:{value1:string;value2:string;})=>readMovedOccurrences(db,facts),
 read3:(facts:{value1:string;value2:string;value3:string;})=>readOccurrenceException(db,facts),
-read4:(facts:{value1:string;value2:string;value3:string;value4:string;})=>readOccurrenceResponse(db,facts),
+read4:(facts:{value1:string;value2:string;value3:string;value4:string;})=>readOccurrenceResponse(facts),
 // Both writes execute in the native Work axum command. The inert SELECT 1
 // keeps caller batches structurally identical; no SQL remains in TypeScript.
 write5:async(facts:{value1:string;value2:string;value3:string;value4:string;value5:number;})=>nativeOwnerWrite('wp_reminder_delivery_upsert',[facts.value1,facts.value2,facts.value3,facts.value4,facts.value5],`wp-reminder-5:${facts.value2}:${facts.value3}:${facts.value4}`,{companyId:facts.value1},()=>db.prepare(noopSql)),

@@ -127078,6 +127078,33 @@
       },
       "ci": {
         "critical": true,
+        "reason": "Work projection native calendar route must stay tenant-isolated."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-work_projection"
+      ],
+      "id": "work_projection.native-lane-29.unit",
+      "files": [
+        "tests/unit/work_projection/native-lane-29.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "work_projection",
+      "modules": [
+        "operations"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
         "reason": "Work projection version and actor scope families must stay byte-identical."
       },
       "apps": [
