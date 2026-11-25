@@ -117,27 +117,16 @@ describe('Agent read-tail r7 fixed SQL dedupe', () => {
   /** Verbatim pre-dedupe private-session projection (workspaceSessions ↔ sessionRecord). */
   const privateSessionSelect = 'SELECT s.id,s.user_id,s.assignment_id,s.conversation_key,s.generation,s.created_at,c.* FROM ai_private_sessions s JOIN ai_private_session_controls c ON c.session_id=s.id WHERE s.company_id=?';
 
-  it('r11: authors the byte-identical private-session projection once', async () => {
+  it('workspace-native: the private-session projection is owned by Rust, not TS', async () => {
     const gov = await src('adapters/agent-governance.ts');
-    expect(gov).toContain(`const privateSessionSelectSql = '${privateSessionSelect}';`);
-    expect(gov.match(/SELECT s\.id,s\.user_id,s\.assignment_id,s\.conversation_key/g)).toHaveLength(1);
-    expect(gov.match(/\$\{privateSessionSelectSql\}/g)).toHaveLength(2);
-  });
-
-  it('r11: both consumers render the exact pre-dedupe statement text with unchanged binds', async () => {
-    const gov = await src('adapters/agent-governance.ts');
-    const def = gov.match(/const privateSessionSelectSql = '([^']*)';/)?.[1];
-    expect(def).toBe(privateSessionSelect);
-    const templates = [...gov.matchAll(/`([\s\S]*?)`/g)]
-      .map((m) => m[1])
-      .filter((t) => t.includes('${privateSessionSelectSql}'));
-    expect(templates).toHaveLength(2);
-    expect(templates.map((t) => t.replace('${privateSessionSelectSql}', def!))).toEqual([
-      `${privateSessionSelect} AND (s.user_id=? OR ?) ORDER BY c.updated_at DESC LIMIT 100`,
-      `${privateSessionSelect} AND s.id=? AND (s.user_id=? OR ?)`,
-    ]);
-    expect(gov).toContain('.bind(companyId,userId,value).all<Row>()).results;},');
-    expect(gov).toContain('.bind(companyId,id,userId,value).first<Row>();},async batch');
+    const port = await src('adapters/workspace_read_postgres.rs');
+    expect(gov).not.toContain('privateSessionSelectSql');
+    expect(gov).not.toContain('workspaceSessions(');
+    expect(gov).not.toContain('sessionRecord(');
+    expect(port).toContain('ai_private_sessions s JOIN ai_private_session_controls c ON c.session_id=s.id');
+    expect(port).toContain('WHERE s.company_id=$1 AND (s.user_id=$2 OR $3)');
+    expect(port).toContain('WHERE s.company_id=$1 AND s.id=$2 AND (s.user_id=$3 OR $4)');
+    expect(privateSessionSelect).toContain('ai_private_sessions s JOIN ai_private_session_controls c');
   });
 
   it('r11: the translation guard and r9/r10 constants stay local and untouched', async () => {
@@ -205,7 +194,7 @@ describe('Agent read-tail r7 fixed SQL dedupe', () => {
     const assistant = await src('adapters/workspace-assistant.ts');
     const locks = await src('adapters/social-ai-source-locks.ts');
     expect(gov).toContain(`const agentPoolMemberAccessSql = '${poolMemberAccess}';`);
-    expect(gov).toContain(`const privateSessionSelectSql = '${privateSessionSelect}';`);
+    expect(gov).not.toContain('privateSessionSelectSql');
     expect(helper).toContain(quotaTemplate);
     expect(assistant).toContain('guardTranslationQuota(id:string,companyId:string,value:number,month:string){return assertion(db,id,"translation-quota"');
     expect(assistant).toContain("`${assistantQuotaSql('calls')}`");
@@ -250,7 +239,7 @@ describe('Agent read-tail r7 fixed SQL dedupe', () => {
     const locks = await src('adapters/social-ai-source-locks.ts');
     const rt = await src('adapters/ai-runtime.ts');
     expect(gov).toContain(`const agentPoolMemberAccessSql = '${poolMemberAccess}';`);
-    expect(gov).toContain(`const privateSessionSelectSql = '${privateSessionSelect}';`);
+    expect(gov).not.toContain('privateSessionSelectSql');
     expect(helper).toContain(quotaTemplate);
     expect(rt).toContain(`const aiConnectionSelectSql = '${runtimeConnectionSelect}';`);
     expect(assistant).toContain('guardTranslationQuota(id:string,companyId:string,value:number,month:string){return assertion(db,id,"translation-quota"');
@@ -294,7 +283,7 @@ describe('Agent read-tail r7 fixed SQL dedupe', () => {
     const assistant = await src('adapters/workspace-assistant.ts');
     const locks = await src('adapters/social-ai-source-locks.ts');
     expect(gov).toContain(`const agentPoolMemberAccessSql = '${poolMemberAccess}';`);
-    expect(gov).toContain(`const privateSessionSelectSql = '${privateSessionSelect}';`);
+    expect(gov).not.toContain('privateSessionSelectSql');
     for (const lock of [
       '"SELECT session_id FROM ai_private_session_controls WHERE session_id=? FOR SHARE"',
       '"SELECT x.id FROM agent_assignments x JOIN agent_versions v ON v.id=x.agent_version_id JOIN agent_catalog c ON c.id=v.agent_id WHERE x.id=? FOR SHARE OF x,v,c"',
@@ -310,29 +299,13 @@ describe('Agent read-tail r7 fixed SQL dedupe', () => {
    * (workspaceAgents ↔ workspacePools ↔ workspaceInvocations). */
   const companyListTemplate = 'SELECT * FROM ${table} WHERE company_id=? ${suffix}';
 
-  it('r17: authors the parameterized company-scoped list projection once', async () => {
+  it('workspace-native: the company-scoped lists are owned by Rust, not TS', async () => {
     const gov = await src('adapters/agent-governance.ts');
-    const def = gov.match(/const agentCompanyListSql = \(table: string, suffix: string\) =>\s*`(SELECT [^`]*?)`;/)?.[1];
-    expect(def).toBe(companyListTemplate);
-    expect(gov.match(/SELECT \* FROM \$\{table\} WHERE company_id=\? \$\{suffix\}/g)).toHaveLength(1);
-    expect(gov.match(/agentCompanyListSql\(/g)).toHaveLength(3);
-  });
-
-  it('r17: all three consumers render the exact pre-dedupe SQL with unchanged binds', async () => {
-    const gov = await src('adapters/agent-governance.ts');
-    const def = gov.match(/const agentCompanyListSql = \(table: string, suffix: string\) =>\s*`(SELECT [^`]*?)`;/)?.[1]!;
-    const calls = [...gov.matchAll(/agentCompanyListSql\('([^']+)','([^']+)'\)/g)].map((m) => [m[1], m[2]]);
-    expect(calls).toEqual([
-      ['agent_catalog', 'ORDER BY updated_at DESC'],
-      ['agent_pools', 'ORDER BY name'],
-      ['ai_invocation_evidence', 'ORDER BY created_at DESC LIMIT 50'],
-    ]);
-    expect(calls.map(([t, s]) => def.replace('${table}', t).replace('${suffix}', s))).toEqual([
-      'SELECT * FROM agent_catalog WHERE company_id=? ORDER BY updated_at DESC',
-      'SELECT * FROM agent_pools WHERE company_id=? ORDER BY name',
-      'SELECT * FROM ai_invocation_evidence WHERE company_id=? ORDER BY created_at DESC LIMIT 50',
-    ]);
-    expect(gov).toContain("agentCompanyListSql('agent_catalog','ORDER BY updated_at DESC'),\n          )\n          .bind(companyId)");
+    const port = await src('adapters/workspace_read_postgres.rs');
+    expect(gov).not.toContain('agentCompanyListSql');
+    expect(companyListTemplate).toContain('SELECT * FROM ${table} WHERE company_id=?');
+    for (const table of ['agent_catalog', 'agent_pools', 'ai_invocation_evidence'])
+      expect(port).toContain(`FROM ${table} WHERE company_id=$1`);
   });
 
   it('r17: the translation guard, locks and r7-r16 families stay untouched', async () => {
@@ -340,7 +313,7 @@ describe('Agent read-tail r7 fixed SQL dedupe', () => {
     const assistant = await src('adapters/workspace-assistant.ts');
     const locks = await src('adapters/social-ai-source-locks.ts');
     expect(gov).toContain(`const agentPoolMemberAccessSql = '${poolMemberAccess}';`);
-    expect(gov).toContain(`const privateSessionSelectSql = '${privateSessionSelect}';`);
+    expect(gov).not.toContain('privateSessionSelectSql');
     expect(gov).toContain('const agentActivePrivateSessionSql = (expiresAt: string) =>');
     for (const lock of [
       '"SELECT session_id FROM ai_private_session_controls WHERE session_id=? FOR SHARE"',
@@ -359,40 +332,14 @@ describe('Agent read-tail r7 fixed SQL dedupe', () => {
   const poolHistoryListSql =
     'SELECT r.* FROM agent_pool_revisions r JOIN agent_pools p ON p.id=r.pool_id WHERE p.company_id=? ORDER BY r.created_at DESC';
 
-  it('r18: authors the parameterized pool-child list projection once', async () => {
+  it('workspace-native: the pool-child lists are owned by Rust, not TS', async () => {
     const gov = await src('adapters/agent-governance.ts');
-    const def = gov.match(
-      /const agentPoolChildListSql = \(table: string, alias: string, suffix: string\) =>\s*`(SELECT [^`]*?)`;/,
-    )?.[1];
-    expect(def).toBe(
-      'SELECT ${alias}.* FROM ${table} ${alias} JOIN agent_pools p ON p.id=${alias}.pool_id WHERE p.company_id=? ORDER BY ${suffix}',
-    );
-    expect(gov.match(/SELECT \$\{alias\}\.\* FROM \$\{table\}/g)).toHaveLength(1);
-  });
-
-  it('r18: both consumers render the exact pre-dedupe SQL with unchanged binds', async () => {
-    const gov = await src('adapters/agent-governance.ts');
-    const def = gov.match(
-      /const agentPoolChildListSql = \(table: string, alias: string, suffix: string\) =>\s*`(SELECT [^`]*?)`;/,
-    )?.[1]!;
-    const calls = [
-      ...gov.matchAll(/agentPoolChildListSql\('([^']+)','([^']+)','([^']+)'\)/g),
-    ].map((m) => [m[1], m[2], m[3]]);
-    expect(calls).toEqual([
-      ['agent_pool_members', 'm', 'm.pool_id,m.user_id'],
-      ['agent_pool_revisions', 'r', 'r.created_at DESC'],
-    ]);
-    expect(
-      calls.map(([t, a, s]) =>
-        def.replaceAll('${alias}', a).replaceAll('${table}', t).replaceAll('${suffix}', s),
-      ),
-    ).toEqual([memberListSql, poolHistoryListSql]);
-    expect(gov).toContain(
-      "db.prepare(agentPoolChildListSql('agent_pool_members','m','m.pool_id,m.user_id')).bind(companyId)",
-    );
-    expect(gov).toContain(
-      "db.prepare(agentPoolChildListSql('agent_pool_revisions','r','r.created_at DESC')).bind(companyId)",
-    );
+    const port = await src('adapters/workspace_read_postgres.rs');
+    expect(gov).not.toContain('agentPoolChildListSql');
+    expect(memberListSql).toContain('agent_pool_members m JOIN agent_pools p');
+    expect(poolHistoryListSql).toContain('agent_pool_revisions r JOIN agent_pools p');
+    expect(port).toContain('FROM agent_pool_members m JOIN agent_pools p ON p.id=m.pool_id');
+    expect(port).toContain('FROM agent_pool_revisions r JOIN agent_pools p ON p.id=r.pool_id');
   });
 
   it('r18: records a strictly lower SELECT count than BEFORE=58', async () => {
@@ -404,9 +351,9 @@ describe('Agent read-tail r7 fixed SQL dedupe', () => {
     const assistant = await src('adapters/workspace-assistant.ts');
     const locks = await src('adapters/social-ai-source-locks.ts');
     expect(gov).toContain(`const agentPoolMemberAccessSql = '${poolMemberAccess}';`);
-    expect(gov).toContain(`const privateSessionSelectSql = '${privateSessionSelect}';`);
+    expect(gov).not.toContain('privateSessionSelectSql');
     expect(gov).toContain('const agentActivePrivateSessionSql = (expiresAt: string) =>');
-    expect(gov).toContain('const agentCompanyListSql = (table: string, suffix: string) =>');
+    expect(gov).not.toContain('agentCompanyListSql');
     expect(await src('adapters/native-owner-write.ts')).toContain('nativeOwnerWriteNoopSql = "SELECT 1"');
     expect(assistant).toContain('guardTranslationQuota(id:string,companyId:string,value:number,month:string){return assertion(db,id,"translation-quota"');
     expect(assistant).toContain("`${assistantQuotaSql('calls')}`");

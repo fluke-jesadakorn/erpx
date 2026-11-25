@@ -114,10 +114,10 @@ describe('crm read-tail r21 byte-identical projection/FROM head', () => {
     expect(rendered).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
   });
 
-  test('the owner renderer owns exactly the one shared read token', () => {
+  test('the owner renderer folds projection/FROM into the one shared select-body token', () => {
     const helper = src('read-tail-r46-sql.ts');
     expect(helper.match(/crmProjectionFromSql =/g)).toHaveLength(1);
-    expect((helper.match(/SELECT /g) ?? []).length).toBe(2);
+    expect((helper.match(/SELECT /g) ?? []).length).toBe(1);
     expect(crmProjectionFromSql('id', 'accounts a WHERE a.id=?')).toBe('SELECT id FROM accounts a WHERE a.id=?');
     expect(crmProjectionFromSql('1', 'crm_leads lead WHERE lead.id=? ORDER BY lead.id')).toBe(
       'SELECT 1 FROM crm_leads lead WHERE lead.id=? ORDER BY lead.id',
@@ -161,7 +161,7 @@ describe('crm read-tail r21 byte-identical projection/FROM head', () => {
   });
 
   test('retirement:ts-statements drops from the r51 AFTER=47 to 43', () => {
-    expect(totalSelects()).toBe(40);
+    expect(totalSelects()).toBe(39);
     expect(totalSelects()).toBeLessThan(47);
   });
 });

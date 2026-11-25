@@ -88,12 +88,60 @@ const READ_FOLLOWUP_RECIPIENTS: NativeSalesReadStatement = NativeSalesReadStatem
     scope: "holding",
 };
 
+/// Native successor of the TypeScript pricing price-list point read: [id, company]. The
+/// statement is byte-identical to the retired owner literal.
+pub const RD_PRICING_LIST_BY_ID: &str = "sales_rd_pricing_list_by_id";
+const SQL_PRICING_LIST_BY_ID: &str = "SELECT * FROM sales_price_lists WHERE id=? AND company_id=?";
+const READ_PRICING_LIST_BY_ID: NativeSalesReadStatement = NativeSalesReadStatement {
+    kind: RD_PRICING_LIST_BY_ID,
+    sql: SQL_PRICING_LIST_BY_ID,
+    bind_count: 2,
+    scope: "holding",
+};
+
+/// Native successor of the TypeScript pricing active price-list read by id: [id, company, company, date, date, party]. The
+/// statement is byte-identical to the retired owner literal.
+pub const RD_PRICING_LIST_ACTIVE_BY_ID: &str = "sales_rd_pricing_list_active_by_id";
+const SQL_PRICING_LIST_ACTIVE_BY_ID: &str = "SELECT * FROM sales_price_lists WHERE id=? AND company_id=? AND status='active' AND currency=(SELECT currency FROM (SELECT \"company_id\",\"chart_id\",\"currency\",\"receivable_account_id\",\"payable_account_id\",\"revenue_account_id\",\"inventory_account_id\",\"clearing_account_id\",\"cogs_account_id\",\"input_tax_account_id\",\"output_tax_account_id\",\"cash_account_id\" FROM commerce_settings) commerce_settings WHERE company_id=?) AND valid_from<=? AND valid_until>=? AND (customer_id IS NULL OR customer_id=?)";
+const READ_PRICING_LIST_ACTIVE_BY_ID: NativeSalesReadStatement = NativeSalesReadStatement {
+    kind: RD_PRICING_LIST_ACTIVE_BY_ID,
+    sql: SQL_PRICING_LIST_ACTIVE_BY_ID,
+    bind_count: 6,
+    scope: "holding",
+};
+
+/// Native successor of the TypeScript pricing active price-list read by Company: [company, company, date, date, party, party]. The
+/// statement is byte-identical to the retired owner literal.
+pub const RD_PRICING_LIST_ACTIVE: &str = "sales_rd_pricing_list_active";
+const SQL_PRICING_LIST_ACTIVE: &str = "SELECT * FROM sales_price_lists WHERE company_id=? AND status='active' AND currency=(SELECT currency FROM (SELECT \"company_id\",\"chart_id\",\"currency\",\"receivable_account_id\",\"payable_account_id\",\"revenue_account_id\",\"inventory_account_id\",\"clearing_account_id\",\"cogs_account_id\",\"input_tax_account_id\",\"output_tax_account_id\",\"cash_account_id\" FROM commerce_settings) commerce_settings WHERE company_id=?) AND valid_from<=? AND valid_until>=? AND (customer_id=? OR customer_id IS NULL) ORDER BY CASE WHEN customer_id=? THEN 0 ELSE 1 END,valid_from DESC,activated_at DESC LIMIT 1";
+const READ_PRICING_LIST_ACTIVE: NativeSalesReadStatement = NativeSalesReadStatement {
+    kind: RD_PRICING_LIST_ACTIVE,
+    sql: SQL_PRICING_LIST_ACTIVE,
+    bind_count: 6,
+    scope: "holding",
+};
+
+/// Native successor of the TypeScript pricing price-list items read: [price_list_id]. The
+/// statement is byte-identical to the retired owner literal.
+pub const RD_PRICING_ITEMS_BY_LIST: &str = "sales_rd_pricing_items_by_list";
+const SQL_PRICING_ITEMS_BY_LIST: &str = "SELECT * FROM sales_price_list_items WHERE price_list_id=?";
+const READ_PRICING_ITEMS_BY_LIST: NativeSalesReadStatement = NativeSalesReadStatement {
+    kind: RD_PRICING_ITEMS_BY_LIST,
+    sql: SQL_PRICING_ITEMS_BY_LIST,
+    bind_count: 1,
+    scope: "holding",
+};
+
 const READS: &[NativeSalesReadStatement] = &[
     READ_PRICE_LIST_ACTIVE,
     READ_PRICE_LIST_ITEMS_ACTIVE,
     READ_NOTIFICATION_ATTEMPT,
     READ_NOTIFICATION_RECONCILIATION_INSTALLED,
     READ_FOLLOWUP_RECIPIENTS,
+    READ_PRICING_LIST_BY_ID,
+    READ_PRICING_LIST_ACTIVE_BY_ID,
+    READ_PRICING_LIST_ACTIVE,
+    READ_PRICING_ITEMS_BY_LIST,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -220,8 +268,56 @@ mod tests {
     }
 
     #[test]
+    fn byId_read_is_allow_listed_and_byte_stable() {
+        let read = read_statement(RD_PRICING_LIST_BY_ID).expect("read kind");
+        assert_eq!(read.kind, "sales_rd_pricing_list_by_id");
+        assert_eq!(read.bind_count, 2);
+        assert_eq!(read.sql.matches('?').count(), 2);
+        assert_eq!(read.sql.len(), 59);
+        assert!(read.sql.starts_with("SELECT"));
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_PRICING_LIST_BY_ID));
+    }
+
+    #[test]
+    fn byIdActive_read_is_allow_listed_and_byte_stable() {
+        let read = read_statement(RD_PRICING_LIST_ACTIVE_BY_ID).expect("read kind");
+        assert_eq!(read.kind, "sales_rd_pricing_list_active_by_id");
+        assert_eq!(read.bind_count, 6);
+        assert_eq!(read.sql.matches('?').count(), 6);
+        assert_eq!(read.sql.len(), 493);
+        assert!(read.sql.starts_with("SELECT"));
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_PRICING_LIST_ACTIVE_BY_ID));
+    }
+
+    #[test]
+    fn active_read_is_allow_listed_and_byte_stable() {
+        let read = read_statement(RD_PRICING_LIST_ACTIVE).expect("read kind");
+        assert_eq!(read.kind, "sales_rd_pricing_list_active");
+        assert_eq!(read.bind_count, 6);
+        assert_eq!(read.sql.matches('?').count(), 6);
+        assert_eq!(read.sql.len(), 577);
+        assert!(read.sql.starts_with("SELECT"));
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_PRICING_LIST_ACTIVE));
+    }
+
+    #[test]
+    fn items_read_is_allow_listed_and_byte_stable() {
+        let read = read_statement(RD_PRICING_ITEMS_BY_LIST).expect("read kind");
+        assert_eq!(read.kind, "sales_rd_pricing_items_by_list");
+        assert_eq!(read.bind_count, 1);
+        assert_eq!(read.sql.matches('?').count(), 1);
+        assert_eq!(read.sql.len(), 58);
+        assert!(read.sql.starts_with("SELECT"));
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_PRICING_ITEMS_BY_LIST));
+    }
+
+    #[test]
     fn only_owner_read_kinds_are_registered() {
-        assert_eq!(READS.len(), 5);
+        assert_eq!(READS.len(), 9);
         assert!(READS.iter().all(|read| is_read(read.kind)));
         assert!(!is_read("sales_price_lists"));
         assert!(!is_read("SELECT 1"));

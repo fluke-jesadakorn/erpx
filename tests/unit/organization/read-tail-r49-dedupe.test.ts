@@ -66,7 +66,6 @@ describe('Organization read-tail r49 dedupe', () => {
       ['organization-column-alias-families-r35.ts', ['ownerProjection']],
       ['organization-column-alias-families-r36.ts', ['activeNodeByIdCompanyKind']],
       ['organization-column-alias-families-r37.ts', ['leavePolicyVersionLookup']],
-      ['organization-column-alias-families-r38.ts', ['activePositionById']],
       ['organization-read-tail-sources.ts', ['departmentSnapshotMissing', 'ownerVersionGuardSource', 'NODE_BRANCH_ACTIVE', 'NODE_BRANCH_ACTIVE_EXISTS']],
       ['organization-read-tail-sources-r39.ts', ['companyNodeScopeSource', 'activeStaffLevelSource', 'changeVersionGuardSource', 'scopeNodeBranchExists']],
       ['organization-read-tail-sources-r40.ts', ['activePositionList', 'recommendedPayDefault', 'nodeChangeByIdCompany', 'activeStaffLevels', 'memberProfileByUser']],
@@ -146,7 +145,7 @@ describe('Organization read-tail r49 dedupe', () => {
     // r59 folds two executive-metric count heads (-2 literals, +1 renderer): 209 - 1 = 208.
     // r60 folds two level-history head literals (-2 literals, +1 renderer): 208 - 1 = 207.
     // r61 folds two position-package projection heads (-2 literals, +1 renderer): 207 - 1 = 206.
-    expect(space).toBe(196);
+    expect(space).toBe(188);
     expect(space).toBeLessThan(237);
   });
 });

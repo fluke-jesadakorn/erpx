@@ -198,7 +198,7 @@ describe("native manage_erpx lane 34 beta feedback read", () => {
     expect(client).not.toContain("SELECT ");
   });
 
-  it("pins the owner TypeScript SELECT KPI at 16 (before 17)", () => {
+  it("pins the owner TypeScript SELECT KPI at 13", () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {

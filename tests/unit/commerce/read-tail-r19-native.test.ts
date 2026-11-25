@@ -86,7 +86,7 @@ describe('commerce read-tail r19 native product kinds', () => {
     }
     // 9 prior kinds (PMS/sales editor/POS startup/settings) + these 6 + 5
     // warehouse kinds added by r20.
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 26);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 29);');
     for (const { constName } of kinds) {
       expect(plans, constName).toContain(`READ_${constName.slice(3)},`);
     }
@@ -152,7 +152,7 @@ describe('commerce read-tail r19 native product kinds', () => {
     for (const { SQL } of kinds) expect(SQL).not.toMatch(/FOR UPDATE|LOCK /);
   });
 
-  it('pins the owner TypeScript SELECT KPI at 389 (before 390)', () => {
+  it('pins the owner TypeScript SELECT KPI at 387 (before 388)', () => {
     const src = resolve(root, 'packages/server-commerce/src');
     let total = 0;
     const walk = (dir: string) => {
@@ -163,6 +163,6 @@ describe('commerce read-tail r19 native product kinds', () => {
       }
     };
     walk(src);
-    expect(total).toBe(389);
+    expect(total).toBe(387);
   });
 });

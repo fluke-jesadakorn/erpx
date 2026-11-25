@@ -22,6 +22,8 @@ export const MARKETING_RD_FORM_SOURCE = 'active-form-source';
 export const MARKETING_RD_FORM_PUBLIC = 'active-form-public';
 export const MARKETING_RD_FORM_CONTENT_EXISTS = 'form-content-exists';
 export const MARKETING_RD_FORM_CONTENT_ROW = 'form-content-row';
+export const MARKETING_RD_FORM_LOCK = 'form-asset-lock';
+export const MARKETING_RD_FORM_LOCK_VERSIONED = 'form-asset-lock-versioned';
 export const MARKETING_RD_CAMPAIGN_EXISTS = 'campaign-exists';
 export const MARKETING_RD_CAMPAIGN_WITNESS = 'campaign-witness';
 export const MARKETING_RD_CAMPAIGN_COST_WITNESS = 'campaign-cost-witness';
@@ -54,6 +56,8 @@ const KINDS = new Set<string>([
   MARKETING_RD_FORM_PUBLIC,
   MARKETING_RD_FORM_CONTENT_EXISTS,
   MARKETING_RD_FORM_CONTENT_ROW,
+  MARKETING_RD_FORM_LOCK,
+  MARKETING_RD_FORM_LOCK_VERSIONED,
   MARKETING_RD_CAMPAIGN_EXISTS,
   MARKETING_RD_CAMPAIGN_WITNESS,
   MARKETING_RD_CAMPAIGN_COST_WITNESS,

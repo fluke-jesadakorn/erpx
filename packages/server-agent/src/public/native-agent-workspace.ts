@@ -22,22 +22,22 @@ export type NativeAgentWorkspaceTransport = (
   signal: AbortSignal,
 ) => Promise<Response>;
 
-export type NativeAgentWorkspace = Readonly<{
-  agents: readonly Record<string, unknown>[];
-  versions: readonly Record<string, unknown>[];
-  pools: readonly Record<string, unknown>[];
-  assignments: readonly Record<string, unknown>[];
-  invocations: readonly Record<string, unknown>[];
-  people: readonly Record<string, unknown>[];
-  members: readonly Record<string, unknown>[];
-  poolHistory: readonly Record<string, unknown>[];
-  sessions: readonly Record<string, unknown>[];
-}>;
+export type NativeAgentWorkspace = {
+  agents: Record<string, unknown>[];
+  versions: Record<string, unknown>[];
+  pools: Record<string, unknown>[];
+  assignments: Record<string, unknown>[];
+  invocations: Record<string, unknown>[];
+  people: Record<string, unknown>[];
+  members: Record<string, unknown>[];
+  poolHistory: Record<string, unknown>[];
+  sessions: Record<string, unknown>[];
+};
 
-export type NativeAgentRecord = Readonly<{
-  row: Readonly<Record<string, unknown>>;
+export type NativeAgentRecord = {
+  row: Record<string, unknown>;
   sessionData: NativeAgentWorkspace | null;
-}>;
+};
 
 export type NativeAgentRecordKind = 'agent_invocation' | 'agent_session';
 

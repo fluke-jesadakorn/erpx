@@ -70,10 +70,12 @@ describe('People Payroll read-tail r58 dedupe', () => {
     expect(src('people-roster.ts'), 'people-roster has no foreign r58 symbol').not.toMatch(/ppRd58(?!RosterShiftsByWeekSql)/);
   });
 
-  test('helper owns exactly one SELECT head with no lock, native or cross-owner leakage', () => {
+  test('helper delegates its SELECT head to the shared round-2c builder', () => {
     const helper = src('pp-read-tail-r58-sources.ts');
     expect((helper.match(/export const ppRd58/g) ?? []).length).toBe(1);
-    expect((helper.match(/SELECT /g) ?? []).length).toBe(1);
+    expect((helper.match(/SELECT /g) ?? []).length).toBe(0);
+    expect(helper).toContain("from './pp-read-tail-round2c-sources'");
+    expect(helper).toContain("ppRdRound2cStarByOnePred('people_roster_shifts', 'week_id', tail)");
     expect(helper).not.toMatch(/FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory|nativePpStatement/i);
     expect(helper).not.toContain('@erpx/server-');
     expect(helper).not.toMatch(/financeProjectionSources|commerceProjectionSources|identity_accessProjectionSources|workflowProjectionSources/);
@@ -108,6 +110,6 @@ describe('People Payroll read-tail r58 dedupe', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(1202);
-    expect(total).toBe(1164);
+    expect(total).toBeLessThanOrEqual(1146);
   });
 });

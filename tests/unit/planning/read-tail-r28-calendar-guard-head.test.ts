@@ -58,7 +58,7 @@ describe('Planning r28 calendar/guard SELECT head retirement', () => {
     expect(resources).toContain("calendarVersionGuard = `COALESCE((${resourceCalendarByKey('version')}),0)=?`");
     expect(resources).toContain('export function planningContextGuards(');
     expect(src('planning-guard-sql.ts')).toContain('planningCommandExistsGuard(');
-    expect(src('planning-command-guard-sql.ts')).toContain('EXISTS(SELECT 1 FROM ${table} WHERE ${predicate})');
+    expect(src('planning-command-guard-sql.ts')).toContain("EXISTS(${planningPackageFactRows('1', table, predicate)})");
   });
 
   test('retirement:ts-statements drops 12 -> 11', () => {
@@ -71,7 +71,7 @@ describe('Planning r28 calendar/guard SELECT head retirement', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(10);
+    expect(total).toBe(8);
     expect(total).toBeLessThan(12);
   });
 });

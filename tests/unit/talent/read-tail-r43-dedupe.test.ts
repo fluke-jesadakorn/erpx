@@ -68,7 +68,7 @@ describe('Talent read-tail r43 EXISTS source-witness head family', () => {
     expect(src('talent-read-tail-r37-sources.ts')).toContain('SELECT ${projection}');
     expect(src('talent-read-tail-r41-sources.ts')).toContain('export const talentSourceSubqueryExists');
     expect(src('talent-read-tail-r42-sources.ts')).toContain('export const selectSourceRow');
-    expect(src('purchases.ts')).toContain('EXISTS(SELECT 1 FROM assignments owner_assignment');
+    expect(src('native_talent_read_sql.rs')).toContain("'ownerEligible',EXISTS(SELECT 1 FROM assignments owner_assignment");
     expect(src('product-entry.ts')).toContain('SELECT version FROM assignments WHERE id=?');
   });
 
@@ -86,7 +86,7 @@ describe('Talent read-tail r43 EXISTS source-witness head family', () => {
     const matchCount = (re: RegExp) => contents.reduce((n, text) => n + (text.match(re) ?? []).length, 0);
     const splitCount = contents.reduce((n, text) => n + text.split('SELECT ').length - 1, 0);
     for (const count of [matchCount(/SELECT/g), matchCount(/\bSELECT\b/g), splitCount]) {
-      expect(count).toBe(11);
+      expect(count).toBe(10);
       expect(count).toBeLessThan(12);
     }
   });

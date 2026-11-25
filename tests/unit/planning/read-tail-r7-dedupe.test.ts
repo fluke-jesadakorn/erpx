@@ -36,7 +36,7 @@ describe('Planning read-tail r7 parameterized command-source guard family', () =
 
   test('shared module declares the read literal exactly once and stays read-only', () => {
     const shared = src('planning-command-guard-sql.ts');
-    expect(selectCount(shared)).toBe(1);
+    expect(selectCount(shared)).toBe(0); // r30: EXISTS head folded into the generalized fact builder
     for (const sql of generated) {
       expect(sql.toUpperCase()).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
     }

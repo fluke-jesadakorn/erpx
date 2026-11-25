@@ -643,12 +643,19 @@ mod tests {
                 target(backend, "acme.example.test"),
             )]),
         });
+        let source = "a".repeat(64);
         let active = active(
             State(state.clone()),
             Path("acme".to_owned()),
             read_request(
                 "/api/v1/holdings/acme/platform/engineering-verification/read/active",
-                serde_json::json!({"companyId":"company-1","run":"abcdef123456"}),
+                serde_json::json!({
+                    "companyId":"company-1",
+                    "run":"abcdef123456",
+                    "sourceFingerprint":source,
+                    "softwareVersion":format!("release-{source}"),
+                    "fileManifestSha256":"b".repeat(64),
+                }),
             ),
         )
         .await;

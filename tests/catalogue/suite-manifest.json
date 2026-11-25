@@ -165346,6 +165346,175 @@
       },
       "apps": [],
       "packages": []
+    },
+    {
+      "id": "agent.native-agent-workspace.unit",
+      "lane": "unit",
+      "owner": "agent",
+      "modules": [
+        "agent"
+      ],
+      "files": [
+        "tests/unit/agent/native-agent-workspace.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "marketing.read-tail-r58-dedupe.unit",
+      "lane": "unit",
+      "owner": "marketing",
+      "modules": [
+        "marketing"
+      ],
+      "files": [
+        "tests/unit/marketing/read-tail-r58-dedupe.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "marketing.read-tail-r59-dedupe.unit",
+      "lane": "unit",
+      "owner": "marketing",
+      "modules": [
+        "marketing"
+      ],
+      "files": [
+        "tests/unit/marketing/read-tail-r59-dedupe.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "people_payroll.read-tail-round2c-star-builder.unit",
+      "lane": "unit",
+      "owner": "people_payroll",
+      "modules": [
+        "people_payroll"
+      ],
+      "files": [
+        "tests/unit/people_payroll/read-tail-round2c-star-builder.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "planning.read-tail-r30-command-guard-head.unit",
+      "lane": "unit",
+      "owner": "planning",
+      "modules": [
+        "planning",
+        "manufacturing",
+        "inventory",
+        "finance"
+      ],
+      "files": [
+        "tests/unit/planning/read-tail-r30-command-guard-head.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "planning.read-tail-r31-sum-guard-head.unit",
+      "lane": "unit",
+      "owner": "planning",
+      "modules": [
+        "planning",
+        "manufacturing",
+        "inventory",
+        "finance"
+      ],
+      "files": [
+        "tests/unit/planning/read-tail-r31-sum-guard-head.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "sales.native-pricing-resolution.unit",
+      "lane": "unit",
+      "owner": "sales",
+      "modules": [
+        "sales",
+        "inventory",
+        "finance"
+      ],
+      "files": [
+        "tests/unit/sales/native-pricing-resolution.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
     }
   ]
 }

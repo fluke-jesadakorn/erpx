@@ -46,7 +46,7 @@ describe('Planning read-tail r5 byte-identical guard family dedupe', () => {
 
   test('one shared helper owns the remaining SELECT literal and no lock text entered it', () => {
     const helper = src('planning-guard-sql.ts');
-    expect(selectCount(helper)).toBe(1);
+    expect(selectCount(helper)).toBe(0); // r31: sum guard folded into the generalized fact builder
     expect(helper).not.toMatch(/LOCK TABLE|FOR UPDATE|FOR SHARE|pg_advisory/i);
   });
 

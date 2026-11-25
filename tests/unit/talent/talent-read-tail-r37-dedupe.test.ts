@@ -21,8 +21,6 @@ const SOURCE = "const source={sql:'(SRC)'};\n";
 
 // Closed samples copied verbatim from the pre-r37 (BEFORE=44) helper outputs.
 const ORACLES: Array<[string, RegExp, unknown[]]> = [
-  ['talent-read-tail-r25-sources.ts', /export const talentSourceImageSelect = [\s\S]*?;\n/, ['to_jsonb(c)']],
-  ['talent-read-tail-r25-sources.ts', /export const talentSourceImageSelect = [\s\S]*?;\n/, ['to_jsonb(r)']],
   ['talent-read-tail-r32-sources.ts', /export const talentSourceRows = [\s\S]*?;\n/, ['*', 'talent_requisitions']],
   ['talent-read-tail-r32-sources.ts', /export const talentSourceRows = [\s\S]*?;\n/, ['a.*,r.branch_id,r.department_id', 'talent_applications a JOIN talent_requisitions r ON r.id=a.requisition_id']],
   ['talent-scope-sql.ts', /export const talentActorScopeSelect = [\s\S]*?;\n/, ['s', 'allowed']],
@@ -31,8 +29,6 @@ const ORACLES: Array<[string, RegExp, unknown[]]> = [
   ['package-obligations.ts', /const scopedMaterialized=[\s\S]*?;\n/, ['requisitions', 'r', 'REQ']],
 ];
 const EXPECTED = [
-  'SELECT to_jsonb(c)::text image',
-  'SELECT to_jsonb(r)::text image',
   'SELECT * FROM talent_requisitions',
   'SELECT a.*,r.branch_id,r.department_id FROM talent_applications a JOIN talent_requisitions r ON r.id=a.requisition_id',
   'SELECT allowed FROM (SELECT ?::text company_id,NULL branch_id,NULL department_id) s',
@@ -56,7 +52,7 @@ describe('Talent read-tail r37 universal projection head family', () => {
     });
   });
 
-  test('one universal head and six delegating named helpers', () => {
+  test('one universal head and five delegating named helpers', () => {
     const head = src('talent-read-tail-r37-sources.ts');
     expect(head.match(/\bSELECT\b/g) ?? []).toHaveLength(1);
     expect(head.match(/export const selectProjection/g) ?? []).toHaveLength(1);
@@ -65,7 +61,6 @@ describe('Talent read-tail r37 universal projection head family', () => {
     expect(headFn('id')).toBe('SELECT id');
 
     const delegations: Array<[string, RegExp]> = [
-      ['talent-read-tail-r25-sources.ts', /export const talentSourceImageSelect/g],
       ['talent-read-tail-r32-sources.ts', /export const talentSourceRows/g],
       ['talent-scope-sql.ts', /export const talentActorScopeSelect/g],
       ['executive-evidence-sources.ts', /const evidenceSelect =/g],
@@ -103,7 +98,7 @@ describe('Talent read-tail r37 universal projection head family', () => {
     walk(resolve(__dirname, '../../../packages/server-talent/src'));
     let count = 0;
     for (const f of files) count += (readFileSync(f, 'utf8').match(/SELECT/g) ?? []).length;
-    expect(count).toBe(11);
+    expect(count).toBe(10);
     expect(count).toBeLessThan(44);
   });
 });

@@ -19,7 +19,7 @@ import { createPmsBookingRefund, type PmsBookingRefundUnit, type PmsBookingRefun
 import { holdingResources as resolveResources } from "../../../../packages/server-runtime/src/public/runtime";
 import { requirePmsPropertyPurchase, requirePmsFinancialRead, withPmsPropertyPurchasedTransaction } from "@erpx/server-pms/adapters/property-purchase-boundary";
 import { PMS_REFUND_NON_LOCK_HEAD_SQL } from "./pms-read-tail-r40-sql";
-import { pmsTwoColumnPointReadSql } from "./pms-read-tail-r46-sql";
+import { nativePmsReadAll, PMS_RD_BOOKING_ALLOCATIONS, PMS_RD_REFUND_REQUEST_ALLOCATIONS } from "./native-pms-read";
 function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase, companyId = ''): PmsBookingRefundUnit {
         const write = (kind: string, values: unknown[]): any => nativePmsOwnerWrite(companyId, kind, values);
     void _whole;
@@ -35,18 +35,18 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase, companyId = ''
         }) => db.prepare(`${PMS_REFUND_NON_LOCK_HEAD_SQL}id=?`).bind(facts.requestId).first<Request>(),
         readPmsBookingAllocations: (facts: {
             paymentId: string;
-        }) => db.prepare('SELECT stay_id,guest_account_id,entry_id,amount_minor FROM pms_booking_allocations WHERE payment_id=? ORDER BY stay_id').bind(facts.paymentId).all<{
+        }) => nativePmsReadAll<{
             stay_id: string;
             guest_account_id: string;
             entry_id: string;
             amount_minor: number;
-        }>(),
+        }>(PMS_RD_BOOKING_ALLOCATIONS, [facts.paymentId], db),
         readPmsBookingRefundRequests2: (facts: {
             paymentId: string;
-        }) => db.prepare(pmsTwoColumnPointReadSql('refundRequestAllocations')).bind(facts.paymentId).all<{
+        }) => nativePmsReadAll<{
             amount_minor: number;
             allocations_json: string;
-        }>(),
+        }>(PMS_RD_REFUND_REQUEST_ALLOCATIONS, [facts.paymentId], db),
         insertPmsBookingRefundRequests: (facts: {
             requestId: `${string}-${string}-${string}-${string}-${string}`;
             paymentId: string;

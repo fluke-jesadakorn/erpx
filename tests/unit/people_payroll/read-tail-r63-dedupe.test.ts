@@ -116,8 +116,8 @@ describe('People Payroll read-tail r63 dedupe', () => {
     expect(src('people-evaluation.ts')).toContain('SELECT id FROM hr_evaluation_definitions WHERE id=? FOR SHARE');
     expect(src('people-payroll.ts')).toContain('nativePpStatement');
     expect(src('native_read_sql.rs')).toContain('SQL_PAYROLL_OPTIONS_GROUPS');
-    // The r57 SELECT * head and r31/r42 id-status guards remain on their builders.
-    expect(src('pp-read-tail-r57-sources.ts')).toContain('SELECT * FROM hr_compensation_revisions WHERE engagement_id=?');
+    // The r57 row-list head now delegates to round-2c; r31/r42 guards stay local.
+    expect(src('pp-read-tail-r57-sources.ts')).toContain("ppRdRound2cStarByOnePred('hr_compensation_revisions', 'engagement_id', tail)");
     expect(src('people-evaluation.ts')).toContain("ppRd31StatusGuard(false, 'hr_compensation_revisions', 'id', 'draft')");
     expect(src('people-payroll.ts')).toContain('ppRd42IdVersionLiteralGuard("hr_compensation_revisions","status")');
   });

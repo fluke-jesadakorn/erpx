@@ -62,7 +62,7 @@ describe('talent read-tail r36 standalone existence-read head family dedupe', ()
   it('lowers the talent owner SELECT KPI strictly below BEFORE=45', async () => {
     let count = 0;
     for (const f of await tsFiles(srcDir)) count += (await readFile(f, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(11);
+    expect(count).toBe(10);
     expect(count).toBeLessThan(40);
   });
 });

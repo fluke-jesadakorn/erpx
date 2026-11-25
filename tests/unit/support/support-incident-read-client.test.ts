@@ -87,9 +87,9 @@ describe('Support incident read-tail r16 canonical projection', () => {
     expect(witness.match(/EXISTS\(SELECT 1 FROM \(\$\{identity_accessProjectionSources\.assignments\}\) \$\{alias\} WHERE \$\{tail\}\)/g)).toHaveLength(1);
     expect(shared.match(/EXISTS\(SELECT 1 FROM \(\$\{identity_accessProjectionSources\.assignments\}\) m WHERE/g)).toBeNull();
     expect(shared.match(/readTailR45AssignmentExistsSql\('m',/g)).toHaveLength(1);
-    expect(shared.match(/\(SELECT COUNT\(DISTINCT m\.user_id\) FROM/g)).toHaveLength(1);
+    expect(shared.match(/\(SELECT COUNT\(DISTINCT m\.user_id\) FROM/g)).toBeNull();
     expect(shared).toContain('supportEligibleFlagSql');
-    expect(shared).toContain('supportReviewerCountSql');
+    expect(shared).not.toContain('supportReviewerCountSql');
     expect(shared).not.toContain('export const eligibilitySelect');
   });
 
@@ -103,7 +103,7 @@ describe('Support incident read-tail r16 canonical projection', () => {
       expect(text, name).not.toMatch(/EXISTS\(SELECT 1 FROM \(\$\{identity_accessProjectionSources\.assignments\}\) m WHERE/);
       expect(text, name).not.toMatch(/\(SELECT COUNT\(DISTINCT m\.user_id\) FROM/);
     }
-    expect(await src('adapters/support-ticket-read-sources.ts')).toContain('supportReviewerCountSql(');
+    expect(await src('adapters/support-ticket-read-sources.ts')).not.toContain('supportReviewerCountSql');
     const sla = await src('adapters/support-sla.ts');
     expect(sla).toContain('SUPPORT_RD_SLA_POLICY_WORKSPACE');
     expect(sla).toContain('SUPPORT_RD_SLA_POLICY_WORK');

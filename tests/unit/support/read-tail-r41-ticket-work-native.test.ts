@@ -92,8 +92,8 @@ describe('Support read-tail r41 ticket work native kind', () => {
         // counted SELECT literal. r42 switched the incident work list to its own
         // native kind and retired the shared `eligibilitySelect` token, so the
         // owner SELECT count is now 31.
-        expect(countSelect(true)).toBe(28);
-        expect(countSelect(false)).toBe(28);
-        expect(registry).toContain('assert_eq!(STATEMENTS.len(), 52);');
+        expect(countSelect(true)).toBe(26);
+        expect(countSelect(false)).toBe(26);
+        expect(registry).toContain('assert_eq!(STATEMENTS.len(), 54);');
     });
 });

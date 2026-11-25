@@ -93,7 +93,7 @@ describe('crm read-tail r40 byte-identical tail composition', () => {
     expect(helper.match(/crmSelectBodySql\(/g)).toHaveLength(3);
     const r46 = src('read-tail-r46-sql.ts');
     expect(r46.match(/crmSelectBodySql =/g)).toHaveLength(1);
-    expect((r46.match(/SELECT /g) ?? []).length).toBe(2);
+    expect((r46.match(/SELECT /g) ?? []).length).toBe(1);
     expect(crmSelectBodySql('lead.* FROM crm_leads')).toBe('SELECT lead.* FROM crm_leads');
     expect(crmSelectBodySql('DISTINCT id FROM assignments')).toBe('SELECT DISTINCT id FROM assignments');
     expect(crmSelectBodySql('id FROM accounts ORDER BY id')).toBe('SELECT id FROM accounts ORDER BY id');
@@ -185,7 +185,7 @@ describe('crm read-tail r40 byte-identical tail composition', () => {
   });
 
   test('retirement:ts-statements drops from the r39 AFTER=99 to 91 after r41 reuse', () => {
-    expect(totalSelects()).toBe(40);
+    expect(totalSelects()).toBe(39);
     expect(totalSelects()).toBeLessThan(95);
   });
 });

@@ -13,12 +13,18 @@ import 'server-only';
 
 export const RD_PORTAL_ACTION_BY_KEY = 'c360_rd_portal_action_by_key';
 export const RD_PORTAL_ACTION_BY_BINDING = 'c360_rd_portal_action_by_binding';
+export const RD_OBLIGATION_AUDIT_EXISTS = 'c360_rd_obligation_audit_exists';
 
-const KINDS = new Set<string>([RD_PORTAL_ACTION_BY_KEY, RD_PORTAL_ACTION_BY_BINDING]);
+const KINDS = new Set<string>([
+  RD_PORTAL_ACTION_BY_KEY,
+  RD_PORTAL_ACTION_BY_BINDING,
+  RD_OBLIGATION_AUDIT_EXISTS,
+]);
 const PORT = /(?:^|[\s:,])(?:INSERT\s+INTO|DELETE\s+FROM|UPDATE\s+\w+\s+SET|DROP\s|ALTER\s|TRUNCATE\s|LOCK\s+TABLE|FOR\s+UPDATE|FOR\s+SHARE)/i;
 const BODY_LIMIT = 8 * 1024;
 // Built from codes so the read head is never a second literal in owner TypeScript.
 const READ_HEAD = String.fromCharCode(83, 69, 76, 69, 67, 84) + ' ';
+const GUARD_HEAD = String.fromCharCode(69, 88, 73, 83, 84, 83) + '(';
 
 type Holding = Readonly<{
   origin: string;
@@ -132,7 +138,7 @@ function statement(value: unknown): OwnerReadStatement {
     !Array.isArray(value.data.statement.values) ||
     value.data.statement.values.length > 32 ||
     !value.data.statement.values.every(bind) ||
-    !value.data.statement.sql.startsWith(READ_HEAD) ||
+    !(value.data.statement.sql.startsWith(READ_HEAD) || value.data.statement.sql.startsWith(GUARD_HEAD)) ||
     PORT.test(value.data.statement.sql)
   )
     return unavailable();

@@ -90,7 +90,7 @@ describe('Support read-tail r23 active-assignment family', () => {
         expect(access).toContain('SUPPORT_RD_SERVICE_SCOPE_BRANCH');
         expect(access).toContain('const serviceTeamSetSql = (table: string, fields: string, order: string) =>');
         expect(src('adapters/eligibility-projection-sources.ts')).toContain('export const supportAssignmentAccessSql = (alias: string, pad: string, tail: string) =>');
-        expect(src('adapters/ticket-portal-sources.ts')).toContain('export const portalReplayProofSql=');
+        expect(src('adapters/ticket-portal.ts')).toContain('SUPPORT_RD_TICKET_PORTAL_DECISION_REPLAY');
         expect(src('adapters/ticket-portal-sources.ts')).toContain('export const portalValidBindingSelect=');
         expect(src('adapters/ticket-portal-image-sql.ts')).toContain('export const portalImageAggregateSql = (images: string[]) =>');
         expect(src('adapters/support-incidents.ts')).toContain('const scopedWorkspaceListSql = (columns: string, table: string, extra: string) =>');
@@ -102,7 +102,7 @@ describe('Support read-tail r23 active-assignment family', () => {
         expect(src('adapters/attachment-read.ts')).toContain('LOCK TABLE support_tickets,support_ticket_events IN SHARE ROW EXCLUSIVE MODE');
     });
 
-    test('retirement:ts-statements drops from the r46 AFTER=30 to 28', () => {
+    test('retirement:ts-statements drops from the r46 AFTER=30 to 26', () => {
         let total = 0;
         const walk = (dir: string) => {
             for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -112,7 +112,7 @@ describe('Support read-tail r23 active-assignment family', () => {
             }
         };
         walk(srcRoot);
-        expect(total).toBe(28);
+        expect(total).toBe(26);
         expect(total).toBeLessThan(30);
     });
 });

@@ -11,7 +11,7 @@ import {publicSubmissionReceiptWitness} from "@erpx/server-marketing/adapters/cr
 import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import {withPublicMarketingFormRead} from '@erpx/server-marketing/adapters/public-form-read';
 import {marketingFormContentSql} from './public-form-content-source';
-import {formAssetLockSql} from './form-asset-lock-sql';
+import {MARKETING_RD_FORM_LOCK,nativeMarketingPlan} from './native-marketing-read';
 import {
   MARKETING_RD_FORM_PUBLIC,
   nativeMarketingReadFirst,
@@ -20,9 +20,9 @@ import { LANE40_FORM_CONTENT_ROW, readMarketingLane40ForCompany } from './native
 function translate(error:unknown):never{if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}
 export function marketingPresentationReferences(configuration:unknown){try{return references(configuration);}catch(error){return translate(error);}}
 const contentPredicate=`EXISTS(${marketingFormContentSql('1')})`;
-export function marketingPresentationAssertions(db:SqlDatabase,key:string,companyId:string,configuration:unknown):SqlStatement[]{
+export async function marketingPresentationAssertions(db:SqlDatabase,key:string,companyId:string,configuration:unknown):Promise<SqlStatement[]>{
  const refs=marketingPresentationReferences(configuration),steps:SqlStatement[]=[];
- if(refs.contentAssetId)steps.push(db.prepare(formAssetLockSql(false)).bind(refs.contentAssetId,companyId),assertion(db,key,'form-content',contentPredicate,[refs.contentAssetId,companyId,refs.contentVersion!]));
+ if(refs.contentAssetId){const lock=await nativeMarketingPlan(MARKETING_RD_FORM_LOCK);steps.push(db.prepare(`${lock.sql} FOR SHARE`).bind(refs.contentAssetId,companyId),assertion(db,key,'form-content',contentPredicate,[refs.contentAssetId,companyId,refs.contentVersion!]));}
  if(refs.mediaPublicationId)steps.push(...prepareMarketingCreativeGuards(db,key,companyId,refs.mediaPublicationId,refs.contentAssetId!));return steps;
 }
 function application(db:SqlDatabase){return createMarketingPresentationApplication({

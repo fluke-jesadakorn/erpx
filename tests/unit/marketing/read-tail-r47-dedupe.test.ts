@@ -125,7 +125,8 @@ describe('marketing read-tail r47 dedupe', () => {
   it('leaves the protected r38/r40/r45 heads, settlement, candidate sources and locks untouched', async () => {
     expect((await src('form-asset-read-head.ts')).match(/SELECT /g)).toHaveLength(1);
     expect((await src('owner-point-read-sql.ts')).match(/SELECT /g)).toHaveLength(1);
-    expect((await src('owner-projection-source.ts')).match(/SELECT /g)).toHaveLength(1);
+    expect((await src('owner-projection-source.ts')).match(/SELECT /g) ?? []).toHaveLength(0);
+    expect(await src('owner-projection-source.ts')).toContain('marketingSelectHeadSql(');
     expect(await src('read-tail-sql.ts')).toContain('`SELECT * FROM ${table}${tail}`');
     expect((await src('read-tail-sql.ts')).match(/SELECT/g)).toHaveLength(1);
 
@@ -138,15 +139,14 @@ describe('marketing read-tail r47 dedupe', () => {
       "marketingPlainSourceSql('candidate')",
     );
 
-    expect(await src('form-asset-lock-sql.ts')).toContain(
-      '`SELECT id FROM marketing_assets WHERE id=? AND company_id=?${scope} FOR SHARE`',
-    );
+    expect(await src('public-form.ts')).toContain('`${lock.sql} FOR SHARE`');
+    expect(await src('public-submission.ts')).toContain('`${lock.sql} FOR SHARE`');
     expect(await src('marketing-company-list-sql.ts')).toContain('ORDER BY updated_at DESC');
     expect(await src('marketing-local-point-read-sql.ts')).toContain('FOR UPDATE');
   });
 
-  it('pins the owner SELECT KPI to 12 (lane 40 retired 3) (BEFORE=32)', async () => {
-    expect(await ownerSelectTokens()).toBe(12);
+  it('pins the owner SELECT KPI to 10 (lane 40 retired 3) (BEFORE=32)', async () => {
+    expect(await ownerSelectTokens()).toBe(10);
     expect(await ownerSelectTokens()).toBeLessThan(32);
   });
 });

@@ -71,7 +71,6 @@ describe('Organization read-tail r51 dedupe', () => {
       ['organization-column-alias-families-r35.ts', ['ownerProjection']],
       ['organization-column-alias-families-r36.ts', ['activeNodeByIdCompanyKind']],
       ['organization-column-alias-families-r37.ts', ['leavePolicyVersionLookup']],
-      ['organization-column-alias-families-r38.ts', ['activePositionById']],
       ['organization-read-tail-sources.ts', ['departmentSnapshotMissing', 'ownerVersionGuardSource', 'NODE_BRANCH_ACTIVE', 'NODE_BRANCH_ACTIVE_EXISTS']],
       ['organization-read-tail-sources-r39.ts', ['companyNodeScopeSource', 'activeStaffLevelSource', 'changeVersionGuardSource', 'scopeNodeBranchExists']],
       ['organization-read-tail-sources-r40.ts', ['activePositionList', 'recommendedPayDefault', 'nodeChangeByIdCompany', 'activeStaffLevels', 'memberProfileByUser']],
@@ -145,7 +144,7 @@ describe('Organization read-tail r51 dedupe', () => {
     walk(srcRoot);
     // r51 collapses three authority-seat reads, two department-node reads and
     // two member-profile guards into three shared helpers (-2, -1, -1 = -4).
-    expect(space).toBe(196);
+    expect(space).toBe(188);
     expect(space).toBeLessThan(230);
   });
 });

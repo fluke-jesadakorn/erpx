@@ -106,7 +106,7 @@ describe('Runtime read-tail r15 report guards/share jsonb and holding bindings r
       }
     };
     walk(srcRoot);
-    expect(total).toBe(22);
+    expect(total).toBe(17);
     expect(total).toBeLessThan(36);
   });
 });

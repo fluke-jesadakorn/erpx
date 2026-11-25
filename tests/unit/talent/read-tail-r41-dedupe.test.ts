@@ -93,7 +93,7 @@ describe('Talent read-tail r41 subquery-source existence head family', () => {
     expect(src('talent-read-tail-r27-sources.ts')).toContain('EXISTS(SELECT 1 FROM ${source} WHERE ');
     expect(src('talent-read-tail-r36-sources.ts')).toContain('SELECT 1 FROM ${source} WHERE ${predicate}');
     expect(src('talent-read-tail-r37-sources.ts')).toContain('SELECT ${projection}');
-    expect(src('purchases.ts')).toContain('EXISTS(SELECT 1 FROM assignments owner_assignment');
+    expect(src('native_talent_read_sql.rs')).toContain("'ownerEligible',EXISTS(SELECT 1 FROM assignments owner_assignment");
   });
 
   test('lowers the talent owner SELECT KPI from BEFORE=14 to 13', () => {
@@ -109,7 +109,7 @@ describe('Talent read-tail r41 subquery-source existence head family', () => {
     for (const re of [/SELECT/g, /\bSELECT\b/g]) {
       let count = 0;
       for (const f of files) count += (readFileSync(f, 'utf8').match(re) ?? []).length;
-      expect(count).toBe(11);
+      expect(count).toBe(10);
       expect(count).toBeLessThan(14);
     }
   });

@@ -54,6 +54,14 @@ export const FINANCE_RD_TAX_IDENTITY_ROW = 'finance_rd_tax_identity_row';
 export const FINANCE_RD_TAX_IDENTITY_REVIEWED = 'finance_rd_tax_identity_reviewed';
 export const FINANCE_RD_TAX_IDENTITY_LIST = 'finance_rd_tax_identity_list';
 export const FINANCE_RD_TAX_IDENTITY_PARTY_LIST = 'finance_rd_tax_identity_party_list';
+export const FINANCE_RD_ASSET_ACCOUNT_ROWS = 'finance_rd_asset_account_rows';
+export const FINANCE_RD_ASSET_EVENT_LIST = 'finance_rd_asset_event_list';
+export const FINANCE_RD_ASSET_DISPOSAL_LIST = 'finance_rd_asset_disposal_list';
+export const FINANCE_RD_ASSET_REVIEWED_POLICY = 'finance_rd_asset_reviewed_policy';
+export const FINANCE_RD_ASSET_DEPRECIATION_HISTORY = 'finance_rd_asset_depreciation_history';
+export const FINANCE_RD_ASSET_LATEST_DEPRECIATION = 'finance_rd_asset_latest_depreciation';
+export const FINANCE_RD_ASSET_RETAINED_POLICY_HASH = 'finance_rd_asset_retained_policy_hash';
+export const FINANCE_RD_ASSET_DIMENSION_VALUES = 'finance_rd_asset_dimension_values';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'FINANCE_NATIVE_READ_UNAVAILABLE', 'The native Finance read service is unavailable.');

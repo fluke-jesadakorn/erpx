@@ -90,7 +90,7 @@ describe('manage_erpx beta AI-usage UNION head family (r17)', () => {
       'native-owner-write.ts':
         '10ce274f211859eadf3f380912324925c87b954f119d359e614b07274da52a87',
       'native-owner-read.ts':
-        '365f5569777679d4c29f15c149691d0b78ab77d19a471631f097d524b86273d0',
+        '094fa6e7f21bd87efdff3f0427c97addcdb01c6ed86632b1f862f78d234f3feb',
       'beta-policy-point-sql.ts':
         'f843bacaef4fa8b41d7c9a3e43994c54f32117030c4eef2c88aa7b3ea23a8ce4',
       'beta-team.ts':

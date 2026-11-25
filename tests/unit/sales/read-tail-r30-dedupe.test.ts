@@ -9,7 +9,6 @@ vi.mock('server-only', () => ({}));
 import { commercialOwnerProjectionSources } from '../../../packages/server-sales/src/adapters/commercial-owner-projection-sources';
 import { finalRootOwnerProjectionSources } from '../../../packages/server-sales/src/adapters/final-root-owner-projection-sources';
 import { tableRead } from '../../../packages/server-sales/src/adapters/followup-source-sql';
-import { priceListSelect } from '../../../packages/server-sales/src/adapters/pricing-source-sql';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-sales/src');
 const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
@@ -17,7 +16,6 @@ const commercial = read('commercial-owner-projection-sources.ts');
 const finalRoot = read('final-root-owner-projection-sources.ts');
 const shared = read('followup-source-sql.ts');
 const pricing = read('pricing.ts');
-const pricingSql = read('pricing-source-sql.ts');
 
 const sha = (value: string) => createHash('sha256').update(value).digest('hex');
 
@@ -44,17 +42,6 @@ const finalSha = {
   customer_contact_note_history: '40cf94521a4da22276882f76fdbd8a7a0378d653d5864a7a0a8c07553c3b1690',
   customer_contact_notes: '3428a0e4fc53dd82fab46d095b8ac4dc3f79f8d8eda4f1a6e52b43d79c8a55a2',
   customer_followup_events: '47e069faf399b6b2894e800fb5d616cfc6f3f15fe2f357df71181c9fd3ac5aae',
-} as const;
-
-// Pre-r30 price-list head renders. `${activeCurrencySql}` is an owner-local
-// token left uninterpolated so the head itself is compared byte for byte.
-const pricePre = {
-  byId: 'SELECT * FROM sales_price_lists WHERE id=? AND company_id=?',
-  active: "SELECT * FROM sales_price_lists WHERE company_id=? AND status='active' AND currency=${activeCurrencySql} AND valid_from<=? AND valid_until>=? AND (customer_id=? OR customer_id IS NULL) ORDER BY CASE WHEN customer_id=? THEN 0 ELSE 1 END,valid_from DESC,activated_at DESC LIMIT 1",
-} as const;
-const priceSha = {
-  byId: 'e392053f5374623de9070539bc8d485bd767b6358821040b043b54b1f601d5e5',
-  active: 'c1f08fb6c17f9a166003b1e82abd8ab7d165fba373270d40c39cdc21b62417e1',
 } as const;
 
 const split = (literal: string): [string, string] => {
@@ -126,29 +113,29 @@ describe('Sales read-tail r30 tableRead family', () => {
   });
 });
 
-describe('Sales read-tail r30 priceListSelect family', () => {
-  test.each(Object.keys(pricePre) as (keyof typeof pricePre)[])(
-    '%s price-list head stays byte-identical to the pre-r30 render',
-    key => {
-      const tail = pricePre[key].slice('SELECT * FROM sales_price_lists '.length);
-      const rendered = priceListSelect(tail);
-      expect(rendered).toBe(pricePre[key]);
-      expect(sha(rendered)).toBe(priceSha[key]);
-    },
-  );
+describe('Sales read-tail r30 price-list head family retired to native', () => {
+  test('Rust command-plan registry owns the four pricing reads', () => {
+    const rust = read('native_sales_read_sql.rs');
+    for (const kind of [
+      'sales_rd_pricing_list_by_id',
+      'sales_rd_pricing_list_active_by_id',
+      'sales_rd_pricing_list_active',
+      'sales_rd_pricing_items_by_list',
+    ]) expect(rust).toContain(kind);
+    expect(rust).toContain('SELECT * FROM sales_price_lists WHERE id=? AND company_id=?');
+    expect(rust).toContain('SELECT * FROM sales_price_list_items WHERE price_list_id=?');
+    expect(() => read('pricing-source-sql.ts')).toThrow();
+  });
 
-  test('one closed generator with two callers and no inlined head', () => {
-    expect(typeof priceListSelect).toBe('function');
-    expect(priceListSelect.length).toBe(1);
-    expect((pricingSql.match(/priceListSelect\s*=/g) ?? []).length).toBe(1);
-    expect((pricingSql.match(/SELECT/g) ?? []).length).toBe(1);
-    expect(pricingSql).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
-    expect((pricing.match(/priceListSelect\(/g) ?? []).length).toBe(2);
-    expect(pricing).not.toMatch(/`SELECT \* FROM sales_price_lists /);
-    expect(pricing).toContain("const priceListByIdSql=priceListSelect('WHERE id=? AND company_id=?');");
-    expect(pricing).toContain('db.prepare(priceListSelect(`WHERE company_id=? AND status=');
-    expect(importsOf(pricing)).toContain('./pricing-source-sql');
-    expect(importsOf(pricingSql)).toEqual([]);
+  test('pricing.ts transports identities with no inlined SQL head', () => {
+    expect(importsOf(pricing)).toContain('./native-sales-read');
+    expect(importsOf(pricing)).not.toContain('./pricing-source-sql');
+    expect(pricing).not.toContain('priceListSelect(');
+    expect(pricing).not.toContain('activeCurrencySql');
+    expect(pricing).not.toContain("byKey('sales_price_list_items'");
+    expect(pricing).toContain('nativeSalesReadFirst<Row>(SALES_RD_PRICING_LIST_BY_ID,[id,actor.companyId],write)');
+    expect(pricing).toContain('nativeSalesReadAll<Row>(SALES_RD_PRICING_ITEMS_BY_LIST,[id],db)');
+    expect(pricing).not.toContain('SELECT * FROM sales_price_lists');
   });
 });
 
@@ -169,7 +156,7 @@ describe('Sales read-tail r30 retirement check', () => {
     expect(pricingPurchases).toContain('LOCK TABLE sales_price_lists,sales_price_list_items IN SHARE ROW EXCLUSIVE MODE');
     expect(obligations).toContain('LOCK TABLE sales_price_lists,sales_price_list_items,customer_followups,customer_followup_events,customer_contact_notes,customer_contact_note_history,commerce_customer_notifications,commerce_customer_notification_settings,sales_notification_execution_authorizations,sales_notification_execution_attempts,sales_notification_reconciliations,command_receipts,audit_events IN SHARE MODE');
     expect(native).toContain('export const SALES_RD_PRICE_LIST_ACTIVE');
-    expect((rustRegistry.match(/pub const RD_\w+: &str =/g) ?? []).length).toBe(5);
+    expect((rustRegistry.match(/pub const RD_\w+: &str =/g) ?? []).length).toBe(9);
     expect(shared).not.toMatch(/LOCK TABLE|FOR UPDATE|FOR SHARE/i);
     expect(commercial).not.toMatch(/LOCK TABLE|FOR UPDATE|FOR SHARE/i);
     expect(finalRoot).not.toMatch(/LOCK TABLE|FOR UPDATE|FOR SHARE/i);
@@ -188,7 +175,7 @@ describe('Sales read-tail r30 retirement check', () => {
     // r30 shares tableRead (-3) and priceListSelect (-1).
     // r33 folds the tail generator into the primary read generator (-1).
     // r35: delivery-presence head shared by order/return/notice guards (-1).
-    expect(total).toBe(38);
+    expect(total).toBe(36);
     expect(total).toBeLessThan(54);
   });
 });

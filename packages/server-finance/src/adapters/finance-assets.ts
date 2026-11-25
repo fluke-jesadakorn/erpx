@@ -9,6 +9,7 @@ import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/ser
 import { APPROVED_SECONDARY_CHART_RULE_SQL } from './finance-read-tail-r15-sql';
 import { DIMENSION_DEFINITIONS_SQL } from './finance-read-tail-r17-sql';
 import { nativeFinanceAssets } from '@erpx/server-collaboration/adapters/native-finance-assets';
+import { nativeFinanceReadAll, nativeFinanceReadFirst, nativeFinanceReadScalarFirst, FINANCE_RD_ASSET_ACCOUNT_ROWS, FINANCE_RD_ASSET_EVENT_LIST, FINANCE_RD_ASSET_DISPOSAL_LIST, FINANCE_RD_ASSET_REVIEWED_POLICY, FINANCE_RD_ASSET_DEPRECIATION_HISTORY, FINANCE_RD_ASSET_LATEST_DEPRECIATION, FINANCE_RD_ASSET_RETAINED_POLICY_HASH, FINANCE_RD_ASSET_DIMENSION_VALUES } from './native-finance-read';
 import { financeOwnerDecisionEffects } from "@erpx/server-workflow/public/finance-owner-decision-effects";
 import { financeTransaction } from "@erpx/server-finance/public/finance-transactions";
 import { z } from "zod";
@@ -23,7 +24,7 @@ import { requirePermission } from "@erpx/server-identity_access/public/iam-permi
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
 import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
 import { createAssets } from "@erpx/server-finance/application/assets";
-import { assetSchema, assetEditSchema, assetActivationSchema, assetDepreciationSchema, assetDecisionSchema, assetDisposalSchema, type Asset, type Disposal } from "@erpx/server-finance/domain/assets";
+import { assetSchema, assetEditSchema, assetActivationSchema, assetDepreciationSchema, assetDecisionSchema, assetDisposalSchema, type Asset, type AssetRow, type Disposal } from "@erpx/server-finance/domain/assets";
 export { assetSchema, assetEditSchema, assetActivationSchema, assetDepreciationSchema, assetDecisionSchema, assetDisposalSchema } from "@erpx/server-finance/domain/assets";
 function assetGuards(write: SqlDatabase, actor: WorkContext, id: string, asset: Asset) {
     return [
@@ -56,34 +57,23 @@ function nativeAssets(provided?:SqlDatabase, providedOwned=false) {
             owned = undefined;
         } }), replay: async (actor, key, op, id, input) => replayCommand(await database(actor), actor, key, op, id, input),
         asset: async (actor, id) => (await database(actor)).prepare(tableByIdSql('finance_assets')).bind(id, actor.companyId).first<Asset>(),
-        accountRows: async (actor, ids) => (await (await database(actor)).prepare("SELECT id,chart_id,category FROM finance_accounts WHERE company_id=? AND status='active' AND id IN (?,?,?)").bind(actor.companyId, ids.cost, ids.accumulated ?? null, ids.expense ?? null).all<{
-            id: string;
-            chart_id: string;
-            category: string;
-        }>()).results,
+        accountRows: async (actor, ids) => (await nativeFinanceReadAll<{ id: string; chart_id: string; category: string }>(FINANCE_RD_ASSET_ACCOUNT_ROWS, [actor.companyId, ids.cost, ids.accumulated ?? null, ids.expense ?? null], await database(actor))).results,
         secondaryChart: async (actor, chart) => !!await (await database(actor)).prepare(APPROVED_SECONDARY_CHART_RULE_SQL).bind(actor.companyId, chart).first(),
-        events: async (actor, id) => (await (await database(actor)).prepare("SELECT * FROM finance_asset_events WHERE asset_id=? ORDER BY created_at,id").bind(id).all()).results,
+        events: async (actor, id) => (await nativeFinanceReadAll<AssetRow>(FINANCE_RD_ASSET_EVENT_LIST, [id], await database(actor))).results,
         depreciations: async (actor, id) => (await (await database(actor)).prepare(ASSET_DEPRECIATIONS_SQL).bind(id).all()).results,
-        disposals: async (actor, id) => (await (await database(actor)).prepare("SELECT * FROM finance_asset_disposals WHERE asset_id=? ORDER BY created_at,id").bind(id).all()).results,
+        disposals: async (actor, id) => (await nativeFinanceReadAll<AssetRow>(FINANCE_RD_ASSET_DISPOSAL_LIST, [id], await database(actor))).results,
         page: async (actor) => (await (await database(actor)).prepare(financeReferenceListSql('finance_assets','company_id=?','asset_number,id')).bind(actor.companyId).all()).results,
-        options: async (actor) => { const write = await database(actor), [accounts, periods, dimensions, dimensionValues] = await Promise.all([write.prepare(`SELECT a.id,a.chart_id,a.code,a.name,a.category,a.status,a.currency FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id WHERE a.company_id=? AND c.status='active' AND ${APPROVED_SECONDARY_CHART_CORRELATED_GUARD} ORDER BY a.code,a.id`).bind(actor.companyId).all(), write.prepare(companyIdRowsSql('id,name,start_date,end_date,state','finance_periods',' ORDER BY end_date DESC,id')).bind(actor.companyId).all(), write.prepare(DIMENSION_DEFINITIONS_SQL).bind(actor.companyId).all(), write.prepare("SELECT dimension_id,code,name FROM finance_dimension_values WHERE company_id=? AND status='active' ORDER BY code").bind(actor.companyId).all()]); return { accounts: accounts.results, periods: periods.results, dimensions: dimensions.results, dimensionValues: dimensionValues.results }; },
-        reviewedPolicy: async (actor, id) => !!await (await database(actor)).prepare("SELECT 1 FROM finance_asset_policy_editions WHERE asset_id=? AND status IN ('active','superseded')").bind(id).first(),
+        options: async (actor) => { const write = await database(actor), [accounts, periods, dimensions, dimensionValues] = await Promise.all([write.prepare(`SELECT a.id,a.chart_id,a.code,a.name,a.category,a.status,a.currency FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id WHERE a.company_id=? AND c.status='active' AND ${APPROVED_SECONDARY_CHART_CORRELATED_GUARD} ORDER BY a.code,a.id`).bind(actor.companyId).all(), write.prepare(companyIdRowsSql('id,name,start_date,end_date,state','finance_periods',' ORDER BY end_date DESC,id')).bind(actor.companyId).all(), write.prepare(DIMENSION_DEFINITIONS_SQL).bind(actor.companyId).all(), nativeFinanceReadAll(FINANCE_RD_ASSET_DIMENSION_VALUES, [actor.companyId], write)]); return { accounts: accounts.results as AssetRow[], periods: periods.results as AssetRow[], dimensions: dimensions.results as AssetRow[], dimensionValues: dimensionValues.results as AssetRow[] }; },
+        reviewedPolicy: async (actor, id) => !!await nativeFinanceReadFirst(FINANCE_RD_ASSET_REVIEWED_POLICY, [id], await database(actor)),
         pendingDisposal: async (actor, id) => !!await (await database(actor)).prepare(ASSET_DRAFT_DISPOSAL_SQL).bind(id).first(),
-        depreciationHistory: async (actor, id) => (await (await database(actor)).prepare("SELECT ordinal,amount_minor FROM finance_asset_depreciations WHERE asset_id=? ORDER BY ordinal").bind(id).all<{
-            ordinal: number;
-            amount_minor: number;
-        }>()).results,
-        latestDepreciation: async (actor, id) => (await (await database(actor)).prepare("SELECT MAX(entry_date) date FROM finance_asset_depreciations WHERE asset_id=?").bind(id).first<{
-            date: string | null;
-        }>())?.date ?? null,
+        depreciationHistory: async (actor, id) => (await nativeFinanceReadAll<{ ordinal: number; amount_minor: number }>(FINANCE_RD_ASSET_DEPRECIATION_HISTORY, [id], await database(actor))).results,
+        latestDepreciation: async (actor, id) => await nativeFinanceReadScalarFirst<string | null>(FINANCE_RD_ASSET_LATEST_DEPRECIATION, [id], await database(actor), 'date') ?? null,
         disposalAccounts: async (actor, chart, input) => (await (await database(actor)).prepare(companyIdRowsSql('id,category','finance_accounts'," AND chart_id=? AND status='active' AND id IN (?,?,?)")).bind(actor.companyId, chart, input.proceedsAccountId ?? null, input.gainAccountId, input.lossAccountId).all<{
             id: string;
             category: string;
         }>()).results,
         disposal: async (actor, id) => (await database(actor)).prepare(tableByIdSql('finance_asset_disposals')).bind(id, actor.companyId).first<Disposal>(),
-        retainedPolicyHash: async (actor, id) => (await (await database(actor)).prepare("SELECT policy_source_hash FROM finance_asset_disposals WHERE id=?").bind(id).first<{
-            policy_source_hash: string | null;
-        }>())?.policy_source_hash ?? null,
+        retainedPolicyHash: async (actor, id) => await nativeFinanceReadScalarFirst<string | null>(FINANCE_RD_ASSET_RETAINED_POLICY_HASH, [id], await database(actor), 'policy_source_hash') ?? null,
         preparePolicyDisposal: async (actor, assetId, input, key, status) => { const plan = await (await import("@erpx/server-finance/public/finance-asset-policies")).prepareAssetPolicyDisposal(await database(actor), actor, assetId, input, key, status); policies.set(input.id, plan); return { hash: plan.hash, dimensions: plan.dimensions, journalIds: plan.journalIds }; },
         prepareJournal: async (actor, input, key) => { const plan = await prepareJournal(await database(actor), actor, input, key, "posted"); journals.set(plan.result.id, plan); return { result: { id: plan.result.id } }; },
         prepareMoney: async (actor, input) => { moneyPlans.set(input.amountKind, await snapshotMoney(await database(actor), actor, input)); },

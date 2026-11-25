@@ -104,7 +104,7 @@ describe('crm read-tail r47 byte-identical MATERIALIZED and owned-source heads',
     expect(src('read-tail-r42-sql.ts')).toContain('export const crmSelectOneSql = (body: string) => `SELECT 1 FROM ${body}`');
     expect(src('read-tail-r44-sql.ts')).toContain('export const crmUnionAllSql = (body: string) => `UNION ALL SELECT ${body}`');
     expect(src('read-tail-r46-sql.ts')).toContain('crmProjectionFromSql = (projection: string, from: string)');
-    expect(src('read-tail-r46-sql.ts')).toContain('`SELECT ${projection} FROM ${from}`');
+    expect(src('read-tail-r46-sql.ts')).toContain('crmSelectBodySql(`${projection} FROM ${from}`)');
     expect(src('purchases.ts')).toContain('crmLeadActivityExists=crmSalesOpportunitySql(');
     expect(src('sales-package-obligations.ts')).toContain(
       'LOCK TABLE crm_accounts,crm_contacts,crm_guest_links,crm_guest_sharing_events,crm_leads,crm_opportunities,crm_case_events,crm_lead_activities,crm_lead_activity_events IN SHARE MODE',
@@ -115,7 +115,7 @@ describe('crm read-tail r47 byte-identical MATERIALIZED and owned-source heads',
   });
 
   test('retirement:ts-statements drops from the r46 AFTER=54 to 50', () => {
-    expect(totalSelects()).toBe(40);
+    expect(totalSelects()).toBe(39);
     expect(totalSelects()).toBeLessThan(54);
   });
 });

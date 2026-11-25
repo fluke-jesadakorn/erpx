@@ -1,6 +1,5 @@
 import "server-only";
 import {talentActorScopeSelect} from './talent-scope-sql';
-import {talentSourceImageSelect} from './talent-read-tail-r25-sources';
 import {talentExistsSelect} from './talent-read-tail-r36-sources';
 import { nativeClearCommandAssertions } from '@erpx/server-collaboration/adapters/native-command-assertions';
 import {randomUUID} from "node:crypto";
@@ -21,41 +20,33 @@ export type TalentCapability="recruit.positions"|"recruit.candidates"|"recruit.a
 export type TalentTarget={kind:"requisition"|"candidate"|"application"|"proposal"|"offer"|"handoff";id:string};
 type Command={key:string;operation:string;capability:TalentCapability;purpose:CapabilityPurpose;target:TalentTarget;creating?:boolean;permissions:readonly string[]};
 const capabilities:readonly TalentCapability[]=["recruit.positions","recruit.candidates","recruit.applications","recruit.offers"],compositions=new WeakMap<SqlDatabase,{companyId:string;checks:(()=>Promise<void>)[]}>();
-const scope="r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?)";
-export function talentOwnerSourceQuery(kind:TalentTarget["kind"],file=false){
- const record=(alias:string)=>file?`to_jsonb(${alias})-'version'-'updated_at'`:`to_jsonb(${alias})`;
- // Candidate and requisition images are owned by the native read port; no local statement remains here.
- // Offer and hire-handoff composites are owned by the native read port.
- const main=kind==="application"?"talent_applications t":"talent_proposals t JOIN talent_applications a ON a.id=t.application_id",application=kind==="application"?"t":"a";
- return `${talentSourceImageSelect(`jsonb_build_object('record',${record("t")},'application',to_jsonb(${application}),'requisition',to_jsonb(r),'candidate',to_jsonb(c),'ownerEligible',EXISTS(SELECT 1 FROM assignments owner_assignment WHERE owner_assignment.company_id=${application}.company_id AND owner_assignment.user_id=${application}.owner_id AND iam_assignment_active(owner_assignment.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(owner_assignment.user_id,owner_assignment.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (owner_assignment.scope_kind='holding' OR owner_assignment.scope_kind='branch' AND owner_assignment.scope_node_id=r.branch_id OR owner_assignment.scope_kind='department' AND owner_assignment.scope_node_id=r.department_id)))`)} FROM ${main} JOIN talent_requisitions r ON r.id=${application}.requisition_id AND r.company_id=${application}.company_id JOIN talent_candidates c ON c.id=${application}.candidate_id AND c.company_id=${application}.company_id WHERE t.id=? AND ${scope}${kind==="application"?" AND t.requisition_version<=r.version":" AND t.application_version<="+application+".version"}`;
-}
+// All owner-source images (candidate, requisition, application, proposal,
+// offer, handoff) are now planned by the native owner read port.
 export function talentOwnerSourceArgs(actor:WorkContext,target:TalentTarget){return [target.id,actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId];}
 const candidateImageKind=(file:boolean)=>file?"talent_rd_candidate_source_image_file":"talent_rd_candidate_source_image";
 const requisitionImageKind=(file:boolean)=>file?"talent_rd_requisition_source_image_file":"talent_rd_requisition_source_image";
-const compositeImageKind=(kind:"offer"|"handoff",file:boolean)=>file?`talent_rd_${kind}_source_image_file`:`talent_rd_${kind}_source_image`;
+const compositeImageKind=(kind:"application"|"proposal"|"offer"|"handoff",file:boolean)=>file?`talent_rd_${kind}_source_image_file`:`talent_rd_${kind}_source_image`;
 const ownerImageKind=(target:TalentTarget,file:boolean)=>
  target.kind==="candidate"?candidateImageKind(file):
  target.kind==="requisition"?requisitionImageKind(file):
- target.kind==="offer"||target.kind==="handoff"?compositeImageKind(target.kind,file):null;
+ target.kind==="offer"||target.kind==="handoff"?compositeImageKind(target.kind,file):
+ target.kind==="application"||target.kind==="proposal"?compositeImageKind(target.kind,file):null;
 export async function talentOwnerSourceImage(database:SqlDatabase,actor:WorkContext,target:TalentTarget,file=false){
  const kind=ownerImageKind(target,file);
- if(kind){
-  const values=target.kind==="candidate"?[target.id,actor.companyId]:talentOwnerSourceArgs(actor,target);
-  const row=await nativeTalentReadFirst<{image:string}>(kind,values,database);
-  return row?.image??null;
- }
- return database.prepare(talentOwnerSourceQuery(target.kind,file)).bind(...talentOwnerSourceArgs(actor,target)).first<string>("image");
+ if(!kind)throw new ApiError(422,'TALENT_OWNER_IMAGE_KIND_REQUIRED','The owner source image kind is not registered.');
+ const values=target.kind==="candidate"?[target.id,actor.companyId]:talentOwnerSourceArgs(actor,target);
+ const row=await nativeTalentReadFirst<{image:string}>(kind,values,database);
+ return row?.image??null;
 }
-/** Deferred owner-source witness guard. Candidate, requisition, offer and
- * hire-handoff images reuse the exact statement planned by the native owner
- * port; application and proposal keep their local renderer. The guard still
+/** Deferred owner-source witness guard. Every owner-source image family now
+ * reuses the exact statement planned by the native owner port; the guard still
  * executes on the caller's unit at commit time. */
 export async function talentOwnerSourceWitnessAssertion(database:SqlDatabase,key:string,step:string,actor:WorkContext,target:TalentTarget,witness:string,file=false){
  const kind=ownerImageKind(target,file);
- const native=kind?await nativeTalentPlan(kind,target.kind==="candidate"?[target.id,actor.companyId]:talentOwnerSourceArgs(actor,target)):null;
- const sql=native?native.sql:`(${talentOwnerSourceQuery(target.kind,file)})`;
- const args=(native?[...native.values,witness]:[...talentOwnerSourceArgs(actor,target),witness]) as (string|number|null)[];
- return assertion(database,key,step,sql.startsWith("(")?`${sql}=?`:`(${sql})=?`,args);
+ if(!kind)throw new ApiError(422,'TALENT_OWNER_IMAGE_KIND_REQUIRED','The owner source image kind is not registered.');
+ const native=await nativeTalentPlan(kind,target.kind==="candidate"?[target.id,actor.companyId]:talentOwnerSourceArgs(actor,target));
+ const args=[...native.values,witness] as (string|number|null)[];
+ return assertion(database,key,step,`(${native.sql})=?`,args);
 }
 function talentOwnerSourceTableLocks(database:SqlDatabase,handoff:boolean){return [database.prepare("LOCK TABLE talent_requisitions,talent_candidates,talent_applications,talent_proposals,talent_offers,talent_hire_handoffs,talent_hire_consumption_receipts IN SHARE ROW EXCLUSIVE MODE"),...(handoff?talentHirePeopleSourceReadLocks(database):[])];}
 export function talentOwnerSourceReadLocks(database:SqlDatabase,companyId:string,handoff=false){const locks=companyPurchaseReadLocks(database,companyId);return [locks[0],...talentOwnerSourceTableLocks(database,handoff),...locks.slice(1)];}

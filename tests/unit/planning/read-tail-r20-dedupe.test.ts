@@ -37,11 +37,11 @@ describe('Planning read-tail r20 production-resources EXISTS head dedupe', () =>
 
   test('wrapper and generalized builder each keep a single read literal', () => {
     const guard = src('planning-guard-sql.ts');
-    expect(selectCount(guard)).toBe(1);
+    expect(selectCount(guard)).toBe(0); // r31: COALESCE(sum) head folded into the fact builder
     expect(guard).toContain('planningCommandExistsGuard("production_resources"');
     expect(guard.match(/export const productionResourcesExists =/g) ?? []).toHaveLength(1);
     expect(guard.match(/export const planningAllocatedMinutes =/g) ?? []).toHaveLength(1);
-    expect(selectCount(src('planning-command-guard-sql.ts'))).toBe(1);
+    expect(selectCount(src('planning-command-guard-sql.ts'))).toBe(0); // r30: EXISTS head folded into the fact builder
     expect(planningAllocatedMinutes).toBe('COALESCE((SELECT sum(minutes) FROM planning_resource_allocations WHERE resource_id=? AND work_date=? AND released_at IS NULL),0)');
   });
 
@@ -79,7 +79,7 @@ describe('Planning read-tail r20 production-resources EXISTS head dedupe', () =>
     // r23 folded the resource-calendar point lookup into the single-line projection/FROM builder (16 -> 15).
     // r24 folded the scoped single-row family into that same builder (15 -> 14).
     // r25 folded the scoped branch-list family into the single-line projection/FROM builder (14 -> 13).
-    expect(total).toBe(10);
+    expect(total).toBe(8);
     expect(total).toBeLessThan(19);
   });
 });

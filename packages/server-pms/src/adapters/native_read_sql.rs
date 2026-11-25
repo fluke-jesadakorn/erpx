@@ -143,6 +143,13 @@ pub const PMS_RD_BOOKING_RECEIPT_BY_ATTEMPT: &str = "pms_rd_booking_receipt_by_a
 /// them on its already-open booking transaction.
 pub const PMS_RD_BOOKING_DOCUMENTS: &str = "pms_rd_booking_documents";
 pub const PMS_RD_CHANGE_PAYMENT_PENDING: &str = "pms_rd_change_payment_pending";
+/// Native successors of the paired refund-allocation companion reads used
+/// together when reviewing a refund request. Fixed SQL with one positional
+/// bind each, no ledger/receipt/outbox and no lock/refund decision; the caller
+/// runs them on its already-open refund transaction. Refund-state decisions
+/// and FOR UPDATE locks stay in the caller.
+pub const PMS_RD_BOOKING_ALLOCATIONS: &str = "pms_rd_booking_allocations";
+pub const PMS_RD_REFUND_REQUEST_ALLOCATIONS: &str = "pms_rd_refund_request_allocations";
 const SQL_INVENTORY_COMMAND: &str = "SELECT id,kind,data_json,version,updated_at FROM pms_records \
 WHERE property_id=? AND kind IN ('room_type','room','rate','block','item','credit') \
 UNION ALL SELECT id,kind,data_json,version,updated_at FROM pms_records \
@@ -468,8 +475,22 @@ const READ_CHANGE_PAYMENT_PENDING: NativeReadStatement = NativeReadStatement {
     sql: SQL_CHANGE_PAYMENT_PENDING,
     bind_count: 1,
 };
+/// Retired TypeScript literals from `pms-booking-refunds.ts`, byte-for-byte.
+/// The second is the rendered r46 `refundRequestAllocations` head.
+const SQL_BOOKING_ALLOCATIONS: &str = "SELECT stay_id,guest_account_id,entry_id,amount_minor FROM pms_booking_allocations WHERE payment_id=? ORDER BY stay_id";
+const READ_BOOKING_ALLOCATIONS: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_BOOKING_ALLOCATIONS,
+    sql: SQL_BOOKING_ALLOCATIONS,
+    bind_count: 1,
+};
+const SQL_REFUND_REQUEST_ALLOCATIONS: &str = "SELECT amount_minor,allocations_json FROM pms_booking_refund_requests WHERE payment_id=?";
+const READ_REFUND_REQUEST_ALLOCATIONS: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_REFUND_REQUEST_ALLOCATIONS,
+    sql: SQL_REFUND_REQUEST_ALLOCATIONS,
+    bind_count: 1,
+};
 
-const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG, READ_PENDING_HOTEL_TRANSFERS, READ_UNPOSTED_BOOKING_RECEIPTS, READ_UNPOSTED_COUNTER_RECEIPTS, READ_HOSPITALITY_SETUP_PROPERTIES, READ_ATTACHMENT_PROPERTY_IMAGE, READ_ATTACHMENT_RECORD_IMAGE, READ_DOCUMENT_RELATED_POSTINGS, READ_POS_GUEST_HOTELS, READ_POS_GUEST_CHOICES, READ_POS_STRIPE_PAYMENT, READ_POS_BOOKING_PAYMENT, READ_STRIPE_PAYMENT_BY_ID, READ_STRIPE_PAYMENT_BY_ID_COMPANY, READ_STRIPE_PAYMENT_PROPERTY, READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING];
+const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG, READ_PENDING_HOTEL_TRANSFERS, READ_UNPOSTED_BOOKING_RECEIPTS, READ_UNPOSTED_COUNTER_RECEIPTS, READ_HOSPITALITY_SETUP_PROPERTIES, READ_ATTACHMENT_PROPERTY_IMAGE, READ_ATTACHMENT_RECORD_IMAGE, READ_DOCUMENT_RELATED_POSTINGS, READ_POS_GUEST_HOTELS, READ_POS_GUEST_CHOICES, READ_POS_STRIPE_PAYMENT, READ_POS_BOOKING_PAYMENT, READ_STRIPE_PAYMENT_BY_ID, READ_STRIPE_PAYMENT_BY_ID_COMPANY, READ_STRIPE_PAYMENT_PROPERTY, READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
 pub fn is_read(kind: &str) -> bool {
@@ -897,7 +918,7 @@ ORDER BY id"
         assert!(!upper.contains("PG_ADVISORY"));
         assert!(is_read(read.kind));
         assert!(!is_read("pms_rd_section_related_records_v2"));
-        assert_eq!(READS.len(), 39);
+        assert_eq!(READS.len(), 41);
     }
 
     #[test]
@@ -921,7 +942,7 @@ ORDER BY id"
         assert!(!upper.contains("PG_ADVISORY"));
         assert!(is_read(read.kind));
         assert!(!is_read("pms_rd_guest_booking_document_v2"));
-        assert_eq!(READS.len(), 39);
+        assert_eq!(READS.len(), 41);
     }
 
     #[test]
@@ -944,7 +965,7 @@ ORDER BY id"
         assert!(!upper.contains("PG_ADVISORY"));
         assert!(is_read(read.kind));
         assert!(!is_read("pms_rd_hotel_metrics_v2"));
-        assert_eq!(READS.len(), 39);
+        assert_eq!(READS.len(), 41);
     }
 
     #[test]
@@ -970,7 +991,7 @@ ORDER BY id"
             assert!(is_read(read.kind));
         }
         assert!(!is_read("pms_rd_booking_receipt_by_key_v2"));
-        assert_eq!(READS.len(), 39);
+        assert_eq!(READS.len(), 41);
     }
 
     #[test]
@@ -997,6 +1018,33 @@ ORDER BY id"
         }
         assert!(!is_read("pms_rd_booking_documents_v2"));
         assert!(!is_read("pms_rd_change_payment_pending_v2"));
-        assert_eq!(READS.len(), 39);
+        assert_eq!(READS.len(), 41);
+    }
+
+    #[test]
+    fn refund_allocation_reads_match_retired_typescript_literals() {
+        let allocations = read_statement(PMS_RD_BOOKING_ALLOCATIONS).expect("booking allocations read");
+        let refund = read_statement(PMS_RD_REFUND_REQUEST_ALLOCATIONS).expect("refund request allocations read");
+        assert_eq!(allocations.kind, "pms_rd_booking_allocations");
+        assert_eq!(allocations.sql, "SELECT stay_id,guest_account_id,entry_id,amount_minor FROM pms_booking_allocations WHERE payment_id=? ORDER BY stay_id");
+        assert_eq!(allocations.bind_count, 1);
+        assert_eq!(refund.kind, "pms_rd_refund_request_allocations");
+        assert_eq!(refund.sql, "SELECT amount_minor,allocations_json FROM pms_booking_refund_requests WHERE payment_id=?");
+        assert_eq!(refund.bind_count, 1);
+        for read in [allocations, refund] {
+            assert_eq!(read.sql.matches('?').count(), read.bind_count);
+            let upper = read.sql.to_ascii_uppercase();
+            assert!(upper.starts_with("SELECT"));
+            assert!(!upper.contains("INSERT INTO"));
+            assert!(!upper.contains("UPDATE "));
+            assert!(!upper.contains("DELETE FROM"));
+            assert!(!upper.contains("FOR UPDATE"));
+            assert!(!upper.contains("FOR SHARE"));
+            assert!(!upper.contains("LOCK TABLE"));
+            assert!(is_read(read.kind));
+        }
+        assert!(!is_read("pms_rd_booking_allocations_v2"));
+        assert!(!is_read("pms_rd_refund_request_allocations_v2"));
+        assert_eq!(READS.len(), 41);
     }
 }

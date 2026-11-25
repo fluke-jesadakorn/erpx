@@ -124,7 +124,6 @@ describe('marketing read-tail r54 dedupe', () => {
     for (const name of [
       'form-asset-read-head.ts',
       'owner-point-read-sql.ts',
-      'owner-projection-source.ts',
       'marketing-point-exists-sql.ts',
     ])
       expect(headTokens(await src(name)), name).toBe(1);
@@ -141,7 +140,7 @@ describe('marketing read-tail r54 dedupe', () => {
     expect(await src('public-submission.ts')).toContain(
       'readMarketingLane40ForCompany(LANE40_PUBLIC_RECEIPT,companyId,',
     );
-    expect(await src('form-asset-lock-sql.ts')).toContain('FOR SHARE');
+    expect(await src('public-form.ts')).toContain('FOR SHARE');
     expect(await src('marketing-local-point-read-sql.ts')).toContain('FOR UPDATE');
     expect(await src('crm-purchase-sources.ts')).toContain(
       'SELECT candidate.* FROM marketing_lead_candidates candidate',
@@ -152,6 +151,6 @@ describe('marketing read-tail r54 dedupe', () => {
   });
 
   it('pins the owner head KPI to 17 (BEFORE=20; lane 40 retired 2 TS SELECTs)', async () => {
-    expect(await ownerHeadTokens()).toEqual({ spaced: 12, bare: 12 });
+    expect(await ownerHeadTokens()).toEqual({ spaced: 10, bare: 10 });
   });
 });

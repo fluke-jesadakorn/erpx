@@ -8,6 +8,8 @@ import {
   MARKETING_RD_CAMPAIGN_EXISTS,
   MARKETING_RD_PACKAGE_OBLIGATIONS,
   MARKETING_RD_COMMAND_RECEIPT_PRIOR,
+  MARKETING_RD_FORM_LOCK,
+  MARKETING_RD_FORM_LOCK_VERSIONED,
 } from '../../../packages/server-marketing/src/adapters/native-marketing-read';
 
 const CONFIG_KEY = 'ERPX_NATIVE_MARKETING_READ_CONFIG';
@@ -90,6 +92,23 @@ describe('native Marketing read-plan transport', () => {
     });
     expect(planned.sql).toBe(sql);
     expect(planned.values).toEqual(['command-1', 'marketing.asset.activate', 'record-1', 'actor-1', 'company-1']);
+  });
+
+  it('plans both form lock heads and leaves FOR SHARE to the caller', async () => {
+    const sqlPlain = 'SELECT id FROM marketing_assets WHERE id=? AND company_id=?';
+    const sqlVersioned = "SELECT id FROM marketing_assets WHERE id=? AND company_id=? AND version=? AND status='active'";
+    vi.stubGlobal('fetch', vi.fn(async (u: URL, i: RequestInit) => {
+      const { kind } = JSON.parse(String(i.body));
+      const sql = kind === MARKETING_RD_FORM_LOCK_VERSIONED ? sqlVersioned : sqlPlain;
+      const values = sql === sqlPlain ? ['asset-1', 'company-1'] : ['asset-1', 'company-1', '3'];
+      return ok({ data: { kind, caller: 'public-form.lock', statement: { sql, values } } });
+    }));
+    const plain = await nativeMarketingPlan(MARKETING_RD_FORM_LOCK, { assetId: 'asset-1', companyId: 'company-1' });
+    expect(plain.sql).toBe(sqlPlain);
+    expect(plain.sql).not.toContain('FOR SHARE');
+    const versioned = await nativeMarketingPlan(MARKETING_RD_FORM_LOCK_VERSIONED, { assetId: 'asset-1', companyId: 'company-1', version: 3 });
+    expect(versioned.sql).toBe(sqlVersioned);
+    expect(versioned.sql).not.toContain('FOR SHARE');
   });
 
   it('executes the owner statement on the caller unit, not on the transport', async () => {

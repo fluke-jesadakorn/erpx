@@ -616,7 +616,7 @@ describe('native Billing transport', () => {
     expect(sent.get('origin')).toBe('https://acme.example.test');
     expect(JSON.parse(body!)).toEqual(input.body);
   });
-  it('maps the exact native-authoritative command fields (cost review, retry, rollout, statement and provider cost) onto the owner request body', () => {
+  it('maps the exact native-authoritative command fields (cost review, retry, rollout, provider/statement verification, operating cost and capacity review) onto the owner request body', () => {
     const base = { version: 4, reason: 'Reviewed native command' };
     const cases = [
       [
@@ -711,6 +711,48 @@ describe('native Billing transport', () => {
           evidenceId: 'evidence-1',
         },
       ],
+      [
+        {
+          action: 'record-operating-cost' as const,
+          ...base,
+          targetMonth: '2026-09',
+          operatingCategory: 'backup' as const,
+          operatingCostSatang: 12500,
+          evidenceId: 'evidence-1',
+        },
+        'record-operating-cost',
+        {
+          ...base,
+          targetMonth: '2026-09',
+          category: 'backup',
+          amountSatang: 12500,
+          evidenceId: 'evidence-1',
+        },
+      ],
+      [
+        {
+          action: 'review-target-capacity' as const,
+          ...base,
+          targetMonth: '2027-03',
+          projectedOriginalBytes: 1000,
+          primaryAvailableBytes: 2000,
+          backupAvailableBytes: 3000,
+          reservedBytes: 400,
+          companyLimitBytes: 5000,
+          evidenceId: 'evidence-1',
+        },
+        'review-target-capacity',
+        {
+          ...base,
+          targetMonth: '2027-03',
+          projectedOriginalBytes: 1000,
+          primaryAvailableBytes: 2000,
+          backupAvailableBytes: 3000,
+          reservedBytes: 400,
+          companyLimitBytes: 5000,
+          evidenceId: 'evidence-1',
+        },
+      ],
     ] as const;
     for (const [input, action, body] of cases)
       expect(nativeBillingCommandRequest(input)).toEqual({ action, body });
@@ -718,8 +760,6 @@ describe('native Billing transport', () => {
     // authority until their Holding-host cutovers land; the native client must
     // not map them. `approve` is an invoice command.
     for (const action of [
-      'record-operating-cost',
-      'review-target-capacity',
       'approve-target-extra',
       'rate-target',
       'approve',

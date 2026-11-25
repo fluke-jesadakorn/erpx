@@ -84,6 +84,6 @@ describe('Agent read-tail r24 dedupe (BEFORE=53)', () => {
   });
 
   it('KPI: TS SELECT tokens in packages/server-agent/src drop from 53 to 42', async () => {
-    expect(await agentSelectCount(new URL('../../../packages/server-agent/src/', import.meta.url))).toBe(42);
+    expect(await agentSelectCount(new URL('../../../packages/server-agent/src/', import.meta.url))).toBe(38);
   });
 });

@@ -44,7 +44,7 @@ describe('Support read-tail r22 ticket guard family', () => {
         expect(src('adapters/service-access.ts')).toContain('const serviceTeamSetSql = (table: string, fields: string, order: string) =>');
         expect(src('adapters/service-access.ts')).toContain('SUPPORT_RD_SERVICE_SCOPE_COMPANY');
         expect(src('adapters/eligibility-projection-sources.ts')).toContain('export const supportAssignmentAccessSql = (alias: string, pad: string, tail: string) =>');
-        expect(src('adapters/ticket-portal-sources.ts')).toContain('export const portalReplayProofSql=');
+        expect(src('adapters/ticket-portal.ts')).toContain('SUPPORT_RD_TICKET_PORTAL_DECISION_REPLAY');
         expect(src('adapters/ticket-portal-sources.ts')).toContain('export const portalValidBindingSelect=');
         expect(src('adapters/ticket-portal-image-sql.ts')).toContain('export const portalImageAggregateSql = (images: string[]) =>');
         expect(src('adapters/support-incidents.ts')).toContain('const scopedWorkspaceListSql = (columns: string, table: string, extra: string) =>');

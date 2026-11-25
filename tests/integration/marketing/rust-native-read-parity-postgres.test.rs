@@ -35,6 +35,8 @@ const TS_CAMPAIGN: &str =
     include_str!("../../../packages/server-marketing/src/adapters/campaigns.ts");
 const TS_SUBMISSION: &str =
     include_str!("../../../packages/server-marketing/src/adapters/public-submission.ts");
+const TS_FORM: &str =
+    include_str!("../../../packages/server-marketing/src/adapters/public-form.ts");
 const TS_PURCHASE: &str =
     include_str!("../../../packages/server-marketing/src/adapters/marketing-purchase-rows-sql.ts");
 const TS_PURCHASE_COMMAND: &str =
@@ -129,6 +131,12 @@ fn live_statements_match_typescript_authority() {
     assert!(TS_PURCHASE.contains(
         "marketing_campaign_costs cost JOIN marketing_campaigns campaign ON campaign.id=cost.campaign_id AND campaign.company_id=cost.company_id"
     ));
+    // r58 retired the FOR SHARE head: both callers plan the closed select on
+    // the owner port and append the lock tail to run it on their own unit.
+    assert!(TS_FORM.contains("nativeMarketingPlan(MARKETING_RD_FORM_LOCK)"));
+    assert!(TS_SUBMISSION.contains("nativeMarketingPlan(MARKETING_RD_FORM_LOCK_VERSIONED)"));
+    assert!(TS_FORM.contains("`${lock.sql} FOR SHARE`"));
+    assert!(TS_SUBMISSION.contains("`${lock.sql} FOR SHARE`"));
     assert!(TS_PUBLIC_FORM.contains("marketingFormContentSql('1')"));
     assert!(TS_PUBLIC_FORM.contains("LANE40_FORM_CONTENT_ROW"));
     assert!(!TS_PUBLIC_FORM.contains("marketingFormContentSql('id,version,preview_json')"));

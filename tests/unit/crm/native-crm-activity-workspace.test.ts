@@ -206,13 +206,13 @@ describe('CRM activity workspace TS authority retirement', () => {
     expect(reader).toContain('return nativeCrmActivityWork(a)');
   });
 
-  it('does not regrow owner TS statements past the integrated floor of 40', () => {
+  it('does not regrow owner TS statements past the integrated floor of 39', () => {
     let total = 0;
     for (const rel of readdirSync(owner, { recursive: true })) {
       if (!String(rel).endsWith('.ts')) continue;
       total +=
         readFileSync(resolve(owner, String(rel)), 'utf8').match(/SELECT /g)?.length ?? 0;
     }
-    expect(total).toBeLessThanOrEqual(40);
+    expect(total).toBeLessThanOrEqual(39);
   });
 });

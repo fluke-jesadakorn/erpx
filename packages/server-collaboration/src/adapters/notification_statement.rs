@@ -729,7 +729,15 @@ mod tests {
                 .expect("registered kind")
                 .expect("planned statement");
             assert_eq!(planned.sql, sql, "{kind}");
-            assert_eq!(planned.sql.matches('?').count(), values.len(), "{kind}");
+            // Fragments are composed by the caller: its final statement binds
+            // the placeholders in the original order, so the planner's own
+            // values are intentionally empty for the legacy-source fragment.
+            let expected_placeholders = match kind {
+                "inbox_native_rows_cte" => 1,
+                "inbox_candidate_source" => 2,
+                _ => 0,
+            };
+            assert_eq!(planned.sql.matches('?').count(), expected_placeholders, "{kind}");
         }
     }
 }

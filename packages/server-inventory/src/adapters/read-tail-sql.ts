@@ -17,7 +17,6 @@ export const noLotBalanceSql="NOT EXISTS(SELECT 1 FROM inventory_lot_balances WH
  * watermark, or the full optimistic-concurrency tuple). Only the literal text
  * is shared; every caller still prepares its own statement with its own binds. */
 export const lotBalanceGuardSql = (predicate:string) => `EXISTS(SELECT 1 FROM inventory_lot_balances WHERE lot_id=? AND warehouse_id=?${predicate})`;
-export const serviceInitialPhysicalNativeRowSql='SELECT 1 FROM inventory_service_initial_physical_sources WHERE count_id=? AND company_id=?';
 export const jsonbImageSql='SELECT jsonb_build_object(';
 /** r11: the reservations rollup and the single-count-line marker are each
  * byte-identical across their consumers; only the literal text is shared. */

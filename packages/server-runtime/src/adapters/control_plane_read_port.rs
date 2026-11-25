@@ -24,6 +24,11 @@ pub const RD_COVERAGE_PROCEDURE_PRESENT: &str = "runtime_rd_coverage_procedure_p
 pub const RD_COVERAGE_REFRESH: &str = "runtime_rd_coverage_refresh";
 pub const RD_RUNTIME_HEALTH: &str = "runtime_rd_runtime_health";
 pub const RD_UTC_DATE: &str = "runtime_rd_utc_date";
+pub const RD_OBJECT_LOCK: &str = "runtime_rd_object_lock";
+pub const RD_OBJECT_UNLOCK: &str = "runtime_rd_object_unlock";
+pub const RD_OBJECT_XACT_LOCK: &str = "runtime_rd_object_xact_lock";
+pub const RD_PAIR_LOCK: &str = "runtime_rd_pair_lock";
+pub const RD_PAIR_UNLOCK: &str = "runtime_rd_pair_unlock";
 
 const BODY_LIMIT: usize = 64 * 1024;
 const ORIGIN_HEADER: HeaderName = HeaderName::from_static("origin");
@@ -57,6 +62,11 @@ pub fn plan(kind: &str, values: &[Value]) -> Result<ControlPlanePlan, BusinessEr
             0,
         ),
         RD_MIGRATION_CHECKSUM => (sql::RECEIPT_CHECKSUM, 1),
+        RD_OBJECT_LOCK => (sql::OBJECT_LOCK, 1),
+        RD_OBJECT_UNLOCK => (sql::OBJECT_UNLOCK, 1),
+        RD_OBJECT_XACT_LOCK => (sql::OBJECT_XACT_LOCK, 1),
+        RD_PAIR_LOCK => (sql::PAIR_LOCK, 2),
+        RD_PAIR_UNLOCK => (sql::PAIR_UNLOCK, 2),
         _ => return Err(invalid()),
     };
     if values.len() != expected || (expected > 0 && !values.iter().all(Value::is_string)) {
@@ -207,6 +217,37 @@ mod tests {
             plan(RD_UTC_DATE, &[]).unwrap().sql,
             "SELECT to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') utc_date"
         );
+    }
+
+    #[test]
+    fn object_lock_plans_are_byte_identical_to_the_native_port() {
+        for (kind, expected) in [
+            (RD_OBJECT_LOCK, sql::OBJECT_LOCK),
+            (RD_OBJECT_UNLOCK, sql::OBJECT_UNLOCK),
+            (RD_OBJECT_XACT_LOCK, sql::OBJECT_XACT_LOCK),
+        ] {
+            let planned = plan(kind, &[Value::from("attachment-object:c:k")]).unwrap();
+            assert_eq!(planned.sql, expected, "{kind}");
+            assert_eq!(planned.values.len(), 1, "{kind}");
+            assert!(planned.sql.contains("hashtextextended($1,0)"), "{kind}");
+            assert!(plan(kind, &[]).is_err(), "{kind} must require one key");
+            assert!(plan(kind, &[Value::from(7)]).is_err(), "{kind} must require a string key");
+        }
+    }
+
+    #[test]
+    fn pair_lock_plans_are_byte_identical_to_the_native_port() {
+        for (kind, expected) in [
+            (RD_PAIR_LOCK, sql::PAIR_LOCK),
+            (RD_PAIR_UNLOCK, sql::PAIR_UNLOCK),
+        ] {
+            let planned = plan(kind, &[Value::from("transaction"), Value::from("aggregate-1")]).unwrap();
+            assert_eq!(planned.sql, expected, "{kind}");
+            assert_eq!(planned.values.len(), 2, "{kind}");
+            assert!(planned.sql.contains("hashtext($1),hashtext($2)"), "{kind}");
+            assert!(plan(kind, &[Value::from("only-one")]).is_err(), "{kind} needs two keys");
+            assert!(plan(kind, &[Value::from(1), Value::from(2)]).is_err(), "{kind} needs string keys");
+        }
     }
 
     #[test]

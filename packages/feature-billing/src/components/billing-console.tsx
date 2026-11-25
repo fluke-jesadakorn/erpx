@@ -173,6 +173,8 @@ export function BillingConsole({
         "approve-target-rollout",
         "verify-statement",
         "verify-provider-cost",
+        "record-operating-cost",
+        "review-target-capacity",
       ].includes(action)
     )
       return null;

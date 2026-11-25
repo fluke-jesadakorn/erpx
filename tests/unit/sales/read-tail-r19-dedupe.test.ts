@@ -52,7 +52,7 @@ describe('Sales read-tail r19 byKey single-key read family', () => {
   test('the family is one generator literal with two callers and no inlining', () => {
     expect(helper.match(/const byKey\s*=/g) ?? []).toHaveLength(1);
     expect(notifications).toContain("byKey('commerce_customer_notification_settings','company_id')");
-    expect(pricing).toContain("byKey('sales_price_list_items','price_list_id')");
+    expect(pricing).toContain("nativeSalesReadAll<Row>(SALES_RD_PRICING_ITEMS_BY_LIST,[id],db)");
     expect(notifications).not.toContain(`'${pre.settings}'`);
     expect(pricing).not.toContain(`'${pre.items}'`);
     expect(helper).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);

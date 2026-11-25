@@ -6,11 +6,6 @@ import { readTailR43ColumnsFromSql } from './read-tail-r43-sql';
 export async function supportTicketPortalInstalled(database:SqlDatabase){return Boolean((await nativeSupportReadAll<{installed:boolean}>(SUPPORT_RD_TICKET_PORTAL_INSTALLED, [], database)).results[0]?.installed);}
 export function supportTicketPortalSourceLocks(database:SqlDatabase){return [database.prepare('LOCK TABLE support_tickets,support_ticket_events,support_ticket_portal_bindings,support_ticket_portal_events,support_ticket_portal_identities,support_ticket_portal_reads,support_ticket_portal_responses,support_ticket_portal_acknowledgements IN SHARE ROW EXCLUSIVE MODE')];}
 export const supportTicketPortalIdentitySql=(alias:string)=>`jsonb_build_object('companyId',${alias}.company_id,'branchId',${alias}.branch_id,'departmentId',${alias}.department_id,'sourceKind',${alias}.source_kind,'orderId',${alias}.order_id,'customerId',${alias}.customer_id,'sourceRecord',${alias}.source_record_json)`;
-/** One parameterized replay-proof family for the Support ticket portal. The
- * decision-event and response-receipt proofs share one statement shape; only the
- * source table/alias, receipt operation, optional action bind and expected result
- * object vary. Each caller keeps its own binds and its own proof. */
-export const portalReplayProofSql=(table:string,alias:string,operation:string,action:string,expected:string)=>`SELECT 1 FROM ${table} ${alias} JOIN command_receipts receipt ON receipt.command_id=${alias}.command_id AND receipt.record_id=${alias}.binding_id AND receipt.actor_id=${alias}.actor_id AND receipt.operation=${operation} AND receipt.authority_json::jsonb->>'companyId'=${alias}.company_id WHERE ${alias}.command_id=? AND ${alias}.binding_id=? AND ${alias}.company_id=? AND ${alias}.actor_id=?${action} AND receipt.result_json::jsonb=?::jsonb AND receipt.result_json::jsonb=${expected}`;
 /** Source identity is retained independently of mutable ticket versions/status.
  * Only the explicitly reviewed summary is public. No original issue or foreign
  * record content is selected into the customer projection. */

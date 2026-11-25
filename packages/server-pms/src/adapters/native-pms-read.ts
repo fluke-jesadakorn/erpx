@@ -91,6 +91,11 @@ export const PMS_RD_BOOKING_RECEIPT_BY_ATTEMPT = 'pms_rd_booking_receipt_by_atte
  * ledger/receipt/outbox and no lock/refund path; caller runs them on its unit. */
 export const PMS_RD_BOOKING_DOCUMENTS = 'pms_rd_booking_documents';
 export const PMS_RD_CHANGE_PAYMENT_PENDING = 'pms_rd_change_payment_pending';
+/** Native successors of the paired refund-allocation companion reads. Fixed
+ * SQL with one positional bind each, no ledger/receipt/outbox and no
+ * lock/refund decision; the caller runs them on its already-open unit. */
+export const PMS_RD_BOOKING_ALLOCATIONS = 'pms_rd_booking_allocations';
+export const PMS_RD_REFUND_REQUEST_ALLOCATIONS = 'pms_rd_refund_request_allocations';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'PMS_NATIVE_READ_UNAVAILABLE', 'The native PMS read service is unavailable.');

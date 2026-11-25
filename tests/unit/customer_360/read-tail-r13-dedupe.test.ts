@@ -105,7 +105,7 @@ describe('Customer 360 read-tail r13 scoped-projection head family', () => {
     expect(native.some((source) => source.includes('scopedProjection'))).toBe(false);
   });
 
-  it('retirement:ts-statements is strictly lower than BEFORE=11 (expected 10)', () => {
+  it('retirement:ts-statements is strictly lower than BEFORE=10 (expected 9)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -115,7 +115,7 @@ describe('Customer 360 read-tail r13 scoped-projection head family', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(10);
-    expect(total).toBeLessThan(11);
+    expect(total).toBe(9);
+    expect(total).toBeLessThan(10);
   });
 });

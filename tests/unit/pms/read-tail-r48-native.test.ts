@@ -67,13 +67,13 @@ describe('pms read-tail r48 native read retirement', () => {
     expect(rust).toContain('pub const PMS_RD_SECTION_RELATED_RECORDS: &str = "pms_rd_section_related_records";');
     expect(rust).toContain('const SQL_SECTION_RELATED_RECORDS: &str = ' + JSON.stringify(HEAD.sectionRelatedRecords) + ';');
     expect(rust).toContain('bind_count: 29,');
-    expect(rust).toContain('READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING];');
+    expect(rust).toContain('READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS];');
     const reads = rust.split('\n').find(line => line.startsWith('const READS:'))!;
-    expect(reads.split('READ_').length - 1).toBe(39);
-    expect((rust.match(/^pub const PMS_RD_/gm) ?? []).length).toBe(39);
+    expect(reads.split('READ_').length - 1).toBe(41);
+    expect((rust.match(/^pub const PMS_RD_/gm) ?? []).length).toBe(41);
     const bridge = await src('adapters/native-pms-read.ts');
     expect(bridge).toContain("export const PMS_RD_SECTION_RELATED_RECORDS = 'pms_rd_section_related_records';");
-    expect((bridge.match(/^export const PMS_RD_/gm) ?? []).length).toBe(39);
+    expect((bridge.match(/^export const PMS_RD_/gm) ?? []).length).toBe(41);
   });
 
   it('routes sectionRelatedRecords through the native transport and removes the inline SQL', async () => {
@@ -140,8 +140,8 @@ describe('pms read-tail r48 native read retirement', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(229);
-    expect(bare).toBe(230);
+    expect(spaced).toBe(228);
+    expect(bare).toBe(229);
     expect(spaced).toBeLessThan(275);
     expect(bare).toBeLessThan(277);
   });

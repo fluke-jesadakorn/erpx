@@ -16,12 +16,14 @@ use erpx_server_platform_administration::public::engineering_enrollment::{
     PgEngineeringEnrollment, enroll_engineering_verification,
 };
 use erpx_server_platform_administration::public::native_engineering_verification_read::{
-    PgEngineeringVerificationRead, read_prior,
+    ActiveVerificationQuery, PgEngineeringVerificationRead, read_active, read_prior,
+    read_reply_rollout_guard,
 };
 use erpx_server_platform_administration::public::native_engineering_verification_read_http::{
     EngineeringVerificationReadHttpBackend, EngineeringVerificationReadHttpFuture,
-    EngineeringVerificationReadHttpRequest, EngineeringVerificationReadHttpResponse,
-    EngineeringVerificationReadHttpTarget, engineering_verification_read_http_router,
+    EngineeringVerificationActiveHttpRequest, EngineeringVerificationReadHttpRequest,
+    EngineeringVerificationReadHttpResponse, EngineeringVerificationReadHttpTarget,
+    EngineeringVerificationReplyGuardHttpRequest, engineering_verification_read_http_router,
 };
 use erpx_server_platform_administration::public::engineering_enrollment_http::{
     EngineeringEnrollmentHttpBackend, EngineeringEnrollmentHttpFuture,
@@ -242,6 +244,71 @@ impl EngineeringVerificationReadHttpBackend for EngineeringVerificationReadBacke
                 .await
                 .map_err(business)?;
             Ok(EngineeringVerificationReadHttpResponse { data })
+        })
+    }
+
+    fn active<'a>(
+        &'a self,
+        request: EngineeringVerificationActiveHttpRequest<'a>,
+    ) -> EngineeringVerificationReadHttpFuture<'a, EngineeringVerificationReadHttpResponse> {
+        Box::pin(async move {
+            let control = self.control.clone();
+            let company_id = request.active.company_id.clone();
+            let run = request.active.run.clone();
+            let source_fingerprint = request.active.source_fingerprint.clone();
+            let software_version = request.active.software_version.clone();
+            let file_manifest_sha256 = request.active.file_manifest_sha256.clone();
+            let active = PgUnitOfWork::new(control)
+                .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                    let company_id = company_id.clone();
+                    let run = run.clone();
+                    let source_fingerprint = source_fingerprint.clone();
+                    let software_version = software_version.clone();
+                    let file_manifest_sha256 = file_manifest_sha256.clone();
+                    Box::pin(async move {
+                        let mut repository = PgEngineeringVerificationRead::new(&mut *connection);
+                        let query = ActiveVerificationQuery {
+                            company_id: &company_id,
+                            run: &run,
+                            source_fingerprint: &source_fingerprint,
+                            software_version: &software_version,
+                            file_manifest_sha256: &file_manifest_sha256,
+                        };
+                        let active = read_active(&mut repository, &query).await.map_err(business)?;
+                        Ok(active)
+                    })
+                })
+                .await
+                .map_err(business)?;
+            Ok(EngineeringVerificationReadHttpResponse {
+                data: erpx_server_runtime::public::http_support::serde_json::Value::Bool(active),
+            })
+        })
+    }
+
+    fn reply_rollout_guard<'a>(
+        &'a self,
+        request: EngineeringVerificationReplyGuardHttpRequest<'a>,
+    ) -> EngineeringVerificationReadHttpFuture<'a, EngineeringVerificationReadHttpResponse> {
+        Box::pin(async move {
+            let control = self.control.clone();
+            let company_id = request.reply_guard.company_id.clone();
+            let rows = PgUnitOfWork::new(control)
+                .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                    let company_id = company_id.clone();
+                    Box::pin(async move {
+                        let mut repository = PgEngineeringVerificationRead::new(&mut *connection);
+                        let rows = read_reply_rollout_guard(&mut repository, &company_id)
+                            .await
+                            .map_err(business)?;
+                        Ok(rows)
+                    })
+                })
+                .await
+                .map_err(business)?;
+            Ok(EngineeringVerificationReadHttpResponse {
+                data: erpx_server_runtime::public::http_support::serde_json::json!(rows),
+            })
         })
     }
 }

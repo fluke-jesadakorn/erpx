@@ -135,14 +135,13 @@ describe('marketing r41 retirement invariants', () => {
   it('leaves the native guard, FOR SHARE, settlement and native read ports untouched', async () => {
     const repo = await src('marketing.ts');
     expect(repo).toContain('async assets(){return (await nativeMarketingReadAll<Row>(MARKETING_RD_ASSET_LIST');
-    expect(await src('form-asset-lock-sql.ts')).toContain(
-      '`SELECT id FROM marketing_assets WHERE id=? AND company_id=?${scope} FOR SHARE`',
-    );
+    expect(await src('public-form.ts')).toContain('`${lock.sql} FOR SHARE`');
+    expect(await src('public-submission.ts')).toContain('`${lock.sql} FOR SHARE`');
     expect(await src('purchases.ts')).toContain('nativeMarketingReadFirst<Record<string,unknown>>(MARKETING_RD_COMMAND_RECEIPT_PRIOR');
     expect(await src('native-marketing-read.ts')).toContain('export');
   });
 
-  it('retirement:ts-statements KPI is 12 (BEFORE=55; lane 40 retired 3)', async () => {
-    expect(await selectTokens()).toBe(12);
+  it('retirement:ts-statements KPI is 10 (BEFORE=55; lane 40 retired 3)', async () => {
+    expect(await selectTokens()).toBe(10);
   });
 });

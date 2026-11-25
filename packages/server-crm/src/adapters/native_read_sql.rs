@@ -116,6 +116,33 @@ mod tests {
     }
 
     #[test]
+    fn projection_from_head_is_the_owner_select_body_plan() {
+        // Canonical native form of the r46 projection/FROM head: it is the
+        // bare select-body plan over `${projection} FROM ${from}`. The TS
+        // `crmProjectionFromSql` delegates to `crmSelectBodySql` on this identity.
+        let select_body = |body: &str| format!("SELECT {body}");
+        let projection_from = |projection: &str, from: &str| {
+            select_body(&format!("{projection} FROM {from}"))
+        };
+        let cases = [
+            ("opportunity owner guard", "1", "crm_opportunities o JOIN crm_leads l ON l.id=o.lead_id WHERE o.id=?"),
+            ("contact account read", "c.id,c.name", "crm_contacts c JOIN crm_accounts a ON a.id=c.account_id WHERE c.id=?"),
+            ("owned-source list", "id", "(ROWS) actual WHERE id=? AND company_id=?"),
+        ];
+        for (name, projection, from) in cases {
+            let rendered = projection_from(projection, from);
+            assert_eq!(rendered, format!("SELECT {projection} FROM {from}"), "{name}");
+            assert_eq!(rendered.matches("SELECT ").count(), 1, "{name}");
+            let upper = rendered.to_ascii_uppercase();
+            assert!(!upper.contains("INSERT"), "{name}");
+            assert!(!upper.contains("UPDATE"), "{name}");
+            assert!(!upper.contains("DELETE"), "{name}");
+            assert!(!upper.contains("FOR UPDATE"), "{name}");
+            assert!(!upper.contains("LOCK TABLE"), "{name}");
+        }
+    }
+
+    #[test]
     fn lead_select_head_is_the_owner_select_one_plan() {
         // Canonical native form of the r51 lead-select head: it is the r42
         // select-one plan with the fixed `crm_leads` body. The TS renderer

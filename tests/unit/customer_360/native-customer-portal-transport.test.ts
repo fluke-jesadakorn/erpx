@@ -10,6 +10,7 @@ import {
   NativeCustomerPortalError,
 } from '../../../packages/server-customer_360/src/adapters/native-customer-portal';
 import {
+  RD_OBLIGATION_AUDIT_EXISTS,
   RD_PORTAL_ACTION_BY_BINDING,
   RD_PORTAL_ACTION_BY_KEY,
   nativeC360ReadConfiguration,
@@ -334,7 +335,32 @@ describe('Customer 360 obligation-fact query-head family', () => {
     }
   });
 
-  it('retirement r15:ts-statements is strictly lower than BEFORE=11 (expected 10)', () => {
+  it('r16 native audit guard: plan admitted, TS literal deleted, emitted SQL byte-pinned', async () => {
+    const key = 'ERPX_NATIVE_CUSTOMER_360_READ_CONFIG';
+    const previous = process.env[key];
+    const auditSql = "EXISTS(SELECT 1 FROM audit_events audit JOIN outbox_events event ON event.command_id=audit.command_id AND event.event_type=audit.action AND event.aggregate_id=request.order_id AND event.aggregate_version=request.source_version WHERE audit.command_id=request.request_key AND audit.actor_id=request.user_id AND audit.assignment_id='external-customer' AND audit.action='customer.portal.'||request.action AND audit.record_id=request.order_id AND audit.record_version=request.source_version AND audit.authority_json::jsonb->>'bindingId'=request.binding_id AND event.payload_json::jsonb->>'bindingId'=request.binding_id AND event.payload_json::jsonb->>'customerId'=request.customer_id AND event.payload_json::jsonb->>'userId'=request.user_id AND event.payload_json::jsonb->>'note'=request.note)";
+    process.env[key] = config({
+      privateBaseUrl: 'http://127.0.0.1:44998',
+      holdings: [{ origin: 'https://acme.example.com', holdingSlug: 'acme', holdingId: 'h001', companyId: 'company' }],
+    });
+    try {
+      const send = async () => new Response(JSON.stringify({ data: { statement: { sql: auditSql, values: [] } } }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      });
+      const planned = await nativeC360ReadStatement(RD_OBLIGATION_AUDIT_EXISTS, [], send);
+      expect(planned.sql).toBe(auditSql);
+      expect(planned.values).toEqual([]);
+      const facts = readFileSync(resolve(c360SrcRoot, 'adapters/package-obligations.ts'), 'utf8');
+      expect(facts).toContain('nativeC360ReadStatement(RD_OBLIGATION_AUDIT_EXISTS,[])');
+      expect(facts).toContain('${audit.sql}');
+      expect(facts).not.toContain("EXISTS(SELECT 1 FROM audit_events audit");
+    } finally {
+      if (previous === undefined) delete process.env[key];
+      else process.env[key] = previous;
+    }
+  });
+
+  it('retirement r16:ts-statements is strictly lower than BEFORE=10 (expected 9)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -344,7 +370,7 @@ describe('Customer 360 obligation-fact query-head family', () => {
       }
     };
     walk(c360SrcRoot);
-    expect(total).toBe(10);
-    expect(total).toBeLessThan(11);
+    expect(total).toBe(9);
+    expect(total).toBeLessThan(10);
   });
 });

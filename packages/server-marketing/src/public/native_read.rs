@@ -21,6 +21,8 @@ pub const RD_FORM_SOURCE: &str = "active-form-source";
 pub const RD_FORM_PUBLIC: &str = "active-form-public";
 pub const RD_FORM_CONTENT_EXISTS: &str = "form-content-exists";
 pub const RD_FORM_CONTENT_ROW: &str = "form-content-row";
+pub const RD_FORM_LOCK: &str = "form-asset-lock";
+pub const RD_FORM_LOCK_VERSIONED: &str = "form-asset-lock-versioned";
 
 // marketing_campaigns / marketing_campaign_costs fact reads.
 pub const RD_CAMPAIGN_EXISTS: &str = "campaign-exists";
@@ -86,6 +88,10 @@ const PLAN_FORM_SOURCE: &str = "SELECT configuration_json FROM marketing_assets 
 const PLAN_FORM_PUBLIC: &str = "SELECT id,company_id,name,version,preview_json,configuration_json FROM marketing_assets WHERE id=? AND kind='form' AND status='active'";
 const PLAN_FORM_CONTENT_EXISTS: &str = "SELECT 1 FROM marketing_assets WHERE id=? AND company_id=? AND kind='content' AND status='active' AND version=?";
 const PLAN_FORM_CONTENT_ROW: &str = "SELECT id,version,preview_json FROM marketing_assets WHERE id=? AND company_id=? AND kind='content' AND status='active' AND version=?";
+// Lock heads owned by the native registry; the FOR SHARE tail stays in the
+// caller so the row lock is acquired on the caller's own transaction.
+const PLAN_FORM_LOCK: &str = "SELECT id FROM marketing_assets WHERE id=? AND company_id=?";
+const PLAN_FORM_LOCK_VERSIONED: &str = "SELECT id FROM marketing_assets WHERE id=? AND company_id=? AND version=? AND status='active'";
 const PLAN_CAMPAIGN_EXISTS: &str = "SELECT 1 FROM marketing_campaigns WHERE id=? AND company_id=?";
 const PLAN_CAMPAIGN_WITNESS: &str = "SELECT campaign.id,campaign.company_id,NULL::text branch_id,NULL::text department_id,to_jsonb(campaign) witness FROM marketing_campaigns campaign";
 const PLAN_CAMPAIGN_COST_WITNESS: &str = "SELECT cost.id,cost.company_id,NULL::text branch_id,NULL::text department_id,to_jsonb(cost) witness FROM marketing_campaign_costs cost JOIN marketing_campaigns campaign ON campaign.id=cost.campaign_id AND campaign.company_id=cost.company_id";
@@ -259,6 +265,27 @@ pub const FORM_CONTENT_ROW_READ: ReadPlan = ReadPlan {
     cross_owner: &[],
     authority: ASSET_TABLES,
 };
+/// Exact former select head of `formAssetLockSql(false)`; the caller appends the
+/// FOR SHARE tail and executes the locked statement on its own transaction.
+pub const FORM_LOCK_READ: ReadPlan = ReadPlan {
+    kind: RD_FORM_LOCK,
+    caller: "public-form.content-lock",
+    sql: PLAN_FORM_LOCK,
+    binds: &[BindField::AssetId, BindField::CompanyId],
+    scope: ASSET_SCOPE,
+    cross_owner: &[],
+    authority: ASSET_TABLES,
+};
+/// Exact former select head of `formAssetLockSql(true)`.
+pub const FORM_LOCK_VERSIONED_READ: ReadPlan = ReadPlan {
+    kind: RD_FORM_LOCK_VERSIONED,
+    caller: "public-submission.form-lock",
+    sql: PLAN_FORM_LOCK_VERSIONED,
+    binds: &[BindField::AssetId, BindField::CompanyId, BindField::Version],
+    scope: FORM_SCOPE,
+    cross_owner: &[],
+    authority: ASSET_TABLES,
+};
 /// Exact former live read of `marketingCampaignExistsSql`; the TS wrapper was
 /// retired in r56 and both callers now plan this statement on the owner port.
 pub const CAMPAIGN_EXISTS_READ: ReadPlan = ReadPlan {
@@ -329,6 +356,8 @@ pub const PLANS: &[ReadPlan] = &[
     FORM_PUBLIC_READ,
     FORM_CONTENT_EXISTS_READ,
     FORM_CONTENT_ROW_READ,
+    FORM_LOCK_READ,
+    FORM_LOCK_VERSIONED_READ,
     CAMPAIGN_EXISTS_READ,
     CAMPAIGN_WITNESS_READ,
     CAMPAIGN_COST_WITNESS_READ,
@@ -360,12 +389,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn closed_registry_of_eleven_caller_unit_reads() {
-        assert_eq!(PLANS.len(), 11);
-        assert_eq!(kinds().count(), 11);
+    fn closed_registry_of_thirteen_caller_unit_reads() {
+        assert_eq!(PLANS.len(), 13);
+        assert_eq!(kinds().count(), 13);
         assert_eq!(
             kinds().collect::<std::collections::BTreeSet<_>>().len(),
-            11,
+            13,
             "read kinds must be unique"
         );
         for kind in kinds() {
@@ -453,6 +482,27 @@ mod tests {
         ));
         assert!(entry.authority.contains("command_receipts"));
         assert_ne!(entry.sql, PLAN_CAMPAIGN_EXISTS);
+    }
+
+    #[test]
+    fn form_lock_plans_are_byte_identical_and_leave_the_lock_tail_to_the_caller() {
+        let plain = plan(RD_FORM_LOCK).unwrap();
+        assert_eq!(
+            plain.sql,
+            "SELECT id FROM marketing_assets WHERE id=? AND company_id=?"
+        );
+        assert_eq!(plain.binds, &[BindField::AssetId, BindField::CompanyId]);
+        assert!(!plain.sql.contains("FOR SHARE"));
+        let versioned = plan(RD_FORM_LOCK_VERSIONED).unwrap();
+        assert_eq!(
+            versioned.sql,
+            "SELECT id FROM marketing_assets WHERE id=? AND company_id=? AND version=? AND status='active'"
+        );
+        assert_eq!(
+            versioned.binds,
+            &[BindField::AssetId, BindField::CompanyId, BindField::Version]
+        );
+        assert!(!versioned.sql.contains("FOR SHARE"));
     }
 
     #[test]

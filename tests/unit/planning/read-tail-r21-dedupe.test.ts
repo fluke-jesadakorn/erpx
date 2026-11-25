@@ -38,8 +38,8 @@ describe('Planning read-tail r21 attachment-target version guard dedupe', () => 
     expect(shared.match(/export const planningAttachmentTargetVersionExists =/g) ?? []).toHaveLength(1);
     expect(shared).toContain('export const planningAttachmentTargetRow =');
     const guard = src('planning-command-guard-sql.ts');
-    expect(selectCount(guard)).toBe(1);
-    expect(guard).toContain('`EXISTS(SELECT 1 FROM ${table} WHERE ${predicate})`');
+    expect(selectCount(guard)).toBe(0); // r30: EXISTS head folded into the generalized fact builder
+    expect(guard).toContain("`EXISTS(${planningPackageFactRows('1', table, predicate)})`");
   });
 
   test('both callers keep composing the wrapper with unchanged binds', () => {
@@ -96,7 +96,7 @@ describe('Planning read-tail r21 attachment-target version guard dedupe', () => 
     // r23 folded the resource-calendar point lookup into the single-line projection/FROM builder (16 -> 15).
     // r24 folded the scoped single-row family into that same builder (15 -> 14).
     // r25 folded the scoped branch-list family into the single-line projection/FROM builder (14 -> 13).
-    expect(total).toBe(10);
+    expect(total).toBe(8);
     expect(total).toBeLessThan(17);
   });
 });

@@ -22,6 +22,10 @@ export const SALES_RD_PRICE_LIST_ITEMS_ACTIVE = 'sales_rd_price_list_items_activ
 export const SALES_RD_NOTIFICATION_ATTEMPT = 'sales_rd_notification_attempt';
 export const SALES_RD_NOTIFICATION_RECONCILIATION_INSTALLED = 'sales_rd_notification_reconciliation_installed';
 export const SALES_RD_FOLLOWUP_RECIPIENTS = 'sales_rd_followup_recipients';
+export const SALES_RD_PRICING_LIST_BY_ID = 'sales_rd_pricing_list_by_id';
+export const SALES_RD_PRICING_LIST_ACTIVE_BY_ID = 'sales_rd_pricing_list_active_by_id';
+export const SALES_RD_PRICING_LIST_ACTIVE = 'sales_rd_pricing_list_active';
+export const SALES_RD_PRICING_ITEMS_BY_LIST = 'sales_rd_pricing_items_by_list';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'SALES_NATIVE_READ_UNAVAILABLE', 'The native Sales read service is unavailable.');

@@ -54,7 +54,7 @@ describe('Planning r29 attachment-target SELECT head retirement', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(10);
+    expect(total).toBe(8);
     expect(total).toBeLessThan(11);
   });
 });

@@ -74,14 +74,14 @@ describe('runtime r19 migration control reads cut over to the native port', () =
     expect(migrations).toContain("const MIGRATION_LOCK_SQL = 'SELECT pg_advisory_lock(714928001)'");
     expect(migrations).toContain("const MIGRATION_UNLOCK_SQL = 'SELECT pg_advisory_unlock(714928001)'");
     const postgres = src('runtime/postgres.ts');
-    expect(postgres).toContain("'SELECT pg_advisory_lock(hashtextextended($1,0))'");
+    expect(postgres).toContain("planRuntimeControlPlane(RD_OBJECT_LOCK,[lock])");
     expect(postgres).not.toContain('migrationControlReadSql');
     expect(src('executive/reports.ts')).toContain('const REPORT_LOCK_SQL = "SELECT id FROM executive_reports WHERE id=? FOR UPDATE"');
     expect(src('runtime/jobs.ts')).not.toContain('migrationControlReadSql');
   });
 
-  test('retirement:ts-statements records BEFORE=29 strictly lower to 22', () => {
-    expect(kpi()).toBe(22);
+  test('retirement:ts-statements records BEFORE=29 strictly lower to 17', () => {
+    expect(kpi()).toBe(17);
     expect(kpi()).toBeLessThan(29);
   });
 });

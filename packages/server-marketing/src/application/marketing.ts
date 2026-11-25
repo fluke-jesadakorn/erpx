@@ -18,7 +18,7 @@ export interface MarketingRepository<Prepared>{
  campaigns():Promise<Row[]>;costSources():Promise<MarketingCostSource[]>;
  formReadiness(configuration:unknown):Promise<Awaited<ReturnType<ReturnType<typeof import("@erpx/server-marketing/application/public-form").createMarketingPresentationApplication>["readiness"]>>>;
  publications(id:string):Promise<MarketingPublication[]>;
- sourceForm(id:string,version:number):Promise<{configuration_json:string}|null>;preparePresentation(key:string,configuration:unknown):Prepared;
+ sourceForm(id:string,version:number):Promise<{configuration_json:string}|null>;preparePresentation(key:string,configuration:unknown):Promise<Prepared>;
  asset(id:string):Promise<Row|null>;candidate(id:string,lock?:boolean):Promise<Row|null>;detail(id:string):Promise<Row|null>;history(id:string):Promise<Row[]>;workRows():Promise<Row[]>;
  evidence(metric:MarketingExecutiveEvidenceMetric,id:string,range?:{from:number;toExclusive:number}):Promise<Row|null>;
  replay<Result=Record<string,unknown>>(key:string,operation:string,id:string,input:unknown):Promise<Result|null>;
@@ -37,7 +37,7 @@ export function createMarketingApplication<Prepared>(ports:{actorId:string;clock
    ports.authorize(true);const input=marketingCandidateSchema.parse(raw),repository=await ports.repository(),id=`marketing-candidate-${key}`,operation="marketing.candidate.create",prior=await repository.replay<{id:string;status:string;version:number}>(key,operation,id,input);if(prior)return prior;
    const source=await repository.sourceForm(input.formId,input.formVersion);
    if(source&&!(await repository.formReadiness(source.configuration_json)).ready)throw new BusinessRuleError(409,"MARKETING_FORM_NOT_READY","The approved form presentation is currently unavailable.");
-   const now=ports.clock.now(),presentation=source?repository.preparePresentation(key,source.configuration_json):null;
+   const now=ports.clock.now(),presentation=source?await repository.preparePresentation(key,source.configuration_json):null;
    return repository.commit({action:"candidate",input,key,id,operation,now,presentation},{id,status:"pending",version:1});
   },
   async change(kind:"asset"|"candidate",id:string,raw:unknown,key:string,current?:MarketingRepository<Prepared>):Promise<Record<string,unknown>>{
@@ -53,7 +53,7 @@ export function createMarketingApplication<Prepared>(ports:{actorId:string;clock
     if(input.action==="activate"&&row.kind==="form"&&!formRequiresConsent(row.configuration_json))throw new BusinessRuleError(422,"MARKETING_CONSENT_REQUIRED","Lead capture forms must require consent before activation.");
     const expected=input.action==="retire"?"active":"draft",status=input.action==="activate"?"active":input.action==="reject"?"rejected":"retired";
     if(!["activate","reject","retire"].includes(input.action)||row.status!==expected||Number(row.version)!==input.expectedVersion)throw new BusinessRuleError(409,"CONFLICT","Asset changed or transition is invalid.");
-    const now=ports.clock.now(),needsPresentation=input.action==="activate"&&row.kind==="form",presentation=needsPresentation?repository.preparePresentation(key,row.configuration_json):null;
+    const now=ports.clock.now(),needsPresentation=input.action==="activate"&&row.kind==="form",presentation=needsPresentation?await repository.preparePresentation(key,row.configuration_json):null;
     if(needsPresentation&&!(await repository.formReadiness(row.configuration_json)).ready)throw new BusinessRuleError(409,"MARKETING_FORM_NOT_READY","Independently approve the exact content and public creative before activating this form.");
     return repository.commit({action:"asset",input,id,key,operation,now,expected,status,presentation},{id,status,version:input.expectedVersion+1});
    }

@@ -442,6 +442,81 @@ const READ_TAX_IDENTITY_PARTY_LIST: NativeReadStatement = NativeReadStatement {
     scope: "holding",
 };
 
+/// Native successors of the static `finance-assets` point and list reads.
+/// Each plan is byte-identical to the retired TS literal; lock-bearing owner
+/// statements and assertion guards stay in the caller's transaction.
+pub const RD_ASSET_ACCOUNT_ROWS: &str = "finance_rd_asset_account_rows";
+const SQL_RD_ASSET_ACCOUNT_ROWS: &str = "SELECT id,chart_id,category FROM finance_accounts WHERE company_id=? AND status='active' AND id IN (?,?,?)";
+const READ_ASSET_ACCOUNT_ROWS: NativeReadStatement = NativeReadStatement {
+    kind: RD_ASSET_ACCOUNT_ROWS,
+    sql: SQL_RD_ASSET_ACCOUNT_ROWS,
+    bind_count: 4,
+    scope: "holding",
+};
+
+pub const RD_ASSET_EVENT_LIST: &str = "finance_rd_asset_event_list";
+const SQL_RD_ASSET_EVENT_LIST: &str = "SELECT * FROM finance_asset_events WHERE asset_id=? ORDER BY created_at,id";
+const READ_ASSET_EVENT_LIST: NativeReadStatement = NativeReadStatement {
+    kind: RD_ASSET_EVENT_LIST,
+    sql: SQL_RD_ASSET_EVENT_LIST,
+    bind_count: 1,
+    scope: "holding",
+};
+
+pub const RD_ASSET_DISPOSAL_LIST: &str = "finance_rd_asset_disposal_list";
+const SQL_RD_ASSET_DISPOSAL_LIST: &str = "SELECT * FROM finance_asset_disposals WHERE asset_id=? ORDER BY created_at,id";
+const READ_ASSET_DISPOSAL_LIST: NativeReadStatement = NativeReadStatement {
+    kind: RD_ASSET_DISPOSAL_LIST,
+    sql: SQL_RD_ASSET_DISPOSAL_LIST,
+    bind_count: 1,
+    scope: "holding",
+};
+
+pub const RD_ASSET_REVIEWED_POLICY: &str = "finance_rd_asset_reviewed_policy";
+const SQL_RD_ASSET_REVIEWED_POLICY: &str = "SELECT 1 FROM finance_asset_policy_editions WHERE asset_id=? AND status IN ('active','superseded')";
+const READ_ASSET_REVIEWED_POLICY: NativeReadStatement = NativeReadStatement {
+    kind: RD_ASSET_REVIEWED_POLICY,
+    sql: SQL_RD_ASSET_REVIEWED_POLICY,
+    bind_count: 1,
+    scope: "holding",
+};
+
+pub const RD_ASSET_DEPRECIATION_HISTORY: &str = "finance_rd_asset_depreciation_history";
+const SQL_RD_ASSET_DEPRECIATION_HISTORY: &str = "SELECT ordinal,amount_minor FROM finance_asset_depreciations WHERE asset_id=? ORDER BY ordinal";
+const READ_ASSET_DEPRECIATION_HISTORY: NativeReadStatement = NativeReadStatement {
+    kind: RD_ASSET_DEPRECIATION_HISTORY,
+    sql: SQL_RD_ASSET_DEPRECIATION_HISTORY,
+    bind_count: 1,
+    scope: "holding",
+};
+
+pub const RD_ASSET_LATEST_DEPRECIATION: &str = "finance_rd_asset_latest_depreciation";
+const SQL_RD_ASSET_LATEST_DEPRECIATION: &str = "SELECT MAX(entry_date) date FROM finance_asset_depreciations WHERE asset_id=?";
+const READ_ASSET_LATEST_DEPRECIATION: NativeReadStatement = NativeReadStatement {
+    kind: RD_ASSET_LATEST_DEPRECIATION,
+    sql: SQL_RD_ASSET_LATEST_DEPRECIATION,
+    bind_count: 1,
+    scope: "holding",
+};
+
+pub const RD_ASSET_RETAINED_POLICY_HASH: &str = "finance_rd_asset_retained_policy_hash";
+const SQL_RD_ASSET_RETAINED_POLICY_HASH: &str = "SELECT policy_source_hash FROM finance_asset_disposals WHERE id=?";
+const READ_ASSET_RETAINED_POLICY_HASH: NativeReadStatement = NativeReadStatement {
+    kind: RD_ASSET_RETAINED_POLICY_HASH,
+    sql: SQL_RD_ASSET_RETAINED_POLICY_HASH,
+    bind_count: 1,
+    scope: "holding",
+};
+
+pub const RD_ASSET_DIMENSION_VALUES: &str = "finance_rd_asset_dimension_values";
+const SQL_RD_ASSET_DIMENSION_VALUES: &str = "SELECT dimension_id,code,name FROM finance_dimension_values WHERE company_id=? AND status='active' ORDER BY code";
+const READ_ASSET_DIMENSION_VALUES: NativeReadStatement = NativeReadStatement {
+    kind: RD_ASSET_DIMENSION_VALUES,
+    sql: SQL_RD_ASSET_DIMENSION_VALUES,
+    bind_count: 1,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_ASSET_POLICY_ROW,
     READ_ASSET_POLICY_RUNS,
@@ -480,6 +555,14 @@ const READS: &[NativeReadStatement] = &[
     READ_TAX_IDENTITY_REVIEWED,
     READ_TAX_IDENTITY_LIST,
     READ_TAX_IDENTITY_PARTY_LIST,
+    READ_ASSET_ACCOUNT_ROWS,
+    READ_ASSET_EVENT_LIST,
+    READ_ASSET_DISPOSAL_LIST,
+    READ_ASSET_REVIEWED_POLICY,
+    READ_ASSET_DEPRECIATION_HISTORY,
+    READ_ASSET_LATEST_DEPRECIATION,
+    READ_ASSET_RETAINED_POLICY_HASH,
+    READ_ASSET_DIMENSION_VALUES,
 ];
 
 /// Whether a discriminator is an owner read kind (never a write kind).
@@ -536,6 +619,14 @@ mod tests {
             RD_TAX_IDENTITY_REVIEWED,
             RD_TAX_IDENTITY_LIST,
             RD_TAX_IDENTITY_PARTY_LIST,
+            RD_ASSET_ACCOUNT_ROWS,
+            RD_ASSET_EVENT_LIST,
+            RD_ASSET_DISPOSAL_LIST,
+            RD_ASSET_REVIEWED_POLICY,
+            RD_ASSET_DEPRECIATION_HISTORY,
+            RD_ASSET_LATEST_DEPRECIATION,
+            RD_ASSET_RETAINED_POLICY_HASH,
+            RD_ASSET_DIMENSION_VALUES,
         ] {
             assert!(is_read(kind), "{kind}");
             let read = read_statement(kind).expect("read kind");
@@ -550,7 +641,7 @@ mod tests {
             assert_eq!(read.sql.matches('?').count(), read.bind_count, "{kind}");
             assert_eq!(read.scope, "holding", "{kind}");
         }
-        assert_eq!(READS.len(), 37);
+        assert_eq!(READS.len(), 45);
         assert!(!is_read("finance_stmt_1"));
         assert!(read_statement("finance_stmt_1").is_none());
     }
@@ -837,6 +928,51 @@ mod tests {
             ),
         ];
         assert_eq!(expected.len(), 6);
+        for (kind, sql, binds) in expected {
+            let read = read_statement(kind).unwrap_or_else(|| panic!("{kind}: unregistered"));
+            assert_eq!(read.kind, *kind, "{kind}: discriminator");
+            assert_eq!(read.sql, *sql, "{kind}: byte-identical SQL");
+            assert_eq!(read.bind_count, *binds, "{kind}: bind count");
+            assert_eq!(read.sql.matches('?').count(), *binds, "{kind}: binds");
+            assert_eq!(read.scope, "holding", "{kind}: scope");
+            assert!(is_read(kind), "{kind}");
+            assert!(!read.sql.contains("FOR UPDATE"), "{kind}");
+            assert!(!read.sql.contains("INSERT"), "{kind}");
+            assert!(!read.sql.contains("UPDATE"), "{kind}");
+        }
+    }
+
+    /// The finance-assets point/list family plans the exact retired literals;
+    /// no lock or assertion text crosses the read-plan boundary.
+    #[test]
+    fn asset_reads_match_retired_owner_statements() {
+        let expected: &[(&str, &str, usize)] = &[
+            (RD_ASSET_ACCOUNT_ROWS, SQL_RD_ASSET_ACCOUNT_ROWS, 4),
+            (RD_ASSET_EVENT_LIST, SQL_RD_ASSET_EVENT_LIST, 1),
+            (RD_ASSET_DISPOSAL_LIST, SQL_RD_ASSET_DISPOSAL_LIST, 1),
+            (RD_ASSET_REVIEWED_POLICY, SQL_RD_ASSET_REVIEWED_POLICY, 1),
+            (
+                RD_ASSET_DEPRECIATION_HISTORY,
+                SQL_RD_ASSET_DEPRECIATION_HISTORY,
+                1,
+            ),
+            (
+                RD_ASSET_LATEST_DEPRECIATION,
+                SQL_RD_ASSET_LATEST_DEPRECIATION,
+                1,
+            ),
+            (
+                RD_ASSET_RETAINED_POLICY_HASH,
+                SQL_RD_ASSET_RETAINED_POLICY_HASH,
+                1,
+            ),
+            (
+                RD_ASSET_DIMENSION_VALUES,
+                SQL_RD_ASSET_DIMENSION_VALUES,
+                1,
+            ),
+        ];
+        assert_eq!(expected.len(), 8);
         for (kind, sql, binds) in expected {
             let read = read_statement(kind).unwrap_or_else(|| panic!("{kind}: unregistered"));
             assert_eq!(read.kind, *kind, "{kind}: discriminator");

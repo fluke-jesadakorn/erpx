@@ -2,7 +2,7 @@ import { Pool, types, type PoolClient, type PoolConfig, type QueryResult } from 
 import { errorMonitor, type EventEmitter } from 'node:events';
 import type { SqlDatabase, SqlResult, SqlStatement } from "@erpx/server-runtime/adapters/runtime/types";
 import { currentReadMetrics, recordReadPoolWait, recordReadQuery, recordReadLockQuery, recordReadTransactionRetry, runWithReadMetrics } from "@erpx/server-runtime/adapters/runtime/read-metrics";
-import { planRuntimeControlPlane, RD_RUNTIME_HEALTH } from "../native-runtime-control-plane";
+import { planRuntimeControlPlane, RD_OBJECT_LOCK, RD_OBJECT_UNLOCK, RD_OBJECT_XACT_LOCK, RD_PAIR_LOCK, RD_PAIR_UNLOCK, RD_RUNTIME_HEALTH } from "../native-runtime-control-plane";
 
 const instrumented = Symbol.for('erpx.postgres.readMetrics');
 const transactionOwnership = Symbol.for('erpx.postgres.transactionOwnership');
@@ -286,7 +286,8 @@ export class PostgresDatabase implements SqlDatabase {
       await client.query("SELECT set_config('lock_timeout','10s',false)");
       for(const key of ordered) {
         const lock=`attachment-object:${company}:${key}`;
-        try {await client.query('SELECT pg_advisory_lock(hashtextextended($1,0))',[lock]);held.push(lock);} catch(error) {discard=true;throw error;}
+        const lockPlan=await planRuntimeControlPlane(RD_OBJECT_LOCK,[lock]);
+        try {await client.query(lockPlan.sql,[...lockPlan.values]);held.push(lock);} catch(error) {discard=true;throw error;}
       }
       await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE');inTransaction=true;await this.startNativeEngineeringFence(client);
       const tx=new TransactionDatabase(client);const ownership={pool:this.pool,active:true};transactionOwners.set(tx,ownership);
@@ -298,7 +299,8 @@ export class PostgresDatabase implements SqlDatabase {
       throw error;
     } finally {
       for(const lock of discard ? [] : held.reverse())try {
-        const unlocked=await client.query<{released:boolean}>('SELECT pg_advisory_unlock(hashtextextended($1,0)) AS released',[lock]);
+        const unlockPlan=await planRuntimeControlPlane(RD_OBJECT_UNLOCK,[lock]);
+        const unlocked=await client.query<{released:boolean}>(unlockPlan.sql,[...unlockPlan.values]);
         if(unlocked.rows[0]?.released!==true)discard=true;
       } catch {discard=true;}
       if(!discard && priorTimeout)try {await client.query("SELECT set_config('lock_timeout',$1,false)",[priorTimeout]);}catch{discard=true;}
@@ -317,7 +319,7 @@ export class PostgresDatabase implements SqlDatabase {
         try {
           // Coordinate a busy aggregate before establishing the serializable
           // snapshot. Its owner still takes the authoritative row lock inside.
-          if(lock){await client.query('SELECT pg_advisory_lock(hashtext($1),hashtext($2))',[lock.namespace,lock.key]);locked=true;}
+          if(lock){const plan=await planRuntimeControlPlane(RD_PAIR_LOCK,[lock.namespace,lock.key]);await client.query(plan.sql,[...plan.values]);locked=true;}
           // Prefer fine-grained indexed predicate locks for an owner's selected
           // transaction. PostgreSQL can still scan when no indexed path exists;
           // SET LOCAL cannot leak this preference through the pooled connection.
@@ -338,7 +340,8 @@ export class PostgresDatabase implements SqlDatabase {
           if (attempt >= 3 || !['40001', '40P01'].includes((error as { code?: string }).code ?? '')) throw error;
         } finally {
           if(locked)try{
-            const released=await client.query('SELECT pg_advisory_unlock(hashtext($1),hashtext($2)) released',[lock!.namespace,lock!.key]);
+            const plan=await planRuntimeControlPlane(RD_PAIR_UNLOCK,[lock!.namespace,lock!.key]);
+            const released=await client.query(plan.sql,[...plan.values]);
             discard=released.rows[0]?.released!==true;
           }catch{discard=true;}
           // Never return a connection whose session lock could remain held.
@@ -422,7 +425,10 @@ class TransactionDatabase implements SqlDatabase {
   async withObjectLocks<T>(company: string, keys: string[], action: (tx: SqlDatabase) => Promise<T>): Promise<T> {
     const ordered=[...new Set(keys)].sort();
     if(!company || company.length>200 || !ordered.length || ordered.length>100 || ordered.some(key=>!key || key.length>4096)) throw new Error('INVALID_OBJECT_LOCK_SET');
-    for(const key of ordered) await this.pool.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`attachment-object:${company}:${key}`]);
+    for(const key of ordered) {
+      const plan=await planRuntimeControlPlane(RD_OBJECT_XACT_LOCK,[`attachment-object:${company}:${key}`]);
+      await this.pool.query(plan.sql,[...plan.values]);
+    }
     return action(this);
   }
 }

@@ -64,9 +64,8 @@ describe('pms read-tail r46 two-column point read dedupe', () => {
     expect((await src(SHARED)).split('SELECT ').length - 1, 'helper adds one SELECT token').toBe(1);
   });
 
-  it('routes all four call sites through the helper and preserves binds and order', async () => {
+  it('routes three call sites through the helper and preserves binds and order', async () => {
     const sites = [
-      ['adapters/pms-booking-refunds.ts', 'refundRequestAllocations', ".bind(facts.paymentId).all<{"],
       ['adapters/pms-stripe.ts', 'stripePaymentKey', '.bind(facts.key).first<{'],
       ['adapters/property-purchase-boundary.ts', 'propertyScope', '.bind(propertyId).first<{ company_id: string; branch_id: string }>()'],
       ['adapters/pms-booking.ts', 'bookingTokenByHash', '.bind(facts.fact0, facts.now).first<{'],
@@ -82,7 +81,12 @@ describe('pms read-tail r46 two-column point read dedupe', () => {
       expect(text.split(HEAD[kind]).length - 1, file).toBe(kind === 'propertyScope' ? 1 : 0);
       total += calls(text, 'pmsTwoColumnPointReadSql');
     }
-    expect(total).toBe(4);
+    expect(total).toBe(3);
+    // The fourth variant is now owned by the native refund allocation plan.
+    const refund = await src('adapters/pms-booking-refunds.ts');
+    expect(refund).not.toContain('pmsTwoColumnPointReadSql');
+    expect(refund).not.toContain(HEAD.refundRequestAllocations);
+    expect(refund).toContain('PMS_RD_REFUND_REQUEST_ALLOCATIONS, [facts.paymentId], db');
   });
 
   it('leaves lock reads, feature/native reads and r17-r45 helpers untouched', async () => {
@@ -106,8 +110,8 @@ describe('pms read-tail r46 two-column point read dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(229);
-    expect(bare).toBe(230);
+    expect(spaced).toBe(228);
+    expect(bare).toBe(229);
     expect(spaced).toBeLessThan(286);
     expect(bare).toBeLessThan(288);
   });

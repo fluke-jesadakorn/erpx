@@ -56,7 +56,6 @@ describe('Organization read-tail r39 node and scope guard families', () => {
     const r35 = read('organization-column-alias-families-r35.ts');
     const r36 = read('organization-column-alias-families-r36.ts');
     const r37 = read('organization-column-alias-families-r37.ts');
-    const r38 = read('organization-column-alias-families-r38.ts');
     for (const name of ['companyIdProjection', 'nodeTreeCte', 'nodeActiveScope', 'maxVersionSource', 'denialAggregateClause', 'staffLevelNumberSource', 'snapshotProjection']) {
       expect(prior.match(new RegExp(`export const ${name} =`, 'g')) ?? []).toHaveLength(1);
     }
@@ -75,7 +74,6 @@ describe('Organization read-tail r39 node and scope guard families', () => {
     expect(r35.match(/export const ownerProjection =/g) ?? []).toHaveLength(1);
     expect(r36.match(/export const activeNodeByIdCompanyKind =/g) ?? []).toHaveLength(1);
     expect(r37.match(/export const leavePolicyVersionLookup =/g) ?? []).toHaveLength(1);
-    expect(r38.match(/export const activePositionById =/g) ?? []).toHaveLength(1);
   });
 
   test('inline family literals are gone, call sites delegate, locks and spaced JOIN constants are retained', async () => {
@@ -130,7 +128,7 @@ describe('Organization read-tail r39 node and scope guard families', () => {
     walk(srcRoot);
     // r39 collapses four families (-1, -1, -2, -1 = -5) into shared sources.
     // Pin: BEFORE=262; expected after = 257; no other owner path is touched.
-    expect(space).toBe(196);
+    expect(space).toBe(188);
     expect(space).toBeLessThanOrEqual(257);
     expect(space).toBeLessThan(262);
   });

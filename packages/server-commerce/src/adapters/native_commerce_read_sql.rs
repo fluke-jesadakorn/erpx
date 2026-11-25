@@ -342,6 +342,42 @@ pub fn source_fragment(kind: &str) -> Option<&'static NativeCommerceReadStatemen
     SOURCE_FRAGMENTS.iter().find(|statement| statement.kind == kind)
 }
 
+/// Native successor of the r15 Billing test-finance schema-ready probe. The
+/// owner table literal is fixed; the caller sends no binds.
+pub const RD_BILLING_TEST_FINANCE_SCHEMA: &str = "commerce_rd_billing_test_finance_schema";
+const SQL_BILLING_TEST_FINANCE_SCHEMA: &str =
+    "SELECT to_regclass('billing_test_finance_documents') IS NOT NULL ready";
+const READ_BILLING_TEST_FINANCE_SCHEMA: NativeCommerceReadStatement =
+    NativeCommerceReadStatement {
+        kind: RD_BILLING_TEST_FINANCE_SCHEMA,
+        sql: SQL_BILLING_TEST_FINANCE_SCHEMA,
+        bind_count: 0,
+    };
+
+/// Native successor of the r15 existing Manufacturing posting schema-ready
+/// probe. The owner table literal is fixed; the caller sends no binds.
+pub const RD_MFG_EXISTING_POSTING_SCHEMA: &str = "commerce_rd_mfg_existing_posting_schema";
+const SQL_MFG_EXISTING_POSTING_SCHEMA: &str =
+    "SELECT to_regclass('commerce_mfg_existing_posting_confirmations') IS NOT NULL ready";
+const READ_MFG_EXISTING_POSTING_SCHEMA: NativeCommerceReadStatement =
+    NativeCommerceReadStatement {
+        kind: RD_MFG_EXISTING_POSTING_SCHEMA,
+        sql: SQL_MFG_EXISTING_POSTING_SCHEMA,
+        bind_count: 0,
+    };
+
+/// Native successor of the legacy attachment owner scope read. The only
+/// closed descriptor is `commerce_order_delivery` on `commerce_orders`; the
+/// caller binds `[id]` and an unknown kind fails closed before planning.
+pub const RD_LEGACY_ATTACHMENT_SCOPE: &str = "commerce_rd_legacy_attachment_scope";
+const SQL_LEGACY_ATTACHMENT_SCOPE: &str =
+    "SELECT company_id,branch_id branch_id,department_id department_id,version FROM commerce_orders WHERE id=?";
+const READ_LEGACY_ATTACHMENT_SCOPE: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_LEGACY_ATTACHMENT_SCOPE,
+    sql: SQL_LEGACY_ATTACHMENT_SCOPE,
+    bind_count: 1,
+};
+
 const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_PMS_WAREHOUSE_ACTIVE,
     READ_PMS_SETTINGS_EXISTS,
@@ -369,6 +405,9 @@ const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_MFG_EXISTING_SETTINGS_IMAGE,
     READ_SUPPORT_ORDER_SOURCE_IMAGE,
     READ_CRM_ORDER_SOURCE_IMAGE,
+    READ_BILLING_TEST_FINANCE_SCHEMA,
+    READ_MFG_EXISTING_POSTING_SCHEMA,
+    READ_LEGACY_ATTACHMENT_SCOPE,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -421,6 +460,21 @@ mod tests {
                 2usize,
             ),
             (RD_CRM_ORDER_SOURCE_IMAGE, SQL_CRM_ORDER_SOURCE_IMAGE, 2usize),
+            (
+                RD_BILLING_TEST_FINANCE_SCHEMA,
+                SQL_BILLING_TEST_FINANCE_SCHEMA,
+                0usize,
+            ),
+            (
+                RD_MFG_EXISTING_POSTING_SCHEMA,
+                SQL_MFG_EXISTING_POSTING_SCHEMA,
+                0usize,
+            ),
+            (
+                RD_LEGACY_ATTACHMENT_SCOPE,
+                SQL_LEGACY_ATTACHMENT_SCOPE,
+                1usize,
+            ),
         ];
         for (kind, sql, bind_count) in expected {
             let statement = read_statement(kind).expect("registered owner read kind");
@@ -432,12 +486,47 @@ mod tests {
                 assert!(!sql.contains(forbidden), "owner read must not mutate: {forbidden}");
             }
             assert!(
-                sql.contains("commerce_products") || sql.contains("commerce_warehouses") || sql.contains("commerce_settings") || sql.contains("commerce_orders"),
-                "owner read must stay on owner-local Commerce tables: {sql}"
+                sql.contains("commerce_products")
+                    || sql.contains("commerce_warehouses")
+                    || sql.contains("commerce_settings")
+                    || sql.contains("commerce_orders")
+                    || sql.contains("to_regclass("),
+                "owner read must stay on owner-local Commerce tables or schema probes: {sql}"
             );
             assert_eq!(sql.matches('?').count(), bind_count);
         }
-        assert_eq!(STATEMENTS.len(), 26);
+        assert_eq!(STATEMENTS.len(), 29);
+    }
+
+    /// Legacy attachment scope byte parity: the single closed descriptor keeps
+    /// both alias expressions and the one id bind exactly as retired.
+    #[test]
+    fn legacy_attachment_scope_keeps_its_exact_literal() {
+        let plan = read_statement(RD_LEGACY_ATTACHMENT_SCOPE).expect("legacy scope");
+        assert_eq!(
+            plan.sql,
+            "SELECT company_id,branch_id branch_id,department_id department_id,version FROM commerce_orders WHERE id=?"
+        );
+        assert_eq!(plan.bind_count, 1);
+        assert_eq!(plan.sql.matches('?').count(), 1);
+        assert!(plan.sql.starts_with("SELECT "));
+        assert!(!plan.sql.contains(';'));
+    }
+
+    /// r15 byte parity: both schema probes are fixed owner-table literals with
+    /// no binds; the TS renderer that built them is deleted by this cutover.
+    #[test]
+    fn schema_ready_probes_keep_their_exact_literals() {
+        let billing = read_statement(RD_BILLING_TEST_FINANCE_SCHEMA).expect("billing probe");
+        let mfg = read_statement(RD_MFG_EXISTING_POSTING_SCHEMA).expect("mfg probe");
+        assert_eq!(billing.sql, "SELECT to_regclass('billing_test_finance_documents') IS NOT NULL ready");
+        assert_eq!(mfg.sql, "SELECT to_regclass('commerce_mfg_existing_posting_confirmations') IS NOT NULL ready");
+        for statement in [billing, mfg] {
+            assert_eq!(statement.bind_count, 0);
+            assert_eq!(statement.sql.matches('?').count(), 0);
+            assert!(statement.sql.starts_with("SELECT "));
+            assert!(!statement.sql.contains(';'));
+        }
     }
 
     /// r25 byte parity: these are composite-query source fragments rather than

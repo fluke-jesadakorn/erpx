@@ -17,6 +17,9 @@ import {
 import { legalMembershipSql, legalMembershipExistsSql } from '../../../packages/server-legal/src/adapters/legal-members-read-sources';
 import { legalMemberEditPointSql } from '../../../packages/server-legal/src/adapters/legal-read-tail-r38-sources';
 import { legalSettingsEnabledSql } from '../../../packages/server-legal/src/adapters/legal-read-tail-r9-sources';
+import contract from '../../../packages/server-legal/src/adapters/legal-read-tail-r48-sources.json' with {
+  type: 'json',
+};
 
 const srcRoot = resolve(__dirname, '../../../packages/server-legal/src');
 const src = (name: string) => readFile(new URL(`../../../packages/server-legal/src/adapters/${name}`, import.meta.url), 'utf8');
@@ -46,6 +49,8 @@ describe('legal read-tail r48 compound corpus source-clean and members/settings 
   it('renders byte-identical legal_members and legal_settings heads', () => {
     expect(legalMembersWhereHead('item_id=? AND user_id=?'))
       .toBe('SELECT 1 FROM legal_members WHERE item_id=? AND user_id=?');
+    expect(legalMembersWhereHead('item_id=$& AND user_id=?'))
+      .toBe('SELECT 1 FROM legal_members WHERE item_id=$& AND user_id=?');
     expect(legalMembersWhereHead("item_id=? AND user_id=? AND access='edit'"))
       .toBe("SELECT 1 FROM legal_members WHERE item_id=? AND user_id=? AND access='edit'");
     expect(legalSettingsWhereHead('company_id=? AND enabled'))
@@ -81,6 +86,20 @@ describe('legal read-tail r48 compound corpus source-clean and members/settings 
     expect(shared.match(/export const legalCorpusSourceCleanHead/g) ?? []).toHaveLength(1);
     expect(shared.match(/export const legalMembersWhereHead/g) ?? []).toHaveLength(1);
     expect(shared.match(/export const legalSettingsWhereHead/g) ?? []).toHaveLength(1);
+    expect(shared.match(/SELECT /g) ?? []).toHaveLength(0);
+    expect(shared).toContain('legal-read-tail-r48-sources.json');
+    expect(shared).toContain('import contract from');
+    expect(shared).toContain('LEGAL_READ_TAIL_R48_CONTRACT_INVALID');
+    expect(contract).toEqual({
+      corpusSourceClean:
+        'SELECT 1 FROM legal_documents d JOIN legal_items i ON i.id=d.item_id WHERE d.id=? AND {predicate}',
+      membersWhere: 'SELECT 1 FROM legal_members WHERE {predicate}',
+      settingsWhere: 'SELECT 1 FROM legal_settings WHERE {predicate}',
+    });
+    const rust = await src('legal_read_tail_r48.rs');
+    expect(rust).toContain('include_str!("legal-read-tail-r48-sources.json")');
+    expect(rust).toContain('render_legal_read_tail_r48');
+    expect(rust).toContain('4a59be2dbe6939b392a22a0ffbefb75c464c0a4a2bdc723c1e5c7c8ee38b4303');
     const [corpus, citations, knowledge, members, r38, r9, jobs] = await Promise.all([
       src('legal/law-corpus.ts'), src('legal/citations.ts'), src('legal/knowledge.ts'),
       src('legal-members-read-sources.ts'), src('legal-read-tail-r38-sources.ts'),
@@ -168,5 +187,19 @@ describe('legal read-tail r48 compound corpus source-clean and members/settings 
     await walk(srcRoot);
     expect(total).toBeLessThan(196);
     expect(total).toBeLessThan(192);
+  });
+
+  it('retirement:ts-statements is BEFORE=112 -> AFTER=109 for the r48 native contract', async () => {
+    let total = 0;
+    const walk = async (dir: string) => {
+      for (const entry of await readdir(dir, { withFileTypes: true })) {
+        const p = resolve(dir, entry.name);
+        if (entry.isDirectory()) await walk(p);
+        else if (entry.name.endsWith('.ts')) total += ((await readFile(p, 'utf8')).match(/SELECT /g) ?? []).length;
+      }
+    };
+    await walk(srcRoot);
+    expect(total).toBeLessThan(112);
+    expect(total).toBe(109);
   });
 });

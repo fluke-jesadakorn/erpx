@@ -83,7 +83,7 @@ describe('runtime r18 catalog-presence family cut over to the native port', () =
     expect(migrations).toContain("const MIGRATION_LOCK_SQL = 'SELECT pg_advisory_lock(714928001)'");
     expect(migrations).toContain("const MIGRATION_UNLOCK_SQL = 'SELECT pg_advisory_unlock(714928001)'");
     const postgres = src('runtime/postgres.ts');
-    expect(postgres).toContain("'SELECT pg_advisory_lock(hashtextextended($1,0))'");
+    expect(postgres).toContain("planRuntimeControlPlane(RD_OBJECT_LOCK,[lock])");
     const shared = src('read-tail-sql.ts');
     for (const template of [
       '`SELECT ${columns} FROM holding_bindings${suffix}`',
@@ -96,8 +96,8 @@ describe('runtime r18 catalog-presence family cut over to the native port', () =
     ]) expect(shared.split(template)).toHaveLength(2);
   });
 
-  test('retirement:ts-statements records BEFORE=30 strictly lower to 22', () => {
-    expect(kpi()).toBe(22);
+  test('retirement:ts-statements records BEFORE=30 strictly lower to 17', () => {
+    expect(kpi()).toBe(17);
     expect(kpi()).toBeLessThan(30);
   });
 });
@@ -238,6 +238,94 @@ describe('runtime session-health read family cut over to the native port', () =>
     expect(plan).toEqual({ sql: healthSql, values: [] });
     expect(initBody(fetchMock)).toBe(
       JSON.stringify({ kind: 'runtime_rd_runtime_health', values: [] }),
+    );
+  });
+});
+
+describe('runtime object advisory-lock family cut over to the native planner', () => {
+  const lockSql = 'SELECT pg_advisory_lock(hashtextextended($1,0))';
+  const unlockSql = 'SELECT pg_advisory_unlock(hashtextextended($1,0)) AS released';
+  const xactSql = 'SELECT pg_advisory_xact_lock(hashtextextended($1,0))';
+  const oracles = [
+    ['runtime_rd_object_lock', lockSql, 47, '2178dcd09cbf4b262537e2a65e44072d2489dc5ad6ab6e0550834573a06f8af2'],
+    ['runtime_rd_object_unlock', unlockSql, 61, '0fe1c33ce60de290dafc243a4438bf222c0f00c91c24967112d47cad77157a9b'],
+    ['runtime_rd_object_xact_lock', xactSql, 52, '1a6751ba70ff65d15e989d0a11b3d8d51cabe9cfb325027136238a3b25d84f8e'],
+  ] as const;
+
+  test.each(oracles)('%s is byte-identical in the Rust port', (kind, sql, size, digest) => {
+    const port = rust('adapters/postgres/control_plane.rs');
+    const ingress = rust('adapters/control_plane_read_port.rs');
+    expect(port).toContain(sql);
+    expect(ingress).toContain(kind);
+    expect(sha(sql)).toBe(digest);
+    expect(sql.length).toBe(size);
+    expect((sql.match(/\$\d/g) ?? []).length).toBe(1);
+  });
+
+  test('postgres.ts plans every object lock and inlines none', () => {
+    const postgres = src('runtime/postgres.ts');
+    for (const sql of [lockSql, unlockSql, xactSql]) expect(postgres).not.toContain(sql);
+    for (const kind of ['RD_OBJECT_LOCK', 'RD_OBJECT_UNLOCK', 'RD_OBJECT_XACT_LOCK'])
+      expect(postgres).toContain(`planRuntimeControlPlane(${kind}`);
+    expect(postgres).toContain('client.query(lockPlan.sql,[...lockPlan.values])');
+    expect(postgres).toContain('client.query<{released:boolean}>(unlockPlan.sql,[...unlockPlan.values])');
+    expect(postgres).toContain('this.pool.query(plan.sql,[...plan.values])');
+    const client = src('native-runtime-control-plane.ts');
+    for (const kind of ['runtime_rd_object_lock', 'runtime_rd_object_unlock', 'runtime_rd_object_xact_lock'])
+      expect(client).toContain(kind);
+  });
+
+  test('the planned lock keeps the exact key bind and reply shape', async () => {
+    const fetchMock = reply({ data: { sql: lockSql, values: ['attachment-object:c:k'] } });
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await planRuntimeControlPlane('runtime_rd_object_lock', ['attachment-object:c:k'], env())).toEqual({
+      sql: lockSql,
+      values: ['attachment-object:c:k'],
+    });
+    expect(initBody(fetchMock)).toBe(
+      JSON.stringify({ kind: 'runtime_rd_object_lock', values: ['attachment-object:c:k'] }),
+    );
+  });
+});
+
+describe('runtime pair-key transaction lock family cut over to the native planner', () => {
+  const pairLockSql = 'SELECT pg_advisory_lock(hashtext($1),hashtext($2))';
+  const pairUnlockSql = 'SELECT pg_advisory_unlock(hashtext($1),hashtext($2)) released';
+  const oracles = [
+    ['runtime_rd_pair_lock', pairLockSql, 50, '2dbd2f0b999bdbcb04183c72ac5a56e464e87e58766a92440429048278430489'],
+    ['runtime_rd_pair_unlock', pairUnlockSql, 61, '12a7fb9aea50f41132ebf24fd0a0a52cdb8725dd104c066b21086d0ecba86183'],
+  ] as const;
+
+  test.each(oracles)('%s is byte-identical in the Rust port', (kind, sql, size, digest) => {
+    const port = rust('adapters/postgres/control_plane.rs');
+    const ingress = rust('adapters/control_plane_read_port.rs');
+    expect(port).toContain(sql);
+    expect(ingress).toContain(kind);
+    expect(sha(sql)).toBe(digest);
+    expect(sql.length).toBe(size);
+    expect((sql.match(/\$\d/g) ?? []).length).toBe(2);
+  });
+
+  test('postgres.ts plans both pair statements and inlines neither', () => {
+    const postgres = src('runtime/postgres.ts');
+    for (const sql of [pairLockSql, pairUnlockSql]) expect(postgres).not.toContain(sql);
+    expect(postgres).toContain('planRuntimeControlPlane(RD_PAIR_LOCK,[lock.namespace,lock.key])');
+    expect(postgres).toContain('planRuntimeControlPlane(RD_PAIR_UNLOCK,[lock!.namespace,lock!.key])');
+    expect(postgres).toContain('client.query(plan.sql,[...plan.values]);locked=true');
+    expect(postgres).toContain('client.query(plan.sql,[...plan.values]);');
+    const client = src('native-runtime-control-plane.ts');
+    for (const kind of ['runtime_rd_pair_lock', 'runtime_rd_pair_unlock']) expect(client).toContain(kind);
+  });
+
+  test('a planned pair lock keeps namespace/key bind order', async () => {
+    const fetchMock = reply({ data: { sql: pairLockSql, values: ['transaction', 'aggregate-1'] } });
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await planRuntimeControlPlane('runtime_rd_pair_lock', ['transaction', 'aggregate-1'], env())).toEqual({
+      sql: pairLockSql,
+      values: ['transaction', 'aggregate-1'],
+    });
+    expect(initBody(fetchMock)).toBe(
+      JSON.stringify({ kind: 'runtime_rd_pair_lock', values: ['transaction', 'aggregate-1'] }),
     );
   });
 });

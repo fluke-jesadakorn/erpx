@@ -138,16 +138,15 @@ describe('marketing evidence-row tail merge (r42)', () => {
   });
 
   it('leaves FOR SHARE, settlement receipts and native read ports untouched', async () => {
-    expect(await src('form-asset-lock-sql.ts')).toContain(
-      '`SELECT id FROM marketing_assets WHERE id=? AND company_id=?${scope} FOR SHARE`',
-    );
+    expect(await src('public-form.ts')).toContain('`${lock.sql} FOR SHARE`');
+    expect(await src('public-submission.ts')).toContain('`${lock.sql} FOR SHARE`');
     expect(await src('purchases.ts')).toContain('nativeMarketingReadFirst<Record<string,unknown>>(MARKETING_RD_COMMAND_RECEIPT_PRIOR');
     expect(await src('native-marketing-read.ts')).toContain('export');
     expect(await src('marketing.ts')).toContain('from "./native-marketing-read"');
   });
 
   it('confirms the owner KPI of 16 from the AST after the 36 -> 34 r45 drop, 34 -> 32 r46 fold, 32 -> 29 r47 fold, 29 -> 27 r48 fold, 27 -> 24 r49 fold, 24 -> 23 r50 fold, 23 -> 22 r51 fold and 22 -> 21 r52 fold and 21 -> 20 r53 fold', async () => {
-    expect(await ownerSelectTokens()).toBe(12);
+    expect(await ownerSelectTokens()).toBe(10);
     expect(await ownerSelectTokens()).toBeLessThan(32);
   });
 });

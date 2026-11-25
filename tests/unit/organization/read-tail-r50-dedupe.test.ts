@@ -73,7 +73,6 @@ describe('Organization read-tail r50 dedupe', () => {
       ['organization-column-alias-families-r35.ts', ['ownerProjection']],
       ['organization-column-alias-families-r36.ts', ['activeNodeByIdCompanyKind']],
       ['organization-column-alias-families-r37.ts', ['leavePolicyVersionLookup']],
-      ['organization-column-alias-families-r38.ts', ['activePositionById']],
       ['organization-read-tail-sources.ts', ['departmentSnapshotMissing', 'ownerVersionGuardSource', 'NODE_BRANCH_ACTIVE', 'NODE_BRANCH_ACTIVE_EXISTS']],
       ['organization-read-tail-sources-r39.ts', ['companyNodeScopeSource', 'activeStaffLevelSource', 'changeVersionGuardSource', 'scopeNodeBranchExists']],
       ['organization-read-tail-sources-r40.ts', ['activePositionList', 'recommendedPayDefault', 'nodeChangeByIdCompany', 'activeStaffLevels', 'memberProfileByUser']],
@@ -144,7 +143,7 @@ describe('Organization read-tail r50 dedupe', () => {
     // r50 collapsed three node-existence guards and three active-position
     // lookups into two shared helpers (-2, -2 = -4); r53 routes the two
     // remaining inline node-EXISTS bodies through nodeExistsGuard (-2).
-    expect(space).toBe(196);
+    expect(space).toBe(188);
     expect(space).toBeLessThan(234);
   });
 });

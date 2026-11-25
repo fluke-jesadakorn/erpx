@@ -107,6 +107,34 @@ const READ_TICKET_PORTAL_ACKNOWLEDGED_AT: NativeSupportReadStatement = NativeSup
     bind_count: 2,
 };
 
+/// Native successor of the TypeScript portal decision replay proof at
+/// `ticket-portal.ts:decisionReplayProof`. The caller binds
+/// `[command_id, binding_id, company_id, actor_id, action, result_json]` and
+/// receives one row only when the stored receipt matches its immutable event.
+/// The retired literal is carried verbatim; no lock, advisory or write is added.
+pub const RD_TICKET_PORTAL_DECISION_REPLAY: &str = "support_rd_ticket_portal_decision_replay";
+const SQL_TICKET_PORTAL_DECISION_REPLAY: &str =
+    "SELECT 1 FROM support_ticket_portal_events event JOIN command_receipts receipt ON receipt.command_id=event.command_id AND receipt.record_id=event.binding_id AND receipt.actor_id=event.actor_id AND receipt.operation='support.ticket-portal.'||event.action AND receipt.authority_json::jsonb->>'companyId'=event.company_id WHERE event.command_id=? AND event.binding_id=? AND event.company_id=? AND event.actor_id=? AND event.action=? AND receipt.result_json::jsonb=?::jsonb AND receipt.result_json::jsonb=jsonb_build_object('id',event.binding_id,'status',CASE event.action WHEN 'prepare' THEN 'draft' WHEN 'approve' THEN 'approved' WHEN 'reject' THEN 'rejected' ELSE 'revoked' END,'version',event.version)";
+const READ_TICKET_PORTAL_DECISION_REPLAY: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_TICKET_PORTAL_DECISION_REPLAY,
+    sql: SQL_TICKET_PORTAL_DECISION_REPLAY,
+    bind_count: 6,
+};
+
+/// Native successor of the TypeScript portal response replay proof at
+/// `ticket-portal.ts:responseReplayProof`. The caller binds
+/// `[command_id, binding_id, company_id, actor_id, result_json]` and receives
+/// one row only when the stored receipt matches its immutable response.
+/// The retired literal is carried verbatim; no lock, advisory or write is added.
+pub const RD_TICKET_PORTAL_RESPONSE_REPLAY: &str = "support_rd_ticket_portal_response_replay";
+const SQL_TICKET_PORTAL_RESPONSE_REPLAY: &str =
+    "SELECT 1 FROM support_ticket_portal_responses response JOIN command_receipts receipt ON receipt.command_id=response.command_id AND receipt.record_id=response.binding_id AND receipt.actor_id=response.actor_id AND receipt.operation='support.ticket-portal.respond' AND receipt.authority_json::jsonb->>'companyId'=response.company_id WHERE response.command_id=? AND response.binding_id=? AND response.company_id=? AND response.actor_id=? AND receipt.result_json::jsonb=?::jsonb AND receipt.result_json::jsonb=jsonb_build_object('id',response.id,'bindingId',response.binding_id,'version',response.response_version,'status','published','message',response.message,'publishedAt',response.created_at)";
+const READ_TICKET_PORTAL_RESPONSE_REPLAY: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_TICKET_PORTAL_RESPONSE_REPLAY,
+    sql: SQL_TICKET_PORTAL_RESPONSE_REPLAY,
+    bind_count: 5,
+};
+
 /// Native successor of the TypeScript `supportTicketPortalTicketImage` read.
 /// The caller binds `[ticket_id]` and receives the owner's ticket row snapshot
 /// used by the portal change-witness. The retired literal is carried verbatim:
@@ -721,6 +749,8 @@ const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_SERVICE_TEAM_NAME,
     READ_TICKET_PORTAL_RESPONSE,
     READ_TICKET_PORTAL_ACKNOWLEDGED_AT,
+    READ_TICKET_PORTAL_DECISION_REPLAY,
+    READ_TICKET_PORTAL_RESPONSE_REPLAY,
     READ_TICKET_PORTAL_TICKET_IMAGE,
     READ_TICKET_EVENT_HISTORY,
     READ_INCIDENT_EVENT_HISTORY,
@@ -807,6 +837,8 @@ mod tests {
                 SQL_TICKET_PORTAL_ACKNOWLEDGED_AT,
                 2usize,
             ),
+            (RD_TICKET_PORTAL_DECISION_REPLAY, SQL_TICKET_PORTAL_DECISION_REPLAY, 6usize),
+            (RD_TICKET_PORTAL_RESPONSE_REPLAY, SQL_TICKET_PORTAL_RESPONSE_REPLAY, 5usize),
             (
                 RD_TICKET_PORTAL_TICKET_IMAGE,
                 SQL_TICKET_PORTAL_TICKET_IMAGE,
@@ -967,7 +999,7 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), binds);
         }
-        assert_eq!(STATEMENTS.len(), 52);
+        assert_eq!(STATEMENTS.len(), 54);
     }
 
     #[test]
@@ -984,6 +1016,10 @@ mod tests {
         assert_eq!(response.bind_count, 1);
         let ack = read_statement(RD_TICKET_PORTAL_ACKNOWLEDGED_AT).expect("portal ack read");
         assert_eq!(ack.bind_count, 2);
+        let decision_replay = read_statement(RD_TICKET_PORTAL_DECISION_REPLAY).expect("portal decision replay");
+        assert_eq!(decision_replay.bind_count, 6);
+        let response_replay = read_statement(RD_TICKET_PORTAL_RESPONSE_REPLAY).expect("portal response replay");
+        assert_eq!(response_replay.bind_count, 5);
         let portal_ticket = read_statement(RD_TICKET_PORTAL_TICKET_IMAGE).expect("portal ticket image read");
         assert_eq!(portal_ticket.bind_count, 1);
         let ticket_events = read_statement(RD_TICKET_EVENT_HISTORY).expect("ticket event history");

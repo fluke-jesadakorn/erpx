@@ -85,7 +85,7 @@ describe('support read-tail r44 byte-identical bound-row image aggregate head', 
   test('native registry kinds, locks, advisory, eligibility wrappers and r18-r43 helpers stay untouched', () => {
     const registry = src('native_support_read_sql.rs');
     const bridge = src('native-support-read.ts');
-    expect(registry).toContain('assert_eq!(STATEMENTS.len(), 52);');
+    expect(registry).toContain('assert_eq!(STATEMENTS.len(), 54);');
     expect(registry).not.toMatch(/LOCK TABLE|pg_advisory_xact_lock/);
     expect(bridge).toContain('SUPPORT_RD_TICKET_WORK');
     expect(bridge).toContain('SUPPORT_RD_INCIDENT_WORK');
@@ -100,8 +100,8 @@ describe('support read-tail r44 byte-identical bound-row image aggregate head', 
     expect(src('read-tail-r43-sql.ts')).toContain('readTailR43ColumnsFromSql =');
   });
 
-  test('retirement:ts-statements is 28 after the r23 follow-up native membership cut', () => {
-    expect(totalSelects()).toBe(28);
+  test('retirement:ts-statements is 26 after the portal replay-proof native cut', () => {
+    expect(totalSelects()).toBe(26);
     expect(totalSelects()).toBeLessThan(32);
   });
 });

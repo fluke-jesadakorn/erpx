@@ -53,7 +53,8 @@ export type NativeBillingCommandInput = Readonly<{
  * native authority matches the retained contract. `cost`, `delete-cost` and
  * `complete-costs` use the owner `require_cost_command` gate, which requires
  * the same platform `platform_admin` actor. `retry`, `approve-target-rollout`
- * `verify-statement` and `verify-provider-cost` use `require_target_command`
+ * `verify-statement`, `verify-provider-cost`, `record-operating-cost` and
+ * `review-target-capacity` use `require_target_command`
  * (holding_owner): the Holding-host navigation
  * default sends a Platform reviewer to the target Holding host before dispatch,
  * preserving the retained authority.
@@ -147,6 +148,36 @@ export function nativeBillingCommandRequest(
           fxNumerator: input.fxNumerator,
           fxDenominator: input.fxDenominator,
           providerCostSatang: input.providerCostSatang,
+          evidenceId: input.evidenceId,
+        },
+      };
+    // OperatingCostBody is exactly {version, reason, targetMonth, category,
+    // amountSatang, evidenceId}; the retained fields are renamed here.
+    case "record-operating-cost":
+      return {
+        action: "record-operating-cost",
+        body: {
+          ...common,
+          targetMonth: input.targetMonth,
+          category: input.operatingCategory,
+          amountSatang: input.operatingCostSatang,
+          evidenceId: input.evidenceId,
+        },
+      };
+    // CapacityBody is exactly {version, reason, targetMonth,
+    // projectedOriginalBytes, primaryAvailableBytes, backupAvailableBytes,
+    // reservedBytes, companyLimitBytes, evidenceId}.
+    case "review-target-capacity":
+      return {
+        action: "review-target-capacity",
+        body: {
+          ...common,
+          targetMonth: input.targetMonth,
+          projectedOriginalBytes: input.projectedOriginalBytes,
+          primaryAvailableBytes: input.primaryAvailableBytes,
+          backupAvailableBytes: input.backupAvailableBytes,
+          reservedBytes: input.reservedBytes,
+          companyLimitBytes: input.companyLimitBytes,
           evidenceId: input.evidenceId,
         },
       };

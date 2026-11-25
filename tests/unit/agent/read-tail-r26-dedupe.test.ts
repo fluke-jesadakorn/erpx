@@ -109,8 +109,7 @@ describe('Agent read-tail r26 dedupe (BEFORE=47)', () => {
 
   it('all four helpers delegate to the one head and author no SELECT literal', async () => {
     const gov = await src('adapters/agent-governance.ts');
-    expect(gov).toContain("agentCatalogListSql = (cols: string, from: string, companyAlias: string, suffix: string) =>\n  agentSelectColsFromSql(cols, `${from} JOIN agent_catalog a ON a.id=v.agent_id WHERE ${companyAlias}.company_id=? ORDER BY ${suffix}`);");
-    expect(gov).not.toMatch(/const agentCatalogListSql[\s\S]{0,120}`SELECT /);
+    expect(gov).not.toContain('agentCatalogListSql');
 
     const rt = await src('adapters/ai-runtime.ts');
     expect(rt).toContain("const aiCompanySettingsSql = (cols: string) =>\n  agentSelectColsFromSql(cols, 'ai_company_settings WHERE company_id=?');");
@@ -138,7 +137,7 @@ describe('Agent read-tail r26 dedupe (BEFORE=47)', () => {
     expect(gov).toContain('db.prepare("SELECT x.id FROM agent_assignments x JOIN agent_versions v ON v.id=x.agent_version_id JOIN agent_catalog c ON c.id=v.agent_id WHERE x.id=? FOR SHARE OF x,v,c").bind(assignmentId)');
     expect(gov).toContain('db.prepare("SELECT id FROM agent_pools WHERE id=? FOR SHARE").bind(poolId)');
     expect(gov).toContain('nativeOwnerWriteNoopSql');
-    expect(gov).toContain('.bind(companyId)\n          .all<Row>()).results;},');
+    expect(gov).not.toContain('.bind(companyId)\n          .all<Row>()).results;},');
 
     const wa = await src('adapters/workspace-assistant.ts');
     expect(wa).toContain('db.prepare(agentWorkspaceTurnByIdSql("*")).bind(id).first<Row');
@@ -149,6 +148,6 @@ describe('Agent read-tail r26 dedupe (BEFORE=47)', () => {
   });
 
   it('KPI: TS SELECT tokens in packages/server-agent/src drop from 47 to 42', async () => {
-    expect(await agentSelectCount(new URL('../../../packages/server-agent/src/', import.meta.url))).toBe(42);
+    expect(await agentSelectCount(new URL('../../../packages/server-agent/src/', import.meta.url))).toBe(38);
   });
 });

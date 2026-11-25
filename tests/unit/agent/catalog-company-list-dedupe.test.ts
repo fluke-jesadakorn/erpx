@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { readFile, readdir } from 'node:fs/promises';
-import { agentSelectColsFromSql } from '../../../packages/server-agent/src/adapters/read-tail-r26-source-sql';
 
 const src = (name: string) =>
   readFile(new URL(`../../../packages/server-agent/src/${name}`, import.meta.url), 'utf8');
@@ -23,55 +22,35 @@ const versionsSql =
 const assignmentsSql =
   'SELECT x.*,v.version_number,a.name agent_name FROM agent_assignments x JOIN agent_versions v ON v.id=x.agent_version_id JOIN agent_catalog a ON a.id=v.agent_id WHERE x.company_id=? ORDER BY x.updated_at DESC';
 
-describe('Agent read-tail r20 catalog-joined company list dedupe', () => {
-  it('authors the parameterized catalog-joined company list projection once', async () => {
+describe('Agent read-tail r20 catalog-joined company list retired to native', () => {
+  it('the TS repository no longer authors the catalog-joined list projection', async () => {
     const gov = await src('adapters/agent-governance.ts');
-    expect(gov).toContain('agentCatalogListSql = (cols: string, from: string, companyAlias: string, suffix: string) =>\n  agentSelectColsFromSql(cols, `${from} JOIN agent_catalog a ON a.id=v.agent_id WHERE ${companyAlias}.company_id=? ORDER BY ${suffix}`);');
-    expect(gov).not.toMatch(/const agentCatalogListSql[\s\S]{0,140}`SELECT /);
-    expect(agentSelectColsFromSql('${cols}', '${from} JOIN agent_catalog a ON a.id=v.agent_id WHERE ${companyAlias}.company_id=? ORDER BY ${suffix}')).toBe(
-      'SELECT ${cols} FROM ${from} JOIN agent_catalog a ON a.id=v.agent_id WHERE ${companyAlias}.company_id=? ORDER BY ${suffix}',
-    );
-    expect(gov.match(/agentCatalogListSql\(/g)).toHaveLength(2);
-  });
-
-  it('routes both catalog-joined readers through the shared projection with unchanged binds', async () => {
-    const gov = await src('adapters/agent-governance.ts');
-    const calls = [...gov.matchAll(/agentCatalogListSql\('([^']+)','([^']+)','([^']+)','([^']+)'\)/g)].map(
-      (m) => [m[1], m[2], m[3], m[4]] as const,
-    );
-    expect(calls).toEqual([
-      ['v.*,a.name agent_name', 'agent_versions v', 'a', 'v.created_at DESC'],
-      [
-        'x.*,v.version_number,a.name agent_name',
-        'agent_assignments x JOIN agent_versions v ON v.id=x.agent_version_id',
-        'x',
-        'x.updated_at DESC',
-      ],
-    ]);
-    expect(
-      calls.map(([c, f, a, s]) =>
-        agentSelectColsFromSql(c, `${f} JOIN agent_catalog a ON a.id=v.agent_id WHERE ${a}.company_id=? ORDER BY ${s}`),
-      ),
-    ).toEqual([versionsSql, assignmentsSql]);
-    expect(gov).toContain("agentCatalogListSql('v.*,a.name agent_name','agent_versions v','a','v.created_at DESC'),\n          )\n          .bind(companyId)");
-    expect(gov).toContain("agentCatalogListSql('x.*,v.version_number,a.name agent_name','agent_assignments x JOIN agent_versions v ON v.id=x.agent_version_id','x','x.updated_at DESC'),\n          )\n          .bind(companyId)");
+    expect(gov).not.toContain('agentCatalogListSql');
     expect(gov).not.toContain(versionsSql);
     expect(gov).not.toContain(assignmentsSql);
+  });
+
+  it('the native port owns the byte-equivalent catalog joins with Company binds', async () => {
+    const port = await src('adapters/workspace_read_postgres.rs');
+    expect(port).toContain('SELECT v.*,a.name agent_name FROM agent_versions v JOIN agent_catalog a ON a.id=v.agent_id WHERE a.company_id=$1');
+    expect(port).toContain('SELECT x.*,v.version_number,a.name agent_name FROM agent_assignments x JOIN agent_versions v ON v.id=x.agent_version_id JOIN agent_catalog a ON a.id=v.agent_id WHERE x.company_id=$1');
+    expect(port).toContain('t.created_at DESC');
+    expect(port).toContain('t.updated_at DESC');
   });
 
   it('records a strictly lower SELECT count than BEFORE=57', async () => {
     expect(await agentSelectCount(new URL('../../../packages/server-agent/src/', import.meta.url))).toBeLessThan(57);
   });
 
-  it('leaves agentPoolMemberAccessSql, guards, FOR SHARE locks and prior families untouched', async () => {
+  it('leaves the retained guard, lock and write-read families untouched', async () => {
     const gov = await src('adapters/agent-governance.ts');
     expect(gov).toContain(
       "const agentPoolMemberAccessSql = 'EXISTS(SELECT 1 FROM agent_pool_members m WHERE m.pool_id=x.pool_id AND m.user_id=? AND m.revoked_at IS NULL)';",
     );
-    expect(gov).toContain(`const privateSessionSelectSql = '${'SELECT s.id,s.user_id,s.assignment_id,s.conversation_key,s.generation,s.created_at,c.* FROM ai_private_sessions s JOIN ai_private_session_controls c ON c.session_id=s.id WHERE s.company_id=?'}'`);
+    expect(gov).not.toContain('privateSessionSelectSql');
+    expect(gov).not.toContain('agentCompanyListSql');
+    expect(gov).not.toContain('agentPoolChildListSql');
     expect(gov).toContain('const agentActivePrivateSessionSql = (expiresAt: string) =>');
-    expect(gov).toContain('const agentCompanyListSql = (table: string, suffix: string) =>');
-    expect(gov).toContain('const agentPoolChildListSql = (table: string, alias: string, suffix: string) =>');
     for (const lock of [
       '"SELECT session_id FROM ai_private_session_controls WHERE session_id=? FOR SHARE"',
       '"SELECT x.id FROM agent_assignments x JOIN agent_versions v ON v.id=x.agent_version_id JOIN agent_catalog c ON c.id=v.agent_id WHERE x.id=? FOR SHARE OF x,v,c"',

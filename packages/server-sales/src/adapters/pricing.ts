@@ -1,7 +1,5 @@
 import {salesPricingPurchaseControls} from '@erpx/server-sales/adapters/pricing-purchases';
-import {byKey} from './by-key';
 import {priceListSchema,priceListUpdateSchema,priceListDecisionSchema} from '@erpx/server-sales/domain/price-lists';
-import { commercialOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/commercial-owner-projection-sources";
 import {salesPricingCurrency,salesPricingProducts,salesPricingProduct} from "@erpx/server-commerce/public/sales-order-sources";
 import {salesPricingCustomers,salesPricingCustomerValid} from "@erpx/server-finance/public/sales-customer-sources";
 import {createSalesPricingApplication} from "@erpx/server-sales/application/pricing";
@@ -19,12 +17,10 @@ import {replayCommand} from "@erpx/server-workflow/public/commands";
 
 
 import {createPriceListApplication,type PriceListRepository} from '@erpx/server-sales/application/price-lists';
-import {priceListSelect} from './pricing-source-sql';
 import {readPriceListWorkspace} from './native-lane-30/pricing-client';
+import {nativeSalesReadAll,nativeSalesReadFirst,SALES_RD_PRICING_LIST_BY_ID,SALES_RD_PRICING_LIST_ACTIVE_BY_ID,SALES_RD_PRICING_LIST_ACTIVE,SALES_RD_PRICING_ITEMS_BY_LIST} from './native-sales-read';
 export {priceListSchema,priceListUpdateSchema,priceListDecisionSchema} from '@erpx/server-sales/domain/price-lists';
 type Row=Record<string,string|number|null>;
-const activeCurrencySql=`(SELECT currency FROM (${commerceProjectionSources.commerce_settings}) commerce_settings WHERE company_id=?)`;
-const priceListByIdSql=priceListSelect('WHERE id=? AND company_id=?');
 function access(actor:WorkContext){requirePermission(actor,'commerce.read');requirePermission(actor,'commerce.sales');}
 function application(actor:WorkContext,provided?:SqlDatabase){let resource:Promise<SqlDatabase>|null=provided?Promise.resolve(provided):null;const database=()=>resource??=holdingResources(actor.holdingId).then(x=>x.write);return createPriceListApplication({companyScope:!actor.branchId&&!actor.departmentId,authorize:()=>access(actor),authorizeReview:()=>{requirePermission(actor,'commerce.approve');},canApprove:hasPermission(actor,'commerce.approve'),isSamePerson:id=>samePerson(actor,id),clock:{now:()=>Date.now()},repository:async()=>repository(await database(),actor)});}
 function repository(write:SqlDatabase,actor:WorkContext):PriceListRepository{return {
@@ -34,7 +30,7 @@ function repository(write:SqlDatabase,actor:WorkContext):PriceListRepository{ret
  salesPricingCurrency(write,actor),
  ]);const native=await readPriceListWorkspace(actor);return {lists:native.lists as Row[],items:native.items as Row[],products:products.results,customers:customers.results,settings};},
  replay:(key,operation,id,input)=>replayCommand(write,actor,key,operation,id,input),
- list:id=>write.prepare(priceListByIdSql).bind(id,actor.companyId).first<Row>(),
+ list:id=>nativeSalesReadFirst<Row>(SALES_RD_PRICING_LIST_BY_ID,[id,actor.companyId],write),
  currency:()=>salesPricingCurrency(write,actor),
  customer:async(id,currency)=>salesPricingCustomerValid(write,actor,id,currency),
  product:id=>salesPricingProduct(write,actor,id),
@@ -44,9 +40,9 @@ async function translated<Result>(action:()=>Promise<Result>){try{return await a
 export function pricingWorkspace(actor:WorkContext){return translated(async()=>{const database=(await holdingResources(actor.holdingId)).write,purchase=await salesPricingPurchaseControls(database,actor),view=await application(actor,database).workspace();return {...view,...(purchase?{purchase}: {})};});}
 export async function resolveSalesPricing(db:SqlDatabase,actor:WorkContext,input:SalesPricingInput){
  const application=createSalesPricingApplication({
- async list(input){if(input.priceListId)return await db.prepare(`${priceListByIdSql} AND status='active' AND currency=${activeCurrencySql} AND valid_from<=? AND valid_until>=? AND (customer_id IS NULL OR customer_id=?)`).bind(input.priceListId,actor.companyId,actor.companyId,input.orderDate,input.orderDate,input.partyId).first<Row>()??null;
- return await db.prepare(priceListSelect(`WHERE company_id=? AND status='active' AND currency=${activeCurrencySql} AND valid_from<=? AND valid_until>=? AND (customer_id=? OR customer_id IS NULL) ORDER BY CASE WHEN customer_id=? THEN 0 ELSE 1 END,valid_from DESC,activated_at DESC LIMIT 1`)).bind(actor.companyId,actor.companyId,input.orderDate,input.orderDate,input.partyId,input.partyId).first<Row>()??null;},
- async items(id){return(await db.prepare(byKey('sales_price_list_items','price_list_id')).bind(id).all<Row>()).results;}
+ async list(input){if(input.priceListId)return await nativeSalesReadFirst<Row>(SALES_RD_PRICING_LIST_ACTIVE_BY_ID,[input.priceListId,actor.companyId,actor.companyId,input.orderDate,input.orderDate,input.partyId],db)??null;
+ return await nativeSalesReadFirst<Row>(SALES_RD_PRICING_LIST_ACTIVE,[actor.companyId,actor.companyId,input.orderDate,input.orderDate,input.partyId,input.partyId],db)??null;},
+ async items(id){return(await nativeSalesReadAll<Row>(SALES_RD_PRICING_ITEMS_BY_LIST,[id],db)).results;}
  });try{return await application(input);}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}
 }
 

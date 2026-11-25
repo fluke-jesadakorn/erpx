@@ -33,6 +33,7 @@ pub(crate) mod trust_workflow_bridge;
 pub(crate) mod citation_source;
 pub(crate) mod legal_http;
 pub(crate) mod legal_http_auxiliary;
+pub(crate) mod legal_read_tail_r48;
 pub(crate) mod native_read_plan;
 pub(crate) mod legal_http_retention;
 pub(crate) mod legal_trust_http;

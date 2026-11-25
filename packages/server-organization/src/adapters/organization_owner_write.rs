@@ -143,9 +143,10 @@ pub const PEOPLE_LIFECYCLE_DATA_NODES: &str = "people_lifecycle_data_nodes";
 /// keyed with the position id; the caller keeps its lifecycle authority and
 /// receives the retained level/branch/department row or null.
 pub const LIFECYCLE_READ_SAVE_POSITION: &str = "lifecycle_read_save_position";
-/// Native-owned rehire active position snapshot. SELECT-only and Company
-/// keyed with the position id; the caller keeps its rehire authority and
-/// receives the retained active-position row or null.
+/// Native-owned rehire and lifecycle-worker active position snapshot.
+/// SELECT-only and Company keyed with the position id; both callers keep
+/// their own authority checks and receive the retained active-position
+/// row(s) or null.
 pub const LIFECYCLE_READ_REHIRE_POSITION: &str = "lifecycle_read_rehire_position";
 
 // -- profile-media-command ----------------------------------------------------

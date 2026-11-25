@@ -1,3 +1,3 @@
 import {registeredDatabases,type RegistryEnv} from "@erpx/feature-runtime/lib/holding-registry";
-import {COMMERCE_SCHEMA_READY_SQL} from './read-tail-r15-dedupe-sql';
-export async function billingTestFinanceReady(env:RegistryEnv){return registeredDatabases(env,'h003').write.prepare(COMMERCE_SCHEMA_READY_SQL('billing_test_finance_documents')).first<{ready:boolean}>();}
+import {nativeCommerceReadFirst,RD_BILLING_TEST_FINANCE_SCHEMA} from './native-commerce-read';
+export async function billingTestFinanceReady(env:RegistryEnv){return nativeCommerceReadFirst<{ready:boolean}>(RD_BILLING_TEST_FINANCE_SCHEMA,[],registeredDatabases(env,'h003').write);}

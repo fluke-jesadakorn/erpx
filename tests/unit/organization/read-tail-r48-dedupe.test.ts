@@ -48,7 +48,6 @@ describe('Organization read-tail r48 parameterized head', () => {
       ['organization-column-alias-families-r35.ts', ['ownerProjection']],
       ['organization-column-alias-families-r36.ts', ['activeNodeByIdCompanyKind']],
       ['organization-column-alias-families-r37.ts', ['leavePolicyVersionLookup']],
-      ['organization-column-alias-families-r38.ts', ['activePositionById']],
       ['organization-read-tail-sources.ts', ['departmentSnapshotMissing', 'ownerVersionGuardSource', 'NODE_BRANCH_ACTIVE', 'NODE_BRANCH_ACTIVE_EXISTS']],
       ['organization-read-tail-sources-r39.ts', ['companyNodeScopeSource', 'activeStaffLevelSource', 'changeVersionGuardSource', 'scopeNodeBranchExists']],
       ['organization-read-tail-sources-r40.ts', ['activePositionList', 'recommendedPayDefault', 'nodeChangeByIdCompany', 'activeStaffLevels', 'memberProfileByUser']],
@@ -102,7 +101,7 @@ describe('Organization read-tail r48 parameterized head', () => {
     };
     walk(srcRoot);
     // r48 collapses two authority-seat holder guards into one shared source (-1).
-    expect(space).toBe(196);
+    expect(space).toBe(188);
     expect(space).toBeLessThan(238);
   });
 });

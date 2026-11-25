@@ -384,6 +384,32 @@ pub fn mount(
         .map_err(|_| "PRIVATE_API_BENEFITS_LANE32_INVALID")?,
     );
 
+    // Customer 360 native read-plan route.
+    let c360_read_targets: Vec<_> = config
+        .holdings
+        .iter()
+        .filter_map(|holding| {
+            config
+                .holding_company(&holding.registration.holding_id)
+                .map(|company_id| {
+                    erpx_server_customer_360::public::native_360_read_http::Customer360ReadPlanTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        company_id: company_id.as_str().to_owned(),
+                    }
+                })
+        })
+        .collect();
+    if !c360_read_targets.is_empty() {
+        router = router.merge(
+            erpx_server_customer_360::public::native_360_read_http::router_for_holdings(
+                c360_read_targets,
+            )
+            .map_err(|_| "PRIVATE_API_CUSTOMER_360_READ_PLAN_INVALID")?,
+        );
+    }
+
     // Benefits: native settlement event history.
     router = router.merge(
         erpx_server_benefits::public::native_settlement_events::router_for_holdings(

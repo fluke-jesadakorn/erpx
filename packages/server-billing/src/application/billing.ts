@@ -40,10 +40,6 @@ currentTargetPrice(value0:string | undefined):Promise<{rows:BillingPriceRow[];ro
 sandboxHolding(value0:string):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 approvedRollout(value0:string,value1:string | undefined):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 assignTargetPrice(value0:string,value1:string | undefined,value2:string,value3:string | undefined,value4:number,value5:string,value6:unknown,value7:number):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
-availableOperatingEvidence(value0:string | null | undefined,value1:string):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
-recordOperatingCost(value0:string,value1:string | undefined,value2:string | undefined,value3:number | undefined,value4:string | null | undefined,value5:string,value6:number):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
-availableCapacityEvidence(value0:string | null | undefined,value1:string):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
-recordCapacityReview(value0:string,value1:string | undefined,value2:number | undefined,value3:number | undefined,value4:number | undefined,value5:number | undefined,value6:number | undefined,value7:string | null | undefined,value8:string,value9:unknown,value10:number):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 extraTargetAssignment(value0:string,value1:string | undefined):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 approvedExtraPeriod(value0:string,value1:string | undefined):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
 availableExtraEvidence(value0:string | null | undefined,value1:string):Promise<{rows:Record<string,unknown>[];rowCount:number|null}>;
@@ -102,6 +98,8 @@ const nativeActions = new Set<BillingInput["action"]>([
   "approve-target-rollout",
   "verify-statement",
   "verify-provider-cost",
+  "record-operating-cost",
+  "review-target-capacity",
 ]);
 const adminActions = new Set([
   "cost",
@@ -111,8 +109,6 @@ const adminActions = new Set([
   "assign-target",
   "approve-target",
   "rate-target",
-  "record-operating-cost",
-  "review-target-capacity",
   "approve-target-extra",
 ]);
 async function storeTargetRating(
@@ -397,30 +393,6 @@ async function billingCommand(
           ? targetBounds.start : Math.max(now, targetBounds.start);
         const inserted = await c.assignTargetPrice(holdingId,input.targetMonth,price.id,input.targetMode,serviceStartedAt,actor.userId,input.reason,now);
         if (!inserted.rowCount) fail("TARGET_ASSIGNMENT_EXISTS", "This month's assignment is immutable. Choose a later month.");
-        break;
-      }
-      case "record-operating-cost": {
-        if (!input.targetMonth || !input.operatingCategory ||
-            input.operatingCostSatang === undefined || !input.evidenceId)
-          fail("OPERATING_COST_REQUIRED", "Month, category, actual cost and evidence are required.");
-        if (now < monthBounds(input.targetMonth).end)
-          fail("MONTH_NOT_CLOSED", "Record actual operating costs only after the month ends.");
-        if (!(await c.availableOperatingEvidence(input.evidenceId,holdingId)).rowCount) fail("EVIDENCE_REQUIRED", "Attach available operating cost evidence.");
-        const inserted = await c.recordOperatingCost(holdingId,input.targetMonth,input.operatingCategory,input.operatingCostSatang,input.evidenceId,actor.userId,now);
-        if (!inserted.rowCount) fail("OPERATING_COST_ALREADY_VERIFIED", "The actual cost is immutable; add a future adjustment with new evidence.");
-        break;
-      }
-      case "review-target-capacity": {
-        if (!input.targetMonth || input.projectedOriginalBytes === undefined ||
-            input.primaryAvailableBytes === undefined || input.backupAvailableBytes === undefined ||
-            input.reservedBytes === undefined || input.companyLimitBytes === undefined ||
-            !input.evidenceId)
-          fail("CAPACITY_REVIEW_REQUIRED", "Month, primary and backup capacity, Company cap and evidence are required.");
-        if (input.targetMonth <= billingMonth(now))
-          fail("FUTURE_MONTH_REQUIRED", "Capacity approval must precede a future effective month.");
-        if (!(await c.availableCapacityEvidence(input.evidenceId,holdingId)).rowCount) fail("EVIDENCE_REQUIRED", "Attach available capacity evidence.");
-        const inserted = await c.recordCapacityReview(holdingId,input.targetMonth,input.projectedOriginalBytes,input.primaryAvailableBytes,input.backupAvailableBytes,input.reservedBytes,input.companyLimitBytes,input.evidenceId,actor.userId,input.reason,now);
-        if (!inserted.rowCount) fail("CAPACITY_ALREADY_REVIEWED", "Capacity evidence for this effective month is immutable.");
         break;
       }
       case "approve-target-extra": {

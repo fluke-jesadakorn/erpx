@@ -1,5 +1,4 @@
 import "server-only";
-import { finalRootOwnerProjectionSources as identity_accessProjectionSources } from "@erpx/server-identity_access/public/final-root-owner-projection-sources";
 import { readTailR45AssignmentExistsSql } from './read-tail-r45-sql';
 
 /** Shared parameterized eligibility fragments for the Support read tail.
@@ -7,9 +6,6 @@ import { readTailR45AssignmentExistsSql } from './read-tail-r45-sql';
  * readers remain the authority. */
 export const supportEligibleFlagSql = (predicate: string, alias: string) =>
     `CASE WHEN ${readTailR45AssignmentExistsSql('m', `${predicate} AND m.user_id=?`)} THEN 1 ELSE 0 END ${alias}`;
-
-export const supportReviewerCountSql = (predicate: string) =>
-    `(SELECT COUNT(DISTINCT m.user_id) FROM (${identity_accessProjectionSources.assignments}) m WHERE ${predicate})`;
 
 /** One parameterized assignment-access read witness shared by the Support ticket
  * and incident read predicates. The active assignment/principal prefix and each

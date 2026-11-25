@@ -10,6 +10,7 @@ import {
 } from '../../../packages/server-commerce/src/adapters/native-commerce-read';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import { readFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import {
   COMMERCE_ACTIVE_WAREHOUSES_SQL,
   COMMERCE_BILLING_TEST_SOURCE_KEY_SQL,
@@ -30,10 +31,7 @@ import {
 import { COMMERCE_BRANCH_LABEL_SQL, COMMERCE_FLOW_PARENT_SQL, COMMERCE_FULFILLMENT_ORDER_ID_SQL } from '../../../packages/server-commerce/src/adapters/projection-source-dedupe-sql';
 import { COMMERCE_STOCK_PRODUCT_FOR_UPDATE_SQL, COMMERCE_STOCK_WAREHOUSE_FOR_UPDATE_SQL } from '../../../packages/server-commerce/src/adapters/stock-source-dedupe-sql';
 import { COMMERCE_POSTING_MAPPING_STATE_SQL } from '../../../packages/server-commerce/src/adapters/settings-dedupe-sql';
-import {
-  COMMERCE_SCHEMA_READY_SQL,
-  COMMERCE_SETTLEMENT_BY_ORDER_SQL,
-} from '../../../packages/server-commerce/src/adapters/read-tail-r15-dedupe-sql';
+import { COMMERCE_SETTLEMENT_BY_ORDER_SQL } from '../../../packages/server-commerce/src/adapters/read-tail-r15-dedupe-sql';
 import { ecommerceCommerceSettlementSources } from '@erpx/server-commerce/public/ecommerce-package-sources';
 import { salesCommerceSettlementSources } from '@erpx/server-commerce/public/sales-package-sources';
 import { ecommerceNativeOrderRoots } from '@erpx/server-ecommerce/public/package-sources';
@@ -459,18 +457,27 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
     expect(e.returns).toBe(COMMERCE_SETTLEMENT_BY_ORDER_SQL(s.returns, orderIds));
   });
 
-  it('renders byte-identical owner-local schema-ready SQL', () => {
-    expect(COMMERCE_SCHEMA_READY_SQL('commerce_mfg_existing_posting_confirmations')).toBe(
-      "SELECT to_regclass('commerce_mfg_existing_posting_confirmations') IS NOT NULL ready",
-    );
-    expect(COMMERCE_SCHEMA_READY_SQL('billing_test_finance_documents')).toBe(
-      "SELECT to_regclass('billing_test_finance_documents') IS NOT NULL ready",
-    );
+  it('owns byte-identical schema-ready probes as native command-plan kinds', () => {
+    const plans = readFileSync(adapters('native_commerce_read_sql.rs'), 'utf8');
+    for (const [kind, wire, sql] of [
+      ['RD_BILLING_TEST_FINANCE_SCHEMA', 'commerce_rd_billing_test_finance_schema', "SELECT to_regclass('billing_test_finance_documents') IS NOT NULL ready"],
+      ['RD_MFG_EXISTING_POSTING_SCHEMA', 'commerce_rd_mfg_existing_posting_schema', "SELECT to_regclass('commerce_mfg_existing_posting_confirmations') IS NOT NULL ready"],
+    ]) {
+      expect(plans).toContain(`pub const ${kind}: &str = "${wire}";`);
+      expect(plans).toContain(`"${sql}"`);
+      expect(plans).toContain(`kind: ${kind},`);
+      expect(readFileSync(adapters('native-commerce-read.ts'), 'utf8')).toContain(
+        `export const ${kind} = '${wire}';`,
+      );
+    }
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 29);');
+    expect(plans).toContain('fn schema_ready_probes_keep_their_exact_literals()');
+    expect(readFileSync(adapters('read-tail-r15-dedupe-sql.ts'), 'utf8')).not.toContain('to_regclass');
   });
 
   it('keeps one literal per shared helper and leaves no inline duplicates or locks changed', async () => {
     const shared = await readFile(adapters('read-tail-r15-dedupe-sql.ts'), 'utf8');
-    expect(shared.split('SELECT').length - 1).toBe(2);
+    expect(shared.split('SELECT').length - 1).toBe(1);
 
     const sources = await readFile(adapters('ecommerce-package-sources.ts'), 'utf8');
     // The four remaining literals are the distinct return/goods/invoice families.
@@ -481,12 +488,36 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
     expect(sources).not.toContain('LOCK TABLE');
 
     const mfg = await readFile(adapters('manufacturing-existing-posting-setup.ts'), 'utf8');
-    expect(mfg.split("SELECT to_regclass('commerce_mfg_existing_posting_confirmations') IS NOT NULL ready").length - 1).toBe(0);
-    expect(mfg.split("COMMERCE_SCHEMA_READY_SQL('commerce_mfg_existing_posting_confirmations')").length - 1).toBe(1);
+    expect(mfg).not.toContain('to_regclass');
+    expect(mfg.split('nativeCommerceReadFirst<boolean>(RD_MFG_EXISTING_POSTING_SCHEMA, [], database)').length - 1).toBe(1);
     expect(mfg.split('LOCK TABLE commerce_mfg_existing_posting_confirmations IN SHARE ROW EXCLUSIVE MODE').length - 1).toBe(1);
 
     const billing = await readFile(adapters('billing-test-finance-ready.ts'), 'utf8');
-    expect(billing.split("SELECT to_regclass('billing_test_finance_documents') IS NOT NULL ready").length - 1).toBe(0);
-    expect(billing.split("COMMERCE_SCHEMA_READY_SQL('billing_test_finance_documents')").length - 1).toBe(1);
+    expect(billing).not.toContain('to_regclass');
+    expect(billing.split("nativeCommerceReadFirst<{ready:boolean}>(RD_BILLING_TEST_FINANCE_SCHEMA,[],registeredDatabases(env,'h003').write)").length - 1).toBe(1);
+  });
+
+  it('owns the legacy attachment scope read as a native kind with no TypeScript SQL', async () => {
+    const sql =
+      'SELECT company_id,branch_id branch_id,department_id department_id,version FROM commerce_orders WHERE id=?';
+    const plans = readFileSync(adapters('native_commerce_read_sql.rs'), 'utf8');
+    expect(plans).toContain(
+      'pub const RD_LEGACY_ATTACHMENT_SCOPE: &str = "commerce_rd_legacy_attachment_scope";',
+    );
+    expect(plans).toContain(`"${sql}"`);
+    expect(plans).toContain('kind: RD_LEGACY_ATTACHMENT_SCOPE,');
+    expect(plans).toContain('fn legacy_attachment_scope_keeps_its_exact_literal()');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 29);');
+    expect(readFileSync(adapters('native-commerce-read.ts'), 'utf8')).toContain(
+      "export const RD_LEGACY_ATTACHMENT_SCOPE = 'commerce_rd_legacy_attachment_scope';",
+    );
+    const source = await readFile(adapters('attachment-migration-owner.ts'), 'utf8');
+    expect(source).not.toContain('SELECT ');
+    expect(source).not.toContain('descriptors');
+    expect(source).toContain('"commerce_order_delivery":RD_LEGACY_ATTACHMENT_SCOPE');
+    expect(source).toContain(
+      'nativeCommerceReadFirst<{company_id:string;branch_id:string|null;department_id:string|null;version:number}>(ownerKind,[id],db)',
+    );
+    expect(source).toContain('if(!ownerKind)return Promise.resolve(null)');
   });
 });

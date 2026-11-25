@@ -579,6 +579,54 @@ const offerFamily = [
     sql: "SELECT (to_jsonb(r)-'version'-'updated_at')::text image FROM talent_requisitions r WHERE r.id=? AND r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?)",
     binds: 6,
   },
+  {
+    kind: 'talent_rd_offer_source_image',
+    constant: 'RD_OFFER_SOURCE_IMAGE',
+    sql: "SELECT jsonb_build_object('record',to_jsonb(t),'application',to_jsonb(a),'requisition',to_jsonb(r),'candidate',to_jsonb(c),'ownerEligible',EXISTS(SELECT 1 FROM assignments owner_assignment WHERE owner_assignment.company_id=a.company_id AND owner_assignment.user_id=a.owner_id AND iam_assignment_active(owner_assignment.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(owner_assignment.user_id,owner_assignment.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (owner_assignment.scope_kind='holding' OR owner_assignment.scope_kind='branch' AND owner_assignment.scope_node_id=r.branch_id OR owner_assignment.scope_kind='department' AND owner_assignment.scope_node_id=r.department_id)))::text image FROM talent_offers t JOIN talent_applications a ON a.id=t.application_id AND a.company_id=t.company_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id  WHERE t.id=? AND r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?) AND t.application_version<=a.version",
+    binds: 6,
+  },
+  {
+    kind: 'talent_rd_offer_source_image_file',
+    constant: 'RD_OFFER_SOURCE_IMAGE_FILE',
+    sql: "SELECT jsonb_build_object('record',to_jsonb(t)-'version'-'updated_at','application',to_jsonb(a),'requisition',to_jsonb(r),'candidate',to_jsonb(c),'ownerEligible',EXISTS(SELECT 1 FROM assignments owner_assignment WHERE owner_assignment.company_id=a.company_id AND owner_assignment.user_id=a.owner_id AND iam_assignment_active(owner_assignment.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(owner_assignment.user_id,owner_assignment.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (owner_assignment.scope_kind='holding' OR owner_assignment.scope_kind='branch' AND owner_assignment.scope_node_id=r.branch_id OR owner_assignment.scope_kind='department' AND owner_assignment.scope_node_id=r.department_id)))::text image FROM talent_offers t JOIN talent_applications a ON a.id=t.application_id AND a.company_id=t.company_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id  WHERE t.id=? AND r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?) AND t.application_version<=a.version",
+    binds: 6,
+  },
+  {
+    kind: 'talent_rd_handoff_source_image',
+    constant: 'RD_HANDOFF_SOURCE_IMAGE',
+    sql: "SELECT jsonb_build_object('record',to_jsonb(t),'application',to_jsonb(a),'requisition',to_jsonb(r),'candidate',to_jsonb(c),'ownerEligible',EXISTS(SELECT 1 FROM assignments owner_assignment WHERE owner_assignment.company_id=a.company_id AND owner_assignment.user_id=a.owner_id AND iam_assignment_active(owner_assignment.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(owner_assignment.user_id,owner_assignment.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (owner_assignment.scope_kind='holding' OR owner_assignment.scope_kind='branch' AND owner_assignment.scope_node_id=r.branch_id OR owner_assignment.scope_kind='department' AND owner_assignment.scope_node_id=r.department_id)),'offer',to_jsonb(o),'receipt',to_jsonb(receipt),'people',hired.image)::text image FROM talent_hire_handoffs t JOIN talent_offers o ON o.id=t.offer_id AND o.company_id=t.company_id JOIN talent_applications a ON a.id=o.application_id AND a.company_id=o.company_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id LEFT JOIN talent_hire_consumption_receipts receipt ON receipt.handoff_id=t.id AND receipt.company_id=t.company_id LEFT JOIN (SELECT receipt.company_id,receipt.handoff_id,jsonb_build_object('person',to_jsonb(person),'engagement',to_jsonb(engagement),'compensation',to_jsonb(compensation),'payGroup',to_jsonb(pay_group)) image FROM talent_hire_consumption_receipts receipt JOIN hr_people person ON person.id=receipt.person_id AND person.company_id=receipt.company_id JOIN hr_engagements engagement ON engagement.id=receipt.engagement_id AND engagement.person_id=person.id AND engagement.company_id=receipt.company_id JOIN hr_compensation_revisions compensation ON compensation.id=receipt.compensation_id AND compensation.engagement_id=engagement.id JOIN hr_pay_groups pay_group ON pay_group.id=engagement.pay_group_id AND pay_group.company_id=receipt.company_id) hired ON hired.handoff_id=t.id AND hired.company_id=t.company_id WHERE t.id=? AND r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?) AND t.candidate_id=c.id AND t.branch_id=r.branch_id AND t.department_id IS NOT DISTINCT FROM r.department_id AND t.source_offer_version<=o.version",
+    binds: 6,
+  },
+  {
+    kind: 'talent_rd_handoff_source_image_file',
+    constant: 'RD_HANDOFF_SOURCE_IMAGE_FILE',
+    sql: "SELECT jsonb_build_object('record',to_jsonb(t)-'version'-'updated_at','application',to_jsonb(a),'requisition',to_jsonb(r),'candidate',to_jsonb(c),'ownerEligible',EXISTS(SELECT 1 FROM assignments owner_assignment WHERE owner_assignment.company_id=a.company_id AND owner_assignment.user_id=a.owner_id AND iam_assignment_active(owner_assignment.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(owner_assignment.user_id,owner_assignment.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (owner_assignment.scope_kind='holding' OR owner_assignment.scope_kind='branch' AND owner_assignment.scope_node_id=r.branch_id OR owner_assignment.scope_kind='department' AND owner_assignment.scope_node_id=r.department_id)),'offer',to_jsonb(o),'receipt',to_jsonb(receipt),'people',hired.image)::text image FROM talent_hire_handoffs t JOIN talent_offers o ON o.id=t.offer_id AND o.company_id=t.company_id JOIN talent_applications a ON a.id=o.application_id AND a.company_id=o.company_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id LEFT JOIN talent_hire_consumption_receipts receipt ON receipt.handoff_id=t.id AND receipt.company_id=t.company_id LEFT JOIN (SELECT receipt.company_id,receipt.handoff_id,jsonb_build_object('person',to_jsonb(person),'engagement',to_jsonb(engagement),'compensation',to_jsonb(compensation),'payGroup',to_jsonb(pay_group)) image FROM talent_hire_consumption_receipts receipt JOIN hr_people person ON person.id=receipt.person_id AND person.company_id=receipt.company_id JOIN hr_engagements engagement ON engagement.id=receipt.engagement_id AND engagement.person_id=person.id AND engagement.company_id=receipt.company_id JOIN hr_compensation_revisions compensation ON compensation.id=receipt.compensation_id AND compensation.engagement_id=engagement.id JOIN hr_pay_groups pay_group ON pay_group.id=engagement.pay_group_id AND pay_group.company_id=receipt.company_id) hired ON hired.handoff_id=t.id AND hired.company_id=t.company_id WHERE t.id=? AND r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?) AND t.candidate_id=c.id AND t.branch_id=r.branch_id AND t.department_id IS NOT DISTINCT FROM r.department_id AND t.source_offer_version<=o.version",
+    binds: 6,
+  },
+  {
+    kind: 'talent_rd_application_source_image',
+    constant: 'RD_APPLICATION_SOURCE_IMAGE',
+    sql: "SELECT jsonb_build_object('record',to_jsonb(t),'application',to_jsonb(t),'requisition',to_jsonb(r),'candidate',to_jsonb(c),'ownerEligible',EXISTS(SELECT 1 FROM assignments owner_assignment WHERE owner_assignment.company_id=t.company_id AND owner_assignment.user_id=t.owner_id AND iam_assignment_active(owner_assignment.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(owner_assignment.user_id,owner_assignment.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (owner_assignment.scope_kind='holding' OR owner_assignment.scope_kind='branch' AND owner_assignment.scope_node_id=r.branch_id OR owner_assignment.scope_kind='department' AND owner_assignment.scope_node_id=r.department_id)))::text image FROM talent_applications t JOIN talent_requisitions r ON r.id=t.requisition_id AND r.company_id=t.company_id JOIN talent_candidates c ON c.id=t.candidate_id AND c.company_id=t.company_id  WHERE t.id=? AND r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?) AND t.requisition_version<=r.version",
+    binds: 6,
+  },
+  {
+    kind: 'talent_rd_application_source_image_file',
+    constant: 'RD_APPLICATION_SOURCE_IMAGE_FILE',
+    sql: "SELECT jsonb_build_object('record',to_jsonb(t)-'version'-'updated_at','application',to_jsonb(t),'requisition',to_jsonb(r),'candidate',to_jsonb(c),'ownerEligible',EXISTS(SELECT 1 FROM assignments owner_assignment WHERE owner_assignment.company_id=t.company_id AND owner_assignment.user_id=t.owner_id AND iam_assignment_active(owner_assignment.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(owner_assignment.user_id,owner_assignment.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (owner_assignment.scope_kind='holding' OR owner_assignment.scope_kind='branch' AND owner_assignment.scope_node_id=r.branch_id OR owner_assignment.scope_kind='department' AND owner_assignment.scope_node_id=r.department_id)))::text image FROM talent_applications t JOIN talent_requisitions r ON r.id=t.requisition_id AND r.company_id=t.company_id JOIN talent_candidates c ON c.id=t.candidate_id AND c.company_id=t.company_id  WHERE t.id=? AND r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?) AND t.requisition_version<=r.version",
+    binds: 6,
+  },
+  {
+    kind: 'talent_rd_proposal_source_image',
+    constant: 'RD_PROPOSAL_SOURCE_IMAGE',
+    sql: "SELECT jsonb_build_object('record',to_jsonb(t),'application',to_jsonb(a),'requisition',to_jsonb(r),'candidate',to_jsonb(c),'ownerEligible',EXISTS(SELECT 1 FROM assignments owner_assignment WHERE owner_assignment.company_id=a.company_id AND owner_assignment.user_id=a.owner_id AND iam_assignment_active(owner_assignment.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(owner_assignment.user_id,owner_assignment.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (owner_assignment.scope_kind='holding' OR owner_assignment.scope_kind='branch' AND owner_assignment.scope_node_id=r.branch_id OR owner_assignment.scope_kind='department' AND owner_assignment.scope_node_id=r.department_id)))::text image FROM talent_proposals t JOIN talent_applications a ON a.id=t.application_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id  WHERE t.id=? AND r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?) AND t.application_version<=a.version",
+    binds: 6,
+  },
+  {
+    kind: 'talent_rd_proposal_source_image_file',
+    constant: 'RD_PROPOSAL_SOURCE_IMAGE_FILE',
+    sql: "SELECT jsonb_build_object('record',to_jsonb(t)-'version'-'updated_at','application',to_jsonb(a),'requisition',to_jsonb(r),'candidate',to_jsonb(c),'ownerEligible',EXISTS(SELECT 1 FROM assignments owner_assignment WHERE owner_assignment.company_id=a.company_id AND owner_assignment.user_id=a.owner_id AND iam_assignment_active(owner_assignment.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(owner_assignment.user_id,owner_assignment.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (owner_assignment.scope_kind='holding' OR owner_assignment.scope_kind='branch' AND owner_assignment.scope_node_id=r.branch_id OR owner_assignment.scope_kind='department' AND owner_assignment.scope_node_id=r.department_id)))::text image FROM talent_proposals t JOIN talent_applications a ON a.id=t.application_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id  WHERE t.id=? AND r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?) AND t.application_version<=a.version",
+    binds: 6,
+  },
 ] as const;
 
 const adapter = new URL('../../../packages/server-talent/src/adapters/', import.meta.url);
@@ -619,7 +667,7 @@ describe('talent offer/candidate native read port cutover', () => {
     expect(bridge).toContain('return unavailable()');
   });
 
-  it('sends only kind and positional values for all six native reads', async () => {
+  it('sends only kind and positional values for all fourteen native reads', async () => {
     const previous = process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
     process.env.ERPX_NATIVE_TALENT_READ_CONFIG = config();
     const calls: { kind: string; values: unknown[] }[] = [];
@@ -667,7 +715,7 @@ describe('talent offer/candidate native read port cutover', () => {
     let count = 0;
     const srcDir = new URL('../../../packages/server-talent/src/', import.meta.url);
     for (const file of await tsFiles(srcDir)) count += (await readFile(file, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(11);
+    expect(count).toBe(10);
     expect(count).toBeLessThan(12);
   });
 
@@ -790,6 +838,92 @@ describe('talent offer/candidate native read port cutover', () => {
         'key-2', 'talent-owner-source', ...values, 'req-witness-json', `(${planned})=?`,
       ]);
       expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+      if (previous === undefined) delete process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
+      else process.env.ERPX_NATIVE_TALENT_READ_CONFIG = previous;
+    }
+  });
+
+  it('reads offer and hire-handoff composites and witnesses from native plans', async () => {
+    const previous = process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
+    process.env.ERPX_NATIVE_TALENT_READ_CONFIG = config();
+    const values = ['source-1', 'h001', 'b-1', 'b-1', null, null];
+    const actor = { companyId: 'h001', branchId: 'b-1', departmentId: null } as never;
+    const calls: string[] = [];
+    const fetchMock = vi.fn(async (_url: unknown, init: { body?: string }) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      calls.push(body.kind);
+      expect(body.values).toEqual(values);
+      const read = offerFamily.find((item) => item.kind === body.kind)!;
+      return ok({ data: { statements: [{ sql: read.sql, values: body.values }] } });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      for (const kind of ['offer', 'handoff'] as const) {
+        for (const file of [false, true]) {
+          const expected = offerFamily.find((read) => read.kind === `talent_rd_${kind}_source_image${file ? '_file' : ''}`)!;
+          const seen: string[] = [];
+          const db = {
+            prepare(sql: string) {
+              seen.push(sql);
+              return { bind(...bound: unknown[]) { expect(bound).toEqual(values); return { first: async () => ({ image: 'composite' }) }; } };
+            },
+          } as never;
+          expect(await talentOwnerSourceImage(db, actor, { kind, id: 'source-1' }, file)).toBe('composite');
+          expect(seen).toEqual([expected.sql]);
+          const spyDb = { prepare: () => { throw new Error('witness must not author local SQL'); } } as never;
+          const descriptor = await talentOwnerSourceWitnessAssertion(
+            spyDb, `key-${kind}-${file}`, 'talent-owner-source', actor, { kind, id: 'source-1' }, 'witness', file,
+          );
+          expect((descriptor as unknown as { values: unknown[] }).values).toEqual([
+            `key-${kind}-${file}`, 'talent-owner-source', ...values, 'witness', `(${expected.sql})=?`,
+          ]);
+        }
+      }
+      expect(calls.filter((kind) => kind.includes('_source_image'))).toHaveLength(8);
+    } finally {
+      vi.unstubAllGlobals();
+      if (previous === undefined) delete process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
+      else process.env.ERPX_NATIVE_TALENT_READ_CONFIG = previous;
+    }
+  });
+
+  it('reads application and proposal composites and witnesses from native plans', async () => {
+    const previous = process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
+    process.env.ERPX_NATIVE_TALENT_READ_CONFIG = config();
+    const values = ['source-1', 'h001', 'b-1', 'b-1', null, null];
+    const actor = { companyId: 'h001', branchId: 'b-1', departmentId: null } as never;
+    const fetchMock = vi.fn(async (_url: unknown, init: { body?: string }) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      expect(body.values).toEqual(values);
+      const read = offerFamily.find((item) => item.kind === body.kind)!;
+      return ok({ data: { statements: [{ sql: read.sql, values: body.values }] } });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      for (const kind of ['application', 'proposal'] as const) {
+        for (const file of [false, true]) {
+          const expected = offerFamily.find((read) => read.kind === `talent_rd_${kind}_source_image${file ? '_file' : ''}`)!;
+          const seen: string[] = [];
+          const db = {
+            prepare(sql: string) {
+              seen.push(sql);
+              return { bind(...bound: unknown[]) { expect(bound).toEqual(values); return { first: async () => ({ image: 'composite' }) }; } };
+            },
+          } as never;
+          expect(await talentOwnerSourceImage(db, actor, { kind, id: 'source-1' }, file)).toBe('composite');
+          expect(seen).toEqual([expected.sql]);
+          const descriptor = await talentOwnerSourceWitnessAssertion(
+            { prepare: () => { throw new Error('witness must not author local SQL'); } } as never,
+            `key-${kind}-${file}`, 'talent-owner-source', actor, { kind, id: 'source-1' }, 'witness', file,
+          );
+          expect((descriptor as unknown as { values: unknown[] }).values).toEqual([
+            `key-${kind}-${file}`, 'talent-owner-source', ...values, 'witness', `(${expected.sql})=?`,
+          ]);
+        }
+      }
+      expect(fetchMock).toHaveBeenCalledTimes(8);
     } finally {
       vi.unstubAllGlobals();
       if (previous === undefined) delete process.env.ERPX_NATIVE_TALENT_READ_CONFIG;

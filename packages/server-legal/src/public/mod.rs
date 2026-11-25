@@ -103,6 +103,7 @@ pub use crate::adapters::postgres_processing_queue::StagedLegalProcessingQueue;
 pub mod processing_status;
 
 pub mod auxiliary;
+pub mod legal_read_tail_r48;
 pub mod legal_records;
 pub mod package_obligation_read;
 pub mod trust_http;

@@ -104,7 +104,7 @@ describe('runtime r20 bare-head family retired into the native port', () => {
     expect(migrations).toContain("const MIGRATION_LOCK_SQL = 'SELECT pg_advisory_lock(714928001)'");
     expect(migrations).toContain("const MIGRATION_UNLOCK_SQL = 'SELECT pg_advisory_unlock(714928001)'");
     const postgres = src('runtime/postgres.ts');
-    expect(postgres).toContain("'SELECT pg_advisory_lock(hashtextextended($1,0))'");
+    expect(postgres).toContain("planRuntimeControlPlane(RD_OBJECT_LOCK,[lock])");
     expect(postgres).not.toMatch(/selectHeadSql|catalogObjectExistsSql|migrationControlReadSql/);
     const reports = src('executive/reports.ts');
     expect(reports).toContain('const REPORT_LOCK_SQL = "SELECT id FROM executive_reports WHERE id=? FOR UPDATE"');
@@ -114,8 +114,8 @@ describe('runtime r20 bare-head family retired into the native port', () => {
     }
   });
 
-  test('retirement:ts-statements records BEFORE=28 strictly lower to 22', () => {
-    expect(kpi()).toBe(22);
+  test('retirement:ts-statements records BEFORE=28 strictly lower to 17', () => {
+    expect(kpi()).toBe(17);
     expect(kpi()).toBeLessThan(28);
   });
 });

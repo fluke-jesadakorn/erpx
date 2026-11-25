@@ -488,11 +488,10 @@ describe('Organization read-tail r30 native cutover — finance starter node lis
       }
     };
     walk(srcRoot);
-    expect(total).toBe(189);
-    expect(total).toBeLessThan(190);
-    // The rehire-position cut retired a helper render, not an inline literal:
-    // its SELECT lives in organization-column-alias-families-r38 and remains
-    // shared with people-lifecycle-worker-effects.ts, so the literal KPI holds.
+    expect(total).toBe(188);
+    expect(total).toBeLessThan(189);
+    // The worker-position cut deleted the shared r38 helper literal after both
+    // former consumers moved to the native owner, so the KPI falls by one.
     expect(read('people-lifecycle-facts.ts').split('SELECT ').length - 1).toBe(4);
   });
 });
@@ -633,5 +632,26 @@ describe('Organization lifecycle rehire position native cutover', () => {
     expect(rehire).toBe(SQL);
     expect(rehire.toUpperCase().startsWith('SELECT ')).toBe(true);
     expect(rehire).not.toMatch(/INSERT|UPDATE|DELETE|FOR UPDATE|FOR SHARE|LOCK TABLE/);
+  });
+});
+
+describe('Organization lifecycle worker position native cutover', () => {
+  const KIND = 'lifecycle_read_rehire_position';
+
+  it('reuses the owner kind and preserves the pg QueryResult shape', async () => {
+    const source = readFileSync(resolve(__dirname, '../../../packages/server-organization/src/adapters/people-lifecycle-worker-effects.ts'), 'utf8');
+    expect(source).not.toContain('activePositionById');
+    expect(source).not.toContain('organization-column-alias-families-r38');
+    expect(source).toContain(`nativeOrgAll<LifecyclePositionFacts>(database, company_id, '${KIND}', [company_id, positionId]).then(rows => ({ rows, rowCount: rows.length }))`);
+    const {lifecycleOrganizationFacts} = await import(
+      '../../../packages/server-organization/src/adapters/people-lifecycle-worker-effects'
+    );
+    all.mockClear();
+    const row = {branch_id: null, department_id: 'department', level_id: 'level', title: 'Engineer'};
+    all.mockResolvedValueOnce([row]);
+    await expect(lifecycleOrganizationFacts({} as never).readPosition('company-1', 'position-1')).resolves.toEqual({rows: [row], rowCount: 1});
+    expect(all).toHaveBeenCalledWith(expect.anything(), 'company-1', KIND, ['company-1', 'position-1']);
+    all.mockResolvedValueOnce([]);
+    await expect(lifecycleOrganizationFacts({} as never).readPosition('company-1', null)).resolves.toEqual({rows: [], rowCount: 0});
   });
 });

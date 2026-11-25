@@ -151,7 +151,7 @@ type Planned = { sql: string; values: readonly unknown[] };
  * registry must agree, and exactly one statement is accepted. */
 async function plan(kind: string, values: readonly unknown[]): Promise<Planned> {
   const cfg = configuration();
-  const bindCount = BIND_COUNTS[kind];
+  const bindCount = BIND_COUNTS.get(kind);
   if (!/^[a-z0-9_]{1,120}$/.test(kind) || bindCount === undefined || values.length !== bindCount)
     return fail();
   let response: { status: number; text: string };
@@ -213,16 +213,16 @@ export const ME_RD_COMPANY_PROVISIONING_ATTACHMENT_IMAGE =
   'manage_rd_company_provisioning_attachment_image';
 
 /** Closed kind-to-bind-count map. No unregistered kind reaches the owner. */
-const BIND_COUNTS: Readonly<Partial<Record<string, number>>> = {
-  [ME_RD_BETA_POLICY_POINT_ALL]: 1,
-  [ME_RD_BETA_POLICY_POINT_MEMBER]: 1,
-  [ME_RD_BETA_POLICY_POINT_BRANCH]: 1,
-  [ME_RD_SLOT_ACTIVE]: 1,
-  [ME_RD_SLOT_OWNER]: 1,
-  [ME_RD_INVITATION_BY_TOKEN]: 1,
-  [ME_RD_INVITATION_ACCEPTED_USER]: 1,
-  [ME_RD_COMPANY_PROVISIONING_ATTACHMENT_IMAGE]: 2,
-};
+const BIND_COUNTS = new Map<string, number>([
+  [ME_RD_BETA_POLICY_POINT_ALL, 1],
+  [ME_RD_BETA_POLICY_POINT_MEMBER, 1],
+  [ME_RD_BETA_POLICY_POINT_BRANCH, 1],
+  [ME_RD_SLOT_ACTIVE, 1],
+  [ME_RD_SLOT_OWNER, 1],
+  [ME_RD_INVITATION_BY_TOKEN, 1],
+  [ME_RD_INVITATION_ACCEPTED_USER, 1],
+  [ME_RD_COMPANY_PROVISIONING_ATTACHMENT_IMAGE, 2],
+]);
 
 const identifier = (value: unknown): value is string =>
   typeof value === 'string' &&

@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 14132,
+    "revision": 14165,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261125-g",
       "agentId": "lead",
       "startedAt": "2026-11-25T13:28:24.118Z",
-      "heartbeatAt": "2026-11-25T18:33:43.171Z",
-      "expiresAt": "2026-11-25T19:03:43.171Z",
+      "heartbeatAt": "2026-11-25T18:57:43.212Z",
+      "expiresAt": "2026-11-25T19:27:43.212Z",
       "generation": 177,
       "tokenHash": "58dfe8b75da5fd46cf77c2d0cb6291dea94bb80da105d8ed790ca1a07326d35d"
     },
@@ -110237,8 +110237,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-files",
           "claimedAt": "2026-11-25T17:52:02.531Z",
-          "heartbeatAt": "2026-11-25T18:33:43.171Z",
-          "expiresAt": "2026-11-25T19:03:43.171Z",
+          "heartbeatAt": "2026-11-25T18:57:43.212Z",
+          "expiresAt": "2026-11-25T19:27:43.212Z",
           "generation": 177
         },
         "baseSha": "d15bbdf7095f86bedb5c69bd0f4b297c357f0061",
@@ -117009,7 +117009,7 @@
         "owner": "support",
         "title": "Support TS read tail native cutover",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -117021,14 +117021,7 @@
         "resources": [
           "owner:support"
         ],
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-support",
-          "claimedAt": "2026-11-25T18:00:33.310Z",
-          "heartbeatAt": "2026-11-25T18:33:43.171Z",
-          "expiresAt": "2026-11-25T19:03:43.171Z",
-          "generation": 177
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -117044,15 +117037,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Integrated; claim released",
+        "blocker": "handoff",
+        "nextAction": "Membership reads 30->28; portal replay-proof next",
         "handoff": {
-          "runId": "run-20261123-f",
-          "agentId": "wZ08",
-          "at": "2026-11-23T20:10:53.801Z",
+          "runId": "run-20261125-g",
+          "agentId": "retire-support",
+          "at": "2026-11-25T18:49:21.609Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Integrated; claim released"
+          "nextAction": "Membership reads 30->28; portal replay-proof next"
         },
         "scopeRefinementRequired": false
       },
@@ -200928,25 +200921,25 @@
       {
         "goalId": "G4",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-legal",
-          "claimedAt": "2026-11-25T17:56:53.293Z",
-          "heartbeatAt": "2026-11-25T18:33:43.171Z",
-          "expiresAt": "2026-11-25T19:03:43.171Z",
-          "generation": 177
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-legal",
+          "at": "2026-11-25T18:41:38.796Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Package obligations 125->112 via include_str! contract; next legal family queued"
+        },
         "scopeRefinementRequired": false,
         "id": "retire.legal.package-obligations",
         "owner": "legal",
@@ -200958,7 +200951,7 @@
         "resources": [
           "owner:legal"
         ],
-        "nextAction": "Port one bounded legal package-obligation read family to the native owner and delete replaced TS SQL"
+        "nextAction": "Package obligations 125->112 via include_str! contract; next legal family queued"
       },
       {
         "goalId": "G4",
@@ -201069,8 +201062,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-agent",
           "claimedAt": "2026-11-25T17:59:25.872Z",
-          "heartbeatAt": "2026-11-25T18:33:43.171Z",
-          "expiresAt": "2026-11-25T19:03:43.171Z",
+          "heartbeatAt": "2026-11-25T18:57:43.212Z",
+          "expiresAt": "2026-11-25T19:27:43.212Z",
           "generation": 177
         },
         "baseSha": null,
@@ -201276,8 +201269,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-collaboration",
           "claimedAt": "2026-11-25T18:03:11.485Z",
-          "heartbeatAt": "2026-11-25T18:33:43.171Z",
-          "expiresAt": "2026-11-25T19:03:43.171Z",
+          "heartbeatAt": "2026-11-25T18:57:43.212Z",
+          "expiresAt": "2026-11-25T19:27:43.212Z",
           "generation": 177
         },
         "baseSha": null,
@@ -201408,25 +201401,25 @@
       {
         "goalId": "G4",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-finance",
-          "claimedAt": "2026-11-25T18:16:32.152Z",
-          "heartbeatAt": "2026-11-25T18:33:43.171Z",
-          "expiresAt": "2026-11-25T19:03:43.171Z",
-          "generation": 177
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-finance",
+          "at": "2026-11-25T18:46:15.858Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Tax identity 6-read family 1677->1671; next family queued"
+        },
         "scopeRefinementRequired": false,
         "id": "retire.finance.next-read-family",
         "owner": "finance",
@@ -201438,30 +201431,30 @@
         "resources": [
           "owner:finance"
         ],
-        "nextAction": "Pick the next safe byte-identical/parameterized read family inside the owner, move it to the native owner, delete replaced TS SQL, add tests, record retirement:ts-statements before/after"
+        "nextAction": "Tax identity 6-read family 1677->1671; next family queued"
       },
       {
         "goalId": "G4",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-inventory",
-          "claimedAt": "2026-11-25T18:16:32.450Z",
-          "heartbeatAt": "2026-11-25T18:33:43.171Z",
-          "expiresAt": "2026-11-25T19:03:43.171Z",
-          "generation": 177
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-inventory",
+          "at": "2026-11-25T18:46:51.967Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Count source point read 284->283; next family queued"
+        },
         "scopeRefinementRequired": false,
         "id": "retire.inventory.next-read-family",
         "owner": "inventory",
@@ -201473,7 +201466,7 @@
         "resources": [
           "owner:inventory"
         ],
-        "nextAction": "Pick the next safe byte-identical/parameterized read family inside the owner, move it to the native owner, delete replaced TS SQL, add tests, record retirement:ts-statements before/after"
+        "nextAction": "Count source point read 284->283; next family queued"
       },
       {
         "goalId": "G4",
@@ -201556,8 +201549,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-manufacturing",
           "claimedAt": "2026-11-25T18:16:33.495Z",
-          "heartbeatAt": "2026-11-25T18:33:43.171Z",
-          "expiresAt": "2026-11-25T19:03:43.171Z",
+          "heartbeatAt": "2026-11-25T18:57:43.212Z",
+          "expiresAt": "2026-11-25T19:27:43.212Z",
           "generation": 177
         },
         "baseSha": null,
@@ -201661,8 +201654,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-sales",
           "claimedAt": "2026-11-25T18:16:32.892Z",
-          "heartbeatAt": "2026-11-25T18:33:43.171Z",
-          "expiresAt": "2026-11-25T19:03:43.171Z",
+          "heartbeatAt": "2026-11-25T18:57:43.212Z",
+          "expiresAt": "2026-11-25T19:27:43.212Z",
           "generation": 177
         },
         "baseSha": null,
@@ -201793,25 +201786,25 @@
       {
         "goalId": "G4",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-pms",
-          "claimedAt": "2026-11-25T18:19:36.663Z",
-          "heartbeatAt": "2026-11-25T18:33:43.171Z",
-          "expiresAt": "2026-11-25T19:03:43.171Z",
-          "generation": 177
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-pms",
+          "at": "2026-11-25T18:52:19.680Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Booking companion pair 232->229; next family queued"
+        },
         "scopeRefinementRequired": false,
         "id": "retire.pms.next-read-family",
         "owner": "pms",
@@ -201823,7 +201816,7 @@
         "resources": [
           "owner:pms"
         ],
-        "nextAction": "Pick the next safe pms read family inside the owner, move to native plans, delete replaced TS SQL (234->lower), byte-oracle tests"
+        "nextAction": "Booking companion pair 232->229; next family queued"
       },
       {
         "goalId": "G4",
@@ -201836,8 +201829,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-pos",
           "claimedAt": "2026-11-25T18:20:33.102Z",
-          "heartbeatAt": "2026-11-25T18:33:43.171Z",
-          "expiresAt": "2026-11-25T19:03:43.171Z",
+          "heartbeatAt": "2026-11-25T18:57:43.212Z",
+          "expiresAt": "2026-11-25T19:27:43.212Z",
           "generation": 177
         },
         "baseSha": null,
@@ -201863,25 +201856,25 @@
       {
         "goalId": "G4",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-customer-360",
-          "claimedAt": "2026-11-25T18:21:00.961Z",
-          "heartbeatAt": "2026-11-25T18:33:43.171Z",
-          "expiresAt": "2026-11-25T19:03:43.171Z",
-          "generation": 177
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-customer-360",
+          "at": "2026-11-25T18:41:45.087Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Portal action reads 11->10; lead mounts customer-360 read-plan route"
+        },
         "scopeRefinementRequired": false,
         "id": "retire.customer_360.next-read-family",
         "owner": "customer_360",
@@ -201893,7 +201886,7 @@
         "resources": [
           "owner:customer_360"
         ],
-        "nextAction": "Pick the next safe read family inside the owner, move to native plans, delete replaced TS SQL, byte-oracle tests, KPI before/after"
+        "nextAction": "Portal action reads 11->10; lead mounts customer-360 read-plan route"
       },
       {
         "goalId": "G4",
@@ -201976,8 +201969,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-manage-erpx",
           "claimedAt": "2026-11-25T18:21:01.420Z",
-          "heartbeatAt": "2026-11-25T18:33:43.171Z",
-          "expiresAt": "2026-11-25T19:03:43.171Z",
+          "heartbeatAt": "2026-11-25T18:57:43.212Z",
+          "expiresAt": "2026-11-25T19:27:43.212Z",
           "generation": 177
         },
         "baseSha": null,
@@ -202003,25 +201996,25 @@
       {
         "goalId": "G4",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-quality",
-          "claimedAt": "2026-11-25T18:21:01.566Z",
-          "heartbeatAt": "2026-11-25T18:33:43.171Z",
-          "expiresAt": "2026-11-25T19:03:43.171Z",
-          "generation": 177
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-quality",
+          "at": "2026-11-25T18:49:42.546Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Receipt replay probe native (20->20 statement-level); residual fragments need cross-owner"
+        },
         "scopeRefinementRequired": false,
         "id": "retire.quality.next-read-family",
         "owner": "quality",
@@ -202033,7 +202026,7 @@
         "resources": [
           "owner:quality"
         ],
-        "nextAction": "Pick the next safe read family inside the owner, move to native plans, delete replaced TS SQL, byte-oracle tests, KPI before/after"
+        "nextAction": "Receipt replay probe native (20->20 statement-level); residual fragments need cross-owner"
       },
       {
         "goalId": "G4",
@@ -202073,25 +202066,25 @@
       {
         "goalId": "G4",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-identity-access",
-          "claimedAt": "2026-11-25T18:24:03.224Z",
-          "heartbeatAt": "2026-11-25T18:33:43.171Z",
-          "expiresAt": "2026-11-25T19:03:43.171Z",
-          "generation": 177
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-identity-access",
+          "at": "2026-11-25T18:46:52.129Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Refund notice assignment plan 390->389; next needs composition-mounted port"
+        },
         "scopeRefinementRequired": false,
         "id": "retire.identity_access.next-read-family",
         "owner": "identity_access",
@@ -202103,7 +202096,7 @@
         "resources": [
           "owner:identity_access"
         ],
-        "nextAction": "Pick the next safe identity_access read family, move to native plans, delete replaced TS SQL (390->lower), byte-oracle tests"
+        "nextAction": "Refund notice assignment plan 390->389; next needs composition-mounted port"
       },
       {
         "goalId": "G4",
@@ -202116,8 +202109,8 @@
           "runId": "run-20261125-g",
           "agentId": "retire-crm",
           "claimedAt": "2026-11-25T18:24:03.380Z",
-          "heartbeatAt": "2026-11-25T18:33:43.171Z",
-          "expiresAt": "2026-11-25T19:03:43.171Z",
+          "heartbeatAt": "2026-11-25T18:57:43.212Z",
+          "expiresAt": "2026-11-25T19:27:43.212Z",
           "generation": 177
         },
         "baseSha": null,
@@ -202143,25 +202136,25 @@
       {
         "goalId": "G4",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-platform-administration",
-          "claimedAt": "2026-11-25T18:24:03.547Z",
-          "heartbeatAt": "2026-11-25T18:33:43.171Z",
-          "expiresAt": "2026-11-25T19:03:43.171Z",
-          "generation": 177
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-platform-administration",
+          "at": "2026-11-25T18:57:49.110Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Reported cut landed; next family/lead item recorded"
+        },
         "scopeRefinementRequired": false,
         "id": "retire.platform.engineering-active-read",
         "owner": "platform_administration",
@@ -202173,30 +202166,30 @@
         "resources": [
           "owner:platform_administration"
         ],
-        "nextAction": "Add the native active/reply-rollout-guard reads to the engineering verification router and cut the 2 TS SELECTs (20->18)"
+        "nextAction": "Reported cut landed; next family/lead item recorded"
       },
       {
         "goalId": "G4",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-planning",
-          "claimedAt": "2026-11-25T18:25:43.028Z",
-          "heartbeatAt": "2026-11-25T18:33:43.171Z",
-          "expiresAt": "2026-11-25T19:03:43.171Z",
-          "generation": 177
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-planning",
+          "at": "2026-11-25T18:42:27.365Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Attachment-target head 11->10; next command-guard EXISTS head 10->9; lead registers r29"
+        },
         "scopeRefinementRequired": false,
         "id": "retire.planning.calendar-guard-head",
         "owner": "planning",
@@ -202208,30 +202201,30 @@
         "resources": [
           "owner:planning"
         ],
-        "nextAction": "Retire the transaction-bound calendar/guard SELECT head in planning-select-columns-sql.ts (12->11) with byte-oracle pins"
+        "nextAction": "Attachment-target head 11->10; next command-guard EXISTS head 10->9; lead registers r29"
       },
       {
         "goalId": "G4",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-organization",
-          "claimedAt": "2026-11-25T18:31:01.501Z",
-          "heartbeatAt": "2026-11-25T18:33:43.171Z",
-          "expiresAt": "2026-11-25T19:03:43.171Z",
-          "generation": 177
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-organization",
+          "at": "2026-11-25T18:51:56.591Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Rehire read native (189->189; shared r38 still used by worker effects); next worker cut to 188"
+        },
         "scopeRefinementRequired": false,
         "id": "retire.organization.rehire-position-read",
         "owner": "organization",
@@ -202243,30 +202236,30 @@
         "resources": [
           "owner:organization"
         ],
-        "nextAction": "Move readCreateRehireEngagementPosition to the native owner (189->188); FOR UPDATE locks stay excluded"
+        "nextAction": "Rehire read native (189->189; shared r38 still used by worker effects); next worker cut to 188"
       },
       {
         "goalId": "G4",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-people-payroll",
-          "claimedAt": "2026-11-25T18:31:01.643Z",
-          "heartbeatAt": "2026-11-25T18:33:43.171Z",
-          "expiresAt": "2026-11-25T19:03:43.171Z",
-          "generation": 177
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-people-payroll",
+          "at": "2026-11-25T18:41:13.500Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "r62/r63 NOT EXISTS cut 1149->1148; next r57/r58/r59 SELECT * family"
+        },
         "scopeRefinementRequired": false,
         "id": "retire.people_payroll.read-tail-round-2",
         "owner": "people_payroll",
@@ -202278,30 +202271,30 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "nextAction": "Pick the next safe read family (non-lock) and cut it (1150->lower); if none, report the exact blocker"
+        "nextAction": "r62/r63 NOT EXISTS cut 1149->1148; next r57/r58/r59 SELECT * family"
       },
       {
         "goalId": "G4",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-billing",
-          "claimedAt": "2026-11-25T18:31:22.525Z",
-          "heartbeatAt": "2026-11-25T18:33:43.171Z",
-          "expiresAt": "2026-11-25T19:03:43.171Z",
-          "generation": 177
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-billing",
+          "at": "2026-11-25T18:42:27.509Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "verify-provider-cost native; writer surface 73->72; six actions remain"
+        },
         "scopeRefinementRequired": false,
         "id": "retire.billing.actions-round-2",
         "owner": "billing",
@@ -202313,30 +202306,30 @@
         "resources": [
           "owner:billing"
         ],
-        "nextAction": "Cut the next billing action (evidence/provider/rate/assign) into the native action set with exact mapping; delete replaced TS; tests; writer surface before/after"
+        "nextAction": "verify-provider-cost native; writer surface 73->72; six actions remain"
       },
       {
         "goalId": "G4",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
-        "claim": {
-          "runId": "run-20261125-g",
-          "agentId": "retire-commerce",
-          "claimedAt": "2026-11-25T18:40:29.530Z",
-          "heartbeatAt": "2026-11-25T18:40:29.530Z",
-          "expiresAt": "2026-11-25T19:10:29.530Z",
-          "generation": 177
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-commerce",
+          "at": "2026-11-25T18:49:50.789Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Schema-ready probes 389->388; next attachment-migration-owner 388->387"
+        },
         "scopeRefinementRequired": false,
         "id": "retire.commerce.next-read-family",
         "owner": "commerce",
@@ -202348,7 +202341,217 @@
         "resources": [
           "owner:commerce"
         ],
-        "nextAction": "Pick the next safe commerce read family (not the blocked r25 cross-owner renderer), move to native plans, delete replaced TS SQL (389->lower), byte-parity tests"
+        "nextAction": "Schema-ready probes 389->388; next attachment-migration-owner 388->387"
+      },
+      {
+        "goalId": "G4",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-planning",
+          "at": "2026-11-25T18:50:04.328Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Command guard 10->9; next planning-guard COALESCE(sum) 9->8; lead registers r30"
+        },
+        "scopeRefinementRequired": false,
+        "id": "retire.planning.command-guard-head",
+        "owner": "planning",
+        "title": "planning command guard exists head",
+        "allowedPaths": [
+          "packages/server-planning/src/**",
+          "tests/unit/planning/**"
+        ],
+        "resources": [
+          "owner:planning"
+        ],
+        "nextAction": "Command guard 10->9; next planning-guard COALESCE(sum) 9->8; lead registers r30"
+      },
+      {
+        "goalId": "G4",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-customer-360",
+          "at": "2026-11-25T18:56:26.144Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Read-plan router built and mounted; config provisioning remains; next family queued"
+        },
+        "scopeRefinementRequired": false,
+        "id": "retire.customer_360.read-plan-router",
+        "owner": "customer_360",
+        "title": "customer 360 read-plan http router",
+        "allowedPaths": [
+          "packages/server-customer_360/src/**",
+          "tests/unit/customer_360/**"
+        ],
+        "resources": [
+          "owner:customer_360"
+        ],
+        "nextAction": "Read-plan router built and mounted; config provisioning remains; next family queued"
+      },
+      {
+        "goalId": "G4",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-billing",
+          "at": "2026-11-25T18:57:18.390Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "record-operating-cost native; writer surface 72->71; five actions remain"
+        },
+        "scopeRefinementRequired": false,
+        "id": "retire.billing.actions-round-3",
+        "owner": "billing",
+        "title": "billing next native action round 3",
+        "allowedPaths": [
+          "packages/server-billing/src/**",
+          "tests/unit/billing/**"
+        ],
+        "resources": [
+          "owner:billing"
+        ],
+        "nextAction": "record-operating-cost native; writer surface 72->71; five actions remain"
+      },
+      {
+        "goalId": "G4",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-planning",
+          "at": "2026-11-25T18:57:48.917Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Reported cut landed; next family/lead item recorded"
+        },
+        "scopeRefinementRequired": false,
+        "id": "retire.planning.sum-guard-head",
+        "owner": "planning",
+        "title": "planning sum guard head",
+        "allowedPaths": [
+          "packages/server-planning/src/**",
+          "tests/unit/planning/**"
+        ],
+        "resources": [
+          "owner:planning"
+        ],
+        "nextAction": "Reported cut landed; next family/lead item recorded"
+      },
+      {
+        "goalId": "G4",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-organization",
+          "claimedAt": "2026-11-25T18:51:56.741Z",
+          "heartbeatAt": "2026-11-25T18:57:43.212Z",
+          "expiresAt": "2026-11-25T19:27:43.212Z",
+          "generation": 177
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false,
+        "id": "retire.organization.worker-position-read",
+        "owner": "organization",
+        "title": "organization worker effects position read",
+        "allowedPaths": [
+          "packages/server-organization/src/**",
+          "tests/unit/organization/**"
+        ],
+        "resources": [
+          "owner:organization"
+        ],
+        "nextAction": "Cut the last activePositionById consumer in people-lifecycle-worker-effects, delete the shared r38 helper (189->188)"
+      },
+      {
+        "goalId": "G4",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "claim": {
+          "runId": "run-20261125-g",
+          "agentId": "retire-billing",
+          "claimedAt": "2026-11-25T18:57:25.221Z",
+          "heartbeatAt": "2026-11-25T18:57:43.212Z",
+          "expiresAt": "2026-11-25T19:27:43.212Z",
+          "generation": 177
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false,
+        "id": "retire.billing.actions-round-4",
+        "owner": "billing",
+        "title": "billing next native action round 4",
+        "allowedPaths": [
+          "packages/server-billing/src/**",
+          "tests/unit/billing/**"
+        ],
+        "resources": [
+          "owner:billing"
+        ],
+        "nextAction": "Cut the next billing action into the native action set with exact mapping; delete replaced TS; tests; writer surface before/after"
       }
     ],
     "migrationProgress": {
@@ -202357,21 +202560,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 2164,
+      "totalPackets": 2170,
       "migratedPackets": 369,
       "statusCounts": {
         "pending": 21,
-        "in_progress": 22,
+        "in_progress": 10,
         "ready_for_integration": 37,
         "integrating": 0,
         "migrated": 369,
-        "blocked": 1713,
+        "blocked": 1731,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 177,
-    "updatedAt": "2026-11-25T18:40:29.534Z",
+    "updatedAt": "2026-11-25T18:57:49.115Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",

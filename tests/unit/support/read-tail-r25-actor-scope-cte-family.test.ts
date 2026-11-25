@@ -86,7 +86,7 @@ describe('Support read-tail r25 actor-scope CTE family', () => {
         expect(src('adapters/support-ticket-read.ts')).toContain('SELECT id FROM support_tickets WHERE id=? AND company_id=? FOR SHARE');
         expect(workforce).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET/);
         expect(src('adapters/service-access.ts')).not.toContain('activeAssignmentSql');
-        expect(src('adapters/ticket-portal-sources.ts')).toContain('export const portalReplayProofSql=');
+        expect(src('adapters/ticket-portal.ts')).toContain('SUPPORT_RD_TICKET_PORTAL_DECISION_REPLAY');
         expect(src('adapters/ticket-portal-sources.ts')).toContain('export const portalValidBindingSelect=');
         expect(src('adapters/ticket-portal-image-sql.ts')).toContain('export const portalImageAggregateSql = (images: string[]) =>');
         expect(src('adapters/support-incidents.ts')).toContain('const scopedWorkspaceListSql = (columns: string, table: string, extra: string) =>');
@@ -106,7 +106,7 @@ describe('Support read-tail r25 actor-scope CTE family', () => {
             }
         };
         walk(srcRoot);
-        expect(total).toBe(28);
+        expect(total).toBe(26);
         expect(total).toBeLessThan(50);
     });
 });

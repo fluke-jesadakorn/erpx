@@ -74,7 +74,8 @@ describe('Marketing owner-local campaign read tail', () => {
 
     // r40 renders all four quoted projections from one closed column-list/table
     // head; the byte oracles are frozen in read-tail-r40-dedupe.test.ts.
-    expect(head.match(/SELECT /g)).toHaveLength(1);
+    expect(head.match(/SELECT /g) ?? []).toHaveLength(0);
+    expect(head).toContain('marketingSelectHeadSql(');
     for (const source of [hospitality, lastAudit, commercial]) expect(source).not.toMatch(/SELECT /);
     expect(hospitality).toContain('marketingProjectionSourceSql(');
     expect(lastAudit).toContain('marketingProjectionSourceSql(');

@@ -116,16 +116,17 @@ describe('marketing read-tail r49 dedupe', () => {
   it('leaves protected r38/r40/r45-r48 heads, locks and settlement untouched', async () => {
     expect((await src('form-asset-read-head.ts')).match(/SELECT /g)).toHaveLength(1);
     expect((await src('owner-point-read-sql.ts')).match(/SELECT /g)).toHaveLength(1);
-    expect((await src('owner-projection-source.ts')).match(/SELECT /g)).toHaveLength(1);
+    expect((await src('owner-projection-source.ts')).match(/SELECT /g) ?? []).toHaveLength(0);
+    expect(await src('owner-projection-source.ts')).toContain('marketingSelectHeadSql(');
     expect(await src('read-tail-sql.ts')).toContain('`SELECT * FROM ${table}${tail}`');
     expect((await src('read-tail-sql.ts')).match(/SELECT/g)).toHaveLength(1);
     expect(await src('purchases.ts')).toContain('nativeMarketingReadFirst<Record<string,unknown>>(MARKETING_RD_COMMAND_RECEIPT_PRIOR');
-    expect(await src('form-asset-lock-sql.ts')).toContain('FOR SHARE');
+    expect(await src('public-form.ts')).toContain('FOR SHARE');
     expect(await src('marketing-local-point-read-sql.ts')).toContain('FOR UPDATE');
     expect(await src('native-marketing-read.ts')).toContain('export');
   });
 
-  it('pins the owner SELECT KPI to 12 (lane 40 retired 3) (BEFORE=27)', async () => {
-    expect(await ownerSelectTokens()).toEqual({ spaced: 12, bare: 12 });
+  it('pins the owner SELECT KPI to 10 (lane 40 retired 3) (BEFORE=27)', async () => {
+    expect(await ownerSelectTokens()).toEqual({ spaced: 10, bare: 10 });
   });
 });

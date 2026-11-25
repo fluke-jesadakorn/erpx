@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { describe, expect, it, vi } from 'vitest';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import { supportRecipientEligibility } from '../../../packages/server-support/src/adapters/support-recipient';
-import { supportEligibleFlagSql, supportReviewerCountSql } from '../../../packages/server-support/src/adapters/eligibility-projection-sources';
+import { supportEligibleFlagSql } from '../../../packages/server-support/src/adapters/eligibility-projection-sources';
 import { scope as ticketScope } from '../../../packages/server-support/src/adapters/support-ticket-read-sources';
 import { finalRootOwnerProjectionSources as identityAccessProjections } from '@erpx/server-identity_access/public/final-root-owner-projection-sources';
 import { finalRootOwnerProjectionSources as payrollProjections } from '@erpx/server-people_payroll/public/final-root-owner-projection-sources';
@@ -27,6 +27,9 @@ vi.mock('@erpx/server-commerce/public/support-attachment-sources', () => ({
 }));
 
 const source = (path: string) => readFile(new URL(`../../../${path}`, import.meta.url), 'utf8');
+/** Inlined oracle: the retired `supportReviewerCountSql` rendering. */
+const reviewerCountSql = (predicate: string) =>
+  `(SELECT COUNT(DISTINCT m.user_id) FROM (${identityAccessProjections.assignments}) m WHERE ${predicate})`;
 const config = JSON.stringify({
   privateBaseUrl: 'http://127.0.0.1:3997',
   timeoutMs: 1000,
@@ -793,7 +796,7 @@ describe('support service-team coverage native read', () => {
       + " AND iam_role_allows(m.role,m.company_id,'support.manage')"
       + " AND (m.scope_kind='holding' OR (m.scope_kind='branch' AND m.scope_node_id=t.branch_id) OR (m.scope_kind='department' AND m.scope_node_id=t.department_id))"
       + ' AND ' + eligibility;
-    const sla = `SELECT s.*,t.title,t.company_id,t.branch_id,t.department_id, ${supportEligibleFlagSql(recipient, 'can_ack')}, ${supportReviewerCountSql(recipient)} recipients FROM support_sla_alerts s JOIN support_tickets t ON t.id=s.ticket_id WHERE ${ticketScope} ORDER BY s.breached_at,s.id`;
+    const sla = `SELECT s.*,t.title,t.company_id,t.branch_id,t.department_id, ${supportEligibleFlagSql(recipient, 'can_ack')}, ${reviewerCountSql(recipient)} recipients FROM support_sla_alerts s JOIN support_tickets t ON t.id=s.ticket_id WHERE ${ticketScope} ORDER BY s.breached_at,s.id`;
     const recipients = `SELECT DISTINCT m.user_id id,p.legal_name name FROM support_tickets t JOIN (${identityAccessProjections.assignments}) m ON m.company_id=t.company_id JOIN (${payrollProjections.hr_people}) p ON p.company_id=t.company_id AND p.user_id=m.user_id WHERE t.id=? AND ${ticketScope} AND ${eligibility} ORDER BY p.legal_name`;
     for (const sql of [sla, recipients]) {
       expect(sql.match(/\?/g)).toHaveLength(6);

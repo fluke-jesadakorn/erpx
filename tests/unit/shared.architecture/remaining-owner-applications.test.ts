@@ -50,7 +50,7 @@ function marketingFixture(overrides:Partial<MarketingRepository<string>>={}){
  const calls:string[]=[],mutations:MarketingMutation<string>[]=[];
  const repository:MarketingRepository<string>={
   async assets(){return [];},async candidates(){return [];},async branches(){return [];},async campaignSummary(){return [];},async campaigns(){return [];},async costSources(){return [];},
-  async formReadiness(){return {ready:true,blockers:[],content:null,media:null};},async publications(){return [];},async sourceForm(){return null;},preparePresentation(){return "presentation";},
+  async formReadiness(){return {ready:true,blockers:[],content:null,media:null};},async publications(){return [];},async sourceForm(){return null;},async preparePresentation(){return "presentation";},
   async asset(){return null;},async candidate(){return null;},async detail(){return null;},async history(){return [];},async workRows(){return [];},async evidence(){return null;},
   async replay(){return null;},async createCRMLead(){throw new Error("unexpected CRM handoff");},async commit(mutation,result){mutations.push(mutation);return result;},...overrides,
  };

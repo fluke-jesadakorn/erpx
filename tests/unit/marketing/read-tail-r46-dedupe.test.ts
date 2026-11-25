@@ -149,7 +149,8 @@ describe('marketing read-tail r46 dedupe', () => {
     // Protected helper bodies: exactly one terminal token, unchanged text.
     expect((await src('form-asset-read-head.ts')).match(/SELECT /g)).toHaveLength(1);
     expect((await src('owner-point-read-sql.ts')).match(/SELECT /g)).toHaveLength(1);
-    expect((await src('owner-projection-source.ts')).match(/SELECT /g)).toHaveLength(1);
+    expect((await src('owner-projection-source.ts')).match(/SELECT /g) ?? []).toHaveLength(0);
+    expect(await src('owner-projection-source.ts')).toContain('marketingSelectHeadSql(');
     expect(await src('read-tail-sql.ts')).toContain('`SELECT * FROM ${table}${tail}`');
     expect((await src('read-tail-sql.ts')).match(/SELECT/g)).toHaveLength(1);
 
@@ -161,15 +162,14 @@ describe('marketing read-tail r46 dedupe', () => {
     expect(await src('native-marketing-read.ts')).toContain('export');
 
     // FOR SHARE locks and ORDER/FOR UPDATE tails stay byte-identical.
-    expect(await src('form-asset-lock-sql.ts')).toContain(
-      '`SELECT id FROM marketing_assets WHERE id=? AND company_id=?${scope} FOR SHARE`',
-    );
+    expect(await src('public-form.ts')).toContain('`${lock.sql} FOR SHARE`');
+    expect(await src('public-submission.ts')).toContain('`${lock.sql} FOR SHARE`');
     expect(await src('marketing-company-list-sql.ts')).toContain('ORDER BY updated_at DESC');
     expect(await src('marketing-local-point-read-sql.ts')).toContain('FOR UPDATE');
   });
 
-  it('pins the owner SELECT KPI to 12 (lane 40 retired 3) (BEFORE=34)', async () => {
-    expect(await ownerSelectTokens()).toBe(12);
+  it('pins the owner SELECT KPI to 10 (lane 40 retired 3) (BEFORE=34)', async () => {
+    expect(await ownerSelectTokens()).toBe(10);
     expect(await ownerSelectTokens()).toBeLessThan(32);
   });
 });

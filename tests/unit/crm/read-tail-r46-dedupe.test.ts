@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { crmProjectionFromSql } from '../../../packages/server-crm/src/adapters/read-tail-r46-sql';
+import { crmProjectionFromSql, crmSelectBodySql } from '../../../packages/server-crm/src/adapters/read-tail-r46-sql';
 import {
   crmCaseEventReadSql,
   crmOpportunityProbeSql,
@@ -71,10 +71,10 @@ describe('crm read-tail r46 byte-identical projection/FROM head', () => {
     expect(rendered).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
   });
 
-  test('crmProjectionFromSql owns exactly one read token and preserves projection/FROM verbatim', () => {
+  test('the projection/FROM head folds into the single owner select-body plan', () => {
     const helper = src('read-tail-r46-sql.ts');
     expect(helper.match(/crmProjectionFromSql =/g)).toHaveLength(1);
-    expect((helper.match(/SELECT /g) ?? []).length).toBe(2);
+    expect((helper.match(/SELECT /g) ?? []).length).toBe(1);
     expect(crmProjectionFromSql('id', 'accounts a WHERE a.id=?')).toBe('SELECT id FROM accounts a WHERE a.id=?');
     expect(crmProjectionFromSql('1', 'crm_leads lead WHERE lead.id=? ORDER BY lead.id')).toBe(
       'SELECT 1 FROM crm_leads lead WHERE lead.id=? ORDER BY lead.id',
@@ -130,8 +130,18 @@ describe('crm read-tail r46 byte-identical projection/FROM head', () => {
     expect(src('purchases.ts')).toContain('@erpx/server-pms/public/crm-purchase-sources');
   });
 
-  test('retirement:ts-statements drops from the r45 AFTER=57 to 54', () => {
-    expect(totalSelects()).toBe(40);
-    expect(totalSelects()).toBeLessThan(57);
+  test.each([
+    ['id', 'accounts a WHERE a.id=?'],
+    ['1', 'crm_leads lead WHERE lead.id=? ORDER BY lead.id'],
+    ['l.*', 'crm_contacts c JOIN crm_accounts a ON a.id=c.account_id WHERE c.id=?'],
+    ['DISTINCT l.owner_id id', 'crm_leads l ORDER BY name'],
+  ])('the fold renders byte-identically to the select-body plan for %#', (projection, from) => {
+    expect(crmProjectionFromSql(projection, from)).toBe(crmSelectBodySql(`${projection} FROM ${from}`));
+    expect(crmProjectionFromSql(projection, from)).toBe(`SELECT ${projection} FROM ${from}`);
+  });
+
+  test('retirement:ts-statements folds the projection/FROM head (40 -> 39)', () => {
+    expect(totalSelects()).toBe(39);
+    expect(totalSelects()).toBeLessThan(40);
   });
 });

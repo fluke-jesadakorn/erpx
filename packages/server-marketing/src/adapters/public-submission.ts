@@ -12,7 +12,7 @@ import type {PublicMarketingSubmission} from '@erpx/server-marketing/domain/publ
 import {createPublicMarketingSubmissionApplication,type PublicMarketingSubmissionUnit} from '@erpx/server-marketing/application/public-submission';
 import {withMarketingPublicSubmission} from '@erpx/server-marketing/adapters/purchases';
 import {MARKETING_RD_CAMPAIGN_EXISTS,nativeMarketingReadFirst} from './native-marketing-read';
-import {formAssetLockSql} from './form-asset-lock-sql';
+import {MARKETING_RD_FORM_LOCK_VERSIONED,nativeMarketingPlan} from './native-marketing-read';
 import { LANE40_PUBLIC_RECEIPT, readMarketingLane40ForCompany } from './native-lane-40/client';
 function unit(db:SqlDatabase,companyId:string):PublicMarketingSubmissionUnit{return {
  receipt:async key=>{
@@ -20,8 +20,8 @@ function unit(db:SqlDatabase,companyId:string):PublicMarketingSubmissionUnit{ret
   const row=rows[0];
   return row&&typeof row.request_hash==='string'&&typeof row.candidate_id==='string'
    ?{request_hash:row.request_hash,candidate_id:row.candidate_id}:null;},
- current:row=>db.prepare(formAssetLockSql(true)).bind(row.id,row.company_id,row.version).first(),
- presentation:(key,row)=>db.batch(marketingPresentationAssertions(db,key,row.company_id,row.configuration_json)),
+ current:async row=>{const lock=await nativeMarketingPlan(MARKETING_RD_FORM_LOCK_VERSIONED);return db.prepare(`${lock.sql} FOR SHARE`).bind(row.id,row.company_id,row.version).first();},
+ presentation:async (key,row)=>db.batch(await marketingPresentationAssertions(db,key,row.company_id,row.configuration_json)),
  limit:(rateKey,bucket)=>nativeMarketingStatement('marketing_stmt_1', { companyId: '', now: Date.now(), actor: undefined }).bind(rateKey,bucket).first<{count:number}>(),
  branch:companyId=>publicMarketingReceivingBranch(db,companyId),
  campaign:(id,companyId)=>nativeMarketingReadFirst<Record<string,unknown>>(MARKETING_RD_CAMPAIGN_EXISTS,{campaignId:id,companyId},db),
@@ -32,7 +32,7 @@ function unit(db:SqlDatabase,companyId:string):PublicMarketingSubmissionUnit{ret
 };}
 async function submit(db:SqlDatabase,row:PublicMarketingForm,body:PublicMarketingSubmission,key:string,ip:string,versioned:boolean){
  if(!isTransactionalSqlDatabase(db))throw new ApiError(500,'TRANSACTION_REQUIRED','Form storage is unavailable.');
- const app=createPublicMarketingSubmissionApplication({clock:{now:Date.now},identifiers:{next:randomUUID},hash:value=>createHash('sha256').update(value).digest('hex'),transaction:run=>withMarketingPublicSubmission(db,row,key,async(tx,replay)=>{const result=await run(unit(tx,row.company_id));if(!replay){await tx.batch(marketingPresentationAssertions(tx,key,row.company_id,row.configuration_json));await clearWorkflowCommandAssertions(tx,key).run();}return result;})});
+ const app=createPublicMarketingSubmissionApplication({clock:{now:Date.now},identifiers:{next:randomUUID},hash:value=>createHash('sha256').update(value).digest('hex'),transaction:run=>withMarketingPublicSubmission(db,row,key,async(tx,replay)=>{const result=await run(unit(tx,row.company_id));if(!replay){await tx.batch(await marketingPresentationAssertions(tx,key,row.company_id,row.configuration_json));await clearWorkflowCommandAssertions(tx,key).run();}return result;})});
  try{return await (versioned?app.submitVersioned(row,body,key,ip):app.submit(row,body,key,ip));}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}
 }
 export function submitPublicMarketingForm(db:SqlDatabase,row:PublicMarketingForm,body:PublicMarketingSubmission,key:string,ip:string){return submit(db,row,body,key,ip,false);}

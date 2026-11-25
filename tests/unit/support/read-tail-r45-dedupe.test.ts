@@ -76,13 +76,13 @@ describe('support read-tail r45 byte-identical active-assignment EXISTS head', (
     expect(elig).toContain("readTailR45AssignmentExistsSql('g', `g.id=? AND g.user_id=? AND g.role=? AND g.company_id=${alias}.company_id");
     expect(elig).not.toContain('EXISTS(SELECT 1 FROM (${identity_accessProjectionSources.assignments}) m');
     expect(elig).not.toContain('EXISTS(SELECT 1 FROM (${identity_accessProjectionSources.assignments}) g');
-    expect(elig).toContain('export const supportReviewerCountSql =');
+    expect(elig).not.toContain('supportReviewerCountSql');
   });
 
   test('native registry kinds, locks, advisory and earlier r18-r44 helpers stay untouched', () => {
     const registry = src('native_support_read_sql.rs');
     const bridge = src('native-support-read.ts');
-    expect(registry).toContain('assert_eq!(STATEMENTS.len(), 52);');
+    expect(registry).toContain('assert_eq!(STATEMENTS.len(), 54);');
     expect(registry).not.toMatch(/LOCK TABLE|pg_advisory_xact_lock/);
     expect(bridge).toContain('SUPPORT_RD_TICKET_WORK');
     expect(bridge).toContain('SUPPORT_RD_INCIDENT_WORK');
@@ -95,8 +95,8 @@ describe('support read-tail r45 byte-identical active-assignment EXISTS head', (
     expect(src('read-tail-r44-sql.ts')).toContain('readTailR44ImageAggregateSql =');
   });
 
-  test('retirement:ts-statements is 28 after the r23 follow-up native membership cut', () => {
-    expect(totalSelects()).toBe(28);
+  test('retirement:ts-statements is 26 after the portal replay-proof native cut', () => {
+    expect(totalSelects()).toBe(26);
     expect(totalSelects()).toBeLessThan(32);
   });
 });

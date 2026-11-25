@@ -31,6 +31,13 @@ export const RD_CRM_ORDER_SOURCE_IMAGE = 'commerce_rd_crm_order_source_image';
 export const RD_SALES_SETTLEMENT_LINES = 'commerce_rd_sales_settlement_lines';
 export const RD_SUPPLY_SETTLEMENT_LINES = 'commerce_rd_supply_settlement_lines';
 
+/** Allow-listed r15 owner schema-ready probes resolved by the mounted command-plan route. */
+export const RD_BILLING_TEST_FINANCE_SCHEMA = 'commerce_rd_billing_test_finance_schema';
+export const RD_MFG_EXISTING_POSTING_SCHEMA = 'commerce_rd_mfg_existing_posting_schema';
+
+/** Allow-listed legacy attachment owner scope read. */
+export const RD_LEGACY_ATTACHMENT_SCOPE = 'commerce_rd_legacy_attachment_scope';
+
 /** Allow-listed warehouse-config read kinds resolved by the mounted owner command-plan route. */
 export const RD_WAREHOUSE_PAGE_ROWS = 'commerce_rd_warehouse_page_rows';
 export const RD_WAREHOUSE_MASTER_ROWS = 'commerce_rd_warehouse_master_rows';

@@ -9,5 +9,10 @@ export {
   RD_RECEIPT_TABLE_PRESENT,
   RD_RUNTIME_HEALTH,
   RD_UTC_DATE,
+  RD_OBJECT_LOCK,
+  RD_OBJECT_UNLOCK,
+  RD_OBJECT_XACT_LOCK,
+  RD_PAIR_LOCK,
+  RD_PAIR_UNLOCK,
 } from '../adapters/native-runtime-control-plane';
 export type { ControlPlanePlan } from '../adapters/native-runtime-control-plane';

@@ -77,9 +77,8 @@ describe('marketing form/content asset read-head dedupe (r38)', () => {
   });
 
   it('leaves locks, settlement receipts and native read ports untouched', async () => {
-    expect(await src('form-asset-lock-sql.ts')).toContain(
-      '`SELECT id FROM marketing_assets WHERE id=? AND company_id=?${scope} FOR SHARE`',
-    );
+    expect(await src('public-form.ts')).toContain('`${lock.sql} FOR SHARE`');
+    expect(await src('public-submission.ts')).toContain('`${lock.sql} FOR SHARE`');
     const obligations = await src('package-obligations.ts');
     expect(obligations).toContain("command.operation='marketing.asset.activate'");
     expect(obligations).toContain('LOCK TABLE marketing_assets,marketing_asset_events');

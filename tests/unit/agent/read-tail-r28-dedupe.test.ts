@@ -62,11 +62,11 @@ describe('Agent read-tail r28 dedupe (BEFORE=43)', () => {
     const gov = await src('adapters/agent-governance.ts');
     expect(gov).toContain("const agentPoolMemberAccessSql = 'EXISTS(SELECT 1 FROM agent_pool_members m WHERE m.pool_id=x.pool_id AND m.user_id=? AND m.revoked_at IS NULL)';");
     expect(gov).toContain("const agentPoolMemberAccessByPoolSql = agentPoolMemberAccessSql.replace('x.pool_id', 'p.id');");
-    expect(gov).toContain("const privateSessionSelectSql = 'SELECT s.id,s.user_id,s.assignment_id,s.conversation_key,s.generation,s.created_at,c.* FROM ai_private_sessions s JOIN ai_private_session_controls c ON c.session_id=s.id WHERE s.company_id=?'");
+    expect(gov).not.toContain('privateSessionSelectSql');
+    expect(gov).not.toContain('agentCompanyListSql');
+    expect(gov).not.toContain('agentPoolChildListSql');
+    expect(gov).not.toContain('agentCatalogListSql');
     expect(gov).toContain('const agentActivePrivateSessionSql = (expiresAt: string) =>');
-    expect(gov).toContain('const agentCompanyListSql = (table: string, suffix: string) =>');
-    expect(gov).toContain('const agentPoolChildListSql = (table: string, alias: string, suffix: string) =>');
-    expect(gov).toContain("const agentCatalogListSql = (cols: string, from: string, companyAlias: string, suffix: string) =>");
     expect(gov).toContain('db.prepare("SELECT session_id FROM ai_private_session_controls WHERE session_id=? FOR SHARE").bind(sessionId);');
     expect(gov).toContain('db.prepare("SELECT x.id FROM agent_assignments x JOIN agent_versions v ON v.id=x.agent_version_id JOIN agent_catalog c ON c.id=v.agent_id WHERE x.id=? FOR SHARE OF x,v,c").bind(assignmentId);');
     expect(gov).toContain('db.prepare("SELECT id FROM agent_pools WHERE id=? FOR SHARE").bind(poolId);');
@@ -75,6 +75,6 @@ describe('Agent read-tail r28 dedupe (BEFORE=43)', () => {
   });
 
   it('KPI: TS SELECT tokens in packages/server-agent/src drop from 43 to 42', async () => {
-    expect(await agentSelectCount(new URL('../../../packages/server-agent/src/', import.meta.url))).toBe(42);
+    expect(await agentSelectCount(new URL('../../../packages/server-agent/src/', import.meta.url))).toBe(38);
   });
 });

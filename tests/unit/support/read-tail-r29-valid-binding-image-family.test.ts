@@ -64,7 +64,7 @@ describe('Support read-tail r29 valid-binding + image family', () => {
         expect(unit).toContain('pg_advisory_xact_lock');
         expect(unit).toContain('SELECT ${scheduledFeaturePredicate(');
         const sources = src('adapters/ticket-portal-sources.ts');
-        expect(sources).toContain('export const portalReplayProofSql=');
+        expect(src('adapters/ticket-portal.ts')).toContain('SUPPORT_RD_TICKET_PORTAL_DECISION_REPLAY');
         expect(sources).toContain('export function supportTicketPortalSourceLocks');
         expect(sources).toContain('portalImageAggregateSql(');
     });
@@ -79,7 +79,7 @@ describe('Support read-tail r29 valid-binding + image family', () => {
             }
         };
         walk(srcRoot);
-        expect(total).toBe(28);
+        expect(total).toBe(26);
         expect(total).toBeLessThan(50);
     });
 });

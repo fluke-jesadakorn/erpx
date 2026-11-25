@@ -1,11 +1,13 @@
 import { platformOwnerProjectionSources as people_payrollPlatformSources } from "@erpx/server-people_payroll/public/platform-owner-projection-sources";
 import { leavePolicyVersionLookup } from './organization-column-alias-families-r37';
-import { activePositionById } from './organization-column-alias-families-r38';
+import { nativeOrgAll } from './native-organization-owner-write';
+import { transactionDatabase } from '@erpx/server-runtime/public/runtime/postgres';
 import type { PoolClient } from 'pg';
 import type { LifecyclePositionFacts } from '@erpx/server-people_payroll/public/lifecycle-worker-contract';
 import {personEngagementJoin} from './organization-read-tail-sources-r55';
 export function lifecycleOrganizationFacts(client: PoolClient) {
-    return { readPosition(company_id: string, positionId: string | null) { return client.query<LifecyclePositionFacts>(activePositionById('$1', '$2'), [company_id, positionId]); },
+    const database = transactionDatabase(client);
+    return { readPosition(company_id: string, positionId: string | null) { return nativeOrgAll<LifecyclePositionFacts>(database, company_id, 'lifecycle_read_rehire_position', [company_id, positionId]).then(rows => ({ rows, rowCount: rows.length })); },
         applyEffect6(manager: string, company_id: string, level_id: unknown) { return client.query<Record<string, unknown>>(`${personEngagementJoin("JOIN staff_levels l ON l.id=e.level_id JOIN staff_levels target ON target.id=$3 WHERE p.id=$1 AND p.company_id=$2 AND p.status='active' AND e.status='active' AND l.level_number<target.level_number")}`, [manager, company_id, level_id]); },
         readPay(company_id: string, id: unknown) { return client.query<{
             pay_group_id: string;
