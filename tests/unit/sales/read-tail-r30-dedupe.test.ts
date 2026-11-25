@@ -187,7 +187,7 @@ describe('Sales read-tail r30 retirement check', () => {
     walk(srcRoot);
     // r30 shares tableRead (-3) and priceListSelect (-1).
     // r33 folds the tail generator into the primary read generator (-1).
-    expect(total).toBe(46);
+    expect(total).toBe(45);
     expect(total).toBeLessThan(54);
   });
 });

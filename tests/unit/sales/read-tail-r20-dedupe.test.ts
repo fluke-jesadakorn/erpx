@@ -28,7 +28,10 @@ function loadGenerator(): (columns: string, table: string, column: string, order
   const code = ts.transpileModule(`const ${decls[0].getText(file)};`, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
   }).outputText;
-  return new Function(`${code}\nreturn pointRead;`)() as (columns: string, table: string, column: string, order?: string) => string;
+  // pointRead now delegates to the owner-local tableRead generator injected here
+  // byte-identically, keeping this loader isolated from cross-owner module imports.
+  const tableReadStub = 'const tableRead=(c,t)=>`SELECT ${c} FROM ${t}`;';
+  return new Function(`${tableReadStub}\n${code}\nreturn pointRead;`)() as (columns: string, table: string, column: string, order?: string) => string;
 }
 
 describe('Sales read-tail r20 parameterized point-read family', () => {
@@ -49,7 +52,7 @@ describe('Sales read-tail r20 parameterized point-read family', () => {
 
   test('the family is one generator literal with two callers and no inlining', () => {
     expect(helper.match(/const pointRead\s*=/g) ?? []).toHaveLength(1);
-    expect((helper.match(/SELECT/g) ?? []).length).toBe(1);
+    expect((helper.match(/SELECT/g) ?? []).length).toBe(0);
     expect(workflowSource).toContain("pointRead('id','commerce_customer_notifications','fulfillment_id')");
     expect(followups).toContain("pointRead('*','customer_followup_events','followup_id',' ORDER BY version DESC')");
     expect(workflowSource).not.toContain(`'${pre.notification}'`);

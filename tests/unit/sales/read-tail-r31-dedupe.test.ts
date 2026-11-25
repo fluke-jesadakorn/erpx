@@ -130,7 +130,7 @@ describe('Sales read-tail r31 byKey single-key family', () => {
     expect(byKeySource).toContain('export const byKey =');
     expect(byKeySource).toContain("pointRead('*', table, column)");
     expect((byKeySource.match(/SELECT/g) ?? []).length).toBe(0);
-    expect((pointReadSource.match(/SELECT/g) ?? []).length).toBe(1);
+    expect((pointReadSource.match(/SELECT/g) ?? []).length).toBe(0);
     expect((pointReadSource.match(/export const pointRead\s*=/g) ?? []).length).toBe(1);
     expect(followups).toContain("pointRead('*','customer_followup_events','followup_id',' ORDER BY version DESC')");
   });
@@ -200,7 +200,7 @@ describe('Sales read-tail r31 retirement check', () => {
     expect((rustRegistry.match(/pub const RD_\w+: &str =/g) ?? []).length).toBe(4);
   });
 
-  test('retirement:ts-statements drops from 50 to 46', () => {
+  test('retirement:ts-statements drops from 50 to 45', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -212,7 +212,8 @@ describe('Sales read-tail r31 retirement check', () => {
     walk(srcRoot);
     // r31: tail variant (+1), list (-1), calendar (-1), work (-1), byKey (-1).
     // r33: tail generator delegates to the primary generator (-1).
-    expect(total).toBe(46);
+    // r34: pointRead delegates to the shared tableRead generator (-1).
+    expect(total).toBe(45);
     expect(total).toBeLessThan(50);
   });
 });
