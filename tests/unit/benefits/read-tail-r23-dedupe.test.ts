@@ -47,7 +47,7 @@ describe('Benefits read-tail r23 parameterized source-probe family', () => {
     expect(attach.match(/benefitSourceProbe\(/g) ?? []).toHaveLength(1);
     const record = src('record-purchases.ts');
     expect(record).not.toContain('`SELECT 1 FROM (${nativeSources}) ${alias}`');
-    expect(record.match(/benefitSourceProbe\(/g) ?? []).toHaveLength(1);
+    expect(record.match(/benefitSourceProbe\(/g) ?? []).toHaveLength(2);
   });
 
   test('the new family adds no write or lock statement', () => {

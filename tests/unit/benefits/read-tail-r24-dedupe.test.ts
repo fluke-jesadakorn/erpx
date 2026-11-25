@@ -85,7 +85,7 @@ describe('Benefits read-tail r24 scope-head extraction', () => {
 });
 
 describe('Benefits read-tail r24 retirement check', () => {
-  test('retirement:ts-statements is 35, strictly below the r24 BEFORE=37 baseline', () => {
+  test('retirement:ts-statements is 34, strictly below the r24 BEFORE=37 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -95,7 +95,7 @@ describe('Benefits read-tail r24 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(35);
+    expect(total).toBe(34);
     expect(total).toBeLessThan(37);
   });
 });

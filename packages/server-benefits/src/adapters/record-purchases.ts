@@ -16,7 +16,7 @@ import {benefitSourceProbe,workforceActorScopeProbe} from "@erpx/server-benefits
  * records read scope and the private employee/reviewer read scope; generated
  * SQL is unchanged. */
 const benefitSourceClock=`(SELECT ${packageClockSql} now_ms)`;
-const activeEngagementScope=`EXISTS(SELECT 1 FROM (${people.engagements}) e WHERE e.person_id=p.id AND e.company_id=p.company_id AND e.status='active')`;
+const activeEngagementScope=`EXISTS(${benefitSourceProbe(people.engagements,'e')} WHERE e.person_id=p.id AND e.company_id=p.company_id AND e.status='active')`;
 /** Byte-identical owner-local native-source UNION arm generator. The first arm
  * carries the column aliases; person-backed arms add the active-engagement
  * predicate and people snapshot, and the election arm adds its plan join. */
