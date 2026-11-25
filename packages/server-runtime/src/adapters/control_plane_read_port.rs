@@ -29,6 +29,8 @@ pub const RD_OBJECT_UNLOCK: &str = "runtime_rd_object_unlock";
 pub const RD_OBJECT_XACT_LOCK: &str = "runtime_rd_object_xact_lock";
 pub const RD_PAIR_LOCK: &str = "runtime_rd_pair_lock";
 pub const RD_PAIR_UNLOCK: &str = "runtime_rd_pair_unlock";
+pub const RD_MIGRATION_LOCK: &str = "runtime_rd_migration_lock";
+pub const RD_MIGRATION_UNLOCK: &str = "runtime_rd_migration_unlock";
 
 const BODY_LIMIT: usize = 64 * 1024;
 const ORIGIN_HEADER: HeaderName = HeaderName::from_static("origin");
@@ -67,6 +69,8 @@ pub fn plan(kind: &str, values: &[Value]) -> Result<ControlPlanePlan, BusinessEr
         RD_OBJECT_XACT_LOCK => (sql::OBJECT_XACT_LOCK, 1),
         RD_PAIR_LOCK => (sql::PAIR_LOCK, 2),
         RD_PAIR_UNLOCK => (sql::PAIR_UNLOCK, 2),
+        RD_MIGRATION_LOCK => (sql::MIGRATION_LOCK, 0),
+        RD_MIGRATION_UNLOCK => (sql::MIGRATION_UNLOCK, 0),
         _ => return Err(invalid()),
     };
     if values.len() != expected || (expected > 0 && !values.iter().all(Value::is_string)) {
@@ -233,6 +237,21 @@ mod tests {
             assert!(plan(kind, &[]).is_err(), "{kind} must require one key");
             assert!(plan(kind, &[Value::from(7)]).is_err(), "{kind} must require a string key");
         }
+    }
+
+    #[test]
+    fn migration_lock_plans_are_bind_free_with_the_native_key() {
+        for (kind, expected) in [
+            (RD_MIGRATION_LOCK, sql::MIGRATION_LOCK),
+            (RD_MIGRATION_UNLOCK, sql::MIGRATION_UNLOCK),
+        ] {
+            let planned = plan(kind, &[]).unwrap();
+            assert_eq!(planned.sql, expected, "{kind}");
+            assert!(planned.values.is_empty(), "{kind}");
+            assert!(planned.sql.contains("714928001"), "{kind}");
+            assert!(plan(kind, &[Value::from("x")]).is_err(), "{kind} takes no binds");
+        }
+        assert_eq!(MIGRATION_LOCK_KEY, 714_928_001);
     }
 
     #[test]

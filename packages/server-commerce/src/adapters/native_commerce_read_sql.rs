@@ -378,6 +378,19 @@ const READ_LEGACY_ATTACHMENT_SCOPE: NativeCommerceReadStatement = NativeCommerce
     bind_count: 1,
 };
 
+/// Native successor of the expense-posting prerequisite settings-source read.
+/// The caller binds `[company_id]`; the `s` alias stays in the retired literal.
+pub const RD_EXPENSE_PREREQUISITE_SETTINGS_SOURCE: &str =
+    "commerce_rd_expense_prerequisite_settings_source";
+const SQL_EXPENSE_PREREQUISITE_SETTINGS_SOURCE: &str =
+    "SELECT to_jsonb(s)::text source FROM commerce_settings s WHERE s.company_id=?";
+const READ_EXPENSE_PREREQUISITE_SETTINGS_SOURCE: NativeCommerceReadStatement =
+    NativeCommerceReadStatement {
+        kind: RD_EXPENSE_PREREQUISITE_SETTINGS_SOURCE,
+        sql: SQL_EXPENSE_PREREQUISITE_SETTINGS_SOURCE,
+        bind_count: 1,
+    };
+
 const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_PMS_WAREHOUSE_ACTIVE,
     READ_PMS_SETTINGS_EXISTS,

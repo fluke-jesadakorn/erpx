@@ -517,6 +517,81 @@ const READ_ASSET_DIMENSION_VALUES: NativeReadStatement = NativeReadStatement {
     scope: "holding",
 };
 
+/// Native successors of the static `finance-reporting` point and list reads.
+/// Lock-bearing revision statements and command assertions stay in the
+/// caller's transaction; only the read plans cross the owner boundary.
+pub const RD_REPORT_REVISION: &str = "finance_rd_report_revision";
+const SQL_RD_REPORT_REVISION: &str = "SELECT revision FROM finance_reporting_revisions WHERE chart_id=?";
+const READ_REPORT_REVISION: NativeReadStatement = NativeReadStatement {
+    kind: RD_REPORT_REVISION,
+    sql: SQL_RD_REPORT_REVISION,
+    bind_count: 1,
+    scope: "holding",
+};
+
+pub const RD_REPORT_PROFILE: &str = "finance_rd_report_profile";
+const SQL_RD_REPORT_PROFILE: &str = "SELECT * FROM finance_accounting_profiles WHERE company_id=? AND statutory_chart_id=? AND status='approved' AND standard='TFRS for NPAEs' AND effective_date<=?";
+const READ_REPORT_PROFILE: NativeReadStatement = NativeReadStatement {
+    kind: RD_REPORT_PROFILE,
+    sql: SQL_RD_REPORT_PROFILE,
+    bind_count: 4,
+    scope: "holding",
+};
+
+pub const RD_REPORT_PACKAGE_LIST: &str = "finance_rd_report_package_list";
+const SQL_RD_REPORT_PACKAGE_LIST: &str = "SELECT id,start_date,end_date,comparative_start_date,comparative_end_date,edition,previous_package_id,status,version,prepared_by,reviewed_by,source_fingerprint,created_at FROM finance_statement_packages WHERE company_id=? AND chart_id=? ORDER BY end_date DESC,edition DESC";
+const READ_REPORT_PACKAGE_LIST: NativeReadStatement = NativeReadStatement {
+    kind: RD_REPORT_PACKAGE_LIST,
+    sql: SQL_RD_REPORT_PACKAGE_LIST,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_REPORT_CLOSING_LIST: &str = "finance_rd_report_closing_list";
+const SQL_RD_REPORT_CLOSING_LIST: &str = "SELECT * FROM finance_year_closings WHERE company_id=? AND chart_id=? ORDER BY end_date DESC,created_at DESC";
+const READ_REPORT_CLOSING_LIST: NativeReadStatement = NativeReadStatement {
+    kind: RD_REPORT_CLOSING_LIST,
+    sql: SQL_RD_REPORT_CLOSING_LIST,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_REPORT_ACCOUNT_LIST: &str = "finance_rd_report_account_list";
+const SQL_RD_REPORT_ACCOUNT_LIST: &str = "SELECT id,code,name,category,status FROM finance_accounts WHERE company_id=? AND chart_id=? ORDER BY code,id";
+const READ_REPORT_ACCOUNT_LIST: NativeReadStatement = NativeReadStatement {
+    kind: RD_REPORT_ACCOUNT_LIST,
+    sql: SQL_RD_REPORT_ACCOUNT_LIST,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_REPORT_STATEMENT_HISTORY: &str = "finance_rd_report_statement_history";
+const SQL_RD_REPORT_STATEMENT_HISTORY: &str = "SELECT * FROM finance_statement_events WHERE package_id=? ORDER BY package_version";
+const READ_REPORT_STATEMENT_HISTORY: NativeReadStatement = NativeReadStatement {
+    kind: RD_REPORT_STATEMENT_HISTORY,
+    sql: SQL_RD_REPORT_STATEMENT_HISTORY,
+    bind_count: 1,
+    scope: "holding",
+};
+
+pub const RD_REPORT_PREVIOUS_PACKAGE: &str = "finance_rd_report_previous_package";
+const SQL_RD_REPORT_PREVIOUS_PACKAGE: &str = "SELECT id FROM finance_statement_packages WHERE id=? AND company_id=? AND chart_id=? AND start_date=? AND end_date=? AND status='issued'";
+const READ_REPORT_PREVIOUS_PACKAGE: NativeReadStatement = NativeReadStatement {
+    kind: RD_REPORT_PREVIOUS_PACKAGE,
+    sql: SQL_RD_REPORT_PREVIOUS_PACKAGE,
+    bind_count: 5,
+    scope: "holding",
+};
+
+pub const RD_REPORT_NEXT_EDITION: &str = "finance_rd_report_next_edition";
+const SQL_RD_REPORT_NEXT_EDITION: &str = "SELECT COALESCE(MAX(edition),0)+1 edition FROM finance_statement_packages WHERE chart_id=? AND start_date=? AND end_date=?";
+const READ_REPORT_NEXT_EDITION: NativeReadStatement = NativeReadStatement {
+    kind: RD_REPORT_NEXT_EDITION,
+    sql: SQL_RD_REPORT_NEXT_EDITION,
+    bind_count: 3,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_ASSET_POLICY_ROW,
     READ_ASSET_POLICY_RUNS,
@@ -563,6 +638,14 @@ const READS: &[NativeReadStatement] = &[
     READ_ASSET_LATEST_DEPRECIATION,
     READ_ASSET_RETAINED_POLICY_HASH,
     READ_ASSET_DIMENSION_VALUES,
+    READ_REPORT_REVISION,
+    READ_REPORT_PROFILE,
+    READ_REPORT_PACKAGE_LIST,
+    READ_REPORT_CLOSING_LIST,
+    READ_REPORT_ACCOUNT_LIST,
+    READ_REPORT_STATEMENT_HISTORY,
+    READ_REPORT_PREVIOUS_PACKAGE,
+    READ_REPORT_NEXT_EDITION,
 ];
 
 /// Whether a discriminator is an owner read kind (never a write kind).
@@ -627,6 +710,14 @@ mod tests {
             RD_ASSET_LATEST_DEPRECIATION,
             RD_ASSET_RETAINED_POLICY_HASH,
             RD_ASSET_DIMENSION_VALUES,
+            RD_REPORT_REVISION,
+            RD_REPORT_PROFILE,
+            RD_REPORT_PACKAGE_LIST,
+            RD_REPORT_CLOSING_LIST,
+            RD_REPORT_ACCOUNT_LIST,
+            RD_REPORT_STATEMENT_HISTORY,
+            RD_REPORT_PREVIOUS_PACKAGE,
+            RD_REPORT_NEXT_EDITION,
         ] {
             assert!(is_read(kind), "{kind}");
             let read = read_statement(kind).expect("read kind");
@@ -641,7 +732,7 @@ mod tests {
             assert_eq!(read.sql.matches('?').count(), read.bind_count, "{kind}");
             assert_eq!(read.scope, "holding", "{kind}");
         }
-        assert_eq!(READS.len(), 45);
+        assert_eq!(READS.len(), 53);
         assert!(!is_read("finance_stmt_1"));
         assert!(read_statement("finance_stmt_1").is_none());
     }
@@ -971,6 +1062,43 @@ mod tests {
                 SQL_RD_ASSET_DIMENSION_VALUES,
                 1,
             ),
+        ];
+        assert_eq!(expected.len(), 8);
+        for (kind, sql, binds) in expected {
+            let read = read_statement(kind).unwrap_or_else(|| panic!("{kind}: unregistered"));
+            assert_eq!(read.kind, *kind, "{kind}: discriminator");
+            assert_eq!(read.sql, *sql, "{kind}: byte-identical SQL");
+            assert_eq!(read.bind_count, *binds, "{kind}: bind count");
+            assert_eq!(read.sql.matches('?').count(), *binds, "{kind}: binds");
+            assert_eq!(read.scope, "holding", "{kind}: scope");
+            assert!(is_read(kind), "{kind}");
+            assert!(!read.sql.contains("FOR UPDATE"), "{kind}");
+            assert!(!read.sql.contains("INSERT"), "{kind}");
+            assert!(!read.sql.contains("UPDATE"), "{kind}");
+        }
+    }
+
+    /// The finance-reporting point/list family plans the exact retired
+    /// literals; no lock or assertion text crosses the read-plan boundary.
+    #[test]
+    fn report_reads_match_retired_owner_statements() {
+        let expected: &[(&str, &str, usize)] = &[
+            (RD_REPORT_REVISION, SQL_RD_REPORT_REVISION, 1),
+            (RD_REPORT_PROFILE, SQL_RD_REPORT_PROFILE, 4),
+            (RD_REPORT_PACKAGE_LIST, SQL_RD_REPORT_PACKAGE_LIST, 2),
+            (RD_REPORT_CLOSING_LIST, SQL_RD_REPORT_CLOSING_LIST, 2),
+            (RD_REPORT_ACCOUNT_LIST, SQL_RD_REPORT_ACCOUNT_LIST, 2),
+            (
+                RD_REPORT_STATEMENT_HISTORY,
+                SQL_RD_REPORT_STATEMENT_HISTORY,
+                1,
+            ),
+            (
+                RD_REPORT_PREVIOUS_PACKAGE,
+                SQL_RD_REPORT_PREVIOUS_PACKAGE,
+                5,
+            ),
+            (RD_REPORT_NEXT_EDITION, SQL_RD_REPORT_NEXT_EDITION, 3),
         ];
         assert_eq!(expected.len(), 8);
         for (kind, sql, binds) in expected {
