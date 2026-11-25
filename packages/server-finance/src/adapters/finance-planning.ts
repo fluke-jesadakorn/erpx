@@ -7,6 +7,7 @@ import { ACTIVE_CHART_BASE_CURRENCY_SQL } from "./chart-base-currency-dedupe-sql
 import {financeCommandReceipts} from "@erpx/server-workflow/public/finance-command-receipts";
 import { fiscalCloseSourceSql } from "@erpx/server-finance/public/finance-fiscal-close-source";
 import { financeTransaction } from "@erpx/server-finance/public/finance-transactions";
+import { nativeFinanceReadAll, nativeFinanceReadFirst, FINANCE_RD_PLAN_ACCOUNTS, FINANCE_RD_PLAN_DIMENSION, FINANCE_RD_PLAN_BANK_ACCOUNT, FINANCE_RD_PLAN_EDITIONS, FINANCE_RD_PLAN_SNAPSHOTS, FINANCE_RD_PLAN_CATEGORY, FINANCE_RD_PLAN_EXPORT_ROW, FINANCE_RD_PLAN_SOURCE_SNAPSHOT } from "./native-finance-read";
 import type { z } from "zod";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
@@ -31,18 +32,8 @@ function nativePlanningRepository(db:SqlDatabase):PlanningRepository{const write
     )
     .bind(chart, actor.companyId)
     .first<{base_currency:string}>(),
-accounts:async(actor,chart)=>(await db
-      .prepare(
-        "SELECT id,code,name,category FROM finance_accounts WHERE chart_id=? AND company_id=? AND status='active'",
-      )
-      .bind(chart, actor.companyId)
-      .all<Account>()).results,
-dimension:async(actor,code,value)=>db
-          .prepare(
-            "SELECT 1 FROM finance_dimension_definitions d JOIN finance_dimension_values v ON v.dimension_id=d.id WHERE d.company_id=? AND d.code=? AND d.status='active' AND v.code=? AND v.status='active'",
-          )
-          .bind(actor.companyId, code, value)
-          .first(),
+accounts:async(actor,chart)=>(await nativeFinanceReadAll<Account>(FINANCE_RD_PLAN_ACCOUNTS, [chart, actor.companyId], db)).results,
+dimension:async(actor,code,value)=>nativeFinanceReadFirst(FINANCE_RD_PLAN_DIMENSION, [actor.companyId, code, value], db),
 commandReplay:async<Result>(actor:WorkContext,key:string,op:string,input:unknown)=>{  const receipt = await financeCommandReceipts(write).record(key);
   if (receipt) {
     const prior = await replayCommand<Result>(
@@ -83,12 +74,7 @@ saveCommit:async(facts)=>{const {actor,kind,base,content,key,op,input,edition,id
       ...guards,          await financePlanning(db, actor.companyId).createEdition({ id, companyId: actor.companyId, chartId: base.chartId, kind, name: base.name, parentId: base.parentId ?? null, edition, contentJson: JSON.stringify(content), hash, userId: actor.userId, now }),
     ],
   );},
-bankAccount:async(actor,id)=>write
-          .prepare(
-            "SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND control_kind='bank'",
-          )
-          .bind(id, actor.companyId)
-          .first(),
+bankAccount:async(actor,id)=>nativeFinanceReadFirst(FINANCE_RD_PLAN_BANK_ACCOUNT, [id, actor.companyId], write),
 decisionRow:async(actor,id)=>write
     .prepare(PLAN_EDITION_POINT_SQL)
     .bind(id, actor.companyId)
@@ -116,13 +102,8 @@ decisionCommit:async(facts)=>{const {actor,id,input,action,key,op,row,now}=facts
       ),await financePlanning(db, actor.companyId).reviewEdition({ status: action === "approve" ? "approved" : "rejected", userId: actor.userId, reason: input.reason, now, id }),
     ],
   );},
-editions:async(actor,chartId)=>(await write
-        .prepare(
-          "SELECT * FROM finance_plan_editions WHERE company_id=? AND chart_id=? ORDER BY created_at DESC,id",
-        )
-        .bind(actor.companyId, chartId)
-        .all()).results,
-snapshots:async(actor,chartId)=>(await write.prepare("SELECT s.id,s.definition_id,s.start_date,s.end_date,s.source_hash,s.created_at,p.name FROM finance_report_snapshots s JOIN finance_plan_editions p ON p.id=s.definition_id WHERE s.company_id=? AND p.chart_id=? ORDER BY s.created_at DESC LIMIT 200").bind(actor.companyId,chartId).all()).results,
+editions:async(actor,chartId)=>(await nativeFinanceReadAll(FINANCE_RD_PLAN_EDITIONS, [actor.companyId, chartId], write)).results,
+snapshots:async(actor,chartId)=>(await nativeFinanceReadAll(FINANCE_RD_PLAN_SNAPSHOTS, [actor.companyId, chartId], write)).results,
 plan:async(actor,id,kind)=>db
     .prepare(
       planEditionPointSql(" AND kind=? AND status='approved'"),
@@ -135,10 +116,7 @@ actual:async(actor,chartId,accountId,month,dims)=>write
           )
           .bind(actor.companyId, chartId, accountId, month, dims)
           .first("value"),
-category:async(accountId)=>write
-        .prepare("SELECT category FROM finance_accounts WHERE id=?")
-        .bind(accountId)
-        .first<{ category: string }>(),
+category:async(accountId)=>nativeFinanceReadFirst<{ category: string }>(FINANCE_RD_PLAN_CATEGORY, [accountId], write),
 ledger:async(actor,chartId,endDate)=>(await db
       .prepare(
         `SELECT l.id,j.id AS "journalId",l.account_id AS "accountId",j.entry_date AS "entryDate",l.base_debit_minor AS debit,l.base_credit_minor AS credit,l.dimension_json AS dimensions,j.source_type AS "sourceType",CASE WHEN ${fiscalCloseSourceSql()} THEN 1 ELSE 0 END AS "isFiscalClose",j.source_id AS "sourceId" FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id WHERE j.company_id=? AND j.chart_id=? AND j.status IN ('posted','reversed') AND j.entry_date<=? ORDER BY j.entry_date,j.id,l.ordinal`,
@@ -151,10 +129,10 @@ lockChart:async(chartId)=>db
       .run(),
 snapshotCommit:async(facts)=>{const {actor,id,input,key,op,row,snapshotId,result,sourceHash,csv,exportHash,now}=facts;return executeCommand(db, actor, key, op, input, id, row.version, result, [await financePlanning(db, actor.companyId).createSnapshot({ snapshotId, companyId: actor.companyId, definitionId: id, startDate: input.startDate, endDate: input.endDate, resultJson: JSON.stringify(result), sourceHash, userId: actor.userId, now, csv, exportHash }),
     ]);},
-exportRow:async(actor,id)=>write.prepare("SELECT result_json,export_content,export_sha256 FROM finance_report_snapshots WHERE id=? AND company_id=?").bind(id,actor.companyId).first<{result_json:string;export_content:string|null;export_sha256:string|null}>(),
+exportRow:async(actor,id)=>nativeFinanceReadFirst<{result_json:string;export_content:string|null;export_sha256:string|null}>(FINANCE_RD_PLAN_EXPORT_ROW, [id, actor.companyId], write),
 recordRow:async(actor,id)=>write.prepare(PLAN_EDITION_POINT_SQL).bind(id,actor.companyId).first<PlanRow>(),
 budgetSources:async(actor,chartId,accountId,month,dims,page)=>(await write.prepare(`SELECT jl.*,j.id journal_id,j.journal_number,j.entry_date,j.currency,j.status FROM finance_journal_lines jl JOIN finance_journals j ON j.id=jl.journal_id WHERE j.company_id=? AND j.chart_id=? AND j.status IN ('posted','reversed') AND NOT ${fiscalCloseSourceSql()} AND jl.account_id=? AND left(j.entry_date,7)=? AND jl.dimension_json::jsonb @> ?::jsonb ORDER BY j.entry_date,j.id,jl.ordinal LIMIT 31 OFFSET ?`).bind(actor.companyId,chartId,accountId,month,dims,(page-1)*30).all()).results,
-sourceSnapshot:async(actor,id)=>write.prepare('SELECT s.*,p.content_json,p.chart_id FROM finance_report_snapshots s JOIN finance_plan_editions p ON p.id=s.definition_id WHERE s.id=? AND s.company_id=? AND p.company_id=?').bind(id,actor.companyId,actor.companyId).first<{result_json:string;content_json:string;source_hash:string;chart_id:string;start_date:string;end_date:string}>(),
+sourceSnapshot:async(actor,id)=>nativeFinanceReadFirst<{result_json:string;content_json:string;source_hash:string;chart_id:string;start_date:string;end_date:string}>(FINANCE_RD_PLAN_SOURCE_SNAPSHOT, [id, actor.companyId, actor.companyId], write),
 sourceJournals:async(actor,selected)=>(await write.prepare(`SELECT id journal_id,journal_number,entry_date,currency,status,(SELECT SUM(l.base_debit_minor) FROM finance_journal_lines l WHERE l.journal_id=finance_journals.id) base_debit_minor,(SELECT SUM(l.base_credit_minor) FROM finance_journal_lines l WHERE l.journal_id=finance_journals.id) base_credit_minor FROM finance_journals WHERE company_id=? AND id IN (${selected.map(()=>'?').join(',')}) ORDER BY entry_date,id`).bind(actor.companyId,...selected).all()).results}}
 function nativePlanning(provided?:SqlDatabase,owned=false){const database=async(actor:WorkContext)=>provided??(await holdingResources(actor.holdingId)).write;return createFinancePlanning({error:(...args)=>new ApiError(...args),permission:requirePermission,samePerson,now:Date.now,id:()=>crypto.randomUUID(),hash:sha256,read:async actor=>nativePlanningRepository(await database(actor)),transaction:async(actor,run)=>owned?run(nativePlanningRepository(await database(actor))):financeTransaction(await database(actor),db=>run(nativePlanningRepository(db))),snapshotTransaction:async(actor,run)=>{const write=await database(actor);if(owned)return run(nativePlanningRepository(write));if(!isTransactionalSqlDatabase(write))throw new ApiError(503,'TRANSACTION_REQUIRED','Report snapshots require PostgreSQL.');return financeTransaction(write,db=>run(nativePlanningRepository(db)))}})}
 export const prepareBudgetEdition=(actor: WorkContext,input: z.input<typeof budgetEditionSchema>,key: string)=>withFinancePurchasedCommand(actor,{key,operation:"finance.budget.prepare",purpose:"new-work"},tx=>nativePlanning(tx,Boolean(tx)).prepareBudgetEdition(actor,input,key));

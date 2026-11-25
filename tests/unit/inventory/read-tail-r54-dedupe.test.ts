@@ -101,7 +101,7 @@ describe('Inventory read-tail r54 stock-head dedupe', () => {
     const shared = adapter('read-tail-sql.ts');
     for (const helper of [
       'transitEventQuantitySumSql', 'schemaReadySql', 'inList', 'reservationsCteHeadSql',
-      'markedCountExistsSql', 'replayProbePrefixSql', 'countSelectHeadSql', 'initialPhysicalCountJournalSql',
+      'markedCountExistsSql', 'countSelectHeadSql', 'initialPhysicalCountJournalSql',
       'evidencePositionRowsSql', 'executivePositionPointSql', 'countEvidenceRowHeadSql',
       'sourceImagesHeadSql', 'lotBalanceRowsHeadSql', 'countAuthorityScopeSql',
     ]) expect(shared, helper).toContain(`export const ${helper}`);
@@ -129,7 +129,7 @@ describe('Inventory read-tail r54 stock-head dedupe', () => {
     // 300. r54 folds the three byte-identical package-obligation stock heads
     // (initial-physical-stock, stock-invalid, invalid-stock) into one
     // kind-parameterized owner-local renderer: 3 source tokens -> 1, i.e. 300 -> 298.
-    expect(total).toBe(284);
+    expect(total).toBe(277);
     expect(total).toBeLessThan(299);
   });
 });

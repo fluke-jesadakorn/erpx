@@ -742,6 +742,81 @@ const READ_WITHHOLDING_REMIT_BANK_CANDIDATES: NativeReadStatement = NativeReadSt
     scope: "holding",
 };
 
+/// Native successors of the static `finance-planning` point/list reads.
+/// Ledger/advisory-lock statements and dynamic journal projections stay in the
+/// caller's transaction; only these byte-identical read plans cross the boundary.
+pub const RD_PLAN_ACCOUNTS: &str = "finance_rd_plan_accounts";
+const SQL_RD_PLAN_ACCOUNTS: &str = "SELECT id,code,name,category FROM finance_accounts WHERE chart_id=? AND company_id=? AND status='active'";
+const READ_PLAN_ACCOUNTS: NativeReadStatement = NativeReadStatement {
+    kind: RD_PLAN_ACCOUNTS,
+    sql: SQL_RD_PLAN_ACCOUNTS,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_PLAN_DIMENSION: &str = "finance_rd_plan_dimension";
+const SQL_RD_PLAN_DIMENSION: &str = "SELECT 1 FROM finance_dimension_definitions d JOIN finance_dimension_values v ON v.dimension_id=d.id WHERE d.company_id=? AND d.code=? AND d.status='active' AND v.code=? AND v.status='active'";
+const READ_PLAN_DIMENSION: NativeReadStatement = NativeReadStatement {
+    kind: RD_PLAN_DIMENSION,
+    sql: SQL_RD_PLAN_DIMENSION,
+    bind_count: 3,
+    scope: "holding",
+};
+
+pub const RD_PLAN_BANK_ACCOUNT: &str = "finance_rd_plan_bank_account";
+const SQL_RD_PLAN_BANK_ACCOUNT: &str = "SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND control_kind='bank'";
+const READ_PLAN_BANK_ACCOUNT: NativeReadStatement = NativeReadStatement {
+    kind: RD_PLAN_BANK_ACCOUNT,
+    sql: SQL_RD_PLAN_BANK_ACCOUNT,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_PLAN_EDITIONS: &str = "finance_rd_plan_editions";
+const SQL_RD_PLAN_EDITIONS: &str = "SELECT * FROM finance_plan_editions WHERE company_id=? AND chart_id=? ORDER BY created_at DESC,id";
+const READ_PLAN_EDITIONS: NativeReadStatement = NativeReadStatement {
+    kind: RD_PLAN_EDITIONS,
+    sql: SQL_RD_PLAN_EDITIONS,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_PLAN_SNAPSHOTS: &str = "finance_rd_plan_snapshots";
+const SQL_RD_PLAN_SNAPSHOTS: &str = "SELECT s.id,s.definition_id,s.start_date,s.end_date,s.source_hash,s.created_at,p.name FROM finance_report_snapshots s JOIN finance_plan_editions p ON p.id=s.definition_id WHERE s.company_id=? AND p.chart_id=? ORDER BY s.created_at DESC LIMIT 200";
+const READ_PLAN_SNAPSHOTS: NativeReadStatement = NativeReadStatement {
+    kind: RD_PLAN_SNAPSHOTS,
+    sql: SQL_RD_PLAN_SNAPSHOTS,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_PLAN_CATEGORY: &str = "finance_rd_plan_category";
+const SQL_RD_PLAN_CATEGORY: &str = "SELECT category FROM finance_accounts WHERE id=?";
+const READ_PLAN_CATEGORY: NativeReadStatement = NativeReadStatement {
+    kind: RD_PLAN_CATEGORY,
+    sql: SQL_RD_PLAN_CATEGORY,
+    bind_count: 1,
+    scope: "holding",
+};
+
+pub const RD_PLAN_EXPORT_ROW: &str = "finance_rd_plan_export_row";
+const SQL_RD_PLAN_EXPORT_ROW: &str = "SELECT result_json,export_content,export_sha256 FROM finance_report_snapshots WHERE id=? AND company_id=?";
+const READ_PLAN_EXPORT_ROW: NativeReadStatement = NativeReadStatement {
+    kind: RD_PLAN_EXPORT_ROW,
+    sql: SQL_RD_PLAN_EXPORT_ROW,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_PLAN_SOURCE_SNAPSHOT: &str = "finance_rd_plan_source_snapshot";
+const SQL_RD_PLAN_SOURCE_SNAPSHOT: &str = "SELECT s.*,p.content_json,p.chart_id FROM finance_report_snapshots s JOIN finance_plan_editions p ON p.id=s.definition_id WHERE s.id=? AND s.company_id=? AND p.company_id=?";
+const READ_PLAN_SOURCE_SNAPSHOT: NativeReadStatement = NativeReadStatement {
+    kind: RD_PLAN_SOURCE_SNAPSHOT,
+    sql: SQL_RD_PLAN_SOURCE_SNAPSHOT,
+    bind_count: 3,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_ASSET_POLICY_ROW,
     READ_ASSET_POLICY_RUNS,
@@ -812,6 +887,14 @@ const READS: &[NativeReadStatement] = &[
     READ_WITHHOLDING_REMIT_ROW,
     READ_WITHHOLDING_REMIT_PACKAGE_LIST,
     READ_WITHHOLDING_REMIT_BANK_CANDIDATES,
+    READ_PLAN_ACCOUNTS,
+    READ_PLAN_DIMENSION,
+    READ_PLAN_BANK_ACCOUNT,
+    READ_PLAN_EDITIONS,
+    READ_PLAN_SNAPSHOTS,
+    READ_PLAN_CATEGORY,
+    READ_PLAN_EXPORT_ROW,
+    READ_PLAN_SOURCE_SNAPSHOT,
 ];
 
 /// Whether a discriminator is an owner read kind (never a write kind).
@@ -900,6 +983,14 @@ mod tests {
             RD_WITHHOLDING_REMIT_ROW,
             RD_WITHHOLDING_REMIT_PACKAGE_LIST,
             RD_WITHHOLDING_REMIT_BANK_CANDIDATES,
+            RD_PLAN_ACCOUNTS,
+            RD_PLAN_DIMENSION,
+            RD_PLAN_BANK_ACCOUNT,
+            RD_PLAN_EDITIONS,
+            RD_PLAN_SNAPSHOTS,
+            RD_PLAN_CATEGORY,
+            RD_PLAN_EXPORT_ROW,
+            RD_PLAN_SOURCE_SNAPSHOT,
         ] {
             assert!(is_read(kind), "{kind}");
             let read = read_statement(kind).expect("read kind");
@@ -914,7 +1005,7 @@ mod tests {
             assert_eq!(read.sql.matches('?').count(), read.bind_count, "{kind}");
             assert_eq!(read.scope, "holding", "{kind}");
         }
-        assert_eq!(READS.len(), 69);
+        assert_eq!(READS.len(), 77);
         assert!(!is_read("finance_stmt_1"));
         assert!(read_statement("finance_stmt_1").is_none());
     }
@@ -1393,6 +1484,38 @@ mod tests {
                 RD_WITHHOLDING_REMIT_BANK_CANDIDATES,
                 SQL_RD_WITHHOLDING_REMIT_BANK_CANDIDATES,
                 1,
+            ),
+        ];
+        assert_eq!(expected.len(), 8);
+        for (kind, sql, binds) in expected {
+            let read = read_statement(kind).unwrap_or_else(|| panic!("{kind}: unregistered"));
+            assert_eq!(read.kind, *kind, "{kind}: discriminator");
+            assert_eq!(read.sql, *sql, "{kind}: byte-identical SQL");
+            assert_eq!(read.bind_count, *binds, "{kind}: bind count");
+            assert_eq!(read.sql.matches('?').count(), *binds, "{kind}: binds");
+            assert_eq!(read.scope, "holding", "{kind}: scope");
+            assert!(is_read(kind), "{kind}");
+            assert!(!read.sql.contains("FOR UPDATE"), "{kind}");
+            assert!(!read.sql.contains("INSERT"), "{kind}");
+        }
+    }
+
+    /// The finance-planning point/list family plans the exact retired
+    /// literals; ledger and advisory-lock statements stay in caller units.
+    #[test]
+    fn planning_reads_match_retired_owner_statements() {
+        let expected: &[(&str, &str, usize)] = &[
+            (RD_PLAN_ACCOUNTS, SQL_RD_PLAN_ACCOUNTS, 2),
+            (RD_PLAN_DIMENSION, SQL_RD_PLAN_DIMENSION, 3),
+            (RD_PLAN_BANK_ACCOUNT, SQL_RD_PLAN_BANK_ACCOUNT, 2),
+            (RD_PLAN_EDITIONS, SQL_RD_PLAN_EDITIONS, 2),
+            (RD_PLAN_SNAPSHOTS, SQL_RD_PLAN_SNAPSHOTS, 2),
+            (RD_PLAN_CATEGORY, SQL_RD_PLAN_CATEGORY, 1),
+            (RD_PLAN_EXPORT_ROW, SQL_RD_PLAN_EXPORT_ROW, 2),
+            (
+                RD_PLAN_SOURCE_SNAPSHOT,
+                SQL_RD_PLAN_SOURCE_SNAPSHOT,
+                3,
             ),
         ];
         assert_eq!(expected.len(), 8);

@@ -150,8 +150,8 @@ describe('marketing read-tail r48 dedupe', () => {
     expect((await src('owner-point-read-sql.ts')).match(/SELECT /g)).toHaveLength(1);
     expect((await src('owner-projection-source.ts')).match(/SELECT /g) ?? []).toHaveLength(0);
     expect(await src('owner-projection-source.ts')).toContain('marketingSelectHeadSql(');
-    expect(await src('read-tail-sql.ts')).toContain('`SELECT * FROM ${table}${tail}`');
-    expect((await src('read-tail-sql.ts')).match(/SELECT/g)).toHaveLength(1);
+    expect(await src('read-tail-sql.ts')).toContain("marketingSelectHeadSql('*', ` FROM ${table}${tail}`)");
+    expect((await src('read-tail-sql.ts')).match(/SELECT/g) ?? []).toHaveLength(0);
 
     expect(await src('purchases.ts')).toContain('nativeMarketingReadFirst<Record<string,unknown>>(MARKETING_RD_COMMAND_RECEIPT_PRIOR');
     expect(await src('record-purchases.ts')).toContain("marketingPointExistsSql(`(${nativeIds}) actual`,'id=?')");
@@ -164,8 +164,8 @@ describe('marketing read-tail r48 dedupe', () => {
     expect(await src('marketing-local-point-read-sql.ts')).toContain('FOR UPDATE');
   });
 
-  it('pins the owner SELECT KPI to 6 (lane 40 retired 3) (BEFORE=29)', async () => {
-    expect(await ownerSelectTokens()).toBe(6);
+  it('pins the owner SELECT KPI to 5 (lane 40 retired 3) (BEFORE=29)', async () => {
+    expect(await ownerSelectTokens()).toBe(5);
     expect(await ownerSelectTokens()).toBeLessThan(29);
   });
 });

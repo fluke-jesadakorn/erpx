@@ -77,7 +77,7 @@ describe('Inventory read-tail r55 command-receipt guard dedupe', () => {
     const shared = adapter('read-tail-sql.ts');
     for (const helper of [
       'transitEventQuantitySumSql', 'schemaReadySql', 'inList', 'reservationsCteHeadSql',
-      'markedCountExistsSql', 'replayProbePrefixSql', 'countSelectHeadSql',
+      'markedCountExistsSql', 'countSelectHeadSql',
       'initialPhysicalCountJournalSql', 'evidencePositionRowsSql', 'executivePositionPointSql',
       'countEvidenceRowHeadSql', 'sourceImagesHeadSql', 'lotBalanceRowsHeadSql',
       'countAuthorityScopeSql', 'packageObligationStockHeadSql',
@@ -105,7 +105,7 @@ describe('Inventory read-tail r55 command-receipt guard dedupe', () => {
     // guard head shared by the sales quality-hold and supply transit-cancel
     // reads into one kind-parameterized owner-local renderer: 2 source tokens
     // -> 1, i.e. 298 -> 297.
-    expect(total).toBe(284);
+    expect(total).toBe(277);
     expect(total).toBeLessThan(297);
   });
 });

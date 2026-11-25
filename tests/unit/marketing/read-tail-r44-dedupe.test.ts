@@ -105,8 +105,8 @@ describe('marketing read-tail r44 dedupe', () => {
     expect(await src('native-marketing-read.ts')).toContain('export');
   });
 
-  it('pins the owner SELECT KPI to 6 (lane 40 retired 3) (BEFORE=36)', async () => {
-    expect(await ownerSelectTokens()).toBe(6);
+  it('pins the owner SELECT KPI to 5 (lane 40 retired 3) (BEFORE=36)', async () => {
+    expect(await ownerSelectTokens()).toBe(5);
     expect(await ownerSelectTokens()).toBeLessThan(32);
   });
 });

@@ -80,7 +80,7 @@ describe('Inventory read-tail r57 count-line product guard dedupe', () => {
     const shared = adapter('read-tail-sql.ts');
     for (const helper of [
       'lotAllocationRowsHeadSql', 'commandReceiptRecordIdGuardSql', 'packageObligationStockHeadSql',
-      'countSelectHeadSql', 'replayProbePrefixSql', 'markedCountExistsSql', 'reservationsCteHeadSql',
+      'countSelectHeadSql', 'markedCountExistsSql', 'reservationsCteHeadSql',
       'inList', 'transitEventQuantitySumSql', 'countEvidenceRowHeadSql',
     ]) expect(shared, helper).toContain(`export const ${helper}`);
     expect(adapter('count-attachment-purchases.ts')).toContain('SELECT id FROM assignments WHERE id=? AND company_id=? FOR SHARE');
@@ -107,7 +107,7 @@ describe('Inventory read-tail r57 count-line product guard dedupe', () => {
     // and r56 at 296. r57 folds the byte-identical count-line product guard
     // head shared by the quality-disposal same-product and cross-product reads
     // into one owner-local renderer: 2 source tokens -> 1, i.e. 296 -> 295.
-    expect(total).toBe(284);
+    expect(total).toBe(277);
     expect(total).toBeLessThan(294);
   });
 });

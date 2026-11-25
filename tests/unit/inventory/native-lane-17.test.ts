@@ -300,6 +300,6 @@ describe("native lane 17 slice evidence", () => {
       }
     };
     walk(resolve(ROOT, "packages/server-inventory/src"));
-    expect(total).toBe(284);
+    expect(total).toBe(277);
   });
 });

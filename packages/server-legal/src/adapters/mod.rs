@@ -30,6 +30,7 @@ pub(crate) mod processing_maintenance;
 pub(crate) mod trust_material_inspector;
 pub(crate) mod trust_workflow_bridge;
 
+pub(crate) mod attachment_migration_facts;
 pub(crate) mod citation_source;
 pub(crate) mod legal_http;
 pub(crate) mod legal_http_auxiliary;

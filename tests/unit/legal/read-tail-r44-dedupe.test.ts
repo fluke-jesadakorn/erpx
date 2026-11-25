@@ -9,6 +9,9 @@ import {
 import contract from '../../../packages/server-legal/src/adapters/legal-read-tail-r44-sources.json' with {
   type: 'json',
 };
+import migrationContract from '../../../packages/server-legal/src/adapters/attachment-migration-facts-sources.json' with {
+  type: 'json',
+};
 
 const srcRoot = resolve(__dirname, '../../../packages/server-legal/src');
 const src = (name: string) => readFile(new URL(`../../../packages/server-legal/src/adapters/${name}`, import.meta.url), 'utf8');
@@ -139,6 +142,24 @@ describe('legal read-tail r44 parameterized external-upload and preservation hea
     }
   });
 
+  it('keeps the specialized attachment-backfill reads in the native contract', async () => {
+    const [migration, rust] = await Promise.all([
+      src('attachment-migration-facts.ts'),
+      src('attachment_migration_facts.rs'),
+    ]);
+    expect(migration.match(/SELECT /g) ?? []).toHaveLength(0);
+    expect(migration).toContain('attachment-migration-facts-sources.json');
+    expect(migration).toContain('legalExternalUploadShareJoinHead');
+    expect(migrationContract.holdExists).toBe(
+      "EXISTS(SELECT 1 FROM legal_holds h WHERE h.item_id=i.id AND h.state<>'released') legal_hold",
+    );
+    expect(migrationContract.documents).toContain('{holdExists}');
+    expect(migrationContract.documents).toContain('FROM legal_documents d JOIN legal_items i ON i.id=d.item_id');
+    expect(rust).toContain('include_str!("attachment-migration-facts-sources.json")');
+    expect(rust).toContain('render_attachment_migration_documents');
+    expect(rust).toContain('de4d0ff01947d5f104c1fafa40c26bcc5bde7768868013deb99e19594c67a03d');
+  });
+
   it('leaves corpus/citation/advisory/FOR UPDATE reads intact', async () => {
     const [corpus, citations, r9, r24, destructionWorker] = await Promise.all([
       src('legal/law-corpus.ts'), src('legal/citations.ts'),
@@ -199,7 +220,7 @@ describe('legal read-tail r44 parameterized external-upload and preservation hea
     expect(total).toBeLessThan(212);
   });
 
-  it('retirement:ts-statements is BEFORE=109 -> AFTER=107 for the r44 native contract', async () => {
+  it('retirement:ts-statements current owner pin is 97 after the r44/migration contracts', async () => {
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -210,6 +231,6 @@ describe('legal read-tail r44 parameterized external-upload and preservation hea
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(109);
-    expect(total).toBe(99);
+    expect(total).toBe(97);
   });
 });

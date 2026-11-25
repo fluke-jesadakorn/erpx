@@ -96,6 +96,6 @@ describe('legal read-tail r66 EXISTS point-guard head reuse', () => {
     await walk(srcRoot);
     expect(total).toBeLessThan(133);
     expect(total).toBeLessThanOrEqual(132);
-    expect(total).toBe(99);
+    expect(total).toBe(97);
   });
 });

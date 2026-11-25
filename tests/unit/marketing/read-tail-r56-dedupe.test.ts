@@ -73,6 +73,6 @@ describe('marketing read-tail r56 native campaign-existence cutover', () => {
   });
 
   it('retirement:ts-statements stays strictly below BEFORE=14 at 12 after r57', async () => {
-    expect(await ownerTokens()).toEqual({ spaced: 6, bare: 6 });
+    expect(await ownerTokens()).toEqual({ spaced: 5, bare: 5 });
   });
 });

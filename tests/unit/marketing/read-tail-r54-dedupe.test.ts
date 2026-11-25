@@ -126,7 +126,7 @@ describe('marketing read-tail r54 dedupe', () => {
       'marketing-point-exists-sql.ts',
     ])
       expect(headTokens(await src(name)), name).toBe(1);
-    expect((await src('read-tail-sql.ts')).match(/SELECT/g)).toHaveLength(1);
+    expect((await src('read-tail-sql.ts')).match(/SELECT/g) ?? []).toHaveLength(0);
     expect(headTokens(await src('marketing-purchase-union-sql.ts'))).toBe(0);
     expect(headTokens(await src('marketing-clocked-report-frame.ts'))).toBe(0);
     expect(headTokens(await src('executive-label-sql.ts'))).toBe(0);
@@ -150,6 +150,6 @@ describe('marketing read-tail r54 dedupe', () => {
   });
 
   it('pins the owner head KPI to 17 (BEFORE=20; lane 40 retired 2 TS SELECTs)', async () => {
-    expect(await ownerHeadTokens()).toEqual({ spaced: 6, bare: 6 });
+    expect(await ownerHeadTokens()).toEqual({ spaced: 5, bare: 5 });
   });
 });

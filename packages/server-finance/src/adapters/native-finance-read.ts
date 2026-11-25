@@ -86,6 +86,14 @@ export const FINANCE_RD_WITHHOLDING_REMIT_PACKAGE_EDITION = 'finance_rd_withhold
 export const FINANCE_RD_WITHHOLDING_REMIT_ROW = 'finance_rd_withholding_remit_row';
 export const FINANCE_RD_WITHHOLDING_REMIT_PACKAGE_LIST = 'finance_rd_withholding_remit_package_list';
 export const FINANCE_RD_WITHHOLDING_REMIT_BANK_CANDIDATES = 'finance_rd_withholding_remit_bank_candidates';
+export const FINANCE_RD_PLAN_ACCOUNTS = 'finance_rd_plan_accounts';
+export const FINANCE_RD_PLAN_DIMENSION = 'finance_rd_plan_dimension';
+export const FINANCE_RD_PLAN_BANK_ACCOUNT = 'finance_rd_plan_bank_account';
+export const FINANCE_RD_PLAN_EDITIONS = 'finance_rd_plan_editions';
+export const FINANCE_RD_PLAN_SNAPSHOTS = 'finance_rd_plan_snapshots';
+export const FINANCE_RD_PLAN_CATEGORY = 'finance_rd_plan_category';
+export const FINANCE_RD_PLAN_EXPORT_ROW = 'finance_rd_plan_export_row';
+export const FINANCE_RD_PLAN_SOURCE_SNAPSHOT = 'finance_rd_plan_source_snapshot';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'FINANCE_NATIVE_READ_UNAVAILABLE', 'The native Finance read service is unavailable.');

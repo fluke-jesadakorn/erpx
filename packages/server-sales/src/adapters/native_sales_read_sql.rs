@@ -198,6 +198,30 @@ const READ_NOTIFICATION_SOURCE_PROD: NativeSalesReadStatement = NativeSalesReadS
     scope: "holding",
 };
 
+/// Native successor of the TypeScript calendar follow-up JSON id-list membership
+/// fragment. The single ? placeholder is bound by the caller's larger statement;
+/// the planner carries no values of its own.
+pub const RD_CALENDAR_JSONB_MEMBER: &str = "sales_rd_calendar_jsonb_member";
+const SQL_CALENDAR_JSONB_MEMBER: &str = "IN (SELECT jsonb_array_elements_text(?::jsonb))";
+const READ_CALENDAR_JSONB_MEMBER: NativeSalesReadStatement = NativeSalesReadStatement {
+    kind: RD_CALENDAR_JSONB_MEMBER,
+    sql: SQL_CALENDAR_JSONB_MEMBER,
+    bind_count: 0,
+    scope: "holding",
+};
+
+/// Native successor of the TypeScript calendar follow-up HR people owner membership
+/// fragment. The single ? placeholder is bound by the caller's larger statement;
+/// the planner carries no values of its own.
+pub const RD_CALENDAR_OWNER_MEMBER: &str = "sales_rd_calendar_owner_member";
+const SQL_CALENDAR_OWNER_MEMBER: &str = "IN(SELECT user_id FROM (SELECT \"id\",\"user_id\",\"company_id\",\"legal_name\",\"preferred_name\",\"email\",\"phone\",\"country_code\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"merged_into_id\",\"work_email\",\"work_phone\" FROM hr_people) hr_people WHERE id=? AND company_id=c.company_id)";
+const READ_CALENDAR_OWNER_MEMBER: NativeSalesReadStatement = NativeSalesReadStatement {
+    kind: RD_CALENDAR_OWNER_MEMBER,
+    sql: SQL_CALENDAR_OWNER_MEMBER,
+    bind_count: 0,
+    scope: "holding",
+};
+
 const READS: &[NativeSalesReadStatement] = &[
     READ_PRICE_LIST_ACTIVE,
     READ_PRICE_LIST_ITEMS_ACTIVE,
@@ -216,6 +240,9 @@ const READS: &[NativeSalesReadStatement] = &[
 
     READ_NOTIFICATION_SOURCE_DEV,
     READ_NOTIFICATION_SOURCE_PROD,
+
+    READ_CALENDAR_JSONB_MEMBER,
+    READ_CALENDAR_OWNER_MEMBER,
 
 ];
 
@@ -465,8 +492,32 @@ mod tests {
     }
 
     #[test]
+    fn calendar_jsonb_member_fragment_is_allow_listed_and_byte_stable() {
+        let read = read_statement(RD_CALENDAR_JSONB_MEMBER).expect("read kind");
+        assert_eq!(read.kind, "sales_rd_calendar_jsonb_member");
+        assert_eq!(read.bind_count, 0);
+        assert_eq!(read.sql.matches('?').count(), 1);
+        assert_eq!(read.sql.len(), 47);
+        assert!(read.sql.starts_with("IN("));
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_CALENDAR_JSONB_MEMBER));
+    }
+
+    #[test]
+    fn calendar_owner_member_fragment_is_allow_listed_and_byte_stable() {
+        let read = read_statement(RD_CALENDAR_OWNER_MEMBER).expect("read kind");
+        assert_eq!(read.kind, "sales_rd_calendar_owner_member");
+        assert_eq!(read.bind_count, 0);
+        assert_eq!(read.sql.matches('?').count(), 1);
+        assert_eq!(read.sql.len(), 286);
+        assert!(read.sql.starts_with("IN("));
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_CALENDAR_OWNER_MEMBER));
+    }
+
+    #[test]
     fn only_owner_read_kinds_are_registered() {
-        assert_eq!(READS.len(), 15);
+        assert_eq!(READS.len(), 17);
         assert!(READS.iter().all(|read| is_read(read.kind)));
         assert!(!is_read("sales_price_lists"));
         assert!(!is_read("SELECT 1"));

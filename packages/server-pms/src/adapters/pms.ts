@@ -56,7 +56,7 @@ import { pmsPosFacts } from "@erpx/server-pos/public/pms-command-facts";
 import { pmsWorkflowFacts } from "@erpx/server-workflow/public/pms-command-facts";
 import { pmsFilesFacts } from "@erpx/server-files/public/pms-command-facts";
 import { nativePmsOwnerWrite } from "@erpx/feature-pms/public/native-pms";
-import { nativePmsReadAll, nativePmsReadFirst, PMS_RD_POSTING_CHARGE, PMS_RD_POSTING_BY_RECORD, PMS_RD_CHARGE_CORRECTION_PENDING, PMS_RD_GUEST_COMMAND_RECORD, PMS_RD_STAY_COMMAND, PMS_RD_CASHIER_COMMAND, PMS_RD_POS_COMMAND, PMS_RD_NIGHT_COMMAND, PMS_RD_HOUSEKEEPING_COMMAND, PMS_RD_TRANSFER_REQUESTS, PMS_RD_GUEST_DOCUMENTS, PMS_RD_BOOKING_ALLOCATION_EXISTS, PMS_RD_PENDING_JOBS } from "./native-pms-read";
+import { nativePmsReadAll, nativePmsReadFirst, PMS_RD_POSTING_CHARGE, PMS_RD_POSTING_BY_RECORD, PMS_RD_CHARGE_CORRECTION_PENDING, PMS_RD_GUEST_COMMAND_RECORD, PMS_RD_STAY_COMMAND, PMS_RD_CASHIER_COMMAND, PMS_RD_POS_COMMAND, PMS_RD_NIGHT_COMMAND, PMS_RD_HOUSEKEEPING_COMMAND, PMS_RD_TRANSFER_REQUESTS, PMS_RD_GUEST_DOCUMENTS, PMS_RD_BOOKING_ALLOCATION_EXISTS, PMS_RD_PENDING_JOBS, PMS_RD_GUEST_ACCOUNT_SUMS, PMS_RD_CHARGE_CORRECTIONS, PMS_RD_CHARGE_CORRECTIONS_FRONT } from "./native-pms-read";
 function unit(db: SqlDatabase, companyId = '', actor: LaneActor = {}): PmsUnit<SqlStatement> {
         const write = (kind: string, values: unknown[]): any => nativePmsOwnerWrite(companyId, kind, values);
     const identity_access = pmsIdentityAccessFacts(db);
@@ -112,14 +112,11 @@ function unit(db: SqlDatabase, companyId = '', actor: LaneActor = {}): PmsUnit<S
         },
         readPmsRecords: (facts: {
             id: string;
-        }) => db.prepare(`SELECT COALESCE(SUM((data_json::jsonb->>'due')::bigint),0)::double precision due,
-      COALESCE(SUM((data_json::jsonb->>'advance')::bigint),0)::double precision advance,
-      COALESCE(SUM((data_json::jsonb->>'deposit')::bigint),0)::double precision deposit
-      FROM pms_records WHERE property_id=? AND kind='guest_account'`).bind(facts.id).first<{
+        }) => nativePmsReadFirst<{
             due: number;
             advance: number;
             deposit: number;
-        }>(),
+        }>(PMS_RD_GUEST_ACCOUNT_SUMS, [facts.id], db),
         readPmsTransferRequests: (facts: {
             companyId: string;
             id: string;
@@ -129,7 +126,7 @@ function unit(db: SqlDatabase, companyId = '', actor: LaneActor = {}): PmsUnit<S
             id: string;
             fact2: readonly string[];
             frontMode: boolean;
-        }) => query<{
+        }) => nativePmsReadAll<{
             id: string;
             entry_id: string;
             guest_account_id: string;
@@ -144,10 +141,7 @@ function unit(db: SqlDatabase, companyId = '', actor: LaneActor = {}): PmsUnit<S
             entry_kind: string;
             entry_description: string;
             entry_total: number;
-        }>(db, `SELECT c.id,c.entry_id,c.guest_account_id,c.status,c.version,c.reason,c.requested_by,c.reviewed_by,c.review_reason,c.reversal_entry_id,c.created_at,
-        e.data_json::jsonb->>'kind' entry_kind,e.data_json::jsonb->>'description' entry_description,(e.data_json::jsonb->>'total')::bigint entry_total
-        FROM pms_charge_corrections c JOIN pms_records e ON e.id=c.entry_id AND e.property_id=c.property_id
-        WHERE c.company_id=? AND c.property_id=? ${facts.frontMode ? " AND c.requested_by=?" : " AND c.status='pending'"} ORDER BY c.created_at DESC LIMIT 100`, facts.companyId, facts.id, ...facts.fact2),
+        }>(facts.frontMode ? PMS_RD_CHARGE_CORRECTIONS_FRONT : PMS_RD_CHARGE_CORRECTIONS, [facts.companyId, facts.id, ...facts.fact2], db).then(result => result.results),
         readPmsBookingEmails: (facts: {
             id: string;
         }) => query<{

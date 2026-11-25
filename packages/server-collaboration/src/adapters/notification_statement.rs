@@ -551,6 +551,14 @@ pub fn plan_values_statement(
         // retired TS literals and run on the caller's own unit.
         "social_handover_recipients" => "SELECT user_id FROM social_post_participants WHERE post_id=? AND user_id<>?",
         "social_handover_task_origin_absent" => "AND NOT EXISTS(SELECT 1 FROM social_task_origins o WHERE o.task_id=t.id)",
+        // Social activity fact union. The owner owns each fixed fragment's
+        // bytes; the caller only inserts its registered post-scope predicate
+        // and binds, then executes the composed statement on its own unit.
+        "social_activity_visible_posts" => "WITH visible_posts AS (\n        SELECT p.id,p.company_id,p.author_name,p.version\n        FROM social_posts p WHERE ",
+        "social_activity_visible_comments" => "\n      ), visible_comments AS (\n        SELECT c.id,c.post_id,c.author_name,c.version,c.created_at,p.id thread_id\n        FROM visible_posts p JOIN social_comments c ON c.post_id=p.id AND c.state='published'\n      ), events AS (\n        ",
+        "social_activity_reply_arm" => "SELECT 'reply:'||c.id id,c.id source_id,'reply'::text source_type,'Conversation reply'::text title,\n          c.created_at at,c.version,c.author_name activity_actor,c.thread_id,'/posts/'||c.thread_id href\n        FROM visible_comments c\n        UNION ALL\n        ",
+        "social_activity_mention_arm" => "SELECT 'mention:'||md5(m.owner_type||':'||m.owner_id||':'||m.target_kind||':'||m.target_id),\n          m.owner_id,'mention'::text,'Conversation mention'::text,m.created_at,\n          COALESCE(c.version,p.version)::bigint,COALESCE(c.author_name,p.author_name),p.id,'/posts/'||p.id\n        FROM social_mentions m\n        LEFT JOIN visible_posts p ON m.owner_type='post' AND m.owner_id=p.id\n        LEFT JOIN visible_comments c ON m.owner_type='comment' AND m.owner_id=c.id\n        WHERE p.id IS NOT NULL OR c.id IS NOT NULL\n      )\n      ",
+        "social_activity_final" => "SELECT e.id,e.source_id,e.source_type,e.title,e.at,e.version,e.activity_actor,e.thread_id,e.href FROM events e",
         _ => return None,
     };
     Some(

@@ -6,7 +6,7 @@ import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/server-commercial/public/package-settlement-sources";
 import {assertSupplyInventoryPackageObligationSources,supplyInventorySettlementSources as inventory} from "@erpx/server-inventory/public/supply-package-obligations";
 import {qualityPurchaseSourceRows,qualityPurchaseSourceReadLocks} from "@erpx/server-quality/adapters/purchase-sources";
-import {qualityPackageScopeCte} from "@erpx/server-quality/adapters/quality-scope-sql";
+import {qualityPackageScopeCte,scopeSql} from "@erpx/server-quality/adapters/quality-scope-sql";
 import {qualityChildAggSql} from "./quality-child-agg-sql";
 import {evidenceHead} from "./inspection-evidence-source-sql";
 import {qualityReceiptGuardSql} from "./quality-receipt-guard-sql";
@@ -36,18 +36,18 @@ export async function supplyQualityPackageObligations(owner:PostgresDatabase,dat
  ${qualityChildAggSql('inventory_quality_cancellations','event','hold_id','hold.id')},
  ${qualityChildAggSql('inventory_quality_disposition_events','event','hold_id','hold.id')}) fact,
  NOT COALESCE((hold.status='released' AND hold.last_result='pass' AND hold.released_at IS NOT NULL AND hold.released_by IS NOT NULL
- AND EXISTS(SELECT 1 FROM inventory_quality_inspections inspection WHERE inspection.hold_id=hold.id AND inspection.result='pass' AND inspection.inspected_by=hold.last_inspector)
+ AND EXISTS${scopeSql(`1 FROM inventory_quality_inspections inspection WHERE inspection.hold_id=hold.id AND inspection.result='pass' AND inspection.inspected_by=hold.last_inspector`)}
  AND EXISTS(${qualityReceiptGuardSql('hold.id','quality.hold.release','hold.company_id','version','hold.version::text','hold.released_by')}))
- OR(hold.status='cancelled' AND EXISTS(SELECT 1 FROM inventory_quality_cancellations event JOIN command_receipts receipt
+ OR(hold.status='cancelled' AND EXISTS${scopeSql(`1 FROM inventory_quality_cancellations event JOIN command_receipts receipt
  ON event.id='quality-cancel-'||receipt.command_id AND receipt.record_id=hold.id AND receipt.actor_id=event.actor_id AND receipt.operation='quality.hold.cancel.approve'
  AND receipt.authority_json::jsonb->>'companyId'=hold.company_id AND receipt.result_json::jsonb->>'version'=hold.version::text
- WHERE event.hold_id=hold.id AND event.version=hold.version AND event.action='approve' AND event.actor_id=hold.cancelled_by))
- OR(hold.status='disposed' AND EXISTS(SELECT 1 FROM (${inventory.counts}) count JOIN inventory_quality_disposition_events event
+ WHERE event.hold_id=hold.id AND event.version=hold.version AND event.action='approve' AND event.actor_id=hold.cancelled_by`)})
+ OR(hold.status='disposed' AND EXISTS${scopeSql(`1 FROM (${inventory.counts}) count JOIN inventory_quality_disposition_events event
  ON event.count_id=count.id AND event.hold_id=hold.id AND event.action='post'
  JOIN command_receipts receipt ON event.id='quality-disposition-'||receipt.command_id AND receipt.record_id=count.id AND receipt.operation='inventory.count.post'
  AND receipt.actor_id=event.actor_id AND receipt.authority_json::jsonb->>'companyId'=hold.company_id
  WHERE count.id=hold.disposition_count_id AND count.quality_hold_id=hold.id AND count.company_id=hold.company_id AND count.warehouse_id=hold.warehouse_id
- AND count.status='posted' AND count.approved_by=hold.disposed_by)),false) pending`,`holds hold`)}
+ AND count.status='posted' AND count.approved_by=hold.disposed_by`)}),false) pending`,`holds hold`)}
  UNION ALL ${qualityObligationFactArm(`'alert',alert.id,to_jsonb(alert),hold.status NOT IN ('released','cancelled','disposed') AND
  (alert.acknowledged_by IS NULL OR alert.acknowledged_at IS NULL OR NOT EXISTS(${qualityReceiptGuardSql('alert.id','quality.alert.acknowledge','hold.company_id','version','alert.version::text','alert.acknowledged_by')}))
 `,`inventory_quality_alerts alert JOIN holds hold ON hold.id=alert.hold_id`)}

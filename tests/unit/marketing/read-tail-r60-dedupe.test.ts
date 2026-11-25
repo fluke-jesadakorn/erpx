@@ -42,6 +42,6 @@ describe('marketing read-tail r60 purchase-union head cutover', () => {
   });
 
   it('retirement:ts-statements stays strictly below BEFORE=10 at 8 after r61', async () => {
-    expect(await selectTokens()).toBe(6);
+    expect(await selectTokens()).toBe(5);
   });
 });

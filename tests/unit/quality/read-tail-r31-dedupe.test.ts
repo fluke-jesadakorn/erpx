@@ -72,12 +72,15 @@ describe('quality read-tail r31 package-scope head dedupe', () => {
     }
     // Guard order in the Supply package obligation reader is unchanged.
     const supply = read('adapters/supply-package-obligations.ts');
-    const pass = supply.indexOf('EXISTS(SELECT 1 FROM inventory_quality_inspections inspection');
-    const cancel = supply.indexOf('EXISTS(SELECT 1 FROM inventory_quality_cancellations event');
-    const dispose = supply.indexOf('EXISTS(SELECT 1 FROM (${inventory.counts}) count');
+    const pass = supply.indexOf('EXISTS${scopeSql(`1 FROM inventory_quality_inspections inspection');
+    const cancel = supply.indexOf('EXISTS${scopeSql(`1 FROM inventory_quality_cancellations event');
+    const dispose = supply.indexOf('EXISTS${scopeSql(`1 FROM (${inventory.counts}) count');
     expect(pass).toBeGreaterThan(-1);
     expect(cancel).toBeGreaterThan(pass);
     expect(dispose).toBeGreaterThan(cancel);
+    expect(supply).not.toContain('EXISTS(SELECT 1 FROM inventory_quality_inspections inspection');
+    expect(supply).not.toContain('EXISTS(SELECT 1 FROM inventory_quality_cancellations event');
+    expect(supply).not.toContain('EXISTS(SELECT 1 FROM (${inventory.counts}) count');
 
     // The scope-tuple heads carried by purchases/attachment-read/calendar are
     // unaffected; they remain the exact strings pinned before this pass.
@@ -105,6 +108,6 @@ describe('quality read-tail r31 package-scope head dedupe', () => {
 
   test('retirement:ts-statements is strictly lower than the BEFORE=31 baseline', () => {
     expect(kpi()).toBeLessThan(31);
-    expect(kpi()).toBe(12);
+    expect(kpi()).toBe(9);
   });
 });

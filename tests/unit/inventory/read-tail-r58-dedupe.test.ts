@@ -84,7 +84,7 @@ describe('Inventory read-tail r58 count-line stock head dedupe', () => {
     const shared = adapter('read-tail-sql.ts');
     for (const helper of [
       'transitEventQuantitySumSql', 'inList', 'reservationsCteHeadSql', 'markedCountExistsSql',
-      'replayProbePrefixSql', 'countSelectHeadSql', 'packageObligationStockHeadSql',
+      'countSelectHeadSql', 'packageObligationStockHeadSql',
       'lotAllocationRowsHeadSql', 'commandReceiptRecordIdGuardSql', 'countLineProductGuardSql',
     ]) expect(shared, helper).toContain(`export const ${helper}`);
     expect(adapter('count-attachment-purchases.ts')).toContain('SELECT id FROM assignments WHERE id=? AND company_id=? FOR SHARE');
@@ -113,7 +113,7 @@ describe('Inventory read-tail r58 count-line stock head dedupe', () => {
     // r56 at 296 and r57 at 295. r58 folds the byte-identical count-line stock
     // projection head shared by the count-line and transfer-line detail reads
     // into one owner-local renderer: 2 source tokens -> 1, i.e. 295 -> 294.
-    expect(total).toBe(284);
+    expect(total).toBe(277);
     expect(total).toBeLessThan(294);
   });
 });

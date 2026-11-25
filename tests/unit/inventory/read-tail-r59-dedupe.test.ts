@@ -94,7 +94,7 @@ describe('Inventory read-tail r59 stock-obligation head dedupe', () => {
     const shared = adapter('read-tail-sql.ts');
     for (const helper of [
       'transitEventQuantitySumSql', 'inList', 'reservationsCteHeadSql', 'markedCountExistsSql',
-      'replayProbePrefixSql', 'countSelectHeadSql', 'packageObligationStockHeadSql',
+      'countSelectHeadSql', 'packageObligationStockHeadSql',
       'lotAllocationRowsHeadSql', 'commandReceiptRecordIdGuardSql', 'countLineProductGuardSql',
       'countLineStockHeadSql',
     ]) expect(shared, helper).toContain(`export const ${helper}`);
@@ -134,7 +134,7 @@ describe('Inventory read-tail r59 stock-obligation head dedupe', () => {
     // stock-projection head shared by the manufacturing and PMS package
     // obligation reads into one owner-local renderer: 2 source tokens -> 1,
     // i.e. 294 -> 293.
-    expect(total).toBe(284);
+    expect(total).toBe(277);
     expect(total).toBeLessThan(293);
   });
 });

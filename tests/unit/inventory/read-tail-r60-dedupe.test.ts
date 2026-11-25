@@ -95,7 +95,7 @@ describe('Inventory read-tail r60 transfer detail head dedupe', () => {
     const shared = adapter('read-tail-sql.ts');
     for (const helper of [
       'transitEventQuantitySumSql', 'inList', 'reservationsCteHeadSql', 'markedCountExistsSql',
-      'replayProbePrefixSql', 'countSelectHeadSql', 'packageObligationStockHeadSql',
+      'countSelectHeadSql', 'packageObligationStockHeadSql',
       'lotAllocationRowsHeadSql', 'commandReceiptRecordIdGuardSql', 'countLineProductGuardSql',
       'countLineStockHeadSql', 'stockObligationHeadSql',
     ]) expect(shared, helper).toContain(`export const ${helper}`);
@@ -127,7 +127,7 @@ describe('Inventory read-tail r60 transfer detail head dedupe', () => {
     // r58 ended at 294 and r59 at 293. r60 folds the byte-identical, bind-free
     // transfer detail/read-purchase projection head shared by two owner-local
     // adapters into one renderer: 2 source tokens -> 1, i.e. 293 -> 292.
-    expect(total).toBe(284);
+    expect(total).toBe(277);
     expect(total).toBeLessThan(293);
   });
 });

@@ -22,6 +22,7 @@ pub const PC_CONNECTION_ROUTE: &str = "pc_connection_route";
 pub const PC_MFA_ENABLED: &str = "pc_mfa_enabled";
 pub const PC_INVITATION_WAITING: &str = "pc_invitation_waiting";
 pub const PC_DELIVERABLE_INVITATION: &str = "pc_deliverable_invitation";
+pub const PC_FRESH_MFA: &str = "pc_fresh_mfa";
 
 /// Byte-identical successors of the five TypeScript statements pinned in
 /// `tests/unit/identity_access/read-tail-r36-dedupe.test.ts`. `?` markers are
@@ -43,6 +44,8 @@ pub const SQL_INVITATION_WAITING: &str =
     "SELECT id,invitation_id FROM account_invitation_delivery_jobs WHERE holding_id=? AND state='awaiting_approval' ORDER BY created_at LIMIT 100";
 pub const SQL_DELIVERABLE_INVITATION: &str =
     "SELECT email,name,status,expires_at FROM account_invitations WHERE id=?";
+pub const SQL_FRESH_MFA: &str =
+    "SELECT 1 FROM iam_mfa_sessions f JOIN iam_mfa m ON m.user_id=f.user_id AND m.enabled=true JOIN session s ON s.id=f.session_id AND s.\"userId\"=f.user_id WHERE f.user_id=? AND f.session_id=? AND f.verified_at>? AND s.\"expiresAt\"::timestamptz>?::timestamptz";
 
 const BODY_LIMIT: usize = 8 * 1024;
 const ORIGIN_HEADER: HeaderName = HeaderName::from_static("origin");
@@ -62,6 +65,10 @@ fn invalid() -> BusinessError {
     )
 }
 
+fn valid_string(value: Option<&str>) -> bool {
+    value.is_some_and(|text| !text.is_empty() && text.len() <= 512)
+}
+
 /// Resolve one registered kind. Callers never supply SQL, a relation, a
 /// predicate or an unbound value type.
 pub fn plan(kind: &str, values: &[Value]) -> Result<ControlReadPlan, BusinessError> {
@@ -75,16 +82,29 @@ pub fn plan(kind: &str, values: &[Value]) -> Result<ControlReadPlan, BusinessErr
         PC_MFA_ENABLED => (SQL_MFA_ENABLED, 1),
         PC_INVITATION_WAITING => (SQL_INVITATION_WAITING, 1),
         PC_DELIVERABLE_INVITATION => (SQL_DELIVERABLE_INVITATION, 1),
+        PC_FRESH_MFA => (SQL_FRESH_MFA, 4),
         _ => return Err(invalid()),
     };
-    if values.len() != expected || !values.iter().all(Value::is_string) {
+    if values.len() != expected {
         return Err(invalid());
     }
-    if values.iter().any(|value| {
-        value
-            .as_str()
-            .is_none_or(|text| text.is_empty() || text.len() > 512)
-    }) {
+    if kind == PC_FRESH_MFA {
+        // The verified-at cutoff is a bounded epoch number; all other binds
+        // remain non-empty strings. No caller value reaches the SQL text.
+        let strings_ok = [0usize, 1, 3]
+            .iter()
+            .all(|index| valid_string(values[*index].as_str()));
+        let cutoff_ok = values[2]
+            .as_i64()
+            .is_some_and(|value| value > 0 && value <= 9_000_000_000_000_000);
+        if !strings_ok || !cutoff_ok {
+            return Err(invalid());
+        }
+    } else if !values.iter().all(Value::is_string)
+        || values
+            .iter()
+            .any(|value| !valid_string(value.as_str()))
+    {
         return Err(invalid());
     }
     Ok(ControlReadPlan {
@@ -147,7 +167,7 @@ fn decode(body: &[u8]) -> Result<(String, Vec<Value>), BusinessError> {
         values: Vec<Value>,
     }
     let wire: Wire = serde_json::from_slice(body).map_err(|_| invalid())?;
-    if wire.kind.is_empty() || wire.kind.len() > 160 || wire.values.len() > 3 {
+    if wire.kind.is_empty() || wire.kind.len() > 160 || wire.values.len() > 4 {
         return Err(invalid());
     }
     Ok((wire.kind, wire.values))
@@ -271,6 +291,23 @@ mod tests {
             assert!(!planned.sql.contains("UPDATE "), "{kind}");
         }
         assert_eq!(plan("unknown", &[]).unwrap_err().code, "IDENTITY_CONTROL_READ_PLAN_INVALID");
+    }
+
+    #[test]
+    fn fresh_mfa_plan_binds_a_bounded_numeric_cutoff() {
+        let values = vec![
+            Value::from("user-1"),
+            Value::from("session-1"),
+            Value::from(1_700_000_000_000_i64),
+            Value::from("2026-11-26T00:00:00.000Z"),
+        ];
+        let planned = plan(PC_FRESH_MFA, &values).unwrap();
+        assert_eq!(planned.sql, SQL_FRESH_MFA);
+        assert_eq!(planned.values.len(), 4);
+        assert!(planned.sql.contains("f.verified_at>?"));
+        assert!(plan(PC_FRESH_MFA, &[Value::from("u"), Value::from("s"), Value::from("bad"), Value::from("iso")]).is_err());
+        assert!(plan(PC_FRESH_MFA, &[Value::from("u"), Value::from("s"), Value::from(-1), Value::from("iso")]).is_err());
+        assert!(plan(PC_FRESH_MFA, &values[..3]).is_err());
     }
 
     #[test]

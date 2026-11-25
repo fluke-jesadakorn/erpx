@@ -91,7 +91,7 @@ describe('Inventory read-tail r56 lot-allocation head dedupe', () => {
     const shared = adapter('read-tail-sql.ts');
     for (const helper of [
       'transitEventQuantitySumSql', 'inList', 'reservationsCteHeadSql', 'markedCountExistsSql',
-      'replayProbePrefixSql', 'countSelectHeadSql', 'packageObligationStockHeadSql',
+      'countSelectHeadSql', 'packageObligationStockHeadSql',
       'commandReceiptRecordIdGuardSql',
     ]) expect(shared, helper).toContain(`export const ${helper}`);
     // The FOR SHARE lock literals are intentionally not folded.
@@ -118,7 +118,7 @@ describe('Inventory read-tail r56 lot-allocation head dedupe', () => {
     // 297. r56 folds the byte-identical lot-allocation projection head shared
     // by the commerce return-lot and transfer-lot reads into one owner-local
     // renderer: 2 source tokens -> 1, i.e. 297 -> 296.
-    expect(total).toBe(284);
+    expect(total).toBe(277);
     expect(total).toBeLessThan(296);
   });
 });

@@ -107,7 +107,7 @@ describe('marketing read-tail r50 dedupe', () => {
       'marketing-point-exists-sql.ts',
     ])
       expect(headTokens(await src(name)), name).toBe(1);
-    expect((await src('read-tail-sql.ts')).match(/SELECT/g)).toHaveLength(1);
+    expect((await src('read-tail-sql.ts')).match(/SELECT/g) ?? []).toHaveLength(0);
     expect(headTokens(await src('marketing-purchase-union-sql.ts'))).toBe(0);
     expect(await src('crm-purchase-sources.ts')).toContain(
       'SELECT candidate.* FROM marketing_lead_candidates candidate',
@@ -124,7 +124,7 @@ describe('marketing read-tail r50 dedupe', () => {
     expect(await src('native-marketing-read.ts')).toContain('export');
   });
 
-  it('pins the owner head KPI to 6 (lane 40 retired 3) (BEFORE=24)', async () => {
-    expect(await ownerHeadTokens()).toEqual({ spaced: 6, bare: 6 });
+  it('pins the owner head KPI to 5 (lane 40 retired 3) (BEFORE=24)', async () => {
+    expect(await ownerHeadTokens()).toEqual({ spaced: 5, bare: 5 });
   });
 });

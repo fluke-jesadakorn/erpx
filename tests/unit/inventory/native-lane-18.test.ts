@@ -11,7 +11,7 @@ import { readStockAvailability, type Lane18Actor } from '../../../packages/serve
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 const SQL_ORACLE = 'fbb602ffe25f6c0aafacba7fb88c8eb90dad2885f3aec75ccd7f43d6b7593b10';
 const RESULT_ORACLE = '77aaeea853b67153f2d4040897a2d3e47a21f8c48e2a63658ac90a1b90c77437';
-const OWNER_SELECT_PIN = 287;
+const OWNER_SELECT_PIN = 277;
 const envKey = 'ERPX_NATIVE_INVENTORY_LANE18_READ_CONFIG';
 const original = process.env[envKey];
 

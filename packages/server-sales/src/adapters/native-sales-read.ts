@@ -32,6 +32,8 @@ export const SALES_RD_FOLLOWUP_METRIC_PROJECTION = 'sales_rd_followup_metric_pro
 export const SALES_RD_FOLLOWUP_METRIC_SOURCE = 'sales_rd_followup_metric_source';
 export const SALES_RD_NOTIFICATION_SOURCE_DEV = 'sales_rd_notification_source_dev';
 export const SALES_RD_NOTIFICATION_SOURCE_PROD = 'sales_rd_notification_source_prod';
+export const SALES_RD_CALENDAR_JSONB_MEMBER = 'sales_rd_calendar_jsonb_member';
+export const SALES_RD_CALENDAR_OWNER_MEMBER = 'sales_rd_calendar_owner_member';
 
 /** Owner-planned statement. The caller may run it on its own open unit or
  * compose it into a larger read; no SQL is accepted from the caller. */

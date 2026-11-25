@@ -156,7 +156,7 @@ describe('Sales read-tail r30 retirement check', () => {
     expect(pricingPurchases).toContain('LOCK TABLE sales_price_lists,sales_price_list_items IN SHARE ROW EXCLUSIVE MODE');
     expect(obligations).toContain('LOCK TABLE sales_price_lists,sales_price_list_items,customer_followups,customer_followup_events,customer_contact_notes,customer_contact_note_history,commerce_customer_notifications,commerce_customer_notification_settings,sales_notification_execution_authorizations,sales_notification_execution_attempts,sales_notification_reconciliations,command_receipts,audit_events IN SHARE MODE');
     expect(native).toContain('export const SALES_RD_PRICE_LIST_ACTIVE');
-    expect((rustRegistry.match(/pub const RD_\w+: &str =/g) ?? []).length).toBe(15);
+    expect((rustRegistry.match(/pub const RD_\w+: &str =/g) ?? []).length).toBe(17);
     expect(shared).not.toMatch(/LOCK TABLE|FOR UPDATE|FOR SHARE/i);
     expect(commercial).not.toMatch(/LOCK TABLE|FOR UPDATE|FOR SHARE/i);
     expect(finalRoot).not.toMatch(/LOCK TABLE|FOR UPDATE|FOR SHARE/i);
@@ -175,7 +175,7 @@ describe('Sales read-tail r30 retirement check', () => {
     // r30 shares tableRead (-3) and priceListSelect (-1).
     // r33 folds the tail generator into the primary read generator (-1).
     // r35: delivery-presence head shared by order/return/notice guards (-1).
-    expect(total).toBe(32);
+    expect(total).toBe(30);
     expect(total).toBeLessThan(54);
   });
 });

@@ -46,7 +46,7 @@ describe('marketing owner-local point read dedupe', () => {
     // r40 moved the owner-fact token into the shared point-read head, so both
     // wrappers only delegate.
     const head = await readFile(adapter('read-tail-sql.ts'), 'utf8');
-    expect(head.match(/SELECT/g)).toHaveLength(1);
+    expect(head.match(/SELECT/g) ?? []).toHaveLength(0);
     expect(local.match(/SELECT/g)).toBeNull();
     expect(local).toContain('marketingReadTailSql(table,');
     expect(ownerFact.match(/SELECT/g)).toBeNull();

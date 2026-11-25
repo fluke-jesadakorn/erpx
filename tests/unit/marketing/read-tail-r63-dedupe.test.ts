@@ -36,14 +36,14 @@ describe('marketing read-tail r63 can_act selection cutover', () => {
     expect(record).toContain('marketingPointExistsSql(');
     for (const [name, count] of [
       ['select-head-sql.ts', 1],
-      ['read-tail-sql.ts', 1],
+      ['read-tail-sql.ts', 0],
       ['owner-point-read-sql.ts', 1],
       ['marketing-point-exists-sql.ts', 1],
     ] as const)
       expect((await src(name)).match(/SELECT /g) ?? []).toHaveLength(count);
   });
 
-  it('retirement:ts-statements is BEFORE=7 -> AFTER=6', async () => {
-    expect(await selectTokens()).toBe(6);
+  it('retirement:ts-statements stays strictly below BEFORE=7 at 5 after r64', async () => {
+    expect(await selectTokens()).toBe(5);
   });
 });

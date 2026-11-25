@@ -93,6 +93,6 @@ describe('quality read-tail r32 lineage head dedupe', () => {
 
   test('retirement:ts-statements is strictly lower than the BEFORE=30 baseline', () => {
     expect(kpi()).toBeLessThan(30);
-    expect(kpi()).toBe(12);
+    expect(kpi()).toBe(9);
   });
 });

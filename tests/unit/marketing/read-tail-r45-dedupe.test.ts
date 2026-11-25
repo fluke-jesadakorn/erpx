@@ -83,9 +83,9 @@ describe('marketing read-tail r45 dedupe', () => {
   it('keeps one owner-local terminal head and no duplicate head literals', async () => {
     const head = await src('read-tail-sql.ts');
     expect(head).toContain('export const marketingReadTailSql');
-    expect(head).toContain('`SELECT * FROM ${table}${tail}`');
-    expect(head.match(/SELECT/g)).toHaveLength(1);
-    expect(selectTokens(head)).toBe(1);
+    expect(head).toContain("marketingSelectHeadSql('*', ` FROM ${table}${tail}`)");
+    expect(head.match(/SELECT/g) ?? []).toHaveLength(0);
+    expect(selectTokens(head)).toBe(0);
     expect(marketingReadTailSql('t')).toBe('SELECT * FROM t');
     expect(marketingReadTailSql('t', ' WHERE id=?')).toBe('SELECT * FROM t WHERE id=?');
 
@@ -110,8 +110,8 @@ describe('marketing read-tail r45 dedupe', () => {
     expect(await src('package-obligations.ts')).toContain('marketingPointExistsSql(');
   });
 
-  it('pins the owner SELECT KPI to 6 (lane 40 retired 3) (BEFORE=36)', async () => {
-    expect(await ownerSelectTokens()).toBe(6);
+  it('pins the owner SELECT KPI to 5 (lane 40 retired 3) (BEFORE=36)', async () => {
+    expect(await ownerSelectTokens()).toBe(5);
     expect(await ownerSelectTokens()).toBeLessThan(32);
   });
 });

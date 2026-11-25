@@ -470,6 +470,17 @@ const READ_TRANSIT_PRODUCT_VERSION: NativeCommerceReadStatement = NativeCommerce
     bind_count: 3,
 };
 
+/// Native successor of the POS full active-warehouses read. The caller binds
+/// `[company_id, branch_id, branch_id]`; both branch positions stay distinct.
+pub const RD_POS_WAREHOUSES_ALL: &str = "commerce_rd_pos_warehouses_all";
+const SQL_POS_WAREHOUSES_ALL: &str =
+    "SELECT * FROM commerce_warehouses WHERE company_id=? AND status='active' AND (?::text IS NULL OR branch_id=?) ORDER BY name";
+const READ_POS_WAREHOUSES_ALL: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_POS_WAREHOUSES_ALL,
+    sql: SQL_POS_WAREHOUSES_ALL,
+    bind_count: 3,
+};
+
 const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_PMS_WAREHOUSE_ACTIVE,
     READ_PMS_SETTINGS_EXISTS,
@@ -508,6 +519,7 @@ const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_LANDED_COST_POSTING_CONFIG,
     READ_TRANSIT_ACTIVE_LOCATION,
     READ_TRANSIT_PRODUCT_VERSION,
+    READ_POS_WAREHOUSES_ALL,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -603,6 +615,7 @@ mod tests {
                 3usize,
             ),
             (RD_TRANSIT_PRODUCT_VERSION, SQL_TRANSIT_PRODUCT_VERSION, 3usize),
+            (RD_POS_WAREHOUSES_ALL, SQL_POS_WAREHOUSES_ALL, 3usize),
         ];
         for (kind, sql, bind_count) in expected {
             let statement = read_statement(kind).expect("registered owner read kind");
