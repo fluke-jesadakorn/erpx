@@ -44,7 +44,7 @@ describe('quality source projection UNION family dedupe (r20)', () => {
     expect(text).not.toContain('qualitySourceUnionSelect');
     expect(text).not.toContain('quality-source-union-sql');
     expect(existsSync(resolve(srcRoot, 'adapters/quality-source-union-sql.ts'))).toBe(false);
-    expect(read('adapters/quality-source-arm-head.ts').match(/SELECT /g)).toHaveLength(1);
+    expect(read('adapters/quality-source-arm-head.ts').match(/SELECT /g) ?? []).toHaveLength(0);
   });
   test('the shared head is read-only; locks, descriptor cutover and r1-r19 helpers stay untouched', () => {
     const helper = read('adapters/quality-source-arm-head.ts');
@@ -59,7 +59,7 @@ describe('quality source projection UNION family dedupe (r20)', () => {
       'quality-lineage-recursion-sql': 1, 'quality-child-agg-sql': 1,
       'quality-receipt-guard-sql': 1, 'quality-source-rows-sql': 0, 'quality-scope-sql': 1,
       'quality-alert-recipient-sql': 0, 'quality-attachment-scope-read-sql': 0, 'quality-id-source-sql': 1,
-      'quality-attachment-source-select-sql': 0, 'quality-source-arm-head': 1,
+      'quality-attachment-source-select-sql': 0, 'quality-source-arm-head': 0,
     };
     for (const [name, count] of Object.entries(counts)) {
       expect(read(`adapters/${name}.ts`).match(/SELECT /g) ?? []).toHaveLength(count);
@@ -79,6 +79,6 @@ describe('quality read-tail r20 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(72);
-    expect(total).toBe(22);
+    expect(total).toBe(21);
   });
 });

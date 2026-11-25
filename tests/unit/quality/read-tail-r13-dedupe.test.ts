@@ -54,8 +54,8 @@ describe('quality record source id-exists family retirement (r30)', () => {
 
   it('prior read families, locks and the read-only head stay independent', () => {
     const head = read('packages/server-quality/src/adapters/quality-source-arm-head.ts');
-    expect(head).toContain('=> `SELECT ${columns} FROM ${source}${predicate}`');
-    expect(head.match(/SELECT /g)).toHaveLength(1);
+    expect(head).toContain('evidenceHead(columns, ` FROM ${source}`, predicate)');
+    expect(head.match(/SELECT /g) ?? []).toHaveLength(0);
     expect(head).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
     const adapter = read('packages/server-quality/src/adapters/record-purchases.ts');
     expect(adapter).toContain('qualityClockCte("quality_source_clock")');

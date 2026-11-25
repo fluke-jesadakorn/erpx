@@ -97,7 +97,7 @@ describe('quality read-tail r26 closed projection family (P)', () => {
     expect(read('adapters/inventory-hold-read-source.ts').match(/qualitySourceArmHead\(/g)).toHaveLength(1);
     expect(read('adapters/attachment-read-sources.ts').match(/qualitySourceArmHead\(/g)).toHaveLength(1);
     expect(read('adapters/attachment-read-sources.ts')).not.toContain('const specs=`SELECT');
-    expect(read('adapters/quality-source-arm-head.ts').match(/SELECT /g)).toHaveLength(1);
+    expect(read('adapters/quality-source-arm-head.ts').match(/SELECT /g) ?? []).toHaveLength(0);
   });
 });
 
@@ -175,7 +175,7 @@ describe('quality read-tail r26 evidence-head family (R)', () => {
       'quality-receipt-guard-sql': 1, 'quality-source-rows-sql': 0, 'quality-scope-sql': 1,
       'quality-alert-recipient-sql': 0, 'quality-attachment-scope-read-sql': 0, 'quality-id-source-sql': 1,
       'quality-attachment-source-select-sql': 0, 'quality-return-anchor-sql': 0,
-      'quality-obligation-fact-arm-sql': 0, 'quality-lineage-terminal-sql': 0, 'quality-source-arm-head': 1,
+      'quality-obligation-fact-arm-sql': 0, 'quality-lineage-terminal-sql': 0, 'quality-source-arm-head': 0,
     };
     for (const [name, count] of Object.entries(counts)) {
       expect(read(`adapters/${name}.ts`).match(/SELECT /g) ?? []).toHaveLength(count);
@@ -198,6 +198,6 @@ describe('quality read-tail r26 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(57);
-    expect(total).toBe(22);
+    expect(total).toBe(21);
   });
 });

@@ -77,7 +77,7 @@ describe('quality read-tail r33 UNION arm head dedupe', () => {
   });
 
   test('retirement:ts-statements is strictly lower than the BEFORE=29 baseline', () => {
-    expect(kpi(/INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT /g)).toBe(22);
-    expect(kpi(/SELECT /g)).toBe(22);
+    expect(kpi(/INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT /g)).toBe(21);
+    expect(kpi(/SELECT /g)).toBe(21);
   });
 });

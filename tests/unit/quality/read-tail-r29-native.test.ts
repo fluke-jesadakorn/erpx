@@ -51,7 +51,7 @@ describe('quality read-tail r29 native hold/spec probes and CAS guards', () => {
     expect(kinds[3].sql).toBe('EXISTS(SELECT 1 FROM inventory_quality_holds WHERE id=? AND company_id=? AND version=?)');
     expect(kinds[4].sql).toBe('EXISTS(SELECT 1 FROM inventory_quality_specs WHERE id=? AND company_id=? AND version=?)');
     // Former aliased output is reproduced byte-for-byte by the shared arm head.
-    expect(armHead).toContain('=> `SELECT ${columns} FROM ${source}${predicate}`');
+    expect(armHead).toContain('evidenceHead(columns, ` FROM ${source}`, predicate)');
   });
 
   it('exports the kinds and plans guards through the unchanged assertion bridge', () => {
@@ -93,6 +93,6 @@ describe('quality read-tail r29 native hold/spec probes and CAS guards', () => {
       }
     };
     walk(resolve(root, 'packages/server-quality/src'));
-    expect(total).toBe(22);
+    expect(total).toBe(21);
   });
 });
