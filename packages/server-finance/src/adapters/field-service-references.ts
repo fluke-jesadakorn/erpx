@@ -1,5 +1,6 @@
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
+import { finCustomerPartyListSql } from "./finance-read-tail-r58-sql";
 import { imageByTailSql } from "./finance-read-tail-r54-sql";
 
 export type ServiceCustomerReference = { id: string; name: string; currency: string };
@@ -14,6 +15,6 @@ export function fieldServiceCustomerAttachmentSourceImage(database:SqlDatabase,c
 
 /** Minimal customer/currency foundation for a Service agreement, without Finance management access. */
 export async function fieldServiceCustomers(database: SqlDatabase, companyId: string): Promise<ServiceCustomerReference[]> {
-  return (await database.prepare("SELECT id,name,currency FROM finance_parties WHERE company_id=? AND kind='customer' AND status='active' ORDER BY name,id")
+  return (await database.prepare(finCustomerPartyListSql(" AND kind='customer' AND status='active' ORDER BY name,id"))
     .bind(companyId).all<ServiceCustomerReference>()).results;
 }

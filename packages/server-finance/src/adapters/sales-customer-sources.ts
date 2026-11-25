@@ -1,3 +1,4 @@
+import { finCustomerPartyIdSql } from './finance-read-tail-r58-sql';
 import { CUSTOMER_PARTY_PROFILE_SQL } from './finance-read-tail-r38-sql';
 import 'server-only';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
@@ -5,7 +6,7 @@ import type {WorkContext} from '@erpx/server-identity_access/public/authorizatio
 import type {Row} from '@erpx/server-commerce/public/commerce';
 import {readListPage} from '@erpx/server-work_projection/public/list-page';
 export function salesPricingCustomers(write:SqlDatabase,actor:WorkContext){return write.prepare("SELECT id,code,name,currency FROM finance_parties WHERE company_id=? AND kind='customer' AND status='active' AND person_id IS NULL ORDER BY name").bind(actor.companyId).all<Row>();}
-export async function salesPricingCustomerValid(write:SqlDatabase,actor:WorkContext,id:string,currency:string){return Boolean(await write.prepare("SELECT id FROM finance_parties WHERE id=? AND company_id=? AND kind='customer' AND status='active' AND currency=? AND person_id IS NULL").bind(id,actor.companyId,currency).first());}
+export async function salesPricingCustomerValid(write:SqlDatabase,actor:WorkContext,id:string,currency:string){return Boolean(await write.prepare(finCustomerPartyIdSql(" AND company_id=? AND kind='customer' AND status='active' AND currency=? AND person_id IS NULL")).bind(id,actor.companyId,currency).first());}
 export async function salesCustomerProfile(write:SqlDatabase,actor:WorkContext,id:string){return await write.prepare(CUSTOMER_PARTY_PROFILE_SQL).bind(id, actor.companyId).first<Row>();}
 export async function salesCustomerDirectory(write:SqlDatabase,actor:WorkContext,search:string,status:string,cursor?:string){return await readListPage<Row & { id: string; page_key: string }>(write, {
     sql: "SELECT p.*,p.name page_key FROM finance_parties p WHERE p.company_id=? AND p.kind='customer' AND p.person_id IS NULL AND (?='' OR strpos(lower(p.code||' '||p.name),lower(?))>0) AND (?='' OR p.status=?)",

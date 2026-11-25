@@ -1,3 +1,4 @@
+import { finCustomerPartyListSql } from './finance-read-tail-r58-sql';
 import { activeAccountListSql } from './finance-read-tail-r51-sql';
 import { columnByIdSql } from './finance-read-tail-r53-sql';
 import { tableByIdSql } from './finance-read-tail-r49-sql';
@@ -285,7 +286,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async workspaceCustomers(companyId: string) {
             const db = read();
             return db
-                .prepare("SELECT id,name,currency FROM finance_parties WHERE company_id=? AND kind='customer' AND status='active' AND person_id IS NULL ORDER BY name")
+                .prepare(finCustomerPartyListSql(" AND kind='customer' AND status='active' AND person_id IS NULL ORDER BY name"))
                 .bind(companyId)
                 .all<Row>();
         }, async workspaceCharts(companyId: string) {
