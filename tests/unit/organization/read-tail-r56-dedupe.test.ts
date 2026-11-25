@@ -115,7 +115,7 @@ describe('Organization read-tail r56 dedupe', () => {
     for (const src of imported) expect(src).not.toContain('FOR UPDATE');
   });
 
-  test('retirement:ts-statements pins 216 -> 214', () => {
+  test('retirement:ts-statements pins 216 -> 211', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -126,10 +126,11 @@ describe('Organization read-tail r56 dedupe', () => {
     };
     walk(srcRoot);
     // r56 folds the three absent-organization-node guard literals into one
-    // renderer (-3 literals, +1 declaration): 216 - 3 + 1 = 214.
+    // renderer (-3 literals, +1 declaration): 216 - 3 + 1 = 214. r57 folds the
+    // authority-seat EXISTS head (-4 sites, +1 declaration): 214 - 4 + 1 = 211.
     expect(CASES).toHaveLength(3);
-    expect(total).toBe(214);
-    expect(total).toBe(216 - 2);
+    expect(total).toBe(211);
+    expect(total).toBe(216 - 5);
     expect(total).toBeLessThan(216);
   });
 });

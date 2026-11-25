@@ -147,7 +147,7 @@ describe('Organization read-tail r55 dedupe', () => {
     expect(read('organization-nodes-spaced-projections.ts')).toContain('"id", "kind", "slug"');
   });
 
-  test('retirement:ts-statements drops 218 -> 214', () => {
+  test('retirement:ts-statements drops 218 -> 211', () => {
     let space = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -160,8 +160,10 @@ describe('Organization read-tail r55 dedupe', () => {
     // r55 folds the latest-engagement id read (-2 sites into one renderer with
     // +1 head) and the person/engagement EXISTS head (-2 sites into one renderer
     // with +1 head): 218 - 4 + 2 = 216. r56 folds the absent-node guard head
-    // (-3 sites into one renderer with +1 head): 216 - 3 + 1 = 214. No other owner path is touched.
-    expect(space).toBe(214);
+    // (-3 sites into one renderer with +1 head): 216 - 3 + 1 = 214. r57 folds
+    // the authority-seat EXISTS head (-4 sites, +1 head): 214 - 4 + 1 = 211.
+    // No other owner path is touched.
+    expect(space).toBe(211);
     expect(space).toBeLessThan(218);
   });
 });

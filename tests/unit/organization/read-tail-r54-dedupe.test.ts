@@ -95,7 +95,7 @@ describe('Organization read-tail r54 dedupe', () => {
       }
     };
     walk(srcRoot);
-    expect(space).toBe(214);
+    expect(space).toBe(211);
     expect(space).toBeLessThan(222);
   });
 });

@@ -43,6 +43,7 @@ import {fullNodeSelection} from './organization-read-tail-sources-r49';
 import {nodeExistsGuard} from './organization-read-tail-sources-r50';
 import {authoritySeatCompanyRead,activeDepartmentNode} from './organization-read-tail-sources-r51';
 import {notExistsOrgNodeSql} from './organization-read-tail-sources-r56';
+import {authoritySeatExistsSql} from './organization-read-tail-sources-r57';
 import {snapshotProjection,staffLevelNumberSource} from './organization-column-alias-families';
 import {impactCount} from './organization-column-alias-families-r29';
 const HEAD_SEAT_SNAPSHOT_SOURCE =
@@ -104,8 +105,8 @@ stageRelocate:async (actor,change,id,appliedNodeId,key,{head,legacyHead,flow},no
           assertion(db,key,"relocation-no-children",notExistsOrgNodeSql(" WHERE company_id=? AND parent_id=? AND status<>'archived'"),[actor.companyId,change.target_node_id]),
           assertion(db,key,"relocation-slug-available",notExistsOrgNodeSql(" destination JOIN organization_nodes source ON source.id=? AND source.company_id=destination.company_id WHERE destination.company_id=? AND destination.parent_id=? AND destination.slug=source.slug"),[change.target_node_id,actor.companyId,change.branch_id]),
           assertion(db,key,"relocation-head-unchanged",head
-            ? "EXISTS(SELECT 1 FROM authority_seats WHERE company_id=? AND kind='head' AND scope_id=? AND version=? AND position_id IS NOT DISTINCT FROM ? AND person_id IS NOT DISTINCT FROM ? AND effective_at IS NOT DISTINCT FROM ?)"
-            : "NOT EXISTS(SELECT 1 FROM authority_seats WHERE company_id=? AND kind='head' AND scope_id=?)",
+            ? authoritySeatExistsSql("WHERE company_id=? AND kind='head' AND scope_id=? AND version=? AND position_id IS NOT DISTINCT FROM ? AND person_id IS NOT DISTINCT FROM ? AND effective_at IS NOT DISTINCT FROM ?")
+            : `NOT ${authoritySeatExistsSql("WHERE company_id=? AND kind='head' AND scope_id=?")}`,
           head?[actor.companyId,change.target_node_id,head.version,head.position_id,head.person_id,head.effective_at]:[actor.companyId,change.target_node_id]),
           assertion(db,key,"relocation-legacy-head-unchanged",legacyHead
             ? "EXISTS(SELECT 1 FROM department_heads WHERE company_id=? AND department_id=? AND version=? AND person_id=?)"

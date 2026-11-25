@@ -13,6 +13,7 @@ import {BusinessRuleError} from '@erpx/server-shared/index';
 import { createDepartmentAuthorityApplication } from '@erpx/server-organization/application/department-authority';
 import { nativeOrgStatement } from './native-organization-owner-write';
 import { authoritySeatHolderGuard } from './organization-read-tail-sources-r48';
+import { authoritySeatExistsSql } from './organization-read-tail-sources-r57';
 
 export {appointmentInput,departmentFlowInput} from '@erpx/server-organization/domain/department-authority';
 export type {FlowSelector} from '@erpx/server-organization/domain/department-authority';
@@ -24,7 +25,7 @@ function powerGuard(db:SqlDatabase,key:string,actor:WorkContext,power:string){
 function application(db:SqlDatabase,actor:WorkContext){return createDepartmentAuthorityApplication({...nativeDepartmentReadPorts(db,actor),replay:(key,operation,id,input)=>replayCommand(db,actor,key,operation,id,input),change:async(input,key,power,scopeId,selfCeo,effectiveAt,now)=>{const operation='authority.appointment.change',recordId=`${input.kind}:${scopeId}`,version=input.expectedVersion+1;
   return executeCommand(db,actor,key,operation,input,recordId,version,{kind:input.kind,scopeId,version,personId:input.personId,positionId:input.positionId},[
     powerGuard(db,key,actor,power),
-    assertion(db,key,"appointment-version",`(?=0 AND NOT EXISTS(SELECT 1 FROM authority_seats WHERE company_id=? AND kind=? AND scope_id=?)) OR EXISTS(SELECT 1 FROM authority_seats WHERE company_id=? AND kind=? AND scope_id=? AND version=?)`,[input.expectedVersion,actor.companyId,input.kind,scopeId,actor.companyId,input.kind,scopeId,input.expectedVersion]),
+    assertion(db,key,"appointment-version",`(?=0 AND NOT ${authoritySeatExistsSql('WHERE company_id=? AND kind=? AND scope_id=?')}) OR ${authoritySeatExistsSql('WHERE company_id=? AND kind=? AND scope_id=? AND version=?')}`,[input.expectedVersion,actor.companyId,input.kind,scopeId,actor.companyId,input.kind,scopeId,input.expectedVersion]),
     await nativeOrgStatement(db,actor.companyId,'authority_seat_upsert',[actor.companyId,input.kind,scopeId,version,input.positionId,input.personId,effectiveAt],key,now),
     await nativeOrgStatement(db,actor.companyId,'authority_appointment_insert',[`appointment-${key}`,actor.companyId,input.kind,scopeId,version,input.positionId,input.personId,effectiveAt,actor.userId,input.reason,key,now],key,now),
     ...(selfCeo?[stageOrganizationSelfCeo(db,actor.companyId,input.personId,input.positionId,now)]:[]),
