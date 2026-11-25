@@ -105,6 +105,6 @@ describe('quality read-tail r25 dedupe retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(58);
-    expect(total).toBe(26);
+    expect(total).toBe(25);
   });
 });
