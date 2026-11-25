@@ -36,10 +36,13 @@ describe('Customer Authority read-tail r23 JSONB image projection family', () =>
     readOnly(jsonbImageProjection(...readArgs));
   });
 
-  test('one shared literal, no inline copies, and the caller keeps its binds', () => {
+  test('one delegated head, no inline copies, and the caller keeps its binds', () => {
     const shared = src('customer-authority-read-tail-r23-sources.ts');
-    expect(shared.match(/\bSELECT\b/g) ?? []).toHaveLength(1);
-    expect(shared.split('jsonb_agg(jsonb_build_object(')).toHaveLength(2);
+    expect(shared.match(/\bSELECT\b/g) ?? []).toHaveLength(0);
+    expect(shared).toContain('jsonbAggHead(');
+    expect(shared).toContain("from './customer-authority-read-tail-r45-sources'");
+    expect(shared.split('jsonb_build_object(')).toHaveLength(2);
+    expect(shared).not.toContain('jsonb_agg(');
 
     const caller = src('portal-projection-unit.ts');
     for (const literal of [IDENTITIES, READS]) expect(caller).not.toContain(literal);

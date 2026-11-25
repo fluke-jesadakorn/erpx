@@ -52,7 +52,7 @@ describe('Customer Authority read-tail r42 support-request family', () => {
     const counts: Array<[string, number, string]> = [
       ['customer-authority-read-sql.ts', 1, 'export const jsonbAggFact'],
       ['package-obligation-sql.ts', 1, 'export const latestSupportVersion'],
-      ['customer-authority-read-tail-r23-sources.ts', 1, 'export const jsonbImageProjection'],
+      ['customer-authority-read-tail-r23-sources.ts', 0, 'export const jsonbImageProjection'],
       ['customer-authority-read-tail-r24-sources.ts', 1, 'export const bindingFactProjection'],
       ['customer-authority-read-tail-r25-sources.ts', 0, 'export const ownerColumnProjection'],
       ['customer-authority-read-tail-r26-sources.ts', 1, 'export const accessBindingOrderProjection'],
@@ -103,6 +103,6 @@ describe('Customer Authority read-tail r42 support-request family', () => {
     walk(srcRoot);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(27);
-    expect(total).toBe(19);
+    expect(total).toBe(18);
   });
 });

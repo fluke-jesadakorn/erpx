@@ -82,7 +82,8 @@ describe('Customer Authority read-tail r24 binding-joined fact family', () => {
     expect(r22).toContain('export const commandAuditProbe');
 
     const r23 = src('customer-authority-read-tail-r23-sources.ts');
-    expect(r23.match(/\bSELECT\b/g) ?? []).toHaveLength(1);
+    expect(r23.match(/\bSELECT\b/g) ?? []).toHaveLength(0);
+    expect(r23).toContain('jsonbAggHead(');
     expect(r23).toContain('export const jsonbImageProjection');
 
     const caller = src('package-obligations.ts');
