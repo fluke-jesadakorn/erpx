@@ -10,9 +10,9 @@ import {PDFDocument} from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import type {DocumentProvider} from "@erpx/server-legal/application/documents";
 import {validateSignedPdf} from "@erpx/server-legal/adapters/legal/pdf-validation";
-import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
+import type {NativeLane26Actor} from '../native-lane-26/client';
 const exec=promisify(execFile);
-export function legalDocumentProvider(db:SqlDatabase,companyId:string,error:(status:number,code:string,message:string)=>Error):DocumentProvider{return {
+export function legalDocumentProvider(scope:NativeLane26Actor,error:(status:number,code:string,message:string)=>Error):DocumentProvider{return {
  docx:async body=>{
     return await Packer.toBuffer(
       new Document({
@@ -68,7 +68,7 @@ export function legalDocumentProvider(db:SqlDatabase,companyId:string,error:(sta
     }
     return pdf.save();
 
-},prepare:async()=>{const directory=await mkdtemp(join(tmpdir(),"erpx-legal-")),path=join(directory,"input");return {write:bytes=>writeFile(path,bytes,{mode:0o600}),verify:()=>validateSignedPdf(db,companyId,path,directory),extract:async d=>{
+},prepare:async()=>{const directory=await mkdtemp(join(tmpdir(),"erpx-legal-")),path=join(directory,"input");return {write:bytes=>writeFile(path,bytes,{mode:0o600}),verify:()=>validateSignedPdf(scope,path,directory),extract:async d=>{
       let text = d.body;
       let pageTexts:{page:number;text:string}[]=[];
       const pageMapping=d.media_type!=="application/vnd.openxmlformats-officedocument.wordprocessingml.document";

@@ -10,6 +10,8 @@ import {
   nativeExecutedCopiesRead,
   nativeLane26Configured,
   nativeLane26Scope,
+  nativeLegalTrustApprovedMaterials,
+  nativeLegalTrustMaterial,
 } from '../../../packages/server-legal/src/adapters/native-lane-26/client';
 import type { NativeExecutedCopyRead } from '../../../packages/server-legal/src/adapters/native-lane-26/client';
 
@@ -32,6 +34,20 @@ const RETIRED_SQL_ORACLES = [
   '8a785ee052ae40ce25bd05a5f5decb3f74ea84efd9c04bc818ab45f806da59e9',
 ];
 const RETIRED_SQL_JOINED_ORACLE = 'b0b05ddc3a2aef19e2b39f0b673bf5e1e4793bab53e26fbf707d3bc0a13f535b';
+
+const TRUST_SQL = [
+  "SELECT id,kind,content,checksum FROM legal_trust_material WHERE company_id=? AND state='approved' ORDER BY id LIMIT 100",
+  'SELECT * FROM legal_trust_material WHERE id=? AND company_id=?',
+];
+const TRUST_SQL_ORACLES = [
+  '468464247af969cbb01eb134e203a18e37b0c274823a9b5e95049e5167025b62',
+  '6bced34abbe5d52f5e635d90186fb1f03ce0508f2b402d1cc8da63b426c81950',
+];
+const TRUST_SQL_JOINED_ORACLE = 'ff3d835731f68fd4ed30084edce2cc135f3bd9694463acfadc94505b87ecc9e6';
+const TRUST_MATERIAL = { id: 'tm-1', kind: 'root', content: 'base64', checksum: 'hash' };
+const TRUST_DETAIL = { id: 'tm-1', state: 'approved', version: 2, created_by: 'user-1' };
+const APPROVED_ORACLE = 'aa68e4a64feba27173de3958d4a7ed9c1fa849d1b8e53e4b57e41b3226501a0c';
+const DETAIL_ORACLE = 'cd633e5af71aed5a7e82d05bb1737dd2787551ea8aa86f19516e556fe7207645';
 
 const read: NativeExecutedCopyRead = {
   item_id: 'item-1',
@@ -165,6 +181,10 @@ beforeAll(async () => {
       user: req.headers['x-erpx-context-user'] as string | undefined,
     });
     if (mode === 'down') return respond(res, { error: { code: 'DOWN', message: 'down' } }, 503);
+    if (url.pathname.includes('/trust-materials/approved'))
+      return respond(res, mode === 'bad' ? { materials: [{ id: 'only-id' }] } : { materials: [TRUST_MATERIAL] });
+    if (url.pathname.includes('/trust-materials/'))
+      return respond(res, mode === 'bad' ? { material: { id: 'only-id' } } : { material: TRUST_DETAIL });
     if (mode === 'bad') return respond(res, { ...read, copies: [{ id: 'copy-1' }] });
     return respond(res, read);
   });
@@ -216,6 +236,65 @@ describe('native Legal lane 26 executed-copy reads', () => {
     expect(RETIRED_SQL.map(sha)).toEqual(RETIRED_SQL_ORACLES);
     expect(sha(RETIRED_SQL.join('\n'))).toBe(RETIRED_SQL_JOINED_ORACLE);
     expect(sha(JSON.stringify(read))).toBe(READ_ORACLE);
+    expect(TRUST_SQL.map(sha)).toEqual(TRUST_SQL_ORACLES);
+    expect(sha(TRUST_SQL.join('\n'))).toBe(TRUST_SQL_JOINED_ORACLE);
+    expect(sha(JSON.stringify({ materials: [TRUST_MATERIAL] }))).toBe(APPROVED_ORACLE);
+    expect(sha(JSON.stringify({ material: TRUST_DETAIL }))).toBe(DETAIL_ORACLE);
+  });
+
+  it('delegates both trust-material reads to native routes with isolated headers', async () => {
+    const approved = await nativeLegalTrustApprovedMaterials(scope);
+    expect(approved).toEqual([TRUST_MATERIAL]);
+    expect(requests[0].url).toBe(
+      '/api/v1/holdings/acme/legal/native-lane-26/trust-materials/approved',
+    );
+    expect(requests[0].origin).toBe('https://acme.jesadakorn.com');
+    expect(requests[0].company).toBe('acme-co');
+    requests = [];
+    const material = await nativeLegalTrustMaterial(scope, 'tm-1');
+    expect(material).toEqual(TRUST_DETAIL);
+    expect(requests[0].url).toBe(
+      '/api/v1/holdings/acme/legal/native-lane-26/trust-materials/tm-1',
+    );
+    expect(requests[0].user).toBe('user-1');
+  });
+
+  it('selects trust material per Holding and never defaults to the first', async () => {
+    for (const holding of HOLDINGS) {
+      requests = [];
+      const actorCompany = holding.companyId ?? `company-for-${holding.holdingId}`;
+      const actor = {
+        holdingId: holding.holdingId,
+        holdingSlug: holding.holdingSlug,
+        companyId: actorCompany,
+        userId: 'user-1',
+      };
+      expect(await nativeLegalTrustApprovedMaterials(actor)).toEqual([TRUST_MATERIAL]);
+      expect(requests[0].url).toBe(
+        `/api/v1/holdings/${holding.holdingSlug}/legal/native-lane-26/trust-materials/approved`,
+      );
+      expect(requests[0].origin).toBe(holding.origin);
+    }
+    requests = [];
+    await expect(
+      nativeLegalTrustMaterial(
+        { ...scope, holdingSlug: 'unknown' },
+        'tm-1',
+      ),
+    ).rejects.toMatchObject({ status: 503 });
+    expect(requests).toHaveLength(0);
+  });
+
+  it('fails closed when the trust read is down, malformed or unbounded', async () => {
+    mode = 'down';
+    await expect(nativeLegalTrustApprovedMaterials(scope)).rejects.toMatchObject({ status: 503 });
+    mode = 'bad';
+    await expect(nativeLegalTrustApprovedMaterials(scope)).rejects.toMatchObject({
+      status: 503,
+      code: 'NATIVE_LEGAL_COPY_READ_RESPONSE_INVALID',
+    });
+    await expect(nativeLegalTrustMaterial(scope, 'tm-1')).rejects.toMatchObject({ status: 503 });
+    await expect(nativeLegalTrustMaterial(scope, 'bad id!')).rejects.toMatchObject({ status: 503 });
   });
 
   it('delegates the complete projection to the native route with isolated headers', async () => {
@@ -340,5 +419,21 @@ describe('native Legal lane 26 executed-copy reads', () => {
     expect(source).not.toMatch(/\.prepare\(/);
     expect(source).not.toMatch(/legalOrderedHistorySql|legalApprovedCycleSql|legalMembershipSql/);
     expect(source).toContain("from '../native-lane-26/client'");
+
+    const validation = fs.readFileSync(
+      path.join(root, 'packages/server-legal/src/adapters/legal/pdf-validation.ts'),
+      'utf8',
+    );
+    expect(validation).not.toContain(TRUST_SQL[0]);
+    expect(validation).not.toMatch(/\.prepare\(/);
+    expect(validation).toContain("from '../native-lane-26/client'");
+
+    const trust = fs.readFileSync(
+      path.join(root, 'packages/server-legal/src/adapters/legal/trust.ts'),
+      'utf8',
+    );
+    expect(trust).not.toContain(TRUST_SQL[1]);
+    expect(trust).not.toContain('legalByIdAndCompanySql');
+    expect(trust).toContain("from '../native-lane-26/client'");
   });
 });

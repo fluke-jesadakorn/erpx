@@ -9,7 +9,9 @@ use std::{future::Future, pin::Pin};
 
 use erpx_server_shared::public::BusinessError;
 
-use super::domain::{CopyAuthors, CopyHead, ExecutedCopyRead, ReviewRow};
+use super::domain::{
+    CopyAuthors, CopyHead, ExecutedCopyRead, ReviewRow, TrustMaterial, TrustMaterialDetail,
+};
 
 pub type LaneFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, BusinessError>> + Send + 'a>>;
 
@@ -43,6 +45,18 @@ pub trait ExecutedCopySource: Send + Sync {
         company: &'a str,
         item: &'a str,
     ) -> LaneFuture<'a, Option<i64>>;
+}
+
+/// Company-scoped trust-material facts. The PDF verifier needs the approved
+/// set; the trust command needs one bounded row witness. Both are owner-owned
+/// reads with no TypeScript SQL behind them.
+pub trait TrustMaterialSource: Send + Sync {
+    fn approved<'a>(&'a self, company: &'a str) -> LaneFuture<'a, Vec<TrustMaterial>>;
+    fn material<'a>(
+        &'a self,
+        company: &'a str,
+        id: &'a str,
+    ) -> LaneFuture<'a, Option<TrustMaterialDetail>>;
 }
 
 /// Owner handler. The query order is fixed: copies first, then their bounded

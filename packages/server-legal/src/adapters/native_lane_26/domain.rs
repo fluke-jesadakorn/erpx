@@ -69,6 +69,29 @@ pub struct ExecutedCopyRead {
     pub copies: Vec<ExecutedCopyRow>,
 }
 
+/// Maximum number of approved trust materials returned for one Company. This
+/// is the original owner `LIMIT 100`, owned here as a Rust invariant.
+pub const TRUST_MATERIAL_LIMIT: i64 = 100;
+
+/// Signing material used by the offline PDF verifier. Content stays base64 and
+/// is never decoded or re-encoded by the transport.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct TrustMaterial {
+    pub id: String,
+    pub kind: String,
+    pub content: String,
+    pub checksum: String,
+}
+
+/// The bounded command-side witness for one trust material row.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct TrustMaterialDetail {
+    pub id: String,
+    pub state: String,
+    pub version: i64,
+    pub created_by: String,
+}
+
 /// Registered Holding slugs are exact lowercase tokens, never free request text.
 pub fn valid_slug(slug: &str) -> bool {
     !slug.is_empty()

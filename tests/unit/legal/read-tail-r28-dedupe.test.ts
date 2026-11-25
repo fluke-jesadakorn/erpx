@@ -31,7 +31,10 @@ describe('legal read-tail r28 parameterized family dedupe', () => {
     ]);
     expect(shared.match(/export const legalByIdAndCompanySql/g) ?? []).toHaveLength(1);
     expect(governance).toContain('legalByIdAndCompanySql("legal_intake_forms")');
-    expect(trust).toContain('legalByIdAndCompanySql("legal_trust_material")');
+    // Lane 26 moved the trust-material point read to the native owner; the
+    // TypeScript caller now transports only the bounded witness.
+    expect(trust).toContain("from '../native-lane-26/client'");
+    expect(trust).not.toContain('legalByIdAndCompanySql');
     for (const file of [governance, trust]) {
       expect(file).not.toMatch(/SELECT \* FROM legal_\w+ WHERE id=\? AND company_id=\?/);
     }

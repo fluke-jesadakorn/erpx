@@ -18,9 +18,9 @@ use erpx_server_runtime::public::{
 use erpx_server_shared::public::{BusinessError, FailureKind};
 
 use super::{
-    application::{ExecutedCopySource, read_executed_copies},
-    domain::{LaneTarget, valid_id, valid_slug},
-    postgres::PgExecutedCopySource,
+    application::{ExecutedCopySource, TrustMaterialSource, read_executed_copies},
+    domain::{LaneTarget, TrustMaterial, TrustMaterialDetail, valid_id, valid_slug},
+    postgres::{PgExecutedCopySource, PgTrustMaterialSource},
 };
 
 const CONTEXT_COMPANY: HeaderName = HeaderName::from_static("x-erpx-context-company");
@@ -28,6 +28,24 @@ const CONTEXT_USER: HeaderName = HeaderName::from_static("x-erpx-context-user");
 
 struct LaneState {
     targets: BTreeMap<(String, String), Arc<dyn ExecutedCopySource>>,
+    trust: BTreeMap<(String, String), Arc<dyn TrustMaterialSource>>,
+}
+
+/// Reader-injection fallback for constructors that only inject the copy source.
+/// Trust reads stay closed rather than silently using another Holding's pool.
+struct UnavailableTrustSource;
+
+impl TrustMaterialSource for UnavailableTrustSource {
+    fn approved<'a>(&'a self, _company: &'a str) -> super::application::LaneFuture<'a, Vec<TrustMaterial>> {
+        Box::pin(async { Err(unavailable()) })
+    }
+    fn material<'a>(
+        &'a self,
+        _company: &'a str,
+        _id: &'a str,
+    ) -> super::application::LaneFuture<'a, Option<TrustMaterialDetail>> {
+        Box::pin(async { Err(unavailable()) })
+    }
 }
 
 fn unavailable() -> BusinessError {
@@ -104,9 +122,9 @@ fn bounded(body: serde_json::Value) -> Response {
 /// map, so the `(host, holding_slug)` key and the exact-target validation have
 /// one owner. Each key holds one reader, which may be a distinct Pg reader for
 /// a distinct Holding pool.
-fn configure_targets(
-    targets: Vec<(LaneTarget, Arc<dyn ExecutedCopySource>)>,
-) -> Result<BTreeMap<(String, String), Arc<dyn ExecutedCopySource>>, BusinessError> {
+fn configure_targets<Source: ?Sized>(
+    targets: Vec<(LaneTarget, Arc<Source>)>,
+) -> Result<BTreeMap<(String, String), Arc<Source>>, BusinessError> {
     let mut configured = BTreeMap::new();
     for (target, reader) in targets {
         if target.host.is_empty()
@@ -126,53 +144,88 @@ fn configure_targets(
 
 fn into_router(
     targets: BTreeMap<(String, String), Arc<dyn ExecutedCopySource>>,
+    trust: BTreeMap<(String, String), Arc<dyn TrustMaterialSource>>,
 ) -> Router {
     Router::new()
         .route(
             "/api/v1/holdings/{holding_slug}/legal/native-lane-26/executed-copies/{item_id}",
             get(current),
         )
-        .with_state(Arc::new(LaneState { targets }))
+        .route(
+            "/api/v1/holdings/{holding_slug}/legal/native-lane-26/trust-materials/approved",
+            get(trust_approved),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/legal/native-lane-26/trust-materials/{id}",
+            get(trust_material),
+        )
+        .with_state(Arc::new(LaneState { targets, trust }))
+}
+
+fn sources_for_one_pool(
+    pool: DatabasePool,
+) -> (Arc<dyn ExecutedCopySource>, Arc<dyn TrustMaterialSource>) {
+    (
+        Arc::new(PgExecutedCopySource::new(pool.clone())),
+        Arc::new(PgTrustMaterialSource::new(pool)),
+    )
 }
 
 /// Build the native read router with one pool shared by all registered targets.
 /// The lead mounts it alongside the other Legal owner routers; composition owns
 /// the pool and the exact registered targets.
 pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
-    let reader: Arc<dyn ExecutedCopySource> = Arc::new(PgExecutedCopySource::new(pool));
-    let configured = configure_targets(
-        targets.into_iter().map(|target| (target, reader.clone())).collect(),
+    let (reader, trust) = sources_for_one_pool(pool);
+    let copies = configure_targets(
+        targets.iter().map(|target| (target.clone(), reader.clone())).collect(),
     )?;
-    Ok(into_router(configured))
+    let trust = configure_targets(
+        targets.into_iter().map(|target| (target, trust.clone())).collect(),
+    )?;
+    Ok(into_router(copies, trust))
 }
 
 /// Reader-injection constructor used by owner tests. It installs the supplied
-/// reader for every exact target without opening any database pool.
+/// copy reader for every exact target; trust reads stay closed.
 pub fn router_with_reader(
     reader: Arc<dyn ExecutedCopySource>,
     targets: Vec<LaneTarget>,
 ) -> Result<Router, BusinessError> {
-    let configured = configure_targets(
-        targets.into_iter().map(|target| (target, reader.clone())).collect(),
+    router_with_sources(reader, Arc::new(UnavailableTrustSource), targets)
+}
+
+/// Owner-test injection path for both read families.
+fn router_with_sources(
+    reader: Arc<dyn ExecutedCopySource>,
+    trust: Arc<dyn TrustMaterialSource>,
+    targets: Vec<LaneTarget>,
+) -> Result<Router, BusinessError> {
+    let copies = configure_targets(
+        targets.iter().map(|target| (target.clone(), reader.clone())).collect(),
     )?;
-    Ok(into_router(configured))
+    let trust = configure_targets(
+        targets.into_iter().map(|target| (target, trust.clone())).collect(),
+    )?;
+    Ok(into_router(copies, trust))
 }
 
 /// Per-Holding constructor. Each `(LaneTarget, DatabasePool)` pair gets its own
-/// `PgExecutedCopySource`, so every Holding reads only from its own database
-/// pool while the same `host`/`holding_slug` isolation applies to all of them.
+/// reader pair, so every Holding reads only from its own database pool while
+/// the same `host`/`holding_slug` isolation applies to all of them.
 pub fn router_for_holdings(
     targets: Vec<(LaneTarget, DatabasePool)>,
 ) -> Result<Router, BusinessError> {
-    let readers = targets
-        .into_iter()
-        .map(|(target, pool)| {
-            let reader: Arc<dyn ExecutedCopySource> =
-                Arc::new(PgExecutedCopySource::new(pool));
-            (target, reader)
-        })
-        .collect();
-    Ok(into_router(configure_targets(readers)?))
+    let mut copies_targets = Vec::with_capacity(targets.len());
+    let mut trust_targets = Vec::with_capacity(targets.len());
+    for (target, pool) in targets {
+        let (reader, trust) = sources_for_one_pool(pool);
+        copies_targets.push((target.clone(), reader));
+        trust_targets.push((target, trust));
+    }
+    Ok(into_router(
+        configure_targets(copies_targets)?,
+        configure_targets(trust_targets)?,
+    ))
 }
 
 async fn current(
@@ -208,12 +261,67 @@ async fn current(
     }
 }
 
+fn trust_scope<'a>(
+    state: &'a LaneState,
+    request: &Request,
+    slug: &str,
+) -> Result<(String, &'a dyn TrustMaterialSource), BusinessError> {
+    let host = unique_header(request.headers(), header::HOST)?
+        .filter(|host| !host.is_empty())
+        .ok_or_else(missing)?;
+    let source = state
+        .trust
+        .get(&(host.to_owned(), slug.to_owned()))
+        .ok_or_else(missing)?;
+    let company = unique_header(request.headers(), CONTEXT_COMPANY)?
+        .filter(|value| valid_id(value))
+        .ok_or_else(invalid)?;
+    Ok((company.to_owned(), source.as_ref()))
+}
+
+async fn trust_approved(
+    State(state): State<Arc<LaneState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let (company, source) = trust_scope(&state, &request, &slug)?;
+        let materials = source.approved(&company).await?;
+        Ok::<_, BusinessError>(serde_json::json!({"materials": materials}))
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn trust_material(
+    State(state): State<Arc<LaneState>>,
+    Path((slug, id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        if !valid_id(&id) {
+            return Err(invalid());
+        }
+        let (company, source) = trust_scope(&state, &request, &slug)?;
+        let material = source.material(&company, &id).await?;
+        Ok::<_, BusinessError>(serde_json::json!({"material": material}))
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Mutex;
 
     use super::*;
-    use erpx_server_runtime::public::http_support::body::Body;
+    use erpx_server_runtime::public::http_support::body::{to_bytes, Body};
 
     /// Reader-injection fake: records its own tag when the handler reaches it,
     /// so a request proves which Holding reader the state map selected.
@@ -323,7 +431,10 @@ mod tests {
 
         // The reader-injection path is also used by router_for_holdings: each
         // Holding key resolves to its own reader when the handler runs.
-        let state = Arc::new(LaneState { targets: configured });
+        let state = Arc::new(LaneState {
+            targets: configured,
+            trust: BTreeMap::new(),
+        });
         let _ = current(
             State(state.clone()),
             Path(("acme".to_owned(), "item-1".to_owned())),
@@ -337,6 +448,96 @@ mod tests {
         )
         .await;
         assert_eq!(*seen.lock().unwrap(), vec!["reader-acme", "reader-north"]);
+    }
+
+    struct TaggedTrust {
+        tag: &'static str,
+        seen: Arc<Mutex<Vec<String>>>,
+    }
+
+    impl TrustMaterialSource for TaggedTrust {
+        fn approved<'a>(
+            &'a self,
+            _company: &'a str,
+        ) -> super::super::application::LaneFuture<'a, Vec<TrustMaterial>> {
+            let tag = self.tag;
+            let seen = self.seen.clone();
+            Box::pin(async move {
+                seen.lock().unwrap().push(tag.to_owned());
+                Ok(vec![TrustMaterial {
+                    id: tag.to_owned(),
+                    kind: "root".to_owned(),
+                    content: "base64".to_owned(),
+                    checksum: "hash".to_owned(),
+                }])
+            })
+        }
+        fn material<'a>(
+            &'a self,
+            _company: &'a str,
+            _id: &'a str,
+        ) -> super::super::application::LaneFuture<'a, Option<TrustMaterialDetail>> {
+            Box::pin(async { Ok(None) })
+        }
+    }
+
+    #[tokio::test]
+    async fn trust_reads_route_to_each_holdings_own_pool() {
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let acme: Arc<dyn TrustMaterialSource> = Arc::new(TaggedTrust {
+            tag: "trust-acme",
+            seen: seen.clone(),
+        });
+        let north: Arc<dyn TrustMaterialSource> = Arc::new(TaggedTrust {
+            tag: "trust-north",
+            seen: seen.clone(),
+        });
+        let targets = vec![
+            (
+                LaneTarget {
+                    host: "acme.jesadakorn.com".to_owned(),
+                    holding_slug: "acme".to_owned(),
+                },
+                acme.clone(),
+            ),
+            (
+                LaneTarget {
+                    host: "north.jesadakorn.com".to_owned(),
+                    holding_slug: "northstar".to_owned(),
+                },
+                north.clone(),
+            ),
+        ];
+        let trust = configure_targets(targets).expect("trust targets");
+        assert!(Arc::ptr_eq(&trust[&("acme.jesadakorn.com".to_owned(), "acme".to_owned())], &acme));
+        assert!(Arc::ptr_eq(&trust[&("north.jesadakorn.com".to_owned(), "northstar".to_owned())], &north));
+        let state = Arc::new(LaneState {
+            targets: BTreeMap::new(),
+            trust,
+        });
+
+        for (slug, host) in [
+            ("acme", "acme.jesadakorn.com"),
+            ("northstar", "north.jesadakorn.com"),
+        ] {
+            let response = trust_approved(
+                State(state.clone()),
+                Path(slug.to_owned()),
+                request(host),
+            )
+            .await;
+            let body = to_bytes(response.into_body(), usize::MAX).await.expect("body");
+            let value: serde_json::Value = serde_json::from_slice(&body).expect("json");
+            assert_eq!(value["materials"][0]["id"], slug_to_tag(slug));
+        }
+        assert_eq!(*seen.lock().unwrap(), vec!["trust-acme", "trust-north"]);
+    }
+
+    fn slug_to_tag(slug: &str) -> &'static str {
+        match slug {
+            "acme" => "trust-acme",
+            _ => "trust-north",
+        }
     }
 
     #[test]

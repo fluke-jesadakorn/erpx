@@ -8,8 +8,11 @@ use erpx_server_runtime::public::postgres::DatabasePool;
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use sqlx::Row;
 
-use super::application::{ExecutedCopySource, LaneFuture};
-use super::domain::{COPY_LIMIT, CopyAuthors, CopyHead, ReviewRow};
+use super::application::{ExecutedCopySource, LaneFuture, TrustMaterialSource};
+use super::domain::{
+    COPY_LIMIT, CopyAuthors, CopyHead, ReviewRow, TRUST_MATERIAL_LIMIT, TrustMaterial,
+    TrustMaterialDetail,
+};
 
 /// Copy list. Original owner SQL selected `e.*,d.name,d.version` for one item;
 /// the `legal_items` join and its `company_id` bind are the Rust-owned scope.
@@ -42,6 +45,14 @@ pub const SQL_APPROVAL: &str = "SELECT a.cycle::bigint cycle FROM legal_approval
  JOIN legal_items scope ON scope.id=a.item_id \
  WHERE a.item_id=$1 AND a.decision='approved' AND scope.company_id=$2 \
  ORDER BY a.cycle DESC LIMIT 1";
+
+/// Approved signing material for one Company. The projection and its order are
+/// byte-identical to the retired owner statement; the limit is a bound value.
+pub const SQL_TRUST_APPROVED: &str = "SELECT id,kind,content,checksum FROM legal_trust_material WHERE company_id=$1 AND state='approved' ORDER BY id LIMIT $2";
+
+/// Bounded trust-material witness. The original `SELECT *` is narrowed in Rust
+/// to the four fields the trust command actually consumes.
+pub const SQL_TRUST_MATERIAL: &str = "SELECT id,state,version::bigint version,created_by FROM legal_trust_material WHERE id=$1 AND company_id=$2";
 
 /// Pg-backed owner reader. Composition owns the pool and mounts the HTTP router.
 pub struct PgExecutedCopySource {
@@ -208,6 +219,68 @@ impl ExecutedCopySource for PgExecutedCopySource {
     }
 }
 
+/// Pg-backed trust-material reader. Every query is Company-scoped by bind.
+pub struct PgTrustMaterialSource {
+    pool: DatabasePool,
+}
+
+impl PgTrustMaterialSource {
+    pub fn new(pool: DatabasePool) -> Self {
+        Self { pool }
+    }
+}
+
+impl TrustMaterialSource for PgTrustMaterialSource {
+    fn approved<'a>(&'a self, company: &'a str) -> LaneFuture<'a, Vec<TrustMaterial>> {
+        let pool = self.pool.clone();
+        let company = company.to_owned();
+        Box::pin(async move {
+            let rows = sqlx::query(SQL_TRUST_APPROVED)
+                .bind(company.as_str())
+                .bind(TRUST_MATERIAL_LIMIT)
+                .fetch_all(pool.raw())
+                .await
+                .map_err(|_| unavailable())?;
+            rows.into_iter()
+                .map(|r| {
+                    Ok(TrustMaterial {
+                        id: r.try_get("id").map_err(|_| unavailable())?,
+                        kind: r.try_get("kind").map_err(|_| unavailable())?,
+                        content: r.try_get("content").map_err(|_| unavailable())?,
+                        checksum: r.try_get("checksum").map_err(|_| unavailable())?,
+                    })
+                })
+                .collect()
+        })
+    }
+
+    fn material<'a>(
+        &'a self,
+        company: &'a str,
+        id: &'a str,
+    ) -> LaneFuture<'a, Option<TrustMaterialDetail>> {
+        let pool = self.pool.clone();
+        let company = company.to_owned();
+        let id = id.to_owned();
+        Box::pin(async move {
+            sqlx::query_as::<_, (String, String, i64, String)>(SQL_TRUST_MATERIAL)
+                .bind(id.as_str())
+                .bind(company.as_str())
+                .fetch_optional(pool.raw())
+                .await
+                .map(|row| {
+                    row.map(|(id, state, version, created_by)| TrustMaterialDetail {
+                        id,
+                        state,
+                        version,
+                        created_by,
+                    })
+                })
+                .map_err(|_| unavailable())
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -231,8 +304,16 @@ mod tests {
 
     #[test]
     fn statements_are_fixed_and_company_scoped() {
-        for sql in [SQL_LIST, SQL_AUTHORS, SQL_REVIEWS, SQL_MEMBER, SQL_APPROVAL] {
-            assert!(sql.contains("scope.company_id=$"), "missing Company scope: {sql}");
+        for sql in [
+            SQL_LIST,
+            SQL_AUTHORS,
+            SQL_REVIEWS,
+            SQL_MEMBER,
+            SQL_APPROVAL,
+            SQL_TRUST_APPROVED,
+            SQL_TRUST_MATERIAL,
+        ] {
+            assert!(sql.contains("company_id=$"), "missing Company scope: {sql}");
             assert!(!sql.contains('?'), "placeholder must be $n: {sql}");
         }
         // Rendered SQL oracles pin the exact statements executed by sqlx.
@@ -256,6 +337,14 @@ mod tests {
             (
                 SQL_APPROVAL,
                 "0270872d021e7f07258f022e544367d328219cab99d8cdeb64e16e31d1f96c4a",
+            ),
+            (
+                SQL_TRUST_APPROVED,
+                "3de96a4475f98d002869464a37ba051c75a2ec9ceba000a86305a21b0893db48",
+            ),
+            (
+                SQL_TRUST_MATERIAL,
+                "2f1d12f82c6c275cb3f78b008ec12fbfaca0a282a52d990f558f9ef42f5eb37e",
             ),
         ] {
             assert_eq!(hash(sql), expected);

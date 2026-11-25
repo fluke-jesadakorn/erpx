@@ -83,6 +83,20 @@ export type NativeExecutedCopyRead = Readonly<{
   copies: readonly NativeExecutedCopy[];
 }>;
 
+export type NativeTrustMaterial = Readonly<{
+  id: string;
+  kind: string;
+  content: string;
+  checksum: string;
+}>;
+
+export type NativeTrustMaterialDetail = Readonly<{
+  id: string;
+  state: string;
+  version: number;
+  created_by: string;
+}>;
+
 const ENV = 'ERPX_NATIVE_LEGAL_LANE26_CONFIG';
 const RESERVED_PORTS = new Set([3000, 3001, 3100, 3101, 3103, 5432, 5433, 5435, 8080]);
 
@@ -240,13 +254,12 @@ function isRead(value: unknown): value is NativeExecutedCopyRead {
   );
 }
 
-/** Read the complete owner-local executed-copy projection for one item. The
- * registered Holding is selected from the caller's WorkContext; an unknown or
- * ambiguous actor never falls back to another Holding. */
-export async function nativeExecutedCopiesRead(
-  actor: NativeLane26Actor,
-  itemId: string,
-): Promise<NativeExecutedCopyRead> {
+/** Resolve the caller's exact registered Holding. No first-Holding default. */
+function selectedTarget(actor: NativeLane26Actor): {
+  config: Config;
+  target: Holding;
+  scope: NativeLane26Scope;
+} {
   const scope = nativeLane26Scope(actor);
   if (
     !text(scope.holdingId, 200) ||
@@ -266,14 +279,11 @@ export async function nativeExecutedCopiesRead(
       (holding.companyId === undefined || holding.companyId === scope.companyId),
   );
   if (!target) return unavailable('NATIVE_LEGAL_COPY_AUTHORITY_INVALID');
-  if (!itemId || itemId.length > 200 || !/^[A-Za-z0-9._:-]+$/.test(itemId))
-    return unavailable('NATIVE_LEGAL_COPY_READ_REQUEST_INVALID');
+  return { config, target, scope };
+}
 
-  const url = new URL(
-    `/api/v1/holdings/${encodeURIComponent(scope.holdingSlug)}/legal/native-lane-26/executed-copies/${encodeURIComponent(itemId)}`,
-    config.base,
-  );
-  const headers = new Headers({
+function laneHeaders(target: Holding, scope: NativeLane26Scope): Headers {
+  return new Headers({
     host: target.host,
     origin: target.origin,
     accept: 'application/json',
@@ -281,13 +291,16 @@ export async function nativeExecutedCopiesRead(
     'x-erpx-context-company': scope.companyId,
     'x-erpx-context-user': scope.userId,
   });
-  if (!headers.get('x-erpx-context-user'))
-    return unavailable('NATIVE_LEGAL_COPY_AUTHORITY_INVALID', 409);
+}
+
+async function laneGet(actor: NativeLane26Actor, path: string): Promise<unknown> {
+  const { config, target, scope } = selectedTarget(actor);
+  const url = new URL(path, config.base);
   let response: Response;
   try {
     response = await fetch(url, {
       method: 'GET',
-      headers: Object.fromEntries(headers),
+      headers: Object.fromEntries(laneHeaders(target, scope)),
       cache: 'no-store',
       redirect: 'error',
       signal: AbortSignal.timeout(config.timeoutMs),
@@ -306,13 +319,84 @@ export async function nativeExecutedCopiesRead(
         text(payload?.error?.code, 100) ? String(payload!.error!.code) : 'NATIVE_LEGAL_COPY_READ_FAILED',
         text(payload?.error?.message, 300)
           ? String(payload!.error!.message)
-          : 'The native Legal executed-copy read was rejected.',
+          : 'The native Legal read was rejected.',
       );
     return unavailable();
   }
-  const payload: unknown = await response.json().catch((): unknown => null);
+  return response.json().catch((): unknown => null);
+}
+
+function holdingsPath(scope: NativeLane26Scope, suffix: string): string {
+  return `/api/v1/holdings/${encodeURIComponent(scope.holdingSlug)}/legal/native-lane-26/${suffix}`;
+}
+
+/** Read the complete owner-local executed-copy projection for one item. The
+ * registered Holding is selected from the caller's WorkContext; an unknown or
+ * ambiguous actor never falls back to another Holding. */
+export async function nativeExecutedCopiesRead(
+  actor: NativeLane26Actor,
+  itemId: string,
+): Promise<NativeExecutedCopyRead> {
+  const { scope } = selectedTarget(actor);
+  if (!itemId || itemId.length > 200 || !/^[A-Za-z0-9._:-]+$/.test(itemId))
+    return unavailable('NATIVE_LEGAL_COPY_READ_REQUEST_INVALID');
+  const payload = await laneGet(
+    actor,
+    holdingsPath(scope, `executed-copies/${encodeURIComponent(itemId)}`),
+  );
   if (!isRead(payload)) return unavailable('NATIVE_LEGAL_COPY_READ_RESPONSE_INVALID');
   return payload;
+}
+
+function isTrustMaterial(value: unknown): value is NativeTrustMaterial {
+  return (
+    object(value) &&
+    text(value.id, 200) &&
+    text(value.kind, 100) &&
+    text(value.content, 1_048_576) &&
+    text(value.checksum, 512)
+  );
+}
+
+function isTrustMaterialDetail(value: unknown): value is NativeTrustMaterialDetail {
+  return (
+    object(value) &&
+    text(value.id, 200) &&
+    text(value.state, 100) &&
+    safeInteger(value.version) &&
+    text(value.created_by, 200)
+  );
+}
+
+/** Approved signing material used by the offline PDF verifier. */
+export async function nativeLegalTrustApprovedMaterials(
+  actor: NativeLane26Actor,
+): Promise<readonly NativeTrustMaterial[]> {
+  const { scope } = selectedTarget(actor);
+  const payload = await laneGet(actor, holdingsPath(scope, 'trust-materials/approved'));
+  if (!object(payload) || !Array.isArray(payload.materials) || !payload.materials.every(isTrustMaterial))
+    return unavailable('NATIVE_LEGAL_COPY_READ_RESPONSE_INVALID');
+  return payload.materials;
+}
+
+/** Bounded trust-material witness for the owner's trust command. */
+export async function nativeLegalTrustMaterial(
+  actor: NativeLane26Actor,
+  id: string,
+): Promise<NativeTrustMaterialDetail | null> {
+  const { scope } = selectedTarget(actor);
+  if (!id || id.length > 200 || !/^[A-Za-z0-9._:-]+$/.test(id))
+    return unavailable('NATIVE_LEGAL_COPY_READ_REQUEST_INVALID');
+  const payload = await laneGet(
+    actor,
+    holdingsPath(scope, `trust-materials/${encodeURIComponent(id)}`),
+  );
+  if (
+    !object(payload) ||
+    !(payload.material === null || isTrustMaterialDetail(payload.material))
+  )
+    return unavailable('NATIVE_LEGAL_COPY_READ_RESPONSE_INVALID');
+  return payload.material;
 }
 
 /** True when the owner consumer switch is configured. */
