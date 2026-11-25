@@ -80,7 +80,7 @@ describe('quality read-tail r34 alert recipient head dedupe', () => {
   });
 
   test('retirement:ts-statements is strictly lower than the BEFORE=28 baseline', () => {
-    expect(kpi(/INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT /g)).toBe(25);
-    expect(kpi(/SELECT /g)).toBe(25);
+    expect(kpi(/INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT /g)).toBe(24);
+    expect(kpi(/SELECT /g)).toBe(24);
   });
 });

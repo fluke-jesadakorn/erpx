@@ -221,7 +221,7 @@ describe('quality package-obligation scope and clock CTE dedupe',()=>{
  test('the owner TS statement KPI stays strictly below the r17 BEFORE=75 baseline',()=>{
   const count=files(source('packages/server-quality/src')).reduce((total,path)=>total+(readFileSync(path,'utf8').match(/INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT /g)?.length??0),0);
   expect(count).toBeLessThan(75);
-  expect(count).toBe(25);
+  expect(count).toBe(24);
  });
 });
 describe('quality command-receipt guard dedupe',()=>{
@@ -333,7 +333,7 @@ describe('quality source-rows family dedupe (r12)',()=>{
   expect(adapter.match(/qualitySourceRows\(/g)).toHaveLength(4);
   for(const literal of Object.values(pre))expect(adapter).not.toContain(literal);
   const helper=readFileSync(source('packages/server-quality/src/adapters/quality-source-rows-sql.ts'),'utf8');
-  expect(helper.match(/SELECT /g)).toHaveLength(1);
+  expect(helper.match(/SELECT /g) ?? []).toHaveLength(0);
  });
  test('source locks and r10/r11 helpers stay independent and untouched',()=>{
   const adapter=readFileSync(source('packages/server-quality/src/adapters/sales-package-sources.ts'),'utf8');

@@ -102,6 +102,6 @@ describe('quality read-tail r31 package-scope head dedupe', () => {
 
   test('retirement:ts-statements is strictly lower than the BEFORE=31 baseline', () => {
     expect(kpi()).toBeLessThan(31);
-    expect(kpi()).toBe(25);
+    expect(kpi()).toBe(24);
   });
 });

@@ -57,7 +57,7 @@ describe('quality source projection UNION family dedupe (r20)', () => {
     const counts: Record<string, number> = {
       'quality-work-scope-sql': 1, 'native-source-wrapper-sql': 0, 'inspection-evidence-source-sql': 1,
       'quality-lineage-recursion-sql': 1, 'quality-child-agg-sql': 1,
-      'quality-receipt-guard-sql': 1, 'quality-source-rows-sql': 1, 'quality-scope-sql': 1,
+      'quality-receipt-guard-sql': 1, 'quality-source-rows-sql': 0, 'quality-scope-sql': 1,
       'quality-alert-recipient-sql': 0, 'quality-attachment-scope-read-sql': 1, 'quality-id-source-sql': 1,
       'quality-attachment-source-select-sql': 0, 'quality-source-arm-head': 1,
     };
@@ -79,6 +79,6 @@ describe('quality read-tail r20 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(72);
-    expect(total).toBe(25);
+    expect(total).toBe(24);
   });
 });
