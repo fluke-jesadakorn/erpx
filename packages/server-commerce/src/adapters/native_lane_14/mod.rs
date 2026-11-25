@@ -11,7 +11,7 @@ pub(crate) mod postgres;
 
 pub use application::{CommerceLane14Read, LaneReadFuture};
 pub use domain::{COLUMNS, Cell, Column, ColumnKind, LaneKind, valid_id};
-pub use http::{LaneTarget, router, router_with_reader};
+pub use http::{LaneTarget, router, router_for_holdings, router_with_reader};
 pub use postgres::{
     SQL_DOCUMENT_PAGE_TS, SQL_DOCUMENT_TS, SQL_REFERENCE_ROWS_TS, render, statement_for,
 };

@@ -13,5 +13,5 @@ pub use application::{CommerceEntrypointRead, EntrypointReadFuture, read_facts};
 pub use domain::{
     EntrypointFacts, EntrypointKind, EntrypointQuery, invalid as request_invalid, valid_id, validate,
 };
-pub use http::{LaneTarget, router, router_with_reader};
+pub use http::{LaneTarget, router, router_for_holdings, router_with_reader};
 pub use postgres::{PgCommerceEntrypointRead, statement_for};

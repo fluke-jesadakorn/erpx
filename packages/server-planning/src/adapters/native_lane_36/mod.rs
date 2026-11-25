@@ -14,5 +14,5 @@ pub use application::{LaneRead, MAX_ROWS};
 pub use domain::{
     CalendarListItem, KINDS, LaneData, LaneScope, RecommendationListItem, ResourceListItem,
 };
-pub use http::{LaneTarget, router};
+pub use http::{LaneTarget, router, router_for_holdings, router_with_reader};
 pub use postgres::{PgLaneRead, sql_for};

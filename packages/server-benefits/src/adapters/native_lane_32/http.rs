@@ -5,7 +5,7 @@
 //! owner errors to the shared BusinessError response shape. No SQL is present
 //! in this module; the owner reader executes the statement.
 
-use super::application::ReadPayrollInputs;
+use super::application::{PayrollInputRead, ReadPayrollInputs};
 use super::domain::{
     LaneTarget, PayrollInputsRequest, invalid, unavailable, valid_id,
 };
@@ -24,11 +24,17 @@ const CONTEXT_CURRENCY: HeaderName = HeaderName::from_static("x-erpx-benefits-cu
 const CONTEXT_PERIOD_END: HeaderName = HeaderName::from_static("x-erpx-benefits-period-end");
 const CONTEXT_PERIOD_START: HeaderName = HeaderName::from_static("x-erpx-benefits-period-start");
 
-type Handler = ReadPayrollInputs<PgPayrollInputRead>;
+type Handler = ReadPayrollInputs<Arc<dyn PayrollInputRead>>;
+
+/// One registered Holding: its target identity and its own injected reader.
+/// The reader owns its pool, so Holding A can never borrow Holding B's pool.
+struct LaneState {
+    target: LaneTarget,
+    handler: Arc<Handler>,
+}
 
 struct ReadState {
-    targets: BTreeMap<(String, String), LaneTarget>,
-    handler: Arc<Handler>,
+    lanes: BTreeMap<(String, String), LaneState>,
 }
 
 fn missing() -> BusinessError {
@@ -111,34 +117,77 @@ fn bounded(body: serde_json::Value) -> Response {
 }
 
 /// Build the owner read router. The lead mounts it; no other module is edited.
-pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
-    let mut configured = BTreeMap::new();
-    for target in targets {
+/// Validate the registered pairs and build the per-Holding state. Each target
+/// keeps its own reader; no reader is shared across a `(host, slug)` boundary.
+fn build_state(
+    targets: Vec<(LaneTarget, Arc<dyn PayrollInputRead>)>,
+) -> Result<Arc<ReadState>, BusinessError> {
+    let mut lanes = BTreeMap::new();
+    for (target, reader) in targets {
         if target.host.is_empty()
             || !valid_slug(&target.holding_slug)
             || !valid_origin(&target.origin)
-            || configured
+            || lanes
                 .insert(
                     (target.host.clone(), target.holding_slug.clone()),
-                    target,
+                    LaneState {
+                        target,
+                        handler: Arc::new(ReadPayrollInputs::new(reader)),
+                    },
                 )
                 .is_some()
         {
             return Err(configuration_invalid());
         }
     }
-    if configured.is_empty() {
+    if lanes.is_empty() {
         return Err(configuration_invalid());
     }
-    Ok(Router::new()
+    Ok(Arc::new(ReadState { lanes }))
+}
+
+fn into_router(state: Arc<ReadState>) -> Router {
+    Router::new()
         .route(
             "/api/v1/holdings/{holding_slug}/benefits/payroll-inputs",
             get(read),
         )
-        .with_state(Arc::new(ReadState {
-            targets: configured,
-            handler: Arc::new(ReadPayrollInputs::new(PgPayrollInputRead::new(pool))),
-        })))
+        .with_state(state)
+}
+
+/// Backward-compatible single-pool constructor: one Pg reader shared by every
+/// registered target. Kept for the existing mounted-route shape and tests.
+pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
+    let reader: Arc<dyn PayrollInputRead> = Arc::new(PgPayrollInputRead::new(pool));
+    let injected = targets
+        .into_iter()
+        .map(|target| (target, reader.clone()))
+        .collect();
+    Ok(into_router(build_state(injected)?))
+}
+
+/// Reader-injection constructor used by unit tests. Each target carries its
+/// own `Arc<dyn PayrollInputRead>`, so distinct readers/pools are observable.
+pub fn router_with_reader(
+    targets: Vec<(LaneTarget, Arc<dyn PayrollInputRead>)>,
+) -> Result<Router, BusinessError> {
+    Ok(into_router(build_state(targets)?))
+}
+
+/// Per-Holding constructor. Composition supplies one `(LaneTarget, DatabasePool)`
+/// pair per Holding; this builds one `PgPayrollInputRead` per pair and inserts
+/// it keyed by `(host, holding_slug)`, so every Holding reads its own database.
+pub fn router_for_holdings(
+    targets: Vec<(LaneTarget, DatabasePool)>,
+) -> Result<Router, BusinessError> {
+    let injected = targets
+        .into_iter()
+        .map(|(target, pool)| {
+            let reader: Arc<dyn PayrollInputRead> = Arc::new(PgPayrollInputRead::new(pool));
+            (target, reader)
+        })
+        .collect();
+    Ok(into_router(build_state(injected)?))
 }
 
 fn required_header(
@@ -161,12 +210,12 @@ async fn read(
         let host = unique_header(&headers, header::HOST)?
             .filter(|host| !host.is_empty())
             .ok_or_else(missing)?;
-        let target = state
-            .targets
+        let lane = state
+            .lanes
             .get(&(host.to_owned(), slug.clone()))
             .ok_or_else(missing)?;
         if let Some(origin) = unique_header(&headers, header::ORIGIN)? {
-            if origin != target.origin {
+            if origin != lane.target.origin {
                 return Err(BusinessError::new(
                     FailureKind::Forbidden,
                     "ORIGIN_FORBIDDEN",
@@ -179,7 +228,7 @@ async fn read(
         let currency = required_header(&headers, CONTEXT_CURRENCY)?;
         let period_end = required_header(&headers, CONTEXT_PERIOD_END)?;
         let period_start = required_header(&headers, CONTEXT_PERIOD_START)?;
-        let body = state
+        let body = lane
             .handler
             .execute(PayrollInputsRequest {
                 company_id: company,
@@ -201,6 +250,8 @@ async fn read(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::application::PayrollInputReadFuture;
+    use super::super::domain::PayrollInputFact;
 
     #[test]
     fn rejects_duplicate_headers() {
@@ -232,5 +283,82 @@ mod tests {
     fn error_response_pins_the_error_shape() {
         let response = error_response(unavailable());
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    struct TaggedRead(&'static str);
+
+    impl PayrollInputRead for TaggedRead {
+        fn released<'a>(
+            &'a self,
+            _request: &'a PayrollInputsRequest,
+        ) -> PayrollInputReadFuture<'a, Vec<PayrollInputFact>> {
+            let plan = self.0.to_owned();
+            Box::pin(async move {
+                Ok(vec![PayrollInputFact {
+                    id: format!("input-{plan}"),
+                    plan_name: plan,
+                    employee_deduction_minor: 100,
+                    employer_cost_minor: 200,
+                    source_election_version: 3,
+                }])
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn reader_injection_routes_two_holdings_to_two_distinct_readers() {
+        let acme: Arc<dyn PayrollInputRead> = Arc::new(TaggedRead("acme"));
+        let northstar: Arc<dyn PayrollInputRead> = Arc::new(TaggedRead("northstar"));
+        let targets = vec![
+            (
+                LaneTarget {
+                    host: "acme.example.com".into(),
+                    holding_slug: "acme".into(),
+                    origin: "https://acme.example.com".into(),
+                },
+                acme.clone(),
+            ),
+            (
+                LaneTarget {
+                    host: "northstar.example.com".into(),
+                    holding_slug: "northstar".into(),
+                    origin: "https://northstar.example.com".into(),
+                },
+                northstar.clone(),
+            ),
+        ];
+        // The state built by `router_with_reader` keeps one reader per key.
+        assert!(router_with_reader(
+            targets
+                .iter()
+                .map(|(target, reader)| (target.clone(), reader.clone()))
+                .collect(),
+        )
+        .is_ok());
+        let state = build_state(targets).unwrap();
+        let lane_a = state
+            .lanes
+            .get(&("acme.example.com".into(), "acme".into()))
+            .expect("acme lane");
+        let lane_b = state
+            .lanes
+            .get(&("northstar.example.com".into(), "northstar".into()))
+            .expect("northstar lane");
+
+        assert!(Arc::ptr_eq(lane_a.handler.reader(), &acme));
+        assert!(Arc::ptr_eq(lane_b.handler.reader(), &northstar));
+        assert!(!Arc::ptr_eq(lane_a.handler.reader(), lane_b.handler.reader()));
+
+        let request = PayrollInputsRequest {
+            company_id: "company-1".into(),
+            engagement_id: "engagement-1".into(),
+            currency: "THB".into(),
+            period_end: "2026-12-31".into(),
+            period_start: "2026-01-01".into(),
+        };
+        let from_a = lane_a.handler.execute(request.clone()).await.unwrap();
+        let from_b = lane_b.handler.execute(request).await.unwrap();
+        assert_eq!(from_a.inputs[0].plan_name, "acme");
+        assert_eq!(from_b.inputs[0].plan_name, "northstar");
     }
 }

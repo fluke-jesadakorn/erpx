@@ -90,27 +90,18 @@ fn bounded(body: serde_json::Value) -> Response {
     response
 }
 
-/// Public router contract for the lead to mount. The pool is owned by the Pg
-/// reader; no composition or public module is edited in this lane.
-pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
-    router_with_reader(Arc::new(PgPersonImageRead::new(pool)), targets)
-}
-
-/// Build the native router behind the owner reader port. The lead mounts it;
-/// composition and public modules are owned elsewhere and are not edited here.
-pub fn router_with_reader(
-    reader: Arc<dyn PersonImageRead>,
-    targets: Vec<LaneTarget>,
-) -> Result<Router, BusinessError> {
+/// Validate and key one reader per registered Holding target. Distinct exact
+/// `(host, holding_slug)` pairs are mandatory; duplicate or malformed entries
+/// fail closed instead of silently reusing another Holding's reader.
+fn configure_readers(
+    entries: impl IntoIterator<Item = (LaneTarget, Arc<dyn PersonImageRead>)>,
+) -> Result<BTreeMap<(String, String), Arc<dyn PersonImageRead>>, BusinessError> {
     let mut configured = BTreeMap::new();
-    for target in targets {
+    for (target, reader) in entries {
         if target.host.is_empty()
             || !valid_slug(&target.holding_slug)
             || configured
-                .insert(
-                    (target.host.clone(), target.holding_slug.clone()),
-                    reader.clone(),
-                )
+                .insert((target.host.clone(), target.holding_slug.clone()), reader)
                 .is_some()
         {
             return Err(configuration_invalid());
@@ -119,6 +110,12 @@ pub fn router_with_reader(
     if configured.is_empty() {
         return Err(configuration_invalid());
     }
+    Ok(configured)
+}
+
+fn finish(
+    configured: BTreeMap<(String, String), Arc<dyn PersonImageRead>>,
+) -> Result<Router, BusinessError> {
     Ok(Router::new()
         .route(
             "/api/v1/holdings/{holding_slug}/people-payroll/person-image",
@@ -127,6 +124,46 @@ pub fn router_with_reader(
         .with_state(Arc::new(LaneState {
             targets: configured,
         })))
+}
+
+/// Public router contract for a single pool. The pool is owned by the Pg
+/// reader; no composition or public module is edited in this lane.
+pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
+    router_with_reader(Arc::new(PgPersonImageRead::new(pool)), targets)
+}
+
+/// Per-Holding constructor: each `(LaneTarget, DatabasePool)` pair becomes its
+/// own `PgPersonImageRead`, keyed by that Holding's `(host, holding_slug)`. No
+/// Holding can observe another Holding's pool.
+pub fn router_for_holdings(
+    targets: Vec<(LaneTarget, DatabasePool)>,
+) -> Result<Router, BusinessError> {
+    finish(configure_readers(targets.into_iter().map(|(target, pool)| {
+        (
+            target,
+            Arc::new(PgPersonImageRead::new(pool)) as Arc<dyn PersonImageRead>,
+        )
+    }))?)
+}
+
+/// Reader-injection path retained for tests and composition supply.
+pub fn router_with_reader(
+    reader: Arc<dyn PersonImageRead>,
+    targets: Vec<LaneTarget>,
+) -> Result<Router, BusinessError> {
+    router_with_readers(
+        targets
+            .into_iter()
+            .map(|target| (target, reader.clone()))
+            .collect(),
+    )
+}
+
+/// Reader-injection path with one independently supplied reader per target.
+pub fn router_with_readers(
+    entries: Vec<(LaneTarget, Arc<dyn PersonImageRead>)>,
+) -> Result<Router, BusinessError> {
+    finish(configure_readers(entries)?)
 }
 
 async fn current(

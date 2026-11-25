@@ -15,7 +15,7 @@ pub use domain::{
     ApprovalCycle, COPY_LIMIT, CopyAuthors, CopyHead, ExecutedCopyRead, ExecutedCopyRow,
     LaneTarget, ReviewRow, project, valid_id, valid_slug,
 };
-pub use http::router;
+pub use http::{router, router_for_holdings, router_with_reader};
 pub use postgres::{
     PgExecutedCopySource, SQL_APPROVAL, SQL_AUTHORS, SQL_LIST, SQL_MEMBER, SQL_REVIEWS,
 };

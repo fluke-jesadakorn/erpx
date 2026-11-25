@@ -13,7 +13,8 @@ pub mod postgres;
 pub use application::{PropertyReadinessFuture, PropertyReadinessRead};
 pub use domain::PropertyReadinessFacts;
 pub use http::{
-    LaneTarget, ProbePropertyReadinessRead, router, router_with_reader, unavailable,
+    LaneTarget, ProbePropertyReadinessRead, router, router_for_holdings, router_with_reader,
+    router_with_readers, unavailable,
 };
 pub use postgres::{PgPropertyReadinessRead, PROPERTY_SCOPE_SQL, READINESS_SQL};
 
@@ -93,14 +94,33 @@ mod tests {
     }
 
     fn request(host: &str, company: &str, property: &str) -> String {
+        request_for("acme", host, company, property)
+    }
+
+    fn request_for(slug: &str, host: &str, company: &str, property: &str) -> String {
         format!(
-            "GET /api/v1/holdings/acme/pms/native-lane-20/property-readiness HTTP/1.1\r\n\
+            "GET /api/v1/holdings/{slug}/pms/native-lane-20/property-readiness HTTP/1.1\r\n\
              Host: {host}\r\n\
              Accept: application/json\r\n\
              Connection: close\r\n\
              x-erpx-context-company: {company}\r\n\
              x-erpx-context-property: {property}\r\n\r\n"
         )
+    }
+
+    fn probe(
+        answer: PropertyReadinessFacts,
+        seen: Arc<Mutex<Vec<(String, String)>>>,
+    ) -> Arc<dyn PropertyReadinessRead> {
+        Arc::new(ProbePropertyReadinessRead::new(move |company, property| {
+            let company = company.to_owned();
+            let property = property.to_owned();
+            let seen = seen.clone();
+            Box::pin(async move {
+                seen.lock().unwrap().push((company, property));
+                Ok::<Option<PropertyReadinessFacts>, BusinessError>(Some(answer))
+            })
+        }))
     }
 
     #[tokio::test]
@@ -162,6 +182,76 @@ mod tests {
         server.abort();
         assert_eq!(status, 422);
         assert_eq!(body["error"]["code"], "PMS_NATIVE_LANE_20_REQUEST_INVALID");
+    }
+
+    #[tokio::test]
+    async fn two_holdings_route_to_two_distinct_readers() {
+        // Reader injection mirrors `router_for_holdings`: each registered
+        // Holding gets its own reader (and therefore its own pool).
+        let seen_a = Arc::new(Mutex::new(Vec::new()));
+        let seen_b = Arc::new(Mutex::new(Vec::new()));
+        let all_true = PropertyReadinessFacts {
+            has_room_types: true,
+            has_active_rooms: true,
+            has_active_rates: true,
+            has_stays: true,
+        };
+        let all_false = PropertyReadinessFacts {
+            has_room_types: false,
+            has_active_rooms: false,
+            has_active_rates: false,
+            has_stays: false,
+        };
+        let router = router_with_readers(vec![
+            (
+                LaneTarget {
+                    host: "acme.example.test".to_owned(),
+                    holding_slug: "acme".to_owned(),
+                },
+                probe(all_true, seen_a.clone()),
+            ),
+            (
+                LaneTarget {
+                    host: "northstar.example.test".to_owned(),
+                    holding_slug: "northstar".to_owned(),
+                },
+                probe(all_false, seen_b.clone()),
+            ),
+        ])
+        .unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let _ = serve(listener, router).await;
+        });
+
+        let (status_a, body_a) = http(
+            addr,
+            request_for("acme", "acme.example.test", "company", "property-1"),
+        )
+        .await;
+        assert_eq!(status_a, 200);
+        assert_eq!(body_a["facts"]["hasRoomTypes"], true);
+        assert_eq!(body_a["facts"]["hasStays"], true);
+
+        let (status_b, body_b) = http(
+            addr,
+            request_for("northstar", "northstar.example.test", "company", "property-1"),
+        )
+        .await;
+        server.abort();
+        assert_eq!(status_b, 200);
+        assert_eq!(body_b["facts"]["hasRoomTypes"], false);
+        assert_eq!(body_b["facts"]["hasStays"], false);
+
+        assert_eq!(
+            *seen_a.lock().unwrap(),
+            vec![("company".to_owned(), "property-1".to_owned())]
+        );
+        assert_eq!(
+            *seen_b.lock().unwrap(),
+            vec![("company".to_owned(), "property-1".to_owned())]
+        );
     }
 
     #[test]

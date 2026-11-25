@@ -114,22 +114,18 @@ pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, Bu
     router_with_reader(reader, targets)
 }
 
-/// Testable construction seam: composition and unit tests inject the reader;
-/// both paths use the exact same transport checks.
-pub fn router_with_reader(
-    reader: Arc<dyn CalendarAvailabilityRead>,
-    targets: Vec<LaneTarget>,
-) -> Result<Router, BusinessError> {
+/// Single shared validation and state construction. Every public constructor
+/// funnels through here, so target isolation and error mapping stay identical.
+fn configure_entries(
+    entries: Vec<(LaneTarget, Arc<dyn CalendarAvailabilityRead>)>,
+) -> Result<Arc<LaneState>, BusinessError> {
     let mut configured = BTreeMap::new();
-    for target in targets {
+    for (target, reader) in entries {
         if target.host.is_empty()
             || target.host.len() > 512
             || !valid_slug(&target.holding_slug)
             || configured
-                .insert(
-                    (target.host.clone(), target.holding_slug.clone()),
-                    reader.clone(),
-                )
+                .insert((target.host.clone(), target.holding_slug.clone()), reader)
                 .is_some()
         {
             return Err(configuration_invalid());
@@ -138,11 +134,43 @@ pub fn router_with_reader(
     if configured.is_empty() {
         return Err(configuration_invalid());
     }
-    Ok(Router::new()
-        .route(READ_PATH, post(read))
-        .with_state(Arc::new(LaneState {
-            targets: configured,
-        })))
+    Ok(Arc::new(LaneState {
+        targets: configured,
+    }))
+}
+
+/// Testable construction seam: composition and unit tests inject the reader;
+/// both paths use the exact same transport checks.
+pub fn router_with_reader(
+    reader: Arc<dyn CalendarAvailabilityRead>,
+    targets: Vec<LaneTarget>,
+) -> Result<Router, BusinessError> {
+    let state = configure_entries(
+        targets
+            .into_iter()
+            .map(|target| (target, reader.clone()))
+            .collect(),
+    )?;
+    Ok(Router::new().route(READ_PATH, post(read)).with_state(state))
+}
+
+/// Per-Holding construction: each registered Holding carries its own database
+/// pool, so its reader executes against that Holding's database only. A target
+/// (host, holding_slug) can never fall back to another Holding's pool.
+pub fn router_for_holdings(
+    targets: Vec<(LaneTarget, DatabasePool)>,
+) -> Result<Router, BusinessError> {
+    let state = configure_entries(
+        targets
+            .into_iter()
+            .map(|(target, pool)| {
+                let reader: Arc<dyn CalendarAvailabilityRead> =
+                    Arc::new(PgCalendarAvailabilityRead::new(pool));
+                (target, reader)
+            })
+            .collect(),
+    )?;
+    Ok(Router::new().route(READ_PATH, post(read)).with_state(state))
 }
 
 async fn read(
@@ -193,7 +221,8 @@ mod tests {
     use crate::adapters::native_lane_6::domain::LeaveDay;
 
     struct FakeReader {
-        rows: Vec<LeaveDay>,
+        /// Distinguishes injected reader instances in the isolation test.
+        tag: &'static str,
         fail: bool,
     }
 
@@ -203,7 +232,10 @@ mod tests {
             company: &'a str,
             query: &'a LeaveDayQuery,
         ) -> LeaveDayFuture<'a, Vec<LeaveDay>> {
-            let rows = self.rows.clone();
+            let rows = vec![LeaveDay {
+                user_id: self.tag.to_owned(),
+                leave_date: "2026-03-02".into(),
+            }];
             let company = company.to_owned();
             let query = query.clone();
             let fail = self.fail;
@@ -224,13 +256,11 @@ mod tests {
     }
 
     fn reader() -> Arc<dyn CalendarAvailabilityRead> {
-        Arc::new(FakeReader {
-            rows: vec![LeaveDay {
-                user_id: "u1".into(),
-                leave_date: "2026-03-02".into(),
-            }],
-            fail: false,
-        })
+        tagged_reader("u1")
+    }
+
+    fn tagged_reader(tag: &'static str) -> Arc<dyn CalendarAvailabilityRead> {
+        Arc::new(FakeReader { tag, fail: false })
     }
 
     #[test]
@@ -251,6 +281,49 @@ mod tests {
                 }]
             )
             .is_err()
+        );
+    }
+
+    #[test]
+    fn two_holdings_route_to_two_distinct_readers() {
+        // Reader-injection path mirrors router_for_holdings: each Holding entry
+        // carries its own reader (backed by its own pool in production).
+        let acme = LaneTarget {
+            host: "acme.example.test".into(),
+            holding_slug: "acme".into(),
+        };
+        let northstar = LaneTarget {
+            host: "northstar.example.test".into(),
+            holding_slug: "northstar".into(),
+        };
+        let acme_reader = tagged_reader("acme-user");
+        let northstar_reader = tagged_reader("northstar-user");
+        let state = configure_entries(vec![
+            (acme.clone(), acme_reader.clone()),
+            (northstar.clone(), northstar_reader.clone()),
+        ])
+        .expect("two distinct holding targets configure");
+
+        assert_eq!(state.targets.len(), 2);
+        let routed_acme = state
+            .targets
+            .get(&(acme.host.clone(), acme.holding_slug.clone()))
+            .expect("acme target routed");
+        let routed_northstar = state
+            .targets
+            .get(&(northstar.host.clone(), northstar.holding_slug.clone()))
+            .expect("northstar target routed");
+        assert!(
+            !Arc::ptr_eq(routed_acme, routed_northstar),
+            "each Holding must resolve to its own reader/pool"
+        );
+        assert!(Arc::ptr_eq(routed_acme, &acme_reader));
+        assert!(Arc::ptr_eq(routed_northstar, &northstar_reader));
+        // No cross-Holding fallback: an unregistered (host, slug) pair is absent.
+        assert!(
+            !state
+                .targets
+                .contains_key(&("other.example.test".into(), "acme".into()))
         );
     }
 

@@ -104,19 +104,17 @@ fn bounded(body: serde_json::Value) -> Response {
     response
 }
 
-fn build(
-    reader: Arc<dyn CustomerNoteRead>,
-    targets: Vec<LaneTarget>,
+/// Build the state map from per-target readers. Each `(host, holding_slug)` key
+/// owns its own reader, so a Holding can never reach another Holding's pool.
+fn build_with(
+    targets: Vec<(LaneTarget, Arc<dyn CustomerNoteRead>)>,
 ) -> Result<Router, BusinessError> {
     let mut configured = BTreeMap::new();
-    for target in targets {
+    for (target, reader) in targets {
         if target.host.is_empty()
             || !valid_slug(&target.holding_slug)
             || configured
-                .insert(
-                    (target.host.clone(), target.holding_slug.clone()),
-                    reader.clone(),
-                )
+                .insert((target.host.clone(), target.holding_slug.clone()), reader)
                 .is_some()
         {
             return Err(configuration_invalid());
@@ -135,20 +133,55 @@ fn build(
         })))
 }
 
-/// Router contract used by composition: the owner supplies its Pg pool and the
-/// exact registered Holding targets. No composition or ledger file is edited by
-/// this lane.
-pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
-    build(Arc::new(PgCustomerNoteRead::new(pool)), targets)
+/// Reader-injection path: one distinct reader per registered Holding target.
+fn router_with_readers(
+    targets: Vec<(LaneTarget, Arc<dyn CustomerNoteRead>)>,
+) -> Result<Router, BusinessError> {
+    build_with(targets)
 }
 
-/// Same route with an injected reader; used for owner tests and composition
-/// variants that already hold a typed owner reader.
+/// Router contract used by composition: the owner supplies its Pg pool and the
+/// exact registered Holding targets. Every target gets its own reader over the
+/// supplied pool. No composition or ledger file is edited by this lane.
+pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
+    router_for_holdings(
+        targets
+            .into_iter()
+            .map(|target| (target, pool.clone()))
+            .collect(),
+    )
+}
+
+/// Per-Holding router contract. Each registered Holding supplies its own
+/// database pool; the owner builds one `PgCustomerNoteRead` per target and
+/// inserts it into the state map keyed by `(host, holding_slug)`. Composition
+/// loops `config.holdings` with `pools[i + 1].clone()`.
+pub fn router_for_holdings(
+    targets: Vec<(LaneTarget, DatabasePool)>,
+) -> Result<Router, BusinessError> {
+    router_with_readers(
+        targets
+            .into_iter()
+            .map(|(target, pool)| {
+                let reader: Arc<dyn CustomerNoteRead> = Arc::new(PgCustomerNoteRead::new(pool));
+                (target, reader)
+            })
+            .collect(),
+    )
+}
+
+/// Same route with one injected reader shared across targets; retained for
+/// owner tests and composition variants that already hold a typed owner reader.
 pub fn router_with_reader(
     reader: Arc<dyn CustomerNoteRead>,
     targets: Vec<LaneTarget>,
 ) -> Result<Router, BusinessError> {
-    build(reader, targets)
+    router_with_readers(
+        targets
+            .into_iter()
+            .map(|target| (target, reader.clone()))
+            .collect(),
+    )
 }
 
 async fn current(
@@ -250,16 +283,19 @@ mod tests {
         )
     }
 
-    async fn serve(
-        reader: Arc<dyn CustomerNoteRead>,
-    ) -> (u16, tokio::task::JoinHandle<()>) {
-        let router = router_with_reader(reader, vec![target()]).unwrap();
+    async fn serve_router(router: Router) -> (u16, tokio::task::JoinHandle<()>) {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
             let _ = erpx_server_runtime::public::http_support::serve(listener, router).await;
         });
         (addr.port(), server)
+    }
+
+    async fn serve(
+        reader: Arc<dyn CustomerNoteRead>,
+    ) -> (u16, tokio::task::JoinHandle<()>) {
+        serve_router(router_with_reader(reader, vec![target()]).unwrap()).await
     }
 
     fn request(host: &str, extra: &str) -> String {
@@ -337,6 +373,61 @@ mod tests {
         .await;
         assert_eq!(no_company.0, 422);
         assert_eq!(no_company.1["error"]["code"], "SALES_CUSTOMER_NOTES_REQUEST_INVALID");
+        server.abort();
+    }
+
+    /// Proves the per-target state map routes each Holding to its own reader
+    /// (and therefore its own pool in `router_for_holdings`). Two injected
+    /// readers record disjoint company scopes; neither observes the other's call.
+    #[tokio::test]
+    async fn two_holdings_route_to_distinct_readers() {
+        let first_seen = Arc::new(Mutex::new(Vec::new()));
+        let second_seen = Arc::new(Mutex::new(Vec::new()));
+        let first: Arc<dyn CustomerNoteRead> = Arc::new(Probe {
+            response: Ok(NotesResponse::default()),
+            seen: first_seen.clone(),
+        });
+        let second: Arc<dyn CustomerNoteRead> = Arc::new(Probe {
+            response: Ok(NotesResponse::default()),
+            seen: second_seen.clone(),
+        });
+        let router = router_with_readers(vec![
+            (target(), first),
+            (
+                LaneTarget {
+                    host: "other.example.test".into(),
+                    holding_slug: "other".into(),
+                },
+                second,
+            ),
+        ])
+        .unwrap();
+        let (port, server) = serve_router(router).await;
+        let addr: std::net::SocketAddr = format!("127.0.0.1:{port}").parse().unwrap();
+
+        let acme = http(
+            addr,
+            "GET /api/v1/holdings/acme/sales/customer-notes HTTP/1.1\r\nHost: acme.example.test\r\nx-erpx-context-company: company-a\r\nx-erpx-note-source: order\r\nx-erpx-note-id: order-1\r\nConnection: close\r\n\r\n"
+                .into(),
+        )
+        .await;
+        let other = http(
+            addr,
+            "GET /api/v1/holdings/other/sales/customer-notes HTTP/1.1\r\nHost: other.example.test\r\nx-erpx-context-company: company-b\r\nx-erpx-note-source: order\r\nx-erpx-note-id: order-1\r\nConnection: close\r\n\r\n"
+                .into(),
+        )
+        .await;
+        assert_eq!(acme.0, 200);
+        assert_eq!(other.0, 200);
+
+        let first_seen = first_seen.lock().unwrap();
+        let second_seen = second_seen.lock().unwrap();
+        assert_eq!(first_seen.len(), 1);
+        assert_eq!(first_seen[0].company, "company-a");
+        assert_eq!(second_seen.len(), 1);
+        assert_eq!(second_seen[0].company, "company-b");
+        assert!(first_seen.iter().all(|query| query.company != "company-b"));
+        assert!(second_seen.iter().all(|query| query.company != "company-a"));
         server.abort();
     }
 

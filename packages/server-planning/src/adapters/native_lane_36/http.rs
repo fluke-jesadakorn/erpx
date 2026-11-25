@@ -25,8 +25,10 @@ pub struct LaneTarget {
 }
 
 struct LaneState {
-    targets: BTreeMap<(String, String), ()>,
-    reader: Arc<dyn application::LaneRead>,
+    /// One reader per registered (host, holding_slug). `router_for_holdings`
+    /// gives each Holding its own DatabasePool; `router_with_reader` shares a
+    /// single injected reader for tests and single-pool deployments.
+    readers: BTreeMap<(String, String), Arc<dyn application::LaneRead>>,
 }
 
 fn missing() -> BusinessError {
@@ -146,12 +148,10 @@ impl LaneState {
         let host = unique_header(headers, header::HOST)?
             .filter(|host| !host.is_empty())
             .ok_or_else(missing)?;
-        if !self
-            .targets
-            .contains_key(&(host.to_owned(), holding_slug.to_owned()))
-        {
-            return Err(missing());
-        }
+        let reader = self
+            .readers
+            .get(&(host.to_owned(), holding_slug.to_owned()))
+            .ok_or_else(missing)?;
         let company = unique_header(headers, CONTEXT_COMPANY)?
             .filter(|value| super::domain::valid_id(value))
             .ok_or_else(invalid)?;
@@ -166,37 +166,80 @@ impl LaneState {
             }
         }
         let scope = LaneScope::new(kind, company, branch.as_deref())?;
-        application::handle(self.reader.as_ref(), scope).await
+        application::handle(reader.as_ref(), scope).await
     }
 }
 
-/// Build the native read router. The lead mounts it; no composition or shared
-/// module is edited by this owner.
-pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
-    let reader = Arc::new(PgLaneRead::new(pool)) as Arc<dyn application::LaneRead>;
-    let mut configured = BTreeMap::new();
-    for target in targets {
+/// Insert one reader per exact registered Holding target. Duplicate host/slug
+/// pairs and empty configurations are rejected before any state is built.
+fn state_with_readers(
+    targets: Vec<(LaneTarget, Arc<dyn application::LaneRead>)>,
+) -> Result<LaneState, BusinessError> {
+    let mut readers = BTreeMap::new();
+    for (target, reader) in targets {
         if target.host.is_empty()
             || !valid_slug(&target.holding_slug)
-            || configured
-                .insert((target.host, target.holding_slug), ())
+            || readers
+                .insert((target.host, target.holding_slug), reader)
                 .is_some()
         {
             return Err(configuration_invalid());
         }
     }
-    if configured.is_empty() {
+    if readers.is_empty() {
         return Err(configuration_invalid());
     }
-    Ok(Router::new()
+    Ok(LaneState { readers })
+}
+
+fn new_router(state: LaneState) -> Router {
+    Router::new()
         .route(
             "/api/v1/holdings/{holding_slug}/planning/lane-36/{kind}",
             get(current),
         )
-        .with_state(Arc::new(LaneState {
-            targets: configured,
-            reader,
-        })))
+        .with_state(Arc::new(state))
+}
+
+/// Build the native read router with one injected reader shared by every
+/// target. Retained for tests and single-pool deployments.
+pub fn router_with_reader(
+    reader: Arc<dyn application::LaneRead>,
+    targets: Vec<LaneTarget>,
+) -> Result<Router, BusinessError> {
+    let state = state_with_readers(
+        targets
+            .into_iter()
+            .map(|target| (target, reader.clone()))
+            .collect(),
+    )?;
+    Ok(new_router(state))
+}
+
+/// Build the native read router with a single pool shared by all targets.
+pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
+    router_with_reader(Arc::new(PgLaneRead::new(pool)), targets)
+}
+
+/// Build the native read router with one distinct `PgLaneRead`, and therefore
+/// one distinct `DatabasePool`, per registered Holding. Composition pairs each
+/// entry of `config.holdings` with its own pool; no cross-Holding pool reuse is
+/// possible because the map is keyed by `(host, holding_slug)`.
+pub fn router_for_holdings(
+    targets: Vec<(LaneTarget, DatabasePool)>,
+) -> Result<Router, BusinessError> {
+    let state = state_with_readers(
+        targets
+            .into_iter()
+            .map(|(target, pool)| {
+                (
+                    target,
+                    Arc::new(PgLaneRead::new(pool)) as Arc<dyn application::LaneRead>,
+                )
+            })
+            .collect(),
+    )?;
+    Ok(new_router(state))
 }
 
 async fn current(
@@ -234,12 +277,14 @@ mod tests {
     }
 
     fn state() -> LaneState {
-        let mut targets = BTreeMap::new();
-        targets.insert(("acme.example.com".to_owned(), "acme".to_owned()), ());
-        LaneState {
-            targets,
-            reader: Arc::new(Fake),
-        }
+        state_with_readers(vec![(
+            LaneTarget {
+                host: "acme.example.com".to_owned(),
+                holding_slug: "acme".to_owned(),
+            },
+            Arc::new(Fake) as Arc<dyn application::LaneRead>,
+        )])
+        .unwrap()
     }
 
     fn headers(company: &str) -> HeaderMap {
@@ -317,27 +362,94 @@ mod tests {
         assert!(validate_targets(&valid).is_ok());
     }
 
-    /// Pure mirror of router target validation, used by the test above without
-    /// requiring a live pool.
+    /// Exercises the real target-validation path through injected readers.
     fn validate_targets(targets: &[LaneTarget]) -> Result<(), Error> {
-        let mut configured = BTreeMap::new();
-        for target in targets {
-            if target.host.is_empty()
-                || !valid_slug(&target.holding_slug)
-                || configured
-                    .insert(
-                        (target.host.clone(), target.holding_slug.clone()),
-                        (),
+        state_with_readers(
+            targets
+                .iter()
+                .map(|target| {
+                    (
+                        LaneTarget {
+                            host: target.host.clone(),
+                            holding_slug: target.holding_slug.clone(),
+                        },
+                        Arc::new(Fake) as Arc<dyn application::LaneRead>,
                     )
-                    .is_some()
-            {
-                return Err(configuration_invalid());
-            }
+                })
+                .collect(),
+        )
+        .map(|_| ())
+    }
+
+    /// Distinct injected readers stand in for distinct per-Holding pools:
+    /// `router_for_holdings` builds one `PgLaneRead` per entry through the same
+    /// state map and the same lookup used by this test.
+    struct Marked(&'static str);
+
+    impl application::LaneRead for Marked {
+        fn read<'a>(
+            &'a self,
+            _scope: &'a LaneScope,
+        ) -> application::LaneReadFuture<'a, super::super::domain::LaneData> {
+            let marker = self.0;
+            Box::pin(async move {
+                Ok(super::super::domain::LaneData::List(vec![json!({
+                    "reader": marker,
+                })]))
+            })
         }
-        if configured.is_empty() {
-            return Err(configuration_invalid());
-        }
-        Ok(())
+    }
+
+    async fn injected_marker(state: &LaneState, headers: &HeaderMap, slug: &str) -> String {
+        let response = state.read(headers, slug, "resources", None).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = erpx_server_runtime::public::http_support::body::to_bytes(
+            response.into_body(),
+            usize::MAX,
+        )
+        .await
+        .unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        value["data"][0]["reader"].as_str().unwrap().to_owned()
+    }
+
+    #[tokio::test]
+    async fn two_holdings_route_to_two_distinct_readers() {
+        let state = state_with_readers(vec![
+            (
+                LaneTarget {
+                    host: "acme.example.com".to_owned(),
+                    holding_slug: "acme".to_owned(),
+                },
+                Arc::new(Marked("acme-pool")) as Arc<dyn application::LaneRead>,
+            ),
+            (
+                LaneTarget {
+                    host: "north.example.com".to_owned(),
+                    holding_slug: "north".to_owned(),
+                },
+                Arc::new(Marked("north-pool")) as Arc<dyn application::LaneRead>,
+            ),
+        ])
+        .unwrap();
+        assert_eq!(state.readers.len(), 2);
+
+        let acme = headers("company-1");
+        let mut north = headers("company-1");
+        north.insert(
+            header::HOST,
+            HeaderValue::from_static("north.example.com"),
+        );
+        assert_eq!(injected_marker(&state, &acme, "acme").await, "acme-pool");
+        assert_eq!(injected_marker(&state, &north, "north").await, "north-pool");
+        // A crossed host/slug pair must not fall back to the other Holding's pool.
+        assert_eq!(
+            state
+                .read(&north, "acme", "resources", None)
+                .await
+                .status(),
+            StatusCode::NOT_FOUND
+        );
     }
 
     #[test]

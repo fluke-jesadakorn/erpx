@@ -113,19 +113,18 @@ fn unique_header(headers: &HeaderMap, name: HeaderName) -> Result<Option<&str>, 
         .transpose()
 }
 
-fn state(
-    reader: Arc<dyn PropertyReadinessRead>,
-    targets: Vec<LaneTarget>,
+/// Build the state map once, keyed by exact `(host, holding_slug)`. Each entry
+/// carries its own reader (and therefore its own pool); duplicate or malformed
+/// targets are rejected so one Holding can never borrow another's reader.
+fn state_with_readers(
+    targets: Vec<(LaneTarget, Arc<dyn PropertyReadinessRead>)>,
 ) -> Result<Arc<LaneState>, BusinessError> {
     let mut configured = BTreeMap::new();
-    for target in targets {
+    for (target, reader) in targets {
         if target.host.is_empty()
             || !valid_slug(&target.holding_slug)
             || configured
-                .insert(
-                    (target.host.clone(), target.holding_slug.clone()),
-                    reader.clone(),
-                )
+                .insert((target.host.clone(), target.holding_slug.clone()), reader)
                 .is_some()
         {
             return Err(invalid_configuration());
@@ -137,25 +136,62 @@ fn state(
     Ok(Arc::new(LaneState { targets: configured }))
 }
 
-/// Composition-facing constructor: the owner crate owns the pool, the SQL and
-/// the projection. The lead mounts the returned router; no composition edit is
-/// needed inside this lane.
-pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
-    router_with_reader(Arc::new(PgPropertyReadinessRead::new(pool)), targets)
-}
-
-/// Test-facing constructor: injects a deterministic reader so parity, isolation
-/// and fail-closed behaviour are exercised without a live database.
-pub fn router_with_reader(
-    reader: Arc<dyn PropertyReadinessRead>,
-    targets: Vec<LaneTarget>,
-) -> Result<Router, BusinessError> {
-    Ok(Router::new()
+fn route(state: Arc<LaneState>) -> Router {
+    Router::new()
         .route(
             "/api/v1/holdings/{holding_slug}/pms/native-lane-20/property-readiness",
             get(readiness),
         )
-        .with_state(state(reader, targets)?))
+        .with_state(state)
+}
+
+/// Composition-facing constructor for a single pool shared by all targets.
+/// The owner crate owns the pool, the SQL and the projection; the lead mounts
+/// the returned router.
+pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
+    router_for_holdings(targets.into_iter().map(|target| (target, pool.clone())).collect())
+}
+
+/// Composition-facing constructor: one `PgPropertyReadinessRead` is built per
+/// registered Holding from that Holding's own database pool and inserted into
+/// the state map keyed by `(host, holding_slug)`. This keeps Holding database
+/// isolation from leaking into TypeScript or into the shared router state.
+pub fn router_for_holdings(
+    targets: Vec<(LaneTarget, DatabasePool)>,
+) -> Result<Router, BusinessError> {
+    router_with_readers(
+        targets
+            .into_iter()
+            .map(|(target, pool)| {
+                (
+                    target,
+                    Arc::new(PgPropertyReadinessRead::new(pool)) as Arc<dyn PropertyReadinessRead>,
+                )
+            })
+            .collect(),
+    )
+}
+
+/// Test-facing constructor: inject one deterministic reader per target so
+/// per-Holding routing, parity and fail-closed behaviour are exercised without
+/// a live database.
+pub fn router_with_readers(
+    targets: Vec<(LaneTarget, Arc<dyn PropertyReadinessRead>)>,
+) -> Result<Router, BusinessError> {
+    Ok(route(state_with_readers(targets)?))
+}
+
+/// Test-facing constructor: one injected reader shared by all targets.
+pub fn router_with_reader(
+    reader: Arc<dyn PropertyReadinessRead>,
+    targets: Vec<LaneTarget>,
+) -> Result<Router, BusinessError> {
+    router_with_readers(
+        targets
+            .into_iter()
+            .map(|target| (target, reader.clone()))
+            .collect(),
+    )
 }
 
 async fn readiness(

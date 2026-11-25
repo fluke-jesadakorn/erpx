@@ -130,18 +130,20 @@ fn bounded(value: serde_json::Value) -> Response {
 }
 
 impl LaneState {
-    fn new(
-        reader: Arc<dyn PosEvidenceReader>,
-        targets: Vec<LaneTarget>,
+    /// One reader per registered Holding target, keyed by `(host, slug)`.
+    /// Each entry carries its own pool-backed reader, so Holdings never share
+    /// a database connection pool.
+    fn with_readers(
+        entries: Vec<(LaneTarget, Arc<dyn PosEvidenceReader>)>,
     ) -> Result<Self, BusinessError> {
         let mut configured = BTreeMap::new();
-        for target in targets {
+        for (target, reader) in entries {
             if target.host.is_empty()
                 || !valid_slug(&target.holding_slug)
                 || configured
                     .insert(
                         (target.host.clone(), target.holding_slug.clone()),
-                        reader.clone(),
+                        reader,
                     )
                     .is_some()
             {
@@ -154,6 +156,25 @@ impl LaneState {
         Ok(Self {
             targets: configured,
         })
+    }
+
+    /// Shared-reader form retained for the single-reader tests.
+    #[cfg(test)]
+    fn new(
+        reader: Arc<dyn PosEvidenceReader>,
+        targets: Vec<LaneTarget>,
+    ) -> Result<Self, BusinessError> {
+        Self::with_readers(
+            targets
+                .into_iter()
+                .map(|target| (target, reader.clone()))
+                .collect(),
+        )
+    }
+
+    #[cfg(test)]
+    fn reader_for(&self, host: &str, slug: &str) -> Option<&Arc<dyn PosEvidenceReader>> {
+        self.targets.get(&(host.to_owned(), slug.to_owned()))
     }
 
     async fn search(
@@ -213,22 +234,57 @@ impl LaneState {
     }
 }
 
-/// Build the native read router. The lead mounts it; no composition edit is
-/// needed and no SQL or business rule is added to TypeScript.
+/// Build the native read router with a single pool shared by every target.
+/// The lead mounts it; no composition edit is needed and no SQL or business rule
+/// is added to TypeScript.
 pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
-    build_router(Arc::new(PgEvidenceReader::new(pool)), targets)
+    router_with_reader(Arc::new(PgEvidenceReader::new(pool)), targets)
 }
 
-fn build_router(
+/// Router over one injected owner reader, kept for single-reader tests.
+pub fn router_with_reader(
     reader: Arc<dyn PosEvidenceReader>,
     targets: Vec<LaneTarget>,
+) -> Result<Router, BusinessError> {
+    router_with_readers(
+        targets
+            .into_iter()
+            .map(|target| (target, reader.clone()))
+            .collect(),
+    )
+}
+
+/// Router over one owner reader per registered Holding target. Composition
+/// supplies a distinct `DatabasePool` for each Holding; each entry becomes its
+/// own `PgEvidenceReader` and is keyed by `(host, holding_slug)` in the state
+/// map. This is the per-holding constructor the lead mounts.
+pub fn router_for_holdings(
+    targets: Vec<(LaneTarget, DatabasePool)>,
+) -> Result<Router, BusinessError> {
+    router_with_readers(
+        targets
+            .into_iter()
+            .map(|(target, pool)| {
+                (
+                    target,
+                    Arc::new(PgEvidenceReader::new(pool)) as Arc<dyn PosEvidenceReader>,
+                )
+            })
+            .collect(),
+    )
+}
+
+/// Injection path for the per-target map, used by `router_for_holdings` and by
+/// the two-target isolation test. No pool or SQL is created here.
+pub fn router_with_readers(
+    entries: Vec<(LaneTarget, Arc<dyn PosEvidenceReader>)>,
 ) -> Result<Router, BusinessError> {
     Ok(Router::new()
         .route(
             "/api/v1/holdings/{holding_slug}/pos/evidence/search",
             post(search),
         )
-        .with_state(Arc::new(LaneState::new(reader, targets)?)))
+        .with_state(Arc::new(LaneState::with_readers(entries)?)))
 }
 
 async fn search(
@@ -259,6 +315,34 @@ mod tests {
                 Poll::Ready(value) => return value,
                 Poll::Pending => std::thread::yield_now(),
             }
+        }
+    }
+
+    /// Distinct fake readers let a test observe which Holding's reader served
+    /// a request without needing a live pool.
+    struct Tagged(&'static str);
+    impl PosEvidenceReader for Tagged {
+        fn search<'a>(&'a self, _: &'a EvidenceQuery) -> EvidenceFuture<'a, Vec<EvidenceRow>> {
+            let id = format!("sale:{}", self.0);
+            Box::pin(async move {
+                Ok(vec![EvidenceRow {
+                    id,
+                    source_id: self.0.into(),
+                    source_type: "sale".into(),
+                    sale_id: self.0.into(),
+                    event_date: "2026-01-02".into(),
+                    receipt_number: "R1".into(),
+                    status: "completed".into(),
+                    sale_status: "completed".into(),
+                    currency: "USD".into(),
+                    method: None,
+                    amount_minor: "100".into(),
+                    contribution_minor: "100".into(),
+                    refunded_minor: "0".into(),
+                    revision: "1".into(),
+                    sale_version: "1".into(),
+                }])
+            })
         }
     }
 
@@ -359,6 +443,68 @@ mod tests {
         assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
         let response = block_on(state.search(&headers(), "other", &body()));
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[test]
+    fn two_holdings_route_to_two_distinct_injected_readers() {
+        let entries: Vec<(LaneTarget, Arc<dyn PosEvidenceReader>)> = vec![
+            (
+                LaneTarget {
+                    host: "north.example.com".into(),
+                    holding_slug: "north".into(),
+                },
+                Arc::new(Tagged("north")),
+            ),
+            (
+                LaneTarget {
+                    host: "acme.example.com".into(),
+                    holding_slug: "acme".into(),
+                },
+                Arc::new(Tagged("acme")),
+            ),
+        ];
+        // The router constructor uses this same per-target injection path.
+        assert!(router_with_readers(entries).is_ok());
+        let state = LaneState::with_readers(vec![
+            (
+                LaneTarget {
+                    host: "north.example.com".into(),
+                    holding_slug: "north".into(),
+                },
+                Arc::new(Tagged("north")) as Arc<dyn PosEvidenceReader>,
+            ),
+            (
+                LaneTarget {
+                    host: "acme.example.com".into(),
+                    holding_slug: "acme".into(),
+                },
+                Arc::new(Tagged("acme")) as Arc<dyn PosEvidenceReader>,
+            ),
+        ])
+        .unwrap();
+        let north = state.reader_for("north.example.com", "north").unwrap();
+        let acme = state.reader_for("acme.example.com", "acme").unwrap();
+        assert!(!Arc::ptr_eq(north, acme), "each Holding must own its reader/pool");
+
+        let host = |value: &str| {
+            let mut headers = headers();
+            headers.insert(header::HOST, value.parse().unwrap());
+            headers
+        };
+        let id = |h: &HeaderMap, slug: &str| {
+            let response = block_on(state.search(h, slug, &body()));
+            assert_eq!(response.status(), StatusCode::OK);
+            let bytes = block_on(to_bytes(response.into_body(), 1 << 20)).unwrap();
+            let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+            value["rows"][0]["id"].as_str().unwrap().to_owned()
+        };
+        assert_eq!(id(&host("north.example.com"), "north"), "sale:north");
+        assert_eq!(id(&host("acme.example.com"), "acme"), "sale:acme");
+        // A host/slug pair that is not registered cannot reach either reader.
+        assert_eq!(
+            block_on(state.search(&host("north.example.com"), "acme", &body())).status(),
+            StatusCode::NOT_FOUND
+        );
     }
 
     #[test]

@@ -14,5 +14,5 @@ pub use domain::{
     CandidateRow, EventRow, LaneQuery, LaneResponse, LaneTarget, SubmitTime, WorkReportCandidate,
     WorkReportEvent,
 };
-pub use http::{router, validate_targets};
+pub use http::{router, router_for_holdings, router_with_reader, validate_targets};
 pub use postgres::PgWorkReportSource;

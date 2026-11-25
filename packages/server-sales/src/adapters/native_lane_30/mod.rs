@@ -16,5 +16,5 @@ pub use domain::{
     ORACLE_CUSTOMER_NOTES_SQL, ORACLE_ORDER_HISTORY_SQL, ORACLE_ORDER_NOTES_SQL,
     NOTE_SOURCE_CUSTOMER, NOTE_SOURCE_ORDER,
 };
-pub use http::{LaneTarget, router, router_with_reader};
+pub use http::{LaneTarget, router, router_for_holdings, router_with_reader};
 pub use postgres::PgCustomerNoteRead;

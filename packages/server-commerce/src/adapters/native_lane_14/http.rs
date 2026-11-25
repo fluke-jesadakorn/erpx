@@ -125,10 +125,27 @@ fn scope(request: &Request) -> Result<(&str, &str), BusinessError> {
     Ok((company, record))
 }
 
-/// Build the native read router. The lead mounts it; no composition or public
-/// module is edited inside this lane.
+/// Build the native read router with one shared pool. The lead mounts it; no
+/// composition or public module is edited inside this lane.
 pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
     router_with_reader(Arc::new(PgCommerceLane14Read::new(pool)), targets)
+}
+
+/// Per-Holding constructor: each `(target, pool)` pair gets its own Pg reader,
+/// so a request can only reach its own Holding's database pool.
+pub fn router_for_holdings(
+    targets: Vec<(LaneTarget, DatabasePool)>,
+) -> Result<Router, BusinessError> {
+    let readers = targets
+        .into_iter()
+        .map(|(target, pool)| {
+            (
+                target,
+                Arc::new(PgCommerceLane14Read::new(pool)) as Arc<dyn CommerceLane14Read>,
+            )
+        })
+        .collect();
+    router_with_readers(readers)
 }
 
 /// Reader-injected constructor used by the owner unit tests.
@@ -136,16 +153,24 @@ pub fn router_with_reader(
     reader: Arc<dyn CommerceLane14Read>,
     targets: Vec<LaneTarget>,
 ) -> Result<Router, BusinessError> {
+    router_with_readers(
+        targets
+            .into_iter()
+            .map(|target| (target, reader.clone()))
+            .collect(),
+    )
+}
+
+fn build_state(
+    targets: Vec<(LaneTarget, Arc<dyn CommerceLane14Read>)>,
+) -> Result<Arc<LaneState>, BusinessError> {
     let mut configured = BTreeMap::new();
-    for target in targets {
+    for (target, reader) in targets {
         if target.host.is_empty()
             || target.host.len() > 253
             || !valid_slug(&target.holding_slug)
             || configured
-                .insert(
-                    (target.host.clone(), target.holding_slug.clone()),
-                    reader.clone(),
-                )
+                .insert((target.host.clone(), target.holding_slug.clone()), reader)
                 .is_some()
         {
             return Err(configuration_invalid());
@@ -154,9 +179,15 @@ pub fn router_with_reader(
     if configured.is_empty() {
         return Err(configuration_invalid());
     }
-    let state = Arc::new(LaneState {
+    Ok(Arc::new(LaneState {
         targets: configured,
-    });
+    }))
+}
+
+fn router_with_readers(
+    targets: Vec<(LaneTarget, Arc<dyn CommerceLane14Read>)>,
+) -> Result<Router, BusinessError> {
+    let state = build_state(targets)?;
     Ok(Router::new()
         .route(
             "/api/v1/holdings/{holding_slug}/commerce/lane14/workflow-document",
@@ -239,6 +270,10 @@ mod tests {
     use std::sync::Mutex;
 
     fn good_row() -> Value {
+        good_row_with("order-1")
+    }
+
+    fn good_row_with(id: &str) -> Value {
         let mut object = serde_json::Map::new();
         for (index, column) in COLUMNS.iter().enumerate() {
             let value = match column.kind {
@@ -247,6 +282,7 @@ mod tests {
             };
             object.insert(column.name.to_owned(), value);
         }
+        object.insert("id".to_owned(), Value::String(id.to_owned()));
         Value::Object(object)
     }
 
@@ -393,6 +429,88 @@ mod tests {
         )
         .await;
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
+    #[tokio::test]
+    async fn two_targets_route_to_two_distinct_readers() {
+        let acme_seen = Arc::new(Mutex::new(Vec::new()));
+        let north_seen = Arc::new(Mutex::new(Vec::new()));
+        // Reader injection is the testable equivalent of the per-target Pg
+        // reader that `router_for_holdings` builds from each Holding's pool.
+        let state = build_state(vec![
+            (
+                LaneTarget {
+                    host: "acme.jesadakorn.com".to_owned(),
+                    holding_slug: "acme".to_owned(),
+                },
+                Arc::new(Probe {
+                    row: Some(good_row_with("acme-order")),
+                    seen: acme_seen.clone(),
+                }) as Arc<dyn CommerceLane14Read>,
+            ),
+            (
+                LaneTarget {
+                    host: "northstar.jesadakorn.com".to_owned(),
+                    holding_slug: "northstar".to_owned(),
+                },
+                Arc::new(Probe {
+                    row: Some(good_row_with("northstar-order")),
+                    seen: north_seen.clone(),
+                }) as Arc<dyn CommerceLane14Read>,
+            ),
+        ])
+        .expect("two distinct readers");
+
+        let (status, value) = body(
+            document(
+                State(state.clone()),
+                Path("acme".to_owned()),
+                request("acme.jesadakorn.com", "co-1", "order-1", false),
+            )
+            .await,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(
+            value.get("row").and_then(|row| row.get("id")),
+            Some(&Value::String("acme-order".to_owned()))
+        );
+
+        let (status, value) = body(
+            document(
+                State(state.clone()),
+                Path("northstar".to_owned()),
+                request("northstar.jesadakorn.com", "co-1", "order-1", false),
+            )
+            .await,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(
+            value.get("row").and_then(|row| row.get("id")),
+            Some(&Value::String("northstar-order".to_owned()))
+        );
+
+        assert_eq!(
+            *acme_seen.lock().expect("lock"),
+            vec![("co-1".to_owned(), "order-1".to_owned())]
+        );
+        assert_eq!(
+            *north_seen.lock().expect("lock"),
+            vec![("co-1".to_owned(), "order-1".to_owned())]
+        );
+
+        // A Holding slug must not fall back to the other Holding's reader.
+        let (status, _) = body(
+            document(
+                State(state),
+                Path("northstar".to_owned()),
+                request("acme.jesadakorn.com", "co-1", "order-1", false),
+            )
+            .await,
+        )
+        .await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
     }
 
     #[tokio::test]

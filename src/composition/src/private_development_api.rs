@@ -390,9 +390,9 @@ enum Profile {
 }
 /// A selected database is either a disposable leased development database or a
 /// durable private production database. Both expose the same pool operations.
-struct HoldingConfiguration {
-    host: String,
-    registration: ConfiguredAccountHolding,
+pub(crate) struct HoldingConfiguration {
+    pub(crate) host: String,
+    pub(crate) registration: ConfiguredAccountHolding,
     database: RuntimeDatabase,
     read_database: Option<RuntimeDatabase>,
 }
@@ -409,7 +409,7 @@ pub struct DevelopmentApiConfiguration {
     holdings_registry: Arc<ConfiguredHoldingRegistry>,
     control: RuntimeDatabase,
     control_read: Option<RuntimeDatabase>,
-    holdings: Vec<HoldingConfiguration>,
+    pub(crate) holdings: Vec<HoldingConfiguration>,
     products: Vec<ProductOrigin>,
     finance_journal_reads: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
     pos_companies: BTreeMap<HoldingId, BTreeSet<CompanyId>>,
@@ -9582,6 +9582,7 @@ async fn assemble_checked(
         directory_source: directory_source_mounted,
         directory_connection: directory_connection_mounted,
     });
+    let router = crate::native_lane_mounts::mount(router, config, pools)?;
     Ok(CheckedAssembly {
         router: router.layer(middleware::from_fn_with_state(state, boundary)),
         #[cfg(feature = "files-scan-worker")]

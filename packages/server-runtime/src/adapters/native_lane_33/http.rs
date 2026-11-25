@@ -102,21 +102,17 @@ fn binding_json(binding: HoldingBinding) -> serde_json::Value {
     })
 }
 
-/// Build with a caller-supplied reader. Used by composition and by contract
-/// tests; no SQL is introduced here.
-pub fn router_with_reader(
-    reader: SharedHoldingBindingRead,
-    targets: Vec<LaneTarget>,
-) -> Result<Router, BusinessError> {
+/// Build the validated `(host, holding_slug) -> reader` state map. Each entry
+/// carries its own reader, so distinct Holdings may use distinct pools.
+fn build_state(
+    entries: impl IntoIterator<Item = (LaneTarget, SharedHoldingBindingRead)>,
+) -> Result<Arc<ReadState>, BusinessError> {
     let mut configured = BTreeMap::new();
-    for target in targets {
+    for (target, reader) in entries {
         if target.host.is_empty()
             || !valid_slug(&target.holding_slug)
             || configured
-                .insert(
-                    (target.host.clone(), target.holding_slug.clone()),
-                    reader.clone(),
-                )
+                .insert((target.host.clone(), target.holding_slug.clone()), reader)
                 .is_some()
         {
             return Err(configuration_invalid());
@@ -125,21 +121,61 @@ pub fn router_with_reader(
     if configured.is_empty() {
         return Err(configuration_invalid());
     }
-    Ok(Router::new()
+    Ok(Arc::new(ReadState {
+        targets: configured,
+    }))
+}
+
+fn build_router(state: Arc<ReadState>) -> Router {
+    Router::new()
         .route(
             "/api/v1/holdings/{holding_slug}/runtime/holding-bindings/{kind}",
             get(read_binding),
         )
-        .with_state(Arc::new(ReadState {
-            targets: configured,
-        })))
+        .with_state(state)
+}
+
+/// Reader-injection constructor shared by every public entry point. The lane
+/// contract test uses it to prove two targets reach two distinct readers.
+fn router_for_readers(
+    targets: Vec<(LaneTarget, SharedHoldingBindingRead)>,
+) -> Result<Router, BusinessError> {
+    Ok(build_router(build_state(targets)?))
+}
+
+/// Build with one caller-supplied reader shared by every Holding target.
+/// Kept for tests and for the single-pool contract.
+pub fn router_with_reader(
+    reader: SharedHoldingBindingRead,
+    targets: Vec<LaneTarget>,
+) -> Result<Router, BusinessError> {
+    router_for_readers(
+        targets
+            .into_iter()
+            .map(|target| (target, reader.clone()))
+            .collect(),
+    )
 }
 
 /// Pool-backed variant matching the lane contract. The lead mounts this router.
 pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
-    router_with_reader(
-        Arc::new(PgHoldingBindingRead::new(pool)),
-        targets,
+    router_with_reader(Arc::new(PgHoldingBindingRead::new(pool)), targets)
+}
+
+/// Per-Holding constructor: one `PgHoldingBindingRead` (and therefore one
+/// database pool) per registered target. The state map stays keyed by
+/// `(host, holding_slug)`, so a request can only reach its own Holding's pool.
+pub fn router_for_holdings(
+    targets: Vec<(LaneTarget, DatabasePool)>,
+) -> Result<Router, BusinessError> {
+    router_for_readers(
+        targets
+            .into_iter()
+            .map(|(target, pool)| {
+                let reader: SharedHoldingBindingRead = Arc::new(PgHoldingBindingRead::new(pool));
+                (target, reader)
+            })
+            .collect(),
     )
 }
 
@@ -276,6 +312,125 @@ mod tests {
             vec![LaneTarget { host: "a".into(), holding_slug: "acme".into() }; 2]
         )
         .is_err());
+    }
+
+    /// A reader with a fixed identity, so a request reveals which target's
+    /// reader (and therefore which Holding's pool) served it.
+    struct Labelled {
+        id: &'static str,
+        name: &'static str,
+    }
+
+    impl HoldingBindingRead for Labelled {
+        fn by_slug<'a>(
+            &'a self,
+            _scope: &'a [String],
+            slug: &'a str,
+        ) -> crate::adapters::native_lane_33::application::HoldingBindingReadFuture<'a, Option<Binding>>
+        {
+            let id = self.id.to_owned();
+            let name = self.name.to_owned();
+            let slug = slug.to_owned();
+            Box::pin(async move {
+                Ok(Some(Binding {
+                    holding_id: id,
+                    slug,
+                    display_name: name,
+                }))
+            })
+        }
+        fn default_binding<'a>(
+            &'a self,
+            _scope: &'a [String],
+        ) -> crate::adapters::native_lane_33::application::HoldingBindingReadFuture<'a, Option<Binding>>
+        {
+            let id = self.id.to_owned();
+            let name = self.name.to_owned();
+            Box::pin(async move {
+                Ok(Some(Binding {
+                    holding_id: id,
+                    slug: "acme".into(),
+                    display_name: name,
+                }))
+            })
+        }
+        fn active<'a>(
+            &'a self,
+            _scope: &'a [String],
+        ) -> crate::adapters::native_lane_33::application::HoldingBindingReadFuture<'a, Vec<Binding>>
+        {
+            let id = self.id.to_owned();
+            let name = self.name.to_owned();
+            Box::pin(async move {
+                Ok(vec![Binding {
+                    holding_id: id,
+                    slug: "acme".into(),
+                    display_name: name,
+                }])
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn two_targets_route_to_distinct_readers() {
+        let acme: SharedHoldingBindingRead = Arc::new(Labelled {
+            id: "h001",
+            name: "Acme",
+        });
+        let northstar: SharedHoldingBindingRead = Arc::new(Labelled {
+            id: "h002",
+            name: "Northstar",
+        });
+        // Same path slug on purpose: only the (host, holding_slug) state key
+        // decides which injected reader is reached.
+        let app = router_for_readers(vec![
+            (
+                LaneTarget {
+                    host: "acme.jesadakorn.com".into(),
+                    holding_slug: "acme".into(),
+                },
+                acme,
+            ),
+            (
+                LaneTarget {
+                    host: "northstar.jesadakorn.com".into(),
+                    holding_slug: "acme".into(),
+                },
+                northstar,
+            ),
+        ])
+        .unwrap();
+
+        let request_for = |host: &'static str| {
+            axum::http::Request::builder()
+                .method("GET")
+                .uri("/api/v1/holdings/acme/runtime/holding-bindings/by-slug")
+                .header("host", host)
+                .header("x-erpx-allowed-holdings", "h001,h002")
+                .header("x-erpx-holding-slug", "acme")
+                .body(axum::body::Body::empty())
+                .unwrap()
+        };
+
+        let acme_value = body(
+            app.clone()
+                .oneshot(request_for("acme.jesadakorn.com"))
+                .await
+                .unwrap(),
+        )
+        .await;
+        let northstar_value = body(
+            app.oneshot(request_for("northstar.jesadakorn.com"))
+                .await
+                .unwrap(),
+        )
+        .await;
+
+        assert_eq!(acme_value["binding"]["holdingId"], "h001");
+        assert_eq!(acme_value["binding"]["displayName"], "Acme");
+        assert_eq!(northstar_value["binding"]["holdingId"], "h002");
+        assert_eq!(northstar_value["binding"]["displayName"], "Northstar");
+        assert_ne!(acme_value, northstar_value);
     }
 
     #[tokio::test]

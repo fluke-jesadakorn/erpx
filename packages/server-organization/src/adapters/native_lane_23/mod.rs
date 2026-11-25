@@ -13,5 +13,5 @@ pub use application::{DirectoryHierarchyRead, read_directory_hierarchy};
 pub use domain::{
     DirectoryHierarchy, DirectoryLevel, DirectoryNode, DirectoryPosition, MAX_ROWS,
 };
-pub use http::{LaneTarget, router};
+pub use http::{LaneTarget, router, router_for_holdings};
 pub use postgres::{PgDirectoryHierarchyRead, NODES_SQL, LEVELS_SQL, POSITIONS_SQL};

@@ -100,19 +100,19 @@ fn bounded(body: serde_json::Value) -> Response {
     response
 }
 
-/// Build the native read router. The lead mounts it alongside the other Legal
-/// owner routers; composition owns the pool and the exact registered targets.
-pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
-    let reader: Arc<dyn ExecutedCopySource> = Arc::new(PgExecutedCopySource::new(pool));
+/// Shared reader-injection path. Every public constructor funnels through this
+/// map, so the `(host, holding_slug)` key and the exact-target validation have
+/// one owner. Each key holds one reader, which may be a distinct Pg reader for
+/// a distinct Holding pool.
+fn configure_targets(
+    targets: Vec<(LaneTarget, Arc<dyn ExecutedCopySource>)>,
+) -> Result<BTreeMap<(String, String), Arc<dyn ExecutedCopySource>>, BusinessError> {
     let mut configured = BTreeMap::new();
-    for target in targets {
+    for (target, reader) in targets {
         if target.host.is_empty()
             || !valid_slug(&target.holding_slug)
             || configured
-                .insert(
-                    (target.host.clone(), target.holding_slug.clone()),
-                    reader.clone(),
-                )
+                .insert((target.host.clone(), target.holding_slug.clone()), reader)
                 .is_some()
         {
             return Err(configuration_invalid());
@@ -121,12 +121,58 @@ pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, Bu
     if configured.is_empty() {
         return Err(configuration_invalid());
     }
-    Ok(Router::new()
+    Ok(configured)
+}
+
+fn into_router(
+    targets: BTreeMap<(String, String), Arc<dyn ExecutedCopySource>>,
+) -> Router {
+    Router::new()
         .route(
             "/api/v1/holdings/{holding_slug}/legal/native-lane-26/executed-copies/{item_id}",
             get(current),
         )
-        .with_state(Arc::new(LaneState { targets: configured })))
+        .with_state(Arc::new(LaneState { targets }))
+}
+
+/// Build the native read router with one pool shared by all registered targets.
+/// The lead mounts it alongside the other Legal owner routers; composition owns
+/// the pool and the exact registered targets.
+pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
+    let reader: Arc<dyn ExecutedCopySource> = Arc::new(PgExecutedCopySource::new(pool));
+    let configured = configure_targets(
+        targets.into_iter().map(|target| (target, reader.clone())).collect(),
+    )?;
+    Ok(into_router(configured))
+}
+
+/// Reader-injection constructor used by owner tests. It installs the supplied
+/// reader for every exact target without opening any database pool.
+pub fn router_with_reader(
+    reader: Arc<dyn ExecutedCopySource>,
+    targets: Vec<LaneTarget>,
+) -> Result<Router, BusinessError> {
+    let configured = configure_targets(
+        targets.into_iter().map(|target| (target, reader.clone())).collect(),
+    )?;
+    Ok(into_router(configured))
+}
+
+/// Per-Holding constructor. Each `(LaneTarget, DatabasePool)` pair gets its own
+/// `PgExecutedCopySource`, so every Holding reads only from its own database
+/// pool while the same `host`/`holding_slug` isolation applies to all of them.
+pub fn router_for_holdings(
+    targets: Vec<(LaneTarget, DatabasePool)>,
+) -> Result<Router, BusinessError> {
+    let readers = targets
+        .into_iter()
+        .map(|(target, pool)| {
+            let reader: Arc<dyn ExecutedCopySource> =
+                Arc::new(PgExecutedCopySource::new(pool));
+            (target, reader)
+        })
+        .collect();
+    Ok(into_router(configure_targets(readers)?))
 }
 
 async fn current(
@@ -164,7 +210,71 @@ async fn current(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Mutex;
+
     use super::*;
+    use erpx_server_runtime::public::http_support::body::Body;
+
+    /// Reader-injection fake: records its own tag when the handler reaches it,
+    /// so a request proves which Holding reader the state map selected.
+    struct TaggedReader {
+        tag: &'static str,
+        seen: Arc<Mutex<Vec<String>>>,
+    }
+
+    impl ExecutedCopySource for TaggedReader {
+        fn list<'a>(
+            &'a self,
+            _company: &'a str,
+            _item: &'a str,
+        ) -> super::super::application::LaneFuture<'a, Vec<super::super::domain::CopyHead>> {
+            Box::pin(async { Ok(Vec::new()) })
+        }
+        fn authors<'a>(
+            &'a self,
+            _company: &'a str,
+            _item: &'a str,
+            _copy: &'a str,
+        ) -> super::super::application::LaneFuture<'a, Option<super::super::domain::CopyAuthors>> {
+            Box::pin(async { Ok(None) })
+        }
+        fn reviews<'a>(
+            &'a self,
+            _company: &'a str,
+            _copy: &'a str,
+        ) -> super::super::application::LaneFuture<'a, Vec<(String, super::super::domain::ReviewRow)>> {
+            Box::pin(async { Ok(Vec::new()) })
+        }
+        fn member<'a>(
+            &'a self,
+            _company: &'a str,
+            _item: &'a str,
+            _user: &'a str,
+        ) -> super::super::application::LaneFuture<'a, bool> {
+            let tag = self.tag;
+            let seen = self.seen.clone();
+            Box::pin(async move {
+                seen.lock().unwrap().push(tag.to_owned());
+                Ok(true)
+            })
+        }
+        fn approval<'a>(
+            &'a self,
+            _company: &'a str,
+            _item: &'a str,
+        ) -> super::super::application::LaneFuture<'a, Option<i64>> {
+            Box::pin(async { Ok(None) })
+        }
+    }
+
+    fn request(host: &str) -> Request {
+        Request::builder()
+            .header(header::HOST, host)
+            .header(CONTEXT_COMPANY, "company-1")
+            .header(CONTEXT_USER, "user-1")
+            .body(Body::empty())
+            .expect("request")
+    }
 
     #[test]
     fn error_mapping_matches_failure_kinds() {
@@ -174,5 +284,76 @@ mod tests {
         assert_eq!(status(FailureKind::Unavailable), StatusCode::SERVICE_UNAVAILABLE);
         assert_eq!(invalid().code, "NATIVE_LEGAL_COPY_READ_REQUEST_INVALID");
         assert_eq!(unavailable().kind, FailureKind::Unavailable);
+    }
+
+    #[tokio::test]
+    async fn two_holdings_route_to_two_distinct_readers() {
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let acme: Arc<dyn ExecutedCopySource> = Arc::new(TaggedReader {
+            tag: "reader-acme",
+            seen: seen.clone(),
+        });
+        let north: Arc<dyn ExecutedCopySource> = Arc::new(TaggedReader {
+            tag: "reader-north",
+            seen: seen.clone(),
+        });
+        let targets = vec![
+            (
+                LaneTarget {
+                    host: "acme.jesadakorn.com".to_owned(),
+                    holding_slug: "acme".to_owned(),
+                },
+                acme.clone(),
+            ),
+            (
+                LaneTarget {
+                    host: "north.jesadakorn.com".to_owned(),
+                    holding_slug: "northstar".to_owned(),
+                },
+                north.clone(),
+            ),
+        ];
+        let configured = configure_targets(targets).expect("configured targets");
+        assert_eq!(configured.len(), 2);
+        let acme_key = ("acme.jesadakorn.com".to_owned(), "acme".to_owned());
+        let north_key = ("north.jesadakorn.com".to_owned(), "northstar".to_owned());
+        assert!(Arc::ptr_eq(&configured[&acme_key], &acme));
+        assert!(Arc::ptr_eq(&configured[&north_key], &north));
+        assert!(!Arc::ptr_eq(&configured[&acme_key], &configured[&north_key]));
+
+        // The reader-injection path is also used by router_for_holdings: each
+        // Holding key resolves to its own reader when the handler runs.
+        let state = Arc::new(LaneState { targets: configured });
+        let _ = current(
+            State(state.clone()),
+            Path(("acme".to_owned(), "item-1".to_owned())),
+            request("acme.jesadakorn.com"),
+        )
+        .await;
+        let _ = current(
+            State(state),
+            Path(("northstar".to_owned(), "item-1".to_owned())),
+            request("north.jesadakorn.com"),
+        )
+        .await;
+        assert_eq!(*seen.lock().unwrap(), vec!["reader-acme", "reader-north"]);
+    }
+
+    #[test]
+    fn reader_injection_rejects_duplicate_targets() {
+        let reader: Arc<dyn ExecutedCopySource> = Arc::new(TaggedReader {
+            tag: "reader-acme",
+            seen: Arc::new(Mutex::new(Vec::new())),
+        });
+        let target = LaneTarget {
+            host: "acme.jesadakorn.com".to_owned(),
+            holding_slug: "acme".to_owned(),
+        };
+        assert_eq!(
+            router_with_reader(reader, vec![target.clone(), target])
+                .err()
+                .map(|error| error.code),
+            Some("NATIVE_LEGAL_COPY_READ_CONFIG_INVALID".to_owned())
+        );
     }
 }

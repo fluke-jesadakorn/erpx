@@ -15,7 +15,9 @@ pub use domain::{
     SeatHistoryResponse, SeatHistoryRows, SeatInterval, SeatMeterUser, SQL_ASSIGNMENTS,
     SQL_COVERAGE, SQL_MEMBERS, SQL_ORACLE, SQL_ROLES,
 };
-pub use http::{router, router_with_reader, Lane37Target};
+pub use http::{
+    router, router_for_holdings, router_with_reader, router_with_readers, Lane37Target, LaneTarget,
+};
 pub use postgres::PgSeatHistoryRead;
 
 #[cfg(test)]

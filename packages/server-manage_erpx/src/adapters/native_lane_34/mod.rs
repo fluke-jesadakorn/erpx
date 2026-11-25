@@ -14,5 +14,5 @@ pub use domain::{
     FEEDBACK_SQL, FeedbackItem, FeedbackPage, FeedbackResponse, MAX_FEEDBACK,
     configuration_invalid, invalid_request, missing, unavailable, valid_company_id, valid_slug,
 };
-pub use http::{LaneTarget, router};
+pub use http::{LaneTarget, router, router_for_holdings, router_with_reader};
 pub use postgres::PgBetaFeedbackQuery;

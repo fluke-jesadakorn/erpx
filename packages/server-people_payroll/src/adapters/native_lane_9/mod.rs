@@ -11,14 +11,16 @@ mod postgres;
 
 pub use application::{PersonImageFuture, PersonImageRead};
 pub use domain::{PersonImageFacts, PersonImageRequest};
-pub use http::{LaneTarget, router, router_with_reader};
+pub use http::{
+    LaneTarget, router, router_for_holdings, router_with_reader, router_with_readers,
+};
 pub use postgres::{PgPersonImageRead, SQL_PERSON_IMAGE};
 
 #[cfg(test)]
 mod tests {
     use super::application::{PersonImageFuture, PersonImageRead, project};
     use super::domain::{IMAGE_KEYS, PersonImageFacts, PersonImageRequest, validate_image, valid_id};
-    use super::http::{LaneTarget, router_with_reader};
+    use super::http::{LaneTarget, router_with_reader, router_with_readers};
     use erpx_server_runtime::public::http_support::serde_json::{self, json};
     use erpx_server_shared::public::{BusinessError, FailureKind};
     use sha2::Digest;
@@ -145,6 +147,97 @@ mod tests {
             status,
             serde_json::from_str(body).unwrap_or(serde_json::Value::Null),
         )
+    }
+
+    #[tokio::test]
+    async fn per_holding_readers_are_distinct() {
+        // Reader injection is the testable equivalent of `router_for_holdings`:
+        // each target/pool pair becomes one independent reader in the state map.
+        let image_a = IMAGE.to_owned();
+        let image_b = IMAGE.replace("person-1", "person-2");
+        assert_ne!(image_a, image_b);
+        let seen_a = Arc::new(Mutex::new(Vec::new()));
+        let seen_b = Arc::new(Mutex::new(Vec::new()));
+        let reader_a: Arc<dyn PersonImageRead> = Arc::new(Probe {
+            image: Some(image_a.clone()),
+            fail: false,
+            seen: seen_a.clone(),
+        });
+        let reader_b: Arc<dyn PersonImageRead> = Arc::new(Probe {
+            image: Some(image_b.clone()),
+            fail: false,
+            seen: seen_b.clone(),
+        });
+        let router = router_with_readers(vec![
+            (
+                LaneTarget {
+                    host: "acme.example.test".into(),
+                    holding_slug: "acme".into(),
+                },
+                reader_a,
+            ),
+            (
+                LaneTarget {
+                    host: "northstar.example.test".into(),
+                    holding_slug: "northstar".into(),
+                },
+                reader_b,
+            ),
+        ])
+        .unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let _ = erpx_server_runtime::public::http_support::serve(listener, router).await;
+        });
+        let get = |host: &str, path: &str| {
+            format!(
+                "GET {path} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\
+                 x-erpx-context-company: comp_1\r\nx-erpx-context-person: person-1\r\n\r\n"
+            )
+        };
+        let (status, body) = http(
+            addr,
+            get(
+                "acme.example.test",
+                "/api/v1/holdings/acme/people-payroll/person-image",
+            ),
+        )
+        .await;
+        assert_eq!(status, 200);
+        assert_eq!(body["personImage"], json!(image_a));
+        let (status, body) = http(
+            addr,
+            get(
+                "northstar.example.test",
+                "/api/v1/holdings/northstar/people-payroll/person-image",
+            ),
+        )
+        .await;
+        assert_eq!(status, 200);
+        assert_eq!(body["personImage"], json!(image_b));
+        let (status, _) = http(
+            addr,
+            get(
+                "acme.example.test",
+                "/api/v1/holdings/other/people-payroll/person-image",
+            ),
+        )
+        .await;
+        assert_eq!(status, 404);
+        server.abort();
+        assert_eq!(
+            seen_a.lock().unwrap().clone(),
+            vec![("comp_1".to_owned(), "person-1".to_owned())]
+        );
+        assert_eq!(
+            seen_b.lock().unwrap().clone(),
+            vec![("comp_1".to_owned(), "person-1".to_owned())]
+        );
+        // A request to an unregistered Holding under a registered Host never
+        // reaches either reader.
+        assert_eq!(seen_a.lock().unwrap().len(), 1);
+        assert_eq!(seen_b.lock().unwrap().len(), 1);
     }
 
     #[tokio::test]

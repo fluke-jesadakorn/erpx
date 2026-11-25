@@ -131,20 +131,21 @@ fn bounded(body: serde_json::Value) -> Response {
     response
 }
 
-/// Build the native work-evidence router. The lead mounts it alongside the
-/// other Files owner routers; no composition code needs to know the SQL.
-pub fn router(
-    reader: Arc<dyn WorkEvidenceRead>,
-    targets: Vec<WorkEvidenceTarget>,
-) -> Result<Router, BusinessError> {
+/// Validate the registered targets and build the state map keyed by
+/// `(host, holding_slug)`. Every entry carries its own reader; callers decide
+/// whether that reader is shared (`router`) or holding-specific
+/// (`router_for_holdings`).
+fn build_state(
+    entries: impl IntoIterator<Item = (WorkEvidenceTarget, Arc<dyn WorkEvidenceRead>)>,
+) -> Result<Arc<WorkEvidenceReadState>, BusinessError> {
     let mut configured = BTreeMap::new();
-    for target in targets {
+    for (target, reader) in entries {
         if target.host.is_empty()
             || !valid_slug(&target.holding_slug)
             || configured
                 .insert(
                     (target.host.clone(), target.holding_slug.clone()),
-                    reader.clone(),
+                    reader,
                 )
                 .is_some()
         {
@@ -154,14 +155,29 @@ pub fn router(
     if configured.is_empty() {
         return Err(configuration_invalid());
     }
-    Ok(Router::new()
+    Ok(Arc::new(WorkEvidenceReadState {
+        targets: configured,
+    }))
+}
+
+fn router_from_state(state: Arc<WorkEvidenceReadState>) -> Router {
+    Router::new()
         .route(
             "/api/v1/holdings/{holding_slug}/files/work-evidence",
             get(read),
         )
-        .with_state(Arc::new(WorkEvidenceReadState {
-            targets: configured,
-        })))
+        .with_state(state)
+}
+
+/// Build the native work-evidence router. The lead mounts it alongside the
+/// other Files owner routers; no composition code needs to know the SQL.
+pub fn router(
+    reader: Arc<dyn WorkEvidenceRead>,
+    targets: Vec<WorkEvidenceTarget>,
+) -> Result<Router, BusinessError> {
+    Ok(router_from_state(build_state(
+        targets.into_iter().map(|target| (target, reader.clone())),
+    )?))
 }
 
 /// Convenience form matching the literal router contract: the lead passes the
@@ -171,6 +187,20 @@ pub fn router_with_pool(
     targets: Vec<WorkEvidenceTarget>,
 ) -> Result<Router, BusinessError> {
     router(Arc::new(PgWorkEvidenceRead::new(pool)), targets)
+}
+
+/// Per-holding constructor: each `(target, pool)` pair produces its own
+/// `PgWorkEvidenceRead`, inserted into the state map under that target's
+/// `(host, holding_slug)`. Two Holdings never share a reader or a pool.
+pub fn router_for_holdings(
+    targets: Vec<(LaneTarget, DatabasePool)>,
+) -> Result<Router, BusinessError> {
+    Ok(router_from_state(build_state(
+        targets.into_iter().map(|(target, pool)| {
+            let reader: Arc<dyn WorkEvidenceRead> = Arc::new(PgWorkEvidenceRead::new(pool));
+            (target, reader)
+        }),
+    )?))
 }
 
 async fn read(
@@ -275,6 +305,12 @@ mod tests {
         })
     }
 
+    fn probe_with_id(id: &str) -> Arc<Probe> {
+        let mut reader = (*probe()).clone();
+        reader.rows[0].id = id.to_owned();
+        Arc::new(reader)
+    }
+
     async fn http(addr: std::net::SocketAddr, raw: String) -> (u16, serde_json::Value) {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
         let mut stream = tokio::net::TcpStream::connect(addr).await.unwrap();
@@ -316,6 +352,17 @@ mod tests {
              x-erpx-context-company: {company}\r\n\
              x-erpx-context-record: {record}\r\n\
              {flag}\r\n"
+        )
+    }
+
+    fn request_at(slug: &str, host: &str, company: &str, record: &str, kind: &str) -> String {
+        format!(
+            "GET /api/v1/holdings/{slug}/files/work-evidence?kind={kind} HTTP/1.1\r\n\
+             Host: {host}\r\n\
+             Accept: application/json\r\n\
+             Connection: close\r\n\
+             x-erpx-context-company: {company}\r\n\
+             x-erpx-context-record: {record}\r\n\r\n"
         )
     }
 
@@ -387,6 +434,68 @@ mod tests {
         }
         server.abort();
         assert!(reader.calls.lock().unwrap().is_empty());
+    }
+
+    /// `router_for_holdings` builds one `PgWorkEvidenceRead` per (target, pool)
+    /// through `build_state`. This test drives that exact state map with two
+    /// distinguishable probe readers and proves the key routes to its own
+    /// reader, so no Holding can reach another Holding's pool.
+    #[tokio::test]
+    async fn per_holding_targets_route_to_distinct_readers() {
+        let acme = probe_with_id("acme-row");
+        let northstar = probe_with_id("northstar-row");
+        let state = build_state(vec![
+            (
+                target(),
+                acme.clone() as Arc<dyn WorkEvidenceRead>,
+            ),
+            (
+                WorkEvidenceTarget {
+                    host: "northstar.example.test".into(),
+                    holding_slug: "northstar".into(),
+                },
+                northstar.clone() as Arc<dyn WorkEvidenceRead>,
+            ),
+        ])
+        .unwrap();
+        assert_eq!(state.targets.len(), 2);
+        let a = state
+            .targets
+            .get(&("acme.example.test".into(), "acme".into()))
+            .unwrap();
+        let b = state
+            .targets
+            .get(&("northstar.example.test".into(), "northstar".into()))
+            .unwrap();
+        assert!(!Arc::ptr_eq(a, b), "each holding must own a distinct reader");
+
+        let router = router_from_state(state);
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let _ = serve(listener, router).await;
+        });
+
+        let (status_a, body_a) = http(
+            addr,
+            request_at("acme", "acme.example.test", "company-1", "leave-1", "sets"),
+        )
+        .await;
+        let (status_b, body_b) = http(
+            addr,
+            request_at("northstar", "northstar.example.test", "company-2", "leave-2", "sets"),
+        )
+        .await;
+        server.abort();
+
+        assert_eq!(status_a, 200);
+        assert_eq!(status_b, 200);
+        assert_eq!(body_a["rows"][0]["id"], "acme-row");
+        assert_eq!(body_b["rows"][0]["id"], "northstar-row");
+        assert_eq!(acme.calls.lock().unwrap().len(), 1);
+        assert_eq!(northstar.calls.lock().unwrap().len(), 1);
+        assert_eq!(acme.calls.lock().unwrap()[0].0, "company-1");
+        assert_eq!(northstar.calls.lock().unwrap()[0].0, "company-2");
     }
 
     #[test]

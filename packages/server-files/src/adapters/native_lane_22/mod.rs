@@ -14,7 +14,7 @@ mod postgres;
 pub use application::{WorkEvidenceFuture, WorkEvidenceRead};
 pub use domain::{WorkEvidenceKind, WorkEvidenceResponse, WorkEvidenceRow, parse_read_only, valid_id};
 pub use http::{
-    LaneTarget, WorkEvidenceTarget, router, router_with_pool,
+    LaneTarget, WorkEvidenceTarget, router, router_for_holdings, router_with_pool,
 };
 pub use postgres::{
     EVIDENCE_SETS_READ_ONLY_SQL, EVIDENCE_SETS_SQL, LEGACY_EVIDENCE_SQL, PgWorkEvidenceRead,

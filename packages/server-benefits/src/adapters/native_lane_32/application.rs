@@ -17,6 +17,18 @@ pub trait PayrollInputRead: Send + Sync {
     ) -> PayrollInputReadFuture<'a, Vec<super::domain::PayrollInputFact>>;
 }
 
+/// A shared owner reader can itself be injected behind the port. This lets a
+/// router hold one independently backed reader per Holding without weakening
+/// the trait boundary.
+impl PayrollInputRead for std::sync::Arc<dyn PayrollInputRead> {
+    fn released<'a>(
+        &'a self,
+        request: &'a PayrollInputsRequest,
+    ) -> PayrollInputReadFuture<'a, Vec<super::domain::PayrollInputFact>> {
+        (**self).released(request)
+    }
+}
+
 /// Bounded query handler. Every read is validated before it reaches SQL, and
 /// no caller can supply a statement or widen the Company scope.
 pub struct ReadPayrollInputs<R: PayrollInputRead>(R);
@@ -24,6 +36,12 @@ pub struct ReadPayrollInputs<R: PayrollInputRead>(R);
 impl<R: PayrollInputRead> ReadPayrollInputs<R> {
     pub fn new(reader: R) -> Self {
         Self(reader)
+    }
+
+    /// The injected reader, exposed so router tests can prove distinct targets
+    /// hold distinct readers (and therefore distinct pools).
+    pub fn reader(&self) -> &R {
+        &self.0
     }
 
     pub async fn execute(

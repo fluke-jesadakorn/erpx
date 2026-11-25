@@ -100,13 +100,15 @@ fn bounded(body: Value) -> Response {
     response
 }
 
-fn state(targets: Vec<LaneTarget>, reader: LaneReader) -> Result<Arc<LaneState>, BusinessError> {
+/// Build the target map with one reader per Holding. Each pair is keyed by the
+/// exact `(host, holding_slug)` identity; no reader is shared across Holdings.
+fn state_with_readers(entries: Vec<(LaneTarget, LaneReader)>) -> Result<Arc<LaneState>, BusinessError> {
     let mut configured = BTreeMap::new();
-    for target in targets {
+    for (target, reader) in entries {
         if target.host.is_empty()
             || !valid_slug(&target.holding_slug)
             || configured
-                .insert((target.host.clone(), target.holding_slug.clone()), reader.clone())
+                .insert((target.host.clone(), target.holding_slug.clone()), reader)
                 .is_some()
         {
             return Err(configuration_invalid());
@@ -118,20 +120,45 @@ fn state(targets: Vec<LaneTarget>, reader: LaneReader) -> Result<Arc<LaneState>,
     Ok(Arc::new(LaneState { targets: configured }))
 }
 
+/// Shared-reader variant retained for single-pool callers and tests.
+fn state(targets: Vec<LaneTarget>, reader: LaneReader) -> Result<Arc<LaneState>, BusinessError> {
+    state_with_readers(targets.into_iter().map(|target| (target, reader.clone())).collect())
+}
+
+fn mount(lane: Arc<LaneState>) -> Router {
+    Router::new()
+        .route(
+            "/api/v1/holdings/{holding_slug}/commerce/entrypoint-facts",
+            post(read),
+        )
+        .with_state(lane)
+}
+
 /// Mountable router. Composition supplies only the pool and exact targets; the
 /// owner owns the reader, SQL and response projection.
 pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
     router_with_reader(Arc::new(PgCommerceEntrypointRead::new(pool)), targets)
 }
 
+/// Per-Holding mount: every target carries its own database pool, so each
+/// Holding's reads execute against its own database. Composition passes the
+/// pool paired with each registered `(host, holding_slug)` target.
+pub fn router_for_holdings(
+    targets: Vec<(LaneTarget, DatabasePool)>,
+) -> Result<Router, BusinessError> {
+    let entries = targets
+        .into_iter()
+        .map(|(target, pool)| {
+            let reader: LaneReader = Arc::new(PgCommerceEntrypointRead::new(pool));
+            (target, reader)
+        })
+        .collect();
+    Ok(mount(state_with_readers(entries)?))
+}
+
 /// Injectable variant used by the owner's own tests.
 pub fn router_with_reader(reader: LaneReader, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
-    Ok(Router::new()
-        .route(
-            "/api/v1/holdings/{holding_slug}/commerce/entrypoint-facts",
-            post(read),
-        )
-        .with_state(state(targets, reader)?))
+    Ok(mount(state(targets, reader)?))
 }
 
 /// Pure request processing shared by the router and the unit tests.
@@ -304,5 +331,77 @@ mod tests {
             vec![LaneTarget { host: String::new(), holding_slug: "acme".to_owned() }],
         )
         .is_err());
+    }
+
+    /// Mirrors `router_for_holdings` with injected readers instead of pools:
+    /// two targets must resolve to two distinct readers keyed by their own
+    /// `(host, holding_slug)`, never a shared reader.
+    #[tokio::test]
+    async fn per_holding_readers_are_isolated() {
+        let acme = probe();
+        let northstar = probe();
+        let lane = state_with_readers(vec![
+            (
+                LaneTarget {
+                    host: "acme.example.test".to_owned(),
+                    holding_slug: "acme".to_owned(),
+                },
+                acme.clone() as LaneReader,
+            ),
+            (
+                LaneTarget {
+                    host: "northstar.example.test".to_owned(),
+                    holding_slug: "northstar".to_owned(),
+                },
+                northstar.clone() as LaneReader,
+            ),
+        ])
+        .expect("state");
+        assert_eq!(lane.targets.len(), 2);
+        let acme_reader = lane
+            .targets
+            .get(&("acme.example.test".to_owned(), "acme".to_owned()))
+            .expect("acme key");
+        let northstar_reader = lane
+            .targets
+            .get(&("northstar.example.test".to_owned(), "northstar".to_owned()))
+            .expect("northstar key");
+        assert!(!Arc::ptr_eq(acme_reader, northstar_reader));
+
+        let body = br#"{"kind":"orderFacts","id":"o-1"}"#;
+        let acme_value = process(
+            &headers("acme.example.test", "co-1"),
+            "acme",
+            body,
+            &lane,
+        )
+        .await
+        .expect("acme read");
+        let northstar_value = process(
+            &headers("northstar.example.test", "co-2"),
+            "northstar",
+            body,
+            &lane,
+        )
+        .await
+        .expect("northstar read");
+        assert_eq!(acme_value, serde_json::json!({"facts":{"kind":"sales","state":"draft"}}));
+        assert_eq!(northstar_value, serde_json::json!({"facts":null}));
+        assert_eq!(
+            *acme.seen.lock().expect("acme lock"),
+            vec![("co-1".to_owned(), EntrypointKind::OrderFacts, "o-1".to_owned())]
+        );
+        assert_eq!(
+            *northstar.seen.lock().expect("northstar lock"),
+            vec![("co-2".to_owned(), EntrypointKind::OrderFacts, "o-1".to_owned())]
+        );
+        // A host/slug mismatch never falls back to the other Holding's reader.
+        assert_eq!(
+            process(&headers("acme.example.test", "co-1"), "northstar", body, &lane)
+                .await
+                .unwrap_err()
+                .kind,
+            FailureKind::NotFound
+        );
     }
 }

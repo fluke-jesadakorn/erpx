@@ -86,13 +86,18 @@ fn bounded(body: serde_json::Value) -> Response {
     response
 }
 
-fn targets_map(targets: Vec<LaneTarget>, reader: Arc<dyn ProjectActualsRead>) -> Result<BTreeMap<(String, String), Arc<dyn ProjectActualsRead>>, BusinessError> {
+/// The reader-injection path: every target carries its own reader, so distinct
+/// Holdings can be backed by distinct pools. Host + slug remain the exact map
+/// key and duplicates are refused before any router is built.
+fn state_from_readers(
+    targets: Vec<(LaneTarget, Arc<dyn ProjectActualsRead>)>,
+) -> Result<LaneState, BusinessError> {
     let mut configured = BTreeMap::new();
-    for target in targets {
+    for (target, reader) in targets {
         if target.host.is_empty()
             || !valid_slug(&target.holding_slug)
             || configured
-                .insert((target.host.clone(), target.holding_slug.clone()), reader.clone())
+                .insert((target.host.clone(), target.holding_slug.clone()), reader)
                 .is_some()
         {
             return Err(configuration_invalid());
@@ -101,22 +106,11 @@ fn targets_map(targets: Vec<LaneTarget>, reader: Arc<dyn ProjectActualsRead>) ->
     if configured.is_empty() {
         return Err(configuration_invalid());
     }
-    Ok(configured)
+    Ok(LaneState { targets: configured })
 }
 
-/// Build the native read router. The lead mounts it; no composition or shared
-/// module is edited here.
-pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
-    router_with_reader(Arc::new(PgProjectActualsRead::new(pool)), targets)
-}
-
-/// Same contract with an injected owner reader; used by module tests that need
-/// no live database.
-pub fn router_with_reader(
-    reader: Arc<dyn ProjectActualsRead>,
-    targets: Vec<LaneTarget>,
-) -> Result<Router, BusinessError> {
-    Ok(Router::new()
+fn router_from_state(state: LaneState) -> Router {
+    Router::new()
         .route(
             "/api/v1/holdings/{holding_slug}/projects/actuals/work-logs",
             get(work_logs),
@@ -125,9 +119,50 @@ pub fn router_with_reader(
             "/api/v1/holdings/{holding_slug}/projects/actuals/cost-allocations",
             get(cost_allocations),
         )
-        .with_state(Arc::new(LaneState {
-            targets: targets_map(targets, reader)?,
-        })))
+        .with_state(Arc::new(state))
+}
+
+/// Build the native read router with one shared pool. The lead mounts it; no
+/// composition or shared module is edited here.
+pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
+    router_with_reader(Arc::new(PgProjectActualsRead::new(pool)), targets)
+}
+
+/// Per-Holding constructor: one `PgProjectActualsRead`, and therefore one
+/// database pool, is created for each target. Composition pairs each configured
+/// Holding with `pools[i + 1].clone()`; no Holding can observe another's pool.
+pub fn router_for_holdings(
+    targets: Vec<(LaneTarget, DatabasePool)>,
+) -> Result<Router, BusinessError> {
+    let readers = targets
+        .into_iter()
+        .map(|(target, pool)| {
+            let reader: Arc<dyn ProjectActualsRead> = Arc::new(PgProjectActualsRead::new(pool));
+            (target, reader)
+        })
+        .collect();
+    router_with_readers(readers)
+}
+
+/// Same contract with one injected owner reader reused by every target; kept
+/// for module tests that need no live database.
+pub fn router_with_reader(
+    reader: Arc<dyn ProjectActualsRead>,
+    targets: Vec<LaneTarget>,
+) -> Result<Router, BusinessError> {
+    router_with_readers(
+        targets
+            .into_iter()
+            .map(|target| (target, reader.clone()))
+            .collect(),
+    )
+}
+
+/// Reader-injection path used by both constructors and by the isolation test.
+pub(crate) fn router_with_readers(
+    targets: Vec<(LaneTarget, Arc<dyn ProjectActualsRead>)>,
+) -> Result<Router, BusinessError> {
+    Ok(router_from_state(state_from_readers(targets)?))
 }
 
 fn request_scope(
@@ -195,6 +230,7 @@ mod tests {
     use super::*;
     use crate::adapters::native_lane_27::application::ActualsFuture;
     use crate::adapters::native_lane_27::domain::{ActualsScope, CostAllocationRow, WorkLogRow};
+    use erpx_server_runtime::public::http_support::Body;
 
     struct Empty;
     impl ProjectActualsRead for Empty {
@@ -232,5 +268,52 @@ mod tests {
     fn error_mapping_is_fail_closed() {
         assert_eq!(status(FailureKind::Unavailable), StatusCode::SERVICE_UNAVAILABLE);
         assert_eq!(status(FailureKind::InvalidInput), StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
+    /// Proves the per-target map routes each Holding to its own injected reader
+    /// (the same path `router_for_holdings` uses with one pool per Holding).
+    #[test]
+    fn two_targets_route_to_two_distinct_readers() {
+        let acme: Arc<dyn ProjectActualsRead> = Arc::new(Empty);
+        let northstar: Arc<dyn ProjectActualsRead> = Arc::new(Empty);
+        assert!(!Arc::ptr_eq(&acme, &northstar));
+        let pairs = vec![
+            (
+                LaneTarget { host: "acme.jesadakorn.com".into(), holding_slug: "acme".into() },
+                acme.clone(),
+            ),
+            (
+                LaneTarget { host: "northstar.jesadakorn.com".into(), holding_slug: "northstar".into() },
+                northstar.clone(),
+            ),
+        ];
+        let state = state_from_readers(pairs.clone()).unwrap();
+        assert_eq!(state.targets.len(), 2);
+        assert!(router_with_readers(pairs).is_ok());
+
+        let request = |host: &'static str| {
+            Request::builder()
+                .header(header::HOST, host)
+                .header(CONTEXT_COMPANY, "company-1")
+                .header(CONTEXT_USER, "user-1")
+                .header(CONTEXT_PROJECT, "project-1")
+                .body(Body::empty())
+                .unwrap()
+        };
+        let (routed_acme, _) = request_scope(
+            &state,
+            &request("acme.jesadakorn.com"),
+            "acme",
+        )
+        .unwrap();
+        let (routed_northstar, _) = request_scope(
+            &state,
+            &request("northstar.jesadakorn.com"),
+            "northstar",
+        )
+        .unwrap();
+        assert!(Arc::ptr_eq(&routed_acme, &acme));
+        assert!(Arc::ptr_eq(&routed_northstar, &northstar));
+        assert!(!Arc::ptr_eq(&routed_acme, &routed_northstar));
     }
 }

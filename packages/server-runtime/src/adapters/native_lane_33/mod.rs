@@ -17,7 +17,7 @@ pub use domain::{
     BindingQuery, HoldingBinding, MAX_SCOPE, MAX_SLUG, parse_scope, select_all, select_one,
     valid_holding_id, valid_slug,
 };
-pub use http::{LaneTarget, router, router_with_reader};
+pub use http::{LaneTarget, router, router_for_holdings, router_with_reader};
 pub use postgres::{
     ACTIVE_SQL, BASE_SQL, BY_SLUG_SQL, DEFAULT_SQL, PgHoldingBindingRead, rendered_active_sql,
     rendered_by_slug_sql, rendered_default_sql,

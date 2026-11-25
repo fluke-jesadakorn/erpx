@@ -13,5 +13,7 @@ pub use domain::{
     EvidenceCursor, EvidenceQuery, EvidenceRow, METRIC_NET_POS_SALES, METRIC_POS_PAYMENT_MIX,
     METRIC_POS_SALES, METRICS, ROW_KEYS,
 };
-pub use http::{LaneTarget, router};
+pub use http::{
+    LaneTarget, router, router_for_holdings, router_with_reader, router_with_readers,
+};
 pub use postgres::{PgEvidenceReader, render};

@@ -14,5 +14,5 @@ mod postgres;
 
 pub use application::{EvidenceFuture, EvidenceReader, EvidenceService};
 pub use domain::{EvidenceKind, EvidenceQuery, EvidenceRow, LaneTarget};
-pub use http::router;
+pub use http::{router, router_for_holdings, router_with_reader};
 pub use postgres::{COMPLETION_SQL, OVERDUE_SQL, PgEvidenceReader};

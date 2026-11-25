@@ -93,21 +93,18 @@ fn bounded(body: serde_json::Value) -> Response {
     response
 }
 
-/// Build the owner read router over an injected reader. Used by unit tests and
-/// by [`router`], which supplies the Pg reader.
-pub fn read_router(
-    reader: Arc<dyn GuestAccountEvidenceRead>,
-    targets: Vec<LaneTarget>,
-) -> Result<Router, BusinessError> {
+/// Validate exact registered targets and index them by `(host, holding_slug)`.
+/// Every constructor below funnels through this one check so isolation and
+/// duplicate rejection cannot drift between them.
+fn configured_targets(
+    entries: impl IntoIterator<Item = (LaneTarget, Arc<dyn GuestAccountEvidenceRead>)>,
+) -> Result<BTreeMap<(String, String), Arc<dyn GuestAccountEvidenceRead>>, BusinessError> {
     let mut configured = BTreeMap::new();
-    for target in targets {
+    for (target, reader) in entries {
         if target.host.is_empty()
             || !valid_slug(&target.holding_slug)
             || configured
-                .insert(
-                    (target.host.clone(), target.holding_slug.clone()),
-                    reader.clone(),
-                )
+                .insert((target.host.clone(), target.holding_slug.clone()), reader)
                 .is_some()
         {
             return Err(configuration_invalid());
@@ -116,19 +113,71 @@ pub fn read_router(
     if configured.is_empty() {
         return Err(configuration_invalid());
     }
-    Ok(Router::new()
+    Ok(configured)
+}
+
+fn read_router_from(
+    configured: BTreeMap<(String, String), Arc<dyn GuestAccountEvidenceRead>>,
+) -> Router {
+    Router::new()
         .route(
             "/api/v1/holdings/{holding_slug}/pms/guest-account-finance-evidence",
             get(evidence),
         )
         .with_state(Arc::new(Lane19State {
             targets: configured,
-        })))
+        }))
 }
 
-/// Mount entry point: the lead supplies the shared Pg pool and exact targets.
+/// Reader-injection path for tests: one distinct reader may be supplied per
+/// Holding, so routing can be proven without a database.
+pub fn router_with_readers(
+    entries: Vec<(LaneTarget, Arc<dyn GuestAccountEvidenceRead>)>,
+) -> Result<Router, BusinessError> {
+    Ok(read_router_from(configured_targets(entries)?))
+}
+
+/// Build the owner read router over one shared injected reader.
+pub fn router_with_reader(
+    reader: Arc<dyn GuestAccountEvidenceRead>,
+    targets: Vec<LaneTarget>,
+) -> Result<Router, BusinessError> {
+    router_with_readers(
+        targets
+            .into_iter()
+            .map(|target| (target, reader.clone()))
+            .collect(),
+    )
+}
+
+/// Compatible alias retained for the existing unit tests.
+pub fn read_router(
+    reader: Arc<dyn GuestAccountEvidenceRead>,
+    targets: Vec<LaneTarget>,
+) -> Result<Router, BusinessError> {
+    router_with_reader(reader, targets)
+}
+
+/// Mount entry point with a single shared Pg pool.
 pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
-    read_router(super::postgres::reader(pool), targets)
+    router_with_reader(super::postgres::reader(pool), targets)
+}
+
+/// Mount entry point with one Pg reader per Holding pool. `pools[i + 1]` is the
+/// i-th registered Holding's database, so no Holding can reach another's data.
+pub fn router_for_holdings(
+    targets: Vec<(LaneTarget, DatabasePool)>,
+) -> Result<Router, BusinessError> {
+    router_with_readers(
+        targets
+            .into_iter()
+            .map(|(target, pool)| {
+                let reader: Arc<dyn GuestAccountEvidenceRead> =
+                    Arc::new(super::postgres::PgGuestAccountEvidenceRead::new(pool));
+                (target, reader)
+            })
+            .collect(),
+    )
 }
 
 async fn evidence(
@@ -178,6 +227,7 @@ async fn evidence(
 mod tests {
     use super::*;
     use crate::adapters::native_lane_19::domain::GuestAccountEvidence;
+    use erpx_server_runtime::public::http_support::body::{self, Body};
     use erpx_server_shared::public::RecordId;
     use serde_json::json;
 
@@ -189,6 +239,28 @@ mod tests {
             _request: &'a EvidenceRequest,
         ) -> super::super::application::Lane19ReadFuture<'a, Option<GuestAccountEvidence>> {
             Box::pin(async { Ok(None) })
+        }
+    }
+
+    struct IdReader(&'static str);
+
+    impl GuestAccountEvidenceRead for IdReader {
+        fn evidence<'a>(
+            &'a self,
+            _request: &'a EvidenceRequest,
+        ) -> super::super::application::Lane19ReadFuture<'a, Option<GuestAccountEvidence>> {
+            let id = self.0.to_owned();
+            Box::pin(async move {
+                Ok(Some(GuestAccountEvidence {
+                    id,
+                    property_id: "prop-1".into(),
+                    hotel: "Riverside".into(),
+                    business_date: "2026-11-25".into(),
+                    currency: "THB".into(),
+                    account: serde_json::Value::Null,
+                    entries: vec![],
+                }))
+            })
         }
     }
 
@@ -228,6 +300,72 @@ mod tests {
     #[test]
     fn accepts_exact_distinct_targets() {
         assert!(read_router(Arc::new(FakeReader), vec![target()]).is_ok());
+        assert!(router_with_reader(Arc::new(FakeReader), vec![target()]).is_ok());
+    }
+
+    /// Proves the same map used by `router_for_holdings` holds one distinct
+    /// reader per Holding and that the handler dispatches to the right one.
+    #[test]
+    fn two_holdings_route_to_two_distinct_injected_readers() {
+        let acme = LaneTarget {
+            host: "acme.example.com".into(),
+            holding_slug: "acme".into(),
+        };
+        let northstar = LaneTarget {
+            host: "northstar.example.com".into(),
+            holding_slug: "northstar".into(),
+        };
+        let acme_reader: Arc<dyn GuestAccountEvidenceRead> = Arc::new(IdReader("acct-acme"));
+        let northstar_reader: Arc<dyn GuestAccountEvidenceRead> = Arc::new(IdReader("acct-northstar"));
+        let entries = vec![
+            (acme.clone(), acme_reader.clone()),
+            (northstar.clone(), northstar_reader.clone()),
+        ];
+
+        let configured = configured_targets(entries.clone()).expect("configured");
+        assert_eq!(configured.len(), 2);
+        let acme_key = ("acme.example.com".to_owned(), "acme".to_owned());
+        let northstar_key = ("northstar.example.com".to_owned(), "northstar".to_owned());
+        assert!(!Arc::ptr_eq(
+            &configured[&acme_key],
+            &configured[&northstar_key]
+        ));
+        assert!(router_with_readers(entries).is_ok());
+
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        for (host, slug, expected) in [
+            ("acme.example.com", "acme", "acct-acme"),
+            ("northstar.example.com", "northstar", "acct-northstar"),
+        ] {
+            let state = Arc::new(Lane19State {
+                targets: configured.clone(),
+            });
+            let request = Request::builder()
+                .header(header::HOST, host)
+                .header(CONTEXT_COMPANY, "company-1")
+                .header(CONTEXT_RECORD, "acct-1")
+                .body(Body::empty())
+                .expect("request");
+            let response = runtime.block_on(evidence(State(state), Path(slug.to_owned()), request));
+            assert_eq!(response.status(), StatusCode::OK);
+            let bytes = runtime
+                .block_on(body::to_bytes(response.into_body(), 1024 * 1024))
+                .expect("body");
+            let value: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
+            assert_eq!(value["evidence"]["id"], expected);
+        }
+    }
+
+    #[test]
+    fn public_surface_exposes_the_per_holding_constructor() {
+        let _constructor = crate::public::native_lane_19::router_for_holdings;
+        let _target = crate::public::native_lane_19::LaneTarget {
+            host: "acme.example.com".into(),
+            holding_slug: "acme".into(),
+        };
     }
 
     #[test]

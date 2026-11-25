@@ -6,7 +6,7 @@
 //! predicate or bind crosses the wire from the caller. Failures map to the
 //! shared error envelope and a missing runtime fails closed with 503.
 
-use super::application::EvidenceService;
+use super::application::{EvidenceReader, EvidenceService};
 use super::domain::{EvidenceRow, LaneTarget, configuration_invalid, invalid, missing};
 use super::postgres::PgEvidenceReader;
 use erpx_server_runtime::public::http_support::{
@@ -46,9 +46,10 @@ impl From<ReadRequest> for super::domain::EvidenceQuery {
     }
 }
 
+/// Each registered Holding owns its own reader (and therefore its own pool).
+/// The map is keyed by the exact `(Host, holding_slug)` pair from the request.
 struct LaneState {
-    targets: BTreeMap<(String, String), ()>,
-    service: Arc<EvidenceService>,
+    targets: BTreeMap<(String, String), Arc<dyn EvidenceReader>>,
 }
 
 fn status(kind: FailureKind) -> StatusCode {
@@ -111,13 +112,18 @@ fn valid_scope(value: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_' || b == b'.' || b == b':')
 }
 
-fn configure(targets: Vec<LaneTarget>) -> Result<BTreeMap<(String, String), ()>, BusinessError> {
+/// Validate distinct Holding targets and bind each to its reader. This is the
+/// single place that fills the state map; every constructor below funnels
+/// through it so a Holding can never silently use another Holding's reader.
+fn configure_readers(
+    targets: Vec<(LaneTarget, Arc<dyn EvidenceReader>)>,
+) -> Result<BTreeMap<(String, String), Arc<dyn EvidenceReader>>, BusinessError> {
     let mut configured = BTreeMap::new();
-    for target in targets {
+    for (target, reader) in targets {
         if target.host.is_empty()
             || !valid_slug(&target.holding_slug)
             || configured
-                .insert((target.host.clone(), target.holding_slug.clone()), ())
+                .insert((target.host.clone(), target.holding_slug.clone()), reader)
                 .is_some()
         {
             return Err(configuration_invalid());
@@ -129,17 +135,47 @@ fn configure(targets: Vec<LaneTarget>) -> Result<BTreeMap<(String, String), ()>,
     Ok(configured)
 }
 
-/// Build the owner-local read router. The lead mounts it; no other module is
-/// edited here. One reader is shared across all registered Holding targets.
-pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
-    let configured = configure(targets)?;
-    let service = Arc::new(EvidenceService::new(Arc::new(PgEvidenceReader::new(pool))));
-    Ok(Router::new()
+fn into_router(
+    targets: BTreeMap<(String, String), Arc<dyn EvidenceReader>>,
+) -> Router {
+    Router::new()
         .route(
             "/api/v1/holdings/{holding_slug}/learning/evidence-detail",
             post(read),
         )
-        .with_state(Arc::new(LaneState { targets: configured, service })))
+        .with_state(Arc::new(LaneState { targets }))
+}
+
+/// Reader-injection constructor. Tests supply one reader per target and can
+/// prove the map routes each Holding to its own instance without any database.
+pub fn router_with_reader(
+    targets: Vec<(LaneTarget, Arc<dyn EvidenceReader>)>,
+) -> Result<Router, BusinessError> {
+    Ok(into_router(configure_readers(targets)?))
+}
+
+/// Per-Holding constructor. One `PgEvidenceReader` (and therefore one pool) is
+/// built for every `(LaneTarget, DatabasePool)` pair and inserted under that
+/// target's `(host, holding_slug)` key; no Holding shares another's pool.
+pub fn router_for_holdings(
+    targets: Vec<(LaneTarget, DatabasePool)>,
+) -> Result<Router, BusinessError> {
+    let readers = targets
+        .into_iter()
+        .map(|(target, pool)| {
+            let reader: Arc<dyn EvidenceReader> = Arc::new(PgEvidenceReader::new(pool));
+            (target, reader)
+        })
+        .collect();
+    router_with_reader(readers)
+}
+
+/// Single-pool compatibility constructor. The lead mounts the router; no other
+/// module is edited here. This shares one reader across all targets and is kept
+/// for callers with a single Holding database.
+pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
+    let reader: Arc<dyn EvidenceReader> = Arc::new(PgEvidenceReader::new(pool));
+    router_with_reader(targets.into_iter().map(|target| (target, reader.clone())).collect())
 }
 
 async fn read(
@@ -151,9 +187,11 @@ async fn read(
         let host = unique_header(request.headers(), header::HOST)?
             .filter(|host| !host.is_empty())
             .ok_or_else(missing)?;
-        if !state.targets.contains_key(&(host.to_owned(), slug.clone())) {
-            return Err(missing());
-        }
+        let reader = state
+            .targets
+            .get(&(host.to_owned(), slug.clone()))
+            .ok_or_else(missing)?
+            .clone();
         let company = unique_header(request.headers(), CONTEXT_COMPANY)?
             .filter(|value| valid_scope(value))
             .ok_or_else(invalid)?
@@ -170,8 +208,7 @@ async fn read(
             .map_err(|_| invalid())?;
         let payload: ReadRequest = serde_json::from_slice(&bytes).map_err(|_| invalid())?;
         let query: super::domain::EvidenceQuery = payload.into();
-        let row: Option<EvidenceRow> = state
-            .service
+        let row: Option<EvidenceRow> = EvidenceService::new(reader)
             .read(&query, &company, branch.as_deref(), department.as_deref())
             .await?;
         Ok::<_, BusinessError>(serde_json::json!({"row": row}))
@@ -186,26 +223,101 @@ async fn read(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::adapters::native_lane_31::application::EvidenceFuture;
+    use crate::adapters::native_lane_31::domain::{EvidenceKind, EvidenceQuery};
+
+    /// Injectable reader that tags every projected row with its own identity,
+    /// so a test can prove which Holding's reader answered a read.
+    struct TaggedReader(&'static str);
+    impl EvidenceReader for TaggedReader {
+        fn read<'a>(
+            &'a self,
+            kind: EvidenceKind,
+            _query: &'a EvidenceQuery,
+            company: &'a str,
+            _branch: Option<&'a str>,
+            _department: Option<&'a str>,
+        ) -> EvidenceFuture<'a, Option<EvidenceRow>> {
+            let tag = self.0;
+            let company = company.to_owned();
+            Box::pin(async move {
+                Ok(Some(EvidenceRow {
+                    id: format!("{tag}:{company}"),
+                    assignment_id: None,
+                    event_version: None,
+                    version: None,
+                    status: kind.as_str().to_owned(),
+                    created_at: None,
+                    due_date: None,
+                    updated_at: None,
+                    course_title: tag.to_owned(),
+                    required_for: None,
+                }))
+            })
+        }
+    }
+
+    fn injected(host: &str, slug: &str, tag: &'static str) -> (LaneTarget, Arc<dyn EvidenceReader>) {
+        (
+            LaneTarget { host: host.to_owned(), holding_slug: slug.to_owned() },
+            Arc::new(TaggedReader(tag)) as Arc<dyn EvidenceReader>,
+        )
+    }
 
     #[test]
     fn rejects_empty_or_duplicate_targets() {
-        assert_eq!(configure(vec![]), Err(configuration_invalid()));
+        assert_eq!(configure_readers(vec![]).err(), Some(configuration_invalid()));
         let duplicate = vec![
-            LaneTarget { host: "acme.jesadakorn.com".into(), holding_slug: "acme".into() },
-            LaneTarget { host: "acme.jesadakorn.com".into(), holding_slug: "acme".into() },
+            injected("acme.jesadakorn.com", "acme", "a"),
+            injected("acme.jesadakorn.com", "acme", "b"),
         ];
-        assert_eq!(configure(duplicate), Err(configuration_invalid()));
-        let bad_slug = vec![LaneTarget {
-            host: "acme.jesadakorn.com".into(),
-            holding_slug: "ACME".into(),
-        }];
-        assert_eq!(configure(bad_slug), Err(configuration_invalid()));
-        let ok = configure(vec![LaneTarget {
-            host: "acme.jesadakorn.com".into(),
-            holding_slug: "acme".into(),
-        }])
-        .unwrap();
+        assert_eq!(configure_readers(duplicate).err(), Some(configuration_invalid()));
+        let bad_slug = vec![injected("acme.jesadakorn.com", "ACME", "a")];
+        assert_eq!(configure_readers(bad_slug).err(), Some(configuration_invalid()));
+        let ok = configure_readers(vec![injected("acme.jesadakorn.com", "acme", "a")]).unwrap();
         assert_eq!(ok.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn two_targets_route_to_two_distinct_readers() {
+        let first = injected("acme.jesadakorn.com", "acme", "first");
+        let second = injected("northstar.jesadakorn.com", "northstar", "second");
+        let map = configure_readers(vec![first, second]).unwrap();
+        assert_eq!(map.len(), 2);
+
+        let acme = &map[&("acme.jesadakorn.com".to_owned(), "acme".to_owned())];
+        let northstar = &map[&("northstar.jesadakorn.com".to_owned(), "northstar".to_owned())];
+        assert!(!Arc::ptr_eq(acme, northstar));
+
+        let query = EvidenceQuery {
+            kind: "overdue".to_owned(),
+            id: "event-1".to_owned(),
+            from: None,
+            to_exclusive: None,
+        };
+        // The map key determines which injected reader answers the read, and
+        // each reader carries its own pool identity in real constructors.
+        let acme_row = EvidenceService::new(acme.clone())
+            .read(&query, "company-1", None, None)
+            .await
+            .unwrap()
+            .unwrap();
+        let northstar_row = EvidenceService::new(northstar.clone())
+            .read(&query, "company-2", None, None)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(acme_row.course_title, "first");
+        assert_eq!(northstar_row.course_title, "second");
+        assert_eq!(acme_row.id, "first:company-1");
+        assert_eq!(northstar_row.id, "second:company-2");
+
+        // The injection constructor builds the same per-target map into a router.
+        assert!(router_with_reader(vec![
+            injected("acme.jesadakorn.com", "acme", "first"),
+            injected("northstar.jesadakorn.com", "northstar", "second"),
+        ])
+        .is_ok());
     }
 
     #[test]

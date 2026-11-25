@@ -30,6 +30,9 @@ pub struct Lane37Target {
     pub holding_id: String,
 }
 
+/// Composition-side name for the exact registered Holding target.
+pub type LaneTarget = Lane37Target;
+
 #[derive(Deserialize)]
 struct WindowQuery {
     start: Option<String>,
@@ -110,21 +113,20 @@ fn parse_i64(value: Option<String>) -> Result<i64, BusinessError> {
         .map_err(|_| invalid())
 }
 
-/// Build the native seat-history router from an injected reader.
-pub fn router_with_reader(
-    reader: Arc<dyn SeatHistoryRead>,
-    targets: Vec<Lane37Target>,
-) -> Result<Router, BusinessError> {
+/// Validate and index one reader per exact (Host, Holding slug) target.
+fn configured_state(
+    entries: Vec<(LaneTarget, Arc<dyn SeatHistoryRead>)>,
+) -> Result<Arc<Lane37State>, BusinessError> {
     let mut configured: BTreeMap<(String, String), (String, Arc<dyn SeatHistoryRead>)> =
         BTreeMap::new();
-    for target in targets {
+    for (target, reader) in entries {
         if target.host.is_empty()
             || !valid_slug(&target.holding_slug)
             || !valid_id(&target.holding_id)
             || configured
                 .insert(
                     (target.host.clone(), target.holding_slug.clone()),
-                    (target.holding_id.clone(), reader.clone()),
+                    (target.holding_id.clone(), reader),
                 )
                 .is_some()
         {
@@ -134,19 +136,60 @@ pub fn router_with_reader(
     if configured.is_empty() {
         return Err(configuration_invalid());
     }
-    Ok(Router::new()
+    Ok(Arc::new(Lane37State {
+        targets: configured,
+    }))
+}
+
+fn router_from_state(state: Arc<Lane37State>) -> Router {
+    Router::new()
         .route(
             "/api/v1/holdings/{holding_slug}/commercial/seat-history",
             get(history),
         )
-        .with_state(Arc::new(Lane37State {
-            targets: configured,
-        })))
+        .with_state(state)
 }
 
-/// Build the native seat-history router with the owner's sqlx-backed reader.
-pub fn router(pool: DatabasePool, targets: Vec<Lane37Target>) -> Result<Router, BusinessError> {
+/// Reader-injection path: one distinct reader per target, used by tests and by
+/// the per-Holding pool constructor below.
+pub fn router_with_readers(
+    entries: Vec<(LaneTarget, Arc<dyn SeatHistoryRead>)>,
+) -> Result<Router, BusinessError> {
+    Ok(router_from_state(configured_state(entries)?))
+}
+
+/// Build the native seat-history router from one injected reader.
+pub fn router_with_reader(
+    reader: Arc<dyn SeatHistoryRead>,
+    targets: Vec<LaneTarget>,
+) -> Result<Router, BusinessError> {
+    router_with_readers(
+        targets
+            .into_iter()
+            .map(|target| (target, reader.clone()))
+            .collect(),
+    )
+}
+
+/// Build the native seat-history router with one owner sqlx-backed reader.
+pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
     router_with_reader(Arc::new(PgSeatHistoryRead::new(pool)), targets)
+}
+
+/// Build the router with one `Pg...Read` per Holding/pool pair. Each target is
+/// keyed by `(host, holding_slug)` and keeps its own reader, so a request for
+/// one Holding can only ever execute on that Holding's database pool.
+pub fn router_for_holdings(
+    targets: Vec<(LaneTarget, DatabasePool)>,
+) -> Result<Router, BusinessError> {
+    let entries = targets
+        .into_iter()
+        .map(|(target, pool)| {
+            let reader: Arc<dyn SeatHistoryRead> = Arc::new(PgSeatHistoryRead::new(pool));
+            (target, reader)
+        })
+        .collect();
+    router_with_readers(entries)
 }
 
 async fn history(
@@ -233,6 +276,52 @@ mod tests {
                 .code,
             "LANE37_CONFIG_INVALID"
         );
+    }
+
+    fn target(host: &str, slug: &str, holding_id: &str) -> LaneTarget {
+        LaneTarget {
+            host: host.to_owned(),
+            holding_slug: slug.to_owned(),
+            holding_id: holding_id.to_owned(),
+        }
+    }
+
+    #[test]
+    fn two_holdings_route_to_two_distinct_readers() {
+        let acme: Arc<dyn SeatHistoryRead> = Arc::new(EmptySeatHistoryRead);
+        let northstar: Arc<dyn SeatHistoryRead> = Arc::new(EmptySeatHistoryRead);
+        assert!(!Arc::ptr_eq(&acme, &northstar));
+        let entries = || {
+            vec![
+                (
+                    target("acme.jesadakorn.com", "acme", "holding-1"),
+                    acme.clone(),
+                ),
+                (
+                    target("northstar.jesadakorn.com", "northstar", "holding-2"),
+                    northstar.clone(),
+                ),
+            ]
+        };
+        assert!(router_with_readers(entries()).is_ok());
+        let state = configured_state(entries()).expect("state");
+        assert_eq!(state.targets.len(), 2);
+        let (acme_holding, acme_reader) = state
+            .targets
+            .get(&("acme.jesadakorn.com".to_owned(), "acme".to_owned()))
+            .expect("acme target");
+        let (northstar_holding, northstar_reader) = state
+            .targets
+            .get(&(
+                "northstar.jesadakorn.com".to_owned(),
+                "northstar".to_owned(),
+            ))
+            .expect("northstar target");
+        assert_eq!(acme_holding, "holding-1");
+        assert_eq!(northstar_holding, "holding-2");
+        assert!(Arc::ptr_eq(acme_reader, &acme));
+        assert!(Arc::ptr_eq(northstar_reader, &northstar));
+        assert!(!Arc::ptr_eq(acme_reader, northstar_reader));
     }
 
     #[test]

@@ -8,7 +8,6 @@ use erpx_server_runtime::public::postgres::{
     DatabasePool, PgTransactionError, PgUnitOfWork, TransactionOptions,
 };
 use erpx_server_shared::public::BusinessError;
-use sha2::Digest;
 
 /// `projectWorkerPersonImage` from
 /// `adapters/project-worker-startup-state.ts`. TS SHA-256 of the original literal:
@@ -84,6 +83,7 @@ impl PersonImageRead for PgPersonImageRead {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sha2::Digest;
 
     #[test]
     fn rendered_statement_keeps_projection_and_bind_order() {

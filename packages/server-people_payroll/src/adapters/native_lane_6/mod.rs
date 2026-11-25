@@ -11,5 +11,5 @@ mod postgres;
 
 pub use application::{CalendarAvailabilityRead, LeaveDayFuture};
 pub use domain::{LeaveDay, LeaveDayPage, LeaveDayQuery};
-pub use http::{LaneTarget, READ_PATH, router, router_with_reader};
+pub use http::{LaneTarget, READ_PATH, router, router_for_holdings, router_with_reader};
 pub use postgres::PgCalendarAvailabilityRead;

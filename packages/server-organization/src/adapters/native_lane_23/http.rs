@@ -94,18 +94,19 @@ fn bounded(body: serde_json::Value) -> Response {
     response
 }
 
-fn router_with_reader(
-    reader: Arc<dyn DirectoryHierarchyRead>,
-    targets: Vec<LaneTarget>,
+/// Reader-injection path. Every target carries its own reader, so distinct
+/// Holdings can use distinct pools; the state map is keyed by host and slug.
+fn router_with_readers(
+    targets: Vec<(LaneTarget, Arc<dyn DirectoryHierarchyRead>)>,
 ) -> Result<Router, BusinessError> {
     let mut configured = BTreeMap::new();
-    for target in targets {
+    for (target, reader) in targets {
         if target.host.is_empty()
             || !valid_slug(&target.holding_slug)
             || configured
                 .insert(
                     (target.host.clone(), target.holding_slug.clone()),
-                    reader.clone(),
+                    reader,
                 )
                 .is_some()
         {
@@ -125,11 +126,42 @@ fn router_with_reader(
         })))
 }
 
+fn router_with_reader(
+    reader: Arc<dyn DirectoryHierarchyRead>,
+    targets: Vec<LaneTarget>,
+) -> Result<Router, BusinessError> {
+    router_with_readers(
+        targets
+            .into_iter()
+            .map(|target| (target, reader.clone()))
+            .collect(),
+    )
+}
+
 /// Build the native read router. `pool` is the owner Pg pool; the lead mounts
 /// the returned router and owns the registered target list.
 pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
     let reader: Arc<dyn DirectoryHierarchyRead> = Arc::new(PgDirectoryHierarchyRead::new(pool));
     router_with_reader(reader, targets)
+}
+
+/// Build the native read router with one owner reader and database pool per
+/// Holding. Each `(LaneTarget, DatabasePool)` pair is bound to a distinct
+/// `PgDirectoryHierarchyRead`, keyed by `(host, holding_slug)` in the shared
+/// state map, so a request can only reach the pool registered for its Holding.
+pub fn router_for_holdings(
+    targets: Vec<(LaneTarget, DatabasePool)>,
+) -> Result<Router, BusinessError> {
+    router_with_readers(
+        targets
+            .into_iter()
+            .map(|(target, pool)| {
+                let reader: Arc<dyn DirectoryHierarchyRead> =
+                    Arc::new(PgDirectoryHierarchyRead::new(pool));
+                (target, reader)
+            })
+            .collect(),
+    )
 }
 
 async fn read_hierarchy(
@@ -239,6 +271,67 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[tokio::test]
+    async fn two_targets_route_to_distinct_readers_and_pools() {
+        // Stubs stand in for two independent Pg pools. `router_for_holdings`
+        // supplies one `PgDirectoryHierarchyRead` per pool through this same
+        // reader-injection path, keyed by (host, holding_slug).
+        let mut acme = facts();
+        acme.nodes[0].slug = "acme".into();
+        let mut northstar = facts();
+        northstar.nodes[0].id = "n2".into();
+        northstar.nodes[0].slug = "northstar".into();
+        northstar.levels[0].id = "l2".into();
+        northstar.positions[0].id = "p2".into();
+
+        let first: Arc<dyn DirectoryHierarchyRead> = Arc::new(Stub { result: Ok(acme) });
+        let second: Arc<dyn DirectoryHierarchyRead> = Arc::new(Stub {
+            result: Ok(northstar),
+        });
+        let router = router_with_readers(vec![
+            (
+                LaneTarget {
+                    host: "acme.example.test".into(),
+                    holding_slug: "acme".into(),
+                },
+                first,
+            ),
+            (
+                LaneTarget {
+                    host: "northstar.example.test".into(),
+                    holding_slug: "northstar".into(),
+                },
+                second,
+            ),
+        ])
+        .unwrap();
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let _ = erpx_server_runtime::public::http_support::serve(listener, router).await;
+        });
+        let get = |host: &str, slug: &str| {
+            format!(
+                "GET /api/v1/holdings/{slug}/organization/directory-hierarchy HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n"
+            )
+        };
+
+        let acme_reply = http(addr, get("acme.example.test", "acme")).await;
+        let northstar_reply = http(addr, get("northstar.example.test", "northstar")).await;
+        assert_eq!(acme_reply.0, 200);
+        assert_eq!(northstar_reply.0, 200);
+        assert_eq!(acme_reply.2["data"]["nodes"][0]["slug"], "acme");
+        assert_eq!(northstar_reply.2["data"]["nodes"][0]["slug"], "northstar");
+        assert_eq!(acme_reply.2["data"]["nodes"][0]["id"], "n1");
+        assert_eq!(northstar_reply.2["data"]["nodes"][0]["id"], "n2");
+
+        // A Holding cannot use another Holding's host/slug pair.
+        let crossed = http(addr, get("acme.example.test", "northstar")).await;
+        assert_eq!(crossed.0, 404);
+        let _ = server.abort();
     }
 
     async fn http(addr: std::net::SocketAddr, raw: String) -> (u16, String, serde_json::Value) {

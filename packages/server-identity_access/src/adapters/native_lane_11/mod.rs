@@ -15,5 +15,7 @@ pub use domain::{
     IdentityIdsRequest, IdentityIdsResponse, PrincipalPair, PrincipalsRequest, PrincipalsResponse,
     SuccessorRow,
 };
-pub use http::{LaneTarget, router};
+pub use http::{
+    LaneTarget, router, router_for_holdings, router_with_reader, router_with_readers,
+};
 pub use postgres::{PgPersonIdentityQuery, identity_ids_sql, principals_snapshot_sql, principals_sql};

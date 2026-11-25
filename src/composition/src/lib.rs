@@ -44,6 +44,8 @@ pub mod business_http;
 pub mod http_scope;
 
 #[cfg(feature = "private-field-api")]
+pub mod native_lane_mounts;
+#[cfg(feature = "private-field-api")]
 pub mod private_development_api;
 
 #[cfg(feature = "existing-business")]

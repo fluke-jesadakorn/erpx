@@ -12,7 +12,7 @@ mod postgres;
 
 pub use application::{AttributeReadFuture, PeopleTemplateRead};
 pub use domain::{AttributePage, AttributeRead, LaneTarget, ReadPage};
-pub use http::{router, router_with_reader};
+pub use http::{router, router_for_holdings, router_with_reader};
 pub use postgres::{
     ACTIVE_ROLE_SQL, ATTRIBUTES_SQL, GROUP_REFERENCES_SQL, PgPeopleTemplateRead,
 };

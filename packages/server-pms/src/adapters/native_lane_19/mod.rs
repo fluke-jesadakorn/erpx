@@ -10,5 +10,7 @@ mod postgres;
 
 pub use application::{GuestAccountEvidenceRead, Lane19ReadFuture, read_guest_account_evidence};
 pub use domain::{EntryEvidence, EvidenceRequest, GuestAccountEvidence};
-pub use http::{LaneTarget, read_router, router};
+pub use http::{
+    LaneTarget, read_router, router, router_for_holdings, router_with_reader, router_with_readers,
+};
 pub use postgres::{ACCOUNT_SQL, ENTRIES_SQL};

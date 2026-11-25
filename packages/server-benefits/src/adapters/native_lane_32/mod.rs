@@ -13,5 +13,5 @@ pub use application::{PayrollInputRead, PayrollInputReadFuture, ReadPayrollInput
 pub use domain::{
     LaneTarget, PayrollInputFact, PayrollInputsRequest, PayrollInputsResponse,
 };
-pub use http::router;
+pub use http::{router, router_for_holdings, router_with_reader};
 pub use postgres::{PgPayrollInputRead, EXECUTED_SQL, SOURCE_SQL};

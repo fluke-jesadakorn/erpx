@@ -39,28 +39,19 @@ struct LaneState {
     targets: BTreeMap<(String, String), Arc<dyn PersonIdentityQuery>>,
 }
 
-/// Build the native read router with the owner's Pg reader. The lead mounts it;
-/// this module does not edit composition.
-pub fn router(
-    pool: DatabasePool,
-    targets: Vec<LaneTarget>,
-) -> Result<Router, BusinessError> {
-    let reader: Arc<dyn PersonIdentityQuery> = Arc::new(PgPersonIdentityQuery::new(pool));
-    build_router(reader, targets)
-}
-
-fn build_router(
-    reader: Arc<dyn PersonIdentityQuery>,
-    targets: Vec<LaneTarget>,
-) -> Result<Router, BusinessError> {
+/// Validate and map each `(host, holding_slug)` to its own reader. This is the
+/// single state construction shared by every constructor below.
+fn configured_targets(
+    entries: impl IntoIterator<Item = (LaneTarget, Arc<dyn PersonIdentityQuery>)>,
+) -> Result<BTreeMap<(String, String), Arc<dyn PersonIdentityQuery>>, BusinessError> {
     let mut configured = BTreeMap::new();
-    for target in targets {
+    for (target, reader) in entries {
         if target.host.is_empty()
             || !valid_slug(&target.holding_slug)
             || configured
                 .insert(
                     (target.host.clone(), target.holding_slug.clone()),
-                    reader.clone(),
+                    reader,
                 )
                 .is_some()
         {
@@ -70,7 +61,11 @@ fn build_router(
     if configured.is_empty() {
         return Err(configuration_invalid());
     }
-    Ok(Router::new()
+    Ok(configured)
+}
+
+fn routes(configured: BTreeMap<(String, String), Arc<dyn PersonIdentityQuery>>) -> Router {
+    Router::new()
         .route(
             "/api/v1/holdings/{holding_slug}/identity-access/person/identity-ids",
             post(identity_ids),
@@ -81,7 +76,57 @@ fn build_router(
         )
         .with_state(Arc::new(LaneState {
             targets: configured,
-        })))
+        }))
+}
+
+/// Reader-injection core: one distinct reader per registered Holding. Tests use
+/// this path to prove two targets reach two independent readers without a DB.
+pub fn router_with_readers(
+    entries: Vec<(LaneTarget, Arc<dyn PersonIdentityQuery>)>,
+) -> Result<Router, BusinessError> {
+    Ok(routes(configured_targets(entries)?))
+}
+
+/// Build the router over one shared injected reader. Retained for tests and for
+/// callers that serve a single Holding from one pool.
+pub fn router_with_reader(
+    reader: Arc<dyn PersonIdentityQuery>,
+    targets: Vec<LaneTarget>,
+) -> Result<Router, BusinessError> {
+    router_with_readers(
+        targets
+            .into_iter()
+            .map(|target| (target, reader.clone()))
+            .collect(),
+    )
+}
+
+/// Build the native read router with one owner Pg reader. The lead mounts it;
+/// this module does not edit composition.
+pub fn router(
+    pool: DatabasePool,
+    targets: Vec<LaneTarget>,
+) -> Result<Router, BusinessError> {
+    router_with_reader(Arc::new(PgPersonIdentityQuery::new(pool)), targets)
+}
+
+/// Mount entry point with one Pg reader — and therefore one pool — per
+/// registered Holding. `pools[i + 1]` is the i-th Holding's database, so each
+/// `(host, holding_slug)` key owns its own reader and no Holding can reach
+/// another Holding's data. The lead mounts this router in composition.
+pub fn router_for_holdings(
+    targets: Vec<(LaneTarget, DatabasePool)>,
+) -> Result<Router, BusinessError> {
+    router_with_readers(
+        targets
+            .into_iter()
+            .map(|(target, pool)| {
+                let reader: Arc<dyn PersonIdentityQuery> =
+                    Arc::new(PgPersonIdentityQuery::new(pool));
+                (target, reader)
+            })
+            .collect(),
+    )
 }
 
 fn unique_header(headers: &HeaderMap, name: HeaderName) -> Result<Option<&str>, BusinessError> {
@@ -235,6 +280,7 @@ mod tests {
 
     struct Probe {
         captured: Arc<Mutex<Captured>>,
+        aliases: Vec<String>,
     }
 
     impl PersonIdentityQuery for Probe {
@@ -246,11 +292,12 @@ mod tests {
             let captured = self.captured.clone();
             let company = company.to_owned();
             let ids = ids.to_vec();
+            let aliases = self.aliases.clone();
             Box::pin(async move {
                 let mut guard = captured.lock().unwrap();
                 guard.company.push(company);
                 guard.ids.push(Some(ids));
-                Ok(vec!["alias".into()])
+                Ok(aliases)
             })
         }
 
@@ -322,7 +369,7 @@ mod tests {
     }
 
     async fn serve(reader: Arc<dyn PersonIdentityQuery>) -> (u16, tokio::task::JoinHandle<()>) {
-        let router = build_router(reader, vec![target()]).unwrap();
+        let router = router_with_reader(reader, vec![target()]).unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
@@ -332,14 +379,25 @@ mod tests {
     }
 
     #[test]
+    fn public_surface_reexports_the_constructors() {
+        // `src/public/native_lane_11.rs` re-exports this module with `*`; the
+        // per-Holding mount must therefore be reachable from the public surface.
+        let _ = crate::public::native_lane_11::router_for_holdings;
+        let _ = crate::public::native_lane_11::router_with_readers;
+        let _ = crate::public::native_lane_11::router_with_reader;
+        let _ = crate::public::native_lane_11::router;
+    }
+
+    #[test]
     fn configuration_requires_exact_distinct_holdings() {
         let probe = Arc::new(Probe {
             captured: Arc::new(Mutex::new(Captured::default())),
+            aliases: vec!["alias".into()],
         });
-        assert!(build_router(probe.clone(), vec![target()]).is_ok());
-        assert!(build_router(probe.clone(), vec![target(), target()]).is_err());
-        assert!(build_router(probe.clone(), vec![]).is_err());
-        assert!(build_router(
+        assert!(router_with_reader(probe.clone(), vec![target()]).is_ok());
+        assert!(router_with_reader(probe.clone(), vec![target(), target()]).is_err());
+        assert!(router_with_reader(probe.clone(), vec![]).is_err());
+        assert!(router_with_reader(
             probe,
             vec![LaneTarget {
                 holding_slug: "BAD".into(),
@@ -347,6 +405,8 @@ mod tests {
             }]
         )
         .is_err());
+        // The per-Holding entry point applies the same configuration guard.
+        assert!(router_for_holdings(Vec::new()).is_err());
     }
 
     #[tokio::test]
@@ -354,6 +414,7 @@ mod tests {
         let captured = Arc::new(Mutex::new(Captured::default()));
         let (port, server) = serve(Arc::new(Probe {
             captured: captured.clone(),
+            aliases: vec!["alias".into()],
         }))
         .await;
         let addr: std::net::SocketAddr = format!("127.0.0.1:{port}").parse().unwrap();
@@ -381,6 +442,7 @@ mod tests {
         let captured = Arc::new(Mutex::new(Captured::default()));
         let (port, server) = serve(Arc::new(Probe {
             captured: captured.clone(),
+            aliases: vec!["alias".into()],
         }))
         .await;
         let addr: std::net::SocketAddr = format!("127.0.0.1:{port}").parse().unwrap();
@@ -402,6 +464,69 @@ mod tests {
         let guard = captured.lock().unwrap();
         assert_eq!(guard.ids, vec![Some(vec!["old".to_owned()])]);
         drop(guard);
+        server.abort();
+    }
+
+    /// Reader injection is the testable equivalent of `router_for_holdings`:
+    /// each target/pool pair becomes one independent reader in the state map.
+    #[tokio::test]
+    async fn per_holding_readers_are_distinct() {
+        let seen_a = Arc::new(Mutex::new(Captured::default()));
+        let seen_b = Arc::new(Mutex::new(Captured::default()));
+        let reader_a: Arc<dyn PersonIdentityQuery> = Arc::new(Probe {
+            captured: seen_a.clone(),
+            aliases: vec!["acme-alias".into()],
+        });
+        let reader_b: Arc<dyn PersonIdentityQuery> = Arc::new(Probe {
+            captured: seen_b.clone(),
+            aliases: vec!["northstar-alias".into()],
+        });
+        let router = router_with_readers(vec![
+            (
+                LaneTarget {
+                    host: "acme.example.test".into(),
+                    holding_slug: "acme".into(),
+                },
+                reader_a,
+            ),
+            (
+                LaneTarget {
+                    host: "northstar.example.test".into(),
+                    holding_slug: "northstar".into(),
+                },
+                reader_b,
+            ),
+        ])
+        .unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let _ = erpx_server_runtime::public::http_support::serve(listener, router).await;
+        });
+        let post = |host: &str, slug: &str, payload: &str| {
+            format!(
+                "POST /api/v1/holdings/{slug}/identity-access/person/identity-ids HTTP/1.1\r\nHost: {host}\r\nx-erpx-context-company: {slug}:co\r\ncontent-type: application/json\r\ncontent-length: {}\r\nConnection: close\r\n\r\n{payload}",
+                payload.len()
+            )
+        };
+        let body = r#"{"ids":["user"]}"#;
+        let (status, value) = http(addr, post("acme.example.test", "acme", body)).await;
+        assert_eq!(status, 200);
+        assert_eq!(value, serde_json::json!({"identityIds":["user","acme-alias"]}));
+        let (status, value) = http(addr, post("northstar.example.test", "northstar", body)).await;
+        assert_eq!(status, 200);
+        assert_eq!(value, serde_json::json!({"identityIds":["user","northstar-alias"]}));
+        // A mismatched Host/slug pair cannot reach the other Holding's reader.
+        let (status, _) = http(addr, post("acme.example.test", "northstar", body)).await;
+        assert_eq!(status, 404);
+        let guard_a = seen_a.lock().unwrap();
+        let guard_b = seen_b.lock().unwrap();
+        assert_eq!(guard_a.company, vec!["acme:co".to_owned()]);
+        assert_eq!(guard_b.company, vec!["northstar:co".to_owned()]);
+        assert_eq!(guard_a.ids.len(), 1);
+        assert_eq!(guard_b.ids.len(), 1);
+        drop(guard_a);
+        drop(guard_b);
         server.abort();
     }
 

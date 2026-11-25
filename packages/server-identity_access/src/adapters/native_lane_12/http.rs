@@ -98,26 +98,44 @@ fn bounded(body: Value) -> Response {
     response
 }
 
-/// Build the native lane router from the owner's Pg pool. The lead mounts it;
-/// no TS SQL or business rule is introduced here.
+/// Build the native lane router from one shared owner Pg pool. Retained for
+/// callers that serve a single Holding; the lead normally mounts the
+/// per-Holding constructor below.
 pub fn router(pool: DatabasePool, targets: Vec<LaneTarget>) -> Result<Router, BusinessError> {
     router_with_reader(Arc::new(PgPeopleTemplateRead::new(pool)), targets)
 }
 
-/// Shared constructor so unit tests can inject an in-memory owner reader.
+/// Build the native lane router with one owner reader — and therefore one Pg
+/// pool — per registered Holding. Each `(host, holding_slug)` key owns a
+/// distinct `PgPeopleTemplateRead`, so a request can never reach another
+/// Holding's database. The lead mounts this router in composition.
+pub fn router_for_holdings(
+    targets: Vec<(LaneTarget, DatabasePool)>,
+) -> Result<Router, BusinessError> {
+    router_with_readers(targets.into_iter().map(|(target, pool)| {
+        let reader: Arc<dyn PeopleTemplateRead> = Arc::new(PgPeopleTemplateRead::new(pool));
+        (target, reader)
+    }))
+}
+
+/// Shared constructor so unit tests can inject one in-memory owner reader.
 pub fn router_with_reader(
     reader: Arc<dyn PeopleTemplateRead>,
     targets: Vec<LaneTarget>,
 ) -> Result<Router, BusinessError> {
+    router_with_readers(targets.into_iter().map(|target| (target, reader.clone())))
+}
+
+/// Reader-injection core: pair every validated target with its own reader.
+fn router_with_readers(
+    targets: impl IntoIterator<Item = (LaneTarget, Arc<dyn PeopleTemplateRead>)>,
+) -> Result<Router, BusinessError> {
     let mut configured = BTreeMap::new();
-    for target in targets {
+    for (target, reader) in targets {
         if target.host.is_empty()
             || !valid_slug(&target.holding_slug)
             || configured
-                .insert(
-                    (target.host.clone(), target.holding_slug.clone()),
-                    reader.clone(),
-                )
+                .insert((target.host.clone(), target.holding_slug.clone()), reader)
                 .is_some()
         {
             return Err(configuration_invalid());
@@ -181,14 +199,25 @@ mod tests {
 
     #[derive(Default)]
     struct RecordingReader {
+        label: String,
         calls: AtomicUsize,
+    }
+    impl RecordingReader {
+        fn labelled(label: &str) -> Self {
+            Self {
+                label: label.to_owned(),
+                ..Default::default()
+            }
+        }
     }
     impl PeopleTemplateRead for RecordingReader {
         fn read<'a>(&'a self, read: &'a AttributeRead) -> super::super::application::AttributeReadFuture<'a, super::super::domain::AttributePage> {
             self.calls.fetch_add(1, Ordering::SeqCst);
             let read = read.clone();
+            let label = self.label.clone();
             Box::pin(async move {
                 Ok(ReadPage::new(vec![json!({
+                    "reader": label,
                     "kind": read.kind(),
                     "companyId": match read {
                         AttributeRead::Attributes { company_id } => company_id,
@@ -306,5 +335,72 @@ mod tests {
         )
         .await;
         assert_eq!(unknown_kind.0, StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
+    #[tokio::test]
+    async fn native_lane_12_routes_each_holding_to_its_own_reader() {
+        // Reader-injection path: two distinct readers stand in for two distinct
+        // per-Holding pools. The state map must key each one by (host, slug).
+        let acme = Arc::new(RecordingReader::labelled("acme-pool"));
+        let northstar = Arc::new(RecordingReader::labelled("northstar-pool"));
+        let app = router_with_readers(vec![
+            (
+                LaneTarget {
+                    host: "acme.jesadakorn.com".to_owned(),
+                    holding_slug: "acme".to_owned(),
+                },
+                acme.clone() as Arc<dyn PeopleTemplateRead>,
+            ),
+            (
+                LaneTarget {
+                    host: "northstar.jesadakorn.com".to_owned(),
+                    holding_slug: "northstar".to_owned(),
+                },
+                northstar.clone() as Arc<dyn PeopleTemplateRead>,
+            ),
+        ])
+        .unwrap();
+
+        let (status, body) = call(
+            &app,
+            "acme.jesadakorn.com",
+            Some("acme-1"),
+            "/api/v1/holdings/acme/identity-access/people-template-attributes/attributes",
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["rows"][0]["reader"], json!("acme-pool"));
+
+        let (status, body) = call(
+            &app,
+            "northstar.jesadakorn.com",
+            Some("northstar-1"),
+            "/api/v1/holdings/northstar/identity-access/people-template-attributes/attributes",
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["rows"][0]["reader"], json!("northstar-pool"));
+
+        // Neither reader was shared with the other Holding's request.
+        assert_eq!(acme.calls.load(Ordering::SeqCst), 1);
+        assert_eq!(northstar.calls.load(Ordering::SeqCst), 1);
+
+        // A matched host with a different slug cannot cross Holding pools.
+        let crossed = call(
+            &app,
+            "acme.jesadakorn.com",
+            Some("northstar-1"),
+            "/api/v1/holdings/northstar/identity-access/people-template-attributes/attributes",
+        )
+        .await;
+        assert_eq!(crossed.0, StatusCode::NOT_FOUND);
+        assert_eq!(acme.calls.load(Ordering::SeqCst), 1);
+        assert_eq!(northstar.calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn native_lane_12_router_for_holdings_rejects_empty_configuration() {
+        // No pools are needed to prove the constructor validates its target set.
+        assert!(router_for_holdings(Vec::new()).is_err());
     }
 }
