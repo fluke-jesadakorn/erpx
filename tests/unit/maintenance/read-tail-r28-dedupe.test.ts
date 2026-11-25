@@ -86,7 +86,7 @@ describe('maintenance read-tail r28 fact-row delegation', () => {
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(20);
-    expect(total).toBeLessThan(21);
+    expect(total).toBe(19);
+    expect(total).toBeLessThan(20);
   });
 });

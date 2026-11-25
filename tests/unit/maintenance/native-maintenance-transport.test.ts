@@ -552,7 +552,9 @@ describe('Maintenance attachment descriptor fixed SQL',()=>{
   const helper=await readFile(new URL(`${dir}attachment-descriptor-read.ts`,import.meta.url),'utf8');
   const operational=await readFile(new URL(`${dir}attachments-operational-facts.ts`,import.meta.url),'utf8');
   const policy=await readFile(new URL(`${dir}attachments-policy-facts.ts`,import.meta.url),'utf8');
-  expect(helper.match(/SELECT/g)).toHaveLength(1);
+  // r29 delegates the descriptor head to settlementRefSource; the helper now
+  // carries no SELECT literal and the composed SQL stays byte-identical.
+  expect(helper.match(/SELECT/g)).toBeNull();
   expect(operational.match(/SELECT/g)).toBeNull();
   expect(policy.match(/SELECT/g)).toBeNull();
   expect(operational).toContain('attachmentDescriptorReadSql(moduleTarget.table');
@@ -731,8 +733,8 @@ describe('Maintenance record-image fixed SQL',()=>{
    }
   };
   walk(srcRoot);
-  expect(total).toBe(20);
-  expect(total).toBeLessThan(21);
+  expect(total).toBe(19);
+  expect(total).toBeLessThan(20);
  });
 });
 
