@@ -18,7 +18,11 @@ describe('Benefits read-tail r8 byte-identical dedupe', () => {
       expect(text, name).not.toContain(benefitScopePrefix);
       expect(text.match(/benefitScopePrefix/g) ?? [], name).toHaveLength(2);
     }
-    expect(src('benefits-read-sql.ts').split(benefitScopePrefix)).toHaveLength(2);
+    // r24 composes this prefix from benefitCompanyScopeHead, so the full
+    // literal no longer appears raw in the owner file.
+    const sql = src('benefits-read-sql.ts');
+    expect(sql).not.toContain(benefitScopePrefix);
+    expect(sql.match(/benefitCompanyScopeHead/g) ?? []).toHaveLength(3);
   });
 
   test('composed SQL stays byte-identical to the pre-dedupe literal', () => {
