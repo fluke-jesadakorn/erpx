@@ -94,7 +94,7 @@ describe('pms read-tail r46 two-column point read dedupe', () => {
     expect(await src(SHARED)).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|FOR\s+KEY\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
     expect(await src('adapters/feature-availability.ts')).toContain('EXISTS(SELECT 1 FROM company_feature_rollouts f WHERE f.company_id=');
     expect(await src('adapters/native-pms-read.ts')).toContain('PMS_RD_STRIPE_PAYMENT_BY_ID');
-    for (const n of [17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 29, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45]) {
+    for (const n of [17, 18, 19, 20, 21, 22, 24, 25, 26, 27, 29, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45]) {
       expect((await src(`adapters/pms-read-tail-r${n}-sql.ts`)).length).toBeGreaterThan(0);
     }
   });

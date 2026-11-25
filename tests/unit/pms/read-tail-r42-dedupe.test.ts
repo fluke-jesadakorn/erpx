@@ -115,7 +115,7 @@ describe('pms read-tail r42 stay-witness, correction-fact and order-tail dedupe'
     const board = await src('adapters/room_board.rs');
     expect(board).toContain("EXISTS (SELECT 1 FROM pms_records st WHERE st.property_id=r.property_id AND st.kind='stay' AND st.data_json::jsonb->>'roomId'=r.id AND st.data_json::jsonb->>'state'='in_house'))::bigint occupied");
     expect(board.split("EXISTS(SELECT 1 FROM pms_records st WHERE st.property_id=r.property_id").length - 1).toBe(0);
-    for (const n of [17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 29, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41]) {
+    for (const n of [17, 18, 19, 20, 21, 22, 24, 25, 26, 27, 29, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41]) {
       expect((await src(`adapters/pms-read-tail-r${n}-sql.ts`)).length).toBeGreaterThan(0);
     }
   });

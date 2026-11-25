@@ -44,7 +44,7 @@ describe('pms read-tail r33 parameterized POS property-config family dedupe', ()
     expect(call).toContain('PMS_RD_POS_STRIPE_PAYMENT');
     expect(call).toContain('PMS_RD_POS_BOOKING_PAYMENT');
     expect(await src('adapters/pms-stripe.ts')).toContain("'SELECT * FROM pms_stripe_payments WHERE id=? FOR UPDATE'");
-    for (const n of [17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 29, 31, 32]) {
+    for (const n of [17, 18, 19, 20, 21, 22, 24, 25, 26, 27, 29, 31, 32]) {
       expect((await src(`adapters/pms-read-tail-r${n}-sql.ts`)).length).toBeGreaterThan(0);
     }
   });

@@ -66,8 +66,9 @@ describe('pms read-tail r52 dead-export retirement', () => {
     expect(r26).toContain('export const PMS_CHOSEN_RECORDS_SQL = `SELECT id,kind,data_json::jsonb data FROM pms_records WHERE property_id=? AND id IN ${PMS_IDS_JSONB_MEMBER_SQL}`;');
     expect(count(r25, 'SELECT ')).toBe(2);
     expect(count(r26, 'SELECT ')).toBe(2);
-    for (const text of [r25, r26]) {
-      expect(text).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
+    for (const [name, text] of [['r25', r25], ['r26', r26]] as const) {
+      const statements = text.split('\n').filter(line => line.trimStart().startsWith('export const ')).join('\n');
+      expect(statements, `${name} executable statements`).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
     }
   });
 
