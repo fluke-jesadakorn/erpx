@@ -17,16 +17,17 @@ import {ApiError} from '@erpx/server-runtime/public/http';
 import {actorScopeSql,crmPurchaseAccountRows,crmPurchaseOpportunityRows,crmPurchaseSourceReadLocks} from '@erpx/server-crm/adapters/purchases';
 import {crmAccountImageReadSql} from './read-tail-r29-sql';
 import {crmOpportunitySourceAnchorSql} from './read-tail-r36-sql';
+import {crmJsonbAggregateSql} from './read-tail-r49-sql';
 
 /** One parameterized native-source image fragment for both CRM attachment
  * witnesses; callers pass the owned row projection and their alias predicate so
  * the rendered SQL stays byte-identical to the retired inline pair. */
-const nativeImageSql=(rows:string,predicate:string)=>`'native',(SELECT jsonb_agg(to_jsonb(native)) FROM (${rows}) native WHERE ${predicate})`;
+const nativeImageSql=(rows:string,predicate:string)=>`'native',(${crmJsonbAggregateSql(`native)) FROM (${rows}) native WHERE ${predicate}`)})`;
 /** r17: one parameterized related-image aggregate shared by the three CRM
  * attachment witness lists. Callers pass only the row alias and its owned
  * FROM/WHERE tail, so every rendered subquery stays byte-identical to the
  * retired inline form. */
-const crmRelatedAggSql=(alias:string,from:string)=>`SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM ${from}`;
+const crmRelatedAggSql=(alias:string,from:string)=>`${crmJsonbAggregateSql(`${alias}) ORDER BY ${alias}.id) FROM ${from}`)}`;
 
 type Target='crm_account'|'crm_opportunity';
 export function isCRMAttachmentReadTarget(target:string):target is Target{return target==='crm_account'||target==='crm_opportunity';}

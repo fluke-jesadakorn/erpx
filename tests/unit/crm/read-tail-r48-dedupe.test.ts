@@ -79,8 +79,8 @@ describe('crm read-tail r48 byte-identical company-scope read head', () => {
     expect(src('marketing-package-obligations.ts')).toContain('@erpx/server-marketing/public/package-obligations');
   });
 
-  test('retirement:ts-statements drops from the r47 AFTER=51 to 50', () => {
-    expect(totalSelects()).toBe(50);
+  test('retirement:ts-statements drops from the r48 AFTER=50 to 49', () => {
+    expect(totalSelects()).toBe(49);
     expect(totalSelects()).toBeLessThan(51);
   });
 });

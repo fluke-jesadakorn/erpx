@@ -142,7 +142,7 @@ describe('crm read-tail r39 byte-identical head composition', () => {
   });
 
   test('retirement:ts-statements stays strictly below the r38 AFTER=104 baseline', () => {
-    expect(totalSelects()).toBe(50);
+    expect(totalSelects()).toBe(49);
     expect(totalSelects()).toBeLessThan(104);
   });
 });
