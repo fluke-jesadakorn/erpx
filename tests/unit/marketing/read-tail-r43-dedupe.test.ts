@@ -117,7 +117,8 @@ describe('marketing read-tail r43 dedupe', () => {
 
   it('keeps one source-row guard head and preserves the version-guard wrapper', async () => {
     const guard = await src('attachment-owner-version-guard.ts');
-    expect(selectTokens(guard)).toBe(1);
+    expect(selectTokens(guard)).toBe(0);
+    expect(guard).toContain('`EXISTS(${marketingPointExistsSql(source, tail)})`');
     expect(marketingSourceRowGuardSql('t', 'p')).toBe('EXISTS(SELECT 1 FROM t WHERE p)');
     expect(attachmentOwnerVersionGuardSql('marketing_assets')).toBe(
       'EXISTS(SELECT 1 FROM marketing_assets WHERE id=? AND company_id=? AND version=?)',
@@ -198,8 +199,8 @@ describe('marketing read-tail r43 dedupe', () => {
     expect(await src('native-marketing-read.ts')).toContain('export');
   });
 
-  it('pins the owner SELECT KPI to 34 (BEFORE=36)', async () => {
-    expect(await ownerSelectTokens()).toBe(34);
+  it('pins the owner SELECT KPI to 32 (BEFORE=36)', async () => {
+    expect(await ownerSelectTokens()).toBe(32);
     expect(await ownerSelectTokens()).toBeLessThan(36);
   });
 });

@@ -144,8 +144,8 @@ describe('marketing evidence-row tail merge (r42)', () => {
     expect(await src('marketing.ts')).toContain('from "./native-marketing-read"');
   });
 
-  it('confirms the owner KPI of 34 from the AST after the 36 -> 34 r45 drop', async () => {
-    expect(await ownerSelectTokens()).toBe(34);
+  it('confirms the owner KPI of 32 from the AST after the 36 -> 34 r45 drop and 34 -> 32 r46 fold', async () => {
+    expect(await ownerSelectTokens()).toBe(32);
     expect(await ownerSelectTokens()).toBeLessThan(36);
   });
 });

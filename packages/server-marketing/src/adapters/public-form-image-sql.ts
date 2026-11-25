@@ -1,9 +1,11 @@
 import 'server-only';
+import { marketingSelectHeadSql } from './select-head-sql';
 
 /** Closed-variant owner-local image point reads for the public Marketing form.
  * The three admitted snapshot queries stay byte-identical to the original
  * reader: a caller picks a variant and never supplies raw query text. Table,
- * projection, joins, filter and bind positions stay owned here. */
+ * projection, joins, filter and bind positions stay owned here. r46: the head
+ * renders through the owner-local head renderer. */
 type ImageVariant = 'form' | 'content' | 'receipt';
 
 const imageParts: Record<ImageVariant, { projection: string; source: string }> = {
@@ -28,5 +30,5 @@ const imageParts: Record<ImageVariant, { projection: string; source: string }> =
 
 export function publicFormImageSql(variant: ImageVariant): string {
   const { projection, source } = imageParts[variant];
-  return `SELECT ${projection}${source}`;
+  return marketingSelectHeadSql(projection, source);
 }

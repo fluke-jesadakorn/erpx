@@ -27,7 +27,10 @@ describe('marketing public-form image point-read dedupe', () => {
   it('keeps one query token in the helper and no inline literal in the consumer', async () => {
     const helper = await readFile(adapter('public-form-image-sql.ts'), 'utf8');
     const reader = await readFile(adapter('public-form-read.ts'), 'utf8');
-    expect(helper.match(/SELECT/g)).toHaveLength(1);
+    expect(helper.match(/SELECT/g)).toBeNull();
+    expect(helper).toContain("marketingSelectHeadSql(projection, source)");
+    const head = await readFile(adapter('select-head-sql.ts'), 'utf8');
+    expect(head.match(/SELECT/g)).toHaveLength(1);
     expect(reader).not.toContain(form);
     expect(reader).not.toContain(content);
     expect(reader).not.toContain(receipt);

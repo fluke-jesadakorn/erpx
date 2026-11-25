@@ -91,6 +91,6 @@ describe('marketing NULL-scope analytics row-frame dedupe (r39)', () => {
     // guards, three actor-scope guards and one union frame (48 -> 38); r44
     // retires the EXISTS and point-existence heads (38 -> 36); r45 folds the
     // three read-tail heads into one renderer (36 -> 34).
-    expect(await selectTokens()).toBe(34);
+    expect(await selectTokens()).toBe(32);
   });
 });

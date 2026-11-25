@@ -39,7 +39,10 @@ describe("marketing module-membership probe dedupe (r37)", () => {
 
   it("keeps one statement token and one closed modules_json predicate in the helper", async () => {
     const helper = await readFile(adapter("module-membership.ts"), "utf8");
-    expect(helper.match(/SELECT /g)).toHaveLength(1);
+    expect(helper.match(/SELECT /g)).toBeNull();
+    expect(helper).toContain("marketingSelectHeadSql(head, tail)");
+    const head = await readFile(adapter("select-head-sql.ts"), "utf8");
+    expect(head.match(/SELECT /g)).toHaveLength(1);
     expect(helper.match(/jsonb_build_array\('marketing'::text\)/g)).toHaveLength(1);
   });
 

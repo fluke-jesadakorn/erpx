@@ -91,12 +91,13 @@ describe('Marketing owner-local campaign read tail', () => {
     const operational = await readFile(new URL('attachments-operational-facts.ts', base), 'utf8');
 
     const predicate = 'EXISTS(SELECT 1 FROM ${source} WHERE ${tail})';
-    // The canonical head owns the single guard token; the version helper now
-    // delegates to it with an owner table and a fixed where-tail.
-    expect(guard.match(/SELECT/g)).toHaveLength(1);
+    // The shared point-existence head owns the single guard token; the wrappers
+    // now delegate to it with an owner table and a fixed where-tail.
+    expect(guard.match(/SELECT/g)).toBeNull();
     expect(guard).toContain('export const attachmentOwnerVersionGuardSql');
     expect(guard).toContain('export const marketingSourceRowGuardSql');
-    expect(guard).toContain(predicate);
+    expect(guard).toContain('`EXISTS(${marketingPointExistsSql(source, tail)})`');
+    expect(guard).not.toContain(predicate);
     expect(guard).toContain('marketingSourceRowGuardSql(table, `id=? AND company_id=? AND version=?${extra ? ` AND ${extra}` : ""}`)');
 
     for (const consumer of [service, operational]) {

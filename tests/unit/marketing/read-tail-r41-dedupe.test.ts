@@ -141,7 +141,7 @@ describe('marketing r41 retirement invariants', () => {
     expect(await src('native-marketing-read.ts')).toContain('export');
   });
 
-  it('retirement:ts-statements KPI is 34 (BEFORE=55)', async () => {
-    expect(await selectTokens()).toBe(34);
+  it('retirement:ts-statements KPI is 32 (BEFORE=55)', async () => {
+    expect(await selectTokens()).toBe(32);
   });
 });
