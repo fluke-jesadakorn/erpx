@@ -1,5 +1,5 @@
 import{visibleTask,authority}from '@erpx/server-operations/adapters/evaluation-source-policy';
-import {workforceActorScopeSql,OPERATIONS_VIEWER_CLOCK_SQL,OPERATIONS_TASK_SCOPE_SQL,operationsClockProbe,operationsActorScopeInput,operationsPurchasedActorScopeClockExists} from './workforce-actor-scope-source';
+import {workforceActorScopeSql,operationsViewerClockHead,OPERATIONS_TASK_SCOPE_SQL,operationsClockProbe,operationsActorScopeInput,operationsPurchasedActorScopeClockExists} from './workforce-actor-scope-source';
 import {nativeOperationsReadFirst,OPERATIONS_RD_RECORD_TASK_PROJECT} from './native-operations-read';
 import 'server-only';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
@@ -100,7 +100,7 @@ export async function filterWorkTaskWork(database:SqlDatabase,actor:WorkContext,
 export async function workTaskProjectionReadScope(database:SqlDatabase,actor:WorkContext){
  if(await appsPackageEnforcementMode()==='disabled'&&await projectsPackageEnforcementMode()==='disabled')return {where:'TRUE',args:[] as unknown[]};
  const work=await workTaskReadScope(database,actor),project=await projectTaskReadScope(database,actor),social=await workTaskSocialReadScope(database,actor),current=authority(actor),viewer='work_projection_viewer';
- return {where:`(${work.where}) AND (${project.where}) AND (${social.where}) AND EXISTS(WITH ${viewer} AS MATERIALIZED${OPERATIONS_VIEWER_CLOCK_SQL} SELECT 1 FROM ${viewer} CROSS JOIN LATERAL${OPERATIONS_TASK_SCOPE_SQL}workforce_actor_scope WHERE ${current.where} AND ${projectTaskRecordPolicy('t.id','t.company_id',viewer)})`,args:[...work.args,...social.args,actor.userId,actor.assignmentId,...current.args]};
+ return {where:`(${work.where}) AND (${project.where}) AND (${social.where}) AND ${operationsViewerClockHead(viewer,' ')}${viewer} CROSS JOIN LATERAL${OPERATIONS_TASK_SCOPE_SQL}workforce_actor_scope WHERE ${current.where} AND ${projectTaskRecordPolicy('t.id','t.company_id',viewer)})`,args:[...work.args,...social.args,actor.userId,actor.assignmentId,...current.args]};
 }
 export async function workMetricHistoryAccess(database:SqlDatabase,actor:WorkContext){
  const mode=await appsPackageEnforcementMode(),projectMode=await projectsPackageEnforcementMode();

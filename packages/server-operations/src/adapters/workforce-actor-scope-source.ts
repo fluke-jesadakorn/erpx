@@ -7,11 +7,11 @@ export const OPERATIONS_CLOCK_CTE_SQL = operationsClockCte(false);
 /** Canonical bound viewer/assignment clock CTE shared by Operations owner reads. */
 export const OPERATIONS_VIEWER_CLOCK_SQL = operationsClockCte(true);
 /** Canonical viewer-clock EXISTS head shared by Operations owner reads. The
- *  viewer alias is the only varying byte; the newline/space FROM separator,
- *  table and predicates stay local to each caller. Binds unchanged. */
-export const operationsViewerClockHead = (viewer: string) =>
-  `EXISTS(WITH ${viewer} AS MATERIALIZED${OPERATIONS_VIEWER_CLOCK_SQL}
- SELECT 1 FROM `;
+ *  viewer alias and FROM separator are the only varying bytes; the clock CTE,
+ *  table and predicates stay local to each caller. Binds unchanged. The default
+ *  newline/space separator preserves the r49-r53 call-site rendering. */
+export const operationsViewerClockHead = (viewer: string, sep = '\n ') =>
+  `EXISTS(WITH ${viewer} AS MATERIALIZED${OPERATIONS_VIEWER_CLOCK_SQL}${sep}SELECT 1 FROM `;
 /** Canonical task scope projection shared by Operations owner reads. */
 export const OPERATIONS_TASK_SCOPE_SQL = '(SELECT t.company_id,t.branch_id,t.department_id)';
 /** Canonical bound actor-scope input projection shared by Operations owner reads. */

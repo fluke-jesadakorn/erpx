@@ -62,15 +62,16 @@ describe('operations read-tail r49 EXISTS/CTE-head retirement', () => {
     expect(policy.match(/operationsTableExists\(/g)).toHaveLength(1);
     expect(policy).not.toContain('EXISTS(SELECT 1 FROM staff_project_members');
     expect(guard.match(/export const operationsTableExists/g)).toHaveLength(1);
-    // Family 2: both head pairs converted; the single-line projection-site
-    // rendering in record-purchases.ts is a different form and stays local.
+    // Family 2: both head pairs converted; r54 routed the single-line
+    // projection site through the same head with a space separator.
     expect(evaluation.match(/operationsViewerClockHead\(/g)).toHaveLength(1);
     expect(evaluation).not.toContain('EXISTS(WITH ${viewer} AS MATERIALIZED');
     expect(evaluation).not.toContain('OPERATIONS_VIEWER_CLOCK_SQL');
     expect(attachment.match(/operationsViewerClockHead\(/g)).toHaveLength(1);
     expect(attachment).not.toContain('EXISTS(WITH ${viewer} AS MATERIALIZED');
     expect(attachment).not.toContain('OPERATIONS_VIEWER_CLOCK_SQL');
-    expect(purchases).toContain('EXISTS(WITH ${viewer} AS MATERIALIZED${OPERATIONS_VIEWER_CLOCK_SQL} SELECT 1 FROM');
+    expect(purchases).toContain('${operationsViewerClockHead(viewer,\' \')}${viewer} CROSS JOIN LATERAL');
+    expect(purchases).not.toContain('EXISTS(WITH ${viewer} AS MATERIALIZED${OPERATIONS_VIEWER_CLOCK_SQL}');
     expect(scope.match(/export const operationsViewerClockHead/g)).toHaveLength(1);
     expect(scope.match(/operationsClockCte\(/g)).toHaveLength(2); // false + true call sites
     // r50 retired the spare iam_roles probe; LOCK and native reads stay untouched.
@@ -91,7 +92,7 @@ describe('operations read-tail r49 EXISTS/CTE-head retirement', () => {
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(72);
+    expect(total).toBe(71);
     expect(total).toBeLessThan(89);
   });
 });
