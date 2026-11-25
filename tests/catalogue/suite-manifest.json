@@ -55498,6 +55498,33 @@
       },
       "ci": {
         "critical": true,
+        "reason": "Learning module grant probe must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-learning"
+      ],
+      "id": "learning.read-tail-r22-dedupe.unit",
+      "files": [
+        "tests/unit/learning/read-tail-r22-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "learning",
+      "modules": [
+        "learning"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
         "reason": "Learning native source and evidence reads must stay byte-identical."
       },
       "apps": "learn",
@@ -91481,6 +91508,33 @@
       "id": "quality.read-tail-r38-dedupe.unit",
       "files": [
         "tests/unit/quality/read-tail-r38-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "quality",
+      "modules": [
+        "quality"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Quality next evidence head must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-quality"
+      ],
+      "id": "quality.read-tail-r39-dedupe.unit",
+      "files": [
+        "tests/unit/quality/read-tail-r39-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
