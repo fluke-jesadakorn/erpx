@@ -93,7 +93,7 @@ describe('Identity access read-tail r39 wiring', () => {
   test('locks, authority evaluation, native routes and r1-r38 helpers stay untouched', () => {
     const pins: [string, string][] = [
       ['adapters/read-tail-family-r39.ts', '47f1dcbc1b807f6f2871e2eb1ade3be5997b3f43793a71c2f2532f71aef01397'],
-      ['adapters/people-lifecycle-facts.ts', 'ff330ee5efed85cee9bb39619d1a7fe37bd7e4bc5ac3751a1d56ee4680c9a1c4'],
+      ['adapters/people-lifecycle-facts.ts', '6526902571aef0fd32fd3c6c0237660b5bf2bf313adb12dc2b6b4bbcdbc31d37'],
       ['adapters/read-tail-family-r38.ts', '911541b2aea24d91a2a145ff04310048ce8bc66300e3814b333ae151f127b8e2'],
       ['adapters/read-tail-family-r29.ts', '2c392291ac6bfa7558a022f750fba0742acfe7014702875d8836321063650775'],
       ['adapters/read-tail-family-r34.ts', '95e25ead2dac0a1832535f73794691036025e14748f1c17ac342c9620b3750be'],
@@ -114,7 +114,7 @@ describe('Identity access read-tail r39 wiring', () => {
 });
 
 describe('Identity access read-tail r39 retirement check', () => {
-  test('retirement:ts-statements is 440 after r39=441', () => {
+  test('retirement:ts-statements is 439 after r40=440', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -125,6 +125,6 @@ describe('Identity access read-tail r39 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(442);
-    expect(total).toBe(440);
+    expect(total).toBe(439);
   });
 });

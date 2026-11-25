@@ -4,6 +4,7 @@ import { iamGroupProbeSql, iamReviewProbeSql } from "./read-tail-family-r28";
 import { assignmentCompanyProbeSql, umGroupProbeSql, protectedPersonOwnerSql } from './read-tail-family-r30';
 import { assignmentCompanyUserProbeSql } from './read-tail-family-r32';
 import { verifiedLifecycleAccountSql } from './read-tail-family-r39';
+import { iamMemberByCompanyPersonSql } from './read-tail-family-r41';
 import { nativePrepare } from '@erpx/server-identity_access/public/native-identity-write';
 import {identitySnapshotSources as peoplepayrollSnapshotSources} from '@erpx/server-people_payroll/public/identity-snapshot-sources';
 const peoplepayrollSources=peoplepayrollSnapshotSources();
@@ -42,7 +43,7 @@ export function peopleLifecycleIdentityAccessFacts(database: SqlDatabase, client
         },
         readPeopleLifecycleDataClearanceOwners(companyId: string, now: number) { return database.prepare(`SELECT a.user_id id,coalesce(max(p.legal_name),a.user_id) name,bool_or(iam_role_allows(a.role,a.company_id,'payroll.prepare') AND a.scope_kind='holding') payroll,bool_or(iam_role_allows(a.role,a.company_id,'finance.write') AND a.scope_kind='holding') finance,true equipment FROM assignments a LEFT ${peoplepayrollSources.people_lifecycle_facts_hr_people_p_join} ON p.user_id=a.user_id AND p.company_id=a.company_id AND p.merged_into_id IS NULL WHERE a.company_id=? AND iam_assignment_active(a.id,?) GROUP BY a.user_id ORDER BY name`).bind(companyId, now).all<NonNullable<PeopleLifecycleData["clearanceOwners"]>[number]>(); },
         readLinkedAccountsEffect(companyId: string, personId: string, companyId2: string, personId2: string, companyId3: string, activeOnly: boolean, value: "local" | "univention" | "active_directory" | null, value2: "local" | "univention" | "active_directory" | null, value3: string | null) {
-            return database.prepare(`SELECT DISTINCT u.user_id FROM (SELECT user_id ${peoplepayrollSources.people_lifecycle_facts_hr_people_from} WHERE company_id=? AND id=? UNION SELECT user_id FROM iam_members WHERE company_id=? AND person_id=?) u LEFT JOIN iam_members m ON m.company_id=? AND m.user_id=u.user_id WHERE u.user_id IS NOT NULL AND (NOT ?::boolean OR COALESCE(m.status,'active')='active') AND (?::text IS NULL OR CASE WHEN ?='local' THEN COALESCE(m.login_policy,'local')!='directory' ELSE m.login_policy='directory' AND m.connection_id=? END) ORDER BY u.user_id`)
+            return database.prepare(`SELECT DISTINCT u.user_id FROM (SELECT user_id ${peoplepayrollSources.people_lifecycle_facts_hr_people_from} WHERE company_id=? AND id=? UNION ${iamMemberByCompanyPersonSql()}) u LEFT JOIN iam_members m ON m.company_id=? AND m.user_id=u.user_id WHERE u.user_id IS NOT NULL AND (NOT ?::boolean OR COALESCE(m.status,'active')='active') AND (?::text IS NULL OR CASE WHEN ?='local' THEN COALESCE(m.login_policy,'local')!='directory' ELSE m.login_policy='directory' AND m.connection_id=? END) ORDER BY u.user_id`)
                 .bind(companyId, personId, companyId2, personId2, companyId3, activeOnly, value, value2, value3)
                 .all<{
                 user_id: string;

@@ -88,7 +88,7 @@ describe('Identity access read-tail r40 wiring', () => {
       ['adapters/read-tail-family-r39.ts', '47f1dcbc1b807f6f2871e2eb1ade3be5997b3f43793a71c2f2532f71aef01397'],
       ['adapters/attachment-read-sources.ts', '3cedcaf49a89f99df88a5fbe324b20046c2aeb2cd1a298e9b300039b6b38b3ab'],
       ['adapters/operations-staff-policy-facts.ts', '8609823a7c3ba90fe9a37ab65608da7ad836379dc122df42735ccb73716b9721'],
-      ['adapters/people-lifecycle-facts.ts', 'ff330ee5efed85cee9bb39619d1a7fe37bd7e4bc5ac3751a1d56ee4680c9a1c4'],
+      ['adapters/people-lifecycle-facts.ts', '6526902571aef0fd32fd3c6c0237660b5bf2bf313adb12dc2b6b4bbcdbc31d37'],
       ['adapters/iam-probe-sql.ts', 'e0984c3774b38a3229fe848061482e46efd984f26e86152ce9973c3c49104101'],
       ['adapters/payroll-cancellation-grant.ts', 'eae4d8d3f2eacc4839676d3fcf7cd2da7edc3bb5a6a875e71b2787cf9e26e5ee'],
       ['adapters/native-session.ts', '1c390e8f6c47b25da718120ef5f6546103b1f8bbbfa837406ff7be462d1a51c1'],
@@ -105,7 +105,7 @@ describe('Identity access read-tail r40 wiring', () => {
 });
 
 describe('Identity access read-tail r40 retirement check', () => {
-  test('retirement:ts-statements is 440 after r39=441', () => {
+  test('retirement:ts-statements is 439 after r40=440', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -115,7 +115,7 @@ describe('Identity access read-tail r40 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBeLessThan(441);
-    expect(total).toBe(440);
+    expect(total).toBeLessThan(440);
+    expect(total).toBe(439);
   });
 });
