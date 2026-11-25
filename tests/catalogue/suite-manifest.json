@@ -34496,6 +34496,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "finance",
+      "modules": [
+        "finance"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Finance group-entities head must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-finance"
+      ],
+      "id": "finance.read-tail-r60-dedupe.unit",
+      "files": [
+        "tests/unit/finance/read-tail-r60-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "finance.record-projection-services.unit",
       "lane": "unit",
       "owner": "finance",
@@ -57788,6 +57815,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "legal",
+      "modules": [
+        "legal"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Legal version assertion head must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-legal"
+      ],
+      "id": "legal.read-tail-r64-dedupe.unit",
+      "files": [
+        "tests/unit/legal/read-tail-r64-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "legal.release-gates.integration",
       "lane": "integration",
       "owner": "legal",
@@ -73829,6 +73883,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "people_payroll",
+      "modules": [
+        "people_payroll"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Payroll pay-groups head must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-people_payroll"
+      ],
+      "id": "people_payroll.read-tail-r60-dedupe.unit",
+      "files": [
+        "tests/unit/people_payroll/read-tail-r60-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "people_payroll.retirement.integration",
       "lane": "integration",
       "owner": "people_payroll",
@@ -84140,6 +84221,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "pos",
+      "modules": [
+        "pos"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "POS org label head must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-pos"
+      ],
+      "id": "pos.read-tail-r42-dedupe.unit",
+      "files": [
+        "tests/unit/pos/read-tail-r42-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "pos.rust-cash-movement-postgres.integration",
       "lane": "integration",
       "owner": "pos",
@@ -90266,6 +90374,33 @@
       "id": "quality.read-tail-r36-dedupe.unit",
       "files": [
         "tests/unit/quality/read-tail-r36-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "quality",
+      "modules": [
+        "quality"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Quality source rows head must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-quality"
+      ],
+      "id": "quality.read-tail-r37-dedupe.unit",
+      "files": [
+        "tests/unit/quality/read-tail-r37-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
@@ -120547,6 +120682,33 @@
       "id": "support.read-tail-r40-by-id-family.unit",
       "files": [
         "tests/unit/support/read-tail-r40-by-id-family.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "support",
+      "modules": [
+        "support"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Support incident work native kind must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-support"
+      ],
+      "id": "support.read-tail-r42-incident-work-native.unit",
+      "files": [
+        "tests/unit/support/read-tail-r42-incident-work-native.test.ts"
       ],
       "framework": "vitest"
     },
