@@ -62,7 +62,7 @@ describe('manufacturing read-tail r30 scope CTE family', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(52); // r29 left 56; r30 parameterizes the scope CTE family 56->55; r31 allowed-select head family 55->53.
+    expect(total).toBe(51); // r29 left 56; r30 parameterizes the scope CTE family 56->55; r31 allowed-select head family 55->53; r32 metric breakdown head 53->52; r34 r15/r23 head fold 52->51.
     expect(total).toBeLessThan(56);
   });
 });
