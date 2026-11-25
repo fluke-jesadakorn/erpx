@@ -34,7 +34,7 @@ const goldenIncident = "SELECT t.*,CASE WHEN EXISTS(SELECT 1 FROM (SELECT \"id\"
 const actor = {
     companyId: 'company', branchId: 'branch', departmentId: 'department',
     assignmentId: 'assignment', userId: 'user', role: 'support.read',
-} as never;
+} as unknown as Parameters<typeof supportTicketReadPredicate>[0];
 
 /** Re-render the same literals from the unchanged owner projection helpers. */
 const ticketExtra = `o.number order_number,p.name customer_name,(SELECT legal_name FROM (${payrollProjections.hr_people}) hr_people WHERE company_id=t.company_id AND user_id=t.owner_id AND merged_into_id IS NULL LIMIT 1) owner_name,`;

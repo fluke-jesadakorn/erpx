@@ -74,7 +74,7 @@ describe('Support incident read-tail r16 canonical projection', () => {
   it('keeps one canonical eligibility projection owner', async () => {
     const source = await src('adapters/support-incident-read.ts');
     expect(source).toContain('export const incidentEligibilitySelect');
-    expect(source.match(/SELECT t\.\*,CASE WHEN \$\{ownerEligible\}/g)).toHaveLength(1);
+    expect(source.match(/eligibilitySelect\(`CASE WHEN \$\{ownerEligible\}/g)).toHaveLength(1);
     expect(source.match(/\$\{supportEligibleFlagSql\(reviewerPredicate, 'reviewer_eligible'\)\}/g)).toHaveLength(1);
     expect(source.match(/\$\{supportReviewerCountSql\(reviewerPredicate\)\}/g)).toHaveLength(1);
     expect(source).not.toMatch(/EXISTS\(SELECT 1 FROM \(\$\{identity_accessProjectionSources\.assignments\}\) m WHERE/);
@@ -87,6 +87,7 @@ describe('Support incident read-tail r16 canonical projection', () => {
     expect(shared.match(/\(SELECT COUNT\(DISTINCT m\.user_id\) FROM/g)).toHaveLength(1);
     expect(shared).toContain('supportEligibleFlagSql');
     expect(shared).toContain('supportReviewerCountSql');
+    expect(shared).toContain('export const eligibilitySelect');
   });
 
   it('composes the shared eligibility fragments in every remaining TS Support read tail', async () => {
@@ -145,7 +146,7 @@ describe('Support ticket read-tail r17 canonical eligibility projection', () => 
   it('keeps one canonical ticket eligibility projection owner', async () => {
     const source = await src('adapters/support-ticket-read.ts');
     expect(source).toContain('export const ticketEligibilitySelect');
-    expect(source.match(/SELECT t\.\*,\$\{extra\}CASE WHEN \$\{ownerEligible\}/g)).toHaveLength(1);
+    expect(source.match(/eligibilitySelect\(`\$\{extra\}CASE WHEN \$\{ownerEligible\}/g)).toHaveLength(1);
     expect(source.match(/CASE WHEN \$\{ownerEligible\} THEN 1 ELSE 0 END owner_eligible/g)).toHaveLength(1);
   });
 
