@@ -289,15 +289,16 @@ describe('Marketing owner-local campaign read tail', () => {
 
     // r43 routes the reviewer guard through the shared actor-scope head; the
     // canonical scope helper and the new head each own exactly one read token.
-    // r49 routes the canonical scope head through the shared renderer (1 -> 0).
+    // r49 routes the canonical scope head, r50 the assignment guard head, through the shared renderer (1 -> 0).
     expect(helper.match(/SELECT/g) ?? []).toHaveLength(0);
     expect(helper).toContain('export const attachmentReviewerGuardSql');
     expect(helper).toContain("actorScopeAssignmentSql(`(${assignmentReadSql('marketing_file_review','records.review')} OR ${assignmentReadSql('marketing_file_review','commerce.approve')})`,'marketing_file_review',alias ? ` ${alias}` : '')");
     const scopeHelper = await readFile(new URL('marketing-actor-scope-sql.ts', base), 'utf8');
     expect(scopeHelper.match(/SELECT/g) ?? []).toHaveLength(0);
     const headHelper = await readFile(new URL('marketing-actor-scope-guard.ts', base), 'utf8');
-    expect(headHelper.match(/SELECT/g)).toHaveLength(1);
+    expect(headHelper.match(/SELECT/g) ?? []).toHaveLength(0);
     expect(headHelper).toContain("from './marketing-actor-scope-sql'");
+    expect(headHelper).toContain('marketingSelectHeadSql(');
     expect(helper).not.toContain('(SELECT ?::text company_id,?::text branch_id,?::text department_id)');
     expect(helper).toContain("from './marketing-actor-scope-guard'");
 

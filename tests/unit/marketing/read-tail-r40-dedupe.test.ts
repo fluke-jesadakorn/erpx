@@ -170,13 +170,15 @@ describe('marketing projection-source and point-read head dedupe (r40)', () => {
     expect(await src('marketing.ts')).toContain('from "./native-marketing-read"');
   });
 
-  it('retirement:ts-statements KPI is 24 (strictly below BEFORE=55)', async () => {
+  it('retirement:ts-statements KPI is 23 (strictly below BEFORE=55)', async () => {
     // r42 merged the evidence-row tail (49 -> 48); r43 retires the source-row,
     // actor-scope and union-frame families (48 -> 38); r44 retires the EXISTS
     // and point-existence heads (38 -> 36); r45 folds the three read-tail heads
     // into one renderer (36 -> 34); r46 folds two byte-identical head pairs (34 -> 32);
     // r47 folds three plain heads (32 -> 29); r48 routes the two purchase witness
-    // heads through marketingSelectHeadSql (29 -> 27).
+    // heads through marketingSelectHeadSql (29 -> 27); r49 folds the three
+    // parenthesized subquery heads (27 -> 24); r50 folds the actor-scope
+    // assignment guard head (24 -> 23).
     expect(await selectTokens()).toBe(23);
   });
 });
