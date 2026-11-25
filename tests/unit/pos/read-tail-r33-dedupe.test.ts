@@ -46,8 +46,9 @@ describe('POS read-tail r33 by-id payment native cutover', () => {
   test('row locks, advisory lock, PMS fragments and day-report/Stripe registries stay untouched', () => {
     const core = read('pos-core.ts');
     const pos = read('pos.ts');
-    // The by-id payment literal is the only lock removed; all 20 others stay inline.
-    expect((core.match(/FOR UPDATE/g) ?? []).length).toBe(20);
+    // r37 folded the two byte-identical fulfillment/register by-id lock heads into
+    // owner-local renderers (still byte-identical, still locked); 18 literal locks remain.
+    expect((core.match(/FOR UPDATE/g) ?? []).length).toBe(18);
     expect(core).toContain('SELECT * FROM pos_sales WHERE id=? FOR UPDATE');
     expect(core).toContain('FOR UPDATE OF rp,r');
     expect(core).toContain("SELECT pg_advisory_xact_lock(hashtextextended('pos-daily:'||?,0))");
@@ -57,7 +58,7 @@ describe('POS read-tail r33 by-id payment native cutover', () => {
     expect(read('native-pos-stripe-reads.ts')).toContain("'pos_stripe_");
   });
 
-  test('retirement:ts-statements is strictly lower than the r33 BEFORE=189 baseline (expected 182)', () => {
+  test('retirement:ts-statements is strictly lower than the r33 BEFORE=189 baseline (expected 180)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -67,7 +68,7 @@ describe('POS read-tail r33 by-id payment native cutover', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(182);
+    expect(total).toBe(180);
     expect(total).toBeLessThan(189);
   });
 });

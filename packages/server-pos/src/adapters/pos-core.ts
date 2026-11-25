@@ -32,6 +32,14 @@ import { posCoreInventoryFacts } from "@erpx/server-inventory/public/pos-core-fa
 import { posCoreIdentityAccessFacts } from "@erpx/server-identity_access/public/pos-core-facts";
 import { posCoreWorkflowFacts } from "@erpx/server-workflow/public/pos-core-facts";
 import { posCoreOrganizationFacts } from "@erpx/server-organization/public/pos-core-facts";
+
+// r37: owner-local renderers for byte-identical serializable-unit keyed row-lock reads.
+// Each returns the exact literal previously authored inline at its call sites; the
+// trailing row lock, single bind and bind order are unchanged. The companion
+// `pos_sales` by-id lock pair stays inline and untouched.
+const posFulfillmentByIdLockSql = (): string => 'SELECT * FROM pos_fulfillments WHERE id=? FOR UPDATE';
+const posRegisterByIdLockSql = (): string => 'SELECT * FROM pos_registers WHERE id=? FOR UPDATE';
+
 function unit(db: SqlDatabase): PosUnit<SqlStatement> {
     return {
         assertHotelDay: async (company,registerId,date) => {
@@ -144,7 +152,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         }) => nativePosPendingPaymentIdStatement(db, facts.id),
         readPosFulfillments1: (facts: {
             itemId: string;
-        }) => one(db, 'SELECT * FROM pos_fulfillments WHERE id=? FOR UPDATE', facts.itemId),
+        }) => one(db, posFulfillmentByIdLockSql(), facts.itemId),
         writePosFulfillments3: (facts: {
             id: string | number | boolean | null;
         }) => nativePosRun(db, '', 'core_writeposfulfillments3_144', [facts.id]),
@@ -234,7 +242,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         readCommerceWarehouses3: facts => posCoreCommerceFacts(db).readCommerceWarehouses3(facts),
         readPosRegisters3: (facts: {
             id: string;
-        }) => one(db, 'SELECT * FROM pos_registers WHERE id=? FOR UPDATE', facts.id),
+        }) => one(db, posRegisterByIdLockSql(), facts.id),
         readPosShifts1: (facts: {
             id: string;
         }) => nativePosOpenShiftByRegisterStatement(db, facts.id),
@@ -257,7 +265,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         }) => nativePosRun(db, facts.company, 'core_writeposregisters3_251', [facts.rid, facts.company, facts.branch_id, facts.warehouseId, facts.name, facts.mode, facts.active]),
         readPosRegisters4: (facts: {
             registerId: string;
-        }) => one(db, 'SELECT * FROM pos_registers WHERE id=? FOR UPDATE', facts.registerId),
+        }) => one(db, posRegisterByIdLockSql(), facts.registerId),
         readPosTables1: (facts: {
             registerId: string;
             name: string;
@@ -398,7 +406,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         }) => nativePosRun(db, '', 'core_writeposreservations4_392', [facts.id]),
         readPosFulfillments5: (facts: {
             id: string;
-        }) => one(db, 'SELECT * FROM pos_fulfillments WHERE id=? FOR UPDATE', facts.id),
+        }) => one(db, posFulfillmentByIdLockSql(), facts.id),
         readPosLines11: (facts: {
             id: string | number | boolean | null;
             user: string;

@@ -56,7 +56,7 @@ describe('POS read-tail r32 hotel property native cutover', () => {
     expect(read('list_reads.rs')).toContain('pos_list_sales');
   });
 
-  test('retirement:ts-statements is strictly lower than the r32 BEFORE=191 baseline (expected 182)', () => {
+  test('retirement:ts-statements is strictly lower than the r32 BEFORE=191 baseline (expected 180)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -66,7 +66,7 @@ describe('POS read-tail r32 hotel property native cutover', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(182);
+    expect(total).toBe(180);
     expect(total).toBeLessThan(191);
   });
 });
