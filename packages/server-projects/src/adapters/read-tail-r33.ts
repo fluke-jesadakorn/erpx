@@ -1,3 +1,5 @@
+import {selectProjectionFrom} from './read-tail-r40';
+
 /** Byte-identical point-read head shared by the Projects assignment-version,
  * attachment descriptor and attachment owner-version guard reads. Only the
  * closed column list, relation and second key column vary; every caller keeps
@@ -7,4 +9,4 @@ export const projectPointReadHead = (
   columns: string,
   table: string,
   key2: 'user_id' | 'company_id',
-) => `SELECT ${columns} FROM ${table} WHERE id=? AND ${key2}=?`;
+) => `${selectProjectionFrom(columns, table)} WHERE id=? AND ${key2}=?`;

@@ -181,7 +181,7 @@ describe('Projects read-tail r39 closed scope-bind and point-read dedupe', () =>
     }
   });
 
-  test('retirement:ts-statements is 76 after r39 (BEFORE=81)', () => {
+  test('retirement:ts-statements is 74 after r40 (BEFORE=81)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {
@@ -194,7 +194,7 @@ describe('Projects read-tail r39 closed scope-bind and point-read dedupe', () =>
     // r38 left 81. r39 folds four scope bind heads into one closed helper (-3)
     // and three aliased point-read tails into one closed helper (-2): 81-5 = 76.
     // The assignment-viewer authority tail (S3) is not a byte-identical family.
-    expect(total).toBe(76);
+    expect(total).toBe(74);
     expect(total).toBeLessThan(81);
   });
 });

@@ -100,7 +100,7 @@ describe('Projects read-tail r37 fact union and NOT EXISTS proof dedupe', () => 
     expect(readFileSync(resolve(srcRoot, 'adapters/project_actuals.rs'), 'utf8')).toContain('FROM staff_project_cost_allocations');
   });
 
-  test('retirement:ts-statements is 76 after r39 (BEFORE=81)', () => {
+  test('retirement:ts-statements is 74 after r40 (BEFORE=81)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {
@@ -112,7 +112,7 @@ describe('Projects read-tail r37 fact union and NOT EXISTS proof dedupe', () => 
     walk(srcRoot);
     // r36 left 93. r37 Rank1 folds the four fact UNION arms into one closed
     // helper (-3) and Rank2 folds three NOT EXISTS proofs into notExistsRow (-2).
-    expect(total).toBe(76); // r38 member EXISTS closed helper (-4) + evidence super-head (-3): 88->81
+    expect(total).toBe(74); // r38 member EXISTS closed helper (-4) + evidence super-head (-3): 88->81
     expect(total).toBeLessThan(88);
   });
 });

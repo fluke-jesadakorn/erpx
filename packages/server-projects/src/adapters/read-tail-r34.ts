@@ -1,3 +1,5 @@
+import {selectProjectionFrom} from './read-tail-r40';
+
 /** Byte-identical SQL heads for the Projects SELECT-only read tail (r34).
  * Family A covers point reads on staff_tasks keyed by task id and Company;
  * Family B covers by-reference reads on staff_projects whose id/company_id
@@ -13,7 +15,7 @@ export const staffTaskPointHead = (
   columns: string,
   fromAlias = '',
   keyPrefix = '',
-) => `SELECT ${columns} FROM staff_tasks${fromAlias ? ` ${fromAlias}` : ''} WHERE ${keyPrefix}id=? AND ${keyPrefix}company_id=?`;
+) => `${selectProjectionFrom(columns, `staff_tasks${fromAlias ? ` ${fromAlias}` : ''}`)} WHERE ${keyPrefix}id=? AND ${keyPrefix}company_id=?`;
 
 /** staff_projects by-reference head. `refId` and `refCompany` are closed
  * column references; `whereGap`/`andGap` reproduce the original whitespace
@@ -25,4 +27,4 @@ export const staffProjectByRefHead = (
   refCompany: string,
   whereGap = ' ',
   andGap = ' ',
-) => `SELECT ${columns} FROM staff_projects ${alias}${whereGap}WHERE ${alias}.id=${refId}${andGap}AND ${alias}.company_id=${refCompany}`;
+) => `${selectProjectionFrom(columns, `staff_projects ${alias}`)}${whereGap}WHERE ${alias}.id=${refId}${andGap}AND ${alias}.company_id=${refCompany}`;
