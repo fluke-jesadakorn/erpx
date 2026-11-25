@@ -1,5 +1,6 @@
 import {peoplePurchaseControls} from "@erpx/server-people_payroll/adapters/people-purchases";
 import {ppRd43ActiveLeavePolicyProjection} from './pp-read-tail-r43-sources';
+import {ppRd61HolidayCalendarsByCompanySql} from './pp-read-tail-r61-sources';
 import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { ApiError } from "@erpx/server-runtime/public/http";
@@ -55,7 +56,7 @@ function application() {
             version: number;
             effective_from: string;
         }>(),
-        calendars: (companyId: string) => write.prepare("SELECT id,name FROM leave_holiday_calendars WHERE company_id=? AND active=true ORDER BY name").bind(companyId).all<{
+        calendars: (companyId: string) => write.prepare(ppRd61HolidayCalendarsByCompanySql(' AND active=true ORDER BY name')).bind(companyId).all<{
             id: string;
             name: string;
         }>(),

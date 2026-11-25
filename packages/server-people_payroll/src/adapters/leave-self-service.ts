@@ -1,3 +1,4 @@
+import {ppRd61HolidayCalendarsByCompanySql} from './pp-read-tail-r61-sources';
 import {ppRd36TwoPredTail} from './pp-read-tail-r36-sources';
 import {ppRd38SinglePredTail} from './pp-read-tail-r38-sources';
 import {ppRd36ThreePred} from './pp-read-tail-r36-sources';
@@ -245,7 +246,7 @@ function serviceContext(provided?: SqlDatabase,providedOwned=false): LeaveSelfSe
             return rows<{
                 id: string;
                 name: string;
-            }>(database, 'SELECT id,name FROM leave_holiday_calendars WHERE company_id=? ORDER BY name', companyId);
+            }>(database, ppRd61HolidayCalendarsByCompanySql(' ORDER BY name'), companyId);
         },
         readLeaveAdministrationTypespoliciescalendarsengagementsassignmentseligibilities4(companyId: string) {
             return rows<{
