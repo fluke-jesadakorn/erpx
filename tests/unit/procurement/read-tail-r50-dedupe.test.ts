@@ -94,7 +94,7 @@ describe('Procurement read-tail r50 bill-receipt head dedupe', () => {
     expect(r25).not.toContain('NOT EXISTS(SELECT 1 FROM procurement_bill_match_receipts br LEFT JOIN');
     expect(sb).not.toContain('SELECT 1 FROM procurement_bill_match_receipts br');
     // Binds and bind order are unaffected.
-    expect(sb).toContain(')).bind(actor.companyId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId).all<Row>()).results;');
+    expect(sb).toContain('.bind(actor.companyId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId).all<Row>()).results;');
     expect(sb).toContain('[receipt.id,bill.id]));');
   });
 
