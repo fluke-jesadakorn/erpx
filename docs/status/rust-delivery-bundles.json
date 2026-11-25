@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 13027,
+    "revision": 13033,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -189068,7 +189068,7 @@
         "owner": "files",
         "title": "files read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -189079,22 +189079,22 @@
         "resources": [
           "owner:files"
         ],
-        "claim": {
-          "runId": "run-20261125-d",
-          "agentId": "wH4n220",
-          "claimedAt": "2026-11-25T01:29:36.994Z",
-          "heartbeatAt": "2026-11-25T01:52:06.128Z",
-          "expiresAt": "2026-11-25T02:22:06.128Z",
-          "generation": 174
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Remaining two-site head group (-1): 229->228. BEFORE=229.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated and pushed; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n220",
+          "at": "2026-11-25T01:57:00.710Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated and pushed; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -189173,7 +189173,7 @@
         "owner": "crm",
         "title": "crm read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -189184,22 +189184,22 @@
         "resources": [
           "owner:crm"
         ],
-        "claim": {
-          "runId": "run-20261125-d",
-          "agentId": "wH4n213",
-          "claimedAt": "2026-11-25T01:26:16.393Z",
-          "heartbeatAt": "2026-11-25T01:52:06.128Z",
-          "expiresAt": "2026-11-25T02:22:06.128Z",
-          "generation": 174
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Plain list heads (-3): 54->51. BEFORE=54.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated and pushed; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n213",
+          "at": "2026-11-25T01:57:00.905Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated and pushed; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -189278,7 +189278,7 @@
         "owner": "procurement",
         "title": "procurement read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -189289,22 +189289,22 @@
         "resources": [
           "owner:procurement"
         ],
-        "claim": {
-          "runId": "run-20261125-d",
-          "agentId": "wH4n216",
-          "claimedAt": "2026-11-25T01:26:17.635Z",
-          "heartbeatAt": "2026-11-25T01:52:06.128Z",
-          "expiresAt": "2026-11-25T02:22:06.128Z",
-          "generation": 174
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Requisition/PO tails (-3): 85->82. BEFORE=85.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated and pushed; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n216",
+          "at": "2026-11-25T01:57:01.084Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated and pushed; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -190328,7 +190328,7 @@
         "owner": "files",
         "title": "files read slice",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -190339,7 +190339,14 @@
         "resources": [
           "owner:files"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n250",
+          "claimedAt": "2026-11-25T01:57:01.297Z",
+          "heartbeatAt": "2026-11-25T01:57:01.297Z",
+          "expiresAt": "2026-11-25T02:27:01.297Z",
+          "generation": 174
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -190356,7 +190363,7 @@
         "owner": "crm",
         "title": "crm read slice",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -190367,7 +190374,14 @@
         "resources": [
           "owner:crm"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n251",
+          "claimedAt": "2026-11-25T01:57:01.482Z",
+          "heartbeatAt": "2026-11-25T01:57:01.482Z",
+          "expiresAt": "2026-11-25T02:27:01.482Z",
+          "generation": 174
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -190384,7 +190398,7 @@
         "owner": "procurement",
         "title": "procurement read slice",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -190395,7 +190409,14 @@
         "resources": [
           "owner:procurement"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n252",
+          "claimedAt": "2026-11-25T01:57:01.663Z",
+          "heartbeatAt": "2026-11-25T01:57:01.663Z",
+          "expiresAt": "2026-11-25T02:27:01.663Z",
+          "generation": 174
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -190521,18 +190542,18 @@
       "totalPackets": 1948,
       "migratedPackets": 330,
       "statusCounts": {
-        "pending": 21,
+        "pending": 18,
         "in_progress": 19,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1576,
+        "blocked": 1579,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 174,
-    "updatedAt": "2026-11-25T01:56:41.841Z",
+    "updatedAt": "2026-11-25T01:57:01.667Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
