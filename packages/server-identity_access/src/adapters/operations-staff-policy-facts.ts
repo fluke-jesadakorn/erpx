@@ -5,6 +5,7 @@ const organizationSources=organizationSnapshotSources();
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {assignmentUserScopeProbeSql,distinctAssigneeSql} from './read-tail-family-r29';
+import {companyAuthorityProbeSql} from './read-tail-family-r38';
 import { type StaffPerson } from '@erpx/server-operations/public/staff-policy-contract';
 const staffSelect = (datePredicate: string) => `SELECT p.id person_id,p.user_id,p.legal_name,e.id engagement_id,e.version engagement_version,
   e.company_id,e.branch_id,e.department_id,e.worker_type,e.start_date,e.end_date,e.manager_person_id,e.level_id,l.name level_name,l.rank level_rank,l.level_number,e.position_id,pos.is_ceo,pos.roster_required,e.self_service_top_level
@@ -29,13 +30,12 @@ export function StaffPolicyIdentityAccessFacts(database: SqlDatabase) {
     AND EXISTS(SELECT 1 FROM assignments WHERE iam_same_person(user_id,?,company_id) AND company_id=? AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_from<=? AND valid_until>?)`, [userId, companyId, userId2, companyId2, now, now2]);
         },
         readCompanyAuthorityEffect(assignmentId: string, companyId: string, value: string, now: number, now2: number) {
-            return database.prepare(`SELECT 1 FROM assignments WHERE id=? AND company_id=? AND iam_role_allows(role,company_id,?) AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
-    AND scope_kind='holding' AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_from<=? AND valid_until>? LIMIT 1`)
+            return database.prepare(`${companyAuthorityProbeSql('read')} LIMIT 1`)
                 .bind(assignmentId, companyId, value, now, now2)
                 .first();
         },
         guard6(key: string, value: "company-authority", assignmentId: string, companyId: string, value2: string, now: number, now2: number) {
-            return assertion(database, key, value, `EXISTS(SELECT 1 FROM assignments WHERE id=? AND company_id=? AND iam_role_allows(role,company_id,?) AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND scope_kind='holding' AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_from<=? AND valid_until>?)`, [assignmentId, companyId, value2, now, now2]);
+            return assertion(database, key, value, `EXISTS(${companyAuthorityProbeSql('guard')})`, [assignmentId, companyId, value2, now, now2]);
         },
         readEligibleRoleUsersResults(company_id: string, role: "hr_admin" | "holding_owner", now: number, now2: number, role2: "hr_admin" | "holding_owner", branch_id: string | null, department_id: string | null) {
             return database.prepare(distinctAssigneeSql(`iam_role_allows(role,company_id,'workflow.'||?) AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)

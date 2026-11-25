@@ -164,6 +164,6 @@ describe('Identity access read-tail r36 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(454);
-    expect(total).toBe(448);
+    expect(total).toBe(442);
   });
 });
