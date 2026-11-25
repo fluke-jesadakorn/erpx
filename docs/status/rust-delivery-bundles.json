@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12724,
+    "revision": 12726,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -186733,7 +186733,7 @@
         "owner": "procurement",
         "title": "procurement read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -186744,22 +186744,37 @@
         "resources": [
           "owner:procurement"
         ],
-        "claim": {
-          "runId": "run-20261125-d",
-          "agentId": "wH4n166",
-          "claimedAt": "2026-11-25T00:18:41.561Z",
-          "heartbeatAt": "2026-11-25T00:18:41.561Z",
-          "expiresAt": "2026-11-25T00:48:41.561Z",
-          "generation": 174
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-procurement/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "364d10187",
+            "owner": "procurement",
+            "before": 95,
+            "after": 90,
+            "note": "Six settlement fact heads through procurementSettlementFactSelect; rendered SQL 15400 bytes byte-identical; locks/receipts untouched. Cargo 26; vitest 5."
+          },
+          {
+            "command": "targeted vitest + scoped tsc + cargo lib/module",
+            "result": "passed",
+            "sourceSha": "364d10187"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Package settlement UNION head (-5): 95->90. BEFORE=95.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n166",
+          "at": "2026-11-25T00:29:59.604Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       }
     ],
@@ -186773,17 +186788,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 6,
+        "in_progress": 5,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1501,
+        "blocked": 1502,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 174,
-    "updatedAt": "2026-11-25T00:29:46.635Z",
+    "updatedAt": "2026-11-25T00:29:59.607Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
