@@ -141,7 +141,7 @@ describe('Finance read-tail r48 protected families and retirement', () => {
     };
     walk(srcRoot);
     // Ten inline SELECTs collapse into three r48 helpers (-7: 1851 -> 1844); r49 collapses 36 more into four helpers (-32: 1844 -> 1812); r50 removes seven more (-> 1805).
-    expect(total).toBe(1708);
+    expect(total).toBe(1707);
     expect(total).toBeLessThan(1844);
   });
 });
