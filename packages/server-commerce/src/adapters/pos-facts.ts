@@ -1,8 +1,8 @@
 import { commerceFinalOwnerProjectionSources as posProjectionSources } from "@erpx/server-pos/public/commerce-final-owner-projection-sources";
 import "server-only";
-import {one,all,type SqlValueRow} from '@erpx/server-runtime/public/runtime/sql';
+import {one,type SqlValueRow} from '@erpx/server-runtime/public/runtime/sql';
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-import {nativeCommerceReadFirst,RD_SETTINGS_BY_COMPANY,RD_CURRENCY_BY_COMPANY} from './native-commerce-read';
+import {nativeCommerceReadAll,nativeCommerceReadFirst,RD_SETTINGS_BY_COMPANY,RD_CURRENCY_BY_COMPANY,RD_POS_WAREHOUSES_ALL} from './native-commerce-read';
 export function PosReadCommerceFacts(db: SqlDatabase) {
     return {
         readCommerceProducts1: (facts: {
@@ -20,6 +20,6 @@ export function PosReadCommerceFacts(db: SqlDatabase) {
             company: string;
             branch: string | null;
             branch2: string | null;
-        }) => all(db, "SELECT * FROM commerce_warehouses WHERE company_id=? AND status='active' AND (?::text IS NULL OR branch_id=?) ORDER BY name", facts.company, facts.branch, facts.branch2)
+        }) => nativeCommerceReadAll<SqlValueRow>(RD_POS_WAREHOUSES_ALL,[facts.company,facts.branch,facts.branch2],db)
     };
 }

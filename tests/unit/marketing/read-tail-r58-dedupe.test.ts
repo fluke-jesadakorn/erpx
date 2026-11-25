@@ -66,11 +66,11 @@ describe('marketing read-tail r58 form lock cutover', () => {
   });
 
   it('leaves the shared point-existence and receipt heads intact', async () => {
-    expect((await src('marketing-point-exists-sql.ts')).match(/SELECT /g)).toHaveLength(1);
-    expect((await src('owner-point-read-sql.ts')).match(/SELECT /g)).toHaveLength(1);
+    expect((await src('marketing-point-exists-sql.ts')).match(/SELECT /g) ?? []).toHaveLength(0);
+    expect((await src('owner-point-read-sql.ts')).match(/SELECT /g) ?? []).toHaveLength(0);
   });
 
   it('retirement:ts-statements stays strictly below BEFORE=12 at 10 after r59', async () => {
-    expect(await ownerTokens()).toEqual({ spaced: 5, bare: 5 });
+    expect(await ownerTokens()).toEqual({ spaced: 3, bare: 3 });
   });
 });

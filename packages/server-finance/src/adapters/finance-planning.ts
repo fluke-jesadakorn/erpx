@@ -102,8 +102,8 @@ decisionCommit:async(facts)=>{const {actor,id,input,action,key,op,row,now}=facts
       ),await financePlanning(db, actor.companyId).reviewEdition({ status: action === "approve" ? "approved" : "rejected", userId: actor.userId, reason: input.reason, now, id }),
     ],
   );},
-editions:async(actor,chartId)=>(await nativeFinanceReadAll(FINANCE_RD_PLAN_EDITIONS, [actor.companyId, chartId], write)).results,
-snapshots:async(actor,chartId)=>(await nativeFinanceReadAll(FINANCE_RD_PLAN_SNAPSHOTS, [actor.companyId, chartId], write)).results,
+editions:async(actor,chartId)=>(await nativeFinanceReadAll<Record<string, unknown>>(FINANCE_RD_PLAN_EDITIONS, [actor.companyId, chartId], write)).results,
+snapshots:async(actor,chartId)=>(await nativeFinanceReadAll<Record<string, unknown>>(FINANCE_RD_PLAN_SNAPSHOTS, [actor.companyId, chartId], write)).results,
 plan:async(actor,id,kind)=>db
     .prepare(
       planEditionPointSql(" AND kind=? AND status='approved'"),

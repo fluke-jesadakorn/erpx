@@ -41,6 +41,6 @@ describe('marketing read-tail r61 analytics touch head cutover', () => {
   });
 
   it('retirement:ts-statements stays strictly below BEFORE=9 at 7 after r62', async () => {
-    expect(await selectTokens()).toBe(5);
+    expect(await selectTokens()).toBe(3);
   });
 });

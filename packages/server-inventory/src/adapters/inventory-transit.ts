@@ -2,7 +2,8 @@ import {requireTransferPurchasedRead,transferSourceAccess} from "@erpx/server-in
 import {inventoryTransitAuthorityColumns} from '@erpx/server-identity_access/public/inventory-authority-projections';
 import {inventoryReadProjection as inventorycommerceProjection} from '@erpx/server-commerce/public/inventory-read-projections';
 import 'server-only';
-import {childLineRowsSql,noLaterLedgerMovementSql,noLotBalanceSql,lotBalanceGuardSql,pendingLossSumSql,scopedFieldSql,transitLossDecisionPendingSql} from './read-tail-sql';
+import {childLineRowsSql,noLaterLedgerMovementSql,noLotBalanceSql,lotBalanceGuardSql,pendingLossSumSql,transitLossDecisionPendingSql} from './read-tail-sql';
+import {lotBalanceVersion} from './native-scoped-field';
 import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime/types";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import type {TransferRow as Row} from "@erpx/server-inventory/public/inventory-transfers";
@@ -58,7 +59,7 @@ guardDispatchLot(key:string,value:string,lot_id:string | number | null,source_wa
  * the caller's unit; this module carries no SQL for it. */
 async selectableTransitLots(id:string | number | null){return nativeInventoryReadAll<Row>(INVENTORY_RD_SELECTABLE_TRANSIT_LOTS,[id],db);},
 guardReceiveDate(key:string,value:string,target_warehouse_id:string | number | null,product_id:string | number | null,date:string){return assertion(db,key,value,noLaterLedgerMovementSql,[target_warehouse_id,product_id,date]);},
-async targetLotBalance(lot_id:string | number | null,target_warehouse_id:string | number | null){return db.prepare(scopedFieldSql('version','inventory_lot_balances','lot_id','warehouse_id')).bind(lot_id,target_warehouse_id).first<Row>();},
+async targetLotBalance(lot_id:string | number | null,target_warehouse_id:string | number | null){return lotBalanceVersion(db,lot_id,target_warehouse_id);},
 guardTargetLotVersion(key:string,value:string,lot_id:string | number | null,target_warehouse_id:string | number | null,version:string | number | null){return assertion(db,key,value,lotBalanceGuardSql(' AND version=?'),[lot_id,target_warehouse_id,version]);},
 guardTargetLotAbsent(key:string,value:string,lot_id:string | number | null,target_warehouse_id:string | number | null){return assertion(db,key,value,noLotBalanceSql,[lot_id,target_warehouse_id]);},
 ...owner0(db),...owner1(db,a),...owner2(db),...owner3(db)} as unknown as InventoryTransitRepository<SqlStatement>;return createInventoryTransitApplication({repository,clock:{now:()=>Date.now()},requirePermission:(...args)=>{try{return requirePermission(...args);}catch(error){if(error instanceof ApiError)throw new BusinessRuleError(error.status,error.code,error.message);throw error;}},commands:{replay:(...args)=>inward(()=>replayCommand(db,...args)),commit:(...args)=>inward(()=>executeCommand(db,...args))},prepareJournal:(...args)=>inward(()=>prepareJournal(db,...args)),prepareEvidence:(...args)=>inward(()=>prepareBusinessEvidence(db,...args))});}

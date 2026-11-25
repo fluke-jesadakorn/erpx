@@ -91,7 +91,7 @@ describe('marketing read-tail r44 dedupe', () => {
   });
 
   it('keeps one point-existence head token and one source-row guard head token', async () => {
-    expect(selectTokens(await src('marketing-point-exists-sql.ts'))).toBe(1);
+    expect(selectTokens(await src('marketing-point-exists-sql.ts'))).toBe(0);
     expect(selectTokens(await src('attachment-owner-version-guard.ts'))).toBe(0);
     expect(selectTokens(await src('record-scope-authority.ts'))).toBe(0);
   });
@@ -105,8 +105,8 @@ describe('marketing read-tail r44 dedupe', () => {
     expect(await src('native-marketing-read.ts')).toContain('export');
   });
 
-  it('pins the owner SELECT KPI to 5 (lane 40 retired 3) (BEFORE=36)', async () => {
-    expect(await ownerSelectTokens()).toBe(5);
+  it('pins the owner SELECT KPI to 3 (lane 40 retired 3) (BEFORE=36)', async () => {
+    expect(await ownerSelectTokens()).toBe(3);
     expect(await ownerSelectTokens()).toBeLessThan(32);
   });
 });

@@ -41,7 +41,7 @@ describe('marketing read-tail r64 read-tail head cutover', () => {
       expect(await src(name)).toContain('marketingReadTailSql(');
   });
 
-  it('retirement:ts-statements is BEFORE=6 -> AFTER=5', async () => {
-    expect(await selectTokens()).toBe(5);
+  it('retirement:ts-statements stays strictly below BEFORE=6 at 4 after r65', async () => {
+    expect(await selectTokens()).toBe(3);
   });
 });

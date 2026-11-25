@@ -62,12 +62,12 @@ describe('marketing read-tail r57 command-receipt guard cutover', () => {
   });
 
   it('leaves the shared point-existence head and purchase locks intact', async () => {
-    expect((await src('marketing-point-exists-sql.ts')).match(/SELECT /g)).toHaveLength(1);
+    expect((await src('marketing-point-exists-sql.ts')).match(/SELECT /g) ?? []).toHaveLength(0);
     expect(await src('purchases.ts')).toContain('LOCK TABLE marketing_campaign_costs,marketing_public_limits,marketing_public_receipts IN SHARE ROW EXCLUSIVE MODE');
     expect(await src('public-form.ts')).toContain('FOR SHARE');
   });
 
   it('retirement:ts-statements is BEFORE=13 -> AFTER=12', async () => {
-    expect(await ownerTokens()).toEqual({ spaced: 5, bare: 5 });
+    expect(await ownerTokens()).toEqual({ spaced: 3, bare: 3 });
   });
 });

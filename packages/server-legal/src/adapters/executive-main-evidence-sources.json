@@ -1,0 +1,4 @@
+{
+  "obligationProjection": "SELECT s.id,s.item_id,s.title,s.category,s.due_date,s.state,s.version,\n          i.title item_title,i.kind item_kind,i.version item_version",
+  "holdProjection": "SELECT h.id,h.item_id,h.state,h.created_at,\n          i.title item_title,i.kind item_kind,i.version item_version"
+}

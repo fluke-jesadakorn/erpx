@@ -148,7 +148,8 @@ describe('Marketing owner-local campaign read tail', () => {
       '../../../packages/server-marketing/src/adapters/owner-point-read-sql'
     );
     expect(marketingOwnerPointReadSql('${projection}', '${table} source', true)).toBe(predicate);
-    expect(head.match(/SELECT /g) ?? []).toHaveLength(1);
+    expect(head.match(/SELECT /g) ?? []).toHaveLength(0);
+    expect(head).toContain('marketingSelectHeadSql(');
     expect(witness).not.toMatch(/SELECT/);
     expect(witness).toContain('export const attachmentSourceWitnessSql');
     expect(witness).toContain('marketingOwnerPointReadSql(projection, `${table} source`, true)');

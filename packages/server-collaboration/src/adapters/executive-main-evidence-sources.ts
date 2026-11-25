@@ -19,7 +19,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
         } | null): Promise<{
             rows: SocialActivityEvent[];
         }> {
-            const source = socialActivityEvents(actor);
+            const source = await socialActivityEvents(actor);
             const conditions = ["e.at>=?", "e.at<?"];
             const values: unknown[] = [...source.values, Date.parse(input.filters.from), Date.parse(input.filters.to) + 86400000];
             if (input.query) {
@@ -40,7 +40,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
         }): Promise<{
             row: SocialActivityEvent | null;
         }> {
-            const source = socialActivityEvents(actor);
+            const source = await socialActivityEvents(actor);
             const row = await db.prepare(`${source.sql} WHERE e.id=? AND e.at>=? AND e.at<? LIMIT 1`)
                 .bind(...source.values, recordId, Date.parse(filters.from), Date.parse(filters.to) + 86400000).first<SocialActivityEvent>();
             return { row };

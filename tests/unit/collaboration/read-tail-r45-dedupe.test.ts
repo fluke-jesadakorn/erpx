@@ -156,7 +156,7 @@ describe('Collaboration read-tail r45 protected SQL isolation', () => {
 });
 
 describe('Collaboration read-tail r45 KPI pins', () => {
-  test('retirement:ts-statements is pinned at 297, below the r45 BEFORE=341 baseline', () => {
+  test('retirement:ts-statements is pinned at 284, below the r45 BEFORE=341 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -169,7 +169,7 @@ describe('Collaboration read-tail r45 KPI pins', () => {
     // Four byte-identical settlement-source heads -> one owner-local renderer:
     // 341 -> 338. Prior pins were refreshed only where 338 replaced 341;
     // quantifiers, binds, notification targets and locks were untouched.
-    expect(total).toBe(297);
+    expect(total).toBe(284);
     expect(total).toBeLessThan(341);
   });
 });

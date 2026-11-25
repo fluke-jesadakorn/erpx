@@ -5,7 +5,6 @@ import { PMS_PURCHASE_CLOCK_CTE_SQL } from "./pms-read-tail-r27-sql";
 import { pmsRefundPaymentJoinHeadSql } from "./pms-read-tail-r34-sql";
 import { PMS_PROPERTY_POINT_HEAD_SQL } from "./pms-read-tail-r36-sql";
 import { PMS_BOOKING_PAYMENT_ID_HEAD_SQL } from "./pms-read-tail-r37-sql";
-import { pmsTwoColumnPointReadSql } from "./pms-read-tail-r46-sql";
 import { pmsGuestIdJoinSql } from "./pms-read-tail-r41-sql";
 import {holdingRoutingEnabled,holdingHosts} from '@erpx/contracts/holding-hosts';
 import {bookingEmailDeliveryPayload} from "@erpx/server-pms/adapters/booking-email-delivery";
@@ -35,7 +34,7 @@ import { pmsPropertyPurchaseAllowed, pmsPropertyPurchaseFlags, requirePmsPropert
 import { pmsPackageEnforcementMode } from "@erpx/server-commercial/public/purchase-command-boundary";
 import { purchasedCapabilityPredicate } from "@erpx/server-commercial/public/purchased-capability-sql";
 import { nativePmsOwnerWrite } from "@erpx/feature-pms/public/native-pms";
-import { nativePmsReadAll, nativePmsReadFirst, PMS_RD_BOOKING_RECEIPT_BY_KEY, PMS_RD_BOOKING_RECEIPT_BY_ATTEMPT, PMS_RD_BOOKING_DOCUMENTS, PMS_RD_CHANGE_PAYMENT_PENDING, PMS_RD_BOOKING_PROPERTY_SCOPE, PMS_RD_BOOKING_PROPERTY_SCOPE_BRANCH, PMS_RD_BOOKING_RECORDS, PMS_RD_BOOKING_RECORDS_SEARCH } from "./native-pms-read";
+import { nativePmsReadAll, nativePmsReadFirst, PMS_RD_BOOKING_RECEIPT_BY_KEY, PMS_RD_BOOKING_RECEIPT_BY_ATTEMPT, PMS_RD_BOOKING_DOCUMENTS, PMS_RD_CHANGE_PAYMENT_PENDING, PMS_RD_BOOKING_PROPERTY_SCOPE, PMS_RD_BOOKING_PROPERTY_SCOPE_BRANCH, PMS_RD_BOOKING_RECORDS, PMS_RD_BOOKING_RECORDS_SEARCH, PMS_RD_BOOKING_TOKEN } from "./native-pms-read";
 export async function bookingEnv(): Promise<BookingEnv> {
     const env = await runtimeEnv();
     return {
@@ -258,10 +257,10 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase, companyId = '')
         readPmsBookingTokens1: (facts: {
             fact0: string;
             now: number;
-        }) => db.prepare(pmsTwoColumnPointReadSql('bookingTokenByHash')).bind(facts.fact0, facts.now).first<{
+        }) => nativePmsReadFirst<{
             property_id: string;
             reservation_id: string;
-        }>(),
+        }>(PMS_RD_BOOKING_TOKEN, [facts.fact0, facts.now], db),
         readPmsBookingRefundRequests1: (facts: {
             id: string;
         }) => db.prepare(`${pmsRefundPaymentJoinHeadSql('brief')} WHERE p.reservation_id=? ORDER BY r.created_at DESC`).bind(facts.id).all<{

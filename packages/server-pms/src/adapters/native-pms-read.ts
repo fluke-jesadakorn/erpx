@@ -121,6 +121,12 @@ export const PMS_RD_BOOKING_RECORDS_SEARCH = 'pms_rd_booking_records_search';
 export const PMS_RD_GUEST_ACCOUNT_SUMS = 'pms_rd_guest_account_sums';
 export const PMS_RD_CHARGE_CORRECTIONS = 'pms_rd_charge_corrections';
 export const PMS_RD_CHARGE_CORRECTIONS_FRONT = 'pms_rd_charge_corrections_front';
+/** Native successors of the retired r46 two-column point reads. Fixed SQL with
+ * two/one/one positional binds, no ledger/receipt/outbox and no lock/refund
+ * path; the caller runs them on its already-open unit. */
+export const PMS_RD_BOOKING_TOKEN = 'pms_rd_booking_token';
+export const PMS_RD_STRIPE_PAYMENT_KEY = 'pms_rd_stripe_payment_key';
+export const PMS_RD_PROPERTY_SCOPE = 'pms_rd_property_scope';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'PMS_NATIVE_READ_UNAVAILABLE', 'The native PMS read service is unavailable.');

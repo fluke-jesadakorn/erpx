@@ -130,15 +130,15 @@ describe('pms read-tail r51 executive metric label head dedupe', () => {
 
   it('leaves native registry, r47-r50 helpers, locks and prior helpers untouched', async () => {
     const rust = await src('adapters/native_read_sql.rs');
-    expect((rust.match(/^pub const PMS_RD_/gm) ?? []).length).toBe(52);
+    expect((rust.match(/^pub const PMS_RD_/gm) ?? []).length).toBe(55);
     expect(rust).toContain('pub const PMS_RD_SECTION_RELATED_RECORDS: &str = "pms_rd_section_related_records";');
     const bridge = await src('adapters/native-pms-read.ts');
-    expect((bridge.match(/^export const PMS_RD_/gm) ?? []).length).toBe(52);
+    expect((bridge.match(/^export const PMS_RD_/gm) ?? []).length).toBe(55);
     expect(await src('adapters/pms.ts')).toContain('FOR UPDATE OF p');
     expect(await src('adapters/pms-stripe.ts')).toContain('FOR UPDATE');
     expect(await src('adapters/feature-availability.ts')).toContain('FOR SHARE');
     expect(await src('adapters/attachment-read-sources.ts')).toContain('LOCK TABLE');
-    for (const n of [17, 18, 19, 20, 21, 22, 24, 25, 26, 27, 29, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 49, 50]) {
+    for (const n of [17, 18, 19, 20, 21, 22, 24, 25, 26, 27, 29, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 49, 50]) {
       expect((await src(`adapters/pms-read-tail-r${n}-sql.ts`)).length, `r${n}`).toBeGreaterThan(0);
     }
     for (const n of [49, 50]) {
@@ -153,8 +153,8 @@ describe('pms read-tail r51 executive metric label head dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(220);
-    expect(bare).toBe(221);
+    expect(spaced).toBe(219);
+    expect(bare).toBe(220);
     expect(spaced).toBeLessThan(252);
     expect(bare).toBeLessThan(254);
   });

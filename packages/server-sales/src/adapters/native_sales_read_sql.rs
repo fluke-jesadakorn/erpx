@@ -222,6 +222,17 @@ const READ_CALENDAR_OWNER_MEMBER: NativeSalesReadStatement = NativeSalesReadStat
     scope: "holding",
 };
 
+/// Native successor of the TypeScript followup purchase orders source.
+/// Fixed CRM owner projections; no binds, byte-identical to the retired literal.
+pub const RD_FOLLOWUP_ORDERS: &str = "sales_rd_followup_orders";
+const SQL_FOLLOWUP_ORDERS: &str = "SELECT actual.*,jsonb_build_array(actual.id,actual.company_id,actual.branch_id,actual.department_id,actual.kind,actual.party_id,actual.currency) witness FROM (SELECT id,company_id,branch_id,department_id,kind,party_id,currency,source_id FROM commerce_orders) actual JOIN (SELECT id,company_id,kind,status FROM finance_parties) customer ON customer.id=actual.party_id AND customer.company_id=actual.company_id AND customer.kind='customer' WHERE actual.kind IN ('quote','sales')";
+const READ_FOLLOWUP_ORDERS: NativeSalesReadStatement = NativeSalesReadStatement {
+    kind: RD_FOLLOWUP_ORDERS,
+    sql: SQL_FOLLOWUP_ORDERS,
+    bind_count: 0,
+    scope: "holding",
+};
+
 const READS: &[NativeSalesReadStatement] = &[
     READ_PRICE_LIST_ACTIVE,
     READ_PRICE_LIST_ITEMS_ACTIVE,
@@ -243,6 +254,8 @@ const READS: &[NativeSalesReadStatement] = &[
 
     READ_CALENDAR_JSONB_MEMBER,
     READ_CALENDAR_OWNER_MEMBER,
+
+    READ_FOLLOWUP_ORDERS,
 
 ];
 
@@ -498,7 +511,7 @@ mod tests {
         assert_eq!(read.bind_count, 0);
         assert_eq!(read.sql.matches('?').count(), 1);
         assert_eq!(read.sql.len(), 47);
-        assert!(read.sql.starts_with("IN("));
+        assert!(read.sql.starts_with("IN"));
         assert_eq!(read.scope, "holding");
         assert!(is_read(RD_CALENDAR_JSONB_MEMBER));
     }
@@ -510,14 +523,26 @@ mod tests {
         assert_eq!(read.bind_count, 0);
         assert_eq!(read.sql.matches('?').count(), 1);
         assert_eq!(read.sql.len(), 286);
-        assert!(read.sql.starts_with("IN("));
+        assert!(read.sql.starts_with("IN"));
         assert_eq!(read.scope, "holding");
         assert!(is_read(RD_CALENDAR_OWNER_MEMBER));
     }
 
     #[test]
+    fn followup_orders_source_is_allow_listed_and_byte_stable() {
+        let read = read_statement(RD_FOLLOWUP_ORDERS).expect("read kind");
+        assert_eq!(read.kind, "sales_rd_followup_orders");
+        assert_eq!(read.bind_count, 0);
+        assert_eq!(read.sql.matches('?').count(), 0);
+        assert_eq!(read.sql.len(), 476);
+        assert!(read.sql.starts_with("SELECT actual.*,jsonb_build_array("));
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_FOLLOWUP_ORDERS));
+    }
+
+    #[test]
     fn only_owner_read_kinds_are_registered() {
-        assert_eq!(READS.len(), 17);
+        assert_eq!(READS.len(), 18);
         assert!(READS.iter().all(|read| is_read(read.kind)));
         assert!(!is_read("sales_price_lists"));
         assert!(!is_read("SELECT 1"));

@@ -57,8 +57,10 @@ describe('quality read-tail r31 package-scope head dedupe', () => {
 
   test('one owner-local head helper replaces the two inline scope heads', () => {
     const head = read('adapters/quality-scope-sql.ts');
-    expect(head.match(/SELECT /g)).toHaveLength(1);
-    expect(head).toContain('export const scopeSql = (columns:string) => `(SELECT ${columns})`');
+    expect(head.match(/SELECT /g) ?? []).toHaveLength(0);
+    expect(head).toContain('import {evidenceHead} from "./inspection-evidence-source-sql";');
+    expect(head).toContain('export const scopeSql = (columns:string) => `(${evidenceHead(columns, \'\', \'\')})`');
+    expect(head).toContain('export const withScopeSql = (body:string) => `(${body})`;');
     expect(head).toContain('qualityPackageScopeCte = scopeSql("?::text company_id,?::boolean full")');
     expect(head).toContain('${scopeSql(`${packageClockSql} now_ms`)}');
     expect(head).not.toContain('qualityPackageScopeCte = "(SELECT');
@@ -85,8 +87,10 @@ describe('quality read-tail r31 package-scope head dedupe', () => {
     // The scope-tuple heads carried by purchases/attachment-read/calendar are
     // unaffected; they remain the exact strings pinned before this pass.
     const manufacturing = read('adapters/manufacturing-package-obligations.ts');
-    expect(manufacturing).toContain('orders AS MATERIALIZED(SELECT o.*');
-    expect(manufacturing).toContain('holds AS MATERIALIZED(SELECT h.*');
+    expect(manufacturing).toContain('orders AS MATERIALIZED${scopeSql(`o.*');
+    expect(manufacturing).toContain('holds AS MATERIALIZED${scopeSql(`h.*');
+    expect(manufacturing).not.toContain('orders AS MATERIALIZED(SELECT');
+    expect(manufacturing).not.toContain('holds AS MATERIALIZED(SELECT');
     expect(read('adapters/purchases.ts')).toContain('qualityWorkScopeTuple("?::text company_id,?::text branch_id,NULL::text department_id","quality_scope")');
     expect(read('adapters/attachment-read.ts')).toContain('qualityWorkScopeTuple("?::text company_id,?::text branch_id,?::text department_id","workforce_actor_scope","")');
     expect(read('adapters/calendar-quality-facts.ts')).toContain('qualityWorkScopeTuple("h.company_id,h.branch_id,NULL::text department_id","quality_calendar_scope")');
@@ -108,6 +112,6 @@ describe('quality read-tail r31 package-scope head dedupe', () => {
 
   test('retirement:ts-statements is strictly lower than the BEFORE=31 baseline', () => {
     expect(kpi()).toBeLessThan(31);
-    expect(kpi()).toBe(9);
+    expect(kpi()).toBe(1);
   });
 });

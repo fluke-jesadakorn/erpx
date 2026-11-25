@@ -100,7 +100,10 @@ INSERT INTO marketing_campaign_costs VALUES ('cost-1','company','campaign-1',100
 /// Live statement literals must stay verbatim against the retained TS source.
 #[test]
 fn live_statements_match_typescript_authority() {
-    assert!(TS_TAIL.contains("SELECT * FROM ${table}${tail}"));
+    // r64 delegates the read-tail selection to the shared owner head; the
+    // table/tail fragments remain caller-owned and emit byte-identical SQL.
+    assert!(TS_TAIL.contains("marketingSelectHeadSql('*', ` FROM ${table}${tail}`)"));
+    assert!(!TS_TAIL.contains("SELECT * FROM ${table}${tail}"));
     assert!(!TS_TAIL.contains("WHERE ${predicate}"));
     assert!(TS_LOCAL.contains("marketingReadTailSql(table, ` WHERE ${predicate}${order}${forUpdate}`)"));
     assert!(TS_LOCAL.contains("marketing_assets"));
@@ -121,7 +124,7 @@ fn live_statements_match_typescript_authority() {
     // byte-exact statement on the registered native owner read port.
     assert!(TS_CAMPAIGN.contains("nativeMarketingPlan(MARKETING_RD_CAMPAIGN_EXISTS)"));
     assert!(TS_SUBMISSION.contains("nativeMarketingReadFirst<Record<string,unknown>>(MARKETING_RD_CAMPAIGN_EXISTS,{campaignId:id,companyId},db)"));
-    assert!(TS_OWNER.contains("SELECT ${projection} FROM ${source} WHERE ${q}id=? AND ${q}company_id=?"));
+    assert!(TS_OWNER.contains("marketingSelectHeadSql(projection, ` FROM ${source} WHERE ${q}id=? AND ${q}company_id=?`)"));
     assert!(TS_PURCHASE.contains("const head = `${id}.id,${id}.company_id,${spec.scope},${spec.witness} witness`"));
     assert!(TS_PURCHASE.contains("marketingSelectHeadSql(head, ` FROM ${spec.source}`)"));
     assert!(TS_PURCHASE.contains("NULL::text branch_id,NULL::text department_id"));

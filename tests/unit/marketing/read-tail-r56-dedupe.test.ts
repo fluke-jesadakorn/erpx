@@ -66,13 +66,13 @@ describe('marketing read-tail r56 native campaign-existence cutover', () => {
   });
 
   it('leaves the shared owner point head and the retained settlement/lock reads intact', async () => {
-    expect((await src('owner-point-read-sql.ts')).match(/SELECT /g)).toHaveLength(1);
+    expect((await src('owner-point-read-sql.ts')).match(/SELECT /g) ?? []).toHaveLength(0);
     expect(await src('purchases.ts')).toContain('nativeMarketingReadFirst<Record<string,unknown>>(MARKETING_RD_COMMAND_RECEIPT_PRIOR');
     expect(await src('public-form.ts')).toContain('FOR SHARE');
     expect(await src('native-marketing-read.ts')).toContain('MARKETING_RD_CAMPAIGN_EXISTS');
   });
 
   it('retirement:ts-statements stays strictly below BEFORE=14 at 12 after r57', async () => {
-    expect(await ownerTokens()).toEqual({ spaced: 5, bare: 5 });
+    expect(await ownerTokens()).toEqual({ spaced: 3, bare: 3 });
   });
 });

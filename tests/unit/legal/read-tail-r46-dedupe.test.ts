@@ -7,6 +7,12 @@ import {
   legalExecutiveObligationSpineHead,
   legalExecutiveHoldSpineHead,
 } from '../../../packages/server-legal/src/adapters/legal-read-tail-r46-sources';
+import queuedContract from '../../../packages/server-legal/src/adapters/queued-purchases-sources.json' with {
+  type: 'json',
+};
+import evidenceContract from '../../../packages/server-legal/src/adapters/executive-main-evidence-sources.json' with {
+  type: 'json',
+};
 
 const srcRoot = resolve(__dirname, '../../../packages/server-legal/src');
 const src = (name: string) => readFile(new URL(`../../../packages/server-legal/src/adapters/${name}`, import.meta.url), 'utf8');
@@ -77,12 +83,32 @@ describe('legal read-tail r46 destruction-guard and executive-spine head family'
     expect(evidence.match(/legalExecutiveHoldSpineHead\(/g) ?? []).toHaveLength(1);
     expect(evidence).not.toContain('\n        FROM legal_obligation_schedule s JOIN legal_items i ON i.id=s.item_id\n        WHERE ');
     expect(evidence).not.toContain('\n        FROM legal_holds h JOIN legal_items i ON i.id=h.item_id\n        WHERE ');
+    expect(evidence.match(/SELECT /g) ?? []).toHaveLength(0);
+    expect(evidence).toContain('executive-main-evidence-sources.json');
+    expect(evidenceContract.obligationProjection).toContain('SELECT s.id,s.item_id,s.title');
+    expect(evidenceContract.holdProjection).toContain('SELECT h.id,h.item_id,h.state');
+    const evidenceRust = await src('executive_main_evidence_sources.rs');
+    expect(evidenceRust).toContain('include_str!("executive-main-evidence-sources.json")');
+    expect(evidenceRust).toContain('executive_obligation_projection');
+    expect(evidenceRust).toContain('2a9a69668bc84df0ee2a194bb97f596ca7d452f0a26c8d135673f78d868bbd5e');
   });
 
   it('does not merge the queued-purchases executing-only guard', async () => {
-    const queued = await src('queued-purchases.ts');
-    expect(queued).toContain("NOT EXISTS(SELECT 1 FROM legal_destructions x WHERE x.item_id=d.item_id AND x.state='executing')");
+    const [queued, rust] = await Promise.all([
+      src('queued-purchases.ts'),
+      src('queued_purchases.rs'),
+    ]);
+    expect(queuedContract.processingSourceGuard).toBe(
+      "NOT EXISTS(SELECT 1 FROM legal_destructions x WHERE x.item_id=d.item_id AND x.state='executing')",
+    );
+    expect(queuedContract.jobSource).toContain('{documentColumns}');
+    expect(queued).toContain('queued-purchases-sources.json');
+    expect(queued).toContain('contract.processingSourceGuard');
+    expect(queued.match(/SELECT /g) ?? []).toHaveLength(0);
     expect(queued).not.toContain('legalActiveDestructionGuardHead');
+    expect(rust).toContain('include_str!("queued-purchases-sources.json")');
+    expect(rust).toContain('render_queued_job_source');
+    expect(rust).toContain('6c3f2c717b8f1a81355e5f51fac148bed137a22d0604773e9284e2b24ba69e41');
   });
 
   it('keeps every head read-only (no writes or row locks)', () => {
@@ -158,5 +184,19 @@ describe('legal read-tail r46 destruction-guard and executive-spine head family'
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(203);
+  });
+
+  it('retirement:ts-statements current owner pin is 93 after the queued/evidence contracts', async () => {
+    let total = 0;
+    const walk = async (dir: string) => {
+      for (const entry of await readdir(dir, { withFileTypes: true })) {
+        const p = resolve(dir, entry.name);
+        if (entry.isDirectory()) await walk(p);
+        else if (entry.name.endsWith('.ts')) total += ((await readFile(p, 'utf8')).match(/SELECT /g) ?? []).length;
+      }
+    };
+    await walk(srcRoot);
+    expect(total).toBeLessThan(95);
+    expect(total).toBe(93);
   });
 });

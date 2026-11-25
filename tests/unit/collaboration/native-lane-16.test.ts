@@ -250,6 +250,6 @@ describe('native Collaboration lane 16 sent-notice facts', () => {
     for (const file of files) {
       count += (readFileSync(`${root}/${file}`, 'utf8').match(/SELECT /g) ?? []).length;
     }
-    expect(count).toBe(297);
+    expect(count).toBe(284);
   });
 });

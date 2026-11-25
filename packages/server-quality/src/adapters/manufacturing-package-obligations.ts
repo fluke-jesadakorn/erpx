@@ -5,7 +5,7 @@ import type {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgre
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/server-commercial/public/package-settlement-sources";
 import {assertManufacturingPackageObligationSources,manufacturingPackageSettlementSources as manufacturing} from "@erpx/server-manufacturing/public/package-obligations";
-import {qualityPackageScopeCte} from "@erpx/server-quality/adapters/quality-scope-sql";
+import {qualityPackageScopeCte,scopeSql} from "@erpx/server-quality/adapters/quality-scope-sql";
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};const sources=new WeakMap<SqlDatabase,string>();
 export async function lockManufacturingQualityPackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){const {database,companyId}=packageSettlementSource(owner,lock);await database.prepare("LOCK TABLE inventory_quality_holds,inventory_quality_inspections,inventory_quality_alerts,inventory_quality_disposition_events IN SHARE MODE").run();sources.set(database,companyId);}
 export async function manufacturingQualityPackageObligations(owner:PostgresDatabase,database:SqlDatabase,input:Input){

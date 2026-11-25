@@ -10,6 +10,7 @@ import {
   setIdentityControlReadForTest,
   PC_CONTEXT_RECEIPT,
   PC_REVOKED_SESSION,
+  PC_FRESH_MFA,
 } from '../../../packages/server-identity_access/src/adapters/native-control-read-plan';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-identity_access/src');
@@ -141,7 +142,7 @@ describe('Identity access read-tail r36 wiring', () => {
     expect(read('adapters/platform-commercial-authority.ts')).toContain("EXISTS(SELECT 1 FROM iam_revoked_sessions r WHERE r.company_id='platform'");
     expect(read('adapters/iam-probe-sql.ts')).toContain('SELECT 1 FROM iam_revoked_sessions WHERE session_id=${sessionParam}');
     expect(read('adapters/workflow-command-authority.ts')).toContain('SELECT id FROM assignments WHERE id=? FOR SHARE');
-    expect(read('adapters/account-preference-session.ts')).toContain('SELECT id FROM session WHERE id=? FOR SHARE');
+    expect(read('adapters/account-preference-session.ts')).toContain('PC_PREF_SESSION_SHARE');
     expect(readdirSync(srcRoot, { recursive: true }).filter((f) => String(f).endsWith('.rs')).length).toBeGreaterThan(0);
   });
 
@@ -299,7 +300,7 @@ describe('Identity access Control-side read-plan family', () => {
     const client = read('adapters/native-control-read-plan.ts');
     for (let index = 0; index < SQLS.length; index++) {
       expect(sha256(SQLS[index]), SHAS[index]).toBe(SHAS[index]);
-      expect(port, SHAS[index]).toContain(SQLS[index].replace(/"/g, '\\"'));
+      expect(port, SHAS[index]).toContain(SQLS[index].replace(/"/g, '\\"').replace(/\n/g, '\\n'));
       expect(client, SHAS[index]).toContain(SHAS[index]);
     }
     const files = [
@@ -319,8 +320,91 @@ describe('Identity access Control-side read-plan family', () => {
   });
 });
 
+describe('Identity access fresh-MFA native plan cut', () => {
+  afterEach(() => setIdentityControlReadForTest(undefined));
+  const SQL = 'SELECT 1 FROM iam_mfa_sessions f JOIN iam_mfa m ON m.user_id=f.user_id AND m.enabled=true JOIN session s ON s.id=f.session_id AND s."userId"=f.user_id WHERE f.user_id=? AND f.session_id=? AND f.verified_at>? AND s."expiresAt"::timestamptz>?::timestamptz';
+  const SHA = '65e69ea7d903ef4a7f3d8e622254c9b874cfb825cfd8ca1c29e0ba7577125132';
+
+  test('the statement is deleted from TS and pinned by the native owner and client', () => {
+    expect(sha256(SQL)).toBe(SHA);
+    const source = read('adapters/iam-mfa.ts');
+    expect(source).not.toContain(SQL);
+    expect(source).not.toMatch(/SELECT /);
+    expect(source).toContain('PC_FRESH_MFA');
+    expect(source).toContain('planIdentityControlRead');
+    expect(source).toContain('prepare(plan.sql).bind(...plan.values)');
+    const port = read('adapters/control_read_plan.rs');
+    expect(port).toContain(SQL.replace(/"/g, '\\"'));
+    expect(read('adapters/native-control-read-plan.ts')).toContain(SHA);
+  });
+
+  test('the numeric cutoff rule is closed on both sides of the client', async () => {
+    const cutoff = 1_700_000_000_000;
+    const isoNow = '2026-11-26T00:00:00.000Z';
+    setIdentityControlReadForTest(async (_kind, values) => ({ sql: SQL, values }));
+    expect(await planIdentityControlRead(PC_FRESH_MFA, ['user-1', 'session-1', cutoff, isoNow]))
+      .toEqual({ sql: SQL, values: ['user-1', 'session-1', cutoff, isoNow] });
+    for (const values of [
+      ['user-1', 'session-1', 'not-a-number', isoNow],
+      ['user-1', 'session-1', -1, isoNow],
+      ['user-1', 'session-1', cutoff],
+    ])
+      await expect(planIdentityControlRead(PC_FRESH_MFA, values)).rejects.toMatchObject({
+        code: 'IDENTITY_CONTROL_READ_INVALID',
+      });
+  });
+});
+
+describe('Identity access lock-aware preference plan cut', () => {
+  const SQLS = [
+    'SELECT * FROM sso_session_bindings WHERE session_id=?',
+    'SELECT id FROM session WHERE id=? FOR SHARE',
+    'SELECT "userId" user_id,"expiresAt" expires_at FROM session WHERE id=?',
+    'SELECT * FROM sso_session_bindings WHERE session_id=? FOR SHARE',
+    'SELECT b.*,s."userId" user_id,s."expiresAt" expires_at\n    FROM sso_session_bindings b JOIN session s ON s.id=b.session_id WHERE b.session_id=? FOR SHARE OF b',
+  ] as const;
+  const SHAS = [
+    '5893b16f5a1267558051991fecbbd67645fbbee1b6c3e779fcb2ba4141130504',
+    'be9e3354fe8e8adb7357c1d18e264b4c8d8983ca45951716731a6c42be770be0',
+    '8ee55872698acd8f8db05e131432e221353aa71e8665b94c8205e012a52bf8af',
+    'd9ee53a4666438071f1e233fbcb7754912d6f08251b3f69652b2792d9e8a3789',
+    '242a5de65756ffa03457eca0a59a03466d074e34c95877f57022dce9b717cce9',
+  ] as const;
+
+  test('five preference statements are deleted from TS and pinned by the owner', () => {
+    const source = read('adapters/account-preference-session.ts');
+    const port = read('adapters/control_read_plan.rs');
+    const client = read('adapters/native-control-read-plan.ts');
+    for (let index = 0; index < SQLS.length; index++) {
+      expect(sha256(SQLS[index]), SHAS[index]).toBe(SHAS[index]);
+      expect(source, SHAS[index]).not.toContain(SQLS[index]);
+      expect(port, SHAS[index]).toContain(SQLS[index].replace(/"/g, '\\"').replace(/\n/g, '\\n'));
+      expect(client, SHAS[index]).toContain(SHAS[index]);
+    }
+    expect(source).not.toMatch(/SELECT /);
+    for (const kind of [
+      'PC_PREF_BINDING_PROBE',
+      'PC_PREF_SESSION_SHARE',
+      'PC_PREF_SESSION_IMAGE',
+      'PC_PREF_BINDING_SHARE',
+      'PC_PREF_PARENT_BINDING_SHARE',
+    ])
+      expect(source, kind).toContain(kind);
+    expect(source).toContain('planIdentityControlRead');
+    expect(source).toContain('transaction.prepare(plan.sql).bind(...plan.values)');
+  });
+
+  test('lock suffixes stay pinned on the caller unit', () => {
+    for (const suffix of ['FOR SHARE', 'FOR SHARE', 'FOR SHARE OF b'])
+      expect(SQLS.filter((sql) => sql.endsWith(suffix)).length).toBeGreaterThan(0);
+    const source = read('adapters/account-preference-session.ts');
+    expect(source).toContain('parentId');
+    expect(source).toContain('actor.sessionId');
+  });
+});
+
 describe('Identity access read-tail r36 retirement check', () => {
-  test('retirement:ts-statements is 379 after Control-side read-plan cut', () => {
+  test('retirement:ts-statements is 373 after lock-aware preference cut', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -331,6 +415,6 @@ describe('Identity access read-tail r36 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(454);
-    expect(total).toBe(379);
+    expect(total).toBe(373);
   });
 });

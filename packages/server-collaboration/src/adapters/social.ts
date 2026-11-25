@@ -9,6 +9,7 @@ import type { FeedFilter } from '@erpx/server-collaboration/domain/social';
 import { createSocialApplication } from '@erpx/server-collaboration/application/social';
 import {workSocialReadScope} from '@erpx/server-collaboration/public/work-social-read-policy';
 import {socialFollowPostExists} from './read-tail-sql';
+import {nativeInboxSqlFragment} from './native-inbox-statements';
 async function exposed<T>(action: () => Promise<T>) { try {
     return await action();
 }
@@ -20,7 +21,7 @@ catch (error) {
 function scopeSql(context: WorkContext, alias = "p") {
     return socialPostScope(context, alias);
 }
-function filterSql(filter: FeedFilter) {
+function filterSql(filter: FeedFilter, topicExists: string = "") {
     if (filter === "team")
         return " AND p.kind='team'";
     if (filter === "records")
@@ -29,33 +30,35 @@ function filterSql(filter: FeedFilter) {
         return ` AND (
     ${socialFollowPostExists("'post'",'p.id')}
     OR ${socialFollowPostExists("'person'",'p.author_id')}
-    OR EXISTS(SELECT 1 FROM social_post_topics pt JOIN social_follows f ON f.target_type='topic' AND f.target_id=pt.tag
-      WHERE pt.post_id=p.id AND f.principal_id=?))`;
+    ${topicExists}`;
     return "";
 }
 function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSocialReadScope>>={prefix:'',where:'TRUE',args:[]}) {
     return createSocialApplication({ async feed(context, filter) {
             const scope = scopeSql(context);
             const followingBindings = filter === "following" ? [context.userId, context.userId, context.userId] : [];
-            const response = await db.prepare(`${purchase.prefix}SELECT p.*,
-      (SELECT count(*) FROM social_reactions r WHERE r.post_id=p.id AND r.kind='appreciate') AS appreciation_count,
-      (SELECT count(*) FROM social_comments c WHERE c.post_id=p.id AND c.state='published') AS comment_count,
-      EXISTS(SELECT 1 FROM social_reactions r WHERE r.post_id=p.id AND r.principal_id=? AND r.kind='appreciate') AS appreciated,
-      ${socialFollowPostExists("'post'",'p.id')} AS followed,
-      COALESCE((SELECT string_agg(pt.tag, ',' ORDER BY pt.tag) FROM social_post_topics pt WHERE pt.post_id=p.id),'') AS topic_list
-    FROM social_posts p WHERE ${scope.sql}${filterSql(filter)} AND ${purchase.where}
+            const [head, appreciations, commentCount, appreciated, topics, topicExists, commentsByPost, storiesHead] = await Promise.all([
+                nativeInboxSqlFragment(context.companyId, 'social_feed_head'),
+                nativeInboxSqlFragment(context.companyId, 'social_feed_appreciations'),
+                nativeInboxSqlFragment(context.companyId, 'social_feed_comment_count'),
+                nativeInboxSqlFragment(context.companyId, 'social_feed_appreciated'),
+                nativeInboxSqlFragment(context.companyId, 'social_feed_topics'),
+                filter === "following" ? nativeInboxSqlFragment(context.companyId, 'social_following_topic_exists') : Promise.resolve(""),
+                nativeInboxSqlFragment(context.companyId, 'social_feed_comments_by_post'),
+                nativeInboxSqlFragment(context.companyId, 'social_stories_head'),
+            ]);
+            const response = await db.prepare(`${purchase.prefix}${head}${appreciations}${commentCount}${appreciated}${socialFollowPostExists("'post'",'p.id')} AS followed,\n      ${topics}${scope.sql}${filterSql(filter, topicExists)} AND ${purchase.where}
     ORDER BY p.created_at DESC LIMIT 30`)
                 .bind(...purchase.args,context.userId, context.userId, ...scope.bindings, ...followingBindings)
                 .all<Record<string, unknown>>();
             const rows = response.results;
-            const commentStatements = rows.map((row) => db.prepare(`SELECT id,post_id,author_id,author_name,body,created_at
-    FROM social_comments WHERE post_id=? AND state='published' ORDER BY created_at LIMIT 50`).bind(row.id));
+            const commentStatements = rows.map((row) => db.prepare(commentsByPost).bind(row.id));
             const comments = commentStatements.length ? await db.batch(commentStatements) : [];
             return { rows, comments };
         }, async stories(context) {
             const scope = scopeSql(context, "social_stories");
-            const result = await db.prepare(`${purchase.prefix}SELECT id,author_id,author_name,title,body,theme,branch_id,version,created_at
-    FROM social_stories WHERE ${scope.sql} AND ${purchase.where} ORDER BY created_at DESC LIMIT 20`)
+            const [storiesHead] = await Promise.all([nativeInboxSqlFragment(context.companyId, 'social_stories_head')]);
+            const result = await db.prepare(`${purchase.prefix}${storiesHead}${scope.sql} AND ${purchase.where} ORDER BY created_at DESC LIMIT 20`)
                 .bind(...purchase.args,...scope.bindings).all<Record<string, unknown>>();
             return result;
         } });

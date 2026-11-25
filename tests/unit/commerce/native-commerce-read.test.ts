@@ -470,7 +470,7 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
         `export const ${kind} = '${wire}';`,
       );
     }
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 37);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 39);');
     expect(plans).toContain('fn schema_ready_probes_keep_their_exact_literals()');
     expect(readFileSync(adapters('read-tail-r15-dedupe-sql.ts'), 'utf8')).not.toContain('to_regclass');
   });
@@ -507,7 +507,7 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
     expect(plans).toContain(`"${sql}"`);
     expect(plans).toContain('kind: RD_LEGACY_ATTACHMENT_SCOPE,');
     expect(plans).toContain('fn legacy_attachment_scope_keeps_its_exact_literal()');
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 37);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 39);');
     expect(readFileSync(adapters('native-commerce-read.ts'), 'utf8')).toContain(
       "export const RD_LEGACY_ATTACHMENT_SCOPE = 'commerce_rd_legacy_attachment_scope';",
     );
@@ -634,5 +634,46 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
     expect(source).toContain('ownerGuard(db,key,value,RD_TRANSIT_ACTIVE_LOCATION,[value2,company_id,value3])');
     expect(source).toContain('ownerGuard(db,key,value,RD_TRANSIT_PRODUCT_VERSION,[product_id,companyId,product_version])');
     expect(source).toContain('const planned=await nativeCommerceReadPlan(kind,args);return assertion(db,key,value,planned.sql,args);');
+  });
+
+  it('owns the POS full active-warehouses read as a native kind', async () => {
+    const sql =
+      "SELECT * FROM commerce_warehouses WHERE company_id=? AND status='active' AND (?::text IS NULL OR branch_id=?) ORDER BY name";
+    const plans = readFileSync(adapters('native_commerce_read_sql.rs'), 'utf8');
+    expect(plans).toContain('pub const RD_POS_WAREHOUSES_ALL: &str = "commerce_rd_pos_warehouses_all";');
+    expect(plans).toContain(`"${sql}"`);
+    expect(plans).toContain('kind: RD_POS_WAREHOUSES_ALL,');
+    expect(plans).toContain('fn pos_warehouses_all_keeps_its_exact_literal()');
+    expect(readFileSync(adapters('native-commerce-read.ts'), 'utf8')).toContain(
+      "export const RD_POS_WAREHOUSES_ALL = 'commerce_rd_pos_warehouses_all';",
+    );
+    const source = await readFile(adapters('pos-facts.ts'), 'utf8');
+    expect(source).not.toContain(sql);
+    expect(source).toContain(
+      'nativeCommerceReadAll<SqlValueRow>(RD_POS_WAREHOUSES_ALL,[facts.company,facts.branch,facts.branch2],db)',
+    );
+    expect(source).toContain('COUNT(DISTINCT p.id)::int count');
+  });
+
+  it('owns the existing-posting confirmation image read as a native kind', async () => {
+    const sql =
+      'SELECT to_jsonb(s)::text image FROM commerce_mfg_existing_posting_confirmations s WHERE company_id=?';
+    const plans = readFileSync(adapters('native_commerce_read_sql.rs'), 'utf8');
+    expect(plans).toContain(
+      'pub const RD_MFG_EXISTING_POSTING_CONFIRMATION_IMAGE: &str =',
+    );
+    expect(plans).toContain('"commerce_rd_mfg_existing_posting_confirmation_image"');
+    expect(plans).toContain(`"${sql}"`);
+    expect(plans).toContain('kind: RD_MFG_EXISTING_POSTING_CONFIRMATION_IMAGE,');
+    expect(plans).toContain('fn mfg_posting_confirmation_image_keeps_its_exact_literal()');
+    expect(readFileSync(adapters('native-commerce-read.ts'), 'utf8')).toContain(
+      "export const RD_MFG_EXISTING_POSTING_CONFIRMATION_IMAGE = 'commerce_rd_mfg_existing_posting_confirmation_image';",
+    );
+    const source = await readFile(adapters('manufacturing-existing-posting-setup.ts'), 'utf8');
+    expect(source).not.toContain(sql);
+    expect(source).toContain(
+      'nativeCommerceReadFirst<string>(RD_MFG_EXISTING_POSTING_CONFIRMATION_IMAGE,[companyId],database)',
+    );
+    expect(source).toContain('SELECT to_jsonb(r)::text image FROM command_receipts r');
   });
 });

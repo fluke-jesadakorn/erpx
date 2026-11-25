@@ -1,6 +1,7 @@
 import "server-only";
-import {scopedFieldSql,scopeAllowedSql,transferDetailHeadSql} from './read-tail-sql';
+import {scopeAllowedSql,transferDetailHeadSql} from './read-tail-sql';
 import {purchaseReplayExists} from './native-replay-probe';
+import {transferStatus} from './native-scoped-field';
 import {randomUUID} from "node:crypto";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import type {FlowView} from "@erpx/feature-shared/lib/flow";
@@ -71,7 +72,7 @@ export async function withTransferPurchasedCommand<Result>(owner:SqlDatabase,act
   await database.batch(companyPurchaseReadLocks(database,actor.companyId));
   const replay=await purchaseReplayExists(database,command.key,command.operation,command.target.id,actor.userId,actor.companyId);
   const before=command.existing||replay?await source(database,actor,command.target):null;
-  const flow=command.flowStep?await database.prepare(scopedFieldSql('status','inventory_transfers','id','company_id')).bind(command.target.id,actor.companyId).first<{status:string}>():null;
+  const flow=command.flowStep?await transferStatus(database,command.target.id,actor.companyId):null;
   const flowNew=command.flowStep&&(command.saveDefault||["draft","rejected"].includes(flow?.status??"")||command.flowStep==="draft");
   const purpose=replay?"history" as const:flowNew?"new-work" as const:command.purpose;
   const scopes=[{companyId:actor.companyId,capability:"supply.transfers",purpose},...(command.financial?[{companyId:actor.companyId,capability:"finance.inventory-valuation",purpose}]:[])];

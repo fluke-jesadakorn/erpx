@@ -142,8 +142,8 @@ describe('pms read-tail r36 point-read head dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(220);
-    expect(bare).toBe(221);
+    expect(spaced).toBe(219);
+    expect(bare).toBe(220);
     expect(spaced).toBeLessThan(332);
   });
 });

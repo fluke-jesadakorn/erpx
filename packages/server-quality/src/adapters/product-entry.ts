@@ -7,7 +7,7 @@ import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import type {QualitySourceEntry,QualityProductEntryScope,QualityProductPresentationOptions} from "@erpx/server-quality/domain/product-entry";
 import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
 import {readPurchasedAccesses} from "@erpx/server-commercial/public/purchase-command-boundary";
-import {qualityClockCte} from "@erpx/server-quality/adapters/quality-scope-sql";
+import {qualityClockCte,scopeSql} from "@erpx/server-quality/adapters/quality-scope-sql";
 import {salesQualityCountProductEntry} from "@erpx/server-inventory/public/quality-product-entry";
 import {qualityPurchaseSourceRows} from "@erpx/server-quality/adapters/purchase-sources";
 import {qualitySourcePurchasePredicate} from "@erpx/server-quality/adapters/record-purchases";
@@ -27,7 +27,7 @@ export async function qualityProductSourceEntry(database:SqlDatabase,scope:Quali
  const row=await database.prepare(`${qualityClockCte("quality_entry_clock")}
  ${evidenceHead(`quality_entry.kind`,` FROM (${qualitySourceArmHead(`s.*,NULL::text department_id`,`(${qualityPurchaseSourceRows}) s`)}) quality_entry CROSS JOIN quality_entry_clock`,'')}
  WHERE quality_entry.id=? AND quality_entry.company_id=? AND (?::text IS NULL OR quality_entry.branch_id=?)
- AND ${assignmentReadSql("quality_entry","quality.read")} AND EXISTS(SELECT 1 FROM assignments WHERE id=? AND version=?)
+ AND ${assignmentReadSql("quality_entry","quality.read")} AND EXISTS${scopeSql('1 FROM assignments WHERE id=? AND version=?')}
  AND ${scheduledFeaturePredicate("quality_entry.company_id","quality")}
  AND ${qualitySourcePurchasePredicate("quality_entry","history","quality_entry_clock.now_ms")}`)
  .bind(target.id,scope.companyId,scope.branchId,scope.branchId,scope.assignmentId,scope.userId,scope.role,scope.assignmentId,scope.assignmentVersion).first<{kind:string}>();
@@ -38,7 +38,7 @@ export type QualitySourceBackdrop={kind:QualitySourceEntry["kind"];title:string;
 async function strictSourceScope(database:SqlDatabase,actor:WorkContext,target:QualitySourceEntry,captured?:QualityProductEntryScope){
   // Current assignment, Company/branch scope, permission and purchase history
   // are verified inside the native detail_core owner unit by the caller's
-  // `nativeQualityHoldDetail` read. No duplicate TypeScript policy SELECT is
+  // `nativeQualityHoldDetail` read. No duplicate TypeScript policy statement is
   // retained here; the captured version is only a display-time input.
   const version=captured?.assignmentVersion??actor.authority?.assignmentVersion??actor.iam?.queuedAssignmentVersion??0;
   if(actor.departmentId||!Number.isSafeInteger(version)||version<1)throw new ApiError(403,"QUALITY_SOURCE_ACCESS_CHANGED","Choose a current authorized source assignment.");

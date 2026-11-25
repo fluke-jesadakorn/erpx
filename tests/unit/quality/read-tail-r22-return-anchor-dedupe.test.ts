@@ -78,7 +78,7 @@ describe('quality return-anchor UNION arm dedupe (r21)', () => {
     const counts: Record<string, number> = {
       'quality-work-scope-sql': 0, 'native-source-wrapper-sql': 0, 'inspection-evidence-source-sql': 1,
       'quality-lineage-recursion-sql': 0, 'quality-child-agg-sql': 0,
-      'quality-receipt-guard-sql': 0, 'quality-source-rows-sql': 0, 'quality-scope-sql': 1,
+      'quality-receipt-guard-sql': 0, 'quality-source-rows-sql': 0, 'quality-scope-sql': 0,
       'quality-alert-recipient-sql': 0, 'quality-id-source-sql': 0,
       'quality-attachment-source-select-sql': 0, 'quality-return-anchor-sql': 0,
       'quality-obligation-fact-arm-sql': 0, 'quality-source-arm-head': 0,
@@ -101,6 +101,6 @@ describe('quality read-tail r21 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(70);
-    expect(total).toBe(9);
+    expect(total).toBe(1);
   });
 });

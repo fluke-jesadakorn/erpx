@@ -5,14 +5,13 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { visibility as legalVisibility } from "@erpx/server-legal/public/legal/access";
 import { LegalEvidenceRow, LegalHoldEvidenceRow } from '@erpx/server-runtime/public/executive/evidence-contract';
 import { legalExecutiveObligationSpineHead, legalExecutiveHoldSpineHead } from './legal-read-tail-r46-sources';
-/** Byte-identical evidence read prefixes shared by the search and point reads.
+import contract from './executive-main-evidence-sources.json' with { type: 'json' };
+/** Native-owned evidence projections shared by the search and point reads.
  * Every call site still prepares and executes its own complete statement. */
 const evidenceObligationSelect = legalExecutiveObligationSpineHead(
-    `SELECT s.id,s.item_id,s.title,s.category,s.due_date,s.state,s.version,
-          i.title item_title,i.kind item_kind,i.version item_version`, '        ');
+    contract.obligationProjection, '        ');
 const evidenceHoldSelect = legalExecutiveHoldSpineHead(
-    `SELECT h.id,h.item_id,h.state,h.created_at,
-          i.title item_title,i.kind item_kind,i.version item_version`, '        ');
+    contract.holdProjection, '        ');
 function activeSchedulePredicate() {
     return `i.kind IN ('contract','obligation','license','ip','matter')
     AND i.state NOT IN ('archived','closed','cancelled','terminated','expired','completed')

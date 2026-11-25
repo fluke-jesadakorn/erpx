@@ -69,7 +69,7 @@ describe('Inventory read-tail r35 parameterized lot-balance guard dedupe', () =>
       'childJsonAggSql', 'childJoinJsonAggSql', 'terminalReceiptMatchSql', 'reservedStockAggSql',
       'activeQualityHoldExistsSql', 'stockMoveSumSql', 'sourceScopeRowsSql', 'scopeExistsSql',
       'packageObligationDocumentRowsSql', 'evidencePositionRowsSql', 'recordIdExistsSql',
-      'childLineRowsSql', 'scopeAllowedSql', 'disposalCountsSql', 'scopedFieldSql',
+      'childLineRowsSql', 'scopeAllowedSql', 'disposalCountsSql',
       'clockScopedPurchaseExistsSql',
     ]) expect(shared).toContain(`export const ${helper}`);
     for (const f of [

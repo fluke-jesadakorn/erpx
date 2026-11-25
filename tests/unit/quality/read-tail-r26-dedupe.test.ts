@@ -172,11 +172,21 @@ describe('quality read-tail r26 evidence-head family (R)', () => {
     expect(calendar).not.toContain('EXISTS(SELECT 1 FROM (${qualityPurchaseSourceRows})');
     expect(calendar).toContain('EXISTS${scopeSql(`1 FROM ${qualityWorkScopeTuple(');
     expect(read('adapters/executive-metric-projections.ts')).toContain('qualityBranchDisplayLabelSql');
+    const entry = read('adapters/product-entry.ts');
+    expect(entry).toContain("AND EXISTS${scopeSql('1 FROM assignments WHERE id=? AND version=?')}");
+    expect(entry).not.toContain('AND EXISTS(SELECT 1 FROM assignments WHERE id=? AND version=?)');
+    const purchase = read('adapters/attachment-purchases.ts');
+    expect(purchase).toContain('EXISTS${scopeSql(`1 FROM (${source(scope.kind)}) quality_file_source');
+    expect(purchase).not.toContain('EXISTS(SELECT 1 FROM (${source(scope.kind)})');
+    const recorded = read('adapters/record-purchases.ts');
+    expect(recorded).toContain('import {qualityClockCte,withScopeSql} from "@erpx/server-quality/adapters/quality-scope-sql";');
+    expect(recorded).toContain('EXISTS${withScopeSql(`${qualityClockCte("quality_source_clock")} ${evidenceHead(\'1\',` FROM (${native}) quality_source');
+    expect(recorded).not.toContain('EXISTS(${qualityClockCte("quality_source_clock")} SELECT 1 FROM');
     expect(read('adapters/customer_return_hold_statement.rs')).toContain('customer_return_hold_statements');
     const counts: Record<string, number> = {
       'quality-work-scope-sql': 0, 'native-source-wrapper-sql': 0, 'inspection-evidence-source-sql': 1,
       'quality-lineage-recursion-sql': 0, 'quality-child-agg-sql': 0,
-      'quality-receipt-guard-sql': 0, 'quality-source-rows-sql': 0, 'quality-scope-sql': 1,
+      'quality-receipt-guard-sql': 0, 'quality-source-rows-sql': 0, 'quality-scope-sql': 0,
       'quality-alert-recipient-sql': 0, 'quality-id-source-sql': 0,
       'quality-attachment-source-select-sql': 0, 'quality-return-anchor-sql': 0,
       'quality-obligation-fact-arm-sql': 0, 'quality-lineage-terminal-sql': 0, 'quality-source-arm-head': 0,
@@ -202,6 +212,6 @@ describe('quality read-tail r26 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(57);
-    expect(total).toBe(9);
+    expect(total).toBe(1);
   });
 });

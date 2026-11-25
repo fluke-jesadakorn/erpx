@@ -124,7 +124,7 @@ describe('marketing read-tail r47 dedupe', () => {
 
   it('leaves the protected r38/r40/r45 heads, settlement, candidate sources and locks untouched', async () => {
     expect((await src('form-asset-read-head.ts')).match(/SELECT /g) ?? []).toHaveLength(0);
-    expect((await src('owner-point-read-sql.ts')).match(/SELECT /g)).toHaveLength(1);
+    expect((await src('owner-point-read-sql.ts')).match(/SELECT /g) ?? []).toHaveLength(0);
     expect((await src('owner-projection-source.ts')).match(/SELECT /g) ?? []).toHaveLength(0);
     expect(await src('owner-projection-source.ts')).toContain('marketingSelectHeadSql(');
     expect(await src('read-tail-sql.ts')).toContain("marketingSelectHeadSql('*', ` FROM ${table}${tail}`)");
@@ -145,8 +145,8 @@ describe('marketing read-tail r47 dedupe', () => {
     expect(await src('marketing-local-point-read-sql.ts')).toContain('FOR UPDATE');
   });
 
-  it('pins the owner SELECT KPI to 5 (lane 40 retired 3) (BEFORE=32)', async () => {
-    expect(await ownerSelectTokens()).toBe(5);
+  it('pins the owner SELECT KPI to 3 (lane 40 retired 3) (BEFORE=32)', async () => {
+    expect(await ownerSelectTokens()).toBe(3);
     expect(await ownerSelectTokens()).toBeLessThan(32);
   });
 });

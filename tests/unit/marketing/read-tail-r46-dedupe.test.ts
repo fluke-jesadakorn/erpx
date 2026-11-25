@@ -122,8 +122,8 @@ describe('marketing read-tail r46 dedupe', () => {
   it('keeps one terminal token in each renderer and none in the four wrappers', async () => {
     const pointHead = await src('marketing-point-exists-sql.ts');
     expect(pointHead).toContain('export const marketingPointExistsSql');
-    expect(pointHead).toContain('`SELECT 1 FROM${gap}${source} WHERE ${where}`');
-    expect(selectTokens(pointHead)).toBe(1);
+    expect(pointHead).toContain("marketingSelectHeadSql('1', ` FROM${gap}${source} WHERE ${where}`)");
+    expect(selectTokens(pointHead)).toBe(0);
 
     const selectHead = await src('select-head-sql.ts');
     expect(selectHead).toContain('export const marketingSelectHeadSql');
@@ -148,7 +148,7 @@ describe('marketing read-tail r46 dedupe', () => {
   it('leaves the protected r38/r40/r45 heads, native reads and settlement untouched', async () => {
     // Protected helper bodies: exactly one terminal token, unchanged text.
     expect((await src('form-asset-read-head.ts')).match(/SELECT /g) ?? []).toHaveLength(0);
-    expect((await src('owner-point-read-sql.ts')).match(/SELECT /g)).toHaveLength(1);
+    expect((await src('owner-point-read-sql.ts')).match(/SELECT /g) ?? []).toHaveLength(0);
     expect((await src('owner-projection-source.ts')).match(/SELECT /g) ?? []).toHaveLength(0);
     expect(await src('owner-projection-source.ts')).toContain('marketingSelectHeadSql(');
     expect(await src('read-tail-sql.ts')).toContain("marketingSelectHeadSql('*', ` FROM ${table}${tail}`)");
@@ -168,8 +168,8 @@ describe('marketing read-tail r46 dedupe', () => {
     expect(await src('marketing-local-point-read-sql.ts')).toContain('FOR UPDATE');
   });
 
-  it('pins the owner SELECT KPI to 5 (lane 40 retired 3) (BEFORE=34)', async () => {
-    expect(await ownerSelectTokens()).toBe(5);
+  it('pins the owner SELECT KPI to 3 (lane 40 retired 3) (BEFORE=34)', async () => {
+    expect(await ownerSelectTokens()).toBe(3);
     expect(await ownerSelectTokens()).toBeLessThan(32);
   });
 });

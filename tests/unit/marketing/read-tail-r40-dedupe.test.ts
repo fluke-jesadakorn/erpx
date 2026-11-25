@@ -120,7 +120,7 @@ describe('marketing projection-source and point-read head dedupe (r40)', () => {
   });
 
   it('keeps one SELECT token in the point-read head and no inline copies in the remaining wrappers', async () => {
-    expect((await src('owner-point-read-sql.ts')).match(/SELECT /g)).toHaveLength(1);
+    expect((await src('owner-point-read-sql.ts')).match(/SELECT /g) ?? []).toHaveLength(0);
     for (const name of [
       'attachment-owner-fact-read-sql.ts',
       'attachment-source-witness.ts',
@@ -170,7 +170,7 @@ describe('marketing projection-source and point-read head dedupe (r40)', () => {
     expect(await src('marketing.ts')).toContain('from "./native-marketing-read"');
   });
 
-  it('retirement:ts-statements KPI is 5 (BEFORE=55; lane 40 retired 3)', async () => {
+  it('retirement:ts-statements KPI is 3 (BEFORE=55; lane 40 retired 3)', async () => {
     // r42 merged the evidence-row tail (49 -> 48); r43 retires the source-row,
     // actor-scope and union-frame families (48 -> 38); r44 retires the EXISTS
     // and point-existence heads (38 -> 36); r45 folds the three read-tail heads
@@ -179,6 +179,6 @@ describe('marketing projection-source and point-read head dedupe (r40)', () => {
     // heads through marketingSelectHeadSql (29 -> 27); r49 folds the three
     // parenthesized subquery heads (27 -> 24); r50 folds the actor-scope
     // assignment guard head (24 -> 23).
-    expect(await selectTokens()).toBe(5);
+    expect(await selectTokens()).toBe(3);
   });
 });

@@ -21,6 +21,11 @@ export const PC_MFA_ENABLED = 'pc_mfa_enabled';
 export const PC_INVITATION_WAITING = 'pc_invitation_waiting';
 export const PC_DELIVERABLE_INVITATION = 'pc_deliverable_invitation';
 export const PC_FRESH_MFA = 'pc_fresh_mfa';
+export const PC_PREF_BINDING_PROBE = 'pc_pref_binding_probe';
+export const PC_PREF_SESSION_SHARE = 'pc_pref_session_share';
+export const PC_PREF_SESSION_IMAGE = 'pc_pref_session_image';
+export const PC_PREF_BINDING_SHARE = 'pc_pref_binding_share';
+export const PC_PREF_PARENT_BINDING_SHARE = 'pc_pref_parent_binding_share';
 
 export type ControlReadPlan = Readonly<{ sql: string; values: readonly (string | number)[] }>;
 type PlanReader = (kind: string, values: readonly (string | number)[]) => Promise<ControlReadPlan>;
@@ -40,6 +45,11 @@ const ARITY: Readonly<Record<string, number>> = {
   [PC_INVITATION_WAITING]: 1,
   [PC_DELIVERABLE_INVITATION]: 1,
   [PC_FRESH_MFA]: 4,
+  [PC_PREF_BINDING_PROBE]: 1,
+  [PC_PREF_SESSION_SHARE]: 1,
+  [PC_PREF_SESSION_IMAGE]: 1,
+  [PC_PREF_BINDING_SHARE]: 1,
+  [PC_PREF_PARENT_BINDING_SHARE]: 1,
 };
 /** Byte-oracle SHA-256 of each owner statement: a plan with unexpected bytes is rejected. */
 const PLAN_SHAS: Readonly<Record<string, string>> = {
@@ -53,6 +63,11 @@ const PLAN_SHAS: Readonly<Record<string, string>> = {
   [PC_INVITATION_WAITING]: 'c5c89be91182d5cf9ee647729eb1cd2a03c9f4f72bceb7e6ce2a9b5ffadfd0e0',
   [PC_DELIVERABLE_INVITATION]: '5ee384b180a89fa15fe0f47f624cac2d15d84bdc76802e8b48d0df897ece6686',
   [PC_FRESH_MFA]: '65e69ea7d903ef4a7f3d8e622254c9b874cfb825cfd8ca1c29e0ba7577125132',
+  [PC_PREF_BINDING_PROBE]: '5893b16f5a1267558051991fecbbd67645fbbee1b6c3e779fcb2ba4141130504',
+  [PC_PREF_SESSION_SHARE]: 'be9e3354fe8e8adb7357c1d18e264b4c8d8983ca45951716731a6c42be770be0',
+  [PC_PREF_SESSION_IMAGE]: '8ee55872698acd8f8db05e131432e221353aa71e8665b94c8205e012a52bf8af',
+  [PC_PREF_BINDING_SHARE]: 'd9ee53a4666438071f1e233fbcb7754912d6f08251b3f69652b2792d9e8a3789',
+  [PC_PREF_PARENT_BINDING_SHARE]: '242a5de65756ffa03457eca0a59a03466d074e34c95877f57022dce9b717cce9',
 };
 
 const unavailable = (code = 'IDENTITY_CONTROL_READ_UNAVAILABLE', status = 503): never => {

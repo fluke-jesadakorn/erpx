@@ -32,6 +32,7 @@ pub(crate) mod trust_workflow_bridge;
 
 pub(crate) mod attachment_migration_facts;
 pub(crate) mod citation_source;
+pub(crate) mod executive_main_evidence_sources;
 pub(crate) mod legal_http;
 pub(crate) mod legal_http_auxiliary;
 pub(crate) mod legal_read_tail_r16;
@@ -42,6 +43,7 @@ pub(crate) mod legal_read_tail_r42;
 pub(crate) mod legal_read_tail_r44;
 pub(crate) mod legal_read_tail_r48;
 pub(crate) mod native_read_plan;
+pub(crate) mod queued_purchases;
 pub(crate) mod legal_http_retention;
 pub(crate) mod legal_trust_http;
 pub(crate) mod postgres_auxiliary_reads;

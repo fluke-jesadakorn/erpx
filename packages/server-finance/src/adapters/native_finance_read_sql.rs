@@ -817,6 +817,81 @@ const READ_PLAN_SOURCE_SNAPSHOT: NativeReadStatement = NativeReadStatement {
     scope: "holding",
 };
 
+/// Native successors of the static `finance-business-contracts` point/list
+/// reads. Command assertion guards and owner-write statements stay in caller
+/// transactions; only these byte-identical read plans cross the boundary.
+pub const RD_CONTRACT_CUSTOMER: &str = "finance_rd_contract_customer";
+const SQL_RD_CONTRACT_CUSTOMER: &str = "SELECT id,version FROM finance_parties WHERE id=? AND company_id=? AND status='active' AND kind='customer' AND currency=? AND person_id IS NULL";
+const READ_CONTRACT_CUSTOMER: NativeReadStatement = NativeReadStatement {
+    kind: RD_CONTRACT_CUSTOMER,
+    sql: SQL_RD_CONTRACT_CUSTOMER,
+    bind_count: 3,
+    scope: "holding",
+};
+
+pub const RD_CONTRACT_DIMENSIONS: &str = "finance_rd_contract_dimensions";
+const SQL_RD_CONTRACT_DIMENSIONS: &str = "SELECT id,code,required FROM finance_dimension_definitions WHERE company_id=? AND status='active' ORDER BY code";
+const READ_CONTRACT_DIMENSIONS: NativeReadStatement = NativeReadStatement {
+    kind: RD_CONTRACT_DIMENSIONS,
+    sql: SQL_RD_CONTRACT_DIMENSIONS,
+    bind_count: 1,
+    scope: "holding",
+};
+
+pub const RD_CONTRACT_DIMENSION_VALUE: &str = "finance_rd_contract_dimension_value";
+const SQL_RD_CONTRACT_DIMENSION_VALUE: &str = "SELECT 1 FROM finance_dimension_values WHERE company_id=? AND dimension_id=? AND code=? AND status='active'";
+const READ_CONTRACT_DIMENSION_VALUE: NativeReadStatement = NativeReadStatement {
+    kind: RD_CONTRACT_DIMENSION_VALUE,
+    sql: SQL_RD_CONTRACT_DIMENSION_VALUE,
+    bind_count: 3,
+    scope: "holding",
+};
+
+pub const RD_CONTRACT_TAX_CODE: &str = "finance_rd_contract_tax_code";
+const SQL_RD_CONTRACT_TAX_CODE: &str = "SELECT id,code,rate_micros,effective_from,effective_to FROM finance_tax_codes WHERE company_id=? AND status='active' AND (code=? OR id=?) AND rate_micros=70000 AND effective_from<=? AND (effective_to IS NULL OR effective_to>=?) ORDER BY effective_from DESC LIMIT 1";
+const READ_CONTRACT_TAX_CODE: NativeReadStatement = NativeReadStatement {
+    kind: RD_CONTRACT_TAX_CODE,
+    sql: SQL_RD_CONTRACT_TAX_CODE,
+    bind_count: 5,
+    scope: "holding",
+};
+
+pub const RD_CONTRACT_BILLING_RUN: &str = "finance_rd_contract_billing_run";
+const SQL_RD_CONTRACT_BILLING_RUN: &str = "SELECT b.*,i.status original_invoice_status,i.version original_invoice_version,i.journal_id original_journal_id,i.posted_at original_posted_at FROM finance_business_billing_runs b LEFT JOIN finance_invoices i ON i.id=b.invoice_id WHERE b.id=? AND b.company_id=? AND b.contract_id=?";
+const READ_CONTRACT_BILLING_RUN: NativeReadStatement = NativeReadStatement {
+    kind: RD_CONTRACT_BILLING_RUN,
+    sql: SQL_RD_CONTRACT_BILLING_RUN,
+    bind_count: 3,
+    scope: "holding",
+};
+
+pub const RD_CONTRACT_BILLING_EXISTS: &str = "finance_rd_contract_billing_exists";
+const SQL_RD_CONTRACT_BILLING_EXISTS: &str = "SELECT 1 FROM finance_business_billing_runs WHERE root_id=? AND billing_key=?";
+const READ_CONTRACT_BILLING_EXISTS: NativeReadStatement = NativeReadStatement {
+    kind: RD_CONTRACT_BILLING_EXISTS,
+    sql: SQL_RD_CONTRACT_BILLING_EXISTS,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_CONTRACT_BILL_SOURCE: &str = "finance_rd_contract_bill_source";
+const SQL_RD_CONTRACT_BILL_SOURCE: &str = "SELECT b.*,COALESCE(b.contract_content_json,c.content_json) content_json FROM finance_business_billing_runs b JOIN finance_business_contracts c ON c.id=b.contract_id WHERE b.id=? AND b.company_id=?";
+const READ_CONTRACT_BILL_SOURCE: NativeReadStatement = NativeReadStatement {
+    kind: RD_CONTRACT_BILL_SOURCE,
+    sql: SQL_RD_CONTRACT_BILL_SOURCE,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_CONTRACT_POSTED_CORRECTION: &str = "finance_rd_contract_posted_correction";
+const SQL_RD_CONTRACT_POSTED_CORRECTION: &str = "SELECT 1 FROM finance_billing_corrections WHERE billing_run_id=? AND status='posted'";
+const READ_CONTRACT_POSTED_CORRECTION: NativeReadStatement = NativeReadStatement {
+    kind: RD_CONTRACT_POSTED_CORRECTION,
+    sql: SQL_RD_CONTRACT_POSTED_CORRECTION,
+    bind_count: 1,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_ASSET_POLICY_ROW,
     READ_ASSET_POLICY_RUNS,

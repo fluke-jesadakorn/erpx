@@ -1,0 +1,4 @@
+{
+  "jobSource": "SELECT p.item_id,i.company_id,p.actor_json,to_jsonb(p)::text image,{documentColumns} FROM {table} p JOIN legal_items i ON i.id=p.item_id WHERE p.id=?",
+  "processingSourceGuard": "NOT EXISTS(SELECT 1 FROM legal_destructions x WHERE x.item_id=d.item_id AND x.state='executing')"
+}

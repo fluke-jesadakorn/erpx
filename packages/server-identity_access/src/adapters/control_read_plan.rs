@@ -23,6 +23,11 @@ pub const PC_MFA_ENABLED: &str = "pc_mfa_enabled";
 pub const PC_INVITATION_WAITING: &str = "pc_invitation_waiting";
 pub const PC_DELIVERABLE_INVITATION: &str = "pc_deliverable_invitation";
 pub const PC_FRESH_MFA: &str = "pc_fresh_mfa";
+pub const PC_PREF_BINDING_PROBE: &str = "pc_pref_binding_probe";
+pub const PC_PREF_SESSION_SHARE: &str = "pc_pref_session_share";
+pub const PC_PREF_SESSION_IMAGE: &str = "pc_pref_session_image";
+pub const PC_PREF_BINDING_SHARE: &str = "pc_pref_binding_share";
+pub const PC_PREF_PARENT_BINDING_SHARE: &str = "pc_pref_parent_binding_share";
 
 /// Byte-identical successors of the five TypeScript statements pinned in
 /// `tests/unit/identity_access/read-tail-r36-dedupe.test.ts`. `?` markers are
@@ -46,6 +51,19 @@ pub const SQL_DELIVERABLE_INVITATION: &str =
     "SELECT email,name,status,expires_at FROM account_invitations WHERE id=?";
 pub const SQL_FRESH_MFA: &str =
     "SELECT 1 FROM iam_mfa_sessions f JOIN iam_mfa m ON m.user_id=f.user_id AND m.enabled=true JOIN session s ON s.id=f.session_id AND s.\"userId\"=f.user_id WHERE f.user_id=? AND f.session_id=? AND f.verified_at>? AND s.\"expiresAt\"::timestamptz>?::timestamptz";
+/// Lock-aware account-preference session reads. The three `FOR SHARE` plans are
+/// executed on the caller's own Control unit, so the parent-first lock order is
+/// unchanged; the owner only pins the bytes and never opens a transaction.
+pub const SQL_PREF_BINDING_PROBE: &str =
+    "SELECT * FROM sso_session_bindings WHERE session_id=?";
+pub const SQL_PREF_SESSION_SHARE: &str =
+    "SELECT id FROM session WHERE id=? FOR SHARE";
+pub const SQL_PREF_SESSION_IMAGE: &str =
+    "SELECT \"userId\" user_id,\"expiresAt\" expires_at FROM session WHERE id=?";
+pub const SQL_PREF_BINDING_SHARE: &str =
+    "SELECT * FROM sso_session_bindings WHERE session_id=? FOR SHARE";
+pub const SQL_PREF_PARENT_BINDING_SHARE: &str =
+    "SELECT b.*,s.\"userId\" user_id,s.\"expiresAt\" expires_at\n    FROM sso_session_bindings b JOIN session s ON s.id=b.session_id WHERE b.session_id=? FOR SHARE OF b";
 
 const BODY_LIMIT: usize = 8 * 1024;
 const ORIGIN_HEADER: HeaderName = HeaderName::from_static("origin");
@@ -83,6 +101,11 @@ pub fn plan(kind: &str, values: &[Value]) -> Result<ControlReadPlan, BusinessErr
         PC_INVITATION_WAITING => (SQL_INVITATION_WAITING, 1),
         PC_DELIVERABLE_INVITATION => (SQL_DELIVERABLE_INVITATION, 1),
         PC_FRESH_MFA => (SQL_FRESH_MFA, 4),
+        PC_PREF_BINDING_PROBE => (SQL_PREF_BINDING_PROBE, 1),
+        PC_PREF_SESSION_SHARE => (SQL_PREF_SESSION_SHARE, 1),
+        PC_PREF_SESSION_IMAGE => (SQL_PREF_SESSION_IMAGE, 1),
+        PC_PREF_BINDING_SHARE => (SQL_PREF_BINDING_SHARE, 1),
+        PC_PREF_PARENT_BINDING_SHARE => (SQL_PREF_PARENT_BINDING_SHARE, 1),
         _ => return Err(invalid()),
     };
     if values.len() != expected {
@@ -280,6 +303,11 @@ mod tests {
             (PC_MFA_ENABLED, SQL_MFA_ENABLED, 1),
             (PC_INVITATION_WAITING, SQL_INVITATION_WAITING, 1),
             (PC_DELIVERABLE_INVITATION, SQL_DELIVERABLE_INVITATION, 1),
+            (PC_PREF_BINDING_PROBE, SQL_PREF_BINDING_PROBE, 1),
+            (PC_PREF_SESSION_SHARE, SQL_PREF_SESSION_SHARE, 1),
+            (PC_PREF_SESSION_IMAGE, SQL_PREF_SESSION_IMAGE, 1),
+            (PC_PREF_BINDING_SHARE, SQL_PREF_BINDING_SHARE, 1),
+            (PC_PREF_PARENT_BINDING_SHARE, SQL_PREF_PARENT_BINDING_SHARE, 1),
         ] {
             let values = vec![Value::from("v"); count];
             let planned = plan(kind, &values).unwrap();
@@ -291,6 +319,20 @@ mod tests {
             assert!(!planned.sql.contains("UPDATE "), "{kind}");
         }
         assert_eq!(plan("unknown", &[]).unwrap_err().code, "IDENTITY_CONTROL_READ_PLAN_INVALID");
+    }
+
+    #[test]
+    fn lock_aware_plans_keep_their_lock_suffixes() {
+        for (kind, suffix) in [
+            (PC_PREF_SESSION_SHARE, "FOR SHARE"),
+            (PC_PREF_BINDING_SHARE, "FOR SHARE"),
+            (PC_PREF_PARENT_BINDING_SHARE, "FOR SHARE OF b"),
+        ] {
+            let planned = plan(kind, &[Value::from("session-1")]).unwrap();
+            assert!(planned.sql.ends_with(suffix), "{kind}");
+            assert!(planned.sql.starts_with("SELECT "), "{kind}");
+            assert_eq!(planned.values.len(), 1, "{kind}");
+        }
     }
 
     #[test]

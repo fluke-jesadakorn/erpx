@@ -204,14 +204,9 @@ export const scopeAllowedSql = (scope: string, permission: string) =>
  *  above are left untouched. */
 export const disposalCountsSql = (holds: string, tail = '') =>
   `SELECT count.*,hold.source_type quality_source_type,hold.source_id quality_source_id FROM inventory_counts count JOIN (${holds}) hold ON hold.id=count.quality_hold_id${tail}`;
-/** r33: parameterized single-field row probe. The transit lot-balance version
- *  read and the transfer flow-status probe share one byte-identical projection,
- *  two-key equality predicate and bind shape; only the field, table and scope
- *  keys vary. Every caller keeps its own binds and independent statement. The
- *  count status lives in the native read registry via `countStatus`.
- *  r11-r32 helpers above are left untouched. */
-export const scopedFieldSql = (field: string, table: string, key: string, scopeKey: string) =>
-  `SELECT ${field} FROM ${table} WHERE ${key}=? AND ${scopeKey}=?`;
+/** r33: both single-field row probes are now planned by the native read
+ *  registry (`inventory_rd_lot_balance_version` / `inventory_rd_transfer_status`);
+ *  the former shared helper and its statement literal are retired. */
 /** r34: parameterized clock-scoped purchase existence envelope. The transfer
  *  and landed-cost record-purchase guards share one byte-identical clock CTE,
  *  two-key scope relation, branch/assignment authority and capability tail;

@@ -5,7 +5,7 @@ import {ApiError} from "@erpx/server-runtime/public/http";
 import type {IamActor} from "@erpx/server-identity_access/domain/iam-actor";
 export {encodeBase32} from "@erpx/server-identity_access/domain/mfa";
 import {createRequireFreshMfa} from "@erpx/server-identity_access/application/mfa";
-import {planIdentityControlRead,PC_FRESH_MFA} from "@erpx/server-identity_access/public/native-control-read-plan";
+import {planIdentityControlRead,PC_FRESH_MFA} from "./native-control-read-plan";
 const alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 const error=(status:number,code:string,message:string)=>new ApiError(status,code,message);
 export function totp(secret: string, counter: number) {
@@ -53,13 +53,7 @@ export async function openSecret(secret: string) {
   cipher.setAuthTag(tag);
   return Buffer.concat([cipher.update(data), cipher.final()]).toString("utf8");
 }
-export async function requireFreshMfa(actor:Pick<IamActor,'userId'|'sessionId'>){let env:Awaited<ReturnType<typeof runtimeEnv>>;return createRequireFreshMfa({ready:async()=>{env=await runtimeEnv();},now:Date.now,isoNow:()=>new Date().toISOString(),error,verified:async(actor,cutoff,isoNow)=>Boolean(await env.CONTROL_DB.prepare(
-    'SELECT 1 FROM iam_mfa_sessions f JOIN iam_mfa m ON m.user_id=f.user_id AND m.enabled=true JOIN session s ON s.id=f.session_id AND s."userId"=f.user_id WHERE f.user_id=? AND f.session_id=? AND f.verified_at>? AND s."expiresAt"::timestamptz>?::timestamptz',
-  )
-    .bind(
-      actor.userId,
-      actor.sessionId,
-      cutoff,
-      isoNow,
-    )
-    .first())})(actor);}
+export async function requireFreshMfa(actor:Pick<IamActor,'userId'|'sessionId'>){let env:Awaited<ReturnType<typeof runtimeEnv>>;return createRequireFreshMfa({ready:async()=>{env=await runtimeEnv();},now:Date.now,isoNow:()=>new Date().toISOString(),error,verified:async(actor,cutoff,isoNow)=>{
+    const plan=await planIdentityControlRead(PC_FRESH_MFA,[actor.userId,actor.sessionId,cutoff,isoNow]);
+    return Boolean(await env.CONTROL_DB.prepare(plan.sql).bind(...plan.values).first());
+  }})(actor);}

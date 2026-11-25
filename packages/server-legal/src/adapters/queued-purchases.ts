@@ -13,6 +13,16 @@ import {legalCompanyCapabilityReady} from '@erpx/server-legal/adapters/legal/run
 import {legalPurchaseClockExistsSql} from './legal-read-tail-r29-sources';
 import {legalDisposedGuardSql} from './legal-read-tail-r39-sources';
 import {legalCleanDocumentGuardHead} from './legal-read-tail-r49-sources';
+import contract from './queued-purchases-sources.json' with {type:'json'};
+const fill = (template: string, values: Record<string, string>) => {
+  let rendered = template;
+  for (const [name, value] of Object.entries(values)) {
+    const token = `{${name}}`;
+    if (!rendered.includes(token)) throw new Error('LEGAL_QUEUED_PURCHASES_CONTRACT_INVALID');
+    rendered = rendered.split(token).join(value);
+  }
+  return rendered;
+};
 /** Actual owner item alias only; no caller label can select a capability. */
 export async function legalQueuedPurchasePredicate(database:SqlDatabase,alias:string,kind:'ai'|'documents'|'invitations'|'feature'|'operations'){
  if(await legalPackageEnforcementMode()!=='enforced')return 'TRUE';
@@ -21,10 +31,10 @@ export async function legalQueuedPurchasePredicate(database:SqlDatabase,alias:st
 }
 type JobTable='legal_ai_proposals'|'legal_processing_jobs';
 type QueuedSource={item_id:string;company_id:string;actor_json:string;image:string;document_id:string|null;checksum:string|null};
-async function job(database:SqlDatabase,table:JobTable,id:string){return database.prepare(`SELECT p.item_id,i.company_id,p.actor_json,to_jsonb(p)::text image,${table==='legal_processing_jobs'?'p.document_id,p.checksum':'NULL::text document_id,NULL::text checksum'} FROM ${table} p JOIN legal_items i ON i.id=p.item_id WHERE p.id=?`).bind(id).first<QueuedSource>();}
+async function job(database:SqlDatabase,table:JobTable,id:string){return database.prepare(fill(contract.jobSource,{table,documentColumns:table==='legal_processing_jobs'?'p.document_id,p.checksum':'NULL::text document_id,NULL::text checksum'})).bind(id).first<QueuedSource>();}
 async function processingSourceCurrent(database:SqlDatabase,source:QueuedSource){
  if(!source.document_id)return;
- if(!await database.prepare(legalCleanDocumentGuardHead('d',`${legalDisposedGuardSql('x','d.id')} AND NOT EXISTS(SELECT 1 FROM legal_destructions x WHERE x.item_id=d.item_id AND x.state='executing')`)).bind(source.document_id,source.item_id,source.checksum).first())throw new ApiError(409,'LEGAL_JOB_CHANGED','The original queued document source changed.');
+ if(!await database.prepare(legalCleanDocumentGuardHead('d',`${legalDisposedGuardSql('x','d.id')} AND ${contract.processingSourceGuard}`)).bind(source.document_id,source.item_id,source.checksum).first())throw new ApiError(409,'LEGAL_JOB_CHANGED','The original queued document source changed.');
 }
 /** Provider inference stays outside this short owner transaction. Its publication
  * rechecks the queued source, current assignment, purchases and final effects. */

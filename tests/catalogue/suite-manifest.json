@@ -165972,6 +165972,152 @@
       },
       "apps": [],
       "packages": []
+    },
+    {
+      "id": "collaboration.native-social-activity-read.unit",
+      "lane": "unit",
+      "owner": "collaboration",
+      "modules": [
+        "collaboration",
+        "support",
+        "identity_access",
+        "operations"
+      ],
+      "files": [
+        "tests/unit/collaboration/native-social-activity-read.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "collaboration.native-social-feed-read.unit",
+      "lane": "unit",
+      "owner": "collaboration",
+      "modules": [
+        "collaboration",
+        "support",
+        "identity_access",
+        "operations"
+      ],
+      "files": [
+        "tests/unit/collaboration/native-social-feed-read.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "marketing.read-tail-r65-dedupe.unit",
+      "lane": "unit",
+      "owner": "marketing",
+      "modules": [
+        "marketing"
+      ],
+      "files": [
+        "tests/unit/marketing/read-tail-r65-dedupe.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "marketing.read-tail-r66-dedupe.unit",
+      "lane": "unit",
+      "owner": "marketing",
+      "modules": [
+        "marketing"
+      ],
+      "files": [
+        "tests/unit/marketing/read-tail-r66-dedupe.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "people_payroll.read-tail-round8-r25-alias.unit",
+      "lane": "unit",
+      "owner": "people_payroll",
+      "modules": [
+        "people_payroll"
+      ],
+      "files": [
+        "tests/unit/people_payroll/read-tail-round8-r25-alias.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
+    },
+    {
+      "id": "sales.native-followup-orders.unit",
+      "lane": "unit",
+      "owner": "sales",
+      "modules": [
+        "sales",
+        "inventory",
+        "finance"
+      ],
+      "files": [
+        "tests/unit/sales/native-followup-orders.test.ts"
+      ],
+      "framework": "vitest",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": false,
+        "reason": "Native read migration coverage."
+      },
+      "apps": [],
+      "packages": []
     }
   ]
 }

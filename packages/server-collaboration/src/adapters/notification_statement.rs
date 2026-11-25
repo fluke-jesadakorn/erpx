@@ -559,6 +559,17 @@ pub fn plan_values_statement(
         "social_activity_reply_arm" => "SELECT 'reply:'||c.id id,c.id source_id,'reply'::text source_type,'Conversation reply'::text title,\n          c.created_at at,c.version,c.author_name activity_actor,c.thread_id,'/posts/'||c.thread_id href\n        FROM visible_comments c\n        UNION ALL\n        ",
         "social_activity_mention_arm" => "SELECT 'mention:'||md5(m.owner_type||':'||m.owner_id||':'||m.target_kind||':'||m.target_id),\n          m.owner_id,'mention'::text,'Conversation mention'::text,m.created_at,\n          COALESCE(c.version,p.version)::bigint,COALESCE(c.author_name,p.author_name),p.id,'/posts/'||p.id\n        FROM social_mentions m\n        LEFT JOIN visible_posts p ON m.owner_type='post' AND m.owner_id=p.id\n        LEFT JOIN visible_comments c ON m.owner_type='comment' AND m.owner_id=c.id\n        WHERE p.id IS NOT NULL OR c.id IS NOT NULL\n      )\n      ",
         "social_activity_final" => "SELECT e.id,e.source_id,e.source_type,e.title,e.at,e.version,e.activity_actor,e.thread_id,e.href FROM events e",
+        // Social feed projection. Each fragment is byte-identical to the
+        // retired TS literal; the caller inserts only its registered scope,
+        // purchase and filter fragments and binds in the original order.
+        "social_feed_head" => "SELECT p.*,\n      ",
+        "social_feed_appreciations" => "(SELECT count(*) FROM social_reactions r WHERE r.post_id=p.id AND r.kind='appreciate') AS appreciation_count,\n      ",
+        "social_feed_comment_count" => "(SELECT count(*) FROM social_comments c WHERE c.post_id=p.id AND c.state='published') AS comment_count,\n      ",
+        "social_feed_appreciated" => "EXISTS(SELECT 1 FROM social_reactions r WHERE r.post_id=p.id AND r.principal_id=? AND r.kind='appreciate') AS appreciated,\n      ",
+        "social_feed_topics" => "COALESCE((SELECT string_agg(pt.tag, ',' ORDER BY pt.tag) FROM social_post_topics pt WHERE pt.post_id=p.id),'') AS topic_list\n    FROM social_posts p WHERE ",
+        "social_following_topic_exists" => "OR EXISTS(SELECT 1 FROM social_post_topics pt JOIN social_follows f ON f.target_type='topic' AND f.target_id=pt.tag\n      WHERE pt.post_id=p.id AND f.principal_id=?))",
+        "social_feed_comments_by_post" => "SELECT id,post_id,author_id,author_name,body,created_at\n    FROM social_comments WHERE post_id=? AND state='published' ORDER BY created_at LIMIT 50",
+        "social_stories_head" => "SELECT id,author_id,author_name,title,body,theme,branch_id,version,created_at\n    FROM social_stories WHERE ",
         _ => return None,
     };
     Some(
@@ -876,6 +887,89 @@ mod tests {
             "SELECT user_id FROM social_handover_acknowledgements\n    WHERE post_id=? AND post_version=? AND user_id IN (?,?)"
         );
         assert_eq!(planned.values.len(), 4);
+    }
+
+    #[test]
+    fn social_activity_union_fragments_are_owner_owned_bytes() {
+        let cases = [
+            (
+                "social_activity_visible_posts",
+                "WITH visible_posts AS (\n        SELECT p.id,p.company_id,p.author_name,p.version\n        FROM social_posts p WHERE ",
+            ),
+            (
+                "social_activity_visible_comments",
+                "\n      ), visible_comments AS (\n        SELECT c.id,c.post_id,c.author_name,c.version,c.created_at,p.id thread_id\n        FROM visible_posts p JOIN social_comments c ON c.post_id=p.id AND c.state='published'\n      ), events AS (\n        ",
+            ),
+            (
+                "social_activity_reply_arm",
+                "SELECT 'reply:'||c.id id,c.id source_id,'reply'::text source_type,'Conversation reply'::text title,\n          c.created_at at,c.version,c.author_name activity_actor,c.thread_id,'/posts/'||c.thread_id href\n        FROM visible_comments c\n        UNION ALL\n        ",
+            ),
+            (
+                "social_activity_mention_arm",
+                "SELECT 'mention:'||md5(m.owner_type||':'||m.owner_id||':'||m.target_kind||':'||m.target_id),\n          m.owner_id,'mention'::text,'Conversation mention'::text,m.created_at,\n          COALESCE(c.version,p.version)::bigint,COALESCE(c.author_name,p.author_name),p.id,'/posts/'||p.id\n        FROM social_mentions m\n        LEFT JOIN visible_posts p ON m.owner_type='post' AND m.owner_id=p.id\n        LEFT JOIN visible_comments c ON m.owner_type='comment' AND m.owner_id=c.id\n        WHERE p.id IS NOT NULL OR c.id IS NOT NULL\n      )\n      ",
+            ),
+            (
+                "social_activity_final",
+                "SELECT e.id,e.source_id,e.source_type,e.title,e.at,e.version,e.activity_actor,e.thread_id,e.href FROM events e",
+            ),
+        ];
+        for (kind, sql) in cases {
+            let planned = super::plan_values_statement(kind, &read_input(kind, &[]))
+                .expect("registered kind")
+                .expect("planned statement");
+            assert_eq!(planned.sql, sql, "{kind}");
+            assert_eq!(planned.sql.matches('?').count(), 0, "{kind}");
+        }
+    }
+
+    #[test]
+    fn social_feed_projection_fragments_are_owner_owned_bytes() {
+        let cases = [
+            ("social_feed_head", "SELECT p.*,\n      ", 0),
+            (
+                "social_feed_appreciations",
+                "(SELECT count(*) FROM social_reactions r WHERE r.post_id=p.id AND r.kind='appreciate') AS appreciation_count,\n      ",
+                0,
+            ),
+            (
+                "social_feed_comment_count",
+                "(SELECT count(*) FROM social_comments c WHERE c.post_id=p.id AND c.state='published') AS comment_count,\n      ",
+                0,
+            ),
+            (
+                "social_feed_appreciated",
+                "EXISTS(SELECT 1 FROM social_reactions r WHERE r.post_id=p.id AND r.principal_id=? AND r.kind='appreciate') AS appreciated,\n      ",
+                1,
+            ),
+            (
+                "social_feed_topics",
+                "COALESCE((SELECT string_agg(pt.tag, ',' ORDER BY pt.tag) FROM social_post_topics pt WHERE pt.post_id=p.id),'') AS topic_list\n    FROM social_posts p WHERE ",
+                0,
+            ),
+            (
+                "social_following_topic_exists",
+                "OR EXISTS(SELECT 1 FROM social_post_topics pt JOIN social_follows f ON f.target_type='topic' AND f.target_id=pt.tag\n      WHERE pt.post_id=p.id AND f.principal_id=?))",
+                1,
+            ),
+            (
+                "social_feed_comments_by_post",
+                "SELECT id,post_id,author_id,author_name,body,created_at\n    FROM social_comments WHERE post_id=? AND state='published' ORDER BY created_at LIMIT 50",
+                1,
+            ),
+            (
+                "social_stories_head",
+                "SELECT id,author_id,author_name,title,body,theme,branch_id,version,created_at\n    FROM social_stories WHERE ",
+                0,
+            ),
+        ];
+        for (kind, sql, binds) in cases {
+            let values = vec!["bind"; binds];
+            let planned = super::plan_values_statement(kind, &read_input(kind, &values))
+                .expect("registered kind")
+                .expect("planned statement");
+            assert_eq!(planned.sql, sql, "{kind}");
+            assert_eq!(planned.sql.matches('?').count(), binds, "{kind}");
+        }
     }
 }
 

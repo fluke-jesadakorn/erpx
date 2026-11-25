@@ -255,6 +255,27 @@ const READ_COMMAND_REPLAY: NativeStatement = NativeStatement {
     scope: "holding",
 };
 
+/// Native successors of the two scoped-field point reads retired with the r33
+/// helper: lot-balance version and transfer status. Both are byte-identical,
+/// parameterized reads executed on the caller's already-open Holding unit.
+pub const RD_LOT_BALANCE_VERSION: &str = "inventory_rd_lot_balance_version";
+const SQL_RD_LOT_BALANCE_VERSION: &str = "SELECT version FROM inventory_lot_balances WHERE lot_id=? AND warehouse_id=?";
+const READ_LOT_BALANCE_VERSION: NativeStatement = NativeStatement {
+    kind: RD_LOT_BALANCE_VERSION,
+    sql: SQL_RD_LOT_BALANCE_VERSION,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_TRANSFER_STATUS: &str = "inventory_rd_transfer_status";
+const SQL_RD_TRANSFER_STATUS: &str = "SELECT status FROM inventory_transfers WHERE id=? AND company_id=?";
+const READ_TRANSFER_STATUS: NativeStatement = NativeStatement {
+    kind: RD_TRANSFER_STATUS,
+    sql: SQL_RD_TRANSFER_STATUS,
+    bind_count: 2,
+    scope: "holding",
+};
+
 /// Native successor of the TypeScript document-posting preview `stockDeltas`
 /// array read. The owner plans this literal and the caller executes it on its
 /// own already-open unit; this crate carries no TypeScript SQL for it.
@@ -630,6 +651,8 @@ pub fn is_read(kind: &str) -> bool {
             | RD_SERVICE_COUNT_PERSISTED
             | RD_PURCHASE_REPLAY
             | RD_COMMAND_REPLAY
+            | RD_LOT_BALANCE_VERSION
+            | RD_TRANSFER_STATUS
             | RD_STOCK_COUNT_DELTAS
             | RD_ACTIVE_RESERVATIONS_TOTAL
             | RD_LEDGER_MOVEMENT_AFTER
@@ -676,6 +699,8 @@ pub fn read_statement(kind: &str) -> Option<&'static NativeStatement> {
         RD_SERVICE_COUNT_PERSISTED => Some(&READ_SERVICE_COUNT_PERSISTED),
         RD_PURCHASE_REPLAY => Some(&READ_PURCHASE_REPLAY),
         RD_COMMAND_REPLAY => Some(&READ_COMMAND_REPLAY),
+        RD_LOT_BALANCE_VERSION => Some(&READ_LOT_BALANCE_VERSION),
+        RD_TRANSFER_STATUS => Some(&READ_TRANSFER_STATUS),
         RD_STOCK_COUNT_DELTAS => Some(&READ_STOCK_COUNT_DELTAS),
         RD_ACTIVE_RESERVATIONS_TOTAL => Some(&READ_ACTIVE_RESERVATIONS_TOTAL),
         RD_LEDGER_MOVEMENT_AFTER => Some(&READ_LEDGER_MOVEMENT_AFTER),
@@ -758,6 +783,8 @@ mod tests {
             RD_SERVICE_COUNT_PERSISTED,
             RD_PURCHASE_REPLAY,
             RD_COMMAND_REPLAY,
+            RD_LOT_BALANCE_VERSION,
+            RD_TRANSFER_STATUS,
             RD_STOCK_COUNT_DELTAS,
             RD_ACTIVE_RESERVATIONS_TOTAL,
             RD_LEDGER_MOVEMENT_AFTER,
@@ -907,6 +934,20 @@ mod tests {
             command.sql,
             "SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?"
         );
+    }
+
+    /// Parity witness for the two retired r33 scoped-field probes: the native
+    /// plans are byte-identical to the pre-dedupe literals with the same two
+    /// binds and no lock clause.
+    #[test]
+    fn scoped_field_read_plans_match_retired_owner_statements() {
+        let lot = read_statement(RD_LOT_BALANCE_VERSION).expect("read kind");
+        let transfer = read_statement(RD_TRANSFER_STATUS).expect("read kind");
+        assert!(is_read(RD_LOT_BALANCE_VERSION) && is_read(RD_TRANSFER_STATUS));
+        assert_eq!(lot.bind_count, 2);
+        assert_eq!(transfer.bind_count, 2);
+        assert_eq!(lot.sql, "SELECT version FROM inventory_lot_balances WHERE lot_id=? AND warehouse_id=?");
+        assert_eq!(transfer.sql, "SELECT status FROM inventory_transfers WHERE id=? AND company_id=?");
     }
 
     /// Parity witness for the owner-local `pos-core-facts` read family: each

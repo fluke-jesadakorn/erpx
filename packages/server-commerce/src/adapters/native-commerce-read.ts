@@ -56,6 +56,12 @@ export const RD_LANDED_COST_POSTING_CONFIG = 'commerce_rd_landed_cost_posting_co
 export const RD_TRANSIT_ACTIVE_LOCATION = 'commerce_rd_transit_active_location';
 export const RD_TRANSIT_PRODUCT_VERSION = 'commerce_rd_transit_product_version';
 
+/** Allow-listed POS full active-warehouses read. */
+export const RD_POS_WAREHOUSES_ALL = 'commerce_rd_pos_warehouses_all';
+
+/** Allow-listed existing Manufacturing posting confirmation-image read. */
+export const RD_MFG_EXISTING_POSTING_CONFIRMATION_IMAGE = 'commerce_rd_mfg_existing_posting_confirmation_image';
+
 /** Allow-listed warehouse-config read kinds resolved by the mounted owner command-plan route. */
 export const RD_WAREHOUSE_PAGE_ROWS = 'commerce_rd_warehouse_page_rows';
 export const RD_WAREHOUSE_MASTER_ROWS = 'commerce_rd_warehouse_master_rows';

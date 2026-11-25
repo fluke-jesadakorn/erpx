@@ -59,7 +59,8 @@ describe('Inventory read-tail r43 dedupe', () => {
 
   test('f3: statement tails, binds and independent statements are unchanged', () => {
     const source = adapter('service-initial-physical-stock-count-source.ts');
-    expect(source).toContain('.bind(id,id).first<{marked:boolean}>()');
+    expect(source).toContain('nativeServiceCountPersistedMarker');
+    expect(source).not.toContain('.bind(id,id).first<{marked:boolean}>()');
     expect(source).toContain('.bind(id,scope.companyId,scope.branchId,scope.branchId).first<string>');
     expect(adapter('quality-count-purchases.ts')).toContain(
       '.bind(id,scope.companyId,scope.branchId,scope.branchId).first<{id:string;quality_hold_id:string',

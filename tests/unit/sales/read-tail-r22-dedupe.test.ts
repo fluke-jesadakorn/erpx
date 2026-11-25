@@ -119,7 +119,7 @@ describe('Sales read-tail r22 retirement check', () => {
     // r30 shared tableRead (-3) and priceListSelect (-1).
     // r33 folds the tail generator into the primary read generator (-1).
     // r35: delivery-presence head shared by order/return/notice guards (-1).
-    expect(total).toBe(30);
+    expect(total).toBe(29);
     expect(total).toBeLessThan(60);
   });
 });

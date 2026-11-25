@@ -37,9 +37,11 @@ describe('People Payroll read-tail r25 parameterized family dedupe', () => {
     expect(src('people-roster.ts')).toContain("ppRd25ByIdCompany('people_roster_requests')");
   });
 
-  test('the shared module declares the fragment exactly once', () => {
+  test('the shared module delegates the fragment to the round-4 owner builder', () => {
     const s = src('pp-read-tail-r25-sources.ts');
-    expect(s.split('`SELECT * FROM ${table} WHERE id=? AND company_id=?`')).toHaveLength(2);
+    expect(s).toContain("from './pp-read-tail-round4-sources'");
+    expect(s).toContain("ppRdRound4ByProjectionIdCompany('*', table)");
+    expect(s).not.toContain('`SELECT * FROM ${table} WHERE id=? AND company_id=?`');
   });
 
   test('worktree SELECT count is strictly lower than the recorded 1459 r24 baseline', () => {
@@ -55,6 +57,6 @@ describe('People Payroll read-tail r25 parameterized family dedupe', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(1459);
-    expect(total).toBe(1164);
+    expect(total).toBeLessThanOrEqual(1138);
   });
 });

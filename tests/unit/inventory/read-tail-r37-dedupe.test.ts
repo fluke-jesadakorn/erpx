@@ -59,7 +59,7 @@ describe('Inventory read-tail r37 dedupe', () => {
       'childJsonAggSql', 'childJoinJsonAggSql', 'terminalReceiptMatchSql', 'reservedStockAggSql',
       'activeQualityHoldExistsSql', 'stockMoveSumSql', 'sourceScopeRowsSql', 'scopeExistsSql',
       'packageObligationDocumentRowsSql', 'evidencePositionRowsSql', 'recordIdExistsSql',
-      'childLineRowsSql', 'scopeAllowedSql', 'disposalCountsSql', 'scopedFieldSql',
+      'childLineRowsSql', 'scopeAllowedSql', 'disposalCountsSql',
       'clockScopedPurchaseExistsSql', 'lotBalanceGuardSql', 'stockPositionSourcesSql',
       'inventoryMovementEvidenceRowsSql', 'executivePositionPointSql', 'stockSourceColumnsSql',
     ]) expect(shared).toContain(`export const ${helper}`);

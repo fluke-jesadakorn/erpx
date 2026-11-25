@@ -66,7 +66,7 @@ describe('Inventory read-tail r39 dedupe', () => {
       'childJsonAggSql', 'childJoinJsonAggSql', 'terminalReceiptMatchSql', 'reservedStockAggSql',
       'activeQualityHoldExistsSql', 'stockMoveSumSql', 'sourceScopeRowsSql', 'scopeExistsSql',
       'packageObligationDocumentRowsSql', 'evidencePositionRowsSql', 'recordIdExistsSql',
-      'childLineRowsSql', 'scopeAllowedSql', 'disposalCountsSql', 'scopedFieldSql',
+      'childLineRowsSql', 'scopeAllowedSql', 'disposalCountsSql',
       'clockScopedPurchaseExistsSql', 'lotBalanceGuardSql', 'stockPositionSourcesSql',
       'inventoryMovementEvidenceRowsSql', 'executivePositionPointSql', 'stockSourceColumnsSql',
       'attachmentOwnerVersionGuardSql', 'attachmentLotIdsSql',

@@ -153,7 +153,7 @@ describe('Identity access private-file denial native witness', () => {
 });
 
 describe('Identity access read-tail r31 retirement check', () => {
-  test('retirement:ts-statements is 379 after Control-side read-plan cut', () => {
+  test('retirement:ts-statements is 373 after lock-aware preference cut', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -163,7 +163,7 @@ describe('Identity access read-tail r31 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBeLessThan(380);
-    expect(total).toBe(379);
+    expect(total).toBeLessThan(374);
+    expect(total).toBe(373);
   });
 });

@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { scopedFieldSql } from '../../../packages/server-inventory/src/adapters/read-tail-sql';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-inventory/src');
 const adapterDir = resolve(srcRoot, 'adapters');
@@ -10,10 +9,8 @@ const selectCount = (text: string) => (text.match(/SELECT /g) ?? []).length;
 const lockRe = /INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i;
 
 // Verbatim pre-dedupe literals from HEAD for the two single-field row probes.
-// The projection, two-key equality predicate and bind shape were byte-identical;
-// only the selected field, table and scope keys varied. The canonical
-// inventoryCountStatusSql count-source literal is NOT part of this family and
-// stays untouched. These are byte-identity oracles only, never live query sources.
+// Both were moved to the native read registry; these remain byte-identity
+// oracles only, never live TypeScript query sources.
 const sites: [field: string, table: string, key: string, scopeKey: string][] = [
   ['version', 'inventory_lot_balances', 'lot_id', 'warehouse_id'],
   ['status', 'inventory_transfers', 'id', 'company_id'],
@@ -22,30 +19,30 @@ const preDedupe = (field: string, table: string, key: string, scopeKey: string) 
   `SELECT ${field} FROM ${table} WHERE ${key}=? AND ${scopeKey}=?`;
 
 describe('Inventory read-tail r33 parameterized scoped-field dedupe', () => {
-  test('helper reproduces both pre-dedupe literals byte-identically and stays read-only', () => {
+  test('both pre-dedupe literals are byte-identical in the native registry and stay read-only', () => {
+    const rust = readFileSync(resolve(srcRoot, 'adapters/native_command_sql.rs'), 'utf8');
     for (const [field, table, key, scopeKey] of sites) {
-      const sql = scopedFieldSql(field, table, key, scopeKey);
-      expect(sql).toBe(preDedupe(field, table, key, scopeKey));
-      expect(sql).toContain('SELECT ');
+      const sql = preDedupe(field, table, key, scopeKey);
       expect(selectCount(sql)).toBe(1);
       expect(sql).not.toMatch(lockRe);
+      expect(rust).toContain(`"${sql}"`);
     }
   });
 
-  test('r33 helper literal is defined exactly once in the canonical owner', () => {
-    expect(src('read-tail-sql.ts').split('scopedFieldSql =').length - 1).toBe(1);
+  test('the r33 helper literal is retired from the canonical owner', () => {
+    expect(src('read-tail-sql.ts')).not.toContain('scopedFieldSql');
   });
 
-  test('former inline literals are gone and both call sites compose the helper with unchanged binds', () => {
+  test('former inline literals are gone and both call sites use the native bridges with unchanged scope', () => {
     const transit = src('inventory-transit.ts');
     expect(transit).not.toContain("SELECT version FROM inventory_lot_balances WHERE lot_id=? AND warehouse_id=?");
-    expect(transit).toContain("db.prepare(scopedFieldSql('version','inventory_lot_balances','lot_id','warehouse_id'))");
-    expect(transit).toContain(".bind(lot_id,target_warehouse_id).first<Row>()");
+    expect(transit).toContain('lotBalanceVersion');
+    expect(transit).not.toContain('scopedFieldSql');
 
     const transfer = src('transfer-purchases.ts');
     expect(transfer).not.toContain('SELECT status FROM inventory_transfers WHERE id=? AND company_id=?');
-    expect(transfer).toContain("database.prepare(scopedFieldSql('status','inventory_transfers','id','company_id'))");
-    expect(transfer).toContain(".bind(command.target.id,actor.companyId).first<{status:string}>()");
+    expect(transfer).toContain('transferStatus');
+    expect(transfer).not.toContain('scopedFieldSql');
     expect(transfer).toContain('companyPurchaseReadLocks(database,actor.companyId)'); // lock guard intact
   });
 

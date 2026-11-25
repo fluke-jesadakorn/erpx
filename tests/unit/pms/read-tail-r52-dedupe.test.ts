@@ -75,7 +75,7 @@ describe('pms read-tail r52 dead-export retirement', () => {
   it('retains every other r17-r51 SQL helper module', async () => {
     const rounds = [
       17, 18, 19, 20, 21, 22, 24, 25, 26, 27, 29, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
-      41, 42, 43, 44, 45, 46, 49, 50, 51,
+      41, 42, 43, 44, 45, 49, 50, 51,
     ];
     expect(rounds).not.toContain(23);
     for (const round of rounds) {
@@ -101,8 +101,8 @@ describe('pms read-tail r52 dead-export retirement', () => {
       spaced += count(text, 'SELECT ');
       bare += count(text, 'SELECT');
     }
-    expect(spaced).toBe(220);
-    expect(bare).toBe(221);
+    expect(spaced).toBe(219);
+    expect(bare).toBe(220);
     expect(spaced).toBeLessThan(252);
     expect(bare).toBeLessThan(254);
   });

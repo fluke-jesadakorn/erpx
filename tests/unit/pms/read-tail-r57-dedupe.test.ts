@@ -94,15 +94,15 @@ describe('pms read-tail r57 reservation-id arm head dedupe', () => {
     expect(await src('adapters/feature-availability.ts')).toContain('FOR SHARE');
     expect(await src('adapters/attachment-read-sources.ts')).toContain('LOCK TABLE');
     const rust = await src('adapters/native_read_sql.rs');
-    expect((rust.match(/^pub const PMS_RD_/gm) ?? []).length).toBe(52);
+    expect((rust.match(/^pub const PMS_RD_/gm) ?? []).length).toBe(55);
     const bridge = await src('adapters/native-pms-read.ts');
-    expect((bridge.match(/^export const PMS_RD_/gm) ?? []).length).toBe(52);
+    expect((bridge.match(/^export const PMS_RD_/gm) ?? []).length).toBe(55);
     // The pms_properties family has cross-owner consumers and stays inline.
     expect(await src('adapters/pms-read-tail-r20-sql.ts')).toContain('export const PMS_PROPERTIES_PROJECTION_SQL = "SELECT');
     expect(await src('adapters/pms-read-tail-r29-sql.ts')).toContain('export const PMS_PROPERTIES_TEN_COL_JOIN_SQL = "JOIN (SELECT');
     // The guest-id sibling family stays inline for a separate future slice.
     expect(await src('adapters/pms-read-tail-r25-sql.ts')).toContain('SELECT data->>\'guestId\' FROM stays UNION SELECT data->>\'guestId\' FROM chosen');
-    for (const n of [17, 18, 19, 20, 21, 22, 24, 25, 26, 27, 29, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 49, 50, 51, 53, 55]) {
+    for (const n of [17, 18, 19, 20, 21, 22, 24, 25, 26, 27, 29, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 49, 50, 51, 53, 55]) {
       expect((await src(`adapters/pms-read-tail-r${n}-sql.ts`)).length, `r${n}`).toBeGreaterThan(0);
     }
   });
@@ -114,8 +114,8 @@ describe('pms read-tail r57 reservation-id arm head dedupe', () => {
       spaced += count(text, 'SELECT ');
       bare += count(text, 'SELECT');
     }
-    expect(spaced).toBe(220);
-    expect(bare).toBe(221);
+    expect(spaced).toBe(219);
+    expect(bare).toBe(220);
     expect(spaced).toBeLessThan(242);
     expect(bare).toBeLessThan(244);
   });

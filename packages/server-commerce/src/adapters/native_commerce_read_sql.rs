@@ -481,6 +481,20 @@ const READ_POS_WAREHOUSES_ALL: NativeCommerceReadStatement = NativeCommerceReadS
     bind_count: 3,
 };
 
+/// Native successor of the existing Manufacturing posting confirmation-image
+/// read. The caller binds `[company_id]`; the owner table and `s` alias stay
+/// byte-exact.
+pub const RD_MFG_EXISTING_POSTING_CONFIRMATION_IMAGE: &str =
+    "commerce_rd_mfg_existing_posting_confirmation_image";
+const SQL_MFG_EXISTING_POSTING_CONFIRMATION_IMAGE: &str =
+    "SELECT to_jsonb(s)::text image FROM commerce_mfg_existing_posting_confirmations s WHERE company_id=?";
+const READ_MFG_EXISTING_POSTING_CONFIRMATION_IMAGE: NativeCommerceReadStatement =
+    NativeCommerceReadStatement {
+        kind: RD_MFG_EXISTING_POSTING_CONFIRMATION_IMAGE,
+        sql: SQL_MFG_EXISTING_POSTING_CONFIRMATION_IMAGE,
+        bind_count: 1,
+    };
+
 const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_PMS_WAREHOUSE_ACTIVE,
     READ_PMS_SETTINGS_EXISTS,
@@ -520,6 +534,7 @@ const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_TRANSIT_ACTIVE_LOCATION,
     READ_TRANSIT_PRODUCT_VERSION,
     READ_POS_WAREHOUSES_ALL,
+    READ_MFG_EXISTING_POSTING_CONFIRMATION_IMAGE,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -616,6 +631,11 @@ mod tests {
             ),
             (RD_TRANSIT_PRODUCT_VERSION, SQL_TRANSIT_PRODUCT_VERSION, 3usize),
             (RD_POS_WAREHOUSES_ALL, SQL_POS_WAREHOUSES_ALL, 3usize),
+            (
+                RD_MFG_EXISTING_POSTING_CONFIRMATION_IMAGE,
+                SQL_MFG_EXISTING_POSTING_CONFIRMATION_IMAGE,
+                1usize,
+            ),
         ];
         for (kind, sql, bind_count) in expected {
             let statement = read_statement(kind).expect("registered owner read kind");
@@ -634,12 +654,44 @@ mod tests {
                     || sql.contains("commerce_warehouses")
                     || sql.contains("commerce_settings")
                     || sql.contains("commerce_orders")
+                    || sql.contains("commerce_mfg_existing_posting_confirmations")
                     || sql.contains("to_regclass("),
                 "owner read must stay on owner-local Commerce tables or schema probes: {sql}"
             );
             assert_eq!(sql.matches('?').count(), bind_count);
         }
-        assert_eq!(STATEMENTS.len(), 37);
+        assert_eq!(STATEMENTS.len(), 39);
+    }
+
+    /// The existing-posting confirmation image keeps its byte-exact owner
+    /// projection and single company bind.
+    #[test]
+    fn mfg_posting_confirmation_image_keeps_its_exact_literal() {
+        let plan = read_statement(RD_MFG_EXISTING_POSTING_CONFIRMATION_IMAGE)
+            .expect("mfg confirmation image");
+        assert_eq!(
+            plan.sql,
+            "SELECT to_jsonb(s)::text image FROM commerce_mfg_existing_posting_confirmations s WHERE company_id=?"
+        );
+        assert_eq!(plan.bind_count, 1);
+        assert_eq!(plan.sql.matches('?').count(), 1);
+        assert!(plan.sql.starts_with("SELECT "));
+        assert!(!plan.sql.contains(';'));
+    }
+
+    /// The POS full active-warehouses read keeps its two distinct branch bind
+    /// positions and byte-exact `SELECT *` projection.
+    #[test]
+    fn pos_warehouses_all_keeps_its_exact_literal() {
+        let plan = read_statement(RD_POS_WAREHOUSES_ALL).expect("pos warehouses");
+        assert_eq!(
+            plan.sql,
+            "SELECT * FROM commerce_warehouses WHERE company_id=? AND status='active' AND (?::text IS NULL OR branch_id=?) ORDER BY name"
+        );
+        assert_eq!(plan.bind_count, 3);
+        assert_eq!(plan.sql.matches('?').count(), 3);
+        assert_eq!(plan.sql.matches("?::text IS NULL OR branch_id=?").count(), 1);
+        assert!(!plan.sql.contains(';'));
     }
 
     /// Transit guard predicates keep their byte-exact EXISTS text and three

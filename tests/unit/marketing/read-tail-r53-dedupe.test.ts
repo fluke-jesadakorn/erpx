@@ -112,8 +112,6 @@ describe('marketing read-tail r53 dedupe', () => {
 
   it('leaves the r38-r52 head families and the remaining repository read intact', async () => {
     for (const name of [
-      'owner-point-read-sql.ts',
-      'marketing-point-exists-sql.ts',
     ])
       expect(headTokens(await src(name)), name).toBe(1);
     expect((await src('read-tail-sql.ts')).match(/SELECT/g) ?? []).toHaveLength(0);
@@ -139,7 +137,7 @@ describe('marketing read-tail r53 dedupe', () => {
     expect(headTokens(await src('marketing-purchase-union-sql.ts'))).toBe(0);
   });
 
-  it('pins the owner head KPI to 5 (BEFORE=21; lane 40 retired 3 TS SELECTs)', async () => {
-    expect(await ownerHeadTokens()).toEqual({ spaced: 5, bare: 5 });
+  it('pins the owner head KPI to 3 (BEFORE=21; lane 40 retired 3 TS SELECTs)', async () => {
+    expect(await ownerHeadTokens()).toEqual({ spaced: 3, bare: 3 });
   });
 });

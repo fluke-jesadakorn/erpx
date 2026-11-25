@@ -169,7 +169,7 @@ describe('Sales read-tail r31 followup work-projection head', () => {
     expect(orderRead).toContain("predicate = '',");
     expect(orderRead).toContain("order = '',");
     expect(orderRead).toContain("extraJoin = '',");
-    expect(purchases).toContain("projection.where,'','',` JOIN (${followupPurchaseRows}) native ON native.id=c.id AND native.company_id=c.company_id`");
+    expect(purchases).toContain("projection.where,'','',` JOIN (${await followupPurchaseRows()}) native ON native.id=c.id AND native.company_id=c.company_id`");
     expect(purchases).toContain('.bind(actor.assignmentId,actor.userId,actor.role,actor.userId,actor.companyId,...ids,...projection.args)');
     expect(customers).toContain("followupCustomerOrderRead(commerceProjectionSources.commerce_orders,'DISTINCT ON (o.party_id)");
     expect(customers).toContain("followupCustomerOrderRead(commerceProjectionSources.commerce_orders,'c.id,c.next_action,c.due_date,c.status,c.order_id,o.number order_number'");
@@ -197,10 +197,10 @@ describe('Sales read-tail r31 retirement check', () => {
     expect(native).toContain('export const SALES_RD_PRICE_LIST_ITEMS_ACTIVE');
     expect(native).toContain('export const SALES_RD_NOTIFICATION_ATTEMPT');
     expect(native).toContain('export const SALES_RD_NOTIFICATION_RECONCILIATION_INSTALLED');
-    expect((rustRegistry.match(/pub const RD_\w+: &str =/g) ?? []).length).toBe(17);
+    expect((rustRegistry.match(/pub const RD_\w+: &str =/g) ?? []).length).toBe(18);
   });
 
-  test('retirement:ts-statements drops from 50 to 30', () => {
+  test('retirement:ts-statements drops from 50 to 29', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -214,7 +214,7 @@ describe('Sales read-tail r31 retirement check', () => {
     // r33: tail generator delegates to the primary generator (-1).
     // r34: pointRead delegates to the shared tableRead generator (-1).
     // r35: delivery-presence head shared by order/return/notice guards (-1).
-    expect(total).toBe(30);
+    expect(total).toBe(29);
     expect(total).toBeLessThan(50);
   });
 });

@@ -2,7 +2,6 @@ import { assertPmsProviderAuthority } from "@erpx/server-pms/adapters/provider-a
 import { PMS_WRITE_CONTEXT_SQL } from "./pms-read-tail-r17-sql";
 import { PMS_STRIPE_REFUND_COLUMNS_SQL } from "./pms-read-tail-r22-sql";
 import { PMS_STRIPE_PAYMENT_ID_HEAD_SQL } from "./pms-read-tail-r37-sql";
-import { pmsTwoColumnPointReadSql } from "./pms-read-tail-r46-sql";
 import 'server-only';
 import { createHash, randomUUID } from 'node:crypto';
 import { type Snapshot } from "@erpx/server-pms/public/rules/pms";
@@ -27,10 +26,10 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase, companyId = ''
         authorize: (actor,permission)=>assertPmsProviderAuthority(db,actor,permission),
         readPmsStripePayments: (facts: {
             key: string;
-        }) => db.prepare(pmsTwoColumnPointReadSql('stripePaymentKey')).bind(facts.key).first<{
+        }) => nativePmsReadFirst<{
             id: string;
             request_hash: string;
-        }>(),
+        }>(PMS_RD_STRIPE_PAYMENT_KEY, [facts.key], db),
         readPosConnections: facts => pmsCounterPaymentFacts(db).readPosConnections(facts),
         readPosSettings: facts => pmsCounterPaymentFacts(db).readPosSettings(facts),
         insertPmsStripePayments: (facts: {
@@ -272,4 +271,4 @@ export function pmsStripeRefundsForFinance(actor: WorkContext) { return applicat
 export function recoverPmsStripeRefund(db: TransactionalSqlDatabase, actor: WorkContext, id: string, reason: string, payerEmail?: string) { return application.recoverPmsStripeRefund(repository(db, actor.companyId), actor, id, reason, payerEmail); }
 import { pmsCounterPaymentFacts } from "@erpx/server-pos/public/pms-counter-payment-facts";
 import { nativePmsOwnerWrite } from "@erpx/feature-pms/public/native-pms";
-import { nativePmsReadFirst, PMS_RD_STRIPE_PAYMENT_BY_ID, PMS_RD_STRIPE_PAYMENT_BY_ID_COMPANY, PMS_RD_STRIPE_PAYMENT_PROPERTY } from './native-pms-read';
+import { nativePmsReadFirst, PMS_RD_STRIPE_PAYMENT_BY_ID, PMS_RD_STRIPE_PAYMENT_BY_ID_COMPANY, PMS_RD_STRIPE_PAYMENT_PROPERTY, PMS_RD_STRIPE_PAYMENT_KEY } from './native-pms-read';

@@ -11,7 +11,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
     let sql = '', values: unknown[] = [];
     const referenceAtOverride: number | null = null;
     if (id === "collaboration-thread-activity") {
-        const source = socialActivityEvents(a);
+        const source = await socialActivityEvents(a);
         const label = breakdown === "month"
             ? "to_char(to_timestamp(e.at/1000.0) AT TIME ZONE 'UTC','YYYY-MM')"
             : "e.source_type";
