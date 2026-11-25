@@ -1,4 +1,5 @@
 import {ppRd38SinglePredTail} from './pp-read-tail-r38-sources';
+import {ppRd54RunEvidenceGuard} from './pp-read-tail-r54-sources';
 import {ppRd36TwoPredTail} from './pp-read-tail-r36-sources';
 import {ppRd46ByIdCompanyStatusIn} from './pp-read-tail-r46-sources';
 import { PP_RD22_ACTIVE_PERSON_VERSION_GUARD } from './pp-read-tail-r22-sources';
@@ -49,7 +50,7 @@ function application(provided?: SqlDatabase) {
         stageCreatePayrollAdjustmentEffect3(id: string, companyId: string, originalRunId: string, originalItemId: string, engagement_id: unknown, sourceRef: string, source: string, value: string, userId: string, now: number) { return nativePpStatement('pp_payroll_adjustments_stmt_4').bind(id, companyId, originalRunId, originalItemId, engagement_id, sourceRef, source, value, userId, now); },
         readEditPayrollAdjustmentRow(runId: string, companyId: string) { return database.prepare("SELECT a.*,r.status,r.submitted_by,r.created_by preparer,r.version,r.pay_date FROM hr_payroll_adjustments a JOIN hr_payroll_runs r ON r.id=a.run_id WHERE a.run_id=? AND a.company_id=?").bind(runId, companyId).first<Row>(); },
         stageEditPayrollAdjustmentEffect(runId: string) { return database.prepare("SELECT run_id FROM hr_payroll_adjustments WHERE run_id=? FOR UPDATE").bind(runId); },
-        guard14(key: string, value: "adjustment-edit-version", runId: string, companyId: string, expectedVersion: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_payroll_runs WHERE id=? AND company_id=? AND version=? AND status IN ('draft','calculating','failed','preview') AND submitted_by IS NULL)", [runId, companyId, expectedVersion]); },
+        guard14(key: string, value: "adjustment-edit-version", runId: string, companyId: string, expectedVersion: number) { return assertion(database, key, value, ppRd54RunEvidenceGuard("version=? AND status IN ('draft','calculating','failed','preview') AND submitted_by", " IS NULL"), [runId, companyId, expectedVersion]); },
         stageEditPayrollAdjustmentEffect2(runId: string) { return nativePpStatement('pp_payroll_adjustments_stmt_5').bind(runId); },
         stageEditPayrollAdjustmentEffect3(runId: string) { return nativePpStatement('pp_payroll_adjustments_stmt_6').bind(runId); },
         stageEditPayrollAdjustmentEffect4(now: number, runId: string) { return nativePpStatement('pp_payroll_adjustments_stmt_7').bind(now, runId); },
@@ -58,7 +59,7 @@ function application(provided?: SqlDatabase) {
         readPayrollAdjustmentInputsPayee(value: unknown, company_id: string) { return activePayee<Row>(database, value, company_id); },
         readPayrollAdjustmentInputsPriorAdjustments(original_item_id: unknown, id: string) { return database.prepare("SELECT a.run_id,i.result_json,r.input_digest FROM hr_payroll_adjustments a JOIN hr_payroll_runs r ON r.id=a.run_id JOIN hr_payroll_items i ON i.run_id=r.id WHERE a.original_item_id=? AND r.status='posted' AND r.id<>? ORDER BY r.pay_date,r.id").bind(original_item_id, id).all<Row>(); },
         stageCalculatePayrollAdjustmentRunEffect(id: string) { return database.prepare("SELECT id FROM hr_payroll_runs WHERE id=? FOR UPDATE").bind(id); },
-        guard23(key: string, value: "adjustment-run-version", id: string, companyId: string, version: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_payroll_runs WHERE id=? AND company_id=? AND version=? AND status IN ('draft','calculating','preview','failed') AND (submitted_by IS NULL OR status='calculating' AND approved_by IS NULL))", [id, companyId, version]); },
+        guard23(key: string, value: "adjustment-run-version", id: string, companyId: string, version: number) { return assertion(database, key, value, ppRd54RunEvidenceGuard("version=? AND status IN ('draft','calculating','preview','failed') AND (submitted_by IS NULL OR status='calculating' AND approved_by IS NULL)", ""), [id, companyId, version]); },
         stageCalculatePayrollAdjustmentRunEffect2(id: string) { return nativePpStatement('pp_payroll_adjustments_stmt_8').bind(id); },
         stageCalculatePayrollAdjustmentRunEffect3(value: string, digest: string, now: number, id: string) { return nativePpStatement('pp_payroll_adjustments_stmt_9').bind(value, digest, now, id); },
         stageCalculatePayrollAdjustmentRunEffect4(value: string, id: string, engagementId: string, value2: string, value3: string, gross: number, deductions: number, employer: number, net: number, now: number) { return nativePpStatement('pp_payroll_adjustments_stmt_10').bind(value, id, engagementId, value2, value3, gross, deductions, employer, net, now); },

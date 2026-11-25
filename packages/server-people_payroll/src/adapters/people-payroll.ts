@@ -2,6 +2,7 @@ import {ppRd42IdVersionLiteralGuard} from './pp-read-tail-r42-sources';
 import {ppRd45RunByIdProjection} from './pp-read-tail-r45-sources';
 import {ppRd38SinglePredTail} from './pp-read-tail-r38-sources';
 import {ppRd37StatusGuard5} from './pp-read-tail-r37-sources';
+import {ppRd54RunEvidenceGuard} from './pp-read-tail-r54-sources';
 import {ppRd36SinglePred, ppRd36ThreePred, ppRd36TwoPredTail} from './pp-read-tail-r36-sources';
 import { PP_RD23_HR_COMP_REVISIONS_SQL, PP_RD23_HR_PAYROLL_COST_ASSIGNMENTS_SQL, PP_RD23_HR_PAY_GROUPS_ACTIVE_CURRENCY_GUARD, PP_RD23_HR_TIME_ENTRIES_OVERTIME_SQL, PP_RD23_OVERTIME_PAYROLL_HANDOFFS_SQL, PP_RD23_POSTED_PAYROLL_RUN_GUARD } from './pp-read-tail-r23-sources';
 import { ppRd30Exists4Guard } from './pp-read-tail-r30-sources';
@@ -419,7 +420,7 @@ function context(provided?: SqlDatabase, actor?: WorkContext): PeoplePayrollPort
             }>();
         },
         readPreparePayrollAccrualValid(...args) { return payrollFinanceFacts(database).readPreparePayrollAccrualValid(...args); },
-        guard147(key: string, value: "payroll-run", runId: string, companyId: string, expectedVersion: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_payroll_runs WHERE id=? AND company_id=? AND status='approved' AND version=? AND input_digest IS NOT NULL)", [runId, companyId, expectedVersion]); },
+        guard147(key: string, value: "payroll-run", runId: string, companyId: string, expectedVersion: number) { return assertion(database, key, value, ppRd54RunEvidenceGuard("status='approved' AND version=? AND input_digest", " IS NOT NULL"), [runId, companyId, expectedVersion]); },
         guard148(key: string, value: "payroll-mapping", resolvedMappingId: string, companyId: string, runId: string, resolvedMappingVersion: number | null) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_payroll_account_mappings WHERE id=? AND company_id=? AND pay_group_id=(SELECT pay_group_id FROM hr_payroll_runs WHERE id=?) AND status='approved' AND version=?)", [resolvedMappingId, companyId, runId, resolvedMappingVersion]); },
         guard149(key: string, value: "payroll-items", runId: string) { return assertion(database, key, value, "NOT EXISTS(SELECT 1 FROM hr_payroll_items WHERE run_id=? AND status NOT IN ('calculated','approved','posted'))", [runId]); },
         guard150(key: string, value: "payroll-posting-unique", runId: string) { return assertion(database, key, value, ppRd26RunIdGuard('hr_payroll_postings'), [runId]); },
@@ -481,7 +482,7 @@ function context(provided?: SqlDatabase, actor?: WorkContext): PeoplePayrollPort
                 input_snapshot_json: string;
             }>();
         },
-        guard174(key: string, value: "run", runId: string, companyId: string, revision: number, input_digest: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_payroll_runs WHERE id=? AND company_id=? AND revision=? AND input_digest=? AND status IN ('preview','in_review','approved'))", [runId, companyId, revision, input_digest]); },
+        guard174(key: string, value: "run", runId: string, companyId: string, revision: number, input_digest: string) { return assertion(database, key, value, ppRd54RunEvidenceGuard("revision=? AND input_digest=? AND status IN ('preview','in_review','approved')", ""), [runId, companyId, revision, input_digest]); },
         stageExportPayrollReviewEffect(exportId: string, runId: string, revision: number, fileKey: string, checksum: string, userId: string, now: number) { return nativePpStatement('people_payroll_stmt_36').bind(exportId, runId, revision, fileKey, checksum, userId, now); },
         readGetPayrollReviewFileRow(runId: string, revision: number, companyId: string) {
             return database.prepare("SELECT e.file_key,e.checksum_sha256 FROM hr_payroll_review_exports e JOIN hr_payroll_runs r ON r.id=e.run_id WHERE e.run_id=? AND e.run_revision=? AND r.company_id=?").bind(runId, revision, companyId).first<{

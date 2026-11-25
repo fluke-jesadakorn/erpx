@@ -159,7 +159,7 @@ describe('People Payroll read-tail r53 native read tail', () => {
     expect(src('adapters/pp-read-tail-r20-sources.ts')).not.toContain('people_roster_assignments');
   });
 
-  test('retirement:ts-statements is strictly below BEFORE=1221 and pinned at 1217', () => {
+  test('retirement:ts-statements is strictly below BEFORE=1221 and pinned at 1214', () => {
     const root = new URL('../../../packages/server-people_payroll/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
@@ -172,6 +172,6 @@ describe('People Payroll read-tail r53 native read tail', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(1221);
-    expect(total).toBe(1217);
+    expect(total).toBe(1214);
   });
 });
