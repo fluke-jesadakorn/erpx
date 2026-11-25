@@ -12,10 +12,11 @@ import {
   nativeResolveDocumentBrand,
   nativeResolveWorkspaceBrand,
 } from "./native-brand-presentation";
+import { brandManagementGuardHead } from "./read-tail-r1";
 export { documentBrandModes } from "@erpx/server-brand/domain/branding";
 export type { DocumentBrandMode,BrandVariant,WorkspaceBrand,StorefrontAppBrand,DocumentBrand } from "@erpx/server-brand/domain/branding";
 const image={async metadata(buffer:ArrayBuffer){return sharp(Buffer.from(buffer),{failOn:"warning"}).metadata();},async encode(buffer:ArrayBuffer){return sharp(Buffer.from(buffer),{failOn:"warning"}).rotate().resize({width:4096,height:4096,fit:"inside",withoutEnlargement:true}).webp({quality:92,alphaQuality:100}).toBuffer();}};
-const branch=(db:SqlDatabase,actor:WorkContext,id:string)=>db.prepare(`SELECT id,display_name FROM (${organizationProjectionSources.organization_nodes}) organization_nodes WHERE id=? AND company_id=? AND kind='branch' AND status='active'`).bind(id,actor.companyId).first<{id:string;display_name:string}>();
+const branch=(db:SqlDatabase,actor:WorkContext,id:string)=>db.prepare(brandManagementGuardHead("id,display_name",organizationProjectionSources.organization_nodes,"company_id=? AND kind='branch' AND status='active'")).bind(id,actor.companyId).first<{id:string;display_name:string}>();
 /** Native workspace brand for the selected scope. The Brand owner resolves the
  * Holding label, media URL precedence and document mode on the current Holding
  * transaction; no TypeScript Brand SQL read remains on this path. */
@@ -27,7 +28,7 @@ export async function resolveWorkspaceBrand(a:WorkContext){
 export async function resolveDocumentBrand(a:WorkContext,scope:{branchId:string|null;requestedMode?:string|null}){
  return nativeResolveDocumentBrand(a,scope);
 }
-async function companyExists(db:SqlDatabase,actor:WorkContext,id:string){return !!await db.prepare(`SELECT 1 FROM (${organizationProjectionSources.organization_nodes}) organization_nodes WHERE id=? AND kind='company' AND status='active'`).bind(id).first();}
+async function companyExists(db:SqlDatabase,actor:WorkContext,id:string){return !!await db.prepare(brandManagementGuardHead("1",organizationProjectionSources.organization_nodes,"kind='company' AND status='active'")).bind(id).first();}
 export async function requireBrandManagement(db:SqlDatabase,a:WorkContext,type:BrandOwnerType,id:string){
  const allowed=type==="holding_brand"?id===a.holdingId&&await companyAuthority(db,a,["holding_owner"])
   :type==="branch_brand"?await companyAuthority(db,a,"organization.manage")&&!!await branch(db,a,id)
