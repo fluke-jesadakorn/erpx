@@ -144,7 +144,7 @@ describe('Organization read-tail r51 dedupe', () => {
     walk(srcRoot);
     // r51 collapses three authority-seat reads, two department-node reads and
     // two member-profile guards into three shared helpers (-2, -1, -1 = -4).
-    expect(space).toBe(205);
+    expect(space).toBe(204);
     expect(space).toBeLessThan(230);
   });
 });

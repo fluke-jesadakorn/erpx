@@ -128,8 +128,8 @@ describe('Organization read-tail r62 dedupe', () => {
     // r62 folds two node kind/display-name projection head literals into one
     // renderer (-2 literals, +1 declaration): 206 - 2 + 1 = 205.
     expect(CASES).toHaveLength(2);
-    expect(total).toBe(205);
-    expect(total).toBe(206 - 1);
+    expect(total).toBe(204);
+    expect(total).toBe(206 - 2);
     expect(total).toBeLessThan(206);
   });
 });

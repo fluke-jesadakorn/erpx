@@ -9,6 +9,7 @@ import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {workspaceChoiceBrands} from "@erpx/server-brand/public/workspace-choice-brand";
 import {createWorkspaceChoiceApplication} from "@erpx/server-organization/application/workspace-choices";
 import type {AssignmentRow,NodeRow} from "@erpx/server-organization/domain/workspace-choices";
+import {nodeIdentityHeadSql} from './organization-read-tail-sources-r63';
 function application(){const databases=new Map<string,Promise<SqlDatabase>>(),database=(id:string)=>{let value=databases.get(id);if(!value){value=holdingResources(id).then(x=>x.write);databases.set(id,value);}return value;};return createWorkspaceChoiceApplication({clock:{now:()=>Date.now()},userId:async()=>(await currentSession()).session.user.id,holdings:activeHoldingBindings,
  assignments:async(holdingId,userId,assignmentId,now)=>{const write=await database(holdingId);
   return (
@@ -49,13 +50,13 @@ function application(){const databases=new Map<string,Promise<SqlDatabase>>(),da
   return (
     await write
       .prepare(
-        `SELECT n.id,n.kind,n.slug,n.display_name,n.company_id,n.branch_id,b.slug AS branch_slug
+        nodeIdentityHeadSql(`n.company_id,n.branch_id,b.slug AS branch_slug
          FROM organization_nodes n
          LEFT JOIN organization_nodes b
            ON b.id=n.branch_id AND b.kind='branch' AND b.status='active'
          WHERE n.company_id IN (${placeholders})
            AND n.kind IN ('branch','department') AND n.status='active'
-         ORDER BY n.display_name,n.id`,
+         ORDER BY n.display_name,n.id`),
       )
       .bind(...companyIds)
       .all<NodeRow>()

@@ -91,7 +91,7 @@ describe('Organization read-tail r42 byte-identical families', () => {
     walk(srcRoot);
     // r42 collapses three active-company-node, two branch-optional-id, two
     // latest-department-flow and two change-row reads into four shared sources (-5).
-    expect(space).toBe(205);
+    expect(space).toBe(204);
     expect(space).toBeLessThan(249);
   });
 });

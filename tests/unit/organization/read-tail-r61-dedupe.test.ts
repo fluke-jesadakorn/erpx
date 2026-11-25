@@ -115,8 +115,8 @@ describe('Organization read-tail r61 dedupe', () => {
     // r61 folds two position-package projection head literals into one
     // renderer (-2 literals, +1 declaration): 207 - 2 + 1 = 206.
     expect(CASES).toHaveLength(2);
-    expect(total).toBe(205);
-    expect(total).toBe(207 - 2);
+    expect(total).toBe(204);
+    expect(total).toBe(207 - 3);
     expect(total).toBeLessThan(207);
   });
 });

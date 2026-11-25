@@ -3,12 +3,13 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { OrganizationNodeEvidenceRow, PendingStructureEvidenceRow } from '@erpx/server-runtime/public/executive/evidence-contract';
-const organizationNodeEvidenceSource = `SELECT n.id,n.kind,n.slug,n.display_name,n.status,n.hierarchy_revision,p.display_name parent_name,
+import { nodeIdentityHeadSql } from './organization-read-tail-sources-r63';
+const organizationNodeEvidenceSource = nodeIdentityHeadSql(`n.status,n.hierarchy_revision,p.display_name parent_name,
   b.display_name branch_name FROM organization_nodes n
   LEFT JOIN organization_nodes p ON p.id=n.parent_id AND p.company_id=n.company_id
   LEFT JOIN organization_nodes b ON b.id=CASE WHEN n.kind='branch' THEN n.id ELSE n.branch_id END AND b.company_id=n.company_id
   WHERE n.company_id=? AND n.kind IN ('branch','department') AND n.status='active'
-    AND (?::text IS NULL OR n.id=? OR n.branch_id=?) AND (?::text IS NULL OR n.id=?)`;
+    AND (?::text IS NULL OR n.id=? OR n.branch_id=?) AND (?::text IS NULL OR n.id=?)`);
 const pendingStructureEvidenceSource = `SELECT c.id,c.action,c.node_kind,c.display_name,c.state,c.version,c.created_at,c.updated_at,
   COALESCE(b.display_name,'Company-wide') branch_name FROM organization_node_changes c
   LEFT JOIN organization_nodes b ON b.id=c.branch_id AND b.company_id=c.company_id
