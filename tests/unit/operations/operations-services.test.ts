@@ -479,7 +479,7 @@ describe('Operations staff_tasks snapshot sources share one canonical projection
 
 import {readFileSync,readdirSync} from 'node:fs';
 import {resolve} from 'node:path';
-import {OPERATIONS_TASK_DELEGATION_SOURCE_SQL,OPERATIONS_TASK_TEMPLATE_SOURCE_SQL,OPERATIONS_TASK_SCHEDULE_SOURCE_SQL,operationsApprovalImageSql,operationsActiveDelegationSql,operationsChildJsonSql,operationsChildAggJsonSql,operationsChildJsonByBoundId} from '../../../packages/server-operations/src/adapters/task-delegation-source';
+import {OPERATIONS_TASK_DELEGATION_SOURCE_SQL,OPERATIONS_TASK_TEMPLATE_SOURCE_SQL,OPERATIONS_TASK_SCHEDULE_SOURCE_SQL,operationsActiveDelegationSql,operationsChildJsonSql,operationsChildAggJsonSql,operationsChildJsonByBoundId} from '../../../packages/server-operations/src/adapters/task-delegation-source';
 import {workforceActorScopeSql,OPERATIONS_VIEWER_CLOCK_SQL,operationsActorScopeInput,operationsActorScopeInputExists,operationsPurchasedActorScopeClockExists} from '../../../packages/server-operations/src/adapters/workforce-actor-scope-source';
 import {operationsActiveStaffLevels} from '../../../packages/server-operations/src/adapters/staff-facts';
 import {operationsOwnerVersionExists} from '../../../packages/server-operations/src/adapters/identity-policy-version-guard';
@@ -595,17 +595,11 @@ describe('Operations approver JSON exists alias/column family dedupe',()=>{
  });
 });
 
-describe('Operations approval-instance image dedupe',()=>{
- const sources={instances:'${sources.instances}',steps:'${sources.steps}',decisions:'${sources.decisions}'};
- const image=(key:string,alias:string,sep:string)=>operationsApprovalImageSql(key,alias,sep,sources.instances,sources.steps,sources.decisions);
- const alertFragment="'approval',(SELECT jsonb_agg(jsonb_build_object('instance',to_jsonb(instance),'steps',(SELECT jsonb_agg(to_jsonb(step) ORDER BY step.id) FROM (${sources.steps}) step WHERE step.instance_id=instance.id),'decisions',(SELECT jsonb_agg(to_jsonb(decision) ORDER BY decision.id) FROM (${sources.decisions}) decision WHERE decision.instance_id=instance.id)) ORDER BY instance.id) FROM (${sources.instances}) instance WHERE instance.record_id=t.id AND instance.company_id=t.company_id)";
- const purchaseFragment="'approvals',(SELECT jsonb_agg(jsonb_build_object('instance',to_jsonb(a),'steps',(SELECT jsonb_agg(to_jsonb(step) ORDER BY step.id) FROM (${sources.steps})step WHERE step.instance_id=a.id),'decisions',(SELECT jsonb_agg(to_jsonb(decision) ORDER BY decision.id) FROM (${sources.decisions})decision WHERE decision.instance_id=a.id)) ORDER BY a.id) FROM (${sources.instances})a WHERE a.record_id=t.id AND a.company_id=t.company_id)";
- test('the canonical image renders both aliases byte-identically',()=>{
-  expect(image('approval','instance',' ')).toBe(alertFragment);
-  expect(image('approvals','a','')).toBe(purchaseFragment);
-  expect(image('approval','instance',' ').match(/SELECT /g)).toHaveLength(3);
- });
- test('the retired builders keep no local image literal and the native plan owns it',()=>{
+describe('Operations approval-instance image retirement',()=>{
+ test('the dead image renderer is gone and the native plan owns both literals',()=>{
+  const delegation=readFileSync(new URL('../../../packages/server-operations/src/adapters/task-delegation-source.ts',import.meta.url),'utf8');
+  expect(delegation).not.toContain('operationsApprovalImageSql');
+  expect(delegation).not.toContain("(SELECT jsonb_agg(jsonb_build_object('instance'");
   const native=readFileSync(new URL('../../../packages/server-operations/src/adapters/native_operations_read_sql.rs',import.meta.url),'utf8');
   for(const [name,literal] of [
    ['work-task-alert-purchases.ts',"'approval',(SELECT jsonb_agg(jsonb_build_object('instance',to_jsonb(instance)"],
@@ -891,7 +885,7 @@ describe('Operations read-tail r41 retirement',()=>{
     walk(root);
     // r42 deduped the social task-origin EXISTS family and r43 deduped the
     // command-receipt version guard; the r41 BEFORE=110 baseline is unchanged.
-    expect(space).toBe(94);
+    expect(space).toBe(75);
     expect(space).toBeLessThan(110);
   });
 });
@@ -931,7 +925,7 @@ describe('Operations read-tail r42 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(94);
+    expect(space).toBe(75);
     expect(space).toBeLessThan(110);
   });
 });
@@ -976,7 +970,7 @@ describe('Operations read-tail r43 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(94);
+    expect(space).toBe(75);
     expect(space).toBeLessThan(109);
   });
 });
@@ -1020,7 +1014,7 @@ describe('Operations read-tail r44 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(94);
+    expect(space).toBe(75);
     expect(space).toBeLessThan(108);
   });
 });
@@ -1068,7 +1062,7 @@ describe('Operations read-tail r45 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(94);
+    expect(space).toBe(75);
     expect(space).toBeLessThan(107);
   });
 });
@@ -1116,7 +1110,7 @@ describe('Operations read-tail r46 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(94);
+    expect(space).toBe(75);
     expect(space).toBeLessThan(106);
   });
 });

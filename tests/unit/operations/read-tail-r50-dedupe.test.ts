@@ -77,7 +77,7 @@ describe('operations read-tail r50 closed-head retirement', () => {
     expect(source.match(/\(SELECT to_jsonb\(/g)).toHaveLength(1);
   });
 
-  it('retirement:ts-statements lowers the operations SELECT KPI from 84 to 78', async () => {
+  it('retirement:ts-statements lowers the operations SELECT KPI from 84 to 75', async () => {
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -87,7 +87,7 @@ describe('operations read-tail r50 closed-head retirement', () => {
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(78);
+    expect(total).toBe(75);
     expect(total).toBeLessThan(84);
   });
 });

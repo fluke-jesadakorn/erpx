@@ -161,7 +161,7 @@ describe('operations read-tail r51 native read plans', () => {
     }
   });
 
-  it('retirement:ts-statements lowers the operations SELECT KPI from 82 to 78', async () => {
+  it('retirement:ts-statements lowers the operations SELECT KPI from 82 to 75', async () => {
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -171,7 +171,7 @@ describe('operations read-tail r51 native read plans', () => {
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(78);
+    expect(total).toBe(75);
     expect(total).toBeLessThan(82);
   });
 });
