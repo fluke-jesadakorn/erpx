@@ -2,7 +2,7 @@ import {commercePmsCommandFactsStockEffects} from '@erpx/server-inventory/public
 import { commercialOwnerProjectionSources as inventoryProjectionSources } from "@erpx/server-inventory/public/commercial-owner-projection-sources";
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-import { COMMERCE_WAREHOUSE_BRANCH_ACTIVE_SQL } from "./guarded-source-dedupe-sql";
+import { nativeCommerceReadAll, RD_WAREHOUSE_BRANCH_ACTIVE } from './native-commerce-read';
 const query = async <T>(db: SqlDatabase, sql: string, ...values: unknown[]) => (await db
     .prepare(sql)
     .bind(...values)
@@ -18,10 +18,10 @@ export function pmsCommerceFacts(db: SqlDatabase) {
         readCommerceWarehouses: (facts: {
             companyId: string;
             fact1: string;
-        }) => query<{
+        }) => nativeCommerceReadAll<{
             id: string;
             name: string;
-        }>(db, COMMERCE_WAREHOUSE_BRANCH_ACTIVE_SQL, facts.companyId, facts.fact1),
+        }>(RD_WAREHOUSE_BRANCH_ACTIVE, [facts.companyId, facts.fact1], db),
         readCommerceWarehouses2: (facts: {
             warehouseId: string;
             companyId: string;

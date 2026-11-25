@@ -1,7 +1,8 @@
 import {commerceProductionCommandSourcesStockEffects} from '@erpx/server-inventory/public/commerce-stock-owner-effects';
 import { commercialOwnerProjectionSources as inventoryProjectionSources } from "@erpx/server-inventory/public/commercial-owner-projection-sources";
 import { COMMERCE_STOCK_BY_WAREHOUSE_PRODUCT_SQL, COMMERCE_STOCK_WAREHOUSE_FOR_UPDATE_SQL } from "./stock-source-dedupe-sql";
-import { COMMERCE_ACTIVE_WAREHOUSES_SQL, COMMERCE_WAREHOUSE_ACTIVE_SQL, COMMERCE_PRODUCT_COMPANY_ACTIVE_GUARD_SQL } from "./guarded-source-dedupe-sql";
+import { COMMERCE_PRODUCT_COMPANY_ACTIVE_GUARD_SQL } from "./guarded-source-dedupe-sql";
+import { nativeCommerceReadAll, nativeCommerceReadFirst, RD_WAREHOUSE_ACTIVE, RD_WAREHOUSES_ACTIVE } from './native-commerce-read';
 import { productionReadProjection as productioninventoryProjection } from '@erpx/server-inventory/public/production-read-projections';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import type {Row} from '@erpx/server-commerce/public/commerce';
@@ -21,10 +22,8 @@ export function productionCommandSources(db: SqlDatabase) {
                 .all<Row>();
         },
         async warehouses(companyId: string, branchId: string | null, branchId2: string | null) {
-            return db
-                .prepare(COMMERCE_ACTIVE_WAREHOUSES_SQL)
-                .bind(companyId, branchId, branchId2)
-                .all<Row>();
+            const results = await nativeCommerceReadAll<Row>(RD_WAREHOUSES_ACTIVE, [companyId, branchId, branchId2], db);
+            return { results };
         },
         async demandSources(companyId: string, branchId: string | null, branchId2: string | null) {
             return db.prepare(`SELECT o.id,o.number,o.version,o.due_date,l.product_id,l.quantity_milli-l.fulfilled_milli remaining_milli
@@ -39,8 +38,7 @@ export function productionCommandSources(db: SqlDatabase) {
             return assertion(db, key, value, COMMERCE_PRODUCT_COMPANY_ACTIVE_GUARD_SQL, [productId, companyId]);
         },
         async activeWarehouse(warehouseId: string, companyId: string, branchId: string | null, branchId2: string | null) {
-            return db.prepare(COMMERCE_WAREHOUSE_ACTIVE_SQL)
-                .bind(warehouseId, companyId, branchId, branchId2).first<Row>();
+            return nativeCommerceReadFirst<Row>(RD_WAREHOUSE_ACTIVE, [warehouseId, companyId, branchId, branchId2], db);
         },
         async demandSource(salesOrderId: string, companyId: string, warehouseId: string, value: number, output_product_id: string | number | null) {
             return db.prepare(`SELECT o.id,o.version,l.quantity_milli-l.fulfilled_milli remaining_milli

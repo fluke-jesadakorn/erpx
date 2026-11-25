@@ -5,7 +5,7 @@ import { commerceFinancePageSources } from "@erpx/server-finance/public/commerce
 import { commerceInventoryPageSources } from "@erpx/server-inventory/public/commerce-page-sources";
 
 import { readListPage, readListPageRows } from "@erpx/server-work_projection/public/list-page";
-import { nativeCommerceReadAll, RD_PRODUCT_PAGE_ROWS } from './native-commerce-read';
+import { nativeCommerceReadAll, RD_PRODUCT_PAGE_ROWS, RD_WAREHOUSE_PAGE_ROWS } from './native-commerce-read';
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
 
@@ -31,6 +31,29 @@ function nativeProductPage(write: SqlDatabase, actor: WorkContext, policy: {
 }) {
     return readListPageRows<CommercePageRow>(policy, async ({ cursor, descending, limit }) => {
         const rows = await nativeCommerceReadAll<CommercePageRow>(RD_PRODUCT_PAGE_ROWS, [actor.companyId], write);
+        rows.sort(pageOrder);
+        if (descending) rows.reverse();
+        const paged = cursor ? rows.filter(row => {
+            const cmp = pageOrder(row, { id: cursor.id, page_key: cursor.key } as CommercePageRow);
+            return descending ? cmp < 0 : cmp > 0;
+        }) : rows;
+        return paged.slice(0, limit);
+    });
+}
+/** r20: the warehouse page is planned by the mounted owner command-plan port.
+ * Both branch bind positions are filled from the caller and kept distinct. */
+function nativeWarehousePage(write: SqlDatabase, actor: WorkContext, policy: {
+    scope: unknown;
+    cursor?: string;
+    descending?: boolean;
+    limit?: number;
+}) {
+    return readListPageRows<CommercePageRow>(policy, async ({ cursor, descending, limit }) => {
+        const rows = await nativeCommerceReadAll<CommercePageRow>(
+            RD_WAREHOUSE_PAGE_ROWS,
+            [actor.companyId, actor.branchId, actor.branchId],
+            write,
+        );
         rows.sort(pageOrder);
         if (descending) rows.reverse();
         const paged = cursor ? rows.filter(row => {
@@ -67,7 +90,7 @@ export async function commercePages(write: SqlDatabase, actor: WorkContext, quer
       WHERE ${s.sql} AND o.kind=? AND (?='' OR strpos(lower(o.number||' '||p.name||' '||o.state),lower(?))>0) AND (?='' OR o.state=?) AND (?='' OR o.order_date>=?) AND (?='' OR o.order_date<=?)`, args: [...s.args, query.view, search, search, query.status ?? '', query.status ?? '', query.startDate ?? '', query.startDate ?? '', query.endDate ?? '', query.endDate ?? ''], descending: true },
         products: { sql: 'SELECT	*,sku AS page_key FROM commerce_products WHERE company_id=?', args: [actor.companyId] },
         parties: commerceFinancePageSources.parties(actor.companyId, partyKind),
-        warehouses: { sql: 'SELECT *,name AS page_key FROM commerce_warehouses WHERE company_id=? AND (?::text IS NULL OR branch_id=?)', args: branchArgs },
+        warehouses: { sql: 'SELECT	*,name AS page_key FROM commerce_warehouses WHERE company_id=? AND (?::text IS NULL OR branch_id=?)', args: branchArgs },
         stock: commerceInventoryPageSources.stock(branchArgs),
     };
     const list = orderView ? 'orders' : query.view;
@@ -75,10 +98,12 @@ export async function commercePages(write: SqlDatabase, actor: WorkContext, quer
     const [page, movementPage] = await Promise.all([
         list === 'products'
             ? nativeProductPage(write, actor, { cursor: query.cursor, scope: pageScope })
-            : readListPage<Row & {
-                id: string;
-                page_key: string;
-            }>(write, { ...lists[list], cursor: query.cursor, scope: pageScope }),
+            : list === 'warehouses'
+                ? nativeWarehousePage(write, actor, { cursor: query.cursor, scope: pageScope })
+                : readListPage<Row & {
+                    id: string;
+                    page_key: string;
+                }>(write, { ...lists[list], cursor: query.cursor, scope: pageScope }),
         query.view === 'stock' ? readListPage<Row & {
             id: string;
             page_key: string;

@@ -880,79 +880,113 @@ async fn command_plan_route_returns_owner_fixed_sql_and_fails_closed() {
     .await;
     assert_ne!(status, 200, "wrong bind count must fail closed");
 
-    for (kind, values, expected_sql, expected_len) in [
+    for (kind, values, expected_sql, expected_values) in [
         (
             "commerce_rd_pos_startup_warehouses",
             r#"["company-1","branch-1","branch-1"]"#,
             "SELECT id,branch_id,code,name,status,version FROM commerce_warehouses WHERE company_id=? AND (?::text IS NULL OR branch_id=?) ORDER BY id",
-            3,
+            r#"["company-1","branch-1","branch-1"]"#,
         ),
         (
             "commerce_rd_pos_startup_products",
             r#"["company-1"]"#,
             "SELECT id,sku,name,item_type,tracking_mode,unit,price_minor,tax_bps,status,version FROM commerce_products WHERE company_id=? ORDER BY id",
-            1,
+            r#"["company-1"]"#,
         ),
         (
             "commerce_rd_settings_by_company",
             r#"["company-1"]"#,
             "SELECT * FROM commerce_settings WHERE company_id=?",
-            1,
+            r#"["company-1"]"#,
         ),
         (
             "commerce_rd_currency_by_company",
             r#"["company-1"]"#,
             "SELECT currency FROM commerce_settings WHERE company_id=?",
-            1,
+            r#"["company-1"]"#,
         ),
         (
             "commerce_rd_posting_mapping_state",
             r#"["company-1"]"#,
             "SELECT chart_id \"chartId\",currency,receivable_account_id \"receivableAccountId\",payable_account_id \"payableAccountId\",revenue_account_id \"revenueAccountId\",inventory_account_id \"inventoryAccountId\",clearing_account_id \"clearingAccountId\",cogs_account_id \"cogsAccountId\",input_tax_account_id \"inputTaxAccountId\",output_tax_account_id \"outputTaxAccountId\",cash_account_id \"cashAccountId\" FROM commerce_settings WHERE company_id=?",
-            1,
+            r#"["company-1"]"#,
         ),
         (
             "commerce_rd_product_page_rows",
             r#"["company-1"]"#,
             "SELECT *,sku AS page_key FROM commerce_products WHERE company_id=?",
-            1,
+            r#"["company-1"]"#,
         ),
         (
             "commerce_rd_product_master_rows",
             r#"["company-1"]"#,
             "SELECT * FROM commerce_products WHERE company_id=? ORDER BY sku",
-            1,
+            r#"["company-1"]"#,
         ),
         (
             "commerce_rd_product_active",
             r#"["product-1","company-1"]"#,
             "SELECT * FROM commerce_products WHERE id=? AND company_id=? AND status='active'",
-            2,
+            r#"["product-1","company-1"]"#,
         ),
         (
             "commerce_rd_product_active_options",
             r#"["company-1"]"#,
             "SELECT id,name FROM commerce_products WHERE company_id=? AND status='active' ORDER BY name",
-            1,
+            r#"["company-1"]"#,
         ),
         (
             "commerce_rd_product_master_detail",
             r#"["product-1","company-1"]"#,
             "SELECT * FROM commerce_products WHERE id=? AND company_id=?",
-            2,
+            r#"["product-1","company-1"]"#,
         ),
         (
             "commerce_rd_product_point",
             r#"["product-1","company-1"]"#,
             "SELECT id FROM commerce_products WHERE id=? AND company_id=? AND status='active'",
-            2,
+            r#"["product-1","company-1"]"#,
+        ),
+        (
+            "commerce_rd_warehouse_page_rows",
+            r#"["company-1","branch-1","branch-2"]"#,
+            "SELECT *,name AS page_key FROM commerce_warehouses WHERE company_id=? AND (?::text IS NULL OR branch_id=?)",
+            r#"["company-1","branch-1","branch-2"]"#,
+        ),
+        (
+            "commerce_rd_warehouse_master_rows",
+            r#"["company-1","branch-1","branch-2"]"#,
+            "SELECT * FROM commerce_warehouses WHERE company_id=? AND (?::text IS NULL OR branch_id=?) ORDER BY name",
+            r#"["company-1","branch-1","branch-2"]"#,
+        ),
+        (
+            "commerce_rd_warehouse_active",
+            r#"["warehouse-1","company-1","branch-1","branch-2"]"#,
+            "SELECT * FROM commerce_warehouses WHERE id=? AND company_id=? AND status='active' AND (?::text IS NULL OR branch_id=?)",
+            r#"["warehouse-1","company-1","branch-1","branch-2"]"#,
+        ),
+        (
+            "commerce_rd_warehouses_active",
+            r#"["company-1","branch-1","branch-2"]"#,
+            "SELECT id,name,branch_id FROM commerce_warehouses WHERE company_id=? AND status='active' AND (?::text IS NULL OR branch_id=?) ORDER BY name",
+            r#"["company-1","branch-1","branch-2"]"#,
+        ),
+        (
+            "commerce_rd_warehouse_branch_active",
+            r#"["company-1","branch-1"]"#,
+            "SELECT id,name FROM commerce_warehouses WHERE company_id=? AND branch_id=? AND status='active'",
+            r#"["company-1","branch-1"]"#,
         ),
     ] {
         let request = format!(r#"{{"kind":"{kind}","values":{values}}}"#);
         let (status, response, _) = http(addr, post(path, "acme.example.test", None, &request)).await;
         assert_eq!(status, 200, "{kind} must resolve on the command-plan route");
         assert_eq!(response["data"]["statements"][0]["sql"], expected_sql);
-        assert_eq!(response["data"]["statements"][0]["values"].as_array().unwrap().len(), expected_len);
+        assert_eq!(
+            response["data"]["statements"][0]["values"],
+            serde_json::from_str::<serde_json::Value>(expected_values).unwrap(),
+            "{kind} values pass through verbatim"
+        );
     }
     // Planned owner reads never reach the order backend.
     assert!(seen.lock().unwrap().is_empty());

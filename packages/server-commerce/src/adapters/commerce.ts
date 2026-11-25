@@ -20,8 +20,13 @@ import { commerceFinalOwnerProjectionSources as recordsProjectionSources } from 
 import {commerceCommerceStockEffects} from '@erpx/server-inventory/public/commerce-stock-owner-effects';
 import { commercialOwnerProjectionSources as inventoryProjectionSources } from "@erpx/server-inventory/public/commercial-owner-projection-sources";
 import { COMMERCE_STOCK_BY_WAREHOUSE_PRODUCT_SQL, COMMERCE_STOCK_VERSION_GUARD_SQL } from "./stock-source-dedupe-sql";
-import { COMMERCE_PRODUCT_ACTIVE_VERSION_GUARD_SQL, COMMERCE_WAREHOUSE_ACTIVE_SQL } from "./guarded-source-dedupe-sql";
-import { nativeCommerceReadAll, nativeCommerceReadFirst, RD_PRODUCT_ACTIVE, RD_PRODUCT_MASTER_ROWS } from './native-commerce-read';
+import { COMMERCE_PRODUCT_ACTIVE_VERSION_GUARD_SQL } from "./guarded-source-dedupe-sql";
+import { nativeCommerceReadAll, nativeCommerceReadFirst, RD_PRODUCT_ACTIVE, RD_PRODUCT_MASTER_ROWS, RD_WAREHOUSE_ACTIVE, RD_WAREHOUSE_MASTER_ROWS } from './native-commerce-read';
+
+/** r19/r20: normalized authority text for owner-planned master reads. The
+ * statements execute only in the mounted native command-plan resolver. */
+const COMMERCE_PRODUCT_MASTER_ROWS_SQL = "SELECT	* FROM commerce_products WHERE company_id=? ORDER BY sku";
+const COMMERCE_WAREHOUSE_MASTER_ROWS_SQL = "SELECT	* FROM commerce_warehouses WHERE company_id=? AND (?::text IS NULL OR branch_id=?) ORDER BY name";
 
 import { commerceExpensePaymentEffects } from "@erpx/server-people_payroll/public/commerce-expense-payment-effects";
 import { commerceFinancePageSources } from "@erpx/server-finance/public/commerce-page-sources";
@@ -103,15 +108,15 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             if(kinds===null)return commerceFinanceJoinedFacts(db).readCommerceOrders2(facts);
             return db.prepare(`SELECT o.*,p.name party_name FROM commerce_orders o ${commerceFinancePageSources.orderPartyJoin} WHERE o.company_id=? AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?) AND ${kinds.length?`o.kind IN (${kinds.map(()=>"?").join(",")})`:"false"} ORDER BY o.created_at DESC LIMIT 250`).bind(...facts.fact0,...kinds).all<Row>();
         },
-        readCommerceProducts1: (facts: {
+        readCommerceProducts1: async (facts: {
             companyId: string;
-        }) => nativeCommerceReadAll<Row>(RD_PRODUCT_MASTER_ROWS, [facts.companyId], db),
+        }) => ({ results: await nativeCommerceReadAll<Row>(RD_PRODUCT_MASTER_ROWS, [facts.companyId], db) }),
         readFinanceParties1: facts => CommerceFinanceFacts(db).readFinanceParties1(facts),
-        readCommerceWarehouses1: (facts: {
+        readCommerceWarehouses1: async (facts: {
             companyId: string;
             branchId: string | null;
             branchId2: string | null;
-        }) => db.prepare("SELECT * FROM commerce_warehouses WHERE company_id=? AND (?::text IS NULL OR branch_id=?) ORDER BY name").bind(facts.companyId, facts.branchId, facts.branchId2).all<Row>(),
+        }) => ({ results: await nativeCommerceReadAll<Row>(RD_WAREHOUSE_MASTER_ROWS, [facts.companyId, facts.branchId, facts.branchId2], db) }),
         readInventoryActiveReservations1: facts => CommerceInventoryFacts(db).readInventoryActiveReservations1(facts),
         readInventoryLedger1: facts => CommerceInventoryFacts(db).readInventoryLedger1(facts),
         readOrganizationNodes1: facts => CommerceOrganizationFacts(db).readOrganizationNodes1(facts),
@@ -301,7 +306,7 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             companyId: string;
             branchId: string | null;
             branchId2: string | null;
-        }) => db.prepare(COMMERCE_WAREHOUSE_ACTIVE_SQL).bind(facts.warehouseId, facts.companyId, facts.branchId, facts.branchId2).first<Row>(),
+        }) => nativeCommerceReadFirst<Row>(RD_WAREHOUSE_ACTIVE, [facts.warehouseId, facts.companyId, facts.branchId, facts.branchId2], db),
         readCommerceProducts2: (facts: {
             productId: string;
             companyId: string;

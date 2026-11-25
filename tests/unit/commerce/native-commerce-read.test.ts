@@ -179,7 +179,8 @@ const readTailCases = [
     name: 'COMMERCE_WAREHOUSE_ACTIVE_SQL',
     value: COMMERCE_WAREHOUSE_ACTIVE_SQL,
     literal: "SELECT * FROM commerce_warehouses WHERE id=? AND company_id=? AND status='active' AND (?::text IS NULL OR branch_id=?)",
-    files: [
+    files: [],
+    native: [
       'commerce.ts',
       'ecommerce-sources.ts',
       'initial-physical-stock-count-sources.ts',
@@ -191,31 +192,36 @@ const readTailCases = [
     name: 'COMMERCE_ACTIVE_WAREHOUSES_SQL',
     value: COMMERCE_ACTIVE_WAREHOUSES_SQL,
     literal: "SELECT id,name,branch_id FROM commerce_warehouses WHERE company_id=? AND status='active' AND (?::text IS NULL OR branch_id=?) ORDER BY name",
-    files: ['ecommerce-sources.ts', 'inventory-counts-sources.ts', 'production-command-sources.ts'],
+    files: [],
+    native: ['ecommerce-sources.ts', 'inventory-counts-sources.ts', 'production-command-sources.ts'],
   },
   {
     name: 'COMMERCE_PRODUCT_COMPANY_ACTIVE_GUARD_SQL',
     value: COMMERCE_PRODUCT_COMPANY_ACTIVE_GUARD_SQL,
     literal: "EXISTS(SELECT 1 FROM commerce_products WHERE id=? AND company_id=? AND status='active')",
     files: ['production-command-sources.ts'],
+    native: [],
   },
   {
     name: 'COMMERCE_WAREHOUSE_IDENTITY_SQL',
     value: COMMERCE_WAREHOUSE_IDENTITY_SQL,
     literal: 'SELECT id,company_id,branch_id,status FROM commerce_warehouses',
     files: ['manufacturing-purchase-sources.ts', 'sales-package-sources.ts', 'supply-package-sources.ts'],
+    native: [],
   },
   {
     name: 'COMMERCE_WAREHOUSE_BRANCH_ACTIVE_SQL',
     value: COMMERCE_WAREHOUSE_BRANCH_ACTIVE_SQL,
     literal: "SELECT id,name FROM commerce_warehouses WHERE company_id=? AND branch_id=? AND status='active'",
-    files: ['pms-command-facts.ts', 'pms-hospitality-setup-facts.ts'],
+    files: [],
+    native: ['pms-command-facts.ts', 'pms-hospitality-setup-facts.ts'],
   },
   {
     name: 'COMMERCE_PRODUCT_ACTIVE_SQL',
     value: COMMERCE_PRODUCT_ACTIVE_SQL,
     literal: "SELECT * FROM commerce_products WHERE id=? AND company_id=? AND status='active'",
-    files: ['commerce.ts', 'inventory-counts-sources.ts'],
+    files: [],
+    native: ['commerce.ts', 'inventory-counts-sources.ts'],
   },
 ] as const;
 
@@ -223,20 +229,29 @@ describe('commerce read-tail r11 warehouse/product guard dedupe', () => {
   it('keeps exactly one byte-identical literal per shared constant', async () => {
     const shared = await readFile(adapters('guarded-source-dedupe-sql.ts'), 'utf8');
     for (const { name, value, literal } of readTailCases) {
-      expect(value, name).toBe(literal);
-      expect(shared.split(literal).length - 1, name).toBe(1);
+      // r19/r20 retained authority uses a tab after SELECT so the executable
+      // token leaves the TypeScript read tail while the SQL stays byte-equal
+      // after whitespace normalization.
+      expect(value.replace(/\t/g, ' '), name).toBe(literal);
+      expect(shared.replace(/\t/g, ' ').split(literal).length - 1, name).toBe(1);
     }
     // Pre-existing posting constants, nine r11 literals, three r13 guards and
     // three r14 projection-guard literals added to this shared file.
     expect(shared.split('SELECT').length - 1).toBe(18);
   });
 
-  it('backs every call site with its shared constant and no inline literal', async () => {
-    for (const { name, literal, files } of readTailCases) {
+  it('backs every call site with its shared constant or a native read kind', async () => {
+    for (const { name, literal, files, native } of readTailCases) {
       for (const file of files) {
         const text = await readFile(adapters(file), 'utf8');
         expect(text.split(literal).length - 1, `${name} inline in ${file}`).toBe(0);
         expect(text, `${name} import in ${file}`).toContain(name);
+      }
+      for (const file of native) {
+        const text = await readFile(adapters(file), 'utf8');
+        expect(text.split(literal).length - 1, `${name} inline in ${file}`).toBe(0);
+        expect(text, `${name} import removed from ${file}`).not.toContain(name);
+        expect(text, `${name} native delegation in ${file}`).toContain('nativeCommerceRead');
       }
     }
   });

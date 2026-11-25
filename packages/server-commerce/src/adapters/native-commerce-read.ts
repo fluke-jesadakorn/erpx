@@ -15,6 +15,13 @@ export const RD_PRODUCT_ACTIVE_OPTIONS = 'commerce_rd_product_active_options';
 export const RD_PRODUCT_MASTER_DETAIL = 'commerce_rd_product_master_detail';
 export const RD_PRODUCT_POINT = 'commerce_rd_product_point';
 
+/** Allow-listed warehouse-config read kinds resolved by the mounted owner command-plan route. */
+export const RD_WAREHOUSE_PAGE_ROWS = 'commerce_rd_warehouse_page_rows';
+export const RD_WAREHOUSE_MASTER_ROWS = 'commerce_rd_warehouse_master_rows';
+export const RD_WAREHOUSE_ACTIVE = 'commerce_rd_warehouse_active';
+export const RD_WAREHOUSES_ACTIVE = 'commerce_rd_warehouses_active';
+export const RD_WAREHOUSE_BRANCH_ACTIVE = 'commerce_rd_warehouse_branch_active';
+
 /**
  * Strict owner transport for the mounted native Commerce `command-plan` read
  * route. The axum owner plans the exact statement for a registered read kind;

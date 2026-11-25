@@ -1,18 +1,18 @@
 import {commerceInventoryCountsSourcesStockEffects} from '@erpx/server-inventory/public/commerce-stock-owner-effects';
 import { commercialOwnerProjectionSources as inventoryProjectionSources } from "@erpx/server-inventory/public/commercial-owner-projection-sources";
 import { COMMERCE_STOCK_BY_WAREHOUSE_PRODUCT_SQL, COMMERCE_STOCK_ABSENT_GUARD_SQL, COMMERCE_STOCK_SNAPSHOT_GUARD_SQL } from "./stock-source-dedupe-sql";
-import { COMMERCE_PRODUCT_ACTIVE_VERSION_GUARD_SQL, COMMERCE_ACTIVE_WAREHOUSES_SQL, COMMERCE_WAREHOUSE_ACTIVE_SQL } from "./guarded-source-dedupe-sql";
-import { nativeCommerceReadFirst, RD_PRODUCT_ACTIVE } from './native-commerce-read';
+import { COMMERCE_PRODUCT_ACTIVE_VERSION_GUARD_SQL } from "./guarded-source-dedupe-sql";
+import { nativeCommerceReadAll, nativeCommerceReadFirst, RD_PRODUCT_ACTIVE, RD_WAREHOUSE_ACTIVE, RD_WAREHOUSES_ACTIVE } from './native-commerce-read';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import type { CountRow } from '@erpx/server-inventory/public/count-contract';
 export function inventoryCountSources(db: SqlDatabase) {
-    return { async activeWarehouses(companyId: string, branchId: string | null, branchId2: string | null) { return db.prepare(COMMERCE_ACTIVE_WAREHOUSES_SQL).bind(companyId, branchId, branchId2).all<CountRow>(); },
+    return { async activeWarehouses(companyId: string, branchId: string | null, branchId2: string | null) { return { results: await nativeCommerceReadAll<CountRow>(RD_WAREHOUSES_ACTIVE, [companyId, branchId, branchId2], db) }; },
         async activeProducts(companyId: string) { return db.prepare("SELECT id,sku,name,unit,tracking_mode FROM commerce_products WHERE company_id=? AND status='active' ORDER BY sku").bind(companyId).all<CountRow>(); },
         async stockOptions(companyId: string, branchId: string | null, branchId2: string | null) { return db.prepare(`SELECT s.* FROM (${inventoryProjectionSources.commerce_stock}) s JOIN commerce_warehouses w ON w.id=s.warehouse_id WHERE w.company_id=? AND (?::text IS NULL OR w.branch_id=?)`).bind(companyId, branchId, branchId2).all<CountRow>(); },
         guardAbsentStock(key: string, value: string, warehouse: string | number | null, product_id: string | number | null) { return assertion(db, key, value, COMMERCE_STOCK_ABSENT_GUARD_SQL, [warehouse, product_id]); },
         guardStockSnapshot(key: string, value: string, warehouse: string | number | null, product_id: string | number | null, snapshot_version: string | number | null, snapshot_quantity_milli: string | number | null, snapshot_value_minor: string | number | null) { return assertion(db, key, value, COMMERCE_STOCK_SNAPSHOT_GUARD_SQL, [warehouse, product_id, snapshot_version, snapshot_quantity_milli, snapshot_value_minor]); },
-        async activeWarehouse(warehouseId: string, companyId: string, branchId: string | null, branchId2: string | null) { return db.prepare(COMMERCE_WAREHOUSE_ACTIVE_SQL).bind(warehouseId, companyId, branchId, branchId2).first<CountRow>(); },
+        async activeWarehouse(warehouseId: string, companyId: string, branchId: string | null, branchId2: string | null) { return nativeCommerceReadFirst<CountRow>(RD_WAREHOUSE_ACTIVE, [warehouseId, companyId, branchId, branchId2], db); },
         async activeProduct(productId: string, companyId: string) { return nativeCommerceReadFirst<CountRow>(RD_PRODUCT_ACTIVE, [productId, companyId], db); },
         async currentStock(id: string | number | null, productId: string) { return db.prepare(COMMERCE_STOCK_BY_WAREHOUSE_PRODUCT_SQL).bind(id, productId).first<CountRow>(); },
         guardProductVersion(key: string, value: string, productId: string, version: string | number | null) { return assertion(db, key, value, COMMERCE_PRODUCT_ACTIVE_VERSION_GUARD_SQL, [productId, version]); },

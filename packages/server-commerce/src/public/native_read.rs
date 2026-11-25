@@ -547,6 +547,32 @@ mod tests {
     }
 
     #[test]
+    fn warehouse_plans_keep_both_branch_bind_positions() {
+        for (kind, branch_binds) in [
+            (RD_WAREHOUSE_PAGE_ROWS, 2usize),
+            (RD_WAREHOUSE_MASTER_ROWS, 2usize),
+            (RD_WAREHOUSE_ACTIVE, 2usize),
+            (RD_WAREHOUSES_ACTIVE, 2usize),
+            (RD_WAREHOUSE_BRANCH_ACTIVE, 1usize),
+        ] {
+            let entry = plan(kind).expect("warehouse plan");
+            assert_eq!(
+                entry
+                    .binds
+                    .iter()
+                    .filter(|&&field| field == BindField::BranchId)
+                    .count(),
+                branch_binds,
+                "{kind} branch bind positions"
+            );
+            assert!(entry.binds.contains(&BindField::CompanyId), "{kind} company scope");
+        }
+        // `warehouse.identity` stays excluded from the command-plan family: it
+        // is read without company or branch scope.
+        assert!(plan(RD_WAREHOUSE_IDENTITY).unwrap().binds.is_empty());
+    }
+
+    #[test]
     fn byte_parity_with_retained_typescript_statements() {
         for entry in PLANS {
             assert!(

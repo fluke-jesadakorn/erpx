@@ -181,6 +181,63 @@ const READ_PRODUCT_POINT: NativeCommerceReadStatement = NativeCommerceReadStatem
     bind_count: 2,
 };
 
+/// Native successor of the TypeScript `commercePages.warehouses` page-row read.
+/// The caller binds `[company_id, branch_id, branch_id]`; the two branch
+/// positions stay distinct and carry the caller's values verbatim.
+pub const RD_WAREHOUSE_PAGE_ROWS: &str = "commerce_rd_warehouse_page_rows";
+const SQL_WAREHOUSE_PAGE_ROWS: &str =
+    "SELECT *,name AS page_key FROM commerce_warehouses WHERE company_id=? AND (?::text IS NULL OR branch_id=?)";
+const READ_WAREHOUSE_PAGE_ROWS: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_WAREHOUSE_PAGE_ROWS,
+    sql: SQL_WAREHOUSE_PAGE_ROWS,
+    bind_count: 3,
+};
+
+/// Native successor of the TypeScript `unit.readCommerceWarehouses1` read. The
+/// caller binds `[company_id, branch_id, branch_id]` with both branch positions
+/// preserved.
+pub const RD_WAREHOUSE_MASTER_ROWS: &str = "commerce_rd_warehouse_master_rows";
+const SQL_WAREHOUSE_MASTER_ROWS: &str =
+    "SELECT * FROM commerce_warehouses WHERE company_id=? AND (?::text IS NULL OR branch_id=?) ORDER BY name";
+const READ_WAREHOUSE_MASTER_ROWS: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_WAREHOUSE_MASTER_ROWS,
+    sql: SQL_WAREHOUSE_MASTER_ROWS,
+    bind_count: 3,
+};
+
+/// Native successor of the TypeScript `COMMERCE_WAREHOUSE_ACTIVE_SQL` read. The
+/// caller binds `[record_id, company_id, branch_id, branch_id]`.
+pub const RD_WAREHOUSE_ACTIVE: &str = "commerce_rd_warehouse_active";
+const SQL_WAREHOUSE_ACTIVE: &str =
+    "SELECT * FROM commerce_warehouses WHERE id=? AND company_id=? AND status='active' AND (?::text IS NULL OR branch_id=?)";
+const READ_WAREHOUSE_ACTIVE: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_WAREHOUSE_ACTIVE,
+    sql: SQL_WAREHOUSE_ACTIVE,
+    bind_count: 4,
+};
+
+/// Native successor of the TypeScript `COMMERCE_ACTIVE_WAREHOUSES_SQL` read.
+/// The caller binds `[company_id, branch_id, branch_id]`.
+pub const RD_WAREHOUSES_ACTIVE: &str = "commerce_rd_warehouses_active";
+const SQL_WAREHOUSES_ACTIVE: &str =
+    "SELECT id,name,branch_id FROM commerce_warehouses WHERE company_id=? AND status='active' AND (?::text IS NULL OR branch_id=?) ORDER BY name";
+const READ_WAREHOUSES_ACTIVE: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_WAREHOUSES_ACTIVE,
+    sql: SQL_WAREHOUSES_ACTIVE,
+    bind_count: 3,
+};
+
+/// Native successor of the TypeScript `COMMERCE_WAREHOUSE_BRANCH_ACTIVE_SQL`
+/// read. The caller binds `[company_id, branch_id]`.
+pub const RD_WAREHOUSE_BRANCH_ACTIVE: &str = "commerce_rd_warehouse_branch_active";
+const SQL_WAREHOUSE_BRANCH_ACTIVE: &str =
+    "SELECT id,name FROM commerce_warehouses WHERE company_id=? AND branch_id=? AND status='active'";
+const READ_WAREHOUSE_BRANCH_ACTIVE: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_WAREHOUSE_BRANCH_ACTIVE,
+    sql: SQL_WAREHOUSE_BRANCH_ACTIVE,
+    bind_count: 2,
+};
+
 const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_PMS_WAREHOUSE_ACTIVE,
     READ_PMS_SETTINGS_EXISTS,
@@ -197,6 +254,11 @@ const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_PRODUCT_ACTIVE_OPTIONS,
     READ_PRODUCT_MASTER_DETAIL,
     READ_PRODUCT_POINT,
+    READ_WAREHOUSE_PAGE_ROWS,
+    READ_WAREHOUSE_MASTER_ROWS,
+    READ_WAREHOUSE_ACTIVE,
+    READ_WAREHOUSES_ACTIVE,
+    READ_WAREHOUSE_BRANCH_ACTIVE,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -226,6 +288,11 @@ mod tests {
             (RD_PRODUCT_ACTIVE_OPTIONS, SQL_PRODUCT_ACTIVE_OPTIONS, 1usize),
             (RD_PRODUCT_MASTER_DETAIL, SQL_PRODUCT_MASTER_DETAIL, 2usize),
             (RD_PRODUCT_POINT, SQL_PRODUCT_POINT, 2usize),
+            (RD_WAREHOUSE_PAGE_ROWS, SQL_WAREHOUSE_PAGE_ROWS, 3usize),
+            (RD_WAREHOUSE_MASTER_ROWS, SQL_WAREHOUSE_MASTER_ROWS, 3usize),
+            (RD_WAREHOUSE_ACTIVE, SQL_WAREHOUSE_ACTIVE, 4usize),
+            (RD_WAREHOUSES_ACTIVE, SQL_WAREHOUSES_ACTIVE, 3usize),
+            (RD_WAREHOUSE_BRANCH_ACTIVE, SQL_WAREHOUSE_BRANCH_ACTIVE, 2usize),
         ];
         for (kind, sql, bind_count) in expected {
             let statement = read_statement(kind).expect("registered owner read kind");
@@ -242,7 +309,7 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), bind_count);
         }
-        assert_eq!(STATEMENTS.len(), 15);
+        assert_eq!(STATEMENTS.len(), 20);
     }
 
     #[test]
@@ -252,5 +319,29 @@ mod tests {
         assert!(read_statement("commerce_rd_unknown").is_none());
         let statement = read_statement(RD_PMS_WAREHOUSE_ACTIVE).expect("warehouse read");
         assert!(statement.bind_count != 2);
+    }
+
+    #[test]
+    fn warehouse_reads_keep_two_distinct_branch_positions() {
+        for kind in [
+            RD_WAREHOUSE_PAGE_ROWS,
+            RD_WAREHOUSE_MASTER_ROWS,
+            RD_WAREHOUSE_ACTIVE,
+            RD_WAREHOUSES_ACTIVE,
+        ] {
+            let statement = read_statement(kind).expect("warehouse read");
+            assert_eq!(
+                statement.sql.matches("?::text IS NULL OR branch_id=?").count(),
+                1,
+                "{kind} must retain both branch bind positions"
+            );
+            assert_eq!(statement.sql.matches('?').count(), statement.bind_count, "{kind}");
+        }
+        assert_eq!(
+            read_statement(RD_WAREHOUSE_BRANCH_ACTIVE)
+                .expect("branch-active read")
+                .bind_count,
+            2
+        );
     }
 }
