@@ -170,6 +170,6 @@ describe('Procurement read-tail r53 EXISTS source/WHERE head dedupe', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(80);
-    expect(total).toBe(78); // r54: two columns/FROM/WHERE heads (-2 +1 helper) 79 -> 78.
+    expect(total).toBe(77); // r54: two columns/FROM/WHERE heads (-2 +1 helper) 79 -> 78; r55: two ARRAY heads (-2 +1 helper) 78 -> 77.
   });
 });

@@ -143,7 +143,7 @@ describe('Procurement read-tail r54 columns/FROM/WHERE head dedupe', () => {
     };
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
-    expect(total).toBeLessThan(79);
-    expect(total).toBe(78);
+    expect(total).toBeLessThan(78);
+    expect(total).toBe(77);
   });
 });
