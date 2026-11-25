@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12722,
+    "revision": 12724,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -186478,7 +186478,7 @@
         "owner": "pms",
         "title": "pms read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -186489,22 +186489,37 @@
         "resources": [
           "owner:pms"
         ],
-        "claim": {
-          "runId": "run-20261125-d",
-          "agentId": "wH4n160",
-          "claimedAt": "2026-11-25T00:18:39.803Z",
-          "heartbeatAt": "2026-11-25T00:18:39.803Z",
-          "expiresAt": "2026-11-25T00:48:39.803Z",
-          "generation": 174
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pms/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "0460a921e",
+            "owner": "pms",
+            "before": 275,
+            "after": 258,
+            "note": "One 4281-char/29-bind native kind replaces the 17-token template; caller unit, locks, feature/settlement reads preserved. Cargo 19; vitest 7."
+          },
+          {
+            "command": "targeted vitest + scoped tsc + cargo lib/module",
+            "result": "passed",
+            "sourceSha": "0460a921e"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "sectionRelatedRecords native kind, 29 binds (-17): 275->258. BEFORE=275.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n160",
+          "at": "2026-11-25T00:29:46.631Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -186758,17 +186773,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 7,
+        "in_progress": 6,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1500,
+        "blocked": 1501,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 174,
-    "updatedAt": "2026-11-25T00:26:10.796Z",
+    "updatedAt": "2026-11-25T00:29:46.635Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
