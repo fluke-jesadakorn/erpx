@@ -92,7 +92,7 @@ describe('POS read-tail r40 refund-payment subquery dedupe', () => {
     expect(read('addon-package-obligations.ts')).toContain('UNION SELECT s.package_id,s.company_id,');
   });
 
-  test('retirement:ts-statements decreased 176 -> 174 (strictly lower than the r40 BEFORE=176 baseline)', () => {
+  test('retirement:ts-statements decreased 176 -> 173 (r42 continues below the r40 BEFORE=176 baseline)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -102,7 +102,7 @@ describe('POS read-tail r40 refund-payment subquery dedupe', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(174);
+    expect(total).toBe(173);
     expect(total).toBeLessThan(176);
   });
 });

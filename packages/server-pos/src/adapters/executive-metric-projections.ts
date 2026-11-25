@@ -7,6 +7,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import { specs } from '@erpx/server-runtime/public/executive/metric-projection-contract';
 import type { MetricSnapshot, RawMetricRow } from '@erpx/server-runtime/public/executive/metric-projection-contract';
+const orgNodeLabelHeadSql = (): string => `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=`;
 export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown): Promise<MetricSnapshot> {
     await requirePosMetricPurchase(sourceDb, a, id);
     const spec = specs[id];
@@ -18,7 +19,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
     }
     if (id === "net-pos-sales") {
         const label = breakdown === "branch"
-            ? `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=x.branch_id AND n.company_id=x.company_id),'Company-wide')`
+            ? `${orgNodeLabelHeadSql()}x.branch_id AND n.company_id=x.company_id),'Company-wide')`
             : "substring(x.event_date,1,7)";
         sql = `WITH sales AS (
         SELECT s.id,s.id sale_id,s.company_id,s.branch_id,s.business_date event_date,s.total_minor amount_minor
@@ -35,7 +36,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
     }
     if (id === "pos-payment-mix") {
         const label = breakdown === "branch"
-            ? `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=s.branch_id AND n.company_id=s.company_id),'Company-wide')`
+            ? `${orgNodeLabelHeadSql()}s.branch_id AND n.company_id=s.company_id),'Company-wide')`
             : breakdown === "month" ? "substring(s.business_date,1,7)" : "p.method";
         sql = `SELECT ${label} label,COALESCE(sum(p.amount_minor-COALESCE((SELECT sum(rp.amount_minor) FROM pos_refund_payments rp
         JOIN pos_refunds r ON r.id=rp.refund_id AND r.company_id=p.company_id

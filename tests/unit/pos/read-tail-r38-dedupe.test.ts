@@ -55,7 +55,7 @@ describe('POS read-tail r38 sales by-id lock-head dedupe', () => {
     expect(read('owner_writes.rs')).toContain('assert_eq!(KINDS.len(), 196)');
   });
 
-  test('retirement:ts-statements decreased 180 -> 174 (r41 continues below the r38 BEFORE=180 baseline)', () => {
+  test('retirement:ts-statements decreased 180 -> 173 (r42 continues below the r38 BEFORE=180 baseline)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -65,7 +65,7 @@ describe('POS read-tail r38 sales by-id lock-head dedupe', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(174);
+    expect(total).toBe(173);
     expect(total).toBeLessThan(180);
   });
 });
