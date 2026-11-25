@@ -11,6 +11,7 @@ import {
   nativePosStripeRefundStatement,
   nativePosStripeRefundIdStatement,
   nativePosSettlementByJournalStatement,
+  nativePosStripeJobsContextStatement,
 } from '../../../packages/server-pos/src/adapters/native-pos-stripe-reads';
 
 const config = () => JSON.stringify({ privateBaseUrl: 'http://127.0.0.1:44994', timeoutMs: 1000 });
@@ -112,6 +113,14 @@ const cases = [
     values: ['journal_1'],
     bridge: nativePosSettlementByJournalStatement,
   },
+  {
+    name: 'owned pos_jobs catalog probe (parameterized table name)',
+    kind: 'pos_stripe_jobs_context',
+    sql: 'SELECT to_regclass(?) name',
+    facts: {},
+    values: ['pos_jobs'],
+    bridge: nativePosStripeJobsContextStatement,
+  },
 ] as const;
 
 describe('native POS Stripe settlement/provider read bridge', () => {
@@ -161,10 +170,13 @@ describe('native POS Stripe settlement/provider read bridge', () => {
       'nativePosSettlementPayoutJournalStatement', 'nativePosSettlementBalanceRowStatement',
       'nativePosStripePaymentStatement', 'nativePosStripePaymentIdStatement',
       'nativePosStripeRefundStatement', 'nativePosStripeRefundIdStatement',
+      'nativePosStripeJobsContextStatement',
     ]) expect(stripe).toMatch(new RegExp(`${fn}(?:<PosRow>)?\\(db`));
     const core = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos-core.ts', import.meta.url), 'utf8');
     expect(core).not.toContain('SELECT id FROM pos_settlements WHERE journal_id=?');
     expect(core).toContain('nativePosSettlementByJournalStatement(db, facts.journalId)');
+    expect(stripe).not.toContain("to_regclass('pos_jobs')");
+    expect(stripe).toContain('readContext1: () => nativePosStripeJobsContextStatement(db)');
   });
 
   it('keeps row locks and the day-report registry inline', () => {

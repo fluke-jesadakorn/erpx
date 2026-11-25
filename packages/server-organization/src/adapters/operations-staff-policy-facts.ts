@@ -1,6 +1,7 @@
 import { platformOwnerProjectionSources as identity_accessPlatformSources } from "@erpx/server-identity_access/public/platform-owner-projection-sources";
 import { platformOwnerProjectionSources as people_payrollPlatformSources } from "@erpx/server-people_payroll/public/platform-owner-projection-sources";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
+import { nativeOrgOne } from './native-organization-owner-write';
 const staffSelect = (datePredicate: string) => `SELECT p.id person_id,p.user_id,p.legal_name,e.id engagement_id,e.version engagement_version,
   e.company_id,e.branch_id,e.department_id,e.worker_type,e.start_date,e.end_date,e.manager_person_id,e.level_id,l.name level_name,l.rank level_rank,l.level_number,e.position_id,pos.is_ceo,pos.roster_required,e.self_service_top_level
   FROM (${people_payrollPlatformSources.hr_people}) p JOIN (${people_payrollPlatformSources.hr_engagements}) e ON e.person_id=p.id AND e.company_id=p.company_id
@@ -13,11 +14,9 @@ const staffSelect = (datePredicate: string) => `SELECT p.id person_id,p.user_id,
 export const activeStaffSelect = staffSelect("AND e.start_date<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND (e.end_date IS NULL OR e.end_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD'))");
 export function StaffPolicyOrganizationFacts(database: SqlDatabase) {
     return { readRequestRouteHead(companyId: string, department_id: string) {
-            return database.prepare("SELECT h.person_id,h.version FROM department_heads h JOIN organization_nodes n ON n.id=h.department_id WHERE h.company_id=? AND h.department_id=? AND n.company_id=h.company_id AND n.status='active' AND n.kind='department'")
-                .bind(companyId, department_id)
-                .first<{
+            return nativeOrgOne<{
                 person_id: string;
                 version: number;
-            }>();
+            }>(database, companyId, 'staff_policy_request_route_head', [companyId, department_id]);
         } };
 }

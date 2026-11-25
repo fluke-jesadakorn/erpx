@@ -132,13 +132,13 @@ describe('POS read-tail r35 native Stripe keyed reads', () => {
     ]) expect(stripe).toMatch(new RegExp(`${fn}<PosRow>\\(db`));
   });
 
-  it('pins the r36/r40 KPIs: stripe kinds 13, sale-child kinds 13, owner kinds 199, TS SELECT tokens 155', () => {
+  it('pins the r36/r40 KPIs: stripe kinds 14, sale-child kinds 13, owner kinds 200, TS SELECT tokens 154', () => {
     const registry = read('stripe_reads.rs');
     const owner = read('owner_writes.rs');
-    expect(registry).toContain('assert_eq!(KINDS.len(), 13)');
-    expect(registry).toContain('assert_eq!(EXPECTED.len(), 13)');
-    expect(owner).toContain('assert_eq!(KINDS.len(), 199)');
-    expect(owner).toContain('assert_eq!(crate::adapters::stripe_reads::KINDS.len(), 13)');
+    expect(registry).toContain('assert_eq!(KINDS.len(), 14)');
+    expect(registry).toContain('assert_eq!(EXPECTED.len(), 14)');
+    expect(owner).toContain('assert_eq!(KINDS.len(), 200)');
+    expect(owner).toContain('assert_eq!(crate::adapters::stripe_reads::KINDS.len(), 14)');
     expect(owner).toContain('assert_eq!(crate::adapters::sale_child_reads::KINDS.len(), 13)');
     for (const name of ['STRIPE_EVENT_BY_ID', 'CONNECTIONS_READY', 'SALE_NUMBER_BY_ID', 'REFUND_PAYMENT_BY_REFUND'])
       expect(owner).toContain(`crate::adapters::stripe_reads::${name},`);
@@ -152,17 +152,18 @@ describe('POS read-tail r35 native Stripe keyed reads', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(155);
+    expect(total).toBe(154);
     expect(total).toBeLessThan(188);
   });
 
-  it('keeps row locks and the context probe inline; the succeeded-total delegates', () => {
+  it('keeps row locks inline; the succeeded-total and catalog probe delegate', () => {
     const stripe = read('pos-stripe.ts');
     expect(stripe).toContain('SELECT * FROM pos_sales WHERE id=? AND company_id=? FOR UPDATE');
     expect(stripe).not.toContain("SELECT COALESCE(SUM(amount_minor-refunded_minor),0) n FROM pos_payments WHERE sale_id=? AND state='succeeded'");
     expect(stripe).toContain('nativePosSucceededPaymentTotalStatement(db, facts.id)');
     expect(readFileSync(resolve(srcRoot, 'application/pos-stripe.ts'), 'utf8')).toContain("num(paid!, 'amount')");
-    expect(stripe).toContain("SELECT to_regclass('pos_jobs') name");
+    expect(stripe).not.toContain("SELECT to_regclass('pos_jobs') name");
+    expect(stripe).toContain('readContext1: () => nativePosStripeJobsContextStatement(db)');
     expect(stripe).toContain("SELECT * FROM pos_oauth_states WHERE id=? AND company_id=? AND user_id=? AND used_at IS NULL AND expires_at>? FOR UPDATE");
     const owner = read('owner_writes.rs');
     expect(owner).toContain('crate::adapters::day_report_reads::SETTLEMENTS');

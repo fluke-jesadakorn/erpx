@@ -13,10 +13,10 @@ const retained = billingHandler(false);
  * actions, but its cost-review actions (`cost`, `delete-cost`,
  * `complete-costs`, `retry`, `approve-target-rollout`, `verify-statement`,
  * `verify-provider-cost`, `record-operating-cost`, `review-target-capacity`,
- * `approve-target-extra`) are native-authoritative: an absent native transport
- * fails closed with a typed 503/409 and never reaches the TypeScript writer.
- * Target and rating actions stay on the TypeScript command until their own
- * cutovers. */
+ * `approve-target-extra`, `rate-target`) are native-authoritative: an absent
+ * native transport fails closed with a typed 503/409 and never reaches the
+ * TypeScript writer. Target actions stay on the TypeScript command until their
+ * own cutovers. */
 export async function POST(
   request: Request,
   context: RouteContext<"/api/v1/holdings/[holdingSlug]/billing/[[...path]]">,

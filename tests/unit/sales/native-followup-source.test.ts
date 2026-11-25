@@ -7,7 +7,7 @@ vi.mock('server-only', () => ({}));
 
 import { crmCommerceOrderSources } from '@erpx/server-commerce/public/crm-purchase-sources';
 import { crmFinanceCustomerSources } from '@erpx/server-finance/public/crm-purchase-sources';
-import { followupMetricPrefix } from '../../../packages/server-sales/src/adapters/followup-source-sql';
+const followupMetricPrefix='SELECT followup.*,actual.branch_id,actual.department_id,actual.kind order_kind';
 import {
   SALES_RD_FOLLOWUP_SOURCE_FOLLOWUP,
   SALES_RD_FOLLOWUP_SOURCE_ORDER,

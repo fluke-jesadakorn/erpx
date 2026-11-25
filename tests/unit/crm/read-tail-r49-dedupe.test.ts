@@ -85,7 +85,7 @@ describe('crm read-tail r49 byte-identical JSONB-aggregate read head', () => {
   });
 
   test('retirement:ts-statements folds the JSONB-aggregate head (35 -> 34)', () => {
-    expect(totalSelects()).toBe(30);
+    expect(totalSelects()).toBe(28);
     expect(totalSelects()).toBeLessThan(35);
   });
 });

@@ -60,8 +60,13 @@ describe('pms read-tail r35 point-read head dedupe', () => {
   it('routes the remaining read-repository heads through the constant', async () => {
     const text = await src('adapters/pms/read-repository.ts');
     expect(text.split(HEAD).length - 1).toBe(0);
-    expect(text.split('PMS_RECORD_ID_PROPERTY_HEAD_SQL').length - 1).toBe(4); // import + 3 uses after r48
-    for (const tail of TAILS) expect(text).toContain('${PMS_RECORD_ID_PROPERTY_HEAD_SQL}' + tail);
+    expect(text.split('PMS_RECORD_ID_PROPERTY_HEAD_SQL').length - 1).toBe(3); // import + 3 uses after r48
+    for (const tail of TAILS) {
+      // The choices tail moved to the native owner with the r64 plan kinds.
+      if (tail.includes('eligible')) continue;
+      expect(text).toContain('${PMS_RECORD_ID_PROPERTY_HEAD_SQL}' + tail);
+    }
+    expect(text).toContain('PMS_RD_PMS_CHOICES');
   });
 
   it('routes both source-recipient probes through the helper', async () => {
@@ -90,8 +95,8 @@ describe('pms read-tail r35 point-read head dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(207);
-    expect(bare).toBe(208);
+    expect(spaced).toBe(202);
+    expect(bare).toBe(203);
     expect(spaced).toBeLessThan(337);
   });
 });

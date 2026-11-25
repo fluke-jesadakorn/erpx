@@ -332,6 +332,39 @@ const READ_OWNER_NAME_PROJECTION: NativeSalesReadStatement = NativeSalesReadStat
     scope: "holding",
 };
 
+/// Native successor of the TypeScript clock SQL fragment. Fixed owner SQL,
+/// no binds; byte-identical to the retired literal.
+pub const RD_CLOCK_NOW_MS: &str = "sales_rd_clock_now_ms";
+const SQL_CLOCK_NOW_MS: &str = "SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint now_ms";
+const READ_CLOCK_NOW_MS: NativeSalesReadStatement = NativeSalesReadStatement {
+    kind: RD_CLOCK_NOW_MS,
+    sql: SQL_CLOCK_NOW_MS,
+    bind_count: 0,
+    scope: "holding",
+};
+
+/// Native successor of the TypeScript evidence SQL fragment. Fixed owner SQL,
+/// no binds; byte-identical to the retired literal.
+pub const RD_FOLLOWUP_EVIDENCE_PREFIX: &str = "sales_rd_followup_evidence_prefix";
+const SQL_FOLLOWUP_EVIDENCE_PREFIX: &str = "SELECT c.id,c.order_id,c.next_action,c.due_date,c.status,c.version,o.number order_number FROM ";
+const READ_FOLLOWUP_EVIDENCE_PREFIX: NativeSalesReadStatement = NativeSalesReadStatement {
+    kind: RD_FOLLOWUP_EVIDENCE_PREFIX,
+    sql: SQL_FOLLOWUP_EVIDENCE_PREFIX,
+    bind_count: 0,
+    scope: "holding",
+};
+
+/// Native successor of the TypeScript metric SQL fragment. Fixed owner SQL,
+/// no binds; byte-identical to the retired literal.
+pub const RD_FOLLOWUP_METRIC_PREFIX: &str = "sales_rd_followup_metric_prefix";
+const SQL_FOLLOWUP_METRIC_PREFIX: &str = "SELECT followup.*,actual.branch_id,actual.department_id,actual.kind order_kind";
+const READ_FOLLOWUP_METRIC_PREFIX: NativeSalesReadStatement = NativeSalesReadStatement {
+    kind: RD_FOLLOWUP_METRIC_PREFIX,
+    sql: SQL_FOLLOWUP_METRIC_PREFIX,
+    bind_count: 0,
+    scope: "holding",
+};
+
 const READS: &[NativeSalesReadStatement] = &[
     READ_PRICE_LIST_ACTIVE,
     READ_PRICE_LIST_ITEMS_ACTIVE,
@@ -368,6 +401,10 @@ const READS: &[NativeSalesReadStatement] = &[
     READ_PACKAGE_SETTLEMENT_ECOMMERCE,
 
     READ_OWNER_NAME_PROJECTION,
+
+    READ_CLOCK_NOW_MS,
+    READ_FOLLOWUP_EVIDENCE_PREFIX,
+    READ_FOLLOWUP_METRIC_PREFIX,
 
 ];
 
@@ -761,8 +798,44 @@ mod tests {
     }
 
     #[test]
+    fn clock_fragment_is_allow_listed_and_byte_stable() {
+        let read = read_statement(RD_CLOCK_NOW_MS).expect("read kind");
+        assert_eq!(read.kind, "sales_rd_clock_now_ms");
+        assert_eq!(read.bind_count, 0);
+        assert_eq!(read.sql.matches('?').count(), 0);
+        assert_eq!(read.sql.len(), 71);
+        assert!(read.sql.starts_with("SELECT"));
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_CLOCK_NOW_MS));
+    }
+
+    #[test]
+    fn evidence_fragment_is_allow_listed_and_byte_stable() {
+        let read = read_statement(RD_FOLLOWUP_EVIDENCE_PREFIX).expect("read kind");
+        assert_eq!(read.kind, "sales_rd_followup_evidence_prefix");
+        assert_eq!(read.bind_count, 0);
+        assert_eq!(read.sql.matches('?').count(), 0);
+        assert_eq!(read.sql.len(), 94);
+        assert!(read.sql.starts_with("SELECT"));
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_FOLLOWUP_EVIDENCE_PREFIX));
+    }
+
+    #[test]
+    fn metric_fragment_is_allow_listed_and_byte_stable() {
+        let read = read_statement(RD_FOLLOWUP_METRIC_PREFIX).expect("read kind");
+        assert_eq!(read.kind, "sales_rd_followup_metric_prefix");
+        assert_eq!(read.bind_count, 0);
+        assert_eq!(read.sql.matches('?').count(), 0);
+        assert_eq!(read.sql.len(), 78);
+        assert!(read.sql.starts_with("SELECT"));
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_FOLLOWUP_METRIC_PREFIX));
+    }
+
+    #[test]
     fn only_owner_read_kinds_are_registered() {
-        assert_eq!(READS.len(), 27);
+        assert_eq!(READS.len(), 30);
         assert!(READS.iter().all(|read| is_read(read.kind)));
         assert!(!is_read("sales_price_lists"));
         assert!(!is_read("SELECT 1"));

@@ -62,6 +62,9 @@ import {
   PMS_RD_ATTACHMENT_OWNER_FACT,
   PMS_RD_ATTACHMENT_PROPERTY_OWNER,
   PMS_RD_DASHBOARD_RECORDS,
+  PMS_RD_RECORD_DETAIL,
+  PMS_RD_PMS_CHOICES,
+  PMS_RD_PMS_CHOICES_BLOCK,
 } from '../../../packages/server-pms/src/adapters/native-pms-read';
 import { readPmsInventoryCommand } from '../../../packages/server-pms/src/adapters/pms/read-repository';
 import { pmsAttachmentReadSourceImage } from '../../../packages/server-pms/src/adapters/attachment-read-sources';
@@ -948,7 +951,7 @@ describe('native PMS scoped-records read retirement', () => {
     ] as const) {
       expect(rust).toContain('const SQL_' + suffix + '_COMMAND: &str = ' + JSON.stringify(sql) + ';');
     }
-    expect(rust).toContain('READ_STRIPE_PAYMENT_PROPERTY, READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS, READ_TRANSFER_REQUESTS, READ_GUEST_DOCUMENTS, READ_BOOKING_ALLOCATION_EXISTS, READ_PENDING_JOBS, READ_BOOKING_PROPERTY_SCOPE, READ_BOOKING_PROPERTY_SCOPE_BRANCH, READ_BOOKING_RECORDS, READ_BOOKING_RECORDS_SEARCH, READ_GUEST_ACCOUNT_SUMS, READ_CHARGE_CORRECTIONS, READ_CHARGE_CORRECTIONS_FRONT, READ_BOOKING_TOKEN, READ_STRIPE_PAYMENT_KEY, READ_PROPERTY_SCOPE, READ_FAILED_COUNTER_REFUNDS, READ_RESERVATION_PROPERTY, READ_ROLLOUT_SETUP_READY, READ_ATTACHMENT_OWNER_FACT, READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS];');
+    expect(rust).toContain('READ_STRIPE_PAYMENT_PROPERTY, READ_STAY_COMMAND, READ_CASHIER_COMMAND, READ_POS_COMMAND, READ_NIGHT_COMMAND, READ_HOTEL_SOURCES, READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS, READ_TRANSFER_REQUESTS, READ_GUEST_DOCUMENTS, READ_BOOKING_ALLOCATION_EXISTS, READ_PENDING_JOBS, READ_BOOKING_PROPERTY_SCOPE, READ_BOOKING_PROPERTY_SCOPE_BRANCH, READ_BOOKING_RECORDS, READ_BOOKING_RECORDS_SEARCH, READ_GUEST_ACCOUNT_SUMS, READ_CHARGE_CORRECTIONS, READ_CHARGE_CORRECTIONS_FRONT, READ_BOOKING_TOKEN, READ_STRIPE_PAYMENT_KEY, READ_PROPERTY_SCOPE, READ_FAILED_COUNTER_REFUNDS, READ_RESERVATION_PROPERTY, READ_ROLLOUT_SETUP_READY, READ_ATTACHMENT_OWNER_FACT, READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS, READ_RECORD_DETAIL, READ_PMS_CHOICES, READ_PMS_CHOICES_BLOCK];');
   });
 
   it('plans all four reads in Rust and runs them on the caller unit with the same binds', async () => {
@@ -1013,7 +1016,7 @@ describe('native PMS guest booking-document read retirement', () => {
     const rust = await readFile(new URL('../../../packages/server-pms/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
     expect(rust).toContain('pub const PMS_RD_GUEST_BOOKING_DOCUMENT: &str = "pms_rd_guest_booking_document";');
     expect(rust).toContain('const SQL_GUEST_BOOKING_DOCUMENT: &str = ' + JSON.stringify(guestDocumentSql) + ';');
-    expect(rust).toContain('READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS, READ_TRANSFER_REQUESTS, READ_GUEST_DOCUMENTS, READ_BOOKING_ALLOCATION_EXISTS, READ_PENDING_JOBS, READ_BOOKING_PROPERTY_SCOPE, READ_BOOKING_PROPERTY_SCOPE_BRANCH, READ_BOOKING_RECORDS, READ_BOOKING_RECORDS_SEARCH, READ_GUEST_ACCOUNT_SUMS, READ_CHARGE_CORRECTIONS, READ_CHARGE_CORRECTIONS_FRONT, READ_BOOKING_TOKEN, READ_STRIPE_PAYMENT_KEY, READ_PROPERTY_SCOPE, READ_FAILED_COUNTER_REFUNDS, READ_RESERVATION_PROPERTY, READ_ROLLOUT_SETUP_READY, READ_ATTACHMENT_OWNER_FACT, READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS];');
+    expect(rust).toContain('READ_HOUSEKEEPING_COMMAND, READ_SECTION_RELATED_RECORDS, READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS, READ_TRANSFER_REQUESTS, READ_GUEST_DOCUMENTS, READ_BOOKING_ALLOCATION_EXISTS, READ_PENDING_JOBS, READ_BOOKING_PROPERTY_SCOPE, READ_BOOKING_PROPERTY_SCOPE_BRANCH, READ_BOOKING_RECORDS, READ_BOOKING_RECORDS_SEARCH, READ_GUEST_ACCOUNT_SUMS, READ_CHARGE_CORRECTIONS, READ_CHARGE_CORRECTIONS_FRONT, READ_BOOKING_TOKEN, READ_STRIPE_PAYMENT_KEY, READ_PROPERTY_SCOPE, READ_FAILED_COUNTER_REFUNDS, READ_RESERVATION_PROPERTY, READ_ROLLOUT_SETUP_READY, READ_ATTACHMENT_OWNER_FACT, READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS, READ_RECORD_DETAIL, READ_PMS_CHOICES, READ_PMS_CHOICES_BLOCK];');
     const documentPlan = rust.slice(rust.indexOf('const READ_GUEST_BOOKING_DOCUMENT:'));
     expect(documentPlan.slice(0, 300)).toContain('bind_count: 3,');
     expect(guestDocumentSql.match(/\?/g)).toHaveLength(3);
@@ -1081,7 +1084,7 @@ describe('native PMS hotelMetrics read retirement', () => {
     const rust = await readFile(new URL('../../../packages/server-pms/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
     expect(rust).toContain('pub const PMS_RD_HOTEL_METRICS: &str = "pms_rd_hotel_metrics";');
     expect(rust).toContain(hotelMetricsSql);
-    expect(rust).toContain('READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS, READ_TRANSFER_REQUESTS, READ_GUEST_DOCUMENTS, READ_BOOKING_ALLOCATION_EXISTS, READ_PENDING_JOBS, READ_BOOKING_PROPERTY_SCOPE, READ_BOOKING_PROPERTY_SCOPE_BRANCH, READ_BOOKING_RECORDS, READ_BOOKING_RECORDS_SEARCH, READ_GUEST_ACCOUNT_SUMS, READ_CHARGE_CORRECTIONS, READ_CHARGE_CORRECTIONS_FRONT, READ_BOOKING_TOKEN, READ_STRIPE_PAYMENT_KEY, READ_PROPERTY_SCOPE, READ_FAILED_COUNTER_REFUNDS, READ_RESERVATION_PROPERTY, READ_ROLLOUT_SETUP_READY, READ_ATTACHMENT_OWNER_FACT, READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS];');
+    expect(rust).toContain('READ_GUEST_BOOKING_DOCUMENT, READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS, READ_TRANSFER_REQUESTS, READ_GUEST_DOCUMENTS, READ_BOOKING_ALLOCATION_EXISTS, READ_PENDING_JOBS, READ_BOOKING_PROPERTY_SCOPE, READ_BOOKING_PROPERTY_SCOPE_BRANCH, READ_BOOKING_RECORDS, READ_BOOKING_RECORDS_SEARCH, READ_GUEST_ACCOUNT_SUMS, READ_CHARGE_CORRECTIONS, READ_CHARGE_CORRECTIONS_FRONT, READ_BOOKING_TOKEN, READ_STRIPE_PAYMENT_KEY, READ_PROPERTY_SCOPE, READ_FAILED_COUNTER_REFUNDS, READ_RESERVATION_PROPERTY, READ_ROLLOUT_SETUP_READY, READ_ATTACHMENT_OWNER_FACT, READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS, READ_RECORD_DETAIL, READ_PMS_CHOICES, READ_PMS_CHOICES_BLOCK];');
     expect(hotelMetricsSql.match(/\?/g)).toHaveLength(5);
     expect(hotelMetricsSql).toMatch(/\n    ORDER BY p\.name,p\.id$/);
     expect(hotelMetricsSql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
@@ -1151,7 +1154,7 @@ describe('native PMS booking-receipt point-read retirement', () => {
     expect(rust).toContain('pub const PMS_RD_BOOKING_RECEIPT_BY_ATTEMPT: &str = "pms_rd_booking_receipt_by_attempt";');
     expect(rust).toContain('const SQL_BOOKING_RECEIPT_BY_KEY: &str = ' + JSON.stringify(receiptByKeySql) + ';');
     expect(rust).toContain('const SQL_BOOKING_RECEIPT_BY_ATTEMPT: &str = ' + JSON.stringify(receiptByAttemptSql) + ';');
-    expect(rust).toContain('READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS, READ_TRANSFER_REQUESTS, READ_GUEST_DOCUMENTS, READ_BOOKING_ALLOCATION_EXISTS, READ_PENDING_JOBS, READ_BOOKING_PROPERTY_SCOPE, READ_BOOKING_PROPERTY_SCOPE_BRANCH, READ_BOOKING_RECORDS, READ_BOOKING_RECORDS_SEARCH, READ_GUEST_ACCOUNT_SUMS, READ_CHARGE_CORRECTIONS, READ_CHARGE_CORRECTIONS_FRONT, READ_BOOKING_TOKEN, READ_STRIPE_PAYMENT_KEY, READ_PROPERTY_SCOPE, READ_FAILED_COUNTER_REFUNDS, READ_RESERVATION_PROPERTY, READ_ROLLOUT_SETUP_READY, READ_ATTACHMENT_OWNER_FACT, READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS];');
+    expect(rust).toContain('READ_HOTEL_METRICS, READ_BOOKING_RECEIPT_BY_KEY, READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS, READ_TRANSFER_REQUESTS, READ_GUEST_DOCUMENTS, READ_BOOKING_ALLOCATION_EXISTS, READ_PENDING_JOBS, READ_BOOKING_PROPERTY_SCOPE, READ_BOOKING_PROPERTY_SCOPE_BRANCH, READ_BOOKING_RECORDS, READ_BOOKING_RECORDS_SEARCH, READ_GUEST_ACCOUNT_SUMS, READ_CHARGE_CORRECTIONS, READ_CHARGE_CORRECTIONS_FRONT, READ_BOOKING_TOKEN, READ_STRIPE_PAYMENT_KEY, READ_PROPERTY_SCOPE, READ_FAILED_COUNTER_REFUNDS, READ_RESERVATION_PROPERTY, READ_ROLLOUT_SETUP_READY, READ_ATTACHMENT_OWNER_FACT, READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS, READ_RECORD_DETAIL, READ_PMS_CHOICES, READ_PMS_CHOICES_BLOCK];');
     expect(receiptByKeySql.match(/\?/g)).toHaveLength(1);
     expect(receiptByAttemptSql.match(/\?/g)).toHaveLength(2);
     for (const sql of [receiptByKeySql, receiptByAttemptSql]) expect(sql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
@@ -1220,7 +1223,7 @@ describe('native PMS booking companion read retirement', () => {
     expect(rust).toContain('pub const PMS_RD_CHANGE_PAYMENT_PENDING: &str = "pms_rd_change_payment_pending";');
     expect(rust).toContain('const SQL_BOOKING_DOCUMENTS: &str = ' + JSON.stringify(bookingDocumentsSql) + ';');
     expect(rust).toContain('const SQL_CHANGE_PAYMENT_PENDING: &str = ' + JSON.stringify(changePaymentPendingSql) + ';');
-    expect(rust).toContain('READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS, READ_TRANSFER_REQUESTS, READ_GUEST_DOCUMENTS, READ_BOOKING_ALLOCATION_EXISTS, READ_PENDING_JOBS, READ_BOOKING_PROPERTY_SCOPE, READ_BOOKING_PROPERTY_SCOPE_BRANCH, READ_BOOKING_RECORDS, READ_BOOKING_RECORDS_SEARCH, READ_GUEST_ACCOUNT_SUMS, READ_CHARGE_CORRECTIONS, READ_CHARGE_CORRECTIONS_FRONT, READ_BOOKING_TOKEN, READ_STRIPE_PAYMENT_KEY, READ_PROPERTY_SCOPE, READ_FAILED_COUNTER_REFUNDS, READ_RESERVATION_PROPERTY, READ_ROLLOUT_SETUP_READY, READ_ATTACHMENT_OWNER_FACT, READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS];');
+    expect(rust).toContain('READ_BOOKING_RECEIPT_BY_ATTEMPT, READ_BOOKING_DOCUMENTS, READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS, READ_TRANSFER_REQUESTS, READ_GUEST_DOCUMENTS, READ_BOOKING_ALLOCATION_EXISTS, READ_PENDING_JOBS, READ_BOOKING_PROPERTY_SCOPE, READ_BOOKING_PROPERTY_SCOPE_BRANCH, READ_BOOKING_RECORDS, READ_BOOKING_RECORDS_SEARCH, READ_GUEST_ACCOUNT_SUMS, READ_CHARGE_CORRECTIONS, READ_CHARGE_CORRECTIONS_FRONT, READ_BOOKING_TOKEN, READ_STRIPE_PAYMENT_KEY, READ_PROPERTY_SCOPE, READ_FAILED_COUNTER_REFUNDS, READ_RESERVATION_PROPERTY, READ_ROLLOUT_SETUP_READY, READ_ATTACHMENT_OWNER_FACT, READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS, READ_RECORD_DETAIL, READ_PMS_CHOICES, READ_PMS_CHOICES_BLOCK];');
     expect(bookingDocumentsSql.match(/\?/g)).toHaveLength(3);
     expect(changePaymentPendingSql.match(/\?/g)).toHaveLength(1);
     for (const sql of [bookingDocumentsSql, changePaymentPendingSql]) expect(sql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
@@ -1289,7 +1292,7 @@ describe('native PMS refund allocation companion read retirement', () => {
     expect(rust).toContain('pub const PMS_RD_REFUND_REQUEST_ALLOCATIONS: &str = "pms_rd_refund_request_allocations";');
     expect(rust).toContain('const SQL_BOOKING_ALLOCATIONS: &str = ' + JSON.stringify(bookingAllocationsSql) + ';');
     expect(rust).toContain('const SQL_REFUND_REQUEST_ALLOCATIONS: &str = ' + JSON.stringify(refundRequestAllocationsSql) + ';');
-    expect(rust).toContain('READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS, READ_TRANSFER_REQUESTS, READ_GUEST_DOCUMENTS, READ_BOOKING_ALLOCATION_EXISTS, READ_PENDING_JOBS, READ_BOOKING_PROPERTY_SCOPE, READ_BOOKING_PROPERTY_SCOPE_BRANCH, READ_BOOKING_RECORDS, READ_BOOKING_RECORDS_SEARCH, READ_GUEST_ACCOUNT_SUMS, READ_CHARGE_CORRECTIONS, READ_CHARGE_CORRECTIONS_FRONT, READ_BOOKING_TOKEN, READ_STRIPE_PAYMENT_KEY, READ_PROPERTY_SCOPE, READ_FAILED_COUNTER_REFUNDS, READ_RESERVATION_PROPERTY, READ_ROLLOUT_SETUP_READY, READ_ATTACHMENT_OWNER_FACT, READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS];');
+    expect(rust).toContain('READ_CHANGE_PAYMENT_PENDING, READ_BOOKING_ALLOCATIONS, READ_REFUND_REQUEST_ALLOCATIONS, READ_TRANSFER_REQUESTS, READ_GUEST_DOCUMENTS, READ_BOOKING_ALLOCATION_EXISTS, READ_PENDING_JOBS, READ_BOOKING_PROPERTY_SCOPE, READ_BOOKING_PROPERTY_SCOPE_BRANCH, READ_BOOKING_RECORDS, READ_BOOKING_RECORDS_SEARCH, READ_GUEST_ACCOUNT_SUMS, READ_CHARGE_CORRECTIONS, READ_CHARGE_CORRECTIONS_FRONT, READ_BOOKING_TOKEN, READ_STRIPE_PAYMENT_KEY, READ_PROPERTY_SCOPE, READ_FAILED_COUNTER_REFUNDS, READ_RESERVATION_PROPERTY, READ_ROLLOUT_SETUP_READY, READ_ATTACHMENT_OWNER_FACT, READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS, READ_RECORD_DETAIL, READ_PMS_CHOICES, READ_PMS_CHOICES_BLOCK];');
     for (const sql of [bookingAllocationsSql, refundRequestAllocationsSql]) {
       expect(sql.match(/\?/g)).toHaveLength(1);
       expect(sql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
@@ -1357,7 +1360,7 @@ describe('native PMS transfer/document companion read retirement', () => {
     expect(rust).toContain('pub const PMS_RD_GUEST_DOCUMENTS: &str = "pms_rd_guest_documents";');
     expect(rust).toContain('const SQL_TRANSFER_REQUESTS: &str = ' + JSON.stringify(transferRequestsSql) + ';');
     expect(rust).toContain('const SQL_GUEST_DOCUMENTS: &str = ' + JSON.stringify(guestDocumentsSql) + ';');
-    expect(rust).toContain('READ_REFUND_REQUEST_ALLOCATIONS, READ_TRANSFER_REQUESTS, READ_GUEST_DOCUMENTS, READ_BOOKING_ALLOCATION_EXISTS, READ_PENDING_JOBS, READ_BOOKING_PROPERTY_SCOPE, READ_BOOKING_PROPERTY_SCOPE_BRANCH, READ_BOOKING_RECORDS, READ_BOOKING_RECORDS_SEARCH, READ_GUEST_ACCOUNT_SUMS, READ_CHARGE_CORRECTIONS, READ_CHARGE_CORRECTIONS_FRONT, READ_BOOKING_TOKEN, READ_STRIPE_PAYMENT_KEY, READ_PROPERTY_SCOPE, READ_FAILED_COUNTER_REFUNDS, READ_RESERVATION_PROPERTY, READ_ROLLOUT_SETUP_READY, READ_ATTACHMENT_OWNER_FACT, READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS];');
+    expect(rust).toContain('READ_REFUND_REQUEST_ALLOCATIONS, READ_TRANSFER_REQUESTS, READ_GUEST_DOCUMENTS, READ_BOOKING_ALLOCATION_EXISTS, READ_PENDING_JOBS, READ_BOOKING_PROPERTY_SCOPE, READ_BOOKING_PROPERTY_SCOPE_BRANCH, READ_BOOKING_RECORDS, READ_BOOKING_RECORDS_SEARCH, READ_GUEST_ACCOUNT_SUMS, READ_CHARGE_CORRECTIONS, READ_CHARGE_CORRECTIONS_FRONT, READ_BOOKING_TOKEN, READ_STRIPE_PAYMENT_KEY, READ_PROPERTY_SCOPE, READ_FAILED_COUNTER_REFUNDS, READ_RESERVATION_PROPERTY, READ_ROLLOUT_SETUP_READY, READ_ATTACHMENT_OWNER_FACT, READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS, READ_RECORD_DETAIL, READ_PMS_CHOICES, READ_PMS_CHOICES_BLOCK];');
     for (const sql of [transferRequestsSql, guestDocumentsSql]) {
       expect(sql.match(/\?/g)).toHaveLength(2);
       expect(sql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
@@ -1425,7 +1428,7 @@ describe('native PMS allocation/pending-job read retirement', () => {
     expect(rust).toContain('pub const PMS_RD_PENDING_JOBS: &str = "pms_rd_pending_jobs";');
     expect(rust).toContain('const SQL_BOOKING_ALLOCATION_EXISTS: &str = ' + JSON.stringify(allocationExistsSql) + ';');
     expect(rust).toContain('const SQL_PENDING_JOBS: &str = ' + JSON.stringify(pendingJobsSql) + ';');
-    expect(rust).toContain('READ_GUEST_DOCUMENTS, READ_BOOKING_ALLOCATION_EXISTS, READ_PENDING_JOBS, READ_BOOKING_PROPERTY_SCOPE, READ_BOOKING_PROPERTY_SCOPE_BRANCH, READ_BOOKING_RECORDS, READ_BOOKING_RECORDS_SEARCH, READ_GUEST_ACCOUNT_SUMS, READ_CHARGE_CORRECTIONS, READ_CHARGE_CORRECTIONS_FRONT, READ_BOOKING_TOKEN, READ_STRIPE_PAYMENT_KEY, READ_PROPERTY_SCOPE, READ_FAILED_COUNTER_REFUNDS, READ_RESERVATION_PROPERTY, READ_ROLLOUT_SETUP_READY, READ_ATTACHMENT_OWNER_FACT, READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS];');
+    expect(rust).toContain('READ_GUEST_DOCUMENTS, READ_BOOKING_ALLOCATION_EXISTS, READ_PENDING_JOBS, READ_BOOKING_PROPERTY_SCOPE, READ_BOOKING_PROPERTY_SCOPE_BRANCH, READ_BOOKING_RECORDS, READ_BOOKING_RECORDS_SEARCH, READ_GUEST_ACCOUNT_SUMS, READ_CHARGE_CORRECTIONS, READ_CHARGE_CORRECTIONS_FRONT, READ_BOOKING_TOKEN, READ_STRIPE_PAYMENT_KEY, READ_PROPERTY_SCOPE, READ_FAILED_COUNTER_REFUNDS, READ_RESERVATION_PROPERTY, READ_ROLLOUT_SETUP_READY, READ_ATTACHMENT_OWNER_FACT, READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS, READ_RECORD_DETAIL, READ_PMS_CHOICES, READ_PMS_CHOICES_BLOCK];');
     expect(allocationExistsSql.match(/\?/g)).toHaveLength(2);
     expect(pendingJobsSql.match(/\?/g)).toHaveLength(4);
     for (const sql of [allocationExistsSql, pendingJobsSql]) expect(sql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
@@ -1505,7 +1508,7 @@ describe('native PMS booking property/records variant retirement', () => {
       expect(sql.match(/\?/g)).toHaveLength(binds);
       expect(sql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
     }
-    expect(rust).toContain('READ_PENDING_JOBS, READ_BOOKING_PROPERTY_SCOPE, READ_BOOKING_PROPERTY_SCOPE_BRANCH, READ_BOOKING_RECORDS, READ_BOOKING_RECORDS_SEARCH, READ_GUEST_ACCOUNT_SUMS, READ_CHARGE_CORRECTIONS, READ_CHARGE_CORRECTIONS_FRONT, READ_BOOKING_TOKEN, READ_STRIPE_PAYMENT_KEY, READ_PROPERTY_SCOPE, READ_FAILED_COUNTER_REFUNDS, READ_RESERVATION_PROPERTY, READ_ROLLOUT_SETUP_READY, READ_ATTACHMENT_OWNER_FACT, READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS];');
+    expect(rust).toContain('READ_PENDING_JOBS, READ_BOOKING_PROPERTY_SCOPE, READ_BOOKING_PROPERTY_SCOPE_BRANCH, READ_BOOKING_RECORDS, READ_BOOKING_RECORDS_SEARCH, READ_GUEST_ACCOUNT_SUMS, READ_CHARGE_CORRECTIONS, READ_CHARGE_CORRECTIONS_FRONT, READ_BOOKING_TOKEN, READ_STRIPE_PAYMENT_KEY, READ_PROPERTY_SCOPE, READ_FAILED_COUNTER_REFUNDS, READ_RESERVATION_PROPERTY, READ_ROLLOUT_SETUP_READY, READ_ATTACHMENT_OWNER_FACT, READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS, READ_RECORD_DETAIL, READ_PMS_CHOICES, READ_PMS_CHOICES_BLOCK];');
     const bridge = await readFile(new URL('../../../packages/server-pms/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
     for (const kind of [PMS_RD_BOOKING_PROPERTY_SCOPE, PMS_RD_BOOKING_PROPERTY_SCOPE_BRANCH, PMS_RD_BOOKING_RECORDS, PMS_RD_BOOKING_RECORDS_SEARCH])
       expect(bridge).toContain(`export const ${kind.toUpperCase()} = '${kind}';`);
@@ -1593,7 +1596,7 @@ describe('native PMS guest-account/correction read retirement', () => {
       expect(sql.match(/\?/g)).toHaveLength(binds);
       expect(sql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
     }
-    expect(rust).toContain('READ_BOOKING_RECORDS_SEARCH, READ_GUEST_ACCOUNT_SUMS, READ_CHARGE_CORRECTIONS, READ_CHARGE_CORRECTIONS_FRONT, READ_BOOKING_TOKEN, READ_STRIPE_PAYMENT_KEY, READ_PROPERTY_SCOPE, READ_FAILED_COUNTER_REFUNDS, READ_RESERVATION_PROPERTY, READ_ROLLOUT_SETUP_READY, READ_ATTACHMENT_OWNER_FACT, READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS];');
+    expect(rust).toContain('READ_BOOKING_RECORDS_SEARCH, READ_GUEST_ACCOUNT_SUMS, READ_CHARGE_CORRECTIONS, READ_CHARGE_CORRECTIONS_FRONT, READ_BOOKING_TOKEN, READ_STRIPE_PAYMENT_KEY, READ_PROPERTY_SCOPE, READ_FAILED_COUNTER_REFUNDS, READ_RESERVATION_PROPERTY, READ_ROLLOUT_SETUP_READY, READ_ATTACHMENT_OWNER_FACT, READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS, READ_RECORD_DETAIL, READ_PMS_CHOICES, READ_PMS_CHOICES_BLOCK];');
     const bridge = await readFile(new URL('../../../packages/server-pms/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
     for (const kind of [PMS_RD_GUEST_ACCOUNT_SUMS, PMS_RD_CHARGE_CORRECTIONS, PMS_RD_CHARGE_CORRECTIONS_FRONT])
       expect(bridge).toContain(`export const ${kind.toUpperCase()} = '${kind}';`);
@@ -1671,7 +1674,7 @@ describe('native PMS r46 two-column point-read retirement', () => {
       expect(sql.match(/\?/g)).toHaveLength(binds);
       expect(sql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
     }
-    expect(rust).toContain('READ_CHARGE_CORRECTIONS_FRONT, READ_BOOKING_TOKEN, READ_STRIPE_PAYMENT_KEY, READ_PROPERTY_SCOPE, READ_FAILED_COUNTER_REFUNDS, READ_RESERVATION_PROPERTY, READ_ROLLOUT_SETUP_READY, READ_ATTACHMENT_OWNER_FACT, READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS];');
+    expect(rust).toContain('READ_CHARGE_CORRECTIONS_FRONT, READ_BOOKING_TOKEN, READ_STRIPE_PAYMENT_KEY, READ_PROPERTY_SCOPE, READ_FAILED_COUNTER_REFUNDS, READ_RESERVATION_PROPERTY, READ_ROLLOUT_SETUP_READY, READ_ATTACHMENT_OWNER_FACT, READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS, READ_RECORD_DETAIL, READ_PMS_CHOICES, READ_PMS_CHOICES_BLOCK];');
   });
 
   it('plans all three reads in Rust and runs them on the caller unit with the same binds', async () => {
@@ -1733,7 +1736,7 @@ describe('native PMS failed-counter-refund read retirement', () => {
     const rust = await readFile(new URL('../../../packages/server-pms/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
     expect(rust).toContain('pub const PMS_RD_FAILED_COUNTER_REFUNDS: &str = "pms_rd_failed_counter_refunds";');
     expect(rust).toContain(failedCounterRefundsSql);
-    expect(rust).toContain('READ_PROPERTY_SCOPE, READ_FAILED_COUNTER_REFUNDS, READ_RESERVATION_PROPERTY, READ_ROLLOUT_SETUP_READY, READ_ATTACHMENT_OWNER_FACT, READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS];');
+    expect(rust).toContain('READ_PROPERTY_SCOPE, READ_FAILED_COUNTER_REFUNDS, READ_RESERVATION_PROPERTY, READ_ROLLOUT_SETUP_READY, READ_ATTACHMENT_OWNER_FACT, READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS, READ_RECORD_DETAIL, READ_PMS_CHOICES, READ_PMS_CHOICES_BLOCK];');
     expect(failedCounterRefundsSql.match(/\?/g)).toHaveLength(4);
     expect(failedCounterRefundsSql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
     const bridge = await readFile(new URL('../../../packages/server-pms/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
@@ -1802,7 +1805,7 @@ describe('native PMS reservation-property/rollout-probe read retirement', () => 
     expect(rust).toContain('pub const PMS_RD_ROLLOUT_SETUP_READY: &str = "pms_rd_rollout_setup_ready";');
     expect(rust).toContain('const SQL_RESERVATION_PROPERTY: &str = ' + JSON.stringify(reservationPropertySql) + ';');
     expect(rust).toContain(rolloutSetupReadySql);
-    expect(rust).toContain('READ_FAILED_COUNTER_REFUNDS, READ_RESERVATION_PROPERTY, READ_ROLLOUT_SETUP_READY, READ_ATTACHMENT_OWNER_FACT, READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS];');
+    expect(rust).toContain('READ_FAILED_COUNTER_REFUNDS, READ_RESERVATION_PROPERTY, READ_ROLLOUT_SETUP_READY, READ_ATTACHMENT_OWNER_FACT, READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS, READ_RECORD_DETAIL, READ_PMS_CHOICES, READ_PMS_CHOICES_BLOCK];');
     for (const sql of [reservationPropertySql, rolloutSetupReadySql]) {
       expect(sql.match(/\?/g)).toHaveLength(1);
       expect(sql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
@@ -1876,7 +1879,7 @@ describe('native PMS attachment owner read retirement', () => {
     expect(rust).toContain('pub const PMS_RD_ATTACHMENT_PROPERTY_OWNER: &str = "pms_rd_attachment_property_owner";');
     expect(rust).toContain(attachmentOwnerFactSql);
     expect(rust).toContain('const SQL_ATTACHMENT_PROPERTY_OWNER: &str = ' + JSON.stringify(attachmentPropertyOwnerSql) + ';');
-    expect(rust).toContain('READ_ROLLOUT_SETUP_READY, READ_ATTACHMENT_OWNER_FACT, READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS];');
+    expect(rust).toContain('READ_ROLLOUT_SETUP_READY, READ_ATTACHMENT_OWNER_FACT, READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS, READ_RECORD_DETAIL, READ_PMS_CHOICES, READ_PMS_CHOICES_BLOCK];');
     for (const sql of [attachmentOwnerFactSql, attachmentPropertyOwnerSql]) {
       expect(sql.match(/\?/g)).toHaveLength(2);
       expect(sql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
@@ -1955,7 +1958,7 @@ describe('native PMS dashboard records read retirement', () => {
     const rust = await readFile(new URL('../../../packages/server-pms/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
     expect(rust).toContain('pub const PMS_RD_DASHBOARD_RECORDS: &str = "pms_rd_dashboard_records";');
     expect(rust).toContain(dashboardRecordsSql);
-    expect(rust).toContain('READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS];');
+    expect(rust).toContain('READ_ATTACHMENT_PROPERTY_OWNER, READ_DASHBOARD_RECORDS, READ_RECORD_DETAIL, READ_PMS_CHOICES, READ_PMS_CHOICES_BLOCK];');
     expect(dashboardRecordsSql.match(/\?/g)).toHaveLength(4);
     expect(dashboardRecordsSql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
     const bridge = await readFile(new URL('../../../packages/server-pms/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
@@ -1983,6 +1986,93 @@ describe('native PMS dashboard records read retirement', () => {
     expect(bound).toEqual([['prop-1', '2026-11-04', '2026-11-05', 'prop-1']]);
     expect(bodies.map(b => b.kind)).toEqual([PMS_RD_DASHBOARD_RECORDS]);
     expect(bodies.map(b => b.values)).toEqual([['prop-1', '2026-11-04', '2026-11-05', 'prop-1']]);
+    for (const body of bodies) expect(JSON.stringify(body)).not.toContain('SELECT');
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as unknown as [URL, RequestInit];
+    expect(String(url)).toContain('/api/v1/holdings/acme/pms/command-plan');
+    expect(init.headers).toMatchObject({ 'content-type': 'application/json', accept: 'application/json', 'cache-control': 'no-cache' });
+  });
+});
+
+const recordDetailSql = `WITH selected AS (
+      SELECT id,kind,data_json::jsonb data FROM pms_records WHERE property_id=? AND id=?
+    ), related AS (
+      SELECT id FROM selected UNION
+      SELECT value FROM selected CROSS JOIN LATERAL jsonb_each_text(data)
+        WHERE key IN ('guestId','reservationId','guestAccountId','roomId','typeId','rateId')
+    ) SELECT id,kind,data_json,version,updated_at FROM pms_records WHERE property_id=?
+      AND (id IN (SELECT id FROM related) OR (kind='entry' AND data_json::jsonb->>'guestAccountId' IN
+        (SELECT id FROM selected WHERE kind='guest_account' UNION SELECT data->>'guestAccountId' FROM selected)))
+    ORDER BY updated_at,id`;
+const pmsChoicesSql = `WITH matched AS (
+  SELECT id FROM pms_records WHERE property_id=? AND kind=? 
+  AND (?='' OR position(lower(?) in lower(concat_ws(' ',data_json::jsonb->>'name',data_json::jsonb->>'email',id)))>0)
+  ORDER BY data_json::jsonb->>'name',id LIMIT 50
+ ) SELECT id,kind,version,updated_at,
+ CASE WHEN kind='guest' THEN jsonb_build_object('name',data_json::jsonb->>'name','email',COALESCE(data_json::jsonb->>'email',''),'phone','')
+ ELSE jsonb_build_object('name',data_json::jsonb->>'name','kind','group','state','active') END::text data_json
+ FROM pms_records WHERE property_id=? AND kind=? 
+ AND (id IN (SELECT id FROM matched) OR id=?) ORDER BY data_json::jsonb->>'name',id`;
+const pmsChoicesBlockSql = pmsChoicesSql.replaceAll('AND kind=? ', "AND kind=? AND data_json::jsonb->>'kind'='group' AND data_json::jsonb->>'state'='active' AND COALESCE(data_json::jsonb->>'bookingChangeId','')=''");
+
+describe('native PMS record detail/choices read retirement', () => {
+  it('exposes three fixed allow-listed kinds with no SQL on the wire', () => {
+    expect(PMS_RD_RECORD_DETAIL).toBe('pms_rd_record_detail');
+    expect(PMS_RD_PMS_CHOICES).toBe('pms_rd_pms_choices');
+    expect(PMS_RD_PMS_CHOICES_BLOCK).toBe('pms_rd_pms_choices_block');
+    for (const kind of [PMS_RD_RECORD_DETAIL, PMS_RD_PMS_CHOICES, PMS_RD_PMS_CHOICES_BLOCK])
+      expect(kind).not.toMatch(/SELECT|INSERT|UPDATE|DELETE|FOR UPDATE|FOR SHARE/);
+  });
+
+  it('removes the three TypeScript templates and routes both readers through the bridge', async () => {
+    const repository = await readFile(new URL('../../../packages/server-pms/src/adapters/pms/read-repository.ts', import.meta.url), 'utf8');
+    expect(repository).not.toContain(recordDetailSql);
+    expect(repository).not.toContain(pmsChoicesSql);
+    expect(repository).not.toContain('const eligible=');
+    expect(repository).toContain('nativePmsReadAll<PmsStoredRecord>(PMS_RD_RECORD_DETAIL');
+    expect(repository).toContain("selection.kind==='block'?PMS_RD_PMS_CHOICES_BLOCK:PMS_RD_PMS_CHOICES");
+    expect(repository).toContain('[propertyId,selection.kind,selection.q,selection.q,propertyId,selection.kind,selection.selectedId??');
+  });
+
+  it('carries the byte-identical rendered statements in the Rust registry', async () => {
+    const rust = await readFile(new URL('../../../packages/server-pms/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
+    expect(rust).toContain('pub const PMS_RD_RECORD_DETAIL: &str = "pms_rd_record_detail";');
+    expect(rust).toContain('pub const PMS_RD_PMS_CHOICES: &str = "pms_rd_pms_choices";');
+    expect(rust).toContain('pub const PMS_RD_PMS_CHOICES_BLOCK: &str = "pms_rd_pms_choices_block";');
+    expect(rust).toContain(recordDetailSql);
+    expect(rust).toContain(pmsChoicesSql);
+    expect(rust).toContain(pmsChoicesBlockSql);
+    expect(rust).toContain('READ_DASHBOARD_RECORDS, READ_RECORD_DETAIL, READ_PMS_CHOICES, READ_PMS_CHOICES_BLOCK];');
+    expect(recordDetailSql.match(/\?/g)).toHaveLength(3);
+    expect(pmsChoicesSql.match(/\?/g)).toHaveLength(7);
+    expect(pmsChoicesBlockSql.match(/\?/g)).toHaveLength(7);
+  });
+
+  it('plans all three reads in Rust and runs them on the caller unit with the same binds', async () => {
+    const sqlByKind: Record<string, string> = {
+      [PMS_RD_RECORD_DETAIL]: recordDetailSql,
+      [PMS_RD_PMS_CHOICES]: pmsChoicesSql,
+      [PMS_RD_PMS_CHOICES_BLOCK]: pmsChoicesBlockSql,
+    };
+    const bodies: { kind: string; values: unknown[] }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      bodies.push(body);
+      return new Response(JSON.stringify({ data: { statements: [{ sql: sqlByKind[body.kind], values: body.values }] } }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      });
+    }));
+    const prepared: string[] = [], bound: unknown[][] = [];
+    const db = {
+      prepare(sql: string) { prepared.push(sql); return { bind(...values: unknown[]) { bound.push(values); return this; } }; },
+      async batch<T>() { return [{ results: [{ id: 'r-1', kind: 'room', data_json: '{}', version: 1, updated_at: 1 }], success: true, meta: { changes: 0, duration: 0 } }] as unknown as { results: T[]; success: boolean; meta: { changes: number; duration: number } }[]; },
+      async exec() { return { count: 0, duration: 0 }; },
+    };
+    const detail = await nativePmsReadAll<{ id: string }>(PMS_RD_RECORD_DETAIL, ['prop-1', 'rec-1', 'prop-1'], db as never);
+    const choices = await nativePmsReadAll<{ id: string }>(PMS_RD_PMS_CHOICES, ['prop-1', 'room', '', '', 'prop-1', 'room', ''], db as never);
+    const block = await nativePmsReadAll<{ id: string }>(PMS_RD_PMS_CHOICES_BLOCK, ['prop-1', 'block', '', '', 'prop-1', 'block', ''], db as never);
+    for (const rows of [detail, choices, block]) expect(rows.results[0]?.id).toBe('r-1');
+    expect(prepared).toEqual([recordDetailSql, pmsChoicesSql, pmsChoicesBlockSql]);
+    expect(bodies.map(b => b.kind)).toEqual([PMS_RD_RECORD_DETAIL, PMS_RD_PMS_CHOICES, PMS_RD_PMS_CHOICES_BLOCK]);
     for (const body of bodies) expect(JSON.stringify(body)).not.toContain('SELECT');
     const [url, init] = vi.mocked(fetch).mock.calls[0] as unknown as [URL, RequestInit];
     expect(String(url)).toContain('/api/v1/holdings/acme/pms/command-plan');

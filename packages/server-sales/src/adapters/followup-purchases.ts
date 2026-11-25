@@ -11,13 +11,13 @@ import {crmFinanceSourceReadLocks} from '@erpx/server-finance/public/crm-purchas
 import {crmCommerceSourceReadLocks} from '@erpx/server-commerce/public/crm-purchase-sources';
 import type {WorkItem} from '@erpx/feature-work_projection/lib/work-item';
 import {salesRecipientEligibility} from '@erpx/server-sales/adapters/recipient';
-import {actorScopeTuple,authorityScopeRead,followupMetricPrefix} from './followup-source-sql';
+import {actorScopeTuple,authorityScopeRead} from './followup-source-sql';
 import {followupCustomerOrderRead} from './followup-customer-order-read';
-import {nativeSalesPlan,nativeSalesReadFirst,SALES_RD_FOLLOWUP_SOURCE_FOLLOWUP,SALES_RD_FOLLOWUP_SOURCE_ORDER,SALES_RD_FOLLOWUP_ORDERS,SALES_RD_PURCHASE_PROJECTION_C_READ,SALES_RD_PURCHASE_PROJECTION_C_DENY,SALES_RD_PURCHASE_PROJECTION_FP_READ,SALES_RD_PURCHASE_PROJECTION_FP_DENY} from './native-sales-read';
+import {nativeSalesPlan,nativeSalesReadFirst,SALES_RD_FOLLOWUP_METRIC_PREFIX,SALES_RD_FOLLOWUP_SOURCE_FOLLOWUP,SALES_RD_FOLLOWUP_SOURCE_ORDER,SALES_RD_FOLLOWUP_ORDERS,SALES_RD_PURCHASE_PROJECTION_C_READ,SALES_RD_PURCHASE_PROJECTION_C_DENY,SALES_RD_PURCHASE_PROJECTION_FP_READ,SALES_RD_PURCHASE_PROJECTION_FP_DENY} from './native-sales-read';
 export type FollowupPurchaseTarget={kind:'followup'|'order';id:string};
 type Source={id:string;company_id:string;branch_id:string;department_id:string|null;order_kind:'quote'|'sales';witness:string;owner_id:string|null;due_date:string|null;status:string|null;version:number|null};
 const followupOrders=async()=>(await nativeSalesPlan(SALES_RD_FOLLOWUP_ORDERS,[])).sql;
-export const followupPurchaseRows=async()=>`${followupMetricPrefix},jsonb_build_object('followup',jsonb_build_array(followup.id,followup.company_id,followup.order_id,followup.created_by),'order',actual.witness) witness FROM customer_followups followup JOIN (${await followupOrders()}) actual ON actual.id=followup.order_id AND actual.company_id=followup.company_id`;
+export const followupPurchaseRows=async()=>`${(await nativeSalesPlan(SALES_RD_FOLLOWUP_METRIC_PREFIX,[])).sql},jsonb_build_object('followup',jsonb_build_array(followup.id,followup.company_id,followup.order_id,followup.created_by),'order',actual.witness) witness FROM customer_followups followup JOIN (${await followupOrders()}) actual ON actual.id=followup.order_id AND actual.company_id=followup.company_id`;
 /** Owner-local generator for the three follow-up EXISTS guards. Only internally
  * assembled predicates and fixed aliases are accepted, so rendered SQL is
  * byte-identical to the pre-dedupe literals. */

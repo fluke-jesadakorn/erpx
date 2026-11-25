@@ -1194,6 +1194,81 @@ const READ_ASSET_POLICY_GAIN_LOSS: NativeReadStatement = NativeReadStatement {
     scope: "holding",
 };
 
+
+/// Native successors of the static `finance` point/list reads. Owner-write
+/// helpers, locks and assertion guards stay in caller transactions.
+pub const RD_FIN_COMMAND_EXISTS: &str = "finance_rd_fin_command_exists";
+const SQL_RD_FIN_COMMAND_EXISTS: &str = "SELECT 1 FROM finance_commands WHERE command_id=?";
+const READ_FIN_COMMAND_EXISTS: NativeReadStatement = NativeReadStatement {
+    kind: RD_FIN_COMMAND_EXISTS,
+    sql: SQL_RD_FIN_COMMAND_EXISTS,
+    bind_count: 1,
+    scope: "holding",
+};
+
+pub const RD_FIN_CHART_ROW: &str = "finance_rd_fin_chart_row";
+const SQL_RD_FIN_CHART_ROW: &str = "SELECT id,base_currency FROM finance_charts WHERE id=? AND company_id=?";
+const READ_FIN_CHART_ROW: NativeReadStatement = NativeReadStatement {
+    kind: RD_FIN_CHART_ROW,
+    sql: SQL_RD_FIN_CHART_ROW,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_FIN_ACCOUNT_ROW: &str = "finance_rd_fin_account_row";
+const SQL_RD_FIN_ACCOUNT_ROW: &str = "SELECT id,status,version,is_control FROM finance_accounts WHERE id=? AND chart_id=? AND company_id=?";
+const READ_FIN_ACCOUNT_ROW: NativeReadStatement = NativeReadStatement {
+    kind: RD_FIN_ACCOUNT_ROW,
+    sql: SQL_RD_FIN_ACCOUNT_ROW,
+    bind_count: 3,
+    scope: "holding",
+};
+
+pub const RD_FIN_ACCOUNT_BY_CODE: &str = "finance_rd_fin_account_by_code";
+const SQL_RD_FIN_ACCOUNT_BY_CODE: &str = "SELECT * FROM finance_accounts WHERE chart_id=? AND company_id=? AND code=?";
+const READ_FIN_ACCOUNT_BY_CODE: NativeReadStatement = NativeReadStatement {
+    kind: RD_FIN_ACCOUNT_BY_CODE,
+    sql: SQL_RD_FIN_ACCOUNT_BY_CODE,
+    bind_count: 3,
+    scope: "holding",
+};
+
+pub const RD_FIN_JOURNAL_DEBIT: &str = "finance_rd_fin_journal_debit";
+const SQL_RD_FIN_JOURNAL_DEBIT: &str = "SELECT COALESCE(SUM(debit_minor),0) AS amount FROM finance_journal_lines WHERE journal_id=?";
+const READ_FIN_JOURNAL_DEBIT: NativeReadStatement = NativeReadStatement {
+    kind: RD_FIN_JOURNAL_DEBIT,
+    sql: SQL_RD_FIN_JOURNAL_DEBIT,
+    bind_count: 1,
+    scope: "holding",
+};
+
+pub const RD_FIN_JOURNAL_ROW: &str = "finance_rd_fin_journal_row";
+const SQL_RD_FIN_JOURNAL_ROW: &str = "SELECT * FROM finance_journals WHERE id=? AND company_id=?";
+const READ_FIN_JOURNAL_ROW: NativeReadStatement = NativeReadStatement {
+    kind: RD_FIN_JOURNAL_ROW,
+    sql: SQL_RD_FIN_JOURNAL_ROW,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_FIN_JOURNAL_LINES: &str = "finance_rd_fin_journal_lines";
+const SQL_RD_FIN_JOURNAL_LINES: &str = "SELECT id,account_id,debit_minor,credit_minor,base_debit_minor,base_credit_minor,dimension_json,ordinal FROM finance_journal_lines WHERE journal_id=? ORDER BY ordinal";
+const READ_FIN_JOURNAL_LINES: NativeReadStatement = NativeReadStatement {
+    kind: RD_FIN_JOURNAL_LINES,
+    sql: SQL_RD_FIN_JOURNAL_LINES,
+    bind_count: 1,
+    scope: "holding",
+};
+
+pub const RD_FIN_OPEN_PERIOD: &str = "finance_rd_fin_open_period";
+const SQL_RD_FIN_OPEN_PERIOD: &str = "SELECT * FROM finance_periods WHERE id=? AND company_id=? AND state='open'";
+const READ_FIN_OPEN_PERIOD: NativeReadStatement = NativeReadStatement {
+    kind: RD_FIN_OPEN_PERIOD,
+    sql: SQL_RD_FIN_OPEN_PERIOD,
+    bind_count: 2,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_ASSET_POLICY_ROW,
     READ_ASSET_POLICY_RUNS,
@@ -1312,6 +1387,14 @@ const READS: &[NativeReadStatement] = &[
     READ_ASSET_POLICY_WORKSPACE_BOOKS,
     READ_ASSET_POLICY_DISPOSAL,
     READ_ASSET_POLICY_GAIN_LOSS,
+    READ_FIN_COMMAND_EXISTS,
+    READ_FIN_CHART_ROW,
+    READ_FIN_ACCOUNT_ROW,
+    READ_FIN_ACCOUNT_BY_CODE,
+    READ_FIN_JOURNAL_DEBIT,
+    READ_FIN_JOURNAL_ROW,
+    READ_FIN_JOURNAL_LINES,
+    READ_FIN_OPEN_PERIOD,
 ];
 
 /// Whether a discriminator is an owner read kind (never a write kind).
@@ -1448,6 +1531,14 @@ mod tests {
             RD_ASSET_POLICY_WORKSPACE_BOOKS,
             RD_ASSET_POLICY_DISPOSAL,
             RD_ASSET_POLICY_GAIN_LOSS,
+            RD_FIN_COMMAND_EXISTS,
+            RD_FIN_CHART_ROW,
+            RD_FIN_ACCOUNT_ROW,
+            RD_FIN_ACCOUNT_BY_CODE,
+            RD_FIN_JOURNAL_DEBIT,
+            RD_FIN_JOURNAL_ROW,
+            RD_FIN_JOURNAL_LINES,
+            RD_FIN_OPEN_PERIOD,
         ] {
             assert!(is_read(kind), "{kind}");
             let read = read_statement(kind).expect("read kind");
@@ -1462,7 +1553,7 @@ mod tests {
             assert_eq!(read.sql.matches('?').count(), read.bind_count, "{kind}");
             assert_eq!(read.scope, "holding", "{kind}");
         }
-        assert_eq!(READS.len(), 117);
+        assert_eq!(READS.len(), 125);
         assert!(!is_read("finance_stmt_1"));
         assert!(read_statement("finance_stmt_1").is_none());
     }
@@ -2186,6 +2277,34 @@ mod tests {
                 SQL_RD_ASSET_POLICY_GAIN_LOSS,
                 3,
             ),
+        ];
+        assert_eq!(expected.len(), 8);
+        for (kind, sql, binds) in expected {
+            let read = read_statement(kind).unwrap_or_else(|| panic!("{kind}: unregistered"));
+            assert_eq!(read.kind, *kind, "{kind}: discriminator");
+            assert_eq!(read.sql, *sql, "{kind}: byte-identical SQL");
+            assert_eq!(read.bind_count, *binds, "{kind}: bind count");
+            assert_eq!(read.sql.matches('?').count(), *binds, "{kind}: binds");
+            assert_eq!(read.scope, "holding", "{kind}: scope");
+            assert!(is_read(kind), "{kind}");
+            assert!(!read.sql.contains("FOR UPDATE"), "{kind}");
+            assert!(!read.sql.contains("INSERT"), "{kind}");
+        }
+    }
+
+    /// The `finance` point/list family plans the exact retired literals;
+    /// command guards, locks and owner writes stay in caller units.
+    #[test]
+    fn finance_reads_match_retired_owner_statements() {
+        let expected: &[(&str, &str, usize)] = &[
+            (RD_FIN_COMMAND_EXISTS, SQL_RD_FIN_COMMAND_EXISTS, 1),
+            (RD_FIN_CHART_ROW, SQL_RD_FIN_CHART_ROW, 2),
+            (RD_FIN_ACCOUNT_ROW, SQL_RD_FIN_ACCOUNT_ROW, 3),
+            (RD_FIN_ACCOUNT_BY_CODE, SQL_RD_FIN_ACCOUNT_BY_CODE, 3),
+            (RD_FIN_JOURNAL_DEBIT, SQL_RD_FIN_JOURNAL_DEBIT, 1),
+            (RD_FIN_JOURNAL_ROW, SQL_RD_FIN_JOURNAL_ROW, 2),
+            (RD_FIN_JOURNAL_LINES, SQL_RD_FIN_JOURNAL_LINES, 1),
+            (RD_FIN_OPEN_PERIOD, SQL_RD_FIN_OPEN_PERIOD, 2),
         ];
         assert_eq!(expected.len(), 8);
         for (kind, sql, binds) in expected {

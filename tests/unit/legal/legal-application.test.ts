@@ -10,6 +10,7 @@ import operationsContract from "../../../packages/server-legal/src/adapters/lega
 import recordContract from "../../../packages/server-legal/src/adapters/legal-record-sources.json" with {type:"json"};
 import integrationsContract from "../../../packages/server-legal/src/adapters/legal-integrations-sources.json" with {type:"json"};
 import serviceContract from "../../../packages/server-legal/src/adapters/legal-service-sources.json" with {type:"json"};
+import purchasesContract from "../../../packages/server-legal/src/adapters/legal-purchases-sources.json" with {type:"json"};
 type LegalReferenceRepository=Parameters<typeof import("@erpx/server-legal/application/references").createLegalReferencesApplication>[0]["repository"];
 import { expect, it } from "vitest";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
@@ -600,8 +601,8 @@ it("keeps the approval reviewer-membership and current-route guards in the nativ
     }
   };
   await walk(resolve(__dirname, "../../../packages/server-legal/src"));
-  expect(total).toBeLessThan(68);
-  expect(total).toBe(60);
+  expect(total).toBeLessThan(60);
+  expect(total).toBe(52);
 });
 
 
@@ -763,4 +764,42 @@ it("keeps the register list, count, hold, link and hold-preservable reads in the
   expect(rust).toContain('render_legal_links');
   expect(rust).toContain('render_legal_hold_preservable');
   expect(rust).toContain('88908af744d8fe2de5d815f8e92e49e22fd2179cb30c82e5500346983b187405');
+});
+
+
+it("keeps the purchase authority, configuration, witness and replay reads in the native contract", async () => {
+  const [shared, rust] = await Promise.all([
+    readFile(new URL("../../../packages/server-legal/src/adapters/purchases.ts", import.meta.url), "utf8"),
+    readFile(new URL("../../../packages/server-legal/src/adapters/legal_purchases_sources.rs", import.meta.url), "utf8"),
+  ]);
+  expect(shared.match(/SELECT /g) ?? []).toHaveLength(0);
+  expect(shared).toContain("legal-purchases-sources.json");
+  expect(shared).toContain("fill(contract.authority");
+  expect(shared).toContain("fill(contract.configurationImage");
+  expect(shared).toContain("fill(contract.sourceWitness");
+  expect(shared).toContain("fill(contract.featureImage");
+  expect(shared).toContain("contract.replayReceipt");
+  expect((shared.match(/legalItemsByIdCompanyHead\(/g) ?? [])).toHaveLength(2);
+  expect(purchasesContract.authority).toBe(
+    "SELECT {assignment} allowed FROM ({actorScope}) legal_current_scope",
+  );
+  expect(purchasesContract.configurationImage).toBe(
+    "SELECT to_jsonb(configuration)::text image FROM {table} configuration WHERE {key}=? AND company_id=?",
+  );
+  expect(purchasesContract.sourceWitness).toContain("'route',(SELECT to_jsonb(ar) FROM legal_approval_routes ar WHERE ar.item_id=i.id)");
+  expect(purchasesContract.sourceWitness).toContain("(SELECT to_jsonb(rp) FROM legal_retention_policies rp WHERE rp.id=ra.policy_id)");
+  expect(purchasesContract.sourceWitness).toContain("FROM ({features}) feature))::text image");
+  expect(purchasesContract.featureImage).toBe(
+    "SELECT to_jsonb(f) image FROM {table} f WHERE f.item_id=i.id",
+  );
+  expect(purchasesContract.replayReceipt).toBe(
+    "SELECT operation FROM command_receipts WHERE command_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?",
+  );
+  expect(rust).toContain('include_str!("legal-purchases-sources.json")');
+  expect(rust).toContain('render_legal_authority');
+  expect(rust).toContain('render_legal_configuration_image');
+  expect(rust).toContain('render_legal_source_witness');
+  expect(rust).toContain('render_legal_feature_image');
+  expect(rust).toContain('legal_replay_receipt_sql');
+  expect(rust).toContain('9f68725068bab609237f673d18b0f7cd585493ba35799ba2e228dc8ae94f0fef');
 });

@@ -139,8 +139,8 @@ describe('pms read-tail r45 relation-arm, point-head and join-anchor dedupe', ()
 
   it('routes every call site through the helpers and removes the inline heads', async () => {
     const rr = await src('adapters/pms/read-repository.ts');
-    expect(calls(rr, 'pmsReservationRelationArmSql')).toBe(4); // r48 native port
-    expect(calls(rr, 'pmsChosenKindPointSql')).toBe(2); // r48 native port
+    expect(calls(rr, 'pmsReservationRelationArmSql')).toBe(3); // r48 native port
+    expect(calls(rr, 'pmsChosenKindPointSql')).toBe(1); // r48 native port
     for (const k of [
       'armChosenReservation', 'armReservationIdChosen', 'armSelectedGuestAccount',
       'armReservationIdStays', 'armGuestIdStays', 'armGuestIdChosen',
@@ -152,7 +152,7 @@ describe('pms read-tail r45 relation-arm, point-head and join-anchor dedupe', ()
     expect(rr).toContain('PMS_RD_SECTION_RELATED_RECORDS, [facts.propertyId, facts.seedsJson');
     // Binds and CTE/scoped tails stay at the call site.
     expect(rr).toContain('[facts.propertyId, facts.seedsJson, facts.propertyId2, facts.propertyId3, facts.propertyId3, facts.roomView');
-    expect(rr).toContain('.bind(facts.propertyId, facts.id, facts.propertyId2)');
+    expect(rr).toContain('PMS_RD_RECORD_DETAIL, [facts.propertyId, facts.id, facts.propertyId2], db');
 
     const mev = await src('adapters/executive-main-evidence-sources.ts');
     expect(calls(mev, 'pmsRecordPropertyJoinSql')).toBe(1);
@@ -194,7 +194,7 @@ describe('pms read-tail r45 relation-arm, point-head and join-anchor dedupe', ()
       p += calls(text, 'pmsChosenKindPointSql');
       j += calls(text, 'pmsRecordPropertyJoinSql');
     }
-    expect([a, p, j]).toEqual([4, 2, 6]);
+    expect([a, p, j]).toEqual([3, 1, 6]);
   });
 
   it('leaves locks, feature availability, native reads and r17-r44 helpers untouched', async () => {
@@ -217,8 +217,8 @@ describe('pms read-tail r45 relation-arm, point-head and join-anchor dedupe', ()
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(207);
-    expect(bare).toBe(208);
+    expect(spaced).toBe(202);
+    expect(bare).toBe(203);
     expect(spaced).toBeLessThan(292);
     expect(bare).toBeLessThan(294);
   });

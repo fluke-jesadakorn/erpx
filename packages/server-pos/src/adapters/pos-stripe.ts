@@ -1,7 +1,7 @@
 import { nativePosOne, nativePosRun } from './native-owner-write';
 import { nativePosSucceededPaymentTotalStatement } from './native-pos-sale-child';
 import { nativePosConnectionsStatement, nativePosKeyedSettingsCurrencyAccountsStatement, nativePosPaymentByIdCompanyStatement, nativePosPaymentByIdPlainStatement, nativePosPaymentByIdStatement, nativePosPostingJournalStatement, nativePosSaleByIdStatement, nativePosStripeRoutesStatement } from './native-pos-core-statement';
-import { nativePosSettlementBalanceRowStatement, nativePosSettlementBalanceStateStatement, nativePosSettlementPayoutJournalStatement, nativePosSettlementStateStatement, nativePosStripeConnectionsReadyStatement, nativePosStripeEventStatement, nativePosStripePaymentIdStatement, nativePosStripePaymentStatement, nativePosStripeRefundIdStatement, nativePosStripeRefundPaymentStatement, nativePosStripeRefundStatement, nativePosStripeSaleNumberStatement } from './native-pos-stripe-reads';
+import { nativePosSettlementBalanceRowStatement, nativePosSettlementBalanceStateStatement, nativePosSettlementPayoutJournalStatement, nativePosSettlementStateStatement, nativePosStripeConnectionsReadyStatement, nativePosStripeEventStatement, nativePosStripePaymentIdStatement, nativePosStripePaymentStatement, nativePosStripeRefundIdStatement, nativePosStripeRefundPaymentStatement, nativePosStripeRefundStatement, nativePosStripeSaleNumberStatement, nativePosStripeJobsContextStatement } from './native-pos-stripe-reads';
 import{secret,stripeRequest}from '@erpx/server-pos/adapters/stripe-provider';
 import {posStripeBindingFacts} from "@erpx/server-runtime/public/pos-stripe-binding-facts";
 import 'server-only';
@@ -327,7 +327,7 @@ function unit(db: SqlDatabase): PosStripeUnit {
             id: string | number | boolean | null;
             token: `${string}-${string}-${string}-${string}-${string}`;
         }) => nativePosRun(db, '', 'stripe_writeposjobs4_325', [facts.fact0, facts.fact1, facts.code, facts.id, facts.token]),
-        readContext1: () => one(db, "SELECT to_regclass('pos_jobs') name"),
+        readContext1: () => nativePosStripeJobsContextStatement(db),
         enqueue: (arg0: string, arg1: "event" | "complete_sale" | "check_payment", arg2: string) => enqueue(db, arg0, arg1, arg2),
         audit: (arg0: string, arg1: null, arg2: string | "system:stripe", arg3: "connection.connected" | "job.exception", arg4: string, arg5: {
             livemode: boolean;

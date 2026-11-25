@@ -145,6 +145,12 @@ export const PMS_RD_ATTACHMENT_PROPERTY_OWNER = 'pms_rd_attachment_property_owne
  * SQL with four positional binds, no ledger/receipt/outbox and no lock path;
  * the caller runs it on its already-open unit. */
 export const PMS_RD_DASHBOARD_RECORDS = 'pms_rd_dashboard_records';
+/** Native successors of the owner-local record detail and choices reads.
+ * Fixed SQL with three/seven positional binds, no ledger/receipt/outbox and
+ * no lock path; the caller runs them on its already-open unit. */
+export const PMS_RD_RECORD_DETAIL = 'pms_rd_record_detail';
+export const PMS_RD_PMS_CHOICES = 'pms_rd_pms_choices';
+export const PMS_RD_PMS_CHOICES_BLOCK = 'pms_rd_pms_choices_block';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'PMS_NATIVE_READ_UNAVAILABLE', 'The native PMS read service is unavailable.');

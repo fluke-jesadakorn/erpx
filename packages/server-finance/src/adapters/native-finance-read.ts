@@ -134,6 +134,14 @@ export const FINANCE_RD_ASSET_POLICY_WORKSPACE_ASSETS = 'finance_rd_asset_policy
 export const FINANCE_RD_ASSET_POLICY_WORKSPACE_BOOKS = 'finance_rd_asset_policy_workspace_books';
 export const FINANCE_RD_ASSET_POLICY_DISPOSAL = 'finance_rd_asset_policy_disposal';
 export const FINANCE_RD_ASSET_POLICY_GAIN_LOSS = 'finance_rd_asset_policy_gain_loss';
+export const FINANCE_RD_FIN_COMMAND_EXISTS = 'finance_rd_fin_command_exists';
+export const FINANCE_RD_FIN_CHART_ROW = 'finance_rd_fin_chart_row';
+export const FINANCE_RD_FIN_ACCOUNT_ROW = 'finance_rd_fin_account_row';
+export const FINANCE_RD_FIN_ACCOUNT_BY_CODE = 'finance_rd_fin_account_by_code';
+export const FINANCE_RD_FIN_JOURNAL_DEBIT = 'finance_rd_fin_journal_debit';
+export const FINANCE_RD_FIN_JOURNAL_ROW = 'finance_rd_fin_journal_row';
+export const FINANCE_RD_FIN_JOURNAL_LINES = 'finance_rd_fin_journal_lines';
+export const FINANCE_RD_FIN_OPEN_PERIOD = 'finance_rd_fin_open_period';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'FINANCE_NATIVE_READ_UNAVAILABLE', 'The native Finance read service is unavailable.');

@@ -63,7 +63,7 @@ describe('legal read-tail r65 members jsonb-agg head reuse', () => {
     expect(att).toContain("import {legalMembersAggSql} from './legal-read-tail-r9-sources'");
     expect(att).toContain("'members',${legalMembersAggSql}");
     expect(purchases).toContain('legalCompanyAdvisoryLockSql,legalMembersAggSql');
-    expect(purchases).toContain("'members',${legalMembersAggSql}");
+    expect(purchases).toContain('members:legalMembersAggSql');
     for (const text of [att, purchases]) expect(text).not.toContain('(SELECT jsonb_agg(to_jsonb(m)');
     expect(att).toContain('LOCK TABLE legal_items,legal_members,legal_documents IN SHARE ROW EXCLUSIVE MODE');
     expect(r9).toContain('legalFilesAdvisoryLockSql');
@@ -84,6 +84,6 @@ describe('legal read-tail r65 members jsonb-agg head reuse', () => {
     await walk(srcRoot);
     expect(total).toBeLessThan(134);
     expect(total).toBeLessThanOrEqual(133);
-    expect(total).toBe(60);
+    expect(total).toBe(52);
   });
 });

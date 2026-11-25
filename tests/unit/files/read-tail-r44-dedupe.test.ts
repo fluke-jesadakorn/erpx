@@ -104,10 +104,11 @@ describe('Files read-tail r44 byte-oracle dedupe', () => {
       expect(count(helper, `export const ${name} =`)).toBe(1);
       expect(count(helper, '${' + name + '}')).toBe(0);
     }
+    expect(helper).toContain('witness-head-sources.json');
     expect(helper).not.toMatch(/prepare\(|\.bind\(|nativeWrite\(/);
   });
 
-  test('no residual literal: each head lives only in the r44 helper', () => {
+  test('no statement token in TypeScript: each head lives in the native contract', () => {
     const residual: Record<string, number> = { H1: 0, H2: 0, H3: 0 };
     for (const path of tsFiles(srcRoot)) {
       const text = readFileSync(path, 'utf8');
@@ -115,10 +116,11 @@ describe('Files read-tail r44 byte-oracle dedupe', () => {
       residual.H2 += count(text, H2);
       residual.H3 += count(text, H3);
     }
-    expect(residual).toEqual({ H1: 1, H2: 1, H3: 1 });
-    expect(src('adapters/read-tail-r44-source-sql.ts')).toContain(H1);
-    expect(src('adapters/read-tail-r44-source-sql.ts')).toContain(H2);
-    expect(src('adapters/read-tail-r44-source-sql.ts')).toContain(H3);
+    expect(residual).toEqual({ H1: 0, H2: 0, H3: 0 });
+    const contract = src('adapters/witness-head-sources.json');
+    expect(contract).toContain(H1);
+    expect(contract).toContain(H2);
+    expect(contract).toContain(H3);
     // Novel: r26 attachmentsByIdCompanySql and scanPendingSql are distinct.
     expect(src('adapters/read-tail-r26-source-sql.ts')).not.toContain(H2);
     expect(src('adapters/scan-pending-dedupe-sql.ts')).not.toContain(H3);
@@ -159,7 +161,7 @@ describe('Files read-tail r44 byte-oracle dedupe', () => {
     expect(src('adapters/portal-package-obligation-sources.ts')).toContain('${SCAN_ATTEMPTS_OR_EXISTS_HEAD_SQL}attempt WHERE attempt.attachment_id=attachment.id AND attempt.state IN (\'pending\',\'running\',\'error\'))');
   });
 
-  test('retirement:ts-statements is 201, strictly below the r43 BEFORE=246 (246->242)', () => {
+  test('retirement:ts-statements is 195, strictly below the r43 BEFORE=246 (246->242)', () => {
     let literal = 0, total = 0;
     for (const path of tsFiles(srcRoot)) {
       const text = readFileSync(path, 'utf8');
@@ -170,8 +172,8 @@ describe('Files read-tail r44 byte-oracle dedupe', () => {
     // (-2), while the attachment star-id and scan OR-EXISTS heads each fold
     // two sites into one (-1 each). Three heads live in the r44 helper.
     // r46 folds two closed-union heads (orphan-preservation event, draft/bound count): 239->237.
-    expect(literal).toBe(201);
-    expect(total).toBe(202);
+    expect(literal).toBe(195);
+    expect(total).toBe(196);
     expect(literal).toBeLessThan(246);
     expect(total).toBeLessThan(247);
   });

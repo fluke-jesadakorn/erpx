@@ -35,6 +35,10 @@ pub mod orphan_preservation_head;
 
 pub mod projection_head;
 
+pub mod witness_head;
+
+pub mod settlement_head;
+
 pub mod local_sanitization_io;
 
 pub mod local_quarantine_store;

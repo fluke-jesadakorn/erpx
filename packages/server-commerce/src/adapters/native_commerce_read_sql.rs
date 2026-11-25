@@ -329,12 +329,56 @@ const READ_SUPPLY_SETTLEMENT_LINES: NativeCommerceReadStatement = NativeCommerce
     bind_count: 0,
 };
 
+/// Native authority for the four inline Inventory/executive projection
+/// fragments in `inventory-executive-owner-projections.ts`. Cross-owner
+/// packages embed them in composite statements, so they stay outside the
+/// executable command-plan registry until those consumers cut over.
+pub const RD_PROJECTION_ORDER_LINES: &str = "commerce_rd_projection_order_lines";
+const SQL_PROJECTION_ORDER_LINES: &str =
+    "SELECT \"id\",\"order_id\",\"product_id\",\"description\",\"quantity_milli\",\"fulfilled_milli\",\"price_minor\",\"tax_bps\",\"subtotal_minor\",\"tax_minor\",\"ordinal\",\"list_price_minor\",\"discount_bps\",\"item_type\" FROM commerce_order_lines";
+pub const RD_PROJECTION_PRODUCTS: &str = "commerce_rd_projection_products";
+const SQL_PROJECTION_PRODUCTS: &str =
+    "SELECT \"id\",\"company_id\",\"sku\",\"name\",\"unit\",\"price_minor\",\"tax_bps\",\"status\",\"version\",\"tracking_mode\",\"item_type\" FROM commerce_products";
+pub const RD_PROJECTION_RETURN_LINES: &str = "commerce_rd_projection_return_lines";
+const SQL_PROJECTION_RETURN_LINES: &str =
+    "SELECT \"id\",\"return_id\",\"fulfillment_line_id\",\"product_id\",\"quantity_milli\",\"value_minor\",\"subtotal_minor\",\"tax_minor\",\"ordinal\",\"condition_code\",\"condition_note\",\"quality_due_date\",\"expected_subtotal_minor\" FROM commerce_return_lines";
+pub const RD_PROJECTION_RETURN_LOT_ALLOCATIONS: &str =
+    "commerce_rd_projection_return_lot_allocations";
+const SQL_PROJECTION_RETURN_LOT_ALLOCATIONS: &str =
+    "SELECT \"id\",\"return_line_id\",\"fulfillment_allocation_id\",\"lot_id\",\"quantity_milli\",\"value_minor\",\"snapshot_quantity_milli\",\"snapshot_value_minor\",\"snapshot_version\" FROM commerce_return_lot_allocations";
+
+const READ_PROJECTION_ORDER_LINES: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_PROJECTION_ORDER_LINES,
+    sql: SQL_PROJECTION_ORDER_LINES,
+    bind_count: 0,
+};
+const READ_PROJECTION_PRODUCTS: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_PROJECTION_PRODUCTS,
+    sql: SQL_PROJECTION_PRODUCTS,
+    bind_count: 0,
+};
+const READ_PROJECTION_RETURN_LINES: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_PROJECTION_RETURN_LINES,
+    sql: SQL_PROJECTION_RETURN_LINES,
+    bind_count: 0,
+};
+const READ_PROJECTION_RETURN_LOT_ALLOCATIONS: NativeCommerceReadStatement =
+    NativeCommerceReadStatement {
+        kind: RD_PROJECTION_RETURN_LOT_ALLOCATIONS,
+        sql: SQL_PROJECTION_RETURN_LOT_ALLOCATIONS,
+        bind_count: 0,
+    };
+
 /// r25 composite-query source fragments are owner-authorised SQL text, not
 /// standalone scoped reads: cross-owner package witnesses embed them in larger
 /// statements. They live outside `STATEMENTS` until those consumers cut over.
 pub const SOURCE_FRAGMENTS: &[NativeCommerceReadStatement] = &[
     READ_SALES_SETTLEMENT_LINES,
     READ_SUPPLY_SETTLEMENT_LINES,
+    READ_PROJECTION_ORDER_LINES,
+    READ_PROJECTION_PRODUCTS,
+    READ_PROJECTION_RETURN_LINES,
+    READ_PROJECTION_RETURN_LOT_ALLOCATIONS,
 ];
 
 /// Resolve an owner source fragment by kind. Unregistered kinds fail closed.
@@ -655,6 +699,36 @@ const READ_EXEC_SALES_FULFILLMENT_EVIDENCE: NativeCommerceReadStatement =
         bind_count: 15,
     };
 
+/// Native successor of the attachment-policy purchase-receipt descriptor read.
+pub const RD_POLICY_PURCHASE_RECEIPT: &str = "commerce_rd_policy_purchase_receipt";
+const SQL_POLICY_PURCHASE_RECEIPT: &str =
+    "SELECT o.company_id,o.branch_id,o.department_id,o.version FROM commerce_orders o WHERE o.id=? AND o.company_id=? AND o.kind='purchase'";
+const READ_POLICY_PURCHASE_RECEIPT: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_POLICY_PURCHASE_RECEIPT,
+    sql: SQL_POLICY_PURCHASE_RECEIPT,
+    bind_count: 2,
+};
+
+/// Native successor of the attachment-policy fulfillment descriptor read.
+pub const RD_POLICY_FULFILLMENT: &str = "commerce_rd_policy_fulfillment";
+const SQL_POLICY_FULFILLMENT: &str =
+    "SELECT o.company_id,o.branch_id,NULL::text department_id,o.kind,f.version FROM commerce_fulfillments f JOIN commerce_orders o ON o.id=f.order_id WHERE f.id=? AND o.company_id=?";
+const READ_POLICY_FULFILLMENT: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_POLICY_FULFILLMENT,
+    sql: SQL_POLICY_FULFILLMENT,
+    bind_count: 2,
+};
+
+/// Native successor of the attachment-policy product descriptor read.
+pub const RD_POLICY_PRODUCT: &str = "commerce_rd_policy_product";
+const SQL_POLICY_PRODUCT: &str =
+    "SELECT company_id,NULL::text branch_id,NULL::text department_id,version FROM commerce_products WHERE id=? AND company_id=?";
+const READ_POLICY_PRODUCT: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_POLICY_PRODUCT,
+    sql: SQL_POLICY_PRODUCT,
+    bind_count: 2,
+};
+
 const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_PMS_WAREHOUSE_ACTIVE,
     READ_PMS_SETTINGS_EXISTS,
@@ -709,6 +783,9 @@ const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_EXEC_SALES_CANCELLATIONS_EVIDENCE,
     READ_EXEC_SALES_CANCELLATION_VALUE_EVIDENCE,
     READ_EXEC_SALES_FULFILLMENT_EVIDENCE,
+    READ_POLICY_PURCHASE_RECEIPT,
+    READ_POLICY_FULFILLMENT,
+    READ_POLICY_PRODUCT,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -860,6 +937,9 @@ mod tests {
                 SQL_EXEC_SALES_FULFILLMENT_EVIDENCE,
                 15usize,
             ),
+            (RD_POLICY_PURCHASE_RECEIPT, SQL_POLICY_PURCHASE_RECEIPT, 2usize),
+            (RD_POLICY_FULFILLMENT, SQL_POLICY_FULFILLMENT, 2usize),
+            (RD_POLICY_PRODUCT, SQL_POLICY_PRODUCT, 2usize),
         ];
         for (kind, sql, bind_count) in expected {
             let statement = read_statement(kind).expect("registered owner read kind");
@@ -884,7 +964,25 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), bind_count);
         }
-        assert_eq!(STATEMENTS.len(), 53);
+        assert_eq!(STATEMENTS.len(), 56);
+    }
+
+    /// Attachment policy descriptors keep exact aliases, NULL projections
+    /// and the two `[target_id, company_id]` bind positions.
+    #[test]
+    fn policy_descriptor_reads_keep_their_exact_literals() {
+        for (kind, sql) in [
+            (RD_POLICY_PURCHASE_RECEIPT, SQL_POLICY_PURCHASE_RECEIPT),
+            (RD_POLICY_FULFILLMENT, SQL_POLICY_FULFILLMENT),
+            (RD_POLICY_PRODUCT, SQL_POLICY_PRODUCT),
+        ] {
+            let plan = read_statement(kind).expect("policy descriptor read");
+            assert_eq!(plan.sql, sql, "{kind}");
+            assert_eq!(plan.bind_count, 2, "{kind}");
+            assert_eq!(sql.matches('?').count(), 2, "{kind}");
+            assert!(sql.starts_with("SELECT "), "{kind}");
+            assert!(!sql.contains(';'), "{kind}");
+        }
     }
 
     /// Executive evidence plans cover every live condition variant with
@@ -1182,8 +1280,31 @@ mod tests {
             assert!(!statement.sql.contains("FOR UPDATE"));
             assert!(read_statement(statement.kind).is_none());
         }
-        assert_eq!(SOURCE_FRAGMENTS.len(), 2);
+        assert_eq!(SOURCE_FRAGMENTS.len(), 6);
         assert!(source_fragment("commerce_rd_unknown").is_none());
+    }
+
+    /// The four inline Inventory/executive projection fragments are owned
+    /// byte-for-byte in Rust while cross-owner consumers still embed the TS
+    /// text; none is a standalone executable read.
+    #[test]
+    fn executive_projection_fragments_keep_their_exact_literals() {
+        for (kind, sql) in [
+            (RD_PROJECTION_ORDER_LINES, SQL_PROJECTION_ORDER_LINES),
+            (RD_PROJECTION_PRODUCTS, SQL_PROJECTION_PRODUCTS),
+            (RD_PROJECTION_RETURN_LINES, SQL_PROJECTION_RETURN_LINES),
+            (
+                RD_PROJECTION_RETURN_LOT_ALLOCATIONS,
+                SQL_PROJECTION_RETURN_LOT_ALLOCATIONS,
+            ),
+        ] {
+            let fragment = source_fragment(kind).expect("projection fragment");
+            assert_eq!(fragment.sql, sql, "{kind}");
+            assert_eq!(fragment.bind_count, 0, "{kind}");
+            assert!(sql.starts_with("SELECT \""), "{kind}");
+            assert!(!sql.contains('?'), "{kind}");
+            assert!(read_statement(kind).is_none(), "{kind}");
+        }
     }
 
     /// The two r26 attachment source-image reads share a byte-exact head and

@@ -110,15 +110,17 @@ describe('legal read-tail r55 closed projection dedupe', () => {
   });
 
   it('leaves advisory, FOR UPDATE OF, LOCK TABLE and command_receipts text intact', async () => {
-    const [r9, worker, retention, purchases] = await Promise.all([
+    const [r9, worker, retention, purchases, receiptContract] = await Promise.all([
       src('adapters/legal-read-tail-r9-sources.ts'), src('adapters/legal/destruction-worker.ts'),
       src('adapters/retention-execution.ts'), src('adapters/purchases.ts'),
+      src('adapters/legal-purchases-sources.json'),
     ]);
     expect(r9).toContain('legalFilesAdvisoryLockSql');
     expect(r9).toContain('legalCompanyAdvisoryLockSql');
     expect(worker).toContain('FOR UPDATE OF x,i');
     expect(retention).toContain('LOCK TABLE legal_settings,legal_retention_execution_authorizations');
-    expect(purchases).toContain('command_receipts');
+    expect(receiptContract).toContain('command_receipts');
+    expect(purchases).toContain('contract.replayReceipt');
   });
 
   it('retirement:ts-statements is BEFORE=163 -> AFTER=153', async () => {

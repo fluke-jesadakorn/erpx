@@ -1,0 +1,5 @@
+{
+  "attachmentExists": "SELECT EXISTS(SELECT 1 FROM attachment",
+  "messagingSettlement": "SELECT l.id link_id,s.id set_id,",
+  "packageFileLinkTarget": "SELECT 'file-link' kind,l.id,s.target_"
+}

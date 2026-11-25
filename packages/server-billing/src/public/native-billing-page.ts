@@ -82,11 +82,11 @@ export async function nativeBillingWorkspace(
  * instead of running the retained TypeScript writer.
  *
  * `retry`, `approve-target-rollout`, `verify-statement`, `verify-provider-cost`,
- * `record-operating-cost`, `review-target-capacity` and `approve-target-extra`
- * are also native-authoritative: the Holding-host navigation default sends a
- * Platform reviewer to the target Holding host, where the owner's
- * `require_target_command` gate sees the Holding owner. The remaining target
- * and rate actions stay on the TypeScript command until their own cutovers.
+ * `record-operating-cost`, `review-target-capacity`, `approve-target-extra` and
+ * `rate-target` are also native-authoritative: the Holding-host navigation
+ * default sends a Platform reviewer to the target Holding host, where the
+ * owner's `require_target_command` gate sees the Holding owner. The remaining
+ * target actions stay on the TypeScript command until their own cutovers.
  */
 export async function nativeBillingCostCommand(
   actor: Omit<NativeBillingPageContext, 'holdingSlug'>,

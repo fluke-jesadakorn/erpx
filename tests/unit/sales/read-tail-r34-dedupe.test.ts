@@ -104,15 +104,16 @@ describe('Sales read-tail r34 retirement check', () => {
     expect(pointReadSource).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
     expect(purchases).toContain('LOCK TABLE customer_followups,customer_followup_events IN SHARE ROW EXCLUSIVE MODE');
     expect(obligations).toContain('LOCK TABLE sales_price_lists,sales_price_list_items,customer_followups,customer_followup_events,customer_contact_notes,customer_contact_note_history,commerce_customer_notifications,commerce_customer_notification_settings,sales_notification_execution_authorizations,sales_notification_execution_attempts,sales_notification_reconciliations,command_receipts,audit_events IN SHARE MODE');
-    expect(followupSource).toContain('@erpx/server-people_payroll/public/commercial-owner-projection-sources');
-    expect(followupSource).toContain('@erpx/server-commercial/public/purchased-capability-sql');
+    expect(followupSource).not.toContain('@erpx/server-people_payroll/public/commercial-owner-projection-sources');
+    expect(followupSource).not.toContain('export const clockNowMs=');
+    expect(followupSource).not.toContain('@erpx/server-commercial/public/purchased-capability-sql');
     expect(followupSource).toContain('export const authorityScopeRead=');
-    expect(followupSource).toContain('export const clockNowMs=');
+    expect(followupSource).not.toContain('export const clockNowMs=');
     expect(native).toContain('export const SALES_RD_PRICE_LIST_ACTIVE');
     expect(native).toContain('export const SALES_RD_NOTIFICATION_RECONCILIATION_INSTALLED');
   });
 
-  test('retirement:ts-statements drops from 46 to 19', () => {
+  test('retirement:ts-statements drops from 46 to 16', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -124,7 +125,7 @@ describe('Sales read-tail r34 retirement check', () => {
     walk(srcRoot);
     // r34: pointRead no longer inlines SELECT; it delegates to tableRead (-1).
     // r35: delivery-presence head shared by order/return/notice guards (-1).
-    expect(total).toBe(19);
+    expect(total).toBe(16);
     expect(total).toBeLessThan(46);
   });
 });

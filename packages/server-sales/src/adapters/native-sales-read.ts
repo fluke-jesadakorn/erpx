@@ -44,6 +44,9 @@ export const SALES_RD_CRM_ASSIGNMENT_ALIASED = 'sales_rd_crm_assignment_aliased'
 export const SALES_RD_PACKAGE_SETTLEMENT_SALES = 'sales_rd_package_settlement_sales';
 export const SALES_RD_PACKAGE_SETTLEMENT_ECOMMERCE = 'sales_rd_package_settlement_ecommerce';
 export const SALES_RD_OWNER_NAME_PROJECTION = 'sales_rd_owner_name_projection';
+export const SALES_RD_CLOCK_NOW_MS = 'sales_rd_clock_now_ms';
+export const SALES_RD_FOLLOWUP_EVIDENCE_PREFIX = 'sales_rd_followup_evidence_prefix';
+export const SALES_RD_FOLLOWUP_METRIC_PREFIX = 'sales_rd_followup_metric_prefix';
 
 /** Owner-planned statement. The caller may run it on its own open unit or
  * compose it into a larger read; no SQL is accepted from the caller. */

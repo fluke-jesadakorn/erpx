@@ -75,7 +75,7 @@ describe('Files scalar projection heads are native-owned', () => {
     }
   });
 
-  test('retirement:ts-statements is 201, strictly below the preservation BEFORE=204 baseline', () => {
+  test('retirement:ts-statements is 195, strictly below the preservation BEFORE=204 baseline', () => {
     let literal = 0, total = 0, broad = 0;
     for (const path of tsFiles(srcRoot)) {
       const text = readFileSync(path, 'utf8');
@@ -83,9 +83,9 @@ describe('Files scalar projection heads are native-owned', () => {
       total += (text.match(/SELECT\s/g) ?? []).length;
       broad += (text.match(/\b(SELECT|INSERT|UPDATE|DELETE)\b/g) ?? []).length;
     }
-    expect(literal).toBe(201);
-    expect(total).toBe(202);
-    expect(broad).toBe(220);
+    expect(literal).toBe(195);
+    expect(total).toBe(196);
+    expect(broad).toBe(214);
     expect(literal).toBeLessThan(204);
     expect(total).toBeLessThan(205);
   });

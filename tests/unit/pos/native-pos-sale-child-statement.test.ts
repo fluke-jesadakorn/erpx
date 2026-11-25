@@ -193,7 +193,7 @@ describe('native POS sale-child detail read bridge', () => {
     const owner = readFileSync(new URL('../../../packages/server-pos/src/adapters/owner_writes.rs', import.meta.url), 'utf8');
     expect(registry).toContain('assert_eq!(KINDS.len(), 13)');
     expect(registry).toContain('assert_eq!(EXPECTED.len(), 13)');
-    expect(owner).toContain('assert_eq!(KINDS.len(), 199)');
+    expect(owner).toContain('assert_eq!(KINDS.len(), 200)');
     expect(owner).toContain('assert_eq!(crate::adapters::sale_child_reads::KINDS.len(), 13)');
     for (const item of cases) {
       expect(registry).toContain(`"${item.sql}"`);

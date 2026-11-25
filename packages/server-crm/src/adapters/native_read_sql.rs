@@ -116,6 +116,66 @@ mod tests {
     }
 
     #[test]
+    fn purchase_row_projection_head_is_the_owner_select_body_plan() {
+        // Canonical native form of the r25 purchase-row prefix: the select-body
+        // plan over the fixed id/company/branch/department projection. The TS
+        // `crmPurchaseRowProjection` delegates on this identity; each caller's
+        // witness and join tail stay verbatim.
+        let select_body = |body: &str| format!("SELECT {body}");
+        let row = |alias: &str, branch: &str, department: &str| {
+            select_body(&format!("{alias}.id,{alias}.company_id,{branch},{department},"))
+        };
+        let cases = [
+            ("account", "account", "NULL::text branch_id", "NULL::text department_id"),
+            ("lead", "lead", "lead.branch_id", "lead.department_id"),
+            ("activity", "activity", "lead.branch_id", "lead.department_id"),
+            ("guest link", "link", "guest.branch_id", "NULL::text department_id"),
+        ];
+        for (name, alias, branch, department) in cases {
+            let rendered = row(alias, branch, department);
+            assert_eq!(
+                rendered,
+                format!("SELECT {alias}.id,{alias}.company_id,{branch},{department},"),
+                "{name}"
+            );
+            assert_eq!(rendered.matches("SELECT ").count(), 1, "{name}");
+            let upper = rendered.to_ascii_uppercase();
+            assert!(!upper.contains("INSERT"), "{name}");
+            assert!(!upper.contains("UPDATE"), "{name}");
+            assert!(!upper.contains("DELETE"), "{name}");
+            assert!(!upper.contains("FOR UPDATE"), "{name}");
+            assert!(!upper.contains("LOCK TABLE"), "{name}");
+        }
+    }
+
+    #[test]
+    fn current_scope_allowed_head_is_the_owner_select_body_plan() {
+        // Canonical native form of the r30 current-scope authority selector:
+        // the select-body plan over `${assignment}${tail} allowed FROM ...`.
+        // The TS `crmCurrentScopeAllowedSql` delegates on this identity.
+        let select_body = |body: &str| format!("SELECT {body}");
+        let allowed = |assignment: &str, scope: &str, alias: &str, tail: &str| {
+            select_body(&format!("{assignment}{tail} allowed FROM {scope} {alias}"))
+        };
+        let cases = [
+            ("report scope with module", "ASSIGN", "SCOPE", "report_scope", " AND MOD?::text)))"),
+            ("report scope without module", "ASSIGN", "SCOPE", "report_scope", " "),
+            ("metric scope", "ASSIGN", "SCOPE", "crm_metric_scope", " AND assign_module_ok"),
+        ];
+        for (name, assignment, scope, alias, tail) in cases {
+            let rendered = allowed(assignment, scope, alias, tail);
+            assert_eq!(rendered, format!("SELECT {assignment}{tail} allowed FROM {scope} {alias}"), "{name}");
+            assert_eq!(rendered.matches("SELECT ").count(), 1, "{name}");
+            let upper = rendered.to_ascii_uppercase();
+            assert!(!upper.contains("INSERT"), "{name}");
+            assert!(!upper.contains("UPDATE "), "{name}");
+            assert!(!upper.contains("DELETE"), "{name}");
+            assert!(!upper.contains("FOR UPDATE"), "{name}");
+            assert!(!upper.contains("LOCK TABLE"), "{name}");
+        }
+    }
+
+    #[test]
     fn metric_breakdown_head_is_the_owner_select_body_plan() {
         // Canonical native form of the r37 executive metric projection: the
         // label/value projection is the bare select-body plan. The TS

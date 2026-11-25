@@ -52,7 +52,7 @@ describe('POS read-tail r38 sales by-id lock-head dedupe', () => {
     expect(read('native-pos-day-report.ts')).toContain("'pos_day_report_");
     expect(read('native-pos-stripe-reads.ts')).toContain("'pos_stripe_");
     expect(read('pos-stripe.ts')).toContain('SELECT * FROM pos_sales WHERE id=? AND company_id=? FOR UPDATE');
-    expect(read('owner_writes.rs')).toContain('assert_eq!(KINDS.len(), 199)');
+    expect(read('owner_writes.rs')).toContain('assert_eq!(KINDS.len(), 200)');
   });
 
   test('retirement:ts-statements decreased 180 -> 173 (r42 continues below the r38 BEFORE=180 baseline)', () => {
@@ -65,7 +65,7 @@ describe('POS read-tail r38 sales by-id lock-head dedupe', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(155);
+    expect(total).toBe(154);
     expect(total).toBeLessThan(180);
   });
 });

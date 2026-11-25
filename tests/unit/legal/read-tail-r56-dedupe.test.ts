@@ -119,15 +119,17 @@ describe('legal read-tail r56 law point-guard and counsel-entry dedupe', () => {
   });
 
   it('leaves advisory, FOR UPDATE OF, LOCK TABLE, command_receipts and quoted projections intact', async () => {
-    const [r9, destructionWorker, retention, purchases, closedProjection] = await Promise.all([
+    const [r9, destructionWorker, retention, purchases, closedProjection, receiptContract] = await Promise.all([
       src('legal-read-tail-r9-sources.ts'), src('legal/destruction-worker.ts'),
       src('retention-execution.ts'), src('purchases.ts'), src('closed-projection-source.ts'),
+      src('legal-purchases-sources.json'),
     ]);
     expect(r9).toContain('legalFilesAdvisoryLockSql');
     expect(r9).toContain('legalCompanyAdvisoryLockSql');
     expect(destructionWorker).toContain('FOR UPDATE OF x,i');
     expect(retention).toContain('LOCK TABLE legal_settings,legal_retention_execution_authorizations');
-    expect(purchases).toContain('command_receipts');
+    expect(receiptContract).toContain('command_receipts');
+    expect(purchases).toContain('contract.replayReceipt');
     expect(closedProjection).toContain('cols.map((c) => `"${c}"`).join(sep)');
   });
 

@@ -488,7 +488,7 @@ describe('Organization read-tail r30 native cutover — finance starter node lis
       }
     };
     walk(srcRoot);
-    expect(total).toBe(180);
+    expect(total).toBe(179);
     expect(total).toBeLessThan(189);
     // The worker-position cut deleted the shared r38 helper literal after both
     // former consumers moved to the native owner, so the KPI falls by one.
@@ -843,6 +843,45 @@ describe('Organization staff settings levels read native cutover', () => {
     expect(registry).toContain(`    STAFF_SETTINGS_LIST_LEVELS,\n`);
     expect(registry).toContain(`        STAFF_SETTINGS_LIST_LEVELS => {\n            "${SQL}"\n        }`);
     const arm = registry.match(/STAFF_SETTINGS_LIST_LEVELS => \{\n            "([^"]+)"\n        \}/)?.[1] ?? '';
+    expect(arm).toBe(SQL);
+    expect(arm.toUpperCase().startsWith('SELECT ')).toBe(true);
+    expect(arm).not.toMatch(/INSERT|UPDATE|DELETE|FOR UPDATE|FOR SHARE|LOCK TABLE/);
+  });
+});
+
+describe('Organization staff policy request route head native cutover', () => {
+  const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+  const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
+  const sha = (value: string) => createHash('sha256').update(value).digest('hex');
+  const KIND = 'staff_policy_request_route_head';
+  const SQL = "SELECT h.person_id,h.version FROM department_heads h JOIN organization_nodes n ON n.id=h.department_id WHERE h.company_id=? AND h.department_id=? AND n.company_id=h.company_id AND n.status='active' AND n.kind='department'";
+
+  it('deletes the TS literal and returns the typed head row or null', async () => {
+    const source = read('operations-staff-policy-facts.ts');
+    expect(source).not.toContain(SQL);
+    expect(source).toContain(`}>(database, companyId, '${KIND}', [companyId, department_id]);`);
+    expect(source.split(KIND).length - 1).toBe(1);
+    const {StaffPolicyOrganizationFacts} = await import(
+      '../../../packages/server-organization/src/adapters/operations-staff-policy-facts'
+    );
+    one.mockClear();
+    const handle = db();
+    const row = {person_id: 'person', version: 2};
+    one.mockResolvedValueOnce(row);
+    await expect(StaffPolicyOrganizationFacts(handle).readRequestRouteHead('company-1', 'department-1')).resolves.toBe(row);
+    expect(one).toHaveBeenCalledWith(handle, 'company-1', KIND, ['company-1', 'department-1']);
+    one.mockResolvedValueOnce(null);
+    await expect(StaffPolicyOrganizationFacts(handle).readRequestRouteHead('company-1', 'department-1')).resolves.toBeNull();
+    expect(handle.prepare).not.toHaveBeenCalled();
+  });
+
+  it('pins the byte-identical SQL now owned by the Rust registry', () => {
+    expect(sha(SQL)).toBe('03c113f88d99c3cfaa8ee4f03f8616f8a0a32df2f3efe037b31e5d57f104d250');
+    const registry = read('organization_owner_write.rs');
+    expect(registry).toContain(`pub const STAFF_POLICY_REQUEST_ROUTE_HEAD: &str = "${KIND}";`);
+    expect(registry).toContain(`    STAFF_POLICY_REQUEST_ROUTE_HEAD,\n`);
+    expect(registry).toContain(`        STAFF_POLICY_REQUEST_ROUTE_HEAD => {\n            "${SQL}"\n        }`);
+    const arm = registry.match(/STAFF_POLICY_REQUEST_ROUTE_HEAD => \{\n            "([^"]+)"\n        \}/)?.[1] ?? '';
     expect(arm).toBe(SQL);
     expect(arm.toUpperCase().startsWith('SELECT ')).toBe(true);
     expect(arm).not.toMatch(/INSERT|UPDATE|DELETE|FOR UPDATE|FOR SHARE|LOCK TABLE/);

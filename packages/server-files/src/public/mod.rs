@@ -19,6 +19,8 @@ pub mod scan_pending_head;
 pub mod owner_projection_head;
 pub mod orphan_preservation_head;
 pub mod projection_head;
+pub mod witness_head;
+pub mod settlement_head;
 pub mod portal_attachment_http;
 pub mod support_attachment_http;
 pub mod support_attachment_intake;

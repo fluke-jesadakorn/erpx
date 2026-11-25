@@ -1,7 +1,6 @@
 import {followupProjectionScope,followupPurchasedAccess,requireFollowupPurchasedRead,filterFollowupPurchasedWork} from '@erpx/server-sales/adapters/followup-purchases';
-import {followupEvidencePrefix} from './followup-source-sql';
 import {pointRead} from './point-read';
-import {nativeSalesPlan,SALES_RD_OWNER_NAME_PROJECTION} from './native-sales-read';
+import {nativeSalesPlan,SALES_RD_OWNER_NAME_PROJECTION,SALES_RD_FOLLOWUP_EVIDENCE_PREFIX} from './native-sales-read';
 import {nativeSalesReadAll,SALES_RD_FOLLOWUP_RECIPIENTS} from './native-sales-read';
 import {followupCustomerOrderTailRead} from './followup-customer-order-tail-read';
 import { commercialOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/commercial-owner-projection-sources";
@@ -38,7 +37,7 @@ async function recipients(db:SqlDatabase,a:WorkContext,orderId:string){return (a
 function application(a:WorkContext,provided?:SqlDatabase){let resource:Promise<SqlDatabase>|null=provided?Promise.resolve(provided):null;const database=()=>resource??=holdingResources(a.holdingId).then(x=>x.write);return createFollowupApplication({actorId:a.userId,canRead:hasPermission(a,'commerce.read'),canSell:hasPermission(a,'commerce.sales'),canManage:hasPermission(a,'commerce.approve'),authorize:permission=>{requirePermission(a,permission);},clock:{now:()=>Date.now()},repository:async()=>repository(await database(),a)});}
 function repository(write:SqlDatabase,a:WorkContext):FollowupRepository{return {
  rows:(id,orderId)=>list(write,a,id,orderId),
- async evidence(id,from,to,beforeDate){const purchase=await followupProjectionScope(write,a,'c'),ownerName=(await nativeSalesPlan(SALES_RD_OWNER_NAME_PROJECTION,[])).sql;return await write.prepare(`${followupEvidencePrefix}customer_followups c
+ async evidence(id,from,to,beforeDate){const purchase=await followupProjectionScope(write,a,'c'),ownerName=(await nativeSalesPlan(SALES_RD_OWNER_NAME_PROJECTION,[])).sql,evidencePrefix=(await nativeSalesPlan(SALES_RD_FOLLOWUP_EVIDENCE_PREFIX,[])).sql;return await write.prepare(`${evidencePrefix}customer_followups c
  JOIN (${commerceProjectionSources.commerce_orders}) o ON o.id=c.order_id AND o.company_id=c.company_id JOIN (${financeProjectionSources.finance_parties}) p ON p.id=o.party_id AND p.company_id=o.company_id
  WHERE ${scope} AND ${purchase.where} AND c.id=? AND o.kind IN ('sales','quote') AND c.status='open' AND c.due_date BETWEEN ? AND ? AND c.due_date<? LIMIT 1`)
  .bind(...args(a),...purchase.args,id,from,to,beforeDate).first<Row>();},

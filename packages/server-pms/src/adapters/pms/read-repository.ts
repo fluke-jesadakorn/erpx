@@ -6,14 +6,13 @@ import { decodePmsRecord, type PmsStoredRecord } from "@erpx/server-pms/domain/s
 import { PMS_RECORDS_PROJECTION_PREFIX_SQL } from "../pms-read-tail-r24-sql";
 import { PMS_GUEST_STAYS_CHOSEN_MEMBER_SQL } from "../pms-read-tail-r25-sql";
 import { PMS_CHOSEN_RECORDS_SQL } from "../pms-read-tail-r26-sql";
-import { PMS_RECORD_POINT_PREFIX_SQL } from "../pms-read-tail-r31-sql";
 import { PMS_RECORD_ID_PROPERTY_HEAD_SQL } from "../pms-read-tail-r35-sql";
 import { PMS_STAY_SOURCE_PROJECTION_SQL } from "../pms-read-tail-r38-sql";
 import { pmsGuestIdJoinSql } from "../pms-read-tail-r41-sql";
 import { pmsStayExistsHeadSql } from "../pms-read-tail-r42-sql";
 import { pmsBookingEmailPendingSql } from "../pms-read-tail-r43-sql";
 import { pmsChosenKindPointSql, pmsReservationRelationArmSql } from "../pms-read-tail-r45-sql";
-import { nativePmsReadAll, PMS_RD_INVENTORY_COMMAND, PMS_RD_SECTION_RELATED_RECORDS, PMS_RD_DASHBOARD_RECORDS } from "../native-pms-read";
+import { nativePmsReadAll, PMS_RD_INVENTORY_COMMAND, PMS_RD_SECTION_RELATED_RECORDS, PMS_RD_DASHBOARD_RECORDS, PMS_RD_RECORD_DETAIL, PMS_RD_PMS_CHOICES, PMS_RD_PMS_CHOICES_BLOCK } from "../native-pms-read";
 import { propertyReadinessFacts, type LaneActor } from "../native-lane-20/client";
 import { roomSummaryFacts } from "../native-lane-20/room-summary-client";
 import * as application from "@erpx/server-pms/application/read-repository";
@@ -188,16 +187,7 @@ function repository(db: SqlDatabase, actor: LaneActor = {}): application.PmsRead
             propertyId: string;
             id: string;
             propertyId2: string;
-        }) => db.prepare(`WITH selected AS (
-      ${PMS_RECORD_POINT_PREFIX_SQL}id=?
-    ), related AS (
-      SELECT id FROM selected UNION
-      SELECT value FROM selected CROSS JOIN LATERAL jsonb_each_text(data)
-        WHERE key IN ('guestId','reservationId','guestAccountId','roomId','typeId','rateId')
-    ) ${PMS_RECORDS_PROJECTION_PREFIX_SQL} WHERE property_id=?
-      AND (id IN (SELECT id FROM related) OR (kind='entry' AND data_json::jsonb->>'guestAccountId' IN
-        (${pmsReservationRelationArmSql('selectedGuestAccountId')} UNION ${pmsChosenKindPointSql('guestAccountSelected')})))
-    ORDER BY updated_at,id`).bind(facts.propertyId, facts.id, facts.propertyId2).all<PmsStoredRecord>().then(rows => rows.results.map(decodePmsRecord))
+        }) => nativePmsReadAll<PmsStoredRecord>(PMS_RD_RECORD_DETAIL, [facts.propertyId, facts.id, facts.propertyId2], db).then(rows => rows.results.map(decodePmsRecord))
     };
 }
 export function readAllPmsRecords(db: SqlDatabase, propertyId: string) { return application.readAllPmsRecords(repository(db), propertyId); }
@@ -207,17 +197,9 @@ export function readPmsOperationsList(db: SqlDatabase, propertyId: string, busin
 }>) { return application.readPmsOperationsList(repository(db), propertyId, businessDate, selection); }
 /** Bounded selector facts only; callers retain Property scope and permission checks. */
 export async function readPmsChoices(db:SqlDatabase,propertyId:string,selection:Extract<PmsReadSelection,{view:'choices'}>){
- const eligible=selection.kind==='block'?"AND data_json::jsonb->>'kind'='group' AND data_json::jsonb->>'state'='active' AND COALESCE(data_json::jsonb->>'bookingChangeId','')=''":"";
- const rows=await db.prepare(`WITH matched AS (
-  ${PMS_RECORD_ID_PROPERTY_HEAD_SQL} AND kind=? ${eligible}
-  AND (?='' OR position(lower(?) in lower(concat_ws(' ',data_json::jsonb->>'name',data_json::jsonb->>'email',id)))>0)
-  ORDER BY data_json::jsonb->>'name',id LIMIT 50
- ) SELECT id,kind,version,updated_at,
- CASE WHEN kind='guest' THEN jsonb_build_object('name',data_json::jsonb->>'name','email',COALESCE(data_json::jsonb->>'email',''),'phone','')
- ELSE jsonb_build_object('name',data_json::jsonb->>'name','kind','group','state','active') END::text data_json
- FROM pms_records WHERE property_id=? AND kind=? ${eligible}
- AND (id IN (SELECT id FROM matched) OR id=?) ORDER BY data_json::jsonb->>'name',id`)
- .bind(propertyId,selection.kind,selection.q,selection.q,propertyId,selection.kind,selection.selectedId??'').all<PmsStoredRecord>();
+ const rows=await nativePmsReadAll<PmsStoredRecord>(
+  selection.kind==='block'?PMS_RD_PMS_CHOICES_BLOCK:PMS_RD_PMS_CHOICES,
+  [propertyId,selection.kind,selection.q,selection.q,propertyId,selection.kind,selection.selectedId??''], db);
  return rows.results.map(decodePmsRecord);
 }
 export function readPmsSetupFacts(db: SqlDatabase, actor: LaneActor, propertyId: string) { return application.readPmsSetupFacts(repository(db, actor), propertyId); }

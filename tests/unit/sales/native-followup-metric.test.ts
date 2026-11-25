@@ -9,7 +9,8 @@ import { assignmentReadSql } from '@erpx/server-identity_access/public/record-so
 import { purchasedCapabilityPredicate } from '@erpx/server-commercial/public/purchased-capability-sql';
 import { crmCommerceOrderSources } from '@erpx/server-commerce/public/crm-purchase-sources';
 import { crmFinanceCustomerSources } from '@erpx/server-finance/public/crm-purchase-sources';
-import { clockNowMs, followupMetricPrefix } from '../../../packages/server-sales/src/adapters/followup-source-sql';
+const clockNowMs='SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint now_ms';
+const followupMetricPrefix='SELECT followup.*,actual.branch_id,actual.department_id,actual.kind order_kind';
 import {
   SALES_RD_FOLLOWUP_METRIC_PROJECTION,
   SALES_RD_FOLLOWUP_METRIC_SOURCE,

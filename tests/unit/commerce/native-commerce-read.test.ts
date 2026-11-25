@@ -470,7 +470,7 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
         `export const ${kind} = '${wire}';`,
       );
     }
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 53);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 56);');
     expect(plans).toContain('fn schema_ready_probes_keep_their_exact_literals()');
     expect(readFileSync(adapters('read-tail-r15-dedupe-sql.ts'), 'utf8')).not.toContain('to_regclass');
   });
@@ -507,7 +507,7 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
     expect(plans).toContain(`"${sql}"`);
     expect(plans).toContain('kind: RD_LEGACY_ATTACHMENT_SCOPE,');
     expect(plans).toContain('fn legacy_attachment_scope_keeps_its_exact_literal()');
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 53);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 56);');
     expect(readFileSync(adapters('native-commerce-read.ts'), 'utf8')).toContain(
       "export const RD_LEGACY_ATTACHMENT_SCOPE = 'commerce_rd_legacy_attachment_scope';",
     );
@@ -810,5 +810,56 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
     expect(source).toContain('EVIDENCE_CURSOR_INVALID');
     expect(source).toContain('factsSearchSalesOrderEvidence');
     expect(source).toContain('factsReadSalesFulfillmentEvidence');
+  });
+
+  it('owns the inline executive projection fragments as native source authority', async () => {
+    const plans = readFileSync(adapters('native_commerce_read_sql.rs'), 'utf8');
+    for (const [kind, wire, marker] of [
+      ['RD_PROJECTION_ORDER_LINES', 'commerce_rd_projection_order_lines', '\\"discount_bps\\",\\"item_type\\" FROM commerce_order_lines'],
+      ['RD_PROJECTION_PRODUCTS', 'commerce_rd_projection_products', '\\"tracking_mode\\",\\"item_type\\" FROM commerce_products'],
+      ['RD_PROJECTION_RETURN_LINES', 'commerce_rd_projection_return_lines', '\\"expected_subtotal_minor\\" FROM commerce_return_lines'],
+      ['RD_PROJECTION_RETURN_LOT_ALLOCATIONS', 'commerce_rd_projection_return_lot_allocations', '\\"snapshot_version\\" FROM commerce_return_lot_allocations'],
+    ] as const) {
+      expect(plans).toContain(`pub const ${kind}: &str =`);
+      expect(plans).toContain(`"${wire}"`);
+      expect(plans).toContain(marker);
+      expect(plans).toContain(`kind: ${kind},`);
+      expect(readFileSync(adapters('native-commerce-read.ts'), 'utf8')).toContain(
+        `export const ${kind} = '${wire}';`,
+      );
+    }
+    expect(plans).toContain('fn executive_projection_fragments_keep_their_exact_literals()');
+    expect(plans).toContain('assert_eq!(SOURCE_FRAGMENTS.len(), 6);');
+    // Deletion is blocked: the cross-owner consumers embed these strings.
+    const source = await readFile(adapters('inventory-executive-owner-projections.ts'), 'utf8');
+    expect(source).toContain('commerce_order_lines: "SELECT');
+    expect(source).toContain('COMMERCE_FULFILLMENT_LINES_SQL');
+  });
+
+  it('owns the three attachment policy descriptor reads as native kinds', async () => {
+    const plans = readFileSync(adapters('native_commerce_read_sql.rs'), 'utf8');
+    for (const [kind, wire, marker] of [
+      ['RD_POLICY_PURCHASE_RECEIPT', 'commerce_rd_policy_purchase_receipt', "o.kind='purchase'"],
+      ['RD_POLICY_FULFILLMENT', 'commerce_rd_policy_fulfillment', 'NULL::text department_id,o.kind,f.version'],
+      ['RD_POLICY_PRODUCT', 'commerce_rd_policy_product', 'NULL::text branch_id,NULL::text department_id,version'],
+    ] as const) {
+      expect(plans).toContain(`pub const ${kind}: &str = "${wire}";`);
+      expect(plans).toContain(marker);
+      expect(plans).toContain(`kind: ${kind},`);
+      expect(readFileSync(adapters('native-commerce-read.ts'), 'utf8')).toContain(
+        `export const ${kind} = '${wire}';`,
+      );
+    }
+    expect(plans).toContain('fn policy_descriptor_reads_keep_their_exact_literals()');
+    const source = await readFile(adapters('attachments-policy-facts.ts'), 'utf8');
+    for (const sql of [
+      "SELECT o.company_id,o.branch_id,o.department_id,o.version FROM commerce_orders o WHERE o.id=? AND o.company_id=? AND o.kind='purchase'",
+      'SELECT o.company_id,o.branch_id,NULL::text department_id,o.kind,f.version FROM commerce_fulfillments f JOIN commerce_orders o ON o.id=f.order_id WHERE f.id=? AND o.company_id=?',
+      'SELECT company_id,NULL::text branch_id,NULL::text department_id,version FROM commerce_products WHERE id=? AND company_id=?',
+    ]) expect(source).not.toContain(sql);
+    expect(source).toContain('nativeCommerceReadFirst<{ company_id: string; branch_id: string | null; department_id: string | null; version: number; }>(RD_POLICY_PURCHASE_RECEIPT');
+    expect(source).toContain('(RD_POLICY_FULFILLMENT,[facts.targetId,facts.companyId],db)');
+    expect(source).toContain('(RD_POLICY_PRODUCT,[facts.targetId,facts.companyId],db)');
+    expect(source).toContain('commerceOrdersReadSql');
   });
 });

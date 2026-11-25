@@ -87,15 +87,15 @@ describe('Commerce read-tail r21 protected families and retirement', () => {
   test('aliased, state-bearing and warehouse/lock statements stay inline', () => {
     // Near-miss heads are deliberately not folded.
     expect(read(AF)).toContain('SELECT company_id,branch_id,department_id,version,state FROM commerce_orders');
-    expect(read(AP)).toContain('SELECT o.company_id,o.branch_id,o.department_id,o.version FROM commerce_orders o');
+    expect(read(AP)).toContain('(RD_POLICY_PURCHASE_RECEIPT,[facts.targetId,facts.companyId],db)');
     expect(read(AP)).toContain('FROM ${descriptor.table} WHERE id=? AND company_id=?${extra}');
     expect(read(SP)).toContain('COMMERCE_WAREHOUSE_IDENTITY_SQL');
     expect(read(PP)).toContain('COMMERCE_WAREHOUSE_IDENTITY_SQL');
     const plans = read('native_commerce_read_sql.rs');
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 53);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 56);');
   });
 
-  test('pins the owner TypeScript SELECT KPI at 364 (before 367)', () => {
+  test('pins the owner TypeScript SELECT KPI at 361 (before 364)', () => {
     const src = resolve(root, 'packages/server-commerce/src');
     let total = 0;
     const walk = (dir: string) => {
@@ -106,6 +106,6 @@ describe('Commerce read-tail r21 protected families and retirement', () => {
       }
     };
     walk(src);
-    expect(total).toBe(364);
+    expect(total).toBe(361);
   });
 });

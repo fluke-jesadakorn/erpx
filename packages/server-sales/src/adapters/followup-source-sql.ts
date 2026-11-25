@@ -1,5 +1,3 @@
-import { commercialOwnerProjectionSources as people_payrollProjectionSources } from "@erpx/server-people_payroll/public/commercial-owner-projection-sources";
-import {packageClockSql} from "@erpx/server-commercial/public/purchased-capability-sql";
 import {scopeTuple} from './read-tail-r29-sql';
 
 /** One byte-identical column-projection composer shared by the Sales-owned
@@ -13,6 +11,3 @@ export const actorScopeTuple=scopeTuple('actor');
  * fixed tokens composed by callers; no caller input enters the rendered
  * statement, so each call stays byte-identical to its original literal. */
 export const authorityScopeRead=(authority:string,tuple:string,relation:string,extra='')=>`SELECT ${authority}${extra} allowed FROM ${tuple} ${relation}`;
-export const clockNowMs=`SELECT ${packageClockSql} now_ms`;
-export const followupEvidencePrefix=`SELECT c.id,c.order_id,c.next_action,c.due_date,c.status,c.version,o.number order_number FROM `;
-export const followupMetricPrefix=`SELECT followup.*,actual.branch_id,actual.department_id,actual.kind order_kind`;

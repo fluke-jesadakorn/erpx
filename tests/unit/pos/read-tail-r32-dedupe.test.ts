@@ -34,7 +34,7 @@ describe('POS read-tail r32 hotel property native cutover', () => {
     expect(owner).toContain('crate::adapters::hotel_reads::FULFILLMENT_PROPERTY');
     expect(owner).toContain('crate::adapters::hotel_reads::supported(kind)');
     expect(owner).toContain('crate::adapters::hotel_reads::sql(kind)');
-    expect(owner).toContain('assert_eq!(KINDS.len(), 199)');
+    expect(owner).toContain('assert_eq!(KINDS.len(), 200)');
   });
 
   test('former inline literals are gone and both call sites delegate', () => {
@@ -66,7 +66,7 @@ describe('POS read-tail r32 hotel property native cutover', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(155);
+    expect(total).toBe(154);
     expect(total).toBeLessThan(191);
   });
 });

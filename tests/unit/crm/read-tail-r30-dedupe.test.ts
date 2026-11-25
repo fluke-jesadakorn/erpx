@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
+import { crmSelectBodySql } from '../../../packages/server-crm/src/adapters/read-tail-r46-sql';
 import { crmCurrentScopeAllowedSql } from '../../../packages/server-crm/src/adapters/read-tail-r30-sql';
 
 const owner = resolve(__dirname, '../../../packages/server-crm/src');
@@ -38,7 +39,7 @@ describe('crm read-tail r30 byte-identical read family', () => {
   test('owns the renderer once and composes it at both retired call sites', () => {
     const helper = src('read-tail-r30-sql.ts');
     expect(helper.match(/crmCurrentScopeAllowedSql =/g)).toHaveLength(1);
-    expect((helper.match(/SELECT /g) ?? []).length).toBe(1);
+    expect((helper.match(/SELECT /g) ?? []).length).toBe(0);
 
     expect(src('analytics-purchases.ts')).toContain("crmCurrentScopeAllowedSql(assignmentReadSql('report_scope',permission),actorScopeSql,'report_scope'");
     expect(src('metric-purchases.ts')).toContain('crmCurrentScopeAllowedSql(assignmentReadSql("crm_metric_scope","commerce.read"),actorScopeSql,"crm_metric_scope"');
@@ -66,8 +67,21 @@ describe('crm read-tail r30 byte-identical read family', () => {
     ] as const) expect(src(file)).toContain(token);
   });
 
-  test('retirement:ts-statements stays strictly below the r29 BEFORE=124 baseline', () => {
-    expect(totalSelects()).toBe(30);
-    expect(totalSelects()).toBeLessThan(124);
+  test.each([
+    [A, S, 'report_scope', ` ${MODULE}`],
+    [A, S, 'report_scope', ' '],
+    [A, S, 'crm_metric_scope', METRIC],
+  ])('the current-scope head folds into the owner select-body plan for %#', (assignment, scope, alias, tail) => {
+    expect(crmCurrentScopeAllowedSql(assignment, scope, alias, tail)).toBe(
+      crmSelectBodySql(`${assignment}${tail} allowed FROM ${scope} ${alias}`),
+    );
+    expect(crmCurrentScopeAllowedSql(assignment, scope, alias, tail)).toBe(
+      `SELECT ${assignment}${tail} allowed FROM ${scope} ${alias}`,
+    );
+  });
+
+  test('retirement:ts-statements folds the current-scope head (30 -> 29)', () => {
+    expect(totalSelects()).toBe(28);
+    expect(totalSelects()).toBeLessThan(30);
   });
 });

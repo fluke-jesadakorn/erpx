@@ -152,7 +152,7 @@ describe('crm read-tail r39 byte-identical head composition', () => {
   });
 
   test('retirement:ts-statements folds the clocked CTE head (32 -> 31)', () => {
-    expect(totalSelects()).toBe(30);
+    expect(totalSelects()).toBe(28);
     expect(totalSelects()).toBeLessThan(32);
   });
 });

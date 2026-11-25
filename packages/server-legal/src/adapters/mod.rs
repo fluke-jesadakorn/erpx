@@ -39,6 +39,7 @@ pub(crate) mod legal_http;
 pub(crate) mod legal_http_auxiliary;
 pub(crate) mod legal_integrations_sources;
 pub(crate) mod legal_operations_sources;
+pub(crate) mod legal_purchases_sources;
 pub(crate) mod legal_read_tail_r16;
 pub(crate) mod legal_read_tail_r25;
 pub(crate) mod legal_read_tail_r38;

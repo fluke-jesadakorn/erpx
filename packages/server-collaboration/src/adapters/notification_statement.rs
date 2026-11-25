@@ -610,6 +610,11 @@ pub fn plan_values_statement(
         "work_social_witness_participants" => " 'participants',(SELECT jsonb_agg(to_jsonb(member) ORDER BY member.post_id,member.user_id) FROM social_post_participants member JOIN posts p ON p.id=member.post_id),\n",
         "work_social_witness_teams" => " 'teams',(SELECT jsonb_agg(jsonb_build_object('team',to_jsonb(team),'members',(SELECT jsonb_agg(to_jsonb(member) ORDER BY member.user_id) FROM messaging_team_members member WHERE member.team_id=team.id)) ORDER BY team.id) FROM messaging_teams team WHERE team.company_id=? AND EXISTS(SELECT 1 FROM posts p WHERE p.audience_kind='team' AND p.audience_id=team.id)),\n ",
         "work_social_witness_sources" => " COALESCE((SELECT jsonb_agg(jsonb_build_object('kind',kind,'id',id) ORDER BY kind,id) FROM native_sources),'[]'::jsonb)::text sources",
+        // Private messaging attachment image. Owner owns the fixed SQL spans;
+        // the caller inserts only its registered member/team aggregates and
+        // binds the link, room and Company ids in the original order.
+        "messaging_attachment_image_head" => "SELECT jsonb_build_object('room',to_jsonb(r),'members',",
+        "messaging_attachment_files" => ",'file',(SELECT jsonb_agg(jsonb_build_object('file',to_jsonb(f),'message',(SELECT to_jsonb(msg) FROM messaging_messages msg WHERE msg.id=f.message_id AND msg.room_id=r.id)) ORDER BY f.id) FROM messaging_files f WHERE f.room_id=r.id AND f.attachment_link_id=?))::text image FROM messaging_rooms r WHERE r.id=? AND r.company_id=?",
         _ => return None,
     };
     Some(
@@ -1227,6 +1232,33 @@ mod tests {
             assert_eq!(planned.sql, sql, "{kind}");
             assert_eq!(planned.sql.matches('?').count(), binds, "{kind}");
         }
+    }
+
+    #[test]
+    fn messaging_attachment_image_fragments_are_owner_owned_bytes() {
+        let head = super::plan_values_statement(
+            "messaging_attachment_image_head",
+            &read_input("messaging_attachment_image_head", &[]),
+        )
+        .expect("registered kind")
+        .expect("planned statement");
+        assert_eq!(
+            head.sql,
+            "SELECT jsonb_build_object('room',to_jsonb(r),'members',"
+        );
+        let files = ["link-1", "room-1", "company-1"];
+        let planned = super::plan_values_statement(
+            "messaging_attachment_files",
+            &read_input("messaging_attachment_files", &files),
+        )
+        .expect("registered kind")
+        .expect("planned statement");
+        assert_eq!(
+            planned.sql,
+            ",'file',(SELECT jsonb_agg(jsonb_build_object('file',to_jsonb(f),'message',(SELECT to_jsonb(msg) FROM messaging_messages msg WHERE msg.id=f.message_id AND msg.room_id=r.id)) ORDER BY f.id) FROM messaging_files f WHERE f.room_id=r.id AND f.attachment_link_id=?))::text image FROM messaging_rooms r WHERE r.id=? AND r.company_id=?"
+        );
+        assert_eq!(planned.sql.matches('?').count(), 3);
+        assert_eq!(planned.values.len(), 3);
     }
 }
 

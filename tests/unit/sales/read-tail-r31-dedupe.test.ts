@@ -185,9 +185,9 @@ describe('Sales read-tail r31 retirement check', () => {
     const native = read('native-sales-read.ts');
     const rustRegistry = readFileSync(resolve(srcRoot, 'adapters/native_sales_read_sql.rs'), 'utf8');
     expect(source).toContain('export const authorityScopeRead=');
-    expect(source).toContain('export const clockNowMs=');
-    expect(source).toContain('export const followupEvidencePrefix=');
-    expect(source).toContain('export const followupMetricPrefix=');
+    expect(source).not.toContain('export const clockNowMs=');
+    expect(source).not.toContain('export const followupEvidencePrefix=');
+    expect(source).not.toContain('export const followupMetricPrefix=');
     expect(source).toContain("export const actorScopeTuple=scopeTuple('actor');");
     expect(pricingPurchases).toContain('authorityScopeRead(');
     expect(purchases).toContain('LOCK TABLE customer_followups,customer_followup_events IN SHARE ROW EXCLUSIVE MODE');
@@ -197,10 +197,10 @@ describe('Sales read-tail r31 retirement check', () => {
     expect(native).toContain('export const SALES_RD_PRICE_LIST_ITEMS_ACTIVE');
     expect(native).toContain('export const SALES_RD_NOTIFICATION_ATTEMPT');
     expect(native).toContain('export const SALES_RD_NOTIFICATION_RECONCILIATION_INSTALLED');
-    expect((rustRegistry.match(/pub const RD_\w+: &str =/g) ?? []).length).toBe(27);
+    expect((rustRegistry.match(/pub const RD_\w+: &str =/g) ?? []).length).toBe(30);
   });
 
-  test('retirement:ts-statements drops from 50 to 19', () => {
+  test('retirement:ts-statements drops from 50 to 16', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -214,7 +214,7 @@ describe('Sales read-tail r31 retirement check', () => {
     // r33: tail generator delegates to the primary generator (-1).
     // r34: pointRead delegates to the shared tableRead generator (-1).
     // r35: delivery-presence head shared by order/return/notice guards (-1).
-    expect(total).toBe(19);
+    expect(total).toBe(16);
     expect(total).toBeLessThan(50);
   });
 });

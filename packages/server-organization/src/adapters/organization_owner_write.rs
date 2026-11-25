@@ -185,6 +185,10 @@ pub const LEVEL_LEAVE_DEFAULT_INSERT: &str = "level_leave_default_insert";
 /// Native-owned staff-levels list for operations staff settings. SELECT-only,
 /// Company keyed over the org-owned `staff_levels` table; no lock.
 pub const STAFF_SETTINGS_LIST_LEVELS: &str = "staff_settings_list_levels";
+/// Native-owned department-head request-route fact. SELECT-only and Company +
+/// department keyed over the org-owned `department_heads`/`organization_nodes`
+/// tables; no lock.
+pub const STAFF_POLICY_REQUEST_ROUTE_HEAD: &str = "staff_policy_request_route_head";
 
 // -- presentation-reads (draft / company identity) ------------------------------
 /// Native-owned draft/presentation company-name read. Read-only and Company
@@ -366,6 +370,7 @@ pub const KINDS: &[&str] = &[
     POSITION_PAY_DEFAULT_INSERT,
     LEVEL_LEAVE_DEFAULT_INSERT,
     STAFF_SETTINGS_LIST_LEVELS,
+    STAFF_POLICY_REQUEST_ROUTE_HEAD,
     PRESENTATION_DRAFT_COMPANY_NAME,
     PRESENTATION_ACTIVE_COMPANY_IDENTITY,
     PRESENTATION_ACTIVE_COMPANY_SLUG,
@@ -673,6 +678,9 @@ fn sql(kind: &str) -> Option<&'static str> {
         }
         STAFF_SETTINGS_LIST_LEVELS => {
             "SELECT * FROM staff_levels WHERE company_id=? ORDER BY level_number ASC NULLS LAST,rank DESC,code"
+        }
+        STAFF_POLICY_REQUEST_ROUTE_HEAD => {
+            "SELECT h.person_id,h.version FROM department_heads h JOIN organization_nodes n ON n.id=h.department_id WHERE h.company_id=? AND h.department_id=? AND n.company_id=h.company_id AND n.status='active' AND n.kind='department'"
         }
         PRESENTATION_DRAFT_COMPANY_NAME => {
             "SELECT display_name FROM organization_nodes WHERE id=? AND company_id=?"
@@ -2019,6 +2027,41 @@ mod tests {
         assert!(owner_statement(
             STAFF_SETTINGS_LIST_LEVELS,
             &[Value::from("company"), Value::from("extra")],
+        )
+        .is_err());
+        let upper = statement.to_ascii_uppercase();
+        assert!(upper.starts_with("SELECT "));
+        assert!(!upper.contains(" INSERT ") && !upper.contains(" UPDATE ") && !upper.contains(" DELETE "));
+        assert!(!upper.contains(" FOR UPDATE ") && !upper.contains(" FOR SHARE ") && !upper.contains(" LOCK TABLE "));
+    }
+
+    #[test]
+    fn staff_policy_request_route_head_is_byte_identical_and_read_only() {
+        assert!(supported(STAFF_POLICY_REQUEST_ROUTE_HEAD));
+        const RETIRED: &str = "SELECT h.person_id,h.version FROM department_heads h JOIN organization_nodes n ON n.id=h.department_id WHERE h.company_id=? AND h.department_id=? AND n.company_id=h.company_id AND n.status='active' AND n.kind='department'";
+        assert_eq!(sql(STAFF_POLICY_REQUEST_ROUTE_HEAD).unwrap(), RETIRED);
+        let digest = {
+            use sha2::Digest;
+            let mut hasher = sha2::Sha256::new();
+            hasher.update(RETIRED.as_bytes());
+            format!("{:x}", hasher.finalize())
+        };
+        assert_eq!(
+            digest,
+            "03c113f88d99c3cfaa8ee4f03f8616f8a0a32df2f3efe037b31e5d57f104d250"
+        );
+        let (statement, values) = owner_statement(
+            STAFF_POLICY_REQUEST_ROUTE_HEAD,
+            &[Value::from("company"), Value::from("department")],
+        )
+        .expect("staff policy request route head statement");
+        assert_eq!(statement, RETIRED);
+        assert_eq!(values, vec![Value::from("company"), Value::from("department")]);
+        // Missing or extra positional values fail closed.
+        assert!(owner_statement(STAFF_POLICY_REQUEST_ROUTE_HEAD, &[Value::from("company")]).is_err());
+        assert!(owner_statement(
+            STAFF_POLICY_REQUEST_ROUTE_HEAD,
+            &[Value::from("company"), Value::from("department"), Value::from("extra")],
         )
         .is_err());
         let upper = statement.to_ascii_uppercase();

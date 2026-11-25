@@ -201,7 +201,7 @@ describe('native Legal package-obligation cutover', () => {
     expect(sources).toContain(' ORDER BY kind,id,fact');
   });
 
-  it('retirement:ts-statements is BEFORE=68 -> AFTER=60', async () => {
+  it('retirement:ts-statements is BEFORE=60 -> AFTER=52', async () => {
     const [adapter, client] = await Promise.all([
       readFile(
         new URL('../../../packages/server-legal/src/adapters/package-obligations.ts', import.meta.url),
@@ -227,7 +227,7 @@ describe('native Legal package-obligation cutover', () => {
       }
     };
     await walk(resolve(__dirname, '../../../packages/server-legal/src'));
-    expect(total).toBeLessThan(68);
-    expect(total).toBe(60);
+    expect(total).toBeLessThan(60);
+    expect(total).toBe(52);
   });
 });

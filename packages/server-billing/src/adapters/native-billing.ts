@@ -54,7 +54,7 @@ export type NativeBillingCommandInput = Readonly<{
  * `complete-costs` use the owner `require_cost_command` gate, which requires
  * the same platform `platform_admin` actor. `retry`, `approve-target-rollout`
  * `verify-statement`, `verify-provider-cost`, `record-operating-cost` and
- * `review-target-capacity` and `approve-target-extra` use `require_target_command`
+ * `review-target-capacity`, `approve-target-extra` and `rate-target` use `require_target_command`
  * (holding_owner): the Holding-host navigation
  * default sends a Platform reviewer to the target Holding host before dispatch,
  * preserving the retained authority.
@@ -196,6 +196,12 @@ export function nativeBillingCommandRequest(
           note: input.note,
           evidenceId: input.evidenceId,
         },
+      };
+    // RateBody is exactly {version, reason, targetMonth}.
+    case "rate-target":
+      return {
+        action: "rate-target",
+        body: { ...common, targetMonth: input.targetMonth },
       };
     default:
       return undefined;

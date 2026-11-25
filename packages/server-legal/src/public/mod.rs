@@ -118,6 +118,7 @@ pub mod legal_record_sources;
 pub mod legal_records;
 pub mod legal_integrations_sources;
 pub mod legal_operations_sources;
+pub mod legal_purchases_sources;
 pub mod legal_runtime_gate_sources;
 pub mod legal_service_sources;
 pub mod package_obligation_read;

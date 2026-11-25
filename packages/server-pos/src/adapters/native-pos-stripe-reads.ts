@@ -25,6 +25,7 @@ const CONNECTIONS_READY = 'pos_stripe_connections_ready';
 const SALE_NUMBER_BY_ID = 'pos_stripe_sale_number_by_id';
 const REFUND_PAYMENT_BY_REFUND = 'pos_stripe_refund_payment_by_refund';
 const SETTLEMENT_BY_JOURNAL = 'pos_stripe_settlement_by_journal';
+const JOBS_CONTEXT = 'pos_stripe_jobs_context';
 
 type Scope = {
   company_id: string | number | boolean | null;
@@ -76,6 +77,13 @@ export async function nativePosSettlementByJournalStatement<T = Record<string, u
   journalId: string,
 ): Promise<T | null> {
   return nativePosOne<T>(db, '', SETTLEMENT_BY_JOURNAL, [journalId]);
+}
+
+/** Catalog probe for the owned pos_jobs table used by the Stripe drain path. */
+export async function nativePosStripeJobsContextStatement<T = Record<string, unknown>>(
+  db: SqlDatabase,
+): Promise<T | null> {
+  return nativePosOne<T>(db, '', JOBS_CONTEXT, ['pos_jobs']);
 }
 
 /** Payment by id scoped to Stripe company/account/livemode. */

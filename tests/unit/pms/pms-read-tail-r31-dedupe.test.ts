@@ -76,7 +76,8 @@ describe('pms read-tail r31 closed-family dedupe', () => {
     // keeps only a strict transport call and no fragment SQL.
     expect(text.split('pmsSetupExistsSql').length - 1).toBe(0);
     expect(text).toContain('propertyReadinessFacts');
-    expect(text.split('PMS_RECORD_POINT_PREFIX_SQL').length - 1).toBe(2); // import + 1 use after r48
+    expect(text.split('PMS_RECORD_POINT_PREFIX_SQL').length - 1).toBe(0)
+    expect(text).toContain('PMS_RD_RECORD_DETAIL'); // import + 1 use after r48
     expect(text).not.toContain("EXISTS(SELECT 1 FROM pms_records WHERE property_id=? AND kind='room_type')");
     expect(text).not.toContain("EXISTS(SELECT 1 FROM pms_records WHERE property_id=? AND kind='stay')");
     expect(text).not.toContain('SELECT id,kind,data_json::jsonb data FROM pms_records WHERE property_id=? AND');
@@ -120,8 +121,8 @@ describe('pms read-tail r31 closed-family dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(207);
-    expect(bare).toBe(208);
+    expect(spaced).toBe(202);
+    expect(bare).toBe(203);
     expect(spaced).toBeLessThan(358);
     expect(bare).toBeLessThan(360);
   });

@@ -1,4 +1,5 @@
 import { finCustomerPartyIdSql } from './finance-read-tail-r58-sql';
+import { nativeFinanceReadAll, nativeFinanceReadFirst, FINANCE_RD_FIN_COMMAND_EXISTS, FINANCE_RD_FIN_CHART_ROW, FINANCE_RD_FIN_ACCOUNT_ROW, FINANCE_RD_FIN_ACCOUNT_BY_CODE, FINANCE_RD_FIN_JOURNAL_DEBIT, FINANCE_RD_FIN_JOURNAL_ROW, FINANCE_RD_FIN_JOURNAL_LINES, FINANCE_RD_FIN_OPEN_PERIOD } from './native-finance-read';
 import { bankMatchGuardSql, companyIdRowsSql } from './finance-read-tail-r56-sql';
 import { versionStatusGuardSql } from './finance-read-tail-r52-sql';
 import { columnByIdSql } from './finance-read-tail-r53-sql';
@@ -107,7 +108,7 @@ async function hash(value: unknown) {
     const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(value)));
     return Array.from(new Uint8Array(bytes), b => b.toString(16).padStart(2, "0")).join("");
 }
-async function priorCommand<Result=Record<string,unknown>>(write:SqlDatabase,actor:WorkContext,id:string,operation:string,input:unknown){return createFinancePrior<Result>({error:(...args)=>new ApiError(...args),receiptRecordId:async key=>(await financeCommandReceipts(write).record(key))?.record_id??null,legacyCommandExists:async key=>!!await write.prepare('SELECT 1 FROM finance_commands WHERE command_id=?').bind(key).first(),replay:async(actor,key,operation,id,input)=>replayCommand<Result>(write,actor,key,operation,id,input)})(actor,id,operation,input);}
+async function priorCommand<Result=Record<string,unknown>>(write:SqlDatabase,actor:WorkContext,id:string,operation:string,input:unknown){return createFinancePrior<Result>({error:(...args)=>new ApiError(...args),receiptRecordId:async key=>(await financeCommandReceipts(write).record(key))?.record_id??null,legacyCommandExists:async key=>!!await nativeFinanceReadFirst(FINANCE_RD_FIN_COMMAND_EXISTS, [key], write),replay:async(actor,key,operation,id,input)=>replayCommand<Result>(write,actor,key,operation,id,input)})(actor,id,operation,input);}
 async function saveCommand<Result extends Record<string,unknown>>(write: SqlDatabase, actor: WorkContext, id: string, operation: string, input: unknown, result: Result, statements: SqlStatement[]) {
     return executeCommand(write, actor, id, operation, input, String(result.id ?? result.chartId ?? id), Number(result.version ?? 1), result, statements);
 }
@@ -305,10 +306,10 @@ function configurationService(provided?: SqlDatabase,boundRequest?:unknown) {
         accountChart: async (facts) => {
             const { input, actor } = facts;
             const write = await db(actor);
-            return write.prepare("SELECT id,base_currency FROM finance_charts WHERE id=? AND company_id=?").bind(input.chartId, actor.companyId).first<{
+            return nativeFinanceReadFirst<{
                 id: string;
                 base_currency: string;
-            }>();
+            }>(FINANCE_RD_FIN_CHART_ROW, [input.chartId, actor.companyId], await db(actor));
         },
         commitCreateAccount: async (facts) => {
             const { accountId, input, actor, chart, now, id, result } = facts;
@@ -320,12 +321,12 @@ function configurationService(provided?: SqlDatabase,boundRequest?:unknown) {
         statusAccount: async (facts) => {
             const { accountId, chartId, actor } = facts;
             const write = await db(actor);
-            return write.prepare("SELECT id,status,version,is_control FROM finance_accounts WHERE id=? AND chart_id=? AND company_id=?").bind(accountId, chartId, actor.companyId).first<{
+            return nativeFinanceReadFirst<{
                 id: string;
                 status: string;
                 version: number;
                 is_control: number;
-            }>();
+            }>(FINANCE_RD_FIN_ACCOUNT_ROW, [accountId, chartId, actor.companyId], await db(actor));
         },
         draftAccountUsage: async (facts) => { const { accountId, actor } = facts; const write = await db(actor); return !!await write.prepare(JOURNAL_SELECT_PREFIX + "_lines l JOIN finance_journals j ON j.id=l.journal_id WHERE l.account_id=? AND j.company_id=? AND j.status='draft' LIMIT 1").bind(accountId, actor.companyId).first(); },
         openAccountUsage: async (facts) => { const { actor, accountId } = facts; const write = await db(actor); return !!await write.prepare("SELECT 1 FROM finance_invoices WHERE company_id=? AND outstanding_minor>0 AND status IN ('draft','posted','partially_paid') AND (debit_account_id=? OR credit_account_id=?) LIMIT 1").bind(actor.companyId, accountId, accountId).first(); },
@@ -355,7 +356,7 @@ function accountImportService(provided?: SqlDatabase) {
     const unused = "NOT EXISTS(SELECT 1 FROM finance_journal_lines WHERE account_id=?) AND NOT EXISTS(SELECT 1 FROM finance_invoices WHERE debit_account_id=? OR credit_account_id=? OR tax_account_id=?) AND NOT EXISTS(SELECT 1 FROM finance_invoice_line_versions WHERE account_id=? OR tax_account_id=?)";
     return createAccountImport({ error: (...args) => new ApiError(...args), authorize: requirePermission, ready: async (actor) => { await db(actor); }, now: Date.now, id: () => crypto.randomUUID(), prior: async (actor, key, input) => priorCommand(await db(actor), actor, key, 'finance.account.import', input), chart: async (actor, chartId) => (await db(actor)).prepare(CHART_BASE_CURRENCY_BY_ID_SQL).bind(chartId, actor.companyId).first<{
             base_currency: string;
-        }>(), existing: async (actor, chartId, code) => (await db(actor)).prepare('SELECT * FROM finance_accounts WHERE chart_id=? AND company_id=? AND code=?').bind(chartId, actor.companyId, code).first<FinanceRow>(), unused: async (id) => !!await (await pending!).prepare(`SELECT (${unused}) unused`).bind(id, id, id, id, id, id).first('unused'), commit: async ({ actor, key, input, plans, now }) => {
+        }>(), existing: async (actor, chartId, code) => nativeFinanceReadFirst<FinanceRow>(FINANCE_RD_FIN_ACCOUNT_BY_CODE, [chartId, actor.companyId, code], await db(actor)), unused: async (id) => !!await (await pending!).prepare(`SELECT (${unused}) unused`).bind(id, id, id, id, id, id).first('unused'), commit: async ({ actor, key, input, plans, now }) => {
             const write = await db(actor), chartId = input.chartId, pendingStatements: SqlStatement[] = [];
             for (const { id, index, row, existing, currency, controlKind, structuralChange } of plans) {
                 if (structuralChange && existing) {
@@ -388,15 +389,15 @@ async function journalPostStatements(write: SqlDatabase, actor: WorkContext, jou
     ];
 }
 function journalReviewService(db: SqlDatabase) {
-    return createJournalReview({ error: (...args) => new ApiError(...args), now: Date.now, debit: async (journalId) => db.prepare('SELECT COALESCE(SUM(debit_minor),0) AS amount FROM finance_journal_lines WHERE journal_id=?').bind(journalId).first<{
+    return createJournalReview({ error: (...args) => new ApiError(...args), now: Date.now, debit: async (journalId) => nativeFinanceReadFirst<{
             amount: number;
-        }>() });
+        }>(FINANCE_RD_FIN_JOURNAL_DEBIT, [journalId], db) });
 }
 
 function journalBatchService(provided?: SqlDatabase) {
     let pending: Promise<SqlDatabase> | undefined;
     const db = (actor: WorkContext) => pending ??= financeOwnedDatabase(actor, provided);
-    return createJournalBatch({ error: (...args) => new ApiError(...args), authorize: requirePermission, now: Date.now, digest: hash, ready: async (actor) => { await db(actor); }, replay: async (actor, key, operation, id, input) => {const database=await db(actor);for(const journal of (input as z.infer<typeof journalBatchSchema>).journals)await requireLegacyFinanceJournal(database,actor,journal.id);return replayCommand(database,actor,key,operation,id,input);}, journal: async (actor, id) => {const database=await db(actor);await requireLegacyFinanceJournal(database,actor,id);return database.prepare('SELECT * FROM finance_journals WHERE id=? AND company_id=?').bind(id, actor.companyId).first<FinanceRow>();}, lines: async (id) => (await (await pending!).prepare('SELECT id,account_id,debit_minor,credit_minor,base_debit_minor,base_credit_minor,dimension_json,ordinal FROM finance_journal_lines WHERE journal_id=? ORDER BY ordinal').bind(id).all<FinanceRow>()).results, preparePosting: async (actor, journal) => journalReviewService(await db(actor)).prepareJournalPost(actor, journal), commit: async ({ actor, input, id, batchId, plans, lineCount }) => {
+    return createJournalBatch({ error: (...args) => new ApiError(...args), authorize: requirePermission, now: Date.now, digest: hash, ready: async (actor) => { await db(actor); }, replay: async (actor, key, operation, id, input) => {const database=await db(actor);for(const journal of (input as z.infer<typeof journalBatchSchema>).journals)await requireLegacyFinanceJournal(database,actor,journal.id);return replayCommand(database,actor,key,operation,id,input);}, journal: async (actor, id) => {const database=await db(actor);await requireLegacyFinanceJournal(database,actor,id);return nativeFinanceReadFirst<FinanceRow>(FINANCE_RD_FIN_JOURNAL_ROW, [id, actor.companyId], await db(actor));}, lines: async (id) => (await nativeFinanceReadAll<FinanceRow>(FINANCE_RD_FIN_JOURNAL_LINES, [id], await pending!)).results, preparePosting: async (actor, journal) => journalReviewService(await db(actor)).prepareJournalPost(actor, journal), commit: async ({ actor, input, id, batchId, plans, lineCount }) => {
             const write = await db(actor);
             const steps: SqlStatement[] = [], posted = [] as Array<{
                 id: string;
@@ -624,7 +625,7 @@ function fxService(provided?: SqlDatabase) {
         workspaceCurrencies: async (facts) => { const { actor, period } = facts; const write = await db(actor); return (await write.prepare(`SELECT DISTINCT a.chart_id,c.name chart_name,c.base_currency,i.currency FROM finance_invoices i JOIN finance_accounts a ON a.id=CASE WHEN i.kind='receivable' THEN i.debit_account_id ELSE i.credit_account_id END JOIN finance_charts c ON c.id=a.chart_id WHERE i.company_id=? AND i.currency<>c.base_currency AND i.invoice_date<=? AND i.status IN ('posted','partially_paid') AND i.outstanding_minor>0 ORDER BY c.name,i.currency`).bind(actor.companyId, period.end_date).all<FinanceRow>()).results; },
         workspaceAccounts: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare("SELECT a.id,a.chart_id,a.code,a.name,a.category,a.currency FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id WHERE a.company_id=? AND a.status='active' AND a.currency=c.base_currency AND a.category IN ('other_income','other_expense') ORDER BY a.code").bind(actor.companyId).all<FinanceRow>()).results; },
         workspaceRuns: async (facts) => { const { actor, periodId } = facts; const write = await db(actor); return (await write.prepare("SELECT r.*,c.name chart_name FROM finance_fx_revaluation_runs r JOIN finance_charts c ON c.id=r.chart_id WHERE r.company_id=? AND r.period_id=? ORDER BY r.created_at DESC").bind(actor.companyId, periodId).all<FinanceRow>()).results; },
-        openPeriod: async (facts) => { const { input, actor } = facts; const write = await db(actor); return write.prepare("SELECT * FROM finance_periods WHERE id=? AND company_id=? AND state='open'").bind(input.periodId, actor.companyId).first<FinanceRow>(); },
+        openPeriod: async (facts) => { const { input, actor } = facts; const write = await db(actor); return nativeFinanceReadFirst<FinanceRow>(FINANCE_RD_FIN_OPEN_PERIOD, [input.periodId, actor.companyId], await db(actor)); },
         validAdjustmentAccounts: async (facts) => { const { actor, input, calculated } = facts; const write = await db(actor); return (await write.prepare(companyIdRowsSql('id,category','finance_accounts'," AND chart_id=? AND status='active' AND currency=? AND id IN (?,?)")).bind(actor.companyId, input.chartId, calculated.chart.base_currency, input.gainAccountId, input.lossAccountId).all<FinanceRow>()).results; },
         commitPreparation: async (facts) => {
             const { actor, key, input, output, runId, calculated, rates, now } = facts;

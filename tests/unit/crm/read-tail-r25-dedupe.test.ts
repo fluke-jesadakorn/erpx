@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
+import { crmSelectBodySql } from '../../../packages/server-crm/src/adapters/read-tail-r46-sql';
 import { crmPurchaseRowProjection } from '../../../packages/server-crm/src/adapters/read-tail-r25-sql';
 
 const owner = resolve(__dirname, '../../../packages/server-crm/src');
@@ -35,7 +36,7 @@ describe('crm read-tail r25 purchase row projection family', () => {
   test('owns the renderer once and composes it at the six retired constants', () => {
     const helper = src('read-tail-r25-sql.ts');
     expect(helper.match(/crmPurchaseRowProjection =/g)).toHaveLength(1);
-    expect((helper.match(/SELECT /g) ?? []).length).toBe(1);
+    expect((helper.match(/SELECT /g) ?? []).length).toBe(0);
     const purchases = src('purchases.ts');
     expect(purchases.match(/crmPurchaseRowProjection\(/g)).toHaveLength(6);
     for (const [name, args] of retired) {
@@ -59,7 +60,22 @@ describe('crm read-tail r25 purchase row projection family', () => {
     expect(policy).not.toMatch(/EXISTS\(\s*SELECT 1 FROM crm_leads lead/);
   });
 
-  test('retirement:ts-statements stays strictly below the r24 BEFORE=141 baseline', () => {
+  test.each([
+    ['account', 'NULL::text branch_id', 'NULL::text department_id'],
+    ['lead', 'lead.branch_id', 'lead.department_id'],
+    ['activity', 'lead.branch_id', 'lead.department_id'],
+    ['link', 'guest.branch_id', 'NULL::text department_id'],
+  ])('the purchase-row prefix folds into the owner select-body plan for %#', (alias, branch, department) => {
+    expect(crmPurchaseRowProjection(alias, branch, department)).toBe(
+      crmSelectBodySql(`${alias}.id,${alias}.company_id,${branch},${department},`),
+    );
+    expect(crmPurchaseRowProjection(alias, branch, department)).toBe(
+      `SELECT ${alias}.id,${alias}.company_id,${branch},${department},`,
+    );
+  });
+
+  test('retirement:ts-statements folds the purchase-row prefix (29 -> 28)', () => {
+    expect(totalSelects()).toBe(28);
     expect(totalSelects()).toBeLessThanOrEqual(99);
     expect(totalSelects()).toBeLessThan(141);
   });

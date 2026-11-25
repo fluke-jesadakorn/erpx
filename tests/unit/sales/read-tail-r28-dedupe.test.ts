@@ -77,7 +77,7 @@ describe('Sales read-tail r28 assignment-authority scope-read family', () => {
     expect(pricing).not.toMatch(/`SELECT \$\{assignmentReadSql\('pricing_scope'/);
     expect(purchases).not.toMatch(/`SELECT \$\{assignmentReadSql\('followup_authority'/);
     expect(metric).not.toMatch(/`SELECT \$\{assignmentReadSql\("sales_metric_scope"/);
-    const family = source.slice(source.indexOf('const authorityScopeRead='), source.indexOf('export const clockNowMs='));
+    const family = source.slice(source.indexOf('const authorityScopeRead='), source.length);
     expect((family.match(/SELECT/g) ?? []).length).toBe(1);
     expect(family).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
   });
@@ -108,7 +108,9 @@ describe('Sales read-tail r28 assignment-authority scope-read family', () => {
 
     expect(finalRoot).toMatch(/const tableRead\s*=/); // r15
     expect(source).toContain('export const actorScopeTuple='); // r12/r15
-    expect(source).toContain('export const clockNowMs='); // r7/r12
+    expect(source).not.toContain('export const clockNowMs=');
+    expect(source).not.toContain('export const followupEvidencePrefix=');
+    expect(source).not.toContain('export const followupMetricPrefix=');
     expect(purchases).toContain('const followupExists='); // r17
     expect(metric).toContain('SALES_RD_CRM_ASSIGNMENT_PLAIN'); // r11
     expect(byKey).toContain('export const byKey ='); // r19
@@ -129,7 +131,7 @@ describe('Sales read-tail r28 assignment-authority scope-read family', () => {
     expect(native).toContain('export const SALES_RD_PRICE_LIST_ITEMS_ACTIVE');
     expect(native).toContain('export const SALES_RD_NOTIFICATION_ATTEMPT');
     expect(native).toContain('export const SALES_RD_NOTIFICATION_RECONCILIATION_INSTALLED');
-    expect((rustRegistry.match(/pub const RD_\w+: &str =/g) ?? []).length).toBe(27);
+    expect((rustRegistry.match(/pub const RD_\w+: &str =/g) ?? []).length).toBe(30);
     expect((commercial.match(/SELECT/g) ?? []).length).toBe(0);
   });
 });
@@ -150,7 +152,7 @@ describe('Sales read-tail r28 retirement check', () => {
     // r30 shared tableRead (-3) and priceListSelect (-1).
     // r33 folds the tail generator into the primary read generator (-1).
     // r35: delivery-presence head shared by order/return/notice guards (-1).
-    expect(total).toBe(19);
+    expect(total).toBe(16);
     expect(total).toBeLessThan(58);
   });
 });

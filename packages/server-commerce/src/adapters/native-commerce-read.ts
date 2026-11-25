@@ -88,6 +88,17 @@ export const RD_EXEC_SALES_CANCELLATIONS_EVIDENCE = 'commerce_rd_exec_sales_canc
 export const RD_EXEC_SALES_CANCELLATION_VALUE_EVIDENCE = 'commerce_rd_exec_sales_cancellation_value_evidence';
 export const RD_EXEC_SALES_FULFILLMENT_EVIDENCE = 'commerce_rd_exec_sales_fulfillment_evidence';
 
+/** Owner kinds for the inline Inventory/executive projection fragments. */
+export const RD_PROJECTION_ORDER_LINES = 'commerce_rd_projection_order_lines';
+export const RD_PROJECTION_PRODUCTS = 'commerce_rd_projection_products';
+export const RD_PROJECTION_RETURN_LINES = 'commerce_rd_projection_return_lines';
+export const RD_PROJECTION_RETURN_LOT_ALLOCATIONS = 'commerce_rd_projection_return_lot_allocations';
+
+/** Allow-listed attachment policy descriptor reads. */
+export const RD_POLICY_PURCHASE_RECEIPT = 'commerce_rd_policy_purchase_receipt';
+export const RD_POLICY_FULFILLMENT = 'commerce_rd_policy_fulfillment';
+export const RD_POLICY_PRODUCT = 'commerce_rd_policy_product';
+
 /** Allow-listed warehouse-config read kinds resolved by the mounted owner command-plan route. */
 export const RD_WAREHOUSE_PAGE_ROWS = 'commerce_rd_warehouse_page_rows';
 export const RD_WAREHOUSE_MASTER_ROWS = 'commerce_rd_warehouse_master_rows';
