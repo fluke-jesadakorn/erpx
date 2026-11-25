@@ -20,7 +20,7 @@ import { createChangeLearningCourse, createChangeLearningAssignment, createLearn
 import type { LearningAssignment as Assignment } from "@erpx/server-learning/domain/learning";
 import {courseActionSchema,learningActionSchema} from "@erpx/server-learning/domain/learning";
 import {withLearningPurchasedCommand,withLearningPurchasedRead,requireLearningPurchasedRead,type LearningCapability} from "@erpx/server-learning/adapters/purchases";
-import {assignmentCourseReadHead,existsRowProbe,identitySourceRead,jsonbAggImageHead,learningCourseProjection,overdueEvidenceColumns} from "./learning-read-sql";
+import {assignmentCourseReadHead,existsRowProbe,identitySourceRead,imageChildFrame,jsonbAggImageHead,learningCourseProjection,overdueEvidenceColumns} from "./learning-read-sql";
 import {completionEvidenceColumns} from "./learning-completion-evidence";
 export type { LearningExecutiveEvidenceMetric } from "@erpx/server-learning/application/learning";
 const learnerEligible = `EXISTS(${existsRowProbe(`${identityaccessSources.learning_adapters_learning_assignments_x_from} ${peoplepayrollSources.learning_adapters_learning_hr_people_p_join} ON p.user_id=x.user_id AND p.company_id=x.company_id ${peoplepayrollSources.learning_adapters_learning_hr_engagements_e_join} ON e.person_id=p.id AND e.company_id=p.company_id`, `x.company_id=a.company_id AND x.user_id=a.learner_id AND iam_assignment_active(x.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(x.user_id,x.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (x.scope_kind='holding' OR (x.scope_kind='branch' AND x.scope_node_id=a.branch_id) OR (x.scope_kind='department' AND x.scope_node_id=a.department_id)) AND p.status='active' AND p.merged_into_id IS NULL AND e.status='active'`)})`;
@@ -49,7 +49,7 @@ function commandPorts(database: () => Promise<SqlDatabase>): LearningCommandPort
  * subquery framing and differ only by aggregate, source tail and output label.
  * One parameterized source replaces four inlined statements; r3/r4 helper files
  * and every lock statement stay untouched. */
-const assignmentChildImage = (aggregate: string, source: string, label: string) => `(SELECT ${aggregate} ${source}) ${label}`;
+const assignmentChildImage = (aggregate: string, source: string, label: string) => `${imageChildFrame(aggregate, source)} ${label}`;
 function assignmentWitness(actor:WorkContext,id:string){return async(write:SqlDatabase)=>{
  const row=await write.prepare(assignmentCourseReadHead(`a.course_id,a.course_version,c.company_id course_company,c.required_for,
  ${assignmentChildImage("jsonb_agg(to_jsonb(p)-'updated_at' ORDER BY p.id)", `${peoplepayrollSources.learning_adapters_learning_hr_people_p_from} WHERE p.company_id=a.company_id AND p.user_id=a.learner_id`, "people")},

@@ -73,7 +73,8 @@ describe('Learning read-tail r5 parameterized assignment-child family dedupe', (
   test('one parameterized source replaces the four inlined child-image statements', () => {
     const text = src('learning.ts');
     for (const literal of preChildImage) expect(text).not.toContain(literal);
-    expect(text).toContain('const assignmentChildImage = (aggregate: string, source: string, label: string) => `(SELECT ${aggregate} ${source}) ${label}`;');
+    // r19 delegates the r5 child frame to imageChildFrame; the rendered bytes are unchanged.
+    expect(text).toContain('const assignmentChildImage = (aggregate: string, source: string, label: string) => `${imageChildFrame(aggregate, source)} ${label}`;');
     expect(text.match(/assignmentChildImage\(/g) ?? []).toHaveLength(4);
   });
 

@@ -52,12 +52,12 @@ describe('Learning read-tail r18 learnerEligible existsRowProbe', () => {
 });
 
 describe('Learning read-tail r18 deferred families and invariants', () => {
-  test('r5/r6 helpers stay as written: R2/R3 are prior-round reuse, not retired here', () => {
+  test('r5/r6 helpers stay defined once; r19 delegates the r5 child frame to imageChildFrame', () => {
     expect(src('learning.ts').match(/const assignmentChildImage =/g) ?? []).toHaveLength(1);
     expect(src('executive-metric-projections.ts').match(/const orgNodeLabel =/g) ?? []).toHaveLength(1);
-    expect(src('learning.ts')).toContain('`(SELECT ${aggregate} ${source}) ${label}`');
+    expect(src('learning.ts')).toContain('`${imageChildFrame(aggregate, source)} ${label}`');
     expect(src('executive-metric-projections.ts')).toContain('COALESCE((SELECT n.display_name');
-    expect(src('learning.ts')).not.toContain('imageChildFrame(');
+    expect(src('learning.ts').match(/imageChildFrame\(/g) ?? []).toHaveLength(1);
     expect(src('executive-metric-projections.ts')).not.toContain('scopeRow(');
   });
 
@@ -91,7 +91,7 @@ describe('Learning read-tail r18 deferred families and invariants', () => {
     expect(locks).toBe(7);
   });
 
-  test('retirement:ts-statements is strictly lower than the r18 BEFORE=39 baseline', () => {
+  test('retirement:ts-statements is strictly lower than the r18 BEFORE=39 baseline (r19 pins 37)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -102,8 +102,8 @@ describe('Learning read-tail r18 deferred families and invariants', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(39);
-    expect(total).toBe(38);
-    expect(selectCount(src('learning.ts'))).toBe(1);
+    expect(total).toBe(37);
+    expect(selectCount(src('learning.ts'))).toBe(0);
     expect(selectCount(src('learning-read-sql.ts'))).toBe(35);
     expect(selectCount(src('executive-metric-projections.ts'))).toBe(1);
     expect(selectCount(src('learning-completion-evidence.ts'))).toBe(1);
