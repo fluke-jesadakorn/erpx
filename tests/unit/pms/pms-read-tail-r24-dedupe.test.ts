@@ -53,7 +53,7 @@ describe('pms read-tail r24 byte-identical pms_records projection prefix dedupe'
   it('lowers the pms owner SELECT KPI strictly below the r23 after=435 baseline', async () => {
     let count = 0;
     for (const file of await tsFiles(dir)) count += (await readFile(file, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(242);
+    expect(count).toBe(241);
     expect(count).toBeLessThan(435);
   });
 });

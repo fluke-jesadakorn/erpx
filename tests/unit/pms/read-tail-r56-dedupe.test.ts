@@ -112,8 +112,8 @@ describe('pms read-tail r56 owner-local count-head dedupe', () => {
       spaced += count(text, 'SELECT ');
       bare += count(text, 'SELECT');
     }
-    expect(spaced).toBe(242);
-    expect(bare).toBe(244);
+    expect(spaced).toBe(241);
+    expect(bare).toBe(243);
     expect(spaced).toBeLessThan(243);
     expect(bare).toBeLessThan(245);
   });

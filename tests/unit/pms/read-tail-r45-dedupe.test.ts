@@ -183,7 +183,7 @@ describe('pms read-tail r45 relation-arm, point-head and join-anchor dedupe', ()
     const r1 = shared.slice(shared.indexOf('/** Rank 1'), shared.indexOf('/** Rank 2'));
     const r2 = shared.slice(shared.indexOf('/** Rank 2'), shared.indexOf('/** Rank 3'));
     const r3 = shared.slice(shared.indexOf('/** Rank 3'));
-    expect(r1.split('SELECT ').length - 1).toBe(9);
+    expect(r1.split('SELECT ').length - 1).toBe(7);
     expect(r2.split('SELECT ').length - 1).toBe(2);
     expect(r3.split('SELECT ').length - 1).toBe(5);
     let a = 0, p = 0, j = 0;
@@ -217,8 +217,8 @@ describe('pms read-tail r45 relation-arm, point-head and join-anchor dedupe', ()
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(242);
-    expect(bare).toBe(244);
+    expect(spaced).toBe(241);
+    expect(bare).toBe(243);
     expect(spaced).toBeLessThan(292);
     expect(bare).toBeLessThan(294);
   });

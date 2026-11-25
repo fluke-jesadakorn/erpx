@@ -2,7 +2,9 @@
  * Text only: every consumer keeps its own suffix, binds, result type and
  * transaction; nothing is cached or executed here. Variants come from closed
  * unions owned by this module, never caller SQL. Locking reads, feature/native
- * reads and the r17-r44 fragments stay untouched. */
+ * reads and the r17-r44 fragments stay untouched. r57 routes the shared
+ * reservation-id arm head through the owner-local renderer. */
+import { PMS_RESERVATION_ID_ARM_HEAD_SQL } from './pms-read-tail-r57-sql';
 
 /** Rank 1: reservation relation arms. CTEs and fields come from a closed arm
  * union; call sites keep the UNION order and their own binds (zero per arm). */
@@ -18,12 +20,12 @@ type RelationArm =
   | 'guestIdChosen';
 const RELATION_ARM: Record<RelationArm, string> = {
   chosenReservationId: "SELECT id FROM chosen WHERE kind='reservation'",
-  reservationIdChosen: "SELECT data->>'reservationId' FROM chosen",
+  reservationIdChosen: `${PMS_RESERVATION_ID_ARM_HEAD_SQL}FROM chosen`,
   selectedGuestAccountId: "SELECT id FROM selected WHERE kind='guest_account'",
   chosenId: 'SELECT id FROM chosen',
   staysId: 'SELECT id FROM stays',
   guestAccountsId: 'SELECT id FROM guestAccounts',
-  reservationIdStays: "SELECT data->>'reservationId' FROM stays",
+  reservationIdStays: `${PMS_RESERVATION_ID_ARM_HEAD_SQL}FROM stays`,
   guestIdStays: "SELECT data->>'guestId' FROM stays",
   guestIdChosen: "SELECT data->>'guestId' FROM chosen",
 };
