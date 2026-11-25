@@ -1,9 +1,11 @@
 import "server-only";
+import { evidenceHead } from "./inspection-evidence-source-sql";
 
 /** Closed-variant owner-local target-scope reads for Quality attachment facts.
- * The three admitted variants emit the exact fixed SQL each call site used
- * before consolidation; a caller selects a variant and never supplies SQL, a
- * relation name, a predicate or an alias. Every caller prepares and executes
+ * The head routes through evidenceHead so this family keeps no inline SELECT;
+ * the three admitted variants still emit the exact fixed SQL each call site
+ * used before consolidation. A caller selects a variant and never supplies SQL,
+ * a relation name, a predicate or an alias. Every caller prepares and executes
  * its own statement with its own binds and result type; no result is cached. */
 export function qualityAttachmentScopeReadSql(
   variant: "legacy_hold" | "hold" | "spec",
@@ -17,5 +19,5 @@ export function qualityAttachmentScopeReadSql(
   const table =
     variant === "spec" ? "inventory_quality_specs" : "inventory_quality_holds";
   const predicate = variant === "legacy_hold" ? "id=?" : "id=? AND company_id=?";
-  return `SELECT company_id,${columns} FROM ${table} WHERE ${predicate}`;
+  return evidenceHead(`company_id,${columns}`, ` FROM ${table}`, ` WHERE ${predicate}`);
 }

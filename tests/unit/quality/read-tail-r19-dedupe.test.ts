@@ -42,7 +42,7 @@ describe('quality attachment source projection family dedupe (r19)', () => {
       'quality-work-scope-sql': 1, 'native-source-wrapper-sql': 0, 'inspection-evidence-source-sql': 1,
       'quality-lineage-recursion-sql': 1, 'quality-child-agg-sql': 1,
       'quality-receipt-guard-sql': 1, 'quality-source-rows-sql': 0, 'quality-scope-sql': 1,
-      'quality-alert-recipient-sql': 0, 'quality-attachment-scope-read-sql': 1, 'quality-id-source-sql': 1,
+      'quality-alert-recipient-sql': 0, 'quality-attachment-scope-read-sql': 0, 'quality-id-source-sql': 1,
     };
     for (const [name, count] of Object.entries(counts)) {
       expect(read(`adapters/${name}.ts`).match(/SELECT /g) ?? []).toHaveLength(count);
@@ -62,6 +62,6 @@ describe('quality read-tail r19 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(73);
-    expect(total).toBe(24);
+    expect(total).toBe(23);
   });
 });

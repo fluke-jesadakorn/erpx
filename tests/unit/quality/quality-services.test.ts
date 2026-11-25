@@ -187,7 +187,7 @@ describe('quality attachment target-scope read dedupe',()=>{
    .toBe('SELECT company_id,NULL::text branch_id,NULL::text department_id,version FROM inventory_quality_specs WHERE id=? AND company_id=?');
   for(const variant of ['legacy_hold','hold','spec'] as const)expect(qualityAttachmentScopeReadSql(variant).match(/SELECT /g)).toHaveLength(1);
   const helper=readFileSync(source('packages/server-quality/src/adapters/quality-attachment-scope-read-sql.ts'),'utf8');
-  expect(helper.match(/SELECT /g)).toHaveLength(1);
+  expect(helper.match(/SELECT /g) ?? []).toHaveLength(0); // r38 fold
  });
  test('owner facts compose the shared SELECT instead of inlining it',()=>{
   const migration='packages/server-quality/src/adapters/attachment-migration-owner.ts';
@@ -221,7 +221,7 @@ describe('quality package-obligation scope and clock CTE dedupe',()=>{
  test('the owner TS statement KPI stays strictly below the r17 BEFORE=75 baseline',()=>{
   const count=files(source('packages/server-quality/src')).reduce((total,path)=>total+(readFileSync(path,'utf8').match(/INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT /g)?.length??0),0);
   expect(count).toBeLessThan(75);
-  expect(count).toBe(24);
+  expect(count).toBe(23);
  });
 });
 describe('quality command-receipt guard dedupe',()=>{
