@@ -116,9 +116,12 @@ describe('pms read-tail r37 payment-id head dedupe', () => {
     expect(pos.split(BOOKING).length - 1).toBe(0);
   });
 
-  it('keeps the r29 fragment, locks and the native read registry untouched', async () => {
-    // The r29 parameterized booking head fragment stays inline at its caller.
-    expect(await src('adapters/pms-read-tail-r29-sql.ts')).toContain('SELECT id FROM pms_booking_payments WHERE ${column}=?');
+  it('routes the r29 probe through the shared head and keeps locks/native registry untouched', async () => {
+    // r54 folds the byte-identical booking head into this owner-local renderer.
+    const r29 = await src('adapters/pms-read-tail-r29-sql.ts');
+    expect(r29).toContain("import { PMS_BOOKING_PAYMENT_ID_HEAD_SQL } from './pms-read-tail-r37-sql'");
+    expect(r29.split('PMS_BOOKING_PAYMENT_ID_HEAD_SQL').length - 1).toBe(2); // import + 1 use
+    expect(r29.split(BOOKING).length - 1).toBe(0);
     const stripe = await src('adapters/pms-stripe.ts');
     expect(stripe).toContain("'SELECT * FROM pms_stripe_payments WHERE id=? FOR UPDATE'");
     expect(stripe).toContain("'SELECT * FROM pms_stripe_payments WHERE id=? AND company_id=? FOR UPDATE'");
@@ -141,8 +144,8 @@ describe('pms read-tail r37 payment-id head dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(245);
-    expect(bare).toBe(247);
+    expect(spaced).toBe(244);
+    expect(bare).toBe(246);
     expect(spaced).toBeLessThan(328);
   });
 });

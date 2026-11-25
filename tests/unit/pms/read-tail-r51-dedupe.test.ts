@@ -153,8 +153,8 @@ describe('pms read-tail r51 executive metric label head dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(245);
-    expect(bare).toBe(247);
+    expect(spaced).toBe(244);
+    expect(bare).toBe(246);
     expect(spaced).toBeLessThan(252);
     expect(bare).toBeLessThan(254);
   });
