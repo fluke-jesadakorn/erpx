@@ -214,9 +214,11 @@ describe('Marketing owner-local campaign read tail', () => {
 
     const candidatePredicate = 'SELECT c.id,c.contact_name,c.status,c.form_version,c.version,c.created_at,c.updated_at,c.branch_id,c.department_id,f.name form_name';
     const eventPredicate = 'SELECT e.id,e.candidate_id,e.event_type,e.channel,e.version event_version,e.created_at,c.contact_name,c.status candidate_status,c.version candidate_version,c.branch_id,c.department_id,f.name form_name';
-    // r42 merges both tails into one closed-variant builder: one SELECT token
-    // and one asset join; the two projections stay owner-local column lists.
-    expect(helper.match(/SELECT/g)).toHaveLength(1);
+    // r42 merges both tails into one closed-variant builder; r47 folds its
+    // SELECT head into the shared renderer. One asset join and the two
+    // owner-local column lists remain.
+    expect(helper.match(/SELECT/g)).toBeNull();
+    expect(helper).toContain('marketingSelectHeadSql(');
     expect(helper.match(/ JOIN marketing_assets f ON f.id=c.form_id AND f.company_id=c.company_id/g)).toHaveLength(1);
     expect(helper).toContain('export function marketingEvidenceCandidateRows');
     expect(helper).toContain('export function marketingEvidenceEventRows');
@@ -261,13 +263,16 @@ describe('Marketing owner-local campaign read tail', () => {
 
     const projection = 'SELECT cost.*,NULL::text branch_id,NULL::text department_id FROM ${source}';
     // r39 moves the single projection token into the shared NULL-scope head;
-    // the cost wrapper delegates with its admitted projection and never emits
-    // a second token or smuggles one into a comment.
+    // r47 folds that head into marketingSelectHeadSql. The cost wrapper still
+    // delegates with its admitted projection and never smuggles a token into a
+    // comment.
     expect(helper.match(/SELECT/g)).toBeNull();
     expect(helper).toContain('export const marketingAnalyticsCostRows');
     expect(helper).toContain("marketingAnalyticsRowsSql('cost.*', source)");
-    expect(head.match(/SELECT/g)).toHaveLength(1);
-    expect(head).toContain('NULL::text branch_id,NULL::text department_id FROM ${source}');
+    expect(head.match(/SELECT/g)).toBeNull();
+    expect(head).toContain('marketingSelectHeadSql(');
+    expect(head).toContain('NULL::text branch_id,NULL::text department_id`');
+    expect(head).toContain('` FROM ${source}`');
 
     expect(analytics).toContain('import {marketingAnalyticsCostRows} from \'./analytics-cost-rows\'');
     expect(analytics).not.toContain('SELECT cost.*,NULL::text branch_id,NULL::text department_id FROM marketing_campaign_costs');

@@ -1,4 +1,5 @@
 import "server-only";
+import { marketingSelectHeadSql } from "./select-head-sql";
 
 /** Owner-local fixed NULL-scope analytics row frame (r39). The campaign
  * projection (enforced and legacy) and the campaign-cost projection share one
@@ -7,5 +8,8 @@ import "server-only";
  * for byte. No caller-authored query text crosses this boundary. FOR SHARE
  * locks, settlement command_receipts and native read ports stay untouched. */
 export function marketingAnalyticsRowsSql(projection: string, source: string): string {
-  return `SELECT ${projection},NULL::text branch_id,NULL::text department_id FROM ${source}`;
+  return marketingSelectHeadSql(
+    `${projection},NULL::text branch_id,NULL::text department_id`,
+    ` FROM ${source}`,
+  );
 }

@@ -67,9 +67,10 @@ describe('marketing evidence-row tail merge (r42)', () => {
     expect(marketingEvidenceEventRows('s')).toContain('marketing_engagement_events e JOIN s c ON c.id=e.candidate_id');
   });
 
-  it('keeps one SELECT token and one asset join in the head AST with two delegating exports', async () => {
+  it('keeps one SELECT token in the shared renderer and one asset join in the folded head AST', async () => {
     const head = await src('executive-evidence-rows.ts');
-    expect(selectTokens(head)).toBe(1);
+    expect(selectTokens(head)).toBe(0);
+    expect(head).toContain('marketingSelectHeadSql(');
     expect(head.match(/ JOIN marketing_assets f ON f.id=c.form_id AND f.company_id=c.company_id/g)).toHaveLength(1);
 
     const file = ts.createSourceFile('executive-evidence-rows.ts', head, ts.ScriptTarget.Latest, true);
@@ -88,7 +89,8 @@ describe('marketing evidence-row tail merge (r42)', () => {
         ts.isFunctionDeclaration(node) && node.name?.text === 'evidenceRows',
     );
     expect(builders).toHaveLength(1);
-    expect(selectTokens(builders[0]!.getText(file))).toBe(1);
+    expect(selectTokens(builders[0]!.getText(file))).toBe(0);
+    expect(builders[0]!.getText(file)).toContain('marketingSelectHeadSql(');
 
     const exports = file.statements.filter(
       (node): node is ts.FunctionDeclaration =>
@@ -144,8 +146,8 @@ describe('marketing evidence-row tail merge (r42)', () => {
     expect(await src('marketing.ts')).toContain('from "./native-marketing-read"');
   });
 
-  it('confirms the owner KPI of 32 from the AST after the 36 -> 34 r45 drop and 34 -> 32 r46 fold', async () => {
-    expect(await ownerSelectTokens()).toBe(32);
-    expect(await ownerSelectTokens()).toBeLessThan(36);
+  it('confirms the owner KPI of 29 from the AST after the 36 -> 34 r45 drop, 34 -> 32 r46 fold and 32 -> 29 r47 fold', async () => {
+    expect(await ownerSelectTokens()).toBe(29);
+    expect(await ownerSelectTokens()).toBeLessThan(32);
   });
 });

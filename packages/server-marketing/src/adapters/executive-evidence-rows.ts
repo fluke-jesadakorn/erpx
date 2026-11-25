@@ -1,4 +1,5 @@
 import 'server-only';
+import { marketingSelectHeadSql } from './select-head-sql';
 
 /** Owner-local fixed evidence row projections shared by the executive evidence
  * search and the workspace detail reader. The caller supplies the candidate
@@ -22,8 +23,11 @@ const evidenceFrom: Record<EvidenceVariant, (candidateSource: string) => string>
 const assetJoin = ' JOIN marketing_assets f ON f.id=c.form_id AND f.company_id=c.company_id';
 
 function evidenceRows(variant: EvidenceVariant, candidateSource: string): string {
-  return `SELECT ${evidenceProjection[variant]}
-      FROM ${evidenceFrom[variant](candidateSource)}${assetJoin}`;
+  return marketingSelectHeadSql(
+    evidenceProjection[variant],
+    `
+      FROM ${evidenceFrom[variant](candidateSource)}${assetJoin}`,
+  );
 }
 
 export function marketingEvidenceCandidateRows(candidateSource: string): string {

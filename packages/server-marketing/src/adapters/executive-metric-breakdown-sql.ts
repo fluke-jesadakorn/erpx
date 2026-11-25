@@ -1,4 +1,5 @@
 import "server-only";
+import { marketingSelectHeadSql } from "./select-head-sql";
 
 /** Closed-variant owner-local executive metric breakdown projection. The
  * candidate and engagement executive readers share one fixed projection frame;
@@ -15,5 +16,8 @@ export function marketingMetricBreakdownSql(
     variant === "candidates"
       ? `(${purchased}) c WHERE ${scope}`
       : `marketing_engagement_events e JOIN (${purchased}) c ON c.id=e.candidate_id WHERE ${scope} AND e.created_at>=? AND e.created_at<?`;
-  return `SELECT ${label} label,count(*)::text value FROM ${source} GROUP BY 1 ORDER BY 1`;
+  return marketingSelectHeadSql(
+    `${label} label,count(*)::text value`,
+    ` FROM ${source} GROUP BY 1 ORDER BY 1`,
+  );
 }

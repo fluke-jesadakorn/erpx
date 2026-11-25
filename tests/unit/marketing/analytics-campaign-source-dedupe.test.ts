@@ -23,10 +23,11 @@ describe('marketing analytics campaign projection dedupe', () => {
     const head = await readFile(adapter('analytics-null-scope-rows.ts'), 'utf8');
     const source = await readFile(adapter('analytics-sources.ts'), 'utf8');
     // r39 routes both the campaign and the campaign-cost projections through
-    // one NULL-scope head; each wrapper is now a pure delegator.
+    // one NULL-scope head; r47 folds that head into the shared renderer.
     expect(helper.match(/SELECT /g)).toBeNull();
     expect(helper).toContain('marketingAnalyticsRowsSql(projection, `marketing_campaigns${alias}`)');
-    expect(head.match(/SELECT /g)).toHaveLength(1);
+    expect(head.match(/SELECT /g)).toBeNull();
+    expect(head).toContain('marketingSelectHeadSql(');
     expect(source).not.toContain(enforced);
     expect(source).not.toContain(legacy);
     expect(source).toContain('campaign:marketingAnalyticsCampaignSql(true)');

@@ -40,10 +40,11 @@ describe('marketing NULL-scope analytics row-frame dedupe (r39)', () => {
     );
   });
 
-  it('keeps one statement token in the head and none in the two wrappers', async () => {
+  it('keeps one statement token in the shared renderer and none in the three wrappers', async () => {
     const head = await src('analytics-null-scope-rows.ts');
-    expect(head.match(/SELECT /g)).toHaveLength(1);
-    expect(head.match(/NULL::text branch_id,NULL::text department_id FROM/g)).toHaveLength(1);
+    expect(head.match(/SELECT /g)).toBeNull();
+    expect(head).toContain('marketingSelectHeadSql(');
+    expect(head.match(/NULL::text branch_id,NULL::text department_id/g)).toHaveLength(1);
     expect(head.match(/FROM \$\{source\}/g)).toHaveLength(1);
 
     for (const name of ['analytics-campaign-source-sql.ts', 'analytics-cost-rows.ts']) {
@@ -86,11 +87,12 @@ describe('marketing NULL-scope analytics row-frame dedupe (r39)', () => {
     expect(await src('marketing.ts')).toContain('from "./native-marketing-read"');
   });
 
-  it('retirement:ts-statements KPI is 34 (strictly below BEFORE=55)', async () => {
+  it('retirement:ts-statements KPI is 29 (strictly below BEFORE=55)', async () => {
     // r42 merged the evidence-row tail (49 -> 48); r43 retires six source-row
     // guards, three actor-scope guards and one union frame (48 -> 38); r44
     // retires the EXISTS and point-existence heads (38 -> 36); r45 folds the
-    // three read-tail heads into one renderer (36 -> 34).
-    expect(await selectTokens()).toBe(32);
+    // three read-tail heads into one renderer (36 -> 34); r46 folds two
+    // byte-identical head pairs (34 -> 32); r47 folds three plain heads (32 -> 29).
+    expect(await selectTokens()).toBe(29);
   });
 });

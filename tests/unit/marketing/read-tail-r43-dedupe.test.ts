@@ -199,8 +199,8 @@ describe('marketing read-tail r43 dedupe', () => {
     expect(await src('native-marketing-read.ts')).toContain('export');
   });
 
-  it('pins the owner SELECT KPI to 32 (BEFORE=36)', async () => {
-    expect(await ownerSelectTokens()).toBe(32);
-    expect(await ownerSelectTokens()).toBeLessThan(36);
+  it('pins the owner SELECT KPI to 29 (BEFORE=36)', async () => {
+    expect(await ownerSelectTokens()).toBe(29);
+    expect(await ownerSelectTokens()).toBeLessThan(32);
   });
 });

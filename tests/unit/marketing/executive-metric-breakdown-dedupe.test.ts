@@ -21,10 +21,11 @@ describe('marketing executive metric breakdown dedupe', () => {
     expect(marketingMetricBreakdownSql('engagements', purchased, label, scope)).toBe(engagements);
   });
 
-  it('keeps one query token in the helper and no inline breakdown literal in the consumer', async () => {
+  it('keeps one query token in the shared renderer and no inline breakdown literal in the consumer', async () => {
     const helper = await readFile(adapter('executive-metric-breakdown-sql.ts'), 'utf8');
     const source = await readFile(adapter('executive-metric-projections.ts'), 'utf8');
-    expect(helper.match(/SELECT /g)).toHaveLength(1);
+    expect(helper.match(/SELECT /g)).toBeNull();
+    expect(helper).toContain('marketingSelectHeadSql(');
     expect(source).not.toContain('label,count(*)::text value FROM (');
     expect(source).not.toContain('label,count(*)::text value FROM marketing_engagement_events');
     expect(source).toContain("marketingMetricBreakdownSql('candidates', purchased.sql, label, scopedAlias('c'))");
