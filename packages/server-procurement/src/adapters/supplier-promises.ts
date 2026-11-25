@@ -21,6 +21,7 @@ import {createSupplierPromiseApplication,type SupplierPromisePorts,type PromiseM
 import type {PromiseRow as Row} from "@erpx/server-procurement/domain/supplier-promises";
 import {procurementPurchaseAccess,requireProcurementPurchasedRead,withProcurementPurchasedCommand} from "@erpx/server-procurement/adapters/purchases";
 import {branchDepartmentScope} from './read-tail-sql';
+import {sourceImage} from './read-tail-r31';
 import {eligiblePurchaseCount} from './read-tail-r24';
 import {openPromiseByOrder} from './read-tail-r41';
 import {supplierDetailSelect} from './read-tail-r48';
@@ -32,7 +33,11 @@ function application(a:WorkContext,provided?:SqlDatabase){
  let resource:Promise<SqlDatabase>|null=null;const database=()=>provided?Promise.resolve(provided):resource??=holdingResources(a.holdingId).then(x=>x.write);
  const ports:SupplierPromisePorts<Evidence>={canRead:hasPermission(a,"commerce.read"),canPurchase:hasPermission(a,"commerce.purchase"),clock:{now:()=>Date.now()},
  async authorizeRead(){requirePermission(a,"commerce.read");},async authorizePurchase(){requirePermission(a,"commerce.purchase");},
- order:async(id)=>{return (await database()).prepare(`SELECT o.*,p.name supplier_name FROM (${commercePlatformSources.commerce_orders}) o JOIN (${financePlatformSources.finance_parties}) p ON p.id=o.party_id WHERE o.id=? AND o.kind='purchase' AND ${scope}`).bind(id,...scopeArgs(a)).first<Row>();},sourceLines:async(id)=>(await getOrder(a,id,provided)).lines,
+ order:async(id)=>{return (await database()).prepare(sourceImage(
+    "o.*,p.name supplier_name",
+    `(${commercePlatformSources.commerce_orders}) o JOIN (${financePlatformSources.finance_parties}) p ON p.id=o.party_id`,
+    `o.id=? AND o.kind='purchase' AND ${scope}`,
+  )).bind(id,...scopeArgs(a)).first<Row>();},sourceLines:async(id)=>(await getOrder(a,id,provided)).lines,
  detail:async(id)=>{const write=await database();const [lines,history,schedule]=await Promise.all([
  write.prepare(supplierDetailSelect("l.*,p.sku", `(${commercePlatformSources.commerce_order_lines}) l JOIN (${commercePlatformSources.commerce_products}) p ON p.id=l.product_id WHERE l.order_id=? ORDER BY l.ordinal`)).bind(id).all<Row>(),
  nativeProcurementReadAll<Row>(PROCUREMENT_RD_PROMISE_HISTORY_BY_ORDER,[id],write),

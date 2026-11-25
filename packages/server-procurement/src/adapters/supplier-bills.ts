@@ -29,6 +29,7 @@ import {BusinessRuleError} from "@erpx/server-shared/index";
 import {createSupplierBillApplication,type BillPorts,type BillMutation} from "@erpx/server-procurement/application/supplier-bills";
 import type {BillRow as Row} from "@erpx/server-procurement/domain/supplier-bills";
 import {branchDepartmentScope,orderedRead} from './read-tail-sql';
+import {sourceImage} from './read-tail-r31';
 import {receiptCount,expenseAccountBy} from './read-tail-r20';
 import {eligiblePurchaseCount,memberScopeExclusion} from './read-tail-r24';
 import {fulfillmentLinesBy} from './read-tail-r26';
@@ -126,9 +127,17 @@ ${billMatchProjection(`
     : null;
 return {lines:lines.results,receipts:receipts.results,events:events.results,accounts:accounts.results,invoicingUserId:flow?.steps.find(step=>step.key==='invoicing')?.primary?.userId??null};
 },companyAuthority:async()=>companyAuthority(await database(),actor,'finance.approve'),
- policy:async()=>(await database()).prepare(`SELECT p.*,COALESCE(person.legal_name,p.updated_by) updated_by_name FROM procurement_invoice_policies p LEFT JOIN (${people_payrollPlatformSources.hr_people}) person ON person.company_id=p.company_id AND person.user_id=p.updated_by AND person.merged_into_id IS NULL WHERE p.company_id=?`).bind(actor.companyId).first<Row>(),
+ policy:async()=>(await database()).prepare(sourceImage(
+    "p.*,COALESCE(person.legal_name,p.updated_by) updated_by_name",
+    `procurement_invoice_policies p LEFT JOIN (${people_payrollPlatformSources.hr_people}) person ON person.company_id=p.company_id AND person.user_id=p.updated_by AND person.merged_into_id IS NULL`,
+    "p.company_id=?",
+  )).bind(actor.companyId).first<Row>(),
  policyEvents:async()=>(await (await database()).prepare(orderedRead('e.*,COALESCE(person.legal_name,e.actor_id) actor_name',`procurement_invoice_policy_events e LEFT JOIN (${people_payrollPlatformSources.hr_people}) person ON person.company_id=e.company_id AND person.user_id=e.actor_id AND person.merged_into_id IS NULL`,'e.company_id=?','e.version DESC')).bind(actor.companyId).all<Row>()).results,
- receipt:async(id)=>(await database()).prepare(`SELECT f.*,j.status journal_status,j.currency journal_currency,j.chart_id journal_chart_id FROM (${commercePlatformSources.commerce_fulfillments}) f LEFT JOIN (${financePlatformSources.finance_journals}) j ON j.id=f.journal_id WHERE f.id=?`).bind(id).first<Row>(),
+ receipt:async(id)=>(await database()).prepare(sourceImage(
+    "f.*,j.status journal_status,j.currency journal_currency,j.chart_id journal_chart_id",
+    `(${commercePlatformSources.commerce_fulfillments}) f LEFT JOIN (${financePlatformSources.finance_journals}) j ON j.id=f.journal_id`,
+    "f.id=?",
+  )).bind(id).first<Row>(),
  order:async(id)=>(await getOrder(actor,id,provided)).order,
  configuration:async()=>(await database()).prepare(settingsRead("*",commercePlatformSources.commerce_settings)).bind(actor.companyId).first<Row>(),
  postings:async(id)=>(await (await database()).prepare(`SELECT * FROM (${financePlatformSources.finance_journal_lines}) finance_journal_lines WHERE journal_id=? ORDER BY ordinal`).bind(id).all<Row>()).results,

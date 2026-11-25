@@ -61,7 +61,7 @@ describe('Procurement read-tail r48 supplier detail head dedupe', () => {
     expect(src('read-tail-r47.ts')).toContain('export const procurementSettlementFactSelect =');
   });
 
-  test('worktree SELECT count is 90 - 3 + 1 = 88', () => {
+  test('worktree SELECT count is 90 - 3 + 1 - 3 = 85', () => {
     const root = new URL('../../../packages/server-procurement/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
@@ -74,6 +74,6 @@ describe('Procurement read-tail r48 supplier detail head dedupe', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(90);
-    expect(total).toBe(88);
+    expect(total).toBe(85);
   });
 });
