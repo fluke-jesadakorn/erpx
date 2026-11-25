@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12656,
+    "revision": 12659,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -185618,17 +185618,32 @@
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-operations/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b5b8c3a77",
+            "owner": "operations",
+            "before": 82,
+            "after": 78,
+            "note": "Four kinds: handover recovery receipt (3 binds), workflow document detail/page (2), work-task replay (3); registry 17->21; caller units preserved. Cargo lib 32; vitest 7."
+          },
+          {
+            "command": "targeted vitest + scoped tsc + cargo lib where applicable",
+            "result": "passed",
+            "sourceSha": "b5b8c3a77"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Lease expired during long worker wave; reviewed WIP, previous coordinator stopped.",
-        "nextAction": "Native handover receipt (-2), staff_tasks detail/page (-1), replay (-1): 82->78. BEFORE=82.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261125-c",
-          "agentId": "wH4n141",
-          "at": "2026-11-25T00:01:42.553Z",
+          "runId": "run-20261125-d",
+          "agentId": "lead-opencode",
+          "at": "2026-11-25T00:16:23.090Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired during long worker wave; reviewed WIP, previous coordinator stopped.",
-          "nextAction": "Native handover receipt (-2), staff_tasks detail/page (-1), replay (-1): 82->78. BEFORE=82."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -186008,7 +186023,7 @@
       }
     },
     "lastCoordinatorGeneration": 174,
-    "updatedAt": "2026-11-25T00:16:22.308Z",
+    "updatedAt": "2026-11-25T00:16:23.092Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
