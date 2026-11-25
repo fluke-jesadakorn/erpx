@@ -1,4 +1,5 @@
 import { nativeOwnerWrite, nativeOwnerWriteNoopSql } from './native-owner-write';
+import { agentSelectColsFromSql } from './read-tail-r26-source-sql';
 import 'server-only';
 import { aiGatewayBootstrapSources } from '@erpx/server-manage_erpx/public/ai-gateway-sources';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
@@ -35,7 +36,7 @@ const aiConnectionSelectSql = 'SELECT * FROM ai_connections WHERE';
  * aiSnapshotGuard settings reads (version and mode). The selected column is the only
  * variation; each call site keeps its own binds; the native settings owner remains the authority. */
 const aiCompanySettingsSql = (cols: string) =>
-  `SELECT ${cols} FROM ai_company_settings WHERE company_id=?`;
+  agentSelectColsFromSql(cols, 'ai_company_settings WHERE company_id=?');
 
 async function exposed<T>(action: () => Promise<T>): Promise<T> {
   try {

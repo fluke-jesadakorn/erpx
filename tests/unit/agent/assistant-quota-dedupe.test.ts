@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFile, readdir } from 'node:fs/promises';
+import { agentSelectColsFromSql } from '../../../packages/server-agent/src/adapters/read-tail-r26-source-sql';
 
 const src = (name: string) =>
   readFile(new URL(`../../../packages/server-agent/src/${name}`, import.meta.url), 'utf8');
@@ -218,18 +219,17 @@ describe('Agent read-tail r7 fixed SQL dedupe', () => {
 
   it('r13: authors the parameterized company-settings projection once', async () => {
     const rt = await src('adapters/ai-runtime.ts');
-    const def = rt.match(/const aiCompanySettingsSql = \(cols: string\) =>\s*`(SELECT [^`]*?)`;/)?.[1];
-    expect(def).toBe(companySettingsTemplate);
-    expect(rt.match(/SELECT \$\{cols\} FROM ai_company_settings WHERE company_id=\?/g)).toHaveLength(1);
+    expect(rt).toContain("const aiCompanySettingsSql = (cols: string) =>\n  agentSelectColsFromSql(cols, 'ai_company_settings WHERE company_id=?');");
+    expect(rt).not.toMatch(/const aiCompanySettingsSql[\s\S]{0,80}`SELECT /);
+    expect(agentSelectColsFromSql('${cols}', 'ai_company_settings WHERE company_id=?')).toBe(companySettingsTemplate);
     expect(rt.match(/aiCompanySettingsSql\(/g)).toHaveLength(3);
   });
 
   it('r13: all three consumers render the exact pre-dedupe SQL with unchanged binds', async () => {
     const rt = await src('adapters/ai-runtime.ts');
-    const def = rt.match(/const aiCompanySettingsSql = \(cols: string\) =>\s*`(SELECT [^`]*?)`;/)?.[1]!;
     const args = [...rt.matchAll(/aiCompanySettingsSql\('([^']+)'\)/g)].map((m) => m[1]);
     expect(args).toEqual(['*', 'version', 'mode']);
-    expect(args.map((col) => def.replace('${cols}', col))).toEqual([
+    expect(args.map((col) => agentSelectColsFromSql(col, 'ai_company_settings WHERE company_id=?'))).toEqual([
       companySettingsRendered('*'),
       companySettingsRendered('version'),
       companySettingsRendered('mode'),

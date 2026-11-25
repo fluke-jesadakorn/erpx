@@ -14,7 +14,10 @@ describe('Agent read-tail r15 turn-evidence projection family dedupe', () => {
   it('authors the workspace-turn/invocation-evidence projection once', async () => {
     const helper = await src('adapters/turn-evidence-projection-source.ts');
     expect(helper).toContain('export const agentTurnEvidenceSql = (cols: string) =>');
-    expect(helper.match(/SELECT /g)).toHaveLength(1);
+    expect(helper).toContain("agentSelectColsFromSql(cols, 'ai_workspace_turns t LEFT JOIN ai_invocation_evidence e ON e.turn_id=t.id');");
+    expect(helper).not.toMatch(/SELECT /);
+    const head = await src('adapters/read-tail-r26-source-sql.ts');
+    expect(head.match(/SELECT /g)).toHaveLength(1);
   });
 
   it('routes both residual reads through the shared projection with their own columns, predicates and binds', async () => {

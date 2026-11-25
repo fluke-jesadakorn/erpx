@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFile, readdir } from 'node:fs/promises';
+import { agentSelectColsFromSql } from '../../../packages/server-agent/src/adapters/read-tail-r26-source-sql';
 
 const src = (name: string) =>
   readFile(new URL(`../../../packages/server-agent/src/${name}`, import.meta.url), 'utf8');
@@ -25,21 +26,16 @@ const assignmentsSql =
 describe('Agent read-tail r20 catalog-joined company list dedupe', () => {
   it('authors the parameterized catalog-joined company list projection once', async () => {
     const gov = await src('adapters/agent-governance.ts');
-    const def = gov.match(
-      /const agentCatalogListSql = \(cols: string, from: string, companyAlias: string, suffix: string\) =>\s*`(SELECT [^`]*?)`;/,
-    )?.[1];
-    expect(def).toBe(
+    expect(gov).toContain('agentCatalogListSql = (cols: string, from: string, companyAlias: string, suffix: string) =>\n  agentSelectColsFromSql(cols, `${from} JOIN agent_catalog a ON a.id=v.agent_id WHERE ${companyAlias}.company_id=? ORDER BY ${suffix}`);');
+    expect(gov).not.toMatch(/const agentCatalogListSql[\s\S]{0,140}`SELECT /);
+    expect(agentSelectColsFromSql('${cols}', '${from} JOIN agent_catalog a ON a.id=v.agent_id WHERE ${companyAlias}.company_id=? ORDER BY ${suffix}')).toBe(
       'SELECT ${cols} FROM ${from} JOIN agent_catalog a ON a.id=v.agent_id WHERE ${companyAlias}.company_id=? ORDER BY ${suffix}',
     );
-    expect(gov.match(/SELECT \$\{cols\} FROM \$\{from\} JOIN agent_catalog a/g)).toHaveLength(1);
     expect(gov.match(/agentCatalogListSql\(/g)).toHaveLength(2);
   });
 
   it('routes both catalog-joined readers through the shared projection with unchanged binds', async () => {
     const gov = await src('adapters/agent-governance.ts');
-    const def = gov.match(
-      /const agentCatalogListSql = \(cols: string, from: string, companyAlias: string, suffix: string\) =>\s*`(SELECT [^`]*?)`;/,
-    )?.[1]!;
     const calls = [...gov.matchAll(/agentCatalogListSql\('([^']+)','([^']+)','([^']+)','([^']+)'\)/g)].map(
       (m) => [m[1], m[2], m[3], m[4]] as const,
     );
@@ -54,7 +50,7 @@ describe('Agent read-tail r20 catalog-joined company list dedupe', () => {
     ]);
     expect(
       calls.map(([c, f, a, s]) =>
-        def.replaceAll('${cols}', c).replaceAll('${from}', f).replaceAll('${companyAlias}', a).replaceAll('${suffix}', s),
+        agentSelectColsFromSql(c, `${f} JOIN agent_catalog a ON a.id=v.agent_id WHERE ${a}.company_id=? ORDER BY ${s}`),
       ),
     ).toEqual([versionsSql, assignmentsSql]);
     expect(gov).toContain("agentCatalogListSql('v.*,a.name agent_name','agent_versions v','a','v.created_at DESC'),\n          )\n          .bind(companyId)");

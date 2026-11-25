@@ -1,4 +1,5 @@
 import { nativeOwnerWrite, nativeOwnerWriteNoopSql } from './native-owner-write';
+import { agentSelectColsFromSql } from './read-tail-r26-source-sql';
 import { agentAssistantRateGuardSql } from './operations-guided-intake-facts';
 import { agentTurnEvidenceSql } from './turn-evidence-projection-source';
 import { assistantQuotaSql } from './assistant-quota-sql';
@@ -40,7 +41,7 @@ import {BusinessRuleError} from '@erpx/server-shared/index';
 import {createWorkspaceAssistantApplication,type AssistantRepository} from '@erpx/server-agent/application/assistant';
 import {type Row} from '@erpx/server-agent/domain/assistant';
 import type {AiEndpoint} from '@erpx/server-agent/adapters/ai-transport';
-const agentWorkspaceTurnByIdSql = (cols:string) => `SELECT ${cols} FROM ai_workspace_turns WHERE id=?`;
+const agentWorkspaceTurnByIdSql = (cols:string) => agentSelectColsFromSql(cols, 'ai_workspace_turns WHERE id=?');
 async function exposed<T>(action:()=>Promise<T>){try{return await action();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
 async function inward<T>(action:()=>Promise<T>){try{return await action();}catch(error){if(error instanceof ApiError)throw new BusinessRuleError(error.status,error.code,error.message);throw error;}}
 function bindRepository(db:SqlDatabase):AssistantRepository<SqlStatement>{return {clearAuthorityAssertions(key:string,companyId:string){return clearAgentBootstrapAssertion(db,key,companyId);},

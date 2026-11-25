@@ -16,6 +16,7 @@ import {sha256} from "@erpx/server-runtime/public/crypto";
 
 import {BusinessRuleError} from '@erpx/server-shared/index';
 import {nativeOwnerWrite,nativeOwnerWriteNoopSql} from './native-owner-write';
+import {agentSelectColsFromSql} from './read-tail-r26-source-sql';
 import {createAgentGovernanceApplication,createAssistantGovernanceGuards,type AgentGovernanceRepository} from '@erpx/server-agent/application/governance';
 import type {AssistantGovernance} from '@erpx/server-agent/domain/governance';
 export type {AssistantGovernance} from '@erpx/server-agent/domain/governance';
@@ -48,7 +49,7 @@ const agentPoolChildListSql = (table: string, alias: string, suffix: string) =>
  * and workspaceAssignments. Only the selected columns, joined source, company alias and
  * ORDER BY vary; each call site keeps its own company bind; the native owner remains the authority. */
 const agentCatalogListSql = (cols: string, from: string, companyAlias: string, suffix: string) =>
-  `SELECT ${cols} FROM ${from} JOIN agent_catalog a ON a.id=v.agent_id WHERE ${companyAlias}.company_id=? ORDER BY ${suffix}`;
+  agentSelectColsFromSql(cols, `${from} JOIN agent_catalog a ON a.id=v.agent_id WHERE ${companyAlias}.company_id=? ORDER BY ${suffix}`);
 async function exposed<T>(action:()=>Promise<T>){try{return await action();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
 function bindRepository(db:SqlDatabase):AgentGovernanceRepository<SqlStatement>{return {async policyCandidates(companyId:string,userId:string){return (await db.prepare(
     `SELECT x.id,x.version assignment_version,x.scope_path,x.pool_id,x.agent_version_id,
