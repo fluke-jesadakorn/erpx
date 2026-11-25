@@ -1,5 +1,6 @@
 import {ppRd36TwoPredTail} from './pp-read-tail-r36-sources';
 import {ppRd57PeopleIdGuard} from './pp-read-tail-r57-sources';
+import {ppRd62PeopleEmailGuard} from './pp-read-tail-r62-sources';
 import { PP_RD23_HR_ENGAGEMENTS_ACTIVE_FOR_PERSON_NOT_EXISTS } from './pp-read-tail-r23-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import { PP_RD19_HR_ENGAGEMENT_VERSION_EXISTS_SQL } from './pp-read-tail-r19-sources';
@@ -40,7 +41,7 @@ function application(provided?: SqlDatabase) {
             return assertion(database, commandId, value, PP_RD19_HR_ENGAGEMENT_VERSION_EXISTS_SQL, [engagement, value2]);
         },
         guard9(commandId: string, value: "email", companyId: string, email: string, id: string) {
-            return assertion(database, commandId, value, "NOT EXISTS(SELECT 1 FROM hr_people WHERE company_id=? AND lower(email)=? AND id!=? AND merged_into_id IS NULL)", [companyId, email, id]);
+            return assertion(database, commandId, value, ppRd62PeopleEmailGuard(" AND lower(email)=? AND id!=? AND merged_into_id IS NULL"), [companyId, email, id]);
         },
         guard10(commandId: string, value: "version", id: string, expectedVersion: number) {
             return assertion(database, commandId, value, ppRd57PeopleIdGuard(" AND version=? AND status!='archived'"), [id, expectedVersion]);

@@ -1,4 +1,5 @@
 import { PP_RD23_HR_PAY_GROUPS_ACTIVE_CURRENCY_GUARD } from './pp-read-tail-r23-sources';
+import { ppRd62PeopleEmailGuard } from './pp-read-tail-r62-sources';
 import { PP_RD22_ACTIVE_PERSON_VERSION_GUARD } from './pp-read-tail-r22-sources';
 import { ppRd33FourColByIdCompany } from './pp-read-tail-r33-sources';
 import { ppRd34ActivePayGroupProjection } from './pp-read-tail-r34-sources';
@@ -48,7 +49,7 @@ function application(provided?:SqlDatabase) {
         stageConsumeHireHandoffEffect2(...args) { return peopleHireHandoffFacts(database).stageConsumeHireHandoffEffect2(...args); },
         guard9(...args) { return peopleHireHandoffFacts(database).guard9(...args); },
         guard10(...args) { return peopleHireHandoffFacts(database).guard10(...args); },
-        guard11(key: string, value: "hire-email-reconcile", companyId: string, email: string, personId: string) { return assertion(database, key, value, "NOT EXISTS(SELECT 1 FROM hr_people WHERE company_id=? AND lower(email)=lower(?) AND id<>?)", [companyId, email, personId]); },
+        guard11(key: string, value: "hire-email-reconcile", companyId: string, email: string, personId: string) { return assertion(database, key, value, ppRd62PeopleEmailGuard(" AND lower(email)=lower(?) AND id<>?"), [companyId, email, personId]); },
         guard12(key: string, value: "hire-group", payGroupId: string, companyId: string, currency: string) { return assertion(database, key, value, PP_RD23_HR_PAY_GROUPS_ACTIVE_CURRENCY_GUARD, [payGroupId, companyId, currency]); },
         guard13(...args) { return peopleHirePlacementFacts(database).guard13(...args); },
         guard14(key: string, value: "hire-person", id: string, companyId: string, version: number) { return assertion(database, key, value, PP_RD22_ACTIVE_PERSON_VERSION_GUARD, [id, companyId, version]); },
