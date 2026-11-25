@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 13065,
+    "revision": 13071,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -190916,6 +190916,111 @@
         "nextAction": "Next billing head family (-1): 9->8. BEFORE=9.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.sales.read-tail-r34",
+        "goalId": "G4",
+        "owner": "sales",
+        "title": "sales read slice",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-sales/src/**",
+          "tests/unit/sales/**"
+        ],
+        "resources": [
+          "owner:sales"
+        ],
+        "claim": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n269",
+          "claimedAt": "2026-11-25T02:06:26.730Z",
+          "heartbeatAt": "2026-11-25T02:06:26.730Z",
+          "expiresAt": "2026-11-25T02:36:26.730Z",
+          "generation": 174
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Read-tail r34: pointRead delegates to tableRead (46->45). BEFORE=46.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.projects.read-tail-r40",
+        "goalId": "G4",
+        "owner": "projects",
+        "title": "projects read slice",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-projects/src/**",
+          "tests/unit/projects/**"
+        ],
+        "resources": [
+          "owner:projects"
+        ],
+        "claim": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n270",
+          "claimedAt": "2026-11-25T02:06:27.265Z",
+          "heartbeatAt": "2026-11-25T02:06:27.265Z",
+          "expiresAt": "2026-11-25T02:36:27.265Z",
+          "generation": 174
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Read-tail r40: universal projection head (76->74). BEFORE=76.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.manufacturing.read-tail-r34",
+        "goalId": "G4",
+        "owner": "manufacturing",
+        "title": "manufacturing read slice",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-manufacturing/src/**",
+          "tests/unit/manufacturing/**"
+        ],
+        "resources": [
+          "owner:manufacturing"
+        ],
+        "claim": {
+          "runId": "run-20261125-d",
+          "agentId": "wH4n271",
+          "claimedAt": "2026-11-25T02:06:27.725Z",
+          "heartbeatAt": "2026-11-25T02:06:27.725Z",
+          "expiresAt": "2026-11-25T02:36:27.726Z",
+          "generation": 174
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Read-tail r34: r15 delegates to r23 footprint head (52->51). BEFORE=52.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -190924,11 +191029,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1959,
+      "totalPackets": 1962,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 20,
+        "in_progress": 23,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -190938,7 +191043,7 @@
       }
     },
     "lastCoordinatorGeneration": 174,
-    "updatedAt": "2026-11-25T02:03:47.745Z",
+    "updatedAt": "2026-11-25T02:06:27.730Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
