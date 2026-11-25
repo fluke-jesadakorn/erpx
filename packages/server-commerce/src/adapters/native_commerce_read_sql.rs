@@ -599,6 +599,17 @@ const READ_PMS_PRODUCT_WAREHOUSE_SCOPE: NativeCommerceReadStatement =
         bind_count: 4,
     };
 
+/// Native successor of the attachment product source image. The caller binds
+/// `[product_id, company_id]`; the `p` alias stays in the retired literal.
+pub const RD_ATTACHMENT_PRODUCT_IMAGE: &str = "commerce_rd_attachment_product_image";
+const SQL_ATTACHMENT_PRODUCT_IMAGE: &str =
+    "SELECT to_jsonb(p)::text image FROM commerce_products p WHERE p.id=? AND p.company_id=?";
+const READ_ATTACHMENT_PRODUCT_IMAGE: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_ATTACHMENT_PRODUCT_IMAGE,
+    sql: SQL_ATTACHMENT_PRODUCT_IMAGE,
+    bind_count: 2,
+};
+
 const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_PMS_WAREHOUSE_ACTIVE,
     READ_PMS_SETTINGS_EXISTS,
@@ -648,6 +659,7 @@ const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_PMS_PRODUCT_OPTIONS,
     READ_PMS_WAREHOUSE_ID,
     READ_PMS_PRODUCT_WAREHOUSE_SCOPE,
+    READ_ATTACHMENT_PRODUCT_IMAGE,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -774,6 +786,11 @@ mod tests {
                 SQL_PMS_PRODUCT_WAREHOUSE_SCOPE,
                 4usize,
             ),
+            (
+                RD_ATTACHMENT_PRODUCT_IMAGE,
+                SQL_ATTACHMENT_PRODUCT_IMAGE,
+                2usize,
+            ),
         ];
         for (kind, sql, bind_count) in expected {
             let statement = read_statement(kind).expect("registered owner read kind");
@@ -798,7 +815,22 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), bind_count);
         }
-        assert_eq!(STATEMENTS.len(), 48);
+        assert_eq!(STATEMENTS.len(), 49);
+    }
+
+    /// The attachment product image keeps its exact alias, projection and
+    /// `[product_id, company_id]` bind order.
+    #[test]
+    fn attachment_product_image_keeps_its_exact_literal() {
+        let plan = read_statement(RD_ATTACHMENT_PRODUCT_IMAGE).expect("product image");
+        assert_eq!(
+            plan.sql,
+            "SELECT to_jsonb(p)::text image FROM commerce_products p WHERE p.id=? AND p.company_id=?"
+        );
+        assert_eq!(plan.bind_count, 2);
+        assert_eq!(plan.sql.matches('?').count(), 2);
+        assert!(plan.sql.starts_with("SELECT "));
+        assert!(!plan.sql.contains(';'));
     }
 
     /// PMS owner-local reads keep their exact aliases, predicates and bind

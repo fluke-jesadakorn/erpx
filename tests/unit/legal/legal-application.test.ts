@@ -7,6 +7,7 @@ import approvalContract from "../../../packages/server-legal/src/adapters/legal-
 import runtimeContract from "../../../packages/server-legal/src/adapters/legal-runtime-gate-sources.json" with {type:"json"};
 import accessContract from "../../../packages/server-legal/src/adapters/legal-access-sources.json" with {type:"json"};
 import operationsContract from "../../../packages/server-legal/src/adapters/legal-operations-sources.json" with {type:"json"};
+import recordContract from "../../../packages/server-legal/src/adapters/legal-record-sources.json" with {type:"json"};
 type LegalReferenceRepository=Parameters<typeof import("@erpx/server-legal/application/references").createLegalReferencesApplication>[0]["repository"];
 import { expect, it } from "vitest";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
@@ -597,8 +598,8 @@ it("keeps the approval reviewer-membership and current-route guards in the nativ
     }
   };
   await walk(resolve(__dirname, "../../../packages/server-legal/src"));
-  expect(total).toBeLessThan(81);
-  expect(total).toBe(76);
+  expect(total).toBeLessThan(76);
+  expect(total).toBe(73);
 });
 
 
@@ -661,4 +662,34 @@ it("keeps the operations register, recursive hold preview and rule-impact reads 
   expect(rust).toContain('render_legal_hold_preview');
   expect(rust).toContain('render_legal_rule_impact');
   expect(rust).toContain('2a16d72e65440ae74d59b813a5561e93663b5f43f4833f60819f4066335264cf');
+});
+
+
+it("keeps the record-source guards in the native contract", async () => {
+  const [shared, rust] = await Promise.all([
+    readFile(new URL("../../../packages/server-legal/src/adapters/record-purchases.ts", import.meta.url), "utf8"),
+    readFile(new URL("../../../packages/server-legal/src/adapters/legal_record_sources.rs", import.meta.url), "utf8"),
+  ]);
+  expect(shared.match(/SELECT /g) ?? []).toHaveLength(0);
+  expect(shared).toContain("legal-record-sources.json");
+  expect(shared).toContain("fill(contract.nativeSource");
+  expect(shared).toContain("fill(contract.actualSource");
+  expect(shared).toContain("fill(contract.workspaceGuard");
+  expect(recordContract.nativeSource).toContain("FROM legal_items legal_native");
+  expect(recordContract.nativeSource).toContain("{scope}");
+  expect(recordContract.nativeSource).toContain("{permission}");
+  expect(recordContract.nativeSource).toContain("{assignment}");
+  expect(recordContract.nativeSource).toContain("{release}");
+  expect(recordContract.nativeSource).toContain("{purchase}");
+  expect(recordContract.actualSource).toBe(
+    "EXISTS(SELECT 1 FROM legal_items actual_legal_source WHERE actual_legal_source.id={id})",
+  );
+  expect(recordContract.workspaceGuard).toBe(
+    "SELECT 1 FROM workspace_records WHERE module_id='legal' AND id=? AND {scope}",
+  );
+  expect(rust).toContain('include_str!("legal-record-sources.json")');
+  expect(rust).toContain('render_legal_native_source');
+  expect(rust).toContain('render_legal_actual_source');
+  expect(rust).toContain('render_legal_workspace_guard');
+  expect(rust).toContain('87383a387e26c6a0b271882ec448a6168421c23e7f111ebc3ab672171db64038');
 });

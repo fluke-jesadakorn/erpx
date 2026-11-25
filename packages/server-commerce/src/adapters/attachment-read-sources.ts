@@ -4,6 +4,7 @@ import {commerceAttachmentFinanceSourceLocks,commerceAttachmentFinanceSourceImag
 import {commerceAttachmentStockSourceLocks,commerceAttachmentStockSourceImage} from '@erpx/server-inventory/public/commerce-attachment-sources';
 import {commerceAttachmentPosSourceLocks,commerceAttachmentPosSourceImage} from '@erpx/server-pos/public/commerce-attachment-sources';
 import { fulfillmentParentGuardSql } from './attachment-parent-guard-sql';
+import { nativeCommerceReadFirst, RD_ATTACHMENT_PRODUCT_IMAGE } from './native-commerce-read';
 const targets=['purchase_order','purchase_receipt','commerce_order','commerce_order_delivery','commerce_fulfillment','commerce_return','product'] as const;
 export type CommerceAttachmentReadTarget=typeof targets[number];
 export function isCommerceAttachmentReadTarget(target:string):target is CommerceAttachmentReadTarget{return (targets as readonly string[]).includes(target);}

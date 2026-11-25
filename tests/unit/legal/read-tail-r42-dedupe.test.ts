@@ -152,6 +152,6 @@ describe('legal read-tail r42 parameterized feature-search head family', () => {
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(101);
-    expect(total).toBe(76);
+    expect(total).toBe(73);
   });
 });

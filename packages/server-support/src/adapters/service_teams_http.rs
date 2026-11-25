@@ -876,6 +876,21 @@ mod tests {
             ));
             assert_eq!(response.status(), expected, "kind={kind}");
         }
+
+        let response = block_on(plan_read(
+            State(state.clone()),
+            Path("acme".into()),
+            plan_post(
+                "/support/command-plan",
+                json!({"kind": "support_rd_ticket_portal_valid_bindings", "values": []}),
+            ),
+        ));
+        assert_eq!(response.status(), 200);
+        let bytes = block_on(to_bytes(response.into_body(), SERVICE_TEAM_BODY_LIMIT)).unwrap();
+        let body: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(body["data"]["statements"][0]["fragment"], Value::Bool(true));
+        assert_eq!(body["data"]["statements"][0]["tailBindCounts"], json!([1, 4, 9]));
+        assert_eq!(body["data"]["statements"][0]["values"], json!([]));
     }
 
     #[test]

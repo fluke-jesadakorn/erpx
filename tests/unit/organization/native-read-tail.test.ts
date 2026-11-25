@@ -488,7 +488,7 @@ describe('Organization read-tail r30 native cutover — finance starter node lis
       }
     };
     walk(srcRoot);
-    expect(total).toBe(185);
+    expect(total).toBe(181);
     expect(total).toBeLessThan(189);
     // The worker-position cut deleted the shared r38 helper literal after both
     // former consumers moved to the native owner, so the KPI falls by one.
@@ -757,5 +757,53 @@ describe('Organization attachment source image native cutover', () => {
     expect(arm).toBe(SQL);
     expect(arm.toUpperCase().startsWith('SELECT ')).toBe(true);
     expect(arm).not.toMatch(/INSERT|UPDATE|DELETE|FOR UPDATE|FOR SHARE|LOCK TABLE/);
+  });
+});
+
+describe('Organization attachment node/change source image native cutover', () => {
+  const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+  const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
+  const sha = (value: string) => createHash('sha256').update(value).digest('hex');
+  const NODE_KIND = 'attachment_source_node_image';
+  const CHANGE_KIND = 'attachment_source_change_image';
+  const NODE = "SELECT jsonb_build_object('node',to_jsonb(node),'company',(SELECT to_jsonb(company) FROM organization_nodes company WHERE company.id=node.company_id AND company.kind='company'),\n 'branch',(SELECT to_jsonb(branch) FROM organization_nodes branch WHERE branch.id=node.branch_id AND branch.company_id=node.company_id))::text image FROM organization_nodes node WHERE node.id=? AND node.company_id=? AND node.kind IN('company','headquarters','branch','department')";
+  const CHANGE = "SELECT jsonb_build_object('change',to_jsonb(change),'target',(SELECT to_jsonb(node) FROM organization_nodes node WHERE node.id=change.target_node_id AND node.company_id=change.company_id),\n 'branch',(SELECT to_jsonb(branch) FROM organization_nodes branch WHERE branch.id=change.branch_id AND branch.company_id=change.company_id),\n 'events',(SELECT jsonb_agg(to_jsonb(event) ORDER BY event.version,event.id) FROM organization_node_change_events event WHERE event.change_id=change.id AND event.company_id=change.company_id))::text image FROM organization_node_changes change WHERE change.id=? AND change.company_id=?";
+
+  it('deletes both jsonb literals and sends typed kinds with id + Company', async () => {
+    const source = read('attachment-read-sources.ts');
+    expect(source).not.toContain("jsonb_build_object('node'");
+    expect(source).not.toContain("jsonb_build_object('change'");
+    expect(source).not.toContain('correlatedNodeJson');
+    expect(source).toContain(`const kind=type==='organization_node'?'${NODE_KIND}':'${CHANGE_KIND}';`);
+    const {organizationAttachmentReadSourceImage} = await import(
+      '../../../packages/server-organization/src/adapters/attachment-read-sources'
+    );
+    one.mockClear();
+    const handle = db();
+    one.mockResolvedValueOnce({image: '{"node":1}'});
+    await expect(organizationAttachmentReadSourceImage(handle, {companyId: 'company-1'} as never, 'organization_node', 'node-1')).resolves.toBe('{"node":1}');
+    expect(one).toHaveBeenLastCalledWith(handle, 'company-1', NODE_KIND, ['node-1', 'company-1']);
+    one.mockResolvedValueOnce({image: '{"change":1}'});
+    await expect(organizationAttachmentReadSourceImage(handle, {companyId: 'company-1'} as never, 'organization_change', 'change-1')).resolves.toBe('{"change":1}');
+    expect(one).toHaveBeenLastCalledWith(handle, 'company-1', CHANGE_KIND, ['change-1', 'company-1']);
+    one.mockResolvedValueOnce(null);
+    await expect(organizationAttachmentReadSourceImage(handle, {companyId: 'company-1'} as never, 'organization_node', 'missing')).resolves.toBeNull();
+    one.mockClear();
+    await expect(organizationAttachmentReadSourceImage(handle, {companyId: 'company-1'} as never, 'other', 'id')).resolves.toBeNull();
+    expect(one).not.toHaveBeenCalled();
+    expect(handle.prepare).not.toHaveBeenCalled();
+  });
+
+  it('pins both byte-identical statements in the Rust registry', () => {
+    expect(sha(NODE)).toBe('4afd53d02e091f8a396967449f970ef417ca6fbef48631927a80ef4862c4869c');
+    expect(sha(CHANGE)).toBe('8bf5a70d64fb60dec0e17c73402665ba99e52b0b9da09ee9d16f4e14070b3769');
+    const registry = read('organization_owner_write.rs');
+    for (const [kind, sql] of [
+      ['ATTACHMENT_SOURCE_NODE_IMAGE', NODE],
+      ['ATTACHMENT_SOURCE_CHANGE_IMAGE', CHANGE],
+    ]) {
+      expect(registry).toContain(`${kind}: &str = `);
+      expect(registry).toContain(`        ${kind} => {\n            "${sql}"\n        }`);
+    }
   });
 });

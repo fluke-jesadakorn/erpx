@@ -59,6 +59,8 @@ import {
   PMS_RD_FAILED_COUNTER_REFUNDS,
   PMS_RD_RESERVATION_PROPERTY,
   PMS_RD_ROLLOUT_SETUP_READY,
+  PMS_RD_ATTACHMENT_OWNER_FACT,
+  PMS_RD_ATTACHMENT_PROPERTY_OWNER,
 } from '../../../packages/server-pms/src/adapters/native-pms-read';
 import { readPmsInventoryCommand } from '../../../packages/server-pms/src/adapters/pms/read-repository';
 import { pmsAttachmentReadSourceImage } from '../../../packages/server-pms/src/adapters/attachment-read-sources';
@@ -1836,6 +1838,79 @@ describe('native PMS reservation-property/rollout-probe read retirement', () => 
     expect(bound).toEqual([['res-1'], ['company-1']]);
     expect(bodies.map(b => b.kind)).toEqual([PMS_RD_RESERVATION_PROPERTY, PMS_RD_ROLLOUT_SETUP_READY]);
     expect(bodies.map(b => b.values)).toEqual([['res-1'], ['company-1']]);
+    for (const body of bodies) expect(JSON.stringify(body)).not.toContain('SELECT');
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as unknown as [URL, RequestInit];
+    expect(String(url)).toContain('/api/v1/holdings/acme/pms/command-plan');
+    expect(init.headers).toMatchObject({ 'content-type': 'application/json', accept: 'application/json', 'cache-control': 'no-cache' });
+  });
+});
+
+const attachmentOwnerFactSql = `SELECT p.company_id,p.branch_id,NULL::text department_id,r.version,r.kind
+       FROM pms_records r JOIN pms_properties p ON p.id=r.property_id
+       WHERE r.id=? AND p.company_id=?`;
+const attachmentPropertyOwnerSql = 'SELECT company_id,branch_id,NULL::text department_id,version FROM pms_properties WHERE id=? AND company_id=?';
+
+describe('native PMS attachment owner read retirement', () => {
+  it('exposes two fixed allow-listed kinds with no SQL on the wire', () => {
+    expect(PMS_RD_ATTACHMENT_OWNER_FACT).toBe('pms_rd_attachment_owner_fact');
+    expect(PMS_RD_ATTACHMENT_PROPERTY_OWNER).toBe('pms_rd_attachment_property_owner');
+    for (const kind of [PMS_RD_ATTACHMENT_OWNER_FACT, PMS_RD_ATTACHMENT_PROPERTY_OWNER])
+      expect(kind).not.toMatch(/SELECT|INSERT|UPDATE|DELETE|FOR UPDATE|FOR SHARE/);
+  });
+
+  it('removes both TypeScript SELECT heads but keeps the attachment version guards', async () => {
+    const adapter = await readFile(new URL('../../../packages/server-pms/src/adapters/attachments-finance-facts.ts', import.meta.url), 'utf8');
+    expect(adapter).not.toContain(attachmentOwnerFactSql);
+    expect(adapter).not.toContain(attachmentPropertyOwnerSql);
+    expect(adapter).toContain('nativePmsReadFirst<Row>(PMS_RD_ATTACHMENT_OWNER_FACT,[facts.targetId,facts.companyId],db)');
+    expect(adapter).toContain('nativePmsReadFirst<Row>(PMS_RD_ATTACHMENT_PROPERTY_OWNER,[facts.targetId,facts.companyId],db)');
+    expect(adapter).toContain('versionGuard:');
+    expect(adapter).toContain('versionStep:');
+    expect(adapter).toContain('pmsRecordPropertyPointHeadSql');
+  });
+
+  it('carries the byte-identical retired SQL in the Rust registry with two binds each', async () => {
+    const rust = await readFile(new URL('../../../packages/server-pms/src/adapters/native_read_sql.rs', import.meta.url), 'utf8');
+    expect(rust).toContain('pub const PMS_RD_ATTACHMENT_OWNER_FACT: &str = "pms_rd_attachment_owner_fact";');
+    expect(rust).toContain('pub const PMS_RD_ATTACHMENT_PROPERTY_OWNER: &str = "pms_rd_attachment_property_owner";');
+    expect(rust).toContain(attachmentOwnerFactSql);
+    expect(rust).toContain('const SQL_ATTACHMENT_PROPERTY_OWNER: &str = ' + JSON.stringify(attachmentPropertyOwnerSql) + ';');
+    expect(rust).toContain('READ_ROLLOUT_SETUP_READY, READ_ATTACHMENT_OWNER_FACT, READ_ATTACHMENT_PROPERTY_OWNER];');
+    for (const sql of [attachmentOwnerFactSql, attachmentPropertyOwnerSql]) {
+      expect(sql.match(/\?/g)).toHaveLength(2);
+      expect(sql).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|INSERT INTO|DELETE FROM/);
+    }
+    const bridge = await readFile(new URL('../../../packages/server-pms/src/adapters/native-pms-read.ts', import.meta.url), 'utf8');
+    expect(bridge).toContain("export const PMS_RD_ATTACHMENT_OWNER_FACT = 'pms_rd_attachment_owner_fact';");
+    expect(bridge).toContain("export const PMS_RD_ATTACHMENT_PROPERTY_OWNER = 'pms_rd_attachment_property_owner';");
+  });
+
+  it('plans both reads in Rust and runs them on the caller unit with the same binds', async () => {
+    const sqlByKind: Record<string, string> = {
+      [PMS_RD_ATTACHMENT_OWNER_FACT]: attachmentOwnerFactSql,
+      [PMS_RD_ATTACHMENT_PROPERTY_OWNER]: attachmentPropertyOwnerSql,
+    };
+    const bodies: { kind: string; values: unknown[] }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      bodies.push(body);
+      return new Response(JSON.stringify({ data: { statements: [{ sql: sqlByKind[body.kind], values: body.values }] } }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      });
+    }));
+    const prepared: string[] = [], bound: unknown[][] = [];
+    const db = {
+      prepare(sql: string) { prepared.push(sql); return { bind(...values: unknown[]) { bound.push(values); return this; } }; },
+      async batch<T>() { return [{ results: [{ company_id: 'company-1', branch_id: 'north', version: 3, kind: 'stay' }], success: true, meta: { changes: 0, duration: 0 } }] as unknown as { results: T[]; success: boolean; meta: { changes: number; duration: number } }[]; },
+      async exec() { return { count: 0, duration: 0 }; },
+    };
+    const fact = await nativePmsReadFirst<{ company_id: string }>(PMS_RD_ATTACHMENT_OWNER_FACT, ['target-1', 'company-1'], db as never);
+    const property = await nativePmsReadFirst<{ company_id: string }>(PMS_RD_ATTACHMENT_PROPERTY_OWNER, ['target-1', 'company-1'], db as never);
+    expect(fact?.company_id).toBe('company-1');
+    expect(property?.company_id).toBe('company-1');
+    expect(prepared).toEqual([attachmentOwnerFactSql, attachmentPropertyOwnerSql]);
+    expect(bound).toEqual([['target-1', 'company-1'], ['target-1', 'company-1']]);
+    expect(bodies.map(b => b.kind)).toEqual([PMS_RD_ATTACHMENT_OWNER_FACT, PMS_RD_ATTACHMENT_PROPERTY_OWNER]);
     for (const body of bodies) expect(JSON.stringify(body)).not.toContain('SELECT');
     const [url, init] = vi.mocked(fetch).mock.calls[0] as unknown as [URL, RequestInit];
     expect(String(url)).toContain('/api/v1/holdings/acme/pms/command-plan');

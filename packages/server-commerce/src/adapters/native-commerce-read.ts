@@ -79,6 +79,9 @@ export const RD_PMS_PRODUCT_OPTIONS = 'commerce_rd_pms_product_options';
 export const RD_PMS_WAREHOUSE_ID = 'commerce_rd_pms_warehouse_id';
 export const RD_PMS_PRODUCT_WAREHOUSE_SCOPE = 'commerce_rd_pms_product_warehouse_scope';
 
+/** Allow-listed attachment product source image read. */
+export const RD_ATTACHMENT_PRODUCT_IMAGE = 'commerce_rd_attachment_product_image';
+
 /** Allow-listed warehouse-config read kinds resolved by the mounted owner command-plan route. */
 export const RD_WAREHOUSE_PAGE_ROWS = 'commerce_rd_warehouse_page_rows';
 export const RD_WAREHOUSE_MASTER_ROWS = 'commerce_rd_warehouse_master_rows';

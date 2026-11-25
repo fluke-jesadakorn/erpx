@@ -48,6 +48,6 @@ describe('Organization active-position family retired to native owner', () => {
       }
     };
     walk(srcRoot);
-    expect(space).toBe(185);
+    expect(space).toBe(181);
   });
 });

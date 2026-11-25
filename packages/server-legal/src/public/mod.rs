@@ -114,6 +114,7 @@ pub mod legal_read_tail_r39;
 pub mod legal_read_tail_r42;
 pub mod legal_read_tail_r44;
 pub mod legal_read_tail_r48;
+pub mod legal_record_sources;
 pub mod legal_records;
 pub mod legal_operations_sources;
 pub mod legal_runtime_gate_sources;

@@ -66,7 +66,9 @@ describe('Organization read-tail r28 relation/alias-parameterized families', () 
     expect(attachmentRead).not.toContain('(SELECT to_jsonb(branch) FROM organization_nodes branch WHERE branch.id=node.branch_id');
     expect(attachmentRead).not.toContain('(SELECT to_jsonb(node) FROM organization_nodes node WHERE node.id=change.target_node_id');
     expect(attachmentRead).not.toContain('(SELECT to_jsonb(branch) FROM organization_nodes branch WHERE branch.id=change.branch_id');
-    expect(attachmentRead.split('correlatedNodeJson(').length - 1).toBe(3);
+    expect(attachmentRead.split('correlatedNodeJson(').length - 1).toBe(0);
+    expect(attachmentRead).toContain("'attachment_source_node_image'");
+    expect(attachmentRead).toContain("'attachment_source_change_image'");
   });
 });
 

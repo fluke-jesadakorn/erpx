@@ -22,6 +22,11 @@ pub const ORG_ATTACHMENT_NODE_VERSION_STEP: &str = "org_attachment_node_version_
 /// over the org-owned `organization_nodes` table; no lock and no cross-owner
 /// source. The caller keeps its attachment read authority.
 pub const ATTACHMENT_ORGANIZATION_SOURCE_IMAGE: &str = "attachment_organization_source_image";
+/// Native-owned attachment source images for an organization node or change.
+/// SELECT-only, id + Company keyed over org-owned `organization_nodes` and
+/// `organization_node_changes`; the caller keeps its attachment scope check.
+pub const ATTACHMENT_SOURCE_NODE_IMAGE: &str = "attachment_source_node_image";
+pub const ATTACHMENT_SOURCE_CHANGE_IMAGE: &str = "attachment_source_change_image";
 /// Cross-owner attachment version step. Only the allow-listed tables below are
 /// admitted; the table name is never accepted as SQL text from a caller.
 pub const ATTACHMENT_OWNER_VERSION_STEP: &str = "attachment_owner_version_step";
@@ -277,6 +282,8 @@ pub const KINDS: &[&str] = &[
     ORG_ATTACHMENT_NODE_VERSION_STEP,
     ATTACHMENT_OWNER_VERSION_STEP,
     ATTACHMENT_ORGANIZATION_SOURCE_IMAGE,
+    ATTACHMENT_SOURCE_NODE_IMAGE,
+    ATTACHMENT_SOURCE_CHANGE_IMAGE,
     BETA_BRANCH_INSERT,
     BETA_DEPARTMENT_INSERT,
     ACCEPTANCE_SUBMIT,
@@ -421,6 +428,12 @@ fn sql(kind: &str) -> Option<&'static str> {
         ATTACHMENT_OWNER_VERSION_STEP => "", // built from an allow-listed table in sql_for
         ATTACHMENT_ORGANIZATION_SOURCE_IMAGE => {
             "SELECT to_jsonb(company)::text image FROM organization_nodes company WHERE company.id=? AND company.kind='company'"
+        }
+        ATTACHMENT_SOURCE_NODE_IMAGE => {
+            "SELECT jsonb_build_object('node',to_jsonb(node),'company',(SELECT to_jsonb(company) FROM organization_nodes company WHERE company.id=node.company_id AND company.kind='company'),\n 'branch',(SELECT to_jsonb(branch) FROM organization_nodes branch WHERE branch.id=node.branch_id AND branch.company_id=node.company_id))::text image FROM organization_nodes node WHERE node.id=? AND node.company_id=? AND node.kind IN('company','headquarters','branch','department')"
+        }
+        ATTACHMENT_SOURCE_CHANGE_IMAGE => {
+            "SELECT jsonb_build_object('change',to_jsonb(change),'target',(SELECT to_jsonb(node) FROM organization_nodes node WHERE node.id=change.target_node_id AND node.company_id=change.company_id),\n 'branch',(SELECT to_jsonb(branch) FROM organization_nodes branch WHERE branch.id=change.branch_id AND branch.company_id=change.company_id),\n 'events',(SELECT jsonb_agg(to_jsonb(event) ORDER BY event.version,event.id) FROM organization_node_change_events event WHERE event.change_id=change.id AND event.company_id=change.company_id))::text image FROM organization_node_changes change WHERE change.id=? AND change.company_id=?"
         }
         BETA_BRANCH_INSERT => {
             "INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id) VALUES(?,'branch',?,?,?,?,?) ON CONFLICT DO NOTHING"
@@ -1928,5 +1941,48 @@ mod tests {
         assert!(upper.starts_with("SELECT "));
         assert!(!upper.contains(" INSERT ") && !upper.contains(" UPDATE ") && !upper.contains(" DELETE "));
         assert!(!upper.contains(" FOR UPDATE ") && !upper.contains(" FOR SHARE ") && !upper.contains(" LOCK TABLE "));
+    }
+
+    #[test]
+    fn attachment_source_image_kinds_are_byte_identical_and_read_only() {
+        const NODE: &str = "SELECT jsonb_build_object('node',to_jsonb(node),'company',(SELECT to_jsonb(company) FROM organization_nodes company WHERE company.id=node.company_id AND company.kind='company'),\n 'branch',(SELECT to_jsonb(branch) FROM organization_nodes branch WHERE branch.id=node.branch_id AND branch.company_id=node.company_id))::text image FROM organization_nodes node WHERE node.id=? AND node.company_id=? AND node.kind IN('company','headquarters','branch','department')";
+        const CHANGE: &str = "SELECT jsonb_build_object('change',to_jsonb(change),'target',(SELECT to_jsonb(node) FROM organization_nodes node WHERE node.id=change.target_node_id AND node.company_id=change.company_id),\n 'branch',(SELECT to_jsonb(branch) FROM organization_nodes branch WHERE branch.id=change.branch_id AND branch.company_id=change.company_id),\n 'events',(SELECT jsonb_agg(to_jsonb(event) ORDER BY event.version,event.id) FROM organization_node_change_events event WHERE event.change_id=change.id AND event.company_id=change.company_id))::text image FROM organization_node_changes change WHERE change.id=? AND change.company_id=?";
+        for (kind, retired, digest) in [
+            (
+                ATTACHMENT_SOURCE_NODE_IMAGE,
+                NODE,
+                "4afd53d02e091f8a396967449f970ef417ca6fbef48631927a80ef4862c4869c",
+            ),
+            (
+                ATTACHMENT_SOURCE_CHANGE_IMAGE,
+                CHANGE,
+                "8bf5a70d64fb60dec0e17c73402665ba99e52b0b9da09ee9d16f4e14070b3769",
+            ),
+        ] {
+            assert!(supported(kind));
+            assert_eq!(sql(kind).unwrap(), retired);
+            let actual = {
+                use sha2::Digest;
+                let mut hasher = sha2::Sha256::new();
+                hasher.update(retired.as_bytes());
+                format!("{:x}", hasher.finalize())
+            };
+            assert_eq!(actual, digest);
+            let (statement, values) = owner_statement(kind, &[Value::from("id"), Value::from("company")])
+                .expect("attachment source image statement");
+            assert_eq!(statement, retired);
+            assert_eq!(values, vec![Value::from("id"), Value::from("company")]);
+            // Missing or extra positional values fail closed.
+            assert!(owner_statement(kind, &[Value::from("id")]).is_err());
+            assert!(owner_statement(
+                kind,
+                &[Value::from("id"), Value::from("company"), Value::from("extra")],
+            )
+            .is_err());
+            let upper = statement.to_ascii_uppercase();
+            assert!(upper.starts_with("SELECT "));
+            assert!(!upper.contains(" INSERT ") && !upper.contains(" UPDATE ") && !upper.contains(" DELETE "));
+            assert!(!upper.contains(" FOR UPDATE ") && !upper.contains(" FOR SHARE ") && !upper.contains(" LOCK TABLE "));
+        }
     }
 }

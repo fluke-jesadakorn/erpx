@@ -28,14 +28,16 @@ describe('Collaboration read-tail r27 parameterized AI-phase image family', () =
   test('shared fragment is declared once, inline literals are gone, call sites remain', () => {
     expect(shared.match(/export const socialAiPhaseImageSql=/g) ?? []).toHaveLength(1);
     expect(purchases).not.toContain("jsonb_build_object('draft'");
-    expect(purchases).toContain("socialAiPhaseImageSql('', '', '')");
+    // The raw AI-phase image read now goes through the owner planner; the redacted
+    // identity read still uses the shared parameterized fragment.
+    expect(purchases).toContain("ownerRead(database,actor.companyId,'work_social_ai_phase_image',[phase.reservationId,phase.reservationId,phase.reply?.id??null])");
     expect(purchases).toContain(`socialAiPhaseImageSql("${DRAFT}", "${USAGE}", "${REPLY}")`);
-    // one import + two call sites
-    expect(purchases.split('socialAiPhaseImageSql').length - 1).toBe(3);
+    // one import + one remaining call site
+    expect(purchases.split('socialAiPhaseImageSql').length - 1).toBe(2);
   });
 
   test('bind order at both former inline call sites is unchanged', () => {
-    expect(purchases).toContain("socialAiPhaseImageSql('', '', '')).bind(phase.reservationId,phase.reservationId,phase.reply?.id??null)");
+    expect(purchases).toContain("ownerRead(database,actor.companyId,'work_social_ai_phase_image',[phase.reservationId,phase.reservationId,phase.reply?.id??null])");
     expect(purchases).toContain(`)).bind(phase.reservationId,phase.reservationId,phase.reply?.id??null)`);
   });
 
