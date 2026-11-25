@@ -1,10 +1,12 @@
 /** Ecommerce read-tail fragments shared across owner adapters. Text only: binds and locks are unchanged. */
 /** r22: one parameterized one-row probe frame; every probe site rebuilds
- *  byte-identically. Text only: binds, locks and emitted SQL unchanged. */
-export const ecommerceSelectOne = (tail: string) => `SELECT 1 ${tail}`;
+ *  byte-identically. Text only: binds, locks and emitted SQL unchanged.
+ *  r30: composes from ecommerceScalar; the space after 1 is preserved. */
+export const ecommerceSelectOne = (tail: string) => ecommerceScalar(`1 ${tail}`);
 /** r26: one parameterized scalar head; the label, child-aggregate,
  *  scope-row and reviewer-scope wrappers rebuild byte-identically. Text only:
- *  binds, locks and emitted SQL unchanged. */
+ *  binds, locks and emitted SQL unchanged.
+ *  r30: the single terminal head literal; every read-tail helper composes here. */
 export const ecommerceScalar = (body: string) => `SELECT ${body}`;
 export const ecommerceModuleAssignment = (alias = '') => {
  const p = alias ? `${alias}.` : '';
@@ -21,9 +23,10 @@ export const ecommerceRowProbe = (from: string, where: string, gap = ' ') =>
 export const ecommerceScopeRow = (alias: string, branch = false, separator = ' ') =>
  `(${ecommerceScalar(`?::text company_id${branch ? ',?::text branch_id,?::text department_id' : ''}`)})${separator}${alias}`;
 /** r21: one release/feature gate frame emits every probe site byte-identically.
- *  Text only: binds, source locks and the emitted SQL are unchanged. */
+ *  Text only: binds, source locks and the emitted SQL are unchanged.
+ *  r30: composes from ecommerceScalar; the alias default is preserved. */
 export const ecommerceReleaseGate = (scope: string, predicate: string, selectAlias = ' allowed') =>
- `SELECT ${predicate}${selectAlias} FROM ${scope}`;
+ ecommerceScalar(`${predicate}${selectAlias} FROM ${scope}`);
 /** r14: one parameterized EXISTS row guard; the channel, cart and checkout
  *  assertion callers rebuild byte-identically. Text only: binds unchanged. */
 export const ecommerceExistsGuard = (table: string, where: string) =>
@@ -32,16 +35,18 @@ export const ecommerceExistsGuard = (table: string, where: string) =>
  *  workspace callers rebuild byte-identically. Text only: binds unchanged.
  *  r24: the ORDER BY tail is optional so the three r11 source-row reads
  *  compose from the same frame, byte-identically. r26: WHERE is optional so
- *  the two CTE source frames compose byte-identically with zero binds. */
+ *  the two CTE source frames compose byte-identically with zero binds.
+ *  r30: composes from ecommerceScalar; the ternaries stay inside its argument. */
 export const ecommerceOrderedList = (columns: string, from: string, where?: string, order?: string) =>
-  `SELECT ${columns} FROM ${from}${where ? ` WHERE ${where}` : ''}${order ? ` ORDER BY ${order}` : ''}`;
+  ecommerceScalar(`${columns} FROM ${from}${where ? ` WHERE ${where}` : ''}${order ? ` ORDER BY ${order}` : ''}`);
 /** r14/r15: one parameterized listing frame. The channel-row and evidence
  *  projections rebuild byte-identically through this single frame; the product
  *  join is optional and all three aliases are configurable. text only: the two
  *  binds and source locks are unchanged. r25: the image projection keeps its
- *  trailing newline verbatim. */
+ *  trailing newline verbatim. r30: composes from ecommerceScalar; the projection
+ *  byte (including its trailing newline) and both binds pass through unchanged. */
 export const ecommerceListingFrame = (projection: string, { l = 'l', c = 'c', p = 'p', withProduct = true }: { l?: string; c?: string; p?: string; withProduct?: boolean } = {}) =>
-  `SELECT ${projection} FROM ecommerce_listings ${l} JOIN ecommerce_channels ${c} ON ${c}.id=${l}.channel_id${withProduct ? ` JOIN commerce_products ${p} ON ${p}.id=${l}.product_id AND ${p}.company_id=${c}.company_id` : ''} WHERE ${l}.id=? AND ${c}.company_id=?`;
+  ecommerceScalar(`${projection} FROM ecommerce_listings ${l} JOIN ecommerce_channels ${c} ON ${c}.id=${l}.channel_id${withProduct ? ` JOIN commerce_products ${p} ON ${p}.id=${l}.product_id AND ${p}.company_id=${c}.company_id` : ''} WHERE ${l}.id=? AND ${c}.company_id=?`);
 /** r14: one parameterized listing-channel row read; the repository detail and
  *  attachment-facts callers rebuild byte-identically. Binds unchanged.
  *  r25: composes from the shared listing frame, byte-identically. */

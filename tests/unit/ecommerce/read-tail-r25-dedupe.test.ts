@@ -88,7 +88,7 @@ describe('Ecommerce read-tail r25 three-rank dedupe', () => {
     expect(shared).toContain('ecommerceListingFrame(columns, { withProduct: false })');
     expect(shared).toContain('ecommerceListingFrame(projection, { l, c, p })');
     const frameDef = shared.slice(shared.indexOf('export const ecommerceListingFrame = '), shared.indexOf('export const ecommerceListingChannelRow = '));
-    expect((frameDef.match(/SELECT /g) ?? []).length).toBe(1);
+    expect((frameDef.match(/SELECT /g) ?? []).length).toBe(0);
     const wrappers = shared.slice(shared.indexOf('export const ecommerceListingChannelRow = '), shared.indexOf('/** r14: one parameterized source-identity read'));
     expect(wrappers).not.toContain('SELECT ');
     expect(src).toContain('ecommerceListingChannelRow("l.*,c.company_id,c.status channel_status")');
@@ -137,7 +137,7 @@ describe('Ecommerce read-tail r25 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(5);
+    expect(total).toBe(1);
     expect(total).toBeLessThan(22);
   });
 });
