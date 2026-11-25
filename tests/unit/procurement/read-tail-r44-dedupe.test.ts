@@ -99,6 +99,6 @@ describe('Procurement read-tail r44 byte-exact helpers', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(103);
-    expect(total).toBe(95); // r44: 103->99 (F1 -3, F6 -1); r45: RETURNED witness -3, two outer frames (-2 +1 helper = -1).
+    expect(total).toBe(90); // r44: 103->99 (F1 -3, F6 -1); r45: 99->95; r47: six fact heads (-6 +1 helper) 95->90.
   });
 });
