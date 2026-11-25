@@ -144,8 +144,8 @@ describe('pms read-tail r43 night-witness, booking-email and lineage-step dedupe
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(239);
-    expect(bare).toBe(240);
+    expect(spaced).toBe(238);
+    expect(bare).toBe(239);
     expect(spaced).toBeLessThan(302);
   });
 });

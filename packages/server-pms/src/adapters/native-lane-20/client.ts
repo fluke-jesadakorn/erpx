@@ -37,6 +37,23 @@ type Holding = Readonly<{
 }>;
 type Config = Readonly<{ base: string; timeoutMs: number; holdings: readonly Holding[] }>;
 
+/** Shared multi-Holding config/selection surface for native lane 20 clients. */
+export type Lane20Config = Config;
+export type Lane20Holding = Holding;
+export function nativeLane20Config(): Lane20Config {
+  return config();
+}
+export function nativeLane20SelectTarget(cfg: Lane20Config, actor: LaneActor): Lane20Holding {
+  return selectTarget(cfg, actor);
+}
+export function nativeLane20Get(
+  url: URL,
+  headers: Record<string, string>,
+  timeoutMs: number,
+): Promise<{ status: number; value: unknown }> {
+  return get(url, headers, timeoutMs);
+}
+
 const ENV = "ERPX_NATIVE_LANE_20_CONFIG";
 const RESERVED_PORTS = new Set([3000, 3001, 3100, 3101, 3103, 5432, 5433, 5435, 8080]);
 const unavailable = (code = "PMS_NATIVE_LANE_20_UNAVAILABLE", message = "The native PMS property readiness service is unavailable."): never => {

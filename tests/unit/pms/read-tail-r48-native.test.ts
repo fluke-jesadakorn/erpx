@@ -89,7 +89,9 @@ describe('pms read-tail r48 native read retirement', () => {
     expect(chunk).toContain('facts.fact24, facts.nightView3, facts.nightView4, facts.propertyId6], db');
     expect(chunk).toContain('.then(rows => rows.results.map(decodePmsRecord))');
     expect(repo.split('PMS_RD_SECTION_RELATED_RECORDS').length - 1).toBe(2);
-    expect(repo).toContain('roomSummary: facts => db.prepare(');
+    // Room summary is now owned by native lane 20, not a TS prepared statement.
+    expect(repo).not.toContain('roomSummary: facts => db.prepare(');
+    expect(repo).toContain('roomSummaryFacts(db, actor, {');
   });
 
   it('leaves the caller property lock, lock reads, feature and settlement reads untouched', async () => {
@@ -138,8 +140,8 @@ describe('pms read-tail r48 native read retirement', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(239);
-    expect(bare).toBe(240);
+    expect(spaced).toBe(238);
+    expect(bare).toBe(239);
     expect(spaced).toBeLessThan(275);
     expect(bare).toBeLessThan(277);
   });

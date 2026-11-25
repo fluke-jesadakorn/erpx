@@ -152,8 +152,8 @@ describe('pms read-tail r44 chosen-kind, payment-union and lineage-anchor dedupe
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(239);
-    expect(bare).toBe(240);
+    expect(spaced).toBe(238);
+    expect(bare).toBe(239);
     expect(spaced).toBeLessThan(299);
     expect(bare).toBeLessThan(301);
   });

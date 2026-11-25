@@ -30,6 +30,24 @@ pub fn valid_id(value: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_' || byte == b'.' || byte == b':')
 }
 
+/// Room-count facts for one Property. All values are bounded non-negative
+/// counts, so the wire shape has no ambiguous missing/zero distinction.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RoomSummaryFacts {
+    pub total: i32,
+    pub active: i32,
+    pub dirty: i32,
+    pub clean: i32,
+    pub inspected: i32,
+    pub dnd: i32,
+    pub occupied: i32,
+}
+
+/// Optional room-list filters are bounded but may be empty.
+pub fn valid_filter(value: &str) -> bool {
+    value.len() <= 200
+}
+
 pub fn invalid_request() -> BusinessError {
     BusinessError::invalid(
         "PMS_NATIVE_LANE_20_REQUEST_INVALID",

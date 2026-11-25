@@ -9,6 +9,10 @@ import {
   type LaneActor,
   type PropertyReadiness,
 } from "../../../packages/server-pms/src/adapters/native-lane-20/client";
+import {
+  roomSummaryFacts,
+  type RoomSummary,
+} from "../../../packages/server-pms/src/adapters/native-lane-20/room-summary-client";
 
 const ENV = "ERPX_NATIVE_LANE_20_CONFIG";
 const db = {} as SqlDatabase;
@@ -20,6 +24,23 @@ const facts: PropertyReadiness = {
 };
 const acme: LaneActor = { holdingId: "h001", holdingSlug: "acme", companyId: "acme-co" };
 const northstar: LaneActor = { origin: "https://northstar.jesadakorn.com", companyId: "northstar-co" };
+const summary: RoomSummary = {
+  total: 4,
+  active: 3,
+  dirty: 1,
+  clean: 2,
+  inspected: 0,
+  dnd: 1,
+  occupied: 2,
+};
+const filters = {
+  propertyId: "property-1",
+  status: "dirty",
+  q: "101",
+  building: "Main",
+  floor: "1",
+  typeId: "room-1",
+};
 
 let cleanup: Array<() => void> = [];
 afterEach(() => {
@@ -205,5 +226,66 @@ describe("native PMS lane 20 multi-holding transport", () => {
     expect(
       sha(JSON.stringify({ hasActiveRates: false, hasActiveRooms: true, hasRoomTypes: true, hasStays: true })),
     ).toBe("5c3f6e00b4bd3508d9e301ecdbaaf34971f27d12c6b05592503a49f2a5387a41");
+  });
+});
+
+describe("native PMS lane 20 room-summary transport", () => {
+  it("pins the exact route, Company header, filter encoding and numeric shape", async () => {
+    await withServer((_request, response) => json(response, 200, { summary }), async seen => {
+      expect(await roomSummaryFacts(db, acme, filters)).toEqual(summary);
+      expect(seen.method).toBe("GET");
+      expect(seen.url).toBe(
+        "/api/v1/holdings/acme/pms/native-lane-20/room-summary" +
+          "?property=property-1&status=dirty&q=101&building=Main&floor=1&type=room-1",
+      );
+      expect(seen.headers.host).toBe("acme.jesadakorn.com");
+      expect(seen.headers.origin).toBe("https://acme.jesadakorn.com");
+      expect(seen.headers["x-erpx-context-company"]).toBe("acme-co");
+    });
+  });
+
+  it("selects the second Holding from its actor and accepts an explicit null summary", async () => {
+    await withServer((_request, response) => json(response, 200, { summary: null }), async seen => {
+      expect(await roomSummaryFacts(db, northstar, { ...filters, propertyId: "foreign" })).toBeNull();
+      expect(seen.url?.startsWith("/api/v1/holdings/northstar/pms/native-lane-20/room-summary")).toBe(true);
+      expect(seen.headers.host).toBe("northstar.jesadakorn.com");
+      expect(seen.headers["x-erpx-context-company"]).toBe("northstar-co");
+    });
+  });
+
+  it("fails closed on malformed summaries and unknown targets", async () => {
+    for (const body of [
+      { summary: { ...summary, injected: 1 } },
+      { summary: { ...summary, total: "4" } },
+      { value: summary },
+    ]) {
+      await withServer((_request, response) => json(response, 200, body), async () => {
+        await expect(roomSummaryFacts(db, acme, filters)).rejects.toMatchObject({
+          status: 503,
+          code: "PMS_NATIVE_LANE_20_RESPONSE_INVALID",
+        });
+      });
+      cleanup.forEach(stop => stop());
+      cleanup = [];
+    }
+    let called = false;
+    await withServer(
+      () => { called = true; },
+      async () => {
+        await expect(
+          roomSummaryFacts(db, { holdingId: "h999", holdingSlug: "ghost", companyId: "ghost-co" }, filters),
+        ).rejects.toMatchObject({ status: 503, code: "PMS_NATIVE_LANE_20_TARGET_UNAVAILABLE" });
+      },
+    );
+    expect(called).toBe(false);
+  });
+
+  it("pins the rendered room-summary SQL and result oracles", () => {
+    const sql = "SELECT count(*)::integer total, count(*) FILTER (WHERE r.data_json::jsonb->>'active'='true')::integer active, count(*) FILTER (WHERE r.data_json::jsonb->>'cleanliness'='dirty')::integer dirty, count(*) FILTER (WHERE r.data_json::jsonb->>'cleanliness'='clean')::integer clean, count(*) FILTER (WHERE r.data_json::jsonb->>'cleanliness'='inspected')::integer inspected, count(*) FILTER (WHERE r.data_json::jsonb->>'dnd'='true')::integer dnd, count(*) FILTER (WHERE EXISTS(SELECT 1 FROM pms_records st WHERE st.property_id=r.property_id AND st.kind='stay' AND st.data_json::jsonb->>'roomId'=r.id AND st.data_json::jsonb->>'state'='in_house'))::integer occupied FROM pms_records r JOIN pms_properties p ON p.id=r.property_id AND p.company_id=$1 WHERE r.property_id=$2 AND r.kind='room' AND ($3='' OR r.data_json::jsonb->>'cleanliness'=$3) AND ($4='' OR position(lower($4) in lower(concat_ws(' ',r.id,r.data_json::jsonb->>'number',r.data_json::jsonb->>'building',r.data_json::jsonb->>'floor')))>0) AND ($5='' OR r.data_json::jsonb->>'building'=$5) AND ($6='' OR r.data_json::jsonb->>'floor'=$6) AND ($7='' OR r.data_json::jsonb->>'typeId'=$7)";
+    const sha = (value: string) => createHash("sha256").update(value).digest("hex");
+    expect(sha(sql)).toBe("676661c61ace9c3fd137bcce3be879776266906ce20d45199c00d918c4ee613e");
+    expect(
+      sha(JSON.stringify({ active: 3, clean: 2, dirty: 1, dnd: 1, inspected: 0, occupied: 2, total: 4 })),
+    ).toBe("a73433d444f53f1d87215bfceed8efb5429c8e87f5f02dc5000c199d9120d859");
   });
 });

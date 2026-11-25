@@ -15,6 +15,7 @@ import { pmsBookingEmailPendingSql } from "../pms-read-tail-r43-sql";
 import { pmsChosenKindPointSql, pmsReservationRelationArmSql } from "../pms-read-tail-r45-sql";
 import { nativePmsReadAll, PMS_RD_INVENTORY_COMMAND, PMS_RD_SECTION_RELATED_RECORDS } from "../native-pms-read";
 import { propertyReadinessFacts, type LaneActor } from "../native-lane-20/client";
+import { roomSummaryFacts } from "../native-lane-20/room-summary-client";
 import * as application from "@erpx/server-pms/application/read-repository";
 const stayPredicate = `(data_json::jsonb->>'state' IN ('reserved','in_house') OR
     data_json::jsonb->>'arrival'=? OR data_json::jsonb->>'departure'=?)`;
@@ -33,18 +34,24 @@ export const pmsDashboardRecordsSql = `WITH selected_stays AS MATERIALIZED (
 ) ${PMS_ORDERED_RECORDS_TAIL_SQL}`;
 function repository(db: SqlDatabase, actor: LaneActor = {}): application.PmsReadRepository {
     return {
-        roomSummary: facts => db.prepare(`SELECT count(*)::integer total,
-          count(*) FILTER(WHERE r.data_json::jsonb->>'active'='true')::integer active,
-          count(*) FILTER(WHERE r.data_json::jsonb->>'cleanliness'='dirty')::integer dirty,
-          count(*) FILTER(WHERE r.data_json::jsonb->>'cleanliness'='clean')::integer clean,
-          count(*) FILTER(WHERE r.data_json::jsonb->>'cleanliness'='inspected')::integer inspected,
-          count(*) FILTER(WHERE r.data_json::jsonb->>'dnd'='true')::integer dnd,
-          count(*) FILTER(WHERE ${pmsStayExistsHeadSql('roomId')} AND st.data_json::jsonb->>'state'='in_house'))::integer occupied
-          FROM pms_records r WHERE r.property_id=? AND r.kind='room'
-          AND (?='' OR r.data_json::jsonb->>'cleanliness'=?)
-          AND (?='' OR position(lower(?) in lower(concat_ws(' ',r.id,r.data_json::jsonb->>'number',r.data_json::jsonb->>'building',r.data_json::jsonb->>'floor')))>0)
-          AND (?='' OR r.data_json::jsonb->>'building'=?) AND (?='' OR r.data_json::jsonb->>'floor'=?) AND (?='' OR r.data_json::jsonb->>'typeId'=?)`)
-          .bind(facts.propertyId,facts.status,facts.status,facts.q,facts.q,facts.building,facts.building,facts.floor,facts.floor,facts.typeId,facts.typeId).first<application.PmsRoomSummary>(),
+        // Room aggregates belong to the native axum owner. No SQL is issued
+        // here; the owner scopes by Company and projects the bounded counts.
+        roomSummary: async (facts: {
+            propertyId: string;
+            businessDate: string;
+            status: string;
+            q: string;
+            building: string;
+            floor: string;
+            typeId: string;
+        }): Promise<application.PmsRoomSummary | null> => roomSummaryFacts(db, actor, {
+            propertyId: facts.propertyId,
+            status: facts.status,
+            q: facts.q,
+            building: facts.building,
+            floor: facts.floor,
+            typeId: facts.typeId,
+        }),
         operationsPage: (facts: {
             propertyId: string;
             kind: "reservation" | "stay";

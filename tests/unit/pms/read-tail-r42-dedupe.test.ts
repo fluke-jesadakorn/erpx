@@ -69,16 +69,18 @@ describe('pms read-tail r42 stay-witness, correction-fact and order-tail dedupe'
 
   it('routes all call sites through the helpers and removes inline heads', async () => {
     const rr = await src('adapters/pms/read-repository.ts');
-    expect(rr.split("pmsStayExistsHeadSql('roomId')").length - 1).toBe(1);
+    // The roomId stay witness moved to native lane 20 with the room summary.
+    expect(rr.split("pmsStayExistsHeadSql('roomId')").length - 1).toBe(0);
+    expect(rr).toContain('roomSummaryFacts(db, actor, {');
     expect(rr.split("pmsStayExistsHeadSql('reservationId')").length - 1).toBe(1);
     expect(rr.split('${PMS_ORDERED_RECORDS_TAIL_SQL}').length - 1).toBe(1); // one after r48
     expect(rr.split(HEAD.stayRoom).length - 1).toBe(0);
     expect(rr.split(HEAD.stayReservation).length - 1).toBe(0);
     expect(rr.split(HEAD.orderedRecords).length - 1).toBe(0);
     // Tails and binds stay at the sites.
-    expect(rr).toContain("AND st.data_json::jsonb->>'state'='in_house'))::integer occupied");
+    expect(rr).not.toContain("AND st.data_json::jsonb->>'state'='in_house'))::integer occupied");
     expect(rr).toContain("AND ((st.data_json::jsonb->>'arrival'<=? AND st.data_json::jsonb->>'departure'>=?) OR st.data_json::jsonb->>'state'='in_house')) END)");
-    expect(rr).toContain('.bind(facts.propertyId,facts.status,facts.status');
+    expect(rr).not.toContain('.bind(facts.propertyId,facts.status,facts.status');
     expect(rr).toContain('.bind(facts.propertyId, facts.kind, facts.status, facts.status2');
     expect(rr).toContain('facts.fact24, facts.nightView3, facts.nightView4, facts.propertyId6], db');
 
@@ -127,8 +129,8 @@ describe('pms read-tail r42 stay-witness, correction-fact and order-tail dedupe'
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(239);
-    expect(bare).toBe(240);
+    expect(spaced).toBe(238);
+    expect(bare).toBe(239);
     expect(spaced).toBeLessThan(302);
   });
 });
