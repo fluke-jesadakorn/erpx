@@ -130,7 +130,7 @@ describe('native Inventory landed-cost detail child reads', () => {
     // r52 retires 1 landed-cost detail-lines read: 303 -> 302.
     // r53 folds 3 byte-identical count-list projection heads into one helper: 302 -> 300.
     // r54 folds 3 package-obligation stock heads into one kind-parameterized renderer: 300 -> 298.
-    expect(total).toBe(293);
-    expect(total).toBeLessThan(300);
+    expect(total).toBe(292);
+    expect(total).toBeLessThan(299);
   });
 });

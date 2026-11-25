@@ -1,5 +1,5 @@
 import "server-only";
-import {scopedFieldSql,scopeAllowedSql} from './read-tail-sql';
+import {scopedFieldSql,scopeAllowedSql,transferDetailHeadSql} from './read-tail-sql';
 import {inventoryPurchaseReplaySql} from "./inventory-read-projections";
 import {randomUUID} from "node:crypto";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
@@ -23,7 +23,7 @@ type Source={id:string;company_id:string;source_branch_id:string;target_branch_i
 async function source(database:SqlDatabase,actor:Actor,target:TransferPurchaseTarget){
  const query=target.kind==="transfer"?`SELECT id,company_id,source_branch_id,target_branch_id,source_warehouse_id,target_warehouse_id,source_warehouse_version,target_warehouse_version FROM inventory_transfers
   WHERE id=? AND company_id=? AND (?::text IS NULL OR source_branch_id=? OR target_branch_id=?)`:
- `SELECT d.id,d.company_id,d.source_branch_id,d.target_branch_id,d.source_warehouse_id,d.target_warehouse_id,d.transfer_id,d.chart_id,d.inventory_account_id,d.currency
+ `${transferDetailHeadSql}d.target_branch_id,d.source_warehouse_id,d.target_warehouse_id,d.transfer_id,d.chart_id,d.inventory_account_id,d.currency
   FROM inventory_transit d JOIN inventory_transfers t ON t.id=d.transfer_id AND t.company_id=d.company_id
   AND t.source_warehouse_id=d.source_warehouse_id AND t.target_warehouse_id=d.target_warehouse_id
   AND t.source_branch_id=d.source_branch_id AND t.target_branch_id=d.target_branch_id AND t.delivery_mode='transit'

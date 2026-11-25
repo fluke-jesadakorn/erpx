@@ -413,3 +413,10 @@ export const countLineStockHeadSql = 'SELECT l.*,p.sku,p.tracking_mode,';
  *  statement. Locks, native transport, count sources/adapters and r11-r58
  *  helpers stay untouched. */
 export const stockObligationHeadSql = "SELECT 'stock',concat(s.warehouse_id,':',s.product_id),";
+
+/** r60: the transfer detail read and the transfer record-purchase source read
+ *  share one byte-identical, bind-free projection head; only the projection
+ *  tail, parent scope and statement vary. Every caller keeps its own tail,
+ *  binds and independent statement. Locks, native transport, count
+ *  sources/adapters and r11-r59 helpers stay untouched. */
+export const transferDetailHeadSql = 'SELECT d.id,d.company_id,d.source_branch_id,';

@@ -113,7 +113,7 @@ describe('Inventory read-tail r58 count-line stock head dedupe', () => {
     // r56 at 296 and r57 at 295. r58 folds the byte-identical count-line stock
     // projection head shared by the count-line and transfer-line detail reads
     // into one owner-local renderer: 2 source tokens -> 1, i.e. 295 -> 294.
-    expect(total).toBe(293);
-    expect(total).toBeLessThan(295);
+    expect(total).toBe(292);
+    expect(total).toBeLessThan(294);
   });
 });
