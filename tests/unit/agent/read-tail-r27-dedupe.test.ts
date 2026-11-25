@@ -91,7 +91,7 @@ describe('Agent read-tail r27 dedupe (BEFORE=44)', () => {
     expect(gov).toContain('db.prepare("SELECT id FROM agent_pools WHERE id=? FOR SHARE").bind(poolId)');
   });
 
-  it('KPI: TS SELECT tokens in packages/server-agent/src drop from 44 to 43', async () => {
-    expect(await agentSelectCount(new URL('../../../packages/server-agent/src/', import.meta.url))).toBe(43);
+  it('KPI: TS SELECT tokens in packages/server-agent/src drop from 44 to 42', async () => {
+    expect(await agentSelectCount(new URL('../../../packages/server-agent/src/', import.meta.url))).toBe(42);
   });
 });

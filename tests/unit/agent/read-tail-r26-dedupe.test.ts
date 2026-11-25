@@ -148,7 +148,7 @@ describe('Agent read-tail r26 dedupe (BEFORE=47)', () => {
     expect(intake).toContain('agentTurnEvidenceSql("t.user_id,t.company_id');
   });
 
-  it('KPI: TS SELECT tokens in packages/server-agent/src drop from 47 to 43', async () => {
-    expect(await agentSelectCount(new URL('../../../packages/server-agent/src/', import.meta.url))).toBe(43);
+  it('KPI: TS SELECT tokens in packages/server-agent/src drop from 47 to 42', async () => {
+    expect(await agentSelectCount(new URL('../../../packages/server-agent/src/', import.meta.url))).toBe(42);
   });
 });

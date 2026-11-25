@@ -68,7 +68,7 @@ describe('Agent read-tail r25 dedupe (BEFORE=49)', () => {
     expect(gov).not.toContain('EXISTS(SELECT 1 FROM agent_pool_members m WHERE m.pool_id=p.id');
   });
 
-  it('KPI: TS SELECT tokens in packages/server-agent/src drop from 49 to 43', async () => {
-    expect(await agentSelectCount(new URL('../../../packages/server-agent/src/', import.meta.url))).toBe(43);
+  it('KPI: TS SELECT tokens in packages/server-agent/src drop from 49 to 42', async () => {
+    expect(await agentSelectCount(new URL('../../../packages/server-agent/src/', import.meta.url))).toBe(42);
   });
 });
