@@ -173,7 +173,7 @@ describe('quality read-tail r26 evidence-head family (R)', () => {
       'quality-work-scope-sql': 1, 'native-source-wrapper-sql': 1, 'inspection-evidence-source-sql': 1,
       'quality-lineage-recursion-sql': 1, 'quality-child-agg-sql': 1,
       'quality-receipt-guard-sql': 1, 'quality-source-rows-sql': 1, 'quality-scope-sql': 1,
-      'quality-alert-recipient-sql': 1, 'quality-attachment-scope-read-sql': 1, 'quality-id-source-sql': 1,
+      'quality-alert-recipient-sql': 0, 'quality-attachment-scope-read-sql': 1, 'quality-id-source-sql': 1,
       'quality-attachment-source-select-sql': 1, 'quality-return-anchor-sql': 0,
       'quality-obligation-fact-arm-sql': 0, 'quality-lineage-terminal-sql': 1, 'quality-source-arm-head': 1,
     };
@@ -198,6 +198,6 @@ describe('quality read-tail r26 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(57);
-    expect(total).toBe(28);
+    expect(total).toBe(27);
   });
 });

@@ -32,7 +32,7 @@ describe('quality alert recipient family dedupe (r17)', () => {
     expect(text).not.toContain('SELECT COUNT(DISTINCT m.user_id)');
     expect(text).toContain('CASE WHEN EXISTS(${qualityAlertRecipientSql(');
     expect(text).toContain("(${qualityAlertRecipientSql('COUNT(DISTINCT m.user_id)')}) recipients");
-    expect(read('adapters/quality-alert-recipient-sql.ts').match(/SELECT /g)).toHaveLength(1);
+    expect(read('adapters/quality-alert-recipient-sql.ts').match(/SELECT /g) ?? []).toHaveLength(0);
   });
   test('the helper is read-only; descriptor cutover, locks and r1-r16 helpers stay untouched', () => {
     const helper = read('adapters/quality-alert-recipient-sql.ts');
@@ -57,6 +57,6 @@ describe('quality read-tail r17 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(75);
-    expect(total).toBe(28);
+    expect(total).toBe(27);
   });
 });
