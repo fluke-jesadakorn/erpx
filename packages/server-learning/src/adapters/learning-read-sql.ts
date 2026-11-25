@@ -75,11 +75,12 @@ export const sourceLiteral = (table: string) => `SELECT * FROM ${table}`;
 export const metricLabelProjection = (label: string, source: string) =>
   `SELECT ${label} label,count(*)::text value FROM ${source} GROUP BY 1 ORDER BY 1`;
 
-/** r8b — cross-file learning_assignments existence probe. The head is
- * byte-identical at both callers; only the alias and conditions vary, so each
- * rendered query keeps its exact pre-dedupe bytes. */
+/** r8b — cross-file learning_assignments existence probe. r21 — that head is
+ * exactly the r17 existsRowProbe head with the assignments FROM source; its one
+ * query head now lives in that owner-local renderer. Only the alias and the
+ * conditions vary, so every rendered probe keeps its exact pre-dedupe bytes. */
 export const learningAssignmentsExistsProbe = (alias: string, conditions: string) =>
-  `EXISTS(SELECT 1 FROM learning_assignments ${alias} WHERE ${conditions})`;
+  `EXISTS(${existsRowProbe(`FROM learning_assignments ${alias}`, conditions)})`;
 
 /** r9 — the current assignment read-scope head is byte-identical at the metric
  * history and purchase authority callers: both select the same assignmentReadSql

@@ -101,10 +101,10 @@ describe('Learning read-tail r18 deferred families and invariants', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBeLessThan(39);
-    expect(total).toBe(36);
+    expect(total).toBeLessThan(38);
+    expect(total).toBe(35);
     expect(selectCount(src('learning.ts'))).toBe(0);
-    expect(selectCount(src('learning-read-sql.ts'))).toBe(34);
+    expect(selectCount(src('learning-read-sql.ts'))).toBe(33);
     expect(selectCount(src('executive-metric-projections.ts'))).toBe(1);
     expect(selectCount(src('learning-completion-evidence.ts'))).toBe(1);
   });
