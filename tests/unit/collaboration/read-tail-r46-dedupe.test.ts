@@ -157,7 +157,7 @@ describe('Collaboration read-tail r46 protected SQL isolation', () => {
 });
 
 describe('Collaboration read-tail r46 KPI pins', () => {
-  test('retirement:ts-statements is pinned at 333, below the r46 BEFORE=338 baseline', () => {
+  test('retirement:ts-statements is pinned at 332, below the r46 BEFORE=338 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -170,7 +170,7 @@ describe('Collaboration read-tail r46 KPI pins', () => {
     // Three byte-identical post-id heads -> one owner-local renderer; the
     // four r45 settlement heads stay retired at 338. Net: 338 -> 336.
     // r47 merged the two owner/version guards into one renderer: 336 -> 335.
-    expect(total).toBe(333);
+    expect(total).toBe(332);
     expect(total).toBeLessThan(338);
   });
 });

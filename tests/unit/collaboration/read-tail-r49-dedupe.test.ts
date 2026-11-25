@@ -153,9 +153,12 @@ describe('Collaboration read-tail r49 AI-usage read family', () => {
 });
 
 describe('Collaboration read-tail r49 protected SQL isolation', () => {
-  test('r28/r37 revision aggregates, inbox pins, locks and agent-reply guards stay unchanged', () => {
-    expect(sha(line(shared, 'export const socialPostRevisionsAgg='))).toBe('45a532b39e24e3850f213d6d9d4d57c8935b9e480bc7571e24e2b32ab91eab25');
-    expect(sha(line(shared, 'export const socialPostRevisionsFileAgg='))).toBe('54d25e37d2e13e6d85081bd5af6b48599151fa74a9523337a4d72ea609c8c3b0');
+  test('post-r50 revision wrappers, inbox pins, locks and agent-reply guards stay pinned', () => {
+    // r50 folded the r28/r37 revision aggregates into one alias-parameterized
+    // renderer; the two lines below are now thin wrappers whose rendered SQL is
+    // still byte-identical (oracled in read-tail-r50-dedupe.test.ts).
+    expect(sha(line(shared, 'export const socialPostRevisionsAgg='))).toBe('69bcdd6271524e9466d33d6d2b0dd21a3dfb9caed2ce81658c8bbb2cd457575d');
+    expect(sha(line(shared, 'export const socialPostRevisionsFileAgg='))).toBe('d649d3932556829deac57895db6435f4f6a1fcf6ba717d8d4c954b68200b4c8c');
     expect(sha(line(shared, 'export const socialAiDraftById='))).toBe('fad052f2521c61756c64debcc43e7a3c78b34b24a5c9e3be300ac71b2a52e9bf');
     expect(sha(fixed('adapters/inbox.ts'))).toBe('add8defc4e1a0b3d369362e96d00acb93e34d0d0734cd0a1783b98a7382eb721');
     expect(sha(fixed('adapters/staff-notifications.ts'))).toBe('3ce65abf55973c3a41228531a9d2778739a6a7f859a37591c016bda9f9a2508a');
@@ -173,7 +176,7 @@ describe('Collaboration read-tail r49 protected SQL isolation', () => {
 });
 
 describe('Collaboration read-tail r49 KPI pins', () => {
-  test('retirement:ts-statements is pinned at 333, below the r49 BEFORE=334 baseline', () => {
+  test('retirement:ts-statements is pinned at 332, below the r49 BEFORE=334 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -184,8 +187,9 @@ describe('Collaboration read-tail r49 KPI pins', () => {
     };
     walk(srcRoot);
     // Two byte-identical 35-byte AI-usage heads -> one shared renderer with two
-    // thin wrappers. Net: 334 -> 333.
-    expect(total).toBe(333);
+    // thin wrappers: 334 -> 333. r50 folds the two revisions aggregates into one
+    // alias-parameterized renderer: 333 -> 332.
+    expect(total).toBe(332);
     expect(total).toBeLessThan(334);
   });
 });

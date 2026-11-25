@@ -145,15 +145,17 @@ export const messagingOwnerGuard=(table:string,tail:string)=>ownerVersionGuard(t
  * stay unchanged. */
 export const socialAiPhaseImageSql=(draft:string,usage:string,reply:string)=>`SELECT jsonb_build_object('draft',(SELECT to_jsonb(d)${draft} FROM social_ai_drafts d WHERE d.id=?),'usage',(SELECT to_jsonb(u)${usage} FROM social_ai_usage u WHERE u.id=?),'reply',(SELECT to_jsonb(r)${reply} FROM social_agent_replies r WHERE r.id=?))::text image`;
 /** Byte-identical social-post revisions aggregate head shared by the work social
- * purchase image projection and the task purchase-source image projection. Only
- * the trailing WHERE/JOIN expression varies; the aggregate head, bind order and
- * lock semantics stay unchanged. */
-export const socialPostRevisionsAgg=(tail:string)=>`(SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM social_post_revisions r ${tail})`;
-/** Byte-identical revisions aggregate head shared by the work social attachment
- * witness and the task purchase-source file rows. Only the trailing JOIN/predicate
- * varies; the fixed `revision` alias, aggregate head, binds and lock semantics
- * stay unchanged. */
-export const socialPostRevisionsFileAgg=(tail:string)=>`(SELECT jsonb_agg(to_jsonb(revision) ORDER BY revision.id) FROM social_post_revisions revision ${tail})`;
+ * purchase image projection, the task purchase-source image projection, the work
+ * social attachment witness and the task purchase-source file rows. Only the row
+ * alias and the trailing WHERE/JOIN expression vary; the aggregate head, bind
+ * order and lock semantics stay unchanged. */
+export const socialPostRevisionsAggBy=(alias:string,tail:string)=>`(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM social_post_revisions ${alias} ${tail})`;
+/** Retained r28 wrapper: renders the `r` alias through socialPostRevisionsAggBy
+ * so existing consumers and bind order stay unchanged. */
+export const socialPostRevisionsAgg=(tail:string)=>socialPostRevisionsAggBy('r',tail);
+/** Retained r37 wrapper: renders the `revision` alias through
+ * socialPostRevisionsAggBy so existing consumers and bind order stay unchanged. */
+export const socialPostRevisionsFileAgg=(tail:string)=>socialPostRevisionsAggBy('revision',tail);
 /** Byte-identical PMS post-source absence guard shared by the collaboration
  * source-authorization predicate (pms-source-authorization.ts) and the Social
  * source-access policy (social-source-policy.ts). Only the post alias and the

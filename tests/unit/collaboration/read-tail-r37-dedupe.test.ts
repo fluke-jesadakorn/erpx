@@ -124,7 +124,7 @@ describe('Collaboration read-tail r37 isolation of protected SQL', () => {
   test('no helper added a lock, write or notification statement', () => {
     const added = [
       'export const messagingTeamMemberGuard=',
-      'export const socialPostRevisionsFileAgg=',
+      'export const socialPostRevisionsAggBy=',
       'export const socialPmsSourceFactExists=',
     ];
     for (const marker of added) {
@@ -132,6 +132,12 @@ describe('Collaboration read-tail r37 isolation of protected SQL', () => {
       expect(line).not.toMatch(/FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory|INSERT\s+INTO|UPDATE\s+\w+\s+SET/);
       expect(line.match(/SELECT /g) ?? []).toHaveLength(1);
     }
+    // r50 folded FileAgg into the shared renderer: the retained wrapper owns no
+    // SELECT token and only delegates to socialPostRevisionsAggBy.
+    const fileWrapper = shared.split('\n').find(l => l.startsWith('export const socialPostRevisionsFileAgg='))!;
+    expect(fileWrapper).not.toMatch(/FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory|INSERT\s+INTO|UPDATE\s+\w+\s+SET/);
+    expect(fileWrapper.match(/SELECT /g) ?? []).toHaveLength(0);
+    expect(fileWrapper).toContain('socialPostRevisionsAggBy(');
   });
 });
 
@@ -156,7 +162,7 @@ describe('Collaboration read-tail r37 KPI pins', () => {
     // r43 retired draft-by-id reuse, messaging team image and target image: 350 -> 344.
     // r44 retired the latest-message tail, absent-social-post guard and handover
     // ack join: 344 -> 341. Prior pins were refreshed only where 341 replaced 344.
-    expect(total).toBe(333);
+    expect(total).toBe(332);
     expect(total).toBeLessThan(370);
   });
 });
