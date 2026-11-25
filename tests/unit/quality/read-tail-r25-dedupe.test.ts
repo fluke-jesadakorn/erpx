@@ -81,7 +81,7 @@ describe('quality read-tail r25 protected families', () => {
     expect(read('adapters/customer_return_hold_http.rs')).toContain('customer_return_hold');
     const counts: Record<string, number> = {
       'quality-work-scope-sql': 1, 'native-source-wrapper-sql': 1, 'inspection-evidence-source-sql': 1,
-      'quality-lineage-recursion-sql': 2, 'quality-child-agg-sql': 1,
+      'quality-lineage-recursion-sql': 1, 'quality-child-agg-sql': 1,
       'quality-receipt-guard-sql': 1, 'quality-source-rows-sql': 1, 'quality-scope-sql': 1,
       'quality-alert-recipient-sql': 1, 'quality-attachment-scope-read-sql': 1, 'quality-id-source-sql': 1,
       'quality-attachment-source-select-sql': 1, 'quality-source-union-sql': 1, 'quality-return-anchor-sql': 0,
@@ -105,6 +105,6 @@ describe('quality read-tail r25 dedupe retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(58);
-    expect(total).toBe(30);
+    expect(total).toBe(29);
   });
 });

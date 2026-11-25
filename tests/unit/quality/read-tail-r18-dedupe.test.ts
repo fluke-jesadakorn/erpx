@@ -40,7 +40,7 @@ describe('quality customer-return id-source family dedupe (r18)', () => {
       'quality-receipt-guard-sql', 'quality-source-rows-sql', 'quality-scope-sql',
       'quality-alert-recipient-sql', 'quality-attachment-scope-read-sql',
     ]) {
-      const expected = ['quality-lineage-recursion-sql'].includes(name) ? 2 : 1;
+      const expected = 1;
       expect(read(`adapters/${name}.ts`).match(/SELECT /g)).toHaveLength(expected);
     }
   });
@@ -58,6 +58,6 @@ describe('quality read-tail r18 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(75);
-    expect(total).toBe(30);
+    expect(total).toBe(29);
   });
 });

@@ -38,7 +38,7 @@ describe('quality recursive lineage recursion family dedupe (r14)', () => {
     expect(consumers.match(/qualityLineageSeedSql\(/g)).toHaveLength(4);
     expect(consumers.match(/qualityLineageStepSql\(/g)).toHaveLength(4);
     for (const [, , before] of [...seeds, ...steps]) expect(consumers).not.toContain(before);
-    expect(helper.match(/SELECT /g)).toHaveLength(2);
+    expect(helper.match(/SELECT /g)).toHaveLength(1);
   });
 
   test('the family is read-only, locks untouched and r10-r13 helpers stay independent', () => {
@@ -63,6 +63,6 @@ describe('quality read-tail r14 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(75);
-    expect(total).toBe(30);
+    expect(total).toBe(29);
   });
 });
