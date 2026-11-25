@@ -4,7 +4,7 @@ import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import type {StaffActor} from '@erpx/server-operations/public/staff-policy';
 import {currentAssignmentReadScope} from '@erpx/server-identity_access/public/record-source-authority';
 import {projectsPackageEnforcementMode,readPurchasedAccess,checkPurchasedCapability} from '@erpx/server-commercial/public/purchase-command-boundary';
-import {purchasedCapabilityPredicate,packageClockSql} from '@erpx/server-commercial/public/purchased-capability-sql';
+import {purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {hasPermission} from '@erpx/feature-identity_access/lib/permissions';
 import {ApiError} from '@erpx/server-runtime/public/http';
@@ -13,13 +13,15 @@ import {projectOwnerOrMemberColumnSql} from '@erpx/server-projects/adapters/proj
 import {projectAssignmentScopeSql} from '@erpx/server-projects/adapters/package-obligations';
 import {membersJsonSql} from '@erpx/server-projects/adapters/social-purchase-sources';
 import {staffProjectByRefHead} from './read-tail-r34';
+import {clockNowMsHead} from './read-tail-r41';
 
 /** Owner-local fixed SQL for the Projects collaboration-home read family. The
  * selected-audience and home reads reuse the owner's shared membership,
- * actor-scope, members and id/title options fragments; the clock CTE stays
- * local. Every source relation and bind order is unchanged. */
+ * actor-scope, members and id/title options fragments; the clock CTE keeps its
+ * own MATERIALIZED frame while sharing the closed clock head. Every source
+ * relation and bind order is unchanged. */
 const workforceActorScope = `CROSS JOIN ${projectAssignmentScopeSql('workforce_actor_scope')}`;
-const projectAudienceClock = `WITH project_audience_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms)`;
+const projectAudienceClock = `WITH project_audience_clock AS MATERIALIZED(${clockNowMsHead()})`;
 const projectsIdTitleOptions = 'SELECT p.id,p.title FROM staff_projects p';
 
 function audienceScope(actor:StaffActor,enforced:boolean){

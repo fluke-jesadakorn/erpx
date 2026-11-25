@@ -658,7 +658,9 @@ it('keeps one shared definition per byte-identical Projects collaboration-home S
  expect(count('(p.owner_user_id=? OR EXISTS(SELECT 1 FROM staff_project_members m WHERE m.project_id=p.id AND m.user_id=?))')).toBe(0);
  expect(count('CROSS JOIN (SELECT ?::text company_id,?::text branch_id,?::text department_id) workforce_actor_scope')).toBe(0);
  expect(count("'members',(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.user_id) FROM staff_project_members m WHERE m.project_id=p.id)")).toBe(0);
- expect(count('WITH project_audience_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms)')).toBe(1);
+ expect(count('WITH project_audience_clock AS MATERIALIZED(${clockNowMsHead()})')).toBe(1);
+ expect(count('WITH project_audience_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms)')).toBe(0);
+ expect(source).toContain("import {clockNowMsHead} from './read-tail-r41';");
  expect(count('${projectMemberScopeSql}')).toBe(2);
  expect(count('${workforceActorScope}')).toBe(2);
  expect(count('${projectAudienceClock}')).toBe(2);
