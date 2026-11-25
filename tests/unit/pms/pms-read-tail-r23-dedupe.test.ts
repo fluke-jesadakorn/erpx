@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
@@ -17,18 +18,23 @@ async function tsFiles(directory: URL): Promise<string[]> {
   return found;
 }
 
-describe('pms read-tail r23 byte-identical scope-read fragment dedupe', () => {
-  it('declares the shared SQL text exactly once', async () => {
-    expect((await src(SHARED)).split(SCOPE_SELECT).length - 1).toBe(1);
+describe('pms read-tail r23 byte-identical scope-read fragment retirement', () => {
+  it('removes the shared fragment file and its scoped-records symbol/literal', async () => {
+    expect(existsSync(new URL(SHARED, dir))).toBe(false);
+    for (const file of await tsFiles(dir)) {
+      const text = await readFile(file, 'utf8');
+      expect(text.split(SCOPE_SELECT).length - 1, file).toBe(0);
+      expect(text.split('PMS_SCOPED_RECORDS_SQL').length - 1, file).toBe(0);
+    }
   });
 
-  it('routes every scoped records reader through the shared fragment with no inline literal', async () => {
+  it('keeps the retired fragment out of the TypeScript readers', async () => {
     const text = await src(CALL_SITE);
     expect(text.split('PMS_SCOPED_RECORDS_SQL').length - 1).toBe(0); // r28 native port removed all 34 uses and the import
     expect(text).not.toContain(SCOPE_SELECT);
   });
 
-  it('keeps the fragment read-only, leaves locks inline and does not re-dedupe r17-r22', async () => {
+  it('keeps locks inline and does not re-dedupe r17-r22', async () => {
     expect(SCOPE_SELECT).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
     expect(await src(CALL_SITE)).toContain('FOR UPDATE OF p');
     expect(await src('adapters/pms-stripe.ts')).toContain('FOR UPDATE');
@@ -49,7 +55,7 @@ describe('pms read-tail r23 byte-identical scope-read fragment dedupe', () => {
   it('lowers the pms owner SELECT KPI strictly below the r22 after=468 baseline', async () => {
     let count = 0;
     for (const file of await tsFiles(dir)) count += (await readFile(file, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(252);
+    expect(count).toBe(246);
     expect(count).toBeLessThan(468);
   });
 });

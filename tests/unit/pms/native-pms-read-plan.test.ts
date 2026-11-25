@@ -879,14 +879,24 @@ describe('native PMS scoped-records read retirement', () => {
       expect(kind).not.toMatch(/SELECT|INSERT|UPDATE|DELETE|FOR UPDATE|FOR SHARE|LOCK TABLE/);
   });
 
-  it('removes the four TypeScript scoped literals but keeps every lock read inline', async () => {
+  it('removes the TypeScript scoped literals and their retired exports but keeps every lock read inline', async () => {
     const root = new URL('../../../packages/server-pms/src/adapters/', import.meta.url);
     const pms = await readFile(new URL('pms.ts', root), 'utf8');
+    const r25 = await readFile(new URL('pms-read-tail-r25-sql.ts', root), 'utf8');
+    const r26 = await readFile(new URL('pms-read-tail-r26-sql.ts', root), 'utf8');
     expect(pms).not.toContain('WITH scope AS (');
-    expect(pms).not.toContain('PMS_SCOPED_RECORDS_SQL');
-    expect(pms).not.toContain('PMS_RESERVATION_ID_MEMBER_SQL');
-    expect(pms).not.toContain('PMS_GUEST_ACCOUNT_CASHIER_MEMBER_SQL');
-    expect(pms).not.toContain('PMS_GUEST_ID_FROM_STAYS_SQL');
+    for (const symbol of [
+      'PMS_SCOPED_RECORDS_SQL',
+      'PMS_GUEST_ACCOUNT_ID_MEMBER_SQL',
+      'PMS_GUEST_ACCOUNT_CASHIER_MEMBER_SQL',
+      'PMS_RESERVATION_ID_MEMBER_SQL',
+      'PMS_GUEST_ID_FROM_ACCOUNTS_SQL',
+      'PMS_GUEST_ID_FROM_STAYS_SQL',
+    ]) {
+      expect(pms).not.toContain(symbol);
+      expect(r25).not.toContain(symbol);
+      expect(r26).not.toContain(symbol);
+    }
     for (const [name, kind] of [
       ['readPmsStayCommand', 'PMS_RD_STAY_COMMAND'],
       ['readPmsCashierCommand', 'PMS_RD_CASHIER_COMMAND'],

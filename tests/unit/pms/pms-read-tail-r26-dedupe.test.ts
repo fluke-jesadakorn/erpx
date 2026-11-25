@@ -24,11 +24,10 @@ async function tsFiles(directory: URL): Promise<string[]> {
 }
 
 describe('pms read-tail r26 byte-identical id-source dedupe', () => {
-  it('declares each shared SQL text exactly once', async () => {
+  it('declares the surviving SQL texts once and no retired guest-id source', async () => {
     const shared = await src(SHARED);
-    for (const sql of [IDS_MEMBER, CHOSEN, GUEST_ACCOUNTS, GUEST_STAYS]) {
-      expect(shared.split(sql).length - 1).toBe(1);
-    }
+    for (const sql of [IDS_MEMBER, CHOSEN]) expect(shared.split(sql).length - 1).toBe(1);
+    for (const sql of [GUEST_ACCOUNTS, GUEST_STAYS]) expect(shared.split(sql).length - 1).toBe(0);
   });
 
   it('routes every call site through the shared fragments with no inline literal', async () => {
@@ -50,7 +49,7 @@ describe('pms read-tail r26 byte-identical id-source dedupe', () => {
     }
   });
 
-  it('keeps the fragments read-only, leaves locks inline and does not re-dedupe r17-r25', async () => {
+  it('keeps the fragments read-only, leaves locks inline and does not re-dedupe surviving r17-r22 and r24-r25 helpers', async () => {
     for (const sql of [IDS_MEMBER, CHOSEN, GUEST_ACCOUNTS, GUEST_STAYS]) {
       expect(sql).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
     }
@@ -64,7 +63,6 @@ describe('pms read-tail r26 byte-identical id-source dedupe', () => {
       ['adapters/pms-read-tail-r20-sql.ts', 'PMS_PROPERTIES_PROJECTION_SQL'],
       ['adapters/pms-read-tail-r21-sql.ts', 'PMS_RECIPIENT_CROSS_JOIN_SQL'],
       ['adapters/pms-read-tail-r22-sql.ts', 'PMS_STRIPE_REFUND_COLUMNS_SQL'],
-      ['adapters/pms-read-tail-r23-sql.ts', 'PMS_SCOPED_RECORDS_SQL'],
       ['adapters/pms-read-tail-r24-sql.ts', 'PMS_RECORDS_PROJECTION_PREFIX_SQL'],
       ['adapters/pms-read-tail-r25-sql.ts', 'PMS_GUEST_STAYS_CHOSEN_MEMBER_SQL'],
     ];

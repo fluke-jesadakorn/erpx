@@ -9,6 +9,3 @@ export const PMS_IDS_JSONB_MEMBER_SQL = "(SELECT jsonb_array_elements_text(?::js
 /** Flat pms_records chosen-source projection reused by record repository CTEs. */
 export const PMS_CHOSEN_RECORDS_SQL = `SELECT id,kind,data_json::jsonb data FROM pms_records WHERE property_id=? AND id IN ${PMS_IDS_JSONB_MEMBER_SQL}`;
 
-/** Guest-id source subqueries reused by scoped command readers. */
-export const PMS_GUEST_ID_FROM_ACCOUNTS_SQL = "SELECT data_json::jsonb->>'guestId' FROM accounts";
-export const PMS_GUEST_ID_FROM_STAYS_SQL = "SELECT data_json::jsonb->>'guestId' FROM stays";

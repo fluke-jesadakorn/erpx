@@ -32,7 +32,7 @@ describe('pms read-tail r24 byte-identical pms_records projection prefix dedupe'
     expect(repo).not.toContain(PREFIX);
   });
 
-  it('keeps the fragment read-only, leaves locks inline and does not re-dedupe r17-r23', async () => {
+  it('keeps the fragment read-only, leaves locks inline and does not re-dedupe r17-r22', async () => {
     expect(PREFIX).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
     expect(await src(PMS)).toContain('FOR UPDATE OF p');
     expect(await src('adapters/pms-stripe.ts')).toContain('FOR UPDATE');
@@ -44,7 +44,6 @@ describe('pms read-tail r24 byte-identical pms_records projection prefix dedupe'
       ['adapters/pms-read-tail-r20-sql.ts', 'PMS_PROPERTIES_PROJECTION_SQL'],
       ['adapters/pms-read-tail-r21-sql.ts', 'PMS_RECIPIENT_CROSS_JOIN_SQL'],
       ['adapters/pms-read-tail-r22-sql.ts', 'PMS_STRIPE_REFUND_COLUMNS_SQL'],
-      ['adapters/pms-read-tail-r23-sql.ts', 'PMS_SCOPED_RECORDS_SQL'],
     ];
     for (const [file, constant] of prior) {
       expect((await src(file)).split(constant).length - 1).toBe(1);
@@ -54,7 +53,7 @@ describe('pms read-tail r24 byte-identical pms_records projection prefix dedupe'
   it('lowers the pms owner SELECT KPI strictly below the r23 after=435 baseline', async () => {
     let count = 0;
     for (const file of await tsFiles(dir)) count += (await readFile(file, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(252);
+    expect(count).toBe(246);
     expect(count).toBeLessThan(435);
   });
 });

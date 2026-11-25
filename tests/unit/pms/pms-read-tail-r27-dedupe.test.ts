@@ -32,7 +32,7 @@ describe('pms read-tail r27 purchase-clock CTE dedupe', () => {
     }
   });
 
-  it('keeps the fragment read-only, leaves locks inline and does not re-dedupe r17-r26', async () => {
+  it('keeps the fragment read-only, leaves locks inline and does not re-dedupe surviving r17-r22 and r24-r25 helpers', async () => {
     expect(CTE).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
     expect(await src('adapters/pms-stripe.ts')).toContain('FOR UPDATE');
     expect(await src('adapters/feature-availability.ts')).toContain('FOR SHARE');
@@ -43,10 +43,8 @@ describe('pms read-tail r27 purchase-clock CTE dedupe', () => {
       ['adapters/pms-read-tail-r20-sql.ts', 'PMS_PROPERTIES_PROJECTION_SQL'],
       ['adapters/pms-read-tail-r21-sql.ts', 'PMS_RECIPIENT_CROSS_JOIN_SQL'],
       ['adapters/pms-read-tail-r22-sql.ts', 'PMS_STRIPE_REFUND_COLUMNS_SQL'],
-      ['adapters/pms-read-tail-r23-sql.ts', 'PMS_SCOPED_RECORDS_SQL'],
       ['adapters/pms-read-tail-r24-sql.ts', 'PMS_RECORDS_PROJECTION_PREFIX_SQL'],
       ['adapters/pms-read-tail-r25-sql.ts', 'PMS_GUEST_STAYS_CHOSEN_MEMBER_SQL'],
-      ['adapters/pms-read-tail-r26-sql.ts', 'PMS_GUEST_ID_FROM_STAYS_SQL'],
     ];
     for (const [file, constant] of prior) {
       expect((await src(file)).split(constant).length - 1).toBe(1);
