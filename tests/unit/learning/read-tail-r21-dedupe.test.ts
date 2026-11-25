@@ -140,7 +140,7 @@ describe('Learning read-tail r21 invariants', () => {
     expect(src('executive-metric-projections.ts').match(/const orgNodeLabel =/g) ?? []).toHaveLength(1);
   });
 
-  test('retirement:ts-statements KPI is 33 (strictly below the r23 BEFORE=34 baseline)', () => {
+  test('retirement:ts-statements KPI is 32 (strictly below the r24 BEFORE=33 baseline)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -150,9 +150,9 @@ describe('Learning read-tail r21 invariants', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBeLessThan(34);
-    expect(total).toBe(33);
-    expect(selectCount(src('learning-read-sql.ts'))).toBe(31);
+    expect(total).toBeLessThan(33);
+    expect(total).toBe(32);
+    expect(selectCount(src('learning-read-sql.ts'))).toBe(30);
     expect(selectCount(src('executive-metric-projections.ts'))).toBe(1);
     expect(selectCount(src('learning-completion-evidence.ts'))).toBe(1);
     expect(selectCount(src('learning.ts'))).toBe(0);

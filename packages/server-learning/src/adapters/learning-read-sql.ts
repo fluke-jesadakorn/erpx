@@ -72,7 +72,9 @@ export const actorScopeExistsProbe = (columns: string, spacing = '') => `EXISTS(
 export const assignmentsImage = (projection: string) => `(SELECT jsonb_agg(${projection} ORDER BY a.id) FROM learning_assignments a WHERE a.company_id=?)`;
 
 /** r7 — literal SELECT * source text, parameterized only by the owner table. */
-export const sourceLiteral = (table: string) => `SELECT * FROM ${table}`;
+/* r24 — that head is exactly the r17 keyedRowRead head with a '*' projection
+ * and a FROM frame; its one query head now lives in that owner-local renderer. */
+export const sourceLiteral = (table: string) => keyedRowRead('*', ` FROM ${table}`);
 
 /** r8 — executive metric breakdown projection. The completion and overdue
  * branches emit the same projection head and GROUP BY tail byte-for-byte; only
