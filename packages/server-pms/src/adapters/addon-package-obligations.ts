@@ -6,6 +6,7 @@ import { assertPmsPackageObligationSources } from "@erpx/server-pms/adapters/pac
 import { assertPosAddonPackageObligationSources, posAddonPackageSettlementSources as pos } from "@erpx/server-pos/public/addon-package-obligations";
 import { PMS_CORRECTION_FACT_HEAD_SQL } from "./pms-read-tail-r42-sql";
 import { pmsSettlementSourceKeySql } from "./pms-read-tail-r49-sql";
+import { pmsSettledProjectionHeadSql } from "./pms-read-tail-r50-sql";
 
 type Input = { companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number };
 /** PMS owns the source-key/entry relationship and the guest-account settlement
@@ -51,12 +52,12 @@ export function pmsAddonPackageSettlementSources(packageId:string) {
   // Derive required children from native money entries, not only documents
   // that happen to remain present. Reviewed opening pockets use their distinct
   // original import payment/number/journal and are deliberately not reclassified.
-  payments: `${sources}, expected AS MATERIALIZED (SELECT e.package_id,e.company_id,e.property_id,r.id entry_id,r.version,r.data,
+  payments: `${sources}, expected AS MATERIALIZED (${pmsSettledProjectionHeadSql('expected')}r.id entry_id,r.version,r.data,
       CASE WHEN r.data->>'kind'='refund' THEN 'refund' ELSE 'receipt' END expected_kind,abs((r.data->>'total')::bigint) expected_amount,
       p.config_json::jsonb->>'currency' expected_currency,CASE r.data->>'method' WHEN 'cash' THEN p.config_json::jsonb#>>'{accounts,cash}' WHEN 'transfer' THEN p.config_json::jsonb#>>'{accounts,bank}' ELSE p.config_json::jsonb#>>'{accounts,edc}' END expected_bank_account
     FROM financial_entries e JOIN records r ON r.id=e.id AND r.property_id=e.property_id JOIN pms_properties p ON p.id=r.property_id AND p.company_id=e.company_id
     WHERE r.data->>'method' IN ('cash','transfer','edc','stripe') AND (r.data->>'kind' IN ('payment','deposit') AND (r.data->>'total')::bigint>0 OR r.data->>'kind'='refund' AND (r.data->>'total')::bigint<0))
-    SELECT e.package_id,e.company_id,e.property_id,e.entry_id,e.version,e.expected_kind,e.expected_amount,e.expected_currency,e.expected_bank_account,
+    ${pmsSettledProjectionHeadSql('receipts')}e.entry_id,e.version,e.expected_kind,e.expected_amount,e.expected_currency,e.expected_bank_account,
       d.id document_id,d.finance_id,count(d.id) OVER(PARTITION BY e.package_id,e.company_id,e.property_id,e.entry_id) document_count,
       -- Preserve document()'s original first-source-key journal selection: a
       -- taxable advance may point to its advance-tax posting, not receipt.
