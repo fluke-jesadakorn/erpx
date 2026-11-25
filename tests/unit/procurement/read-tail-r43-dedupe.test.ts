@@ -102,6 +102,6 @@ describe('Procurement read-tail r43 parameterized family dedupe', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(106);
-    expect(total).toBe(79); // r44: 103 -> 99; r45: 99 -> 95; r47: 95 -> 90; r48: three detail heads (-3 +1 helper) 90 -> 88; r49: three read heads (-3) 88 -> 85; r50: four bill-receipt heads (-4 +1 helper) 85 -> 82; r51: two jsonb_agg heads (-2 +1 helper) 82 -> 81; r52: two by-id EXISTS heads (-2 +1 helper) 81 -> 80; r53: two EXISTS/FROM/WHERE heads (-2 +1 helper) 80 -> 79.
+    expect(total).toBe(78); // r44: 103 -> 99; r45: 99 -> 95; r47: 95 -> 90; r48: three detail heads (-3 +1 helper) 90 -> 88; r49: three read heads (-3) 88 -> 85; r50: four bill-receipt heads (-4 +1 helper) 85 -> 82; r51: two jsonb_agg heads (-2 +1 helper) 82 -> 81; r52: two by-id EXISTS heads (-2 +1 helper) 81 -> 80; r53: two EXISTS/FROM/WHERE heads (-2 +1 helper) 80 -> 79; r54: two columns/FROM/WHERE heads (-2 +1 helper) 79 -> 78.
   });
 });

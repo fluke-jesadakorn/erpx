@@ -72,6 +72,13 @@ const revert: Record<string, (s: string) => string> = {
       '`EXISTS(SELECT 1 FROM ${source} WHERE id=? AND company_id=?${before} AND version=?${after})`',
     ),
   'read-tail-r34.ts': (s) => s
+    // r54 fold is reversed first, then the r53 fold, to reach the BEFORE bytes.
+    .replace("import {columnsFromWhereHead} from './read-tail-r54';\n", '')
+    .replace(' * LIMIT bind stays at each call site. The byte-identical columns/FROM/WHERE head\n * now comes from r54. */', ' * LIMIT bind stays at each call site. */')
+    .replace(
+      ') => columnsFromWhereHead(columns, from, `${branchScope} AND ${scopeExpr} AND ${predicates} AND ${scopeWhere} ORDER BY ${order} LIMIT ?`);',
+      ') => `SELECT ${columns} FROM ${from} WHERE ${branchScope} AND ${scopeExpr} AND ${predicates} AND ${scopeWhere} ORDER BY ${order} LIMIT ?`;',
+    )
     .replace("import {existsSourceWhereHead} from './read-tail-r53';\n", '')
     .replace(
       ' * evidence/items witnesses render verbatim; binds stay at each call site. The\n * byte-identical EXISTS/FROM/WHERE head now comes from r53. */',
@@ -150,7 +157,7 @@ describe('Procurement read-tail r53 EXISTS source/WHERE head dedupe', () => {
     expect(sha(src('supplier-bills.ts'))).toBe('f1485ee0fc42475f3337626f561f97aa4ab1d1921b6df412bc97c12a7e534fef');
   });
 
-  test('worktree SELECT count is 80 - 2 + 1 = 79', () => {
+  test('worktree SELECT count is 80 - 2 + 1 = 79, then r54 79 - 2 + 1 = 78', () => {
     const root = new URL('../../../packages/server-procurement/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
@@ -163,6 +170,6 @@ describe('Procurement read-tail r53 EXISTS source/WHERE head dedupe', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(80);
-    expect(total).toBe(79);
+    expect(total).toBe(78); // r54: two columns/FROM/WHERE heads (-2 +1 helper) 79 -> 78.
   });
 });

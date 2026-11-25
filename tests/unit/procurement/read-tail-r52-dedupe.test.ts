@@ -61,6 +61,13 @@ const revert: Record<string, (s: string) => string> = {
       '`EXISTS(SELECT 1 FROM ${table} ${alias} WHERE ${alias}.id=${id} AND ${alias}.company_id=${company} AND ${where})`',
     ),
   'read-tail-r30.ts': (s) => s
+    // r54 fold is reversed first, then the r52 fold, to reach the BEFORE bytes.
+    .replace("import {columnsFromWhereHead} from './read-tail-r54';\n", '')
+    .replace(' * verbatim; the r19 link helper stays at every call site. The byte-identical\n * columns/FROM/WHERE head now comes from r54. */', ' * verbatim; the r19 link helper stays at every call site. */')
+    .replace(
+      ') => columnsFromWhereHead(columns, from, `${orderAlias}.company_id=?${before} AND (${orderAlias}.id=? OR ${link})${tail}`);',
+      ') => `SELECT ${columns} FROM ${from} WHERE ${orderAlias}.company_id=?${before} AND (${orderAlias}.id=? OR ${link})${tail}`;',
+    )
     .replace("import {byIdExistsHead} from './read-tail-r52';\n", '')
     .replace(
       ' * command fences. The table, alias and scope fragment render verbatim; the\n * byte-identical SQL head now comes from r52. */',
@@ -138,7 +145,7 @@ describe('Procurement read-tail r52 by-id EXISTS head dedupe', () => {
     expect(sha(src('supplier-bills.ts'))).toBe('f1485ee0fc42475f3337626f561f97aa4ab1d1921b6df412bc97c12a7e534fef');
   });
 
-  test('worktree SELECT count is 81 - 2 + 1 = 80, then r53 80 - 2 + 1 = 79', () => {
+  test('worktree SELECT count is 81 - 2 + 1 = 80, then r53 80 - 2 + 1 = 79, then r54 79 - 2 + 1 = 78', () => {
     const root = new URL('../../../packages/server-procurement/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
@@ -151,6 +158,6 @@ describe('Procurement read-tail r52 by-id EXISTS head dedupe', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(81);
-    expect(total).toBe(79); // r53: two EXISTS/FROM/WHERE heads (-2 +1 helper) 80 -> 79.
+    expect(total).toBe(78); // r53: two EXISTS/FROM/WHERE heads (-2 +1 helper) 80 -> 79; r54: two columns/FROM/WHERE heads (-2 +1 helper) 79 -> 78.
   });
 });

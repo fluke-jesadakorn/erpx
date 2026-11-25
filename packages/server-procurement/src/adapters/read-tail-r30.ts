@@ -4,6 +4,7 @@
 import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
 import {workforceActorScopeColumns} from './read-tail-sql';
 import {byIdExistsHead} from './read-tail-r52';
+import {columnsFromWhereHead} from './read-tail-r54';
 /** Current assignment-scope probe shared by the purchase and supplier-bill
  * boundaries. The alias is the only degree of freedom. */
 export const assignmentScopeProbe = (alias: string, permission: string) =>
@@ -25,7 +26,8 @@ export const activeMasterLookup = (
 ) => `SELECT ${columns} FROM (${source}) ${alias} WHERE company_id=?${before} AND status='active'${after} ORDER BY ${order}`;
 /** Order-scoped aggregate used by request progress. The rendered request-order
  * link guard, FROM fragment, before predicate and trailing ordering each render
- * verbatim; the r19 link helper stays at every call site. */
+ * verbatim; the r19 link helper stays at every call site. The byte-identical
+ * columns/FROM/WHERE head now comes from r54. */
 export const orderScopedAggregate = (
   columns: string,
   from: string,
@@ -33,4 +35,4 @@ export const orderScopedAggregate = (
   orderAlias: string,
   before = "",
   tail = "",
-) => `SELECT ${columns} FROM ${from} WHERE ${orderAlias}.company_id=?${before} AND (${orderAlias}.id=? OR ${link})${tail}`;
+) => columnsFromWhereHead(columns, from, `${orderAlias}.company_id=?${before} AND (${orderAlias}.id=? OR ${link})${tail}`);

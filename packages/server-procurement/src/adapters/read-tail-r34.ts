@@ -2,9 +2,11 @@
  * exact original statement so binds, ordering, locks and writes are unchanged.
  * r17-r33 helpers, FOR UPDATE/FOR SHARE locks and command_receipts stay untouched. */
 import {existsSourceWhereHead} from './read-tail-r53';
+import {columnsFromWhereHead} from './read-tail-r54';
 /** Calendar scoped list read. The column list, FROM source, branch scope, scope
  * expression, per-caller predicates and ordering render verbatim. The trailing
- * LIMIT bind stays at each call site. */
+ * LIMIT bind stays at each call site. The byte-identical columns/FROM/WHERE head
+ * now comes from r54. */
 export const calendarScopedListRead = (
   columns: string,
   from: string,
@@ -13,7 +15,7 @@ export const calendarScopedListRead = (
   predicates: string,
   scopeWhere: string,
   order: string,
-) => `SELECT ${columns} FROM ${from} WHERE ${branchScope} AND ${scopeExpr} AND ${predicates} AND ${scopeWhere} ORDER BY ${order} LIMIT ?`;
+) => columnsFromWhereHead(columns, from, `${branchScope} AND ${scopeExpr} AND ${predicates} AND ${scopeWhere} ORDER BY ${order} LIMIT ?`);
 /** Approved employee-request EXISTS guard. The source expression (including the
  * optional request-order JOIN), column prefix, core predicates and the two
  * evidence/items witnesses render verbatim; binds stay at each call site. The
