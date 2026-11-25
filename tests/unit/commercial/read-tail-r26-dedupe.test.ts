@@ -79,7 +79,7 @@ describe('Commercial read-tail r26 singleton head delegation', () => {
     expect(st).not.toContain(SEAT);
   });
 
-  test('retirement:ts-statements pins 15 -> 14', () => {
+  test('retirement:ts-statements pins 14 -> 13', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -89,7 +89,7 @@ describe('Commercial read-tail r26 singleton head delegation', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(14);
+    expect(total).toBe(13);
     expect(total).toBeLessThan(15);
   });
 });

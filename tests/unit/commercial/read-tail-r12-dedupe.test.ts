@@ -35,9 +35,12 @@ describe('Commercial read-tail r12 parameterized purchase-scope read family', ()
     readOnly(OBS_SQL);
   });
 
-  test('one shared literal and two composing call sites', () => {
+  test('one shared r27 head and two delegating call sites', () => {
     const shared = src('commercial-read-tail-r12-sources.ts');
-    expect(shared.match(/SELECT /g)).toHaveLength(1);
+    expect(shared.match(/SELECT /g) ?? []).toHaveLength(0); // head delegates to the r27 renderer
+    expect(shared).toContain('import { packageSourceSelect } from "./commercial-read-tail-r27-sources"');
+    expect(shared).toContain('packageSourceSelect(projection, "purchase_scope", "")');
+    expect(src('commercial-read-tail-r27-sources.ts').match(/SELECT /g)).toHaveLength(1);
     expect(shared).toContain('export function purchaseScopeRead');
     expect(shared).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
 
@@ -84,6 +87,6 @@ describe('Commercial read-tail r12 parameterized purchase-scope read family', ()
     };
     walk(srcRoot);
     expect(total).toBeLessThan(24);
-    expect(total).toBe(14);
+    expect(total).toBe(13);
   });
 });

@@ -95,7 +95,7 @@ describe('Commercial read-tail r25 purchase-fact head delegation', () => {
     expect(pg).not.toContain(HISTORY);
   });
 
-  test('retirement:ts-statements pins 15 -> 14', () => {
+  test('retirement:ts-statements pins 14 -> 13', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -105,7 +105,7 @@ describe('Commercial read-tail r25 purchase-fact head delegation', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(14);
+    expect(total).toBe(13);
     expect(total).toBeLessThan(16);
   });
 });

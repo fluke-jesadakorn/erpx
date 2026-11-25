@@ -116,7 +116,7 @@ describe('Commercial read-tail r14 single closed scoped head', () => {
     expect(src('../public/native_read.rs')).toContain('caller: "commercial-read-tail-r5-sources.receiptProbe"');
   });
 
-  test('retirement:ts-statements pins 22 -> 14', () => {
+  test('retirement:ts-statements pins 14 -> 13', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -126,7 +126,7 @@ describe('Commercial read-tail r14 single closed scoped head', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(14);
+    expect(total).toBe(13);
     expect(total).toBeLessThan(22);
   });
 });
