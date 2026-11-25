@@ -43946,6 +43946,87 @@
       ]
     },
     {
+      "lane": "unit",
+      "owner": "identity_access",
+      "modules": [
+        "identity_access"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Identity native lane 10 route must stay tenant-isolated."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-identity_access"
+      ],
+      "id": "identity_access.native-lane-10.unit",
+      "files": [
+        "tests/unit/identity_access/native-lane-10.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "identity_access",
+      "modules": [
+        "identity_access"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Identity native lane 11 route must stay tenant-isolated."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-identity_access"
+      ],
+      "id": "identity_access.native-lane-11.unit",
+      "files": [
+        "tests/unit/identity_access/native-lane-11.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "identity_access",
+      "modules": [
+        "identity_access"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Identity native lane 12 route must stay tenant-isolated."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-identity_access"
+      ],
+      "id": "identity_access.native-lane-12.unit",
+      "files": [
+        "tests/unit/identity_access/native-lane-12.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "identity_access.native-platform-iam-transport.unit",
       "lane": "unit",
       "owner": "identity_access",

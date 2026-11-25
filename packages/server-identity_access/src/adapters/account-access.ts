@@ -13,22 +13,18 @@ import { runtimeEnv, holdingResources } from "../../../../packages/server-runtim
 import { directoryPerson } from "@erpx/server-people_payroll/public/people-directory";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { createAccountAccessService } from '@erpx/server-identity_access/application/account-access';
-import type { PersonGrant, Invitation } from '@erpx/server-identity_access/domain/account-access';
+import type { PersonGrant } from '@erpx/server-identity_access/domain/account-access';
+import {nativeEmailExists,nativeInvitationByToken,nativeInvitationStatus} from './native-lane-10/client';
 export { grantSchema, acceptInvitationSchema } from '@erpx/server-identity_access/domain/account-access';
 async function hash(value: string) {
     const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
     return Array.from(new Uint8Array(b), (v) => v.toString(16).padStart(2, "0")).join("");
 }
 function service() {
-    let write: Awaited<ReturnType<typeof holdingResources>>['write'], env: Awaited<ReturnType<typeof runtimeEnv>>, iam: ReturnType<typeof iamActorFromWork>;
+    let write: Awaited<ReturnType<typeof holdingResources>>['write'], env: Awaited<ReturnType<typeof runtimeEnv>>, iam: ReturnType<typeof iamActorFromWork>, scope: WorkContext | undefined;
     const environment = async () => env ??= await runtimeEnv();
     const workspace = async (actor: WorkContext) => { iam = iamActorFromWork(actor); write = (await holdingResources(actor.holdingId)).write; };
-    return createAccountAccessService({ error: (...args) => new ApiError(...args), now: Date.now, owner: (actor) => requirePermission(actor, 'iam.manage'), person: directoryPerson, digest: hash, token: async (id) => createHmac('sha256', (await environment()).BETTER_AUTH_SECRET).update('invitation:' + id).digest('hex'), emailExists: async (email) => {
-            const env = await environment();
-            return !!await env.CONTROL_DB.prepare('SELECT 1 FROM "user" WHERE lower(email)=lower(?)')
-                .bind(email)
-                .first();
-        }, prepare: workspace, fresh: async (actor) => requireFreshMfa(iamActorFromWork(actor)),
+    return createAccountAccessService({ error: (...args) => new ApiError(...args), now: Date.now, owner: (actor) => { scope = actor; return requirePermission(actor, 'iam.manage'); }, person: directoryPerson, digest: hash, token: async (id) => createHmac('sha256', (await environment()).BETTER_AUTH_SECRET).update('invitation:' + id).digest('hex'), emailExists: async (email) => nativeEmailExists(email, scope), prepare: workspace, fresh: async (actor) => requireFreshMfa(iamActorFromWork(actor)),
         grant: async (_actor, input, key) => grantIamAccess(write as PostgresDatabase, iam, grantInput.parse(input), key), target: async (actor, userId, assignmentId) => write.prepare(assignmentVersionSql('company_id=?')).bind(assignmentId, userId, actor.companyId).first<{
             version: number;
         }>(), revoke: async (_actor, id, version, key) => revokeIamAssignment(write as PostgresDatabase, iam, id, version, 'Revoked from employee profile', key), reserve: async (_actor, key, operation, payload, id) => { await iamCommand(write as PostgresDatabase, iam, key, operation, payload, 'iam.manage', async () => ({ id })); },
@@ -41,18 +37,9 @@ function service() {
             ]);
         },
         propose: async (_actor, id, input) => { const requested = grantInput.parse(input); return iamCommand(write as PostgresDatabase, iam, `invite-review-${id}`, 'invitation.propose', { invitationId: id, ...requested }, 'iam.manage', async (c) => { await validateIamGrant(c, iam, requested); return proposeIamReview(c, iam, 'invitation.authorize', { invitationId: id, ...requested, parentId: iam.assignmentId }, 'Authorize an employee invitation and initial grant.'); }); },
-        retry: async (actor, personId, invitationId) => { const env = await environment(); return !!await nativePrepare("w_ab23e7e4dc0e").bind(Date.now(), Date.now(), invitationId, actor.holdingId, actor.companyId, invitationId, personId, Date.now()).first(); }, revokeInvitation: async (actor, personId, invitationId) => { const env = await environment(); return !!await nativePrepare("w_8fa09e34f16f").bind(invitationId, actor.holdingId, actor.companyId, personId).first(); }, invitationStatus: async (actor, personId, invitationId) => {
-            const env = await environment();
-            return (await env.CONTROL_DB.prepare("SELECT status FROM account_invitations WHERE id=? AND holding_id=? AND company_id=? AND person_id=?").bind(invitationId, actor.holdingId, actor.companyId, personId).first<{
-                status: string;
-            }>())?.status ?? null;
-        }, cancelDelivery: async (invitationId) => { const env = await environment(); await nativePrepare("w_7304093cba71").bind(Date.now(), invitationId).run(); },
-        invitation: async (tokenHash, now) => {
-            const env = await environment();
-            return await env.CONTROL_DB.prepare("SELECT * FROM account_invitations WHERE token_hash=? AND (status='pending' OR (status='accepted' AND accepted_at IS NULL)) AND expires_at>?")
-                .bind(tokenHash, now)
-                .first<Invitation>();
-        } });
+        retry: async (actor, personId, invitationId) => { const env = await environment(); return !!await nativePrepare("w_ab23e7e4dc0e").bind(Date.now(), Date.now(), invitationId, actor.holdingId, actor.companyId, invitationId, personId, Date.now()).first(); }, revokeInvitation: async (actor, personId, invitationId) => { const env = await environment(); return !!await nativePrepare("w_8fa09e34f16f").bind(invitationId, actor.holdingId, actor.companyId, personId).first(); }, invitationStatus: async (actor, personId, invitationId) => nativeInvitationStatus(actor, personId, invitationId),
+        cancelDelivery: async (invitationId) => { const env = await environment(); await nativePrepare("w_7304093cba71").bind(Date.now(), invitationId).run(); },
+        invitation: async (tokenHash, now) => nativeInvitationByToken(tokenHash, now) });
 }
 export const grantPersonAccess = (actor: WorkContext, personId: string, input: PersonGrant, key: string) => service().grantPersonAccess(actor, personId, input, key);
 export const revokePersonAccess = (actor: WorkContext, personId: string, assignmentId: string, key: string) => service().revokePersonAccess(actor, personId, assignmentId, key);

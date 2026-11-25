@@ -64,36 +64,38 @@ describe('Identity access read-tail r42 byte oracles', () => {
     expect(sha256(jsonbArrayHeadSql(DECISIONS_EXPR))).toBe(sha256(HEAD + DECISIONS_EXPR + ')'));
   });
 
-  test('both pre-dedupe statements recover byte-identically from the live source', () => {
+  test('byte oracles survive lane 12 retirement of the people-template statement', () => {
     const pta = ptaRecovered();
     const rec = recRecovered();
-    expect(pta).toBe(PTA_STATEMENT);
-    expect(sha256(pta)).toBe(ORACLES[1].sha);
+    // The people-template statement is now executed by the native lane 12 owner;
+    // TS no longer carries it, but its historical bytes stay pinned here.
+    expect(pta).toBe('');
+    expect(sha256(PTA_STATEMENT)).toBe(ORACLES[1].sha);
     expect(rec).toBe(REC_FRAGMENT);
     expect(sha256(rec)).toBe(ORACLES[2].sha);
   });
 });
 
 describe('Identity access read-tail r42 wiring', () => {
-  test('one owner-local head helper owns the fragment; both sites route through it with binds untouched', () => {
+  test('one owner-local head helper owns the fragment; its remaining site keeps binds untouched', () => {
     const pta = read('adapters/people-template-attributes.ts');
     const rec = read('adapters/records-employee-requests-facts.ts');
-    expect(pta).toContain("import { jsonbArrayHeadSql } from './read-tail-family-r42';");
+    // Lane 12 retired the people-template site; its read is a native transport.
+    expect(pta).not.toContain("import { jsonbArrayHeadSql } from './read-tail-family-r42';");
+    expect(pta).toContain("from './native-lane-12/client'");
     expect(rec).toContain("import { jsonbArrayHeadSql } from './read-tail-family-r42';");
-    expect(calls('adapters/people-template-attributes.ts')).toBe(1);
+    expect(calls('adapters/people-template-attributes.ts')).toBe(0);
     expect(calls('adapters/records-employee-requests-facts.ts')).toBe(1);
     expect(pta.includes(HEAD)).toBe(false);
     expect(rec.includes(HEAD)).toBe(false);
-    expect(pta).toContain('EXISTS(${jsonbArrayHeadSql("definition->\'rule\'->\'conditions\'")} x WHERE x->>\'field\'=$2)');
     expect(rec).toContain('EXISTS(${jsonbArrayHeadSql("COALESCE(r.approval_json::jsonb -> \'decisions\',\'[]\')")} decision WHERE decision ->> \'userId\'=?)');
-    expect(pta).toContain('[companyId, value],');
     expect(rec).toContain('.bind(companyId, branchId, branchId2, departmentId, departmentId2, value, userId, userId2, userId3, userId4, userId5, userId6)');
   });
 
   test('authority evaluation, terminal locks, native routes and public contracts stay untouched', () => {
     const pins: [string, string][] = [
       ['adapters/read-tail-family-r42.ts', '6a871bef3a8c472ac8ba3ba66fb54732e799b55b0b82ab31bcf3e715d457a28e'],
-      ['adapters/people-template-attributes.ts', 'a30f2f10c0d6080ec147733c7542f88f1bb7d9c68a3fde7ca497f3eb4c482859'],
+      ['adapters/people-template-attributes.ts', 'c7fc633ced69a2d7d57d29fd445ab1c8b7a158c56ad05948adcdf3ae0854deeb'],
       ['adapters/records-employee-requests-facts.ts', '199b5bb8a36ac96ac4aafc144546692607587626b0d8ba979535a040051f90af'],
       ['adapters/read-tail-family-r41.ts', '37addf1163c7188edda85df22f73a018acae972133c15e6dc6d62c44ee060d4d'],
       ['adapters/read-tail-family-r40.ts', 'c11d55c10680737237eaff32c11b3eddf074384046a5cdf66becad330a811690'],
@@ -113,7 +115,7 @@ describe('Identity access read-tail r42 wiring', () => {
 });
 
 describe('Identity access read-tail r42 retirement check', () => {
-  test('retirement:ts-statements is 438 after r41=439', () => {
+  test('retirement:ts-statements is 431 after lanes 10-12 (r42 was 438)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -124,6 +126,6 @@ describe('Identity access read-tail r42 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(439);
-    expect(total).toBe(438);
+    expect(total).toBe(431);
   });
 });

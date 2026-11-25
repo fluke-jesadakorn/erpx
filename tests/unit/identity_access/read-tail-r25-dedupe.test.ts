@@ -22,11 +22,13 @@ describe('Identity access read-tail r25 active role probe family', () => {
     expect(activeIamRoleProbeSql(false)).toBe(peopleBefore);
   });
 
-  test('is one owner helper with two call sites and no inline literal left behind', () => {
+  test('is one owner helper with one live call site after lane 12 (r25 had two)', () => {
     expect((helperSrc.match(/export const activeIamRoleProbeSql =/g) ?? []).length).toBe(1);
     expect((helperSrc.match(/\bactiveIamRoleProbeSql\b/g) ?? []).length).toBe(1); // definition only
     expect((techSrc.match(/\bactiveIamRoleProbeSql\b/g) ?? []).length).toBe(2); // import + call
-    expect((peopleSrc.match(/\bactiveIamRoleProbeSql\b/g) ?? []).length).toBe(2); // import + call
+    // Lane 12 moved the people-template active-role read to the native owner.
+    expect((peopleSrc.match(/\bactiveIamRoleProbeSql\b/g) ?? []).length).toBe(0);
+    expect(peopleSrc).toContain("from './native-lane-12/client'");
     const headMarker = "FROM iam_roles WHERE id=$1 AND company_id IN ('*',$2) AND status='active'";
     expect((techSrc.match(new RegExp(headMarker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) ?? []).length).toBe(0);
     expect((peopleSrc.match(new RegExp(headMarker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) ?? []).length).toBe(0);

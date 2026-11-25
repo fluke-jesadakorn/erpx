@@ -1,23 +1,26 @@
 import { nativeIdentityWrite } from '@erpx/server-identity_access/public/native-identity-write';
-import { activeIamRoleProbeSql } from './active-role-probe-family-r25';
-import { jsonbArrayHeadSql } from './read-tail-family-r42';
-import type {PoolClient} from 'pg';import type {AttributeRow} from '@erpx/server-people_payroll/public/people-template-contract';export function peopleTemplateAttributes(client:PoolClient){return {attributes(companyId:string){return client.query<AttributeRow>(
-        "SELECT id,version,definition FROM um_attributes WHERE company_id=$1 ORDER BY id",
-        [companyId],
-      );},
-activeRole(role:string,companyId:string){return client.query<Record<string,unknown>>(
-              activeIamRoleProbeSql(false),
-              [role, companyId],
-            );},
-groupReferences(companyId:string,value:string){return client.query<Record<string,unknown>>(
-            `SELECT 1 FROM um_groups WHERE company_id=$1 AND NOT (definition->>'archived')::boolean AND EXISTS(${jsonbArrayHeadSql("definition->'rule'->'conditions'")} x WHERE x->>'field'=$2)`,
-            [companyId, value],
-          );},
-upsertAttribute(companyId:string,id:string,value:string){return nativeIdentityWrite("w_e1b9831be77a", [companyId, id, value]);},
-attributeHistory(companyId:string,id:string,value:unknown,value2:string,now:number){return nativeIdentityWrite("w_1044fec8e863", [
+import {
+  nativePeopleTemplateActiveRole,
+  nativePeopleTemplateAttributes,
+  nativePeopleTemplateGroupReferences,
+  type LaneHoldingScope,
+} from './native-lane-12/client';
+import "server-only";
+import type {PoolClient} from 'pg';import type {AttributeRow} from '@erpx/server-people_payroll/public/people-template-contract';
+
+/** Native lane 12 owns the three owner-local reads below. This adapter is
+ * transport only: it sends bounded company/role/value inputs and pins the
+ * `{rows, rowCount}` response. There is no TypeScript SQL fallback. */
+export function peopleTemplateAttributes(_client:PoolClient,scope?:LaneHoldingScope){return {
+  attributes(companyId:string){return nativePeopleTemplateAttributes<AttributeRow>(companyId,scope);},
+  activeRole(role:string,companyId:string){return nativePeopleTemplateActiveRole(companyId,role,scope);},
+  groupReferences(companyId:string,value:string){return nativePeopleTemplateGroupReferences(companyId,value,scope);},
+  upsertAttribute(companyId:string,id:string,value:string){return nativeIdentityWrite("w_e1b9831be77a", [companyId, id, value]);},
+  attributeHistory(companyId:string,id:string,value:unknown,value2:string,now:number){return nativeIdentityWrite("w_1044fec8e863", [
           companyId,
           id,
           value,
           value2,
           now,
-        ]);}};}
+        ]);}
+};}
