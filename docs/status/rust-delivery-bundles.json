@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 13397,
+    "revision": 13398,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -195639,7 +195639,7 @@
         "owner": "marketing",
         "title": "marketing read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -195650,22 +195650,22 @@
         "resources": [
           "owner:marketing"
         ],
-        "claim": {
-          "runId": "run-20261125-e",
-          "agentId": "wH4n428",
-          "claimedAt": "2026-11-25T03:43:24.400Z",
-          "heartbeatAt": "2026-11-25T03:43:24.400Z",
-          "expiresAt": "2026-11-25T04:13:24.400Z",
-          "generation": 175
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next marketing head family (-1): 19->18. BEFORE=19.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Verified floor 19; no safe byte-identical family remains; claim released",
+        "handoff": {
+          "runId": "run-20261125-e",
+          "agentId": "wH4n428",
+          "at": "2026-11-25T03:49:03.466Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Verified floor 19; no safe byte-identical family remains; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -196050,17 +196050,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 20,
-        "in_progress": 40,
+        "in_progress": 39,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1683,
+        "blocked": 1684,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 175,
-    "updatedAt": "2026-11-25T03:43:44.976Z",
+    "updatedAt": "2026-11-25T03:49:03.477Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
