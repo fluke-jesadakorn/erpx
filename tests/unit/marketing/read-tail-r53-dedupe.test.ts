@@ -107,7 +107,7 @@ describe('marketing read-tail r53 dedupe', () => {
     expect(repo).toContain("marketingSelectHeadSql('id,display_name name',");
     expect(repo).toContain("organization_nodes WHERE company_id=? AND kind IN ('branch','headquarters')");
     expect(repo).not.toContain('SELECT id,display_name name FROM (');
-    expect(headTokens(repo)).toBe(1); // only campaignSummary's aggregate head remains
+    expect(headTokens(repo)).toBe(0); // lane 40 moved the aggregate to native Rust
   });
 
   it('leaves the r38-r52 head families and the remaining repository read intact', async () => {
@@ -122,7 +122,8 @@ describe('marketing read-tail r53 dedupe', () => {
     expect(headTokens(await src('marketing-purchase-union-sql.ts'))).toBe(1);
     expect(headTokens(await src('marketing-clocked-report-frame.ts'))).toBe(0);
     expect(headTokens(await src('executive-label-sql.ts'))).toBe(0);
-    expect((await src('marketing.ts')).match(/SELECT COALESCE\(NULLIF\(BTRIM\(attribution_json/)).toHaveLength(1);
+    expect((await src('marketing.ts')).match(/SELECT COALESCE\(NULLIF\(BTRIM\(attribution_json/)).toBeNull();
+    expect(await src('marketing.ts')).toContain('LANE40_CAMPAIGN_SUMMARY');
   });
 
   it('leaves settlement, receipts, candidate sources, locks, command_receipts and the purchase union untouched', async () => {
@@ -135,13 +136,12 @@ describe('marketing read-tail r53 dedupe', () => {
     expect(await src('crm-purchase-sources.ts')).toContain(
       'SELECT candidate.* FROM marketing_lead_candidates candidate',
     );
-    expect(await src('candidate-form-rows.ts')).toContain(
-      'SELECT c.*,a.name form_name FROM marketing_lead_candidates c JOIN marketing_assets a',
-    );
+    await expect(src('candidate-form-rows.ts')).rejects.toThrow();
+    expect(await src('marketing.ts')).toContain('LANE40_CANDIDATE_LIST');
     expect(headTokens(await src('marketing-purchase-union-sql.ts'))).toBe(1);
   });
 
-  it('pins the owner head KPI to 19 (BEFORE=21)', async () => {
-    expect(await ownerHeadTokens()).toEqual({ spaced: 19, bare: 19 });
+  it('pins the owner head KPI to 17 (BEFORE=21; lane 40 retired 2 TS SELECTs)', async () => {
+    expect(await ownerHeadTokens()).toEqual({ spaced: 17, bare: 17 });
   });
 });

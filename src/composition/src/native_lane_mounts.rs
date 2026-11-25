@@ -652,5 +652,20 @@ pub fn mount(
         ).map_err(|_| "PRIVATE_API_OPERATIONS_LANE28_INVALID")?,
     );
 
+    // Marketing lane 40: workspace candidate and attribution reads.
+    router = router.merge(
+        erpx_server_marketing::public::native_lane_40::router_for_holdings(
+            config.holdings.iter().enumerate().map(|(i, holding)| {
+                (
+                    erpx_server_marketing::public::native_lane_40::LaneTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                    },
+                    pools[i + 1].clone(),
+                )
+            }).collect(),
+        ).map_err(|_| "PRIVATE_API_MARKETING_LANE40_INVALID")?,
+    );
+
     Ok(router)
 }

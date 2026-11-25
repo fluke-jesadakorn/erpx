@@ -110,8 +110,8 @@ describe('marketing read-tail r45 dedupe', () => {
     expect(await src('package-obligations.ts')).toContain('EXISTS(SELECT 1 FROM marketing_assets form');
   });
 
-  it('pins the owner SELECT KPI to 19 (BEFORE=36)', async () => {
-    expect(await ownerSelectTokens()).toBe(19);
+  it('pins the owner SELECT KPI to 17 (lane 40 retired 2) (BEFORE=36)', async () => {
+    expect(await ownerSelectTokens()).toBe(17);
     expect(await ownerSelectTokens()).toBeLessThan(32);
   });
 });

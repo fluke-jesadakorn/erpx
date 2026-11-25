@@ -1,7 +1,13 @@
 import { nativeCreateCandidate, nativeRecordEngagement, nativeReviewAsset } from '@erpx/feature-marketing/adapters/server/native-marketing-wave2';
 import {filterMarketingPurchasedWork} from "@erpx/server-marketing/adapters/record-purchases";
 import {marketingEvidenceCandidateRows,marketingEvidenceEventRows} from "./executive-evidence-rows";
-import {marketingCandidateFormRows} from "./candidate-form-rows";
+import {
+  LANE40_CAMPAIGN_SUMMARY,
+  LANE40_CANDIDATE_DETAIL,
+  LANE40_CANDIDATE_HISTORY,
+  LANE40_CANDIDATE_LIST,
+  readMarketingLane40,
+} from './native-lane-40/client';
 import { commercialOwnerProjectionSources as organizationProjectionSources } from "@erpx/server-organization/public/commercial-owner-projection-sources";
 
 import "server-only";
@@ -19,6 +25,7 @@ import { ApiError } from "@erpx/server-runtime/public/http";
 
 import { marketingCampaigns, marketingCostSources } from "@erpx/server-marketing/public/marketing-campaigns";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
+import {commercePackageEnforcementMode} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {marketingFormReadiness,marketingPresentationAssertions} from "@erpx/server-marketing/adapters/public-form";
 import {activeFormSql} from "./active-form-sql";
 import {marketingCompanyListSql} from "./marketing-company-list-sql";
@@ -65,44 +72,22 @@ async assets(){
         )
         .bind(a.companyId)
         .all<Row>()).results;},
-async candidates(){return (await write
-        .prepare(
-          `${marketingCandidateFormRows()} WHERE c.company_id=? AND ${await marketingCandidateReadFilter('c')} AND (?::text IS NULL OR c.branch_id=?) AND (?::text IS NULL OR c.department_id=?) ORDER BY c.updated_at DESC`,
-        )
-        .bind(
-          a.companyId,
-          a.branchId,
-          a.branchId,
-          a.departmentId,
-          a.departmentId,
-        )
-        .all<Row>()).results;},
+async candidates(){return readMarketingLane40(LANE40_CANDIDATE_LIST, a, {
+        branchId: a.branchId,
+        departmentId: a.departmentId,
+        enforced: await commercePackageEnforcementMode() === 'enforced',
+      });},
 async branches(){return (await write
         .prepare(
           `${marketingSelectHeadSql('id,display_name name', ` FROM (${organizationProjectionSources.organization_nodes}) organization_nodes WHERE company_id=? AND kind IN ('branch','headquarters') AND status='active' AND (?::text IS NULL OR id=?) ORDER BY display_name`)}`,
         )
         .bind(a.companyId, a.branchId, a.branchId)
         .all<Row>()).results;},
-async campaignSummary(){return (await write
-        .prepare(
-          `SELECT COALESCE(NULLIF(BTRIM(attribution_json::jsonb->>'campaign'),''),'Unspecified') campaign,
-            COALESCE(NULLIF(BTRIM(attribution_json::jsonb->>'source'),''),NULLIF(BTRIM(attribution_json::jsonb->>'utmSource'),''),'Unspecified') source,
-            COUNT(*)::int captured,
-            COUNT(*) FILTER (WHERE status='pending')::int pending,
-            COUNT(*) FILTER (WHERE status='handed_off')::int handed_off,
-            COUNT(*) FILTER (WHERE status='rejected')::int rejected
-          FROM marketing_lead_candidates
-          WHERE company_id=? AND ${await marketingCandidateReadFilter('marketing_lead_candidates')} AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?)
-          GROUP BY 1,2 ORDER BY COUNT(*) DESC, campaign, source`,
-        )
-        .bind(
-          a.companyId,
-          a.branchId,
-          a.branchId,
-          a.departmentId,
-          a.departmentId,
-        )
-        .all<Row>()).results;},
+async campaignSummary(){return readMarketingLane40(LANE40_CAMPAIGN_SUMMARY, a, {
+        branchId: a.branchId,
+        departmentId: a.departmentId,
+        enforced: await commercePackageEnforcementMode() === 'enforced',
+      });},
 async sourceForm(formId,formVersion){
       if(nativeMarketingReadConfigured())return nativeMarketingReadFirst<{configuration_json:string}>(MARKETING_RD_FORM_SOURCE,{assetId:formId,companyId:a.companyId,version:formVersion},write);
       return write.prepare(activeFormSql('source',true,true)).bind(formId,a.companyId,formVersion).first<{configuration_json:string}>();},
@@ -118,25 +103,12 @@ candidate:(id,lock=false)=>write
     )
     .bind(id, a.companyId)
     .first<Row>(),
-detail:id=>write
-      .prepare(
-        `${marketingCandidateFormRows()} WHERE c.id=? AND c.company_id=? AND (?::text IS NULL OR c.branch_id=?) AND (?::text IS NULL OR c.department_id=?)`,
-      )
-      .bind(
-        id,
-        a.companyId,
-        a.branchId,
-        a.branchId,
-        a.departmentId,
-        a.departmentId,
-      )
-      .first<Row>(),
-async history(id){return (await write
-        .prepare(
-          marketingLocalPointReadSql('history'),
-        )
-        .bind(id)
-        .all<Row>()).results;},
+async detail(id){return (await readMarketingLane40(LANE40_CANDIDATE_DETAIL, a, {
+      recordId: id,
+      branchId: a.branchId,
+      departmentId: a.departmentId,
+    }))[0] ?? null;},
+async history(id){return readMarketingLane40(LANE40_CANDIDATE_HISTORY, a, {recordId: id});},
 async workRows(){return (await write
         .prepare(
           marketingCompanyListSql('marketing_lead_candidates',` AND ${await marketingCandidateReadFilter('marketing_lead_candidates')} AND status='pending' AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?)`),

@@ -236,22 +236,20 @@ describe('Marketing owner-local campaign read tail', () => {
     expect(workspace).toContain("marketingEvidenceEventRows('marketing_lead_candidates')");
   });
 
-  it('keeps one fixed owner projection for workspace candidate row reads', async () => {
+  it('routes workspace candidate row reads through the native lane-40 owner', async () => {
     const { readFile } = await import('node:fs/promises');
     const base = new URL('../../../packages/server-marketing/src/adapters/', import.meta.url);
-    const helper = await readFile(new URL('candidate-form-rows.ts', base), 'utf8');
     const workspace = await readFile(new URL('marketing.ts', base), 'utf8');
+    const client = await readFile(new URL('native-lane-40/client.ts', base), 'utf8');
 
-    const projection = 'SELECT c.*,a.name form_name FROM marketing_lead_candidates c JOIN marketing_assets a ON a.id=c.form_id';
-    // The canonical helper owns the single workspace candidate projection; its
-    // comment must not smuggle an extra token into the retirement KPI.
-    expect(helper.match(/SELECT/g)).toHaveLength(1);
-    expect(helper).toContain('export function marketingCandidateFormRows');
-    expect(helper).toContain(projection);
-
-    expect(workspace).toContain('import {marketingCandidateFormRows} from "./candidate-form-rows"');
-    expect(workspace).not.toContain(projection);
-    expect(workspace.match(/\$\{marketingCandidateFormRows\(\)\}/g)).toHaveLength(2);
+    // Lane 40 deleted the TS candidate projection: the axum owner now owns
+    // the query and the form-name calculation, and the bridge owns no SQL.
+    await expect(readFile(new URL('candidate-form-rows.ts', base), 'utf8')).rejects.toThrow();
+    expect(workspace).not.toContain('marketingCandidateFormRows');
+    expect(workspace).toContain('LANE40_CANDIDATE_LIST');
+    expect(workspace).toContain('LANE40_CANDIDATE_DETAIL');
+    expect(client).toContain("MARKETING_LANE40_READ_UNAVAILABLE");
+    expect(client).not.toMatch(/SELECT /);
   });
 
   it('keeps one fixed owner projection for campaign-cost analytics rows', async () => {

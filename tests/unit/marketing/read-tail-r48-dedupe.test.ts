@@ -163,8 +163,8 @@ describe('marketing read-tail r48 dedupe', () => {
     expect(await src('marketing-local-point-read-sql.ts')).toContain('FOR UPDATE');
   });
 
-  it('pins the owner SELECT KPI to 19 (BEFORE=29)', async () => {
-    expect(await ownerSelectTokens()).toBe(19);
+  it('pins the owner SELECT KPI to 17 (lane 40 retired 2) (BEFORE=29)', async () => {
+    expect(await ownerSelectTokens()).toBe(17);
     expect(await ownerSelectTokens()).toBeLessThan(29);
   });
 });

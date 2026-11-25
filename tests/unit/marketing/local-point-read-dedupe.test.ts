@@ -57,7 +57,7 @@ describe('marketing owner-local point read dedupe', () => {
     expect(repo).not.toContain('"SELECT * FROM marketing_engagement_events WHERE candidate_id=?');
     expect(repo).toContain("marketingLocalPointReadSql('asset')");
     expect(repo).toContain("marketingLocalPointReadSql('candidate',lock)");
-    expect(repo).toContain("marketingLocalPointReadSql('history')");
+    expect(repo).toContain('LANE40_CANDIDATE_HISTORY');
 
     expect(operational).toContain("attachmentOwnerFactReadSql('asset')");
     expect(operational).not.toContain('NULL::text branch_id,NULL::text department_id,version,kind FROM marketing_assets');
@@ -71,7 +71,7 @@ describe('marketing owner-local point read dedupe', () => {
     const policy = await readFile(adapter('attachments-policy-facts.ts'), 'utf8');
     expect(repo).toContain("marketingLocalPointReadSql('asset'))\n        .bind(id, a.companyId)");
     expect(repo).toContain("marketingLocalPointReadSql('candidate',lock),\n    )\n    .bind(id, a.companyId)");
-    expect(repo).toContain("marketingLocalPointReadSql('history'),\n        )\n        .bind(id)");
+    expect(repo).toContain('readMarketingLane40(LANE40_CANDIDATE_HISTORY, a, {recordId: id})');
     expect(operational).toContain("attachmentOwnerFactReadSql('asset')).bind(facts.targetId,facts.companyId)");
     expect(policy).toContain("attachmentOwnerFactReadSql('campaign')).bind(facts.targetId,facts.companyId)");
   });

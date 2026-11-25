@@ -132,7 +132,8 @@ describe('marketing read-tail r54 dedupe', () => {
     expect(headTokens(await src('marketing-purchase-union-sql.ts'))).toBe(1);
     expect(headTokens(await src('marketing-clocked-report-frame.ts'))).toBe(0);
     expect(headTokens(await src('executive-label-sql.ts'))).toBe(0);
-    expect((await src('marketing.ts')).match(/SELECT COALESCE\(NULLIF\(BTRIM\(attribution_json/)).toHaveLength(1);
+    expect((await src('marketing.ts')).match(/SELECT COALESCE\(NULLIF\(BTRIM\(attribution_json/)).toBeNull();
+    expect(await src('marketing.ts')).toContain('LANE40_CAMPAIGN_SUMMARY');
   });
 
   it('leaves settlement, receipts, candidate sources, locks, command_receipts and the purchase union untouched', async () => {
@@ -145,13 +146,12 @@ describe('marketing read-tail r54 dedupe', () => {
     expect(await src('crm-purchase-sources.ts')).toContain(
       'SELECT candidate.* FROM marketing_lead_candidates candidate',
     );
-    expect(await src('candidate-form-rows.ts')).toContain(
-      'SELECT c.*,a.name form_name FROM marketing_lead_candidates c JOIN marketing_assets a',
-    );
+    await expect(src('candidate-form-rows.ts')).rejects.toThrow();
+    expect(await src('marketing.ts')).toContain('LANE40_CANDIDATE_LIST');
     expect(headTokens(await src('marketing-purchase-union-sql.ts'))).toBe(1);
   });
 
-  it('pins the owner head KPI to 19 (BEFORE=20)', async () => {
-    expect(await ownerHeadTokens()).toEqual({ spaced: 19, bare: 19 });
+  it('pins the owner head KPI to 17 (BEFORE=20; lane 40 retired 2 TS SELECTs)', async () => {
+    expect(await ownerHeadTokens()).toEqual({ spaced: 17, bare: 17 });
   });
 });

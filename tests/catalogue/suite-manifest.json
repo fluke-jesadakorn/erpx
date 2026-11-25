@@ -65733,6 +65733,33 @@
       }
     },
     {
+      "lane": "unit",
+      "owner": "marketing",
+      "modules": [
+        "marketing"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Marketing native workspace reads must stay tenant-isolated."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-marketing"
+      ],
+      "id": "marketing.native-lane-40.unit",
+      "files": [
+        "tests/unit/marketing/native-lane-40.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "marketing.native-marketing-campaign-transport.unit",
       "lane": "unit",
       "owner": "marketing",
