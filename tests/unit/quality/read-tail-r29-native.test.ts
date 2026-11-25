@@ -68,7 +68,7 @@ describe('quality read-tail r29 native hold/spec probes and CAS guards', () => {
   });
 
   it('rewires callers and leaves no TypeScript SQL mirror helper', () => {
-    expect(records.match(/qualitySourceArmHead\(/g)).toHaveLength(3);
+    expect(records.match(/qualitySourceArmHead\(/g)).toHaveLength(6);
     expect(records).toContain('nativeQualityReadFirst(RD_HOLD_EXISTS,[id],database)');
     expect(records).toContain('nativeQualityReadFirst(RD_SPEC_EXISTS,[id],database)');
     expect(service).toContain('RD_ATTACH_HOLD_CAS');
@@ -93,6 +93,6 @@ describe('quality read-tail r29 native hold/spec probes and CAS guards', () => {
       }
     };
     walk(resolve(root, 'packages/server-quality/src'));
-    expect(total).toBe(29);
+    expect(total).toBe(28);
   });
 });

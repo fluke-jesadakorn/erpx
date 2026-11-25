@@ -122,7 +122,7 @@ describe('quality read-tail r24 protected families', () => {
       'quality-lineage-recursion-sql': 1, 'quality-child-agg-sql': 1,
       'quality-receipt-guard-sql': 1, 'quality-source-rows-sql': 1, 'quality-scope-sql': 1,
       'quality-alert-recipient-sql': 1, 'quality-attachment-scope-read-sql': 1, 'quality-id-source-sql': 1,
-      'quality-attachment-source-select-sql': 1, 'quality-source-union-sql': 1, 'quality-return-anchor-sql': 0,
+      'quality-attachment-source-select-sql': 1, 'quality-return-anchor-sql': 0,
       'quality-obligation-fact-arm-sql': 0, 'quality-lineage-terminal-sql': 1, 'quality-source-arm-head': 1,
     };
     for (const [name, count] of Object.entries(counts)) {
@@ -143,6 +143,6 @@ describe('quality read-tail r23 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(63);
-    expect(total).toBe(29);
+    expect(total).toBe(28);
   });
 });

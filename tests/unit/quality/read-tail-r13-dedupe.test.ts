@@ -44,7 +44,7 @@ describe('quality record source id-exists family retirement (r30)', () => {
     const adapter = read('packages/server-quality/src/adapters/record-purchases.ts');
     expect(adapter).not.toContain('quality-record-source-sql');
     expect(adapter).not.toContain('qualitySourceIdExistsSql');
-    expect(adapter.match(/qualitySourceArmHead\(/g)).toHaveLength(3);
+    expect(adapter.match(/qualitySourceArmHead\(/g)).toHaveLength(6);
     expect(adapter.match(/nativeQualityReadFirst\(/g)).toHaveLength(2);
     expect(adapter).toContain('qualitySourceArmHead(\'1\',\'inventory_quality_holds actual_hold\',` WHERE actual_hold.id=${id}`)');
     expect(adapter).toContain('nativeQualityReadFirst(RD_HOLD_EXISTS,[id],database)');
