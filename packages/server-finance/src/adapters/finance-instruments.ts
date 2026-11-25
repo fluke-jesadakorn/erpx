@@ -6,6 +6,7 @@ import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/ser
 import { APPROVED_SECONDARY_CHART_RULE_SQL } from './finance-read-tail-r15-sql';
 import { APPROVED_SECONDARY_CHART_CORRELATED_GUARD } from './finance-read-tail-r41-sql';
 import { OPEN_PERIOD_LIST_ASC_SQL } from './finance-read-tail-r34-sql';
+import { instrumentRunExistsSql } from './finance-read-tail-r64-sql';
 import { nativeFinanceInstruments } from '@erpx/server-collaboration/adapters/native-finance-instruments';
 import "server-only";
 import type { z } from "zod";
@@ -69,7 +70,7 @@ history:async(id)=>(await db
       .all<Row>()).results,
 pendingRuns:async(id)=>db
         .prepare(
-          "SELECT 1 FROM finance_instrument_runs WHERE instrument_id=? AND status='draft'",
+          instrumentRunExistsSql(" AND status='draft'"),
         )
         .bind(id)
         .first(),
@@ -176,7 +177,7 @@ decideRunCommit:async(facts)=>{const {actor,id,input,key,op,row,run,journalId,st
     );},
 laterRuns:async(id,ordinal)=>db
         .prepare(
-          "SELECT 1 FROM finance_instrument_runs WHERE instrument_id=? AND ((status='posted' AND ordinal>?) OR status='draft')",
+          instrumentRunExistsSql(" AND ((status='posted' AND ordinal>?) OR status='draft')"),
         )
         .bind(id, ordinal)
         .first(),
