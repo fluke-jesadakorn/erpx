@@ -146,8 +146,8 @@ describe('marketing evidence-row tail merge (r42)', () => {
     expect(await src('marketing.ts')).toContain('from "./native-marketing-read"');
   });
 
-  it('confirms the owner KPI of 23 from the AST after the 36 -> 34 r45 drop, 34 -> 32 r46 fold, 32 -> 29 r47 fold, 29 -> 27 r48 fold, 27 -> 24 r49 fold and 24 -> 23 r50 fold', async () => {
-    expect(await ownerSelectTokens()).toBe(23);
+  it('confirms the owner KPI of 22 from the AST after the 36 -> 34 r45 drop, 34 -> 32 r46 fold, 32 -> 29 r47 fold, 29 -> 27 r48 fold, 27 -> 24 r49 fold, 24 -> 23 r50 fold and 23 -> 22 r51 fold', async () => {
+    expect(await ownerSelectTokens()).toBe(22);
     expect(await ownerSelectTokens()).toBeLessThan(32);
   });
 });

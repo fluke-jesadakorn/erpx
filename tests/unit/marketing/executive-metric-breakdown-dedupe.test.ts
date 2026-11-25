@@ -57,6 +57,7 @@ describe('marketing executive metric breakdown dedupe', () => {
       `COALESCE((SELECT n.display_name FROM (${nodes}) n WHERE n.id=c.department_id AND n.company_id=c.company_id),'Unassigned')`
     );
     const helper = await readFile(adapter('executive-label-sql.ts'), 'utf8');
-    expect(helper.match(/SELECT /g)).toHaveLength(1);
+    expect(helper.match(/SELECT /g) ?? []).toHaveLength(0);
+    expect(helper).toContain('marketingSelectHeadSql(head)');
   });
 });
