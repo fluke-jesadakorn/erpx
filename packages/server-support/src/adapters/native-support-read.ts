@@ -62,6 +62,19 @@ export const SUPPORT_RD_TICKET_RECIPIENTS = 'support_rd_ticket_recipients';
 export const SUPPORT_RD_CUSTOMER_CONTACT_NOTES = 'support_rd_customer_contact_notes';
 export const SUPPORT_RD_SERVICE_TEAM_MEMBERS_NAMED = 'support_rd_service_team_members_named';
 export const SUPPORT_RD_WORK_TEAM_COVERAGE = 'support_rd_work_team_coverage';
+export const SUPPORT_RD_TICKET_PORTAL_VALID_BINDINGS = 'support_rd_ticket_portal_valid_bindings';
+export const SUPPORT_RD_TICKET_PORTAL_IMAGE_AGGREGATE_FULL = 'support_rd_ticket_portal_image_aggregate_full';
+export const SUPPORT_RD_TICKET_PORTAL_IMAGE_AGGREGATE_CORE = 'support_rd_ticket_portal_image_aggregate_core';
+
+/** Fragment kinds are planned but never executed by this bridge: the caller
+ * appends one closed tail shape and executes the composed statement on its own
+ * open unit. The server's `tailBindCounts` is authoritative. */
+const FRAGMENT_KINDS: ReadonlySet<string> = new Set([
+  SUPPORT_RD_TICKET_PORTAL_VALID_BINDINGS,
+  SUPPORT_RD_TICKET_PORTAL_IMAGE_AGGREGATE_FULL,
+  SUPPORT_RD_TICKET_PORTAL_IMAGE_AGGREGATE_CORE,
+]);
+
 export const SUPPORT_RD_SERVICE_SCOPE_COMPANY = 'support_rd_service_scope_company';
 export const SUPPORT_RD_SERVICE_SCOPE_BRANCH = 'support_rd_service_scope_branch';
 export const SUPPORT_RD_SERVICE_SCOPE_DEPARTMENT = 'support_rd_service_scope_department';

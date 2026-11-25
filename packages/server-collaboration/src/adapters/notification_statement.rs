@@ -575,6 +575,15 @@ pub fn plan_values_statement(
         "work_social_receipts_witness" => "SELECT jsonb_agg(to_jsonb(receipt) ORDER BY receipt.command_id)::text image FROM command_receipts receipt WHERE receipt.command_id IN(?,?,?)",
         "work_social_draft_read" => "SELECT to_jsonb(d)::text draft,(SELECT to_jsonb(c)::text FROM command_receipts c WHERE c.command_id=? AND c.operation=? AND c.record_id=d.id AND c.actor_id=d.author_id AND c.authority_json::jsonb->>'companyId'=d.company_id AND c.result_json::jsonb->>'id'=d.id) creator,EXISTS(SELECT 1 FROM social_comments c WHERE c.comment_upload_draft_id=d.id) consumed FROM social_post_drafts d WHERE d.id=? AND d.company_id=?",
         "work_social_ai_phase_row" => "SELECT d.actor_id,d.post_id,d.source_hash,d.actor_json,d.state draft_state,u.company_id,u.actor_id usage_actor,u.state usage_state FROM social_ai_drafts d JOIN social_ai_usage u ON u.id=d.id WHERE d.id=?",
+        // Queued-reply / claim guards. Fixed heads and the static source
+        // predicate are owner bytes; callers insert only their registered
+        // dynamic predicates and bind in the original order. Locked queue
+        // reads (FOR UPDATE SKIP LOCKED) stay in the caller.
+        "work_social_published_replay_guard" => "SELECT 1 FROM social_post_drafts draft JOIN social_posts post ON post.id=draft.published_post_id AND post.company_id=draft.company_id WHERE draft.id=? AND draft.company_id=? AND draft.author_id=? AND EXISTS(",
+        "work_social_running_lease_guard" => "SELECT 1 FROM social_agent_replies pending JOIN social_posts p ON p.id=pending.post_id AND p.company_id=pending.company_id WHERE pending.id=? AND pending.company_id=? AND pending.actor_id=? AND pending.post_id=? AND pending.state='running' AND pending.lease_token=? AND pending.actor_json=? AND pending.owner_type=? AND pending.owner_id=? AND p.state='published' AND (",
+        "work_social_claim_guard" => "SELECT 1 FROM social_agent_replies pending WHERE pending.id=? AND pending.state='running' AND pending.lease_token=? AND ",
+        "work_social_question_source_predicate" => "pending.owner_type='post' AND pending.owner_id=p.id AND p.author_id=pending.actor_id OR pending.owner_type='comment' AND EXISTS(SELECT 1 FROM social_comments trigger WHERE trigger.id=pending.owner_id AND trigger.post_id=p.id AND trigger.author_id=pending.actor_id AND trigger.state='published')",
+        "work_social_ai_phase_state_guard" => "SELECT 1 WHERE (?='failure' AND NOT EXISTS(SELECT 1 FROM social_ai_drafts WHERE id=?)) OR EXISTS(SELECT 1 FROM social_ai_drafts d JOIN social_ai_usage u ON u.id=d.id WHERE d.id=? AND d.actor_id=? AND d.post_id=? AND u.company_id=? AND u.actor_id=? AND d.state=? AND u.state=? AND (?<>'failure' OR d.result_json IS NULL) AND (?<>'reserve' OR d.source_hash=?))",
         _ => return None,
     };
     Some(
@@ -1003,6 +1012,44 @@ mod tests {
             assert_eq!(planned.sql, sql, "{kind}");
             assert_eq!(planned.sql.matches('?').count(), values.len(), "{kind}");
             assert_eq!(planned.values.len(), values.len(), "{kind}");
+        }
+    }
+
+    #[test]
+    fn queued_reply_guard_kinds_render_the_retired_sql_byte_for_byte() {
+        let cases = [
+            (
+                "work_social_published_replay_guard",
+                "SELECT 1 FROM social_post_drafts draft JOIN social_posts post ON post.id=draft.published_post_id AND post.company_id=draft.company_id WHERE draft.id=? AND draft.company_id=? AND draft.author_id=? AND EXISTS(",
+                vec!["draft-1", "company-1", "user-1"],
+            ),
+            (
+                "work_social_running_lease_guard",
+                "SELECT 1 FROM social_agent_replies pending JOIN social_posts p ON p.id=pending.post_id AND p.company_id=pending.company_id WHERE pending.id=? AND pending.company_id=? AND pending.actor_id=? AND pending.post_id=? AND pending.state='running' AND pending.lease_token=? AND pending.actor_json=? AND pending.owner_type=? AND pending.owner_id=? AND p.state='published' AND (",
+                vec!["reply-1", "company-1", "user-1", "post-1", "lease", "actor-json", "post", "post-1"],
+            ),
+            (
+                "work_social_claim_guard",
+                "SELECT 1 FROM social_agent_replies pending WHERE pending.id=? AND pending.state='running' AND pending.lease_token=? AND ",
+                vec!["reply-1", "token"],
+            ),
+            (
+                "work_social_question_source_predicate",
+                "pending.owner_type='post' AND pending.owner_id=p.id AND p.author_id=pending.actor_id OR pending.owner_type='comment' AND EXISTS(SELECT 1 FROM social_comments trigger WHERE trigger.id=pending.owner_id AND trigger.post_id=p.id AND trigger.author_id=pending.actor_id AND trigger.state='published')",
+                vec![],
+            ),
+            (
+                "work_social_ai_phase_state_guard",
+                "SELECT 1 WHERE (?='failure' AND NOT EXISTS(SELECT 1 FROM social_ai_drafts WHERE id=?)) OR EXISTS(SELECT 1 FROM social_ai_drafts d JOIN social_ai_usage u ON u.id=d.id WHERE d.id=? AND d.actor_id=? AND d.post_id=? AND u.company_id=? AND u.actor_id=? AND d.state=? AND u.state=? AND (?<>'failure' OR d.result_json IS NULL) AND (?<>'reserve' OR d.source_hash=?))",
+                vec!["finish", "reservation-1", "reservation-1", "user-1", "post-1", "company-1", "user-1", "ready", "succeeded", "finish", "finish", "hash"],
+            ),
+        ];
+        for (kind, sql, values) in cases {
+            let planned = super::plan_values_statement(kind, &read_input(kind, &values))
+                .expect("registered kind")
+                .expect("planned statement");
+            assert_eq!(planned.sql, sql, "{kind}");
+            assert_eq!(planned.sql.matches('?').count(), values.len(), "{kind}");
         }
     }
 }

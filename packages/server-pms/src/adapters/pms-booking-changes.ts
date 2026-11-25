@@ -15,7 +15,7 @@ import type { Effects } from "@erpx/feature-pms/lib/pms-engine";
 import { createPmsBookingChange, type PmsBookingChangeUnit, type PmsBookingChangeRepository, type StaffAuthority, type Proposal } from "@erpx/server-pms/application/pms-booking-changes";
 import { holdingResources as resolveResources } from "../../../../packages/server-runtime/src/public/runtime";
 import { requirePmsPropertyPurchase, withPmsPropertyPurchasedTransaction } from "@erpx/server-pms/adapters/property-purchase-boundary";
-import { nativePmsReadFirst, PMS_RD_BOOKING_CHANGE, PMS_RD_BOOKING_CHANGE_PENDING, PMS_RD_BOOKING_PAYMENT } from "./native-pms-read";
+import { nativePmsReadFirst, PMS_RD_BOOKING_CHANGE, PMS_RD_BOOKING_CHANGE_PENDING, PMS_RD_BOOKING_PAYMENT, PMS_RD_RESERVATION_PROPERTY } from "./native-pms-read";
 import { pmsBookingAllocationRefundSql } from "./pms-read-tail-r32-sql";
 const signature = (env: BookingEnv, payload: string) => createHmac('sha256', env.secret).update(`pms-change:${payload}`).digest('base64url');
 function signed(p: Proposal, env: BookingEnv) { const payload = Buffer.from(JSON.stringify(p)).toString('base64url'); return `${payload}.${signature(env, payload)}`; }
@@ -27,9 +27,9 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase, companyId = '')
         requirePurchase: input => requirePmsPropertyPurchase(db, input),
         readPmsRecords: (facts: {
             reservationId: string;
-        }) => db.prepare("SELECT property_id FROM pms_records WHERE id=? AND kind='reservation'").bind(facts.reservationId).first<{
+        }) => nativePmsReadFirst<{
             property_id: string;
-        }>(),
+        }>(PMS_RD_RESERVATION_PROPERTY, [facts.reservationId], db),
         readPmsBookingRefundRequests: (facts: {
             id: string;
         }) => db.prepare(pmsBookingAllocationRefundSql(false)).bind(facts.id).all<{

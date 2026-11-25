@@ -117,7 +117,7 @@ describe('Sales read-tail r27 parameterized ecommerce order-scope family', () =>
     expect(finalRoot).toMatch(/const tableRead\s*=/); // r15
     expect(source).toContain('export const actorScopeTuple='); // r12/r15
     expect(purchases).toContain('const followupExists='); // r17
-    expect(metric).toContain('const crmAssignmentExists='); // r11
+    expect(metric).toContain('SALES_RD_CRM_ASSIGNMENT_PLAIN'); // r11
     expect(byKey).toContain('export const byKey ='); // r19
     expect(pointRead).toContain('export const pointRead ='); // r20
     expect(orderRead).toContain('export const followupCustomerOrderRead ='); // r21
@@ -133,7 +133,7 @@ describe('Sales read-tail r27 parameterized ecommerce order-scope family', () =>
     expect(native).toContain('export const SALES_RD_PRICE_LIST_ITEMS_ACTIVE');
     expect(native).toContain('export const SALES_RD_NOTIFICATION_ATTEMPT');
     expect(native).toContain('export const SALES_RD_NOTIFICATION_RECONCILIATION_INSTALLED');
-    expect((rustRegistry.match(/pub const RD_\w+: &str =/g) ?? []).length).toBe(22);
+    expect((rustRegistry.match(/pub const RD_\w+: &str =/g) ?? []).length).toBe(24);
     expect((commercial.match(/SELECT/g) ?? []).length).toBe(0);
   });
 });
@@ -157,7 +157,7 @@ describe('Sales read-tail r27 retirement check', () => {
     // r35: delivery-presence head shared by order/return/notice guards (-1).
     // lane 30 retires the two customer-note SELECT literals (-2) to the native
     // Sales axum owner.
-    expect(total).toBe(28);
+    expect(total).toBe(27);
     expect(total).toBeLessThan(60);
   });
 });

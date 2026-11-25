@@ -892,6 +892,81 @@ const READ_CONTRACT_POSTED_CORRECTION: NativeReadStatement = NativeReadStatement
     scope: "holding",
 };
 
+/// Native successors of the static `finance-invoice-read` point/list reads.
+/// Owner-write helpers, assertion guards and dynamic field-invoice projections
+/// stay in the caller's transaction; these plans are byte-identical reads.
+pub const RD_INVOICE_REPORT_CHARTS: &str = "finance_rd_invoice_report_charts";
+const SQL_RD_INVOICE_REPORT_CHARTS: &str = "SELECT id FROM finance_charts WHERE company_id=?";
+const READ_INVOICE_REPORT_CHARTS: NativeReadStatement = NativeReadStatement {
+    kind: RD_INVOICE_REPORT_CHARTS,
+    sql: SQL_RD_INVOICE_REPORT_CHARTS,
+    bind_count: 1,
+    scope: "holding",
+};
+
+pub const RD_INVOICE_ACCOUNTS: &str = "finance_rd_invoice_accounts";
+const SQL_RD_INVOICE_ACCOUNTS: &str = "SELECT * FROM finance_accounts WHERE company_id=? AND chart_id=? ORDER BY code";
+const READ_INVOICE_ACCOUNTS: NativeReadStatement = NativeReadStatement {
+    kind: RD_INVOICE_ACCOUNTS,
+    sql: SQL_RD_INVOICE_ACCOUNTS,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_INVOICE_LINE_HISTORY: &str = "finance_rd_invoice_line_history";
+const SQL_RD_INVOICE_LINE_HISTORY: &str = "SELECT source_version,origin_kind,COUNT(*) line_count,SUM(subtotal_minor) subtotal_minor,SUM(tax_minor) tax_minor,MIN(created_at) created_at FROM finance_invoice_line_versions WHERE invoice_id=? AND company_id=? GROUP BY source_version,origin_kind ORDER BY source_version";
+const READ_INVOICE_LINE_HISTORY: NativeReadStatement = NativeReadStatement {
+    kind: RD_INVOICE_LINE_HISTORY,
+    sql: SQL_RD_INVOICE_LINE_HISTORY,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_INVOICE_THAI_DOCUMENTS: &str = "finance_rd_invoice_thai_documents";
+const SQL_RD_INVOICE_THAI_DOCUMENTS: &str = "SELECT id,document_number,document_kind,edition,issue_date FROM finance_issued_thai_documents WHERE invoice_id=? AND company_id=? ORDER BY edition";
+const READ_INVOICE_THAI_DOCUMENTS: NativeReadStatement = NativeReadStatement {
+    kind: RD_INVOICE_THAI_DOCUMENTS,
+    sql: SQL_RD_INVOICE_THAI_DOCUMENTS,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_INVOICE_PAYMENT_REVERSAL: &str = "finance_rd_invoice_payment_reversal";
+const SQL_RD_INVOICE_PAYMENT_REVERSAL: &str = "SELECT * FROM finance_payment_reversals WHERE payment_id=?";
+const READ_INVOICE_PAYMENT_REVERSAL: NativeReadStatement = NativeReadStatement {
+    kind: RD_INVOICE_PAYMENT_REVERSAL,
+    sql: SQL_RD_INVOICE_PAYMENT_REVERSAL,
+    bind_count: 1,
+    scope: "holding",
+};
+
+pub const RD_INVOICE_OPEN_PERIODS: &str = "finance_rd_invoice_open_periods";
+const SQL_RD_INVOICE_OPEN_PERIODS: &str = "SELECT * FROM finance_periods WHERE company_id=? AND state='open' ORDER BY start_date DESC";
+const READ_INVOICE_OPEN_PERIODS: NativeReadStatement = NativeReadStatement {
+    kind: RD_INVOICE_OPEN_PERIODS,
+    sql: SQL_RD_INVOICE_OPEN_PERIODS,
+    bind_count: 1,
+    scope: "holding",
+};
+
+pub const RD_INVOICE_STATEMENT_ROWS: &str = "finance_rd_invoice_statement_rows";
+const SQL_RD_INVOICE_STATEMENT_ROWS: &str = "SELECT * FROM finance_bank_transactions WHERE statement_id=? AND company_id=? ORDER BY transaction_date,id LIMIT 31 OFFSET ?";
+const READ_INVOICE_STATEMENT_ROWS: NativeReadStatement = NativeReadStatement {
+    kind: RD_INVOICE_STATEMENT_ROWS,
+    sql: SQL_RD_INVOICE_STATEMENT_ROWS,
+    bind_count: 3,
+    scope: "holding",
+};
+
+pub const RD_INVOICE_OPEN_INVOICES: &str = "finance_rd_invoice_open_invoices";
+const SQL_RD_INVOICE_OPEN_INVOICES: &str = "SELECT id,invoice_number,kind,outstanding_minor,status,version\n      FROM finance_invoices WHERE company_id=? AND party_id=? AND currency=? AND kind=? AND status IN ('posted','partially_paid') AND outstanding_minor>0 AND source_type!='expense_claim' AND (?::text IS NULL OR id=?)\n      ORDER BY due_date,invoice_number";
+const READ_INVOICE_OPEN_INVOICES: NativeReadStatement = NativeReadStatement {
+    kind: RD_INVOICE_OPEN_INVOICES,
+    sql: SQL_RD_INVOICE_OPEN_INVOICES,
+    bind_count: 6,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_ASSET_POLICY_ROW,
     READ_ASSET_POLICY_RUNS,
@@ -978,6 +1053,14 @@ const READS: &[NativeReadStatement] = &[
     READ_CONTRACT_BILLING_EXISTS,
     READ_CONTRACT_BILL_SOURCE,
     READ_CONTRACT_POSTED_CORRECTION,
+    READ_INVOICE_REPORT_CHARTS,
+    READ_INVOICE_ACCOUNTS,
+    READ_INVOICE_LINE_HISTORY,
+    READ_INVOICE_THAI_DOCUMENTS,
+    READ_INVOICE_PAYMENT_REVERSAL,
+    READ_INVOICE_OPEN_PERIODS,
+    READ_INVOICE_STATEMENT_ROWS,
+    READ_INVOICE_OPEN_INVOICES,
 ];
 
 /// Whether a discriminator is an owner read kind (never a write kind).
@@ -1082,6 +1165,14 @@ mod tests {
             RD_CONTRACT_BILLING_EXISTS,
             RD_CONTRACT_BILL_SOURCE,
             RD_CONTRACT_POSTED_CORRECTION,
+            RD_INVOICE_REPORT_CHARTS,
+            RD_INVOICE_ACCOUNTS,
+            RD_INVOICE_LINE_HISTORY,
+            RD_INVOICE_THAI_DOCUMENTS,
+            RD_INVOICE_PAYMENT_REVERSAL,
+            RD_INVOICE_OPEN_PERIODS,
+            RD_INVOICE_STATEMENT_ROWS,
+            RD_INVOICE_OPEN_INVOICES,
         ] {
             assert!(is_read(kind), "{kind}");
             let read = read_statement(kind).expect("read kind");
@@ -1096,7 +1187,7 @@ mod tests {
             assert_eq!(read.sql.matches('?').count(), read.bind_count, "{kind}");
             assert_eq!(read.scope, "holding", "{kind}");
         }
-        assert_eq!(READS.len(), 85);
+        assert_eq!(READS.len(), 93);
         assert!(!is_read("finance_stmt_1"));
         assert!(read_statement("finance_stmt_1").is_none());
     }
@@ -1647,6 +1738,50 @@ mod tests {
                 RD_CONTRACT_POSTED_CORRECTION,
                 SQL_RD_CONTRACT_POSTED_CORRECTION,
                 1,
+            ),
+        ];
+        assert_eq!(expected.len(), 8);
+        for (kind, sql, binds) in expected {
+            let read = read_statement(kind).unwrap_or_else(|| panic!("{kind}: unregistered"));
+            assert_eq!(read.kind, *kind, "{kind}: discriminator");
+            assert_eq!(read.sql, *sql, "{kind}: byte-identical SQL");
+            assert_eq!(read.bind_count, *binds, "{kind}: bind count");
+            assert_eq!(read.sql.matches('?').count(), *binds, "{kind}: binds");
+            assert_eq!(read.scope, "holding", "{kind}: scope");
+            assert!(is_read(kind), "{kind}");
+            assert!(!read.sql.contains("FOR UPDATE"), "{kind}");
+            assert!(!read.sql.contains("INSERT"), "{kind}");
+        }
+    }
+
+    /// The finance-invoice-read point/list family plans the exact retired
+    /// literals; field-invoice ownership helpers and locks stay in TS.
+    #[test]
+    fn invoice_reads_match_retired_owner_statements() {
+        let expected: &[(&str, &str, usize)] = &[
+            (RD_INVOICE_REPORT_CHARTS, SQL_RD_INVOICE_REPORT_CHARTS, 1),
+            (RD_INVOICE_ACCOUNTS, SQL_RD_INVOICE_ACCOUNTS, 2),
+            (RD_INVOICE_LINE_HISTORY, SQL_RD_INVOICE_LINE_HISTORY, 2),
+            (
+                RD_INVOICE_THAI_DOCUMENTS,
+                SQL_RD_INVOICE_THAI_DOCUMENTS,
+                2,
+            ),
+            (
+                RD_INVOICE_PAYMENT_REVERSAL,
+                SQL_RD_INVOICE_PAYMENT_REVERSAL,
+                1,
+            ),
+            (RD_INVOICE_OPEN_PERIODS, SQL_RD_INVOICE_OPEN_PERIODS, 1),
+            (
+                RD_INVOICE_STATEMENT_ROWS,
+                SQL_RD_INVOICE_STATEMENT_ROWS,
+                3,
+            ),
+            (
+                RD_INVOICE_OPEN_INVOICES,
+                SQL_RD_INVOICE_OPEN_INVOICES,
+                6,
             ),
         ];
         assert_eq!(expected.len(), 8);

@@ -77,7 +77,7 @@ describe('Organization read-tail r44 byte-identical family', () => {
     };
     walk(srcRoot);
     // r44 collapses two front-company slug reads into one shared source (-1).
-    expect(space).toBe(187);
+    expect(space).toBe(186);
     expect(space).toBeLessThan(242);
   });
 });

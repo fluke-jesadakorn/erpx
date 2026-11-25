@@ -60,10 +60,15 @@ const sourceAst = ts.createSourceFile('followup-source-sql.ts', source, ts.Scrip
 const authorityScopeRead = new Function(
   `${transpileDecl(sourceAst, 'authorityScopeRead')}\nreturn authorityScopeRead;`,
 )() as (authority: string, tuple: string, relation: string, extra?: string) => string;
-const metricAst = ts.createSourceFile('metric-purchases.ts', metric, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-const crmAssignmentExists = new Function(
-  `${transpileDecl(metricAst, 'crmAssignmentExists')}\nreturn crmAssignmentExists;`,
-)() as () => string;
+const registry = read('native_sales_read_sql.rs');
+const crmAssignmentExists = (): string => {
+  const marker = 'const SQL_CRM_ASSIGNMENT_PLAIN: &str = "';
+  const at = registry.indexOf(marker);
+  expect(at).toBeGreaterThanOrEqual(0);
+  const end = registry.indexOf('";', at + marker.length);
+  expect(end).toBeGreaterThan(at);
+  return registry.slice(at + marker.length, end).replace(/\\"/g, '"');
+};
 
 const rendered = {
   pricing: authorityScopeRead(assignmentReadSql('pricing_scope', 'commerce.read'), scopeTuple('company'), 'pricing_scope'),
@@ -80,9 +85,9 @@ describe('Sales read-tail r18 duplicate-family ruling', () => {
       groups.set(key, [...(groups.get(key) ?? []), text]);
     }
     // Previous ruling: 49 literals, zero exact duplicate groups. Current source
-    // is unchanged in shape: 31 SQL-bearing literals, 31 distinct groups after
+    // is unchanged in shape: 30 SQL-bearing literals, 30 distinct groups after
     // the price-list and followup metric/source families moved to the native owner.
-    expect(literals.length).toBeGreaterThanOrEqual(31);
+    expect(literals.length).toBeGreaterThanOrEqual(30);
     expect([...groups.values()].filter((g) => g.length > 1)).toHaveLength(0);
   });
 

@@ -4,6 +4,7 @@ import {holdingResources} from "../../../../packages/server-runtime/src/public/r
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {commercePackageEnforcementMode, readPurchasedAccesses} from "@erpx/server-commercial/public/purchase-command-boundary";
 import type {CommerceOrderKind, CommercePurchaseControls} from "@erpx/feature-commerce/lib/purchase-controls";
+import {nativeCommerceReadAll,RD_PURCHASE_CONTROL_INVOICE,RD_PURCHASE_CONTROL_ORDER,RD_PURCHASE_CONTROL_RETURN_LINES} from './native-commerce-read';
 
 type Target = {type: "kind"; kind: CommerceOrderKind} | {type: "order" | "invoice"; id: string};
 /** Presentation only: existing typed owner readers and permissions authorize
@@ -16,9 +17,8 @@ export async function commercePurchaseControls(actor: WorkContext, target: Targe
   let kind: CommerceOrderKind;
   if (target.type === "kind") kind = target.kind;
   else {
-    const rows = (await database.prepare(`SELECT DISTINCT o.id,o.kind,o.company_id,o.branch_id,o.department_id FROM commerce_orders o
-      ${target.type === "invoice" ? "JOIN commerce_fulfillments f ON f.order_id=o.id" : ""}
-      WHERE ${target.type === "invoice" ? "f.invoice_id" : "o.id"}=?`).bind(target.id).all<{kind: CommerceOrderKind; company_id: string; branch_id: string | null; department_id: string | null}>()).results;
+    const sourceKind = target.type === "invoice" ? RD_PURCHASE_CONTROL_INVOICE : RD_PURCHASE_CONTROL_ORDER;
+    const rows = await nativeCommerceReadAll<{kind: CommerceOrderKind; company_id: string; branch_id: string | null; department_id: string | null}>(sourceKind,[target.id],database);
     if (!rows.length && target.type === "invoice") return undefined;
     if (rows.length !== 1 || rows[0].company_id !== actor.companyId || actor.branchId && rows[0].branch_id !== actor.branchId || actor.departmentId && rows[0].department_id !== actor.departmentId)
       throw new ApiError(404, "COMMERCE_SOURCE_UNAVAILABLE", "This Commerce source is unavailable in the current workspace.");
@@ -40,11 +40,6 @@ export async function commercePurchaseControls(actor: WorkContext, target: Targe
 export async function commerceReturnPurchaseControls(actor: WorkContext, orderId: string, purchase: CommercePurchaseControls | undefined): Promise<Record<string, CommercePurchaseControls>> {
   if (!purchase) return {};
   const database = (await holdingResources(actor.holdingId)).write;
-  const rows = (await database.prepare(`SELECT r.id,EXISTS(SELECT 1 FROM commerce_return_lines rl
-    JOIN commerce_fulfillment_lines fl ON fl.id=rl.fulfillment_line_id JOIN commerce_order_lines ol ON ol.id=fl.order_line_id
-    WHERE rl.return_id=r.id AND ol.item_type!='service') has_stock FROM commerce_returns r
-    JOIN commerce_orders o ON o.id=r.order_id WHERE o.id=? AND o.company_id=?
-    AND (? IS NULL OR o.branch_id=?) AND (? IS NULL OR o.department_id=?)`)
-    .bind(orderId,actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId).all<{id:string;has_stock:boolean|number}>()).results;
+  const rows = await nativeCommerceReadAll<{id:string;has_stock:boolean|number}>(RD_PURCHASE_CONTROL_RETURN_LINES,[orderId,actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId],database);
   return Object.fromEntries(rows.map(row=>[row.id,{...purchase,stockSettleExisting:purchase.settleExisting && (!row.has_stock || purchase.stockSettleExisting)}]));
 }

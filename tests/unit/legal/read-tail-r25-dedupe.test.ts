@@ -3,6 +3,9 @@ import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 import { legalMemberEditExistsSql, legalJsonbAggByItemSql } from '../../../packages/server-legal/src/adapters/legal-read-tail-r25-sources';
+import workContract from '../../../packages/server-legal/src/adapters/work-purchases-sources.json' with {
+  type: 'json',
+};
 import contract from '../../../packages/server-legal/src/adapters/legal-read-tail-r25-sources.json' with {
   type: 'json',
 };
@@ -78,6 +81,30 @@ describe('legal read-tail r25 parameterized family dedupe', () => {
     expect(canonical).toContain('legalJsonbAggByItemSql("h","legal_holds")');
   });
 
+  it('keeps the work-purchases filter sources and row read in the native contract', async () => {
+    const [work, rust] = await Promise.all([
+      src('work-purchases.ts'),
+      src('work_purchases.rs'),
+    ]);
+    expect(work.match(/SELECT /g) ?? []).toHaveLength(0);
+    expect(work).toContain('work-purchases-sources.json');
+    expect(work).toContain('fill(contract.rows');
+    expect(workContract.recordSource).toBe(
+      "SELECT id work_id,id item_id,'record' source FROM legal_items",
+    );
+    expect(workContract.approvalSource).toBe(
+      "SELECT 'legal-approval:'||id,id,'approval' FROM legal_items",
+    );
+    expect(workContract.featureSource).toContain('{table}');
+    expect(workContract.rows).toContain('{memberEdit}');
+    expect(workContract.rows).toContain('{inList}');
+    expect(workContract.rows).toContain('{scope}');
+    expect(workContract.rows).toContain('{purchase}');
+    expect(rust).toContain('include_str!("work-purchases-sources.json")');
+    expect(rust).toContain('render_work_rows');
+    expect(rust).toContain('36313aadc7878271d3b810421a6d31d7ca59e5e260c7d9a5568f064cb81c9ace');
+  });
+
   it('retirement:ts-statements stays strictly below the recorded 259 r24 baseline', async () => {
     let total = 0;
     const walk = async (dir: string) => {
@@ -103,6 +130,6 @@ describe('legal read-tail r25 parameterized family dedupe', () => {
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(103);
-    expect(total).toBe(91);
+    expect(total).toBe(84);
   });
 });

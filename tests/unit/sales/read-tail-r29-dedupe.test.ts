@@ -143,7 +143,7 @@ describe('Sales read-tail r29 scope-tuple family', () => {
     const commercial = read('commercial-owner-projection-sources.ts');
     expect(finalRoot).toMatch(/const tableRead\s*=/);
     expect(purchases).toContain('const followupExists=');
-    expect(metric).toContain('const crmAssignmentExists=');
+    expect(metric).toContain('SALES_RD_CRM_ASSIGNMENT_PLAIN');
     expect(byKey).toContain('export const byKey =');
     expect(pointRead).toContain('export const pointRead =');
     expect(orderRead).toContain('export const followupCustomerOrderRead =');
@@ -154,7 +154,7 @@ describe('Sales read-tail r29 scope-tuple family', () => {
     expect(native).toContain('export const SALES_RD_PRICE_LIST_ITEMS_ACTIVE');
     expect(native).toContain('export const SALES_RD_NOTIFICATION_ATTEMPT');
     expect(native).toContain('export const SALES_RD_NOTIFICATION_RECONCILIATION_INSTALLED');
-    expect((rustRegistry.match(/pub const RD_\w+: &str =/g) ?? []).length).toBe(22);
+    expect((rustRegistry.match(/pub const RD_\w+: &str =/g) ?? []).length).toBe(24);
     expect((commercial.match(/SELECT/g) ?? []).length).toBe(0);
   });
 });
@@ -174,7 +174,7 @@ describe('Sales read-tail r29 retirement check', () => {
     // tableRead (-3) and priceListSelect (-1).
     // r33 folds the tail generator into the primary read generator (-1).
     // r35: delivery-presence head shared by order/return/notice guards (-1).
-    expect(total).toBe(28);
+    expect(total).toBe(27);
     expect(total).toBeLessThan(54);
   });
 });

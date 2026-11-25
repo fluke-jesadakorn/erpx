@@ -110,6 +110,6 @@ describe('legal read-tail r68 item-ordered head reuse', () => {
     await walk(srcRoot);
     expect(total).toBeLessThan(131);
     expect(total).toBeLessThanOrEqual(130);
-    expect(total).toBe(91);
+    expect(total).toBe(84);
   });
 });

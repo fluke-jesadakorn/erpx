@@ -6,14 +6,14 @@ import {ApiError} from "@erpx/server-runtime/public/http";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import {commercePackageEnforcementMode,readPurchasedAccesses} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {actorScopeTuple,authorityScopeRead} from "./followup-source-sql";
-import {nativeSalesPlan,SALES_RD_FOLLOWUP_METRIC_PROJECTION,SALES_RD_FOLLOWUP_METRIC_SOURCE} from './native-sales-read';
+import {nativeSalesPlan,SALES_RD_FOLLOWUP_METRIC_PROJECTION,SALES_RD_FOLLOWUP_METRIC_SOURCE,SALES_RD_CRM_ASSIGNMENT_ALIASED,SALES_RD_CRM_ASSIGNMENT_PLAIN} from './native-sales-read';
 /** One alias-parameterized CRM membership EXISTS shared by the metric history
  * gate (unqualified) and the enforced source projection (`selected` alias).
  * No caller input enters the SQL text; only the alias token changes. */
-const crmAssignmentExists=(alias='')=>{const p=alias?`${alias}.`:'';return `EXISTS(SELECT 1 FROM assignments${alias?` ${alias}`:''} WHERE ${p}id=? AND (jsonb_array_length(${p}modules_json::jsonb)=0 OR ${p}modules_json::jsonb @> jsonb_build_array('crm'::text)))`;};
+const crmAssignmentExists=async(alias='')=>(await nativeSalesPlan(alias?SALES_RD_CRM_ASSIGNMENT_ALIASED:SALES_RD_CRM_ASSIGNMENT_PLAIN,[])).sql;
 export async function salesFollowupMetricHistoryAccess(database:SqlDatabase,actor:WorkContext){
  const mode=await commercePackageEnforcementMode(),access=await readPurchasedAccesses(database,mode,actor.companyId,["sales.quotes","sales.orders"]);if(mode!=="enforced")return {"overdue-followups":true};
- const current=actor.modules.includes("crm")&&hasPermission(actor,"commerce.read")&&!!await database.prepare(authorityScopeRead(assignmentReadSql("sales_metric_scope","commerce.read"),actorScopeTuple,"sales_metric_scope",` AND ${crmAssignmentExists()}`)).bind(actor.assignmentId,actor.userId,actor.role,actor.assignmentId,actor.companyId,actor.branchId,actor.departmentId).first<boolean>("allowed");
+ const current=actor.modules.includes("crm")&&hasPermission(actor,"commerce.read")&&!!await database.prepare(authorityScopeRead(assignmentReadSql("sales_metric_scope","commerce.read"),actorScopeTuple,"sales_metric_scope",` AND ${await crmAssignmentExists()}`)).bind(actor.assignmentId,actor.userId,actor.role,actor.assignmentId,actor.companyId,actor.branchId,actor.departmentId).first<boolean>("allowed");
  return {"overdue-followups":current&&(access["sales.quotes"].history||access["sales.orders"].history)};
 }
 /** The original quotation/Sales source decides each follow-up capability,

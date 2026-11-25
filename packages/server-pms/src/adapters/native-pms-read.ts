@@ -131,6 +131,11 @@ export const PMS_RD_PROPERTY_SCOPE = 'pms_rd_property_scope';
  * refund count. Fixed SQL with four positional binds, no ledger/receipt/outbox
  * and no lock path; caller runs it on its already-open unit. */
 export const PMS_RD_FAILED_COUNTER_REFUNDS = 'pms_rd_failed_counter_refunds';
+/** Native successors of the reservation-property probe and the rollout
+ * setup-readiness probe. Fixed SQL with one positional bind each, no
+ * ledger/receipt/outbox and no lock path; the caller runs them on its unit. */
+export const PMS_RD_RESERVATION_PROPERTY = 'pms_rd_reservation_property';
+export const PMS_RD_ROLLOUT_SETUP_READY = 'pms_rd_rollout_setup_ready';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'PMS_NATIVE_READ_UNAVAILABLE', 'The native PMS read service is unavailable.');

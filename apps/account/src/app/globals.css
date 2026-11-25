@@ -1323,12 +1323,14 @@
 @source "../../../../packages/server-identity_access/src/adapters/native-account-context.ts";
 @source "../../../../packages/server-identity_access/src/adapters/native-account-http.ts";
 @source "../../../../packages/server-identity_access/src/adapters/native-account-security.ts";
+@source "../../../../packages/server-identity_access/src/adapters/native-control-read-plan.ts";
 @source "../../../../packages/server-identity_access/src/adapters/native-directory-operations.ts";
 @source "../../../../packages/server-identity_access/src/adapters/native-identity-write.ts";
 @source "../../../../packages/server-identity_access/src/adapters/native-lane-10/client.ts";
 @source "../../../../packages/server-identity_access/src/adapters/native-lane-11/client.ts";
 @source "../../../../packages/server-identity_access/src/adapters/native-lane-12/client.ts";
 @source "../../../../packages/server-identity_access/src/adapters/native-position-gpo.ts";
+@source "../../../../packages/server-identity_access/src/adapters/native-private-file-denial-authority.ts";
 @source "../../../../packages/server-identity_access/src/adapters/native-recovery.ts";
 @source "../../../../packages/server-identity_access/src/adapters/native-session.ts";
 @source "../../../../packages/server-identity_access/src/adapters/native-user-management.ts";
@@ -1585,8 +1587,12 @@
 @source "../../../../packages/server-inventory/src/adapters/manufacturing-initial-physical-stock-count-source-sql.ts";
 @source "../../../../packages/server-inventory/src/adapters/manufacturing-initial-physical-stock-count-source.ts";
 @source "../../../../packages/server-inventory/src/adapters/manufacturing-posting-setup-sources.ts";
+@source "../../../../packages/server-inventory/src/adapters/native-count-status.ts";
 @source "../../../../packages/server-inventory/src/adapters/native-inventory-read.ts";
 @source "../../../../packages/server-inventory/src/adapters/native-lane-17/client.ts";
+@source "../../../../packages/server-inventory/src/adapters/native-replay-probe.ts";
+@source "../../../../packages/server-inventory/src/adapters/native-scoped-field.ts";
+@source "../../../../packages/server-inventory/src/adapters/native-service-count-source.ts";
 @source "../../../../packages/server-inventory/src/adapters/pos-initial-physical-stock-count-source-sql.ts";
 @source "../../../../packages/server-inventory/src/adapters/pos-initial-physical-stock-count-source.ts";
 @source "../../../../packages/server-inventory/src/adapters/pos-startup-sources.ts";
@@ -2073,7 +2079,6 @@
 @source "../../../../packages/server-organization/src/adapters/organization-read-tail-sources-r42.ts";
 @source "../../../../packages/server-organization/src/adapters/organization-read-tail-sources-r43.ts";
 @source "../../../../packages/server-organization/src/adapters/organization-read-tail-sources-r45.ts";
-@source "../../../../packages/server-organization/src/adapters/organization-read-tail-sources-r46.ts";
 @source "../../../../packages/server-organization/src/adapters/organization-read-tail-sources-r49.ts";
 @source "../../../../packages/server-organization/src/adapters/organization-read-tail-sources-r50.ts";
 @source "../../../../packages/server-organization/src/adapters/organization-read-tail-sources-r51.ts";
@@ -2096,8 +2101,6 @@
 @source "../../../../packages/server-organization/src/adapters/planning-resource-sources.ts";
 @source "../../../../packages/server-organization/src/adapters/platform-owner-projection-sources.ts";
 @source "../../../../packages/server-organization/src/adapters/pms-source-authorization.ts";
-@source "../../../../packages/server-organization/src/adapters/private-file-denial-sources.ts";
-@source "../../../../packages/server-organization/src/adapters/production-read-projections.ts";
 @source "../../../../packages/server-organization/src/adapters/profile-facts.ts";
 @source "../../../../packages/server-organization/src/adapters/queued-command-authority.ts";
 @source "../../../../packages/server-organization/src/adapters/roster-source-scope.ts";
@@ -2167,8 +2170,6 @@
 @source "../../../../packages/server-organization/src/public/planning-resource-sources.ts";
 @source "../../../../packages/server-organization/src/public/platform-owner-projection-sources.ts";
 @source "../../../../packages/server-organization/src/public/pms-source-authorization.ts";
-@source "../../../../packages/server-organization/src/public/private-file-denial-sources.ts";
-@source "../../../../packages/server-organization/src/public/production-read-projections.ts";
 @source "../../../../packages/server-organization/src/public/profile-facts.ts";
 @source "../../../../packages/server-organization/src/public/queued-command-authority.ts";
 @source "../../../../packages/server-organization/src/public/roster-source-scope.ts";
@@ -2326,7 +2327,14 @@
 @source "../../../../packages/server-people_payroll/src/adapters/pp-read-tail-r62-sources.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/pp-read-tail-r63-sources.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/pp-read-tail-r64-sources.ts";
-@source "../../../../packages/server-people_payroll/src/adapters/private-file-denial-sources.ts";
+@source "../../../../packages/server-people_payroll/src/adapters/pp-read-tail-round2-sources.ts";
+@source "../../../../packages/server-people_payroll/src/adapters/pp-read-tail-round2b-sources.ts";
+@source "../../../../packages/server-people_payroll/src/adapters/pp-read-tail-round2c-sources.ts";
+@source "../../../../packages/server-people_payroll/src/adapters/pp-read-tail-round2d-sources.ts";
+@source "../../../../packages/server-people_payroll/src/adapters/pp-read-tail-round3-sources.ts";
+@source "../../../../packages/server-people_payroll/src/adapters/pp-read-tail-round4-sources.ts";
+@source "../../../../packages/server-people_payroll/src/adapters/pp-read-tail-round5-sources.ts";
+@source "../../../../packages/server-people_payroll/src/adapters/pp-read-tail-round9-sources.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/project-worker-references.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/project-worker-startup-binding.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/project-worker-startup-source-sql.ts";
@@ -2473,7 +2481,6 @@
 @source "../../../../packages/server-people_payroll/src/public/people-purchases.ts";
 @source "../../../../packages/server-people_payroll/src/public/people-roster.ts";
 @source "../../../../packages/server-people_payroll/src/public/platform-owner-projection-sources.ts";
-@source "../../../../packages/server-people_payroll/src/public/private-file-denial-sources.ts";
 @source "../../../../packages/server-people_payroll/src/public/project-worker-references.ts";
 @source "../../../../packages/server-people_payroll/src/public/queued-command-authority.ts";
 @source "../../../../packages/server-people_payroll/src/public/record-purchases.ts";
@@ -2718,6 +2725,7 @@
 @source "../../../../packages/server-projects/src/adapters/read-tail-r39.ts";
 @source "../../../../packages/server-projects/src/adapters/read-tail-r40.ts";
 @source "../../../../packages/server-projects/src/adapters/read-tail-r41.ts";
+@source "../../../../packages/server-projects/src/adapters/read-tail-r45.ts";
 @source "../../../../packages/server-projects/src/adapters/record-purchases.ts";
 @source "../../../../packages/server-projects/src/adapters/social-purchase-sources.ts";
 @source "../../../../packages/server-projects/src/adapters/staff-projects.ts";
@@ -2761,6 +2769,7 @@
 @source "../../../../packages/server-quality/src/adapters/inventory-quality-snapshot-sources.ts";
 @source "../../../../packages/server-quality/src/adapters/native-customer-return-hold.ts";
 @source "../../../../packages/server-quality/src/adapters/native-quality-read.ts";
+@source "../../../../packages/server-quality/src/adapters/native-quality-scope.ts";
 @source "../../../../packages/server-quality/src/adapters/purchase-sources.ts";
 @source "../../../../packages/server-quality/src/adapters/purchases.ts";
 @source "../../../../packages/server-quality/src/adapters/quality-alert-recipient-sql.ts";
@@ -2849,6 +2858,7 @@
 @source "../../../../packages/server-runtime/src/adapters/hospitality-owner-projection-sources.ts";
 @source "../../../../packages/server-runtime/src/adapters/http.ts";
 @source "../../../../packages/server-runtime/src/adapters/native-lane-33/client.ts";
+@source "../../../../packages/server-runtime/src/adapters/native-runtime-control-plane.ts";
 @source "../../../../packages/server-runtime/src/adapters/presentation-configuration.ts";
 @source "../../../../packages/server-runtime/src/adapters/read-tail-sql.ts";
 @source "../../../../packages/server-runtime/src/adapters/request-memo.ts";
@@ -2886,7 +2896,6 @@
 @source "../../../../packages/server-runtime/src/public/runtime/sql.ts";
 @source "../../../../packages/server-runtime/src/public/runtime/types.ts";
 @source "../../../../packages/server-runtime/src/public/simulation-only-adapters.ts";
-@source "../../../../packages/server-sales/src/adapters/by-key.ts";
 @source "../../../../packages/server-sales/src/adapters/commerce-facts.ts";
 @source "../../../../packages/server-sales/src/adapters/commerce-owner-sources.ts";
 @source "../../../../packages/server-sales/src/adapters/commercial-owner-projection-sources.ts";

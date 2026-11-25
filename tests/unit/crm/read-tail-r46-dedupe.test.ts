@@ -121,7 +121,7 @@ describe('crm read-tail r46 byte-identical projection/FROM head', () => {
 
   test('leaves crmSelectOneSql/crmUnionAllSql, locks, receipts and cross-owner exports untouched', () => {
     expect(src('read-tail-r42-sql.ts')).toContain('export const crmSelectOneSql = (body: string) => `SELECT 1 FROM ${body}`');
-    expect(src('read-tail-r44-sql.ts')).toContain('export const crmUnionAllSql = (body: string) => `UNION ALL SELECT ${body}`');
+    expect(src('read-tail-r44-sql.ts')).toContain('export const crmUnionAllSql = (body: string) => `UNION ALL ${crmSelectBodySql(body)}`');
     expect(src('sales-package-obligations.ts')).toContain('crm_lead_activity_events event JOIN command_receipts receipt');
     expect(src('purchases.ts')).toContain(
       'LOCK TABLE crm_accounts,crm_contacts,crm_guest_links,crm_guest_sharing_events,crm_leads,crm_opportunities,crm_case_events,crm_lead_activities,crm_lead_activity_events IN SHARE ROW EXCLUSIVE MODE',
@@ -141,7 +141,7 @@ describe('crm read-tail r46 byte-identical projection/FROM head', () => {
   });
 
   test('retirement:ts-statements folds the projection/FROM head (40 -> 39)', () => {
-    expect(totalSelects()).toBe(38);
+    expect(totalSelects()).toBe(36);
     expect(totalSelects()).toBeLessThan(40);
   });
 });

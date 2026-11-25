@@ -4,18 +4,31 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
+import contract from "../legal-runtime-gate-sources.json" with {type:"json"};
 
 export type LegalCapability = 'operations' | 'documents' | 'ai' | 'sources' | 'invitations';
 
+const fill = (template: string, values: Record<string, string>) => {
+  let rendered = template;
+  for (const [name, value] of Object.entries(values)) {
+    const token = `{${name}}`;
+    if (!rendered.includes(token)) throw new Error('LEGAL_RUNTIME_GATE_CONTRACT_INVALID');
+    rendered = rendered.split(token).join(value);
+  }
+  return rendered;
+};
+
 /** Code-owned expressions only. Re-evaluate at the claim and side-effect boundary. */
 export function legalRuntimePredicate(companyExpression: string, capability: LegalCapability = 'operations') {
-  return `EXISTS(SELECT 1 FROM legal_settings runtime_legal_settings WHERE runtime_legal_settings.company_id=${companyExpression}
-    AND runtime_legal_settings.enabled ${capability === 'ai' ? 'AND runtime_legal_settings.ai_enabled' : ''}
-    AND ${scheduledFeaturePredicate('runtime_legal_settings.company_id','legal')})`;
+  return fill(contract.settingsPredicate, {
+    companyExpression,
+    aiEnabled: capability === 'ai' ? ' AND runtime_legal_settings.ai_enabled' : '',
+    scheduledFeaturePredicate: scheduledFeaturePredicate('runtime_legal_settings.company_id','legal'),
+  });
 }
 
 export async function legalCompanyCapabilityReady(db: SqlDatabase, companyId: string, capability: LegalCapability = 'operations') {
-  return !!await db.prepare(`SELECT 1 WHERE ${legalRuntimePredicate('?',capability)}`).bind(companyId).first();
+  return !!await db.prepare(fill(contract.capabilityProbe,{predicate:legalRuntimePredicate('?',capability)})).bind(companyId).first();
 }
 
-export function legalRuntimeHealth(db:SqlDatabase,actor:WorkContext){return createLegalRuntimeApplication({require:()=>requirePermission(actor,'legal.manage'),tasks:async()=>(await db.prepare('SELECT task,heartbeat_at,last_success_at,failure_count,last_error FROM legal_runtime_health ORDER BY task').all<LegalRuntimeTask>()).results,ready:capability=>legalCompanyCapabilityReady(db,actor.companyId,capability),clock:{now:()=>Date.now()}}).legalRuntimeHealth();}
+export function legalRuntimeHealth(db:SqlDatabase,actor:WorkContext){return createLegalRuntimeApplication({require:()=>requirePermission(actor,'legal.manage'),tasks:async()=>(await db.prepare(contract.health).all<LegalRuntimeTask>()).results,ready:capability=>legalCompanyCapabilityReady(db,actor.companyId,capability),clock:{now:()=>Date.now()}}).legalRuntimeHealth();}

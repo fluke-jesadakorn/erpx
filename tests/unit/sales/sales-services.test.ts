@@ -438,7 +438,7 @@ test('keeps one native Sales follow-up source plan for the enforced and non-enfo
  expect(source).toContain('SALES_RD_FOLLOWUP_METRIC_PROJECTION');
  expect(source).toContain('SALES_RD_FOLLOWUP_METRIC_SOURCE');
  expect(source).toContain('const kind=enforced?SALES_RD_FOLLOWUP_METRIC_SOURCE:SALES_RD_FOLLOWUP_METRIC_PROJECTION;');
- expect(source.match(/nativeSalesPlan\(/g)).toHaveLength(1);
+ expect(source.match(/nativeSalesPlan\(/g)).toHaveLength(2);
  expect(source).toContain('return {sql:planned.sql,args:planned.values};');
  expect(source).not.toContain('followupSourceSelect=');
  expect(source).not.toContain('${followupMetricPrefix} FROM customer_followups followup JOIN ');
@@ -462,15 +462,15 @@ test('Sales read-tail cross-file prefixes share one byte-identical SQL constant 
  expect((await readFile(new URL('followup-purchases.ts',base),'utf8')).match(/followupMetricPrefix/g)).toHaveLength(2);
 });
 
-test('Sales metric CRM membership EXISTS reuses one alias-parameterized SQL generator with byte-identical output',async()=>{
- const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL("../../../packages/server-sales/src/adapters/metric-purchases.ts",import.meta.url),'utf8');
- const file=ts.createSourceFile('metric-purchases.ts',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TS),decls=file.statements.filter(ts.isVariableStatement).flatMap(s=>[...s.declarationList.declarations]).filter(d=>d.name.getText(file)==='crmAssignmentExists');
- expect(decls).toHaveLength(1);
- const code=ts.transpileModule(`const ${decls[0].getText(file)};`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
- const gen=new Function(`${code}\nreturn crmAssignmentExists;`)() as (alias?:string)=>string;
- expect(gen()).toBe(`EXISTS(SELECT 1 FROM assignments WHERE id=? AND (jsonb_array_length(modules_json::jsonb)=0 OR modules_json::jsonb @> jsonb_build_array('crm'::text)))`);
- expect(gen('selected')).toBe(`EXISTS(SELECT 1 FROM assignments selected WHERE selected.id=? AND (jsonb_array_length(selected.modules_json::jsonb)=0 OR selected.modules_json::jsonb @> jsonb_build_array('crm'::text)))`);
- expect(source.match(/crmAssignmentExists/g)).toHaveLength(2);
+test('Sales metric CRM membership EXISTS is owned by the native command-plan registry',async()=>{
+ const {readFile}=await import('node:fs/promises'),createHash=(await import('node:crypto')).createHash,source=await readFile(new URL("../../../packages/server-sales/src/adapters/metric-purchases.ts",import.meta.url),'utf8'),registry=await readFile(new URL("../../../packages/server-sales/src/adapters/native_sales_read_sql.rs",import.meta.url),'utf8');
+ expect(source).toContain('const crmAssignmentExists=async(alias=\'\')=>');
+ expect(source).toContain('nativeSalesPlan(alias?SALES_RD_CRM_ASSIGNMENT_ALIASED:SALES_RD_CRM_ASSIGNMENT_PLAIN,[])');
+ expect(source).not.toContain('jsonb_array_length(modules_json::jsonb)=0 OR modules_json::jsonb @> jsonb_build_array');
+ for(const [constant,hash] of [['SQL_CRM_ASSIGNMENT_PLAIN','5bc9629ac3f8ebadd9419e0170858bafe2041a1c5fda556ee1aae7ce20941288'],['SQL_CRM_ASSIGNMENT_ALIASED','5aeb0f3f81af8be5e4ab51fbff65336915defd1278688c67dc4c586ff039cb10']] as const){
+  const marker=`const ${constant}: &str = "`,at=registry.indexOf(marker);expect(at).toBeGreaterThanOrEqual(0);const end=registry.indexOf('";',at+marker.length);const sql=registry.slice(at+marker.length,end).replace(/\\"/g,'"');
+  expect(createHash('sha256').update(sql).digest('hex')).toBe(hash);
+ }
 });
 
 test('Sales contact-note projection prefix is one byte-identical SQL constant across order and customer reads',async()=>{

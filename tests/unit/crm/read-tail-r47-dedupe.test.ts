@@ -4,6 +4,7 @@ import { describe, expect, test } from 'vitest';
 import { crmClockCteSql } from '../../../packages/server-crm/src/adapters/purchases';
 import { crmOwnedSourceRowSql } from '../../../packages/server-crm/src/adapters/read-tail-r34-sql';
 import { crmSingleKeySourceSql } from '../../../packages/server-crm/src/adapters/read-tail-r37-sql';
+import { crmSelectBodySql } from '../../../packages/server-crm/src/adapters/read-tail-r46-sql';
 import {
   crmMaterializedScopeSql,
   crmOwnedListSql,
@@ -62,9 +63,9 @@ describe('crm read-tail r47 byte-identical MATERIALIZED and owned-source heads',
     expect(rendered).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
   });
 
-  test('the owner renderer owns exactly the two shared read tokens', () => {
+  test('the owner renderer owns no read token after the MATERIALIZED fold', () => {
     const helper = src('read-tail-r47-sql.ts');
-    expect((helper.match(/SELECT /g) ?? []).length).toBe(1);
+    expect((helper.match(/SELECT /g) ?? []).length).toBe(0);
     expect(helper.match(/crmMaterializedScopeSql =/g)).toHaveLength(1);
     expect(helper.match(/crmOwnedListSql =/g)).toHaveLength(1);
     expect(crmMaterializedScopeSql('now_ms')).toBe('AS MATERIALIZED(SELECT now_ms)');
@@ -102,7 +103,7 @@ describe('crm read-tail r47 byte-identical MATERIALIZED and owned-source heads',
 
   test('leaves crmSelectOneSql/crmUnionAllSql/crmProjectionFromSql, locks and exports untouched', () => {
     expect(src('read-tail-r42-sql.ts')).toContain('export const crmSelectOneSql = (body: string) => `SELECT 1 FROM ${body}`');
-    expect(src('read-tail-r44-sql.ts')).toContain('export const crmUnionAllSql = (body: string) => `UNION ALL SELECT ${body}`');
+    expect(src('read-tail-r44-sql.ts')).toContain('export const crmUnionAllSql = (body: string) => `UNION ALL ${crmSelectBodySql(body)}`');
     expect(src('read-tail-r46-sql.ts')).toContain('crmProjectionFromSql = (projection: string, from: string)');
     expect(src('read-tail-r46-sql.ts')).toContain('crmSelectBodySql(`${projection} FROM ${from}`)');
     expect(src('purchases.ts')).toContain('crmLeadActivityExists=crmSalesOpportunitySql(');
@@ -114,8 +115,17 @@ describe('crm read-tail r47 byte-identical MATERIALIZED and owned-source heads',
     expect(src('marketing-package-obligations.ts')).toContain('@erpx/server-marketing/public/package-obligations');
   });
 
-  test('retirement:ts-statements drops from the r46 AFTER=54 to 50', () => {
-    expect(totalSelects()).toBe(38);
-    expect(totalSelects()).toBeLessThan(54);
+  test.each([
+    'floor(extract(epoch FROM clock_timestamp())*1000)::bigint now_ms',
+    'candidate.* FROM (CANDIDATES) candidate,scope WHERE candidate.company_id=scope.company_id',
+    'l.* FROM crm_leads l,scope WHERE l.company_id=scope.company_id',
+  ])('the MATERIALIZED head folds into the owner select-body plan for %#', (body) => {
+    expect(crmMaterializedScopeSql(body)).toBe(`AS MATERIALIZED(${crmSelectBodySql(body)})`);
+    expect(crmMaterializedScopeSql(body)).toBe(`AS MATERIALIZED(SELECT ${body})`);
+  });
+
+  test('retirement:ts-statements folds the MATERIALIZED head (37 -> 36)', () => {
+    expect(totalSelects()).toBe(36);
+    expect(totalSelects()).toBeLessThan(37);
   });
 });

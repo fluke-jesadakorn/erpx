@@ -114,9 +114,11 @@ pub mod legal_read_tail_r42;
 pub mod legal_read_tail_r44;
 pub mod legal_read_tail_r48;
 pub mod legal_records;
+pub mod legal_runtime_gate_sources;
 pub mod package_obligation_read;
 pub mod queued_purchases;
 pub mod trust_http;
+pub mod work_purchases;
 
 /// Source validation seam for the retained Legal destruction execution unit.
 pub use crate::application::destruction_sources::{

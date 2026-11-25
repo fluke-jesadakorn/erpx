@@ -65,6 +65,11 @@ export const RD_MFG_EXISTING_POSTING_CONFIRMATION_IMAGE = 'commerce_rd_mfg_exist
 /** Allow-listed sales delivery-notification line read. */
 export const RD_SALES_NOTIFICATION_LINES = 'commerce_rd_sales_notification_lines';
 
+/** Allow-listed purchase-control source/return-line reads. */
+export const RD_PURCHASE_CONTROL_ORDER = 'commerce_rd_purchase_control_order';
+export const RD_PURCHASE_CONTROL_INVOICE = 'commerce_rd_purchase_control_invoice';
+export const RD_PURCHASE_CONTROL_RETURN_LINES = 'commerce_rd_purchase_control_return_lines';
+
 /** Allow-listed warehouse-config read kinds resolved by the mounted owner command-plan route. */
 export const RD_WAREHOUSE_PAGE_ROWS = 'commerce_rd_warehouse_page_rows';
 export const RD_WAREHOUSE_MASTER_ROWS = 'commerce_rd_warehouse_master_rows';

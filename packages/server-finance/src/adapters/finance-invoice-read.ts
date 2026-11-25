@@ -6,6 +6,7 @@ import {
   financeInvoicesPageNative,
   financeOverviewCountsNative,
 } from './native-lane-2/client';
+import { nativeFinanceReadAll, nativeFinanceReadFirst, FINANCE_RD_INVOICE_REPORT_CHARTS, FINANCE_RD_INVOICE_ACCOUNTS, FINANCE_RD_INVOICE_LINE_HISTORY, FINANCE_RD_INVOICE_THAI_DOCUMENTS, FINANCE_RD_INVOICE_PAYMENT_REVERSAL, FINANCE_RD_INVOICE_OPEN_PERIODS, FINANCE_RD_INVOICE_STATEMENT_ROWS, FINANCE_RD_INVOICE_OPEN_INVOICES } from './native-finance-read';
 
 
 import { requireFinanceDocumentHistory } from "@erpx/server-finance/adapters/document-purchases";
@@ -39,9 +40,9 @@ export function financeReadService(provided?:SqlDatabase,historyOnly=false) {
     let pending: Promise<SqlDatabase> | undefined;
     let currentActor: WorkContext | undefined;
     const db = (actor: WorkContext) => pending ??= provided ? (createFinanceResourcePolicy({error:(...args)=>new ApiError(...args),hasPermission})(actor,true),Promise.resolve(provided)) : resources(actor, true).then(r => r.write);
-    return createFinanceReads({ error: (...args) => new ApiError(...args), authorize: requirePermission, ready: async (actor) => { currentActor = actor; await db(actor); }, currentLines: async (companyId, id, revision) => salesInvoiceLines(await pending!, currentActor!, companyId, id, revision), reportCharts: async (actor) => (await (await db(actor)).prepare('SELECT id FROM finance_charts WHERE company_id=?').bind(actor.companyId).all<{
+    return createFinanceReads({ error: (...args) => new ApiError(...args), authorize: requirePermission, ready: async (actor) => { currentActor = actor; await db(actor); }, currentLines: async (companyId, id, revision) => salesInvoiceLines(await pending!, currentActor!, companyId, id, revision), reportCharts: async (actor) => (await nativeFinanceReadAll<{
             id: string;
-        }>()).results, reportChart: async (actor, id) => !!await (await db(actor)).prepare(CHART_EXISTS_BY_COMPANY_SQL).bind(id, actor.companyId).first(), reportPeriod: async (actor, id) => !!await (await db(actor)).prepare(PERIOD_EXISTS_BY_ID_SQL).bind(id, actor.companyId).first(), reportPeriodDates: async (actor, id) => (await db(actor)).prepare(PERIOD_DATES_SQL).bind(id, actor.companyId).first<{
+        }>(FINANCE_RD_INVOICE_REPORT_CHARTS, [actor.companyId], await db(actor))).results, reportChart: async (actor, id) => !!await (await db(actor)).prepare(CHART_EXISTS_BY_COMPANY_SQL).bind(id, actor.companyId).first(), reportPeriod: async (actor, id) => !!await (await db(actor)).prepare(PERIOD_EXISTS_BY_ID_SQL).bind(id, actor.companyId).first(), reportPeriodDates: async (actor, id) => (await db(actor)).prepare(PERIOD_DATES_SQL).bind(id, actor.companyId).first<{
             start_date: string;
             end_date: string;
         }>(), trialRows: async ({ actor, periodId, chartId, dates, options }) => {
@@ -69,7 +70,7 @@ export function financeReadService(provided?:SqlDatabase,historyOnly=false) {
             const rows = await write.prepare(`SELECT a.id,a.code,a.name,a.category,COALESCE(SUM(l.base_debit_minor),0) AS debit,COALESCE(SUM(l.base_credit_minor),0) AS credit FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id JOIN finance_accounts a ON a.id=l.account_id WHERE ${clauses.join(" AND ")} GROUP BY a.id,a.code,a.name,a.category ORDER BY a.code`).bind(...args).all<FinanceRow>();
             return rows.results;
         }, charts: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare(financeReferenceListSql('finance_charts','company_id=?','name')).bind(actor.companyId).all<FinanceRow>()).results; },
-        accounts: async (facts) => { const { actor, chartId } = facts; const write = await db(actor); return (await write.prepare("SELECT * FROM finance_accounts WHERE company_id=? AND chart_id=? ORDER BY code").bind(actor.companyId, chartId).all<FinanceRow>()).results; },
+        accounts: async (facts) => { const { actor, chartId } = facts; const write = await db(actor); return (await nativeFinanceReadAll<FinanceRow>(FINANCE_RD_INVOICE_ACCOUNTS, [actor.companyId, chartId], await db(actor))).results; },
         invoices: async (facts) => {
             const { actor, limit } = facts;
             const write = await db(actor);
@@ -94,8 +95,8 @@ export function financeReadService(provided?:SqlDatabase,historyOnly=false) {
     FROM finance_allocations a JOIN finance_payments p ON p.id=a.payment_id
     WHERE a.invoice_id=? AND a.company_id=? ORDER BY a.created_at`).bind(invoiceId, actor.companyId).all<FinanceRow>()).results;
         },
-        lineHistory: async (facts) => { const { invoiceId, actor } = facts; const write = await db(actor); return (await write.prepare("SELECT source_version,origin_kind,COUNT(*) line_count,SUM(subtotal_minor) subtotal_minor,SUM(tax_minor) tax_minor,MIN(created_at) created_at FROM finance_invoice_line_versions WHERE invoice_id=? AND company_id=? GROUP BY source_version,origin_kind ORDER BY source_version").bind(invoiceId, actor.companyId).all<FinanceRow>()).results; },
-        thaiDocuments: async (facts) => { const { invoiceId, actor } = facts; const write = await db(actor); return (await write.prepare("SELECT id,document_number,document_kind,edition,issue_date FROM finance_issued_thai_documents WHERE invoice_id=? AND company_id=? ORDER BY edition").bind(invoiceId, actor.companyId).all<FinanceRow>()).results; },
+        lineHistory: async (facts) => { const { invoiceId, actor } = facts; const write = await db(actor); return (await nativeFinanceReadAll<FinanceRow>(FINANCE_RD_INVOICE_LINE_HISTORY, [invoiceId, actor.companyId], await db(actor))).results; },
+        thaiDocuments: async (facts) => { const { invoiceId, actor } = facts; const write = await db(actor); return (await nativeFinanceReadAll<FinanceRow>(FINANCE_RD_INVOICE_THAI_DOCUMENTS, [invoiceId, actor.companyId], await db(actor))).results; },
         payments: async (facts) => {
             const { actor, limit } = facts;
             const write = await db(actor);
@@ -119,14 +120,12 @@ export function financeReadService(provided?:SqlDatabase,historyOnly=false) {
     FROM finance_allocations a JOIN finance_invoices i ON i.id=a.invoice_id
     WHERE a.payment_id=? AND a.company_id=? ORDER BY a.created_at`).bind(paymentId, actor.companyId).all<FinanceRow>()).results;
         },
-        paymentReversal: async (facts) => { const { paymentId, actor } = facts; const write = await db(actor); return write.prepare("SELECT * FROM finance_payment_reversals WHERE payment_id=?").bind(paymentId).first<FinanceRow>(); },
+        paymentReversal: async (facts) => { const { paymentId, actor } = facts; const write = await db(actor); return nativeFinanceReadFirst<FinanceRow>(FINANCE_RD_INVOICE_PAYMENT_REVERSAL, [paymentId], await db(actor)); },
         openPeriods: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare(OPEN_PERIOD_LIST_SQL).bind(actor.companyId).all<FinanceRow>()).results; },
         confirmInvoices: async (facts) => { if(historyOnly)return [];
             const { actor, payment } = facts;
             const write = await db(actor);
-            return (await write.prepare(`SELECT id,invoice_number,kind,outstanding_minor,status,version
-      FROM finance_invoices WHERE company_id=? AND party_id=? AND currency=? AND kind=? AND status IN ('posted','partially_paid') AND outstanding_minor>0 AND source_type!='expense_claim' AND (?::text IS NULL OR id=?)
-      ORDER BY due_date,invoice_number`).bind(actor.companyId, payment.party_id, payment.currency, payment.kind === "receipt" ? "receivable" : "payable", payment.settlement_invoice_id ?? null, payment.settlement_invoice_id ?? null).all<FinanceRow>()).results;
+            return (await nativeFinanceReadAll<FinanceRow>(FINANCE_RD_INVOICE_OPEN_INVOICES, [actor.companyId, payment.party_id, payment.currency, payment.kind === "receipt" ? "receivable" : "payable", payment.settlement_invoice_id ?? null, payment.settlement_invoice_id ?? null], await db(actor))).results;
         },
         matchingBankRows: async (facts) => { if(historyOnly)return [];
             const { actor, payment } = facts;
@@ -146,9 +145,9 @@ export function financeReadService(provided?:SqlDatabase,historyOnly=false) {
         },
         workspaceAccounts: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare(financeReferenceListSql('finance_accounts',"company_id=? AND status='active'",'code')).bind(actor.companyId).all<FinanceRow>()).results; },
         workspaceParties: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare(finPartiesAllByCompanySql(" AND status='active' AND kind IN ('customer','supplier') AND person_id IS NULL ORDER BY name")).bind(actor.companyId).all<FinanceRow>()).results; },
-        workspacePeriods: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare("SELECT * FROM finance_periods WHERE company_id=? AND state='open' ORDER BY start_date DESC").bind(actor.companyId).all<FinanceRow>()).results; },
+        workspacePeriods: async (facts) => { const { actor } = facts; const write = await db(actor); return (await nativeFinanceReadAll<FinanceRow>(FINANCE_RD_INVOICE_OPEN_PERIODS, [actor.companyId], await db(actor))).results; },
         statement: async (facts) => { const { id, actor } = facts; const write = await db(actor); return write.prepare("SELECT s.*,a.currency,a.code,a.name,c.base_currency FROM finance_bank_statements s JOIN finance_accounts a ON a.id=s.bank_account AND a.company_id=s.company_id JOIN finance_charts c ON c.id=a.chart_id AND c.company_id=s.company_id WHERE s.id=? AND s.company_id=?").bind(id, actor.companyId).first<FinanceRow>(); },
-        statementRows: async (facts) => { const { id, actor, page } = facts; const write = await db(actor); return (await write.prepare('SELECT * FROM finance_bank_transactions WHERE statement_id=? AND company_id=? ORDER BY transaction_date,id LIMIT 31 OFFSET ?').bind(id, actor.companyId, (page - 1) * 30).all<FinanceRow>()).results; },
+        statementRows: async (facts) => { const { id, actor, page } = facts; const write = await db(actor); return (await nativeFinanceReadAll<FinanceRow>(FINANCE_RD_INVOICE_STATEMENT_ROWS, [id, actor.companyId, (page - 1) * 30], write)).results; },
         agingBalances: async (facts) => financeAgingBalancesNative(facts.actor, facts.asOf, facts.kind, facts.chartId),
         financeOverviewCounts: async (actor) => financeOverviewCountsNative(actor),
         invoicesPage: async (actor, query) => financeInvoicesPageNative(actor, query),

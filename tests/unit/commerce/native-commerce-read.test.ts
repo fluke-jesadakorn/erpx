@@ -470,7 +470,7 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
         `export const ${kind} = '${wire}';`,
       );
     }
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 40);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 43);');
     expect(plans).toContain('fn schema_ready_probes_keep_their_exact_literals()');
     expect(readFileSync(adapters('read-tail-r15-dedupe-sql.ts'), 'utf8')).not.toContain('to_regclass');
   });
@@ -507,7 +507,7 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
     expect(plans).toContain(`"${sql}"`);
     expect(plans).toContain('kind: RD_LEGACY_ATTACHMENT_SCOPE,');
     expect(plans).toContain('fn legacy_attachment_scope_keeps_its_exact_literal()');
-    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 40);');
+    expect(plans).toContain('assert_eq!(STATEMENTS.len(), 43);');
     expect(readFileSync(adapters('native-commerce-read.ts'), 'utf8')).toContain(
       "export const RD_LEGACY_ATTACHMENT_SCOPE = 'commerce_rd_legacy_attachment_scope';",
     );
@@ -695,5 +695,27 @@ describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
     );
     expect(source).toContain('financeProjectionSources.finance_parties');
     expect(source).toContain('salesProjectionSources.commerce_customer_notification_settings');
+  });
+
+  it('owns the purchase-control source and return-line reads as native kinds', async () => {
+    const plans = readFileSync(adapters('native_commerce_read_sql.rs'), 'utf8');
+    for (const [kind, wire, sql, binds] of [
+      ['RD_PURCHASE_CONTROL_ORDER', 'commerce_rd_purchase_control_order', 'SELECT DISTINCT o.id,o.kind,o.company_id,o.branch_id,o.department_id FROM commerce_orders o WHERE o.id=?', 1],
+      ['RD_PURCHASE_CONTROL_INVOICE', 'commerce_rd_purchase_control_invoice', 'SELECT DISTINCT o.id,o.kind,o.company_id,o.branch_id,o.department_id FROM commerce_orders o JOIN commerce_fulfillments f ON f.order_id=o.id WHERE f.invoice_id=?', 1],
+      ['RD_PURCHASE_CONTROL_RETURN_LINES', 'commerce_rd_purchase_control_return_lines', 'SELECT r.id,EXISTS(SELECT 1 FROM commerce_return_lines rl JOIN commerce_fulfillment_lines fl ON fl.id=rl.fulfillment_line_id JOIN commerce_order_lines ol ON ol.id=fl.order_line_id WHERE rl.return_id=r.id AND ol.item_type!=\'service\') has_stock FROM commerce_returns r JOIN commerce_orders o ON o.id=r.order_id WHERE o.id=? AND o.company_id=? AND (? IS NULL OR o.branch_id=?) AND (? IS NULL OR o.department_id=?)', 6],
+    ] as const) {
+      expect(plans).toContain(`pub const ${kind}: &str = "${wire}";`);
+      expect(plans).toContain(`"${sql}"`);
+      expect(plans).toContain(`kind: ${kind},`);
+      expect(plans).toContain(`${binds}usize`);
+      expect(readFileSync(adapters('native-commerce-read.ts'), 'utf8')).toContain(
+        `export const ${kind} = '${wire}';`,
+      );
+    }
+    expect(plans).toContain('fn purchase_control_reads_keep_their_exact_literals()');
+    const source = await readFile(adapters('purchase-controls.ts'), 'utf8');
+    expect(source).not.toContain('SELECT ');
+    expect(source).toContain('target.type === "invoice" ? RD_PURCHASE_CONTROL_INVOICE : RD_PURCHASE_CONTROL_ORDER');
+    expect(source).toContain('nativeCommerceReadAll<{id:string;has_stock:boolean|number}>(RD_PURCHASE_CONTROL_RETURN_LINES,[orderId,actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId],database)');
   });
 });

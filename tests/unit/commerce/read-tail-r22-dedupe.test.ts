@@ -75,7 +75,7 @@ describe('Commerce read-tail r22 noop-delegation retirement', () => {
     for (const [token, n] of Object.entries(counts)) expect(s.split(token).length - 1, token).toBe(n);
   });
 
-  test('pins the owner TypeScript SELECT KPI at 376 (before 377)', () => {
+  test('pins the owner TypeScript SELECT KPI at 373 (before 376)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -85,6 +85,6 @@ describe('Commerce read-tail r22 noop-delegation retirement', () => {
       }
     };
     walk(src);
-    expect(total).toBe(376);
+    expect(total).toBe(373);
   });
 });

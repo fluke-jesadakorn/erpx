@@ -59,7 +59,7 @@ describe('native Sales followup metric reads', () => {
     expect(metric).not.toContain('WITH sales_metric_clock');
     expect(metric).not.toContain('purchasedCapabilityPredicate');
     expect(metric).not.toContain('followupMetricPrefix');
-    expect(metric).toContain('const crmAssignmentExists=');
+    expect(metric).toContain('SALES_RD_CRM_ASSIGNMENT_PLAIN');
   });
 
   test('r7-r17 generators and source locks stay untouched', () => {

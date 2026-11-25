@@ -81,7 +81,6 @@ describe('Organization read-tail r50 dedupe', () => {
       ['organization-read-tail-sources-r43.ts', ['activeNodeKindList']],
       ['organization-read-tail-sources-r44.ts', ['nodeSlugByKind']],
       ['organization-read-tail-sources-r45.ts', ['nodeChildExists']],
-      ['organization-read-tail-sources-r46.ts', ['snapshotJsonByAction']],
       ['organization-read-tail-sources-r47.ts', ['workerCompanyRolloutGuard']],
       ['organization-read-tail-sources-r48.ts', ['authoritySeatHolderGuard']],
       ['organization-read-tail-sources-r49.ts', ['fullNodeSelection', 'messagingNodeExists']],
@@ -143,7 +142,7 @@ describe('Organization read-tail r50 dedupe', () => {
     // r50 collapsed three node-existence guards and three active-position
     // lookups into two shared helpers (-2, -2 = -4); r53 routes the two
     // remaining inline node-EXISTS bodies through nodeExistsGuard (-2).
-    expect(space).toBe(187);
+    expect(space).toBe(186);
     expect(space).toBeLessThan(234);
   });
 });

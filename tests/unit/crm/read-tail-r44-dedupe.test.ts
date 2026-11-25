@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
+import { crmSelectBodySql } from '../../../packages/server-crm/src/adapters/read-tail-r46-sql';
 import { crmUnionAllSql } from '../../../packages/server-crm/src/adapters/read-tail-r44-sql';
 
 const owner = resolve(__dirname, '../../../packages/server-crm/src');
@@ -77,7 +78,7 @@ describe('crm read-tail r44 byte-identical UNION-ALL reuse', () => {
   test('owns exactly one renderer with a single read token', () => {
     const helper = src('read-tail-r44-sql.ts');
     expect((helper.match(/crmUnionAllSql =/g) ?? []).length).toBe(1);
-    expect((helper.match(/SELECT /g) ?? []).length).toBe(1);
+    expect((helper.match(/SELECT /g) ?? []).length).toBe(0);
   });
 
   test('every retired site uses the renderer and keeps its leading indentation', () => {
@@ -161,8 +162,17 @@ describe('crm read-tail r44 byte-identical UNION-ALL reuse', () => {
     ] as const) expect(src(file)).toContain(token);
   });
 
-  test('retirement:ts-statements drops from the r44 AFTER=61 to 57 (r45)', () => {
-    expect(totalSelects()).toBe(38);
-    expect(totalSelects()).toBeLessThan(61);
+  test.each([
+    "'create',event.id,to_jsonb(event),false FROM crm_case_events event",
+    "activity.id,'activity',activity.id,activity.company_id FROM crm_lead_activities activity",
+    "'attribution',touch.id,to_jsonb(touch),false FROM marketing_touches touch",
+  ])('the UNION ALL arm folds into the owner select-body plan for %#', (body) => {
+    expect(crmUnionAllSql(body)).toBe(`UNION ALL ${crmSelectBodySql(body)}`);
+    expect(crmUnionAllSql(body)).toBe(`UNION ALL SELECT ${body}`);
+  });
+
+  test('retirement:ts-statements folds the UNION ALL head (38 -> 37)', () => {
+    expect(totalSelects()).toBe(36);
+    expect(totalSelects()).toBeLessThan(38);
   });
 });

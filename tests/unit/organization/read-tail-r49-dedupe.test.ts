@@ -74,7 +74,6 @@ describe('Organization read-tail r49 dedupe', () => {
       ['organization-read-tail-sources-r43.ts', ['activeNodeKindList']],
       ['organization-read-tail-sources-r44.ts', ['nodeSlugByKind']],
       ['organization-read-tail-sources-r45.ts', ['nodeChildExists']],
-      ['organization-read-tail-sources-r46.ts', ['snapshotJsonByAction']],
       ['organization-read-tail-sources-r47.ts', ['workerCompanyRolloutGuard']],
       ['organization-read-tail-sources-r48.ts', ['authoritySeatHolderGuard']],
     ] as [string, string[]][]) {
@@ -145,7 +144,7 @@ describe('Organization read-tail r49 dedupe', () => {
     // r59 folds two executive-metric count heads (-2 literals, +1 renderer): 209 - 1 = 208.
     // r60 folds two level-history head literals (-2 literals, +1 renderer): 208 - 1 = 207.
     // r61 folds two position-package projection heads (-2 literals, +1 renderer): 207 - 1 = 206.
-    expect(space).toBe(187);
+    expect(space).toBe(186);
     expect(space).toBeLessThan(237);
   });
 });

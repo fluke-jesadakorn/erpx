@@ -53,7 +53,6 @@ describe('Organization read-tail r47 parameterized head', () => {
       ['organization-read-tail-sources-r43.ts', ['activeNodeKindList']],
       ['organization-read-tail-sources-r44.ts', ['nodeSlugByKind']],
       ['organization-read-tail-sources-r45.ts', ['nodeChildExists']],
-      ['organization-read-tail-sources-r46.ts', ['snapshotJsonByAction']],
     ] as [string, string[]][]) {
       const source = read(file);
       for (const name of names) expect(source.match(new RegExp(`export const ${name} =`, 'g')) ?? []).toHaveLength(1);
@@ -95,7 +94,7 @@ describe('Organization read-tail r47 parameterized head', () => {
     };
     walk(srcRoot);
     // r47 collapses two worker-company rollout guards into one shared source (-1).
-    expect(space).toBe(187);
+    expect(space).toBe(186);
     expect(space).toBeLessThan(239);
   });
 });

@@ -10,13 +10,23 @@ import {legalReadScope} from "@erpx/server-legal/adapters/purchases";
 import {legalKindCapability} from "@erpx/server-legal/domain/purchases";
 import type {LegalKind} from "@erpx/server-legal/domain/model";
 import {legalMemberEditExistsSql} from "./legal-read-tail-r25-sources";
+import contract from './work-purchases-sources.json' with {type:'json'};
+const fill = (template: string, values: Record<string, string>) => {
+  let rendered = template;
+  for (const [name, value] of Object.entries(values)) {
+    const token = `{${name}}`;
+    if (!rendered.includes(token)) throw new Error('LEGAL_WORK_PURCHASES_CONTRACT_INVALID');
+    rendered = rendered.split(token).join(value);
+  }
+  return rendered;
+};
 /** Re-resolve native identifiers after shared Flow enrichment. An enrichment
  * cannot restore missing-source work or elevate a history-only decision. */
 export async function filterLegalPurchasedWork(database:SqlDatabase,actor:WorkContext,items:WorkItem[]){
  if(await legalPackageEnforcementMode()!=="enforced"||!items.some(item=>item.type==="legal"))return items;
  if(!hasPermission(actor,"legal.read"))return items.filter(item=>item.type!=="legal");
  const purchase=await legalReadScope(database,actor),scope=visibility(actor),ids=items.filter(item=>item.type==="legal").map(item=>item.id);
- const sources=`SELECT id work_id,id item_id,'record' source FROM legal_items UNION ALL SELECT 'legal-approval:'||id,id,'approval' FROM legal_items UNION ALL ${Object.values(featureSpecs).map(spec=>`SELECT 'legal-task:'||id,item_id,'task' FROM ${spec.table}`).join(' UNION ALL ')}`;
- const rows=(await database.prepare(`SELECT source.work_id,source.source,i.kind,${legalMemberEditExistsSql("editor")} can_edit FROM (${sources}) source JOIN legal_items i ON i.id=source.item_id WHERE source.work_id IN (${ids.map(()=>'?').join(',')}) AND ${scope.sql} AND ${purchase.where}`).bind(actor.userId,...ids,...scope.values).all<{work_id:string;source:string;kind:LegalKind;can_edit:boolean}>()).results,map=new Map(rows.map(row=>[row.work_id,row]));
+ const sources=[contract.recordSource,contract.approvalSource,Object.values(featureSpecs).map(spec=>fill(contract.featureSource,{table:spec.table})).join(' UNION ALL ')].join(' UNION ALL ');
+ const rows=(await database.prepare(fill(contract.rows,{memberEdit:legalMemberEditExistsSql("editor"),sources,inList:ids.map(()=>'?').join(','),scope:scope.sql,purchase:purchase.where})).bind(actor.userId,...ids,...scope.values).all<{work_id:string;source:string;kind:LegalKind;can_edit:boolean}>()).results,map=new Map(rows.map(row=>[row.work_id,row]));
  return items.flatMap(item=>{if(item.type!=="legal")return [item];const source=map.get(item.id);if(!source)return [];const flags=purchase.purchases?.[legalKindCapability(source.kind)],canAct=Boolean(flags&&(source.source==='record'?flags.newWork:flags.settleExisting)&&(source.source!=='approval'||purchase.purchases?.['legal.documents']?.settleExisting)&&(source.source!=='task'||purchase.purchases?.['legal.obligations']?.settleExisting)&&(source.source==='approval'?hasPermission(actor,'legal.approve'):source.can_edit&&hasPermission(actor,'legal.edit')));return canAct?[item]:[{...item,canAct:false,actionKind:"work" as const,queue:item.queue==="completed"?"completed" as const:"waiting" as const,nextAction:"Review retained Legal source",flow:item.flow?{...item.flow,canAct:false,canManage:false}:undefined,relationships:(item.relationships??[]).filter(value=>!["assigned","approval"].includes(value))}];});
 }

@@ -104,6 +104,6 @@ describe('legal read-tail r63 later-approval guard head reuse', () => {
     await walk(srcRoot);
     expect(total).toBeLessThan(136);
     expect(total).toBeLessThanOrEqual(135);
-    expect(total).toBe(91);
+    expect(total).toBe(84);
   });
 });

@@ -231,6 +231,6 @@ describe('legal read-tail r44 parameterized external-upload and preservation hea
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(109);
-    expect(total).toBe(91);
+    expect(total).toBe(84);
   });
 });

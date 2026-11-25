@@ -64,7 +64,7 @@ describe('crm read-tail r48 byte-identical company-scope read head', () => {
   test('leaves r42-r47 renderers, locks, receipt reads and cross-owner exports untouched', () => {
     expect(src('read-tail-r42-sql.ts')).toContain('export const crmSelectOneSql = (body: string) => `SELECT 1 FROM ${body}`');
     expect(src('read-tail-r43-sql.ts')).toContain('export const crmScalarSubquerySql = (projection: string, body: string)');
-    expect(src('read-tail-r44-sql.ts')).toContain('export const crmUnionAllSql = (body: string) => `UNION ALL SELECT ${body}`');
+    expect(src('read-tail-r44-sql.ts')).toContain('export const crmUnionAllSql = (body: string) => `UNION ALL ${crmSelectBodySql(body)}`');
     expect(src('read-tail-r46-sql.ts')).toContain('crmProjectionFromSql = (projection: string, from: string)');
     expect(src('read-tail-r47-sql.ts')).toContain('crmOwnedListSql = (');
     expect(src('attachment-read.ts')).toContain('`SELECT 1 FROM${actorScopeSql}workforce_actor_scope WHERE ${current.where}`');
@@ -80,7 +80,7 @@ describe('crm read-tail r48 byte-identical company-scope read head', () => {
   });
 
   test('retirement:ts-statements drops from the r48 AFTER=50 to 49', () => {
-    expect(totalSelects()).toBe(38);
+    expect(totalSelects()).toBe(36);
     expect(totalSelects()).toBeLessThan(51);
   });
 });

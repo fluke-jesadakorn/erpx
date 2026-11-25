@@ -277,6 +277,28 @@ const READ_PURCHASE_PROJECTION_FP_DENY: NativeSalesReadStatement = NativeSalesRe
     scope: "holding",
 };
 
+/// Native successor of the TypeScript CRM membership predicate (plain).
+/// The single ? bind is supplied by the caller; the planner carries no values.
+pub const RD_CRM_ASSIGNMENT_PLAIN: &str = "sales_rd_crm_assignment_plain";
+const SQL_CRM_ASSIGNMENT_PLAIN: &str = "EXISTS(SELECT 1 FROM assignments WHERE id=? AND (jsonb_array_length(modules_json::jsonb)=0 OR modules_json::jsonb @> jsonb_build_array('crm'::text)))";
+const READ_CRM_ASSIGNMENT_PLAIN: NativeSalesReadStatement = NativeSalesReadStatement {
+    kind: RD_CRM_ASSIGNMENT_PLAIN,
+    sql: SQL_CRM_ASSIGNMENT_PLAIN,
+    bind_count: 0,
+    scope: "holding",
+};
+
+/// Native successor of the TypeScript CRM membership predicate (selected).
+/// The single ? bind is supplied by the caller; the planner carries no values.
+pub const RD_CRM_ASSIGNMENT_ALIASED: &str = "sales_rd_crm_assignment_aliased";
+const SQL_CRM_ASSIGNMENT_ALIASED: &str = "EXISTS(SELECT 1 FROM assignments selected WHERE selected.id=? AND (jsonb_array_length(selected.modules_json::jsonb)=0 OR selected.modules_json::jsonb @> jsonb_build_array('crm'::text)))";
+const READ_CRM_ASSIGNMENT_ALIASED: NativeSalesReadStatement = NativeSalesReadStatement {
+    kind: RD_CRM_ASSIGNMENT_ALIASED,
+    sql: SQL_CRM_ASSIGNMENT_ALIASED,
+    bind_count: 0,
+    scope: "holding",
+};
+
 const READS: &[NativeSalesReadStatement] = &[
     READ_PRICE_LIST_ACTIVE,
     READ_PRICE_LIST_ITEMS_ACTIVE,
@@ -305,6 +327,9 @@ const READS: &[NativeSalesReadStatement] = &[
     READ_PURCHASE_PROJECTION_C_DENY,
     READ_PURCHASE_PROJECTION_FP_READ,
     READ_PURCHASE_PROJECTION_FP_DENY,
+
+    READ_CRM_ASSIGNMENT_PLAIN,
+    READ_CRM_ASSIGNMENT_ALIASED,
 
 ];
 
@@ -638,8 +663,32 @@ mod tests {
     }
 
     #[test]
+    fn crm_assignment_plain_is_allow_listed_and_byte_stable() {
+        let read = read_statement(RD_CRM_ASSIGNMENT_PLAIN).expect("read kind");
+        assert_eq!(read.kind, "sales_rd_crm_assignment_plain");
+        assert_eq!(read.bind_count, 0);
+        assert_eq!(read.sql.matches('?').count(), 1);
+        assert_eq!(read.sql.len(), 149);
+        assert!(read.sql.starts_with("EXISTS(SELECT 1 FROM assignments"));
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_CRM_ASSIGNMENT_PLAIN));
+    }
+
+    #[test]
+    fn crm_assignment_aliased_is_allow_listed_and_byte_stable() {
+        let read = read_statement(RD_CRM_ASSIGNMENT_ALIASED).expect("read kind");
+        assert_eq!(read.kind, "sales_rd_crm_assignment_aliased");
+        assert_eq!(read.bind_count, 0);
+        assert_eq!(read.sql.matches('?').count(), 1);
+        assert_eq!(read.sql.len(), 185);
+        assert!(read.sql.starts_with("EXISTS(SELECT 1 FROM assignments"));
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_CRM_ASSIGNMENT_ALIASED));
+    }
+
+    #[test]
     fn only_owner_read_kinds_are_registered() {
-        assert_eq!(READS.len(), 22);
+        assert_eq!(READS.len(), 24);
         assert!(READS.iter().all(|read| is_read(read.kind)));
         assert!(!is_read("sales_price_lists"));
         assert!(!is_read("SELECT 1"));

@@ -8,11 +8,11 @@
  * the r46 projection/FROM renderer, locks, command-receipt reads and
  * cross-owner exports are untouched.
  */
-import { crmProjectionFromSql } from './read-tail-r46-sql';
+import { crmProjectionFromSql, crmSelectBodySql } from './read-tail-r46-sql';
 
-/** MATERIALIZED scope-row CTE head. The three owner-local scope facts share
- * this exact MATERIALIZED CTE prefix; callers pass only the row body. */
-export const crmMaterializedScopeSql = (body: string) => `AS MATERIALIZED(SELECT ${body})`;
+/** MATERIALIZED scope-row CTE head. The MATERIALIZED wrapper is the owner
+ * select-body plan in parentheses; callers still pass only the row body. */
+export const crmMaterializedScopeSql = (body: string) => `AS MATERIALIZED(${crmSelectBodySql(body)})`;
 
 /** Owned-source id/company list head. Both callers pass the projection, owned
  * source, row alias and the full predicate body after WHERE, so the rendered

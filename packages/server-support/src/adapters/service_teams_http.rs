@@ -171,13 +171,26 @@ async fn plan_read(
         if values.len() > 64 {
             return Err(validation_failed());
         }
-        let statement = crate::adapters::native_support_read_sql::read_statement(kind)
+        if let Some(statement) = crate::adapters::native_support_read_sql::read_statement(kind) {
+            if values.len() != statement.bind_count {
+                return Err(validation_failed());
+            }
+            return Ok(json!({
+                "statements": [{ "sql": statement.sql, "values": values }]
+            }));
+        }
+        let fragment = crate::adapters::native_support_read_sql::read_fragment(kind)
             .ok_or_else(validation_failed)?;
-        if values.len() != statement.bind_count {
+        if !values.is_empty() {
             return Err(validation_failed());
         }
         Ok(json!({
-            "statements": [{ "sql": statement.sql, "values": values }]
+            "statements": [{
+                "sql": fragment.sql,
+                "values": [],
+                "fragment": true,
+                "tailBindCounts": fragment.tail_bind_counts
+            }]
         }))
     }
     .await;

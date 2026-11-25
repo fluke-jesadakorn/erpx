@@ -4,6 +4,7 @@ import type {LegalDocumentRepository,DocumentStorage,DocumentIntake,DocumentProv
 import {readFile,readdir} from "node:fs/promises";
 import {resolve} from "node:path";
 import approvalContract from "../../../packages/server-legal/src/adapters/legal-approval-sources.json" with {type:"json"};
+import runtimeContract from "../../../packages/server-legal/src/adapters/legal-runtime-gate-sources.json" with {type:"json"};
 type LegalReferenceRepository=Parameters<typeof import("@erpx/server-legal/application/references").createLegalReferencesApplication>[0]["repository"];
 import { expect, it } from "vitest";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
@@ -594,6 +595,25 @@ it("keeps the approval reviewer-membership and current-route guards in the nativ
     }
   };
   await walk(resolve(__dirname, "../../../packages/server-legal/src"));
-  expect(total).toBeLessThan(93);
-  expect(total).toBe(91);
+  expect(total).toBeLessThan(87);
+  expect(total).toBe(84);
+});
+
+
+it("keeps the runtime-gate settings predicate, capability probe and health read in the native contract", async () => {
+  const [shared, rust] = await Promise.all([
+    readFile(new URL("../../../packages/server-legal/src/adapters/legal/runtime-gate.ts", import.meta.url), "utf8"),
+    readFile(new URL("../../../packages/server-legal/src/adapters/legal_runtime_gate_sources.rs", import.meta.url), "utf8"),
+  ]);
+  expect(shared.match(/SELECT /g) ?? []).toHaveLength(0);
+  expect(shared).toContain("legal-runtime-gate-sources.json");
+  expect(runtimeContract.settingsPredicate).toContain("{companyExpression}");
+  expect(runtimeContract.settingsPredicate).toContain("{aiEnabled}");
+  expect(runtimeContract.settingsPredicate).toContain("{scheduledFeaturePredicate}");
+  expect(runtimeContract.capabilityProbe).toContain("{predicate}");
+  expect(runtimeContract.health).toContain("FROM legal_runtime_health");
+  expect(rust).toContain('include_str!("legal-runtime-gate-sources.json")');
+  expect(rust).toContain('render_legal_runtime_predicate');
+  expect(rust).toContain('render_legal_capability_probe');
+  expect(rust).toContain('5364f62235b3dd24ee136f4f62c903101acb29845924cf3ac74ad301fcb51c9e');
 });

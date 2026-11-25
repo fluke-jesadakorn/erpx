@@ -79,7 +79,6 @@ describe('Organization read-tail r51 dedupe', () => {
       ['organization-read-tail-sources-r43.ts', ['activeNodeKindList']],
       ['organization-read-tail-sources-r44.ts', ['nodeSlugByKind']],
       ['organization-read-tail-sources-r45.ts', ['nodeChildExists']],
-      ['organization-read-tail-sources-r46.ts', ['snapshotJsonByAction']],
       ['organization-read-tail-sources-r47.ts', ['workerCompanyRolloutGuard']],
       ['organization-read-tail-sources-r48.ts', ['authoritySeatHolderGuard']],
       ['organization-read-tail-sources-r49.ts', ['fullNodeSelection', 'messagingNodeExists']],
@@ -144,7 +143,7 @@ describe('Organization read-tail r51 dedupe', () => {
     walk(srcRoot);
     // r51 collapses three authority-seat reads, two department-node reads and
     // two member-profile guards into three shared helpers (-2, -1, -1 = -4).
-    expect(space).toBe(187);
+    expect(space).toBe(186);
     expect(space).toBeLessThan(230);
   });
 });

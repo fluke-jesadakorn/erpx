@@ -56,7 +56,6 @@ describe('Organization read-tail r48 parameterized head', () => {
       ['organization-read-tail-sources-r43.ts', ['activeNodeKindList']],
       ['organization-read-tail-sources-r44.ts', ['nodeSlugByKind']],
       ['organization-read-tail-sources-r45.ts', ['nodeChildExists']],
-      ['organization-read-tail-sources-r46.ts', ['snapshotJsonByAction']],
       ['organization-read-tail-sources-r47.ts', ['workerCompanyRolloutGuard']],
     ] as [string, string[]][]) {
       const source = read(file);
@@ -101,7 +100,7 @@ describe('Organization read-tail r48 parameterized head', () => {
     };
     walk(srcRoot);
     // r48 collapses two authority-seat holder guards into one shared source (-1).
-    expect(space).toBe(187);
+    expect(space).toBe(186);
     expect(space).toBeLessThan(238);
   });
 });

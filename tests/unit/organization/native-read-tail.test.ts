@@ -488,7 +488,7 @@ describe('Organization read-tail r30 native cutover — finance starter node lis
       }
     };
     walk(srcRoot);
-    expect(total).toBe(187);
+    expect(total).toBe(186);
     expect(total).toBeLessThan(189);
     // The worker-position cut deleted the shared r38 helper literal after both
     // former consumers moved to the native owner, so the KPI falls by one.
@@ -683,5 +683,39 @@ describe('Organization draft leave-defaults read native cutover', () => {
     expect(arm).toBe(SQL);
     expect(arm.toUpperCase().startsWith('SELECT ')).toBe(true);
     expect(arm).not.toMatch(/INSERT|UPDATE|DELETE|FOR UPDATE|FOR SHARE|LOCK TABLE/);
+  });
+});
+
+describe('Organization change-event snapshot read native cutover', () => {
+  const srcRoot = resolve(__dirname, '../../../packages/server-organization/src');
+  const read = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
+  const sha = (value: string) => createHash('sha256').update(value).digest('hex');
+  const APPLIED = "SELECT snapshot_json FROM organization_node_change_events WHERE change_id=? AND action='applied' ORDER BY created_at DESC LIMIT 1";
+  const SUBMITTED = "SELECT snapshot_json FROM organization_node_change_events WHERE change_id=? AND action='submitted' ORDER BY created_at DESC,id DESC LIMIT 1";
+
+  it('deletes both TS renders and sends only typed kinds with the Company value', () => {
+    const drafts = read('organization-drafts.ts');
+    const org = read('organization.ts');
+    expect(drafts).not.toContain(APPLIED);
+    expect(org).not.toContain(SUBMITTED);
+    expect(drafts).not.toContain('snapshotJsonByAction');
+    expect(org).not.toContain('snapshotJsonByAction');
+    expect(drafts).toContain("nativeOrgAll<{snapshot_json:string}>(db,companyId,'change_event_snapshot_applied',[id])");
+    expect(org).toContain("nativeOrgAll<{snapshot_json:string}>(db,companyId,'change_event_snapshot_submitted',[id])");
+    expect(drafts.split('change_event_snapshot_applied').length - 1).toBe(1);
+    expect(org.split('change_event_snapshot_submitted').length - 1).toBe(1);
+  });
+
+  it('pins both byte-identical read-only statements in the Rust registry', () => {
+    expect(sha(APPLIED)).toBe('c2440b239c1bd6e293774e4b15ebc6c9515966a4b787401fd5a3bc995f4cd880');
+    expect(sha(SUBMITTED)).toBe('cf2d32fbb2e088beaddb7b0ada30f1f82ecfd2a3da5a261594ebcafbf15f3e7c');
+    const registry = read('organization_owner_write.rs');
+    for (const [kind, sql] of [
+      ['CHANGE_EVENT_SNAPSHOT_APPLIED', APPLIED],
+      ['CHANGE_EVENT_SNAPSHOT_SUBMITTED', SUBMITTED],
+    ]) {
+      expect(registry).toContain(`${kind}: &str = `);
+      expect(registry).toContain(`        ${kind} => {\n            "${sql}"\n        }`);
+    }
   });
 });

@@ -39,6 +39,8 @@ export const SALES_RD_PURCHASE_PROJECTION_C_READ = 'sales_rd_purchase_projection
 export const SALES_RD_PURCHASE_PROJECTION_C_DENY = 'sales_rd_purchase_projection_c_deny';
 export const SALES_RD_PURCHASE_PROJECTION_FP_READ = 'sales_rd_purchase_projection_fp_read';
 export const SALES_RD_PURCHASE_PROJECTION_FP_DENY = 'sales_rd_purchase_projection_fp_deny';
+export const SALES_RD_CRM_ASSIGNMENT_PLAIN = 'sales_rd_crm_assignment_plain';
+export const SALES_RD_CRM_ASSIGNMENT_ALIASED = 'sales_rd_crm_assignment_aliased';
 
 /** Owner-planned statement. The caller may run it on its own open unit or
  * compose it into a larger read; no SQL is accepted from the caller. */

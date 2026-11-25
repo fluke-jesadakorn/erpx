@@ -56,10 +56,10 @@ describe('pms read-tail r56 retirement after the hotelMetrics native cut', () =>
     expect(await src('adapters/feature-availability.ts')).toContain('FOR SHARE');
     expect(await src('adapters/attachment-read-sources.ts')).toContain('LOCK TABLE');
     const rust = await src('adapters/native_read_sql.rs');
-    expect((rust.match(/^pub const PMS_RD_/gm) ?? []).length).toBe(56);
+    expect((rust.match(/^pub const PMS_RD_/gm) ?? []).length).toBe(58);
     expect(rust).toContain('const SQL_STAY_COMMAND: &str = "WITH scope AS (');
     const bridge = await src('adapters/native-pms-read.ts');
-    expect((bridge.match(/^export const PMS_RD_/gm) ?? []).length).toBe(56);
+    expect((bridge.match(/^export const PMS_RD_/gm) ?? []).length).toBe(58);
     // The pms_properties family has cross-owner consumers and stays inline.
     expect(await src('adapters/pms-read-tail-r20-sql.ts')).toContain('export const PMS_PROPERTIES_PROJECTION_SQL = "SELECT');
     expect(await src('adapters/pms-read-tail-r29-sql.ts')).toContain('export const PMS_PROPERTIES_TEN_COL_JOIN_SQL = "JOIN (SELECT');
@@ -75,8 +75,8 @@ describe('pms read-tail r56 retirement after the hotelMetrics native cut', () =>
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(218);
-    expect(bare).toBe(219);
+    expect(spaced).toBe(216);
+    expect(bare).toBe(217);
     expect(spaced).toBeLessThan(243);
     expect(bare).toBeLessThan(245);
   });

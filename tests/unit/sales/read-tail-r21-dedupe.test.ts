@@ -80,7 +80,7 @@ describe('Sales read-tail r21 parameterized followup/customer order join family'
     expect(finalRoot).toMatch(/const tableRead\s*=/); // r15
     expect(followupSource).toContain('export const actorScopeTuple='); // r12/r15
     expect(purchases).toContain('const followupExists='); // r17
-    expect(metric).toContain('const crmAssignmentExists='); // r11
+    expect(metric).toContain('SALES_RD_CRM_ASSIGNMENT_PLAIN'); // r11
     expect(byKey).toContain('export const byKey ='); // r19
     expect(pointRead).toContain('export const pointRead ='); // r20
     // assignmentReadSql consumers remain; no lock or commercial projection edited here

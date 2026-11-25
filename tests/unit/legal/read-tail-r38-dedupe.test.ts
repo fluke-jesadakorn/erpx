@@ -170,6 +170,6 @@ describe('legal read-tail r38 fragment families', () => {
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(105);
-    expect(total).toBe(91);
+    expect(total).toBe(84);
   });
 });

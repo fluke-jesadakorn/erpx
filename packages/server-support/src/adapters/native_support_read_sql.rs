@@ -814,9 +814,65 @@ const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_INCIDENT_WORK,
 ];
 
+/// A planned owner read fragment. Unlike [`NativeSupportReadStatement`], a
+/// fragment is not executable on its own: the caller appends one closed tail
+/// shape and binds only that tail. `tail_bind_counts` pins the shapes the owner
+/// admits, so a caller cannot smuggle a different arity through the plan route.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct NativeSupportReadFragment {
+    pub kind: &'static str,
+    pub sql: &'static str,
+    pub tail_bind_counts: &'static [usize],
+}
+
+/// Native successor of the TypeScript `supportTicketPortalValidBindings`
+/// subquery. The fragment carries no binds; the caller appends one of the
+/// pinned outer tails: staff by id (1), verified customer identity (4) or
+/// staff workspace scope (9).
+pub const RD_TICKET_PORTAL_VALID_BINDINGS: &str = "support_rd_ticket_portal_valid_bindings";
+const SQL_TICKET_PORTAL_VALID_BINDINGS: &str = "SELECT binding.* FROM support_ticket_portal_bindings binding JOIN support_tickets ticket ON ticket.id=binding.ticket_id AND ticket.company_id=binding.company_id AND ticket.source_kind<>'field_service' AND binding.source_identity=jsonb_build_object('companyId',ticket.company_id,'branchId',ticket.branch_id,'departmentId',ticket.department_id,'sourceKind',ticket.source_kind,'orderId',ticket.order_id,'customerId',ticket.customer_id,'sourceRecord',ticket.source_record_json) JOIN command_receipts birth ON birth.command_id=binding.prepare_command_id AND birth.operation='support.ticket-portal.prepare' AND birth.record_id=binding.id AND birth.actor_id=binding.prepared_by AND birth.authority_json::jsonb->>'companyId'=binding.company_id AND birth.result_json::jsonb->>'id'=binding.id AND birth.result_json::jsonb->>'status'='draft' AND birth.result_json::jsonb->>'version'='1'";
+const READ_TICKET_PORTAL_VALID_BINDINGS: NativeSupportReadFragment = NativeSupportReadFragment {
+    kind: RD_TICKET_PORTAL_VALID_BINDINGS,
+    sql: SQL_TICKET_PORTAL_VALID_BINDINGS,
+    tail_bind_counts: &[1, 4, 9],
+};
+
+/// Native successor of the TypeScript full ticket-portal image aggregate.
+/// The caller prefixes the selected-bindings CTE (which owns the variable id
+/// binds) and appends this fixed 0-bind aggregate.
+pub const RD_TICKET_PORTAL_IMAGE_AGGREGATE_FULL: &str = "support_rd_ticket_portal_image_aggregate_full";
+const SQL_TICKET_PORTAL_IMAGE_AGGREGATE_FULL: &str = "SELECT jsonb_build_array((SELECT jsonb_agg(to_jsonb(binding) ORDER BY binding.id) FROM selected binding),(SELECT jsonb_agg(to_jsonb(ticket) ORDER BY ticket.id) FROM support_tickets ticket WHERE EXISTS(SELECT 1 FROM selected binding WHERE binding.ticket_id=ticket.id)),(SELECT jsonb_agg(to_jsonb(event) ORDER BY event.id) FROM support_ticket_portal_events event WHERE EXISTS(SELECT 1 FROM selected binding WHERE binding.id=event.binding_id)),(SELECT jsonb_agg(to_jsonb(identity) ORDER BY identity.binding_id) FROM support_ticket_portal_identities identity WHERE EXISTS(SELECT 1 FROM selected binding WHERE binding.id=identity.binding_id)),(SELECT jsonb_agg(to_jsonb(read) ORDER BY read.id) FROM support_ticket_portal_reads read WHERE EXISTS(SELECT 1 FROM selected binding WHERE binding.id=read.binding_id)),(SELECT jsonb_agg(to_jsonb(response) ORDER BY response.id) FROM support_ticket_portal_responses response WHERE EXISTS(SELECT 1 FROM selected binding WHERE binding.id=response.binding_id)),(SELECT jsonb_agg(to_jsonb(ack) ORDER BY ack.id) FROM support_ticket_portal_acknowledgements ack WHERE EXISTS(SELECT 1 FROM selected binding WHERE binding.id=ack.binding_id)))::text image";
+const READ_TICKET_PORTAL_IMAGE_AGGREGATE_FULL: NativeSupportReadFragment = NativeSupportReadFragment {
+    kind: RD_TICKET_PORTAL_IMAGE_AGGREGATE_FULL,
+    sql: SQL_TICKET_PORTAL_IMAGE_AGGREGATE_FULL,
+    tail_bind_counts: &[0],
+};
+
+/// Native successor of the TypeScript core ticket-portal image aggregate.
+/// The caller prefixes the selected-bindings CTE and appends this fixed 0-bind
+/// aggregate.
+pub const RD_TICKET_PORTAL_IMAGE_AGGREGATE_CORE: &str = "support_rd_ticket_portal_image_aggregate_core";
+const SQL_TICKET_PORTAL_IMAGE_AGGREGATE_CORE: &str = "SELECT jsonb_build_array((SELECT jsonb_agg(to_jsonb(binding) ORDER BY binding.id) FROM selected binding),(SELECT jsonb_agg(to_jsonb(ticket) ORDER BY ticket.id) FROM support_tickets ticket WHERE EXISTS(SELECT 1 FROM selected binding WHERE binding.ticket_id=ticket.id)),(SELECT jsonb_agg(to_jsonb(event) ORDER BY event.id) FROM support_ticket_portal_events event WHERE EXISTS(SELECT 1 FROM selected binding WHERE binding.id=event.binding_id)),(SELECT jsonb_agg(to_jsonb(response) ORDER BY response.id) FROM support_ticket_portal_responses response WHERE EXISTS(SELECT 1 FROM selected binding WHERE binding.id=response.binding_id)))::text image";
+const READ_TICKET_PORTAL_IMAGE_AGGREGATE_CORE: NativeSupportReadFragment = NativeSupportReadFragment {
+    kind: RD_TICKET_PORTAL_IMAGE_AGGREGATE_CORE,
+    sql: SQL_TICKET_PORTAL_IMAGE_AGGREGATE_CORE,
+    tail_bind_counts: &[0],
+};
+
+const FRAGMENTS: &[NativeSupportReadFragment] = &[
+    READ_TICKET_PORTAL_VALID_BINDINGS,
+    READ_TICKET_PORTAL_IMAGE_AGGREGATE_FULL,
+    READ_TICKET_PORTAL_IMAGE_AGGREGATE_CORE,
+];
+
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
 pub fn read_statement(kind: &str) -> Option<&'static NativeSupportReadStatement> {
     STATEMENTS.iter().find(|statement| statement.kind == kind)
+}
+
+/// Resolve an allow-listed owner read fragment. Any unregistered kind fails closed.
+pub fn read_fragment(kind: &str) -> Option<&'static NativeSupportReadFragment> {
+    FRAGMENTS.iter().find(|fragment| fragment.kind == kind)
 }
 
 #[cfg(test)]
@@ -1352,5 +1408,43 @@ mod tests {
         assert!(work.sql.contains(" AND (g.scope_kind='holding' OR g.scope_kind='branch' AND g.scope_node_id=t.branch_id"));
         assert!(!work.sql.contains(';'));
         assert!(read_statement("support_rd_incident_work_select").is_none());
+    }
+
+    #[test]
+    fn ticket_portal_fragments_pin_closed_tail_shapes() {
+        assert_eq!(FRAGMENTS.len(), 3);
+        assert!(read_fragment("support_rd_unknown_fragment").is_none());
+        for kind in [
+            RD_TICKET_PORTAL_VALID_BINDINGS,
+            RD_TICKET_PORTAL_IMAGE_AGGREGATE_FULL,
+            RD_TICKET_PORTAL_IMAGE_AGGREGATE_CORE,
+        ] {
+            assert!(read_statement(kind).is_none(), "fragments are not executable reads");
+        }
+
+        let valid = read_fragment(RD_TICKET_PORTAL_VALID_BINDINGS).expect("valid bindings fragment");
+        assert_eq!(valid.tail_bind_counts, &[1, 4, 9]);
+        assert_eq!(valid.sql.matches('?').count(), 0);
+        assert!(valid.sql.starts_with("SELECT binding.* FROM support_ticket_portal_bindings"));
+        assert!(valid.sql.contains("JOIN command_receipts birth ON birth.operation='support.ticket-portal.prepare'"));
+
+        let full = read_fragment(RD_TICKET_PORTAL_IMAGE_AGGREGATE_FULL).expect("full image aggregate");
+        assert_eq!(full.tail_bind_counts, &[0]);
+        assert!(full.sql.starts_with("SELECT jsonb_build_array("));
+        assert!(full.sql.contains("support_ticket_portal_reads"));
+        assert!(full.sql.contains("support_ticket_portal_acknowledgements"));
+        assert_eq!(full.sql.matches('?').count(), 0);
+
+        let core = read_fragment(RD_TICKET_PORTAL_IMAGE_AGGREGATE_CORE).expect("core image aggregate");
+        assert_eq!(core.tail_bind_counts, &[0]);
+        assert!(!core.sql.contains("support_ticket_portal_reads"));
+        assert!(!core.sql.contains("support_ticket_portal_acknowledgements"));
+        assert_eq!(core.sql.matches('?').count(), 0);
+
+        for fragment in FRAGMENTS {
+            assert!(fragment.sql.starts_with("SELECT "));
+            assert!(!fragment.sql.contains(';'));
+            assert!(!fragment.sql.contains("LOCK TABLE"));
+        }
     }
 }

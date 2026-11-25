@@ -507,6 +507,64 @@ const READ_SALES_NOTIFICATION_LINES: NativeCommerceReadStatement = NativeCommerc
     bind_count: 1,
 };
 
+/// Native successor of the purchase-control order-target source read. The
+/// caller binds `[order_id]`.
+pub const RD_PURCHASE_CONTROL_ORDER: &str = "commerce_rd_purchase_control_order";
+const SQL_PURCHASE_CONTROL_ORDER: &str =
+    "SELECT DISTINCT o.id,o.kind,o.company_id,o.branch_id,o.department_id FROM commerce_orders o WHERE o.id=?";
+const READ_PURCHASE_CONTROL_ORDER: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_PURCHASE_CONTROL_ORDER,
+    sql: SQL_PURCHASE_CONTROL_ORDER,
+    bind_count: 1,
+};
+
+/// Native successor of the purchase-control invoice-target source read. The
+/// caller binds `[invoice_id]`; the fulfillment join stays in the owner plan.
+pub const RD_PURCHASE_CONTROL_INVOICE: &str = "commerce_rd_purchase_control_invoice";
+const SQL_PURCHASE_CONTROL_INVOICE: &str =
+    "SELECT DISTINCT o.id,o.kind,o.company_id,o.branch_id,o.department_id FROM commerce_orders o JOIN commerce_fulfillments f ON f.order_id=o.id WHERE f.invoice_id=?";
+const READ_PURCHASE_CONTROL_INVOICE: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_PURCHASE_CONTROL_INVOICE,
+    sql: SQL_PURCHASE_CONTROL_INVOICE,
+    bind_count: 1,
+};
+
+/// Native successor of the return-line stock witness on an order page. The
+/// caller binds `[order_id, company_id, branch_id, branch_id, department_id,
+/// department_id]` in exactly that order.
+pub const RD_PURCHASE_CONTROL_RETURN_LINES: &str = "commerce_rd_purchase_control_return_lines";
+const SQL_PURCHASE_CONTROL_RETURN_LINES: &str =
+    "SELECT r.id,EXISTS(SELECT 1 FROM commerce_return_lines rl JOIN commerce_fulfillment_lines fl ON fl.id=rl.fulfillment_line_id JOIN commerce_order_lines ol ON ol.id=fl.order_line_id WHERE rl.return_id=r.id AND ol.item_type!='service') has_stock FROM commerce_returns r JOIN commerce_orders o ON o.id=r.order_id WHERE o.id=? AND o.company_id=? AND (? IS NULL OR o.branch_id=?) AND (? IS NULL OR o.department_id=?)";
+const READ_PURCHASE_CONTROL_RETURN_LINES: NativeCommerceReadStatement =
+    NativeCommerceReadStatement {
+        kind: RD_PURCHASE_CONTROL_RETURN_LINES,
+        sql: SQL_PURCHASE_CONTROL_RETURN_LINES,
+        bind_count: 6,
+    };
+
+/// Native successor of the initial-count active-warehouse choice read. The
+/// caller binds `[company_id, branch_id, branch_id]` and keeps the `name,id`
+/// order.
+pub const RD_INITIAL_COUNT_WAREHOUSES: &str = "commerce_rd_initial_count_warehouses";
+const SQL_INITIAL_COUNT_WAREHOUSES: &str =
+    "SELECT id,name,branch_id FROM commerce_warehouses WHERE company_id=? AND status='active' AND (?::text IS NULL OR branch_id=?) ORDER BY name,id";
+const READ_INITIAL_COUNT_WAREHOUSES: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_INITIAL_COUNT_WAREHOUSES,
+    sql: SQL_INITIAL_COUNT_WAREHOUSES,
+    bind_count: 3,
+};
+
+/// Native successor of the initial-count stock-product detail read. The caller
+/// binds `[product_id, company_id]`.
+pub const RD_INITIAL_COUNT_STOCK_PRODUCT: &str = "commerce_rd_initial_count_stock_product";
+const SQL_INITIAL_COUNT_STOCK_PRODUCT: &str =
+    "SELECT * FROM commerce_products WHERE id=? AND company_id=? AND status='active' AND item_type='stock'";
+const READ_INITIAL_COUNT_STOCK_PRODUCT: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_INITIAL_COUNT_STOCK_PRODUCT,
+    sql: SQL_INITIAL_COUNT_STOCK_PRODUCT,
+    bind_count: 2,
+};
+
 const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_PMS_WAREHOUSE_ACTIVE,
     READ_PMS_SETTINGS_EXISTS,
@@ -548,6 +606,11 @@ const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_POS_WAREHOUSES_ALL,
     READ_MFG_EXISTING_POSTING_CONFIRMATION_IMAGE,
     READ_SALES_NOTIFICATION_LINES,
+    READ_PURCHASE_CONTROL_ORDER,
+    READ_PURCHASE_CONTROL_INVOICE,
+    READ_PURCHASE_CONTROL_RETURN_LINES,
+    READ_INITIAL_COUNT_WAREHOUSES,
+    READ_INITIAL_COUNT_STOCK_PRODUCT,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -650,6 +713,13 @@ mod tests {
                 1usize,
             ),
             (RD_SALES_NOTIFICATION_LINES, SQL_SALES_NOTIFICATION_LINES, 1usize),
+            (RD_PURCHASE_CONTROL_ORDER, SQL_PURCHASE_CONTROL_ORDER, 1usize),
+            (RD_PURCHASE_CONTROL_INVOICE, SQL_PURCHASE_CONTROL_INVOICE, 1usize),
+            (
+                RD_PURCHASE_CONTROL_RETURN_LINES,
+                SQL_PURCHASE_CONTROL_RETURN_LINES,
+                6usize,
+            ),
         ];
         for (kind, sql, bind_count) in expected {
             let statement = read_statement(kind).expect("registered owner read kind");
@@ -674,7 +744,36 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), bind_count);
         }
-        assert_eq!(STATEMENTS.len(), 40);
+        assert_eq!(STATEMENTS.len(), 43);
+    }
+
+    /// Purchase-control reads keep their exact target predicates and the
+    /// return-line witness with six ordered branch/department binds.
+    #[test]
+    fn purchase_control_reads_keep_their_exact_literals() {
+        let order = read_statement(RD_PURCHASE_CONTROL_ORDER).expect("order target");
+        let invoice = read_statement(RD_PURCHASE_CONTROL_INVOICE).expect("invoice target");
+        let returns = read_statement(RD_PURCHASE_CONTROL_RETURN_LINES).expect("return lines");
+        assert_eq!(
+            order.sql,
+            "SELECT DISTINCT o.id,o.kind,o.company_id,o.branch_id,o.department_id FROM commerce_orders o WHERE o.id=?"
+        );
+        assert_eq!(
+            invoice.sql,
+            "SELECT DISTINCT o.id,o.kind,o.company_id,o.branch_id,o.department_id FROM commerce_orders o JOIN commerce_fulfillments f ON f.order_id=o.id WHERE f.invoice_id=?"
+        );
+        assert!(returns.sql.starts_with("SELECT r.id,EXISTS(SELECT 1 FROM commerce_return_lines"));
+        assert_eq!(returns.sql.matches("? IS NULL OR o.branch_id=?").count(), 1);
+        assert_eq!(returns.sql.matches("? IS NULL OR o.department_id=?").count(), 1);
+        assert_eq!(order.bind_count, 1);
+        assert_eq!(invoice.bind_count, 1);
+        assert_eq!(returns.bind_count, 6);
+        assert_eq!(returns.sql.matches('?').count(), 6);
+        for statement in [order, invoice, returns] {
+            assert!(statement.sql.starts_with("SELECT "));
+            assert!(!statement.sql.contains(';'));
+            assert!(!statement.sql.contains("FOR UPDATE"));
+        }
     }
 
     /// Sales notification lines keep the exact owner-local join, projection

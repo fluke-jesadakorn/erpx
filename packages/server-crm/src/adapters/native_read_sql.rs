@@ -116,6 +116,56 @@ mod tests {
     }
 
     #[test]
+    fn materialized_scope_head_is_the_owner_select_body_plan() {
+        // Canonical native form of the r47 MATERIALIZED scope CTE: the row body
+        // is the bare select-body plan wrapped in the MATERIALIZED parentheses.
+        // The TS `crmMaterializedScopeSql` delegates on this identity.
+        let select_body = |body: &str| format!("SELECT {body}");
+        let materialized = |body: &str| format!("AS MATERIALIZED({})", select_body(body));
+        let cases = [
+            ("clock fact", "floor(extract(epoch FROM clock_timestamp())*1000)::bigint now_ms"),
+            ("marketing candidate scope", "candidate.* FROM (CANDIDATES) candidate,scope WHERE candidate.company_id=scope.company_id"),
+            ("sales lead scope", "l.* FROM crm_leads l,scope WHERE l.company_id=scope.company_id"),
+        ];
+        for (name, body) in cases {
+            let rendered = materialized(body);
+            assert_eq!(rendered, format!("AS MATERIALIZED(SELECT {body})"), "{name}");
+            assert_eq!(rendered.matches("SELECT ").count(), 1, "{name}");
+            let upper = rendered.to_ascii_uppercase();
+            assert!(!upper.contains("INSERT"), "{name}");
+            assert!(!upper.contains("UPDATE"), "{name}");
+            assert!(!upper.contains("DELETE"), "{name}");
+            assert!(!upper.contains("FOR UPDATE"), "{name}");
+            assert!(!upper.contains("LOCK TABLE"), "{name}");
+        }
+    }
+
+    #[test]
+    fn union_all_arm_is_the_owner_select_body_plan() {
+        // Canonical native form of the r44 UNION ALL fact arm: the arm body is
+        // the bare select-body plan prefixed with `UNION ALL `. The TS
+        // `crmUnionAllSql` delegates on this identity.
+        let select_body = |body: &str| format!("SELECT {body}");
+        let union_all = |body: &str| format!("UNION ALL {}", select_body(body));
+        let cases = [
+            ("sales history fact", "'create',event.id,to_jsonb(event),false FROM crm_case_events event"),
+            ("record activity arm", "activity.id,'activity',activity.id,activity.company_id FROM crm_lead_activities activity"),
+            ("marketing attribution arm", "'attribution',touch.id,to_jsonb(touch),false FROM marketing_touches touch"),
+        ];
+        for (name, body) in cases {
+            let rendered = union_all(body);
+            assert_eq!(rendered, format!("UNION ALL SELECT {body}"), "{name}");
+            assert_eq!(rendered.matches("SELECT ").count(), 1, "{name}");
+            let upper = rendered.to_ascii_uppercase();
+            assert!(!upper.contains("INSERT"), "{name}");
+            assert!(!upper.contains("UPDATE"), "{name}");
+            assert!(!upper.contains("DELETE"), "{name}");
+            assert!(!upper.contains("FOR UPDATE"), "{name}");
+            assert!(!upper.contains("LOCK TABLE"), "{name}");
+        }
+    }
+
+    #[test]
     fn assignment_module_exists_head_is_the_owner_select_one_plan() {
         // Canonical native form of the r35 assignment-module EXISTS predicate:
         // the inner witness is the r42 select-one plan over the assignments

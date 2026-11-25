@@ -102,6 +102,14 @@ export const FINANCE_RD_CONTRACT_BILLING_RUN = 'finance_rd_contract_billing_run'
 export const FINANCE_RD_CONTRACT_BILLING_EXISTS = 'finance_rd_contract_billing_exists';
 export const FINANCE_RD_CONTRACT_BILL_SOURCE = 'finance_rd_contract_bill_source';
 export const FINANCE_RD_CONTRACT_POSTED_CORRECTION = 'finance_rd_contract_posted_correction';
+export const FINANCE_RD_INVOICE_REPORT_CHARTS = 'finance_rd_invoice_report_charts';
+export const FINANCE_RD_INVOICE_ACCOUNTS = 'finance_rd_invoice_accounts';
+export const FINANCE_RD_INVOICE_LINE_HISTORY = 'finance_rd_invoice_line_history';
+export const FINANCE_RD_INVOICE_THAI_DOCUMENTS = 'finance_rd_invoice_thai_documents';
+export const FINANCE_RD_INVOICE_PAYMENT_REVERSAL = 'finance_rd_invoice_payment_reversal';
+export const FINANCE_RD_INVOICE_OPEN_PERIODS = 'finance_rd_invoice_open_periods';
+export const FINANCE_RD_INVOICE_STATEMENT_ROWS = 'finance_rd_invoice_statement_rows';
+export const FINANCE_RD_INVOICE_OPEN_INVOICES = 'finance_rd_invoice_open_invoices';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'FINANCE_NATIVE_READ_UNAVAILABLE', 'The native Finance read service is unavailable.');

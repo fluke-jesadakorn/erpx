@@ -69,6 +69,13 @@ pub const DEPT_AUTH_READ_POLICY_CHECK: &str = "dept_auth_read_policy_check";
 pub const ORG_WORK_READ_CHANGE_EXISTS: &str = "org_work_read_change_exists";
 pub const ORG_WORK_READ_CHANGES: &str = "org_work_read_changes";
 
+// -- change-event snapshots ----------------------------------------------------
+/// Native-owned latest change-event snapshot reads (applied draft mapping and
+/// submitted relocation snapshot). SELECT-only and id keyed; the application
+/// keeps its company and review authority checks.
+pub const CHANGE_EVENT_SNAPSHOT_APPLIED: &str = "change_event_snapshot_applied";
+pub const CHANGE_EVENT_SNAPSHOT_SUBMITTED: &str = "change_event_snapshot_submitted";
+
 // -- access.ts / organization.ts: owner-local access projection reads ---------
 // The `SELECT` reads retired from `adapters/access.ts` and the `levels`/
 // `templates` ports of `adapters/organization.ts`. All are Company-keyed reads
@@ -289,6 +296,8 @@ pub const KINDS: &[&str] = &[
     DEPT_AUTH_READ_POLICY_CHECK,
     ORG_WORK_READ_CHANGE_EXISTS,
     ORG_WORK_READ_CHANGES,
+    CHANGE_EVENT_SNAPSHOT_APPLIED,
+    CHANGE_EVENT_SNAPSHOT_SUBMITTED,
     ORG_ACCESS_READ_NODES,
     ORG_ACCESS_READ_LEVELS,
     ORG_ACCESS_READ_TEMPLATES,
@@ -476,6 +485,12 @@ fn sql(kind: &str) -> Option<&'static str> {
         }
         ORG_WORK_READ_CHANGES => {
             "SELECT c.*,iam_same_person(c.requested_by,?,c.company_id) same_requester FROM organization_node_changes c WHERE c.company_id=? AND (c.requested_by=? OR c.state='submitted' OR c.reviewed_by=?) ORDER BY c.updated_at DESC,c.id"
+        }
+        CHANGE_EVENT_SNAPSHOT_APPLIED => {
+            "SELECT snapshot_json FROM organization_node_change_events WHERE change_id=? AND action='applied' ORDER BY created_at DESC LIMIT 1"
+        }
+        CHANGE_EVENT_SNAPSHOT_SUBMITTED => {
+            "SELECT snapshot_json FROM organization_node_change_events WHERE change_id=? AND action='submitted' ORDER BY created_at DESC,id DESC LIMIT 1"
         }
         ORG_ACCESS_READ_NODES => {
             "SELECT id,kind,slug,display_name,branch_id,status,hierarchy_revision FROM organization_nodes WHERE company_id=? AND kind IN ('company','branch','department') AND (?::text IS NULL OR kind='company' OR id=? OR branch_id=?) AND (?::text IS NULL OR kind!='department' OR id=?) ORDER BY display_name,id"
@@ -1833,5 +1848,44 @@ mod tests {
         assert!(upper.starts_with("SELECT "));
         assert!(!upper.contains(" INSERT ") && !upper.contains(" UPDATE ") && !upper.contains(" DELETE "));
         assert!(!upper.contains(" FOR UPDATE ") && !upper.contains(" FOR SHARE ") && !upper.contains(" LOCK TABLE "));
+    }
+
+    #[test]
+    fn change_event_snapshot_kinds_are_byte_identical_and_read_only() {
+        const APPLIED: &str = "SELECT snapshot_json FROM organization_node_change_events WHERE change_id=? AND action='applied' ORDER BY created_at DESC LIMIT 1";
+        const SUBMITTED: &str = "SELECT snapshot_json FROM organization_node_change_events WHERE change_id=? AND action='submitted' ORDER BY created_at DESC,id DESC LIMIT 1";
+        for (kind, retired, digest) in [
+            (
+                CHANGE_EVENT_SNAPSHOT_APPLIED,
+                APPLIED,
+                "c2440b239c1bd6e293774e4b15ebc6c9515966a4b787401fd5a3bc995f4cd880",
+            ),
+            (
+                CHANGE_EVENT_SNAPSHOT_SUBMITTED,
+                SUBMITTED,
+                "cf2d32fbb2e088beaddb7b0ada30f1f82ecfd2a3da5a261594ebcafbf15f3e7c",
+            ),
+        ] {
+            assert!(supported(kind));
+            assert_eq!(sql(kind).unwrap(), retired);
+            let actual = {
+                use sha2::Digest;
+                let mut hasher = sha2::Sha256::new();
+                hasher.update(retired.as_bytes());
+                format!("{:x}", hasher.finalize())
+            };
+            assert_eq!(actual, digest);
+            let (statement, values) =
+                owner_statement(kind, &[Value::from("change")]).expect("snapshot statement");
+            assert_eq!(statement, retired);
+            assert_eq!(values, vec![Value::from("change")]);
+            // Missing or extra positional values fail closed.
+            assert!(owner_statement(kind, &[]).is_err());
+            assert!(owner_statement(kind, &[Value::from("change"), Value::from("extra")]).is_err());
+            let upper = statement.to_ascii_uppercase();
+            assert!(upper.starts_with("SELECT "));
+            assert!(!upper.contains(" INSERT ") && !upper.contains(" UPDATE ") && !upper.contains(" DELETE "));
+            assert!(!upper.contains(" FOR UPDATE ") && !upper.contains(" FOR SHARE ") && !upper.contains(" LOCK TABLE "));
+        }
     }
 }

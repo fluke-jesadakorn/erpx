@@ -92,6 +92,6 @@ describe('legal read-tail r67 released-item point-guard head reuse', () => {
     await walk(srcRoot);
     expect(total).toBeLessThan(132);
     expect(total).toBeLessThanOrEqual(131);
-    expect(total).toBe(91);
+    expect(total).toBe(84);
   });
 });

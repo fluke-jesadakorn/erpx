@@ -1,6 +1,5 @@
 import {activeRolloutPredicate} from "@erpx/server-pms/adapters/feature-availability";
 import { PMS_ROLLOUT_ENABLED_SQL, PMS_ROLLOUT_ACTIVE_SQL } from './pms-read-tail-r22-sql';
-import { pmsRolloutReadyExistsSql } from './pms-read-tail-r41-sql';
 import 'server-only';
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
@@ -14,16 +13,13 @@ import { isolatedEngineeringVerification } from "@erpx/server-platform_administr
 import { createPmsRollout, type PmsRolloutRepository, type PmsRolloutRow } from "@erpx/server-pms/application/hospitality-rollout";
 import { productionAccepted } from "@erpx/server-pms/public/hospitality-evidence";
 import { nativePmsOwnerWrite } from "@erpx/feature-pms/public/native-pms";
+import { nativePmsReadFirst, PMS_RD_ROLLOUT_SETUP_READY } from "./native-pms-read";
 type Readiness = Record<string, boolean>;
 async function setupReadiness(db: SqlDatabase, companyId: string): Promise<Readiness> {
     const posFacts = pmsRolloutPosFacts(db), financeFacts = pmsRolloutFinanceFacts(db), commerceFacts = pmsRolloutCommerceFacts(db), organizationFacts = pmsRolloutOrganizationFacts(db), legalFacts = pmsRolloutLegalFacts(db);
     const [pos, pms, finance, inventory, organization, commerce, legal] = await Promise.all([
         posFacts.pos(companyId),
-        db.prepare(`SELECT 1 FROM pms_properties p WHERE p.company_id=? AND p.state='open'
-      AND p.config_json::jsonb->>'currency'='THB'
-      AND COALESCE(p.config_json::jsonb->>'approvedBy','')<>''
-      AND ${pmsRolloutReadyExistsSql('room')}
-      AND ${pmsRolloutReadyExistsSql('rate')} LIMIT 1`).bind(companyId).first(),
+        nativePmsReadFirst<Record<string, unknown>>(PMS_RD_ROLLOUT_SETUP_READY, [companyId], db),
         financeFacts.finance(companyId),
         commerceFacts.inventory(companyId),
         organizationFacts.organization(companyId),
