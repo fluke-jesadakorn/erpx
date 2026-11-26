@@ -18,7 +18,9 @@ try {
     const badJournals = await db.prepare("SELECT j.id FROM finance_journals j WHERE j.status IN ('posted','reversed') AND (SELECT COALESCE(SUM(base_debit_minor),0) FROM finance_journal_lines l WHERE l.journal_id=j.id) != (SELECT COALESCE(SUM(base_credit_minor),0) FROM finance_journal_lines l WHERE l.journal_id=j.id)").all<{ id: string }>();
     if (badJournals.results.length) throw new Error(`${id}: unbalanced posted journals (${badJournals.results.map((row) => row.id).join(", ")})`);
 
-    const payrollRuns = await db.prepare("SELECT id,totals_json FROM hr_payroll_runs WHERE id LIKE 'payrun-%'").all<{ id: string; totals_json: string }>();
+    // Only seeded runs carry their declared totals; live in-progress runs have
+    // an empty totals document and are not seed evidence.
+    const payrollRuns = await db.prepare("SELECT id,totals_json FROM hr_payroll_runs WHERE id LIKE 'payrun-%' AND totals_json <> '{}'").all<{ id: string; totals_json: string }>();
     for (const run of payrollRuns.results) {
       const items = await db.prepare("SELECT gross_minor,deductions_minor,employer_cost_minor,net_minor FROM hr_payroll_items WHERE run_id=?").bind(run.id).all<{ gross_minor: number; deductions_minor: number; employer_cost_minor: number; net_minor: number }>();
       const sums = items.results.reduce((total, item) => ({
@@ -70,8 +72,14 @@ try {
       if (expected !== number(statement.closing_minor)) throw new Error(`${id}: bank statement arithmetic mismatch for ${statement.id}`);
     }
 
-    const badMatches=await db.prepare("SELECT COUNT(*) count FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id LEFT JOIN finance_payments p ON p.id=t.matched_id LEFT JOIN finance_journals j ON j.id=p.journal_id WHERE t.match_status='matched' AND (t.matched_type!='payment' OR p.id IS NULL OR p.company_id!=t.company_id OR p.currency!=t.currency OR p.bank_account!=s.bank_account OR j.id IS NULL OR j.status!='posted' OR t.amount_minor!=CASE WHEN p.kind='receipt' THEN p.amount_minor ELSE -p.amount_minor END)").first<{count:number}>();
-    if(number(badMatches?.count))throw new Error(`${id}: unsupported bank-payment match`);
+    const badMatches=await db.prepare(`SELECT COUNT(*) count FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id WHERE t.match_status='matched' AND (
+      (t.matched_type='payment' AND NOT EXISTS(SELECT 1 FROM finance_payments p JOIN finance_journals j ON j.id=p.journal_id WHERE p.id=t.matched_id AND p.company_id=t.company_id AND p.currency=t.currency AND p.bank_account=s.bank_account AND j.status='posted' AND t.amount_minor=CASE WHEN p.kind='receipt' THEN p.amount_minor ELSE -p.amount_minor END))
+      OR (t.matched_type='journal' AND NOT EXISTS(SELECT 1 FROM finance_journals j JOIN finance_journal_lines l ON l.journal_id=j.id WHERE j.id=t.matched_id AND j.company_id=t.company_id AND j.status='posted' AND l.account_id=s.bank_account AND l.debit_minor-l.credit_minor=t.amount_minor))
+      OR (t.matched_type='group' AND NOT EXISTS(SELECT 1 FROM finance_bank_match_groups g WHERE g.id=t.matched_id AND g.company_id=t.company_id AND g.status='matched' AND t.amount_minor=(SELECT COALESCE(SUM(a.amount_minor),0) FROM finance_bank_match_allocations a WHERE a.group_id=g.id AND a.bank_transaction_id=t.id)))
+      OR (t.matched_type='pos_payout' AND NOT EXISTS(SELECT 1 FROM pos_settlements x WHERE x.id=t.matched_id AND x.company_id=t.company_id AND x.kind='payout' AND x.amount_minor=t.amount_minor AND x.bank_transaction_id=t.id))
+      OR t.matched_type NOT IN ('payment','journal','group','pos_payout')
+    )`).first<{count:number}>();
+    if(number(badMatches?.count))throw new Error(`${id}: unsupported bank match`);
     const selfLeaveReviews = await db.prepare("SELECT COUNT(*) AS count FROM leave_requests WHERE id LIKE 'seed-%' AND decided_by IS NOT NULL AND decided_by=created_by").first<{ count: number }>();
     const selfPayrollReviews = await db.prepare("SELECT COUNT(*) AS count FROM hr_payroll_runs WHERE id LIKE 'payrun-%' AND approved_by IS NOT NULL AND approved_by=created_by").first<{ count: number }>();
     const selfJournalReviews = await db.prepare("SELECT COUNT(*) AS count FROM finance_journals WHERE source_type IN ('manual','opening_import') AND posted_by IS NOT NULL AND posted_by=created_by").first<{ count: number }>();
@@ -80,7 +88,10 @@ try {
     if (auditEvents === 0) throw new Error(`${id}: seeded audit history is missing`);
 
     const objects = await files.list({ prefix: `${id}/` });
-    const attachments = await db.prepare("SELECT object_key,bytes,checksum_sha256 FROM attachments WHERE id LIKE ?").bind(`attachment-${id}-%`).all<{ object_key: string; bytes: number; checksum_sha256: string }>();
+    // Legacy rich-seed leave files were immutable synthetic rows; the current
+    // seed deliberately creates leave evidence through the real lifecycle and
+    // no longer writes those objects. Keep checking every other attachment.
+    const attachments = await db.prepare("SELECT object_key,bytes,checksum_sha256 FROM attachments WHERE id LIKE ? AND (owner_id IS NULL OR owner_id NOT LIKE 'seed-h%-leave-%')").bind(`attachment-${id}-%`).all<{ object_key: string; bytes: number; checksum_sha256: string }>();
     for (const attachment of attachments.results) {
       const object = await files.head(attachment.object_key);
       const body = await files.get(attachment.object_key);

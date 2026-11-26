@@ -400,12 +400,13 @@ async function seedFiles(env: SeedEnv, holding: string, db: Db) {
     const currency = company.id === "beacon-co" ? "GBP" : company.id === "northstar-co" ? "EUR" : "USD";
     const rows = ["reference,payee,amount,currency,status", ...amounts.map((amount, row) => `PAY-${runId}-${row + 1},Worker ${row + 1},${(amount / 100).toFixed(2)},${currency},outstanding`)].join("\n");
     const body = text(rows); const checksum = await digest(body); const key = `${holding}/people/payments/${batchId}.csv`;
-    if (!(await files.head(key))) {
+    const existing = await files.head(key);
+    if (!existing || existing.customMetadata?.sha256 !== checksum) {
       await files.put(key, body, { httpMetadata: { contentType: "text/csv" }, customMetadata: { sha256: checksum, format: "generic-csv", seed: "erpx-rich-local-2026" } });
     }
-    statements.push(db.prepare("INSERT INTO hr_payment_batches(id,company_id,source_type,source_id,currency,status,format_code,file_key,file_checksum,total_minor,version,created_by,approved_by,exported_at,created_at,updated_at) VALUES(?,?,?,?,?,'exported','generic-csv',?,?,?,1,?,?,?, ?,?) ON CONFLICT DO NOTHING")
+    statements.push(db.prepare("INSERT INTO hr_payment_batches(id,company_id,source_type,source_id,currency,status,format_code,file_key,file_checksum,total_minor,version,created_by,approved_by,exported_at,created_at,updated_at) VALUES(?,?,?,?,?,'exported','generic-csv',?,?,?,1,?,?,?, ?,?) ON CONFLICT(id) DO UPDATE SET file_key=excluded.file_key,file_checksum=excluded.file_checksum,total_minor=excluded.total_minor,currency=excluded.currency,format_code=excluded.format_code")
       .bind(batchId, company.id, "payroll", runId, currency, key, checksum, amounts.reduce((sum, amount) => sum + amount, 0), actor, reviewer, now, now, now));
-    for (let row = 0; row < 20; row += 1) statements.push(db.prepare("INSERT INTO hr_payment_batch_items(id,batch_id,engagement_id,person_id,reference,payee_name,amount_minor,currency) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING")
+    for (let row = 0; row < 20; row += 1) statements.push(db.prepare("INSERT INTO hr_payment_batch_items(id,batch_id,engagement_id,person_id,reference,payee_name,amount_minor,currency) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET engagement_id=excluded.engagement_id,person_id=excluded.person_id,reference=excluded.reference,payee_name=excluded.payee_name,amount_minor=excluded.amount_minor,currency=excluded.currency")
       .bind(`payment-item-${company.id}-${index}-${row}`, batchId, `eng-${company.id}-${String(row + 1).padStart(3, "0")}`, `hr-${company.id}-${String(row + 1).padStart(3, "0")}`, `PAY-${runId}-${row + 1}`, `Worker ${row + 1}`, amounts[row], currency));
   }
   await batch(db, statements);
