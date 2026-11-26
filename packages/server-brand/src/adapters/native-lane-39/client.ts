@@ -1,5 +1,7 @@
 import "server-only";
 import { ApiError } from "@erpx/server-runtime/public/http";
+import { Agent, request as httpRequest } from "node:http";
+import { Readable } from "node:stream";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 
 /**
@@ -227,7 +229,28 @@ async function boundedJson(reply: Response, signal: AbortSignal): Promise<unknow
   }
 }
 
-const direct: NativeLane39Transport = (url, init) => fetch(url, init);
+const direct: NativeLane39Transport = (url, init) =>
+  new Promise((resolve, reject) => {
+    const agent = new Agent({ keepAlive: false, maxSockets: 1, maxTotalSockets: 1, proxyEnv: {} as import("node:http").ProxyEnv });
+    const headers = Object.fromEntries(new Headers(init?.headers).entries());
+    const outgoing = httpRequest(url, {
+      method: init?.method ?? "GET",
+      agent,
+      headers,
+      signal: init?.signal ?? undefined,
+      maxHeaderSize: 8192,
+    }, incoming => {
+      incoming.once("close", () => agent.destroy());
+      try {
+        const values = new Headers();
+        for (let i = 0; i < incoming.rawHeaders.length; i += 2) values.append(incoming.rawHeaders[i]!, incoming.rawHeaders[i + 1]!);
+        resolve(new Response(Readable.toWeb(incoming) as unknown as ReadableStream<Uint8Array>, { status: incoming.statusCode ?? 502, headers: values }));
+      } catch (error) { incoming.destroy(); agent.destroy(); reject(error); }
+    });
+    outgoing.once("error", error => { agent.destroy(); reject(error); });
+    if (init?.body) outgoing.write(init.body);
+    outgoing.end();
+  });
 
 /** Build the lane 39 Brand client. `transport` is injectable for contract tests. */
 export function createLane39BrandClient(

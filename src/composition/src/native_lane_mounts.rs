@@ -526,20 +526,19 @@ pub fn mount(
         .map_err(|_| "PRIVATE_API_BENEFITS_SETTLEMENT_EVENTS_INVALID")?,
     );
 
-    // Runtime lane 33: holding-binding reads.
+    // Runtime lane 33: holding-binding reads (Control database).
     router = router.merge(
         erpx_server_runtime::public::native_lane_33::router_for_holdings(
             config
                 .holdings
                 .iter()
-                .enumerate()
-                .map(|(i, holding)| {
+                .map(|holding| {
                     (
                         erpx_server_runtime::public::native_lane_33::LaneTarget {
                             host: holding.host.clone(),
                             holding_slug: holding.registration.slug.clone(),
                         },
-                        pools[i + 1].clone(),
+                        pools[0].clone(),
                     )
                 })
                 .collect(),
@@ -769,21 +768,6 @@ pub fn mount(
                 )
             }).collect(),
         ).map_err(|_| "PRIVATE_API_PEOPLE_PAYROLL_LANE8_INVALID")?,
-    );
-
-    // Finance lane 2: overview company counts.
-    router = router.merge(
-        erpx_server_finance::public::native_lane_2::router_for_holdings(
-            config.holdings.iter().enumerate().map(|(i, holding)| {
-                (
-                    erpx_server_finance::public::native_lane_2::LaneTarget {
-                        host: holding.host.clone(),
-                        holding_slug: holding.registration.slug.clone(),
-                    },
-                    pools[i + 1].clone(),
-                )
-            }).collect(),
-        ).map_err(|_| "PRIVATE_API_FINANCE_LANE2_INVALID")?,
     );
 
     // People & Payroll lane 7: legacy people-access clock.
@@ -1397,28 +1381,29 @@ pub fn mount(
         .map_err(|_| "PRIVATE_API_ORGANIZATION_DRAFT_READ_INVALID")?,
     );
 
-    // Field Service: part-reservation read, one store per Holding pool.
-    for (i, holding) in config.holdings.iter().enumerate() {
-        let store = std::sync::Arc::new(
-            erpx_server_field_service::public::reservation_part::PgFieldPartReservationStore::new(
-                pools[i + 1].raw().clone(),
-            ),
-        );
-        router = router.merge(
-            erpx_server_field_service::public::reservation_part::field_part_reservation_router(
-                vec![
-                    erpx_server_field_service::public::reservation_part::FieldPartReservationTarget {
-                        host: holding.host.clone(),
-                        holding_slug: holding.registration.slug.clone(),
-                        holding_id: holding.registration.holding_id.as_str().to_owned(),
-                        origin: format!("https://{}", holding.host),
-                    },
-                ],
-                store,
-            )
-            .map_err(|_| "PRIVATE_API_FIELD_RESERVATION_PART_INVALID")?,
-        );
-    }
+    // Field Service: part-reservation read, one pool per Holding.
+    let field_targets = config.holdings.iter().map(|holding| {
+        erpx_server_field_service::public::reservation_part::FieldPartReservationTarget {
+            host: holding.host.clone(),
+            holding_slug: holding.registration.slug.clone(),
+            holding_id: holding.registration.holding_id.as_str().to_owned(),
+            origin: format!("https://{}", holding.host),
+        }
+    }).collect();
+    let field_store = std::sync::Arc::new(
+        erpx_server_field_service::public::reservation_part::PgFieldPartReservationStore::for_holdings(
+            config.holdings.iter().enumerate().map(|(i, holding)| {
+                (holding.registration.holding_id.as_str().to_owned(), pools[i + 1].raw().clone())
+            }),
+        ),
+    );
+    router = router.merge(
+        erpx_server_field_service::public::reservation_part::field_part_reservation_router(
+            field_targets,
+            field_store,
+        )
+        .map_err(|_| "PRIVATE_API_FIELD_RESERVATION_PART_INVALID")?,
+    );
 
     // Manufacturing: production order event history.
     router = router.merge(

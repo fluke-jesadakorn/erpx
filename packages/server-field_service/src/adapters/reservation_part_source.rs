@@ -11,14 +11,25 @@ use crate::{
 };
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use sqlx::{PgPool, Row};
+use std::collections::BTreeMap;
 
 pub struct PgFieldPartReservationStore {
-    pool: PgPool,
+    pools: BTreeMap<String, PgPool>,
+    fallback: Option<PgPool>,
 }
 
 impl PgFieldPartReservationStore {
     pub fn new(pool: PgPool) -> Self {
-        Self { pool }
+        Self { pools: BTreeMap::new(), fallback: Some(pool) }
+    }
+
+    /// One pool per registered Holding identifier; the request target chooses it.
+    pub fn for_holdings(pools: impl IntoIterator<Item = (String, PgPool)>) -> Self {
+        Self { pools: pools.into_iter().collect(), fallback: None }
+    }
+
+    fn pool(&self, holding_id: &str) -> Option<&PgPool> {
+        self.pools.get(holding_id).or(self.fallback.as_ref())
     }
 }
 
@@ -36,7 +47,12 @@ impl FieldPartReservationStore for PgFieldPartReservationStore {
         query: &'a FieldPartReservationQuery,
     ) -> FieldPartReservationFuture<'a, Option<FieldPartReservation>> {
         Box::pin(async move {
-            let mut connection = self.pool.acquire().await.map_err(|_| unavailable())?;
+            let mut connection = self
+                .pool(&query.holding_id)
+                .ok_or_else(unavailable)?
+                .acquire()
+                .await
+                .map_err(|_| unavailable())?;
             let row = sqlx::query(
                 "SELECT r.id, r.order_id, r.warehouse_id, r.product_id, r.quantity_milli, \
                  r.consumed_milli, r.released_milli, r.expires_at \

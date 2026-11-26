@@ -7569,7 +7569,7 @@ async fn assemble_checked(
             let pairs = notification_statement_holdings
                 .into_iter()
                 .map(|holding| holding.as_str().to_owned())
-                .zip(notification_statement_targets.into_iter())
+                .zip(notification_statement_system_targets.into_iter())
                 .collect::<Vec<_>>();
             router = router.merge(
                 erpx_server_collaboration::public::notification_statement_http::holding_notification_statement_router(
@@ -10197,10 +10197,8 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         && !(host == state.loopback
             && (matches!(request.uri().path(), "/api/health" | "/api/ready") || loopback_system_command))
     {
-        eprintln!("BOUNDARY_DEBUG path={} host={} audience=None loopback={}", request.uri().path(), host, state.loopback);
         return Err(BoundaryDenial::NotFound);
     }
-    eprintln!("BOUNDARY_DEBUG path={} host={} audience=Some", request.uri().path(), host);
     let account_mfa = state.account_mfa
         && request.method() == axum::http::Method::POST
         && matches!(
