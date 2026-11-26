@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15260,
+    "revision": 15263,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -213075,10 +213075,10 @@
           "owner:customer_authority",
           "route:customer_authority-feature"
         ],
-        "nextAction": "Native customer-access sources compiled/tested and mounted; shared route cutover pending.",
+        "nextAction": "Customer Access detail is native-only; next Customer Authority family.",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "3cbd0350c675ab420131cdd1870ed5d73c07a224",
+        "implementedCommit": "d4385b93465b55208acb913f6a5dc7c3c8a47a3e",
         "lastPushedSha": "3cbd0350c675ab420131cdd1870ed5d73c07a224",
         "checks": [
           {
@@ -213105,17 +213105,23 @@
             "command": "cargo test -p erpx-server-customer-authority --lib --locked",
             "result": "passed",
             "sourceSha": "3cbd0350c675ab420131cdd1870ed5d73c07a224"
+          },
+          {
+            "command": "native cutover verification",
+            "result": "passed",
+            "sourceSha": "d4385b93465b55208acb913f6a5dc7c3c8a47a3e",
+            "note": "GET customer-access reached the native owner (422 on an invalid id) with no TS customerAccessHistory fallback; tsc passed"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-i",
+          "runId": "run-20261127-b",
           "agentId": "lead",
-          "at": "2026-11-26T13:47:24.751Z",
+          "at": "2026-11-26T18:32:26.293Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Native customer-access sources compiled/tested and mounted; shared route cutover pending."
+          "reason": "released with work preserved",
+          "nextAction": "Customer Access detail is native-only; next Customer Authority family."
         },
         "scopeRefinementRequired": false
       },
@@ -215607,7 +215613,7 @@
       }
     },
     "lastCoordinatorGeneration": 190,
-    "updatedAt": "2026-11-26T18:30:15.835Z",
+    "updatedAt": "2026-11-26T18:32:26.296Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
