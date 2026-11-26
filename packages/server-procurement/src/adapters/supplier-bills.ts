@@ -203,7 +203,7 @@ async function invoke<T>(call:()=>Promise<T>):Promise<T>{try{return await call()
 export const getSupplierBill=(a:WorkContext,id:string,provided?:SqlDatabase)=>withSupplierBillPurchasedRead(a,db=>invoke(()=>application(a,db).get(id)),provided,id);
 export const supplierBillWorkspace=(a:WorkContext)=>withSupplierBillPurchasedRead(a,db=>invoke(()=>application(a,db).workspace()));
 export const supplierBillCaptureOptions=(a:WorkContext)=>withSupplierBillPurchasedRead(a,db=>invoke(()=>application(a,db).captureOptions()));
-export const supplierInvoicePolicy=(a:WorkContext)=>withSupplierBillPurchasedRead(a,async(db,purchase)=>({...await invoke(()=>application(a,db).policy()),companyId:a.companyId,purchase}));
+export {nativeSupplierBillPolicy,nativeSupplierBillPolicy as supplierInvoicePolicy} from "./native-supplier-bill-policy-read";
 export const saveSupplierInvoicePolicy=(a:WorkContext,raw:unknown,key:string)=>withSupplierBillPurchasedCommand(a,{key,operation:"procurement.invoice-policy.update",id:a.companyId,policy:true,purpose:"new-work",permissions:["finance.approve"]},db=>invoke(()=>application(a,db).savePolicy(raw,key)));
 export const supplierBillDetail=(a:WorkContext,id:string)=>withSupplierBillPurchasedRead(a,async(db,purchase)=>({...await invoke(()=>application(a,db).detail(id)),purchase}),undefined,id);
 export const captureSupplierBill=(a:WorkContext,raw:unknown,key:string)=>withSupplierBillPurchasedCommand(a,{key,operation:"procurement.bill.capture",id:`bill-match-${key}`,capture:raw,purpose:"settle-existing",permissions:["finance.write","commerce.read"]},db=>invoke(()=>application(a,db).capture(raw,key)));

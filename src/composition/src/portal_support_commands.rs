@@ -1,6 +1,10 @@
 //! Native staff portal-support response/closure composition.
 use crate::business_http::BusinessScopeSlugs;
 use erpx_server_commercial::public::purchases::PackageEnforcementMode;
+use erpx_server_customer_authority::public::portal_support_threads::{
+    CustomerThreadBackend, CustomerThreadsRequest, PgPortalSupportThreads, Thread, ThreadsFuture,
+    ThreadsQuery,
+};
 use erpx_server_customer_authority::public::portal_session::{
     PgPortalEnrollment, PortalCustomerProof, PortalCustomerRequest, PortalSessionEvidence,
     PortalSessionFuture, PortalSessionVerifier, resolve_portal_customer,
@@ -525,6 +529,76 @@ impl<C: Clock + Send + Sync + 'static> PortalSupportAcknowledgementService<C> {
     }
 }
 
+impl<C: Clock + Send + Sync + 'static> PortalSupportAcknowledgementService<C> {
+    /// Verified-customer support-thread read. The portal session and binding
+    /// identity are proved before the owner use case runs on one Holding unit;
+    /// the current session is rechecked after the read.
+    pub async fn threads(
+        &self,
+        headers: &HeaderMap,
+        binding_id: String,
+    ) -> Result<Vec<Thread>, Error> {
+        let now = self.clock.now().get();
+        let token = cookie_token(headers)?;
+        let (proof, session) = prove_customer(
+            &self.control,
+            &self.holding,
+            Some(self.configuration.audience.as_str()),
+            &token,
+            &self.environment,
+            self.configuration.holding_id.as_str(),
+            &self.configuration.holding_slug,
+            now,
+        )
+        .await?;
+        let query = ThreadsQuery {
+            binding_id,
+            user_id: proof.user_id.clone(),
+            email: proof.email.clone(),
+        };
+        let environment = self.environment.clone();
+        let audience = self.configuration.audience.clone();
+        let holding_id = self.configuration.holding_id.as_str().to_owned();
+        let control = self.control.clone();
+        let token = token.clone();
+        PgUnitOfWork::new(self.holding.clone())
+            .run_once(TransactionOptions::default(), move |connection| {
+                let query = query.clone();
+                let environment = environment.clone();
+                let audience = audience.clone();
+                let holding_id = holding_id.clone();
+                let control = control.clone();
+                let token = token.clone();
+                let session = session.clone();
+                Box::pin(async move {
+                    let mut source = PgPortalSupportThreads::new(connection);
+                    let threads = source.read(query).await?;
+                    let mut control = control.raw().acquire().await.map_err(|_| {
+                        PgTransactionError::Business(portal_unavailable())
+                    })?;
+                    let read = PortalSessionReadRequest {
+                        token: &token,
+                        audience: Some(audience.as_str()),
+                        environment: &environment,
+                    };
+                    require_current_portal_session(&mut control, &read, &session, now)
+                        .await
+                        .map_err(|error| match error {
+                            PgTransactionError::Business(_) => {
+                                PgTransactionError::Business(portal_session_changed())
+                            }
+                            PgTransactionError::Persistence(_) => {
+                                PgTransactionError::Business(portal_unavailable())
+                            }
+                        })?;
+                    let _ = holding_id;
+                    Ok(threads)
+                })
+            })
+            .await
+    }
+}
+
 pub struct PortalSupportAcknowledgementBackend<C> {
     service: Arc<PortalSupportAcknowledgementService<C>>,
 }
@@ -567,4 +641,20 @@ pub fn customer_router(
     targets: Vec<CustomerTarget>,
 ) -> Result<erpx_server_runtime::public::http_support::Router, BusinessError> {
     portal_support_customer_router(targets)
+}
+
+impl<C: Clock + Send + Sync + 'static> CustomerThreadBackend
+    for PortalSupportAcknowledgementBackend<C>
+{
+    fn execute<'a>(
+        &'a self,
+        request: CustomerThreadsRequest<'a>,
+    ) -> ThreadsFuture<'a, Vec<Thread>> {
+        Box::pin(async move {
+            self.service
+                .threads(request.headers, request.binding_id)
+                .await
+                .map_err(business)
+        })
+    }
 }

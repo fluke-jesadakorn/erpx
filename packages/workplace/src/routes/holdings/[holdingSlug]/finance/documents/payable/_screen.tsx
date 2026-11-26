@@ -5,7 +5,7 @@ import { Button, Field, Select, Table, TableFrame, TextInput } from "@erpx/ui/co
 import { FeaturePage, FeatureWidget, WidgetGrid } from "@erpx/feature-shared/components/features/feature-page";
 import { FinanceWorkspace, financeStyles as styles } from "@erpx/feature-finance/components/finance-workspace";
 import { financeCompanyTools } from "@erpx/server-finance/public/finance-company-tools";
-import {listCharts} from '@erpx/server-finance/public/finance';
+import {financeChartListNative} from '@erpx/server-finance/public/finance';
 import { ListPagination } from "@erpx/ui/components/list-pagination";
 import { InvoiceEditor } from "@erpx/feature-finance/components/lazy-invoice-editor";
 import { MoneyAmount } from "@erpx/feature-finance/components/money/currency-provider";
@@ -100,7 +100,7 @@ export default async function InvoicesPage({ params, searchParams, }: {
     const [page, charts, data, receivableAging, payableAging, tools] = await Promise.all([
         nativeInvoicesPage(nativeActor, holdingSlug, search)
           .then((native) => (native as unknown as Awaited<ReturnType<typeof invoicesPage>> | undefined) ?? invoicesPage(actor, search)),
-        listCharts(actor),
+        financeChartListNative(actor),
         search.new === "1" && hasPermission(actor, "finance.write") ? invoiceWorkspace(actor) : null,
         [],
         nativeInvoiceAging(nativeActor, holdingSlug, "payable", asOf, search.chartId)

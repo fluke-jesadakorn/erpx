@@ -6,7 +6,7 @@ import { legalPeople } from "@erpx/server-legal/public/legal/assignees";
 import { executedCopies, reviewExecutedCopy } from "@erpx/server-legal/public/legal/executed-copies";
 import { lawCorpusView, lawCorpusCommand } from "@erpx/server-legal/public/legal/law-corpus";
 import { legalWorkspaceView } from "@erpx/server-legal/public/legal/workspace";
-import { legalRuntimeHealth } from "@erpx/server-legal/public/legal/runtime-gate";
+import { legalCompanyCapabilityReady, legalRuntimeHealth } from "@erpx/server-legal/public/legal/runtime-gate";
 import { releaseAcceptance, submitReleaseAcceptance, reviewReleaseAcceptance, revokeReleaseAcceptance } from "@erpx/server-platform_administration/public/release-acceptance";
 import { legalProductionScope } from "@erpx/catalogue/production-scope";
 import { preserveAttachment } from "@erpx/server-legal/public/legal/sources";
@@ -23,7 +23,6 @@ import { findInspectionSource, queueInspection, processingStatus } from "@erpx/s
 import { trustView, trustCommand } from "@erpx/server-legal/public/legal/trust";
 import {
   startRevision,
-  ruleImpact,
   prepareCounselPurchase,
   importPreview,
   importCommit,
@@ -53,6 +52,7 @@ import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-orig
 import { legalReadScope } from "@erpx/server-legal/public/purchases";
 import { nativeLegalAvailable, nativeLegalCommand, nativeLegalCommandSelected, nativeLegalDetail, nativeLegalExport, nativeLegalFailure, nativeLegalRegister } from "@erpx/feature-legal/lib/native-legal";
 import { createAttachmentSet, reserveAttachmentFile, completeAttachmentUpload, scanAttachmentNow } from "@erpx/server-files/public/attachments/service";
+import { nativeRuleImpactRead } from "../../../../../../../../../../packages/server-legal/src/adapters/native-rule-impact/client";
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ holdingSlug: string; path?: string[] }> };
 function nativeFailure(error: unknown): never { const failure = nativeLegalFailure(error); if (failure) throw new ApiError(failure.status, failure.code, failure.message); throw error; }
@@ -93,11 +93,25 @@ export async function GET(request: Request, ctx: Context) {
         }),
         { headers: { "Cache-Control": "private, no-store" } },
       );
-    if (path[0] === "rule-impact" && path.length === 2)
-      return Response.json(
-        canonicalDestinationLinks({ data: await ruleImpact(write, a, path[1]) }),
-        { headers: { "Cache-Control": "private, no-store" } },
+    if (path[0] === "rule-impact" && path.length === 2) {
+      const purchases = (await legalReadScope(write, a)).purchases;
+      const read = await nativeRuleImpactRead(
+        {
+          holdingId: a.holdingId,
+          holdingSlug: a.holdingSlug,
+          companyId: a.companyId,
+          userId: a.userId,
+          branchId: a.branchId,
+          departmentId: a.departmentId,
+        },
+        {
+          companyEnabled: await legalCompanyCapabilityReady(write, a.companyId),
+          rulePurchased: purchases === undefined || purchases["legal.obligations"]?.history === true,
+        },
+        path[1],
       );
+      return Response.json(canonicalDestinationLinks({ data: read }), { headers: { "Cache-Control": "private, no-store" } });
+    }
     if (path[0] === "governance" && path.length <= 2)
       return Response.json(
         canonicalDestinationLinks({ data: await governanceView(write, a, path[1]) }),

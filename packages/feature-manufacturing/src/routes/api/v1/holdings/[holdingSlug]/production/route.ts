@@ -2,36 +2,11 @@ import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/desti
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
-import {
-  changeManufacturingOrder,
-  productionDetail,
-  productionWorkspace,
-} from "@erpx/server-manufacturing/public/production";
+import { changeManufacturingOrder } from "@erpx/server-manufacturing/public/production";
 import { nativeAccountingProfileCommand, nativeManufacturingWave3Available } from "@erpx/feature-manufacturing/adapters/server/native-manufacturing-wave3";
 import { nativePlanningCommand } from "@erpx/feature-manufacturing/public/native-planning-workspace-page";
 type C = { params: Promise<{ holdingSlug: string }> };
 const headers = { "Cache-Control": "private, no-store" };
-export async function GET(r: Request, c: C) {
-  try {
-    const a = await requireWorkContext((await c.params).holdingSlug),
-      u = new URL(r.url),
-      id = u.searchParams.get("id"),
-      workspaceModule =
-        u.searchParams.get("module") === "planning"
-          ? "planning"
-          : "manufacturing";
-    return Response.json(
-      canonicalDestinationLinks({
-        data: id
-          ? await productionDetail(a, id)
-          : await productionWorkspace(a, workspaceModule),
-      }),
-      { headers },
-    );
-  } catch (e) {
-    return errorResponse(e);
-  }
-}
 export async function POST(r: Request, c: C) {
   try {
     if (

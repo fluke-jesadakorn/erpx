@@ -13,7 +13,6 @@ import { auditCustomerPortalCommand, enqueueCustomerPortalCommand, clearCustomer
 import { createCustomerPortalApplication, type PortalRepository } from "@erpx/server-customer_360/application/portal";
 import type { CustomerPortalSessionActor, PortalActionRow } from "@erpx/server-customer_360/domain/portal";
 import { customerPortalAttachmentSession, customerPortalSharedFiles } from "@erpx/server-customer_360/adapters/portal-attachments";
-import {portalSupportThreadsForCustomer,portalSupportThreadsForCustomerProjection} from '@erpx/server-customer_authority/public/portal-support';
 import {withCustomerPortalRequestProjection} from '@erpx/server-customer_authority/public/portal-projection-unit';
 import {portalSupportInstalled} from '@erpx/server-customer_authority/public/portal-support-sources';
 import {customerPortalOwnedUnit} from '@erpx/server-customer_authority/public/portal-purchases';
@@ -90,7 +89,7 @@ function portalRepository(db: SqlDatabase,owned=false,assertRequestAuthority?:()
 }
 function portalApplication(db: SqlDatabase,assertRequestAuthority?:()=>Promise<void>) { return createCustomerPortalApplication({ repository: portalRepository(db,false,assertRequestAuthority), clock: { now: () => Date.now() }, identifiers: { next: () => crypto.randomUUID() }, hash, error: (status, code, message) => new ApiError(status, code, message) }); }
 export const customerPortalContext = customerPortalAttachmentSession;
-export async function customerPortalProjection(db: SqlDatabase, actor: { userId: string; email: string }) { const data=await customerPortalOwnedUnit(db,tx=>portalApplication(tx).customerPortalProjection(actor));if(!await portalSupportInstalled(db))return data;return {...data,items:await Promise.all(data.items.map(async item=>({...item,supportThreads:await portalSupportThreadsForCustomer(db,actor,String(item.binding_id))})))}; }
-export function customerPortalRequestProjection(db:SqlDatabase,actor:CustomerPortalSessionActor,assertCurrent:()=>Promise<void>){return withCustomerPortalRequestProjection(db,actor,async database=>{const data=await portalApplication(database).customerPortalProjection(actor);return {...data,items:await Promise.all(data.items.map(async item=>({...item,supportThreads:await portalSupportThreadsForCustomerProjection(database,actor,item.binding_id)})))};},assertCurrent);}
+export async function customerPortalProjection(db: SqlDatabase, actor: { userId: string; email: string }) { return customerPortalOwnedUnit(db,tx=>portalApplication(tx).customerPortalProjection(actor)); }
+export function customerPortalRequestProjection(db:SqlDatabase,actor:CustomerPortalSessionActor,assertCurrent:()=>Promise<void>){return withCustomerPortalRequestProjection(db,actor,async database=>portalApplication(database).customerPortalProjection(actor),assertCurrent);}
 export async function customerPortalList(slug: string) { const { write, actor } = await customerPortalContext(slug); return customerPortalProjection(write, actor); }
 export function customerPortalCommand(db: PostgresDatabase, actor: CustomerPortalSessionActor, raw: unknown, key: string,assertRequestAuthority?:()=>Promise<void>) { return portalApplication(db,assertRequestAuthority).customerPortalCommand(actor, raw, key); }

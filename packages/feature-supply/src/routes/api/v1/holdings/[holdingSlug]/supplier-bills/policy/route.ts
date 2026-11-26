@@ -5,7 +5,6 @@ import { requireWorkContext } from "@erpx/server-identity_access/public/authoriz
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
 import {
-  supplierInvoicePolicy,
   supplierInvoicePolicySchema,
 } from "@erpx/server-procurement/public/supplier-bill-matching";
 import {ownedSaveSupplierBillPolicy} from "@erpx/feature-procurement/public/native-supplier-bill-command-owned";
@@ -14,18 +13,6 @@ type Context = { params: Promise<{ holdingSlug: string }> };
 const nativeUnavailable = () => {
   throw new ApiError(503, "NATIVE_PROCUREMENT_UNAVAILABLE", "The native Procurement service is unavailable.");
 };
-
-export async function GET(_request: Request, context: Context) {
-  try {
-    const actor = await requireWorkContext((await context.params).holdingSlug);
-    return Response.json(
-      canonicalDestinationLinks({ data: await supplierInvoicePolicy(actor) }),
-      { headers: { "Cache-Control": "private, no-store" } },
-    );
-  } catch (error) {
-    return errorResponse(error);
-  }
-}
 
 export async function POST(request: Request, context: Context) {
   try {

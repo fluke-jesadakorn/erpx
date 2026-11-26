@@ -150,7 +150,6 @@ export function CustomerAccessConsole({
           {detail.invitations && detail.invitations.length > 0 && <div><h3>Invitation history</h3>{detail.invitations.map(invite=><p key={String(invite.id)}>Generation {String(invite.generation)} · {String(invite.state)} · <TimeText appearance="standard" value={Number(invite.created_at)}/></p>)}</div>}
         </Card>
       )}
-      {detail?.supportThreads?.map(thread=><PortalSupportResponseEditor key={thread.requestId} base={base} bindingVersion={Number(detail.binding.version)} thread={thread}/>)}
     </div></CRMDraftBoundary></CRMCommandState>
   );
 }

@@ -12,7 +12,7 @@ import { ledgerWorkspace, journalDetail, workJournalRows } from "@erpx/server-fi
 import { beforeAll,beforeEach,afterEach,describe,expect,it,vi } from "vitest";
 import { applyMigrations,env,type TestMigration } from "../../support/runtime-env";
 import { expenseDb as db,expenseFixture,key } from "../../support/helpers/expense-fixture";
-import {approvePayment,bankWorkspace,calculateCloseReconciliations,confirmPayment,createInvoice,createParty,createPayment,importBankStatement,invoicesPage,postInvoice,releasePayment,reversePayment,workInvoiceRows,listCharts,listAccounts,getPayment} from '@erpx/server-finance/public/finance';
+import {approvePayment,bankWorkspace,calculateCloseReconciliations,confirmPayment,createInvoice,createParty,createPayment,importBankStatement,invoicesPage,postInvoice,releasePayment,reversePayment,workInvoiceRows,financeChartListNative,listAccounts,getPayment} from '@erpx/server-finance/public/finance';
 import {seedFinanceJournal} from '../../support/helpers/finance-journal-seed';
 import {getInvoice} from '@erpx/server-finance/public/finance-invoice-read';
 import { packageGrantStore,readCompanyPackageGrants } from "@erpx/server-commercial/public/package-grants";
@@ -50,7 +50,7 @@ it("package Finance denies unpurchased money and reads, while shadow retains ori
 });
 it("package Finance preserves POS accounting references without granting general Finance work",async()=>{
  await financePackage("active",null,"pos");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");
- expect((await listCharts(f.owner)).map(row=>row.id)).toContain(f.chart);expect((await listAccounts(f.owner,f.chart)).map(row=>row.id)).toContain(f.accounts.cash);
+ expect((await financeChartListNative(f.owner)).map(row=>row.id)).toContain(f.chart);expect((await listAccounts(f.owner,f.chart)).map(row=>row.id)).toContain(f.accounts.cash);
  for(const read of [()=>financeSetupWorkspace(f.owner),()=>ledgerWorkspace(f.owner)])await expect(read()).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
  const before=await financialRows();expect(await financialRows()).toEqual(before);
 });

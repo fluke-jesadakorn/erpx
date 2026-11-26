@@ -1,15 +1,9 @@
 import 'server-only';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 import { ApiError } from '@erpx/server-runtime/public/http';
-import {
-  assetPurchaseControls,
-  withAssetPurchasedCommand,
-  withAssetPurchasedRead,
-} from '@erpx/server-assets/public/purchases';
+import { withAssetPurchasedCommand } from '@erpx/server-assets/public/purchases';
 import {
   nativeAssetCommand,
-  nativeAssetDetail,
-  nativeAssetWorkspace,
   nativeAssetsAvailable,
   nativeAssetsFailure,
 } from './native-assets-page';
@@ -26,50 +20,6 @@ function unavailable(): never {
     'NATIVE_ASSETS_UNAVAILABLE',
     'The native Assets service is unavailable.',
   );
-}
-
-async function purchasedRead(actor: WorkContext, capability: 'assets.register' | 'assets.maintenance') {
-  try {
-    await withAssetPurchasedRead(actor, capability, async () => undefined);
-  } catch (error) {
-    ownedFailure(error);
-  }
-}
-
-/** Native workspace plus the retained purchase controls used only to gate the
- * current UI. The native owner read still enforces its own current authority. */
-export async function ownedAssetWorkspace(actor: WorkContext, holdingSlug: string) {
-  if (!nativeAssetsAvailable()) return undefined;
-  await purchasedRead(actor, 'assets.register');
-  let data;
-  try {
-    data = await nativeAssetWorkspace(actor, holdingSlug);
-  } catch (error) {
-    ownedFailure(error);
-  }
-  if (!data) return undefined;
-  try {
-    return { ...data, purchases: await assetPurchaseControls(actor) };
-  } catch (error) {
-    ownedFailure(error);
-  }
-}
-
-export async function ownedAssetDetail(actor: WorkContext, holdingSlug: string, id: string) {
-  if (!nativeAssetsAvailable()) return undefined;
-  await purchasedRead(actor, 'assets.register');
-  let data;
-  try {
-    data = await nativeAssetDetail(actor, holdingSlug, id);
-  } catch (error) {
-    ownedFailure(error);
-  }
-  if (!data) return undefined;
-  try {
-    return { ...data, purchases: await assetPurchaseControls(actor) };
-  } catch (error) {
-    ownedFailure(error);
-  }
 }
 
 /** Keep the retained Commercial admission check ahead of the native command.

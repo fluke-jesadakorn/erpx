@@ -316,6 +316,12 @@ function configuration(raw: NativeProjectsConfiguration) {
   return { base, holdings, timeout: raw.timeoutMs };
 }
 
+/** Validated private base, exact Holding hosts and bound timeout for other
+ * Projects owner transports; they must not repeat or loosen this parsing. */
+export function nativeProjectsTargets(raw: NativeProjectsConfiguration) {
+  return configuration(raw);
+}
+
 function transportCall(
   transport: NativeProjectsTransport,
   base: URL,

@@ -11,6 +11,10 @@ import {
   type NativeProjectWbs,
 } from './native-project-wbs-page';
 
+/** The owner handoff-view read shares the same fail-closed Projects transport
+ * and is reached through this existing package export. */
+export { ownedProjectHandoffs, type NativeProjectHandoffView } from './native-project-handoffs';
+
 function ownedFailure(error: unknown): never {
   const failure = nativeProjectsFailure(error);
   if (failure) throw new ApiError(failure.status, failure.code, failure.message);

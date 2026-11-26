@@ -12,7 +12,7 @@ import { MoneyAmount } from "@erpx/feature-finance/components/money/currency-pro
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
-import {bankWorkspace,listCharts} from '@erpx/server-finance/public/finance';
+import {bankWorkspace,financeChartListNative} from '@erpx/server-finance/public/finance';
 import {nativeFinanceBankPageFailure,nativeFinanceBankWorkspace} from '@erpx/feature-finance/lib/native-finance-bank-read';
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { FilterBar } from "@erpx/ui/components/foundation";
@@ -76,7 +76,7 @@ export default async function BankPage({
     const native = await nativeFinanceBankWorkspace(nativeActor, holdingSlug, selected);
     return (native as Awaited<ReturnType<typeof bankWorkspace>> | undefined) ?? bankWorkspace(actor, selected);
   };
-  const [data, charts] = await Promise.all([readBank(query), listCharts(actor)]).catch(
+  const [data, charts] = await Promise.all([readBank(query), financeChartListNative(actor)]).catch(
     (error) => pageError(nativeFinanceBankPageFailure(error) ?? error, actor.holdingSlug),
   );
   const tools=await financeCompanyTools(actor),automationEnabled=tools.some(r=>r.tool==="bank_automation"&&r.enabled===1),automation=!printing?await bankAutomationWorkspace(actor,query):null;

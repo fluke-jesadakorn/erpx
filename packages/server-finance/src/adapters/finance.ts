@@ -137,7 +137,6 @@ async function purchasedFinanceReferenceRead<Result>(actor: WorkContext, run: (d
     return run(write);
 }
 
-export async function listCharts(actor: WorkContext, provided?:SqlDatabase) { return provided ? financeReadService(provided).listCharts(actor) : purchasedFinanceReferenceRead(actor, db => financeReadService(db).listCharts(actor)); }
 export async function createChart(actor: WorkContext, input: z.infer<typeof createChartSchema>, id: string) { return withFinanceConfigurationCommand(actor,{key:id,operation:"finance.chart.create",purpose:"new-work"},tx=>configurationService(tx).createChart(actor,input,id)); }
 export async function createSupplyPostingChart(actor:WorkContext,raw:unknown,key:string){const request=supplyPostingChartSchema.parse(raw);return withSupplyPostingPrerequisiteCommand(actor,'chart',request,key,tx=>configurationService(tx,request).createChart(actor,request.input,key));}
 export async function createSalesPostingChart(actor:WorkContext,raw:unknown,key:string){const request=salesPostingChartSchema.parse(raw);return withSalesPostingCommand(actor,'chart',request,key,tx=>configurationService(tx,request).createChart(actor,request.input,key));}

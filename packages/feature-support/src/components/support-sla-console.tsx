@@ -8,7 +8,7 @@ import { TimeText } from "@erpx/feature-people_payroll/components/time/time-pref
 import { useRef, useState } from "react";
 import { useRouter } from "@erpx/feature-shared/lib/destination-router";
 import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
-import type { supportSlaWorkspace } from "@erpx/server-support/public/support-sla";
+import type { NativeSupportSlaWorkspace } from "@erpx/feature-support/lib/native-support-read";
 import { Card, FormLayout } from "@erpx/ui/components/foundation";
 type Policy = { id: string; name: string; version: number };
 export function SupportSlaConsole({
@@ -18,7 +18,7 @@ export function SupportSlaConsole({
   policies = [],
 }: {
   base: string;
-  data?: Awaited<ReturnType<typeof supportSlaWorkspace>>;
+  data?: NativeSupportSlaWorkspace;
   ticket?: { id: string; version: number };
   policies?: Policy[];
 }) {

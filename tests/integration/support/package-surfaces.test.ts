@@ -18,7 +18,6 @@ import {seedSupportTicket,seedSupportTicketState} from '../../support/helpers/su
 import {seedSupportIncident} from '../../support/helpers/support-incident-seed';
 import { supportEvidence } from "@erpx/server-support/public/support-evidence";
 import {incidentWorkspace} from '@erpx/server-support/public/support-incidents';
-import { supportSlaWorkspace } from "@erpx/server-support/public/support-sla";
 import { packageGrantStore } from "@erpx/server-commercial/adapters/package-grants";
 import { readCompanyPackageGrants, packageGrantRevision } from "@erpx/server-commercial/public/package-grants";
 import { ownerPackageObligations, withOwnerPackageObligations } from "@erpx/server-commercial/public/owner-package-obligations";
@@ -117,7 +116,7 @@ async function orderTicket() {
 
 it("denies real Support collections, detail and evidence without a purchase", async () => {
   for (const read of [() => getSupportTicket(f.manager, ticketId), () => supportEvidence(f.manager, ticketId),
-    () => incidentWorkspace(f.manager), () => supportSlaWorkspace(f.manager)])
+    () => incidentWorkspace(f.manager)])
     await expect(read()).rejects.toMatchObject({ status: 403, code: "PACKAGE_REQUIRED" });
 });
 
@@ -202,7 +201,6 @@ it("intersects real workspace/detail controls with draining, expiry and retained
   await grant("draining");
 
   expect(await supportDetail(f.manager, ticketId)).toMatchObject({ canManage: true, canReopen: false });
-  expect(await supportSlaWorkspace(f.manager)).toMatchObject({ canCreate: false, canManage: true });
   expect(await supportEvidence(f.manager, ticketId)).toMatchObject({ canChange: true });
   await grant("active", "support", Date.now() - 1);
   expect(await supportDetail(f.manager, ticketId)).toMatchObject({ canManage: true, canReopen: false });

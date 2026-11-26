@@ -65,12 +65,6 @@ nextDocumentVersion:(facts:{id:string;})=>db.prepare(nextDocumentVersionSql).bin
 async reviewedAiDocument(facts){return stage(await nativeOps.aiDocument({documentId:facts.documentId,itemId:facts.id,version:facts.next,name:facts.name,checksum:facts.checksum,bytes:facts.bytes,body:facts.body,actorId:facts.actorId,now:facts.now}));},
 async acceptProposal(facts){return stage(await nativeOps.acceptProposal({proposalJson:facts.fact0,proposalId:facts.proposalId}));},
 async advanceItem(facts){return stage(await nativeOps.advanceItem({now:facts.now,id:facts.id}));},
-ruleImpact:async(id)=>db
-        .prepare(
-          fill(contract.ruleImpact,{visibility:v.sql,purchase:(await purchase()).where}),
-        )
-        .bind(id, id, ...v.values)
-        .all(),
 access:(id,p)=>access(db,a,id,p),command:(raw,key)=>legalCommand(db,a,raw,key),purchase:async(raw,key)=>saveEmployeeRequest(db,a,null,employeeRequestSchema.parse(raw),key),executedCopies:id=>executedCopies(db,a,id),batch:steps=>db.batch(steps.map(resolve)),guardChanges:(id,version,key,edit,allowFrozen,preparation)=>guards(db,a,id,version,key,edit,allowFrozen,preparation).map(stage),event:async(id,action,note,version,identifier,now)=>stage(await nativeOps.event({id,action,note,version,identifier,now})),replay:(key,operation,id,input)=>replayCommand(db,a,key,operation,id,input),commit:(key,operation,input,id,version,result,steps)=>executeCommand(db,a,key,operation,input,id,version,result,steps.map(resolve)),
 };}
 function application(db:SqlDatabase,a:WorkContext,views?:LegalSavedViewsView){const repository:LegalOperationsRepository={...unit(db,a,views),transaction:async work=>{if(await legalPackageEnforcementMode()!=="disabled")return inLegalOwnerUnit(db,a.companyId,tx=>work(unit(tx,a,views)));return inLegacyLegalOperationsUnit(db,a.companyId,tx=>work(unit(tx,a,views)));}};return createLegalOperationsApplication({actor:a,repository,require:p=>requirePermission(a,p),clock:{now:()=>Date.now()},identifiers:{next:()=>crypto.randomUUID()},hash,byteLength:text=>Buffer.byteLength(text),error:(status,code,message)=>new ApiError(status,code,message)});}
@@ -89,4 +83,3 @@ export async function applyAiDraft(db:SqlDatabase,a:WorkContext,raw:unknown,key:
 }
 export function prepareCounselPurchase(db:PostgresDatabase,a:WorkContext,raw:unknown,key:string){return application(db,a).prepareCounselPurchase(raw,key);}
 export function startRevision(db:PostgresDatabase,a:WorkContext,raw:unknown,key:string){return application(db,a).startRevision(raw,key);}
-export function ruleImpact(db:SqlDatabase,a:WorkContext,id:string){return application(db,a).ruleImpact(id);}

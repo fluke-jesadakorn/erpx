@@ -7,7 +7,7 @@ import {ApiError,errorResponse} from "@erpx/server-runtime/public/http";
 import {loadPublicMarketingForm} from "@erpx/server-marketing/public/marketing-public-form";
 import {readBoundedPublicMarketingBody} from "@erpx/server-marketing/public/public-form-body";
 type Context={params:Promise<{holdingSlug:string;formId:string}>};
-async function form(context:Context,submissionKey?:string){const {holdingSlug,formId}=await context.params,binding=await holdingBindingBySlug(holdingSlug),{write}=await holdingResources(binding.id),row=submissionKey?await loadPublicMarketingSubmissionForm(write,formId,submissionKey):await loadPublicMarketingForm(write,formId);return {write,row};}
+async function form(context:Context,submissionKey?:string){const {holdingSlug,formId}=await context.params,binding=await holdingBindingBySlug(holdingSlug),{write}=await holdingResources(binding.id),row=submissionKey?await loadPublicMarketingSubmissionForm(write,holdingSlug,formId,submissionKey):await loadPublicMarketingForm(write,holdingSlug,formId);return {write,row};}
 export async function GET(_request:Request,context:Context){try{const {row}=await form(context);return Response.json(canonicalDestinationLinks({data:{id:row.id,name:row.name,version:row.version,preview:JSON.parse(row.preview_json),presentation:row.presentation,consentRequired:true}}),{headers:{'Cache-Control':'no-store'}});}catch(e){return errorResponse(e);}}
 export async function POST(request:Request,context:Context){try{
  if(request.headers.get('origin')!==requestPublicOrigin(request))throw new ApiError(403,'ORIGIN_FORBIDDEN','Use the form website.');

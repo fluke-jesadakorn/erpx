@@ -653,7 +653,6 @@ it("keeps the operations register, recursive hold preview and rule-impact reads 
   expect(shared).toContain("legal-operations-sources.json");
   expect(shared).toContain("fill(contract.registerRows");
   expect(shared).toContain("fill(contract.holdPreview");
-  expect(shared).toContain("fill(contract.ruleImpact");
   expect(operationsContract.registerRows).toBe(
     "SELECT i.*,t.data FROM legal_items i JOIN {table} t ON t.item_id=i.id WHERE {visibility} AND {purchase} AND i.kind=? ORDER BY i.id LIMIT 10001",
   );
@@ -661,13 +660,10 @@ it("keeps the operations register, recursive hold preview and rule-impact reads 
     "WITH RECURSIVE linked(id) AS (SELECT ?::text UNION SELECT l.target_id FROM linked t JOIN legal_links l ON l.source_id=t.id WHERE l.relation IN ('evidence','derived','amends','obligation'))",
   );
   expect(operationsContract.holdPreview).toContain("{visibility} AND {purchase}");
-  expect(operationsContract.ruleImpact).toContain("LIMIT 500");
-  expect(operationsContract.ruleImpact.match(/\?/g) ?? []).toHaveLength(2);
   expect(rust).toContain('include_str!("legal-operations-sources.json")');
   expect(rust).toContain('render_legal_register_rows');
   expect(rust).toContain('render_legal_hold_preview');
-  expect(rust).toContain('render_legal_rule_impact');
-  expect(rust).toContain('2a16d72e65440ae74d59b813a5561e93663b5f43f4833f60819f4066335264cf');
+  expect(rust).toContain('3016fe25f76067a306bc08dab6fa11187a892ebb6dd29f647b4a26b1df507877');
 });
 
 

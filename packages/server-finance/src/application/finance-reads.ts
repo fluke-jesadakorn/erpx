@@ -6,6 +6,7 @@ import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { minorToDecimal } from "@erpx/feature-finance/lib/finance-money";
 import type { PersistedInvoiceLine, FinanceError } from '@erpx/server-finance/domain/invoice-line-revision';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
+import { financeChartListNative } from '../adapters/native-lane-6/client';
 export type BankWorkspace = {
     accounts: FinanceRow[];
     statements: FinanceRow[];
@@ -37,9 +38,6 @@ export interface FinanceReadPorts {
         options: {
             excludeYearClose?: boolean;
         };
-    }): Promise<FinanceRow[]>;
-    charts(facts: {
-        actor: WorkContext;
     }): Promise<FinanceRow[]>;
     accounts(facts: {
         actor: WorkContext;
@@ -153,11 +151,6 @@ export interface FinanceReadPorts {
 }
 export function createFinanceReads(ports: FinanceReadPorts) {
     const { decimalToMinor } = createFinancePolicy(ports.error);
-    async function listCharts(actor: WorkContext) {
-        actor = ports.authorize(actor, "finance.read");
-        await ports.ready(actor);
-        return (await ports.charts({ actor }));
-    }
     async function listAccounts(actor: WorkContext, chartId: string) {
         actor = ports.authorize(actor, "finance.read");
         await ports.ready(actor);
@@ -213,11 +206,11 @@ export function createFinanceReads(ports: FinanceReadPorts) {
         actor = ports.authorize(actor, "finance.read");
         await ports.ready(actor);
         const [charts, accounts, parties, invoices, periods] = await Promise.all([
-            listCharts(actor), (await ports.workspaceAccounts({ actor })),
+            financeChartListNative(actor), (await ports.workspaceAccounts({ actor })),
             (await ports.workspaceParties({ actor })), listInvoices(actor),
             (await ports.workspacePeriods({ actor })),
         ]);
-        return { charts: charts as FinanceRow[], accounts: accounts, parties: parties, invoices, periods: periods };
+        return { charts: charts as unknown as FinanceRow[], accounts: accounts, parties: parties, invoices, periods: periods };
     }
     async function bankStatementDetail(actor: WorkContext, id: string, page = 1) {
         actor = ports.authorize(actor, 'finance.read');
@@ -300,5 +293,5 @@ export function createFinanceReads(ports: FinanceReadPorts) {
         q?: string;
     }) { actor = ports.authorize(actor, 'finance.read'); await ports.ready(actor); const result = await ports.bankWorkspace(actor, query); if (query?.match && !result.selectedTransaction)
         throw ports.error(404, 'BANK_TRANSACTION_NOT_FOUND', 'Bank movement not found in this Company.'); return result; }
-    return { listCharts, listAccounts, listInvoices, workInvoiceRows, getInvoice, listPayments, getPayment, invoiceWorkspace, bankStatementDetail, aging, trialBalance, statements, financeOverviewCounts, invoicesPage, bankWorkspace };
+    return { listAccounts, listInvoices, workInvoiceRows, getInvoice, listPayments, getPayment, invoiceWorkspace, bankStatementDetail, aging, trialBalance, statements, financeOverviewCounts, invoicesPage, bankWorkspace };
 }

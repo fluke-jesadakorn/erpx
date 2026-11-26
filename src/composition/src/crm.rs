@@ -442,6 +442,73 @@ impl<C: Clock + Send + Sync + 'static> CrmService<C> {
     }
 }
 
+impl<C: Clock + Send + Sync + 'static> CrmService<C> {
+    /// Native lead case-event history. The owner read executes on the same
+    /// serializable Holding unit after the current Account/IAM authority.
+    pub async fn history(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        selection: HoldingWorkspaceRequest,
+        lead_id: String,
+    ) -> Result<
+        erpx_server_crm::public::crm_case_event_history::CrmCaseEventHistoryHttpResponse,
+        Error,
+    > {
+        use erpx_server_crm::public::crm_case_event_history::{
+            CrmHistoryActor, PgCrmCaseEventHistory, crm_case_event_history,
+        };
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(move || Ok(selection)),
+                Self::access(),
+                CrmSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let lead_id = lead_id.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("commerce.read")?;
+                        let actor = CrmHistoryActor {
+                            user_id: current.user_id().as_str().to_owned(),
+                            company_id: company.clone(),
+                            permissions: current.command_iam_metadata().permissions.clone(),
+                            modules: current.modules().to_vec(),
+                            expires_at: current.expires_at(),
+                        };
+                        let mut repository = PgCrmCaseEventHistory::new(connection);
+                        let rows = crm_case_event_history(
+                            &actor,
+                            &lead_id,
+                            &mut repository,
+                            clock.now(),
+                        )
+                        .await?;
+                        let data = serde_json::to_value(rows).map_err(|_| unavailable())?;
+                        Ok(
+                            erpx_server_crm::public::crm_case_event_history::CrmCaseEventHistoryHttpResponse {
+                                data,
+                                context: context(current),
+                            },
+                        )
+                    })
+                },
+            )
+            .await
+    }
+}
+
 pub struct CrmBackend<C> {
     policy: Arc<AccountPolicy>,
     scopes: Arc<dyn BusinessScopeSlugs>,
@@ -2928,4 +2995,30 @@ fn _activity_router(
     targets: Vec<CrmActivityCommandHttpTarget>,
 ) -> Result<axum::Router, BusinessError> {
     erpx_server_crm::public::activities_http::crm_activity_command_http_router(targets)
+}
+
+impl<C: Clock + Send + Sync + 'static>
+    erpx_server_crm::public::crm_case_event_history::CrmCaseEventHistoryHttpBackend
+    for CrmBackend<C>
+{
+    fn read<'a>(
+        &'a self,
+        request: erpx_server_crm::public::crm_case_event_history::CrmCaseEventHistoryReadRequest<'a>,
+    ) -> erpx_server_crm::public::crm_case_event_history::CrmCaseEventHistoryHttpFuture<
+        'a,
+        erpx_server_crm::public::crm_case_event_history::CrmCaseEventHistoryHttpResponse,
+    > {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .history(
+                    request.host,
+                    proof,
+                    selection,
+                    request.lead_id.to_owned(),
+                )
+                .await
+                .map_err(business)
+        })
+    }
 }

@@ -3416,6 +3416,8 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut crm_targets = Vec::new();
         #[cfg(feature = "existing-business")]
+        let mut crm_history_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut crm_command_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut crm_activity_targets = Vec::new();
@@ -3572,12 +3574,14 @@ async fn assemble_checked(
         let mut portal_support_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut portal_support_customer_targets = Vec::new();
+        let mut portal_thread_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut sales_notification_command_targets = Vec::new();
         let mut files_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut portal_attachment_targets = Vec::new();
         let mut procurement_targets = Vec::new();
+        let mut procurement_policy_targets = Vec::new();
         let mut procurement_command_targets = Vec::new();
         let mut procurement_bill_command_targets = Vec::new();
         let mut files_command_targets = Vec::new();
@@ -3597,6 +3601,8 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut project_structure_targets = Vec::new();
         #[cfg(feature = "existing-business")]
+        let mut project_handoff_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut project_actuals_targets = Vec::new();
         let mut operations_targets = Vec::new();
         let mut staff_work_targets = Vec::new();
@@ -3605,6 +3611,7 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut workforce_targets = Vec::new();
         let mut asset_targets = Vec::new();
+        let mut asset_read_targets = Vec::new();
         let mut bank_targets = Vec::new();
         let mut generic_payment_targets = Vec::new();
         let mut bank_workspace_targets = Vec::new();
@@ -3665,6 +3672,34 @@ async fn assemble_checked(
                         )),
                     )),
                 });
+            }
+            if let Some(company) = companies.iter().next() {
+                let authorizer = Arc::new(
+                    HoldingWorkAuthorizer::new(
+                        pools[0].clone(),
+                        pools[i + 1].clone(),
+                        holding.registration.holding_id.clone(),
+                        (*config.policy).clone(),
+                        clock.clone(),
+                        config.holdings_registry.clone(),
+                    )
+                    .map_err(|_| "PRIVATE_API_ASSETS_CONFIGURATION_INVALID")?,
+                );
+                asset_read_targets.push(
+                    erpx_server_assets::public::native_asset_read::NativeAssetReadTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        actor: Arc::new(crate::asset_http::NativeAssetReadActorSource::new(
+                            config.policy.clone(),
+                            authorizer,
+                            holding.registration.holding_id.clone(),
+                            company.clone(),
+                        )),
+                        reader: erpx_server_assets::public::native_asset_read::asset_read_for_pool(
+                            pools[i + 1].clone(),
+                        ),
+                    },
+                );
             }
         }
         for (i, holding) in config.holdings.iter().enumerate() {
@@ -3738,23 +3773,32 @@ async fn assemble_checked(
                 .map_err(|_| "PRIVATE_API_CRM_AUTHORITY_INVALID")?,
             );
             for company in companies {
+                let crm_backend = Arc::new(crate::crm::CrmBackend::new(
+                    config.policy.clone(),
+                    Arc::new(FinanceJournalReadScopeHeaders),
+                    Arc::new(crate::crm::CrmService::new(
+                        authorizer.clone(),
+                        crate::crm::CrmConfiguration::new(
+                            holding.registration.holding_id.clone(),
+                            company.clone(),
+                        ),
+                        Arc::new(SharedClock(clock.clone())),
+                    )),
+                ));
                 crm_targets.push(
                     erpx_server_crm::public::pipeline_http::CrmPipelineHttpTarget {
                         host: holding.host.clone(),
                         holding_slug: holding.registration.slug.clone(),
                         origin: format!("https://{}", holding.host),
-                        backend: Arc::new(crate::crm::CrmBackend::new(
-                            config.policy.clone(),
-                            Arc::new(FinanceJournalReadScopeHeaders),
-                            Arc::new(crate::crm::CrmService::new(
-                                authorizer.clone(),
-                                crate::crm::CrmConfiguration::new(
-                                    holding.registration.holding_id.clone(),
-                                    company.clone(),
-                                ),
-                                Arc::new(SharedClock(clock.clone())),
-                            )),
-                        )),
+                        backend: crm_backend.clone(),
+                    },
+                );
+                crm_history_targets.push(
+                    erpx_server_crm::public::crm_case_event_history::CrmCaseEventHistoryHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: crm_backend,
                     },
                 );
                 crm_command_targets.push(
@@ -4835,6 +4879,14 @@ async fn assemble_checked(
                         backend: procurement_backend.clone(),
                     },
                 );
+                procurement_policy_targets.push(
+                    erpx_server_procurement::public::supplier_bill_policy_read::SupplierBillPolicyHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: procurement_backend.clone(),
+                    },
+                );
                 files_command_targets.push(
                     Arc::new(crate::files_wave1b::FilesCommandBackendImpl::new(
                         files_executor.clone(),
@@ -5012,6 +5064,7 @@ async fn assemble_checked(
                     ),
                     Arc::new(SharedClock(clock.clone())),
                     catalogue.clone(),
+                    pools[i + 1].clone(),
                 ));
                 let projects_backend = Arc::new(crate::projects::ProjectsBackend::new(
                     config.policy.clone(),
@@ -5033,6 +5086,19 @@ async fn assemble_checked(
                         host: holding.host.clone(),
                         holding_slug: holding.registration.slug.clone(),
                         origin: format!("https://{}", holding.host),
+                        backend: projects_backend.clone(),
+                    },
+                );
+                #[cfg(feature = "existing-business")]
+                project_handoff_targets.push(
+                    erpx_server_projects::public::project_handoffs_http::HandoffViewHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        actor: erpx_server_projects::public::project_handoffs::HandoffViewActor {
+                            can_read_costs: false,
+                            same_person: Arc::new(|_| false),
+                        },
                         backend: projects_backend.clone(),
                     },
                 );
@@ -5995,24 +6061,34 @@ async fn assemble_checked(
                         && product.audience == "portal"
                 }) {
                     if !portal_support_customer_targets.iter().any(|target: &erpx_server_customer_authority::public::portal_support_commands::CustomerTarget| target.host == portal.host) {
+                    let ack_service = Arc::new(crate::portal_support_commands::PortalSupportAcknowledgementService::from_runtime(
+                        pools[0].clone(),
+                        pools[i + 1].clone(),
+                        crate::portal_support_commands::PortalSupportAcknowledgementConfiguration::new(
+                            holding.registration.holding_id.clone(),
+                            holding.registration.slug.clone(),
+                            portal.audience.clone(),
+                        ),
+                        config.policy.environment.clone(),
+                        Arc::new(SharedClock(clock.clone())),
+                    ));
+                    let ack_backend = Arc::new(crate::portal_support_commands::PortalSupportAcknowledgementBackend::new(
+                        ack_service,
+                    ));
                     portal_support_customer_targets.push(crate::portal_support_commands::customer_target(
                         portal.host.clone(),
                         holding.registration.slug.clone(),
                         portal.origin.clone(),
-                        Arc::new(crate::portal_support_commands::PortalSupportAcknowledgementBackend::new(
-                            Arc::new(crate::portal_support_commands::PortalSupportAcknowledgementService::from_runtime(
-                                pools[0].clone(),
-                                pools[i + 1].clone(),
-                                crate::portal_support_commands::PortalSupportAcknowledgementConfiguration::new(
-                                    holding.registration.holding_id.clone(),
-                                    holding.registration.slug.clone(),
-                                    portal.audience.clone(),
-                                ),
-                                config.policy.environment.clone(),
-                                Arc::new(SharedClock(clock.clone())),
-                            )),
-                        )),
+                        ack_backend.clone(),
                     ));
+                    portal_thread_targets.push(
+                        erpx_server_customer_authority::public::portal_support_threads::CustomerThreadTarget {
+                            host: portal.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                            origin: portal.origin.clone(),
+                            backend: ack_backend,
+                        },
+                    );
                     }
                 }
                 #[cfg(feature = "existing-business")]
@@ -7281,6 +7357,15 @@ async fn assemble_checked(
             );
         }
         #[cfg(feature = "existing-business")]
+        if !crm_history_targets.is_empty() {
+            router = router.merge(
+                erpx_server_crm::public::crm_case_event_history::crm_case_event_history_http_router(
+                    crm_history_targets,
+                )
+                .map_err(|_| "PRIVATE_API_CRM_HISTORY_ROUTER_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
         if !crm_command_targets.is_empty() {
             router = router.merge(
                 erpx_server_crm::public::leads_http::crm_lead_command_http_router(
@@ -8069,6 +8154,15 @@ async fn assemble_checked(
             );
         }
         #[cfg(feature = "existing-business")]
+        if !portal_thread_targets.is_empty() {
+            router = router.merge(
+                erpx_server_customer_authority::public::portal_support_threads::portal_support_threads_router(
+                    portal_thread_targets,
+                )
+                .map_err(|_| "PRIVATE_API_PORTAL_THREADS_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
         if !sales_notification_command_targets.is_empty() {
             router = router.merge(
                 crate::sales_notification_commands::router(sales_notification_command_targets)
@@ -8156,6 +8250,12 @@ async fn assemble_checked(
                     .map_err(|_| "PRIVATE_API_PROCUREMENT_CONFIGURATION_INVALID")?,
             );
         }
+        if !procurement_policy_targets.is_empty() {
+            router = router.merge(
+                erpx_server_procurement::public::supplier_bill_policy_read::supplier_bill_policy_http_router(procurement_policy_targets)
+                    .map_err(|_| "PRIVATE_API_PROCUREMENT_CONFIGURATION_INVALID")?,
+            );
+        }
 
         if !files_command_targets.is_empty() {
             router = router.merge(
@@ -8186,6 +8286,15 @@ async fn assemble_checked(
                     project_structure_targets,
                 )
                 .map_err(|_| "PRIVATE_API_PROJECTS_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !project_handoff_targets.is_empty() {
+            router = router.merge(
+                erpx_server_projects::public::project_handoffs_http::handoff_views_router(
+                    project_handoff_targets,
+                )
+                .map_err(|_| "PRIVATE_API_PROJECT_HANDOFFS_CONFIGURATION_INVALID")?,
             );
         }
         #[cfg(feature = "existing-business")]
@@ -8287,6 +8396,14 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_assets::public::asset_http::asset_router(asset_targets)
                     .map_err(|_| "PRIVATE_API_ASSETS_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !asset_read_targets.is_empty() {
+            router = router.merge(
+                erpx_server_assets::public::native_asset_read::native_asset_read_router(
+                    asset_read_targets,
+                )
+                .map_err(|_| "PRIVATE_API_ASSETS_READ_CONFIGURATION_INVALID")?,
             );
         }
     }

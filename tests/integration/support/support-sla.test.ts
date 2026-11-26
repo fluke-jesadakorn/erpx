@@ -6,7 +6,7 @@ import {getSupportTicket} from '@erpx/server-support/public/support';
 import {seedSupportTicket} from '../../support/helpers/support-ticket-seed';
 import {seedSupportClock,seedSupportPolicy} from '../../support/helpers/support-sla-seed';
 import {startSupportClock} from '@erpx/server-support/public/rules/support-clock';
-import {getSupportPolicy,supportSlaWorkspace,supportPolicyWork} from "@erpx/server-support/public/support-sla";
+import {getSupportPolicy,supportPolicyWork} from "@erpx/server-support/public/support-sla";
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>,order:string;
 const policy={calendar:{timezone:'Asia/Bangkok',weekdays:[1,2,3,4,5],opensAtMinute:540,closesAtMinute:1020,holidays:[]},targetMinutes:60,pauseWhileWaiting:true};
@@ -18,9 +18,7 @@ it('reads an approved target and its attached clock with scope isolation',async(
  const p=await seedSupportPolicy(db,f.owner,{name:'Reviewed target',policy}),id=await ticket(),clock=startSupportClock(policy,Date.parse('2026-09-21T02:00:00Z'));
  await seedSupportClock(db,id,{policyId:p.id,policyVersion:2,clock,actorId:f.owner.userId,reason:'Attach reviewed target'});
  await expect(getSupportPolicy({...f.owner,companyId:'other'},String(p.id))).rejects.toMatchObject({status:404});
- expect((await supportSlaWorkspace({...f.head,branchId:'other'})).items).toEqual([]);
  expect(await getSupportTicket(f.head,id)).toMatchObject({sla_policy_version:2,version:2});
- expect((await supportSlaWorkspace(f.head)).items.find(item=>item.id===id)).toMatchObject({policyId:p.id,policyVersion:2,clock:{state:'running'}});
  expect((await supportPolicyWork(f.manager)).find(row=>row.id===p.id)?.queue).toBe('completed');
 });
 it('retains durable breach escalation across retries, checks live routing and records a manager without changing the ticket',async()=>{
@@ -46,6 +44,5 @@ it('removes a withdrawn reviewer from policy actions and never approves through 
  const p=await seedSupportPolicy(db,f.owner,{name:'Routing eligibility',policy,status:'draft',createdBy:f.owner.userId});
  await db.prepare("UPDATE hr_people SET status='inactive' WHERE user_id=? AND company_id=?").bind(f.manager.userId,f.company).run();
  expect((await supportPolicyWork(f.manager)).find(x=>x.id===p.id)?.canAct).toBe(false);
- expect((await supportSlaWorkspace(f.manager)).policies.find(x=>x.id===p.id)?.canApprove).toBe(false);
  expect(await getSupportPolicy(f.owner,String(p.id))).toMatchObject({status:'draft',version:1});
 });

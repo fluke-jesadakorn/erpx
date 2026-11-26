@@ -19,7 +19,6 @@ type Settings = Readonly<{ base: string; timeoutMs: number; holdings: readonly H
 export const MARKETING_RD_ASSET_POINT = 'marketing-asset-point';
 export const MARKETING_RD_ASSET_LIST = 'marketing-asset-list';
 export const MARKETING_RD_FORM_SOURCE = 'active-form-source';
-export const MARKETING_RD_FORM_PUBLIC = 'active-form-public';
 export const MARKETING_RD_FORM_CONTENT_EXISTS = 'form-content-exists';
 export const MARKETING_RD_FORM_CONTENT_ROW = 'form-content-row';
 export const MARKETING_RD_FORM_LOCK = 'form-asset-lock';
@@ -53,7 +52,6 @@ const KINDS = new Set<string>([
   MARKETING_RD_ASSET_POINT,
   MARKETING_RD_ASSET_LIST,
   MARKETING_RD_FORM_SOURCE,
-  MARKETING_RD_FORM_PUBLIC,
   MARKETING_RD_FORM_CONTENT_EXISTS,
   MARKETING_RD_FORM_CONTENT_ROW,
   MARKETING_RD_FORM_LOCK,

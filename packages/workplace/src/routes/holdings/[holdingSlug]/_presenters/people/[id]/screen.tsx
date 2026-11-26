@@ -25,7 +25,8 @@ directoryOptions,
 personAccess,
 } from "@erpx/server-people_payroll/public/people-directory";
 
-import { getPerson,payrollOptions } from "@erpx/server-people_payroll/public/people-payroll";
+import { getPerson } from "@erpx/server-people_payroll/public/people-payroll";
+import { nativePayGroups } from "@erpx/server-people_payroll/adapters/people-payroll";
 
 
 
@@ -63,7 +64,7 @@ export default async function PersonDetail({
     levelHistory = (
       await presentation.personLevelHistory(person.engagement_id ?? null)
     ).results;
-  const groups = await payrollOptions(actor).catch(() => []);
+  const groups = await nativePayGroups(actor);
   const query = await searchParams;
   const lifecycleData = canManagePeople(actor) && !!person.engagement_id ? await presentation.peopleLifecycleData(actor) : null;
   const employeeSelf =

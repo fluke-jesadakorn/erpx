@@ -23,7 +23,7 @@ import type {commerceOverview} from '@erpx/server-commerce/public/commerce';
 import type {commercePermissions} from '@erpx/server-commerce/public/commerce';
 import type {bankWorkspace} from '@erpx/server-finance/public/finance';
 import type {bankStatementDetail} from '@erpx/server-finance/public/finance';
-import type {listCharts} from '@erpx/server-finance/public/finance';
+import type {financeChartListNative} from '@erpx/server-finance/public/finance';
 import type {listAccounts} from '@erpx/server-finance/public/finance';
 import type {aging} from '@erpx/server-finance/public/finance';
 import type {trialBalance} from '@erpx/server-finance/public/finance';
@@ -119,7 +119,7 @@ export interface RecordDetailsPorts<Effect> {
     requirePermission(actor: WorkContext, permission: string): WorkContext;
     bankWorkspace(...args: Parameters<typeof bankWorkspace>): PortResult<ReturnType<typeof bankWorkspace>, Effect>;
     bankStatementDetail(...args: Parameters<typeof bankStatementDetail>): PortResult<ReturnType<typeof bankStatementDetail>, Effect>;
-    listCharts(...args: Parameters<typeof listCharts>): PortResult<ReturnType<typeof listCharts>, Effect>;
+    financeChartListNative(...args: Parameters<typeof financeChartListNative>): PortResult<ReturnType<typeof financeChartListNative>, Effect>;
     listAccounts(...args: Parameters<typeof listAccounts>): PortResult<ReturnType<typeof listAccounts>, Effect>;
     aging(...args: Parameters<typeof aging>): PortResult<ReturnType<typeof aging>, Effect>;
     trialBalance(...args: Parameters<typeof trialBalance>): PortResult<ReturnType<typeof trialBalance>, Effect>;
@@ -282,7 +282,7 @@ export function createRecordDetailsApplication<Effect>(ports: RecordDetailsPorts
         if (target.kind === "finance_account" || target.kind === "trial_balance") {
             if (args.statementId)
                 await ports.statementSourceAccounts(actor, args.statementId, { period: 'current' }, 1);
-            const charts = await ports.listCharts(actor);
+            const charts = await ports.financeChartListNative(actor);
             let account = await r.readRecordSupplementDataAccount(target.id, actor.companyId);
             if (!account || !charts.some(chart => chart.id === account!.chart_id))
                 throw new BusinessRuleError(404, "ACCOUNT_NOT_FOUND", "Account not found.");

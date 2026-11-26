@@ -33,15 +33,11 @@ catch (error) {
 } }
 const caller = (actor: unknown) => actor as ProjectActualsActor;
 function application(db: SqlDatabase, owner: ProjectActualsActor, purchasedCostHistory = true) { const repository: ProjectStructureRepository = { ...owner0(db), ...owner1(db), ...owner2(db, owner) }; return createProjectStructureApplication({ purchasedCostHistory, repository, clock: { now: () => Date.now() }, requirePermission: (...args) => requirePermission(...args), activeStaff: (...args) => inward(() => activeStaff(db, ...args)), getProject: (...args) => inward(() => getProject(db, ...args)), listMilestones: (...args) => inward(() => nativeProjectMilestones(db, ...args)) }); }
-async function purchasedApplication(db:SqlDatabase,a:WorkContext){
- const access=await projectPurchaseControls(db,a);return application(db,caller(a),!access||access['projects.costs'].history);
-}
 /** Native Projects graph read. The mounted owner route performs the
  * Company/membership, purchase, context and serializable-boundary checks and
  * returns the complete graph; there is no TypeScript graph query or fallback.
  * The retained `providedWrite` parameter keeps the shared port signature. */
 export async function projectGraph(a: WorkContext, projectId: string, providedWrite?: SqlDatabase) { const db = providedWrite ?? (await holdingResources(a.holdingId)).write;await requireProjectPurchasedRead(db,a,projectId);return exposed(() => nativeProjectGraph(a, projectId)); }
-export async function projectHandoffs(a: WorkContext, projectId: string) { const { write: db } = await holdingResources(a.holdingId);await requireProjectPurchasedRead(db,a,projectId,'projects.handover');const owner=await purchasedApplication(db,a);return exposed(() => owner.projectHandoffs(a, projectId)); }
 export async function projectHandoffTarget(db: SqlDatabase, a: WorkContext, id: string) { await requireProjectPurchasedRead(db,a,undefined,'projects.handover');return exposed(() => application(db,caller(a)).projectHandoffTarget(a, id)); }
 export async function projectHandoffWork(a: WorkContext) {
  const {write:db}=await holdingResources(a.holdingId),access=await projectPurchaseControls(db,a);

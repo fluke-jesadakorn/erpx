@@ -30,7 +30,7 @@ import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-orig
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import {createFinanceStarter,financeStarterSchema} from "@erpx/server-finance/public/finance-starter";
-import {createInvoice,voidDraftInvoice,createParty,createPayment,approvePayment,releasePayment,confirmPayment,confirmPaymentSchema,reversePayment,reversePaymentSchema,allocatePayment,exportPaymentFile,createTaxCode,taxCodeSchema,createAsset,assetSchema,depreciateAsset,createBudget,budgetSchema,createLease,leaseSchema,createLoan,loanSchema,createRevenueContract,revenueContractSchema,createRevenueObligation,revenueObligationSchema,listAccounts,listCharts,listInvoices,listPayments,getPayment,postInvoice,invoicePostingSchema,journalBatchSchema,statements,trialBalance,reportDateSchema,partySchema,invoiceSchema,prepareFxRevaluation,prepareFxRevaluationSchema,decideFxRevaluation,decideFxRevaluationSchema} from '@erpx/server-finance/public/finance';
+import {createInvoice,voidDraftInvoice,createParty,createPayment,approvePayment,releasePayment,confirmPayment,confirmPaymentSchema,reversePayment,reversePaymentSchema,allocatePayment,exportPaymentFile,createTaxCode,taxCodeSchema,createAsset,assetSchema,depreciateAsset,createBudget,budgetSchema,createLease,leaseSchema,createLoan,loanSchema,createRevenueContract,revenueContractSchema,createRevenueObligation,revenueObligationSchema,listAccounts,financeChartListNative,listInvoices,listPayments,getPayment,postInvoice,invoicePostingSchema,journalBatchSchema,statements,trialBalance,reportDateSchema,partySchema,invoiceSchema,prepareFxRevaluation,prepareFxRevaluationSchema,decideFxRevaluation,decideFxRevaluationSchema} from '@erpx/server-finance/public/finance';
 import {getInvoice,nativeFinanceAging} from '@erpx/server-finance/public/finance-invoice-read';
 import { z } from "zod";
 import {financeDueWorkspace,financeDueDraftSchema,financeDueDecisionSchema,nativeFinanceDueDraftSchedule,nativeFinanceDueDraftDecide} from "@erpx/server-finance/public/finance-due-drafts";
@@ -170,7 +170,7 @@ export async function GET(request: Request, context: FinanceRouteContext) {
     }
     if (parts[0] === "charts") {
       if (parts[1] && parts[2] === "accounts") return Response.json(canonicalDestinationLinks({ data: await listAccounts(actor, parts[1]) }));
-      return Response.json(canonicalDestinationLinks({ data: await listCharts(actor) }));
+      return Response.json(canonicalDestinationLinks({ data: await financeChartListNative(actor) }));
     }
     if(parts[0]==="supplier-batches"&&parts.length===3&&parts[2]==="export"){const native=await nativeSupplierBatchExportRecovery(request,holdingSlug,parts[1]);if(native)return native;throw new ApiError(503,"NATIVE_FINANCE_UNAVAILABLE","The native Finance supplier-batch export recovery service is unavailable.");}
     if(parts[0]==="supplier-batches")return Response.json(canonicalDestinationLinks({data:parts[1]?await supplierBatchWorkspace(actor,parts[1]):await listSupplierBatches(actor)}));

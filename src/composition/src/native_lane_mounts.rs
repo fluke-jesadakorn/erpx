@@ -1164,5 +1164,26 @@ pub fn mount(
         .map_err(|_| "PRIVATE_API_LEGAL_RULE_IMPACT_INVALID")?,
     );
 
+    // POS: room-charge reversal queue read.
+    router = router.merge(
+        erpx_server_pos::public::native_room_charges::router_for_holdings(
+            config
+                .holdings
+                .iter()
+                .enumerate()
+                .map(|(i, holding)| {
+                    (
+                        erpx_server_pos::public::native_room_charges::RoomChargeTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                        },
+                        pools[i + 1].clone(),
+                    )
+                })
+                .collect(),
+        )
+        .map_err(|_| "PRIVATE_API_POS_ROOM_CHARGES_INVALID")?,
+    );
+
     Ok(router)
 }

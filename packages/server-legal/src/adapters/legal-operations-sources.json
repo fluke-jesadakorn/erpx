@@ -1,5 +1,4 @@
 {
   "registerRows": "SELECT i.*,t.data FROM legal_items i JOIN {table} t ON t.item_id=i.id WHERE {visibility} AND {purchase} AND i.kind=? ORDER BY i.id LIMIT 10001",
-  "holdPreview": "WITH RECURSIVE linked(id) AS (SELECT ?::text UNION SELECT l.target_id FROM linked t JOIN legal_links l ON l.source_id=t.id WHERE l.relation IN ('evidence','derived','amends','obligation')) SELECT i.id,i.title FROM linked t JOIN legal_items i ON i.id=t.id WHERE {visibility} AND {purchase}",
-  "ruleImpact": "SELECT i.id,i.kind,i.title,i.state,i.due_date,i.version FROM legal_items i JOIN legal_links l ON (l.source_id=? AND l.target_id=i.id) OR (l.target_id=? AND l.source_id=i.id) WHERE {visibility} AND {purchase} ORDER BY i.id LIMIT 500"
+  "holdPreview": "WITH RECURSIVE linked(id) AS (SELECT ?::text UNION SELECT l.target_id FROM linked t JOIN legal_links l ON l.source_id=t.id WHERE l.relation IN ('evidence','derived','amends','obligation')) SELECT i.id,i.title FROM linked t JOIN legal_items i ON i.id=t.id WHERE {visibility} AND {purchase}"
 }

@@ -15,6 +15,9 @@ use erpx_server_assets::public::asset_register::{
     create_asset_in_unit, validate_registration_currency,
 };
 use erpx_server_assets::public::asset_register::{AssetFuture, NewAsset};
+use erpx_server_assets::public::native_asset_read::{
+    AssetReadActorFuture, AssetReadActorRequest, AssetReadActorSource,
+};
 #[cfg(feature = "existing-business")]
 use erpx_server_assets::public::retirement_work::{
     AssetRetirementWorkEffect, AssetRetirementWorkSource,
@@ -941,6 +944,83 @@ impl<C: Clock + Send + Sync + 'static> AssetHttpBackend for AssetHttpService<C> 
 
 /// The composition backend can pass through the owner's typed business failure;
 /// persistence failures become one bounded unavailable outcome.
+/// Composition-owned actor authority for the native Asset register read. It
+/// re-resolves the exact Account/Holding session and current IAM authority; the
+/// owner router never accepts an actor from the wire.
+pub struct NativeAssetReadActorSource {
+    policy: Arc<AccountPolicy>,
+    authorizer: Arc<HoldingWorkAuthorizer>,
+    holding: erpx_server_shared::public::HoldingId,
+    company: erpx_server_shared::public::CompanyId,
+}
+
+impl NativeAssetReadActorSource {
+    pub fn new(
+        policy: Arc<AccountPolicy>,
+        authorizer: Arc<HoldingWorkAuthorizer>,
+        holding: erpx_server_shared::public::HoldingId,
+        company: erpx_server_shared::public::CompanyId,
+    ) -> Self {
+        Self {
+            policy,
+            authorizer,
+            holding,
+            company,
+        }
+    }
+
+    fn access() -> WorkAuthorizationRequest {
+        WorkAuthorizationRequest {
+            permission: "records.read".into(),
+            module: Some("assets".into()),
+            destination: "services/assets".into(),
+            api: true,
+        }
+    }
+}
+
+impl AssetReadActorSource for NativeAssetReadActorSource {
+    fn actor<'a>(&'a self, request: AssetReadActorRequest<'a>) -> AssetReadActorFuture<'a> {
+        Box::pin(async move {
+            let inbound = parse_inbound_account_request(&self.policy, request.headers)?;
+            if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+                return Err(BusinessError::new(
+                    FailureKind::NotFound,
+                    "NOT_FOUND",
+                    "Not found.",
+                ));
+            }
+            let (branch, department) = AssetScopeHeaders.slugs(request.headers)?;
+            let captured = CapturedHoldingMutation::capture(request.headers, branch, department);
+            let holding = self.holding.clone();
+            let company = self.company.clone();
+            let scope_company = company.clone();
+            self.authorizer
+                .execute_with_sources_deferred(
+                    request.host,
+                    inbound.into_proof(),
+                    move || captured.resolve_read(scope_company),
+                    Self::access(),
+                    AssetSources,
+                    move |_connection, current| {
+                        let holding = holding.clone();
+                        let company = company.clone();
+                        Box::pin(async move {
+                            if current.holding_id() != &holding
+                                || current.selection().workspace().company_id != company
+                            {
+                                return Err(scope_required().into());
+                            }
+                            Ok(asset_actor(current)?)
+                        })
+                    },
+                )
+                .await
+                .map_err(unit_error)
+        })
+    }
+}
+
 fn unit_error(error: AssetError) -> BusinessError {
     match error {
         PgTransactionError::Business(error) => error,

@@ -2,7 +2,7 @@ import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { expenseFixture, expenseDb as db, key } from "../../support/helpers/expense-fixture";
 import { organizationAccessData } from "@erpx/server-organization/public/organization-access";
-import { getPerson, listPeople } from "@erpx/server-people_payroll/public/people-payroll";
+import { getPerson } from "@erpx/server-people_payroll/public/people-payroll";
 import {positionSchema} from '@erpx/server-organization/public/organization';
 import {savePosition} from '../../support/helpers/organization-positions';
 import {installStaffLevels} from '../../support/helpers/organization-levels';
@@ -72,7 +72,7 @@ it("keeps the richer IT organization projection away from ordinary directory rea
 });
 
 it("keeps legacy HR list and private person APIs behind HR or self access", async () => {
-  await expect(listPeople(fixture.claimant)).rejects.toMatchObject({ status: 403 });
+
   const other = await db.prepare("SELECT id FROM hr_people WHERE company_id=? AND user_id IS DISTINCT FROM ? LIMIT 1")
     .bind(fixture.company, fixture.claimant.userId).first<{id:string}>();
   expect(other).toBeTruthy();

@@ -15,8 +15,8 @@ import { ProjectEditor } from "@erpx/feature-records/components/loaders/modules-
 import { ProjectMilestoneConsole } from "@erpx/feature-records/components/loaders/modules--project-milestones";
 import { ProjectActualsConsole } from "@erpx/feature-records/components/loaders/modules--project-actuals";
 import { ProjectStructureConsole } from "@erpx/feature-records/components/loaders/modules--project-structure-console";
-import {projectGraph,projectHandoffs} from "@erpx/server-projects/public/project-structure";
-import { ownedProjectWbs } from "@erpx/feature-projects/public/native-project-wbs-owned";
+import {projectGraph} from "@erpx/server-projects/public/project-structure";
+import { ownedProjectHandoffs, ownedProjectWbs } from "@erpx/feature-projects/public/native-project-wbs-owned";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 
 
@@ -48,7 +48,7 @@ export default async function Project({
     ).results;
   const isProjectOwner = samePerson(actor, project.owner_user_id);
   const workerChoices=projectWorkerDisplayChoices(options.people);
-  const active=project.lifecycle_status==='active',graph=["structure","handoff"].includes(view)?await projectGraph(actor,id):null,handoffs=view==="handoff"&&projectPurchased(purchases,"projects.handover","history")?await projectHandoffs(actor,id):[];
+  const active=project.lifecycle_status==='active',graph=["structure","handoff"].includes(view)?await projectGraph(actor,id):null,handoffs=view==="handoff"&&projectPurchased(purchases,"projects.handover","history")?await ownedProjectHandoffs(actor,holdingSlug,id).catch((e) => pageError(e, holdingSlug)):[];
   const canReadCosts = hasPermission(actor, "finance.read")&&projectPurchased(purchases,"projects.costs","history"),
     canWriteCosts = hasPermission(actor, "finance.write"),
     canApproveCosts = hasPermission(actor, "finance.approve"),

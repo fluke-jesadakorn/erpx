@@ -3,7 +3,7 @@ import {env,applyMigrations} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
 import {getProject,projectSchema,taskSchema} from '@erpx/server-operations/public/staff-tasks';
 import {saveTask} from '../../support/operations/staff-tasks-fixture';
-import {projectGraph,projectHandoffs,projectHandoffWork} from "@erpx/server-projects/public/project-structure";
+import {projectGraph,projectHandoffWork} from "@erpx/server-projects/public/project-structure";
 import {listProjectCostAllocations} from "@erpx/server-projects/public/project-actuals";
 import {approveCostAllocation,seedCostAllocation,seedMilestone,seedProjectFor,seedWorkLog} from "./project-actual-fixtures";
 import {seedFinanceJournal} from '../../support/helpers/finance-journal-seed';
@@ -212,9 +212,6 @@ it('reads the retained project graph and independent handoff snapshots without a
  const handoffId=`project-handoff-${key()}`,snapshot=JSON.stringify(graph);
  await db.prepare('INSERT INTO staff_project_handoffs(id,company_id,project_id,source_project_version,recipient_id,status,version,snapshot_json,snapshot_sha256,evidence,prepared_by,prepared_at) VALUES(?,?,?,?,?,\'pending\',1,?::jsonb,?,?,?,?)').bind(handoffId,f.company,p.id,graph.project.version,f.head.userId,snapshot,'a'.repeat(64),'Retained read evidence.',f.owner.userId,now).run();
  await db.prepare("UPDATE staff_projects SET lifecycle_status='handoff_pending',version=version+1 WHERE id=?").bind(p.id).run();
- const ownerView=(await projectHandoffs(f.owner,p.id))[0],recipientView=(await projectHandoffs(f.head,p.id))[0];
- expect(ownerView).toMatchObject({id:handoffId,status:'pending',snapshot:{canReadCosts:true,totals:{approvedMinutes:45,costByCurrency:{THB:'7501'}}}});
- expect(recipientView).toMatchObject({id:handoffId,status:'pending',snapshot:{canReadCosts:false,totals:{approvedMinutes:0,costByCurrency:{}}}});
  expect((await projectHandoffWork(f.head)).find(item=>item.id===handoffId)).toMatchObject({queue:'todo',canAct:true,href:`/projects/${p.id}#project-structure`});
  expect((await projectHandoffWork(f.owner)).find(item=>item.id===handoffId)).toMatchObject({queue:'waiting',canAct:false});
 });
@@ -239,8 +236,6 @@ it('closes hierarchical work packages with real tasks, independently reviewed ti
  await db.prepare("INSERT INTO staff_project_handoffs(id,company_id,project_id,source_project_version,recipient_id,status,version,snapshot_json,snapshot_sha256,evidence,prepared_by,prepared_at,decided_by,decided_at) VALUES(?,?,?,?,?,'rejected',2,?::jsonb,?,'Reviewed rejection evidence.',?,?,?,?)").bind(first,f.company,p.id,graph.project.version,f.head.userId,snapshot,digest,f.owner.userId,now,f.head.userId,now+1).run();
  await db.prepare("INSERT INTO staff_project_handoffs(id,company_id,project_id,source_project_version,recipient_id,status,version,snapshot_json,snapshot_sha256,evidence,prepared_by,prepared_at,decided_by,decided_at) VALUES(?,?,?,?,?,'accepted',2,?::jsonb,?,'Reviewed acceptance evidence.',?,?,?,?)").bind(second,f.company,p.id,graph.project.version,f.head.userId,snapshot,digest,f.owner.userId,now+2,f.head.userId,now+3).run();
  await db.prepare("UPDATE staff_projects SET lifecycle_status='completed',version=version+1 WHERE id=?").bind(p.id).run();
- expect((await projectHandoffs(f.owner,p.id)).map(h=>h.status).sort()).toEqual(['accepted','rejected']);
- expect((await projectHandoffs(f.head,p.id))[0].snapshot.totals).toEqual({approvedMinutes:0,costByCurrency:{}});
  expect((await projectHandoffWork(f.head)).find(item=>item.id===second)).toMatchObject({queue:'completed',canAct:false,href:`/projects/${p.id}#project-structure`});
  await expect(db.prepare('UPDATE staff_project_handoffs SET evidence=? WHERE id=?').bind('Overwritten issued artifact',second).run()).rejects.toMatchObject({code:'23514'});
  await expect(db.prepare('DELETE FROM staff_project_package_actuals WHERE source_id=?').bind(time.id).run()).rejects.toMatchObject({code:'23514'});

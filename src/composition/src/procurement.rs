@@ -299,6 +299,111 @@ impl<C: Clock + Send + Sync + 'static> ProcurementService<C> {
         }
     }
 
+    /// Native supplier-invoice policy read. The owner applies `finance.read`
+    /// and reveals immutable events only under Company `finance.approve`
+    /// authority; composition supplies the purchased-package overlay.
+    pub async fn supplier_bill_policy(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        selection: HoldingWorkspaceRequest,
+    ) -> Result<erpx_server_procurement::public::supplier_bill_policy_read::SupplierBillPolicyHttpResponse, Error> {
+        use erpx_server_procurement::public::supplier_bill_policy_read::{
+            PolicyPurchase, PolicyReadActor, invoice_policy_in_transaction,
+        };
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(move || Ok(selection)),
+                Self::access(),
+                ProcurementSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("commerce.read")?;
+                        let actor = PolicyReadActor {
+                            user_id: current.user_id().as_str().to_owned(),
+                            company_id: company.clone(),
+                            permissions: current.command_iam_metadata().permissions.clone(),
+                            expires_at: current.expires_at(),
+                        };
+                        let workspace = current.selection().workspace();
+                        let company_authority =
+                            current.has_permission("finance.approve")
+                                && workspace.branch_id.is_none()
+                                && workspace.department_id.is_none();
+                        let now = clock.now();
+                        let catalogue = current_package_catalogue()?;
+                        let request = |purpose| PurchaseRequest {
+                            capabilities: vec!["supply.purchasing".into()],
+                            purpose,
+                            mode: PackageEnforcementMode::Enforced,
+                        };
+                        let purchase = {
+                            let mut reader = PgCompanyPurchaseReader::new(
+                                holding.clone(),
+                                company.clone(),
+                                connection,
+                                &catalogue,
+                            );
+                            let history = reader
+                                .inspect(&request(CapabilityPurpose::History), now)
+                                .await
+                                .map_err(business)?;
+                            let new_work = reader
+                                .inspect(&request(CapabilityPurpose::NewWork), now)
+                                .await
+                                .map_err(business)?;
+                            let settle = reader
+                                .inspect(&request(CapabilityPurpose::SettleExisting), now)
+                                .await
+                                .map_err(business)?;
+                            let allowed = |inspection: &erpx_server_commercial::public::purchases::PurchaseInspection| {
+                                inspection
+                                    .access
+                                    .iter()
+                                    .find(|access| access.capability == "supply.purchasing")
+                                    .is_some_and(|access| access.allowed_by_mode)
+                            };
+                            PolicyPurchase {
+                                new_work: allowed(&new_work),
+                                settle_existing: allowed(&settle),
+                                history: allowed(&history),
+                                revision: history.revision.clone(),
+                            }
+                        };
+                        let data = invoice_policy_in_transaction(
+                            connection,
+                            &actor,
+                            company_authority,
+                            Some(purchase),
+                            now,
+                        )
+                        .await?;
+                        let data = serde_json::to_value(data).map_err(|_| unavailable())?;
+                        Ok(
+                            erpx_server_procurement::public::supplier_bill_policy_read::SupplierBillPolicyHttpResponse {
+                                data,
+                                context: context(current),
+                            },
+                        )
+                    })
+                },
+            )
+            .await
+    }
+
     async fn read_detail<Input>(
         &self,
         host: &str,
@@ -1750,4 +1855,25 @@ fn _bill_command_router(
     targets: Vec<SupplierBillCommandHttpTarget>,
 ) -> Result<axum::Router, BusinessError> {
     supplier_bill_command_http_router(targets)
+}
+
+impl<C: Clock + Send + Sync + 'static>
+    erpx_server_procurement::public::supplier_bill_policy_read::SupplierBillPolicyHttpBackend
+    for ProcurementBackend<C>
+{
+    fn read<'a>(
+        &'a self,
+        request: erpx_server_procurement::public::supplier_bill_policy_read::SupplierBillPolicyHttpRequest<'a>,
+    ) -> erpx_server_procurement::public::supplier_bill_policy_read::SupplierBillPolicyHttpFuture<
+        'a,
+        erpx_server_procurement::public::supplier_bill_policy_read::SupplierBillPolicyHttpResponse,
+    > {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .supplier_bill_policy(request.host, proof, selection)
+                .await
+                .map_err(business)
+        })
+    }
 }

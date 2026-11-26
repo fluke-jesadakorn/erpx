@@ -229,6 +229,7 @@ pub struct ProjectsService<C> {
     configuration: ProjectsConfiguration,
     clock: Arc<C>,
     catalogue: Arc<CommercialCatalogue>,
+    pool: erpx_server_runtime::public::postgres::DatabasePool,
 }
 
 #[derive(Clone)]
@@ -272,12 +273,14 @@ impl<C: Clock + Send + Sync + 'static> ProjectsService<C> {
         configuration: ProjectsConfiguration,
         clock: Arc<C>,
         catalogue: Arc<CommercialCatalogue>,
+        pool: erpx_server_runtime::public::postgres::DatabasePool,
     ) -> Self {
         Self {
             authorizer,
             configuration,
             clock,
             catalogue,
+            pool,
         }
     }
 
@@ -432,6 +435,95 @@ impl<C: Clock + Send + Sync + 'static> ProjectsService<C> {
                             data: serde_json::to_value(data).map_err(|_| unavailable())?,
                             context: context(current),
                         })
+                    })
+                },
+            )
+            .await
+    }
+
+    /// Native stored-handoff view read. The owner projection enforces the
+    /// same-person and purchase-qualified cost policy on the stored snapshot.
+    pub async fn handoffs(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        selection: HoldingWorkspaceRequest,
+        project_id: String,
+    ) -> Result<
+        erpx_server_projects::public::project_handoffs_http::HandoffViewHttpResponse,
+        Error,
+    > {
+        use erpx_server_projects::public::project_handoffs::{
+            HandoffViewActor, read_handoff_views,
+        };
+        use erpx_server_projects::public::project_handoffs_read::PgHandoffViews;
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let catalogue = self.catalogue.clone();
+        let pool = self.pool.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(move || Ok(selection)),
+                Self::access(),
+                ProjectsSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let catalogue = catalogue.clone();
+                    let project_id = project_id.clone();
+                    let pool = pool.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.read")?;
+                        let now = clock.now();
+                        let can_read_costs = if current.has_permission("finance.read") {
+                            let mut reader = PgCompanyPurchaseReader::new(
+                                holding.clone(),
+                                company.clone(),
+                                connection,
+                                &catalogue,
+                            );
+                            let request = PurchaseRequest {
+                                capabilities: vec!["projects.costs".into()],
+                                purpose: CapabilityPurpose::History,
+                                mode: PackageEnforcementMode::Enforced,
+                            };
+                            match reader.inspect(&request, now).await {
+                                Ok(inspection) => inspection.require_allowed().is_ok(),
+                                Err(_) => false,
+                            }
+                        } else {
+                            false
+                        };
+                        let me = current.user_id().as_str().to_owned();
+                        let same_me = me.clone();
+                        let actor = HandoffViewActor {
+                            can_read_costs,
+                            same_person: Arc::new(move |id: &str| id == same_me),
+                        };
+                        let repository = PgHandoffViews::from_pool(pool);
+                        let rows = read_handoff_views(
+                            &actor,
+                            &repository,
+                            company.as_str(),
+                            &me,
+                            &project_id,
+                        )
+                        .await?;
+                        Ok(
+                            erpx_server_projects::public::project_handoffs_http::HandoffViewHttpResponse {
+                                data: serde_json::Value::Array(rows),
+                                context: context(current),
+                            },
+                        )
                     })
                 },
             )
@@ -2709,4 +2801,31 @@ fn _project_attachment_router(
     targets: Vec<ProjectAttachmentHttpTarget>,
 ) -> Result<axum::Router, BusinessError> {
     project_attachment_router(targets)
+}
+
+impl<C: Clock + Send + Sync + 'static>
+    erpx_server_projects::public::project_handoffs_http::HandoffViewHttpBackend
+    for ProjectsBackend<C>
+{
+    fn read<'a>(
+        &'a self,
+        _actor: &'a erpx_server_projects::public::project_handoffs::HandoffViewActor,
+        request: erpx_server_projects::public::project_handoffs_http::HandoffViewHttpRequest<'a>,
+    ) -> erpx_server_projects::public::project_handoffs_http::HandoffViewHttpFuture<
+        'a,
+        erpx_server_projects::public::project_handoffs_http::HandoffViewHttpResponse,
+    > {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .handoffs(
+                    request.host,
+                    proof,
+                    selection,
+                    request.project_id.to_owned(),
+                )
+                .await
+                .map_err(business)
+        })
+    }
 }

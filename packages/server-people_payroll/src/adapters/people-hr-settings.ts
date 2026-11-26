@@ -12,7 +12,7 @@ import { leaveAdministration } from "@erpx/server-people_payroll/adapters/leave-
 import {organizationOverview} from '@erpx/server-organization/public/organization';
 import { peopleLifecycleData } from "@erpx/server-people_payroll/adapters/people-lifecycle";
 import { directoryOptions } from "@erpx/server-people_payroll/adapters/people-directory";
-import { payrollOptions } from "@erpx/server-people_payroll/adapters/people-payroll";
+import { nativePayGroups } from "@erpx/server-people_payroll/adapters/people-payroll";
 import { peopleTemplatesData } from "@erpx/server-people_payroll/adapters/people-templates";
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
 import type { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
@@ -66,7 +66,7 @@ function application() {
         }>(),
         currentPolicies: (companyId: string, encoded: string, today: string, _today2: string) => readHrCurrentPolicies(write, companyId, JSON.parse(encoded) as string[], today, lane8Actor),
         payGroups: (companyId: string, encoded: string) => readHrPayGroups(write, companyId, JSON.parse(encoded) as string[], lane8Actor) };
-    return createPeopleHrApplication({ clock: { now: Date.now }, repository, prepare: async (actor) => { write = (await holdingResources(actor.holdingId)).write; lane8Actor = actor; }, companyAuthority: actor => requireCompanyAuthority(write, actor), staffSettings: actor => staffSettings(write, actor), defaults: actor => defaultCatalog(write, actor), leave: leaveAdministration, payrollOptions, organization: actor => organizationOverview(write, actor), templates: actor => peopleTemplatesData(write as PostgresDatabase, iamActorFromWork(actor)), lifecycle: actor => peopleLifecycleData(write, actor), iam: actor => iamOverview(write as PostgresDatabase, iamActorFromWork(actor)), directoryOptions });
+    return createPeopleHrApplication({ clock: { now: Date.now }, repository, prepare: async (actor) => { write = (await holdingResources(actor.holdingId)).write; lane8Actor = actor; }, companyAuthority: actor => requireCompanyAuthority(write, actor), staffSettings: actor => staffSettings(write, actor), defaults: actor => defaultCatalog(write, actor), leave: leaveAdministration, payrollOptions: nativePayGroups, organization: actor => organizationOverview(write, actor), templates: actor => peopleTemplatesData(write as PostgresDatabase, iamActorFromWork(actor)), lifecycle: actor => peopleLifecycleData(write, actor), iam: actor => iamOverview(write as PostgresDatabase, iamActorFromWork(actor)), directoryOptions });
 }
 async function invoke<Result>(run: () => Promise<Result>) { try {
     return await run();

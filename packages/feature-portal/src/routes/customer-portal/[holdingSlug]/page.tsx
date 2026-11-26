@@ -66,7 +66,6 @@ export default async function Page({ params }: { params: Promise<{ holdingSlug: 
               {(Array.isArray(record.fulfillments) ? record.fulfillments : []).map((fulfillment: Record<string, unknown>) => (
                 <p key={String(fulfillment.number)}>{String(fulfillment.number)} · recorded {<TimeText appearance="standard" value={Number(fulfillment.createdAt)} />}</p>
               ))}
-              {record.supportThreads?.map(thread=><PortalSupportAcknowledgement key={`${accountKey}:${record.binding_id}:${thread.requestId}`} holdingSlug={holdingSlug} bindingId={String(record.binding_id)} bindingVersion={Number(record.binding_version)} thread={portalSupportThreadDisplay(thread)} purchase={portalPurchaseDisplay(record.purchase)}/>)}
               <CustomerPortalActions
                 key={`${accountKey}:${record.binding_id}`}
                 holdingSlug={holdingSlug}

@@ -23,6 +23,7 @@ import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-p
 import {activePayee} from './pp-read-tail-r53-native';
 import {PP_RD19_ACTIVE_ENGAGEMENT_EXISTS_SQL} from './pp-read-tail-r19-sources';
 import { nativePeoplePayrollReadAll, PEOPLE_PAYROLL_RD_PAYROLL_OPTIONS_GROUPS } from './native-people-payroll-read';
+import { nativePayGroupOptions } from './native-pay-group-options';
 import {hireHandoffPayGroupSchema,type HireHandoffPayGroupResult} from '@erpx/server-people_payroll/domain/hire-handoff-pay-group';
 import {withHireHandoffPayGroupCommand,hireHandoffPayGroupEnvelope} from '@erpx/server-people_payroll/adapters/hire-handoff-pay-group';
 import {workforcePurchaseControls,workforcePurchasedHistorySql,withWorkforcePurchasedCommand} from "@erpx/server-people_payroll/adapters/workforce-purchases";
@@ -646,16 +647,17 @@ async function invoke<Result>(run: () => Promise<Result>) {
 }
 export async function payrollCostAssignments(actor: WorkContext, engagementId: string) { return withPayrollPurchasedRead(actor, tx => invoke(() => createPeoplePayrollApplication(context(tx)).payrollCostAssignments(actor, engagementId))); }
 export async function verifyPayrollCostAssignment(actor: WorkContext, assignmentId: string, input: z.infer<typeof payrollCostVerificationSchema>, commandId: string) { return withPayrollPurchasedCommand(actor, { key: commandId, operation: "people.cost-assignment.verify", purpose: "settle-existing" }, tx => invoke(() => createPeoplePayrollApplication(context(tx)).verifyPayrollCostAssignment(actor, assignmentId, input, commandId))); }
-export async function listPeople(actor: WorkContext, filters: {
-    levelId?: string;
-    departmentId?: string;
-} = {}) { return withPeoplePurchasedRead(actor,"people.directory",(tx,current)=>invoke(()=>createPeoplePayrollApplication(context(tx)).listPeople(current,filters)),"people.manage"); }
+/** Active pay-group options come only from the native owner read. No TS SQL or
+ * planned-TS fallback: an absent or invalid native configuration fails closed. */
+export async function nativePayGroups(actor: WorkContext): Promise<Record<string, unknown>[]> {
+    const groups = await nativePayGroupOptions(undefined as unknown as SqlDatabase, actor.companyId, actor);
+    return groups as unknown as Record<string, unknown>[];
+}
 export async function getPerson(actor: WorkContext, personId: string, engagementId?: string) { return withPeoplePurchasedRead(actor,"people.directory",async(tx,current)=>{const data=await invoke(()=>createPeoplePayrollApplication(context(tx)).getPerson(current,personId,engagementId)),workforcePurchase=await workforcePurchaseControls(current,tx);return {...data,...(workforcePurchase?{workforcePurchase}:{})};}); }
 export async function peopleSummary(actor: WorkContext) { return withPeoplePurchasedRead(actor,"people.directory",async(tx,current)=>{const purchase=await peopleOverviewPurchases(tx,current);return invoke(()=>createPeoplePayrollApplication(context(tx)).peopleSummary(purchase["people.payroll"].history?current:{...current,iam:current.iam?{...current.iam,permissions:current.iam.permissions.filter(permission=>permission!=="payroll.read")}:current.iam}));}); }
 export async function createPerson(actor: WorkContext, input: z.infer<typeof createPersonSchema>, id: string) { return withPeoplePurchasedCommand(actor,{key:id,operation:"people.person.create",capability:"people.directory",purpose:"new-work",permission:"people.manage",resultKind:"person"},tx=>invoke(()=>createPeoplePayrollApplication(context(tx)).createPerson(actor, input, id))); }
 export async function createEngagement(actor: WorkContext, input: z.infer<typeof createEngagementSchema>, id: string) { return withPeoplePurchasedCommand(actor,{key:id,operation:"people.engagement.create",capability:"people.lifecycle",purpose:"new-work",permission:"people.manage",resultKind:"engagement",target:{kind:"person",id:input.personId}},tx=>invoke(()=>createPeoplePayrollApplication(context(tx)).createEngagement(actor, input, id))); }
 export async function createCompensation(actor: WorkContext, input: z.infer<typeof compensationSchema>, key: string) { return withPeoplePurchasedCommand(actor,{key,operation:"people.compensation.create",capability:"people.directory",purpose:"new-work",permission:"people.manage",resultKind:"compensation",target:{kind:"engagement",id:input.engagementId}},tx=>invoke(()=>createPeoplePayrollApplication(context(tx)).createCompensation(actor, input, key))); }
-export async function payrollOptions(actor: WorkContext) { return withPayrollPurchasedRead(actor, tx => invoke(() => createPeoplePayrollApplication(context(tx)).payrollOptions(actor))); }
 export async function assignPayGroup(actor: WorkContext, engagementId: string, input: z.infer<typeof assignPayGroupSchema>, key: string) { return invoke(() => createPeoplePayrollApplication(context()).assignPayGroup(actor, engagementId, input, key)); }
 export async function transitionCompensation(actor: WorkContext, compensationId: string, input: z.infer<typeof compensationTransitionSchema>, key: string) { return withPeoplePurchasedCommand(actor,{key,operation:"people.compensation.transition",capability:"people.directory",purpose:input.status==="approved"?"new-work":"settle-existing",permission:"people.compensation.approve",target:{kind:"compensation",id:compensationId}},tx=>invoke(()=>createPeoplePayrollApplication(context(tx)).transitionCompensation(actor, compensationId, input, key))); }
 export async function transitionEngagement(actor: WorkContext, engagementId: string, input: z.infer<typeof engagementTransitionSchema>, key: string) { return withPeoplePurchasedCommand(actor,{key,operation:"people.engagement.transition",capability:"people.lifecycle",purpose:input.status==="active"?"new-work":"settle-existing",permission:"people.manage",target:{kind:"engagement",id:engagementId}},tx=>invoke(()=>createPeoplePayrollApplication(context(tx)).transitionEngagement(actor, engagementId, input, key))); }

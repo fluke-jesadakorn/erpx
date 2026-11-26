@@ -37,7 +37,7 @@ import { requireWorkContext } from "@erpx/server-identity_access/public/authoriz
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import {
-  payrollOptions,assignPayGroupSchema,assignPayGroup,
+  assignPayGroupSchema,assignPayGroup,
   payrollCostAssignments,payrollCostVerificationSchema,verifyPayrollCostAssignment,
   compensationSchema,
   compensationTransitionSchema,
@@ -54,7 +54,6 @@ import {
   createPersonSchema,
   createEngagementSchema,
   exportPaymentBatch,
-  listPeople,
   getPerson,
   peopleSummary,
   payrollRunSchema,
@@ -126,7 +125,6 @@ export async function GET(request: Request, context: Context) {
     if(p[0]==="organization" && p[1]==="position-moves" && p.length<=3){let native:Awaited<ReturnType<typeof nativeOrganizationPositionMoveList>>;try{native=await nativeOrganizationPositionMoveList(actor,holdingSlug,p[2],request.headers);}catch(error){const failure=nativeOrganizationFailure(error);if(failure)throw new ApiError(failure.status,failure.code,failure.message);throw error;}if(native===undefined)throw new ApiError(503,"NATIVE_ORGANIZATION_UNAVAILABLE","The native organization position-move service is unavailable.");return Response.json(canonicalDestinationLinks({data:native}),{headers:{"Cache-Control":"private, no-store"}});}
     if(p[0]==="organization" && p[1]==="acceptance" && p.length===2){const {write}=await holdingResources(actor.holdingId);return Response.json(canonicalDestinationLinks({data:await companyBusinessAcceptance(write,actor)}),{headers:{"Cache-Control":"private, no-store"}});}
     if(p[0]==="organization" && p[1]==="readiness") {const {write}=await holdingResources(actor.holdingId);const kind=new URL(request.url).searchParams.get("kind");const route=await expenseRoute(write,actor.companyId,actor.userId,[],false,kind==="purchase"||kind==="payment"?kind:"expense");return Response.json(canonicalDestinationLinks({data:{ready:!route.blockedReason,blockedReason:route.blockedReason,steps:route.steps}}));}
-    if (p.length === 0 || (p[0] === "people" && !p[1])) return Response.json(canonicalDestinationLinks({ data: await listPeople(actor) }), { headers: { "Cache-Control": "private, no-store" } });
     if (p[0] === "people" && p[1]) {
       const detail = await getPerson(actor, p[1]);
       const fullProfile = hasPermission(actor, "people.manage") || detail.person.user_id === actor.userId;
@@ -143,7 +141,6 @@ export async function GET(request: Request, context: Context) {
       } }), { headers: { "Cache-Control": "private, no-store" } });
     }
     if (p[0] === "pay-groups" && p[1] && p[2] === "schedule") return Response.json(canonicalDestinationLinks({data:await getPayrollSchedule(actor,p[1])}),{headers:{"Cache-Control":"private, no-store"}});
-    if (p[0] === "pay-groups") return Response.json(canonicalDestinationLinks({data:await payrollOptions(actor)}));
     if (p[0] === "summary") return Response.json(canonicalDestinationLinks({ data: await peopleSummary(actor) }));
     if(p[0]==="payroll"&&p[1]==="payslips"){
       if(p.length===2)return Response.json(canonicalDestinationLinks({data:await listPayslips(actor)}),{headers:{"Cache-Control":"private, no-store"}});

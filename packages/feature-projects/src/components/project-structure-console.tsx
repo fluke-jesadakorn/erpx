@@ -6,7 +6,8 @@ import {Button,Card,Field,FormActions,FormLayout,InlineNotice,Panel,Select,TextA
 import styles from "@erpx/feature-projects/components/project-structure-console.module.css";
 import {TimeText} from "@erpx/feature-people_payroll/components/time/time-preference-context";
 import {minorToDecimal} from "@erpx/feature-finance/lib/finance-money";
-import type {ProjectGraph,projectHandoffs} from "@erpx/server-projects/public/project-structure";
+import type {ProjectGraph} from "@erpx/server-projects/public/project-structure";
+import type {NativeProjectHandoffView} from "@erpx/feature-projects/public/native-project-wbs-owned";
 import type {ProjectCostAllocationRow,ProjectWorkLogRow} from "@erpx/server-projects/public/project-actuals";
 import type {ProjectWorkerDisplay} from "@erpx/feature-projects/lib/worker-display";
 import {useProjectStructureCommand} from "@erpx/feature-projects/components/use-project-structure-command";
@@ -15,7 +16,7 @@ import type {ProjectStructureAcknowledgement} from "@erpx/feature-projects/lib/p
 import {useProjectPurchases} from "@erpx/feature-projects/components/purchase-context";
 import {projectPurchased,projectStructurePurchased} from "@erpx/feature-projects/lib/purchase-controls";
 import {FormDisclosure} from "@erpx/ui/components/form-disclosure";
-type Handoff=Awaited<ReturnType<typeof projectHandoffs>>[number];
+type Handoff=NativeProjectHandoffView;
 function costs(values:Record<string,string>){return Object.entries(values).map(([currency,minor])=>`${minorToDecimal(Number(minor))} ${currency}`).join(' · ')||'No approved costs';}
 export function ProjectStructureConsole({base,graph,handoffs,actorId,people,members,workLogs,costAllocations,canWriteCosts,section}:{base:string;graph:ProjectGraph;handoffs:Handoff[];actorId:string;people:readonly ProjectWorkerDisplay[];members:string[];workLogs:ProjectWorkLogRow[];costAllocations:ProjectCostAllocationRow[];canWriteCosts:boolean;section?:"structure"|"handoff"}){
  const [draftVersion,setDraftVersion]=useState(0),[handoffOpen,setHandoffOpen]=useState(false),[retainHandoff,setRetainHandoff]=useState(false),[selected,setSelected]=useState(graph.packages[0]?.id??''),[taskId,setTask]=useState(''),[actual,setActual]=useState(''),[recipient,setRecipient]=useState(''),[evidence,setEvidence]=useState(''),[reason,setReason]=useState('');

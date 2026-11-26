@@ -11,7 +11,6 @@ import { assertOwnedCashCannotMatchAgain } from "../../support/helpers/finance-b
 import { cancelPayrollRunSeed } from "../../support/helpers/payroll-cancellation-seed";
 import {attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet} from "../../support/helpers/attachment-v2";
 import { packageGrantStore, readCompanyPackageGrants } from "@erpx/server-commercial/public/package-grants";
-import { listPeople } from "@erpx/server-people_payroll/public/people-payroll";
 import { payrollPurchaseControls } from "@erpx/server-people_payroll/public/payroll-purchases";
 import {preparePayrollProjection,assertPayrollFinanceHistory} from "../../support/helpers/payroll-finance-history";
 import {createAttachmentSet,attachmentContent,bindRecordAttachmentSet} from "@erpx/server-files/public/attachments/service";

@@ -351,12 +351,11 @@ pub fn legal_auxiliary_router(
 
 /// The exact action set this router does not serve. Kept next to the router so
 /// a mount cannot accidentally select an unported read.
-pub const UNPORTED_READS: [&str; 9] = [
+pub const UNPORTED_READS: [&str; 8] = [
     "people",
     "runtime-health",
     "release-acceptance",
     "features",
-    "rule-impact",
     "processing",
     "export",
     "evidence",

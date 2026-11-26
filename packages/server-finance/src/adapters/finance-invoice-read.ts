@@ -70,7 +70,7 @@ export function financeReadService(provided?:SqlDatabase,historyOnly=false) {
             }
             const rows = await write.prepare(`SELECT a.id,a.code,a.name,a.category,COALESCE(SUM(l.base_debit_minor),0) AS debit,COALESCE(SUM(l.base_credit_minor),0) AS credit FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id JOIN finance_accounts a ON a.id=l.account_id WHERE ${clauses.join(" AND ")} GROUP BY a.id,a.code,a.name,a.category ORDER BY a.code`).bind(...args).all<FinanceRow>();
             return rows.results;
-        }, charts: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare(financeReferenceListSql('finance_charts','company_id=?','name')).bind(actor.companyId).all<FinanceRow>()).results; },
+        },
         accounts: async (facts) => { const { actor, chartId } = facts; const write = await db(actor); return (await nativeFinanceReadAll<FinanceRow>(FINANCE_RD_INVOICE_ACCOUNTS, [actor.companyId, chartId], await db(actor))).results; },
         invoices: async (facts) => {
             const { actor, limit } = facts;

@@ -34,7 +34,8 @@ import { RecordLink as Link } from "@erpx/feature-records/components/record-link
 import { supplierPromiseDetail } from "@erpx/server-procurement/public/supplier-promises";
 import { ownedSupplierPromiseDetail, ownedSupplierPromiseHistory } from "@erpx/feature-procurement/public/native-supplier-promise-history-owned";
 import { SupplierBillCapture } from "@erpx/feature-records/components/loaders/modules--supplier-bill-console";
-import { supplierBillWorkspace, supplierInvoicePolicy } from "@erpx/server-procurement/public/supplier-bill-matching";
+import { supplierBillWorkspace } from "@erpx/server-procurement/public/supplier-bill-matching";
+import { nativeSupplierBillPolicy } from "@erpx/server-procurement/adapters/supplier-bills";
 import { SupplierPromiseConsole } from "@erpx/feature-records/components/loaders/modules--supplier-promise-console";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { landedCostsForOrder, landedCostOptions } from "@erpx/server-inventory/public/inventory-landed-costs";
@@ -107,7 +108,7 @@ export default async function OrderPage({
       : [];
   const billPolicy =
     order.kind === "purchase" && hasPermission(actor, "finance.read")
-      ? await supplierInvoicePolicy(actor)
+      ? await nativeSupplierBillPolicy(actor)
       : null;
   const billReceipts = (bill: (typeof bills)[number]) =>
     JSON.parse(String(bill.receipt_ids_json ?? "[]")) as string[];

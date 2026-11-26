@@ -17,7 +17,8 @@ import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
-import { listCountryPacks,payrollOptions, payrollPostingOptions } from "@erpx/server-people_payroll/public/people-payroll";
+import { listCountryPacks, payrollPostingOptions } from "@erpx/server-people_payroll/public/people-payroll";
+import { nativePayGroups } from "@erpx/server-people_payroll/adapters/people-payroll";
 import { thaiPayrollConfiguration } from "@erpx/server-people_payroll/public/payroll-statutory";
 import { getPayrollSchedule } from "@erpx/server-people_payroll/public/payroll-readiness";
 import { isThaiHotelPayrollMockEnabled } from "@erpx/server-runtime/public/simulation-only-adapters";
@@ -38,14 +39,14 @@ export default async function PayrollSettings({
   if ((!canPrepare && !canMap && !canReadRules) || actor.branchId || actor.departmentId) forbidden();
   const purchase = await payrollPurchaseControls(actor);
   const base = workspaceBase(publicScope(actor));
-  let groups: Awaited<ReturnType<typeof payrollOptions>> = [];
+  let groups: Awaited<ReturnType<typeof nativePayGroups>> = [];
   let postingOptions: Awaited<ReturnType<typeof payrollPostingOptions>> | null = null;
   let schedules: Awaited<ReturnType<typeof getPayrollSchedule>>[] = [];
   let mappingUnavailable = false,
     scheduleUnavailable = false;
   const [packs,statutory]=canReadRules?await Promise.all([listCountryPacks(actor),thaiPayrollConfiguration(actor)]):[[],null];
   try {
-    if (canPrepare) groups = await payrollOptions(actor);
+    if (canPrepare) groups = await nativePayGroups(actor);
   } catch (error) {
     return pageError(error, actor.holdingSlug);
   }

@@ -317,7 +317,6 @@ it("moves a consented candidate through proposal, reviewed offer and immutable h
   const other=await expenseFixture();await expect(consumeHireHandoff(other.owner,{...intake,handoffId:String(d.handoff!.id)},key())).rejects.toMatchObject({code:"HIRE_HANDOFF_NOT_FOUND"});
   expect(await db.prepare("SELECT id FROM talent_candidates WHERE id=?").bind(candidate.id).first("id")).toBe(candidate.id);
   expect((await readCompanyPackageGrants(db,f.company)).map(row=>[row.packageId,row.state])).toEqual([["recruit","draining"]]);
-  const {listPeople}=await import("@erpx/server-people_payroll/public/people-payroll");await expect(listPeople(f.owner)).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
 });
 it("reconciles an accepted hire into one reviewed existing HR identity without duplicating the source person",async()=>{
   const {app,candidate}=await application();await changeTalentRecord(creator,"application",String(app.id),{action:"interview",expectedVersion:1,reason:"Interview source recorded before reviewed selection"},key());

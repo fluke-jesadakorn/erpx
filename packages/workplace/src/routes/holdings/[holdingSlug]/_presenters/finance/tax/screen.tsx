@@ -5,7 +5,7 @@ import { ActionLink as UiActionLink } from "@erpx/ui/components/foundation";
 import { Button, Field, Table, TableFrame, TextInput } from "@erpx/ui/components/foundation";
 
 
-import {listCharts} from '@erpx/server-finance/public/finance';
+import {financeChartListNative} from '@erpx/server-finance/public/finance';
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
@@ -36,7 +36,7 @@ export default async function TaxPage({
   const monthEnd=new Date(Date.UTC(Number(data.filingMonth.slice(0,4)),Number(data.filingMonth.slice(5,7)),0)).toISOString().slice(0,10);
   const [periods, charts] = await Promise.all([
       (await financePresentationQueries(actor.holdingId)).financeEntrypointQueries().periodEndDates(actor.companyId),
-      listCharts(actor),
+      financeChartListNative(actor),
     ]),
     period = periods.results.find((row) => String(row.end_date).slice(0, 7) === data.filingMonth),
     chart = charts.find((row) => row.id === data.chartId);

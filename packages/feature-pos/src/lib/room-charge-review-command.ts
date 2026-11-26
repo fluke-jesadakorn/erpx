@@ -3,7 +3,7 @@ import {captureWorkCommandContext} from '@erpx/feature-work_projection/lib/comma
 import {retainWorkCommandCompletion} from '@erpx/feature-work_projection/lib/command-completion';
 import {announceWorkChange} from '@erpx/feature-work_projection/lib/work-refresh';
 import {validPosWorkspaceReceipt} from '@erpx/feature-pos/lib/workspace-command';
-import type {roomChargeReversalQueue} from '@erpx/server-pos/public/room-charge-reversal-queue';
+import type {roomChargeReversalQueue} from '@erpx/server-pos/adapters/room-charge-reversal-queue';
 
 export type RoomChargeReviewRow=Awaited<ReturnType<typeof roomChargeReversalQueue>>[number];
 export type RoomChargeReviewOwner={userId:string;companyId:string;property?:{id:string;companyId:string;branchId:string;version:number}};

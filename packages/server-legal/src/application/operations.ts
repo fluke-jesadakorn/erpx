@@ -24,7 +24,6 @@ nextDocumentVersion(facts:{id:string;}):Promise<{ n: number; } | null>;
 reviewedAiDocument(facts:{documentId:string;id:string;next:number;name:string;checksum:string;bytes:number;body:string;actorId:string;now:number;}):Promise<LegalWrite>;
 acceptProposal(facts:{fact0:string;proposalId:string;}):Promise<LegalWrite>;
 advanceItem(facts:{now:number;id:string;}):Promise<LegalWrite>;
-ruleImpact(id:string):Promise<LegalRows<Record<string, unknown>>>;
 access(id:string,permission?:string):Promise<LegalItem>;
 command(raw:unknown,key:string):Promise<{id:string;version:number}>;
 purchase(raw:unknown,key:string):Promise<{id:string}>;
@@ -407,18 +406,4 @@ async function startRevision(
     );
   });
 }
-async function ruleImpact(id: string) {
-  const rule = await ports.repository.access(id);
-  if (rule.kind !== "rule") fail("Choose a jurisdiction rule.");
-  return {
-    ruleId: id,
-    ruleVersion: rule.version,
-    items: (
-      await ports.repository.ruleImpact(id)
-    ).results,
-    notice:
-      "Only accessible linked records are shown. Existing deadlines remain unchanged until their owner reviews and updates each record.",
-  };
-}
-
-return {importPreview,importCommit,exportRegister,savedViews,saveView,applyTemplate,convertRequest,evidenceBundle,holdPreview,applyAiDraft,prepareCounselPurchase,startRevision,ruleImpact};}
+return {importPreview,importCommit,exportRegister,savedViews,saveView,applyTemplate,convertRequest,evidenceBundle,holdPreview,applyAiDraft,prepareCounselPurchase,startRevision};}

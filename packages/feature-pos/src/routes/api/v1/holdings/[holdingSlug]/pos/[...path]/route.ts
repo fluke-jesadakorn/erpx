@@ -1,6 +1,6 @@
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import { adminCompanyHandoff } from "@erpx/feature-runtime/lib/application-origins";
-import { roomChargeReversalQueue } from "@erpx/server-pos/public/room-charge-reversal-queue";
+import { roomChargeReversalQueue } from "@erpx/server-pos/adapters/room-charge-reversal-queue";
 import { z } from 'zod';
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
