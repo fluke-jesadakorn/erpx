@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 14769,
+    "revision": 14772,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261126-e",
+      "runId": "run-20261126-f",
       "agentId": "lead",
-      "startedAt": "2026-11-26T08:14:55.153Z",
-      "heartbeatAt": "2026-11-26T08:14:55.153Z",
-      "expiresAt": "2026-11-26T08:44:55.154Z",
-      "generation": 182,
-      "tokenHash": "c23afb046c7109e6cdfcadee52adff0969ad02cdf1ef8c3f8d9e807384030359"
+      "startedAt": "2026-11-26T10:15:53.146Z",
+      "heartbeatAt": "2026-11-26T10:16:00.346Z",
+      "expiresAt": "2026-11-26T10:46:00.346Z",
+      "generation": 183,
+      "tokenHash": "84e80c00e5f55fa44d8bebe24f48c7a04cefed9eb066dc35623ec921153739d3"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -209558,8 +209558,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 182,
-    "updatedAt": "2026-11-26T08:29:57.505Z",
+    "lastCoordinatorGeneration": 183,
+    "updatedAt": "2026-11-26T10:16:00.350Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
@@ -209594,10 +209594,10 @@
       }
     },
     "lastRecovery": {
-      "previousRunId": "run-20261126-d",
-      "runId": "run-20261126-e",
-      "at": "2026-11-26T08:14:55.154Z",
-      "reason": "Operator-authorized second takeover: run-20261126-d lease expired with no active worker processes; preserved 127-path WIP in .scratch/checkpoints/2026-11-26-takeover-e; heartbeat automation removed; reclaim single-checkout coordination.",
+      "previousRunId": "run-20261126-e",
+      "runId": "run-20261126-f",
+      "at": "2026-11-26T10:15:53.147Z",
+      "reason": "run-20261126-e lease expired because its heartbeat automation did not fire; no active claims or worker processes; operator closed the competing session; resume coordination with preserved WIP and ready-for-integration evidence.",
       "wipReviewed": true,
       "previousRunStopped": true
     },
