@@ -26608,7 +26608,8 @@
       ],
       "files": [
         "tests/unit/customer_authority/access-sources-native.test.ts",
-        "tests/unit/customer_authority/native-customer-access-transport.test.ts"
+        "tests/unit/customer_authority/native-customer-access-transport.test.ts",
+        "tests/unit/customer_authority/sales-review-counts-native.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -73214,7 +73215,8 @@
       ],
       "id": "legal.native-lane-26.unit",
       "files": [
-        "tests/unit/legal/native-lane-26.test.ts"
+        "tests/unit/legal/native-lane-26.test.ts",
+        "tests/unit/legal/native-processing-status.test.ts"
       ],
       "framework": "vitest"
     },
