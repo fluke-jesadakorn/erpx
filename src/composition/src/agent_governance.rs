@@ -8,9 +8,12 @@ use crate::business_http::BusinessScopeSlugs;
 use erpx_server_agent::public::governance::{
     AgentActor, AgentGovernanceHttpBackend, AgentGovernanceHttpCommandRequest,
     AgentGovernanceHttpFuture, AgentGovernanceHttpReadRequest, AgentGovernanceHttpTarget,
-    AgentGovernancePorts, PgAgentGovernance, RecordKind, change_agent_pool, change_agent_record,
+    AgentGovernancePorts, AgentRecordReadKind, AgentWorkspaceHttpBackend,
+    AgentWorkspaceHttpFuture, AgentWorkspaceHttpKind, AgentWorkspaceHttpReadRequest,
+    AgentWorkspaceHttpTarget, PgAgentGovernance, PgAgentWorkspaceRead, RecordKind,
+    agent_evidence_record_read, agent_workspace_read, change_agent_pool, change_agent_record,
     change_private_session, create_agent, create_agent_pool, create_agent_version,
-    start_agent_assignment,
+    router_for_holdings as agent_workspace_router_for_holdings, start_agent_assignment,
 };
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
@@ -223,6 +226,167 @@ impl<C: Clock + Send + Sync + 'static> AgentGovernanceService<C> {
             )
             .await
     }
+}
+
+#[derive(Clone)]
+enum AgentReadKind {
+    Workspace {
+        include_evidence: bool,
+    },
+    Record {
+        kind: AgentRecordReadKind,
+        id: String,
+    },
+}
+
+impl<C: Clock + Send + Sync + 'static> AgentGovernanceService<C> {
+    async fn read(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        selection: HoldingWorkspaceRequest,
+        kind: AgentReadKind,
+    ) -> Result<Value, Error> {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        let expected = company.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                move || {
+                    let mut request = selection;
+                    if request.company_id != expected {
+                        return Err(scope());
+                    }
+                    request.mutation = false;
+                    Ok(request)
+                },
+                WorkAuthorizationRequest {
+                    permission: "records.read".into(),
+                    module: Some("agent".into()),
+                    destination: "agent_evidence".into(),
+                    api: true,
+                },
+                AgentSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let kind = kind.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        let actor = agent_actor(current, &holding)?;
+                        let now = clock.now().get();
+                        let mut ports = PgAgentWorkspaceRead::new(connection, &actor, now);
+                        let value = match kind {
+                            AgentReadKind::Workspace { include_evidence } => {
+                                agent_workspace_read(&actor, include_evidence, &mut ports).await
+                            }
+                            AgentReadKind::Record { kind, id } => {
+                                agent_evidence_record_read(&actor, kind, &id, &mut ports).await
+                            }
+                        }?;
+                        Ok(value)
+                    })
+                },
+            )
+            .await
+    }
+}
+
+/// Exact Host/Holding front end for the native Agent workspace read. Authority
+/// and the read-only Holding unit are resolved here; SQL stays in the owner.
+pub struct AgentWorkspaceReadBackend<C> {
+    policy: Arc<AccountPolicy>,
+    scopes: Arc<dyn BusinessScopeSlugs>,
+    service: Arc<AgentGovernanceService<C>>,
+}
+
+impl<C: Clock + Send + Sync + 'static> AgentWorkspaceReadBackend<C> {
+    pub fn new(
+        policy: Arc<AccountPolicy>,
+        scopes: Arc<dyn BusinessScopeSlugs>,
+        service: Arc<AgentGovernanceService<C>>,
+    ) -> Self {
+        Self {
+            policy,
+            scopes,
+            service,
+        }
+    }
+
+    fn context(
+        &self,
+        headers: &HeaderMap,
+    ) -> Result<(DeviceProof, HoldingWorkspaceRequest), BusinessError> {
+        let inbound = parse_inbound_account_request(&self.policy, headers)?;
+        if !matches!(inbound.audience(), RequestAudience::Holding { .. }) {
+            return Err(not_found());
+        }
+        let (branch, department) = self.scopes.slugs(headers)?;
+        Ok((
+            inbound.into_proof(),
+            HoldingWorkspaceRequest {
+                company_id: self.service.company().clone(),
+                branch_slug: branch,
+                department_slug: department,
+                expected: None,
+                mutation: false,
+            },
+        ))
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static> AgentWorkspaceHttpBackend for AgentWorkspaceReadBackend<C> {
+    fn read<'a>(
+        &'a self,
+        request: AgentWorkspaceHttpReadRequest<'a>,
+    ) -> AgentWorkspaceHttpFuture<'a, Value> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            let kind = match request.kind {
+                AgentWorkspaceHttpKind::Workspace { include_evidence } => {
+                    AgentReadKind::Workspace { include_evidence }
+                }
+                AgentWorkspaceHttpKind::Record { record_kind, id } => AgentReadKind::Record {
+                    kind: AgentRecordReadKind::parse(record_kind)?,
+                    id: id.to_owned(),
+                },
+            };
+            self.service
+                .read(request.host, proof, selection, kind)
+                .await
+                .map_err(business)
+        })
+    }
+}
+
+pub fn agent_workspace_target(
+    host: String,
+    holding_slug: String,
+    holding_id: String,
+    origin: String,
+    backend: Arc<dyn AgentWorkspaceHttpBackend>,
+) -> AgentWorkspaceHttpTarget {
+    AgentWorkspaceHttpTarget {
+        host,
+        holding_slug,
+        holding_id,
+        origin,
+        backend,
+    }
+}
+
+pub fn agent_workspace_router(
+    targets: Vec<AgentWorkspaceHttpTarget>,
+) -> Result<erpx_server_runtime::public::http_support::Router, BusinessError> {
+    agent_workspace_router_for_holdings(targets)
 }
 
 pub struct AgentGovernanceBackend<C> {

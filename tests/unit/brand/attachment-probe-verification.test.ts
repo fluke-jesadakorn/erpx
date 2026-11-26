@@ -3,14 +3,14 @@ import { resolve } from "node:path";
 import { describe, expect, test, vi } from "vitest";
 
 /**
- * G4 / retire.brand.attachment-facts — hermetic verification of the one
- * retained Brand cross-owner probe. No statement is cut here: the predicate is
- * owned by Identity Access (`currentAssignmentReadScope`), so moving the
- * envelope without a native owner statement provider would only hide the same
- * cross-owner text in TypeScript. This suite proves the live Files read path
- * still executes the exact recorded probe with unchanged binds, that the
- * image/source gates still fire, and that the Files publication consumers are
- * already native-only (8d71a830a).
+ * G4 / retire.brand.attachment-facts — hermetic verification of the Brand
+ * private-attachment read. The probe predicate is owned by Identity Access
+ * (`currentAssignmentReadScope`); the fixed scope envelope now lives in the
+ * Rust-owned `attachment-scope-head-sources.json` contract, bound with
+ * `include_str!`, so no owner TypeScript statement token remains. This suite
+ * proves the live Files read path still executes the exact recorded probe with
+ * unchanged binds, that the image/source gates still fire, and that the Files
+ * publication consumers are already native-only (8d71a830a).
  */
 const h = vi.hoisted(() => ({
   image: "before",
@@ -157,8 +157,9 @@ describe("Brand attachment probe / Files consumer verification", () => {
       }
     };
     walk(resolve(root, "packages/server-brand/src"));
-    expect(reads).toBe(1);
-    expect(read("packages/server-brand/src/adapters/attachment-read.ts").match(/SELECT /g)).toHaveLength(1);
+    expect(reads).toBe(0);
+    expect(read("packages/server-brand/src/adapters/attachment-read.ts").match(/SELECT /g)).toHaveLength(0);
+    expect(read("packages/server-brand/src/adapters/attachment-scope-head.ts").match(/SELECT /g)).toHaveLength(0);
     const writers = read("packages/server-files/src/adapters/attachments/service.ts").match(/attachmentServiceBrandFacts/g) ?? [];
     expect(writers).toHaveLength(0);
   });

@@ -9,6 +9,9 @@ vi.mock("server-only", () => ({}));
  * into `read-tail-r1.ts`; r2 deletes that file and routes both guards through
  * the owner read port. The exact retired statements are Rust oracles in
  * `native_read_sql.rs`; this suite pins the switched consumer, binds and KPI.
+ * r3 moves the last owner `SELECT` head (the cross-owner attachment scope
+ * probe) into the Rust-owned `attachment-scope-head-sources.json` contract,
+ * bound with `include_str!` in `attachment_scope_head.rs`; the owner KPI is 0.
  */
 const root = resolve(__dirname, "../../../");
 const srcRoot = resolve(root, "packages/server-brand/src");
@@ -134,12 +137,22 @@ describe("Brand management guard native cutover (r2)", () => {
       expect(read(name)).not.toMatch(/\bSELECT\s/);
   });
 
-  test("the cross-owner scope probe stays as the single excluded residual", () => {
+  test("the cross-owner scope probe renders from the Rust-owned scope-head contract", () => {
     const probe = read("attachment-read.ts");
-    expect(count(probe, "SELECT ")).toBe(1);
-    expect(probe).toContain("`SELECT 1 FROM(VALUES(?::text,?::text,?::text))workforce_actor_scope(company_id,branch_id,department_id) WHERE ${currentScope.where}`");
+    expect(count(probe, "SELECT ")).toBe(0);
+    expect(probe).toContain("brandAttachmentScopeProbeSql(currentScope.where)");
     expect(probe).toContain(".bind(actor.companyId,actor.branchId,actor.departmentId,...currentScope.args)");
     expect(probe).toContain("lockQueuedCommandAuthority(database)");
+    const helper = read("attachment-scope-head.ts");
+    expect(count(helper, "SELECT ")).toBe(0);
+    expect(helper).toContain('import contract from "./attachment-scope-head-sources.json" with { type: "json" }');
+    expect(helper).toContain("heads.scopeHead");
+    const contract = JSON.parse(readFileSync(resolve(adapters, "attachment-scope-head-sources.json"), "utf8")) as {
+      scopeHead: string;
+    };
+    expect(contract.scopeHead).toBe(
+      "SELECT 1 FROM(VALUES(?::text,?::text,?::text))workforce_actor_scope(company_id,branch_id,department_id) WHERE ",
+    );
   });
 
   test("every live presentation consumer delegates to the mounted native owner", () => {
@@ -188,7 +201,7 @@ describe("Brand management guard native cutover (r2)", () => {
     );
   });
 
-  test("retirement:ts-statements drops 2 -> 1 for the owner", () => {
+  test("retirement:ts-statements drops 1 -> 0 for the owner", () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -199,10 +212,12 @@ describe("Brand management guard native cutover (r2)", () => {
     };
     walk(srcRoot);
     // r1: 3 -> 2 (two literals folded into one helper); r2: the helper is
-    // deleted and both guards plan on the owner, leaving the excluded probe.
-    expect(total).toBe(1);
-    expect(total).toBeLessThan(2);
+    // deleted and both guards plan on the owner; r3: the cross-owner scope
+    // head moves into the Rust-owned JSON contract, leaving no owner SELECT.
+    expect(total).toBe(0);
+    expect(total).toBeLessThan(1);
     expect(count(read("branding.ts"), "SELECT ")).toBe(0);
-    expect(count(read("attachment-read.ts"), "SELECT ")).toBe(1);
+    expect(count(read("attachment-read.ts"), "SELECT ")).toBe(0);
+    expect(count(read("attachment-scope-head.ts"), "SELECT ")).toBe(0);
   });
 });

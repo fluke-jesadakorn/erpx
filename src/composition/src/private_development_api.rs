@@ -3477,6 +3477,8 @@ async fn assemble_checked(
         let mut support_ticket_portal_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut agent_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
+        let mut agent_workspace_targets = Vec::new();
         let mut ai_provider_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut social_targets = Vec::new();
@@ -4705,6 +4707,24 @@ async fn assemble_checked(
                         holding.registration.slug.clone(),
                         format!("https://{}", holding.host),
                         Arc::new(crate::agent_governance::AgentGovernanceBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::agent_governance::AgentGovernanceService::new(
+                                authorizer.clone(),
+                                crate::agent_governance::AgentGovernanceConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    ));
+                    agent_workspace_targets.push(crate::agent_governance::agent_workspace_target(
+                        holding.host.clone(),
+                        holding.registration.slug.clone(),
+                        holding.registration.holding_id.clone(),
+                        format!("https://{}", holding.host),
+                        Arc::new(crate::agent_governance::AgentWorkspaceReadBackend::new(
                             config.policy.clone(),
                             Arc::new(FinanceJournalReadScopeHeaders),
                             Arc::new(crate::agent_governance::AgentGovernanceService::new(
@@ -7673,6 +7693,13 @@ async fn assemble_checked(
         if !agent_targets.is_empty() {
             router = router.merge(
                 erpx_server_agent::public::governance::agent_governance_http_router(agent_targets)
+                    .map_err(|_| "PRIVATE_API_AGENT_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !agent_workspace_targets.is_empty() {
+            router = router.merge(
+                crate::agent_governance::agent_workspace_router(agent_workspace_targets)
                     .map_err(|_| "PRIVATE_API_AGENT_CONFIGURATION_INVALID")?,
             );
         }

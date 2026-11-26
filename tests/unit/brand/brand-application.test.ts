@@ -98,20 +98,22 @@ describe("Retained Branding media normalization", () => {
 });
 
 describe("Brand residual read tail", () => {
-  test("current-scope probe uses one SELECT token with a bound VALUES tuple", async () => {
-    const source = await readFile(
-      new URL("../../../packages/server-brand/src/adapters/attachment-read.ts", import.meta.url),
-      "utf8",
-    );
-    expect(source.match(/SELECT/g)).toHaveLength(1);
-    expect(source).toContain(
-      "`SELECT 1 FROM(VALUES(?::text,?::text,?::text))workforce_actor_scope(company_id,branch_id,department_id) WHERE ${currentScope.where}`",
-    );
-    expect(source).not.toContain(
-      "(SELECT ?::text company_id,?::text branch_id,?::text department_id)workforce_actor_scope",
-    );
+  test("current-scope probe renders from the Rust-owned scope head with a bound VALUES tuple", async () => {
+    const read = (name: string) =>
+      readFile(new URL(`../../../packages/server-brand/src/adapters/${name}`, import.meta.url), "utf8");
+    const source = await read("attachment-read.ts");
+    expect(source.match(/SELECT/g)).toHaveLength(0);
+    expect(source).toContain("brandAttachmentScopeProbeSql(currentScope.where)");
     expect(source).toContain(
       ".bind(actor.companyId,actor.branchId,actor.departmentId,...currentScope.args)",
+    );
+    const helper = await read("attachment-scope-head.ts");
+    expect(helper.match(/SELECT/g)).toHaveLength(0);
+    expect(helper).toContain('import contract from "./attachment-scope-head-sources.json" with { type: "json" }');
+    expect(helper).toContain("heads.scopeHead");
+    const contract = JSON.parse(await read("attachment-scope-head-sources.json")) as { scopeHead: string };
+    expect(contract.scopeHead).toBe(
+      "SELECT 1 FROM(VALUES(?::text,?::text,?::text))workforce_actor_scope(company_id,branch_id,department_id) WHERE ",
     );
   });
 });
