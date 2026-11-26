@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15266,
+    "revision": 15269,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -212852,10 +212852,10 @@
           "owner:records",
           "route:records-feature"
         ],
-        "nextAction": "Native shared search GET is live; add an identity-access public principal-search port for person hits, then verify @user search.",
+        "nextAction": "Records search returns real record and person hits; next Records family.",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "a940a1d336ac8f94a144aefe8ada28feb5a0fd1e",
+        "implementedCommit": "a85deb97370224cca0a87191ab152ce0fa6b8805",
         "lastPushedSha": "3cbd0350c675ab420131cdd1870ed5d73c07a224",
         "checks": [
           {
@@ -212920,17 +212920,29 @@
             "result": "passed",
             "sourceSha": "a940a1d33",
             "note": "200 with native workspace_records rows after ERPX_NATIVE_RECORDS_CONFIG was set"
+          },
+          {
+            "command": "cargo test -p erpx-server-records --lib --locked",
+            "result": "passed",
+            "sourceSha": "3e6d431753a173cc369c6ef2be3013187b4c01d1",
+            "note": "67/67"
+          },
+          {
+            "command": "GET https://acme.jesadakorn.com/api/v1/holdings/acme/records/search?q=%40user%2Fada",
+            "result": "passed",
+            "sourceSha": "3e6d431753a173cc369c6ef2be3013187b4c01d1",
+            "note": "200 with real active-assignment principal hits (Ada Bennett, Ada Suwan, Jesadakorn Kirtnu)"
           }
         ],
         "retainedLegacy": [],
         "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-k",
-          "agentId": "worker-records-14",
-          "at": "2026-11-26T16:56:18.233Z",
+          "runId": "run-20261127-b",
+          "agentId": "lead",
+          "at": "2026-11-26T18:49:01.615Z",
           "previousStatus": "ready_for_integration",
           "reason": "released with work preserved",
-          "nextAction": "Native shared search GET is live; add an identity-access public principal-search port for person hits, then verify @user search."
+          "nextAction": "Records search returns real record and person hits; next Records family."
         },
         "scopeRefinementRequired": false
       },
@@ -215625,7 +215637,7 @@
       }
     },
     "lastCoordinatorGeneration": 190,
-    "updatedAt": "2026-11-26T18:44:18.020Z",
+    "updatedAt": "2026-11-26T18:49:01.619Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
