@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 14772,
+    "revision": 14790,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -209101,7 +209101,7 @@
         "goalId": "G4",
         "owner": "people_payroll",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "title": "people_payroll native route execution",
         "scope": "Inventory the /people/[[...path]] catch-all. Port one bounded read or command family to Rust domain/application/adapters/http with real PostgreSQL execution, remove the TypeScript authority for that family, and prepare the exact shared-route plus app re-export deletion packet. No plan-only SQL contract.",
         "workflowIds": [],
@@ -209117,7 +209117,14 @@
           "route:people"
         ],
         "nextAction": "Inventory the people catch-all and port one fully-native operation with Rust SQL execution; prepare its route-deletion packet.",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261126-f",
+          "agentId": "exec-people",
+          "claimedAt": "2026-11-26T10:17:53.221Z",
+          "heartbeatAt": "2026-11-26T10:17:53.221Z",
+          "expiresAt": "2026-11-26T10:47:53.221Z",
+          "generation": 183
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -209345,7 +209352,7 @@
         "goalId": "G4",
         "owner": "platform_administration",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "title": "platform/admin feature routes native execution",
         "scope": "Inventory the feature-admin route package (32 shared handlers). Port one bounded admin or platform read/command family to Rust domain/application/adapters/http with real PostgreSQL execution, remove the TS authority for that family, and prepare the exact route-deletion packet. Do not touch other owners' server crates.",
         "workflowIds": [],
@@ -209361,7 +209368,14 @@
           "route:admin"
         ],
         "nextAction": "Inventory feature-admin routes and port one fully-native operation with Rust SQL execution; prepare its route-deletion packet.",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261126-f",
+          "agentId": "exec-admin",
+          "claimedAt": "2026-11-26T10:17:53.360Z",
+          "heartbeatAt": "2026-11-26T10:17:53.360Z",
+          "expiresAt": "2026-11-26T10:47:53.360Z",
+          "generation": 183
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -209376,7 +209390,7 @@
         "goalId": "G4",
         "owner": "crm",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "title": "sales/crm feature routes native execution",
         "scope": "Inventory the feature-sales route package (11 shared handlers). Port one bounded customer, CRM or marketing read/command family to Rust domain/application/adapters/http with real PostgreSQL execution, remove the TS authority for that family, and prepare the exact route-deletion packet.",
         "workflowIds": [],
@@ -209392,7 +209406,14 @@
           "route:sales"
         ],
         "nextAction": "Inventory feature-sales routes and port one fully-native operation with Rust SQL execution; prepare its route-deletion packet.",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261126-f",
+          "agentId": "exec-sales",
+          "claimedAt": "2026-11-26T10:17:53.500Z",
+          "heartbeatAt": "2026-11-26T10:17:53.500Z",
+          "expiresAt": "2026-11-26T10:47:53.500Z",
+          "generation": 183
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -209407,7 +209428,7 @@
         "goalId": "G4",
         "owner": "support",
         "kind": "migration",
-        "status": "blocked",
+        "status": "in_progress",
         "title": "support feature routes native execution",
         "scope": "Inventory the feature-support route package (7 shared handlers). Port one bounded support, service-team or SLA read/command family to Rust domain/application/adapters/http with real PostgreSQL execution, remove the TS authority for that family, and prepare the exact route-deletion packet.",
         "workflowIds": [],
@@ -209423,13 +209444,20 @@
           "route:support"
         ],
         "nextAction": "Inventory feature-support routes and port one fully-native operation with Rust SQL execution; prepare its route-deletion packet.",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261126-f",
+          "agentId": "exec-support",
+          "claimedAt": "2026-11-26T10:17:53.640Z",
+          "heartbeatAt": "2026-11-26T10:17:53.640Z",
+          "expiresAt": "2026-11-26T10:47:53.640Z",
+          "generation": 183
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": "Recovery: Generation 180 (run-20261126-c) appeared without operator instruction while this session held the lead. The operator instructed this session to kill subagents and continue the Rust-execution route-retirement plan. Reclaim single-checkout coordination; preserve all on-disk WIP for review.",
+        "blocker": null,
         "handoff": {
           "runId": "run-20261126-c",
           "agentId": "exec-support",
@@ -209445,7 +209473,7 @@
         "goalId": "G4",
         "owner": "field_service",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "title": "field service feature routes native execution",
         "scope": "Inventory the feature-service route package (6 shared handlers). Port one bounded field-service read/command family to Rust domain/application/adapters/http with real PostgreSQL execution, remove the TS authority for that family, and prepare the exact route-deletion packet.",
         "workflowIds": [],
@@ -209461,7 +209489,14 @@
           "route:service"
         ],
         "nextAction": "Inventory feature-service routes and port one fully-native operation with Rust SQL execution; prepare its route-deletion packet.",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261126-f",
+          "agentId": "exec-service",
+          "claimedAt": "2026-11-26T10:17:53.775Z",
+          "heartbeatAt": "2026-11-26T10:17:53.775Z",
+          "expiresAt": "2026-11-26T10:47:53.775Z",
+          "generation": 183
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -209476,7 +209511,7 @@
         "goalId": "G4",
         "owner": "assets",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "title": "assets/maintenance feature routes native execution",
         "scope": "Inventory the feature-assets route package (5 shared handlers). Port one bounded asset or maintenance read/command family to Rust domain/application/adapters/http with real PostgreSQL execution, remove the TS authority for that family, and prepare the exact route-deletion packet.",
         "workflowIds": [],
@@ -209492,7 +209527,14 @@
           "route:assets"
         ],
         "nextAction": "Inventory feature-assets routes and port one fully-native operation with Rust SQL execution; prepare its route-deletion packet.",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261126-f",
+          "agentId": "exec-assets",
+          "claimedAt": "2026-11-26T10:17:53.911Z",
+          "heartbeatAt": "2026-11-26T10:17:53.911Z",
+          "expiresAt": "2026-11-26T10:47:53.911Z",
+          "generation": 183
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -209537,6 +209579,234 @@
           "nextAction": "Implement and test the shared native edge transport helper; do not wire a route until the owner slice is reviewed."
         },
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "exec.apps.routes",
+        "goalId": "G4",
+        "owner": "collaboration",
+        "kind": "migration",
+        "status": "in_progress",
+        "title": "feature-apps routes native execution",
+        "scope": "Inventory the feature-apps route package (posts, inbox, handover, operations, handbook, stories, feed, staff, approvals, messaging, daily plan, routines, executive). Port one bounded collaboration or work-projection slice to Rust domain/application/adapters/http with real SQL execution and prepare the exact route-deletion packet.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-apps/src/routes/**",
+          "packages/server-collaboration/src/**",
+          "tests/unit/collaboration/**"
+        ],
+        "resources": [
+          "owner:collaboration",
+          "route:apps"
+        ],
+        "nextAction": "Port one fully-native feature-apps operation with Rust SQL execution and prepare its deletion packet.",
+        "claim": {
+          "runId": "run-20261126-f",
+          "agentId": "exec-apps",
+          "claimedAt": "2026-11-26T10:17:54.047Z",
+          "heartbeatAt": "2026-11-26T10:17:54.047Z",
+          "expiresAt": "2026-11-26T10:47:54.047Z",
+          "generation": 183
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "exec.account.routes",
+        "goalId": "G4",
+        "owner": "identity_access",
+        "kind": "migration",
+        "status": "in_progress",
+        "title": "feature-account routes native execution",
+        "scope": "Inventory the feature-account route package (join, invitations, security, device accounts, quick access, IAM, profile, legal-portal enroll). Port one bounded identity slice to Rust domain/application/adapters/http with real SQL execution and prepare the exact route-deletion packet.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-account/src/routes/**",
+          "packages/server-identity_access/src/**",
+          "tests/unit/identity_access/**"
+        ],
+        "resources": [
+          "owner:identity_access",
+          "route:account"
+        ],
+        "nextAction": "Port one fully-native feature-account operation with Rust SQL execution and prepare its deletion packet.",
+        "claim": {
+          "runId": "run-20261126-f",
+          "agentId": "exec-account",
+          "claimedAt": "2026-11-26T10:17:54.183Z",
+          "heartbeatAt": "2026-11-26T10:17:54.183Z",
+          "expiresAt": "2026-11-26T10:47:54.183Z",
+          "generation": 183
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "exec.portal.routes",
+        "goalId": "G4",
+        "owner": "customer_authority",
+        "kind": "migration",
+        "status": "in_progress",
+        "title": "feature-portal routes native execution",
+        "scope": "Inventory the feature-portal route package (customer portal enroll, tickets, acknowledgements, attachments, quick access). Port one bounded customer-authority slice to Rust domain/application/adapters/http with real SQL execution and prepare the exact route-deletion packet.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-portal/src/routes/**",
+          "packages/server-customer_authority/src/**",
+          "tests/unit/customer_authority/**"
+        ],
+        "resources": [
+          "owner:customer_authority",
+          "route:portal"
+        ],
+        "nextAction": "Port one fully-native feature-portal operation with Rust SQL execution and prepare its deletion packet.",
+        "claim": {
+          "runId": "run-20261126-f",
+          "agentId": "exec-portal",
+          "claimedAt": "2026-11-26T10:17:54.318Z",
+          "heartbeatAt": "2026-11-26T10:17:54.318Z",
+          "expiresAt": "2026-11-26T10:47:54.318Z",
+          "generation": 183
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "exec.pos.routes",
+        "goalId": "G4",
+        "owner": "pos",
+        "kind": "migration",
+        "status": "in_progress",
+        "title": "feature-pos routes native execution",
+        "scope": "Inventory the feature-pos route package (POS workspace, initial physical stock, startup, stripe webhooks). Port one bounded POS read/command to Rust domain/application/adapters/http with real SQL execution and prepare the exact route-deletion packet.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-pos/src/routes/**",
+          "packages/server-pos/src/**",
+          "tests/unit/pos/**"
+        ],
+        "resources": [
+          "owner:pos",
+          "route:pos"
+        ],
+        "nextAction": "Port one fully-native feature-pos operation with Rust SQL execution and prepare its deletion packet.",
+        "claim": {
+          "runId": "run-20261126-f",
+          "agentId": "exec-pos",
+          "claimedAt": "2026-11-26T10:17:54.456Z",
+          "heartbeatAt": "2026-11-26T10:17:54.456Z",
+          "expiresAt": "2026-11-26T10:47:54.456Z",
+          "generation": 183
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "exec.manufacturing.routes",
+        "goalId": "G4",
+        "owner": "manufacturing",
+        "kind": "migration",
+        "status": "in_progress",
+        "title": "feature-manufacturing routes native execution",
+        "scope": "Inventory the feature-manufacturing route package (production, initial physical stock, posting setup). Port one bounded manufacturing read/command to Rust domain/application/adapters/http with real SQL execution and prepare the exact route-deletion packet.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-manufacturing/src/routes/**",
+          "packages/server-manufacturing/src/**",
+          "tests/unit/manufacturing/**"
+        ],
+        "resources": [
+          "owner:manufacturing",
+          "route:manufacturing"
+        ],
+        "nextAction": "Port one fully-native feature-manufacturing operation with Rust SQL execution and prepare its deletion packet.",
+        "claim": {
+          "runId": "run-20261126-f",
+          "agentId": "exec-manufacturing",
+          "claimedAt": "2026-11-26T10:17:54.592Z",
+          "heartbeatAt": "2026-11-26T10:17:54.592Z",
+          "expiresAt": "2026-11-26T10:47:54.592Z",
+          "generation": 183
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "exec.projects.routes",
+        "goalId": "G4",
+        "owner": "projects",
+        "kind": "migration",
+        "status": "in_progress",
+        "title": "feature-projects routes native execution",
+        "scope": "Inventory the feature-projects route package (projects WBS, structure, project worker startup). Port one bounded projects read/command to Rust domain/application/adapters/http with real SQL execution and prepare the exact route-deletion packet.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-projects/src/routes/**",
+          "packages/server-projects/src/**",
+          "tests/unit/projects/**"
+        ],
+        "resources": [
+          "owner:projects",
+          "route:projects"
+        ],
+        "nextAction": "Port one fully-native feature-projects operation with Rust SQL execution and prepare its deletion packet.",
+        "claim": {
+          "runId": "run-20261126-f",
+          "agentId": "exec-projects",
+          "claimedAt": "2026-11-26T10:17:54.732Z",
+          "heartbeatAt": "2026-11-26T10:17:54.732Z",
+          "expiresAt": "2026-11-26T10:47:54.732Z",
+          "generation": 183
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -209545,21 +209815,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 2361,
+      "totalPackets": 2367,
       "migratedPackets": 369,
       "statusCounts": {
-        "pending": 26,
-        "in_progress": 0,
+        "pending": 21,
+        "in_progress": 12,
         "ready_for_integration": 48,
         "integrating": 0,
         "migrated": 369,
-        "blocked": 1916,
+        "blocked": 1915,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 183,
-    "updatedAt": "2026-11-26T10:16:00.350Z",
+    "updatedAt": "2026-11-26T10:17:54.736Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
