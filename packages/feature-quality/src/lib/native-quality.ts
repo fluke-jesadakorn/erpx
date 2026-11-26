@@ -1,5 +1,6 @@
 export {
   nativeQualityAcknowledgeAlert,
+  nativeQualityAlerts,
   nativeQualityAvailable,
   nativeQualityCancel,
   nativeQualityDetail,
@@ -20,6 +21,7 @@ export type {
   NativeQualityMeasurement,
   NativeQualityMetric,
   NativeQualityProduct,
+  NativeQualityQueueAlert,
   NativeQualityReceipt,
   NativeQualitySpecification,
   NativeQualityStock,

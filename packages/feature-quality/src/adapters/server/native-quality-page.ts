@@ -4,6 +4,7 @@ import {
   createNativeQualityReader,
   type NativeQualityDetail,
   type NativeQualityDetailCore,
+  type NativeQualityQueueAlert,
   type NativeQualityCancellationCursor,
   type NativeQualityCancellationPage,
   type NativeQualityDispositionReceipt,
@@ -27,6 +28,17 @@ function client(transport?: QualityTransport) {
   const raw = process.env.ERPX_NATIVE_QUALITY_CONFIG;
   if (raw === undefined) return undefined;
   return createNativeQualityReader(raw, transport);
+}
+
+/** The complete escalation queue as the Quality workspace presenter consumes
+  * it. Purchase visibility is a separate composition admission check. */
+export async function nativeQualityAlerts(
+  holdingSlug: string,
+  transport?: QualityTransport,
+): Promise<readonly NativeQualityQueueAlert[] | undefined> {
+  const native = client(transport);
+  if (!native) return undefined;
+  return native.alertQueue(await headers(), holdingSlug);
 }
 
 export async function nativeQualityWorkspace(

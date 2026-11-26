@@ -3418,6 +3418,8 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut crm_history_targets = Vec::new();
         #[cfg(feature = "existing-business")]
+        let mut crm_guest_history_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut crm_command_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut crm_activity_targets = Vec::new();
@@ -3795,6 +3797,14 @@ async fn assemble_checked(
                 );
                 crm_history_targets.push(
                     erpx_server_crm::public::crm_case_event_history::CrmCaseEventHistoryHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: crm_backend.clone(),
+                    },
+                );
+                crm_guest_history_targets.push(
+                    erpx_server_crm::public::guest_history::GuestHistoryHttpTarget {
                         host: holding.host.clone(),
                         holding_slug: holding.registration.slug.clone(),
                         origin: format!("https://{}", holding.host),
@@ -7363,6 +7373,15 @@ async fn assemble_checked(
                     crm_history_targets,
                 )
                 .map_err(|_| "PRIVATE_API_CRM_HISTORY_ROUTER_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !crm_guest_history_targets.is_empty() {
+            router = router.merge(
+                erpx_server_crm::public::guest_history::guest_history_http_router(
+                    crm_guest_history_targets,
+                )
+                .map_err(|_| "PRIVATE_API_CRM_GUEST_HISTORY_ROUTER_INVALID")?,
             );
         }
         #[cfg(feature = "existing-business")]

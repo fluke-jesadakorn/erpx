@@ -8,6 +8,8 @@ pub mod activity_workspace_http;
 pub mod commands_http;
 pub mod crm_case_event_history_http;
 pub mod crm_case_event_history_postgres;
+pub mod guest_history_http;
+pub mod guest_history_postgres;
 pub mod leads_http;
 pub mod leads_intake_http;
 pub mod leads_native;

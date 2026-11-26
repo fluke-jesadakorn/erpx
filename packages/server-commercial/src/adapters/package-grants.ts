@@ -1,5 +1,5 @@
 import "server-only";
-import { purchaseFactAgg } from "./commercial-read-tail-r4-sources";
+import { nativeCommercialOwnerRead, COMMERCIAL_RD_PURCHASE_FACTS } from "@erpx/server-commercial/adapters/native-owner-read";
 import { receiptProbe } from "./commercial-read-tail-r5-sources";
 import { companyScopedStarSql } from "./commercial-read-tail-r8-sources";
 import { createHash } from "node:crypto";
@@ -26,11 +26,13 @@ type HistoryRow = { company_id: string; package_id: string; package_version: num
 const historyFromRow = (row: HistoryRow): CompanyPackageHistoryRight => ({ companyId: row.company_id, packageId: row.package_id,
   packageVersion: Number(row.package_version), sourceGrantVersion: Number(row.source_grant_version), sourceEventId: row.source_event_id, retainedAt: Number(row.retained_at) });
 
-/** One presentation snapshot. Audit/history bodies stay inside Commercial. */
+/** One presentation snapshot. Audit/history bodies stay inside Commercial.
+ * The exact Company grants/history projection is planned by the native owner.
+ * This transport emits no SQL and has no TypeScript fallback: a missing or
+ * invalid native read configuration fails closed. */
 export async function readCompanyPurchaseFacts(database: SqlDatabase, companyId: string) {
-  const row = await database.prepare(`SELECT
-    COALESCE((${purchaseFactAgg("company_package_grants","g","package_id")}),'[]'::jsonb) grants,
-    COALESCE((${purchaseFactAgg("company_package_history_rights","h","package_id,package_version")}),'[]'::jsonb) history`)
+  const sql = await nativeCommercialOwnerRead(COMMERCIAL_RD_PURCHASE_FACTS);
+  const row = await database.prepare(sql)
     .bind(companyId, companyId).first<{ grants: Row[] | string; history: HistoryRow[] | string }>();
   if (!row) throw new Error("COMPANY_PURCHASE_FACTS_REQUIRED");
   const grants = typeof row.grants === "string" ? JSON.parse(row.grants) as Row[] : row.grants;

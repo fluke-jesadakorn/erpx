@@ -1,7 +1,7 @@
 import 'server-only';
 import { ApiError } from '@erpx/server-runtime/public/http';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
-import type { SqlDatabase, SqlStatement } from '@erpx/server-runtime/public/runtime/types';
+import type { SqlDatabase, SqlResult, SqlStatement } from '@erpx/server-runtime/public/runtime/types';
 
 /**
  * Strict server-side client for the native Finance owner-write axum command
@@ -294,4 +294,141 @@ export async function nativeFinanceOwnerWriteSystem(
     return fail();
   }
   return readJson(db, response);
+}
+
+/**
+ * Native attachment-version guard input. The Files attachment service supplies
+ * the already-authorized actor; the Finance owner rechecks Company scope and
+ * the live target version inside its own serializable unit.
+ */
+export type NativeAttachmentVersionGuardInput = Readonly<{
+  companyId: string;
+  targetType: string;
+  targetId: string;
+  expectedVersion: number;
+  userId: string;
+  assignmentId: string;
+  role: string;
+  scopeKind: string;
+}>;
+
+type GuardContext = Readonly<{ companyId?: string; key?: string; now?: number }>;
+
+/** SqlStatement-shaped descriptor carrying no SQL. The Files native-effects
+ * resolver recognizes `__nativeWrite` and executes `run()` in the command's
+ * Company/key context; a missing transport or a stale version fails closed. */
+export type NativeAttachmentVersionGuard = SqlStatement & {
+  readonly __nativeWrite: true;
+  withContext(context: GuardContext): NativeAttachmentVersionGuard;
+};
+
+async function dispatchGuard(
+  context: GuardContext | undefined,
+  input: NativeAttachmentVersionGuardInput,
+): Promise<void> {
+  const settings = config();
+  const company = context?.companyId ?? input.companyId;
+  const key = context?.key ?? `finance-guard-${input.targetId}-${input.expectedVersion}`;
+  const now = context?.now ?? Date.now();
+  if (
+    !identifier(company) ||
+    !validKey(key) ||
+    !validKind(input.targetType) ||
+    !identifier(input.targetId) ||
+    !Number.isSafeInteger(input.expectedVersion) ||
+    input.expectedVersion <= 0 ||
+    !identifier(input.userId) ||
+    !identifier(input.assignmentId) ||
+    input.role.length === 0 ||
+    input.role.length > 128 ||
+    !identifier(input.scopeKind) ||
+    !Number.isSafeInteger(now)
+  )
+    return fail();
+  const url = new URL(
+    `/api/v1/companies/${encodeURIComponent(company)}/finance/attachment-version/guard`,
+    settings.privateBaseUrl,
+  );
+  const body = JSON.stringify({
+    targetType: input.targetType,
+    targetId: input.targetId,
+    expectedVersion: input.expectedVersion,
+    userId: input.userId,
+    assignmentId: input.assignmentId,
+    role: input.role,
+    scopeKind: input.scopeKind,
+    now,
+  });
+  let response: Response;
+  try {
+    response = await post(
+      url,
+      {
+        'content-type': 'application/json',
+        'idempotency-key': key,
+        'x-erpx-context-company': company,
+      },
+      body,
+      settings.timeoutMs,
+    );
+  } catch {
+    return fail();
+  }
+  if (response.redirected || response.status !== 200 || !response.body) {
+    void response.body?.cancel().catch(() => undefined);
+    return fail(response.status);
+  }
+  if (response.headers.get('content-type')?.split(';')[0]?.trim() !== 'application/json') {
+    void response.body.cancel().catch(() => undefined);
+    return fail();
+  }
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch {
+    return fail();
+  }
+  if (
+    !record(payload) ||
+    !record(payload.data) ||
+    payload.data.ok !== true ||
+    payload.data.version !== input.expectedVersion ||
+    typeof payload.data.changed !== 'boolean' ||
+    typeof payload.data.targetType !== 'string' ||
+    typeof payload.data.targetId !== 'string'
+  )
+    return fail();
+}
+
+export function nativeFinanceAttachmentVersionGuard(
+  input: NativeAttachmentVersionGuardInput,
+): NativeAttachmentVersionGuard {
+  const descriptor = {
+    __nativeWrite: true as const,
+    context: undefined as GuardContext | undefined,
+    withContext(context: GuardContext) {
+      descriptor.context = { ...descriptor.context, ...context };
+      return descriptor;
+    },
+    bind() {
+      return descriptor;
+    },
+    async run<T>() {
+      await dispatchGuard(descriptor.context, input);
+      return { results: [], success: true, meta: { changes: 0, duration: 0 } } as SqlResult<T>;
+    },
+    async first<T>() {
+      await dispatchGuard(descriptor.context, input);
+      return null as T | null;
+    },
+    async all<T>() {
+      await dispatchGuard(descriptor.context, input);
+      return { results: [], success: true, meta: { changes: 0, duration: 0 } } as SqlResult<never>;
+    },
+    async raw() {
+      await dispatchGuard(descriptor.context, input);
+      return [];
+    },
+  };
+  return descriptor as unknown as NativeAttachmentVersionGuard;
 }

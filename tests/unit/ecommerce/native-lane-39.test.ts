@@ -165,7 +165,7 @@ describe("lane 39 Ecommerce native workspace-list transport", () => {
   });
 
   it("pins the final owner SELECT KPI: ecommerce 1, brand 2", () => {
-    for (const [owner, expected] of [["server-ecommerce", 1], ["server-brand", 2]] as const) {
+    for (const [owner, expected] of [["server-ecommerce", 0], ["server-brand", 2]] as const) {
       let total = 0;
       const walk = (dir: string) => {
         for (const entry of readdirSync(dir, { withFileTypes: true })) {

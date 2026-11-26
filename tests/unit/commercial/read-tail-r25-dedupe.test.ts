@@ -87,9 +87,10 @@ describe('Commercial read-tail r25 purchase-fact head delegation', () => {
     expect(r4).not.toContain('@erpx/server-');
   });
 
-  test('caller-side prepare/bind is unchanged at both purchase-fact sites', () => {
+  test('native owner plan replaces both purchase-fact SQL sites; caller binds stay', () => {
     const pg = src('package-grants.ts');
-    expect(pg.match(/purchaseFactAgg\(/g)).toHaveLength(2);
+    expect(pg).not.toContain('purchaseFactAgg');
+    expect(pg).toContain('nativeCommercialOwnerRead(COMMERCIAL_RD_PURCHASE_FACTS)');
     expect(pg).toContain('.bind(companyId, companyId).first<{ grants: Row[] | string; history: HistoryRow[] | string }>()');
     expect(pg).not.toContain(GRANTS);
     expect(pg).not.toContain(HISTORY);

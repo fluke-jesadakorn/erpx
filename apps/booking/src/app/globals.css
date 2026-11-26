@@ -107,7 +107,9 @@
 @source "../../../../packages/feature-pms/src/lib/pms-room-charge.ts";
 @source "../../../../packages/feature-pms/src/lib/public-booking-reservation-command.ts";
 @source "../../../../packages/feature-pms/src/public/native-pms.ts";
+@source "../../../../packages/feature-projects/src/adapters/server/next-native-project-handoffs.ts";
 @source "../../../../packages/feature-projects/src/adapters/server/next-native-project-wbs.ts";
+@source "../../../../packages/feature-projects/src/public/native-project-handoffs.ts";
 @source "../../../../packages/feature-projects/src/public/native-project-wbs-owned.ts";
 @source "../../../../packages/feature-projects/src/public/native-project-wbs-page.ts";
 @source "../../../../packages/feature-projects/src/public/native-project-wbs.ts";
@@ -436,13 +438,12 @@
 @source "../../../../packages/server-commercial/src/adapters/commercial-read-tail-r12-sources.ts";
 @source "../../../../packages/server-commercial/src/adapters/commercial-read-tail-r13-sources.ts";
 @source "../../../../packages/server-commercial/src/adapters/commercial-read-tail-r14-sources.ts";
-@source "../../../../packages/server-commercial/src/adapters/commercial-read-tail-r26-sources.ts";
 @source "../../../../packages/server-commercial/src/adapters/commercial-read-tail-r27-sources.ts";
-@source "../../../../packages/server-commercial/src/adapters/commercial-read-tail-r4-sources.ts";
 @source "../../../../packages/server-commercial/src/adapters/commercial-read-tail-r5-sources.ts";
 @source "../../../../packages/server-commercial/src/adapters/commercial-read-tail-r6-sources.ts";
 @source "../../../../packages/server-commercial/src/adapters/commercial-read-tail-r8-sources.ts";
 @source "../../../../packages/server-commercial/src/adapters/development-package-enforcement.ts";
+@source "../../../../packages/server-commercial/src/adapters/native-owner-read.ts";
 @source "../../../../packages/server-commercial/src/adapters/native-owner-write.ts";
 @source "../../../../packages/server-commercial/src/adapters/native-wave2.ts";
 @source "../../../../packages/server-commercial/src/adapters/package-grants.ts";
@@ -1558,7 +1559,6 @@
 @source "../../../../packages/server-pms/src/adapters/finance-record-sources.ts";
 @source "../../../../packages/server-pms/src/adapters/finance-snapshot-sources.ts";
 @source "../../../../packages/server-pms/src/adapters/hospitality-day-controls.ts";
-@source "../../../../packages/server-pms/src/adapters/hospitality-owner-projection-sources.ts";
 @source "../../../../packages/server-pms/src/adapters/native-home-metrics/client.ts";
 @source "../../../../packages/server-pms/src/adapters/native-lane-20/client.ts";
 @source "../../../../packages/server-pms/src/adapters/native-lane-20/room-summary-client.ts";
@@ -1638,7 +1638,6 @@
 @source "../../../../packages/server-pms/src/public/finance-record-sources.ts";
 @source "../../../../packages/server-pms/src/public/finance-snapshot-sources.ts";
 @source "../../../../packages/server-pms/src/public/hospitality-day-controls.ts";
-@source "../../../../packages/server-pms/src/public/hospitality-owner-projection-sources.ts";
 @source "../../../../packages/server-pms/src/public/platform-owner-projection-sources.ts";
 @source "../../../../packages/server-pms/src/public/pms-booking-changes.ts";
 @source "../../../../packages/server-pms/src/public/pms-booking-refunds.ts";
@@ -1669,6 +1668,7 @@
 @source "../../../../packages/server-pos/src/adapters/initial-physical-stock-sources.ts";
 @source "../../../../packages/server-pos/src/adapters/native-owner-write.ts";
 @source "../../../../packages/server-pos/src/adapters/native-pos-core-statement.ts";
+@source "../../../../packages/server-pos/src/adapters/native_room_charges/client.ts";
 @source "../../../../packages/server-pos/src/adapters/platform-owner-projection-sources.ts";
 @source "../../../../packages/server-pos/src/adapters/pms-booking-change-facts.ts";
 @source "../../../../packages/server-pos/src/adapters/pms-booking-facts.ts";

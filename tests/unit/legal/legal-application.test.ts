@@ -605,7 +605,7 @@ it("keeps the approval reviewer-membership and current-route guards in the nativ
   };
   await walk(resolve(__dirname, "../../../packages/server-legal/src"));
   expect(total).toBeLessThan(41);
-  expect(total).toBe(37);
+  expect(total).toBe(36);
 });
 
 

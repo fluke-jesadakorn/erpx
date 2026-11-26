@@ -26,3 +26,4 @@ pub mod routine_commands_http;
 
 pub mod native_operations_read;
 pub mod native_lane_28;
+pub mod native_routines_read;

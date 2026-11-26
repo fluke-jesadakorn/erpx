@@ -1267,7 +1267,6 @@
 @source "../../../../packages/feature-people/src/routes/api/v1/holdings/[holdingSlug]/people/explorer-detail/route.ts";
 @source "../../../../packages/feature-people/src/routes/api/v1/holdings/[holdingSlug]/people/hr-settings/route.ts";
 @source "../../../../packages/feature-people/src/routes/api/v1/holdings/[holdingSlug]/people/roster/route.ts";
-@source "../../../../packages/feature-people/src/routes/api/v1/holdings/[holdingSlug]/people/route.ts";
 @source "../../../../packages/feature-people/src/routes/holdings/[holdingSlug]/@record/people-organization/benefits/[id]/[recordSection]/page.tsx";
 @source "../../../../packages/feature-people/src/routes/holdings/[holdingSlug]/@record/people-organization/benefits/[id]/page.tsx";
 @source "../../../../packages/feature-people/src/routes/holdings/[holdingSlug]/@record/people-organization/benefits/records/benefit_plan/[id]/[recordSection]/page.tsx";
@@ -1701,7 +1700,6 @@
 @source "../../../../packages/feature-portal/src/routes/api/customer-portal/[holdingSlug]/route.ts";
 @source "../../../../packages/feature-portal/src/routes/api/customer-portal/[holdingSlug]/tickets/[bindingId]/acknowledgements/route.ts";
 @source "../../../../packages/feature-portal/src/routes/api/customer-portal/[holdingSlug]/tickets/[bindingId]/files/[linkId]/content/route.ts";
-@source "../../../../packages/feature-portal/src/routes/api/customer-portal/[holdingSlug]/tickets/route.ts";
 @source "../../../../packages/feature-portal/src/routes/api/customer-portal/enroll/route.ts";
 @source "../../../../packages/feature-portal/src/routes/customer-portal/[holdingSlug]/page.tsx";
 @source "../../../../packages/feature-portal/src/routes/customer-portal/[holdingSlug]/tickets/page.tsx";
@@ -1788,6 +1786,7 @@
 @source "../../../../packages/feature-procurement/src/public/native-supplier-promise-history-owned.ts";
 @source "../../../../packages/feature-procurement/src/public/native-supplier-promise-history-page.ts";
 @source "../../../../packages/feature-procurement/src/public/native-supplier-promise-history.ts";
+@source "../../../../packages/feature-projects/src/adapters/server/next-native-project-handoffs.ts";
 @source "../../../../packages/feature-projects/src/adapters/server/next-native-project-wbs.ts";
 @source "../../../../packages/feature-projects/src/components/project-actuals.tsx";
 @source "../../../../packages/feature-projects/src/components/project-editor-boundary.tsx";
@@ -1809,6 +1808,7 @@
 @source "../../../../packages/feature-projects/src/lib/worker-startup-command.ts";
 @source "../../../../packages/feature-projects/src/public/native-project-attachment-read.ts";
 @source "../../../../packages/feature-projects/src/public/native-project-attachment.ts";
+@source "../../../../packages/feature-projects/src/public/native-project-handoffs.ts";
 @source "../../../../packages/feature-projects/src/public/native-project-structure.ts";
 @source "../../../../packages/feature-projects/src/public/native-project-wbs-owned.ts";
 @source "../../../../packages/feature-projects/src/public/native-project-wbs-page.ts";
@@ -3244,6 +3244,7 @@
 @source "../../../../packages/server-crm/src/adapters/metric-purchases.ts";
 @source "../../../../packages/server-crm/src/adapters/native-activity-workspace.ts";
 @source "../../../../packages/server-crm/src/adapters/native-crm-command.ts";
+@source "../../../../packages/server-crm/src/adapters/native-crm-history.ts";
 @source "../../../../packages/server-crm/src/adapters/native-crm-notification.ts";
 @source "../../../../packages/server-crm/src/adapters/native-crm-read.ts";
 @source "../../../../packages/server-crm/src/adapters/purchases.ts";
@@ -3359,11 +3360,9 @@
 @source "../../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r33-sources.ts";
 @source "../../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r34-sources.ts";
 @source "../../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r35-sources.ts";
-@source "../../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r36-sources.ts";
 @source "../../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r37-sources.ts";
 @source "../../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r40-sources.ts";
 @source "../../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r41-sources.ts";
-@source "../../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r42-sources.ts";
 @source "../../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r44-sources.ts";
 @source "../../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r45-sources.ts";
 @source "../../../../packages/server-customer_authority/src/adapters/duplicates.ts";
@@ -3385,14 +3384,12 @@
 @source "../../../../packages/server-customer_authority/src/adapters/portal-release-gate.ts";
 @source "../../../../packages/server-customer_authority/src/adapters/portal-source-locks.ts";
 @source "../../../../packages/server-customer_authority/src/adapters/portal-support-sources.ts";
-@source "../../../../packages/server-customer_authority/src/adapters/portal-support.ts";
 @source "../../../../packages/server-customer_authority/src/adapters/sales-review-counts.ts";
 @source "../../../../packages/server-customer_authority/src/application/access.ts";
 @source "../../../../packages/server-customer_authority/src/application/duplicates.ts";
 @source "../../../../packages/server-customer_authority/src/application/identity.ts";
 @source "../../../../packages/server-customer_authority/src/domain/access.ts";
 @source "../../../../packages/server-customer_authority/src/domain/portal-invitation.ts";
-@source "../../../../packages/server-customer_authority/src/domain/portal-support.ts";
 @source "../../../../packages/server-customer_authority/src/public/attachment-purchases.ts";
 @source "../../../../packages/server-customer_authority/src/public/attachment-read.ts";
 @source "../../../../packages/server-customer_authority/src/public/attachment-request-sources.ts";
@@ -3413,7 +3410,6 @@
 @source "../../../../packages/server-customer_authority/src/public/portal-read-purchases.ts";
 @source "../../../../packages/server-customer_authority/src/public/portal-source-locks.ts";
 @source "../../../../packages/server-customer_authority/src/public/portal-support-sources.ts";
-@source "../../../../packages/server-customer_authority/src/public/portal-support.ts";
 @source "../../../../packages/server-customer_authority/src/public/sales-review-counts.ts";
 @source "../../../../packages/server-ecommerce/src/adapters/attachment-purchases.ts";
 @source "../../../../packages/server-ecommerce/src/adapters/attachment-read.ts";
@@ -4979,6 +4975,7 @@
 @source "../../../../packages/server-legal/src/adapters/native-legal-hold-notice.ts";
 @source "../../../../packages/server-legal/src/adapters/native-legal-package-obligations.ts";
 @source "../../../../packages/server-legal/src/adapters/native-legal-wave3.ts";
+@source "../../../../packages/server-legal/src/adapters/native-rule-impact/client.ts";
 @source "../../../../packages/server-legal/src/adapters/package-obligations.ts";
 @source "../../../../packages/server-legal/src/adapters/pms-rollout-facts.ts";
 @source "../../../../packages/server-legal/src/adapters/portal-command-request.ts";
@@ -5311,6 +5308,7 @@
 @source "../../../../packages/server-marketing/src/adapters/module-membership.ts";
 @source "../../../../packages/server-marketing/src/adapters/native-lane-40/client.ts";
 @source "../../../../packages/server-marketing/src/adapters/native-marketing-read.ts";
+@source "../../../../packages/server-marketing/src/adapters/native-public-form-source.ts";
 @source "../../../../packages/server-marketing/src/adapters/owner-point-read-sql.ts";
 @source "../../../../packages/server-marketing/src/adapters/owner-projection-source.ts";
 @source "../../../../packages/server-marketing/src/adapters/package-obligations.ts";
@@ -5887,6 +5885,7 @@
 @source "../../../../packages/server-people_payroll/src/adapters/native-organization-access.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/native-organization-config.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/native-overtime-notification.ts";
+@source "../../../../packages/server-people_payroll/src/adapters/native-pay-group-options.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/native-people-payroll-command.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/native-people-payroll-read.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/operations-leave-legacy-facts.ts";
@@ -6595,6 +6594,7 @@
 @source "../../../../packages/server-pos/src/adapters/native-pos-registers-statement.ts";
 @source "../../../../packages/server-pos/src/adapters/native-pos-sale-child.ts";
 @source "../../../../packages/server-pos/src/adapters/native-pos-stripe-reads.ts";
+@source "../../../../packages/server-pos/src/adapters/native_room_charges/client.ts";
 @source "../../../../packages/server-pos/src/adapters/package-obligations.ts";
 @source "../../../../packages/server-pos/src/adapters/platform-owner-projection-sources.ts";
 @source "../../../../packages/server-pos/src/adapters/pms-booking-change-facts.ts";
@@ -6709,6 +6709,7 @@
 @source "../../../../packages/server-procurement/src/adapters/native-procurement-read.ts";
 @source "../../../../packages/server-procurement/src/adapters/native-rfq-notification.ts";
 @source "../../../../packages/server-procurement/src/adapters/native-supplier-bill-notification.ts";
+@source "../../../../packages/server-procurement/src/adapters/native-supplier-bill-policy-read.ts";
 @source "../../../../packages/server-procurement/src/adapters/native-supplier-promise-notification.ts";
 @source "../../../../packages/server-procurement/src/adapters/package-obligations.ts";
 @source "../../../../packages/server-procurement/src/adapters/people-app-entrypoint-facts.ts";

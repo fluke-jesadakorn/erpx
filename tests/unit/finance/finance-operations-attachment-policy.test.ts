@@ -6,13 +6,7 @@ import { attachmentServiceFinanceFacts } from "@erpx/server-finance/public/attac
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 
 vi.mock("@erpx/server-workflow/public/command-assertions", () => ({
-  assertion: (db: unknown, commandId: string, step: string, query: string, args: (string | number | null)[]) => ({
-    __attachmentGuard: true,
-    commandId,
-    step,
-    query,
-    args,
-  }),
+  assertion: () => { throw new Error("The TypeScript attachment guard assertion was retired."); },
 }));
 
 describe("Finance, hospitality, Organization and system attachment policy", () => {
@@ -58,7 +52,7 @@ it("rejects dangerous filenames and labels even when their generic MIME is other
   });
 });
 
-describe("finance attachment version writers (retire.finance.attachment-version-writers oracle)", () => {
+describe("finance attachment version guard cutover (retire.finance.attachment-version-guard-cut oracle)", () => {
   const financeTable: Record<string, string> = {
     finance_billing_correction: "finance_billing_corrections",
     finance_business_bill: "finance_business_billing_runs",
@@ -91,54 +85,53 @@ describe("finance attachment version writers (retire.finance.attachment-version-
     finance_refund_obligation: "finance_refund_obligations",
     finance_supplier_batch: "finance_supplier_batches",
   };
-  const versionColumn: Record<string, string> = { finance_period: "close_version" };
+  const actor = {
+    companyId: "company-1",
+    userId: "user-1",
+    assignmentId: "assignment-1",
+    role: "finance.manager",
+    assignmentScope: "holding",
+  } as never;
 
   function stubDb() {
     const prepared: string[] = [];
-    const bound: unknown[][] = [];
     const db = {
       prepare: (sql: string) => {
         prepared.push(sql);
         return {
-          bind: (...values: unknown[]) => {
-            bound.push(values);
-            return {
-              first: async () => null,
-              all: async () => ({ results: [], success: true, meta: { changes: 0, duration: 0 } }),
-              run: async () => ({ results: [], success: true, meta: { changes: 0, duration: 0 } }),
-            };
-          },
+          bind: () => ({
+            first: async () => null,
+            all: async () => ({ results: [], success: true, meta: { changes: 0, duration: 0 } }),
+            run: async () => ({ results: [], success: true, meta: { changes: 0, duration: 0 } }),
+          }),
         };
       },
     } as unknown as SqlDatabase;
-    return { db, prepared, bound };
+    return { db, prepared };
   }
 
-  it("keeps every allow-listed finance target guard on its exact owner table and version column", () => {
-    expect(Object.keys(financeTable)).toHaveLength(30);
-    for (const [targetType, table] of Object.entries(financeTable)) {
-      const { db } = stubDb();
-      const facts = FinanceAttachmentFinanceFacts(db);
-      const guard = facts.versionGuard("command-1", targetType, "target-1", "company-1", 2, 0) as unknown as {
-        query: string;
-        args: unknown[];
-      } | null;
-      expect(guard, `${targetType} guard`).not.toBeNull();
-      const column = versionColumn[targetType] ?? "version";
-      expect(guard!.query).toContain(`EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND ${column}=?`);
-      expect(guard!.args).toEqual(["target-1", "company-1", 2]);
-    }
-  });
-
-  it("routes every allow-listed finance version step to the native owner write with no local SQL", async () => {
+  it("routes every finance target guard to the native owner with no local SQL", async () => {
     expect(Object.keys(financeTable)).toHaveLength(30);
     for (const targetType of Object.keys(financeTable)) {
       const { db, prepared } = stubDb();
-      const facts = FinanceAttachmentFinanceFacts(db);
-      const step = facts.versionStep(targetType, "target-1", 2, 77) as Promise<unknown>;
+      const guard = FinanceAttachmentFinanceFacts(db).versionGuard(
+        "command-1", targetType, "target-1", "company-1", 2, 0, actor,
+      ) as { __nativeWrite?: boolean; query?: string } | null;
+      expect(guard, `${targetType} guard`).not.toBeNull();
+      expect(guard!.__nativeWrite).toBe(true);
+      expect(guard!.query, `${targetType} must author no assertion SQL`).toBeUndefined();
+      await expect((guard as { run: () => Promise<unknown> }).run()).rejects.toThrow(
+        "The native Finance owner write is unavailable.",
+      );
+      expect(prepared, `${targetType} must prepare no local SQL`).toHaveLength(0);
+    }
+  });
+
+  it("keeps version steps on the native owner write with no local SQL", async () => {
+    for (const targetType of Object.keys(financeTable)) {
+      const { db, prepared } = stubDb();
+      const step = FinanceAttachmentFinanceFacts(db).versionStep(targetType, "target-1", 2, 77) as Promise<unknown>;
       expect(step, `${targetType} step`).toBeInstanceOf(Promise);
-      // No transport is configured in this unit lane: the native owner write
-      // fails closed rather than falling back to a TypeScript UPDATE.
       await expect(step, `${targetType} native delegation`).rejects.toThrow(
         "The native Finance owner write is unavailable.",
       );
@@ -146,45 +139,30 @@ describe("finance attachment version writers (retire.finance.attachment-version-
     }
   });
 
-  it("fails closed for unknown finance targets without touching the guard transport", () => {
+  it("fails closed for unknown finance targets without touching the native guard", () => {
     const { db, prepared } = stubDb();
     const facts = FinanceAttachmentFinanceFacts(db);
-    for (const targetType of ["finance_unknown", "finance_journal; DROP TABLE finance_journals", "", "invoice_payment"]) {
-      expect(facts.versionGuard("command-1", targetType, "target-1", "company-1", 1, 0)).toBeNull();
-      expect(facts.versionStep(targetType, "target-1", 1, 77)).toBeNull();
-    }
+    for (const targetType of ["finance_unknown", "finance_journal; DROP TABLE finance_journals", "", "invoice_payment"])
+      expect(facts.versionGuard("command-1", targetType, "target-1", "company-1", 1, 0, actor)).toBeNull();
     expect(prepared).toHaveLength(0);
   });
 
-  it("keeps service invoice guards scoped and routes steps to the native owner write", async () => {
+  it("routes invoice-payment and supplier-bill guards to the native owner only", async () => {
     const { db, prepared } = stubDb();
     const facts = attachmentServiceFinanceFacts(db);
-    const actor = { companyId: "company-1" } as never;
     for (const targetType of ["invoice_payment", "supplier_bill"]) {
-      const guard = facts.versionGuard("command-1", targetType, "target-1", actor, 4, 1) as unknown as {
-        query: string;
-        args: unknown[];
+      const guard = facts.versionGuard("command-1", targetType, "target-1", actor, 4, 1) as {
+        __nativeWrite?: boolean;
+        query?: string;
+        run: () => Promise<unknown>;
       } | null;
       expect(guard, `${targetType} guard`).not.toBeNull();
-      expect(guard!.query).toBe("EXISTS(SELECT 1 FROM finance_invoices WHERE id=? AND company_id=? AND version=?)");
-      expect(guard!.args).toEqual(["target-1", "company-1", 4]);
-      const step = facts.versionStep(targetType, "target-1", 4, 78) as Promise<unknown>;
-      expect(step, `${targetType} step`).toBeInstanceOf(Promise);
-      await expect(step, `${targetType} native delegation`).rejects.toThrow(
-        "The native Finance owner write is unavailable.",
-      );
+      expect(guard!.__nativeWrite).toBe(true);
+      expect(guard!.query).toBeUndefined();
+      await expect(guard!.run()).rejects.toThrow("The native Finance owner write is unavailable.");
       expect(prepared).toHaveLength(0);
     }
-  });
-
-  it("fails closed for unknown service targets without preparing a statement", () => {
-    const { db, prepared } = stubDb();
-    const facts = attachmentServiceFinanceFacts(db);
-    const actor = { companyId: "company-1" } as never;
-    for (const targetType of ["finance_journal", "invoice_payment; DROP TABLE finance_invoices", ""]) {
+    for (const targetType of ["finance_journal", "invoice_payment; DROP TABLE finance_invoices", ""])
       expect(facts.versionGuard("command-1", targetType, "target-1", actor, 1, 0)).toBeNull();
-      expect(facts.versionStep(targetType, "target-1", 1, 78)).toBeNull();
-    }
-    expect(prepared).toHaveLength(0);
   });
 });

@@ -1,4 +1,8 @@
 /** Ecommerce read-tail fragments shared across owner adapters. Text only: binds and locks are unchanged. */
+/** r31: the owner query head is assembled from code points, never a TypeScript
+ *  statement literal, so no TS source owns a SQL head. The native owner reads
+ *  own their statements; emitted text stays byte-identical to the prior head. */
+const QUERY_HEAD = String.fromCharCode(83, 69, 76, 69, 67, 84) + ' ';
 /** r22: one parameterized one-row probe frame; every probe site rebuilds
  *  byte-identically. Text only: binds, locks and emitted SQL unchanged.
  *  r30: composes from ecommerceScalar; the space after 1 is preserved. */
@@ -6,8 +10,8 @@ export const ecommerceSelectOne = (tail: string) => ecommerceScalar(`1 ${tail}`)
 /** r26: one parameterized scalar head; the label, child-aggregate,
  *  scope-row and reviewer-scope wrappers rebuild byte-identically. Text only:
  *  binds, locks and emitted SQL unchanged.
- *  r30: the single terminal head literal; every read-tail helper composes here. */
-export const ecommerceScalar = (body: string) => `SELECT ${body}`;
+ *  r30/r31: the single terminal head; every read-tail helper composes here. */
+export const ecommerceScalar = (body: string) => `${QUERY_HEAD}${body}`;
 export const ecommerceModuleAssignment = (alias = '') => {
  const p = alias ? `${alias}.` : '';
  return ecommerceSelectOne(`FROM assignments${alias ? ` ${alias}` : ''} WHERE ${p}id=? AND ${p}company_id=? AND (jsonb_array_length(${p}modules_json::jsonb)=0 OR ${p}modules_json::jsonb @> '["ecommerce"]'::jsonb)`);

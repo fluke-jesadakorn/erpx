@@ -34,13 +34,16 @@ use erpx_server_quality::public::quality_commands::{
     normalize_quality_release, normalize_quality_spec_action, normalize_quality_spec_save,
 };
 use erpx_server_quality::public::quality_http::{
-    PgQualityRead, QualityHttpBackend, QualityHttpCommandRequest, QualityHttpFuture,
+    PgQualityRead, QualityAlertQueueFuture, QualityHttpAlertQueueRequest, QualityHttpBackend, QualityHttpCommandRequest, QualityHttpFuture,
     QualityHttpHistoryReply, QualityHttpHistoryRequest, QualityHttpHoldCreateRequest,
     QualityHttpReadReply, QualityHttpReadRequest, QualityHttpSaveSpecRequest, QualityHttpTarget,
     parse_alert_acknowledge, parse_cancellation, parse_disposition, parse_hold_create,
     parse_inspection, parse_quality_history_query, parse_release, parse_spec_action,
     parse_spec_save, quality_router, read_quality_cancellation_history_page,
     read_quality_detail_core,
+};
+use erpx_server_quality::public::quality_alert_queue::{
+    QualityAlertQueueQuery, QualityAlertRow, read_quality_alert_queue,
 };
 use erpx_server_quality::public::quality_read::{
     QualityActor, QualityCancellationCommand, QualityCancellationReceipt,
@@ -242,6 +245,48 @@ impl<C: Clock + Send + Sync + 'static> QualityService<C> {
                             .await?;
                         let _ = clock;
                         Ok(QualityHttpReadReply::Workspace(Box::new(data)))
+                    })
+                },
+            )
+            .await
+    }
+
+
+    /// Native Quality escalation-queue read on the caller's Holding unit.
+    pub async fn alert_queue(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        selection: HoldingWorkspaceRequest,
+    ) -> Result<Vec<QualityAlertRow>, Error> {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(move || Ok(selection)),
+                Self::access(),
+                QualitySources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("quality.read")?;
+                        let workspace = current.selection().workspace();
+                        let query = QualityAlertQueueQuery {
+                            company: company.clone(),
+                            branch: workspace.branch_id.clone(),
+                            actor: current.user_id().clone(),
+                            department_scope: workspace.department_id.is_some(),
+                            read_allowed: true,
+                        };
+                        Ok(read_quality_alert_queue(connection, &query).await?)
                     })
                 },
             )
@@ -1236,6 +1281,19 @@ impl<C: Clock + Send + Sync + 'static> QualityHttpBackend for QualityBackend<C> 
             let command = parse_hold_create(request.body, request.key.clone())?;
             self.service
                 .hold_create(request.host, proof, selection, command)
+                .await
+                .map_err(business)
+        })
+    }
+
+    fn alert_queue<'a>(
+        &'a self,
+        request: QualityHttpAlertQueueRequest<'a>,
+    ) -> QualityAlertQueueFuture<'a, Vec<QualityAlertRow>> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .alert_queue(request.host, proof, selection)
                 .await
                 .map_err(business)
         })

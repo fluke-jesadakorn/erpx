@@ -32,11 +32,11 @@ describe('Commercial read-tail r4 byte-identical / parameterized family', () => 
     [PRINCIPAL, SEAT].forEach(readOnly);
   });
 
-  test('every former site composes the builder and keeps its own prepare/bind', () => {
+  test('purchase-fact site now runs the native owner plan on its own unit', () => {
     const pg = adapters('package-grants.ts');
-    expect(pg).toContain('purchaseFactAgg');
+    expect(pg).not.toContain('purchaseFactAgg');
+    expect(pg).toContain('nativeCommercialOwnerRead(COMMERCIAL_RD_PURCHASE_FACTS)');
     for (const sql of [GRANTS, HISTORY]) expect(pg, sql).not.toContain(sql);
-    expect(pg.match(/purchaseFactAgg\(/g)).toHaveLength(2); // 2 call sites
 
     const pj = adapters('projection.ts');
     expect(pj).toContain('coverageProbe');

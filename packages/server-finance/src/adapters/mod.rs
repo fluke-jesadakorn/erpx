@@ -122,6 +122,7 @@ pub(crate) mod commerce_reservation_party;
 
 pub(crate) mod portal_commerce_locks;
 
+pub(crate) mod attachment_version_http;
 pub(crate) mod finance_owner_write;
 pub(crate) mod finance_owner_write_http;
 pub(crate) mod finance_owner_write_postgres;

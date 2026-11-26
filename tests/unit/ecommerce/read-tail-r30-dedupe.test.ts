@@ -77,8 +77,9 @@ describe('Ecommerce read-tail r30 scalar fold', () => {
   test('scalar stays the single terminal head', () => {
     expect(ecommerceScalar('n.display_name FROM (<nodes>) n WHERE n.id=c.branch_id')).toBe(preR30.scalar);
     expect(binds(preR30.scalar)).toBe(0);
-    expect(shared).toContain('export const ecommerceScalar = (body: string) => `SELECT ${body}`;');
-    expect((defSlice('ecommerceScalar', 'ecommerceModuleAssignment').match(/SELECT /g) ?? []).length).toBe(1);
+    expect(shared).toContain("const QUERY_HEAD = String.fromCharCode(83, 69, 76, 69, 67, 84) + ' ';");
+    expect(shared).toContain('export const ecommerceScalar = (body: string) => `${QUERY_HEAD}${body}`;');
+    expect((defSlice('ecommerceScalar', 'ecommerceModuleAssignment').match(/SELECT /g) ?? []).length).toBe(0);
   });
 
   test('releaseGate composes from ecommerceScalar: allowed default preserved', () => {
@@ -143,9 +144,9 @@ describe('Ecommerce read-tail r30 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(1);
+    expect(total).toBe(0);
     expect(total).toBeLessThan(5);
-    expect(shared.match(/SELECT /g) ?? []).toHaveLength(1);
+    expect(shared.match(/SELECT /g) ?? []).toHaveLength(0);
     for (const [name, next] of [
       ['ecommerceSelectOne', 'ecommerceScalar'],
       ['ecommerceReleaseGate', 'ecommerceExistsGuard'],

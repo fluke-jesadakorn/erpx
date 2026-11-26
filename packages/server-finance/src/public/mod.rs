@@ -2,6 +2,7 @@ pub mod asset_acquisition_money;
 pub mod asset_purchase_source;
 pub mod attachment_target_source;
 pub mod attachment_version;
+pub mod attachment_version_http;
 pub mod commerce_goods_journal;
 pub mod commerce_order_money;
 pub mod commerce_order_party_guard;

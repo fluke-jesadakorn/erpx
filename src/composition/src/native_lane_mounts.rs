@@ -7,6 +7,7 @@
 use crate::private_development_api::DevelopmentApiConfiguration;
 use axum::Router;
 use erpx_server_runtime::public::postgres::DatabasePool;
+use std::collections::BTreeMap;
 
 /// Merge every ready native lane router into the private API router.
 ///
@@ -1184,6 +1185,112 @@ pub fn mount(
         )
         .map_err(|_| "PRIVATE_API_POS_ROOM_CHARGES_INVALID")?,
     );
+
+    // Commerce: order return-line read.
+    router = router.merge(
+        erpx_server_commerce::public::native_return_lines::router_for_holdings(
+            config
+                .holdings
+                .iter()
+                .enumerate()
+                .map(|(i, holding)| {
+                    (
+                        erpx_server_commerce::public::native_return_lines::LaneTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                        },
+                        pools[i + 1].clone(),
+                    )
+                })
+                .collect(),
+        )
+        .map_err(|_| "PRIVATE_API_COMMERCE_RETURN_LINES_INVALID")?,
+    );
+
+    // Inventory: stock-transfer list read.
+    router = router.merge(
+        erpx_server_inventory::public::native_transfer_list::router_for_holdings(
+            config
+                .holdings
+                .iter()
+                .enumerate()
+                .map(|(i, holding)| {
+                    (
+                        erpx_server_inventory::public::native_transfer_list::TransferTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                        },
+                        pools[i + 1].clone(),
+                    )
+                })
+                .collect(),
+        )
+        .map_err(|_| "PRIVATE_API_INVENTORY_TRANSFER_LIST_INVALID")?,
+    );
+
+    // Maintenance: eligible-owner option read.
+    router = router.merge(
+        erpx_server_maintenance::public::native_owner_options::router_for_holdings(
+            config
+                .holdings
+                .iter()
+                .enumerate()
+                .map(|(i, holding)| {
+                    (
+                        erpx_server_maintenance::public::native_owner_options::OwnerOptionTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                        },
+                        pools[i + 1].clone(),
+                    )
+                })
+                .collect(),
+        )
+        .map_err(|_| "PRIVATE_API_MAINTENANCE_OWNER_OPTIONS_INVALID")?,
+    );
+
+    // Agent: assistant source-reference read.
+    router = router.merge(
+        erpx_server_agent::public::native_assistant_sources::router_for_holdings(
+            config
+                .holdings
+                .iter()
+                .enumerate()
+                .map(|(i, holding)| {
+                    (
+                        erpx_server_agent::public::native_assistant_sources::AssistantSourcesTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                        },
+                        pools[i + 1].clone(),
+                    )
+                })
+                .collect(),
+        )
+        .map_err(|_| "PRIVATE_API_AGENT_ASSISTANT_SOURCES_INVALID")?,
+    );
+
+    // Finance: attachment-version guard/step port keyed by Company.
+    let mut attachment_versions = BTreeMap::new();
+    for (i, holding) in config.holdings.iter().enumerate() {
+        if let Some(company) = config.holding_company(&holding.registration.holding_id) {
+            attachment_versions.entry(company).or_insert_with(|| {
+                std::sync::Arc::new(
+                    erpx_server_finance::public::attachment_version_http::PgAttachmentVersionBackend::new(
+                        pools[i + 1].clone(),
+                    ),
+                ) as std::sync::Arc<dyn erpx_server_finance::public::attachment_version_http::AttachmentVersionBackend>
+            });
+        }
+    }
+    if !attachment_versions.is_empty() {
+        router = router.merge(
+            erpx_server_finance::public::attachment_version_http::attachment_version_router(
+                attachment_versions.into_iter().collect(),
+            )
+            .map_err(|_| "PRIVATE_API_FINANCE_ATTACHMENT_VERSION_INVALID")?,
+        );
+    }
 
     Ok(router)
 }

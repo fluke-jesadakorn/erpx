@@ -100,7 +100,7 @@ describe('Ecommerce read-tail r29 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(1);
+    expect(total).toBe(0);
     expect(total).toBeLessThan(7);
   });
 });

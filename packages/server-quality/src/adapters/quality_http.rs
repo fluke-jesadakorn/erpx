@@ -11,10 +11,12 @@ use crate::application::quality::{
     QualityInspection, QualityLot, QualityMeasurement, QualityProduct, QualitySpecification,
     QualityStock, QualityWorkspace,
 };
+use crate::application::quality_alert_queue::QualityAlertQueueFuture;
 use crate::application::quality_alerts::{
     QualityAlertAcknowledgeCommand, QualityAlertAcknowledgementReceipt,
     normalize_quality_alert_acknowledge,
 };
+use crate::domain::quality_alert_queue::QualityAlertRow;
 use crate::application::quality_commands::{
     QualityDispositionCommand, QualityDispositionReceipt, QualityHoldCommand, QualityHoldReceipt,
     QualityInspectionCommand, QualityInspectionReceipt, QualityReleaseCommand,
@@ -90,6 +92,15 @@ pub struct QualityHttpHistoryRequest<'a> {
     pub raw_query: Option<&'a str>,
 }
 
+/// The escalation queue read carries no path identifier or query cursor. The
+/// composition backend resolves session, Company/Branch scope and purchase
+/// visibility before calling the owner port.
+pub struct QualityHttpAlertQueueRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub headers: &'a HeaderMap,
+}
+
 pub struct QualityHistoryCursor {
     pub before: Option<i64>,
     pub head: Option<i64>,
@@ -140,6 +151,18 @@ pub trait QualityHttpBackend: Send + Sync {
                 FailureKind::Unavailable,
                 "QUALITY_HISTORY_UNAVAILABLE",
                 "Quality cancellation history is unavailable.",
+            ))
+        })
+    }
+    fn alert_queue<'a>(
+        &'a self,
+        _request: QualityHttpAlertQueueRequest<'a>,
+    ) -> QualityAlertQueueFuture<'a, Vec<QualityAlertRow>> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "QUALITY_ALERT_QUEUE_UNAVAILABLE",
+                "The Quality escalation queue is unavailable.",
             ))
         })
     }
@@ -326,6 +349,10 @@ pub fn quality_router(targets: Vec<QualityHttpTarget>) -> Result<Router, Busines
         .route(
             "/api/v1/holdings/{holding_slug}/quality/{id}/cancellations",
             get(read_history),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/quality/alerts",
+            get(read_alert_queue),
         )
         .route(
             "/api/v1/holdings/{holding_slug}/quality/{id}/detail-core",
@@ -651,6 +678,31 @@ fn alert(row: &QualityAlert) -> Value {
         "acknowledgedBy": row.acknowledged_by,
         "acknowledgedAt": row.acknowledged_at,
         "reason": row.reason,
+    })
+}
+
+/// Exact retained snake-case field names and value types of the Quality
+/// workspace escalation row. No field is dropped or reshaped.
+fn alert_queue_row(row: &QualityAlertRow) -> Value {
+    json!({
+        "id": row.id,
+        "hold_id": row.hold_id,
+        "phase": row.phase.as_str(),
+        "source_version": row.source_version,
+        "hold_version": row.hold_version,
+        "due_date": row.due_date,
+        "detected_at": row.detected_at,
+        "version": row.version,
+        "acknowledged_by": row.acknowledged_by,
+        "acknowledged_at": row.acknowledged_at,
+        "reason": row.reason,
+        "company_id": row.company_id,
+        "branch_id": row.branch_id,
+        "status": row.status,
+        "product_name": row.product_name,
+        "warehouse_name": row.warehouse_name,
+        "can_ack": row.can_ack,
+        "recipients": row.recipients,
     })
 }
 
@@ -1112,6 +1164,31 @@ async fn read_history(
             "nextBefore": page.next_before,
             "headVersion": page.head_version,
             "historyRevision": page.history_revision,
+        }})),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn read_alert_queue(
+    State(state): State<Arc<QualityHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let target = target(&state, request.headers(), &slug)?;
+        target
+            .backend
+            .alert_queue(QualityHttpAlertQueueRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: request.headers(),
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(rows) => bounded(json!({"data": {
+            "items": rows.iter().map(alert_queue_row).collect::<Vec<_>>(),
         }})),
         Err(error) => error_response(error),
     }

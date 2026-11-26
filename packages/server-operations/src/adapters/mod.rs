@@ -26,3 +26,4 @@ pub(crate) mod routine_sources;
 
 pub(crate) mod native_operations_read_sql;
 pub mod native_lane_28;
+pub mod native_routines_read;

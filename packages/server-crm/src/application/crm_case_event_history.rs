@@ -117,14 +117,9 @@ mod tests {
     /// Tiny same-thread executor keeps the unit test independent of a Tokio
     /// runtime; the port future is ready immediately in these tests.
     fn futures_executor<T, E>(future: impl Future<Output = Result<T, E>>) -> Result<T, E> {
-        use std::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
-        fn noop(_: *const ()) {}
-        fn clone(data: *const ()) -> RawWaker {
-            RawWaker::new(data, &VTABLE)
-        }
-        const VTABLE: RawWakerVTable = RawWakerVTable::new(clone, noop, noop, noop);
-        let waker = unsafe { Waker::from_raw(RawWaker::new(std::ptr::null(), &VTABLE)) };
-        let mut context = Context::from_waker(&waker);
+        use std::task::{Context, Poll, Waker};
+        let waker = Waker::noop();
+        let mut context = Context::from_waker(waker);
         let mut future = Box::pin(future);
         match future.as_mut().poll(&mut context) {
             Poll::Ready(result) => result,

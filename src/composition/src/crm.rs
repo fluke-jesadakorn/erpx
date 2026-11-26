@@ -3022,3 +3022,134 @@ impl<C: Clock + Send + Sync + 'static>
         })
     }
 }
+
+impl<C: Clock + Send + Sync + 'static> CrmService<C> {
+    /// Native CRM contact guest-history read with `sales.crm` and
+    /// `pms.reservations` history admission.
+    pub async fn guest_history(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        selection: HoldingWorkspaceRequest,
+        contact_id: String,
+    ) -> Result<
+        erpx_server_crm::public::guest_history::GuestHistoryHttpResponse,
+        Error,
+    > {
+        use erpx_server_crm::public::guest_history::{
+            GuestHistoryActor, PgGuestHistory, crm_guest_history,
+        };
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(move || Ok(selection)),
+                Self::access(),
+                CrmSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let contact_id = contact_id.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("commerce.read")?;
+                        let now = clock.now();
+                        let catalogue = current_package_catalogue()?;
+                        let mut reader = PgCompanyPurchaseReader::new(
+                            holding.clone(),
+                            company.clone(),
+                            connection,
+                            &catalogue,
+                        );
+                        let crm_request = PurchaseRequest {
+                            capabilities: vec!["sales.crm".into()],
+                            purpose: CapabilityPurpose::History,
+                            mode: PackageEnforcementMode::Enforced,
+                        };
+                        let crm_purchased = reader
+                            .inspect(&crm_request, now)
+                            .await
+                            .map(|inspection| {
+                                inspection
+                                    .access
+                                    .iter()
+                                    .find(|access| access.capability == "sales.crm")
+                                    .is_some_and(|access| access.allowed_by_mode)
+                            })
+                            .unwrap_or(false);
+                        let hotel_request = PurchaseRequest {
+                            capabilities: vec!["pms.reservations".into()],
+                            purpose: CapabilityPurpose::History,
+                            mode: PackageEnforcementMode::Enforced,
+                        };
+                        let hotel_history = reader
+                            .inspect(&hotel_request, now)
+                            .await
+                            .map(|inspection| {
+                                inspection
+                                    .access
+                                    .iter()
+                                    .find(|access| access.capability == "pms.reservations")
+                                    .is_some_and(|access| access.allowed_by_mode)
+                            })
+                            .unwrap_or(false);
+                        drop(reader);
+                        let actor = GuestHistoryActor {
+                            user_id: current.user_id().as_str().to_owned(),
+                            company_id: company.clone(),
+                            branch_id: current.selection().workspace().branch_id.as_ref().map(|id| id.as_str().to_owned()),
+                            department_id: current.selection().workspace().department_id.as_ref().map(|id| id.as_str().to_owned()),
+                            permissions: current.command_iam_metadata().permissions.clone(),
+                            modules: current.modules().to_vec(),
+                            crm_purchased,
+                            hotel_history,
+                            expires_at: current.expires_at(),
+                        };
+                        let mut repository = PgGuestHistory::new(connection);
+                        let view = crm_guest_history(&actor, &contact_id, &mut repository, now).await?;
+                        let data = serde_json::to_value(view).map_err(|_| unavailable())?;
+                        Ok(
+                            erpx_server_crm::public::guest_history::GuestHistoryHttpResponse {
+                                data,
+                                context: context(current),
+                            },
+                        )
+                    })
+                },
+            )
+            .await
+    }
+}
+
+impl<C: Clock + Send + Sync + 'static>
+    erpx_server_crm::public::guest_history::GuestHistoryHttpBackend for CrmBackend<C>
+{
+    fn read<'a>(
+        &'a self,
+        request: erpx_server_crm::public::guest_history::GuestHistoryReadRequest<'a>,
+    ) -> erpx_server_crm::public::guest_history::GuestHistoryHttpFuture<
+        'a,
+        erpx_server_crm::public::guest_history::GuestHistoryHttpResponse,
+    > {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .guest_history(
+                    request.host,
+                    proof,
+                    selection,
+                    request.contact_id.to_owned(),
+                )
+                .await
+                .map_err(business)
+        })
+    }
+}

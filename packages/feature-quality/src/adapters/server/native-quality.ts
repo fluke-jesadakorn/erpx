@@ -175,6 +175,29 @@ export type NativeQualityAlert = Readonly<{
   reason: string | null;
 }>;
 
+/// Exact snake-case escalation row returned by the native Quality queue read.
+/// Field names and types match the retained `QualityAlert` domain type.
+export type NativeQualityQueueAlert = Readonly<{
+  id: string;
+  hold_id: string;
+  phase: 'due_soon' | 'overdue';
+  source_version: number;
+  hold_version: number;
+  due_date: string;
+  detected_at: number;
+  version: number;
+  acknowledged_by: string | null;
+  acknowledged_at: number | null;
+  reason: string | null;
+  company_id: string;
+  branch_id: string;
+  status: string;
+  product_name: string;
+  warehouse_name: string;
+  can_ack: number;
+  recipients: number;
+}>;
+
 export type NativeQualityMetric = Readonly<{
   id: string;
   specId: string | null;
@@ -781,6 +804,51 @@ function alert(value: unknown): NativeQualityAlert {
   };
 }
 
+function queueAlert(value: unknown): NativeQualityQueueAlert {
+  if (
+    !record(value) ||
+    !identifier(value.id) ||
+    !identifier(value.hold_id) ||
+    !alertPhase(value.phase) ||
+    !safeInteger(value.source_version) || value.source_version < 1 ||
+    !safeInteger(value.hold_version) || value.hold_version < 1 ||
+    !text(value.due_date) ||
+    !safeInteger(value.detected_at) ||
+    !safeInteger(value.version) || value.version < 1 ||
+    !optionalText(value.acknowledged_by) ||
+    !optionalInteger(value.acknowledged_at) ||
+    !optionalText(value.reason) ||
+    !text(value.company_id) ||
+    !text(value.branch_id) ||
+    !text(value.status) ||
+    !text(value.product_name) ||
+    !text(value.warehouse_name) ||
+    !safeInteger(value.can_ack) || value.can_ack < 0 || value.can_ack > 1 ||
+    !safeInteger(value.recipients) || value.recipients < 0
+  )
+    return fail('NATIVE_QUALITY_RESPONSE_INVALID');
+  return {
+    id: value.id,
+    hold_id: value.hold_id,
+    phase: value.phase,
+    source_version: value.source_version,
+    hold_version: value.hold_version,
+    due_date: value.due_date,
+    detected_at: value.detected_at,
+    version: value.version,
+    acknowledged_by: value.acknowledged_by,
+    acknowledged_at: value.acknowledged_at,
+    reason: value.reason,
+    company_id: value.company_id,
+    branch_id: value.branch_id,
+    status: value.status,
+    product_name: value.product_name,
+    warehouse_name: value.warehouse_name,
+    can_ack: value.can_ack,
+    recipients: value.recipients,
+  };
+}
+
 function metric(value: unknown): NativeQualityMetric {
   if (
     !record(value) ||
@@ -917,6 +985,15 @@ export function createNativeQualityReader(raw: string, transport: QualityTranspo
           (value.nextBefore !== null && (items.length === 0 || value.nextBefore !== items[items.length - 1].version)))
         return fail('NATIVE_QUALITY_RESPONSE_INVALID');
       return {items, nextBefore: value.nextBefore as number | null, headVersion, historyRevision: value.historyRevision};
+    },
+    alertQueue: async (
+      incoming: Pick<Headers, 'get'>,
+      slug: string,
+    ): Promise<readonly NativeQualityQueueAlert[]> => {
+      const value = await send('GET', incoming, slug, '/alerts');
+      if (!Array.isArray(value.items) || value.items.length > 1000)
+        return fail('NATIVE_QUALITY_RESPONSE_INVALID');
+      return value.items.map(queueAlert);
     },
     workspace: async (incoming: Pick<Headers, 'get'>, slug: string): Promise<NativeQualityWorkspace> => {
       const value = await send('GET', incoming, slug, '');
