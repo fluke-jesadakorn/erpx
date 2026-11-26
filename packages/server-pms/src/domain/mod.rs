@@ -11,6 +11,7 @@ pub mod room_board;
 pub(crate) mod guest_account;
 pub mod import_batches;
 pub(crate) mod night_audit;
+pub mod payment_status;
 pub(crate) mod pms_import;
 pub(crate) mod pms_owner_write;
 pub mod report_projection;

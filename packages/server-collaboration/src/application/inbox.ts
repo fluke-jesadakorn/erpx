@@ -194,19 +194,6 @@ export function createInboxApplication<Effect>(ports: InboxPorts<Effect>) {
         const page = items.slice(0, limit);
         return { items: page, nextCursor: hasMore ? cursorEncode(page[page.length - 1]) : null, hasMore };
     }
-    async function inboxSummary(actor: WorkContext) {
-        const counts: Record<InboxCategory, number> = { work: 0, calendar: 0, mention: 0, notice: 0, system: 0 };
-        let cursor: string | undefined;
-        for (;;) {
-            const page = await inboxPage(actor, { view: "unread", cursor, limit: 100 });
-            for (const item of page.items)
-                counts[item.category]++;
-            if (!page.nextCursor)
-                break;
-            cursor = page.nextCursor;
-        }
-        return { unread: Object.values(counts).reduce((a, b) => a + b, 0), categories: counts };
-    }
     async function changeInboxState(actor: WorkContext, id: string, state: {
         read?: boolean;
         archived?: boolean;
@@ -290,7 +277,7 @@ export function createInboxApplication<Effect>(ports: InboxPorts<Effect>) {
         return { pendingDeliveries: pending?.count ?? 0, oldestDeliveryLagMs: pending?.oldest ? now - pending.oldest : 0,
             unresolvedEventTypes: unresolved?.count ?? 0, failedJobs: failed?.count ?? 0 };
     }
-    return { publishInboxEvent, inboxPage, inboxSummary, changeInboxState, sendPreparedNotice, drainInboxNotices, inboxOperationalMetrics };
+    return { publishInboxEvent, inboxPage, changeInboxState, sendPreparedNotice, drainInboxNotices, inboxOperationalMetrics };
 }
 export function createInboxNoticeApplication(ports: {
     execute(actor: WorkContext, input: z.infer<typeof noticeInput>, key: string): Promise<{

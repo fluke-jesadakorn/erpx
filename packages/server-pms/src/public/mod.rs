@@ -8,6 +8,7 @@ pub mod guest_account;
 pub mod home_metrics;
 pub mod import_batches;
 pub mod night_audit;
+pub mod payment_status;
 pub mod pms_http;
 pub mod pms_import;
 pub mod pms_owner_write;

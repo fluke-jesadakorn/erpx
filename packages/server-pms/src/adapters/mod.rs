@@ -13,6 +13,8 @@ pub mod import_batches_postgres;
 pub mod native_read_sql;
 pub mod night_audit_postgres;
 pub mod night_audit_worker;
+pub mod payment_status_http;
+pub mod payment_status_postgres;
 pub mod pms_http;
 pub(crate) mod pms_import_http;
 pub(crate) mod pms_import_postgres;

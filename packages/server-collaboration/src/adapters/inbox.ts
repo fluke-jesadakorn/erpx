@@ -28,6 +28,7 @@ import type { WorkContext } from '@erpx/server-identity_access/public/authorizat
 import type { InboxCategory, InboxEventInput, Candidate, InboxItem } from '@erpx/server-collaboration/domain/inbox';
 import { executeCommand, replayCommand } from '@erpx/server-workflow/public/commands';
 import { visibleNotifications } from '@erpx/server-collaboration/public/staff-notifications';
+import { nativeInboxSummarySSR } from '@erpx/server-collaboration/public/native-inbox-page';
 import { createInboxApplication, createInboxNoticeApplication, type InboxFailedScope, type InboxRepository } from '@erpx/server-collaboration/application/inbox';
 import { collaborationInboxSources as owner0 } from '@erpx/server-work_projection/public/collaboration-inbox-sources';
 import { collaborationInboxSources as owner1 } from '@erpx/server-identity_access/public/collaboration-inbox-sources';
@@ -142,7 +143,10 @@ export function inboxPage(db: SqlDatabase, actor: WorkContext, query: {
     cursor?: string;
     limit?: number;
 }) { return exposed(async () => {const page=await application(db).inboxPage(actor,query);return {...page,items:await projectInitialCountInbox(db,actor,page.items)};}); }
-export function inboxSummary(db: SqlDatabase, actor: WorkContext) { return exposed(() => application(db).inboxSummary(actor)); }
+/** Native-only summary read. The owner /inbox/summary projection replaces the
+ * TS page-loop aggregation; there is no TS read fallback. Missing native
+ * transport fails closed (503) inside the owner transport. */
+export function inboxSummary(_db: SqlDatabase, actor: WorkContext) { return exposed(() => nativeInboxSummarySSR(actor.holdingSlug)); }
 async function nativeInboxDelivery(db:SqlDatabase,actor:WorkContext,id:string){
     const row=await (await nativeInboxStatements(db,actor.companyId).deliveryNativeOwned(actor.companyId,id,actor.userId)).first<{source_type:string;native_owned:number}>();
         return row?.native_owned===1;

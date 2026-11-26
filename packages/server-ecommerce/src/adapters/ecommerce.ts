@@ -25,6 +25,7 @@ import {requireEcommercePurchasedRead,ecommercePurchaseControls,withEcommercePur
 import {nativeEcommerceOwnerWrite,NativeEcommerceWave2Error,type EcommerceOwnerWriteKind} from '@erpx/server-ecommerce/adapters/native-wave2';
 import { ecommerceExistsGuard, ecommerceOrderedList, ecommerceListingChannelRow } from './read-tail-sql';
 import { nativeWorkspaceLists, nativeWorkspaceRows } from './native-lane-39/client';
+import { nativeDetailLinks } from './native-detail-links/client';
 /** Single fail-closed bridge to the owner axum command router. No SQL, no fallback. */
 async function nativeWrite(kind:EcommerceOwnerWriteKind,values:readonly unknown[],recordId:string,actorId:string,key:string){
  try{return await nativeEcommerceOwnerWrite(kind,values,recordId,actorId,key);}
@@ -325,8 +326,9 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
     );
   await nativeWrite('checkout.return',[`ecommerce-return-${key}`,id,i.fulfillmentId,ret.id,i.fulfillmentVersion,ret.status,now,now,id],id,a.userId,key);
   },
-  fulfillmentLinks: async id => (await write.prepare(readSource("ecommerce_fulfillment_links", "checkout_id=?")).bind(id).all<Row>()).results,
-  returnLinks: async id => (await write.prepare(ecommerceOrderedList("l.*,r.status current_return_status,r.version current_return_version", `ecommerce_return_links l JOIN (${commerceProjectionSources.commerce_returns}) r ON r.id=l.commerce_return_id`, "l.checkout_id=?")).bind(id).all<Row>()).results,
+  // Checkout detail links are owner-executed in Rust; no TS SQL and no fallback.
+  fulfillmentLinks: async id => (await nativeDetailLinks(id, a)).fulfillmentLinks as unknown as Row[],
+  returnLinks: async id => (await nativeDetailLinks(id, a)).returnLinks as unknown as Row[],
  };
 }
 function application(a: WorkContext, ownerWrite?: SqlDatabase) {

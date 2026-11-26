@@ -8,3 +8,4 @@ pub mod wave2;
 pub mod wave2_http;
 pub mod native_lane_39;
 pub mod native_exec_metric;
+pub mod native_detail_links;

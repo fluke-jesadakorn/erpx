@@ -1313,5 +1313,26 @@ pub fn mount(
         .map_err(|_| "PRIVATE_API_OPERATIONS_ROUTINES_INVALID")?,
     );
 
+    // Ecommerce: checkout detail-link read.
+    router = router.merge(
+        erpx_server_ecommerce::public::native_detail_links::router_for_holdings(
+            config
+                .holdings
+                .iter()
+                .enumerate()
+                .map(|(i, holding)| {
+                    (
+                        erpx_server_ecommerce::public::native_detail_links::DetailLinkTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                        },
+                        pools[i + 1].clone(),
+                    )
+                })
+                .collect(),
+        )
+        .map_err(|_| "PRIVATE_API_ECOMMERCE_DETAIL_LINKS_INVALID")?,
+    );
+
     Ok(router)
 }

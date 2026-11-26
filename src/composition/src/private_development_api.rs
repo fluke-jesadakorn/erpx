@@ -3519,6 +3519,7 @@ async fn assemble_checked(
             erpx_server_benefits::public::executive_evidence::BenefitsExecutiveEvidenceHttpTarget,
         > = Vec::new();
         let mut pms_targets = Vec::new();
+        let mut pms_payment_status_targets = Vec::new();
         let mut routine_targets = Vec::new();
         let mut pms_stay_room_targets = Vec::new();
         let mut pms_room_command_targets = Vec::new();
@@ -4133,6 +4134,13 @@ async fn assemble_checked(
                     origin: format!("https://{}", holding.host),
                     backend: pms_backend.clone(),
                 });
+                pms_payment_status_targets.push(
+                    erpx_server_pms::public::payment_status::PmsPaymentStatusHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        backend: pms_backend.clone(),
+                    },
+                );
                 pms_stay_room_targets.push(
                     erpx_server_pms::public::stay_room::PmsStayRoomHttpTarget {
                         host: holding.host.clone(),
@@ -7920,6 +7928,14 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_pms::public::pms_http::pms_http_router(pms_targets)
                     .map_err(|_| "PRIVATE_API_PMS_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !pms_payment_status_targets.is_empty() {
+            router = router.merge(
+                erpx_server_pms::public::payment_status::pms_payment_status_router(
+                    pms_payment_status_targets,
+                )
+                .map_err(|_| "PRIVATE_API_PMS_PAYMENT_STATUS_CONFIGURATION_INVALID")?,
             );
         }
         if !pms_stay_room_targets.is_empty() {
