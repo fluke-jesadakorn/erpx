@@ -9257,10 +9257,18 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15237,
+    "revision": 15247,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
-    "coordinator": null,
+    "coordinator": {
+      "runId": "run-20261127-a",
+      "agentId": "lead",
+      "startedAt": "2026-11-26T17:57:25.159Z",
+      "heartbeatAt": "2026-11-26T17:57:25.159Z",
+      "expiresAt": "2026-11-26T18:27:25.160Z",
+      "generation": 189,
+      "tokenHash": "c6bb5ebfd81f154b29cc6a75c832040ae587f05feccd47216b203c074fe7555c"
+    },
     "coordinationPolicy": {
       "singleCheckout": true,
       "coordinatorOnlyTrackedWrites": true,
@@ -213939,10 +213947,10 @@
           "owner:people_payroll",
           "route:people_payroll-feature-2"
         ],
-        "nextAction": "Native active leave-policy settings compiled/tested and mounted; flow-settings caller cutover pending.",
+        "nextAction": "Flow-settings active leave policies native; next people-payroll family.",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "f88d1ffa536a39e15931d4fc55225a96b0083822",
+        "implementedCommit": "daad617b6e9206ae71e4f5fee66303366cf371ec",
         "lastPushedSha": "f88d1ffa536a39e15931d4fc55225a96b0083822",
         "checks": [
           {
@@ -213969,17 +213977,23 @@
             "command": "cargo test -p erpx-server-people-payroll --lib --locked",
             "result": "passed",
             "sourceSha": "f88d1ffa536a39e15931d4fc55225a96b0083822"
+          },
+          {
+            "command": "native cutover verification",
+            "result": "passed",
+            "sourceSha": "daad617b6e9206ae71e4f5fee66303366cf371ec",
+            "note": "production consumer calls the mounted native owner route; focused tests and tsc passed"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-i",
-          "agentId": "w2-people_payroll",
-          "at": "2026-11-26T14:27:00.367Z",
+          "runId": "run-20261127-a",
+          "agentId": "lead",
+          "at": "2026-11-26T17:57:34.892Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Native active leave-policy settings compiled/tested and mounted; flow-settings caller cutover pending."
+          "reason": "released with work preserved",
+          "nextAction": "Flow-settings active leave policies native; next people-payroll family."
         },
         "scopeRefinementRequired": false
       },
@@ -214067,10 +214081,10 @@
           "owner:pos",
           "route:pos-feature-2"
         ],
-        "nextAction": "Native POS customer search compiled/tested and mounted; route and finance SQL authority cutover pending.",
+        "nextAction": "POS workspace customer search native; next POS family.",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "a860e274f5918e7712fa2ad35411aac27a040265",
+        "implementedCommit": "daad617b6e9206ae71e4f5fee66303366cf371ec",
         "lastPushedSha": "a860e274f5918e7712fa2ad35411aac27a040265",
         "checks": [
           {
@@ -214102,17 +214116,23 @@
             "command": "cargo test -p erpx-server-pos --test pos_customer_search --locked",
             "result": "passed",
             "sourceSha": "a860e274f5918e7712fa2ad35411aac27a040265"
+          },
+          {
+            "command": "native cutover verification",
+            "result": "passed",
+            "sourceSha": "daad617b6e9206ae71e4f5fee66303366cf371ec",
+            "note": "production consumer calls the mounted native owner route; focused tests and tsc passed"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-i",
-          "agentId": "w3-pos",
-          "at": "2026-11-26T14:42:10.662Z",
+          "runId": "run-20261127-a",
+          "agentId": "lead",
+          "at": "2026-11-26T17:57:35.493Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Native POS customer search compiled/tested and mounted; route and finance SQL authority cutover pending."
+          "reason": "released with work preserved",
+          "nextAction": "POS workspace customer search native; next POS family."
         },
         "scopeRefinementRequired": false
       },
@@ -214338,10 +214358,10 @@
           "owner:maintenance",
           "route:maintenance-feature-2"
         ],
-        "nextAction": "Native maintenance org-node options compiled and mounted; maintenance lib retains one pre-existing renderer assertion, workspace cutover pending.",
+        "nextAction": "Maintenance Work nodes read native; next maintenance family.",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "a860e274f5918e7712fa2ad35411aac27a040265",
+        "implementedCommit": "daad617b6e9206ae71e4f5fee66303366cf371ec",
         "lastPushedSha": "a860e274f5918e7712fa2ad35411aac27a040265",
         "checks": [
           {
@@ -214373,17 +214393,23 @@
             "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/maintenance/native-org-nodes.test.ts",
             "result": "passed",
             "sourceSha": "a860e274f5918e7712fa2ad35411aac27a040265"
+          },
+          {
+            "command": "native cutover verification",
+            "result": "passed",
+            "sourceSha": "daad617b6e9206ae71e4f5fee66303366cf371ec",
+            "note": "production consumer calls the mounted native owner route; focused tests and tsc passed"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-i",
-          "agentId": "w3-maintenance",
-          "at": "2026-11-26T14:42:10.110Z",
+          "runId": "run-20261127-a",
+          "agentId": "lead",
+          "at": "2026-11-26T17:57:34.306Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Native maintenance org-node options compiled and mounted; maintenance lib retains one pre-existing renderer assertion, workspace cutover pending."
+          "reason": "released with work preserved",
+          "nextAction": "Maintenance Work nodes read native; next maintenance family."
         },
         "scopeRefinementRequired": false
       },
@@ -215550,8 +215576,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 188,
-    "updatedAt": "2026-11-26T16:57:57.676Z",
+    "lastCoordinatorGeneration": 189,
+    "updatedAt": "2026-11-26T17:57:35.497Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
