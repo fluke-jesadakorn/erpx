@@ -2236,12 +2236,13 @@ pub async fn workflow_notification_statement(
 
 /// Roster-coverage escalation notice. Eligible roster managers are resolved
 /// through the current organization ancestor chain on the caller's unit.
-pub async fn roster_coverage_notification_statement(
-    connection: &mut PgConnection,
+/// Pure planner for system/worker callers that execute the roster-coverage
+/// fan-out INSERT in their own serializable unit; it never inspects a
+/// connection.
+pub fn plan_roster_coverage_statement(
     company: &CompanyId,
     input: &NotificationStatementInput,
-) -> Result<NotificationStatement, Error> {
-    ready(connection, company).await?;
+) -> Result<NotificationStatement, BusinessError> {
     if input.company_id != company.as_str()
         || input.node_id.as_deref().unwrap_or("").is_empty()
         || input.idempotency_key.is_empty()
@@ -2249,7 +2250,7 @@ pub async fn roster_coverage_notification_statement(
         || input.message.is_empty()
         || input.now <= 0
     {
-        return Err(invalid().into());
+        return Err(invalid());
     }
     let sql = "WITH RECURSIVE ancestors AS ( \
  SELECT id,parent_id FROM (SELECT \"id\",\"kind\",\"slug\",\"display_name\",\"parent_id\",\
@@ -2294,6 +2295,16 @@ pub async fn roster_coverage_notification_statement(
                 .unwrap_or(serde_json::Value::Null),
         ],
     })
+}
+
+/// Build the authoritative roster-coverage INSERT on the caller's unit.
+pub async fn roster_coverage_notification_statement(
+    connection: &mut PgConnection,
+    company: &CompanyId,
+    input: &NotificationStatementInput,
+) -> Result<NotificationStatement, Error> {
+    ready(connection, company).await?;
+    plan_roster_coverage_statement(company, input).map_err(Into::into)
 }
 
 /// Legal workflow deadline notice. The document table and runtime predicate are supplied by the native Legal reminders composition.

@@ -478,7 +478,7 @@ fn statement(kind: &str) -> Option<(&'static str, usize)> {
         WF_NATIVE_RUNTIME_JOB_EFFECTS_20 => ("UPDATE outbox_events SET lease_token=?,claim_until=?,attempts=attempts+1
     WHERE id=(SELECT e.id FROM outbox_events e WHERE e.processed_at IS NULL AND e.dead_letter_at IS NULL
       AND e.next_attempt_at<=? AND (e.claim_until IS NULL OR e.claim_until<?)
-      )` : ''}
+      AND NOT erpx_native_outbox_owned(e)
       ORDER BY e.created_at,e.id FOR UPDATE OF e SKIP LOCKED LIMIT 1)
     RETURNING id,event_type,aggregate_id,aggregate_version,payload_json,attempts,lease_token", 4),
         WF_NATIVE_RUNTIME_JOB_EFFECTS_21 => ("UPDATE outbox_events SET claim_until=? WHERE id=? AND lease_token=? AND processed_at IS NULL", 3),

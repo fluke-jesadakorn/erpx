@@ -79,6 +79,7 @@ pub mod notification_statement {
     pub use crate::adapters::notification_statement::{plan_values_statement,
     
         NotificationStatement, NotificationStatementInput, plan_notification_statement,
+        plan_roster_coverage_statement,
         WORKFLOW_ASSERTION_CLEAR_SQL,
         asset_activate_statement,
         asset_depreciation_insert_statement, asset_depreciation_update_statement,

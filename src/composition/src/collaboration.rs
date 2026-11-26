@@ -5146,6 +5146,12 @@ impl StatementBackend for SystemNotificationBackend {
                         "Use one notification statement request.",
                     )
                 })?;
+            if request.input.kind.as_deref() == Some("roster_coverage") {
+                return erpx_server_collaboration::public::notification_statement::plan_roster_coverage_statement(
+                    &company,
+                    &request.input,
+                );
+            }
             if let Some(planned) =
                 erpx_server_collaboration::public::notification_statement::plan_values_statement(
                     request.input.kind.as_deref().unwrap_or_default(),

@@ -1092,6 +1092,28 @@ pub fn mount(
         ).map_err(|_| "PRIVATE_API_RECORDS_LANE35_OWNER_SCOPE_INVALID")?,
     );
 
+    // Workflow lane 32: inbox failed-metrics read.
+    router = router.merge(
+        erpx_server_workflow::public::native_lane_32::router_for_holdings(
+            config
+                .holdings
+                .iter()
+                .enumerate()
+                .map(|(i, holding)| {
+                    (
+                        erpx_server_workflow::public::native_lane_32::LaneTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                            origin: format!("https://{}", holding.host),
+                        },
+                        pools[i + 1].clone(),
+                    )
+                })
+                .collect(),
+        )
+        .map_err(|_| "PRIVATE_API_WORKFLOW_LANE32_INVALID")?,
+    );
+
     // Records reference search: owner SQL with composition-owned admission.
     router = router.merge(
         erpx_server_records::public::record_search_http::router_for_holdings(

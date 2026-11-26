@@ -1,5 +1,6 @@
 import 'server-only';
 import { createHash } from 'node:crypto';
+import { nativeRequest } from '@erpx/server-runtime/public/native-http';
 import { ApiError } from '@erpx/server-runtime/public/http';
 
 /**
@@ -204,8 +205,11 @@ export async function planIdentityControlRead(
     return unavailable('IDENTITY_CONTROL_READ_INVALID', 422);
   let response: Response;
   try {
-    response = await fetch(
-      `${config.base}/api/v1/holdings/${encodeURIComponent(config.holding.holdingSlug)}/identity-access/control-read-plan`,
+    response = await nativeRequest(
+      new URL(
+        `/api/v1/holdings/${encodeURIComponent(config.holding.holdingSlug)}/identity-access/control-read-plan`,
+        config.base,
+      ),
       {
         method: 'POST',
         headers: {
@@ -216,10 +220,8 @@ export async function planIdentityControlRead(
           'cache-control': 'no-cache',
         },
         body,
-        cache: 'no-store',
-        redirect: 'error',
-        signal: AbortSignal.timeout(config.timeoutMs),
       },
+      config.timeoutMs,
     );
   } catch {
     return unavailable();

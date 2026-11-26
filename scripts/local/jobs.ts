@@ -26,7 +26,7 @@ let posRunning: Promise<void> | null = null;
 function posPulseWork() {
  if(stopping||posRunning)return;
  posRunning=(async()=>{if(!await maintenance(env.ERPX_DATA_DIR))await posQueueWork(env);})()
-  .catch(()=>console.error('{"event":"pos_iteration_failed"}')).finally(()=>{posRunning=null;});
+  .catch(error=>console.error(JSON.stringify({event:'pos_iteration_failed',code:error instanceof Error?error.message:String(error)}))).finally(()=>{posRunning=null;});
 }
 const posPulse=setInterval(posPulseWork,3000);
 posPulseWork();
@@ -43,20 +43,20 @@ let billingRunning: Promise<void> | null = null;
 function billingPulseWork() {
  if(stopping || billingRunning)return;
  billingRunning=(async()=>{if(!await maintenance(env.ERPX_DATA_DIR))await billingWork(env);})()
-  .catch(()=>console.error('{"event":"billing_iteration_failed"}')).finally(()=>{billingRunning=null;});
+  .catch(error=>console.error(JSON.stringify({event:'billing_iteration_failed',code:error instanceof Error?error.message:String(error)}))).finally(()=>{billingRunning=null;});
 }
 const billingPulse=setInterval(billingPulseWork,30000);
 billingPulseWork();
 let pmsRunning: Promise<void> | null = null;
 const pmsPulse = setInterval(() => {
  if (stopping || pmsRunning) return;
- pmsRunning=(async()=>{if(!await maintenance(env.ERPX_DATA_DIR))await pmsWork(env);})().catch(()=>console.error('{"event":"pms_iteration_failed"}')).finally(()=>{pmsRunning=null;});
+ pmsRunning=(async()=>{if(!await maintenance(env.ERPX_DATA_DIR))await pmsWork(env);})().catch(error=>console.error(JSON.stringify({event:'pms_iteration_failed',code:error instanceof Error?error.message:String(error)}))).finally(()=>{pmsRunning=null;});
 },3000);
 let directoryRunning: Promise<void> | null = null;
 const directoryPulse = setInterval(() => {
  if(stopping || directoryRunning)return;
  directoryRunning=(async()=>{if(!await maintenance(env.ERPX_DATA_DIR))await directoryWork(env);})()
-  .catch(()=>console.error('{"event":"directory_iteration_failed"}')).finally(()=>{directoryRunning=null;});
+  .catch(error=>console.error(JSON.stringify({event:'directory_iteration_failed',code:error instanceof Error?error.message:String(error)}))).finally(()=>{directoryRunning=null;});
 },10000);
 let aiRunning: Promise<void> | null = null;
 const aiPulse = setInterval(() => {
@@ -74,7 +74,7 @@ try {
         if(Date.now()-scheduledAt>=120_000){await scheduledWork(env);scheduledAt=Date.now();}
         for(const slot of await activeSlots(env)){if(stopping)break;await runOne(env,slot.id,undefined,nativeOutboxQuarantine);}
       }
-    } catch(error) {console.error(JSON.stringify({event:'jobs_iteration_failed',code:error instanceof Error?error.name:'UnknownError'}));}
+    } catch(error) {console.error(JSON.stringify({event:'jobs_iteration_failed',code:error instanceof Error?`${error.name}: ${error.message}`:String(error),stack:error instanceof Error?(error.stack??'').split('\n').slice(0,6):[]}));}
     if(!stopping)await new Promise(resolve=>setTimeout(resolve,1000));
   }
 } finally {clearInterval(customerNotificationPulse);await customerNotificationRunning;clearInterval(legalPulse);await legalRunning;clearInterval(pmsPulse);await pmsRunning;clearInterval(posPulse);await posRunning;clearInterval(attachmentPulse);await attachmentRunning;clearInterval(billingPulse);await billingRunning;clearInterval(directoryPulse);clearInterval(aiPulse);clearInterval(pulse);await directoryRunning;await aiRunning;await closeRuntime();}

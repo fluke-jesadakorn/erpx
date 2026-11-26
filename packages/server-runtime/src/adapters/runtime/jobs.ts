@@ -24,22 +24,22 @@ import { holdingBindingsSql } from '../read-tail-sql';
 const exec = promisify(execFile);
 
 export type PendingEvent = RuntimePendingEvent;
-export async function claimJob(db: SqlDatabase, now = Date.now(), excludedSourceSql?: string): Promise<PendingEvent | null> {
-  return runtimeJobEffects(db,excludedSourceSql).claim(randomUUID(),now+90_000,now,now);
+export async function claimJob(db: SqlDatabase, now = Date.now(), excludedSourceSql?: string, holdingId?: string): Promise<PendingEvent | null> {
+  return runtimeJobEffects(db,excludedSourceSql,holdingId).claim(randomUUID(),now+90_000,now,now);
 }
 export async function runOne(env: JobEnv, holdingId: string, handler = project, excludedSourceSql?: string): Promise<boolean> {
-  const { write } = registeredResources(env, holdingId), row = await claimJob(write, Date.now(), excludedSourceSql);
+  const { write } = registeredResources(env, holdingId), row = await claimJob(write, Date.now(), excludedSourceSql, holdingId);
   if (!row) return false;
   const renewal = setInterval(() => {
-    void runtimeJobEffects(write).renew(Date.now()+90_000,row.id,row.lease_token).catch(() => {});
+    void runtimeJobEffects(write, undefined, holdingId).renew(Date.now()+90_000,row.id,row.lease_token).catch(() => {});
   },15_000);
   try {
     const message: EventMessage = { holdingId,id:row.id,eventType:row.event_type,aggregateId:row.aggregate_id,aggregateVersion:row.aggregate_version,payload:JSON.parse(row.payload_json) };
     await handler(env,message);
-    await runtimeJobEffects(write).complete(Date.now(),Date.now(),row.id,row.lease_token);
+    await runtimeJobEffects(write, undefined, holdingId).complete(Date.now(),Date.now(),row.id,row.lease_token);
   } catch (error) {
     const code = (error as { code?: string; name?: string }).code ?? (error instanceof Error ? error.name : 'JobError');
-    await runtimeJobEffects(write).failed(Date.now()+Math.min(60_000,1000*2**Math.min(row.attempts,6)),String(code).slice(0,64),row.attempts>=6?Date.now():null,row.id,row.lease_token);
+    await runtimeJobEffects(write, undefined, holdingId).failed(Date.now()+Math.min(60_000,1000*2**Math.min(row.attempts,6)),String(code).slice(0,64),row.attempts>=6?Date.now():null,row.id,row.lease_token);
     console.error(JSON.stringify({event:'job_failed',holdingId,eventId:row.id,attempt:row.attempts,code}));
   } finally { clearInterval(renewal); }
   return true;
@@ -72,7 +72,7 @@ export async function scheduledWork(env: JobEnv) {
       await payroll.drainPayrollScheduledPreviews(write);
     }
     if (!slot.beta) await (await import("@erpx/server-people_payroll/public/people-roster")).escalateRosterCoverage(write);
-    await (await import("@erpx/server-people_payroll/public/leave-self-service")).runLeaveAccruals(write,new Date().toISOString().slice(0,10));
+    try { await (await import("@erpx/server-people_payroll/public/leave-self-service")).runLeaveAccruals(write,new Date().toISOString().slice(0,10)); } catch (error) { console.warn(JSON.stringify({event:'leave_accruals_failed',holdingId:slot.id,code:error instanceof Error?error.message:String(error)})); }
     // Inventory Sales/Manufacturing reservation alert notices are owned by the
     // native inventory_reservation_alerts worker; no TS writer remains.
     // Quality due-soon/overdue escalation and notice routing are owned by the
@@ -89,14 +89,30 @@ export async function scheduledWork(env: JobEnv) {
       console.warn(JSON.stringify({event:"web_push_work_failed",holdingId:slot.id,
         code:error instanceof Error?error.name:"PushError"}));
     }
-    const inboxMetrics=await (await import("@erpx/server-collaboration/public/inbox")).inboxOperationalMetrics(write);
+    const inbox=await import("@erpx/server-collaboration/public/inbox");
+    const {inboxFailedScope}=await import("@erpx/server-workflow/public/collaboration-inbox-sources");
+    const inboxMetrics=await inbox.inboxOperationalMetrics(write,inboxFailedScope(slot.id));
     if(inboxMetrics.oldestDeliveryLagMs>300000||inboxMetrics.unresolvedEventTypes>0||inboxMetrics.failedJobs>0)
       console.warn(JSON.stringify({event:"inbox_delivery_health",holdingId:slot.id,...inboxMetrics}));
-    await drainRequestAi(write,env);
-    if (!slot.beta) await (await import("@erpx/server-people_payroll/public/people-evaluation-ai")).drainEvaluationAi(write,env);
-    if(!slot.beta) { const financeAi=await import("@erpx/server-finance/public/finance-ai");await financeAi.scanFinanceAi(write,env);await financeAi.drainFinanceAi(write,env); }
-    await (await import("@erpx/server-runtime/public/executive/generation")).drainExecutiveGeneration(write,env);
-    await drainSocialAgent(write,env,undefined,undefined,files,slot.id);
+    // Optional AI/agent drains must not abort the rest of a Holding sweep when
+    // their native transport is not yet configured; each failure is named.
+    for (const [event, task] of [
+      ["request_ai_failed", () => drainRequestAi(write, env)],
+      ...(!slot.beta ? [[
+        "evaluation_ai_failed",
+        async () => (await import("@erpx/server-people_payroll/public/people-evaluation-ai")).drainEvaluationAi(write, env),
+      ]] : []),
+      ...(!slot.beta ? [[
+        "finance_ai_failed",
+        async () => { const ai = await import("@erpx/server-finance/public/finance-ai"); await ai.scanFinanceAi(write, env); await ai.drainFinanceAi(write, env); },
+      ]] : []),
+      ["executive_generation_failed", async () => (await import("@erpx/server-runtime/public/executive/generation")).drainExecutiveGeneration(write, env)],
+      ["social_agent_failed", () => drainSocialAgent(write, env, undefined, undefined, files, slot.id)],
+    ] as [string, () => Promise<unknown>][]) {
+      try { await task(); } catch (error) {
+        console.warn(JSON.stringify({event, holdingId:slot.id, code:error instanceof Error?error.message:String(error)}));
+      }
+    }
     if(slot.beta) await cleanupBetaResources(write,files,slot.id);
   }
 }
