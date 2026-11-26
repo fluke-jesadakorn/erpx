@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15274,
+    "revision": 15280,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -208853,13 +208853,13 @@
       {
         "goalId": "G4",
         "kind": "migration",
-        "status": "blocked",
+        "status": "ready_for_integration",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721",
+        "implementedCommit": "e703e5f9c7652c137184e16ca2ea59e8f6a67979",
         "lastPushedSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721",
         "checks": [
           {
@@ -208888,10 +208888,10 @@
         "handoff": {
           "runId": "run-20261127-c",
           "agentId": "lead",
-          "at": "2026-11-26T19:03:18.699Z",
-          "previousStatus": "integrating",
+          "at": "2026-11-26T19:03:33.049Z",
+          "previousStatus": "ready_for_integration",
           "reason": "released with work preserved",
-          "nextAction": "Native navigation owner backend committed 070a4c45; composition mount and page-layout command SQL adapter still required before route deletion."
+          "nextAction": "Navigation GET/POST are native; page-layouts read remains TS."
         },
         "scopeRefinementRequired": false,
         "id": "exec.work.routes",
@@ -208908,7 +208908,7 @@
           "owner:work_projection",
           "route:work"
         ],
-        "nextAction": "Native navigation owner backend committed 070a4c45; composition mount and page-layout command SQL adapter still required before route deletion."
+        "nextAction": "Navigation GET/POST are native; page-layouts read remains TS."
       },
       {
         "goalId": "G4",
@@ -209504,7 +209504,7 @@
         "goalId": "G4",
         "owner": "collaboration",
         "kind": "migration",
-        "status": "blocked",
+        "status": "ready_for_integration",
         "title": "collaboration push route native execution",
         "scope": "Port one bounded push settings operation (settings read, subscription registration, preferences or device removal) to the Collaboration owner with domain/application/adapters/http, real Rust SQL execution and CQRS separation. Remove the TypeScript authority for that operation and prepare the exact route deletion packet.",
         "workflowIds": [],
@@ -209519,10 +209519,10 @@
           "owner:collaboration",
           "route:push"
         ],
-        "nextAction": "Native push-settings public alias committed 070a4c45; configure lane-16 and add edge context headers before deleting GET/re-exports.",
+        "nextAction": "Push settings GET is native; subscribe/preferences/delete writes remain TS.",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721",
+        "implementedCommit": "e703e5f9c7652c137184e16ca2ea59e8f6a67979",
         "lastPushedSha": "070a4c45786fd7c78c6caf56d6bfcbd22e2a3721",
         "checks": [
           {
@@ -209556,10 +209556,10 @@
         "handoff": {
           "runId": "run-20261127-c",
           "agentId": "lead",
-          "at": "2026-11-26T19:03:19.216Z",
-          "previousStatus": "integrating",
+          "at": "2026-11-26T19:03:33.686Z",
+          "previousStatus": "ready_for_integration",
           "reason": "released with work preserved",
-          "nextAction": "Native push-settings public alias committed 070a4c45; configure lane-16 and add edge context headers before deleting GET/re-exports."
+          "nextAction": "Push settings GET is native; subscribe/preferences/delete writes remain TS."
         },
         "scopeRefinementRequired": false
       },
@@ -215628,16 +215628,16 @@
       "statusCounts": {
         "pending": 14,
         "in_progress": 0,
-        "ready_for_integration": 144,
+        "ready_for_integration": 146,
         "integrating": 0,
         "migrated": 369,
-        "blocked": 1917,
+        "blocked": 1915,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 191,
-    "updatedAt": "2026-11-26T19:03:19.220Z",
+    "updatedAt": "2026-11-26T19:03:33.690Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
