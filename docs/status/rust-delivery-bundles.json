@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15233,
+    "revision": 15236,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -214885,7 +214885,7 @@
           "owner:customer_authority",
           "route:customer_authority-feature-2"
         ],
-        "nextAction": "Native sales review counts compiled/tested and mounted; TS authority cutover pending.",
+        "nextAction": "Sales customer-review counts are native-only; acceptance stays deferred.",
         "claim": null,
         "baseSha": null,
         "implementedCommit": "640333c264d8f856788c9dc9be998856220ed89e",
@@ -214928,14 +214928,14 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-i",
-          "agentId": "w5-customer_authority",
-          "at": "2026-11-26T15:12:49.512Z",
+          "runId": "run-20261126-k",
+          "agentId": "lead",
+          "at": "2026-11-26T16:57:28.557Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Native sales review counts compiled/tested and mounted; TS authority cutover pending."
+          "reason": "released with work preserved",
+          "nextAction": "Sales customer-review counts are native-only; acceptance stays deferred."
         },
         "scopeRefinementRequired": false
       },
@@ -215559,7 +215559,7 @@
       }
     },
     "lastCoordinatorGeneration": 188,
-    "updatedAt": "2026-11-26T16:56:18.236Z",
+    "updatedAt": "2026-11-26T16:57:28.560Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
