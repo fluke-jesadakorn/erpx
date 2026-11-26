@@ -1,10 +1,42 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
+const routeCalls = vi.hoisted(() => ({
+  auth: [] as string[],
+  search: [] as unknown[][],
+}));
+
+vi.mock('@erpx/server-identity_access/public/authorization', () => ({
+  requireWorkContext: vi.fn(async (holdingSlug: string) => {
+    routeCalls.auth.push(holdingSlug);
+    return {
+      userId: 'u1',
+      holdingId: 'h001',
+      holdingSlug: 'acme',
+      companyId: 'acme-co',
+      branchId: 'b1',
+      departmentId: null,
+      assignmentId: 'a1',
+      modules: ['operations'],
+    };
+  }),
+}));
+
+vi.mock('@erpx/server-records/public/native-record-search', () => ({
+  nativeRecordSearch: vi.fn(async (...args: unknown[]) => {
+    routeCalls.search.push(args);
+    return [
+      { kind: 'record', module_id: 'operations', id: 'rec-1', title: 'Desk', status: 'draft', version: 3 },
+    ];
+  }),
+}));
+
 import { ApiError } from '@erpx/server-runtime/public/http';
+import { GET } from '@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/records/search/route';
 
 const root = resolve(__dirname, '../../..');
 const read = (path: string) => readFileSync(resolve(root, path), 'utf8');
@@ -36,7 +68,7 @@ const actor = {
   branchId: 'b1',
   departmentId: null,
   modules: ['operations'],
-} as any;
+} as unknown as WorkContext;
 
 const data = [
   { kind: 'record', module_id: 'operations', id: 'rec-1', title: 'Desk', status: 'draft', version: 3 },
@@ -47,6 +79,8 @@ let seen: Array<{ url: URL; init: RequestInit }>;
 
 beforeEach(() => {
   seen = [];
+  routeCalls.auth.length = 0;
+  routeCalls.search.length = 0;
   process.env.ERPX_NATIVE_RECORDS_CONFIG = JSON.stringify(config);
   vi.stubGlobal(
     'fetch',
@@ -121,13 +155,56 @@ describe('native Records search owner execution and payload parity', () => {
       expect(read(`packages/server-records/src/${file}`)).toContain(needle);
     }
   });
+
+  it('mounts the owner router with a composition-owned admission', () => {
+    const mount = read('src/composition/src/native_lane_mounts.rs');
+    expect(mount).toContain('record_search::SearchTarget');
+    expect(mount).toContain('record_search_http::router_for_holdings');
+    expect(mount).toContain('records_search_admission()');
+    expect(mount).toContain('PRIVATE_API_RECORDS_SEARCH_INVALID');
+    expect(mount).toContain('impl SearchAdmission for RecordsSearchAdmission');
+    expect(mount).not.toContain('include_str!');
+  });
+
+  it('shared GET forwards q to the native transport and wraps only data', async () => {
+    const response = await GET(
+      new Request('https://acme.jesadakorn.com/api/v1/holdings/acme/records/search?q=%40user%2FAlice'),
+      { params: Promise.resolve({ holdingSlug: 'acme' }) } as never,
+    );
+    expect(routeCalls.auth).toEqual(['acme']);
+    expect(routeCalls.search).toHaveLength(1);
+    expect(routeCalls.search[0]![0]).toMatchObject({
+      userId: 'u1',
+      holdingSlug: 'acme',
+      holdingId: 'h001',
+      companyId: 'acme-co',
+      assignmentId: 'a1',
+      modules: ['operations'],
+    });
+    expect(routeCalls.search[0]![1]).toBe('@user/Alice');
+    expect(await response.json()).toEqual({
+      data: [
+        { kind: 'record', module_id: 'operations', id: 'rec-1', title: 'Desk', status: 'draft', version: 3 },
+      ],
+    });
+  });
+
+  it('an empty q skips the native transport without a TS SQL fallback', async () => {
+    const response = await GET(
+      new Request('https://acme.jesadakorn.com/api/v1/holdings/acme/records/search'),
+      { params: Promise.resolve({ holdingSlug: 'acme' }) } as never,
+    );
+    expect(routeCalls.auth).toEqual([]);
+    expect(routeCalls.search).toEqual([]);
+    expect(await response.json()).toEqual({ data: [] });
+  });
 });
 
 describe('native Records search transport', () => {
   it('forwards q and signed scope, and returns the Rust payload verbatim', async () => {
-    const { nativeRecordSearch } = await import(
-      '../../../packages/server-records/src/public/native-record-search'
-    );
+    const { nativeRecordSearch } = await vi.importActual<
+      typeof import('../../../packages/server-records/src/public/native-record-search')
+    >('../../../packages/server-records/src/public/native-record-search');
     const reply = await nativeRecordSearch(actor, '@user/Alice');
     expect(seen[0]!.url.origin).toBe(config.privateBaseUrl);
     expect(seen[0]!.url.pathname).toBe('/api/v1/holdings/acme/records/native-search');
@@ -143,9 +220,9 @@ describe('native Records search transport', () => {
   });
 
   it('fails closed without a native transport or with a rejected request', async () => {
-    const { nativeRecordSearch } = await import(
-      '../../../packages/server-records/src/public/native-record-search'
-    );
+    const { nativeRecordSearch } = await vi.importActual<
+      typeof import('../../../packages/server-records/src/public/native-record-search')
+    >('../../../packages/server-records/src/public/native-record-search');
     delete process.env.ERPX_NATIVE_RECORDS_CONFIG;
     await expect(nativeRecordSearch(actor, 'desk')).rejects.toMatchObject({
       code: 'NATIVE_RECORDS_SEARCH_UNAVAILABLE',

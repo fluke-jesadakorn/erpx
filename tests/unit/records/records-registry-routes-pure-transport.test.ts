@@ -15,9 +15,8 @@ const routes = [
   `${directory}/[module]/[id]/transition/route.ts`,
 ] as const;
 
-// These four have no native axum target and keep their HEAD TS owner implementation.
+// These three have no native axum target and keep their HEAD TS owner implementation.
 const retained = [
-  [`${directory}/search/route.ts`, 'searchReferences'],
   [`${directory}/[module]/[id]/mentions/route.ts`, 'addPrincipalMention'],
   [`${directory}/[module]/[id]/suggestions/route.ts`, 'requestSuggestion'],
   [`${directory}/[module]/[id]/suggestions/[suggestionId]/route.ts`, 'decideSuggestion'],
@@ -119,5 +118,20 @@ describe('routes without a native target keep their HEAD TS implementation', () 
       expect(source, path).toContain('@erpx/server-records/public/records');
       expect(source, path).not.toContain('nativeRecordRegistryUnsupported');
     }
+  });
+});
+
+describe('search route is pure native transport', () => {
+  it('calls the native owner transport with no TS SQL fallback', () => {
+    const source = read(`${directory}/search/route.ts`);
+    expect(source).toContain('@erpx/server-records/public/native-record-search');
+    expect(source).toContain('nativeRecordSearch');
+    expect(source).toContain('requireWorkContext');
+    expect(source).toContain('canonicalDestinationLinks');
+    expect(source).not.toContain('searchReferences');
+    expect(source).not.toContain('@erpx/server-records/public/records');
+    expect(source).not.toContain('@erpx/server-records/adapters/records');
+    expect(source).not.toMatch(/SELECT\s/i);
+    expect(source).not.toContain('.prepare(');
   });
 });

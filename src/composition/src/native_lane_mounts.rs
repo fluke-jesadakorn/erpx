@@ -6,8 +6,52 @@
 
 use crate::private_development_api::DevelopmentApiConfiguration;
 use axum::Router;
+use erpx_server_records::public::record_search::{
+    PrincipalHit, RecordHit, SearchActor, SearchAdmission, SearchFuture,
+};
 use erpx_server_runtime::public::postgres::DatabasePool;
 use std::collections::BTreeMap;
+use std::sync::Arc;
+
+/// Composition-owned admission for the native Records reference search.
+///
+/// The owner SQL already restricts every `RecordHit` to the selected Holding,
+/// Company, branch/department and module allowlist, so this port only re-checks
+/// the exact module the hit belongs to. Principal hits need the legacy
+/// Control-side `principals.display_name LIKE ...` read plus the active
+/// assignment check. Identity & Access exposes no public port with that shape
+/// yet (`native_lane_11` resolves known person ids only), so principal hits
+/// stay empty rather than fabricating a person list.
+struct RecordsSearchAdmission;
+
+impl SearchAdmission for RecordsSearchAdmission {
+    fn visible<'a>(
+        &'a self,
+        actor: &'a SearchActor,
+        hit: &'a RecordHit,
+    ) -> SearchFuture<'a, bool> {
+        Box::pin(async move {
+            Ok(actor
+                .modules
+                .iter()
+                .any(|module| module == &hit.module_id))
+        })
+    }
+
+    fn principal_hits<'a>(
+        &'a self,
+        _needle: &'a str,
+        _now: i64,
+    ) -> SearchFuture<'a, Vec<PrincipalHit>> {
+        // TODO(identity-access): replace with a public principal-search port that
+        // owns `principals.display_name` and the active-assignment predicate.
+        Box::pin(async { Ok(Vec::<PrincipalHit>::new()) })
+    }
+}
+
+fn records_search_admission() -> Arc<dyn SearchAdmission> {
+    Arc::new(RecordsSearchAdmission)
+}
 
 /// Merge every ready native lane router into the private API router.
 ///
@@ -1021,6 +1065,20 @@ pub fn mount(
                 )
             }).collect(),
         ).map_err(|_| "PRIVATE_API_RECORDS_LANE35_OWNER_SCOPE_INVALID")?,
+    );
+
+    // Records reference search: owner SQL with composition-owned admission.
+    router = router.merge(
+        erpx_server_records::public::record_search_http::router_for_holdings(
+            config.holdings.iter().enumerate().map(|(i, holding)| (
+                erpx_server_records::public::record_search::SearchTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                },
+                pools[i + 1].clone(),
+                records_search_admission(),
+            )).collect(),
+        ).map_err(|_| "PRIVATE_API_RECORDS_SEARCH_INVALID")?,
     );
 
     // Marketing: active public form source read.
