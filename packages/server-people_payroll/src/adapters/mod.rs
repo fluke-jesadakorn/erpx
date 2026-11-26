@@ -38,6 +38,7 @@ pub mod native_lane_6;
 pub mod native_lane_7;
 pub mod native_lane_8;
 pub mod native_lane_9;
+pub mod native_lane_10;
 pub(crate) mod holding_directory;
 pub mod native_pay_group_options;
 pub mod native_people_list;

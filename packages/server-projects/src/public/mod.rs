@@ -18,6 +18,8 @@ pub mod project_attachment;
 pub mod project_attachment_http;
 pub mod project_attachment_intake_http;
 pub mod project_attachment_read_http;
+pub mod project_members;
+pub mod project_members_http;
 
 pub mod staff_facts;
 pub mod evaluation_read_sources;

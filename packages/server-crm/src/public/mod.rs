@@ -5,6 +5,7 @@ pub mod activities_native;
 pub mod activity_source;
 pub mod activity_workspace;
 pub mod activity_workspace_http;
+pub mod collaboration_lead;
 pub mod commands_http;
 pub mod crm_case_event_history;
 pub mod guest_history;

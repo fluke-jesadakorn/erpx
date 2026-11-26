@@ -7,6 +7,8 @@ pub(crate) mod bom_read;
 pub mod lots;
 pub mod native_command_http;
 pub mod native_command_sql;
+pub mod order_events_http;
+pub mod order_events_postgres;
 pub mod planning_http;
 pub(crate) mod planning_read;
 pub mod production_profiles_http;

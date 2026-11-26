@@ -49,6 +49,7 @@ pub mod native_lane_6;
 pub mod native_lane_7;
 pub mod native_lane_8;
 pub mod native_lane_9;
+pub mod native_lane_10;
 
 /// Native Holding people-public-directory owner port and router.
 pub mod holding_directory {

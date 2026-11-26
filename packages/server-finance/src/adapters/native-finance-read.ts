@@ -110,7 +110,6 @@ export const FINANCE_RD_INVOICE_PAYMENT_REVERSAL = 'finance_rd_invoice_payment_r
 export const FINANCE_RD_INVOICE_OPEN_PERIODS = 'finance_rd_invoice_open_periods';
 export const FINANCE_RD_INVOICE_STATEMENT_ROWS = 'finance_rd_invoice_statement_rows';
 export const FINANCE_RD_INVOICE_OPEN_INVOICES = 'finance_rd_invoice_open_invoices';
-export const FINANCE_RD_INVOICE2_INVOICES = 'finance_rd_invoice2_invoices';
 export const FINANCE_RD_INVOICE2_INVOICE_SNAPSHOT = 'finance_rd_invoice2_invoice_snapshot';
 export const FINANCE_RD_INVOICE2_INVOICE_ALLOCATIONS = 'finance_rd_invoice2_invoice_allocations';
 export const FINANCE_RD_INVOICE2_PAYMENTS = 'finance_rd_invoice2_payments';

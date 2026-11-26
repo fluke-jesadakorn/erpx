@@ -91,3 +91,7 @@ path = "../../tests/integration/projects/rust-staff-facts-postgres.test.rs"
 [[test]]
 name = "project_handoffs"
 path = "../../tests/unit/projects/rust-project-handoffs.test.rs"
+
+[[test]]
+name = "project_members"
+path = "../../tests/unit/projects/rust-project-members.test.rs"

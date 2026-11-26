@@ -2,7 +2,8 @@
 //! WBS milestone/dependency read, the project graph read (tasks and package
 //! actuals), owner-managed milestone create/revise/transition commands, native
 //! task binding/handoff lifecycle commands, native time/cost actual commands
-//! (Finance remains the posting owner) and the project attachment target policy
+//! (Finance remains the posting owner), the Company-scoped project member
+//! roster read on the detail route and the project attachment target policy
 //! consumed by the Files port. Operations-owned staff task commands remain in
 //! their owning retained paths until their native slices are implemented.
 mod adapters;

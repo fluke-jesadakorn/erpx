@@ -16,6 +16,8 @@ pub(crate) mod project_attachment;
 pub(crate) mod project_attachment_http;
 pub(crate) mod project_attachment_intake_http;
 pub(crate) mod project_attachment_read_http;
+pub(crate) mod project_members_postgres;
+pub(crate) mod project_members_http;
 
 pub(crate) mod staff_facts;
 pub mod evaluation_read_sources;

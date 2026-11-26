@@ -87,3 +87,7 @@ path = "../../tests/unit/crm/rust-crm-case-event-history.test.rs"
 [[test]]
 name = "crm_guest_history"
 path = "../../tests/unit/crm/rust-crm-guest-history.test.rs"
+
+[[test]]
+name = "crm_collaboration_lead"
+path = "../../tests/unit/crm/rust-crm-collaboration-lead.test.rs"

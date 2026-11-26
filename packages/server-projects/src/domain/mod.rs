@@ -6,3 +6,4 @@ pub(crate) mod project_structure;
 pub(crate) mod project_handoffs;
 pub(crate) mod project_actuals;
 pub(crate) mod project_attachment;
+pub(crate) mod project_members;

@@ -7,7 +7,8 @@ import {
   financeOverviewCountsNative,
 } from './native-lane-2/client';
 import { nativeFinanceReadAll, nativeFinanceReadFirst, FINANCE_RD_INVOICE_REPORT_CHARTS, FINANCE_RD_INVOICE_ACCOUNTS, FINANCE_RD_INVOICE_LINE_HISTORY, FINANCE_RD_INVOICE_THAI_DOCUMENTS, FINANCE_RD_INVOICE_PAYMENT_REVERSAL, FINANCE_RD_INVOICE_OPEN_PERIODS, FINANCE_RD_INVOICE_STATEMENT_ROWS, FINANCE_RD_INVOICE_OPEN_INVOICES } from './native-finance-read';
-import { FINANCE_RD_INVOICE2_INVOICES, FINANCE_RD_INVOICE2_INVOICE_SNAPSHOT, FINANCE_RD_INVOICE2_INVOICE_ALLOCATIONS, FINANCE_RD_INVOICE2_PAYMENTS, FINANCE_RD_INVOICE2_PAYMENT_ALLOCATIONS, FINANCE_RD_INVOICE2_BANK_CANDIDATES, FINANCE_RD_INVOICE2_BANK_ACCOUNTS, FINANCE_RD_INVOICE2_BANK_STATEMENT } from './native-finance-read';
+import { FINANCE_RD_INVOICE2_INVOICE_SNAPSHOT, FINANCE_RD_INVOICE2_INVOICE_ALLOCATIONS, FINANCE_RD_INVOICE2_PAYMENTS, FINANCE_RD_INVOICE2_PAYMENT_ALLOCATIONS, FINANCE_RD_INVOICE2_BANK_CANDIDATES, FINANCE_RD_INVOICE2_BANK_ACCOUNTS, FINANCE_RD_INVOICE2_BANK_STATEMENT } from './native-finance-read';
+import { financeInvoiceListNative } from './native-lane-7/client';
 
 
 import { requireFinanceDocumentHistory } from "@erpx/server-finance/adapters/document-purchases";
@@ -72,11 +73,7 @@ export function financeReadService(provided?:SqlDatabase,historyOnly=false) {
             return rows.results;
         },
         accounts: async (facts) => { const { actor, chartId } = facts; const write = await db(actor); return (await nativeFinanceReadAll<FinanceRow>(FINANCE_RD_INVOICE_ACCOUNTS, [actor.companyId, chartId], await db(actor))).results; },
-        invoices: async (facts) => {
-            const { actor, limit } = facts;
-            const write = await db(actor);
-            return (await nativeFinanceReadAll<FinanceRow>(FINANCE_RD_INVOICE2_INVOICES, [actor.companyId, Math.max(1, Math.min(limit, 100))], await db(actor))).results;
-        },
+        invoices: async (facts) => financeInvoiceListNative(facts.actor, facts.limit),
         workInvoices: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare("SELECT i.* FROM finance_invoices i JOIN finance_parties p ON p.id=i.party_id WHERE i.company_id=? AND NOT erpx_finance_field_invoice_owned(i.id,i.company_id) ORDER BY i.updated_at DESC").bind(actor.companyId).all<FinanceRow>()).results; },
         invoice: async (facts) => {
             const { invoiceId, actor } = facts;

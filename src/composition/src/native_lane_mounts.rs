@@ -1420,5 +1420,89 @@ pub fn mount(
         );
     }
 
+    // Manufacturing: production order event history.
+    router = router.merge(
+        erpx_server_manufacturing::public::order_events_http::router_for_holdings(
+            config
+                .holdings
+                .iter()
+                .enumerate()
+                .map(|(i, holding)| {
+                    (
+                        erpx_server_manufacturing::public::order_events_http::OrderEventsTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                        },
+                        pools[i + 1].clone(),
+                    )
+                })
+                .collect(),
+        )
+        .map_err(|_| "PRIVATE_API_MANUFACTURING_ORDER_EVENTS_INVALID")?,
+    );
+
+    // People & Payroll lane 10: active leave-policy settings read.
+    router = router.merge(
+        erpx_server_people_payroll::public::native_lane_10::router_for_holdings(
+            config
+                .holdings
+                .iter()
+                .enumerate()
+                .map(|(i, holding)| {
+                    (
+                        erpx_server_people_payroll::public::native_lane_9::LaneTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                        },
+                        pools[i + 1].clone(),
+                    )
+                })
+                .collect(),
+        )
+        .map_err(|_| "PRIVATE_API_PEOPLE_LEAVE_POLICIES_INVALID")?,
+    );
+
+    // Commerce: employee-request purchase-order scope read.
+    router = router.merge(
+        erpx_server_commerce::public::native_employee_request_order::router_for_holdings(
+            config
+                .holdings
+                .iter()
+                .enumerate()
+                .map(|(i, holding)| {
+                    (
+                        erpx_server_commerce::public::native_employee_request_order::LaneTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                        },
+                        pools[i + 1].clone(),
+                    )
+                })
+                .collect(),
+        )
+        .map_err(|_| "PRIVATE_API_COMMERCE_EMPLOYEE_ORDER_INVALID")?,
+    );
+
+    // Finance lane 7: invoice list read.
+    router = router.merge(
+        erpx_server_finance::public::native_lane_7::router_for_holdings(
+            config
+                .holdings
+                .iter()
+                .enumerate()
+                .map(|(i, holding)| {
+                    (
+                        erpx_server_finance::public::native_lane_7::LaneTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                        },
+                        pools[i + 1].clone(),
+                    )
+                })
+                .collect(),
+        )
+        .map_err(|_| "PRIVATE_API_FINANCE_LANE7_INVALID")?,
+    );
+
     Ok(router)
 }

@@ -4,3 +4,5 @@ export type { JournalLineInput, ReportDates, CloseReconciliation } from "@erpx/s
 export type { FinanceRow } from "@erpx/server-finance/domain/finance";
 export { financeChartListNative } from "../adapters/native-lane-6/client";
 export type { ChartRow } from "../adapters/native-lane-6/client";
+export { financeInvoiceListNative } from "../adapters/native-lane-7/client";
+export type { InvoiceRow } from "../adapters/native-lane-7/client";

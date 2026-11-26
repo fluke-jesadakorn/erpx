@@ -1084,7 +1084,7 @@ describe('finance read-tail r24 byte-identical SQL families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(2038);
-    expect(total).toBe(1562);
+    expect(total).toBe(1561);
   });
 });
 
@@ -1255,7 +1255,7 @@ describe('finance read-tail r30 byte-identical guard-prefix families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(2027);
-    expect(total).toBe(1562);
+    expect(total).toBe(1561);
   });
 });
 
@@ -1299,7 +1299,7 @@ describe('finance read-tail r31 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1989);
-    expect(total).toBe(1562);
+    expect(total).toBe(1561);
   });
 });
 
@@ -1344,7 +1344,7 @@ describe('finance read-tail r32 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1985);
-    expect(total).toBe(1562);
+    expect(total).toBe(1561);
   });
 });
 
@@ -1390,7 +1390,7 @@ describe('finance read-tail r33 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1983);
-    expect(total).toBe(1562);
+    expect(total).toBe(1561);
   });
 });
 
@@ -1465,7 +1465,7 @@ describe('finance read-tail r34 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1981);
-    expect(total).toBe(1562);
+    expect(total).toBe(1561);
   });
 });
 
@@ -1514,7 +1514,7 @@ describe('finance read-tail r35 parameterized workforce actor scope family', () 
     };
     walk(root);
     expect(total).toBeLessThan(1974);
-    expect(total).toBe(1562);
+    expect(total).toBe(1561);
   });
 });
 
@@ -1591,7 +1591,7 @@ describe('finance read-tail r36 exact duplicate two-site SQL families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1970);
-    expect(total).toBe(1562);
+    expect(total).toBe(1561);
   });
 });
 
@@ -1645,7 +1645,7 @@ describe('finance read-tail r37 exact duplicate period-exists read family', () =
     };
     walk(root);
     expect(total).toBeLessThan(1966);
-    expect(total).toBe(1562);
+    expect(total).toBe(1561);
   });
 });
 
@@ -1758,7 +1758,7 @@ describe('finance read-tail r38 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1965);
-    expect(total).toBe(1562);
+    expect(total).toBe(1561);
   });
 });
 
@@ -1876,7 +1876,7 @@ describe('finance read-tail r39 read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1951);
-    expect(total).toBe(1562);
+    expect(total).toBe(1561);
   });
 });
 
@@ -2000,7 +2000,7 @@ describe('finance read-tail r40 read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1942);
-    expect(total).toBe(1562);
+    expect(total).toBe(1561);
   });
 });
 
@@ -2016,7 +2016,7 @@ describe('finance native bank-automation imported-file read-port cutover', () =>
     expect(rust).toContain('pub const RD_BANK_IMPORTED_FILE: &str = "finance_rd_bank_imported_file"');
     expect(rust).toContain(`const SQL_RD_BANK_IMPORTED_FILE: &str = "${SQL}"`);
     expect(rust).toContain('READ_BANK_IMPORTED_FILE,');
-    expect(rust).toContain('assert_eq!(READS.len(), 141);');
+    expect(rust).toContain('assert_eq!(READS.len(), 140);');
   });
 
   it('delegates the duplicate probe to the native plan with no TypeScript SQL', async () => {
@@ -2055,7 +2055,7 @@ describe('finance native tax-identity read family cutover', () => {
       expect(rust).toContain(`const SQL_${rustConst}: &str = "${sql}"`);
       expect(rust).toContain(`READ_${kind.slice('FINANCE_RD_'.length)},`);
     }
-    expect(rust).toContain('assert_eq!(READS.len(), 141);');
+    expect(rust).toContain('assert_eq!(READS.len(), 140);');
   });
 
   it('removes all six literals from the TS adapter while keeping its command guards', async () => {
@@ -2103,7 +2103,7 @@ describe('finance native assets point/list read family cutover', () => {
       expect(rust).toContain(`const SQL_${rustConst}: &str = "${sql}"`);
       expect(rust).toContain(`READ_${kind.slice('FINANCE_RD_'.length)},`);
     }
-    expect(rust).toContain('assert_eq!(READS.len(), 141);');
+    expect(rust).toContain('assert_eq!(READS.len(), 140);');
   });
 
   it('delegates all eight reads while keeping locks and command guards in TS', async () => {
@@ -2147,7 +2147,7 @@ describe('finance native reporting point/list read family cutover', () => {
       expect(rust).toContain(`const SQL_${rustConst}: &str = "${sql}"`);
       expect(rust).toContain(`READ_${kind.slice('FINANCE_RD_'.length)},`);
     }
-    expect(rust).toContain('assert_eq!(READS.len(), 141);');
+    expect(rust).toContain('assert_eq!(READS.len(), 140);');
   });
 
   it('delegates all eight reads while keeping locks, guards and other owners in TS', async () => {
@@ -2191,7 +2191,7 @@ describe('finance native withholding point/list read family cutover', () => {
       expect(rust).toContain(`const SQL_${rustConst}: &str = "${sql}"`);
       expect(rust).toContain(`READ_${kind.slice('FINANCE_RD_'.length)},`);
     }
-    expect(rust).toContain('assert_eq!(READS.len(), 141);');
+    expect(rust).toContain('assert_eq!(READS.len(), 140);');
   });
 
   it('delegates all eight reads while keeping guards and larger projections in TS', async () => {
@@ -2234,7 +2234,7 @@ describe('finance native withholding-remittance point/list read family cutover',
       expect(rust).toContain(`const SQL_${rustConst}: &str = "${sql}"`);
       expect(rust).toContain(`READ_${kind.slice('FINANCE_RD_'.length)},`);
     }
-    expect(rust).toContain('assert_eq!(READS.len(), 141);');
+    expect(rust).toContain('assert_eq!(READS.len(), 140);');
   });
 
   it('delegates all eight reads while keeping assertions and row locks in TS', async () => {
@@ -2277,7 +2277,7 @@ describe('finance native planning point/list read family cutover', () => {
       expect(rust).toContain(`const SQL_${rustConst}: &str = "${sql}"`);
       expect(rust).toContain(`READ_${kind.slice('FINANCE_RD_'.length)},`);
     }
-    expect(rust).toContain('assert_eq!(READS.len(), 141);');
+    expect(rust).toContain('assert_eq!(READS.len(), 140);');
   });
 
   it('delegates all eight reads while keeping dynamic ledger projections in TS', async () => {
@@ -2319,7 +2319,7 @@ describe('finance native business-contracts point/list read family cutover', () 
       expect(rust).toContain(`const SQL_${rustConst}: &str = "${sql}"`);
       expect(rust).toContain(`READ_${kind.slice('FINANCE_RD_'.length)},`);
     }
-    expect(rust).toContain('assert_eq!(READS.len(), 141);');
+    expect(rust).toContain('assert_eq!(READS.len(), 140);');
   });
 
   it('delegates all eight reads while keeping guards and dynamic projections in TS', async () => {
@@ -2360,14 +2360,14 @@ describe('finance native invoice-read point/list family cutover', () => {
       expect(rust).toContain(`const SQL_${rustConst}: &str = "${sql.replace(/\n/g, '\\n')}"`);
       expect(rust).toContain(`READ_${kind.slice('FINANCE_RD_'.length)},`);
     }
-    expect(rust).toContain('assert_eq!(READS.len(), 141);');
+    expect(rust).toContain('assert_eq!(READS.len(), 140);');
   });
 
-  it('delegates all eight reads while keeping field-invoice ownership reads in TS', async () => {
+  it('delegates the remaining first-family reads while keeping field-invoice ownership reads in TS', async () => {
     const adapter = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-invoice-read.ts', import.meta.url), 'utf8');
     expect(adapter).toContain("from './native-finance-read'");
     for (const [kind] of FAMILY) expect(adapter).toContain(kind);
-    expect(adapter.match(/nativeFinanceReadAll[<(]/g)?.length).toBe(13);
+    expect(adapter.match(/nativeFinanceReadAll[<(]/g)?.length).toBe(12);
     expect(adapter.match(/nativeFinanceReadFirst[<(]/g)?.length).toBe(3);
     for (const [, sql] of FAMILY) {
       const first = sql.split('\n')[0];
@@ -2380,7 +2380,6 @@ describe('finance native invoice-read point/list family cutover', () => {
 
 describe('finance native invoice-read second point/list family cutover', () => {
   const FAMILY: Array<[string, string]> = [
-    ['FINANCE_RD_INVOICE2_INVOICES', 'SELECT i.id,i.invoice_number,i.kind,i.invoice_date,i.due_date,i.currency,i.total_minor,i.outstanding_minor,i.status,p.name AS party_name\n    FROM finance_invoices i JOIN finance_parties p ON p.id=i.party_id\n    WHERE i.company_id=? ORDER BY i.invoice_date DESC,i.invoice_number DESC LIMIT ?'],
     ['FINANCE_RD_INVOICE2_INVOICE_SNAPSHOT', 'SELECT i.*,p.code AS party_code,p.name AS party_name,\n    s.usd_units::text AS snapshot_usd_units,s.amount_units::text AS snapshot_source_units,s.fx_rate_id AS snapshot_rate_id\n    FROM finance_invoices i JOIN finance_parties p ON p.id=i.party_id\n    LEFT JOIN money_transaction_snapshots s ON s.company_id=i.company_id AND s.source_type=\'finance_invoice\' AND s.source_id=i.id AND s.amount_kind=\'total\'\n    WHERE i.id=? AND i.company_id=?'],
     ['FINANCE_RD_INVOICE2_INVOICE_ALLOCATIONS', 'SELECT a.id,a.payment_id,a.amount_minor,a.created_at,p.payment_number,p.status,p.payment_slip_id\n    FROM finance_allocations a JOIN finance_payments p ON p.id=a.payment_id\n    WHERE a.invoice_id=? AND a.company_id=? ORDER BY a.created_at'],
     ['FINANCE_RD_INVOICE2_PAYMENTS', 'SELECT p.id,p.payment_number,p.kind,p.payment_date,p.currency,p.amount_minor,p.outstanding_minor,p.status,f.name AS party_name\n    FROM finance_payments p LEFT JOIN finance_parties f ON f.id=p.party_id\n    WHERE p.company_id=? ORDER BY p.payment_date DESC,p.payment_number DESC LIMIT ?'],
@@ -2402,14 +2401,14 @@ describe('finance native invoice-read second point/list family cutover', () => {
       expect(rust).toContain(`const SQL_${rustConst}: &str = "${sql.replace(/\n/g, '\\n')}"`);
       expect(rust).toContain(`READ_${kind.slice('FINANCE_RD_'.length)},`);
     }
-    expect(rust).toContain('assert_eq!(READS.len(), 141);');
+    expect(rust).toContain('assert_eq!(READS.len(), 140);');
   });
 
-  it('delegates all eight reads while keeping ownership helpers in TS', async () => {
+  it('delegates the remaining reads while keeping ownership helpers in TS', async () => {
     const adapter = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-invoice-read.ts', import.meta.url), 'utf8');
     expect(adapter).toContain("from './native-finance-read'");
     for (const [kind] of FAMILY) expect(adapter).toContain(kind);
-    expect(adapter.match(/nativeFinanceReadAll[<(]/g)?.length).toBe(13);
+    expect(adapter.match(/nativeFinanceReadAll[<(]/g)?.length).toBe(12);
     expect(adapter.match(/nativeFinanceReadFirst[<(]/g)?.length).toBe(3);
     for (const [, sql] of FAMILY) {
       const first = sql.split('\n')[0];
@@ -2445,7 +2444,7 @@ describe('finance native AI point/list read family cutover', () => {
       expect(rust).toContain(`const SQL_${rustConst}: &str = "${sql}"`);
       expect(rust).toContain(`READ_${kind.slice('FINANCE_RD_'.length)},`);
     }
-    expect(rust).toContain('assert_eq!(READS.len(), 141);');
+    expect(rust).toContain('assert_eq!(READS.len(), 140);');
   });
 
   it('delegates all eight reads while keeping owner writes and quota helpers in TS', async () => {
@@ -2486,7 +2485,7 @@ describe('finance native asset-policy point/list read family cutover', () => {
       expect(rust).toContain(`const SQL_${rustConst}: &str = "${sql}"`);
       expect(rust).toContain(`READ_${kind.slice('FINANCE_RD_'.length)},`);
     }
-    expect(rust).toContain('assert_eq!(READS.len(), 141);');
+    expect(rust).toContain('assert_eq!(READS.len(), 140);');
   });
 
   it('delegates all eight reads while keeping owner writes and guards in TS', async () => {
@@ -2526,7 +2525,7 @@ describe('finance native finance.ts point/list read family cutover', () => {
       expect(rust).toContain(`const SQL_${rustConst}: &str = "${sql}"`);
       expect(rust).toContain(`READ_${kind.slice('FINANCE_RD_'.length)},`);
     }
-    expect(rust).toContain('assert_eq!(READS.len(), 141);');
+    expect(rust).toContain('assert_eq!(READS.len(), 140);');
   });
 
   it('delegates all eight reads while keeping owner writes and locks in TS', async () => {
@@ -2567,7 +2566,7 @@ describe('finance native finance.ts second point/list family cutover', () => {
       expect(rust).toContain(`const SQL_${rustConst}: &str = "${sql}"`);
       expect(rust).toContain(`READ_${kind.slice('FINANCE_RD_'.length)},`);
     }
-    expect(rust).toContain('assert_eq!(READS.len(), 141);');
+    expect(rust).toContain('assert_eq!(READS.len(), 140);');
   });
 
   it('delegates all eight reads while keeping owner writes and locks in TS', async () => {
@@ -2607,7 +2606,7 @@ describe('finance native finance.ts third point/list family cutover', () => {
       expect(rust).toContain(`const SQL_${rustConst}: &str = "${sql.replace(/\n/g, '\\n')}"`);
       expect(rust).toContain(`READ_${kind.slice('FINANCE_RD_'.length)},`);
     }
-    expect(rust).toContain('assert_eq!(READS.len(), 141);');
+    expect(rust).toContain('assert_eq!(READS.len(), 140);');
   });
 
   it('delegates all eight reads while keeping owner writes and locks in TS', async () => {

@@ -970,15 +970,8 @@ const READ_INVOICE_OPEN_INVOICES: NativeReadStatement = NativeReadStatement {
 
 /// Native successors of the second static `finance-invoice-read` point/list
 /// family. Field-invoice ownership helpers and transaction guards stay in TS.
-pub const RD_INVOICE2_INVOICES: &str = "finance_rd_invoice2_invoices";
-const SQL_RD_INVOICE2_INVOICES: &str = "SELECT i.id,i.invoice_number,i.kind,i.invoice_date,i.due_date,i.currency,i.total_minor,i.outstanding_minor,i.status,p.name AS party_name\n    FROM finance_invoices i JOIN finance_parties p ON p.id=i.party_id\n    WHERE i.company_id=? ORDER BY i.invoice_date DESC,i.invoice_number DESC LIMIT ?";
-const READ_INVOICE2_INVOICES: NativeReadStatement = NativeReadStatement {
-    kind: RD_INVOICE2_INVOICES,
-    sql: SQL_RD_INVOICE2_INVOICES,
-    bind_count: 2,
-    scope: "holding",
-};
-
+/// The invoice list itself is native lane 7: the owner executes the statement
+/// instead of planning it for a TypeScript caller.
 pub const RD_INVOICE2_INVOICE_SNAPSHOT: &str = "finance_rd_invoice2_invoice_snapshot";
 const SQL_RD_INVOICE2_INVOICE_SNAPSHOT: &str = "SELECT i.*,p.code AS party_code,p.name AS party_name,\n    s.usd_units::text AS snapshot_usd_units,s.amount_units::text AS snapshot_source_units,s.fx_rate_id AS snapshot_rate_id\n    FROM finance_invoices i JOIN finance_parties p ON p.id=i.party_id\n    LEFT JOIN money_transaction_snapshots s ON s.company_id=i.company_id AND s.source_type='finance_invoice' AND s.source_id=i.id AND s.amount_kind='total'\n    WHERE i.id=? AND i.company_id=?";
 const READ_INVOICE2_INVOICE_SNAPSHOT: NativeReadStatement = NativeReadStatement {
@@ -1513,7 +1506,6 @@ const READS: &[NativeReadStatement] = &[
     READ_INVOICE_OPEN_PERIODS,
     READ_INVOICE_STATEMENT_ROWS,
     READ_INVOICE_OPEN_INVOICES,
-    READ_INVOICE2_INVOICES,
     READ_INVOICE2_INVOICE_SNAPSHOT,
     READ_INVOICE2_INVOICE_ALLOCATIONS,
     READ_INVOICE2_PAYMENTS,
@@ -1673,7 +1665,6 @@ mod tests {
             RD_INVOICE_OPEN_PERIODS,
             RD_INVOICE_STATEMENT_ROWS,
             RD_INVOICE_OPEN_INVOICES,
-            RD_INVOICE2_INVOICES,
             RD_INVOICE2_INVOICE_SNAPSHOT,
             RD_INVOICE2_INVOICE_ALLOCATIONS,
             RD_INVOICE2_PAYMENTS,
@@ -1735,7 +1726,7 @@ mod tests {
             assert_eq!(read.sql.matches('?').count(), read.bind_count, "{kind}");
             assert_eq!(read.scope, "holding", "{kind}");
         }
-        assert_eq!(READS.len(), 141);
+        assert_eq!(READS.len(), 140);
         assert!(!is_read("finance_stmt_1"));
         assert!(read_statement("finance_stmt_1").is_none());
     }
@@ -2351,7 +2342,6 @@ mod tests {
     #[test]
     fn invoice_reads_second_family_match_retired_owner_statements() {
         let expected: &[(&str, &str, usize)] = &[
-            (RD_INVOICE2_INVOICES, SQL_RD_INVOICE2_INVOICES, 2),
             (
                 RD_INVOICE2_INVOICE_SNAPSHOT,
                 SQL_RD_INVOICE2_INVOICE_SNAPSHOT,
@@ -2384,7 +2374,7 @@ mod tests {
                 2,
             ),
         ];
-        assert_eq!(expected.len(), 8);
+        assert_eq!(expected.len(), 7);
         for (kind, sql, binds) in expected {
             let read = read_statement(kind).unwrap_or_else(|| panic!("{kind}: unregistered"));
             assert_eq!(read.kind, *kind, "{kind}: discriminator");

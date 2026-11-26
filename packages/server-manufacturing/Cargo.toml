@@ -59,3 +59,7 @@ path = "../../tests/integration/manufacturing/rust-native-read-parity-postgres.t
 [[test]]
 name = "production_profiles_http"
 path = "../../tests/unit/manufacturing/rust-production-profiles-http.test.rs"
+
+[[test]]
+name = "manufacturing_order_events_http"
+path = "../../tests/unit/manufacturing/rust-order-events-http.test.rs"

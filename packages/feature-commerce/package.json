@@ -22,7 +22,8 @@
     "./lib/posting-prerequisite-read-model": "./src/lib/posting-prerequisite-read-model.ts",
     "./lib/posting-setup-prerequisite-command": "./src/lib/posting-setup-prerequisite-command.ts",
     "./public/native-commerce-orders": "./src/public/native-commerce-orders.ts",
-    "./public/native-commerce-return-lines": "./src/public/native-commerce-return-lines.ts"
+    "./public/native-commerce-return-lines": "./src/public/native-commerce-return-lines.ts",
+    "./public/native-commerce-employee-request-order": "./src/public/native-commerce-employee-request-order.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

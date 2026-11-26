@@ -111,3 +111,7 @@ path = "../../tests/integration/ecommerce/rust-ecommerce-listing-source-postgres
 [[test]]
 name = "commerce_return_lines"
 path = "../../tests/unit/commerce/rust-commerce-return-lines.test.rs"
+
+[[test]]
+name = "commerce_employee_request_order"
+path = "../../tests/unit/commerce/rust-commerce-employee-request-order.test.rs"
