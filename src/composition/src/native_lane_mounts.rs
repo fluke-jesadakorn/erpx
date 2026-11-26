@@ -22,7 +22,10 @@ use std::sync::Arc;
 /// assignment check. Identity & Access exposes no public port with that shape
 /// yet (`native_lane_11` resolves known person ids only), so principal hits
 /// stay empty rather than fabricating a person list.
-struct RecordsSearchAdmission;
+struct RecordsSearchAdmission {
+    control: DatabasePool,
+    holding: DatabasePool,
+}
 
 impl SearchAdmission for RecordsSearchAdmission {
     fn visible<'a>(
@@ -38,19 +41,41 @@ impl SearchAdmission for RecordsSearchAdmission {
         })
     }
 
+    /// Control `principals` supplies the display name; the target Holding
+    /// supplies the retained active-assignment predicate. A principal without
+    /// an active assignment in this Holding is omitted, never synthesized.
     fn principal_hits<'a>(
         &'a self,
-        _needle: &'a str,
-        _now: i64,
+        _actor: &'a SearchActor,
+        needle: &'a str,
+        now: i64,
     ) -> SearchFuture<'a, Vec<PrincipalHit>> {
-        // TODO(identity-access): replace with a public principal-search port that
-        // owns `principals.display_name` and the active-assignment predicate.
-        Box::pin(async { Ok(Vec::<PrincipalHit>::new()) })
+        Box::pin(async move {
+            let mut hits = Vec::new();
+            for (target_id, label) in
+                erpx_server_identity_access::public::records_principal_search::search_principals(
+                    &self.control,
+                    needle,
+                )
+                .await?
+            {
+                if erpx_server_identity_access::public::records_principal_search::active_assignment(
+                    &self.holding,
+                    &target_id,
+                    now,
+                )
+                .await?
+                {
+                    hits.push(PrincipalHit { target_id, label });
+                }
+            }
+            Ok(hits)
+        })
     }
 }
 
-fn records_search_admission() -> Arc<dyn SearchAdmission> {
-    Arc::new(RecordsSearchAdmission)
+fn records_search_admission(control: DatabasePool, holding: DatabasePool) -> Arc<dyn SearchAdmission> {
+    Arc::new(RecordsSearchAdmission { control, holding })
 }
 
 /// Merge every ready native lane router into the private API router.
@@ -1076,7 +1101,7 @@ pub fn mount(
                     holding_slug: holding.registration.slug.clone(),
                 },
                 pools[i + 1].clone(),
-                records_search_admission(),
+                records_search_admission(pools[0].clone(), pools[i + 1].clone()),
             )).collect(),
         ).map_err(|_| "PRIVATE_API_RECORDS_SEARCH_INVALID")?,
     );

@@ -183,6 +183,9 @@ pub mod user_management;
 
 pub mod directory_operation;
 pub mod messaging_people;
+pub mod records_principal_search {
+    pub use crate::adapters::records_principal_search::{active_assignment, search_principals};
+}
 pub mod portal_private_session_lease;
 pub mod rfq_request_membership;
 pub mod rfq_target_authority;

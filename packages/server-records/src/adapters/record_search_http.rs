@@ -59,10 +59,11 @@ impl SearchAdmission for SharedAdmission {
 
     fn principal_hits<'a>(
         &'a self,
+        actor: &'a SearchActor,
         needle: &'a str,
         now: i64,
     ) -> SearchFuture<'a, Vec<PrincipalHit>> {
-        self.0.principal_hits(needle, now)
+        self.0.principal_hits(actor, needle, now)
     }
 }
 

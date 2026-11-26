@@ -40,6 +40,7 @@ pub trait SearchAdmission: Send + Sync {
 
     fn principal_hits<'a>(
         &'a self,
+        actor: &'a SearchActor,
         needle: &'a str,
         now: i64,
     ) -> SearchFuture<'a, Vec<PrincipalHit>>;
@@ -74,7 +75,7 @@ impl<S: RecordSearchSource, A: SearchAdmission> RecordSearchHandler<S, A> {
         }
 
         if hits.len() < MAX_HITS {
-            for principal in self.admission.principal_hits(&query.needle(), now).await? {
+            for principal in self.admission.principal_hits(actor, &query.needle(), now).await? {
                 hits.push(principal.to_wire());
                 if hits.len() >= MAX_HITS {
                     break;
@@ -134,6 +135,7 @@ mod tests {
 
         fn principal_hits<'a>(
             &'a self,
+            _actor: &'a SearchActor,
             _needle: &'a str,
             _now: i64,
         ) -> SearchFuture<'a, Vec<PrincipalHit>> {

@@ -35,6 +35,7 @@ pub(crate) mod quality_recipients;
 pub(crate) mod quality_scrap_approvers;
 pub(crate) mod sales_recipient;
 pub mod work_admission;
+pub(crate) mod records_principal_search;
 
 pub(crate) mod postgres_effective_authority;
 
