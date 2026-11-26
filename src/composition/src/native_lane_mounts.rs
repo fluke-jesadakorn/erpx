@@ -1504,5 +1504,24 @@ pub fn mount(
         .map_err(|_| "PRIVATE_API_FINANCE_LANE7_INVALID")?,
     );
 
+    // Projects: member roster read.
+    router = router.merge(
+        erpx_server_projects::public::project_members_http::project_members_router(
+            config
+                .holdings
+                .iter()
+                .enumerate()
+                .map(|(i, holding)| {
+                    crate::project_members::target(
+                        holding.host.clone(),
+                        holding.registration.slug.clone(),
+                        pools[i + 1].clone(),
+                    )
+                })
+                .collect(),
+        )
+        .map_err(|_| "PRIVATE_API_PROJECTS_MEMBERS_INVALID")?,
+    );
+
     Ok(router)
 }

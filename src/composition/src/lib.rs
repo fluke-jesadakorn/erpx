@@ -228,6 +228,7 @@ mod procurement_rfq_request;
 #[cfg(feature = "existing-business")]
 mod procurement_rfq_target;
 #[cfg(feature = "existing-business")]
+pub mod project_members;
 pub mod projects;
 pub mod quality;
 pub mod quality_commands;
