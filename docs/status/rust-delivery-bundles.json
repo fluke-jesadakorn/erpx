@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15250,
+    "revision": 15260,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261127-a",
+      "runId": "run-20261127-b",
       "agentId": "lead",
-      "startedAt": "2026-11-26T17:57:25.159Z",
-      "heartbeatAt": "2026-11-26T17:57:25.159Z",
-      "expiresAt": "2026-11-26T18:27:25.160Z",
-      "generation": 189,
-      "tokenHash": "c6bb5ebfd81f154b29cc6a75c832040ae587f05feccd47216b203c074fe7555c"
+      "startedAt": "2026-11-26T18:30:08.249Z",
+      "heartbeatAt": "2026-11-26T18:30:08.249Z",
+      "expiresAt": "2026-11-26T19:00:08.250Z",
+      "generation": 190,
+      "tokenHash": "8c86f8769fe5aeaa8f056be5d4fdc2a205e03044f1f0c02120d5a85f12db0290"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -209965,10 +209965,10 @@
           "owner:collaboration",
           "route:apps"
         ],
-        "nextAction": "Native messaging-people slice committed; add MessagingHttpBackend::people and cut the messaging route once the backend is mounted.",
+        "nextAction": "Messaging people GET is native; next Apps family.",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
+        "implementedCommit": "25342659d81a34657192c7647db1ce4d751944ea",
         "lastPushedSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
         "checks": [
           {
@@ -209990,17 +209990,23 @@
             "command": "cargo test -p erpx-server-collaboration --test messaging_people --locked",
             "result": "passed",
             "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "native cutover verification",
+            "result": "passed",
+            "sourceSha": "25342659d81a34657192c7647db1ce4d751944ea",
+            "note": "authenticated route returned 200 from the mounted native owner; tsc and structure passed"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-g",
+          "runId": "run-20261127-b",
           "agentId": "lead",
-          "at": "2026-11-26T10:47:06.272Z",
+          "at": "2026-11-26T18:30:15.831Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Native messaging-people slice committed; add MessagingHttpBackend::people and cut the messaging route once the backend is mounted."
+          "reason": "released with work preserved",
+          "nextAction": "Messaging people GET is native; next Apps family."
         },
         "scopeRefinementRequired": false
       },
@@ -210170,10 +210176,10 @@
           "owner:pos",
           "route:pos"
         ],
-        "nextAction": "Native POS room-charge reversal committed; mount the router with actor/package headers and cut the POS/front branches.",
+        "nextAction": "POS room-charge queue GET is native; next POS family.",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
+        "implementedCommit": "25342659d81a34657192c7647db1ce4d751944ea",
         "lastPushedSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
         "checks": [
           {
@@ -210195,17 +210201,23 @@
             "command": "cargo test -p erpx-server-pos --test pos_room_charges --locked",
             "result": "passed",
             "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "native cutover verification",
+            "result": "passed",
+            "sourceSha": "25342659d81a34657192c7647db1ce4d751944ea",
+            "note": "authenticated route returned 200 from the mounted native owner; tsc and structure passed"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-g",
+          "runId": "run-20261127-b",
           "agentId": "lead",
-          "at": "2026-11-26T10:47:07.770Z",
+          "at": "2026-11-26T18:30:15.268Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Native POS room-charge reversal committed; mount the router with actor/package headers and cut the POS/front branches."
+          "reason": "released with work preserved",
+          "nextAction": "POS room-charge queue GET is native; next POS family."
         },
         "scopeRefinementRequired": false
       },
@@ -211967,10 +211979,10 @@
           "owner:crm",
           "route:crm-feature"
         ],
-        "nextAction": "CRM guest-history native slice committed and mounted; cut guest-history GET branch and TS authority next.",
+        "nextAction": "CRM guest-history GET is native; next CRM family.",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "b9e69ba469b0ac06e6d633a40114574f5fa16b08",
+        "implementedCommit": "25342659d81a34657192c7647db1ce4d751944ea",
         "lastPushedSha": "b9e69ba469b0ac06e6d633a40114574f5fa16b08",
         "checks": [
           {
@@ -211992,17 +212004,23 @@
             "command": "cargo test -p erpx-server-crm --lib guest_history --locked",
             "result": "passed",
             "sourceSha": "b9e69ba469b0ac06e6d633a40114574f5fa16b08"
+          },
+          {
+            "command": "native cutover verification",
+            "result": "passed",
+            "sourceSha": "25342659d81a34657192c7647db1ce4d751944ea",
+            "note": "authenticated route returned 200 from the mounted native owner; tsc and structure passed"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-h",
-          "agentId": "w-crm2",
-          "at": "2026-11-26T12:25:43.763Z",
+          "runId": "run-20261127-b",
+          "agentId": "lead",
+          "at": "2026-11-26T18:30:14.704Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "CRM guest-history native slice committed and mounted; cut guest-history GET branch and TS authority next."
+          "reason": "released with work preserved",
+          "nextAction": "CRM guest-history GET is native; next CRM family."
         },
         "scopeRefinementRequired": false
       },
@@ -215588,8 +215606,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 189,
-    "updatedAt": "2026-11-26T18:19:50.223Z",
+    "lastCoordinatorGeneration": 190,
+    "updatedAt": "2026-11-26T18:30:15.835Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
@@ -215624,10 +215642,10 @@
       }
     },
     "lastRecovery": {
-      "previousRunId": "run-20261126-j",
-      "runId": "run-20261126-k",
-      "at": "2026-11-26T16:41:22.948Z",
-      "reason": "Heartbeat gap during seed verification; no task claims.",
+      "previousRunId": "run-20261127-a",
+      "runId": "run-20261127-b",
+      "at": "2026-11-26T18:30:08.250Z",
+      "reason": "Continue overnight wave after heartbeat gap; no active claims.",
       "wipReviewed": true,
       "previousRunStopped": true
     },
