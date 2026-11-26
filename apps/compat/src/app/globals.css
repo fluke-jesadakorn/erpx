@@ -4279,6 +4279,7 @@
 @source "../../../../packages/server-identity_access/src/adapters/account-preference-session.ts";
 @source "../../../../packages/server-identity_access/src/adapters/account-preference-snapshot.ts";
 @source "../../../../packages/server-identity_access/src/adapters/account-preferences.ts";
+@source "../../../../packages/server-identity_access/src/adapters/account-profile-native.ts";
 @source "../../../../packages/server-identity_access/src/adapters/account-profile.ts";
 @source "../../../../packages/server-identity_access/src/adapters/account-quick-access-request.ts";
 @source "../../../../packages/server-identity_access/src/adapters/account-quick-access.ts";
@@ -4534,6 +4535,7 @@
 @source "../../../../packages/server-identity_access/src/public/account-invitation-list.ts";
 @source "../../../../packages/server-identity_access/src/public/account-preference-snapshot.ts";
 @source "../../../../packages/server-identity_access/src/public/account-preferences.ts";
+@source "../../../../packages/server-identity_access/src/public/account-profile-native.ts";
 @source "../../../../packages/server-identity_access/src/public/account-profile.ts";
 @source "../../../../packages/server-identity_access/src/public/account-quick-access-request.ts";
 @source "../../../../packages/server-identity_access/src/public/account-quick-access.ts";

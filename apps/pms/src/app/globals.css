@@ -1961,6 +1961,7 @@
 @source "../../../../packages/server-identity_access/src/adapters/account-preference-session.ts";
 @source "../../../../packages/server-identity_access/src/adapters/account-preference-snapshot.ts";
 @source "../../../../packages/server-identity_access/src/adapters/account-preferences.ts";
+@source "../../../../packages/server-identity_access/src/adapters/account-profile-native.ts";
 @source "../../../../packages/server-identity_access/src/adapters/account-profile.ts";
 @source "../../../../packages/server-identity_access/src/adapters/account-recovery.ts";
 @source "../../../../packages/server-identity_access/src/adapters/account-time-preference.ts";
@@ -2138,6 +2139,7 @@
 @source "../../../../packages/server-identity_access/src/domain/workspace-access.ts";
 @source "../../../../packages/server-identity_access/src/public/account-preference-snapshot.ts";
 @source "../../../../packages/server-identity_access/src/public/account-preferences.ts";
+@source "../../../../packages/server-identity_access/src/public/account-profile-native.ts";
 @source "../../../../packages/server-identity_access/src/public/account-recovery.ts";
 @source "../../../../packages/server-identity_access/src/public/account-session.ts";
 @source "../../../../packages/server-identity_access/src/public/account-time-preference.ts";

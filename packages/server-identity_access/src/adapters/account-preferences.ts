@@ -15,6 +15,7 @@ import { consoleOrigin } from "@erpx/feature-runtime/lib/erpx-hosts";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
 import { createAccountPreferencesApplication, createAccountPreferencePatch } from "@erpx/server-identity_access/application/account-preferences";
 import { defaultAccountPreferences, type AccountProfile } from "@erpx/server-identity_access/domain/account-preferences";
+import { nativeAccountProfile } from "@erpx/server-identity_access/public/account-profile-native";
 
 type ProfileRow = { name: string; email: string; language: "en" | "th" | null; appearance: "system" | "light" | "dark" | null; version: number | null };
 /** Supplied owner unit only; defaults are read-only and never create a row. */
@@ -67,8 +68,7 @@ export async function accountProfileRequest(request: Request) {
       throw new ApiError(409, "ACCOUNT_CONTEXT_CHANGED", "Your account changed. Reload before editing these settings.");
     const owner = (await runtimeEnv()).CONTROL_DB as PostgresDatabase;
     if (request.method === "GET") {
-      const profile = await readAccountProfile(owner, session.user.id);
-      if (!profile) throw new ApiError(401, "SIGN_IN_REQUIRED", "Sign in again to edit your account.");
+      const profile = await nativeAccountProfile(session.user.id);
       return Response.json({ data: profile }, { headers: responseHeaders });
     }
     if (!request.headers.get("content-type")?.startsWith("application/json")) throw new ApiError(415, "JSON_REQUIRED", "Submit your account settings as JSON.");
@@ -104,8 +104,7 @@ export async function accountPreferencesRequest(request: Request) {
     if (!session) throw new ApiError(401, "SIGN_IN_REQUIRED", "Sign in to save your preferences.");
     const owner = env.CONTROL_DB as PostgresDatabase, key = accountPreferenceKey(session.user.id);
     if (request.method === "GET") {
-      const profile = await readAccountProfile(owner, session.user.id);
-      if (!profile) throw new ApiError(401, "SIGN_IN_REQUIRED", "Sign in again to continue.");
+      const profile = await nativeAccountProfile(session.user.id);
       return Response.json({ data: { key, preference: profile.preferences } }, { headers });
     }
     if (!request.headers.get("content-type")?.startsWith("application/json")) throw new ApiError(415, "JSON_REQUIRED", "Submit valid preferences.");
