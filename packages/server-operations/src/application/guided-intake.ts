@@ -13,7 +13,7 @@ import type { aiUsageStatement } from "@erpx/server-agent/public/ai-providers";
 import type { resolveAiProvider } from "@erpx/server-agent/public/ai-providers";
 import type { generateProviderJson } from "@erpx/server-agent/public/ai-transport";
 import type { withAiGatewayScope } from "@erpx/server-agent/public/ai-transport";
-import type { assistantSources } from "@erpx/server-agent/public/workspace-assistant";
+import type { nativeAssistantSources } from "@erpx/server-agent/public/workspace-assistant";
 import type { agentSourceAllowed } from "@erpx/server-agent/public/agent-governance";
 import type { assistantGovernanceContext } from "@erpx/server-agent/public/agent-governance";
 import type { assistantGovernanceGuards } from "@erpx/server-agent/public/agent-governance";
@@ -77,7 +77,7 @@ export interface GuidedIntakePorts<Effect> {
     resolveAiProvider(...args: Tail<Parameters<typeof resolveAiProvider>>): PortResult<ReturnType<typeof resolveAiProvider>, Effect>;
     generateProviderJson(...args: Parameters<typeof generateProviderJson>): PortResult<ReturnType<typeof generateProviderJson>, Effect>;
     withAiGatewayScope(...args: Parameters<typeof withAiGatewayScope>): PortResult<ReturnType<typeof withAiGatewayScope>, Effect>;
-    assistantSources(...args: Tail<Parameters<typeof assistantSources>>): PortResult<ReturnType<typeof assistantSources>, Effect>;
+    assistantSources(...args: Parameters<typeof nativeAssistantSources>): PortResult<ReturnType<typeof nativeAssistantSources>, Effect>;
     agentSourceAllowed(...args: Parameters<typeof agentSourceAllowed>): PortResult<ReturnType<typeof agentSourceAllowed>, Effect>;
     assistantGovernanceContext(...args: Tail<Parameters<typeof assistantGovernanceContext>>): PortResult<ReturnType<typeof assistantGovernanceContext>, Effect>;
     assistantGovernanceGuards(...args: Tail<Parameters<typeof assistantGovernanceGuards>>): PortResult<ReturnType<typeof assistantGovernanceGuards>, Effect>;
