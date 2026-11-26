@@ -174,6 +174,7 @@ pub mod organization_owner_write;
 #[cfg(feature = "existing-business")]
 pub mod organization_setup;
 pub mod people_payroll;
+pub mod people_commands;
 pub mod people_workforce;
 pub mod people_workforce_ports;
 pub mod platform_administration;

@@ -1,5 +1,6 @@
 import 'server-only';
 import { ApiError } from '@erpx/server-runtime/public/http';
+import { nativeRequest } from '@erpx/server-runtime/public/native-http';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 import type { SqlDatabase, SqlResult, SqlStatement } from '@erpx/server-runtime/public/runtime/types';
 
@@ -202,14 +203,8 @@ async function readJson(db: SqlDatabase, response: Response): Promise<SqlStateme
 function post(url: URL, headers: Record<string, string>, body: string, timeoutMs: number) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-  return fetch(url, {
-    method: 'POST',
-    headers,
-    body,
-    cache: 'no-store',
-    redirect: 'error',
-    signal: controller.signal,
-  }).finally(() => clearTimeout(timer));
+  return nativeRequest(url, { method: 'POST', headers, body, signal: controller.signal }, timeoutMs)
+    .finally(() => clearTimeout(timer));
 }
 
 function bodyFor(kind: string, values: readonly unknown[], now: number): string {

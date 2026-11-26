@@ -168,13 +168,22 @@ export async function nativePpCommandSystem(
   now = Date.now(),
 ): Promise<NativePeoplePayrollResult> {
   const config = configuration();
-  if (!identifier(companyId) || !identifier(kind) || !/^[A-Za-z0-9:_.-]{8,180}$/.test(key)) return unavailable();
-  const holding = config.holdings.find(item => item.companyId === companyId) ?? (config.holdings.length === 1 ? config.holdings[0] : undefined);
+  if (!identifier(kind) || !/^[A-Za-z0-9:_.-]{8,180}$/.test(key)) return unavailable();
+  // System/worker call sites that lack an explicit Company still bind the same
+  // Company id positionally; recover it from the command values. A command with
+  // no recoverable Company stays fail-closed instead of guessing a Holding.
+  const resolved =
+    identifier(companyId)
+      ? companyId
+      : config.holdings.find((item) => values.some((value) => value === item.companyId))?.companyId ??
+        (config.holdings.length === 1 ? config.holdings[0]!.companyId : undefined);
+  if (!resolved) return unavailable();
+  const holding = config.holdings.find(item => item.companyId === resolved);
   if (!holding) return unavailable();
   const headers = target(config, holding);
   headers['idempotency-key'] = key;
-  headers['x-erpx-context-company'] = companyId;
-  const url = new URL(`/api/v1/companies/${encodeURIComponent(companyId)}/people-payroll/native-command`, config.privateBaseUrl);
+  headers['x-erpx-context-company'] = resolved;
+  const url = new URL(`/api/v1/companies/${encodeURIComponent(resolved)}/people-payroll/native-command`, config.privateBaseUrl);
   return post(url, headers, JSON.stringify({ kind, values, now }), config.timeoutMs);
 }
 

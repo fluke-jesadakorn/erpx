@@ -1,6 +1,7 @@
 import 'server-only';
 import { randomUUID } from 'node:crypto';
 import { ApiError } from '@erpx/server-runtime/public/http';
+import { nativeRequest } from '@erpx/server-runtime/public/native-http';
 import type { SqlDatabase, SqlStatement } from '@erpx/server-runtime/public/runtime/types';
 import type { SqlValueRow } from '@erpx/server-runtime/public/runtime/sql';
 
@@ -50,29 +51,33 @@ function configuration(): Settings {
 
 async function statement(db: SqlDatabase, company: string, kind: string, values: unknown[]): Promise<SqlStatement> {
   const config = configuration();
+  // Company-free POS drains (companyId null) still need a transport scope. The
+  // owner statement registry ignores the Company, so the explicit `system`
+  // scope selects the same owner plan without inventing a real Company.
+  const scope = company || 'system';
   let response: Response;
   try {
-    response = await fetch(
-      `${config.privateBaseUrl}/api/v1/companies/${encodeURIComponent(company)}/pos/owner-write`,
+    response = await nativeRequest(
+      new URL(`/api/v1/companies/${encodeURIComponent(scope)}/pos/owner-write`, config.privateBaseUrl),
       {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
           'idempotency-key': randomUUID(),
-          'x-erpx-context-company': company,
+          'x-erpx-context-company': scope,
         },
-        body: JSON.stringify({ company, kind, values }),
-        cache: 'no-store',
-        signal: AbortSignal.timeout(config.timeoutMs),
+        body: JSON.stringify({ company: scope, kind, values }),
       },
+      config.timeoutMs,
     );
   } catch {
     throw new ApiError(503, 'NATIVE_POS_OWNER_UNAVAILABLE', 'The native POS owner service is unavailable.');
   }
   let payload: StatementResponse | null = null;
   try { payload = (await response.json()) as StatementResponse; } catch { /* bounded failure below */ }
-  if (!response.ok || !payload?.data)
+  if (!response.ok || !payload?.data) {
     throw new ApiError(response.status, payload?.error?.code ?? 'NATIVE_POS_OWNER_FAILED', payload?.error?.message ?? 'The POS owner write failed.');
+  }
   if (typeof payload.data.sql !== 'string' || !Array.isArray(payload.data.values))
     throw new ApiError(503, 'NATIVE_POS_OWNER_RESPONSE_INVALID', 'The native POS owner write was invalid.');
   return db.prepare(payload.data.sql).bind(...payload.data.values);

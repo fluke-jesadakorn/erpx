@@ -112,11 +112,17 @@ export async function RECORDS_NATIVECommandSystem(
 ): Promise<NativeRecordsResult> {
   const config = configuration();
   if (!identifier(kind) || !/^[A-Za-z0-9:_.-]{8,180}$/.test(key)) return unavailable();
-  const holding = config.holdings.find(h => h.companyId === companyId) ?? (config.holdings.length === 1 ? config.holdings[0] : undefined);
-  if (!holding || (companyId && !identifier(companyId))) return unavailable();
-  const headers = target(config, holding, companyId || holding.companyId);
+  // Worker call sites may omit the Company while still binding it positionally.
+  const resolved =
+    identifier(companyId)
+      ? companyId
+      : config.holdings.find(item => values.some(value => value === item.companyId))?.companyId ??
+        (config.holdings.length === 1 ? config.holdings[0]!.companyId : undefined);
+  const holding = config.holdings.find(h => h.companyId === resolved);
+  if (!holding || !resolved) return unavailable();
+  const headers = target(config, holding, resolved);
   headers['idempotency-key'] = key;
-  const url = new URL(`/api/v1/companies/${encodeURIComponent(companyId || holding.companyId)}/records/native-command`, config.privateBaseUrl);
+  const url = new URL(`/api/v1/companies/${encodeURIComponent(resolved)}/records/native-command`, config.privateBaseUrl);
   return post(url, headers, JSON.stringify({ kind, values, now }), config.timeoutMs);
 }
 

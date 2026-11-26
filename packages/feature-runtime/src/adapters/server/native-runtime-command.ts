@@ -1,6 +1,7 @@
 import 'server-only';
 import { createHash } from 'node:crypto';
 import { ApiError } from '@erpx/server-runtime/public/http';
+import { nativeRequest } from '@erpx/server-runtime/public/native-http';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 import type { SqlResult, SqlStatement } from '@erpx/server-runtime/public/runtime/types';
 
@@ -71,7 +72,7 @@ function target(config: Settings, holding: Holding, companyId: string): Record<s
 async function post(url: URL, headers: Record<string, string>, body: string, timeoutMs: number): Promise<NativeRuntimeResult> {
   if (new TextEncoder().encode(body).length > 256 * 1024) return unavailable();
   let response: Response;
-  try { response = await fetch(url, { method: 'POST', headers, body, cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(timeoutMs) }); }
+  try { response = await nativeRequest(url, { method: 'POST', headers, body }, timeoutMs); }
   catch { return unavailable(); }
   if (response.status !== 200 || response.headers.get('content-type')?.split(';')[0]?.trim() !== 'application/json') {
     void response.body?.cancel().catch(() => undefined);
@@ -114,11 +115,16 @@ export async function RUNTIME_NATIVECommandSystem(
 ): Promise<NativeRuntimeResult> {
   const config = configuration();
   if (!identifier(kind) || !/^[A-Za-z0-9:_.-]{8,180}$/.test(key)) return unavailable();
-  const holding = config.holdings.find(h => h.companyId === companyId) ?? (config.holdings.length === 1 ? config.holdings[0] : undefined);
-  if (!holding || (companyId && !identifier(companyId))) return unavailable();
-  const headers = target(config, holding, companyId || holding.companyId);
+  const resolved =
+    identifier(companyId)
+      ? companyId
+      : config.holdings.find(item => values.some(value => value === item.companyId))?.companyId ??
+        (config.holdings.length === 1 ? config.holdings[0]!.companyId : undefined);
+  const holding = config.holdings.find(h => h.companyId === resolved);
+  if (!holding || !resolved) return unavailable();
+  const headers = target(config, holding, resolved);
   headers['idempotency-key'] = key;
-  const url = new URL(`/api/v1/companies/${encodeURIComponent(companyId || holding.companyId)}/`+"runtime/native-command", config.privateBaseUrl);
+  const url = new URL(`/api/v1/companies/${encodeURIComponent(resolved)}/`+"runtime/native-command", config.privateBaseUrl);
   return post(url, headers, JSON.stringify({ kind, values, now }), config.timeoutMs);
 }
 

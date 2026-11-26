@@ -1,6 +1,7 @@
 import "server-only";
 import { headers } from "next/headers";
 import { ApiError } from "@erpx/server-runtime/public/http";
+import { nativeRequest } from "@erpx/server-runtime/public/native-http";
 
 /**
  * Native Billing owner-write transport. Every remaining owner SQL literal is
@@ -101,16 +102,17 @@ export async function nativeBillingOwnerStatement(
   }
   let response: Response;
   try {
-    response = await fetch(
-      `${config.privateBaseUrl}/api/v1/holdings/${encodeURIComponent(target.holdingSlug)}/billing/owner-write`,
+    response = await nativeRequest(
+      new URL(
+        `/api/v1/holdings/${encodeURIComponent(target.holdingSlug)}/billing/owner-write`,
+        config.privateBaseUrl,
+      ),
       {
         method: "POST",
-        headers: sent,
+        headers: Object.fromEntries(sent.entries()),
         body: JSON.stringify({ kind, values, now }),
-        cache: "no-store",
-        redirect: "manual",
-        signal: AbortSignal.timeout(config.timeoutMs),
       },
+      config.timeoutMs,
     );
   } catch {
     throw new ApiError(

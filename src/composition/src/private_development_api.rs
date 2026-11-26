@@ -3732,6 +3732,7 @@ async fn assemble_checked(
         let mut staff_work_targets = Vec::new();
         let mut people_payroll_targets = Vec::new();
         let mut people_payroll_command_targets = Vec::new();
+        let mut people_payroll_native_companies = std::collections::BTreeMap::new();
         #[cfg(feature = "existing-business")]
         let mut workforce_targets = Vec::new();
         let mut asset_targets = Vec::new();
@@ -6479,6 +6480,8 @@ async fn assemble_checked(
                         backend: people_payroll_backend.clone(),
                     },
                 );
+                people_payroll_native_companies
+                    .insert(company.as_str().to_owned(), pools[i + 1].clone());
                 #[cfg(feature = "existing-business")]
                 workforce_targets.push(
                     erpx_server_people_payroll::public::workforce_http::WorkforceHttpTarget {
@@ -7892,7 +7895,11 @@ async fn assemble_checked(
                         )
                         .with_companies(pos_owner_write_company_pools.clone()),
                     ),
-                    pos_owner_write_company_pools.keys().cloned().collect(),
+                    pos_owner_write_company_pools
+                        .keys()
+                        .cloned()
+                        .chain(std::iter::once("system".to_owned()))
+                        .collect(),
                 )
                 .map_err(|_| "PRIVATE_API_POS_OWNER_WRITE_CONFIGURATION_INVALID")?,
             );
@@ -8635,6 +8642,19 @@ async fn assemble_checked(
                     people_payroll_command_targets,
                 )
                 .map_err(|_| "PRIVATE_API_PEOPLE_PAYROLL_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !people_payroll_native_companies.is_empty() {
+            router = router.merge(
+                erpx_server_people_payroll::public::native_command_http::native_command_company_router(
+                    vec![(
+                        "people-payroll".to_owned(),
+                        Arc::new(crate::people_commands::PeopleCommandBackend::new(
+                            people_payroll_native_companies.clone(),
+                        )) as Arc<dyn erpx_server_people_payroll::public::native_command_http::NativeCommandHttpBackend>,
+                    )],
+                )
+                .map_err(|_| "PRIVATE_API_PEOPLE_PAYROLL_NATIVE_CONFIGURATION_INVALID")?,
             );
         }
         #[cfg(feature = "existing-business")]

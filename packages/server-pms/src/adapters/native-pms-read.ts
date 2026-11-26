@@ -1,6 +1,7 @@
 import 'server-only';
 import { createHash } from 'node:crypto';
 import { ApiError } from '@erpx/server-runtime/public/http';
+import { nativeRequest } from '@erpx/server-runtime/public/native-http';
 import type { SqlDatabase, SqlResult } from '@erpx/server-runtime/public/runtime/types';
 
 /**
@@ -210,21 +211,22 @@ export async function nativePmsReadAll<T>(
   const url = new URL(`/api/v1/holdings/${encodeURIComponent(holding.holdingSlug)}/pms/command-plan`, config.privateBaseUrl);
   let response: Response;
   try {
-    response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        host: new URL(holding.origin).host,
-        origin: holding.origin,
-        'content-type': 'application/json',
-        accept: 'application/json',
-        'cache-control': 'no-cache',
-        'idempotency-key': key,
+    response = await nativeRequest(
+      url,
+      {
+        method: 'POST',
+        headers: {
+          host: new URL(holding.origin).host,
+          origin: holding.origin,
+          'content-type': 'application/json',
+          accept: 'application/json',
+          'cache-control': 'no-cache',
+          'idempotency-key': key,
+        },
+        body: JSON.stringify({ kind, values }),
       },
-      body: JSON.stringify({ kind, values }),
-      cache: 'no-store',
-      redirect: 'error',
-      signal: AbortSignal.timeout(config.timeoutMs),
-    });
+      config.timeoutMs,
+    );
   } catch { return unavailable(); }
   if (response.status !== 200) {
     void response.body?.cancel().catch(() => undefined);
