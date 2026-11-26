@@ -233,6 +233,28 @@ pub fn mount(
         .map_err(|_| "PRIVATE_API_PMS_LANE20_INVALID")?,
     );
 
+    // Account profile read (Control pool).
+    router = router.merge(
+        erpx_server_identity_access::public::account_profile_read::account_profile_read_router(
+            config
+                .holdings
+                .iter()
+                .map(|holding| {
+                    erpx_server_identity_access::public::account_profile_read::AccountProfileReadTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        reader: std::sync::Arc::new(
+                            erpx_server_identity_access::public::account_profile_read::PgAccountProfileReader::new(
+                                pools[0].clone(),
+                            ),
+                        ),
+                    }
+                })
+                .collect(),
+        )
+        .map_err(|_| "PRIVATE_API_ACCOUNT_PROFILE_INVALID")?,
+    );
+
     // Manufacturing production accounting-profile read.
     router = router.merge(
         erpx_server_manufacturing::public::production_profiles_http::router_for_holdings(
