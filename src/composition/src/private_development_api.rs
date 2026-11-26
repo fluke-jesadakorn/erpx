@@ -8914,6 +8914,7 @@ async fn assemble_checked(
         let mut work_snapshot_targets = Vec::new();
         let mut work_home_unread_targets = Vec::new();
         let mut work_report_targets = Vec::new();
+        let mut work_navigation_targets = Vec::new();
         for (i, holding) in config.holdings.iter().enumerate() {
             let authorizer = Arc::new(
                 HoldingWorkAuthorizer::new(
@@ -8929,6 +8930,7 @@ async fn assemble_checked(
             let work_authorizer = authorizer.clone();
             let unread_authorizer = authorizer.clone();
             let report_authorizer = authorizer.clone();
+            let navigation_authorizer = authorizer.clone();
             work_card_targets.push(
                 erpx_server_work_projection::public::work_card_preferences_http::WorkCardPreferencesHttpTarget {
                     host: holding.host.clone(),
@@ -9031,6 +9033,27 @@ async fn assemble_checked(
                     )),
                 },
             );
+            work_navigation_targets.push(
+                erpx_server_work_projection::public::work_navigation_http::WorkNavigationHttpTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                    origin: config
+                        .policy
+                        .holdings
+                        .iter()
+                        .find(|registered| registered.host == holding.host)
+                        .map(|registered| registered.origin.clone())
+                        .unwrap_or_else(|| format!("https://{}", holding.host)),
+                    backend: Arc::new(
+                        erpx_server_work_projection::public::work_navigation_http::WorkNavigationBackend::new(
+                            config.policy.clone(),
+                            navigation_authorizer,
+                            holding.registration.holding_id.clone(),
+                            holding.registration.slug.clone(),
+                        ),
+                    ),
+                },
+            );
         }
         if !work_card_targets.is_empty() {
             router = router.merge(
@@ -9060,6 +9083,14 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_work_projection::public::work_report_read_http::work_report_router(
                     work_report_targets,
+                )
+                .map_err(|_| "PRIVATE_API_WORK_PROJECTION_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !work_navigation_targets.is_empty() {
+            router = router.merge(
+                erpx_server_work_projection::public::work_navigation_http::work_navigation_router(
+                    work_navigation_targets,
                 )
                 .map_err(|_| "PRIVATE_API_WORK_PROJECTION_CONFIGURATION_INVALID")?,
             );
