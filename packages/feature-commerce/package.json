@@ -21,7 +21,8 @@
     "./lib/purchase-controls": "./src/lib/purchase-controls.ts",
     "./lib/posting-prerequisite-read-model": "./src/lib/posting-prerequisite-read-model.ts",
     "./lib/posting-setup-prerequisite-command": "./src/lib/posting-setup-prerequisite-command.ts",
-    "./public/native-commerce-orders": "./src/public/native-commerce-orders.ts"
+    "./public/native-commerce-orders": "./src/public/native-commerce-orders.ts",
+    "./public/native-commerce-return-lines": "./src/public/native-commerce-return-lines.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

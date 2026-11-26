@@ -164,7 +164,8 @@
     "./domain/reservation-alerts": "./src/domain/reservation-alerts.ts",
     "./domain/transit": "./src/domain/transit.ts",
     "./public/service-count-outbox-predicate": "./src/public/service-count-outbox-predicate.generated.ts",
-    "./public/inventory-transfer-read": "./src/public/inventory-transfer-read.ts"
+    "./public/inventory-transfer-read": "./src/public/inventory-transfer-read.ts",
+    "./adapters/native-transfer-list-read": "./src/adapters/native-transfer-list-read.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
