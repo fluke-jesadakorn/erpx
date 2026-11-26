@@ -641,6 +641,7 @@
 @source "../../../../packages/server-finance/src/adapters/native-lane-2/client.ts";
 @source "../../../../packages/server-finance/src/adapters/native-lane-3/client.ts";
 @source "../../../../packages/server-finance/src/adapters/native-lane-6/client.ts";
+@source "../../../../packages/server-finance/src/adapters/native-lane-7/client.ts";
 @source "../../../../packages/server-finance/src/adapters/native-service-invoice-payment-evidence.ts";
 @source "../../../../packages/server-finance/src/adapters/platform-owner-projection-sources.ts";
 @source "../../../../packages/server-finance/src/adapters/pos-initial-stock-journal-sources.ts";
