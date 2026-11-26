@@ -1,5 +1,6 @@
 import 'server-only';
 import { ApiError } from '@erpx/server-runtime/public/http';
+import { nativeRequest } from '@erpx/server-runtime/public/native-http';
 
 /** Strict owner transport for the native Collaboration messaging reads. */
 export type NativeMessagingConfiguration = Readonly<{
@@ -69,9 +70,10 @@ async function read(request: Request, holdingSlug: string, path: string): Promis
   }
   let response: Response;
   try {
-    response = await fetch(
-      `${config.privateBaseUrl}/api/v1/holdings/${encodeURIComponent(holdingSlug)}/messaging${path}`,
-      { method: 'GET', headers, cache: 'no-store', signal: AbortSignal.timeout(config.timeoutMs) },
+    response = await nativeRequest(
+      new URL(`/api/v1/holdings/${encodeURIComponent(holdingSlug)}/messaging${path}`, config.privateBaseUrl),
+      { method: 'GET', headers: Object.fromEntries(headers.entries()) },
+      config.timeoutMs,
     );
   } catch {
     throw new ApiError(503, 'NATIVE_COLLABORATION_UNAVAILABLE', 'The native Collaboration service is unavailable.');
@@ -127,15 +129,14 @@ async function commandHeaders(
   }
   let response: Response;
   try {
-    response = await fetch(
-      `${config.privateBaseUrl}/api/v1/holdings/${encodeURIComponent(holdingSlug)}/messaging${path}`,
+    response = await nativeRequest(
+      new URL(`/api/v1/holdings/${encodeURIComponent(holdingSlug)}/messaging${path}`, config.privateBaseUrl),
       {
         method: 'POST',
-        headers,
+        headers: Object.fromEntries(headers.entries()),
         body: JSON.stringify(body),
-        cache: 'no-store',
-        signal: AbortSignal.timeout(config.timeoutMs),
       },
+      config.timeoutMs,
     );
   } catch {
     throw new ApiError(503, 'NATIVE_COLLABORATION_UNAVAILABLE', 'The native Collaboration service is unavailable.');

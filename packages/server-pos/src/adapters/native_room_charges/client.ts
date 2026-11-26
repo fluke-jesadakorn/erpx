@@ -1,5 +1,6 @@
 import "server-only";
 import { ApiError } from "@erpx/server-runtime/public/http";
+import { nativeRequest } from "@erpx/server-runtime/public/native-http";
 import { holdingResources } from "@erpx/server-runtime/public/runtime";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
@@ -257,13 +258,10 @@ export async function nativeRoomChargeQueue(
   if (actor.branchId) headers.set("x-erpx-workspace-branch", actor.branchId);
   let response: Response;
   try {
-    response = await fetch(url, {
+    response = await nativeRequest(url, {
       method: "GET",
-      headers: Object.fromEntries(headers),
-      cache: "no-store",
-      redirect: "error",
-      signal: AbortSignal.timeout(config.timeoutMs),
-    });
+      headers: Object.fromEntries(headers.entries()),
+    }, config.timeoutMs);
   } catch {
     return unavailable();
   }

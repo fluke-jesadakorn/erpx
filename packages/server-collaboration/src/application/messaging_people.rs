@@ -43,6 +43,16 @@ fn unavailable() -> BusinessError {
     )
 }
 
+/// Project an already-read owner rowset with the retained filter and page.
+pub fn project_people(
+    rows: Vec<PersonRow>,
+    search: Option<&str>,
+    team_id: Option<&str>,
+) -> Result<Vec<Person>, BusinessError> {
+    let query = PeopleQuery::new(search, team_id)?;
+    Ok(project(rows, &query))
+}
+
 /// Owner service: validate once, read the complete owner rowset, then apply
 /// the retained case-insensitive `name email` filter and 100-item page.
 pub struct PeopleService<R: MessagingPeopleRead> {

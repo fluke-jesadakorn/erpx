@@ -104,7 +104,7 @@ export async function nativeGuestHistoryGet(request: Request, context: { params:
     url.searchParams.set('id', query.get('id')!);
     let response: Response;
     try {
-      response = await fetch(url, { method: 'GET', headers, cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(config.timeoutMs) });
+      response = await nativeRequest(url, { method: 'GET', headers: Object.fromEntries(headers.entries()) }, config.timeoutMs);
     } catch { return unavailable(); }
     if (response.status >= 400 && response.status < 500) {
       void response.body?.cancel().catch(() => undefined);

@@ -4,7 +4,8 @@ import { requireWorkContext } from "@erpx/server-identity_access/public/authoriz
 import { holdingResources } from "../../../../../../../../../../packages/server-runtime/src/public/runtime";
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
-import {channelSchema,createMessagingChannel,createMessagingRoom,createMessagingTeam,manageMessaging,manageSchema,messageSchema,messagingFile,messagingHistory,messagingMembers,messagingPeople,readMessaging,roomSchema,sendMessagingMessage,teamSchema} from '@erpx/server-collaboration/public/messaging';
+import {channelSchema,createMessagingChannel,createMessagingRoom,createMessagingTeam,manageMessaging,manageSchema,messageSchema,messagingFile,messagingHistory,messagingMembers,readMessaging,roomSchema,sendMessagingMessage,teamSchema} from '@erpx/server-collaboration/public/messaging';
+import { nativeMessagingPeople } from '@erpx/server-collaboration/public/native-messaging-page';
 import { uploadMessagingFile,discardMessagingFile } from "@erpx/server-collaboration/public/messaging-files";
 import { nativeCreateChannel, nativeCreateRoom, nativeCreateTeam, nativeMarkRead, nativeMessagingAvailable, nativeMessagingFileContent, nativeMessagingHistory, nativeMessagingMembers, nativeMessagingOverview, nativeSendMessage } from "@erpx/server-collaboration/public/native-messaging-page";
 import { attachmentContent } from "@erpx/server-files/public/attachments/service";
@@ -42,9 +43,9 @@ async function handle(request: Request, context: Context) {
           );
         data = await nativeMessagingOverview(request, holdingSlug);
       } else if (p[0] === "people" && p.length === 1)
-        data = await messagingPeople(
-          db,
-          actor,
+        data = await nativeMessagingPeople(
+          request,
+          holdingSlug,
           (url.searchParams.get("q") ?? "").slice(0, 160),
           url.searchParams.get("team") ?? undefined,
         );

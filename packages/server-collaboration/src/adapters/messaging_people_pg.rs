@@ -15,7 +15,7 @@ use crate::domain::messaging_people::PersonRow;
 use erpx_server_organization::public::organization_nodes::messaging_team_organization_sql;
 use erpx_server_runtime::public::postgres::DatabasePool;
 use erpx_server_shared::public::{BusinessError, FailureKind};
-use sqlx::Row;
+use sqlx::{PgConnection, Row};
 
 /// Exact active-account predicate used by the retained people picker: Company
 /// fence, active assignment at the caller's clock, optional team membership and
@@ -51,6 +51,34 @@ fn unavailable() -> BusinessError {
     )
 }
 
+/// Execute the active-people query on the caller's open Holding unit. The
+/// caller owns the transaction and passes its authenticated Company/viewer.
+pub async fn fetch_active_people(
+    connection: &mut PgConnection,
+    company_id: &str,
+    now: i64,
+    viewer_id: &str,
+    team_id: Option<&str>,
+) -> Result<Vec<PersonRow>, BusinessError> {
+    let rows = sqlx::query(sqlx::AssertSqlSafe(sql_active_people()))
+        .bind(company_id)
+        .bind(now)
+        .bind(team_id)
+        .bind(viewer_id)
+        .fetch_all(&mut *connection)
+        .await
+        .map_err(|_| unavailable())?;
+    rows.into_iter()
+        .map(|row| {
+            Ok(PersonRow {
+                user_id: row.try_get("user_id").map_err(|_| unavailable())?,
+                name: row.try_get("name").map_err(|_| unavailable())?,
+                email: row.try_get("email").map_err(|_| unavailable())?,
+            })
+        })
+        .collect()
+}
+
 /// Postgres-backed owner reader. Composition supplies the Holding pool.
 pub struct PgMessagingPeopleRead {
     pool: DatabasePool,
@@ -75,23 +103,15 @@ impl MessagingPeopleRead for PgMessagingPeopleRead {
         let viewer_id = viewer_id.to_owned();
         let team_id = team_id.map(str::to_owned);
         Box::pin(async move {
-            let rows = sqlx::query(sqlx::AssertSqlSafe(sql_active_people()))
-                .bind(company_id.as_str())
-                .bind(now)
-                .bind(team_id.as_deref())
-                .bind(viewer_id.as_str())
-                .fetch_all(pool.raw())
-                .await
-                .map_err(|_| unavailable())?;
-            rows.into_iter()
-                .map(|row| {
-                    Ok(PersonRow {
-                        user_id: row.try_get("user_id").map_err(|_| unavailable())?,
-                        name: row.try_get("name").map_err(|_| unavailable())?,
-                        email: row.try_get("email").map_err(|_| unavailable())?,
-                    })
-                })
-                .collect()
+            let mut connection = pool.raw().acquire().await.map_err(|_| unavailable())?;
+            fetch_active_people(
+                &mut connection,
+                &company_id,
+                now,
+                &viewer_id,
+                team_id.as_deref(),
+            )
+            .await
         })
     }
 }

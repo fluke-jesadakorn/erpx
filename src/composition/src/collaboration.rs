@@ -18,7 +18,7 @@ use erpx_server_collaboration::public::messaging_http::{
     MessagingOverviewData, MessagingPeopleRequest, MessagingReadKind,
 };
 use erpx_server_collaboration::public::messaging_people::{
-    PeopleService, PgMessagingPeopleRead, Person,
+    PeopleService, PgMessagingPeopleRead, Person, fetch_active_people, project_people,
 };
 use erpx_server_collaboration::public::messaging_native::{
     Change as RoomChange, HistoryCursor, MessagingActor, PgMessagingUnit, Receipt as RoomReceipt,
@@ -1298,7 +1298,6 @@ impl<C: Clock + Send + Sync + 'static> MessagingService<C> {
         let holding = self.configuration.holding.clone();
         let company = self.configuration.company.clone();
         let clock = self.clock.clone();
-        let control = self.control.clone();
         let expected = company.clone();
         self.authorizer
             .execute_with_sources_deferred(
@@ -1323,7 +1322,6 @@ impl<C: Clock + Send + Sync + 'static> MessagingService<C> {
                     let holding = holding.clone();
                     let company = company.clone();
                     let clock = clock.clone();
-                    let control = control.clone();
                     let search = search.clone();
                     let team_id = team_id.clone();
                     Box::pin(async move {
@@ -1348,16 +1346,15 @@ impl<C: Clock + Send + Sync + 'static> MessagingService<C> {
                             }
                         }
                         let viewer = current.user_id().as_str().to_owned();
-                        let people = PeopleService::new(PgMessagingPeopleRead::new(control))
-                            .read(
-                                company.as_str(),
-                                now,
-                                &viewer,
-                                search.as_deref(),
-                                team_id.as_deref(),
-                            )
-                            .await?;
-                        Ok(people)
+                        let rows = fetch_active_people(
+                            connection,
+                            company.as_str(),
+                            now,
+                            &viewer,
+                            team_id.as_deref(),
+                        )
+                        .await?;
+                        Ok(project_people(rows, search.as_deref(), team_id.as_deref())?)
                     })
                 },
             )

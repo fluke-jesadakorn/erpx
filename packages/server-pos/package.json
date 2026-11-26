@@ -112,7 +112,8 @@
     "./domain/startup": "./src/domain/startup.ts",
     "./domain/pos": "./src/domain/pos.ts",
     "./public/native-customer-search": "./src/public/native-customer-search.ts",
-    "./adapters/native_customer_search/client": "./src/adapters/native_customer_search/client.ts"
+    "./adapters/native_customer_search/client": "./src/adapters/native_customer_search/client.ts",
+    "./adapters/native_room_charges/client": "./src/adapters/native_room_charges/client.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

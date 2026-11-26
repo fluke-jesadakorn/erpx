@@ -1,6 +1,6 @@
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import { adminCompanyHandoff } from "@erpx/feature-runtime/lib/application-origins";
-import { roomChargeReversalQueue } from "@erpx/server-pos/adapters/room-charge-reversal-queue";
+import { nativeRoomChargeQueue } from "@erpx/server-pos/adapters/native_room_charges/client";
 import { z } from 'zod';
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
@@ -77,7 +77,7 @@ export async function POST(request:Request,{params}:Context){
 export async function GET(request:Request,{params}:Context){
  try{
   const {holdingSlug,path}=await params;
-  if(path.join('/')==='room-charge-reversals') return Response.json(canonicalDestinationLinks({data:await roomChargeReversalQueue(await requireWorkContext(holdingSlug),new URL(request.url).searchParams.get('property')??undefined)}),{headers:{'Cache-Control':'private, no-store'}});
+  if(path.join('/')==='room-charge-reversals') return Response.json(canonicalDestinationLinks({data:await nativeRoomChargeQueue(await requireWorkContext(holdingSlug),new URL(request.url).searchParams.get('property')??undefined)}),{headers:{'Cache-Control':'private, no-store'}});
   if(path[0]==='images'&&path.length===2)return posProductImage(await requireWorkContext(holdingSlug),path[1],new URL(request.url).searchParams.get('original')==='1');
   if(path.join('/')==='customers/search'){
    const actor=await requireWorkContext(holdingSlug);
