@@ -14,6 +14,7 @@ export function nativeRequest(
     method?: string;
     headers: Record<string, string>;
     body?: string | Uint8Array;
+    signal?: AbortSignal;
   }>,
   timeoutMs: number,
 ): Promise<Response> {
@@ -33,7 +34,7 @@ export function nativeRequest(
         method: init.method ?? 'GET',
         agent,
         headers,
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: init.signal ?? AbortSignal.timeout(timeoutMs),
         maxHeaderSize: 8192,
       },
       incoming => {

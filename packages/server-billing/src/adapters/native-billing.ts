@@ -1011,7 +1011,12 @@ const directTransport: NativeBillingTransport = (
   headers,
   body,
   signal,
-) => fetch(url, { method, headers, body, signal, redirect: "manual", cache: "no-store" });
+) => nativeRequest(url, {
+  method,
+  headers: Object.fromEntries(headers),
+  body: body ?? undefined,
+  signal,
+}, 30_000);
 
 export function createNativeBillingClient(
   raw: NativeBillingConfiguration,
