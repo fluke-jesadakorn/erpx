@@ -7453,6 +7453,7 @@
       ],
       "files": [
         "tests/unit/collaboration/handbook-services.test.ts",
+        "tests/unit/collaboration/native-inbox-summary-cutover.test.ts",
         "tests/unit/collaboration/native-push-settings-parity.test.ts"
       ],
       "fixture": "none",
@@ -30209,6 +30210,7 @@
         "ecommerce"
       ],
       "files": [
+        "tests/unit/ecommerce/native-detail-links.test.ts",
         "tests/unit/ecommerce/native-ecommerce-catalog-transport.test.ts",
         "tests/unit/ecommerce/read-tail-r31-dedupe.test.ts"
       ],
@@ -40082,6 +40084,7 @@
       "files": [
         "tests/unit/finance/finance-accrual-tools.test.ts",
         "tests/unit/finance/native-catchall-aging.test.ts",
+        "tests/unit/finance/native-finance-attachment-version-step.test.ts",
         "tests/unit/finance/native-lane-6-chart-list.test.ts"
       ],
       "fixture": "none",
