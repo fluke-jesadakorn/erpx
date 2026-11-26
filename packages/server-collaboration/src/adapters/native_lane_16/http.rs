@@ -7,14 +7,14 @@
 //! supplies its own pool and gets its own owner reader in the state map.
 
 use super::application::{
-    PushReadRequest, PushSettingsRead, PushSettingsService, ReadRequest, SentNoticeRead,
-    SentNoticeService,
+    PushReadRequest, PushSettingsQuery, PushSettingsQueryService, PushSettingsRead,
+    PushSettingsService, ReadRequest, SentNoticeRead, SentNoticeService, configured_public_key,
 };
 use super::domain::{PushReadKind, ReadKind, valid_identifier};
 use super::postgres::{PgPushSettingsRead, PgSentNoticeRead};
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
-    StatusCode, body::to_bytes, header, json, post,
+    StatusCode, body::to_bytes, get, header, json, post,
 };
 use erpx_server_runtime::public::postgres::DatabasePool;
 use erpx_server_shared::public::{BusinessError, FailureKind};
@@ -23,6 +23,9 @@ use std::{collections::BTreeMap, sync::Arc};
 
 const CONTEXT_COMPANY: HeaderName = HeaderName::from_static("x-erpx-context-company");
 const CONTEXT_USER: HeaderName = HeaderName::from_static("x-erpx-context-user");
+/// Public GET has no request body: the thin edge injects the authenticated work
+/// session from the Account cookie. No business logic lives in that edge.
+const CONTEXT_SESSION: HeaderName = HeaderName::from_static("x-erpx-context-session");
 const MAX_BODY: usize = 8 * 1024;
 
 /// One exact registered Holding target. Composition owns the list.
@@ -50,6 +53,18 @@ struct PushProjectionRequest {
     endpoint_hash: Option<String>,
 }
 
+/// Wire shape of the composite `GET /push` settings read. The Company and user
+/// headers remain authoritative; the body copies are cross-checked so a stale
+/// or forged caller selection fails closed. VAPID config is never caller-supplied.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PushSettingsViewRequest {
+    #[serde(default)]
+    company_id: Option<String>,
+    user_id: String,
+    session_id: String,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ProjectionRequest {
@@ -71,6 +86,7 @@ struct LaneTargetState {
     company_id: String,
     service: SentNoticeService<Arc<dyn SentNoticeRead>>,
     push_service: Option<PushSettingsService<Arc<dyn PushSettingsRead>>>,
+    push_view_service: Option<PushSettingsQueryService<Arc<dyn PushSettingsRead>>>,
 }
 
 struct LaneState {
@@ -159,12 +175,13 @@ fn bounded(body: serde_json::Value) -> Response {
 fn build_state(
     targets: Vec<(LaneTarget, Arc<dyn SentNoticeRead>)>,
 ) -> Result<Arc<LaneState>, BusinessError> {
-    build_state_with_push(targets, Vec::new())
+    build_state_with_push(targets, Vec::new(), None)
 }
 
 fn build_state_with_push(
     targets: Vec<(LaneTarget, Arc<dyn SentNoticeRead>)>,
     push_readers: Vec<Arc<dyn PushSettingsRead>>,
+    public_key: Option<String>,
 ) -> Result<Arc<LaneState>, BusinessError> {
     let mut configured = BTreeMap::new();
     for (index, (target, reader)) in targets.into_iter().enumerate() {
@@ -180,6 +197,9 @@ fn build_state_with_push(
                         push_service: push_readers
                             .get(index)
                             .map(|reader| PushSettingsService::new(reader.clone())),
+                        push_view_service: push_readers.get(index).map(|reader| {
+                            PushSettingsQueryService::new(reader.clone(), public_key.clone())
+                        }),
                     },
                 )
                 .is_some()
@@ -209,6 +229,7 @@ fn build_with(
 fn build_with_push(
     targets: Vec<(LaneTarget, Arc<dyn SentNoticeRead>)>,
     push_readers: Vec<Arc<dyn PushSettingsRead>>,
+    public_key: Option<String>,
 ) -> Result<Router, BusinessError> {
     Ok(Router::new()
         .route(
@@ -219,7 +240,18 @@ fn build_with_push(
             "/api/v1/holdings/{holding_slug}/collaboration/native-lane-16/push-settings",
             post(push_settings),
         )
-        .with_state(build_state_with_push(targets, push_readers)?))
+        .route(
+            "/api/v1/holdings/{holding_slug}/collaboration/native-lane-16/push-settings-view",
+            post(push_settings_view),
+        )
+        // Public-path alias: byte-compatible with the retired shared GET. The
+        // edge only injects the authenticated context headers; it carries no
+        // owner SQL, fallback or payload shaping.
+        .route(
+            "/api/v1/holdings/{holding_slug}/push",
+            get(push_settings_public),
+        )
+        .with_state(build_state_with_push(targets, push_readers, public_key)?))
 }
 
 /// Reader-injection path: one distinct reader per registered Holding target.
@@ -243,7 +275,7 @@ pub fn router_for_holdings(
         notices.push((target, reader));
         push.push(push_reader);
     }
-    build_with_push(notices, push)
+    build_with_push(notices, push, configured_public_key())
 }
 
 /// Single-pool router retained for owner tests and composition variants that
@@ -404,6 +436,124 @@ async fn push_settings(
     }
 }
 
+/// Composite `GET /push` settings read over the lane path. The owner validates
+/// the exact Holding target and context headers, then the application query
+/// executes the real preference/session-count SQL through `PgPushSettingsRead`.
+async fn push_settings_view(
+    State(state): State<Arc<LaneState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async {
+        let host = unique_header(request.headers(), header::HOST)?
+            .filter(|host| !host.is_empty())
+            .ok_or_else(missing)?
+            .to_owned();
+        let target = state
+            .targets
+            .get(&(host, slug.clone()))
+            .ok_or_else(missing)?;
+        let company = unique_header(request.headers(), CONTEXT_COMPANY)?
+            .filter(|value| valid_identifier(value))
+            .ok_or_else(invalid)?
+            .to_owned();
+        if company != target.company_id {
+            return Err(invalid());
+        }
+        let header_user = unique_header(request.headers(), CONTEXT_USER)?
+            .filter(|value| valid_identifier(value))
+            .ok_or_else(invalid)?
+            .to_owned();
+        let bytes = to_bytes(request.into_body(), MAX_BODY)
+            .await
+            .map_err(|_| invalid())?;
+        let body: PushSettingsViewRequest =
+            serde_json::from_slice(&bytes).map_err(|_| invalid())?;
+        if body
+            .company_id
+            .as_deref()
+            .is_some_and(|value| value != company.as_str())
+            || body.user_id != header_user
+        {
+            return Err(invalid());
+        }
+        let service = target
+            .push_view_service
+            .as_ref()
+            .ok_or_else(push_unavailable)?;
+        let data = service
+            .read(PushSettingsQuery {
+                company,
+                user: body.user_id,
+                session: body.session_id,
+            })
+            .await?;
+        Ok::<_, BusinessError>(json!({"data": data}))
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
+}
+
+/// Public-path alias of the retired shared `GET /push` handler. It returns the
+/// same `{data: ...}` envelope and `private, no-store` header; the payload comes
+/// from the same application query and `PgPushSettingsRead` SQL adapter.
+///
+/// Handler shape note: GET has no body, so the final extractor is `HeaderMap`,
+/// not `Request`. State and Path match every other handler in this router
+/// (`State<Arc<LaneState>>`, `Path<String>`), so axum's `Handler<T, S>` bound is
+/// satisfied by the same state type the router is built with.
+async fn push_settings_public(
+    State(state): State<Arc<LaneState>>,
+    Path(slug): Path<String>,
+    headers: HeaderMap,
+) -> Response {
+    let result = async {
+        let host = unique_header(&headers, header::HOST)?
+            .filter(|host| !host.is_empty())
+            .ok_or_else(missing)?
+            .to_owned();
+        let target = state
+            .targets
+            .get(&(host, slug.clone()))
+            .ok_or_else(missing)?;
+        let company = unique_header(&headers, CONTEXT_COMPANY)?
+            .filter(|value| valid_identifier(value))
+            .ok_or_else(invalid)?
+            .to_owned();
+        if company != target.company_id {
+            return Err(invalid());
+        }
+        let user = unique_header(&headers, CONTEXT_USER)?
+            .filter(|value| valid_identifier(value))
+            .ok_or_else(invalid)?
+            .to_owned();
+        let session = unique_header(&headers, CONTEXT_SESSION)?
+            .filter(|value| valid_identifier(value))
+            .ok_or_else(invalid)?
+            .to_owned();
+        let service = target
+            .push_view_service
+            .as_ref()
+            .ok_or_else(push_unavailable)?;
+        let data = service
+            .read(PushSettingsQuery {
+                company,
+                user,
+                session,
+            })
+            .await?;
+        Ok::<_, BusinessError>(json!({"data": data}))
+    }
+    .await;
+    match result {
+        Ok(body) => bounded(body),
+        Err(error) => error_response(error),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -516,6 +666,7 @@ mod tests {
         build_state_with_push(
             vec![(target(), Arc::new(FakeReader) as Arc<dyn SentNoticeRead>)],
             vec![Arc::new(FakePushReader) as Arc<dyn PushSettingsRead>],
+            Some("vapid-public".into()),
         )
         .unwrap()
     }
@@ -699,6 +850,107 @@ mod tests {
             State(state()),
             Path("acme".into()),
             request("push-preferences", Some(("userId", "user-1"))),
+        )
+        .await;
+        assert_eq!(response.status(), Code::SERVICE_UNAVAILABLE);
+    }
+
+    fn view_request(body: &str) -> Request {
+        Request::builder()
+            .method("POST")
+            .header("host", "acme.example.test")
+            .header("x-erpx-context-company", "company-1")
+            .header("x-erpx-context-user", "user-1")
+            .header("content-type", "application/json")
+            .body(Body::from(body.to_owned()))
+            .unwrap()
+    }
+
+    fn public_headers(company: &str, user: &str, session: Option<&str>) -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        headers.insert(header::HOST, HeaderValue::from_static("acme.example.test"));
+        headers.insert(CONTEXT_COMPANY, HeaderValue::try_from(company).unwrap());
+        headers.insert(CONTEXT_USER, HeaderValue::try_from(user).unwrap());
+        if let Some(session) = session {
+            headers.insert(CONTEXT_SESSION, HeaderValue::try_from(session).unwrap());
+        }
+        headers
+    }
+
+    async fn json_body(response: Response) -> serde_json::Value {
+        let bytes = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+        serde_json::from_slice(&bytes).unwrap()
+    }
+
+    #[tokio::test]
+    async fn push_settings_view_returns_complete_parity_payload() {
+        let response = push_settings_view(
+            State(state_with_push()),
+            Path("acme".into()),
+            view_request(r#"{"userId":"user-1","sessionId":"session-1"}"#),
+        )
+        .await;
+        assert_eq!(response.status(), Code::OK);
+        assert_eq!(
+            json_body(response).await,
+            json!({"data": {
+                "available": true,
+                "publicKey": "vapid-public",
+                "preferences": {"enabled": true, "work_enabled": true},
+                "deviceCount": 1,
+            }})
+        );
+    }
+
+    #[tokio::test]
+    async fn public_push_get_returns_exact_shared_route_parity() {
+        // No Origin header and no body: the retired shared GET asserted neither.
+        let response = push_settings_public(
+            State(state_with_push()),
+            Path("acme".into()),
+            public_headers("company-1", "user-1", Some("session-1")),
+        )
+        .await;
+        assert_eq!(response.status(), Code::OK);
+        assert_eq!(
+            response
+                .headers()
+                .get(header::CACHE_CONTROL)
+                .and_then(|value| value.to_str().ok()),
+            Some("private, no-store")
+        );
+        // canonicalDestinationLinks is identity for this payload: no key ends
+        // in Href/href, so the native envelope is byte-identical to the old one.
+        assert_eq!(
+            json_body(response).await,
+            json!({"data": {
+                "available": true,
+                "publicKey": "vapid-public",
+                "preferences": {"enabled": true, "work_enabled": true},
+                "deviceCount": 1,
+            }})
+        );
+    }
+
+    #[tokio::test]
+    async fn public_push_get_fails_closed_on_scope_mismatch_and_missing_session() {
+        for headers in [
+            public_headers("other-company", "user-1", Some("session-1")),
+            public_headers("company-1", "someone-else", Some("session-1")),
+            public_headers("company-1", "user-1", None),
+        ] {
+            let response =
+                push_settings_public(State(state_with_push()), Path("acme".into()), headers).await;
+            assert_eq!(response.status(), Code::UNPROCESSABLE_ENTITY);
+        }
+    }
+
+    #[tokio::test]
+    async fn public_push_get_fails_closed_without_owner_reader() {
+        let response = push_settings_public(
+            State(state()),
+            Path("acme".into()),
+            public_headers("company-1", "user-1", Some("session-1")),
         )
         .await;
         assert_eq!(response.status(), Code::SERVICE_UNAVAILABLE);

@@ -1,6 +1,9 @@
 import 'server-only';
+import { createHash } from 'node:crypto';
 import { Agent, request } from 'node:http';
 import { Readable } from 'node:stream';
+import { ApiError } from '@erpx/server-runtime/public/http';
+import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 
 /** Rendering input from retained page authorization, never a grant. */
 export type NativeAttachmentPageContext = {
@@ -575,6 +578,11 @@ export function nativeAttachmentReadConfiguration(
   return value as unknown as NativeAttachmentConfiguration;
 }
 
+/** Shared deep target validation for the metadata and content transports. */
+export function nativeAttachmentTargetConfiguration(raw: NativeAttachmentConfiguration) {
+  return configuration(raw);
+}
+
 export function nativeAttachmentReadFailure(
   error: unknown,
 ): { status: number; code: string; message: string } | undefined {
@@ -1067,4 +1075,220 @@ export function directCommandHttp(
     });
     outgoing.end(body);
   });
+}
+
+// ---------------------------------------------------------------------------
+// Attachment content: transport only. All record authority, byte selection and
+// authorization execute in the Rust Axum attachment content router; this module
+// carries same-origin cookies and the selected work context to that router and
+// verifies the bytes it returns. It never opens a database or renders owner SQL.
+// ---------------------------------------------------------------------------
+
+export type NativeAttachmentContentVariant = 'original' | 'preview';
+
+const contentMediaTypes: Readonly<Record<NativeAttachmentContentVariant, readonly string[]>> = {
+  original: [
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'image/heic',
+    'image/heif',
+    'application/pdf',
+  ],
+  preview: ['image/jpeg', 'image/webp'],
+};
+const CONTENT_BODY_LIMIT = 10 * 1024 * 1024;
+
+const contentError = (status: number, code: string, message: string): never => {
+  throw new ApiError(status, code, message);
+};
+const unavailable = (): never =>
+  contentError(503, 'NATIVE_ATTACHMENT_CONTENT_UNAVAILABLE', 'The native file reader is unavailable.');
+const checksummed = (value: unknown): value is string =>
+  typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+
+function contentDisposition(value: string | null, expected: 'inline' | 'attachment'): boolean {
+  if (!value) return false;
+  const prefix = `${expected}; filename*=UTF-8''`;
+  if (!value.startsWith(prefix)) return false;
+  const encoded = value.slice(prefix.length);
+  if (!encoded || encoded.length > 2303 || !/^(?:[A-Za-z0-9!#$&+.^_`|~'()-]|%[0-9A-Fa-f]{2})+$/.test(encoded))
+    return false;
+  try {
+    const decoded = decodeURIComponent(encoded);
+    return decoded.length > 0 && decoded.length <= 255 && !/[\x00-\x1f\x7f]/.test(decoded);
+  } catch {
+    return false;
+  }
+}
+
+async function boundedContent(response: Response): Promise<Uint8Array> {
+  if (!response.body) return unavailable();
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    for (;;) {
+      const part = await reader.read();
+      if (part.done) break;
+      size += part.value.length;
+      if (size > CONTENT_BODY_LIMIT || size === 0) {
+        await reader.cancel();
+        return unavailable();
+      }
+      chunks.push(part.value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return bytes;
+}
+
+async function nativeContent(
+  request: Request,
+  actor: WorkContext,
+  path: string,
+  variant: NativeAttachmentContentVariant,
+): Promise<Response | undefined> {
+  const raw = process.env.ERPX_NATIVE_ATTACHMENT_CONTENT_CONFIG;
+  if (raw === undefined) return undefined;
+  let config: ReturnType<typeof nativeAttachmentTargetConfiguration>;
+  try {
+    config = nativeAttachmentTargetConfiguration(nativeAttachmentReadConfiguration(raw));
+  } catch {
+    return unavailable();
+  }
+  if (!actor.authority || !actor.iam)
+    return contentError(409, 'WORK_CONTEXT_CHANGED', 'Your work role changed. Reload before opening the file.');
+  const host = request.headers.get('host');
+  const holding = host ? config.holdings.get(host) : undefined;
+  if (!holding || holding.holdingSlug !== actor.holdingSlug || holding.holdingId !== String(actor.holdingId))
+    return contentError(403, 'NATIVE_ATTACHMENT_AUTHORITY_INVALID', 'The native file reader is unavailable.');
+  const headers = new Headers({
+    host: host!,
+    accept: '*/*',
+    'cache-control': 'no-cache',
+    'x-erpx-context-company': actor.companyId,
+    'x-erpx-context-assignment': actor.assignmentId,
+    'x-erpx-context-revision': String(actor.authority.revision),
+    'x-erpx-context-assignment-version': String(actor.authority.assignmentVersion),
+  });
+  const cookie = request.headers.get('cookie');
+  if (cookie) {
+    if (new TextEncoder().encode(cookie).length > 8192)
+      return contentError(503, 'NATIVE_ATTACHMENT_CONTENT_HEADER_LIMIT', 'The native file reader is unavailable.');
+    headers.set('cookie', cookie);
+  }
+  if (actor.scope.kind !== 'holding' && actor.scope.branchSlug)
+    headers.set('x-erpx-workspace-branch', actor.scope.branchSlug);
+  if (actor.scope.kind === 'department' && actor.scope.departmentSlug)
+    headers.set('x-erpx-workspace-department', actor.scope.departmentSlug);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), config.timeout);
+  let response: Response;
+  try {
+    response = await directHttp('GET', new URL(path, config.base), headers, undefined, controller.signal);
+  } catch {
+    return unavailable();
+  } finally {
+    clearTimeout(timer);
+  }
+  if (response.redirected || response.status !== 200) {
+    if ([401, 403, 404, 409, 422].includes(response.status) && response.body) {
+      try {
+        const error = JSON.parse(await response.text()) as { error?: { code?: unknown; message?: unknown } };
+        if (
+          record(error) &&
+          record(error.error) &&
+          text(error.error.code, 80) &&
+          text(error.error.message, 1000)
+        )
+          return contentError(response.status, error.error.code, error.error.message);
+      } catch {
+        // A malformed owner error keeps the bounded unavailable surface.
+      }
+    }
+    void response.body?.cancel().catch(() => undefined);
+    return unavailable();
+  }
+  const mediaType = response.headers.get('content-type');
+  const disposition = response.headers.get('content-disposition');
+  const checksum = response.headers.get('x-erpx-checksum-sha256');
+  if (
+    !mediaType ||
+    !contentMediaTypes[variant].includes(mediaType) ||
+    !contentDisposition(disposition, variant === 'preview' ? 'inline' : 'attachment') ||
+    !checksummed(checksum)
+  ) {
+    void response.body?.cancel().catch(() => undefined);
+    return unavailable();
+  }
+  const body = await boundedContent(response);
+  if (createHash('sha256').update(body).digest('hex') !== checksum) return unavailable();
+  const out = new Headers({
+    'Content-Type': mediaType,
+    'Content-Disposition': disposition!,
+    'Cache-Control': 'private, no-store',
+    'X-Content-Type-Options': 'nosniff',
+    'Accept-Ranges': 'none',
+  });
+  if (variant === 'preview') out.set('Content-Security-Policy', "sandbox; default-src 'none'");
+  return new Response(body as BodyInit, { headers: out });
+}
+
+/** True only when the private Rust content target is configured. */
+export function nativeAttachmentContentAvailable(): boolean {
+  return process.env.ERPX_NATIVE_ATTACHMENT_CONTENT_CONFIG !== undefined;
+}
+
+/** Transport one attachment-link content read to the Rust Axum router. */
+export function nativeAttachmentContentByLink(
+  request: Request,
+  actor: WorkContext,
+  linkId: string,
+  variant: NativeAttachmentContentVariant,
+): Promise<Response | undefined> {
+  if (!identifier(linkId) || linkId.includes('/') || linkId.includes('\\'))
+    return Promise.reject(contentError(404, 'ATTACHMENT_LINK_NOT_FOUND', 'File link not found.'));
+  const frontLocation = new URL(request.url).searchParams.get('frontLocation');
+  const query = new URLSearchParams({ variant });
+  if (frontLocation) query.set('frontLocation', frontLocation);
+  return nativeContent(
+    request,
+    actor,
+    `/api/v1/holdings/${encodeURIComponent(actor.holdingSlug)}/attachment-links/${encodeURIComponent(linkId)}/content?${query.toString()}`,
+    variant,
+  );
+}
+
+/** Transport one attachment-id content read (legacy compatibility URLs). */
+export function nativeAttachmentContentByAttachment(
+  request: Request,
+  actor: WorkContext,
+  attachmentId: string,
+  variant: NativeAttachmentContentVariant,
+  page?: string,
+): Promise<Response | undefined> {
+  if (!identifier(attachmentId) || attachmentId.includes('/') || attachmentId.includes('\\'))
+    return Promise.reject(contentError(404, 'ATTACHMENT_NOT_FOUND', 'Attachment not found.'));
+  const query = new URLSearchParams({ variant });
+  if (page !== undefined) {
+    if (!/^[1-9]\d{0,4}$/.test(page))
+      return Promise.reject(contentError(422, 'ATTACHMENT_REQUEST_INVALID', 'Review the file request.'));
+    query.set('page', page);
+  }
+  const frontLocation = new URL(request.url).searchParams.get('frontLocation');
+  if (frontLocation) query.set('frontLocation', frontLocation);
+  return nativeContent(
+    request,
+    actor,
+    `/api/v1/holdings/${encodeURIComponent(actor.holdingSlug)}/attachments/${encodeURIComponent(attachmentId)}/content?${query.toString()}`,
+    variant,
+  );
 }

@@ -132,6 +132,29 @@ impl CommerceOrderHttpBackend for Probe {
     }
 }
 
+/// Pinned owner document used to prove the native order-detail payload is what
+/// the TypeScript client accepts; no plan or `include_str!` fragment is used.
+#[derive(Clone, Debug)]
+struct DocumentProbe {
+    document: serde_json::Value,
+    context: serde_json::Value,
+}
+
+impl CommerceOrderHttpBackend for DocumentProbe {
+    fn execute<'a>(
+        &'a self,
+        request: CommerceOrderHttpRequest<'a>,
+    ) -> CommerceOrderHttpFuture<'a, CommerceOrderHttpResponse> {
+        Box::pin(async move {
+            assert!(matches!(&request.command, CommerceOrderHttpCommand::Detail { .. }));
+            Ok(CommerceOrderHttpResponse {
+                data: self.document.clone(),
+                context: self.context.clone(),
+            })
+        })
+    }
+}
+
 fn target(
     host: &str,
     slug: &str,
@@ -990,4 +1013,78 @@ async fn command_plan_route_returns_owner_fixed_sql_and_fails_closed() {
     }
     // Planned owner reads never reach the order backend.
     assert!(seen.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn catchall_order_detail_native_payload_is_accepted_by_typescript_client() {
+    // Same fixture as tests/unit/commerce/native-commerce-orders-transport.test.ts.
+    let document = serde_json::json!({
+        "order": {
+            "id":"order-1","company_id":"company","branch_id":null,"department_id":null,
+            "kind":"quote","number":"QT-1","party_id":"party-1","warehouse_id":null,"currency":"THB",
+            "order_date":"2026-11-01","due_date":"2026-11-08","note":"","state":"draft",
+            "subtotal_minor":10000,"tax_minor":700,"source_id":null,"version":1,"created_by":"user",
+            "approved_by":null,"created_at":1,"updated_at":1,"price_list_id":null,"price_list_version":null,
+            "discount_reason":null,"discount_approval_required":0,"discount_approved_by":null,
+            "discount_approved_at":null
+        },
+        "lines": [{
+            "id":"line-1","order_id":"order-1","product_id":"product-1","description":"Service",
+            "quantity_milli":1000,"fulfilled_milli":0,"price_minor":10000,"tax_bps":700,
+            "subtotal_minor":10000,"tax_minor":700,"ordinal":0,"list_price_minor":null,
+            "discount_bps":0,"item_type":"service","sku":"SVC-1","unit":"each","tracking_mode":"none"
+        }]
+    });
+    let context = serde_json::json!({
+        "userId":"user","holdingId":"h001","companyId":"company","branchId":null,
+        "departmentId":null,"branchSlug":null,"departmentSlug":null,"assignmentId":"assignment",
+        "assignmentVersion":3,"revision":7,"role":"owner","assignmentScopeKind":"holding",
+        "modules":["sales"],"permissions":["commerce.read","commerce.sales","commerce.approve"],
+        "expiresAt":9_007_199_254_740_991_i64
+    });
+    let router = commerce_order_http_router(vec![CommerceOrderHttpTarget {
+        host: "acme.example.com".into(),
+        holding_slug: "acme".into(),
+        origin: "https://acme.example.com".into(),
+        backend: Arc::new(DocumentProbe {
+            document: document.clone(),
+            context: context.clone(),
+        }),
+    }])
+    .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let _server = tokio::spawn(async move {
+        let _ = serve(listener, router).await;
+    });
+    let (status, body, headers) = http(
+        addr,
+        get(
+            "/api/v1/holdings/acme/commerce/orders/order-1",
+            "acme.example.com",
+        ),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(body, serde_json::json!({"data": document, "context": context}));
+    assert!(headers.contains("cache-control: private, no-store"));
+
+    // Actual TypeScript client validation of the payload emitted by the Axum
+    // handler; this is transport through the real native client, not a plan.
+    let script = r#"const m=await import(process.argv[1]);const body=JSON.parse(process.argv[2]);const actor={userId:'user',holdingId:'h001',holdingSlug:'acme',companyId:'company',branchId:null,departmentId:null,assignmentId:'assignment',role:'owner',assignmentScope:'holding',scope:{kind:'holding'},authority:{revision:7,assignmentVersion:3},modules:['sales'],iam:{permissions:['commerce.read','commerce.sales','commerce.approve']}};const input={holdingSlug:'acme',expected:{companyId:'company',assignmentId:'assignment',revision:7,assignmentVersion:3}};const transport=async()=>new Response(JSON.stringify(body),{status:200,headers:{'content-type':'application/json'}});const cfg=m.nativeCommerceOrdersConfiguration(JSON.stringify({privateBaseUrl:'http://127.0.0.1:44993',timeoutMs:1000,holdings:[{origin:'https://acme.example.com',holdingSlug:'acme',holdingId:'h001'}]}));const value=await m.createNativeCommerceOrdersClient(cfg,transport).detail({get:name=>name==='host'?'acme.example.com':null},actor,'order-1',input);if(value.order.id!=='order-1'||value.lines.length!==1)throw Error('PARITY_FAILED');process.stdout.write('PARITY_OK');"#;
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let module = root.join("packages/feature-commerce/src/public/native-commerce-orders.ts");
+    let output = std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
+        .current_dir(root)
+        .args(["--conditions=react-server", "-e", script])
+        .arg(module)
+        .arg(serde_json::to_string(&body).unwrap())
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "TypeScript native client rejected the Rust payload: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "PARITY_OK");
 }

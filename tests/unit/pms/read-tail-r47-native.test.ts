@@ -98,9 +98,10 @@ describe('pms read-tail r47 native read retirement', () => {
     const hotelChunk = home.slice(Math.max(0, hotelAt - 400), hotelAt + 400);
     expect(hotelChunk).toContain('nativePmsReadAll');
     expect(hotelChunk).toContain('facts.offset], db');
-    // hotelSources and the retired hotelMetrics read both run on the caller unit.
-    expect(home.split('nativePmsReadAll<').length - 1).toBe(2);
-    expect(home).toContain('PMS_RD_HOTEL_METRICS, [facts.companyId, facts.branchId, facts.branchId2, facts.propertyId, facts.propertyId2], db');
+    // hotelSources still runs on the caller unit; hotelMetrics now executes in
+    // the mounted axum owner, so TypeScript only transports bounded scope.
+    expect(home.split('nativePmsReadAll<').length - 1).toBe(1);
+    expect(home).toContain('nativeHomeMetrics({');
 
     const pms = await src('adapters/pms.ts');
     expect(pms).not.toContain(HEAD.housekeeping);

@@ -4722,7 +4722,7 @@ async fn assemble_checked(
                     agent_workspace_targets.push(crate::agent_governance::agent_workspace_target(
                         holding.host.clone(),
                         holding.registration.slug.clone(),
-                        holding.registration.holding_id.clone(),
+                        holding.registration.holding_id.clone().into(),
                         format!("https://{}", holding.host),
                         Arc::new(crate::agent_governance::AgentWorkspaceReadBackend::new(
                             config.policy.clone(),
@@ -7687,6 +7687,42 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_collaboration::public::social_http::social_router(social_targets)
                     .map_err(|_| "PRIVATE_API_COLLABORATION_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        {
+            let entries = config
+                .holdings
+                .iter()
+                .enumerate()
+                .map(|(i, holding)| {
+                    let inspector = Arc::new(
+                        erpx_server_identity_access::public::work_context::HoldingWorkContextInspector::new(
+                            pools[0].clone(),
+                            pools[i + 1].clone(),
+                            holding.registration.holding_id.clone(),
+                            (*config.policy).clone(),
+                            clock.clone(),
+                            config.holdings_registry.clone(),
+                        )
+                        .map_err(|_| "PRIVATE_API_SESSION_CONTEXT_INVALID")?,
+                    );
+                    Ok::<_, &'static str>((
+                        holding.host.clone(),
+                        holding.registration.slug.clone(),
+                        holding.registration.holding_id.as_str().to_owned(),
+                        inspector,
+                    ))
+                })
+                .collect::<Result<Vec<_>, &'static str>>()?;
+            router = router.merge(
+                crate::native_session_context::session_context_router_for_holdings(
+                    entries,
+                    config.policy.clone(),
+                    Arc::new(FinanceJournalReadScopeHeaders),
+                    clock.clone(),
+                )
+                .map_err(|_| "PRIVATE_API_SESSION_CONTEXT_INVALID")?,
             );
         }
         #[cfg(feature = "existing-business")]

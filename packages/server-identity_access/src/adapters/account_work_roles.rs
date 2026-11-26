@@ -9,7 +9,7 @@ use erpx_server_organization::public::{
     lock_hierarchy_sources, read_company_context, resolve_workspace,
 };
 use erpx_server_runtime::public::postgres::PgTransactionError;
-use erpx_server_shared::public::{AssignmentId, BusinessError, FailureKind, RecordId};
+use erpx_server_shared::public::{AssignmentId, BusinessError, FailureKind, RecordId, UserId};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sqlx::{Connection, PgConnection, Row};
@@ -122,6 +122,7 @@ struct Captured {
     choices: Vec<AccountWorkRoleChoice>,
     workspace: WorkspaceLineageFact,
     selection: Option<AccountWorkSelection>,
+    user_id: UserId,
 }
 /// Write intent precedes the first Holding snapshot. Exclusive context ordering
 /// also waits for a legacy role selector before taking preference/audit locks.
@@ -371,6 +372,7 @@ async fn capture(
         choices,
         workspace,
         selection: selected,
+        user_id: r.user_id.clone(),
     })
 }
 #[derive(Debug, serde::Serialize)]
@@ -489,6 +491,9 @@ impl CurrentAccountWorkRoles {
     }
     pub fn selection(&self) -> Option<&AccountWorkSelection> {
         self.captured.selection.as_ref()
+    }
+    pub fn user_id(&self) -> &UserId {
+        &self.captured.user_id
     }
     pub async fn require_current(
         &self,

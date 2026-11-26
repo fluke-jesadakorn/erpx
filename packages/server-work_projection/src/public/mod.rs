@@ -10,6 +10,7 @@ pub mod home_read_cursor;
 pub mod home_read_cursor_http;
 pub mod owner_write;
 pub mod owner_write_http;
+pub mod page_layouts_http;
 pub mod navigation_destinations;
 pub mod quick_access_preferences;
 pub mod work_capabilities;
@@ -24,6 +25,7 @@ pub mod work_snapshot_sources;
 pub mod workspace_preference;
 
 pub mod work_navigation_read;
+pub mod work_navigation_http;
 pub mod work_report_read;
 pub mod work_report_read_http;
 pub mod work_snapshot_http;

@@ -12,6 +12,8 @@ pub mod preview_engine;
 pub mod preview_process;
 
 pub mod attachment_command_postgres;
+pub mod attachment_content_postgres;
+pub mod attachment_content_use_cases;
 pub mod attachment_http;
 pub mod files_wave1b_postgres;
 pub mod files_wave1b_http;

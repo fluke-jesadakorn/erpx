@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 14681,
+    "revision": 14736,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261126-a",
+      "runId": "run-20261126-e",
       "agentId": "lead",
-      "startedAt": "2026-11-26T04:52:12.208Z",
-      "heartbeatAt": "2026-11-26T04:52:12.208Z",
-      "expiresAt": "2026-11-26T05:22:12.209Z",
-      "generation": 178,
-      "tokenHash": "a044efe51e778b93451c4b3f701c76711cbfc82c8941cee6793592bf4c33691b"
+      "startedAt": "2026-11-26T08:14:55.153Z",
+      "heartbeatAt": "2026-11-26T08:14:55.153Z",
+      "expiresAt": "2026-11-26T08:44:55.154Z",
+      "generation": 182,
+      "tokenHash": "c23afb046c7109e6cdfcadee52adff0969ad02cdf1ef8c3f8d9e807384030359"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -208600,6 +208600,677 @@
           "owner:manufacturing"
         ],
         "nextAction": "Cut the next manufacturing read family (42->lower); tests"
+      },
+      {
+        "goalId": "G4",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "Recovery: Operator-authorized second takeover: run-20261126-d lease expired with no active worker processes; preserved 127-path WIP in .scratch/checkpoints/2026-11-26-takeover-e; heartbeat automation removed; reclaim single-checkout coordination.",
+        "handoff": {
+          "runId": "run-20261126-d",
+          "agentId": "exec-records",
+          "at": "2026-11-26T08:14:55.153Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Operator-authorized second takeover: run-20261126-d lease expired with no active worker processes; preserved 127-path WIP in .scratch/checkpoints/2026-11-26-takeover-e; heartbeat automation removed; reclaim single-checkout coordination.",
+          "nextAction": "Confirm Rust execution for the records registry routes; port any TS step; prepare exact route-deletion packet (Next route + app re-exports)"
+        },
+        "scopeRefinementRequired": false,
+        "id": "exec.records.registry",
+        "owner": "records",
+        "title": "records native route execution",
+        "allowedPaths": [
+          "packages/server-records/src/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/**",
+          "tests/unit/records/**"
+        ],
+        "resources": [
+          "owner:records",
+          "route:records"
+        ],
+        "nextAction": "Confirm Rust execution for the records registry routes; port any TS step; prepare exact route-deletion packet (Next route + app re-exports)"
+      },
+      {
+        "goalId": "G4",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "Recovery: Operator-authorized second takeover: run-20261126-d lease expired with no active worker processes; preserved 127-path WIP in .scratch/checkpoints/2026-11-26-takeover-e; heartbeat automation removed; reclaim single-checkout coordination.",
+        "handoff": {
+          "runId": "run-20261126-d",
+          "agentId": "exec-work",
+          "at": "2026-11-26T08:14:55.153Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Operator-authorized second takeover: run-20261126-d lease expired with no active worker processes; preserved 127-path WIP in .scratch/checkpoints/2026-11-26-takeover-e; heartbeat automation removed; reclaim single-checkout coordination.",
+          "nextAction": "Port card-preferences/navigation/page-layouts execution to Rust (card-preferences may already be); remove TS SQL; prepare route-deletion packet"
+        },
+        "scopeRefinementRequired": false,
+        "id": "exec.work.routes",
+        "owner": "work_projection",
+        "title": "work_projection native route execution",
+        "allowedPaths": [
+          "packages/server-work_projection/src/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/work/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/navigation/route.ts",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/page-layouts/**",
+          "tests/unit/work_projection/**"
+        ],
+        "resources": [
+          "owner:work_projection",
+          "route:work"
+        ],
+        "nextAction": "Port card-preferences/navigation/page-layouts execution to Rust (card-preferences may already be); remove TS SQL; prepare route-deletion packet"
+      },
+      {
+        "goalId": "G4",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "Recovery: Operator-authorized second takeover: run-20261126-d lease expired with no active worker processes; preserved 127-path WIP in .scratch/checkpoints/2026-11-26-takeover-e; heartbeat automation removed; reclaim single-checkout coordination.",
+        "handoff": {
+          "runId": "run-20261126-d",
+          "agentId": "exec-identity",
+          "at": "2026-11-26T08:14:55.153Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Operator-authorized second takeover: run-20261126-d lease expired with no active worker processes; preserved 127-path WIP in .scratch/checkpoints/2026-11-26-takeover-e; heartbeat automation removed; reclaim single-checkout coordination.",
+          "nextAction": "Finish native execution for the IAM/assignments/companies routes; remove TS fallback; prepare route-deletion packet"
+        },
+        "scopeRefinementRequired": false,
+        "id": "exec.identity.routes",
+        "owner": "identity_access",
+        "title": "identity_access native route execution",
+        "allowedPaths": [
+          "packages/server-identity_access/src/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/iam/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/assignments/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/companies/**",
+          "tests/unit/identity_access/**"
+        ],
+        "resources": [
+          "owner:identity_access",
+          "route:identity"
+        ],
+        "nextAction": "Finish native execution for the IAM/assignments/companies routes; remove TS fallback; prepare route-deletion packet"
+      },
+      {
+        "goalId": "G4",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "Recovery: Operator-authorized second takeover: run-20261126-d lease expired with no active worker processes; preserved 127-path WIP in .scratch/checkpoints/2026-11-26-takeover-e; heartbeat automation removed; reclaim single-checkout coordination.",
+        "handoff": {
+          "runId": "run-20261126-d",
+          "agentId": "exec-organization",
+          "at": "2026-11-26T08:14:55.153Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Operator-authorized second takeover: run-20261126-d lease expired with no active worker processes; preserved 127-path WIP in .scratch/checkpoints/2026-11-26-takeover-e; heartbeat automation removed; reclaim single-checkout coordination.",
+          "nextAction": "Port holding people directory execution to Rust with payload parity; prepare shared-route and app re-export deletion packet"
+        },
+        "scopeRefinementRequired": false,
+        "id": "exec.organization.people-directory",
+        "owner": "organization",
+        "title": "organization native route execution",
+        "allowedPaths": [
+          "packages/server-organization/src/**",
+          "packages/server-people_payroll/src/adapters/people/directory-repository.ts",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/people-public-directory/**",
+          "tests/unit/organization/**"
+        ],
+        "resources": [
+          "owner:organization",
+          "route:people-directory"
+        ],
+        "nextAction": "Port holding people directory execution to Rust with payload parity; prepare shared-route and app re-export deletion packet"
+      },
+      {
+        "goalId": "G4",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "Recovery: Operator-authorized second takeover: run-20261126-d lease expired with no active worker processes; preserved 127-path WIP in .scratch/checkpoints/2026-11-26-takeover-e; heartbeat automation removed; reclaim single-checkout coordination.",
+        "handoff": {
+          "runId": "run-20261126-d",
+          "agentId": "exec-finance",
+          "at": "2026-11-26T08:14:55.153Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Operator-authorized second takeover: run-20261126-d lease expired with no active worker processes; preserved 127-path WIP in .scratch/checkpoints/2026-11-26-takeover-e; heartbeat automation removed; reclaim single-checkout coordination.",
+          "nextAction": "Inventory the finance catch-all; port one fully-native operation to Rust execution and prepare its deletion packet; no plan-only work"
+        },
+        "scopeRefinementRequired": false,
+        "id": "exec.finance.catchall",
+        "owner": "finance",
+        "title": "finance native route execution",
+        "allowedPaths": [
+          "packages/server-finance/src/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/**",
+          "tests/unit/finance/**"
+        ],
+        "resources": [
+          "owner:finance",
+          "route:finance"
+        ],
+        "nextAction": "Inventory the finance catch-all; port one fully-native operation to Rust execution and prepare its deletion packet; no plan-only work"
+      },
+      {
+        "goalId": "G4",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "Recovery: Operator-authorized second takeover: run-20261126-d lease expired with no active worker processes; preserved 127-path WIP in .scratch/checkpoints/2026-11-26-takeover-e; heartbeat automation removed; reclaim single-checkout coordination.",
+        "handoff": {
+          "runId": "run-20261126-d",
+          "agentId": "exec-commerce",
+          "at": "2026-11-26T08:14:55.153Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Operator-authorized second takeover: run-20261126-d lease expired with no active worker processes; preserved 127-path WIP in .scratch/checkpoints/2026-11-26-takeover-e; heartbeat automation removed; reclaim single-checkout coordination.",
+          "nextAction": "Inventory the commerce catch-all; port one fully-native operation to Rust execution and prepare its deletion packet; no plan-only work"
+        },
+        "scopeRefinementRequired": false,
+        "id": "exec.commerce.catchall",
+        "owner": "commerce",
+        "title": "commerce native route execution",
+        "allowedPaths": [
+          "packages/server-commerce/src/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/commerce/**",
+          "tests/unit/commerce/**"
+        ],
+        "resources": [
+          "owner:commerce",
+          "route:commerce"
+        ],
+        "nextAction": "Inventory the commerce catch-all; port one fully-native operation to Rust execution and prepare its deletion packet; no plan-only work"
+      },
+      {
+        "goalId": "G4",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "Recovery: Operator-authorized second takeover: run-20261126-d lease expired with no active worker processes; preserved 127-path WIP in .scratch/checkpoints/2026-11-26-takeover-e; heartbeat automation removed; reclaim single-checkout coordination.",
+        "handoff": {
+          "runId": "run-20261126-d",
+          "agentId": "exec-files",
+          "at": "2026-11-26T08:14:55.153Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Operator-authorized second takeover: run-20261126-d lease expired with no active worker processes; preserved 127-path WIP in .scratch/checkpoints/2026-11-26-takeover-e; heartbeat automation removed; reclaim single-checkout coordination.",
+          "nextAction": "Confirm Rust execution for attachment content routes; port any TS step; prepare route-deletion packet"
+        },
+        "scopeRefinementRequired": false,
+        "id": "exec.files.routes",
+        "owner": "files",
+        "title": "files native route execution",
+        "allowedPaths": [
+          "packages/server-files/src/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachments/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-links/**",
+          "tests/unit/files/**"
+        ],
+        "resources": [
+          "owner:files",
+          "route:files"
+        ],
+        "nextAction": "Confirm Rust execution for attachment content routes; port any TS step; prepare route-deletion packet"
+      },
+      {
+        "goalId": "G4",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "Recovery: Operator-authorized second takeover: run-20261126-d lease expired with no active worker processes; preserved 127-path WIP in .scratch/checkpoints/2026-11-26-takeover-e; heartbeat automation removed; reclaim single-checkout coordination.",
+        "handoff": {
+          "runId": "run-20261126-d",
+          "agentId": "exec-inventory",
+          "at": "2026-11-26T08:14:55.153Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Operator-authorized second takeover: run-20261126-d lease expired with no active worker processes; preserved 127-path WIP in .scratch/checkpoints/2026-11-26-takeover-e; heartbeat automation removed; reclaim single-checkout coordination.",
+          "nextAction": "Port stock-counts catch-all execution to Rust (or one bounded operation) and prepare its deletion packet; no plan-only work"
+        },
+        "scopeRefinementRequired": false,
+        "id": "exec.inventory.catchall",
+        "owner": "inventory",
+        "title": "inventory native route execution",
+        "allowedPaths": [
+          "packages/server-inventory/src/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/stock-counts/**",
+          "tests/unit/inventory/**"
+        ],
+        "resources": [
+          "owner:inventory",
+          "route:inventory"
+        ],
+        "nextAction": "Port stock-counts catch-all execution to Rust (or one bounded operation) and prepare its deletion packet; no plan-only work"
+      },
+      {
+        "id": "exec.people.catchall",
+        "goalId": "G4",
+        "owner": "people_payroll",
+        "kind": "migration",
+        "status": "pending",
+        "title": "people_payroll native route execution",
+        "scope": "Inventory the /people/[[...path]] catch-all. Port one bounded read or command family to Rust domain/application/adapters/http with real PostgreSQL execution, remove the TypeScript authority for that family, and prepare the exact shared-route plus app re-export deletion packet. No plan-only SQL contract.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-people_payroll/src/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/people/**",
+          "tests/unit/people_payroll/**"
+        ],
+        "resources": [
+          "owner:people_payroll",
+          "route:people"
+        ],
+        "nextAction": "Inventory the people catch-all and port one fully-native operation with Rust SQL execution; prepare its route-deletion packet.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "exec.pms.catchall",
+        "goalId": "G4",
+        "owner": "pms",
+        "kind": "migration",
+        "status": "blocked",
+        "title": "pms native route execution",
+        "scope": "Inventory the /pms catch-all. Port one bounded read or command family to Rust domain/application/adapters/http with real PostgreSQL execution, remove the TypeScript authority for that family, and prepare the exact shared-route plus app re-export deletion packet. No plan-only SQL contract.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-pms/src/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/pms/**",
+          "tests/unit/pms/**"
+        ],
+        "resources": [
+          "owner:pms",
+          "route:pms"
+        ],
+        "nextAction": "Inventory the pms catch-all and port one fully-native operation with Rust SQL execution; prepare its route-deletion packet.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "Recovery: Generation 180 (run-20261126-c) appeared without operator instruction while this session held the lead. The operator instructed this session to kill subagents and continue the Rust-execution route-retirement plan. Reclaim single-checkout coordination; preserve all on-disk WIP for review.",
+        "handoff": {
+          "runId": "run-20261126-c",
+          "agentId": "exec-pms",
+          "at": "2026-11-26T06:24:57.126Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Generation 180 (run-20261126-c) appeared without operator instruction while this session held the lead. The operator instructed this session to kill subagents and continue the Rust-execution route-retirement plan. Reclaim single-checkout coordination; preserve all on-disk WIP for review.",
+          "nextAction": "Inventory the pms catch-all and port one fully-native operation with Rust SQL execution; prepare its route-deletion packet."
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "exec.agent.assistant",
+        "goalId": "G4",
+        "owner": "agent",
+        "kind": "migration",
+        "status": "blocked",
+        "title": "agent assistant route native execution",
+        "scope": "Port one bounded assistant workspace operation (GET assistantView or POST askAssistant) to the Agent owner with domain/application/adapters/http, real Rust SQL execution, CQRS command/query separation and idempotency where the operation writes. Remove the TypeScript authority for that operation and prepare the exact route deletion packet.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-agent/src/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/assistant/**",
+          "tests/unit/agent/**"
+        ],
+        "resources": [
+          "owner:agent",
+          "route:assistant"
+        ],
+        "nextAction": "Port the bounded assistant read or ask command to native Agent execution; prepare its route-deletion packet.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "Recovery: Generation 180 (run-20261126-c) appeared without operator instruction while this session held the lead. The operator instructed this session to kill subagents and continue the Rust-execution route-retirement plan. Reclaim single-checkout coordination; preserve all on-disk WIP for review.",
+        "handoff": {
+          "runId": "run-20261126-c",
+          "agentId": "exec-agent",
+          "at": "2026-11-26T06:24:57.126Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Generation 180 (run-20261126-c) appeared without operator instruction while this session held the lead. The operator instructed this session to kill subagents and continue the Rust-execution route-retirement plan. Reclaim single-checkout coordination; preserve all on-disk WIP for review.",
+          "nextAction": "Port the bounded assistant read or ask command to native Agent execution; prepare its route-deletion packet."
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "exec.collaboration.push",
+        "goalId": "G4",
+        "owner": "collaboration",
+        "kind": "migration",
+        "status": "blocked",
+        "title": "collaboration push route native execution",
+        "scope": "Port one bounded push settings operation (settings read, subscription registration, preferences or device removal) to the Collaboration owner with domain/application/adapters/http, real Rust SQL execution and CQRS separation. Remove the TypeScript authority for that operation and prepare the exact route deletion packet.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-collaboration/src/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/push/**",
+          "tests/unit/collaboration/**"
+        ],
+        "resources": [
+          "owner:collaboration",
+          "route:push"
+        ],
+        "nextAction": "Port one bounded push operation to native Collaboration execution; prepare its route-deletion packet.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "Recovery: Generation 180 (run-20261126-c) appeared without operator instruction while this session held the lead. The operator instructed this session to kill subagents and continue the Rust-execution route-retirement plan. Reclaim single-checkout coordination; preserve all on-disk WIP for review.",
+        "handoff": {
+          "runId": "run-20261126-c",
+          "agentId": "exec-collab",
+          "at": "2026-11-26T06:24:57.126Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Generation 180 (run-20261126-c) appeared without operator instruction while this session held the lead. The operator instructed this session to kill subagents and continue the Rust-execution route-retirement plan. Reclaim single-checkout coordination; preserve all on-disk WIP for review.",
+          "nextAction": "Port one bounded push operation to native Collaboration execution; prepare its route-deletion packet."
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "verify.wave1",
+        "goalId": "G4",
+        "owner": "shared.integration",
+        "kind": "inventory",
+        "status": "done",
+        "title": "wave-1 native route review",
+        "scope": "Read-only review of the eleven active route-execution slices. For each slice verify: Rust handler reaches an application command/query and a SQL adapter; domain/application contain no SQL or axum; no TypeScript fallback remains for the named operation; response parity fields are identified; exact Next shared handler and app re-exports are named for deletion; tests are real and scoped. Report findings to the lead; do not edit tracked files.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [],
+        "resources": [
+          "verify:wave1"
+        ],
+        "nextAction": "Verifier report delivered; 11 targeted fix packets dispatched and build freeze applied",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "exec.admin.routes",
+        "goalId": "G4",
+        "owner": "platform_administration",
+        "kind": "migration",
+        "status": "pending",
+        "title": "platform/admin feature routes native execution",
+        "scope": "Inventory the feature-admin route package (32 shared handlers). Port one bounded admin or platform read/command family to Rust domain/application/adapters/http with real PostgreSQL execution, remove the TS authority for that family, and prepare the exact route-deletion packet. Do not touch other owners' server crates.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-admin/src/routes/**",
+          "packages/server-platform_administration/src/**",
+          "tests/unit/platform_administration/**"
+        ],
+        "resources": [
+          "owner:platform_administration",
+          "route:admin"
+        ],
+        "nextAction": "Inventory feature-admin routes and port one fully-native operation with Rust SQL execution; prepare its route-deletion packet.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "exec.sales.routes",
+        "goalId": "G4",
+        "owner": "crm",
+        "kind": "migration",
+        "status": "pending",
+        "title": "sales/crm feature routes native execution",
+        "scope": "Inventory the feature-sales route package (11 shared handlers). Port one bounded customer, CRM or marketing read/command family to Rust domain/application/adapters/http with real PostgreSQL execution, remove the TS authority for that family, and prepare the exact route-deletion packet.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-sales/src/routes/**",
+          "packages/server-crm/src/**",
+          "tests/unit/crm/**"
+        ],
+        "resources": [
+          "owner:crm",
+          "route:sales"
+        ],
+        "nextAction": "Inventory feature-sales routes and port one fully-native operation with Rust SQL execution; prepare its route-deletion packet.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "exec.support.routes",
+        "goalId": "G4",
+        "owner": "support",
+        "kind": "migration",
+        "status": "blocked",
+        "title": "support feature routes native execution",
+        "scope": "Inventory the feature-support route package (7 shared handlers). Port one bounded support, service-team or SLA read/command family to Rust domain/application/adapters/http with real PostgreSQL execution, remove the TS authority for that family, and prepare the exact route-deletion packet.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-support/src/routes/**",
+          "packages/server-support/src/**",
+          "tests/unit/support/**"
+        ],
+        "resources": [
+          "owner:support",
+          "route:support"
+        ],
+        "nextAction": "Inventory feature-support routes and port one fully-native operation with Rust SQL execution; prepare its route-deletion packet.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "Recovery: Generation 180 (run-20261126-c) appeared without operator instruction while this session held the lead. The operator instructed this session to kill subagents and continue the Rust-execution route-retirement plan. Reclaim single-checkout coordination; preserve all on-disk WIP for review.",
+        "handoff": {
+          "runId": "run-20261126-c",
+          "agentId": "exec-support",
+          "at": "2026-11-26T06:24:57.126Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Generation 180 (run-20261126-c) appeared without operator instruction while this session held the lead. The operator instructed this session to kill subagents and continue the Rust-execution route-retirement plan. Reclaim single-checkout coordination; preserve all on-disk WIP for review.",
+          "nextAction": "Inventory feature-support routes and port one fully-native operation with Rust SQL execution; prepare its route-deletion packet."
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "exec.service.routes",
+        "goalId": "G4",
+        "owner": "field_service",
+        "kind": "migration",
+        "status": "pending",
+        "title": "field service feature routes native execution",
+        "scope": "Inventory the feature-service route package (6 shared handlers). Port one bounded field-service read/command family to Rust domain/application/adapters/http with real PostgreSQL execution, remove the TS authority for that family, and prepare the exact route-deletion packet.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-service/src/routes/**",
+          "packages/server-field_service/src/**",
+          "tests/unit/field_service/**"
+        ],
+        "resources": [
+          "owner:field_service",
+          "route:service"
+        ],
+        "nextAction": "Inventory feature-service routes and port one fully-native operation with Rust SQL execution; prepare its route-deletion packet.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "exec.assets.routes",
+        "goalId": "G4",
+        "owner": "assets",
+        "kind": "migration",
+        "status": "pending",
+        "title": "assets/maintenance feature routes native execution",
+        "scope": "Inventory the feature-assets route package (5 shared handlers). Port one bounded asset or maintenance read/command family to Rust domain/application/adapters/http with real PostgreSQL execution, remove the TS authority for that family, and prepare the exact route-deletion packet.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-assets/src/routes/**",
+          "packages/server-assets/src/**",
+          "tests/unit/assets/**"
+        ],
+        "resources": [
+          "owner:assets",
+          "route:assets"
+        ],
+        "nextAction": "Inventory feature-assets routes and port one fully-native operation with Rust SQL execution; prepare its route-deletion packet.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "exec.edge.helper",
+        "goalId": "G4",
+        "owner": "shared.integration",
+        "kind": "migration",
+        "status": "blocked",
+        "title": "shared native edge transport helper",
+        "scope": "Implement the non-business shared edge transport used after Next route cutover: strict private loopback config parsing, authenticated WorkContext to x-erpx context headers, Host/Origin preservation, bounded JSON/body forwarding, fail-closed errors and response passthrough. It must carry no owner SQL, no fallback and no payload shaping. The lead owns this cross-cutting path.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/workplace/src/lib/native-edge.ts",
+          "tests/unit/shared.architecture/native-edge.test.ts"
+        ],
+        "resources": [
+          "edge:shared"
+        ],
+        "nextAction": "Implement and test the shared native edge transport helper; do not wire a route until the owner slice is reviewed.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "Recovery: Generation 180 (run-20261126-c) appeared without operator instruction while this session held the lead. The operator instructed this session to kill subagents and continue the Rust-execution route-retirement plan. Reclaim single-checkout coordination; preserve all on-disk WIP for review.",
+        "handoff": {
+          "runId": "run-20261126-c",
+          "agentId": "lead",
+          "at": "2026-11-26T06:24:57.126Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Generation 180 (run-20261126-c) appeared without operator instruction while this session held the lead. The operator instructed this session to kill subagents and continue the Rust-execution route-retirement plan. Reclaim single-checkout coordination; preserve all on-disk WIP for review.",
+          "nextAction": "Implement and test the shared native edge transport helper; do not wire a route until the owner slice is reviewed."
+        },
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -208608,21 +209279,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 2343,
+      "totalPackets": 2361,
       "migratedPackets": 369,
       "statusCounts": {
-        "pending": 21,
+        "pending": 26,
         "in_progress": 0,
         "ready_for_integration": 37,
         "integrating": 0,
         "migrated": 369,
-        "blocked": 1914,
+        "blocked": 1927,
         "deferred": 2,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 178,
-    "updatedAt": "2026-11-26T04:52:12.213Z",
+    "lastCoordinatorGeneration": 182,
+    "updatedAt": "2026-11-26T08:14:55.158Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
@@ -208657,10 +209328,10 @@
       }
     },
     "lastRecovery": {
-      "previousRunId": "run-20261125-g",
-      "runId": "run-20261126-a",
-      "at": "2026-11-26T04:52:12.209Z",
-      "reason": "Operator stopped all subagents at 2026-11-26 11:48 +07; stale generation-177 claims reviewed, WIP preserved on disk and committed through 0fea582cd; lead resumes with Rust-execution route-retirement plan.",
+      "previousRunId": "run-20261126-d",
+      "runId": "run-20261126-e",
+      "at": "2026-11-26T08:14:55.154Z",
+      "reason": "Operator-authorized second takeover: run-20261126-d lease expired with no active worker processes; preserved 127-path WIP in .scratch/checkpoints/2026-11-26-takeover-e; heartbeat automation removed; reclaim single-checkout coordination.",
       "wipReviewed": true,
       "previousRunStopped": true
     },

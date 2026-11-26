@@ -258,3 +258,72 @@ async fn application_delegates_facts_and_fails_closed_on_unordered_rows() {
     let rows = pms_hotel_metrics(&selection, &mut repository).await.unwrap();
     assert_eq!(rows.len(), 2);
 }
+
+#[tokio::test]
+async fn application_returns_the_complete_owner_payload_from_bounded_facts() {
+    // Behavioral application test: bounded Company/branch facts go in, and the
+    // full retained twelve-field owner payload comes back with every count,
+    // currency and scope value. This exercises the use case and the in-memory
+    // owner projection; it does not restate a SQL string.
+    let properties = [
+        property("p2", COMPANY, "north", "bravo"),
+        property("p1", COMPANY, "north", "alpha"),
+    ];
+    let records = vec![
+        room("r1", "p1", "true", "inspected"),
+        room("r2", "p1", "true", "dirty"),
+        block("b1", "p1", "active", "maintenance", "2026-11-01", "r1"),
+        stay("s1", "p1", "in_house", "2026-11-01", "2026-11-10"),
+        stay("s2", "p1", "reserved", "2026-11-03", "2026-11-09"),
+        stay("s3", "p1", "in_house", "2026-11-01", "2026-11-02"),
+    ];
+    let expected = project_hotel_metrics(&properties, &records, &facts());
+    assert_eq!(expected.len(), 2);
+
+    let selection = PmsHotelMetricsFacts {
+        company_id: COMPANY.into(),
+        branch_id: Some("north".into()),
+        property_id: None,
+    };
+    let mut repository = FakeRepository {
+        rows: expected.clone(),
+        seen: None,
+    };
+    let rows = pms_hotel_metrics(&selection, &mut repository)
+        .await
+        .expect("read");
+    // The use case forwarded the bounded scope unchanged and returned every row.
+    assert_eq!(repository.seen, Some(selection));
+    assert_eq!(rows, expected);
+
+    // Full payload parity: retained name/id order, currency, all six counts,
+    // and no cross-branch or cross-company leakage.
+    assert_eq!(
+        rows.iter().map(|row| row.id.as_str()).collect::<Vec<_>>(),
+        ["p1", "p2"]
+    );
+    let alpha = &rows[0];
+    assert_eq!(
+        (
+            alpha.name.as_str(),
+            alpha.branch_id.as_str(),
+            alpha.business_date.as_str(),
+            alpha.state.as_str(),
+            alpha.currency.as_deref()
+        ),
+        ("alpha", "north", BD, "open", Some("THB"))
+    );
+    assert_eq!(
+        (
+            alpha.room_count,
+            alpha.inspected,
+            alpha.capacity,
+            alpha.sold,
+            alpha.arrivals,
+            alpha.departures
+        ),
+        (2, 1, 1, 1, 1, 1)
+    );
+    assert_eq!((rows[1].room_count, rows[1].sold, rows[1].capacity), (0, 0, 0));
+    assert!(rows.iter().all(|row| row.branch_id == "north"));
+}

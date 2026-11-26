@@ -109,7 +109,7 @@ describe('pms read-tail r41 guest-join, property-scope and rollout-exists dedupe
     expect(hm).toContain('.bind(facts.companyId, facts.branchId, facts.branchId2, facts.companyId2, facts.branchId3, facts.branchId4, facts.propertyId, facts.propertyId2)');
     expect(hm).not.toContain("pmsPropertyScopeSql('hotelMetrics')");
     expect(hm).toContain('nativePmsReadAll<{');
-    expect(hm).toContain('PMS_RD_HOTEL_METRICS, [facts.companyId, facts.branchId, facts.branchId2, facts.propertyId, facts.propertyId2]');
+    expect(hm).toContain('nativeHomeMetrics({');
 
     const fin = await src('adapters/pms/finance.ts');
     expect(fin.split("pmsPropertyScopeSql('liabilities')").length - 1).toBe(1);

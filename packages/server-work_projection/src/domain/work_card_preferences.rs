@@ -159,6 +159,27 @@ mod tests {
     }
 
     #[test]
+    fn wire_shape_matches_the_browser_preference_contract() {
+        let value = WorkCardPreferences {
+            pinned_ids: Some(vec!["tasks".into(), "expenses".into()]),
+            version: 3,
+        };
+        assert_eq!(
+            serde_json::to_value(&value).unwrap(),
+            serde_json::json!({"pinnedIds": ["tasks", "expenses"], "version": 3})
+        );
+        // The retained Next route wraps `{data: ...}` and applies
+        // `canonicalDestinationLinks`; there are no destination fields here,
+        // so the Rust envelope is byte-shape identical to the browser contract.
+        assert_eq!(
+            crate::domain::navigation_wire::canonical_envelope(
+                serde_json::to_value(&value).unwrap()
+            ),
+            serde_json::json!({"data": {"pinnedIds": ["tasks", "expenses"], "version": 3}})
+        );
+    }
+
+    #[test]
     fn validates_order_uniqueness_and_version() {
         let current = WorkCardPreferences {
             pinned_ids: Some(vec!["tasks".into()]),

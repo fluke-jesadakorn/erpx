@@ -40,6 +40,71 @@ export type WorkspaceGatewayOptions = {
  fallback?:"compat"|null;preview?:boolean;prewarm?:readonly string[];
 };
 /** Process supervision and streaming transport contain no business services. */
+/** Development-only direct transport to the native owner service. No business
+ * logic: the gateway preserves the Host/cookies and streams the request. The
+ * path allow-list is an explicit environment contract, not a wildcard. */
+function nativeProxyBase(environment: NodeJS.ProcessEnv): URL | undefined {
+  const raw = environment.ERPX_DEV_NATIVE_API;
+  if (raw === undefined || raw === "") return undefined;
+  let base: URL;
+  try { base = new URL(raw); } catch { throw new Error("INVALID_DEV_NATIVE_API"); }
+  if (base.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(base.hostname) || base.pathname !== "/" || base.search !== "") throw new Error("INVALID_DEV_NATIVE_API");
+  return base;
+}
+function nativeProxyPath(environment: NodeJS.ProcessEnv, url: string): boolean {
+  const path = url.split("?")[0];
+  return (environment.ERPX_DEV_NATIVE_PATHS ?? "").split(",").filter(Boolean).some(prefix => path === prefix || path.startsWith(prefix.endsWith("/") ? prefix : prefix + "/"));
+}
+async function nativeContextHeaders(base: URL, req: IncomingMessage): Promise<Record<string, string | string[] | undefined>> {
+  const slug = /^\/api\/v1\/holdings\/([^/]+)\//.exec(req.url ?? "")?.[1];
+  if (!slug || !req.headers.cookie) return {};
+  const target = `/internal/session-context?holding=${encodeURIComponent(slug)}`;
+  const body = await new Promise<string>((done, reject) => {
+    const call = httpRequest({ host: base.hostname, port: Number(base.port || 80), method: "GET", path: target, headers: { host: req.headers.host ?? base.host, cookie: req.headers.cookie ?? "", origin: req.headers.origin ?? "", accept: "application/json" } }, response => {
+      let text = "";
+      response.setEncoding("utf8"); response.on("data", chunk => { text += chunk; });
+      response.once("end", () => response.statusCode === 200 ? done(text) : reject(new Error("NATIVE_CONTEXT_UNAVAILABLE")));
+      response.once("error", reject);
+    });
+    call.once("error", reject); call.end();
+  });
+  let data: unknown;
+  try { data = (JSON.parse(body) as { data?: unknown }).data; } catch { throw new Error("NATIVE_CONTEXT_UNAVAILABLE"); }
+  if (!data || typeof data !== "object") throw new Error("NATIVE_CONTEXT_UNAVAILABLE");
+  const value = data as Record<string, unknown>;
+  const text = (key: string) => typeof value[key] === "string" && value[key] !== "" ? String(value[key]) : undefined;
+  const headers: Record<string, string | undefined> = {
+    "x-erpx-context-company": text("companyId"),
+    "x-erpx-context-assignment": text("assignmentId"),
+    "x-erpx-context-revision": typeof value.revision === "number" ? String(value.revision) : undefined,
+    "x-erpx-context-assignment-version": typeof value.assignmentVersion === "number" ? String(value.assignmentVersion) : undefined,
+    "x-erpx-workspace-branch": text("branchSlug"),
+    "x-erpx-workspace-department": text("departmentSlug"),
+  };
+  return Object.fromEntries(Object.entries(headers).filter(([, item]) => item !== undefined));
+}
+
+function nativeRewrite(environment: NodeJS.ProcessEnv, url: string): string {
+  for (const entry of (environment.ERPX_DEV_NATIVE_REWRITES ?? "").split(",").filter(Boolean)) {
+    const [from, to] = entry.split("=");
+    if (from && to && url.includes(from)) return url.replace(from, to);
+  }
+  return url;
+}
+
+async function proxyNative(environment: NodeJS.ProcessEnv, base: URL, req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const context = req.headers.cookie ? await nativeContextHeaders(base, req).catch(() => ({})) : {};
+  await new Promise<void>(done => {
+    const upstream = httpRequest({ host: base.hostname, port: Number(base.port || 80), method: req.method, path: nativeRewrite(environment, req.url ?? "/"), headers: { ...req.headers, ...context } }, response => {
+      res.writeHead(response.statusCode ?? 502, response.headers);
+      response.pipe(res);
+      response.once("end", done); response.once("error", () => { res.destroy(); done(); });
+    });
+    upstream.once("error", () => { if (!res.headersSent) res.writeHead(502, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "private, no-store" }); res.end("Bad Gateway\n"); done(); });
+    req.pipe(upstream);
+  });
+}
+
 export async function startWorkspaceGateway(options:WorkspaceGatewayOptions) {
 if(!isAbsolute(options.root))throw new Error("ABSOLUTE_WORKSPACE_ROOT_REQUIRED");
 const repository = resolve(options.root), node = options.node, environment = {...(options.environment ?? process.env)};
@@ -265,6 +330,11 @@ const server = createServer(async (req, res) => {
     const retired=consoleRetirementResult({host:retirementHost(req.headers.host),method:req.method??'GET',url:req.url??'/',accept:req.headers.accept},environment);
     if(retired){settings();res.writeHead(retired.status,retired.headers);res.end(retired.body);return;}
   }catch(error){failed(res,error);return;}
+  const nativeBase = nativeProxyBase(environment);
+  if (nativeBase && nativeProxyPath(environment, req.url ?? "/")) {
+    try { await proxyNative(environment, nativeBase, req, res); } catch { failed(res, new Error("NATIVE_GATEWAY_FAILED")); }
+    return;
+  }
   // A temporary host-only routing preference lets the normal browser review a
   // candidate app before its public host mapping changes. It grants no access.
   const previewPath = (req.url ?? "").split("?")[0];

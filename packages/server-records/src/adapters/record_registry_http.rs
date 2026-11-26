@@ -13,8 +13,8 @@ use crate::domain::record_write::{
 };
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
-    StatusCode, body::to_bytes, header, routing::delete, routing::get, routing::patch,
-    routing::post, serde_json,
+    StatusCode, body::to_bytes, header, routing::get, routing::patch, routing::post,
+    serde_json,
 };
 use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind};
 use serde_json::Value;
@@ -711,5 +711,89 @@ async fn update_record(
     match result {
         Ok(reply) => bounded(reply.value()),
         Err(error) => error_response(error),
+    }
+}
+
+#[cfg(test)]
+mod wire_parity_tests {
+    use super::*;
+    use crate::domain::record_context::RecordView;
+    use crate::domain::record_registry::RegistryPage;
+
+    fn keys(value: &Value) -> Vec<&str> {
+        let mut names = value
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>();
+        names.sort_unstable();
+        names
+    }
+
+    #[test]
+    fn reply_is_the_exact_owner_data_context_envelope() {
+        let reply = RecordsRegistryHttpResponse {
+            data: serde_json::json!({"id": "rec-1", "version": 1}),
+            context: serde_json::json!({"userId": "actor", "revision": 9}),
+        }
+        .value();
+        assert_eq!(keys(&reply), vec!["context", "data"]);
+        assert_eq!(reply["data"]["id"], "rec-1");
+        assert_eq!(reply["data"]["version"], 1);
+        assert_eq!(reply["context"]["userId"], "actor");
+        assert_eq!(reply["context"]["revision"], 9);
+    }
+
+    #[test]
+    fn wire_shapes_have_no_link_fields_for_typescript_to_reshape() {
+        let view = RecordView {
+            module_id: "operations".into(),
+            id: "rec-1".into(),
+            section_id: "overview".into(),
+            title: "Title".into(),
+            description: "Description".into(),
+            status: "draft".into(),
+            fields: serde_json::json!([{"key":"total","label":"Total","type":"number","value":3}]),
+            version: 1,
+            created_by: "actor".into(),
+            updated_at: 7,
+        }
+        .to_wire();
+        assert_eq!(
+            keys(&view),
+            vec![
+                "createdBy", "description", "fields", "id", "moduleId", "sectionId", "status",
+                "title", "updatedAt", "version"
+            ]
+        );
+        assert!(keys(&view).iter().all(|key| *key != "href"
+            && !key.ends_with("Href")
+            && !key.ends_with("_href")));
+        let page = RegistryPage {
+            items: Vec::new(),
+            next_cursor: None,
+            previous_cursor: None,
+            has_more: false,
+        }
+        .to_wire();
+        assert_eq!(
+            keys(&page),
+            vec!["hasMore", "items", "nextCursor", "previousCursor"]
+        );
+    }
+
+    #[test]
+    fn owner_failure_statuses_are_the_exact_transport_contract() {
+        for (kind, expected) in [
+            (FailureKind::InvalidInput, StatusCode::UNPROCESSABLE_ENTITY),
+            (FailureKind::Unauthenticated, StatusCode::UNAUTHORIZED),
+            (FailureKind::Forbidden, StatusCode::FORBIDDEN),
+            (FailureKind::NotFound, StatusCode::NOT_FOUND),
+            (FailureKind::Conflict, StatusCode::CONFLICT),
+            (FailureKind::Unavailable, StatusCode::SERVICE_UNAVAILABLE),
+        ] {
+            assert_eq!(status(kind), expected);
+        }
     }
 }

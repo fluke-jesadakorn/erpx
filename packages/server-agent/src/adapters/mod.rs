@@ -11,3 +11,5 @@ pub mod owner_write_postgres;
 pub mod owner_write_http;
 pub mod quota_postgres;
 pub mod native_lane_30;
+pub mod assistant_view_postgres;
+pub mod assistant_view_http;

@@ -304,4 +304,21 @@ describe('native Commerce order transport',()=>{
     )).toMatchObject({status:503,code:'NATIVE_COMMERCE_ORDER_UNAVAILABLE'});
     expect(nativeCommerceOrdersFailure(new Error('unrelated'))).toBeUndefined();
   });
+
+  it('leaves the catch-all order-detail path to the Axum router with no TS owner execution',()=>{
+    const root=resolve(import.meta.dirname??process.cwd(),'../../..');
+    const route=readFileSync(resolve(root,'packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts'),'utf8');
+    expect(route).not.toContain("from '@erpx/server-commerce/public/commerce-order-read'");
+    expect(route).not.toContain('getOrder(');
+    expect(route).not.toContain('path[0]==="orders"&&path[1]?await getOrder');
+    expect(route).toContain("if(path[0]==='orders'&&path[1])throw new ApiError(404,'NOT_FOUND','Workflow action not found.');");
+    const get=route.slice(route.indexOf('export async function GET'),route.indexOf('export async function POST'));
+    for(const token of ['getOrder','prepare(','holdingResources(','commerce-order-read'])expect(get).not.toContain(token);
+    // The mounted Axum router, not the deleted branch, owns the exact path and
+    // executes the owner read through its backend.
+    const router=readFileSync(resolve(root,'packages/server-commerce/src/adapters/order_http.rs'),'utf8');
+    expect(router).toContain('"/api/v1/holdings/{holding_slug}/commerce/orders/{order_id}"');
+    expect(router).toContain('get(detail_handler)');
+    expect(router).toContain('.execute(CommerceOrderHttpRequest {');
+  });
 });

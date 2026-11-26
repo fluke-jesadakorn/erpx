@@ -10,8 +10,10 @@ use crate::adapters::work_capability_probes::{
 use crate::adapters::work_snapshot_read::{NativeWorkSnapshot, read_native_work_snapshot};
 use crate::domain::work_card_availability::WorkSnapshotFact;
 use crate::domain::work_navigation::{WorkNavigationFact, WorkNavigationFacts, work_navigation};
+use crate::domain::work_navigation_wire::navigation_snapshot_json;
 use erpx_server_identity_access::public::effective_authority::AuthorizedWorkContext;
 use erpx_server_runtime::public::postgres::PgTransactionError;
+use erpx_server_runtime::public::http_support::serde_json::Value;
 use erpx_server_shared::public::{BusinessError, TimestampMillis};
 use sqlx::PgConnection;
 
@@ -68,4 +70,18 @@ pub async fn read_native_work_navigation(
         include_attention: request.include_attention,
         routing_attention: request.routing_attention,
     }))
+}
+
+/// Executes the owner SQL reader on the caller's retained unit and renders the
+/// exact browser `NavigationSnapshot`. Presentation-only attention items are
+/// supplied by the caller's owner read; the owner never synthesizes them.
+pub async fn read_work_navigation_snapshot(
+    connection: &mut PgConnection,
+    current: &AuthorizedWorkContext,
+    request: NativeWorkNavigationRequest,
+    now: TimestampMillis,
+    attention_items: Vec<Value>,
+) -> Result<Value, Error> {
+    let fact = read_native_work_navigation(connection, current, request, now).await?;
+    Ok(navigation_snapshot_json(&fact, now.get(), attention_items))
 }

@@ -47,7 +47,7 @@ describe('pms read-tail r56 retirement after the hotelMetrics native cut', () =>
     const bridge = await src('adapters/native-pms-read.ts');
     expect(bridge).toContain("export const PMS_RD_HOTEL_METRICS = 'pms_rd_hotel_metrics';");
     const home = await src('adapters/pms/home.ts');
-    expect(home).toContain('PMS_RD_HOTEL_METRICS, [facts.companyId, facts.branchId, facts.branchId2, facts.propertyId, facts.propertyId2], db');
+    expect(home).toContain('nativeHomeMetrics({');
   });
 
   it('leaves locks, the native registry, cross-owner families and prior helpers untouched', async () => {

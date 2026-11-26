@@ -1077,7 +1077,11 @@ describe('native PMS hotelMetrics read retirement', () => {
     const home = await readFile(new URL('../../../packages/server-pms/src/adapters/pms/home.ts', import.meta.url), 'utf8');
     expect(home).not.toContain("pmsPropertyScopeSql('hotelMetrics')");
     expect(home).toContain('nativePmsReadAll<{');
-    expect(home).toContain('PMS_RD_HOTEL_METRICS, [facts.companyId, facts.branchId, facts.branchId2, facts.propertyId, facts.propertyId2], db');
+    // The hotelMetrics authority is now the mounted axum executor; TypeScript
+    // only transports bounded scope and maps the complete Rust payload.
+    expect(home).toContain('nativeHomeMetrics({');
+    expect(home).toContain('companyId: facts.companyId');
+    expect(home).not.toContain('PMS_RD_HOTEL_METRICS, [facts.companyId');
     const r41 = await readFile(new URL('../../../packages/server-pms/src/adapters/pms-read-tail-r41-sql.ts', import.meta.url), 'utf8');
     expect(r41).not.toContain('hotelMetrics');
     expect(r41).toContain("type PropertyScope = 'hotelMoney' | 'liabilities'");

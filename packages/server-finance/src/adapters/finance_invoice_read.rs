@@ -371,6 +371,27 @@ const INVOICE_HISTORY_CTE: &str = r#"WITH history_cutoff AS (
     AND (j.status IN ('posted','reversed') OR (j.id IS NULL AND i.status IN ('posted','partially_paid','paid')))
 )"#;
 
+/// Full aging payload. The owner owns every derived field; the request carries
+/// only a bounded kind, cutoff date and ledger selector, never SQL.
+const INVOICE_AGING_SELECT: &str = "SELECT (to_jsonb(i) || jsonb_build_object(\
+  'party_code',p.code,'party_name',p.name,\
+  'outstanding_minor',i.historical_outstanding_minor,\
+  'base_outstanding_minor',i.historical_base_outstanding_minor,\
+  'outstanding',to_char(i.historical_outstanding_minor::numeric/100,'FM9999999999999999990.00'),\
+  'baseOutstanding',to_char(i.historical_base_outstanding_minor::numeric/100,'FM9999999999999999990.00'),\
+  'bucket',CASE \
+    WHEN $2::date<=i.due_date::date THEN 'current' \
+    WHEN ($2::date-i.due_date::date)<=30 THEN '1-30' \
+    WHEN ($2::date-i.due_date::date)<=60 THEN '31-60' \
+    WHEN ($2::date-i.due_date::date)<=90 THEN '61-90' \
+    ELSE '90+' END,\
+  'as_of',$2::text,'asOf',$2::text))::text \
+  FROM historical_invoice_balances i \
+  JOIN finance_parties p ON p.id=i.party_id AND p.company_id=i.company_id \
+  WHERE i.kind=$3 AND i.historical_outstanding_minor>0 \
+    AND ($4::text IS NULL OR i.chart_id=$4) \
+  ORDER BY i.due_date,i.id";
+
 pub async fn read_invoice_aging(
     c: &mut PgConnection,
     company: &str,
@@ -391,25 +412,7 @@ pub async fn read_invoice_aging(
         )
         .into());
     }
-    let sql = format!(
-        "{INVOICE_HISTORY_CTE} \
-         SELECT (to_jsonb(i) || jsonb_build_object(\
-           'party_code',p.code,'party_name',p.name,\
-           'outstanding_minor',i.historical_outstanding_minor,\
-           'base_outstanding_minor',i.historical_base_outstanding_minor,\
-           'bucket',CASE \
-             WHEN $2::date<=i.due_date::date THEN 'current' \
-             WHEN ($2::date-i.due_date::date)<=30 THEN '1-30' \
-             WHEN ($2::date-i.due_date::date)<=60 THEN '31-60' \
-             WHEN ($2::date-i.due_date::date)<=90 THEN '61-90' \
-             ELSE '90+' END,\
-           'as_of',$2::text))::text \
-         FROM historical_invoice_balances i \
-         JOIN finance_parties p ON p.id=i.party_id AND p.company_id=i.company_id \
-         WHERE i.kind=$3 AND i.historical_outstanding_minor>0 \
-           AND ($4::text IS NULL OR i.chart_id=$4) \
-         ORDER BY i.due_date,i.id"
-    );
+    let sql = format!("{INVOICE_HISTORY_CTE} {INVOICE_AGING_SELECT}");
     sqlx::query_scalar::<_, String>(sqlx::AssertSqlSafe(sql))
         .bind(company)
         .bind(as_of)
@@ -420,4 +423,38 @@ pub async fn read_invoice_aging(
         .into_iter()
         .map(parse)
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The catch-all aging cutover depends on the owner returning the complete
+    /// historical row, not a plan a TypeScript caller would execute.
+    #[test]
+    fn aging_projection_is_owned_and_complete() {
+        for field in [
+            "to_jsonb(i)",
+            "party_code",
+            "party_name",
+            "outstanding_minor",
+            "base_outstanding_minor",
+            "outstanding",
+            "baseOutstanding",
+            "bucket",
+            "as_of",
+            "asOf",
+            "$2::date",
+            "$3",
+            "$4",
+        ] {
+            assert!(INVOICE_AGING_SELECT.contains(field), "missing {field}");
+        }
+        assert!(
+            INVOICE_AGING_SELECT.contains("i.historical_outstanding_minor::numeric/100"),
+            "decimal fields must use the minor-to-decimal scale"
+        );
+        assert!(!INVOICE_AGING_SELECT.contains('?'), "no caller SQL placeholders");
+        assert!(INVOICE_HISTORY_CTE.contains("$1"), "company scope is bound");
+    }
 }

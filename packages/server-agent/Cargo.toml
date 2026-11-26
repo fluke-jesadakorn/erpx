@@ -59,5 +59,9 @@ path = "../../tests/integration/agent/rust-agent-governance-postgres.test.rs"
 name = "agent_gateway_postgres"
 path = "../../tests/integration/agent/rust-agent-gateway-postgres.test.rs"
 
+[[test]]
+name = "agent_assistant_view"
+path = "../../tests/unit/agent/rust-agent-assistant-view.test.rs"
+
 [lints]
 workspace = true

@@ -233,6 +233,27 @@ pub fn mount(
         .map_err(|_| "PRIVATE_API_PMS_LANE20_INVALID")?,
     );
 
+    // PMS home hotel-metrics read.
+    router = router.merge(
+        erpx_server_pms::public::home_metrics::router_for_holdings(
+            config
+                .holdings
+                .iter()
+                .enumerate()
+                .map(|(i, holding)| {
+                    (
+                        erpx_server_pms::public::home_metrics::HomeMetricsTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                        },
+                        pools[i + 1].clone(),
+                    )
+                })
+                .collect(),
+        )
+        .map_err(|_| "PRIVATE_API_PMS_HOME_METRICS_INVALID")?,
+    );
+
     // Files lane 22: work evidence reads.
     router = router.merge(
         erpx_server_files::public::native_lane_22::router_for_holdings(
@@ -575,6 +596,21 @@ pub fn mount(
                 .collect(),
         )
         .map_err(|_| "PRIVATE_API_COMMERCIAL_LANE37_INVALID")?,
+    );
+
+    // Finance lane 2: invoice aging reads (public aging branch).
+    router = router.merge(
+        erpx_server_finance::public::native_lane_2::router_for_holdings(
+            config.holdings.iter().enumerate().map(|(i, holding)| {
+                (
+                    erpx_server_finance::public::native_lane_2::LaneTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                    },
+                    pools[i + 1].clone(),
+                )
+            }).collect(),
+        ).map_err(|_| "PRIVATE_API_FINANCE_LANE2_INVALID")?,
     );
 
     // Finance lane 3: invoice-line reads.

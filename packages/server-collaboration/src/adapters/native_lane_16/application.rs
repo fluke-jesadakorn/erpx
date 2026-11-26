@@ -1,9 +1,9 @@
 //! Owner query port and handler. This module never sees SQL or a connection.
 
-use super::domain::{ReadKind, SentNoticeDetail, SentNoticeRow, TaskOrigin};
+use super::domain::{ReadKind, SentNoticeDetail, SentNoticeRow, TaskOrigin, valid_identifier};
 use erpx_server_shared::public::BusinessError;
 use serde_json::json;
-use std::{future::Future, pin::Pin};
+use std::{env, future::Future, pin::Pin};
 
 pub type LaneReadFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, BusinessError>> + Send + 'a>>;
 
@@ -272,6 +272,97 @@ impl<R: PushSettingsRead> PushSettingsService<R> {
     }
 }
 
+/// Mirror of the retired TypeScript `pushConfig` gate for the settings read.
+/// Only the public half is exposed; private VAPID material never leaves the
+/// owner. `None` reproduces the TS early return of
+/// `{available: false, publicKey: null, preferences: null, deviceCount: 0}`.
+pub fn configured_public_key() -> Option<String> {
+    let public = env::var("ERPX_PUSH_VAPID_PUBLIC_KEY").ok()?;
+    let private = env::var("ERPX_PUSH_VAPID_PRIVATE_KEY").ok()?;
+    let subject = env::var("ERPX_PUSH_VAPID_SUBJECT").ok()?;
+    let sealed = env::var("ERPX_PUSH_DATA_KEY").ok()?;
+    let b64url = |v: &str| {
+        !v.is_empty()
+            && v.bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+    };
+    // Node's Buffer.from(value, "base64url") length for an unpadded string.
+    let decoded_len = |v: &str| v.len() * 3 / 4;
+    if !b64url(&public)
+        || !b64url(&private)
+        || !b64url(&sealed)
+        || !(subject.starts_with("mailto:") || subject.starts_with("https://"))
+        || decoded_len(&public) != 65
+        || decoded_len(&private) != 32
+        || decoded_len(&sealed) != 32
+    {
+        return None;
+    }
+    Some(public)
+}
+
+/// Bounded query for the composite `GET /push` settings payload. It is a
+/// read-only owner query: no transaction, no command ledger and no caller SQL.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PushSettingsQuery {
+    pub company: String,
+    pub user: String,
+    pub session: String,
+}
+
+impl PushSettingsQuery {
+    pub fn validate(&self) -> Result<(), BusinessError> {
+        if !valid_identifier(&self.company)
+            || !valid_identifier(&self.user)
+            || !valid_identifier(&self.session)
+        {
+            return Err(invalid());
+        }
+        Ok(())
+    }
+}
+
+/// Owner query handler. SQL execution stays in `PgPushSettingsRead`; this layer
+/// only validates the request and assembles the complete parity payload.
+pub struct PushSettingsQueryService<R: PushSettingsRead> {
+    read: R,
+    public_key: Option<String>,
+}
+
+impl<R: PushSettingsRead> PushSettingsQueryService<R> {
+    pub fn new(read: R, public_key: Option<String>) -> Self {
+        Self { read, public_key }
+    }
+
+    pub async fn read(&self, query: PushSettingsQuery) -> Result<serde_json::Value, BusinessError> {
+        query.validate()?;
+        let Some(public_key) = self.public_key.clone() else {
+            return Ok(json!({
+                "available": false,
+                "publicKey": null,
+                "preferences": null,
+                "deviceCount": 0,
+            }));
+        };
+        let preferences = self
+            .read
+            .preferences(&query.company, &query.user)
+            .await?
+            .unwrap_or_else(super::domain::default_preferences);
+        let device_count = self
+            .read
+            .session_count(&query.company, &query.user, &query.session)
+            .await?
+            .unwrap_or(0);
+        Ok(json!({
+            "available": true,
+            "publicKey": public_key,
+            "preferences": preferences,
+            "deviceCount": device_count,
+        }))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -334,6 +425,113 @@ mod tests {
         assert!(bad.validate().is_err());
         let mut bad = request(ReadKind::Notices);
         bad.sender = String::new();
+        assert!(bad.validate().is_err());
+    }
+
+    struct StubPushRead {
+        preferences: Option<serde_json::Value>,
+        count: Option<i64>,
+    }
+
+    impl PushSettingsRead for StubPushRead {
+        fn preferences<'a>(
+            &'a self,
+            _company: &'a str,
+            _user: &'a str,
+        ) -> LaneReadFuture<'a, Option<serde_json::Value>> {
+            let value = self.preferences.clone();
+            Box::pin(async move { Ok(value) })
+        }
+        fn session_count<'a>(
+            &'a self,
+            _company: &'a str,
+            _user: &'a str,
+            _session: &'a str,
+        ) -> LaneReadFuture<'a, Option<i64>> {
+            let value = self.count;
+            Box::pin(async move { Ok(value) })
+        }
+        fn endpoint_owner<'a>(
+            &'a self,
+            _company: &'a str,
+            _hash: &'a str,
+        ) -> LaneReadFuture<'a, Option<serde_json::Value>> {
+            Box::pin(async { Ok(None) })
+        }
+    }
+
+    fn query() -> PushSettingsQuery {
+        PushSettingsQuery {
+            company: "company-1".into(),
+            user: "user-1".into(),
+            session: "session-1".into(),
+        }
+    }
+
+    #[tokio::test]
+    async fn composite_settings_query_returns_complete_parity_payload() {
+        let service = PushSettingsQueryService::new(
+            StubPushRead {
+                preferences: Some(json!({"enabled": true, "work_enabled": true})),
+                count: Some(2),
+            },
+            Some("vapid-public".into()),
+        );
+        assert_eq!(
+            service.read(query()).await.unwrap(),
+            json!({
+                "available": true,
+                "publicKey": "vapid-public",
+                "preferences": {"enabled": true, "work_enabled": true},
+                "deviceCount": 2,
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn composite_settings_query_uses_defaults_and_zero_count() {
+        let service = PushSettingsQueryService::new(
+            StubPushRead {
+                preferences: None,
+                count: None,
+            },
+            Some("vapid-public".into()),
+        );
+        assert_eq!(
+            service.read(query()).await.unwrap(),
+            json!({
+                "available": true,
+                "publicKey": "vapid-public",
+                "preferences": super::super::domain::default_preferences(),
+                "deviceCount": 0,
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn disabled_config_short_circuits_without_executing_reads() {
+        let service = PushSettingsQueryService::new(
+            StubPushRead {
+                preferences: Some(json!({"enabled": true})),
+                count: Some(9),
+            },
+            None,
+        );
+        assert_eq!(
+            service.read(query()).await.unwrap(),
+            json!({
+                "available": false,
+                "publicKey": null,
+                "preferences": null,
+                "deviceCount": 0,
+            })
+        );
+    }
+
+    #[test]
+    fn composite_query_rejects_malformed_scope() {
+        let mut bad = query();
+        bad.session = String::new();
         assert!(bad.validate().is_err());
     }
 }

@@ -6,8 +6,8 @@ import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-orig
 import { z } from "zod";
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { ApiError,errorResponse } from "@erpx/server-runtime/public/http";
-import { listCounts,countOptions,countDetail,countSchema,countActionSchema } from "@erpx/server-inventory/public/inventory-counts";
-import { nativeStockCountSave, nativeStockCountTransition } from "@erpx/feature-inventory/lib/native-stock-count-command";
+import { listCounts,countOptions,countDetail,countSchema } from "@erpx/server-inventory/public/inventory-counts";
+import { nativeStockCountSave } from "@erpx/feature-inventory/lib/native-stock-count-command";
 import {initialPhysicalStockCountWorkspace,initialPhysicalStockSeed,transitionInitialPhysicalStockCount,initialPhysicalStockCountSchema,initialPhysicalStockCountActionSchema,initialPhysicalStockCountFlow,assignInitialPhysicalStockCountFlow,initialPhysicalStockCountFlowSchema} from "@erpx/server-inventory/public/initial-physical-stock-count";
 type Context={params:Promise<{holdingSlug:string;path?:string[]}>};
 export async function GET(_request:Request,context:Context){try{const {holdingSlug,path:p=[]}=await context.params,actor=await requireWorkContext(holdingSlug);if(p[0]==="initial-physical"){
@@ -41,11 +41,5 @@ export async function POST(request:Request,context:Context){try{
  else if(p.length===3&&["submit","reject","cancel","approve","post"].includes(p[2]))data=await transitionInitialPhysicalStockCount(actor,p[1],p[2] as "submit"|"reject"|"cancel"|"approve"|"post",initialPhysicalStockCountActionSchema.parse(input),key);
  else throw new ApiError(404,"NOT_FOUND","Initial physical stock count action not found.");
  }else if(p.length<=1)throw new ApiError(503,"NATIVE_INVENTORY_COUNT_UNAVAILABLE","The native stock Count command is unavailable.");
- else if(p.length===2&&["submit","reject","cancel","approve","post"].includes(p[1])){
-  const action=p[1] as "submit"|"reject"|"cancel"|"approve"|"post",parsed=countActionSchema.parse(input);
-  const native=await nativeStockCountTransition(request,holdingSlug,p[0],action,parsed);
-  if(!native)throw new ApiError(503,"NATIVE_INVENTORY_COUNT_UNAVAILABLE","The native stock Count command is unavailable.");
-  return native;
- }
  else throw new ApiError(404,"NOT_FOUND","Stock count action not found.");return Response.json(canonicalDestinationLinks({data}),{status:p.length===1&&p[0]==="initial-physical"?201:200,headers:{"Cache-Control":"private, no-store"}});
 }catch(e){if(e instanceof z.ZodError)return errorResponse(new ApiError(422,"VALIDATION_FAILED",e.issues[0]?.message??"Invalid input."));if(e instanceof SyntaxError)return errorResponse(new ApiError(422,"INVALID_JSON","Use valid JSON."));return errorResponse(e);}}

@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { ApiError } from '@erpx/server-runtime/public/http';
+import { canonicalDestinationLinks } from '@erpx/feature-work_projection/lib/destination-links';
 
 vi.mock('server-only', () => ({}));
 
@@ -458,5 +459,59 @@ describe('native lane 23 — organization executive evidence', () => {
       kind: 'node-evidence', companyId: 'company-1', values: [null, 'node-1'], nodeId: 'node-2',
     });
     expect((init.headers as Headers).get('host')).toBe('northstar.jesadakorn.com');
+  });
+});
+
+describe('native holding people directory — payload parity and retirement', () => {
+  /** Retired `HoldingPeopleDirectory` output from the TypeScript route. Field
+   * order is preserved so serialization can be compared byte for byte with
+   * `erpx-server-people_payroll::adapters::holding_directory`. */
+  const fixture = {
+    companies: [{ id: 'c1', slug: 'acme', name: 'Acme' }],
+    nodes: [{ id: 'n1', companyId: 'c1', kind: 'company', slug: 'acme', name: 'Acme HQ', parentId: null, branchId: null }],
+    levels: [{ id: 'l1', companyId: 'c1', code: 'L1', name: 'One', number: 1 }],
+    positions: [{ id: 'p1', companyId: 'c1', branchId: null, departmentId: null, title: 'CEO', levelId: 'l1', reportsToPositionId: null, isCeo: true }],
+    people: [{ id: 'e1', personId: 'person-1', userId: 'user-1', engagementId: 'e1', companyId: 'c1', branchId: null, departmentId: null, positionId: 'p1', legalName: 'Ada Lovelace', jobTitle: 'CEO', workEmail: 'ada@example.test', workPhone: null }],
+  };
+
+  it('returns the exact retired TypeScript payload and oracle hash', () => {
+    const body = JSON.stringify(canonicalDestinationLinks({ data: fixture }));
+    expect(body).toBe('{"data":{"companies":[{"id":"c1","slug":"acme","name":"Acme"}],"nodes":[{"id":"n1","companyId":"c1","kind":"company","slug":"acme","name":"Acme HQ","parentId":null,"branchId":null}],"levels":[{"id":"l1","companyId":"c1","code":"L1","name":"One","number":1}],"positions":[{"id":"p1","companyId":"c1","branchId":null,"departmentId":null,"title":"CEO","levelId":"l1","reportsToPositionId":null,"isCeo":true}],"people":[{"id":"e1","personId":"person-1","userId":"user-1","engagementId":"e1","companyId":"c1","branchId":null,"departmentId":null,"positionId":"p1","legalName":"Ada Lovelace","jobTitle":"CEO","workEmail":"ada@example.test","workPhone":null}]}}');
+    expect(sha(body)).toBe('7fdd3261202ff75d9822102d8d7e7ecba59990a6793a542342ee564804a101dc');
+  });
+
+  it('retains no TypeScript SELECT for the directory execution path', () => {
+    const client = readFileSync(resolve(ROOT, 'packages/server-organization/src/adapters/holding-people-directory.ts'), 'utf8');
+    expect(client).not.toContain('SELECT');
+    expect(client).not.toContain('.prepare(');
+    expect(client).not.toContain('readHoldingPeopleDirectory');
+    expect(client).toContain('people-public-directory');
+
+    const repository = readFileSync(resolve(ROOT, 'packages/server-people_payroll/src/adapters/people/directory-repository.ts'), 'utf8');
+    expect(repository).not.toContain('readHoldingPeopleDirectory');
+    expect(repository).not.toContain('readDirectoryFacts6');
+
+    const application = readFileSync(resolve(ROOT, 'packages/server-people_payroll/src/application/directory-projection.ts'), 'utf8');
+    expect(application).not.toContain('readHoldingPeopleDirectory');
+
+    const facts = readFileSync(RETIRED_FILE, 'utf8');
+    expect(facts).not.toContain('activeCompanyNodes');
+    expect(facts).not.toContain('SELECT ');
+
+    const route = readFileSync(resolve(ROOT, 'packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/people-public-directory/route.ts'), 'utf8');
+    expect(route).not.toContain('SELECT');
+  });
+
+  it('pins the Rust owner SQL and its native route', () => {
+    const postgres = readFileSync(resolve(ROOT, 'packages/server-people_payroll/src/adapters/holding_directory/postgres.rs'), 'utf8');
+    expect(postgres).toContain('pub const PEOPLE_SQL');
+    expect(postgres).toContain('p.merged_into_id IS NULL');
+    expect(postgres).toContain('sqlx::query(PEOPLE_SQL)');
+    expect(postgres).toContain('sqlx::query(ASSIGNMENT_ACTIVE_SQL)');
+    expect(postgres).toContain('a.scope_kind=$5');
+
+    const http = readFileSync(resolve(ROOT, 'packages/server-people_payroll/src/adapters/holding_directory/http.rs'), 'utf8');
+    expect(http).toContain('/api/v1/holdings/{holding_slug}/people-public-directory');
+    expect(http).toContain('work_scope');
   });
 });

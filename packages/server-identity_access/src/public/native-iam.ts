@@ -92,3 +92,15 @@ export async function nativeIamCommand(
     );
   return payload?.data;
 }
+
+/**
+ * Shared-route owner execution is exposed through this already-registered
+ * public entry point so the workplace routes do not need a new package export.
+ */
+export {
+  nativeIamRouteResponse,
+  nativeIamRoutesAvailable,
+  nativeIamRoutesConfiguration,
+  type NativeIamRoutesConfig,
+  type NativeIamRoutesTransport,
+} from './native-iam-routes';

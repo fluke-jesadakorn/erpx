@@ -2293,6 +2293,7 @@
 @source "../../../../packages/server-identity_access/src/adapters/native-control-read-plan.ts";
 @source "../../../../packages/server-identity_access/src/adapters/native-directory-connection.ts";
 @source "../../../../packages/server-identity_access/src/adapters/native-directory-operations.ts";
+@source "../../../../packages/server-identity_access/src/adapters/native-iam-routes.ts";
 @source "../../../../packages/server-identity_access/src/adapters/native-identity-write.ts";
 @source "../../../../packages/server-identity_access/src/adapters/native-lane-10/client.ts";
 @source "../../../../packages/server-identity_access/src/adapters/native-lane-11/client.ts";
@@ -2506,6 +2507,7 @@
 @source "../../../../packages/server-identity_access/src/public/native-account-http.ts";
 @source "../../../../packages/server-identity_access/src/public/native-directory-connection.ts";
 @source "../../../../packages/server-identity_access/src/public/native-iam-assignments.ts";
+@source "../../../../packages/server-identity_access/src/public/native-iam-routes.ts";
 @source "../../../../packages/server-identity_access/src/public/native-iam.ts";
 @source "../../../../packages/server-identity_access/src/public/native-identity-write.ts";
 @source "../../../../packages/server-identity_access/src/public/native-people-grants.ts";
@@ -3919,6 +3921,7 @@
 @source "../../../../packages/server-pms/src/adapters/hospitality-owner-projection-sources.ts";
 @source "../../../../packages/server-pms/src/adapters/hospitality-rollout.ts";
 @source "../../../../packages/server-pms/src/adapters/metric-purchases.ts";
+@source "../../../../packages/server-pms/src/adapters/native-home-metrics/client.ts";
 @source "../../../../packages/server-pms/src/adapters/native-lane-20/client.ts";
 @source "../../../../packages/server-pms/src/adapters/native-lane-20/room-summary-client.ts";
 @source "../../../../packages/server-pms/src/adapters/native-pms-read.ts";

@@ -4,6 +4,7 @@ pub mod media_signature;
 pub mod preview;
 
 pub mod attachment_command;
+pub mod attachment_content;
 pub mod attachment_read;
 pub mod attachment_scan;
 pub mod files_wave1b;

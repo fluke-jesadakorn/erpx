@@ -3419,6 +3419,7 @@
 @source "../../../../packages/server-pms/src/adapters/hospitality-rollout.ts";
 @source "../../../../packages/server-pms/src/adapters/hospitality-setup.ts";
 @source "../../../../packages/server-pms/src/adapters/metric-purchases.ts";
+@source "../../../../packages/server-pms/src/adapters/native-home-metrics/client.ts";
 @source "../../../../packages/server-pms/src/adapters/native-lane-20/client.ts";
 @source "../../../../packages/server-pms/src/adapters/native-lane-20/import-batch-client.ts";
 @source "../../../../packages/server-pms/src/adapters/native-lane-20/room-summary-client.ts";

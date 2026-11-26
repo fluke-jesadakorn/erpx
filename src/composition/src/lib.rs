@@ -532,6 +532,9 @@ pub mod native_work_roles_http;
 #[cfg(feature = "field-service")]
 pub mod native_account_preferences;
 
+#[cfg(any(feature = "existing-business", feature = "private-field-api"))]
+pub mod native_session_context;
+
 #[cfg(any(feature = "existing-business", feature = "finance-field-write"))]
 pub mod finance_service_receipt_create;
 

@@ -4,3 +4,4 @@ pub mod workspace_read;
 pub mod providers;
 pub mod quota;
 pub mod owner_write;
+pub mod assistant_view;

@@ -390,7 +390,20 @@ mod tests {
                 if company_id != "acme:co" {
                     return Err(unavailable());
                 }
-                Ok(vec![serde_json::json!({"id": format!("a-{n}"), "due_date": "2026-01-01"})])
+                Ok(vec![serde_json::json!({
+                    "id": format!("a-{n}"),
+                    "due_date": "2026-01-01",
+                    "historical_outstanding_minor": 125,
+                    "historical_base_outstanding_minor": 4500,
+                    "outstanding_minor": 125,
+                    "base_outstanding_minor": 4500,
+                    "outstanding": "1.25",
+                    "baseOutstanding": "45.00",
+                    "bucket": "31-60",
+                    "asOf": "2026-02-01",
+                    "legacy_date_evidence": false,
+                    "source_id": null
+                })])
             })
         }
     }
@@ -440,7 +453,22 @@ mod tests {
             .await,
         )
         .await;
-        assert_eq!(age_b["data"][0]["id"], "a-2");
+        let row = &age_b["data"][0];
+        assert_eq!(row["id"], "a-2");
+        // Full legacy aging payload parity: the Axum handler passes every
+        // owner-derived field through, including the decimal presentation.
+        for (field, expected) in [
+            ("outstanding_minor", serde_json::json!(125)),
+            ("base_outstanding_minor", serde_json::json!(4500)),
+            ("outstanding", serde_json::json!("1.25")),
+            ("baseOutstanding", serde_json::json!("45.00")),
+            ("bucket", serde_json::json!("31-60")),
+            ("asOf", serde_json::json!("2026-02-01")),
+            ("legacy_date_evidence", serde_json::json!(false)),
+            ("source_id", serde_json::Value::Null),
+        ] {
+            assert_eq!(&row[field], &expected, "missing aging field {field}");
+        }
     }
 
     #[test]

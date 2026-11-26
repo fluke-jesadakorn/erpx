@@ -9,6 +9,7 @@ pub mod portal_support_evidence;
 pub mod preview;
 
 pub mod attachment_command;
+pub mod attachment_content;
 pub mod attachment_http;
 pub mod files_wave1b;
 pub mod files_wave1b_http;

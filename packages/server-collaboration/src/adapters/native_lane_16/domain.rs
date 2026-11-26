@@ -37,6 +37,22 @@ impl PushReadKind {
     }
 }
 
+/// Exact default the retired TypeScript `pushSettings` read returned when the
+/// owner had no stored preference row. Kept as a pure value so the native query
+/// produces byte-compatible field names and booleans.
+pub fn default_preferences() -> serde_json::Value {
+    serde_json::json!({
+        "enabled": false,
+        "work_enabled": true,
+        "mention_enabled": true,
+        "system_enabled": true,
+        "calendar_enabled": false,
+        "notice_enabled": false,
+        "quiet_start_minute": null,
+        "quiet_end_minute": null,
+    })
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ReadKind {
     Notices,
@@ -145,6 +161,23 @@ mod tests {
         assert!(!valid_identifier(&"x".repeat(201)));
         assert!(valid_event_key("notice:notice-1"));
         assert!(!valid_event_key("notice:1 and 1=1"));
+    }
+
+    #[test]
+    fn default_preferences_match_the_retired_typescript_shape() {
+        assert_eq!(
+            default_preferences(),
+            serde_json::json!({
+                "enabled": false,
+                "work_enabled": true,
+                "mention_enabled": true,
+                "system_enabled": true,
+                "calendar_enabled": false,
+                "notice_enabled": false,
+                "quiet_start_minute": null,
+                "quiet_end_minute": null,
+            })
+        );
     }
 
     #[test]

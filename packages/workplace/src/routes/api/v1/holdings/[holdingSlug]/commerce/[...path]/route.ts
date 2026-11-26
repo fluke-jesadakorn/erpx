@@ -13,7 +13,6 @@ import {commerceOverview,saveOrder,transitionOrder,invoiceFulfillment,settleInvo
 import {nativeCommerceOrderTransition,nativeCommerceOrderSave,nativeCommerceOrderFulfill,nativeCommerceGoodsReceipt,nativeCommerceSalesDelivery} from '@erpx/feature-sales/public/native-commerce-orders-page';
 import {nativeSalesConfirmedCancellation} from '@erpx/feature-sales/public/native-sales-documents-page';
 import {nativeSalesPricingCommand} from '@erpx/feature-sales/public/native-sales-pricing';
-import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {pricingWorkspace} from "@erpx/server-sales/public/sales-pricing";
 import {nativeQueueDeliveryNotification,nativeRetryCustomerNotification,nativeUpdateCustomerNotificationSettings} from "@erpx/feature-sales/public/native-sales-notification-commands";
 import {nativeSalesNotificationReconcile,salesNotificationReconciliationInput} from "@erpx/feature-sales/public/native-sales-notification-reconciliation";
@@ -60,7 +59,7 @@ export async function GET(_request:Request,context:Context) {
     const actor=await requireWorkContext(holdingSlug);if(path.length===2&&path[1]==='prerequisites')return Response.json({data:await supplyPostingPrerequisites(actor)},{headers:{'Cache-Control':'private, no-store'}});if(path.length!==1)throw new ApiError(404,'NOT_FOUND','Workflow action not found.');
     return Response.json({data:await commercePostingSetup(actor)},{headers:{'Cache-Control':'private, no-store'}});
   }}catch(e){return errorResponse(e);}
-  try{const {holdingSlug,path}=await context.params;const actor=await requireWorkContext(holdingSlug);return Response.json(canonicalDestinationLinks({data:path[0]==='pricing'?await pricingWorkspace(actor):path[0]==="orders"&&path[1]?await getOrder(actor,path[1]):path[0]==="reorder-policies"?await listInventoryReorderPolicies(actor):await commerceOverview(actor)}),{headers:{"Cache-Control":"private, no-store"}});}catch(e){return errorResponse(e);}
+  try{const {holdingSlug,path}=await context.params;const actor=await requireWorkContext(holdingSlug);if(path[0]==='orders'&&path[1])throw new ApiError(404,'NOT_FOUND','Workflow action not found.');return Response.json(canonicalDestinationLinks({data:path[0]==='pricing'?await pricingWorkspace(actor):path[0]==="reorder-policies"?await listInventoryReorderPolicies(actor):await commerceOverview(actor)}),{headers:{"Cache-Control":"private, no-store"}});}catch(e){return errorResponse(e);}
 }
 export async function POST(request:Request,context:Context) {
   try{
