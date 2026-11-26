@@ -163,7 +163,8 @@
     "./domain/executive/agent-evidence": "./src/domain/executive/agent-evidence.ts",
     "./domain/executive/generation": "./src/domain/executive/generation.ts",
     "./domain/executive/metrics": "./src/domain/executive/metrics.ts",
-    "./domain/executive/metric-sources": "./src/domain/executive/metric-sources.ts"
+    "./domain/executive/metric-sources": "./src/domain/executive/metric-sources.ts",
+    "./public/native-http": "./src/public/native-http.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

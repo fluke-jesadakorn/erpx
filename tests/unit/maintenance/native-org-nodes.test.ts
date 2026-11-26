@@ -80,3 +80,26 @@ describe('native Maintenance organization-node read parity', () => {
     expect(postgres.match(/sqlx::query\(/g)).toHaveLength(1);
   });
 });
+
+describe('Maintenance Work repository org-node cutover', () => {
+  it('routes the nodes read through the native transport', async () => {
+    const work = await readFile(
+      new URL('../../../packages/server-maintenance/src/adapters/work.ts', import.meta.url),
+      'utf8',
+    );
+    expect(work).toContain('nativeMaintenanceOrgNodes(a)');
+    expect(work).not.toContain('organization_nodes');
+  });
+
+  it('keeps the transport SQL-free and Host-explicit', async () => {
+    const client = await readFile(
+      new URL('../../../packages/server-maintenance/src/adapters/native-org-nodes.ts', import.meta.url),
+      'utf8',
+    );
+    expect(client).toContain("process.env[ENV]");
+    expect(client).toContain("'x-erpx-workspace-branch-id'");
+    expect(client).toContain("'x-erpx-workspace-department-id'");
+    expect(client).not.toContain('SELECT ');
+    expect(client).not.toContain('node:http');
+  });
+});

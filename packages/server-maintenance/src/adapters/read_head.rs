@@ -197,12 +197,17 @@ mod tests {
         for helper in [
             include_str!("projection-lookup.ts"),
             include_str!("read-tail-r30-alias-rows.ts"),
-            include_str!("asset-settlement-refs.ts"),
             include_str!("record-image-sources.ts"),
         ] {
             assert!(!helper.contains("prepare("));
             assert!(!helper.contains(".bind("));
         }
+        // This helper is not a pure renderer: Assets calls its one documented
+        // SHARE lock before reading the same owner relations.
+        let settlement = include_str!("asset-settlement-refs.ts");
+        assert_eq!(settlement.matches("prepare(").count(), 1);
+        assert!(settlement.contains("LOCK TABLE maintenance_work_orders,maintenance_preventive_plans IN SHARE MODE"));
+        assert!(!settlement.contains(".bind("));
     }
 
     #[test]

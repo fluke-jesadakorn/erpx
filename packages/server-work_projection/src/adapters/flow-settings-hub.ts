@@ -9,7 +9,8 @@ import { draftCompanyName } from "@erpx/server-organization/public/people-app-en
 import { companyAuthority } from "@erpx/server-operations/public/staff-policy";
 import { serviceTeamOptions } from "@erpx/server-support/public/service-team-options";
 import { serviceCoverageSettingsHistory } from "@erpx/server-support/public/flow-settings-facts";
-import { activeLeavePolicySettings, leavePolicySettingsHistory } from "@erpx/server-people_payroll/public/flow-settings-facts";
+import { leavePolicySettingsHistory } from "@erpx/server-people_payroll/public/flow-settings-facts";
+import { nativeActiveLeavePolicySettings } from "@erpx/server-people_payroll/adapters/native-leave-policies";
 import { spendingSettingsHistory } from "@erpx/server-workflow/public/flow-settings-facts";
 import { createFlowSettingsHubQuery } from "@erpx/server-work_projection/application/flow-settings-hub";
 
@@ -22,7 +23,7 @@ export function flowSettingsHub(actor: WorkContext, tab: string) {
     departmentHistory: ids => departmentFlowSettingsHistory(db, actor.companyId, ids),
     canManageLeave: () => companyAuthority(db, actor, "leave.policy.manage"),
     serviceOptions: () => serviceTeamOptions(db, actor),
-    leavePolicies: () => activeLeavePolicySettings(db, actor.companyId),
+    leavePolicies: () => nativeActiveLeavePolicySettings(actor),
     leaveHistory: () => leavePolicySettingsHistory(db, actor.companyId),
     serviceHistory: () => serviceCoverageSettingsHistory(db, actor.companyId),
     spendingHistory: () => spendingSettingsHistory(db, actor.companyId),

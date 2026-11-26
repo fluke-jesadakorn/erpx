@@ -510,7 +510,8 @@
     "./domain/expense-policy": "./src/domain/expense-policy.ts",
     "./domain/leave-evidence": "./src/domain/leave-evidence.ts",
     "./domain/spending-templates": "./src/domain/spending-templates.ts",
-    "./expense": "./src/expense.ts"
+    "./expense": "./src/expense.ts",
+    "./adapters/native-leave-policies": "./src/adapters/native-leave-policies.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

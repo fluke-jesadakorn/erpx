@@ -42,7 +42,7 @@ impl LeavePolicyRead for PgLeavePolicyRead {
                 .map(|row| {
                     Ok(LeavePolicySetting {
                         name: row.try_get::<String, _>("name").map_err(|_| unavailable())?,
-                        version: row.try_get::<i64, _>("version").map_err(|_| unavailable())?,
+                        version: i64::from(row.try_get::<i32, _>("version").map_err(|_| unavailable())?),
                         status: row.try_get::<String, _>("status").map_err(|_| unavailable())?,
                     })
                 })

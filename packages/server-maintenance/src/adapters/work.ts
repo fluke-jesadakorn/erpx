@@ -1,5 +1,4 @@
 import {withAssetPurchasedRead,assetPurchaseControls} from "@erpx/server-assets/public/purchases";
-import {finalRootOwnerProjectionSources as organizationProjectionSources} from "@erpx/server-organization/public/final-root-owner-projection-sources";
 import { finalRootOwnerProjectionSources as assetsProjectionSources } from "@erpx/server-assets/public/final-root-owner-projection-sources";
 import { finalRootOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/final-root-owner-projection-sources";
 import { finalRootOwnerProjectionSources as financeProjectionSources } from "@erpx/server-finance/public/final-root-owner-projection-sources";
@@ -23,6 +22,7 @@ import {maintenanceOwnerName} from './maintenance-owner-name';
 import {iamScopeGuardSql} from './iam-scope-guard';
 import {notExistsGuardPrefix,projectionHead} from './projection-lookup';
 import {settlementRefSource} from './asset-settlement-refs';
+import {nativeMaintenanceOrgNodes} from './native-org-nodes';
 const assetScope="a.company_id=? AND (?::text IS NULL OR a.branch_id=?) AND (?::text IS NULL OR a.department_id=?)",workScope="w.company_id=? AND (?::text IS NULL OR w.branch_id=?) AND (?::text IS NULL OR w.department_id=?)",args=(a:WorkContext)=>[a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId];
 /** Canonical owner-local Work/Asset source projection shared by the workspace
  * items and downtime-evidence reads. Both call the same owner-fixed Work join
@@ -57,7 +57,7 @@ function bindRepository(write:SqlDatabase,a:WorkContext,canReadParts=true):Maint
  return {
   items:async()=>(await write.prepare(`${workAssetSource(`w.*,a.code asset_code,a.name asset_name,CASE WHEN ${worker} THEN 1 ELSE 0 END owner_eligible,CASE WHEN ${reviewer('w')} THEN 1 ELSE 0 END can_review,${maintenanceOwnerName('w')} owner_name`,"",workScope)} ORDER BY w.updated_at DESC,w.id`).bind(a.userId,...args(a)).all<Work>()).results,
   assets:async()=>(await write.prepare(`${projectionRowScan("a.id,a.code,a.name,a.version,a.condition,a.lifecycle_status",assetsProjectionSources.operational_assets,"a",`WHERE ${assetScope} AND a.lifecycle_status IN ('in_service','registered','maintenance') AND ${notExistsGuardPrefix('maintenance_work_orders w')}w.asset_id=a.id AND w.status NOT IN ('completed','cancelled')) ORDER BY a.code`)}`).bind(...args(a)).all<Row>()).results,
-  nodes:async()=>(await write.prepare(`${projectionRowScan("id,kind,display_name,branch_id",organizationProjectionSources.organization_nodes,"n","WHERE company_id=? AND status='active' AND kind IN ('branch','headquarters','department') AND (?::text IS NULL OR id=? OR branch_id=?) AND (?::text IS NULL OR id=?) ORDER BY kind,display_name")}`).bind(a.companyId,a.branchId,a.branchId,a.branchId,a.departmentId,a.departmentId).all<Row>()).results,
+  nodes:async()=>nativeMaintenanceOrgNodes(a),
   spares:branchId=>canReadParts?availableServiceSpares(write,a,branchId):Promise.resolve({stock:[],lots:[]}),
   consumptions:async id=>canReadParts?(await write.prepare(`${projectionRowScan("p.*,j.status journal_status,product.name product_name",inventoryProjectionSources.operational_inventory_consumptions,"p",`JOIN (${financeProjectionSources.finance_journals}) j ON j.id=p.journal_id JOIN (${commerceProjectionSources.commerce_products}) product ON product.id=p.product_id WHERE p.source_kind='maintenance' AND p.source_id=? ORDER BY p.created_at,p.id`)}`).bind(id).all<Row>()).results:[],
   history:async id=>(await write.prepare(settlementRefSource("*","maintenance_work_events"," WHERE work_order_id=? ORDER BY version")).bind(id).all<Row>()).results,

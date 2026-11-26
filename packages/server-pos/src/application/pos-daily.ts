@@ -4,6 +4,7 @@ import { num, str, scopeRow as domainScopeRow, type PosRow } from "@erpx/server-
 import { samePerson } from "@erpx/feature-identity_access/lib/iam";
 import { businessDate as evaluateBusinessDate } from "@erpx/server-pos/domain/pos";
 import type { Clock } from "@erpx/server-shared/application/ports";
+import { nativePosCustomerSearch } from "@erpx/server-pos/adapters/native_customer_search/client";
 export type PosReceiptSnapshot = {
     schema: 1;
     saleId: string;
@@ -203,12 +204,11 @@ export function createPosDay<Effect extends PosReadEffect>(ports: {
         const snapshot: PosReceiptSnapshot = { schema: 1, saleId, number: str(sale, 'number'), currency: str(sale, 'currency'), businessDate: str(sale, 'business_date'), issuer: JSON.parse(str(sale, 'issuer_json') || '{}'), customer, lines, payments, subtotalMinor: num(sale, 'subtotal_minor'), discountMinor: num(sale, 'discount_minor'), taxMinor: num(sale, 'tax_minor'), totalMinor: num(sale, 'total_minor'), roomCharge };
         await db.writePosSaleDocuments1({ saleId: saleId, company_id: sale.company_id, branch_id: sale.branch_id, fact3: JSON.stringify(snapshot), fact4: ports.clock.now() });
     }
-    async function posCustomers(db: PosDayUnit<Effect>, actor: WorkContext, query = '') {
+    async function posCustomers(_db: PosDayUnit<Effect>, actor: WorkContext, query = '') {
         ports.require(actor, 'pos.read');
         if (actor.departmentId)
             fail('POS_BRANCH_REQUIRED', 'Select a Company or Branch', 403);
-        const q = query.trim().slice(0, 100), pattern = `%${q.replace(/[\\%_]/g, '\\$&')}%`;
-        return db.readFinanceParties2({ companyId: actor.companyId, q: q, pattern: pattern, pattern2: pattern, pattern3: pattern });
+        return nativePosCustomerSearch(actor, query.trim().slice(0, 100));
     }
     async function createPosCustomer(db: PosDayUnit<Effect>, actor: WorkContext, input: unknown) {
         const p = z.object({ name: z.string().trim().min(1).max(200), phone: z.string().trim().max(50).default(''), email: z.union([z.email(), z.literal('')]).default(''), address: z.object({ line1: z.string().trim().max(200), line2: z.string().trim().max(200).default(''), city: z.string().trim().max(100), region: z.string().trim().max(100).default(''), postalCode: z.string().trim().max(30), countryCode: z.literal('TH').default('TH') }).nullable().default(null) }).parse(input);

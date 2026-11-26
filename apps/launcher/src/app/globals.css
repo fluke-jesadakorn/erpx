@@ -2635,6 +2635,7 @@
 @source "../../../../packages/server-maintenance/src/adapters/iam-scope-guard.ts";
 @source "../../../../packages/server-maintenance/src/adapters/maintenance-owner-name.ts";
 @source "../../../../packages/server-maintenance/src/adapters/native-lane-36/client.ts";
+@source "../../../../packages/server-maintenance/src/adapters/native-org-nodes.ts";
 @source "../../../../packages/server-maintenance/src/adapters/native-owner-options-read.ts";
 @source "../../../../packages/server-maintenance/src/adapters/native-preventive-read.ts";
 @source "../../../../packages/server-maintenance/src/adapters/projection-lookup.ts";
@@ -3828,6 +3829,7 @@
 @source "../../../../packages/server-pos/src/adapters/native-pos-list-reads.ts";
 @source "../../../../packages/server-pos/src/adapters/native-pos-registers-statement.ts";
 @source "../../../../packages/server-pos/src/adapters/native-pos-sale-child.ts";
+@source "../../../../packages/server-pos/src/adapters/native_customer_search/client.ts";
 @source "../../../../packages/server-pos/src/adapters/native_room_charges/client.ts";
 @source "../../../../packages/server-pos/src/adapters/platform-owner-projection-sources.ts";
 @source "../../../../packages/server-pos/src/adapters/pms-command-facts.ts";
@@ -4318,6 +4320,7 @@
 @source "../../../../packages/server-runtime/src/public/hospitality-owner-projection-sources.ts";
 @source "../../../../packages/server-runtime/src/public/http.ts";
 @source "../../../../packages/server-runtime/src/public/native-engineering-roster.ts";
+@source "../../../../packages/server-runtime/src/public/native-http.ts";
 @source "../../../../packages/server-runtime/src/public/platform-owner-projection-sources.ts";
 @source "../../../../packages/server-runtime/src/public/presentation-configuration.ts";
 @source "../../../../packages/server-runtime/src/public/presentation-queries.ts";

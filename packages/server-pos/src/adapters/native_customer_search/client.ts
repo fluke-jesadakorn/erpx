@@ -1,5 +1,6 @@
 import "server-only";
 import { ApiError } from "@erpx/server-runtime/public/http";
+import { nativeRequest } from "@erpx/server-runtime/public/native-http";
 import { holdingResources } from "@erpx/server-runtime/public/runtime";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
@@ -202,13 +203,7 @@ export async function nativePosCustomerSearch(
   });
   let response: Response;
   try {
-    response = await fetch(url, {
-      method: "GET",
-      headers: Object.fromEntries(headers),
-      cache: "no-store",
-      redirect: "error",
-      signal: AbortSignal.timeout(config.timeoutMs),
-    });
+    response = await nativeRequest(url, { method: "GET", headers: Object.fromEntries(headers) }, config.timeoutMs);
   } catch {
     return unavailable();
   }
