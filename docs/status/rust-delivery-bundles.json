@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15226,
+    "revision": 15230,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261126-j",
+      "runId": "run-20261126-k",
       "agentId": "lead",
-      "startedAt": "2026-11-26T16:10:06.131Z",
-      "heartbeatAt": "2026-11-26T16:10:06.131Z",
-      "expiresAt": "2026-11-26T16:40:06.132Z",
-      "generation": 187,
-      "tokenHash": "d40aac4714c28dd39b2877caf35e051d2da5afc54907b2f5d13e99a9821a543b"
+      "startedAt": "2026-11-26T16:41:22.947Z",
+      "heartbeatAt": "2026-11-26T16:41:22.947Z",
+      "expiresAt": "2026-11-26T17:11:22.948Z",
+      "generation": 188,
+      "tokenHash": "6dc1ca2af45312fcfcd41f5f2283f82bb69cccbf11e9daceb8fb2d0789df3383"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -210024,10 +210024,17 @@
           "owner:identity_access",
           "route:account"
         ],
-        "nextAction": "Native Account profile read committed; mount account_profile_read_router and flip feature-account GET to the native transport.",
-        "claim": null,
+        "nextAction": "Account profile GET and preference GET are native; next feature-account slice needs its own bounded inventory.",
+        "claim": {
+          "runId": "run-20261126-k",
+          "agentId": "lead",
+          "claimedAt": "2026-11-26T16:42:45.571Z",
+          "heartbeatAt": "2026-11-26T16:42:45.571Z",
+          "expiresAt": "2026-11-26T17:12:45.571Z",
+          "generation": 188
+        },
         "baseSha": null,
-        "implementedCommit": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
+        "implementedCommit": "7e567f588803a3cd546476251f38e9d53545ee2b",
         "lastPushedSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6",
         "checks": [
           {
@@ -210054,10 +210061,33 @@
             "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/identity_access/native-account-profile-parity.test.ts",
             "result": "passed",
             "sourceSha": "bb19c972838c1d479187ac1a61a7923e1e5192f6"
+          },
+          {
+            "command": "bunx vitest run --config tests/config/vitest.unit.config.mts tests/unit/identity_access/account-preferences-native-boundary.test.ts tests/unit/identity_access/account-preferences-client.test.ts",
+            "result": "passed",
+            "sourceSha": "7e567f588",
+            "note": "56/56; GET profile/preferences use the native owner; PATCH guard unchanged"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "7e567f588",
+            "note": "full workspace"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "7e567f588"
+          },
+          {
+            "command": "native account profile + account page",
+            "result": "passed",
+            "sourceSha": "7e567f588",
+            "note": "nativeAccountProfile('usr_mali') returned Mali Srisai; https://account-dev-erpx.jesadakorn.com/ 200 with the seeded session"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "handoff": {
           "runId": "run-20261126-g",
           "agentId": "lead",
@@ -212784,7 +212814,7 @@
         "goalId": "G4",
         "owner": "records",
         "kind": "migration",
-        "status": "ready_for_integration",
+        "status": "integrating",
         "title": "feature-records routes native execution",
         "scope": "Inventory feature-records routes and port one bounded read/command to Rust with real SQL execution and complete payload parity.",
         "workflowIds": [],
@@ -212800,7 +212830,14 @@
           "route:records-feature"
         ],
         "nextAction": "Native Records search owner SQL compiled/tested; router mount and shared GET cutover pending.",
-        "claim": null,
+        "claim": {
+          "runId": "run-20261126-k",
+          "agentId": "worker-records-14",
+          "claimedAt": "2026-11-26T16:41:26.513Z",
+          "heartbeatAt": "2026-11-26T16:41:26.513Z",
+          "expiresAt": "2026-11-26T17:11:26.513Z",
+          "generation": 188
+        },
         "baseSha": null,
         "implementedCommit": "3cbd0350c675ab420131cdd1870ed5d73c07a224",
         "lastPushedSha": "3cbd0350c675ab420131cdd1870ed5d73c07a224",
@@ -212837,7 +212874,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "handoff": {
           "runId": "run-20261126-i",
           "agentId": "lead",
@@ -215494,16 +215531,16 @@
       "statusCounts": {
         "pending": 14,
         "in_progress": 0,
-        "ready_for_integration": 146,
-        "integrating": 0,
+        "ready_for_integration": 145,
+        "integrating": 1,
         "migrated": 369,
         "blocked": 1915,
         "deferred": 2,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 187,
-    "updatedAt": "2026-11-26T16:10:06.137Z",
+    "lastCoordinatorGeneration": 188,
+    "updatedAt": "2026-11-26T16:47:01.397Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
@@ -215538,10 +215575,10 @@
       }
     },
     "lastRecovery": {
-      "previousRunId": "run-20261126-i",
-      "runId": "run-20261126-j",
-      "at": "2026-11-26T16:10:06.132Z",
-      "reason": "Lead takeover after stale coordinator heartbeat; no active task claims.",
+      "previousRunId": "run-20261126-j",
+      "runId": "run-20261126-k",
+      "at": "2026-11-26T16:41:22.948Z",
+      "reason": "Heartbeat gap during seed verification; no task claims.",
       "wipReviewed": true,
       "previousRunStopped": true
     },
