@@ -1637,6 +1637,7 @@
 @source "../../../../packages/server-runtime/src/public/db/auth-schema.ts";
 @source "../../../../packages/server-runtime/src/public/http.ts";
 @source "../../../../packages/server-runtime/src/public/native-engineering-roster.ts";
+@source "../../../../packages/server-runtime/src/public/native-http.ts";
 @source "../../../../packages/server-runtime/src/public/presentation-configuration.ts";
 @source "../../../../packages/server-runtime/src/public/runtime.ts";
 @source "../../../../packages/server-runtime/src/public/runtime/env.ts";

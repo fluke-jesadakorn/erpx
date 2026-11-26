@@ -1,5 +1,6 @@
 import 'server-only';
 import { ApiError } from '@erpx/server-runtime/public/http';
+import { nativeRequest } from '@erpx/server-runtime/public/native-http';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 import { nativeLane2Config } from '../native-lane-2/client';
 
@@ -127,6 +128,7 @@ const parseInvoices = (payload: unknown): InvoiceRow[] => {
 export async function financeInvoiceListNative(
   actor: NativeActor,
   limit = 100,
+  send?: (url: URL, init: RequestInit) => Promise<Response>,
 ): Promise<InvoiceRow[]> {
   const { resolved, target } = selectTarget(actor);
   if (!Number.isFinite(limit)) return fail(422);
@@ -137,7 +139,7 @@ export async function financeInvoiceListNative(
   );
   let response: Response;
   try {
-    response = await fetch(url, {
+    const init: RequestInit = {
       method: 'GET',
       headers: {
         host: target.host,
@@ -149,7 +151,14 @@ export async function financeInvoiceListNative(
       cache: 'no-store',
       redirect: 'error',
       signal: AbortSignal.timeout(resolved.timeoutMs),
-    });
+    };
+    response = send
+      ? await send(url, init)
+      : await nativeRequest(url, {
+          method: 'GET',
+          headers: Object.fromEntries(new Headers(init.headers).entries()),
+          signal: init.signal ?? undefined,
+        }, resolved.timeoutMs);
   } catch {
     return fail();
   }

@@ -60,8 +60,7 @@ describe('native Finance lane 7 invoice-list transport', () => {
 
   it('returns every retired invoice column from the owner and binds the exact Holding context', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ data: [invoice] }));
-    vi.stubGlobal('fetch', fetchMock);
-    expect(await financeInvoiceListNative(actor)).toEqual([invoice]);
+    expect(await financeInvoiceListNative(actor, 100, fetchMock)).toEqual([invoice]);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
     expect(url.toString()).toBe(
@@ -75,26 +74,24 @@ describe('native Finance lane 7 invoice-list transport', () => {
 
   it('clamps the caller limit to the same owner bound as the retired read', async () => {
     const fetchMock = vi.fn(async () => jsonResponse({ data: [invoice] }));
-    vi.stubGlobal('fetch', fetchMock);
-    await financeInvoiceListNative(actor, 5000);
+    await financeInvoiceListNative(actor, 5000, fetchMock);
     const [url] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
     expect(url.searchParams.get('limit')).toBe('100');
-    await financeInvoiceListNative(actor, 0);
+    await financeInvoiceListNative(actor, 0, fetchMock);
     const [zeroUrl] = fetchMock.mock.calls[1] as unknown as [URL, RequestInit];
     expect(zeroUrl.searchParams.get('limit')).toBe('1');
   });
 
   it('fails closed on an unknown Holding, a company mismatch and a missing config', async () => {
     const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
     await expect(
-      financeInvoiceListNative({ ...actor, holdingSlug: 'other' }),
+      financeInvoiceListNative({ ...actor, holdingSlug: 'other' }, 100, fetchMock),
     ).rejects.toMatchObject({ status: 409, code: 'WORK_CONTEXT_CHANGED' });
     await expect(
-      financeInvoiceListNative({ ...actor, companyId: 'other-co' }),
+      financeInvoiceListNative({ ...actor, companyId: 'other-co' }, 100, fetchMock),
     ).rejects.toMatchObject({ status: 409, code: 'WORK_CONTEXT_CHANGED' });
     delete process.env[NATIVE_FINANCE_LANE_2_CONFIG_KEY];
-    await expect(financeInvoiceListNative(actor)).rejects.toMatchObject({
+    await expect(financeInvoiceListNative(actor, 100, fetchMock)).rejects.toMatchObject({
       status: 503,
       code: 'FINANCE_NATIVE_LANE_7_UNAVAILABLE',
     });
@@ -102,11 +99,8 @@ describe('native Finance lane 7 invoice-list transport', () => {
   });
 
   it('fails closed on a partial row rather than emitting a truncated payload', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(jsonResponse({ data: [{ id: 'inv-1' }] })),
-    );
-    await expect(financeInvoiceListNative(actor)).rejects.toMatchObject({
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ data: [{ id: 'inv-1' }] }));
+    await expect(financeInvoiceListNative(actor, 100, fetchMock)).rejects.toMatchObject({
       status: 502,
       code: 'FINANCE_NATIVE_LANE_7_UNAVAILABLE',
     });

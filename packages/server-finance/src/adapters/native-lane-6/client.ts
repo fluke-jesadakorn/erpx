@@ -1,5 +1,6 @@
 import 'server-only';
 import { ApiError } from '@erpx/server-runtime/public/http';
+import { nativeRequest } from '@erpx/server-runtime/public/native-http';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 import { nativeLane2Config } from '../native-lane-2/client';
 
@@ -103,7 +104,10 @@ const parseCharts = (payload: unknown): ChartRow[] => {
 };
 
 /** Read the full owner-owned chart list for one bounded Company. */
-export async function financeChartListNative(actor: NativeActor): Promise<ChartRow[]> {
+export async function financeChartListNative(
+  actor: NativeActor,
+  send?: (url: URL, init: RequestInit) => Promise<Response>,
+): Promise<ChartRow[]> {
   const { resolved, target } = selectTarget(actor);
   const url = new URL(
     `/api/v1/holdings/${encodeURIComponent(target.holdingSlug)}/finance/native-lane-6/chart-list`,
@@ -111,7 +115,7 @@ export async function financeChartListNative(actor: NativeActor): Promise<ChartR
   );
   let response: Response;
   try {
-    response = await fetch(url, {
+    const init: RequestInit = {
       method: 'GET',
       headers: {
         host: target.host,
@@ -123,7 +127,14 @@ export async function financeChartListNative(actor: NativeActor): Promise<ChartR
       cache: 'no-store',
       redirect: 'error',
       signal: AbortSignal.timeout(resolved.timeoutMs),
-    });
+    };
+    response = send
+      ? await send(url, init)
+      : await nativeRequest(url, {
+          method: 'GET',
+          headers: Object.fromEntries(new Headers(init.headers).entries()),
+          signal: init.signal ?? undefined,
+        }, resolved.timeoutMs);
   } catch {
     return fail();
   }

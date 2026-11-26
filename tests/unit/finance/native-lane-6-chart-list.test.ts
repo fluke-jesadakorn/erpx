@@ -60,8 +60,7 @@ describe('native Finance lane 6 chart-list transport', () => {
 
   it('returns every chart column from the owner and binds the exact Holding context', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ data: [chart] }));
-    vi.stubGlobal('fetch', fetchMock);
-    expect(await financeChartListNative(actor)).toEqual([chart]);
+    expect(await financeChartListNative(actor, fetchMock)).toEqual([chart]);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0] as [URL, RequestInit];
     expect(url.toString()).toBe(
@@ -75,15 +74,14 @@ describe('native Finance lane 6 chart-list transport', () => {
 
   it('fails closed on an unknown Holding, a company mismatch and a missing config', async () => {
     const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
     await expect(
-      financeChartListNative({ ...actor, holdingSlug: 'other' }),
+      financeChartListNative({ ...actor, holdingSlug: 'other' }, fetchMock),
     ).rejects.toMatchObject({ status: 409, code: 'WORK_CONTEXT_CHANGED' });
     await expect(
-      financeChartListNative({ ...actor, companyId: 'other-co' }),
+      financeChartListNative({ ...actor, companyId: 'other-co' }, fetchMock),
     ).rejects.toMatchObject({ status: 409, code: 'WORK_CONTEXT_CHANGED' });
     delete process.env[NATIVE_FINANCE_LANE_2_CONFIG_KEY];
-    await expect(financeChartListNative(actor)).rejects.toMatchObject({
+    await expect(financeChartListNative(actor, fetchMock)).rejects.toMatchObject({
       status: 503,
       code: 'FINANCE_NATIVE_LANE_6_UNAVAILABLE',
     });
@@ -91,11 +89,8 @@ describe('native Finance lane 6 chart-list transport', () => {
   });
 
   it('fails closed on a partial row rather than emitting a truncated payload', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(jsonResponse({ data: [{ name: 'no id' }] })),
-    );
-    await expect(financeChartListNative(actor)).rejects.toMatchObject({
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ data: [{ name: 'no id' }] }));
+    await expect(financeChartListNative(actor, fetchMock)).rejects.toMatchObject({
       status: 502,
       code: 'FINANCE_NATIVE_LANE_6_UNAVAILABLE',
     });
