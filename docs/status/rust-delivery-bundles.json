@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15247,
+    "revision": 15250,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -213804,10 +213804,10 @@
           "owner:finance",
           "route:finance-feature-2"
         ],
-        "nextAction": "Native finance invoice list compiled/tested and mounted; shared finance route cutover pending.",
+        "nextAction": "Finance workspace read is live on the native command-plan mount; next Finance family.",
         "claim": null,
         "baseSha": null,
-        "implementedCommit": "f88d1ffa536a39e15931d4fc55225a96b0083822",
+        "implementedCommit": "2e66dd0ec9aa9cf9b65af691facb7275d84343b3",
         "lastPushedSha": "f88d1ffa536a39e15931d4fc55225a96b0083822",
         "checks": [
           {
@@ -213839,17 +213839,29 @@
             "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/finance/native-lane-7-invoice-list.test.ts tests/unit/finance/native-finance-read-plan.test.ts",
             "result": "passed",
             "sourceSha": "f88d1ffa536a39e15931d4fc55225a96b0083822"
+          },
+          {
+            "command": "cargo test -p erpx-server-finance --lib --locked",
+            "result": "passed",
+            "sourceSha": "2e66dd0ec9aa9cf9b65af691facb7275d84343b3",
+            "note": "195/195"
+          },
+          {
+            "command": "GET https://acme.jesadakorn.com/api/v1/holdings/acme/finance",
+            "result": "passed",
+            "sourceSha": "2e66dd0ec9aa9cf9b65af691facb7275d84343b3",
+            "note": "200 with native charts, journals, invoices, payments and report"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-i",
-          "agentId": "w2-finance",
-          "at": "2026-11-26T14:26:59.822Z",
+          "runId": "run-20261127-a",
+          "agentId": "lead",
+          "at": "2026-11-26T18:19:50.219Z",
           "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Native finance invoice list compiled/tested and mounted; shared finance route cutover pending."
+          "reason": "released with work preserved",
+          "nextAction": "Finance workspace read is live on the native command-plan mount; next Finance family."
         },
         "scopeRefinementRequired": false
       },
@@ -215577,7 +215589,7 @@
       }
     },
     "lastCoordinatorGeneration": 189,
-    "updatedAt": "2026-11-26T17:57:35.497Z",
+    "updatedAt": "2026-11-26T18:19:50.223Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
