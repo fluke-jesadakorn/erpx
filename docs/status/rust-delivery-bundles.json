@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15070,
+    "revision": 15099,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261126-i",
       "agentId": "lead",
       "startedAt": "2026-11-26T13:47:07.933Z",
-      "heartbeatAt": "2026-11-26T13:47:25.782Z",
-      "expiresAt": "2026-11-26T14:17:25.782Z",
+      "heartbeatAt": "2026-11-26T14:09:16.798Z",
+      "expiresAt": "2026-11-26T14:39:16.798Z",
       "generation": 186,
       "tokenHash": "b51d0f715bf58ecc821ed7d7078f9f9757ecea4f1ea36272578ca0a9935549a1"
     },
@@ -213108,6 +213108,428 @@
           "nextAction": "Native supplier-bill detail compiled/tested; composition backend and route cutover pending."
         },
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "cut.identity.iam-session-list",
+        "goalId": "G4",
+        "owner": "identity_access",
+        "kind": "migration",
+        "status": "ready_for_integration",
+        "title": "Route the IAM session-list read through the mounted native session lane and retire the TS SELECT.",
+        "scope": "Route the IAM session-list read through the mounted native session lane and retire the TS SELECT. Use the mounted native transport, fail closed without it, and delete only the retired TypeScript authority.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-identity_access/src/adapters/iam-service-reads.ts",
+          "packages/server-identity_access/src/application/iam-service-reads.ts",
+          "packages/server-identity_access/src/public/**",
+          "packages/feature-account/src/routes/api/v1/account/iam/**",
+          "apps/account/src/app/api/v1/account/iam/**",
+          "apps/compat/src/app/api/v1/account/iam/**",
+          "tests/unit/identity_access/**"
+        ],
+        "resources": [
+          "cutover:identity_access"
+        ],
+        "nextAction": "Native IAM ownSessions read cut; retained iam-api session probe and integration oracle need a separate cutover task.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "f00feb722bf7e773e87973703791fe59defbbc36",
+        "lastPushedSha": "f00feb722bf7e773e87973703791fe59defbbc36",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          },
+          {
+            "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/identity_access/native-session-list-transport.test.ts",
+            "result": "passed",
+            "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261126-i",
+          "agentId": "w-identity.iam-session-list",
+          "at": "2026-11-26T14:09:15.176Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native IAM ownSessions read cut; retained iam-api session probe and integration oracle need a separate cutover task."
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "cut.organization.draft-route",
+        "goalId": "G4",
+        "owner": "organization",
+        "kind": "migration",
+        "status": "ready_for_integration",
+        "title": "Switch the organization/drafts GET to the native draft read and delete the TS GET authority.",
+        "scope": "Switch the organization/drafts GET to the native draft read and delete the TS GET authority. Use the mounted native transport, fail closed without it, and delete only the retired TypeScript authority.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/people/**",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/people/**",
+          "apps/learn/src/app/api/v1/holdings/[holdingSlug]/people/**",
+          "apps/people/src/app/api/v1/holdings/[holdingSlug]/people/**",
+          "apps/projects/src/app/api/v1/holdings/[holdingSlug]/people/**",
+          "packages/feature-organization/src/adapters/server/native-organization.ts",
+          "packages/feature-organization/src/lib/native-organization.ts",
+          "packages/server-organization/src/adapters/organization-drafts.ts",
+          "packages/server-organization/src/application/organization-drafts.ts",
+          "packages/server-organization/src/public/organization-drafts.ts",
+          "tests/unit/organization/**"
+        ],
+        "resources": [
+          "cutover:organization"
+        ],
+        "nextAction": "Native organization/drafts GET cut with 503 fail-closed; retained TS command read oracle remains for command tests.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "f00feb722bf7e773e87973703791fe59defbbc36",
+        "lastPushedSha": "f00feb722bf7e773e87973703791fe59defbbc36",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          },
+          {
+            "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/organization/native-organization-draft-read.test.ts",
+            "result": "passed",
+            "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261126-i",
+          "agentId": "w-organization.draft-route",
+          "at": "2026-11-26T14:09:15.466Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native organization/drafts GET cut with 503 fail-closed; retained TS command read oracle remains for command tests."
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "cut.customer_authority.access-sources",
+        "goalId": "G4",
+        "owner": "customer_authority",
+        "kind": "migration",
+        "status": "ready_for_integration",
+        "title": "Switch customer-access sources to the native owner read and retire the TS plan bridge.",
+        "scope": "Switch customer-access sources to the native owner read and retire the TS plan bridge. Use the mounted native transport, fail closed without it, and delete only the retired TypeScript authority.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/customer-access/**",
+          "apps/sales/src/app/api/v1/holdings/[holdingSlug]/customer-access/**",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/customer-access/**",
+          "packages/server-customer_authority/src/adapters/access.ts",
+          "packages/server-customer_authority/src/application/access.ts",
+          "packages/server-customer_authority/src/public/customer-access.ts",
+          "packages/feature-customer_authority/src/lib/access-sources.ts",
+          "packages/feature-customer_authority/package.json",
+          "tests/unit/customer_authority/**"
+        ],
+        "resources": [
+          "cutover:customer_authority"
+        ],
+        "nextAction": "Native customer-access sources GET cut; workspace source reader retained for the console until its presenter migration.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "f00feb722bf7e773e87973703791fe59defbbc36",
+        "lastPushedSha": "f00feb722bf7e773e87973703791fe59defbbc36",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          },
+          {
+            "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/customer_authority/access-sources-native.test.ts tests/unit/customer_authority/native-owner-read-history.test.ts",
+            "result": "passed",
+            "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261126-i",
+          "agentId": "w-customer_authority.access-sources",
+          "at": "2026-11-26T14:09:15.764Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native customer-access sources GET cut; workspace source reader retained for the console until its presenter migration."
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "cut.support.sla-policy-read",
+        "goalId": "G4",
+        "owner": "support",
+        "kind": "migration",
+        "status": "ready_for_integration",
+        "title": "Switch Support SLA policy point/work reads to the native owner read and delete the TS bridge.",
+        "scope": "Switch Support SLA policy point/work reads to the native owner read and delete the TS bridge. Use the mounted native transport, fail closed without it, and delete only the retired TypeScript authority.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/server-support/src/adapters/support-sla.ts",
+          "packages/server-support/src/application/support-sla.ts",
+          "packages/server-support/src/domain/support-sla.ts",
+          "packages/server-support/src/public/support-sla.ts",
+          "packages/server-support/src/adapters/native-support-read.ts",
+          "packages/server-work_projection/src/adapters/work-items.ts",
+          "packages/server-collaboration/src/adapters/staff-notifications.ts",
+          "packages/server-collaboration/src/application/staff-notifications.ts",
+          "tests/unit/support/**"
+        ],
+        "resources": [
+          "cutover:support"
+        ],
+        "nextAction": "Native SLA policy point/work cut for all server callers; support-sla integration oracle still needs native transport config.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "f00feb722bf7e773e87973703791fe59defbbc36",
+        "lastPushedSha": "f00feb722bf7e773e87973703791fe59defbbc36",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          },
+          {
+            "command": "cargo test -p erpx-server-support --test sla_policy_read --locked",
+            "result": "passed",
+            "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          },
+          {
+            "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/support/sla-policy-native-read.test.ts tests/unit/support/support-services.test.ts",
+            "result": "passed",
+            "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261126-i",
+          "agentId": "w-support.sla-policy-read",
+          "at": "2026-11-26T14:09:16.065Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Native SLA policy point/work cut for all server callers; support-sla integration oracle still needs native transport config."
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "cut.billing.forecast-route",
+        "goalId": "G4",
+        "owner": "billing",
+        "kind": "migration",
+        "status": "ready_for_integration",
+        "title": "Switch billing forecast routes to the native forecast backend and delete the TS retention.",
+        "scope": "Switch billing forecast routes to the native forecast backend and delete the TS retention. Use the mounted native transport, fail closed without it, and delete only the retired TypeScript authority.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/billing/forecast/**",
+          "packages/feature-admin/src/routes/api/v1/platform/billing/forecast/**",
+          "apps/admin/src/app/api/v1/holdings/[holdingSlug]/billing/forecast/**",
+          "apps/admin/src/app/api/v1/platform/billing/forecast/**",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/billing/forecast/**",
+          "apps/compat/src/app/api/v1/platform/billing/forecast/**",
+          "packages/server-billing/src/adapters/billing-forecast.ts",
+          "packages/server-billing/src/application/forecast.ts",
+          "packages/server-billing/src/domain/forecast.ts",
+          "packages/server-billing/src/public/billing-forecast.ts",
+          "tests/unit/billing/**"
+        ],
+        "resources": [
+          "cutover:billing"
+        ],
+        "nextAction": "Holding and platform billing forecast routes cut to the native client; TS reader retained for integration oracle and feature type import.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "f00feb722bf7e773e87973703791fe59defbbc36",
+        "lastPushedSha": "f00feb722bf7e773e87973703791fe59defbbc36",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          },
+          {
+            "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/commercial/billing-forecast-routes.test.ts",
+            "result": "passed",
+            "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261126-i",
+          "agentId": "w-billing.forecast-route",
+          "at": "2026-11-26T14:09:16.376Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Holding and platform billing forecast routes cut to the native client; TS reader retained for integration oracle and feature type import."
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "cut.field_service.part-reservation",
+        "goalId": "G4",
+        "owner": "field_service",
+        "kind": "migration",
+        "status": "ready_for_integration",
+        "title": "Switch the Field Service part-reservation readback to the mounted native route and retire the TS validator.",
+        "scope": "Switch the Field Service part-reservation readback to the mounted native route and retire the TS validator. Use the mounted native transport, fail closed without it, and delete only the retired TypeScript authority.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-service/src/routes/api/v1/holdings/[holdingSlug]/field-service/**",
+          "apps/service/src/app/api/v1/holdings/[holdingSlug]/field-service/**",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/field-service/**",
+          "packages/feature-field_service/src/lib/native-reserve-command.ts",
+          "tests/unit/field_service/**"
+        ],
+        "resources": [
+          "cutover:field_service"
+        ],
+        "nextAction": "Field part-reservation readback cut to the mounted native route; other reserve readbacks retained.",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "f00feb722bf7e773e87973703791fe59defbbc36",
+        "lastPushedSha": "f00feb722bf7e773e87973703791fe59defbbc36",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --no-default-features --features private-development-api,existing-business --bin erpx-server --locked",
+            "result": "passed",
+            "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          },
+          {
+            "command": "bunx tsc --noEmit",
+            "result": "passed",
+            "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          },
+          {
+            "command": "bunx tsc --noEmit --project tests/config/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          },
+          {
+            "command": "cargo test -p erpx-server-field-service --test reservation_part_postgres --locked",
+            "result": "passed",
+            "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          },
+          {
+            "command": "bunx vitest run --config .scratch/lanes/vitest-local.config.mts tests/unit/field_service/native-reserve.test.ts tests/unit/field_service/part-reservation-native-cutover.test.ts",
+            "result": "passed",
+            "sourceSha": "f00feb722bf7e773e87973703791fe59defbbc36"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261126-i",
+          "agentId": "w-field_service.part-reservation",
+          "at": "2026-11-26T14:09:16.654Z",
+          "previousStatus": "ready_for_integration",
+          "reason": "handoff",
+          "nextAction": "Field part-reservation readback cut to the mounted native route; other reserve readbacks retained."
+        },
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -213116,12 +213538,12 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 2411,
+      "totalPackets": 2417,
       "migratedPackets": 369,
       "statusCounts": {
         "pending": 14,
         "in_progress": 0,
-        "ready_for_integration": 111,
+        "ready_for_integration": 117,
         "integrating": 0,
         "migrated": 369,
         "blocked": 1915,
@@ -213130,7 +213552,7 @@
       }
     },
     "lastCoordinatorGeneration": 186,
-    "updatedAt": "2026-11-26T13:47:25.787Z",
+    "updatedAt": "2026-11-26T14:09:16.801Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
