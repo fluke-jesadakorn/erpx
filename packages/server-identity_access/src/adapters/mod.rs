@@ -1,5 +1,7 @@
 pub(crate) mod account_credentials_http;
 pub(crate) mod account_credentials_postgres;
+pub(crate) mod account_profile_http;
+pub(crate) mod account_profile_postgres;
 pub(crate) mod account_crypto;
 pub(crate) mod account_http;
 pub(crate) mod account_invitations_http;

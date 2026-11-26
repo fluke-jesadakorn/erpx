@@ -14,6 +14,7 @@ pub mod portal_read;
 pub use crate::adapters::portal_read::{bind, BoundPlan, ReadScope};
 pub mod portal_session;
 pub mod portal_support_commands;
+pub mod portal_support_threads;
 
 pub mod portal_commerce_locks;
 pub mod native_lane_35;

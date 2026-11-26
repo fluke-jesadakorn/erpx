@@ -7,3 +7,4 @@ pub mod portal_invitation_delivery;
 pub mod portal_invitations;
 pub mod portal_session;
 pub(crate) mod portal_support_commands;
+pub(crate) mod portal_support_threads;

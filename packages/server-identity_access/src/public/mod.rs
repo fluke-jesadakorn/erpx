@@ -1,5 +1,6 @@
 pub mod account_contracts;
 pub mod account_mail;
+pub mod account_profile_read;
 pub mod account_sessions;
 pub mod account_sso;
 pub mod account_time_preference;

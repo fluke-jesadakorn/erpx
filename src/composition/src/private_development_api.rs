@@ -475,6 +475,15 @@ pub struct DevelopmentApiConfiguration {
 }
 
 impl DevelopmentApiConfiguration {
+    /// Registered public product hosts, in configuration order.
+    pub(crate) fn product_hosts(&self) -> Vec<String> {
+        self.policy
+            .products
+            .iter()
+            .map(|product| product.host.clone())
+            .collect()
+    }
+
     /// First registered Company for a Holding across the explicit owner scopes.
     /// Used by lane mounts that need a Company identity for a per-Holding reader.
     pub(crate) fn holding_company(&self, holding: &HoldingId) -> Option<String> {

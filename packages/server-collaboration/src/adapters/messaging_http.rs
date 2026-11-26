@@ -16,6 +16,7 @@ use crate::adapters::messaging_http_wire::{
 use crate::adapters::messaging_native::{MessageRow, RoomView};
 use crate::adapters::messaging_teams::ChannelView;
 use crate::domain::messaging_native::{Change, HistoryCursor, Receipt as RoomReceipt};
+use crate::domain::messaging_people::Person;
 use crate::domain::messaging_teams::{Receipt as TeamReceipt, TeamSnapshot};
 use erpx_server_commercial::public::capability_decision::PurchasedAccess;
 use erpx_server_runtime::public::http_support::{
@@ -96,6 +97,16 @@ pub struct MessagingHttpReadRequest<'a> {
     pub holding_slug: &'a str,
     pub headers: &'a HeaderMap,
     pub kind: MessagingReadKind,
+}
+
+/// One bounded people-picker read. The caller supplies only a search string
+/// and an optional team; the Company and clock come from the bound Holding.
+pub struct MessagingPeopleRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub headers: &'a HeaderMap,
+    pub search: Option<&'a str>,
+    pub team_id: Option<&'a str>,
 }
 
 #[derive(Clone)]
@@ -241,6 +252,21 @@ pub trait MessagingHttpBackend: Send + Sync {
         &'a self,
         request: MessagingFileDiscardRequest<'a>,
     ) -> MessagingHttpFuture<'a, MessagingFileDiscardReceipt>;
+
+    /// Native people picker. The owner SQL reader is bound by composition;
+    /// the default fails closed rather than returning an invented rowset.
+    fn people<'a>(
+        &'a self,
+        _request: MessagingPeopleRequest<'a>,
+    ) -> MessagingHttpFuture<'a, Vec<Person>> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "MESSAGING_PEOPLE_PORT_UNAVAILABLE",
+                "The native Messaging people reader is unavailable.",
+            ))
+        })
+    }
 }
 
 #[derive(Clone)]
@@ -281,6 +307,16 @@ impl MessagingHttpState {
     }
 }
 
+/// Bounded selector for the people picker. Both fields are optional; an
+/// over-long value is rejected before the owner reader is reached.
+#[derive(Deserialize)]
+pub struct PeopleQueryParams {
+    #[serde(default)]
+    pub q: Option<String>,
+    #[serde(default)]
+    pub team: Option<String>,
+}
+
 #[derive(Deserialize)]
 pub struct HistoryQuery {
     #[serde(default)]
@@ -315,6 +351,10 @@ pub fn messaging_router(targets: Vec<MessagingHttpTarget>) -> Result<Router, Bus
         .route(
             "/api/v1/holdings/{holding_slug}/messaging",
             get(read_overview),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/messaging/people",
+            get(read_people),
         )
         .route(
             "/api/v1/holdings/{holding_slug}/messaging/rooms",
@@ -437,6 +477,40 @@ pub async fn read_overview(
         },
     )
     .await
+}
+
+/// Native replacement for the retained `GET /messaging/people` authority.
+/// The response is the complete `{id,name,email}` array; there is no partial
+/// native rowset for a TypeScript caller to reconcile.
+pub async fn read_people(
+    State(state): State<Arc<MessagingHttpState>>,
+    Path(slug): Path<String>,
+    Query(query): Query<PeopleQueryParams>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let result = async {
+        crate::domain::messaging_people::PeopleQuery::new(
+            query.q.as_deref(),
+            query.team.as_deref(),
+        )?;
+        let target = target(&state, &headers, &slug)?;
+        target
+            .backend
+            .people(MessagingPeopleRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &headers,
+                search: query.q.as_deref(),
+                team_id: query.team.as_deref(),
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(people) => bounded(serde_json::json!(people)),
+        Err(error) => error_response(error),
+    }
 }
 
 fn reply<F, G>(

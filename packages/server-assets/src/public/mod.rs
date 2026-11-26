@@ -7,6 +7,7 @@ pub mod field_service_reference;
 
 pub mod field_service_workspace;
 
+pub mod native_asset_read;
 pub mod native_read;
 pub mod native_read_http;
 pub use crate::adapters::native_read::{bind, BoundPlan, ReadScope};

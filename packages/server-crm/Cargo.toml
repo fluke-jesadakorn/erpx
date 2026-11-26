@@ -79,3 +79,7 @@ path = "../../tests/integration/crm/rust-crm-pipeline-postgres.test.rs"
 
 [lints]
 workspace = true
+
+[[test]]
+name = "crm_case_event_history"
+path = "../../tests/unit/crm/rust-crm-case-event-history.test.rs"

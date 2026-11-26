@@ -16,6 +16,8 @@ pub mod portal_read;
 pub mod portal_session;
 pub(crate) mod portal_support_commands;
 pub(crate) mod portal_support_commands_http;
+pub(crate) mod portal_support_threads_http;
+pub(crate) mod portal_support_threads_postgres;
 
 pub(crate) mod customer_authority_wave3_http;
 pub(crate) mod customer_authority_wave3_postgres;

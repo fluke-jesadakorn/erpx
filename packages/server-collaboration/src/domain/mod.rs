@@ -17,4 +17,6 @@ pub(crate) mod messaging_teams;
 
 pub mod web_push;
 
+pub(crate) mod messaging_people;
+
 pub mod field_inbox;

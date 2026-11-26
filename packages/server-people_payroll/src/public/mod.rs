@@ -54,3 +54,9 @@ pub mod native_lane_9;
 pub mod holding_directory {
     pub use crate::adapters::holding_directory::*;
 }
+
+/// Native active pay-group options owner port, sqlx execution and router.
+/// Composition mounts `router`/`router_with_reader`; no TypeScript SQL remains.
+pub mod native_pay_group_options {
+    pub use crate::adapters::native_pay_group_options::*;
+}

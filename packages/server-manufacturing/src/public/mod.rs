@@ -10,5 +10,7 @@ pub mod native_command_http;
 pub use crate::adapters::native_command_sql::{bind, BoundPlan, ReadScope};
 pub mod planning;
 pub mod planning_http;
+pub mod production_profiles;
+pub mod production_profiles_http;
 pub mod specification;
 pub mod native_lane_28;

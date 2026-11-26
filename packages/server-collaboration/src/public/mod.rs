@@ -22,6 +22,8 @@ pub mod messaging_teams;
 
 pub mod messaging_http;
 
+pub mod messaging_people;
+
 pub mod social_http;
 
 pub mod collaboration_work_http;

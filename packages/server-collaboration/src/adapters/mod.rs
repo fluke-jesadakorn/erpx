@@ -39,6 +39,8 @@ pub(crate) mod messaging_file_discard;
 
 pub(crate) mod messaging_pg;
 
+pub(crate) mod messaging_people_pg;
+
 pub(crate) mod inbox_pg;
 
 pub(crate) mod inbox_targets;

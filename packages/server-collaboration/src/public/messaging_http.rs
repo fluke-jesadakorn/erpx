@@ -8,10 +8,10 @@ pub use crate::adapters::messaging_http::{
     MessagingFilesPort, MessagingHistoryData, MessagingHttpAttachmentRequest, MessagingHttpBackend,
     MessagingHttpCommand, MessagingHttpCommandRequest, MessagingHttpFuture, MessagingHttpReadReply,
     MessagingHttpReadRequest, MessagingHttpReceipt, MessagingHttpState, MessagingHttpTarget,
-    MessagingMembersData, MessagingOverviewData, MessagingReadKind, bind_attachment,
-    create_channel, create_room, create_team, discard_file, manage_room, manage_team, mark_read,
-    messaging_router, read_channels, read_file, read_history, read_overview, read_room_members,
-    read_team_members, send_message,
+    MessagingMembersData, MessagingOverviewData, MessagingPeopleRequest, MessagingReadKind,
+    PeopleQueryParams, bind_attachment, create_channel, create_room, create_team, discard_file,
+    manage_room, manage_team, mark_read, messaging_router, read_channels, read_file, read_history,
+    read_overview, read_people, read_room_members, read_team_members, send_message,
 };
 pub use crate::adapters::messaging_http_wire::{
     DecodedMessagingCommand, decode_room_command, decode_team_command,

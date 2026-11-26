@@ -50,6 +50,10 @@ export function nativeMessagingAvailable(): boolean {
 async function read(request: Request, holdingSlug: string, path: string): Promise<unknown> {
   const config = configuration();
   const headers = new Headers({ accept: 'application/json' });
+  const host = request.headers.get('host');
+  const origin = request.headers.get('origin');
+  if (host) headers.set('host', host);
+  if (origin) headers.set('origin', origin);
   const cookie = request.headers.get('cookie');
   if (cookie) headers.set('cookie', cookie);
   for (const name of [
@@ -295,6 +299,40 @@ export async function nativeMessagingFileContent(
 
 export function nativeMessagingOverview(request: Request, holdingSlug: string) {
   return read(request, holdingSlug, '');
+}
+
+export type MessagingPerson = { id: string; name: string; email: string };
+
+/** Native, complete people picker. The owner executes the SQL and returns the
+ *  whole array; a malformed reply fails closed instead of falling back to the
+ *  retired TypeScript repository. */
+export async function nativeMessagingPeople(
+  request: Request,
+  holdingSlug: string,
+  query = '',
+  team?: string,
+): Promise<MessagingPerson[]> {
+  const search = new URLSearchParams();
+  if (query) search.set('q', query.slice(0, 160));
+  if (team) search.set('team', team);
+  const suffix = search.size ? `?${search.toString()}` : '';
+  const value = await read(request, holdingSlug, `/people${suffix}`);
+  if (!Array.isArray(value) || value.length > 100)
+    throw new ApiError(502, 'NATIVE_MESSAGING_PEOPLE_RESPONSE_INVALID', 'The native Messaging people reply is invalid.');
+  const seen = new Set<string>();
+  const result: MessagingPerson[] = [];
+  for (const row of value) {
+    if (
+      !row || typeof row !== 'object' || Array.isArray(row) ||
+      typeof row.id !== 'string' || !row.id ||
+      typeof row.name !== 'string' ||
+      typeof row.email !== 'string' || seen.has(row.id)
+    )
+      throw new ApiError(502, 'NATIVE_MESSAGING_PEOPLE_RESPONSE_INVALID', 'The native Messaging people reply is invalid.');
+    seen.add(row.id);
+    result.push({ id: row.id, name: row.name, email: row.email });
+  }
+  return result;
 }
 
 export function nativeMessagingMembers(

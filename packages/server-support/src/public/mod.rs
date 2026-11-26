@@ -22,6 +22,9 @@ pub mod sla;
 
 pub mod sla_drain;
 
+pub mod sla_workspace;
+pub mod sla_workspace_http;
+
 pub mod support_evidence;
 
 pub mod support_attachment;

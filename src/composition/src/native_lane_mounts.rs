@@ -233,6 +233,38 @@ pub fn mount(
         .map_err(|_| "PRIVATE_API_PMS_LANE20_INVALID")?,
     );
 
+    // Manufacturing production accounting-profile read.
+    router = router.merge(
+        erpx_server_manufacturing::public::production_profiles_http::router_for_holdings(
+            config
+                .holdings
+                .iter()
+                .enumerate()
+                .map(|(i, holding)| {
+                    (
+                        erpx_server_manufacturing::public::production_profiles_http::ProductionProfilesTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                        },
+                        pools[i + 1].clone(),
+                    )
+                })
+                .collect(),
+        )
+        .map_err(|_| "PRIVATE_API_MANUFACTURING_PRODUCTION_PROFILES_INVALID")?,
+    );
+
+    // Platform executive generation-job usage read (control pool).
+    router = router.merge(
+        erpx_server_platform_administration::public::native_platform_usage::platform_usage_router_for_hosts(
+            config.product_hosts(),
+            erpx_server_platform_administration::public::native_platform_usage::shared_reader(
+                pools[0].clone(),
+            ),
+        )
+        .map_err(|_| "PRIVATE_API_PLATFORM_USAGE_INVALID")?,
+    );
+
     // PMS home hotel-metrics read.
     router = router.merge(
         erpx_server_pms::public::home_metrics::router_for_holdings(

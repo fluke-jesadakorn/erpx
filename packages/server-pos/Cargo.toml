@@ -72,3 +72,7 @@ path = "../../tests/integration/pos/rust-pos-core-reads-postgres.test.rs"
 
 [lints]
 workspace=true
+
+[[test]]
+name = "pos_room_charges"
+path = "../../tests/unit/pos/rust-pos-room-charges.test.rs"

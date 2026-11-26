@@ -43,3 +43,7 @@ path = "../../tests/integration/support/rust-support-record-source-postgres.test
 
 [lints]
 workspace = true
+
+[[test]]
+name = "sla_workspace"
+path = "../../tests/unit/support/rust-sla-workspace.test.rs"

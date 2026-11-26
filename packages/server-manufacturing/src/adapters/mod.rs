@@ -9,5 +9,7 @@ pub mod native_command_http;
 pub mod native_command_sql;
 pub mod planning_http;
 pub(crate) mod planning_read;
+pub mod production_profiles_http;
+pub mod production_profiles_postgres;
 pub mod specification;
 pub mod native_lane_28;
