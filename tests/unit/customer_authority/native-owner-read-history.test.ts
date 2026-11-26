@@ -5,7 +5,6 @@ import {
   CA_RD_ACCESS_EVENTS,
   CA_RD_ACCESS_IDENTITIES,
   CA_RD_ACCESS_READS,
-  CA_RD_ACCESS_SOURCES,
   CA_RD_DUPLICATE_REVIEW_HISTORY,
   CA_RD_DUPLICATE_REVIEWS_PENDING,
   CA_RD_IDENTITY_CHANGE_EVENTS_ACTION,
@@ -258,8 +257,6 @@ describe('executive identity-change-events metric owner read', () => {
 });
 
 describe('customer authority portal native read port cutover', () => {
-  const support = () => new URL('../../../packages/server-customer_authority/src/adapters/portal-support.ts', import.meta.url);
-
   it('advertises the exact registered portal support/binding read discriminators', () => {
     expect(CA_RD_PORTAL_INSTALLED).toBe('portal-support.installed');
     expect(CA_RD_PORTAL_LATEST_RESPONSE).toBe('portal-support.latest-response');
@@ -287,14 +284,6 @@ describe('customer authority portal native read port cutover', () => {
     expect(body.values).toEqual(values);
     vi.unstubAllGlobals();
     delete process.env[key];
-  });
-
-  it('keeps no TypeScript SQL mirror in the staff-binding consumer', async () => {
-    const src = await readFile(support(), 'utf8');
-    expect(src).not.toContain('SELECT binding.id,binding.created_by,binding.status,binding.expires_at');
-    expect(src).toContain('CA_RD_PORTAL_STAFF_BINDING');
-    expect(src).toContain('nativeOwnerReadStatement');
-    expect(src).toContain('database.prepare(staff.sql).bind(...staff.values)');
   });
 
   it('fails closed for the portal read when the native service is unconfigured', async () => {
@@ -378,46 +367,25 @@ describe('customer authority portal native read port cutover', () => {
 });
 
 describe('customer authority access-sources native read cutover', () => {
-  const access = () => new URL('../../../packages/server-customer_authority/src/adapters/access.ts', import.meta.url);
+  const owner = (file: string) => new URL(`../../../packages/server-customer_authority/src/${file}`, import.meta.url);
 
-  it('carries the exact access-sources discriminator', () => {
-    expect(CA_RD_ACCESS_SOURCES).toBe('customer_authority_rd_access_sources');
+  it('retains the workspace source reader only and never routes GET through it', async () => {
+    const adapter = await readFile(owner('adapters/access.ts'), 'utf8');
+    expect(adapter).toContain('CA_RD_ACCESS_SOURCES');
+    const shared = await readFile(new URL('../../../packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/customer-access/route.ts', import.meta.url), 'utf8');
+    expect(shared).not.toContain('customerAccessWorkspace');
   });
 
-  it('plans the sources read on the caller unit with the five work-scope binds', async () => {
-    process.env[key] = config();
-    const values = ['company', 'branch', 'branch', null, null];
-    const sql = 'SELECT o.id,o.number,o.version,p.name FROM (orders) o JOIN (parties) p ON p.id=o.party_id AND p.company_id=o.company_id WHERE o.company_id=? AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?) AND o.kind IN (\'sales\',\'quote\') AND o.state IN (\'confirmed\',\'converted\',\'partially_fulfilled\',\'fulfilled\') ORDER BY o.updated_at DESC LIMIT 250';
-    const fetchMock = vi.fn(async () => new Response(
-      JSON.stringify({ data: { statements: [{ sql, values }] } }),
-      { status: 200, headers: { 'content-type': 'application/json' } },
-    ));
-    vi.stubGlobal('fetch', fetchMock);
-    const seen: { sql: string; values: unknown[] }[] = [];
-    const db = {
-      prepare: (statement: string) => ({
-        bind: (...bound: unknown[]) => {
-          seen.push({ sql: statement, values: bound });
-          return { all: async () => ({ results: [{ id: 'order' }] }) };
-        },
-      }),
-    };
-    const result = await nativeOwnerReadAll(CA_RD_ACCESS_SOURCES, values, db as never, 'acme');
-    expect(result.results).toEqual([{ id: 'order' }]);
-    expect(seen).toEqual([{ sql, values }]);
-    const body = JSON.parse(((fetchMock.mock.calls[0] as unknown as [URL, RequestInit])[1] as RequestInit).body as string);
-    expect(body.kind).toBe('customer_authority_rd_access_sources');
-    expect(body.values).toEqual(values);
-    vi.unstubAllGlobals();
-    delete process.env[key];
-  });
-
-  it('keeps no TypeScript SQL mirror for the sources read', async () => {
-    const src = await readFile(access(), 'utf8');
-    expect(src).not.toContain('SELECT o.id,o.number,o.version,p.name');
-    expect(src).not.toContain('financeProjectionSources');
-    expect(src).toContain('CA_RD_ACCESS_SOURCES');
-    expect(src).toContain('nativeOwnerReadAll<Row>(CA_RD_ACCESS_SOURCES,args(a),write,a.holdingSlug)');
+  it('routes the shared GET through the native sources handler in both apps', async () => {
+    const shared = await readFile(new URL('../../../packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/customer-access/route.ts', import.meta.url), 'utf8');
+    expect(shared).not.toContain('customerAccessWorkspace');
+    for (const app of ['sales', 'compat']) {
+      const route = await readFile(new URL(`../../../apps/${app}/src/app/api/v1/holdings/[holdingSlug]/customer-access/route.ts`, import.meta.url), 'utf8');
+      expect(route).toContain('nativeCustomerAccessSourcesGet as GET');
+      expect(route).toContain('POST');
+    }
+    const manifest = JSON.parse(await readFile(new URL('../../../packages/feature-customer_authority/package.json', import.meta.url), 'utf8')) as { exports: Record<string, string> };
+    expect(manifest.exports['./lib/access-sources']).toBe('./src/lib/access-sources.ts');
   });
 });
 
@@ -500,23 +468,6 @@ describe('customer authority portal release gate dedupe', () => {
 
 describe('customer authority portal support responses source dedupe', () => {
   const sources = () => new URL('../../../packages/server-customer_authority/src/adapters/portal-support-sources.ts', import.meta.url);
-  const support = () => new URL('../../../packages/server-customer_authority/src/adapters/portal-support.ts', import.meta.url);
-
-  it('keeps one byte-identical support source core shared by settlement facts and the thread lateral', async () => {
-    const src = await readFile(sources(), 'utf8');
-    const consumer = await readFile(support(), 'utf8');
-    // Every support-table reader renders its SQL from one closed core. The
-    // caller-owned suffix keeps each verified statement byte-identical while
-    // two duplicate SELECTs leave the owner KPI.
-    expect(src).toContain("const supportSource=(table:'responses'|'acknowledgements'|'closures')=>allColumnsProjection(`customer_portal_support_${table}`);");
-    expect(src).toContain("export const portalSupportResponsesSource=supportSource('responses');");
-    expect(src).toContain("responses:portalSupportResponsesSource,acknowledgements:supportSource('acknowledgements'),closures:supportSource('closures')");
-    expect(src.match(/\bSELECT\b/g) ?? []).toHaveLength(0);
-    expect(consumer).toContain('portalSupportInstalled,portalSupportResponsesSource,portalSupportSourceReadLocks');
-    expect(consumer).toContain('LEFT JOIN LATERAL(${portalSupportResponsesSource} response WHERE');
-    expect(consumer).not.toContain('SELECT * FROM customer_portal_support_responses');
-  });
-
   it('renders the same support-table SQL for every settlement and lateral caller', async () => {
     const { portalSupportResponsesSource, portalSupportSettlementSources } = await import('../../../packages/server-customer_authority/src/adapters/portal-support-sources');
     expect(portalSupportResponsesSource).toBe('SELECT * FROM customer_portal_support_responses');

@@ -28,19 +28,19 @@ const ok = (sql: string, values: unknown[]) =>
     });
 
 describe('Support SLA policy native read port (r28)', () => {
-    test('both policy reads are planned by two registered native kinds', () => {
+    test('the point read now uses the mounted native route; the approved read keeps its native kind', () => {
         expect(registry).toContain(`"${beforePolicy}"`);
         expect(registry).toContain(`"${beforeApproved}"`);
-        expect(registry).toContain('support_rd_sla_policy_point');
-        expect(registry).toContain('support_rd_sla_policy_approved');
-        expect(bridge).toContain("SUPPORT_RD_SLA_POLICY_POINT = 'support_rd_sla_policy_point'");
+        expect(bridge).not.toContain("SUPPORT_RD_SLA_POLICY_POINT = 'support_rd_sla_policy_point'");
         expect(bridge).toContain("SUPPORT_RD_SLA_POLICY_APPROVED = 'support_rd_sla_policy_approved'");
-        expect(bridge).toContain('[SUPPORT_RD_SLA_POLICY_POINT]: 2');
+        expect(bridge).not.toContain('[SUPPORT_RD_SLA_POLICY_POINT]: 2');
         expect(bridge).toContain('[SUPPORT_RD_SLA_POLICY_APPROVED]: 1');
+        expect(sla).toContain('/support/sla/policies');
     });
 
-    test('both call sites route through the bridge and no SQL helper remains', () => {
-        expect(sla).toContain('SUPPORT_RD_SLA_POLICY_POINT');
+    test('both call sites route through native transports and no SQL helper remains', () => {
+        expect(sla).toContain('ERPX_NATIVE_SUPPORT_READ_CONFIG');
+        expect(sla).not.toContain('SUPPORT_RD_SLA_POLICY_POINT');
         expect(sla).not.toContain('supportPolicySelect');
         expect(support).toContain('SUPPORT_RD_SLA_POLICY_APPROVED');
         expect(support).not.toContain('supportPolicySelect');
@@ -50,7 +50,7 @@ describe('Support SLA policy native read port (r28)', () => {
     });
 
     test('keeps locks, purchases, native readers and prior dedupe families intact', () => {
-        expect(sla).toContain('requirePurchase("support.sla")');
+        expect(sla).toContain('NATIVE_SUPPORT_SLA_POLICY_READ_UNAVAILABLE');
         expect(support).toContain('requirePurchase("support.tickets")');
         expect(src('adapters/support-ticket-read.ts')).toContain('SELECT id FROM support_tickets WHERE id=? AND company_id=? FOR SHARE');
         expect(src('adapters/attachment-read.ts')).toContain('LOCK TABLE support_tickets,support_ticket_events IN SHARE ROW EXCLUSIVE MODE');
@@ -68,31 +68,19 @@ describe('Support SLA policy native read port (r28)', () => {
         expect(src('adapters/actor-scope-read-sql.ts')).toContain('export const actorScopeCteSql = (extraColumns: string) =>');
     });
 
-    test('bridge plans point and approved policy reads on the caller unit', async () => {
+    test('bridge still plans the retained approved policy read on the caller unit', async () => {
         const batch = vi.fn(async () => [{ results: [{ id: 'policy-1' }], success: true, meta: { changes: 0, duration: 0 } }]);
         const db = { prepare: vi.fn(() => ({ bind: vi.fn() })), batch } as unknown as SqlDatabase;
         process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG = config;
-        const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => ok(beforePolicy, ['policy-1', 'company']));
+        const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => ok(beforeApproved, ['company']));
         try {
-            const { nativeSupportReadAll, SUPPORT_RD_SLA_POLICY_POINT, SUPPORT_RD_SLA_POLICY_APPROVED } =
+            const { nativeSupportReadAll, SUPPORT_RD_SLA_POLICY_APPROVED } =
                 await import('@erpx/server-support/adapters/native-support-read');
-            await expect(nativeSupportReadAll(SUPPORT_RD_SLA_POLICY_POINT, ['policy-1', 'company'], db)
-                .then((result: { results: unknown[] }) => result.results)).resolves.toEqual([{ id: 'policy-1' }]);
-            expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({
-                kind: 'support_rd_sla_policy_point',
-                values: ['policy-1', 'company'],
-            });
-
-            fetchMock.mockClear();
             await expect(nativeSupportReadAll(SUPPORT_RD_SLA_POLICY_APPROVED, ['company'], db)
                 .then((result: { results: unknown[] }) => result.results)).resolves.toEqual([{ id: 'policy-1' }]);
             expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({
                 kind: 'support_rd_sla_policy_approved',
                 values: ['company'],
-            });
-
-            await expect(nativeSupportReadAll(SUPPORT_RD_SLA_POLICY_POINT, ['policy-1'], db)).rejects.toMatchObject({
-                code: 'SUPPORT_NATIVE_READ_BINDS_INVALID',
             });
         } finally {
             fetchMock.mockRestore();

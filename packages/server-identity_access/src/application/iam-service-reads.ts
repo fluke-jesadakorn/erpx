@@ -4,6 +4,7 @@ import { iamPermission } from '@erpx/server-identity_access/domain/iam-actor';
 import type { RoleRevision } from "@erpx/feature-identity_access/lib/iam";
 import { permissionCatalog, hasPermission, evaluateAccess } from "@erpx/feature-identity_access/lib/permissions";
 import type { IdentityError } from '@erpx/server-identity_access/application/authorization';
+import type { NativeSessionRow } from '@erpx/server-identity_access/public/native-session-list';
 export interface IamServiceReadPorts {
     error: IdentityError;
     now(): number;
@@ -36,7 +37,8 @@ export interface IamServiceReadPorts {
     } | null>;
     campaigns(actor: IamActor): Promise<Record<string, unknown>[]>;
     campaignItems(actor: IamActor, accessReviewCampaigns: Record<string, unknown>[]): Promise<Record<string, unknown>[]>;
-    sessions(actor: IamActor): Promise<Record<string, unknown>[]>;
+    /** Native lane 45 session-list transport; no SQL and no fallback. */
+    sessions(actor: IamActor): Promise<NativeSessionRow[]>;
     connections(actor: IamActor, canManageDirectory: boolean): Promise<Record<string, unknown>[]>;
     groups(actor: IamActor): Promise<Record<string, unknown>[]>;
     previews(actor: IamActor): Promise<Record<string, unknown>[]>;
@@ -118,7 +120,7 @@ export function createIamServiceReads(ports: IamServiceReadPorts) {
         const ownStatus = await ports.mfaStatus(actor);
         const accessReviewCampaigns = !actor.platform && !self && hasPermission(actor, iamPermission(actor, "iam.review")) ? await ports.campaigns(actor) : [];
         const accessReviewItems = accessReviewCampaigns.length ? await ports.campaignItems(actor, accessReviewCampaigns) : [];
-        const ownSessions = await ports.sessions(actor);
+        const ownSessions: NativeSessionRow[] = await ports.sessions(actor);
         const canManageDirectory = hasPermission(actor, iamPermission(actor, "iam.directory.manage")) &&
             ["holding", "platform"].includes(actor.scopeKind);
         const connections = !self

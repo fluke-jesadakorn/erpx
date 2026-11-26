@@ -35,7 +35,18 @@ function isInput(v:unknown):v is Input {
  if(v.action==='reserve-part')return typeof v.warehouseId==='string'&&typeof v.productId==='string'&&typeof v.expiresAt==='number'&&Number.isSafeInteger(v.expiresAt);
  return v.action==='issue-part'&&typeof v.reservationId==='string'&&typeof v.warehouseId==='string'&&typeof v.productId==='string'&&(v.entryDate===undefined||v.entryDate===null||typeof v.entryDate==='string')&&(v.allocations===undefined||Array.isArray(v.allocations)&&v.allocations.every(x=>record(x)&&typeof x.lotId==='string'&&typeof x.quantityMilli==='number'&&Number.isSafeInteger(x.quantityMilli)&&typeof x.balanceVersion==='number'&&Number.isSafeInteger(x.balanceVersion)));
 }
+const RESERVATION_KEYS=['consumedMilli','expiresAt','id','orderId','productId','quantityMilli','releasedMilli','warehouseId'];
+/** Confirms the mounted native eight-field reservation object; no envelope fallback. */
+function nativeReservationConfirmed(value:Record<string,unknown>,attempt:Attempt):boolean {
+ if(Object.keys(value).sort().join(',')!==RESERVATION_KEYS.join(','))return false;
+ const input=attempt.input as FieldServiceReserveInput & {action:'reserve-part'},p=value;
+ return p.id===`field-part-${attempt.key}`&&p.orderId===input.id&&p.warehouseId===input.warehouseId&&p.productId===input.productId
+  &&p.quantityMilli===input.quantityMilli&&typeof p.consumedMilli==='number'&&Number.isSafeInteger(p.consumedMilli)&&p.consumedMilli>=0
+  &&typeof p.releasedMilli==='number'&&Number.isSafeInteger(p.releasedMilli)&&p.releasedMilli>=0&&Number(p.consumedMilli)+Number(p.releasedMilli)<=Number(p.quantityMilli)
+  &&p.expiresAt===input.expiresAt;
+}
 function confirmed(value:unknown,attempt:Attempt): boolean {
+ if(record(value)&&'action' in attempt.input&&attempt.input.action==='reserve-part')return nativeReservationConfirmed(value,attempt);
  if(!record(value)||!record(value.context)||!record(value.receipt)||!record(value.event)||!attempt.receipt)return false;
  const c=value.context,r=value.receipt,e=value.event;
  if(!Array.isArray(c.modules)||!c.modules.every(x=>typeof x==='string')||!Array.isArray(c.permissions)||!c.permissions.every(x=>typeof x==='string')||!sameContext(attempt.context,c as unknown as ReserveContext))return false;
@@ -68,7 +79,7 @@ function confirmed(value:unknown,attempt:Attempt): boolean {
   &&typeof p.consumedMilli==='number'&&Number.isSafeInteger(p.consumedMilli)&&p.consumedMilli>=0&&typeof p.releasedMilli==='number'&&Number.isSafeInteger(p.releasedMilli)&&p.releasedMilli>=0&&p.consumedMilli+p.releasedMilli<=p.quantityMilli
   &&s.warehouseId===input.warehouseId&&s.productId===input.productId&&typeof s.quantityMilli==='number'&&Number.isSafeInteger(s.quantityMilli)&&s.quantityMilli>=0&&typeof s.version==='number'&&Number.isSafeInteger(s.version)&&s.version>=1;
  if(!common)return false;
- if(input.action==='reserve-part')return p.id===`field-part-${attempt.key}`&&p.quantityMilli===input.quantityMilli&&p.expiresAt===input.expiresAt;
+ if(input.action==='reserve-part')return false;
  return p.id===input.reservationId&&Number(p.consumedMilli)>=input.quantityMilli&&e.reservationId===input.reservationId&&e.consumptionId===`operational-part-${attempt.key}`&&typeof e.journalId==='string'&&e.journalId.length>0&&e.quantityMilli===input.quantityMilli&&typeof e.costMinor==='number'&&Number.isSafeInteger(e.costMinor)&&e.costMinor>0;
 
 }

@@ -1,5 +1,6 @@
 import 'server-only';
-import {idNameEmailByUserIdsSql,sessionByUserSql} from './iam-probe-sql';
+import {headers} from 'next/headers';
+import {idNameEmailByUserIdsSql} from './iam-probe-sql';
 import {auditFeedSql,newestPageSql} from './read-tail-family-r27';
 import {iamServiceNodeSubquerySql} from './read-tail-family-r34';
 import {createIamServiceReads} from '@erpx/server-identity_access/application/iam-service-reads';
@@ -17,6 +18,7 @@ import {createAssertCompanyScope} from '@erpx/server-identity_access/application
 const assertCompanyScope=createAssertCompanyScope({error:(...args)=>new ApiError(...args)});
 import {requirePermission} from '@erpx/server-identity_access/public/iam-permissions';
 import {nativeDirectoryConfig,nativeRole,nativeRoleIds} from './native-lane-11/client';
+import {nativeSessionList} from '@erpx/server-identity_access/public/native-session-list';
 const organizationSources=organizationSnapshotSources(),peoplepayrollSources=peoplepayrollSnapshotSources();
 export async function iamAuditHistory(db: PostgresDatabase, actor: IamActor, search: string, cursor?: string) { return readService(db).iamAuditHistory(actor, search, cursor); }
 export async function listIamRoles(db: PostgresDatabase, companyId: string): Promise<RoleRevision[]> { return readService(db).listIamRoles(companyId); }
@@ -82,11 +84,13 @@ function readService(database: PostgresDatabase) {
         },
         campaigns: async (actor) => { return (await db.prepare(newestPageSql('iam_access_review_campaigns', 50)).bind(actor.companyId).all<Record<string, unknown>>()).results; },
         campaignItems: async (actor, accessReviewCampaigns) => { return (await db.prepare(`SELECT i.* FROM iam_access_review_items i JOIN iam_access_review_campaigns c ON c.id=i.campaign_id WHERE c.company_id=? AND c.id IN (${accessReviewCampaigns.map(() => "?").join(",")}) ORDER BY c.created_at DESC,i.user_id,i.role`).bind(actor.companyId, ...accessReviewCampaigns.map(c => String(c.id))).all<Record<string, unknown>>()).results; },
+        // Owned by the native lane 45 axum service. Strict transport only:
+        // no SQL, no TypeScript fallback; a missing or failed native read throws.
         sessions: async (actor) => {
-            const env = await control();
-            return (await env.CONTROL_DB.prepare(sessionByUserSql(' ORDER BY "createdAt" DESC'))
-                .bind(actor.userId)
-                .all()).results;
+            let incoming: Pick<Headers, 'get'> | undefined;
+            try { incoming = await headers(); }
+            catch { /* no request scope: the actor's holding selects the target */ }
+            return nativeSessionList(actor, incoming);
         },
         // Directory configuration rows are owned by the native lane 11 axum
         // service. This port is a strict transport only: no SQL and no fallback.

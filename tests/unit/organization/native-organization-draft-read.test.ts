@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
@@ -7,6 +7,7 @@ import {
   NativeOrganizationError,
   type NativeOrganizationPageContext,
 } from '../../../packages/feature-organization/src/adapters/server/native-organization';
+import { nativeOrganizationDraftRead } from '@erpx/feature-organization/lib/native-organization';
 
 const actor: NativeOrganizationPageContext = {
   userId: 'user-1',
@@ -135,5 +136,35 @@ describe('native organization/drafts read client', () => {
       code: 'NATIVE_ORGANIZATION_UNAVAILABLE',
       status: 503,
     });
+  });
+});
+
+describe('nativeOrganizationDraftRead route contract', () => {
+  const original = process.env.ERPX_NATIVE_ORGANIZATION_CONFIG;
+  afterEach(() => {
+    if (original === undefined) delete process.env.ERPX_NATIVE_ORGANIZATION_CONFIG;
+    else process.env.ERPX_NATIVE_ORGANIZATION_CONFIG = original;
+  });
+
+  it('returns undefined without native configuration so the GET fails closed', async () => {
+    delete process.env.ERPX_NATIVE_ORGANIZATION_CONFIG;
+    await expect(nativeOrganizationDraftRead(actor as never, 'acme', undefined, incoming)).resolves.toBeUndefined();
+  });
+
+  it('rejects a different Holding before a native request is made', async () => {
+    process.env.ERPX_NATIVE_ORGANIZATION_CONFIG = JSON.stringify(configuration);
+    await expect(nativeOrganizationDraftRead(actor as never, 'other', undefined, incoming)).rejects.toMatchObject({
+      code: 'NATIVE_ORGANIZATION_CONTEXT_CHANGED',
+    });
+  });
+
+  it('rejects a non-holding scope and missing draft permissions before a native request is made', async () => {
+    process.env.ERPX_NATIVE_ORGANIZATION_CONFIG = JSON.stringify(configuration);
+    await expect(
+      nativeOrganizationDraftRead({ ...actor, scope: { kind: 'branch', branchSlug: 'branch-1' } } as never, 'acme', undefined, incoming),
+    ).rejects.toMatchObject({ code: 'NATIVE_ORGANIZATION_AUTHORITY_INVALID' });
+    await expect(
+      nativeOrganizationDraftRead({ ...actor, iam: { permissions: ['people.manage'] } } as never, 'acme', undefined, incoming),
+    ).rejects.toMatchObject({ code: 'NATIVE_ORGANIZATION_AUTHORITY_INVALID' });
   });
 });

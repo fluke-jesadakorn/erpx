@@ -14,18 +14,25 @@ vi.mock("@erpx/server-identity_access/public/authorization", () => ({
   requireManageErpxContext: async () => ({ platform: { role: state.platformRole } }),
 }));
 vi.mock("@erpx/server-operations/public/staff-policy", () => ({ requireCompanyAuthority: async () => undefined }));
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
-  holdingResources: async () => ({ write: {} }),
-  runtimeEnv: async () => ({ CONTROL_DB: {
-    pool: { query: async () => ({ rowCount: 1 }) },
-  } }),
+vi.mock("next/headers", () => ({ headers: async () => new Headers({ host: "acme.jesadakorn.com" }) }));
+vi.mock("@erpx/server-runtime/public/app-native-sources", () => ({
+  customerHoldingBindingExists: async () => true,
 }));
-vi.mock("@erpx/server-billing/public/billing-forecast", () => ({
-  readSeatForecastBaseline: async () => {
-    state.calls++;
-    return { forecastMonth: "2026-10", model: "seat_what_if",
-      seats: { count: 282, observedAt: 1 }, storage: { originalBytes: 1, observedAt: 1 } };
-  },
+vi.mock("../../../packages/server-runtime/src/public/runtime", () => ({
+  holdingResources: async () => ({ write: {} }),
+  runtimeEnv: async () => ({ CONTROL_DB: {} }),
+}));
+vi.mock("@erpx/server-billing/public/native-billing", () => ({
+  nativeBillingConfiguration: () => ({}),
+  nativeBillingFailure: () => undefined,
+  createNativeBillingClient: () => ({
+    holding: (id: string) => (id === "h001" ? { holdingSlug: "acme" } : undefined),
+    forecast: async () => {
+      state.calls++;
+      return { forecastMonth: "2026-10", model: "seat_what_if",
+        seats: { count: 282, observedAt: 1 }, storage: { originalBytes: 1, observedAt: 1 } };
+    },
+  }),
 }));
 
 import { GET as holdingGet } from "@erpx/feature-admin/routes/api/v1/holdings/[holdingSlug]/billing/forecast/route";
@@ -33,6 +40,7 @@ import { GET as platformGet } from "@erpx/feature-admin/routes/api/v1/platform/b
 
 const holdingContext = { params: Promise.resolve({ holdingSlug: "acme" }) };
 beforeEach(() => {
+  vi.stubEnv("ERPX_NATIVE_BILLING_CONFIG", "{}");
   state.scopeKind = "holding";
   state.role = "holding_owner";
   state.platformRole = "platform_admin";

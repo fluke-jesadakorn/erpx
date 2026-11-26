@@ -47,3 +47,7 @@ workspace = true
 [[test]]
 name = "sla_workspace"
 path = "../../tests/unit/support/rust-sla-workspace.test.rs"
+
+[[test]]
+name = "sla_policy_read"
+path = "../../tests/unit/support/rust-sla-policy-read.test.rs"

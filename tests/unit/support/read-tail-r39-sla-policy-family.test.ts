@@ -66,18 +66,18 @@ describe('Support SLA policy workspace/work native read family (r39)', () => {
         expect(beforeWorkspace).toContain('ORDER BY p.created_at DESC,p.id');
     });
 
-    test('both kinds have fixed arity 2 and cross [userId, companyId] in bind order', () => {
+    test('the retained workspace kind keeps fixed arity; work uses the mounted native route', () => {
         expect(bridge).toContain("SUPPORT_RD_SLA_POLICY_WORKSPACE = 'support_rd_sla_policy_workspace'");
-        expect(bridge).toContain("SUPPORT_RD_SLA_POLICY_WORK = 'support_rd_sla_policy_work'");
+        expect(bridge).not.toContain("SUPPORT_RD_SLA_POLICY_WORK = 'support_rd_sla_policy_work'");
         expect(bridge).toContain('[SUPPORT_RD_SLA_POLICY_WORKSPACE]: 2');
-        expect(bridge).toContain('[SUPPORT_RD_SLA_POLICY_WORK]: 2');
+        expect(bridge).not.toContain('[SUPPORT_RD_SLA_POLICY_WORK]: 2');
         expect(registry).toContain('    READ_SLA_POLICY_WORKSPACE,\n');
         expect(registry).toContain('    READ_SLA_POLICY_WORK,\n');
         expect(registry).toContain('(RD_SLA_POLICY_WORKSPACE, SQL_SLA_POLICY_WORKSPACE, 2usize)');
         expect(registry).toContain('(RD_SLA_POLICY_WORK, SQL_SLA_POLICY_WORK, 2usize)');
         for (const sql of [beforeWorkspace, beforeWork]) expect((sql.match(/\?/g) ?? []).length).toBe(2);
-        expect(sla).toContain('nativeSupportReadAll<Row>(SUPPORT_RD_SLA_POLICY_WORKSPACE, [a.userId, a.companyId], write)');
-        expect(sla).toContain('nativeSupportReadAll<Row>(SUPPORT_RD_SLA_POLICY_WORK, [a.userId, a.companyId], write)');
+        expect(sla).toContain('/support/sla/policies');
+        expect(sla).not.toContain('nativeSupportReadAll');
     });
 
     test('the SELECT-token helper is deleted from the owner source', () => {
@@ -86,8 +86,8 @@ describe('Support SLA policy workspace/work native read family (r39)', () => {
         expect(sla).not.toContain('supportReviewerCountSql');
         expect(sla).not.toContain('supportRecipientEligibility');
         expect(sla).not.toContain('SELECT p.*,');
-        expect(sla).toContain('SUPPORT_RD_SLA_POLICY_POINT');
-        expect(sla).toContain('SUPPORT_RD_SLA_WORKSPACE_TICKETS');
+        expect(sla).toContain('ERPX_NATIVE_SUPPORT_READ_CONFIG');
+        expect(sla).toContain('/support/sla/policies');
     });
 
     test('locks, advisory and LOCK TABLE stay untouched; eligibility helpers retired', () => {

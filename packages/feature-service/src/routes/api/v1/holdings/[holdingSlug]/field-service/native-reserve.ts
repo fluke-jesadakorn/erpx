@@ -2,7 +2,7 @@ import {contributorExactOrigin as exactOrigin,holdingHostForHost as exactHolding
 const contributorOriginProfile=()=>process.env.NODE_ENV==='development'&&process.env.NEXT_PUBLIC_ERPX_DEV_ORIGIN_PROFILE==='container-localhost';
 const contributorExactOrigin=(host:string|null|undefined)=>exactOrigin(host,contributorOriginProfile()?'contributor':'public');
 const holdingHostForHost=(host:string|null|undefined)=>exactHolding(host,contributorOriginProfile()?'contributor':'public');
-import type { FieldServiceReservationReadResponse, FieldServiceIssueReadResponse, FieldServiceRequestReadResponse, FieldServiceOrderCreateReadResponse, FieldServiceVisitReadResponse, FieldServiceAgreementReviewReadResponse, FieldServiceAgreementCreateReadResponse, FieldServiceBillingReadResponse } from '@erpx/contracts/field-service-reserve';
+import type { FieldServiceIssueReadResponse, FieldServiceRequestReadResponse, FieldServiceOrderCreateReadResponse, FieldServiceVisitReadResponse, FieldServiceAgreementReviewReadResponse, FieldServiceAgreementCreateReadResponse, FieldServiceBillingReadResponse } from '@erpx/contracts/field-service-reserve';
 import 'server-only';
 import {allowedPrivateLoopbackPort} from '@erpx/native-sdk/loopback';
 import { Agent, request as httpRequest } from 'node:http';
@@ -53,7 +53,8 @@ const object=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&
 const exact=(v:unknown,keys:string[]):v is Record<string,unknown>=>object(v)&&Object.keys(v).length===keys.length&&keys.every(k=>Object.hasOwn(v,k));
 const safe=(v:unknown,min:number):v is number=>typeof v==='number'&&Number.isSafeInteger(v)&&v>=min;
 const text=(v:unknown):v is string=>typeof v==='string'&&v.length>0;
-function readback(value:unknown,holdingId:string,orderId:string,reservationId:string):value is FieldServiceReservationReadResponse {
+/** Retained Issue-only evidence check; the retired reservation readback validator is gone with its route. */
+function retainedIssueEvidence(value:unknown,holdingId:string,orderId:string,reservationId:string):boolean{
  if(!exact(value,['context','order','receipt','event','reservation','stock']))return false;
  const {context:c,order:o,receipt:r,event:e,reservation:p,stock:s}=value;
  if(!exact(c,['userId','holdingId','companyId','branchId','departmentId','branchSlug','departmentSlug','assignmentId','assignmentVersion','revision','role','assignmentScopeKind','modules','permissions','expiresAt'])||!exact(o,['id','status','version'])||!exact(r,['id','status','version'])||!exact(e,['version','actorId','reason','status'])||!exact(p,['id','orderId','warehouseId','productId','quantityMilli','consumedMilli','releasedMilli','expiresAt'])||!exact(s,['warehouseId','productId','quantityMilli','version']))return false;
@@ -62,16 +63,6 @@ function readback(value:unknown,holdingId:string,orderId:string,reservationId:st
  &&p.id===reservationId&&p.orderId===orderId&&text(p.warehouseId)&&text(p.productId)&&safe(p.quantityMilli,1)&&safe(p.consumedMilli,0)&&safe(p.releasedMilli,0)&&Number(p.consumedMilli)+Number(p.releasedMilli)<=Number(p.quantityMilli)&&safe(p.expiresAt,1)
  &&s.warehouseId===p.warehouseId&&s.productId===p.productId&&safe(s.quantityMilli,0)&&safe(s.version,1);
 }
-/** Returns only the actual native Service/Inventory readback, never a legacy substitute. */
-export async function nativeReserveReadback(request:Request,slug:string,orderId:string,reservationId:string):Promise<Response|undefined>{
- const raw=process.env.ERPX_NATIVE_FIELD_SERVICE_RESERVE_CONFIG;if(raw===undefined)return undefined;const config=settings(raw),host=request.headers.get('host'),target=config.holdings.find(h=>new URL(h.origin).host===host&&h.holdingSlug===slug);
- if(!target||!text(orderId)||!text(reservationId)||orderId.includes('/')||reservationId.includes('/')||orderId.includes('\\')||reservationId.includes('\\'))return closed(404,'NOT_FOUND','Service order not found.');
- const cookie=request.headers.get('cookie');if(cookie&&new TextEncoder().encode(cookie).length>8192)return closed(503,'NATIVE_SERVICE_UNAVAILABLE','Unable to confirm the reservation.');const headers=new Headers({host:host!,accept:'application/json'});
- for(const name of ['cookie','x-erpx-context-company','x-erpx-context-revision','x-erpx-context-assignment','x-erpx-context-assignment-version','x-erpx-workspace-branch','x-erpx-workspace-department']){const v=request.headers.get(name);if(v!==null)headers.set(name,v);}
- const controller=new AbortController(),cancel=()=>controller.abort();request.signal.addEventListener('abort',cancel,{once:true});if(request.signal.aborted)cancel();const timer=setTimeout(cancel,config.timeoutMs);
- try{const url=new URL(`/api/v1/holdings/${encodeURIComponent(slug)}/field-service/${encodeURIComponent(orderId)}/reservations/${encodeURIComponent(reservationId)}`,config.privateBaseUrl),response=await direct(url,'GET',headers,undefined,controller.signal);if(response.status!==200||response.headers.get('content-type')?.split(';')[0]?.trim()!=='application/json'){void response.body?.cancel();return closed(503,'NATIVE_SERVICE_UNAVAILABLE','Unable to confirm the reservation.');}const parsed:unknown=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(await bytes(response.body,2*1024*1024)));if(!readback(parsed,target.holdingId,orderId,reservationId))return closed(502,'NATIVE_SERVICE_UNAVAILABLE','Unable to confirm the reservation.');return Response.json(parsed,{headers:{'Cache-Control':'private, no-store'}});}catch{return closed(503,'NATIVE_SERVICE_UNAVAILABLE','Unable to confirm the reservation.');}finally{clearTimeout(timer);request.signal.removeEventListener('abort',cancel);}
-}
-
 /** Issue evidence is authorized by Service; Finance journal access remains separate. */
 export async function nativeIssueReadback(request:Request,slug:string,orderId:string,key:string):Promise<Response|undefined>{
  const raw=process.env.ERPX_NATIVE_FIELD_SERVICE_ISSUE_CONFIG;if(raw===undefined)return undefined;const config=settings(raw),host=request.headers.get('host'),target=config.holdings.find(h=>new URL(h.origin).host===host&&h.holdingSlug===slug);
@@ -83,7 +74,7 @@ export async function nativeIssueReadback(request:Request,slug:string,orderId:st
  if(!exact(parsed,['context','order','receipt','event','reservation','stock'])||!object(parsed.event))return closed(502,'NATIVE_SERVICE_UNAVAILABLE','Unable to confirm the parts request.');
  const e=parsed.event;if(!exact(e,['version','actorId','reason','status','reservationId','consumptionId','journalId','quantityMilli','costMinor'])||!text(e.reservationId)||e.consumptionId!==`operational-part-${key}`||!text(e.journalId)||!safe(e.quantityMilli,1)||!safe(e.costMinor,1))return closed(502,'NATIVE_SERVICE_UNAVAILABLE','Unable to confirm the parts request.');
  const reservation=parsed.reservation;if(!object(reservation)||reservation.id!==e.reservationId||!safe(reservation.consumedMilli,0)||Number(reservation.consumedMilli)<Number(e.quantityMilli))return closed(502,'NATIVE_SERVICE_UNAVAILABLE','Unable to confirm the parts request.');
- const base={...parsed,event:{version:e.version,actorId:e.actorId,reason:e.reason,status:e.status}};if(!readback(base,target.holdingId,orderId,String(e.reservationId)))return closed(502,'NATIVE_SERVICE_UNAVAILABLE','Unable to confirm the parts request.');const verified=parsed as unknown as FieldServiceIssueReadResponse;return Response.json(verified,{headers:{'Cache-Control':'private, no-store'}});
+ const base={...parsed,event:{version:e.version,actorId:e.actorId,reason:e.reason,status:e.status}};if(!retainedIssueEvidence(base,target.holdingId,orderId,String(e.reservationId)))return closed(502,'NATIVE_SERVICE_UNAVAILABLE','Unable to confirm the parts request.');const verified=parsed as unknown as FieldServiceIssueReadResponse;return Response.json(verified,{headers:{'Cache-Control':'private, no-store'}});
  }catch{return closed(503,'NATIVE_SERVICE_UNAVAILABLE','Unable to confirm the parts request.');}finally{clearTimeout(timer);request.signal.removeEventListener('abort',cancel);}
 }
 

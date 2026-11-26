@@ -9,6 +9,7 @@
     "./components/support-ticket-portal": "./src/components/support-ticket-portal.tsx",
     "./components/portal-support-response-editor": "./src/components/portal-support-response-editor.tsx",
     "./components/portal-support-acknowledgement": "./src/components/portal-support-acknowledgement.tsx",
+    "./lib/access-sources": "./src/lib/access-sources.ts",
     "./lib/portal-command-attempt": "./src/lib/portal-command-attempt.ts",
     "./lib/portal-display": "./src/lib/portal-display.ts",
     "./lib/support-ticket-portal-command": "./src/lib/support-ticket-portal-command.ts"

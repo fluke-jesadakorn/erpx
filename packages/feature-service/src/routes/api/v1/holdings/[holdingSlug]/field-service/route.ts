@@ -1,4 +1,5 @@
-import { nativeReservePost, nativeReserveReadback, nativeIssueReadback, nativeRequestReadback, nativeOrderCreateReadback, nativeVisitReadback, nativeBillingReadback, nativeAgreementReviewReadback } from "./native-reserve";
+import { nativeReservePost, nativeIssueReadback, nativeRequestReadback, nativeOrderCreateReadback, nativeVisitReadback, nativeBillingReadback, nativeAgreementReviewReadback } from "./native-reserve";
+import { nativePartReservationReadback } from "./native-part-reservation";
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
@@ -84,9 +85,7 @@ export async function GET(r: Request, c: C) {
     const order=query.get("nativeReserveOrder"), reservation=query.get("nativeReserveId");
     if(order!==null || reservation!==null) {
       if(!order||!reservation||[...query.keys()].length!==2) throw new ApiError(404,"NOT_FOUND","Service order not found.");
-      const native=await nativeReserveReadback(r,slug,order,reservation);
-      if(native)return native;
-      throw new ApiError(404,"NOT_FOUND","Service order not found.");
+      return nativePartReservationReadback(r,slug,order,reservation);
     }
     const actor=await requireWorkContext(slug),id=query.get("id"),context=partsSetupContext(actor);
     const data=id?await nativeServiceDetail(slug,id,context):await nativeServiceWorkspace(slug,context);

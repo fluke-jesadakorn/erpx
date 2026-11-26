@@ -1,11 +1,15 @@
 import 'server-only';
-import { ApiError } from '@erpx/server-runtime/public/http';
+import { ApiError, errorResponse } from '@erpx/server-runtime/public/http';
+import { requireWorkContext } from '@erpx/server-identity_access/public/authorization';
+import { canonicalDestinationLinks } from '@erpx/feature-work_projection/lib/destination-links';
 
 /**
  * Native transport for the customer-access sources read. The Rust owner owns
  * the statement, executes it on its own unit and returns the complete
- * `{id,number,name,version}` payload. This bridge emits no SQL and keeps no
- * TypeScript mirror or fallback; missing configuration fails closed.
+ * `{id,number,name,version}` payload at
+ * GET /api/v1/holdings/{slug}/customer-access/sources. This bridge emits no SQL
+ * and keeps no TypeScript mirror or fallback; missing configuration fails
+ * closed.
  */
 type Holding = Readonly<{ origin: string; holdingSlug: string; companyId: string }>;
 type Settings = Readonly<{
@@ -23,6 +27,9 @@ export type CustomerAccessSource = Readonly<{
 
 const unavailable = (): never => {
   throw new ApiError(503, 'CUSTOMER_ACCESS_SOURCES_UNAVAILABLE', 'The native Customer Authority source read is unavailable.');
+};
+const invalid = (): never => {
+  throw new ApiError(422, 'CUSTOMER_ACCESS_SOURCES_REQUEST_INVALID', 'Use one bounded customer-access source read.');
 };
 const record = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -62,7 +69,7 @@ const validSource = (value: unknown): value is CustomerAccessSource =>
   typeof value.version === 'number' && Number.isSafeInteger(value.version) && value.version >= 1;
 
 /** Read the approved customer document sources from the native owner route. */
-export async function customerAccessSourcesNative(
+export async function nativeCustomerAccessSources(
   holdingSlug: string,
   scope: Readonly<{ branchId?: string; departmentId?: string }> = {},
 ): Promise<readonly CustomerAccessSource[]> {
@@ -102,4 +109,26 @@ export async function customerAccessSourcesNative(
   const sources = record(payload) ? (payload as { data?: { sources?: unknown } }).data?.sources : undefined;
   if (!Array.isArray(sources) || sources.length > 250 || !sources.every(validSource)) return unavailable();
   return sources;
+}
+
+/** The app-owned GET re-export served by the mounted native owner read. */
+export async function nativeCustomerAccessSourcesGet(
+  request: Request,
+  context: { params: Promise<{ holdingSlug: string }> },
+): Promise<Response> {
+  try {
+    const { holdingSlug } = await context.params;
+    if (!/^[a-z0-9][a-z0-9_-]{0,127}$/.test(holdingSlug)) return invalid();
+    const actor = await requireWorkContext(holdingSlug);
+    if (new URL(request.url).searchParams.size !== 0) return invalid();
+    const sources = await nativeCustomerAccessSources(holdingSlug, {
+      branchId: actor.branchId ?? undefined,
+      departmentId: actor.departmentId ?? undefined,
+    });
+    return Response.json(canonicalDestinationLinks({ data: { sources } }), {
+      headers: { 'Cache-Control': 'private, no-store' },
+    });
+  } catch (error) {
+    return errorResponse(error);
+  }
 }

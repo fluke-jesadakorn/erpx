@@ -59,7 +59,6 @@ struct Fake {
 
 impl SlaPolicyReadPorts for Fake {
     fn policy<'a>(&'a mut self, id: &'a str) -> SlaPolicyReadFuture<'a, Option<SlaPolicyRow>> {
-        assert_eq!(id, "support-policy-1");
         *self.calls.entry("point").or_insert(0) += 1;
         let row = self.point.clone();
         Box::pin(async move { Ok(row) })

@@ -375,15 +375,18 @@ it('keeps one fixed Support ticket-evidence projection for the search and by-id 
     expect(source).toContain('`support_incidents t WHERE ${conditions.join(" AND ")}');
 });
 
-it('routes both SLA policy lists through two native read kinds', async () => {
+it('routes both SLA policy point/work reads through the mounted native transport', async () => {
     const { readFile } = await import('node:fs/promises');
     const source = await readFile(new URL('../../../packages/server-support/src/adapters/support-sla.ts', import.meta.url), 'utf8');
     expect(source).not.toContain('policyEligibilitySelect');
     expect(source).not.toContain('SELECT p.*,');
-    expect(source.match(/nativeSupportReadAll<Row>\(SUPPORT_RD_SLA_POLICY_WORKSPACE, \[a\.userId, a\.companyId\], write\)/g)).toHaveLength(1);
-    expect(source.match(/nativeSupportReadAll<Row>\(SUPPORT_RD_SLA_POLICY_WORK, \[a\.userId, a\.companyId\], write\)/g)).toHaveLength(1);
-    expect(source).toContain('SUPPORT_RD_SLA_POLICY_POINT');
-    expect(source).toContain('SUPPORT_RD_SLA_WORKSPACE_TICKETS');
+    expect(source).not.toContain('nativeSupportReadAll');
+    expect(source).not.toContain('SUPPORT_RD_SLA_POLICY_POINT');
+    expect(source).not.toContain('SUPPORT_RD_SLA_POLICY_WORK');
+    expect(source).toContain('ERPX_NATIVE_SUPPORT_READ_CONFIG');
+    expect(source.match(/support\/sla\/policies/g)).toHaveLength(1);
+    expect(source).toContain("'/work'");
+    expect(source).toContain('/${encodeURIComponent(id)}');
 });
 
 it('plans the three active-organization-node scope probes in Rust with kind-scoped authority', async () => {

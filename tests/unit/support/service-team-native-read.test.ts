@@ -384,7 +384,7 @@ describe('support service-team coverage native read', () => {
   it('carries no retired SLA workspace ticket SQL in the switched adapter', async () => {
     const adapter = await source('packages/server-support/src/adapters/support-sla.ts');
     expect(adapter).not.toContain('sla_policy_version,sla_clock_json FROM support_tickets');
-    expect(adapter).toContain('SUPPORT_RD_SLA_WORKSPACE_TICKETS');
+    expect(adapter).toContain('ERPX_NATIVE_SUPPORT_READ_CONFIG');
   });
 
   it('plans the SLA workspace ticket read in Rust with owner-scoped binds', async () => {

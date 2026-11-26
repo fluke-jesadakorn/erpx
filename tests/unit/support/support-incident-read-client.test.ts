@@ -105,8 +105,9 @@ describe('Support incident read-tail r16 canonical projection', () => {
     }
     expect(await src('adapters/support-ticket-read-sources.ts')).not.toContain('supportReviewerCountSql');
     const sla = await src('adapters/support-sla.ts');
-    expect(sla).toContain('SUPPORT_RD_SLA_POLICY_WORKSPACE');
-    expect(sla).toContain('SUPPORT_RD_SLA_POLICY_WORK');
+    expect(sla).toContain('ERPX_NATIVE_SUPPORT_READ_CONFIG');
+    expect(sla).not.toContain('SUPPORT_RD_SLA_POLICY_WORK');
+    expect(sla).toContain('/support/sla/policies');
     expect(sla).not.toContain('supportEligibleFlagSql(');
     expect(sla).not.toContain('supportReviewerCountSql(');
     const alerts = await src('adapters/support-sla-alerts.ts');

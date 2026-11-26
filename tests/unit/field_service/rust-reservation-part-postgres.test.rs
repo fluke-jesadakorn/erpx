@@ -13,7 +13,7 @@ use erpx_server_field_service::public::reservation_part::{
 
 #[tokio::test]
 async fn owner_adapter_executes_real_sql_and_returns_exact_payload() {
-    fixture::with_database(4, |pool| async move {
+    fixture::with_database(1, |pool| async move {
         // Temporary relations shadow the real names on this connection's search
         // path, so the adapter's own unqualified SELECT runs against actual
         // Postgres rows without committing business data.

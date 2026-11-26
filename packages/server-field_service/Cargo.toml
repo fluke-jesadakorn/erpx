@@ -46,3 +46,7 @@ uuid.workspace=true
 [[test]]
 name="service_parts_history_postgres"
 path="../../tests/integration/field_service/rust-service-parts-history-postgres.test.rs"
+
+[[test]]
+name = "reservation_part_postgres"
+path = "../../tests/unit/field_service/rust-reservation-part-postgres.test.rs"
