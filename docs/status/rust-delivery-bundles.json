@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 15269,
+    "revision": 15274,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261127-b",
+      "runId": "run-20261127-c",
       "agentId": "lead",
-      "startedAt": "2026-11-26T18:30:08.249Z",
-      "heartbeatAt": "2026-11-26T18:30:08.249Z",
-      "expiresAt": "2026-11-26T19:00:08.250Z",
-      "generation": 190,
-      "tokenHash": "8c86f8769fe5aeaa8f056be5d4fdc2a205e03044f1f0c02120d5a85f12db0290"
+      "startedAt": "2026-11-26T19:03:13.100Z",
+      "heartbeatAt": "2026-11-26T19:03:13.100Z",
+      "expiresAt": "2026-11-26T19:33:13.101Z",
+      "generation": 191,
+      "tokenHash": "d860e5acba9227e02701cd753c566e8a98d80b5612a76d49b3cca3cdc2d40f4b"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -208853,7 +208853,7 @@
       {
         "goalId": "G4",
         "kind": "migration",
-        "status": "ready_for_integration",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -208884,13 +208884,13 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-e",
+          "runId": "run-20261127-c",
           "agentId": "lead",
-          "at": "2026-11-26T08:29:53.821Z",
-          "previousStatus": "ready_for_integration",
-          "reason": "handoff",
+          "at": "2026-11-26T19:03:18.699Z",
+          "previousStatus": "integrating",
+          "reason": "released with work preserved",
           "nextAction": "Native navigation owner backend committed 070a4c45; composition mount and page-layout command SQL adapter still required before route deletion."
         },
         "scopeRefinementRequired": false,
@@ -209504,7 +209504,7 @@
         "goalId": "G4",
         "owner": "collaboration",
         "kind": "migration",
-        "status": "ready_for_integration",
+        "status": "blocked",
         "title": "collaboration push route native execution",
         "scope": "Port one bounded push settings operation (settings read, subscription registration, preferences or device removal) to the Collaboration owner with domain/application/adapters/http, real Rust SQL execution and CQRS separation. Remove the TypeScript authority for that operation and prepare the exact route deletion packet.",
         "workflowIds": [],
@@ -209552,13 +209552,13 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": "released with work preserved",
         "handoff": {
-          "runId": "run-20261126-e",
+          "runId": "run-20261127-c",
           "agentId": "lead",
-          "at": "2026-11-26T08:29:57.501Z",
-          "previousStatus": "ready_for_integration",
-          "reason": "handoff",
+          "at": "2026-11-26T19:03:19.216Z",
+          "previousStatus": "integrating",
+          "reason": "released with work preserved",
           "nextAction": "Native push-settings public alias committed 070a4c45; configure lane-16 and add edge context headers before deleting GET/re-exports."
         },
         "scopeRefinementRequired": false
@@ -215628,16 +215628,16 @@
       "statusCounts": {
         "pending": 14,
         "in_progress": 0,
-        "ready_for_integration": 146,
+        "ready_for_integration": 144,
         "integrating": 0,
         "migrated": 369,
-        "blocked": 1915,
+        "blocked": 1917,
         "deferred": 2,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 190,
-    "updatedAt": "2026-11-26T18:49:01.619Z",
+    "lastCoordinatorGeneration": 191,
+    "updatedAt": "2026-11-26T19:03:19.220Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
@@ -215672,9 +215672,9 @@
       }
     },
     "lastRecovery": {
-      "previousRunId": "run-20261127-a",
-      "runId": "run-20261127-b",
-      "at": "2026-11-26T18:30:08.250Z",
+      "previousRunId": "run-20261127-b",
+      "runId": "run-20261127-c",
+      "at": "2026-11-26T19:03:13.101Z",
       "reason": "Continue overnight wave after heartbeat gap; no active claims.",
       "wipReviewed": true,
       "previousRunStopped": true
