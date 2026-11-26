@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 14845,
+    "revision": 14874,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261126-g",
+      "runId": "run-20261126-h",
       "agentId": "lead",
-      "startedAt": "2026-11-26T10:46:48.802Z",
-      "heartbeatAt": "2026-11-26T10:53:31.757Z",
-      "expiresAt": "2026-11-26T11:23:31.757Z",
-      "generation": 184,
-      "tokenHash": "76a9e3af08127a301ea18fe3e57ce51cd5345d49f9d232376926669101db21e5"
+      "startedAt": "2026-11-26T11:25:33.089Z",
+      "heartbeatAt": "2026-11-26T11:27:48.175Z",
+      "expiresAt": "2026-11-26T11:57:48.175Z",
+      "generation": 185,
+      "tokenHash": "a2fe8c7a10c8ce3c4b1477b7e4c5e54247c26c1db11e17b3fd8b5969ec4cf16a"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -210068,7 +210068,7 @@
         "goalId": "G4",
         "owner": "legal",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "title": "feature-legal routes native execution",
         "scope": "Inventory feature-legal and feature-legal-portal routes. Port one bounded legal read/command to Rust domain/application/adapters/http with real SQL execution and prepare the exact deletion packet.",
         "workflowIds": [],
@@ -210085,21 +210085,21 @@
           "route:legal"
         ],
         "nextAction": "Port one fully-native legal operation with Rust SQL execution and prepare its deletion packet.",
-        "claim": {
-          "runId": "run-20261126-g",
-          "agentId": "exec-legal",
-          "claimedAt": "2026-11-26T10:50:04.998Z",
-          "heartbeatAt": "2026-11-26T10:53:31.757Z",
-          "expiresAt": "2026-11-26T11:23:31.757Z",
-          "generation": 184
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "Recovery: run-20261126-g lease expired because the scheduled heartbeat did not fire; wave-3 code committed at 539935933 and composition mounts are staged; no active workers; resume to record wave-3 evidence and run cutover wave.",
+        "handoff": {
+          "runId": "run-20261126-g",
+          "agentId": "exec-legal",
+          "at": "2026-11-26T11:25:33.089Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-20261126-g lease expired because the scheduled heartbeat did not fire; wave-3 code committed at 539935933 and composition mounts are staged; no active workers; resume to record wave-3 evidence and run cutover wave.",
+          "nextAction": "Port one fully-native legal operation with Rust SQL execution and prepare its deletion packet."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -210107,7 +210107,7 @@
         "goalId": "G4",
         "owner": "learning",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "title": "feature-learn routes native execution",
         "scope": "Inventory feature-learn routes. Port one bounded learning read/command to Rust domain/application/adapters/http with real SQL execution and prepare the exact deletion packet.",
         "workflowIds": [],
@@ -210123,21 +210123,21 @@
           "route:learning"
         ],
         "nextAction": "Port one fully-native learning operation with Rust SQL execution and prepare its deletion packet.",
-        "claim": {
-          "runId": "run-20261126-g",
-          "agentId": "exec-learning",
-          "claimedAt": "2026-11-26T10:50:05.157Z",
-          "heartbeatAt": "2026-11-26T10:53:31.757Z",
-          "expiresAt": "2026-11-26T11:23:31.757Z",
-          "generation": 184
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "Recovery: run-20261126-g lease expired because the scheduled heartbeat did not fire; wave-3 code committed at 539935933 and composition mounts are staged; no active workers; resume to record wave-3 evidence and run cutover wave.",
+        "handoff": {
+          "runId": "run-20261126-g",
+          "agentId": "exec-learning",
+          "at": "2026-11-26T11:25:33.089Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-20261126-g lease expired because the scheduled heartbeat did not fire; wave-3 code committed at 539935933 and composition mounts are staged; no active workers; resume to record wave-3 evidence and run cutover wave.",
+          "nextAction": "Port one fully-native learning operation with Rust SQL execution and prepare its deletion packet."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -210145,7 +210145,7 @@
         "goalId": "G4",
         "owner": "marketing",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "title": "feature-forms/booking routes native execution",
         "scope": "Inventory feature-forms and feature-booking routes. Port one bounded public form or booking read/command to Rust domain/application/adapters/http with real SQL execution and prepare the exact deletion packet.",
         "workflowIds": [],
@@ -210163,21 +210163,21 @@
           "route:forms-booking"
         ],
         "nextAction": "Port one fully-native public form or booking operation with Rust SQL execution and prepare its deletion packet.",
-        "claim": {
-          "runId": "run-20261126-g",
-          "agentId": "exec-forms",
-          "claimedAt": "2026-11-26T10:50:05.311Z",
-          "heartbeatAt": "2026-11-26T10:53:31.757Z",
-          "expiresAt": "2026-11-26T11:23:31.757Z",
-          "generation": 184
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "Recovery: run-20261126-g lease expired because the scheduled heartbeat did not fire; wave-3 code committed at 539935933 and composition mounts are staged; no active workers; resume to record wave-3 evidence and run cutover wave.",
+        "handoff": {
+          "runId": "run-20261126-g",
+          "agentId": "exec-forms",
+          "at": "2026-11-26T11:25:33.089Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-20261126-g lease expired because the scheduled heartbeat did not fire; wave-3 code committed at 539935933 and composition mounts are staged; no active workers; resume to record wave-3 evidence and run cutover wave.",
+          "nextAction": "Port one fully-native public form or booking operation with Rust SQL execution and prepare its deletion packet."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -210185,7 +210185,7 @@
         "goalId": "G4",
         "owner": "people_payroll",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "title": "feature-people routes native execution",
         "scope": "Inventory feature-people routes (people, access, roster, explorer detail, HR settings, evaluation, relationships, benefits, leave admin). Port one bounded people read/command to Rust domain/application/adapters/http with real SQL execution and prepare the exact deletion packet.",
         "workflowIds": [],
@@ -210201,21 +210201,21 @@
           "route:people-feature"
         ],
         "nextAction": "Port one fully-native feature-people operation with Rust SQL execution and prepare its deletion packet.",
-        "claim": {
-          "runId": "run-20261126-g",
-          "agentId": "exec-people-feature",
-          "claimedAt": "2026-11-26T10:50:05.464Z",
-          "heartbeatAt": "2026-11-26T10:53:31.757Z",
-          "expiresAt": "2026-11-26T11:23:31.757Z",
-          "generation": 184
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "Recovery: run-20261126-g lease expired because the scheduled heartbeat did not fire; wave-3 code committed at 539935933 and composition mounts are staged; no active workers; resume to record wave-3 evidence and run cutover wave.",
+        "handoff": {
+          "runId": "run-20261126-g",
+          "agentId": "exec-people-feature",
+          "at": "2026-11-26T11:25:33.089Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-20261126-g lease expired because the scheduled heartbeat did not fire; wave-3 code committed at 539935933 and composition mounts are staged; no active workers; resume to record wave-3 evidence and run cutover wave.",
+          "nextAction": "Port one fully-native feature-people operation with Rust SQL execution and prepare its deletion packet."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -210223,7 +210223,7 @@
         "goalId": "G4",
         "owner": "pms",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "title": "feature-pms routes native execution",
         "scope": "Inventory feature-pms routes (stripe payments/refunds, imports, booking changes/refunds, reports, action routes). Port one bounded PMS read/command to Rust domain/application/adapters/http with real SQL execution and prepare the exact deletion packet.",
         "workflowIds": [],
@@ -210239,21 +210239,21 @@
           "route:pms-feature"
         ],
         "nextAction": "Port one fully-native feature-pms operation with Rust SQL execution and prepare its deletion packet.",
-        "claim": {
-          "runId": "run-20261126-g",
-          "agentId": "exec-pms-feature",
-          "claimedAt": "2026-11-26T10:50:05.610Z",
-          "heartbeatAt": "2026-11-26T10:53:31.757Z",
-          "expiresAt": "2026-11-26T11:23:31.757Z",
-          "generation": 184
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "Recovery: run-20261126-g lease expired because the scheduled heartbeat did not fire; wave-3 code committed at 539935933 and composition mounts are staged; no active workers; resume to record wave-3 evidence and run cutover wave.",
+        "handoff": {
+          "runId": "run-20261126-g",
+          "agentId": "exec-pms-feature",
+          "at": "2026-11-26T11:25:33.089Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-20261126-g lease expired because the scheduled heartbeat did not fire; wave-3 code committed at 539935933 and composition mounts are staged; no active workers; resume to record wave-3 evidence and run cutover wave.",
+          "nextAction": "Port one fully-native feature-pms operation with Rust SQL execution and prepare its deletion packet."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -210261,7 +210261,7 @@
         "goalId": "G4",
         "owner": "procurement",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "title": "feature-supply routes native execution",
         "scope": "Inventory feature-supply routes (supplier promises/bills, quality, stock transit/transfers, procurement RFQs, landed costs). Port one bounded supply read/command to Rust domain/application/adapters/http with real SQL execution and prepare the exact deletion packet.",
         "workflowIds": [],
@@ -210279,21 +210279,21 @@
           "route:supply"
         ],
         "nextAction": "Port one fully-native feature-supply operation with Rust SQL execution and prepare its deletion packet.",
-        "claim": {
-          "runId": "run-20261126-g",
-          "agentId": "exec-supply",
-          "claimedAt": "2026-11-26T10:50:05.760Z",
-          "heartbeatAt": "2026-11-26T10:53:31.757Z",
-          "expiresAt": "2026-11-26T11:23:31.757Z",
-          "generation": 184
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "Recovery: run-20261126-g lease expired because the scheduled heartbeat did not fire; wave-3 code committed at 539935933 and composition mounts are staged; no active workers; resume to record wave-3 evidence and run cutover wave.",
+        "handoff": {
+          "runId": "run-20261126-g",
+          "agentId": "exec-supply",
+          "at": "2026-11-26T11:25:33.089Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-20261126-g lease expired because the scheduled heartbeat did not fire; wave-3 code committed at 539935933 and composition mounts are staged; no active workers; resume to record wave-3 evidence and run cutover wave.",
+          "nextAction": "Port one fully-native feature-supply operation with Rust SQL execution and prepare its deletion packet."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -210301,7 +210301,7 @@
         "goalId": "G4",
         "owner": "talent",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "title": "feature-recruit routes native execution",
         "scope": "Inventory feature-recruit routes. Port one bounded recruit/talent read/command to Rust domain/application/adapters/http with real SQL execution and prepare the exact deletion packet.",
         "workflowIds": [],
@@ -210317,21 +210317,21 @@
           "route:recruit"
         ],
         "nextAction": "Port one fully-native feature-recruit operation with Rust SQL execution and prepare its deletion packet.",
-        "claim": {
-          "runId": "run-20261126-g",
-          "agentId": "exec-recruit",
-          "claimedAt": "2026-11-26T10:50:05.918Z",
-          "heartbeatAt": "2026-11-26T10:53:31.757Z",
-          "expiresAt": "2026-11-26T11:23:31.757Z",
-          "generation": 184
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "Recovery: run-20261126-g lease expired because the scheduled heartbeat did not fire; wave-3 code committed at 539935933 and composition mounts are staged; no active workers; resume to record wave-3 evidence and run cutover wave.",
+        "handoff": {
+          "runId": "run-20261126-g",
+          "agentId": "exec-recruit",
+          "at": "2026-11-26T11:25:33.089Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-20261126-g lease expired because the scheduled heartbeat did not fire; wave-3 code committed at 539935933 and composition mounts are staged; no active workers; resume to record wave-3 evidence and run cutover wave.",
+          "nextAction": "Port one fully-native feature-recruit operation with Rust SQL execution and prepare its deletion packet."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -210339,7 +210339,7 @@
         "goalId": "G4",
         "owner": "finance",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "title": "feature-finance routes native execution",
         "scope": "Inventory the feature-finance route package. Port one bounded finance read/command to Rust domain/application/adapters/http with real SQL execution and prepare the exact deletion packet.",
         "workflowIds": [],
@@ -210355,13 +210355,512 @@
           "route:finance-feature"
         ],
         "nextAction": "Port one fully-native feature-finance operation with Rust SQL execution and prepare its deletion packet.",
-        "claim": {
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "Recovery: run-20261126-g lease expired because the scheduled heartbeat did not fire; wave-3 code committed at 539935933 and composition mounts are staged; no active workers; resume to record wave-3 evidence and run cutover wave.",
+        "handoff": {
           "runId": "run-20261126-g",
           "agentId": "exec-finance-feature",
-          "claimedAt": "2026-11-26T10:50:06.068Z",
-          "heartbeatAt": "2026-11-26T10:53:31.757Z",
-          "expiresAt": "2026-11-26T11:23:31.757Z",
-          "generation": 184
+          "at": "2026-11-26T11:25:33.089Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: run-20261126-g lease expired because the scheduled heartbeat did not fire; wave-3 code committed at 539935933 and composition mounts are staged; no active workers; resume to record wave-3 evidence and run cutover wave.",
+          "nextAction": "Port one fully-native feature-finance operation with Rust SQL execution and prepare its deletion packet."
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "cut.assets.register",
+        "goalId": "G4",
+        "owner": "assets",
+        "kind": "migration",
+        "status": "in_progress",
+        "title": "Cut over asset register read",
+        "scope": "Delete the shared assets GET route, app re-exports and TS register authority now that the native owner read is mounted. Repoint the native-assets client. No SQL and no composition edits.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-assets/src/**",
+          "packages/server-assets/src/adapters/**",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/assets/**",
+          "apps/assets/src/app/api/v1/holdings/[holdingSlug]/assets/**",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/assets/**"
+        ],
+        "resources": [
+          "workplace:assets",
+          "route:assets-register"
+        ],
+        "nextAction": "Delete TS assets GET authority and routes; keep native POST; switch callers; report exact diff.",
+        "claim": {
+          "runId": "run-20261126-h",
+          "agentId": "cut-assets",
+          "claimedAt": "2026-11-26T11:26:37.569Z",
+          "heartbeatAt": "2026-11-26T11:27:48.175Z",
+          "expiresAt": "2026-11-26T11:57:48.175Z",
+          "generation": 185
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "cut.crm.history",
+        "goalId": "G4",
+        "owner": "crm",
+        "kind": "migration",
+        "status": "in_progress",
+        "title": "Cut over CRM case-event history",
+        "scope": "Delete the CRM history GET branch, app re-exports and TS history authority now that the native owner read is mounted. Rewire callers to the native transport. No SQL and no composition edits.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-crm/src/**",
+          "packages/server-crm/src/adapters/**",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/sales/**",
+          "apps/sales/src/app/api/v1/holdings/[holdingSlug]/crm/**",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/crm/**"
+        ],
+        "resources": [
+          "workplace:crm",
+          "route:crm-history"
+        ],
+        "nextAction": "Delete TS CRM history authority and GET branches; switch callers to native; report exact diff.",
+        "claim": {
+          "runId": "run-20261126-h",
+          "agentId": "cut-crm",
+          "claimedAt": "2026-11-26T11:26:37.717Z",
+          "heartbeatAt": "2026-11-26T11:27:48.175Z",
+          "expiresAt": "2026-11-26T11:57:48.175Z",
+          "generation": 185
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "cut.finance.charts",
+        "goalId": "G4",
+        "owner": "finance",
+        "kind": "migration",
+        "status": "in_progress",
+        "title": "Cut over finance chart list",
+        "scope": "Delete the residual TS listCharts authority and remaining chart consumers after the native chart-list read is mounted. Rewire callers; do not touch other finance operations. No SQL and no composition edits.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-finance/src/**",
+          "packages/server-finance/src/adapters/**",
+          "packages/server-finance/src/application/**",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/finance/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/**",
+          "apps/finance/src/app/api/v1/holdings/[holdingSlug]/finance/**",
+          "apps/sales/src/app/api/v1/holdings/[holdingSlug]/finance/**",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/finance/**"
+        ],
+        "resources": [
+          "workplace:finance",
+          "route:finance-charts"
+        ],
+        "nextAction": "Delete residual TS listCharts authority and chart branches; switch callers to native; report exact diff.",
+        "claim": {
+          "runId": "run-20261126-h",
+          "agentId": "cut-finance",
+          "claimedAt": "2026-11-26T11:26:38.437Z",
+          "heartbeatAt": "2026-11-26T11:27:48.175Z",
+          "expiresAt": "2026-11-26T11:57:48.175Z",
+          "generation": 185
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "cut.legal.rule-impact",
+        "goalId": "G4",
+        "owner": "legal",
+        "kind": "migration",
+        "status": "in_progress",
+        "title": "Cut over legal rule impact",
+        "scope": "Delete the legal rule-impact GET branch, TS authority, source template/oracle entry and UNPORTED_READS entry now that the native owner read is mounted. Rewire callers. No SQL and no composition edits.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-legal/src/**",
+          "packages/server-legal/src/adapters/**",
+          "packages/server-legal/src/application/**",
+          "packages/server-legal/src/domain/**",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/legal/**",
+          "apps/legal/src/app/api/v1/holdings/[holdingSlug]/legal/**",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/legal/**"
+        ],
+        "resources": [
+          "workplace:legal",
+          "route:legal-rule-impact"
+        ],
+        "nextAction": "Delete TS rule-impact authority and route branch; switch callers to native; report exact diff.",
+        "claim": {
+          "runId": "run-20261126-h",
+          "agentId": "cut-legal",
+          "claimedAt": "2026-11-26T11:26:38.755Z",
+          "heartbeatAt": "2026-11-26T11:27:48.175Z",
+          "expiresAt": "2026-11-26T11:57:48.175Z",
+          "generation": 185
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "cut.manufacturing.production",
+        "goalId": "G4",
+        "owner": "manufacturing",
+        "kind": "migration",
+        "status": "in_progress",
+        "title": "Cut over manufacturing production profiles",
+        "scope": "Delete the TS production-profile authority, route branch and app re-exports now that the native owner read is mounted. Rewire callers to the native transport. No SQL and no composition edits.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-manufacturing/src/**",
+          "packages/server-manufacturing/src/adapters/**",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/manufacturing/**",
+          "apps/manufacturing/src/app/api/v1/holdings/[holdingSlug]/manufacturing/**",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/manufacturing/**"
+        ],
+        "resources": [
+          "workplace:manufacturing",
+          "route:manufacturing-production"
+        ],
+        "nextAction": "Delete TS production-profile read authority and route branches; switch callers to native; report exact diff.",
+        "claim": {
+          "runId": "run-20261126-h",
+          "agentId": "cut-manufacturing",
+          "claimedAt": "2026-11-26T11:26:37.279Z",
+          "heartbeatAt": "2026-11-26T11:27:48.175Z",
+          "expiresAt": "2026-11-26T11:57:48.175Z",
+          "generation": 185
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": {
+          "runId": "run-20261126-h",
+          "agentId": "cut-manufacturing",
+          "at": "2026-11-26T11:26:32.340Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Delete TS production-profile read authority and route branches; switch callers to native; report exact diff."
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "cut.marketing.public-form",
+        "goalId": "G4",
+        "owner": "marketing",
+        "kind": "migration",
+        "status": "in_progress",
+        "title": "Cut over public marketing form source",
+        "scope": "Switch the public form GET/POST source read to the native transport and delete the TS source authority and app re-exports now that the native owner read is mounted. Rewire SSR caller. No SQL and no composition edits.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-forms/src/**",
+          "packages/server-marketing/src/adapters/**",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/forms/**",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/marketing/**",
+          "apps/forms/src/app/api/**",
+          "apps/compat/src/app/api/public/marketing/**"
+        ],
+        "resources": [
+          "workplace:marketing",
+          "route:marketing-public-form"
+        ],
+        "nextAction": "Switch public form source to native, delete TS authority and re-exports; report exact diff.",
+        "claim": {
+          "runId": "run-20261126-h",
+          "agentId": "cut-marketing",
+          "claimedAt": "2026-11-26T11:26:38.908Z",
+          "heartbeatAt": "2026-11-26T11:27:48.175Z",
+          "expiresAt": "2026-11-26T11:57:48.175Z",
+          "generation": 185
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "cut.people.payroll",
+        "goalId": "G4",
+        "owner": "people_payroll",
+        "kind": "migration",
+        "status": "in_progress",
+        "title": "Cut over people list and pay-group options",
+        "scope": "Delete the people-directory GET route/re-exports and TS authority, and the pay-group options catch-all branch, now that both native owner reads are mounted. Rewire callers. No SQL and no composition edits.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-people/src/**",
+          "packages/feature-people_payroll/src/**",
+          "packages/server-people_payroll/src/adapters/**",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/people/**",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/people/**",
+          "apps/people/src/app/api/v1/holdings/[holdingSlug]/people/**",
+          "apps/people/src/app/api/v1/holdings/[holdingSlug]/people-payroll/**",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/people/**"
+        ],
+        "resources": [
+          "workplace:people",
+          "route:people-payroll"
+        ],
+        "nextAction": "Delete TS people-list/pay-group authority and routes; switch callers to native; report exact diff.",
+        "claim": {
+          "runId": "run-20261126-h",
+          "agentId": "cut-people",
+          "claimedAt": "2026-11-26T11:26:38.298Z",
+          "heartbeatAt": "2026-11-26T11:27:48.175Z",
+          "expiresAt": "2026-11-26T11:57:48.175Z",
+          "generation": 185
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "cut.portal.threads",
+        "goalId": "G4",
+        "owner": "portal",
+        "kind": "migration",
+        "status": "in_progress",
+        "title": "Cut over portal support threads",
+        "scope": "Delete the portal tickets GET branch, app re-exports and TS thread authority now that the native owner read is mounted. Rewire SSR callers. No SQL and no composition edits.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-portal/src/**",
+          "packages/server-customer_authority/src/adapters/**",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/portal/**",
+          "apps/portal/src/app/api/v1/holdings/[holdingSlug]/portal/**",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/portal/**"
+        ],
+        "resources": [
+          "workplace:portal",
+          "route:portal-threads"
+        ],
+        "nextAction": "Delete TS portal thread authority and routes; switch callers to native; report exact diff.",
+        "claim": {
+          "runId": "run-20261126-h",
+          "agentId": "cut-portal",
+          "claimedAt": "2026-11-26T11:26:38.014Z",
+          "heartbeatAt": "2026-11-26T11:27:48.175Z",
+          "expiresAt": "2026-11-26T11:57:48.175Z",
+          "generation": 185
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "cut.pos.room-charges",
+        "goalId": "G4",
+        "owner": "pos",
+        "kind": "migration",
+        "status": "in_progress",
+        "title": "Cut over POS room-charge reversals",
+        "scope": "Delete the POS/front room-charge GET branches and TS authority now that the native owner read is mounted. Rewire callers to the native transport. No SQL and no composition edits.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-pos/src/**",
+          "packages/server-pos/src/adapters/**",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/pos/**",
+          "apps/pos/src/app/api/v1/holdings/[holdingSlug]/pos/**",
+          "apps/finance/src/app/api/v1/holdings/[holdingSlug]/pos/**",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/pos/**"
+        ],
+        "resources": [
+          "workplace:pos",
+          "route:pos-room-charges"
+        ],
+        "nextAction": "Delete TS room-charge authority and route branches; switch callers to native; report exact diff.",
+        "claim": {
+          "runId": "run-20261126-h",
+          "agentId": "cut-pos",
+          "claimedAt": "2026-11-26T11:26:38.158Z",
+          "heartbeatAt": "2026-11-26T11:27:48.175Z",
+          "expiresAt": "2026-11-26T11:57:48.175Z",
+          "generation": 185
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "cut.projects.handoffs",
+        "goalId": "G4",
+        "owner": "projects",
+        "kind": "migration",
+        "status": "in_progress",
+        "title": "Cut over project handoffs",
+        "scope": "Delete the TS handoff authority and route branches now that the native owner read is mounted. Rewire structure-screen callers to the native transport. No SQL and no composition edits.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-projects/src/**",
+          "packages/server-projects/src/adapters/**",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/structure/**",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/projects/**",
+          "apps/projects/src/app/api/v1/holdings/[holdingSlug]/projects/**",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/projects/**"
+        ],
+        "resources": [
+          "workplace:projects",
+          "route:projects-handoffs"
+        ],
+        "nextAction": "Delete TS handoff read authority and route branches; switch callers to native; report exact diff.",
+        "claim": {
+          "runId": "run-20261126-h",
+          "agentId": "cut-projects",
+          "claimedAt": "2026-11-26T11:26:37.425Z",
+          "heartbeatAt": "2026-11-26T11:27:48.175Z",
+          "expiresAt": "2026-11-26T11:57:48.175Z",
+          "generation": 185
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "cut.supply.bill-policy",
+        "goalId": "G4",
+        "owner": "procurement",
+        "kind": "migration",
+        "status": "in_progress",
+        "title": "Cut over supplier-bill policy read",
+        "scope": "Delete the supplier-bill policy GET branch, TS authority and re-export now that the native owner read is mounted. Rewire presenters. Keep POST native command. No SQL and no composition edits.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-supply/src/**",
+          "packages/server-procurement/src/adapters/**",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/supply/**",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/commerce/**",
+          "apps/supply/src/app/api/v1/holdings/[holdingSlug]/supply/**",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/supply/**"
+        ],
+        "resources": [
+          "workplace:supply",
+          "route:supply-bill-policy"
+        ],
+        "nextAction": "Delete TS policy authority and GET branch; switch callers to native; report exact diff.",
+        "claim": {
+          "runId": "run-20261126-h",
+          "agentId": "cut-supply",
+          "claimedAt": "2026-11-26T11:26:38.600Z",
+          "heartbeatAt": "2026-11-26T11:27:48.175Z",
+          "expiresAt": "2026-11-26T11:57:48.175Z",
+          "generation": 185
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "cut.support.sla",
+        "goalId": "G4",
+        "owner": "support",
+        "kind": "migration",
+        "status": "in_progress",
+        "title": "Cut over support SLA workspace",
+        "scope": "Delete the SLA route GET/re-exports and TS SLA authority now that the native owner read is mounted. Rewire callers. No SQL and no composition edits.",
+        "workflowIds": [],
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "packages/feature-support/src/**",
+          "packages/server-support/src/adapters/**",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/support/**",
+          "apps/support/src/app/api/v1/holdings/[holdingSlug]/support/**",
+          "apps/compat/src/app/api/v1/holdings/[holdingSlug]/support/**"
+        ],
+        "resources": [
+          "workplace:support",
+          "route:support-sla"
+        ],
+        "nextAction": "Delete TS SLA authority and routes; switch callers to native; report exact diff.",
+        "claim": {
+          "runId": "run-20261126-h",
+          "agentId": "cut-support",
+          "claimedAt": "2026-11-26T11:26:37.867Z",
+          "heartbeatAt": "2026-11-26T11:27:48.175Z",
+          "expiresAt": "2026-11-26T11:57:48.175Z",
+          "generation": 185
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -210379,21 +210878,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 2375,
+      "totalPackets": 2387,
       "migratedPackets": 369,
       "statusCounts": {
         "pending": 21,
-        "in_progress": 8,
+        "in_progress": 12,
         "ready_for_integration": 60,
         "integrating": 0,
         "migrated": 369,
-        "blocked": 1915,
+        "blocked": 1923,
         "deferred": 2,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 184,
-    "updatedAt": "2026-11-26T10:53:31.761Z",
+    "lastCoordinatorGeneration": 185,
+    "updatedAt": "2026-11-26T11:27:48.182Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
@@ -210428,10 +210927,10 @@
       }
     },
     "lastRecovery": {
-      "previousRunId": "run-20261126-f",
-      "runId": "run-20261126-g",
-      "at": "2026-11-26T10:46:48.803Z",
-      "reason": "run-20261126-f lease expired because its heartbeat automation did not fire; no active claims or worker processes; wave-2 code is committed/pushed at bb19c9728; resume coordination to record ready-for-integration evidence.",
+      "previousRunId": "run-20261126-g",
+      "runId": "run-20261126-h",
+      "at": "2026-11-26T11:25:33.090Z",
+      "reason": "run-20261126-g lease expired because the scheduled heartbeat did not fire; wave-3 code committed at 539935933 and composition mounts are staged; no active workers; resume to record wave-3 evidence and run cutover wave.",
       "wipReviewed": true,
       "previousRunStopped": true
     },

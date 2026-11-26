@@ -1038,5 +1038,131 @@ pub fn mount(
         ).map_err(|_| "PRIVATE_API_RECORDS_LANE35_OWNER_SCOPE_INVALID")?,
     );
 
+    // Marketing: active public form source read.
+    router = router.merge(
+        erpx_server_marketing::public::public_form_source::router_for_holdings(
+            config
+                .holdings
+                .iter()
+                .enumerate()
+                .map(|(i, holding)| {
+                    (
+                        erpx_server_marketing::public::public_form_source::PublicFormTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                        },
+                        pools[i + 1].clone(),
+                    )
+                })
+                .collect(),
+        )
+        .map_err(|_| "PRIVATE_API_MARKETING_PUBLIC_FORM_INVALID")?,
+    );
+
+    // PMS: import batch list read.
+    router = router.merge(
+        erpx_server_pms::public::import_batches::router_for_holdings(
+            config
+                .holdings
+                .iter()
+                .enumerate()
+                .map(|(i, holding)| {
+                    (
+                        erpx_server_pms::public::import_batches::ImportBatchTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                        },
+                        pools[i + 1].clone(),
+                    )
+                })
+                .collect(),
+        )
+        .map_err(|_| "PRIVATE_API_PMS_IMPORT_BATCHES_INVALID")?,
+    );
+
+    // People & Payroll: people-directory list read.
+    router = router.merge(
+        erpx_server_people_payroll::public::native_people_list::router_for_holdings(
+            config
+                .holdings
+                .iter()
+                .enumerate()
+                .map(|(i, holding)| {
+                    (
+                        erpx_server_people_payroll::public::native_people_list::PeopleListTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                        },
+                        pools[i + 1].clone(),
+                    )
+                })
+                .collect(),
+        )
+        .map_err(|_| "PRIVATE_API_PEOPLE_LIST_INVALID")?,
+    );
+
+    // Talent: application detail read.
+    router = router.merge(
+        erpx_server_talent::public::native_talent_detail::router_for_holdings(
+            config
+                .holdings
+                .iter()
+                .enumerate()
+                .map(|(i, holding)| {
+                    (
+                        erpx_server_talent::public::native_talent_detail::TalentDetailTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                        },
+                        pools[i + 1].clone(),
+                    )
+                })
+                .collect(),
+        )
+        .map_err(|_| "PRIVATE_API_TALENT_DETAIL_INVALID")?,
+    );
+
+    // Finance lane 6: chart-list read.
+    router = router.merge(
+        erpx_server_finance::public::native_lane_6::router_for_holdings(
+            config
+                .holdings
+                .iter()
+                .enumerate()
+                .map(|(i, holding)| {
+                    (
+                        erpx_server_finance::public::native_lane_6::LaneTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                        },
+                        pools[i + 1].clone(),
+                    )
+                })
+                .collect(),
+        )
+        .map_err(|_| "PRIVATE_API_FINANCE_LANE6_INVALID")?,
+    );
+
+    // Legal: rule-impact read.
+    router = router.merge(
+        erpx_server_legal::public::native_rule_impact::router_for_holdings(
+            config
+                .holdings
+                .iter()
+                .enumerate()
+                .map(|(i, holding)| {
+                    (
+                        erpx_server_legal::public::native_rule_impact::RuleImpactTarget {
+                            host: holding.host.clone(),
+                            holding_slug: holding.registration.slug.clone(),
+                        },
+                        pools[i + 1].clone(),
+                    )
+                })
+                .collect(),
+        )
+        .map_err(|_| "PRIVATE_API_LEGAL_RULE_IMPACT_INVALID")?,
+    );
+
     Ok(router)
 }
